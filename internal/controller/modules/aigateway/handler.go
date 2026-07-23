@@ -46,18 +46,24 @@ var (
 	sourcePathByPlatform = map[common.Platform]string{
 		cluster.OpenDataHub:      "overlays/odh",
 		cluster.SelfManagedRhoai: "overlays/rhoai",
+		cluster.XKS:              "overlays/rhoai",
 	}
 
 	// relatedImages are the operand images the ai-gateway-operator passes to
-	// the sub-module (batch-gateway-operator) deployments it creates; injected as
-	// RELATED_IMAGE_* env vars on the ai-g ateway-operator container.
-	// TODO: append more for maas images.
+	// the sub-module (batch-gateway-operator, maas-controller) deployments it creates;
+	// injected as RELATED_IMAGE_* env vars on the ai-gateway-operator container.
 	relatedImages = []string{
+		// Batch Gateway images
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_OPERATOR_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_APISERVER_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_ASYNC_IMAGE",
+		// MaaS images
+		"RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE",
+		"RELATED_IMAGE_ODH_MAAS_API_IMAGE",
+		"RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE",
+		"RELATED_IMAGE_UBI_MINIMAL_IMAGE",
 	}
 )
 
@@ -75,10 +81,42 @@ func NewHandler() *handler {
 				ContextDir:           "manifests/ai-gateway-operator",
 				SourcePathByPlatform: sourcePathByPlatform,
 				ControllerImage:      controllerImage,
-				InitContainerName:    initContainerName, // use same controller image for initContainer
+				InitContainerName:    initContainerName,
 				RelatedImages:        relatedImages,
-				DeploymentName:       deploymentName, // different name need to set explicltiy
+				DeploymentName:       deploymentName,
 				GVK:                  gvk.AIGateway,
+				SubmoduleConditions: []modules.SubmoduleCondition{
+					{
+						SourceConditionType: "ModelsAsAServiceReady",
+						DSCConditionType:    "ModelsAsAServiceReady",
+						StatusFieldName:     "ModelsAsAService",
+						IsEnabled: func(p *modules.PlatformContext) bool {
+							if p == nil || p.DSC == nil {
+								return false
+							}
+							dsc := p.DSC.Spec.Components
+							if dsc.AIGateway.ModelsAsAService.ManagementState != "" {
+								return dsc.AIGateway.ModelsAsAService.ManagementState == operatorv1.Managed
+							}
+							// Deprecated: fall back to kserve.modelsAsService for
+							// users who haven't migrated their DSC to the explicit
+							// aigateway block yet.
+							return dsc.Kserve.ManagementState == operatorv1.Managed &&
+								dsc.Kserve.ModelsAsService.ManagementState == operatorv1.Managed //nolint:staticcheck
+						},
+					},
+					{
+						SourceConditionType: "BatchGatewayReady",
+						DSCConditionType:    "BatchGatewayReady",
+						StatusFieldName:     "BatchGateway",
+						IsEnabled: func(p *modules.PlatformContext) bool {
+							if p == nil || p.DSC == nil {
+								return false
+							}
+							return p.DSC.Spec.Components.AIGateway.BatchGateway.ManagementState == operatorv1.Managed
+						},
+					},
+				},
 			},
 		},
 	}
@@ -88,9 +126,18 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform == nil {
 		return false
 	}
-	// Openshift
+	// OpenShift
 	if platform.DSC != nil {
-		return platform.DSC.Spec.Components.AIGateway.ManagementState == operatorv1.Managed
+		dsc := platform.DSC.Spec.Components
+		// If aigateway.managementState is explicitly set, it is the master switch.
+		if dsc.AIGateway.ManagementState != "" {
+			return dsc.AIGateway.ManagementState == operatorv1.Managed
+		}
+		// Deprecated: respect kserve.modelsAsService for 3.4→3.5 upgrade compatibility.
+		// Users who have not yet migrated their DSC will still get MaaS deployed.
+		// TODO: remove this fallback when kserve.modelsAsService is removed from the CRD schema.
+		return dsc.Kserve.ManagementState == operatorv1.Managed &&
+			dsc.Kserve.ModelsAsService.ManagementState == operatorv1.Managed //nolint:staticcheck
 	}
 	// xkS
 	if platform.Platform != nil {
@@ -116,17 +163,26 @@ func (h *handler) BuildModuleCR(
 
 	switch {
 	case platform.DSC != nil:
+		dscComponents := platform.DSC.Spec.Components
+		commonSpec := dscComponents.AIGateway.AIGatewayCommonSpec.DeepCopy()
+
+		// Deprecated: if modelsAsAService is not set but kserve.modelsAsService is,
+		// populate modelsAsAService so AGO knows to deploy MaaS.
+		// TODO: remove this fallback when kserve.modelsAsService is removed from the CRD schema.
+		if commonSpec.ModelsAsAService.ManagementState == "" &&
+			dscComponents.Kserve.ManagementState == operatorv1.Managed {
+			commonSpec.ModelsAsAService.ManagementState = dscComponents.Kserve.ModelsAsService.ManagementState //nolint:staticcheck
+		}
+
 		var err error
-		spec, err = runtime.DefaultUnstructuredConverter.ToUnstructured(
-			&platform.DSC.Spec.Components.AIGateway.AIGatewayCommonSpec,
-		)
+		spec, err = runtime.DefaultUnstructuredConverter.ToUnstructured(commonSpec)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert AIGatewayCommonSpec to unstructured: %w", err)
 		}
 	case platform.Platform != nil:
-		spec = map[string]any{
-			"managementState": string(platform.Platform.Spec.Modules.AIGateway.ManagementState),
-		}
+		// On xKS the Helm chart creates the AIGateway CR; the operator
+		// only needs to deploy the ai-gateway-operator via manifests.
+		return nil, nil
 	default:
 		return nil, errors.New("neither DSC CR nor Platform CR exists, cannot build AIGateway CR")
 	}

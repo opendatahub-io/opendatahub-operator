@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
+	aigateway "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 )
@@ -41,6 +41,12 @@ func CleanupPreviousTestResources(t *testing.T) {
 	// If we delete the namespace directly, Kubernetes terminates the pod before the finalizer
 	// can be processed, leaving the namespace stuck in Terminating. Strip the finalizer first.
 	cleanupMaaSControllerFinalizer(t, tc)
+
+	// KServe deploys cluster-scoped webhook configurations (with failurePolicy: Fail) that
+	// reference services inside the applications namespace. If the namespace is deleted first,
+	// the services are gone but the webhooks remain, blocking any resource validation and
+	// leaving the namespace stuck in Terminating.
+	cleanupKserveWebhookConfigurations(t, tc)
 
 	// Delete the entire applications namespace - this removes all component resources at once
 	// (AuthConfig, ResourceQuotas, Kueue resources, etc.) and the operator will recreate as needed
@@ -181,13 +187,66 @@ func cleanupMaaSControllerFinalizer(t *testing.T, tc *TestContext) {
 	t.Log("Removing maas-controller cleanup finalizer (if present)")
 	tc.DeleteResource(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
-			Name:      modelsasservice.MaasControllerDeploymentName,
+			Name:      aigateway.MaaSControllerDeploymentName,
 			Namespace: tc.AppsNamespace,
 		}),
 		WithIgnoreNotFound(true),
 		WithRemoveFinalizersOnDelete(true),
 		WithWaitForDeletion(false),
 	)
+}
+
+func cleanupKserveWebhookConfigurations(t *testing.T, tc *TestContext) {
+	t.Helper()
+
+	t.Log("Removing KServe webhook configurations that block namespace deletion")
+	webhooks := []struct {
+		gvk  schema.GroupVersionKind
+		name string
+	}{
+		{gvk.MutatingWebhookConfiguration, "llminferenceservice.serving.kserve.io"},
+		{gvk.ValidatingWebhookConfiguration, "llminferenceservice.serving.kserve.io"},
+		{gvk.ValidatingWebhookConfiguration, "llminferenceserviceconfig.serving.kserve.io"},
+		{gvk.MutatingWebhookConfiguration, "inferenceservice.serving.kserve.io"},
+		{gvk.ValidatingWebhookConfiguration, "inferenceservice.serving.kserve.io"},
+		{gvk.ValidatingWebhookConfiguration, "trainedmodel.serving.kserve.io"},
+		{gvk.ValidatingWebhookConfiguration, "inferencegraph.serving.kserve.io"},
+		{gvk.ValidatingWebhookConfiguration, "clusterservingruntime.serving.kserve.io"},
+		{gvk.ValidatingWebhookConfiguration, "servingruntime.serving.kserve.io"},
+		{gvk.ValidatingWebhookConfiguration, "localmodelcache.serving.kserve.io"},
+	}
+
+	for _, wh := range webhooks {
+		tc.DeleteResource(
+			WithMinimalObject(wh.gvk, types.NamespacedName{Name: wh.name}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	}
+
+	// Strip finalizers from LLMInferenceServiceConfig resources. The kserve
+	// controller that processes llmisvcconfig-finalizer is already gone at
+	// this point (its Deployment was deleted as part of kserve teardown), so
+	// these resources would be stuck in Terminating indefinitely.
+	// Uses individual DeleteResource calls because DeleteResources (bulk
+	// DeleteAllOf) does not honor WithRemoveFinalizersOnDelete.
+	t.Log("Stripping finalizers from LLMInferenceServiceConfig resources")
+	llmConfigs := tc.FetchResources(
+		WithMinimalObject(gvk.LLMInferenceServiceConfigV1Alpha2, types.NamespacedName{}),
+		WithListOptions(&client.ListOptions{Namespace: tc.AppsNamespace}),
+		WithAcceptableErr(meta.IsNoMatchError, "IsNoMatchError"),
+	)
+	for _, cfg := range llmConfigs {
+		tc.DeleteResource(
+			WithMinimalObject(gvk.LLMInferenceServiceConfigV1Alpha2, types.NamespacedName{
+				Namespace: cfg.GetNamespace(),
+				Name:      cfg.GetName(),
+			}),
+			WithIgnoreNotFound(true),
+			WithRemoveFinalizersOnDelete(true),
+			WithWaitForDeletion(false),
+		)
+	}
 }
 
 func cleanupGateSourceConfigMaps(t *testing.T, tc *TestContext) {

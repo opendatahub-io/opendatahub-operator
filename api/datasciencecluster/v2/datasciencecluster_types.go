@@ -79,6 +79,9 @@ type Components struct {
 
 	// AIGateway component configuration.
 	AIGateway componentApi.DSCAIGateway `json:"aigateway,omitempty"`
+
+	// MCPLifecycleOperator component configuration.
+	MCPLifecycleOperator componentApi.DSCMCPLifecycleOperator `json:"mcplifecycleoperator,omitempty"`
 }
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.
@@ -131,6 +134,15 @@ type ComponentsStatus struct {
 
 	// AIGateway component status.
 	AIGateway componentApi.DSCAIGatewayStatus `json:"aigateway,omitempty"`
+
+	// ModelsAsAService submodule status (submodule of AIGateway).
+	ModelsAsAService componentApi.DSCModelsAsServiceStatus `json:"modelsAsAService,omitempty"`
+
+	// BatchGateway submodule status (submodule of AIGateway).
+	BatchGateway componentApi.DSCBatchGatewayStatus `json:"batchGateway,omitempty"`
+
+	// MCPLifecycleOperator component status.
+	MCPLifecycleOperator componentApi.DSCMCPLifecycleOperatorStatus `json:"mcplifecycleoperator,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.

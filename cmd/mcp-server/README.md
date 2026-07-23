@@ -72,33 +72,6 @@ Check status of dependent operators (cert-manager, Tempo, OpenTelemetry, Kueue, 
 ]
 ```
 
-### describe_resource
-
-Get any Kubernetes resource by apiVersion/kind/name. Returns the full resource as JSON with sensitive data redacted (Secret `.data`, token fields).
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `apiVersion` | string | yes | | API version, e.g. `v1`, `apps/v1`, `datasciencecluster.opendatahub.io/v2` |
-| `kind` | string | yes | | Resource kind, e.g. `Pod`, `Deployment`, `DSCInitialization` |
-| `name` | string | yes | | Resource name |
-| `namespace` | string | no | | Namespace. Omit for cluster-scoped resources |
-
-```jsonc
-// Example call
-{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"describe_resource","arguments":{
-  "apiVersion":"dscinitialization.opendatahub.io/v2","kind":"DSCInitialization","name":"default-dsci"
-}}}
-
-// Example output (truncated)
-{
-  "apiVersion": "dscinitialization.opendatahub.io/v2",
-  "kind": "DSCInitialization",
-  "metadata": {"name": "default-dsci", "creationTimestamp": "2025-01-15T10:00:00Z", ...},
-  "spec": {"applicationsNamespace": "opendatahub", ...},
-  "status": {"phase": "Ready", "conditions": [...]}
-}
-```
-
 ### recent_events
 
 Warning/error events in ODH namespaces, sorted by last timestamp (most recent first). Auto-discovers ODH namespaces from DSCI if not specified.
@@ -183,40 +156,44 @@ Get detailed status of a specific ODH component: CR conditions, pod statuses, an
 }
 ```
 
-### pod_logs
+## Generic Kubernetes Tools (via OpenShift MCP Server)
 
-Retrieve recent logs for a specific pod/container. Returns plaintext (not JSON).
+The following tools are provided by the [OpenShift MCP server](https://github.com/openshift/openshift-mcp-server) (`openshift` server in `.mcp.json`), not the ODH server. They require Node.js (`npx`) or a downloaded binary — see **Client Configuration** below.
+
+> **Security note:** `resources_get` does not redact sensitive fields. Never call it with `kind=Secret`.
+
+### resources_get
+
+Fetch any Kubernetes resource by apiVersion/kind/name.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `apiVersion` | string | yes | e.g. `v1`, `apps/v1`, `datasciencecluster.opendatahub.io/v2` |
+| `kind` | string | yes | e.g. `Pod`, `Deployment`, `DSCInitialization` |
+| `name` | string | yes | Resource name |
+| `namespace` | string | no | Omit for cluster-scoped resources |
+
+### pods_log
+
+Retrieve recent logs for a specific pod/container. Returns plaintext.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `pod_name` | string | yes | | Name of the pod |
-| `namespace` | string | yes | | Namespace of the pod |
+| `name` | string | yes | | Name of the pod |
+| `namespace` | string | no | | Namespace of the pod |
 | `container` | string | no | default container | Container name |
 | `previous` | boolean | no | `false` | Return logs from the previous container instance |
-| `tail_lines` | number | no | `100` | Number of lines from the end of the log |
-
-```jsonc
-// Example call
-{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"pod_logs","arguments":{
-  "pod_name":"odh-dashboard-abc12","namespace":"opendatahub","tail_lines":10
-}}}
-```
-
-```text
-// Example output (plaintext, not JSON)
-2025-01-15T12:00:01Z INFO  Starting server on :8080
-2025-01-15T12:00:02Z INFO  Connected to database
-2025-01-15T12:00:03Z INFO  Health check passed
-...
-```
-
-Output is capped at 50KB. If exceeded, a `[truncated: output exceeded 50KB limit]` marker is appended.
+| `tail` | number | no | `100` | Number of lines from the end of the log |
 
 ## Client Configuration
 
+### Prerequisites
+
+The OpenShift MCP server (`resources_get`, `pods_log`) requires **Node.js** for the `npx` invocation. Alternatively, download a pre-built binary from the [releases page](https://github.com/openshift/openshift-mcp-server/releases) and replace `npx` with the binary path.
+
 ### Claude Code
 
-This repo includes a `.mcp.json` at the project root — no setup needed. The `/diagnose` skill is also pre-configured.
+This repo includes a `.mcp.json` at the project root — no setup needed. Both servers (`opendatahub-health` and `openshift`) are pre-configured. The `/diagnose` skill is also pre-configured.
 
 ### Claude Desktop
 
@@ -228,6 +205,13 @@ Add the following to your `claude_desktop_config.json`:
     "opendatahub-health": {
       "command": "bash",
       "args": ["-c", "cd /absolute/path/to/opendatahub-operator/cmd/mcp-server && go run ."],
+      "env": {
+        "KUBECONFIG": "/absolute/path/to/.kube/config"
+      }
+    },
+    "openshift": {
+      "command": "npx",
+      "args": ["-y", "kubernetes-mcp-server@0.0.63", "--read-only", "--toolsets", "core"],
       "env": {
         "KUBECONFIG": "/absolute/path/to/.kube/config"
       }
@@ -248,6 +232,13 @@ Create or edit `.cursor/mcp.json` in your project root:
     "opendatahub-health": {
       "command": "bash",
       "args": ["-c", "cd /absolute/path/to/opendatahub-operator/cmd/mcp-server && go run ."],
+      "env": {
+        "KUBECONFIG": "/absolute/path/to/.kube/config"
+      }
+    },
+    "openshift": {
+      "command": "npx",
+      "args": ["-y", "kubernetes-mcp-server@0.0.63", "--read-only", "--toolsets", "core"],
       "env": {
         "KUBECONFIG": "/absolute/path/to/.kube/config"
       }
@@ -281,7 +272,7 @@ Create or edit `.cursor/mcp.json` in your project root:
    - `oc get dsci default-dsci -o jsonpath='{.status.conditions}'` — is DSCI actually unhealthy?
    - `oc get events -n opendatahub --sort-by=.lastTimestamp` — do events match the agent's evidence?
 2. **Check if the component is set to Removed.** If the agent reports a component as failing but it has `managementState: Removed` in the DSC spec, that's expected — not a failure.
-3. **Low classifier confidence.** If `classify_failure` returns confidence `low` or category `unknown`, the failure may not match any known pattern. Check the [failure scenarios](scenarios/README.md) for similar patterns, or investigate manually with `pod_logs` and `recent_events`.
+3. **Low classifier confidence.** If `classify_failure` returns confidence `low` or category `unknown`, the failure may not match any known pattern. Check the [failure scenarios](scenarios/README.md) for similar patterns, or investigate manually with `pods_log` (OpenShift server) and `recent_events`.
 4. **Stale events.** Kubernetes events persist after resources are deleted. The agent may report an event-based issue for a pod that no longer exists. Verify the referenced resource still exists before acting on the diagnosis.
 
 ## Integration Testing

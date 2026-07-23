@@ -32,8 +32,6 @@ spec:
           value: 'true'
         - name: RHAI_DISABLE_MODELREGISTRY_COMPONENT
           value: 'true'
-        - name: RHAI_DISABLE_MODELSASSERVICE_COMPONENT
-          value: 'true'
         - name: RHAI_DISABLE_RAY_COMPONENT
           value: 'true'
         - name: RHAI_DISABLE_SPARKOPERATOR_COMPONENT

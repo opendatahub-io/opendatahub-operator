@@ -98,6 +98,8 @@ func CleanupExistingResource(ctx context.Context,
 	multiErr = multierror.Append(multiErr, cleanupDeprecatedKueueVAPB(ctx, cli))
 	// cleanup legacy "odh" OAuthClient from RHOAI 3.3
 	multiErr = multierror.Append(multiErr, cleanupLegacyOAuthClient(ctx, cli))
+	// cleanup deprecated RStudio BuildConfigs and ImageStreams from RHOAI 3.4 (RHAIENG-5327)
+	multiErr = multierror.Append(multiErr, cleanupDeprecatedRStudioResources(ctx, cli, applicationNS))
 
 	// HardwareProfile migration as described in RHOAIENG-33158 and RHOAIENG-33159
 	// This includes creating HardwareProfile resources and updating annotations on Notebooks and InferenceServices
@@ -320,9 +322,9 @@ func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, appl
 	// 3. Attach HardwareProfile annotations to existing Notebooks
 	multiErr = multierror.Append(multiErr, AttachHardwareProfileToNotebooks(ctx, cli, applicationNS, odhConfig))
 
-	// 4. Attach HardwareProfile annotations to existing InferenceServices but create custom-serving HWP first.
+	// 4. Create custom-serving HardwareProfile used by kserve-module for ISVC annotation migration.
+	// Note: AttachHardwareProfileToInferenceServices has been moved to kserve-module (RHOAIENG-63833).
 	multiErr = multierror.Append(multiErr, createCustomServingHardwareProfile(ctx, cli, applicationNS))
-	multiErr = multierror.Append(multiErr, AttachHardwareProfileToInferenceServices(ctx, cli, applicationNS, odhConfig))
 
 	return multiErr.ErrorOrNil()
 }

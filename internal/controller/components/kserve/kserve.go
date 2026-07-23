@@ -8,12 +8,14 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -83,8 +85,18 @@ func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSe
 	return nil
 }
 
+var _ cr.InstanceNamer = (*componentHandler)(nil)
+
 func (s *componentHandler) GetName() string {
 	return componentName
+}
+
+func (s *componentHandler) GetInstanceName() string {
+	return componentApi.KserveInstanceName
+}
+
+func (s *componentHandler) GetInstanceGVK() schema.GroupVersionKind {
+	return componentApi.GroupVersion.WithKind(componentApi.KserveKind)
 }
 
 // for DSC to get component Kserve's CR.

@@ -17,15 +17,20 @@ limitations under the License.
 package v1
 
 import (
+	"encoding/json"
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"sigs.k8s.io/controller-runtime/pkg/conversion"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	"sigs.k8s.io/controller-runtime/pkg/conversion"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
+
+var log = logf.Log.WithName("datasciencecluster-v1-conversion")
 
 const (
 	LegacyDataScienceComponentName   = "data-science-pipelines-operator"
@@ -138,7 +143,40 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 					ManagementState: operatorv1.Removed,
 				},
 			},
+			AIGateway: componentApi.DSCAIGateway{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
 		},
+	}
+
+	// kserve.modelsAsService is intentionally NOT cleared here.
+	// ConvertTo preserves the value the v1 client wrote for fidelity. CEL allows
+	// Managed→Removed cleanup after the user has migrated to aigateway.modelsAsAService;
+	// Removed→Managed remains blocked. The field is pruned from the CRD schema in 3.7.
+
+	// Step 1: restore from stash if present, to preserve v2-only sub-component state
+	// (e.g. BatchGateway) that v1 cannot represent natively.
+	if stashed, ok := c.GetAnnotations()[annotations.AIGatewayConversionState]; ok {
+		var aigateway componentApi.DSCAIGateway
+		if err := json.Unmarshal([]byte(stashed), &aigateway); err != nil {
+			log.Error(err, "failed to restore AIGateway state from conversion annotation, using MaaS migration fallback")
+		} else {
+			dst.Spec.Components.AIGateway = aigateway
+		}
+		// Always remove the internal annotation from the hub object, even if unmarshal
+		// failed — the annotation must not leak onto the v2 object.
+		delete(dst.Annotations, annotations.AIGatewayConversionState)
+	}
+
+	// Step 2: migrate kserve.modelsAsService → aigateway.modelsAsAService.
+	// Runs after stash restoration so the migration wins over stale stash state.
+	// A user explicitly setting kserve.modelsAsService=Managed via the v1 API must
+	// always result in aigateway.modelsAsAService=Managed in v2.
+	dst.Spec.Components.AIGateway.ModelsAsAService = c.Spec.Components.Kserve.ModelsAsService
+	if c.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed {
+		dst.Spec.Components.AIGateway.ManagementState = operatorv1.Managed
 	}
 
 	// Convert status with field renaming: DataSciencePipelines -> AIPipelines
@@ -183,6 +221,26 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 					ManagementState: operatorv1.Removed,
 				},
 			},
+			AIGateway: componentApi.DSCAIGatewayStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
+			BatchGateway: componentApi.DSCBatchGatewayStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
+			ModelsAsAService: componentApi.DSCModelsAsServiceStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
+			MCPLifecycleOperator: componentApi.DSCMCPLifecycleOperatorStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
 		},
 		Release: c.Status.Release,
 	}
@@ -196,12 +254,39 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 
 	c.ObjectMeta = src.ObjectMeta
 
+	// Stash full AIGateway spec in an annotation so ConvertTo can restore it on
+	// round-trip. This preserves sub-component state (e.g. BatchGateway) that v1
+	// cannot represent natively. If marshalling fails, log and continue without
+	// stashing — conversion must never be blocked by a best-effort annotation.
+	if stashed, err := json.Marshal(src.Spec.Components.AIGateway); err != nil {
+		log.Error(err, "failed to stash AIGateway state in conversion annotation, round-trip may lose sub-component state")
+	} else {
+		ann := c.GetAnnotations()
+		if ann == nil {
+			ann = make(map[string]string)
+		}
+		ann[annotations.AIGatewayConversionState] = string(stashed)
+		c.SetAnnotations(ann)
+	}
+
+	// When converting v2->v1, mirror aigateway.modelsAsAService back into kserve.modelsAsService
+	// so v1 clients see the MaaS configuration in the familiar v1 field.
+	// Fallback: if aigateway.modelsAsAService is not yet set (3.4→3.5 backward-compat path
+	// where only kserve.modelsAsService is populated), keep the stored kserve.modelsAsService
+	// so the CEL transition rule's oldSelf reflects the actual value (prevents "no such key:
+	// managementState" on v1 API writes when aigateway.modelsAsAService has no managementState).
+	v1Kserve := src.Spec.Components.Kserve
+	if src.Spec.Components.AIGateway.ModelsAsAService.ManagementState != "" {
+		v1Kserve.ModelsAsService = src.Spec.Components.AIGateway.ModelsAsAService
+	}
+	// else: v1Kserve.ModelsAsService already preserved from src.Spec.Components.Kserve above
+
 	c.Spec = DataScienceClusterSpec{
 		Components: Components{
 			Dashboard:            src.Spec.Components.Dashboard,
 			Workbenches:          src.Spec.Components.Workbenches,
 			DataSciencePipelines: src.Spec.Components.AIPipelines,
-			Kserve:               src.Spec.Components.Kserve,
+			Kserve:               v1Kserve,
 			Kueue: DSCKueueV1{
 				KueueManagementSpecV1: KueueManagementSpecV1{
 					ManagementState: src.Spec.Components.Kueue.ManagementState,

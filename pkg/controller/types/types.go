@@ -25,8 +25,9 @@ import (
 
 // ModuleEnvInjection holds aggregated environment variable injection data
 // for all enabled modules. Set by provisionModules and consumed by the
-// injectModuleEnv action to inject RELATED_IMAGE_* and APPLICATIONS_NAMESPACE
-// env vars into module operator Deployments.
+// injectModuleEnv action to inject RELATED_IMAGE_*, APPLICATIONS_NAMESPACE,
+// MONITORING_NAMESPACE and platform identity env vars into module operator
+// Deployments.
 type ModuleEnvInjection struct {
 	// PerModuleImages maps each module's related images to its chart/manifest
 	// resources. Each entry's images are only injected into Deployments
@@ -34,6 +35,13 @@ type ModuleEnvInjection struct {
 	PerModuleImages []ModuleImages
 	// ApplicationsNamespace is the platform's shared application namespace.
 	ApplicationsNamespace string
+	// MonitoringNamespace is the platform's monitoring namespace. "" when
+	// monitoring is not configured or DSCI not exist (e.g xks).
+	MonitoringNamespace string
+	// PlatformType is the platform identifier (e.g. OpenDataHub,
+	// SelfManagedRHOAI, XKS). Forwarded to module operators so they
+	// can select platform-specific manifests without auto-detecting.
+	PlatformType common.Platform
 }
 
 // ModuleImages associates a module's related images with a deployment name
@@ -53,6 +61,8 @@ type ModuleImages struct {
 	InitContainerName string
 	// Images is the list of RELATED_IMAGE_* env var names for this module.
 	Images []string
+	// ExtraEnv is a fixed set of env vars injected directly into the target Deployment.
+	ExtraEnv map[string]string
 }
 
 // Controller defines the core interface for a controller in the OpenDataHub Operator.

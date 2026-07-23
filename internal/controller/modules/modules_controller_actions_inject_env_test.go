@@ -7,6 +7,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
 	. "github.com/onsi/gomega"
@@ -255,6 +256,64 @@ func TestInjectModuleEnvOverridesExistingVars(t *testing.T) {
 	g.Expect(envNames(env)).Should(ContainElement(applicationsNamespaceEnv))
 }
 
+func TestInjectModuleEnvReplacesValueFrom(t *testing.T) {
+	g := NewWithT(t)
+
+	dep := makeDeployment("ogx-operator",
+		map[string]any{
+			"name": "ODH_MODULE_OPERATOR_NAMESPACE",
+			"valueFrom": map[string]any{
+				"fieldRef": map[string]any{"fieldPath": "metadata.namespace"},
+			},
+		},
+		map[string]any{
+			"name": applicationsNamespaceEnv,
+			"valueFrom": map[string]any{
+				"fieldRef": map[string]any{"fieldPath": "metadata.namespace"},
+			},
+		},
+	)
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "ogx-operator",
+			}},
+			ApplicationsNamespace: "opendatahub",
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	env := getContainerEnv(&rr.Resources[0])
+
+	// APPLICATIONS_NAMESPACE should have value set and valueFrom removed
+	for _, e := range env {
+		em, ok := e.(map[string]any)
+		if !ok {
+			continue
+		}
+		if em["name"] == applicationsNamespaceEnv {
+			g.Expect(em["value"]).Should(Equal("opendatahub"))
+			g.Expect(em).ShouldNot(HaveKey("valueFrom"))
+		}
+	}
+
+	// ODH_MODULE_OPERATOR_NAMESPACE should be untouched (not injected by the action)
+	for _, e := range env {
+		em, ok := e.(map[string]any)
+		if !ok {
+			continue
+		}
+		if em["name"] == "ODH_MODULE_OPERATOR_NAMESPACE" {
+			g.Expect(em).Should(HaveKey("valueFrom"))
+			g.Expect(em).ShouldNot(HaveKey("value"))
+		}
+	}
+}
+
 func TestInjectModuleEnvScopesPerModule(t *testing.T) {
 	g := NewWithT(t)
 
@@ -347,7 +406,7 @@ func TestInjectModuleEnvTargetsManagerContainer(t *testing.T) {
 		Should(Equal("registry.example.com/sidecar:latest"))
 }
 
-func TestInjectModuleEnvEmptyNamespace(t *testing.T) {
+func TestInjectModuleEnvEmptyApplicationNamespace(t *testing.T) {
 	g := NewWithT(t)
 
 	dep := makeDeployment("my-operator")
@@ -364,6 +423,105 @@ func TestInjectModuleEnvEmptyNamespace(t *testing.T) {
 
 	env := getContainerEnv(&rr.Resources[0])
 	g.Expect(env).Should(BeNil())
+}
+
+func TestInjectModuleEnvMonitoringNamespace(t *testing.T) {
+	g := NewWithT(t)
+
+	dep := makeDeployment("my-operator")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "my-operator",
+			}},
+			ApplicationsNamespace: "opendatahub",
+			MonitoringNamespace:   "odh-monitoring",
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	env := getContainerEnv(&rr.Resources[0])
+	g.Expect(envNames(env)).Should(ConsistOf(
+		applicationsNamespaceEnv,
+		monitoringNamespaceEnv,
+	))
+	g.Expect(envValue(env, monitoringNamespaceEnv)).Should(Equal("odh-monitoring"))
+}
+
+func TestInjectModuleEnvEmptyMonitoringNamespace(t *testing.T) {
+	g := NewWithT(t)
+
+	dep := makeDeployment("my-operator")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "my-operator",
+			}},
+			ApplicationsNamespace: "opendatahub",
+			MonitoringNamespace:   "",
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	env := getContainerEnv(&rr.Resources[0])
+	g.Expect(envNames(env)).Should(ConsistOf(applicationsNamespaceEnv))
+	g.Expect(envNames(env)).ShouldNot(ContainElement(monitoringNamespaceEnv))
+}
+
+func TestInjectModuleEnvPlatformType(t *testing.T) {
+	g := NewWithT(t)
+
+	dep := makeDeployment("my-operator")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "my-operator",
+			}},
+			ApplicationsNamespace: "opendatahub",
+			PlatformType:          common.Platform("XKS"),
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	env := getContainerEnv(&rr.Resources[0])
+	g.Expect(envNames(env)).Should(ContainElement(platformTypeEnv))
+	g.Expect(envValue(env, platformTypeEnv)).Should(Equal("XKS"))
+}
+
+func TestInjectModuleEnvEmptyPlatformType(t *testing.T) {
+	g := NewWithT(t)
+
+	dep := makeDeployment("my-operator")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "my-operator",
+			}},
+			ApplicationsNamespace: "opendatahub",
+			PlatformType:          "",
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	env := getContainerEnv(&rr.Resources[0])
+	g.Expect(envNames(env)).Should(ConsistOf(applicationsNamespaceEnv))
+	g.Expect(envNames(env)).ShouldNot(ContainElement(platformTypeEnv))
 }
 
 func TestInjectControllerImage(t *testing.T) {
@@ -540,4 +698,28 @@ func TestInjectEmptyInitContainerName(t *testing.T) {
 		Should(Equal("registry.example.com/module-ctrl@sha256:abc123"))
 	g.Expect(getInitContainerImage(&rr.Resources[0], "copy-manifests")).
 		Should(Equal("registry.example.com/module:latest"))
+}
+
+func TestInjectExtraEnv(t *testing.T) {
+	g := NewWithT(t)
+
+	dep := makeDeployment("module-operator")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "module-operator",
+				ExtraEnv: map[string]string{
+					"ENABLE_MLFLOW_OPERATOR_MODULE_CONTROLLER": "true",
+				},
+			}},
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	env := getContainerEnv(&rr.Resources[0])
+	g.Expect(envValue(env, "ENABLE_MLFLOW_OPERATOR_MODULE_CONTROLLER")).Should(Equal("true"))
 }

@@ -186,6 +186,59 @@ func TestReverseBatches(t *testing.T) {
 	assert.Equal(t, []string{"infra"}, batchNames(batches)[2])
 }
 
+func TestReverseBatches_ExcludesDisabled(t *testing.T) {
+	t.Parallel()
+
+	r := newRegistry()
+	r.Add("infra", provision.KindComponent, dag.RL(0))
+	r.Add("core", provision.KindModule, dag.RL(20))
+	r.Add("ext", provision.KindComponent, dag.RL(30))
+	r.Disable("core")
+
+	batches, err := r.ReverseBatches()
+	require.NoError(t, err)
+	require.Len(t, batches, 2)
+
+	assert.Equal(t, []string{"ext"}, batchNames(batches)[0])
+	assert.Equal(t, []string{"infra"}, batchNames(batches)[1])
+}
+
+func TestReverseBatchesAll_IncludesDisabled(t *testing.T) {
+	t.Parallel()
+
+	r := newRegistry()
+	r.Add("infra", provision.KindComponent, dag.RL(0))
+	r.Add("core", provision.KindModule, dag.RL(20))
+	r.Add("ext", provision.KindComponent, dag.RL(30))
+	r.Disable("core")
+
+	batches, err := r.ReverseBatchesAll()
+	require.NoError(t, err)
+	require.Len(t, batches, 3, "disabled nodes must be included for cleanup")
+
+	assert.Equal(t, []string{"ext"}, batchNames(batches)[0])
+	assert.Equal(t, []string{"core"}, batchNames(batches)[1])
+	assert.Equal(t, []string{"infra"}, batchNames(batches)[2])
+}
+
+func TestReverseBatchesAll_PreservesOrder(t *testing.T) {
+	t.Parallel()
+
+	r := newRegistry()
+	r.Add("alpha", provision.KindComponent, dag.RL(10))
+	r.Add("beta", provision.KindModule, dag.RL(10))
+	r.Add("gamma", provision.KindComponent, dag.RL(30))
+	r.Disable("alpha")
+	r.Disable("gamma")
+
+	batches, err := r.ReverseBatchesAll()
+	require.NoError(t, err)
+	require.Len(t, batches, 2)
+
+	assert.Equal(t, []string{"gamma"}, batchNames(batches)[0])
+	assert.ElementsMatch(t, []string{"alpha", "beta"}, batchNames(batches)[1])
+}
+
 func TestResolvedBatches_GranularRunlevelMixedTypes(t *testing.T) {
 	t.Parallel()
 

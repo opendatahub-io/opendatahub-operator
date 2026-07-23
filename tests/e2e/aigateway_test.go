@@ -41,7 +41,6 @@ func aiGatewayTestSuite(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Smoke, Tier1)
 
-			// DSC has no "AIGatewayReady" condition, the test is only to check if the AIGateway CR and its deployment exist
 			if !tc.IsXKS() {
 				tc.EventuallyResourcePatched(
 					WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -57,8 +56,11 @@ func aiGatewayTestSuite(t *testing.T) {
 				WithCondition(jq.Match(`.spec.components.aigateway.managementState == "Managed"`)),
 			)
 
+			// Removing then re-enabling requires a full AGO re-deploy (image pull included);
+			// use the long timeout to accommodate slower environments.
 			tc.EnsureResourceExists(
 				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 				WithCondition(And(
 					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
@@ -67,7 +69,172 @@ func aiGatewayTestSuite(t *testing.T) {
 
 			tc.EnsureResourceExists(
 				WithMinimalObject(gvk.Deployment, controllerNN),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 				WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeModulesReady, metav1.ConditionTrue)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.AIGatewayKind, metav1.ConditionTrue)),
+				WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to True", componentApi.AIGatewayKind),
+			)
+		}},
+		{"Validate env var injection", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			// The platform injects APPLICATIONS_NAMESPACE into every module operator
+			// deployment unconditionally. Verify it's present with the correct value.
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Deployment, controllerNN),
+				WithCondition(jq.Match(
+					`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "APPLICATIONS_NAMESPACE") | .value == "%s"`,
+					tc.AppsNamespace,
+				)),
+				WithCustomErrorMsg("ai-gateway-operator Deployment should have APPLICATIONS_NAMESPACE=%s injected", tc.AppsNamespace),
+			)
+		}},
+		{"Validate releases mirrored to DSC", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			// Module CR should have releases populated by the module operator.
+			tc.EnsureResourceExists(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.releases | length > 0`)),
+				WithCustomErrorMsg("AIGateway module CR should have releases in status"),
+			)
+
+			// DSC should mirror the module CR's releases.
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.components.aigateway.releases | length > 0`)),
+				WithCustomErrorMsg("DSC status.components.aigateway.releases should be mirrored from module CR"),
+			)
+		}},
+		{"Validate module CR deletion recovery", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			// Ensure AIGateway is enabled before attempting deletion.
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.Transform(`.spec.components.aigateway.managementState = "Managed"`)),
+				WithCondition(jq.Match(`.spec.components.aigateway.managementState == "Managed"`)),
+			)
+
+			// EnsureResourceDeletedThenRecreated handles the full delete→recreation cycle:
+			// captures original UID, deletes, waits for deletion acknowledgment, then waits
+			// for the platform reconciler to recreate with a new UID.
+			tc.EnsureResourceDeletedThenRecreated(WithMinimalObject(moduleGVK, moduleCRNN))
+
+			// Verify DSC recovers after recreation.
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.AIGatewayKind, metav1.ConditionTrue)),
+				WithCustomErrorMsg("DSC AIGatewayReady should recover to True after module CR recreation"),
+			)
+		}},
+		{"Validate submodule conditions with mixed enablement", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.Transform(`.spec.components.aigateway.managementState = "Managed"`)),
+				WithCondition(jq.Match(`.spec.components.aigateway.managementState == "Managed"`)),
+			)
+
+			// Enable BatchGateway, disable ModelsAsAService.
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.TransformPipeline(
+					testf.Transform(`.spec.components.aigateway.batchGateway.managementState = "Managed"`),
+					testf.Transform(`.spec.components.aigateway.modelsAsAService.managementState = "Removed"`),
+				)),
+				WithCondition(And(
+					jq.Match(`.spec.components.aigateway.batchGateway.managementState == "Managed"`),
+					jq.Match(`.spec.components.aigateway.modelsAsAService.managementState == "Removed"`),
+				)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
+			)
+
+			// ModelsAsAServiceReady should be False/Removed since the submodule is disabled.
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "ModelsAsAServiceReady") | .status == "False"`),
+					jq.Match(`.status.conditions[] | select(.type == "ModelsAsAServiceReady") | .reason == "%s"`, status.RemovedReason),
+				)),
+				WithCustomErrorMsg("DSC ModelsAsAServiceReady should be False/Removed when submodule is disabled"),
+			)
+
+			// BatchGatewayReady should exist on the DSC (mirrored from the module CR).
+			// The condition may be True if the operator has reported it, or False/AwaitingReadiness
+			// if the operator hasn't reported yet — either way, it must be present.
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "BatchGatewayReady") | .type == "BatchGatewayReady"`)),
+				WithCustomErrorMsg("DSC BatchGatewayReady condition should be present when submodule is Managed"),
+			)
+
+			// Verify DSC status.components reflects the correct managementState for each submodule.
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(And(
+					jq.Match(`.status.components.modelsAsAService.managementState == "Removed"`),
+					jq.Match(`.status.components.batchGateway.managementState == "Managed"`),
+					jq.Match(`.status.components.aigateway.managementState == "Managed"`),
+				)),
+				WithCustomErrorMsg("DSC status.components should reflect submodule managementState"),
+			)
+		}},
+		{"Validate submodule conditions when parent disabled", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.Transform(`.spec.components.aigateway.managementState = "Removed"`)),
+				WithCondition(jq.Match(`.spec.components.aigateway.managementState == "Removed"`)),
+			)
+
+			// When parent module is Removed, all submodule conditions must also show Removed.
+			// Cleanup must complete (CR finalizer + operator scale-down) before ComputeModulesStatus
+			// updates the DSC conditions, so use the long timeout.
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "ModelsAsAServiceReady") | .status == "False"`),
+					jq.Match(`.status.conditions[] | select(.type == "ModelsAsAServiceReady") | .reason == "%s"`, status.RemovedReason),
+					jq.Match(`.status.conditions[] | select(.type == "BatchGatewayReady") | .status == "False"`),
+					jq.Match(`.status.conditions[] | select(.type == "BatchGatewayReady") | .reason == "%s"`, status.RemovedReason),
+				)),
+				WithCustomErrorMsg("All submodule conditions should show Removed when parent AIGateway is disabled"),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.components.aigateway.managementState == "Removed"`)),
+				WithCustomErrorMsg("DSC status.components.aigateway should show Removed"),
 			)
 		}},
 		{"Validate component disabled", func(t *testing.T) {
@@ -82,6 +249,15 @@ func aiGatewayTestSuite(t *testing.T) {
 
 			tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
 			tc.EnsureResourceGone(WithMinimalObject(gvk.Deployment, controllerNN))
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.AIGatewayKind, metav1.ConditionFalse),
+					jq.Match(`.status.conditions[] | select(.type == "%sReady") | .reason == "%s"`, componentApi.AIGatewayKind, status.RemovedReason),
+				)),
+				WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to False/Removed", componentApi.AIGatewayKind),
+			)
 		}},
 	}
 

@@ -1,4 +1,4 @@
-module github.com/opendatahub-io/opendatahub-operator/v2/pkg/failureclassifier
+module github.com/opendatahub-io/opendatahub-operator/pkg/failureclassifier
 
 go 1.25.7
 

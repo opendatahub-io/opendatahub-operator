@@ -249,6 +249,57 @@ func TestDataScienceClusterV1_ValidatingWebhook(t *testing.T) {
 	}
 }
 
+// TestDataScienceClusterV1_ModelsAsServiceDeprecationWarning verifies that the v1 validating
+// webhook emits an admission warning when spec.components.kserve.modelsAsService is Managed.
+func TestDataScienceClusterV1_ModelsAsServiceDeprecationWarning(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	gvr := metav1.GroupVersionResource{
+		Group:    gvk.DataScienceClusterV1.Group,
+		Version:  gvk.DataScienceClusterV1.Version,
+		Resource: "datascienceclusters",
+	}
+
+	withModelsAsService := func(state operatorv1.ManagementState) func(*dscv1.DataScienceCluster) {
+		return func(dsc *dscv1.DataScienceCluster) {
+			//nolint:staticcheck // SA1019: testing deprecated field warning
+			dsc.Spec.Components.Kserve.ModelsAsService.ManagementState = state
+		}
+	}
+
+	sch, err := scheme.New()
+	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
+	cli, err := fakeclient.New(fakeclient.WithObjects(envtestutil.NewDSCIV1("dsci-for-dsc")), fakeclient.WithScheme(sch))
+	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
+	validator := &v1webhook.Validator{
+		Client:  cli,
+		Name:    "test-v1",
+		Decoder: admission.NewDecoder(sch),
+	}
+
+	t.Run("No warning when modelsAsService is Removed", func(t *testing.T) {
+		t.Parallel()
+		g := NewWithT(t)
+		req := envtestutil.NewAdmissionRequest(t, admissionv1.Create,
+			envtestutil.NewDSCV1("test", withModelsAsService(operatorv1.Removed)), gvk.DataScienceClusterV1, gvr)
+		resp := validator.Handle(ctx, req)
+		g.Expect(resp.Allowed).To(BeTrue())
+		g.Expect(resp.Warnings).To(BeEmpty())
+	})
+
+	t.Run("Warns on create when modelsAsService is Managed", func(t *testing.T) {
+		t.Parallel()
+		g := NewWithT(t)
+		req := envtestutil.NewAdmissionRequest(t, admissionv1.Create,
+			envtestutil.NewDSCV1("test", withModelsAsService(operatorv1.Managed)), gvk.DataScienceClusterV1, gvr)
+		resp := validator.Handle(ctx, req)
+		g.Expect(resp.Allowed).To(BeTrue())
+		g.Expect(resp.Warnings).To(HaveLen(1))
+		g.Expect(resp.Warnings[0]).To(ContainSubstring("spec.components.kserve.modelsAsService is deprecated"))
+	})
+}
+
 // TestDataScienceClusterV1_ValidatingWebhook_AllV2OnlyComponents ensures webhook coverage for ALL v2-only components.
 // This test dynamically iterates over all v2-only components (discovered via reflection) and verifies
 // that the webhook blocks v1 API updates when any of them is Managed. This provides a safety net

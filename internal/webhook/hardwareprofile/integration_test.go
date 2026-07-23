@@ -632,6 +632,7 @@ func TestHardwareProfileWebhook_Notebook(t *testing.T) {
 
 // TestHardwareProfileWebhook_LlmInferenceService for the mutating webhook logic for hardware profile injection on LlmInferenceService workloads.
 func TestHardwareProfileWebhook_LlmInferenceService(t *testing.T) {
+	t.Skip("HWP injection for LLMInferenceService migrated to odh-model-controller (RHOAIENG-62536)")
 	t.Parallel()
 
 	testCases := []struct {
@@ -721,6 +722,7 @@ func TestHardwareProfileWebhook_LlmInferenceService(t *testing.T) {
 
 // TestHardwareProfileWebhook_InferenceService for the mutating webhook logic for hardware profile injection on InferenceService workloads.
 func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
+	t.Skip("HWP injection for InferenceService migrated to odh-model-controller (RHOAIENG-62536)")
 	t.Parallel()
 	testCases := []struct {
 		name string

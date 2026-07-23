@@ -13,11 +13,15 @@ import (
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-const applicationsNamespaceEnv = "APPLICATIONS_NAMESPACE"
+const (
+	applicationsNamespaceEnv = "APPLICATIONS_NAMESPACE"
+	monitoringNamespaceEnv   = "MONITORING_NAMESPACE"
+	platformTypeEnv          = "ODH_MODULE_OPERATOR_PLATFORM_TYPE"
+)
 
 // injectModuleEnv is a pipeline action that runs after Helm/Kustomize rendering
 // and before deploy. It mutates Deployment resources in rr.Resources to inject
-// RELATED_IMAGE_* and APPLICATIONS_NAMESPACE environment variables into the
+// RELATED_IMAGE_*, APPLICATIONS_NAMESPACE and MONITORING_NAMESPACE environment variables into the
 // target container of each module operator Deployment. The target container name
 // defaults to "manager" and can be overridden per module via ContainerNamer. If
 // the target container is not found, injection is skipped with an error log.
@@ -124,8 +128,26 @@ func injectEnvVarsIntoDeployment(log logr.Logger, obj *unstructured.Unstructured
 			}
 		}
 
+		for name, value := range mi.ExtraEnv {
+			if setOrOverrideEnv(&existingEnv, name, value) {
+				injected++
+			}
+		}
+
 		if injection.ApplicationsNamespace != "" {
 			if setOrOverrideEnv(&existingEnv, applicationsNamespaceEnv, injection.ApplicationsNamespace) {
+				injected++
+			}
+		}
+
+		if injection.MonitoringNamespace != "" {
+			if setOrOverrideEnv(&existingEnv, monitoringNamespaceEnv, injection.MonitoringNamespace) {
+				injected++
+			}
+		}
+
+		if injection.PlatformType != "" {
+			if setOrOverrideEnv(&existingEnv, platformTypeEnv, string(injection.PlatformType)) {
 				injected++
 			}
 		}
@@ -156,10 +178,12 @@ func setOrOverrideEnv(envSlice *[]any, name, value string) bool {
 	for i, e := range *envSlice {
 		if em, ok := e.(map[string]any); ok {
 			if n, ok := em["name"].(string); ok && n == name {
-				if em["value"] == value {
+				_, hasValueFrom := em["valueFrom"]
+				if em["value"] == value && !hasValueFrom {
 					return false
 				}
 				em["value"] = value
+				delete(em, "valueFrom")
 				(*envSlice)[i] = em
 				return true
 			}

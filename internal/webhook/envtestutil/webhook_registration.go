@@ -7,8 +7,6 @@ import (
 	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	monitoringwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/monitoring"
 	notebookwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/notebook"
-	servingwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/serving"
-	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
 // RegisterWebhooks registers hardware profile and connection webhooks for integration testing.
@@ -31,32 +29,6 @@ func RegisterWebhooks(mgr manager.Manager) error {
 		Name:    "hardwareprofile-injector",
 	}
 	if err := hardwareProfileInjector.SetupWithManager(mgr); err != nil {
-		return err
-	}
-
-	// Register Connection webhook for InferenceService
-	isvcConnectionWebhook := &servingwebhook.ISVCConnectionWebhook{
-		Webhook: webhookutils.BaseServingConnectionWebhook{
-			Client:    mgr.GetClient(),
-			APIReader: mgr.GetAPIReader(),
-			Decoder:   admission.NewDecoder(mgr.GetScheme()),
-			Name:      "connection-isvc",
-		},
-	}
-	if err := isvcConnectionWebhook.SetupWithManager(mgr); err != nil {
-		return err
-	}
-
-	// Register Connection webhook for LLMInferenceService
-	llmisvcConnectionWebhook := &servingwebhook.LLMISVCConnectionWebhook{
-		Webhook: webhookutils.BaseServingConnectionWebhook{
-			Client:    mgr.GetClient(),
-			APIReader: mgr.GetAPIReader(),
-			Decoder:   admission.NewDecoder(mgr.GetScheme()),
-			Name:      "connection-llmisvc",
-		},
-	}
-	if err := llmisvcConnectionWebhook.SetupWithManager(mgr); err != nil {
 		return err
 	}
 
