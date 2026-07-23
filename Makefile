@@ -261,9 +261,6 @@ ifneq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	@$(CONTROLLER_GEN) rbac:roleName=controller-manager-role paths="$(manifests-paths)" output:rbac:artifacts:config=config/rbac
 endif
 	@$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="$(manifests-paths)" output:crd:artifacts:config=$(CONFIG_DIR)/crd/bases output:rbac:artifacts:config=$(CONFIG_DIR)/rbac output:webhook:artifacts:config=$(CONFIG_DIR)/webhook
-	@# FeastOperator CRD is owned by the feast-module-operator (v1); remove the
-	@# in-tree v1alpha1 stub so the ODH operator does not deploy a conflicting CRD.
-	@rm -f $(CONFIG_DIR)/crd/bases/components.platform.opendatahub.io_feastoperators.yaml
 	@$(call add-crd-to-kustomization,$(CONFIG_DIR)/crd/bases)
 	@$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	@$(call fetch-external-crds,github.com/openshift/api,user/v1)

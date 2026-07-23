@@ -9,13 +9,13 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
 const (
@@ -38,11 +38,7 @@ func NewHandler() *handler {
 				ChartDir:          chartDir,
 				NamespaceValueKey: "namespace",
 				ControllerImage:   "RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE",
-				GVK: schema.GroupVersionKind{
-					Group:   "components.platform.opendatahub.io",
-					Version: "v1",
-					Kind:    componentApi.FeastOperatorKind,
-				},
+				GVK:               gvk.FeastOperator,
 				RelatedImages: []string{
 					"RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE",
 					"RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE",

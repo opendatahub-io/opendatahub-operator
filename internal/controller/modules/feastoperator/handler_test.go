@@ -97,7 +97,7 @@ func TestBuildModuleCR_NonOIDCCluster(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u.GetName()).Should(Equal(componentApi.FeastOperatorInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(componentApi.FeastOperatorKind))
-	g.Expect(u.GetAPIVersion()).Should(Equal("components.platform.opendatahub.io/v1"))
+	g.Expect(u.GetAPIVersion()).Should(Equal("components.platform.opendatahub.io/v1alpha1"))
 }
 
 func TestBuildModuleCR_OIDCIssuerProjected(t *testing.T) {
@@ -185,7 +185,7 @@ func TestGetGVK(t *testing.T) {
 	h := feastoperator.NewHandler()
 	gvk := h.GetGVK()
 	g.Expect(gvk.Group).Should(Equal("components.platform.opendatahub.io"))
-	g.Expect(gvk.Version).Should(Equal("v1"))
+	g.Expect(gvk.Version).Should(Equal("v1alpha1"))
 	g.Expect(gvk.Kind).Should(Equal("FeastOperator"))
 }
 

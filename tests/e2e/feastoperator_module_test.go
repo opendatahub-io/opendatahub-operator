@@ -8,11 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 
@@ -30,11 +28,7 @@ const (
 	feastOperatorDeploymentName   = "feast-operator-controller-manager"
 )
 
-var feastModuleCRGVK = schema.GroupVersionKind{
-	Group:   "components.platform.opendatahub.io",
-	Version: "v1",
-	Kind:    "FeastOperator",
-}
+var feastModuleCRGVK = gvk.FeastOperator
 
 type FeastModuleTestCtx struct {
 	*TestContext
@@ -48,12 +42,6 @@ func feastModuleTestSuite(t *testing.T) {
 
 	ctx := FeastModuleTestCtx{TestContext: baseCtx}
 
-	g := NewWithT(t)
-	g.Eventually(func() bool {
-		return ctx.isFeastModuleDeployment(t)
-	}).WithTimeout(3*time.Minute).WithPolling(5*time.Second).Should(BeTrue(),
-		"FeastOperator CRD does not serve v1; feast is deployed via the in-tree operator, not the module operator")
-
 	testCases := []TestCase{
 		{"Validate upgrade from in-tree: selector migration", ctx.ValidateUpgradeSelectorMigration},
 		{"Validate module operator deployed", ctx.ValidateModuleOperatorDeployed},
@@ -65,37 +53,6 @@ func feastModuleTestSuite(t *testing.T) {
 	}
 
 	RunTestCases(t, testCases)
-}
-
-// isFeastModuleDeployment checks whether the FeastOperator CRD on the cluster
-// serves v1 (module operator path) as opposed to only v1alpha1 (in-tree path).
-func (ctx *FeastModuleTestCtx) isFeastModuleDeployment(t *testing.T) bool {
-	t.Helper()
-
-	crd := &apiextv1.CustomResourceDefinition{}
-	err := ctx.Client().Get(context.Background(), types.NamespacedName{
-		Name: "feastoperators.components.platform.opendatahub.io",
-	}, crd)
-	if err != nil {
-		t.Logf("Failed to fetch FeastOperator CRD: %v", err)
-		return false
-	}
-
-	for _, v := range crd.Spec.Versions {
-		if v.Name == feastModuleCRGVK.Version && v.Served {
-			return true
-		}
-	}
-
-	servedVersions := make([]string, 0, len(crd.Spec.Versions))
-	for _, v := range crd.Spec.Versions {
-		if v.Served {
-			servedVersions = append(servedVersions, v.Name)
-		}
-	}
-	t.Logf("FeastOperator CRD found but does not serve %s; served versions: %v", feastModuleCRGVK.Version, servedVersions)
-
-	return false
 }
 
 // ValidateModuleOperatorDeployed checks that the opendatahub-feast-operator
@@ -119,7 +76,7 @@ func (ctx *FeastModuleTestCtx) ValidateModuleOperatorDeployed(t *testing.T) {
 		Should(Succeed(), "module operator Deployment should be available")
 }
 
-// ValidateModuleCRCreated checks that the FeastOperator CR (v1) was created
+// ValidateModuleCRCreated checks that the FeastOperator CR (v1alpha1) was created
 // by the platform's provisionModules action.
 func (ctx *FeastModuleTestCtx) ValidateModuleCRCreated(t *testing.T) {
 	t.Helper()

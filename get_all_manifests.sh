@@ -72,7 +72,7 @@ declare -A ODH_CCM_CHARTS=(
 # ODH Component Charts
 declare -A ODH_COMPONENT_CHARTS=(
     ["workbenches"]="opendatahub-io:workbenches-operator:main@5ee7fd8fb5aa155b3f5756e72b3f8e9d50693ba8:charts/operator"
-    ["feastoperator"]="opendatahub-io:feast-module-operator:main@06e993afccea97a4f065fdc9f5a08b619facb0db:config/chart"
+    ["feastoperator"]="opendatahub-io:feast-module-operator:main@5d865144fc7ee0850ec8603cedaf3406d513bac9:config/chart"
 )
 
 # RHOAI CloudManager Charts
@@ -86,7 +86,7 @@ declare -A RHOAI_CCM_CHARTS=(
 # RHOAI Component Charts
 declare -A RHOAI_COMPONENT_CHARTS=(
     ["workbenches"]="red-hat-data-services:workbenches-operator:main@ca84e8752199b63ae3ea2affa8aa747214546f23:charts/operator"
-    ["feastoperator"]="red-hat-data-services:feast-module-operator:rhoai-3.5@330bc36a3da192ccfe04ebd8532749d1a355a583:config/chart"
+    ["feastoperator"]="red-hat-data-services:feast-module-operator:rhoai-3.5@7e1d0480b71428784752a1135627700f44140617:config/chart"
 )
 
 # merge_charts merges CCM and component charts into COMPONENT_CHARTS, failing on duplicate keys.
