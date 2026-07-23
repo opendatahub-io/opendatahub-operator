@@ -2532,11 +2532,12 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `aigateway` _[ManagementSpec](#managementspec)_ | AIGateway controls the ai-gateway-operator module lifecycle. |  |  |
-| `mlflowoperator` _[ManagementSpec](#managementspec)_ | MLflowOperator controls the MLflow module operator lifecycle. |  |  |
-| `monitoring` _[ManagementSpec](#managementspec)_ | Monitoring controls the monitoring module operator lifecycle. |  |  |
-| `mcplifecycleoperator` _[ManagementSpec](#managementspec)_ | MCPLifecycleOperator controls the MCP Lifecycle Operator module lifecycle. |  |  |
-| `kserve` _[ManagementSpec](#managementspec)_ | Kserve controls the kserve module operator lifecycle. |  |  |
+| `aigateway` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | AIGateway controls the ai-gateway-operator module lifecycle. |  |  |
+| `mlflowoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | MLflowOperator controls the MLflow module operator lifecycle. |  |  |
+| `monitoring` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Monitoring controls the monitoring module operator lifecycle. |  |  |
+| `mcplifecycleoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | MCPLifecycleOperator controls the MCP Lifecycle Operator module lifecycle. |  |  |
+| `kserve` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Kserve controls the kserve module operator lifecycle. |  |  |
+| `workbenches` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Workbenches controls the workbenches module operator lifecycle. |  |  |
 
 
 #### PlatformSpec
