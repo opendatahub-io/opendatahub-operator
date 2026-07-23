@@ -46,3 +46,9 @@ type DSCAIGatewayStatus struct {
 	common.ManagementSpec  `json:",inline"`
 	*AIGatewayCommonStatus `json:",inline"`
 }
+
+// DSCBatchGatewayStatus contains the observed state of the BatchGateway
+// submodule exposed in the DSC instance.
+type DSCBatchGatewayStatus struct {
+	common.ManagementSpec `json:",inline"`
+}

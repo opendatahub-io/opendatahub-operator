@@ -52,12 +52,16 @@ func kserveTestSuite(t *testing.T) {
 		WithEventuallyPollingInterval(ct.TestTimeouts.defaultEventuallyPollInterval),
 	}
 
+	if componentCtx.IsXKS() {
+		componentCtx.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Managed)
+		defer componentCtx.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Removed)
+	}
+
 	// Define test cases.
 	testCases := make([]TestCase, 0, 11)
 	testCases = append(testCases,
 		TestCase{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		TestCase{"Validate component spec", componentCtx.ValidateSpec},
-		TestCase{"Validate model controller", componentCtx.ValidateModelControllerInstance},
 		TestCase{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		TestCase{"Validate no Kserve FeatureTrackers", componentCtx.ValidateNoKserveFeatureTrackers},
 		TestCase{"Validate VAP created when kserve is enabled", componentCtx.ValidateS3SecretCheckBucketExist},
@@ -81,6 +85,7 @@ func kserveTestSuite(t *testing.T) {
 		TestCase{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	)
+
 	// Run the test suite.
 	RunTestCases(t, testCases)
 }
@@ -101,6 +106,11 @@ func kserveDegradedMonitoringTestSuite(t *testing.T) {
 	componentCtx.DefaultResourceOpts = []ResourceOpts{
 		WithEventuallyTimeout(ct.TestTimeouts.longEventuallyTimeout),
 		WithEventuallyPollingInterval(ct.TestTimeouts.defaultEventuallyPollInterval),
+	}
+
+	if componentCtx.IsXKS() {
+		componentCtx.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Managed)
+		defer componentCtx.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Removed)
 	}
 
 	testCases := []TestCase{
@@ -260,12 +270,13 @@ func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T
 	}
 }
 
-// ValidateComponentDisabled validates that KServe component is properly removed and all
-// LLMInferenceServiceConfig resources are cleaned up. It expands the base
-// ValidateComponentDisabled flow so that LLMInferenceServiceConfig checks run while the
-// webhook service is still alive (before the component CR is deleted). Checking after the
-// CR is gone would hit webhook connection errors because the conversion webhook service
-// is owned by the component CR and gets garbage-collected with it.
+// ValidateComponentDisabled validates that KServe component is properly removed while
+// LLMInferenceServiceConfig resources remain (managed by the module operator with finalizers).
+//
+// XKS ordering: delete the module CR first (while the module operator is still
+// alive to process its finalizer), wait for it to disappear, then set the
+// Platform CR to Removed so the platform operator cleans up the operator
+// deployment.
 func (tc *KserveTestCtx) ValidateComponentDisabled(t *testing.T) {
 	t.Helper()
 
@@ -273,19 +284,31 @@ func (tc *KserveTestCtx) ValidateComponentDisabled(t *testing.T) {
 
 	tc.EnsureResourcesExist(WithMinimalObject(tc.GVK, tc.NamespacedName))
 
-	tc.UpdateComponentState(operatorv1.Removed)
+	if tc.IsXKS() {
+		tc.DeleteResource(
+			WithMinimalObject(tc.GVK, types.NamespacedName{Name: componentApi.KserveInstanceName}),
+			WithWaitForDeletion(true),
+			WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
+		)
+
+		tc.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Removed)
+	} else {
+		tc.UpdateComponentState(operatorv1.Removed)
+
+		tc.EnsureResourcesGone(WithMinimalObject(tc.GVK, tc.NamespacedName))
+	}
 
 	for _, configGVK := range []schema.GroupVersionKind{
 		gvk.LLMInferenceServiceConfigV1Alpha1,
 		gvk.LLMInferenceServiceConfigV1Alpha2,
 	} {
-		tc.EnsureResourcesGone(
+		tc.EnsureResourcesExist(
 			WithMinimalObject(configGVK, types.NamespacedName{Namespace: tc.AppsNamespace}),
 			WithListOptions(&client.ListOptions{
 				Namespace: tc.AppsNamespace,
 			}),
 			WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
-			WithCustomErrorMsg("LLMInferenceServiceConfig %s resources should not remain after component removal", configGVK.Version),
+			WithCustomErrorMsg("LLMInferenceServiceConfig %s resources should remain after component removal (managed by module operator)", configGVK.Version),
 		)
 	}
 
@@ -301,8 +324,6 @@ func (tc *KserveTestCtx) ValidateComponentDisabled(t *testing.T) {
 		),
 		WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
 	)
-
-	tc.EnsureResourcesGone(WithMinimalObject(tc.GVK, tc.NamespacedName))
 }
 
 // ensureLWSBaseline clears LWS conditions, asserts Kserve component and DSC health.
@@ -460,7 +481,7 @@ func (tc *KserveTestCtx) runDegradedConditionTest(t *testing.T, testCase degrade
 		WithCondition(
 			And(
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionFalse),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionDependenciesAvailable, "PreConditionFailed"),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionDependenciesAvailable, "DependencyDegraded"),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`, status.ConditionDependenciesAvailable, gvk.LeaderWorkerSetOperatorV1.Kind),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`, status.ConditionDependenciesAvailable, testCase.conditionType),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`, status.ConditionDependenciesAvailable, "TestInjected"),
@@ -576,6 +597,11 @@ func kserveModelCacheTestSuite(t *testing.T) {
 
 	componentCtx := KserveTestCtx{
 		ComponentTestCtx: ct,
+	}
+
+	if componentCtx.IsXKS() {
+		componentCtx.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Managed)
+		defer componentCtx.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Removed)
 	}
 
 	testCases := []TestCase{

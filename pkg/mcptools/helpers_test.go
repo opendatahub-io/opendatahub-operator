@@ -1,4 +1,4 @@
-package main
+package mcptools
 
 import (
 	"context"
@@ -42,15 +42,15 @@ func TestSplitTrimmed(t *testing.T) {
 }
 
 func TestGetEnvDefault(t *testing.T) {
-	got := getEnvDefault("MCP_TEST_NONEXISTENT_VAR_XYZ", "fallback-val")
+	got := GetEnvDefault("MCP_TEST_NONEXISTENT_VAR_XYZ", "fallback-val")
 	if got != "fallback-val" {
-		t.Errorf("getEnvDefault(unset) = %q, want %q", got, "fallback-val")
+		t.Errorf("GetEnvDefault(unset) = %q, want %q", got, "fallback-val")
 	}
 
 	t.Setenv("MCP_TEST_HELPER_VAR", "  from-env  ")
-	got = getEnvDefault("MCP_TEST_HELPER_VAR", "fallback")
+	got = GetEnvDefault("MCP_TEST_HELPER_VAR", "fallback")
 	if got != "from-env" {
-		t.Errorf("getEnvDefault(set) = %q, want %q", got, "from-env")
+		t.Errorf("GetEnvDefault(set) = %q, want %q", got, "from-env")
 	}
 }
 
@@ -143,8 +143,8 @@ func TestDiscoverAppsNamespace(t *testing.T) {
 		wantErrIs error
 	}{
 		{"DSCI with custom namespace", newDSCI("custom-apps"), nil, "", "custom-apps", false, nil},
-		{"DSCI with empty field", newDSCI(""), nil, "", defaultAppsNS, false, nil},
-		{"no DSCI falls back to default", nil, nil, "", defaultAppsNS, false, nil},
+		{"DSCI with empty field", newDSCI(""), nil, "", DefaultAppsNS, false, nil},
+		{"no DSCI falls back to default", nil, nil, "", DefaultAppsNS, false, nil},
 		{"no DSCI uses env var", nil, nil, "env-apps", "env-apps", false, nil},
 		{"DSCI takes precedence over env", newDSCI("dsci-apps"), nil, "env-apps", "dsci-apps", false, nil},
 		{"RBAC forbidden ignores env var", nil, newForbiddenClient(), "env-apps", "", true, ErrDSCIRBACInsufficient},
@@ -152,7 +152,7 @@ func TestDiscoverAppsNamespace(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv(envApplicationsNamespace, tt.env)
+			t.Setenv(EnvApplicationsNamespace, tt.env)
 			c := tt.client
 			if c == nil {
 				c = fakeClient(tt.dsci)
@@ -178,12 +178,12 @@ func TestDiscoverOperatorNamespace(t *testing.T) {
 		env  string
 		want string
 	}{
-		{"default", "", defaultOperatorNS},
+		{"default", "", DefaultOperatorNS},
 		{"from env", "custom-operator-ns", "custom-operator-ns"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv(envOperatorNamespace, tt.env)
+			t.Setenv(EnvOperatorNamespace, tt.env)
 			if got := discoverOperatorNamespace(); got != tt.want {
 				t.Errorf("discoverOperatorNamespace() = %q, want %q", got, tt.want)
 			}

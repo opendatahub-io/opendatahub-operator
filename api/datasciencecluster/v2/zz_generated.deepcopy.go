@@ -40,7 +40,7 @@ func (in *Components) DeepCopyInto(out *Components) {
 	out.FeastOperator = in.FeastOperator
 	out.LlamaStackOperator = in.LlamaStackOperator
 	out.OGX = in.OGX
-	out.MLflowOperator = in.MLflowOperator
+	in.MLflowOperator.DeepCopyInto(&out.MLflowOperator)
 	out.Trainer = in.Trainer
 	out.SparkOperator = in.SparkOperator
 	out.AIGateway = in.AIGateway
@@ -76,6 +76,8 @@ func (in *ComponentsStatus) DeepCopyInto(out *ComponentsStatus) {
 	in.Trainer.DeepCopyInto(&out.Trainer)
 	in.SparkOperator.DeepCopyInto(&out.SparkOperator)
 	in.AIGateway.DeepCopyInto(&out.AIGateway)
+	out.ModelsAsAService = in.ModelsAsAService
+	out.BatchGateway = in.BatchGateway
 	in.MCPLifecycleOperator.DeepCopyInto(&out.MCPLifecycleOperator)
 }
 

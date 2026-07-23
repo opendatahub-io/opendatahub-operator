@@ -77,6 +77,9 @@ type TestContext struct {
 	// Namespaced name of the DataScienceCluster custom resource used for testing.
 	DataScienceClusterNamespacedName types.NamespacedName
 
+	// Namespaced name of the Platform custom resource used for testing (xKS mode).
+	PlatformNamespacedName types.NamespacedName
+
 	// DefaultResourceOpts are applied as a baseline to every NewResourceOptions call.
 	// Individual per-operation opts (e.g., WithEventuallyTimeout) override these defaults.
 	DefaultResourceOpts []ResourceOpts
@@ -125,6 +128,7 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 		logger:                           t,
 		DSCInitializationNamespacedName:  types.NamespacedName{Name: dsciInstanceName},
 		DataScienceClusterNamespacedName: types.NamespacedName{Name: dscInstanceName},
+		PlatformNamespacedName:           types.NamespacedName{Name: platformInstanceName},
 		OperatorNamespace:                testOpts.operatorNamespace,
 		AppsNamespace:                    testOpts.appsNamespace,
 		WorkbenchesNamespace:             testOpts.workbenchesNamespace,
@@ -1495,6 +1499,38 @@ func (tc *TestContext) SkipIfXKSCluster(t *testing.T) {
 	if tc.IsXKS() {
 		t.Skip("Skipping test because it is not supported on XKS platform")
 	}
+}
+
+// EnsurePlatformCR creates the Platform CR if it does not already exist.
+// On xKS clusters there is no DSC controller to create it, so E2E tests
+// must ensure it exists before enabling modules.
+func (tc *TestContext) EnsurePlatformCR(t *testing.T) {
+	t.Helper()
+
+	platform := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": gvk.Platform.GroupVersion().String(),
+			"kind":       gvk.Platform.Kind,
+			"metadata":   map[string]any{"name": platformInstanceName},
+			"spec":       map[string]any{},
+		},
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(platform),
+		WithEventuallyTimeout(30*time.Second),
+	)
+}
+
+// SetModuleStateInPlatformCR patches the Platform CR to set a module's
+// managementState. Used on xKS to enable/disable modules via the Platform CR.
+func (tc *TestContext) SetModuleStateInPlatformCR(t *testing.T, moduleName string, state operatorv1.ManagementState) {
+	t.Helper()
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.modules.%s.managementState = "%s"`, moduleName, state)),
+	)
 }
 
 // FetchResource ensures a Kubernetes resource exists and retrieves it as an Unstructured object.

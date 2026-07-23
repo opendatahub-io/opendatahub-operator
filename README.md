@@ -717,6 +717,8 @@ spec:
       managementState: Removed
 ```
 
+The `mlflowoperator` DSC field still acts as the user-facing on/off switch, but internally it now drives the MLflow module handler flow rather than the legacy in-tree component reconciler.
+
 2. Enable only Dashboard and Workbenches
 
 ```console

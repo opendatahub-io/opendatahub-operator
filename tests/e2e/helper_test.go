@@ -78,7 +78,7 @@ const (
 	leaderWorkerSetNamespace    = "openshift-lws-operator"                   // Namespace for the Leader Worker Set Operator
 	leaderWorkerSetChannel      = "stable-v1.0"                              // Channel for the Leader Worker Set Operator
 	kueueOcpOperatorNamespace   = "openshift-kueue-operator"                 // Namespace for the OCP Kueue Operator
-	kueueOcpOperatorChannel     = "stable-v1.3"                              // Channel for the OCP Kueue Operator
+	kueueOcpOperatorChannel     = "stable-v1.4"                              // Channel for the OCP Kueue Operator
 	kuadrantOpName              = "rhcl-operator"                            // Name of the Red Hat Connectivity Link Operator subscription.
 	kuadrantNamespace           = "kuadrant-system"                          // Namespace for the Red Hat Connectivity Link Operator.
 
@@ -88,8 +88,9 @@ const (
 const (
 	ownedNamespaceNumber = 1 // Number of namespaces owned, adjust to 4 for RHOAI deployment
 
-	dsciInstanceName = "default-dsci" // Instance name for the DSCInitialization
-	dscInstanceName  = "default-dsc"  // Instance name for the DataScienceCluster
+	dsciInstanceName     = "default-dsci" // Instance name for the DSCInitialization
+	dscInstanceName      = "default-dsc"  // Instance name for the DataScienceCluster
+	platformInstanceName = "default"      // Instance name for the Platform CR (xKS mode)
 
 	// Standard error messages format.
 	resourceNotNilErrorMsg       = "Expected a non-nil resource object but got nil."

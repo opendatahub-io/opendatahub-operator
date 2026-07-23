@@ -33,6 +33,7 @@ import (
 	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	pkgtls "github.com/opendatahub-io/opendatahub-operator/v2/pkg/tls"
 )
 
 const (
@@ -286,12 +287,22 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 	return nil
 }
 
+func addTLSData(ctx context.Context, rr *odhtypes.ReconciliationRequest, templateData map[string]any) {
+	minVersion, cipherSuites, err := pkgtls.FromAPIServer(ctx, rr.Client, pkgtls.FormatShort)
+	if err != nil {
+		logf.FromContext(ctx).Error(err, "failed to read TLS profile for kube-rbac-proxy sidecars, using Intermediate defaults")
+		minVersion, cipherSuites = pkgtls.FromProfile(ctx, nil, pkgtls.FormatShort)
+	}
+	templateData["TLSMinVersion"] = minVersion
+	templateData["TLSCipherSuites"] = cipherSuites
+}
+
 // Images can be overridden via environment variables, with defaults based on platform.
 func addImageURLs(rr *odhtypes.ReconciliationRequest, templateData map[string]any) {
 	templateData["KubeRBACProxyImage"] = getImageURL(
 		"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
-		"quay.io/opendatahub/odh-kube-auth-proxy@sha256:dcb09fbabd8811f0956ef612a0c9ddd5236804b9bd6548a0647d2b531c9d01b3",                 // odh-kube-auth-proxy
-		"registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9@sha256:f38d3059623f8a8b05642615e6c3df5db52ff5948408abcf7a7f8e5713550be2", // v4.18
+		"quay.io/opendatahub/odh-kube-rbac-proxy@sha256:f9cad8a1389ba747f412620525328ccebda1409eab55ea80e4818349b37cbdeb",
+		"quay.io/opendatahub/odh-kube-rbac-proxy@sha256:f9cad8a1389ba747f412620525328ccebda1409eab55ea80e4818349b37cbdeb",
 		rr.Release.Name,
 	)
 	templateData["PromLabelProxyImage"] = getImageURL(
@@ -389,6 +400,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	// always add resource defaults
 	addResourceData(templateData)
 	addImageURLs(rr, templateData)
+	addTLSData(ctx, rr, templateData)
 
 	// Add metrics-related data if metrics are configured
 	if metrics := monitoring.Spec.Metrics; metrics != nil {

@@ -83,10 +83,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/feastoperator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/mlflowoperator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ogx"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
@@ -100,7 +97,9 @@ import (
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
+	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
+	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -139,11 +138,8 @@ var (
 		componentApi.DashboardComponentName:            dashboard.NewHandler(),
 		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
 		componentApi.FeastOperatorComponentName:        feastoperator.NewHandler(),
-		componentApi.KserveComponentName:               kserve.NewHandler(),
 		componentApi.KueueComponentName:                kueue.NewHandler(),
 		componentApi.OGXComponentName:                  ogx.NewHandler(),
-		componentApi.MLflowOperatorComponentName:       mlflowoperator.NewHandler(),
-		componentApi.ModelControllerComponentName:      modelcontroller.NewHandler(),
 		componentApi.ModelRegistryComponentName:        modelregistry.NewHandler(),
 		componentApi.RayComponentName:                  ray.NewHandler(),
 		componentApi.SparkOperatorComponentName:        sparkoperator.NewHandler(),
@@ -169,14 +165,11 @@ var (
 		componentApi.TrainingOperatorComponentName:     dag.RL(20),
 		componentApi.WorkbenchesComponentName:          dag.RL(20),
 
-		componentApi.KserveComponentName:          dag.RL(31),
-		componentApi.KueueComponentName:           dag.RL(31),
-		componentApi.ModelControllerComponentName: dag.RL(31),
+		componentApi.KueueComponentName: dag.RL(31),
 
-		componentApi.FeastOperatorComponentName:  dag.RL(32),
-		componentApi.MLflowOperatorComponentName: dag.RL(32),
-		componentApi.OGXComponentName:            dag.RL(32),
-		componentApi.SparkOperatorComponentName:  dag.RL(32),
+		componentApi.FeastOperatorComponentName: dag.RL(32),
+		componentApi.OGXComponentName:           dag.RL(32),
+		componentApi.SparkOperatorComponentName: dag.RL(32),
 
 		componentApi.TrustyAIComponentName: dag.RL(33),
 	}
@@ -193,11 +186,15 @@ var (
 		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
 		componentApi.AIGatewayComponentName:            aigatewayModule.NewHandler(),
 		componentApi.MCPLifecycleOperatorComponentName: mcplifecycleoperatorModule.NewHandler(),
+		componentApi.MLflowOperatorComponentName:       mlflowOperatorModule.NewHandler(),
+		componentApi.KserveComponentName:               kserveModule.NewHandler(),
 	}
 
 	moduleRunlevels = map[string]dag.Runlevel{
 		componentApi.AIGatewayComponentName:            dag.RL(32),
 		componentApi.MCPLifecycleOperatorComponentName: dag.RL(20),
+		componentApi.MLflowOperatorComponentName:       dag.RL(32),
+		componentApi.KserveComponentName:               dag.RL(31),
 	}
 )
 
@@ -469,7 +466,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	addCacheIfAvailable(setupClient, cacheOptions.ByObject, &promv1.ServiceMonitor{}, gvk.ServiceMonitor, cache.ByObject{Namespaces: oDHCache})
 
 	// Fetch the cluster TLS security profile for webhook and metrics servers
-	tlsOpts, tlsProfile, hasOpenShiftConfigAPI := fetchTLSProfile(ctx, scheme, oconfig.RestConfig)
+	tlsOpts, tlsProfile, tlsAdherence, hasOpenShiftConfigAPI := fetchTLSProfile(ctx, scheme, oconfig.RestConfig)
 
 	ctrlMgr, err := ctrl.NewManager(oconfig.RestConfig, ctrl.Options{ // single pod does not need to have LeaderElection
 		Scheme: scheme,
@@ -604,10 +601,15 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		mgrCtx, mgrCancel = context.WithCancel(ctx)
 
 		watcher := &tlspkg.SecurityProfileWatcher{
-			Client:                mgr.GetClient(),
-			InitialTLSProfileSpec: tlsProfile,
+			Client:                    mgr.GetClient(),
+			InitialTLSProfileSpec:     tlsProfile,
+			InitialTLSAdherencePolicy: tlsAdherence,
 			OnProfileChange: func(_ context.Context, _, _ configv1.TLSProfileSpec) {
 				setupLog.Info("TLS profile changed, initiating graceful shutdown to reload")
+				mgrCancel()
+			},
+			OnAdherencePolicyChange: func(_ context.Context, _, _ configv1.TLSAdherencePolicy) {
+				setupLog.Info("TLS adherence policy changed, initiating graceful shutdown to reload")
 				mgrCancel()
 			},
 		}
@@ -700,16 +702,22 @@ func addCacheIfAvailable(cli client.Client, byObject map[client.Object]cache.ByO
 	}
 }
 
-func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.Config) ([]func(*tls.Config), configv1.TLSProfileSpec, bool) {
+func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.Config) ([]func(*tls.Config), configv1.TLSProfileSpec, configv1.TLSAdherencePolicy, bool) {
 	var tlsOpts []func(*tls.Config)
 	var profile configv1.TLSProfileSpec
+	var adherence configv1.TLSAdherencePolicy
 	hasAPI := false
 	nextProtos := []string{"h2", "http/1.1"}
 
 	bootstrapClient, err := client.New(restCfg, client.Options{Scheme: scheme})
 	if err != nil {
-		setupLog.Error(err, "unable to create bootstrap client for TLS profile")
-		os.Exit(1)
+		setupLog.Error(err, "unable to create bootstrap client for TLS profile, using hardened defaults")
+		tlsOpts = append(tlsOpts, func(c *tls.Config) {
+			c.MinVersion = tls.VersionTLS12
+			c.CipherSuites = intermediateCiphers
+			c.NextProtos = nextProtos
+		})
+		return tlsOpts, *configv1.TLSProfiles[configv1.TLSProfileIntermediateType], adherence, false
 	}
 
 	profile, err = tlspkg.FetchAPIServerTLSProfile(ctx, bootstrapClient)
@@ -719,6 +727,12 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 			setupLog.Info("TLS profile not available, using hardened defaults (non-OpenShift cluster)")
 		case k8serr.IsNotFound(err):
 			setupLog.Info("APIServer resource not found, using hardened defaults")
+		case k8serr.IsServiceUnavailable(err),
+			k8serr.IsTimeout(err),
+			k8serr.IsServerTimeout(err),
+			k8serr.IsTooManyRequests(err):
+			setupLog.Info("Transient API error reading TLS profile, using hardened defaults", "error", err)
+			hasAPI = true // watcher self-heals when the API recovers
 		default:
 			setupLog.Error(err, "unable to read APIServer TLS profile, refusing to start with unknown TLS posture")
 			os.Exit(1)
@@ -737,9 +751,14 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 		tlsOpts = append(tlsOpts, tlsConfigFn, func(c *tls.Config) {
 			c.NextProtos = nextProtos
 		})
+
+		adherence, err = tlspkg.FetchAPIServerTLSAdherencePolicy(ctx, bootstrapClient)
+		if err != nil {
+			setupLog.Info("unable to fetch TLS adherence policy, watcher will retry", "error", err)
+		}
 	}
 
-	return tlsOpts, profile, hasAPI
+	return tlsOpts, profile, adherence, hasAPI
 }
 
 func CreateComponentReconcilers(ctx context.Context, mgr *manager.Manager) error {

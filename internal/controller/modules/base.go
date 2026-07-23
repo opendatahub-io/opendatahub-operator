@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"maps"
 	"path/filepath"
+	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
 	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,6 +20,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -117,6 +120,17 @@ type ModuleConfig struct {
 	// and injects them into the module operator's Deployment before apply.
 	// Variables whose values are empty on the platform operator are skipped.
 	RelatedImages []string
+
+	// SubmoduleConditions declares condition types on the module CR status
+	// that should be mirrored to the DSC status as independent conditions.
+	// Each entry contributes to the ModulesReady aggregate. The module
+	// operator is responsible for setting these conditions on its CR.
+	SubmoduleConditions []SubmoduleCondition
+
+	// ExtraEnv is a small set of fixed env vars to inject into the module
+	// operator Deployment after rendering. This is intended for temporary
+	// handoff toggles and other explicit module-owned env flags.
+	ExtraEnv map[string]string
 }
 
 // BaseHandler provides default implementations for ModuleHandler methods
@@ -161,6 +175,89 @@ func (b *BaseHandler) GetInitContainerName() string {
 
 func (b *BaseHandler) GetRelatedImages() []string {
 	return b.Config.RelatedImages
+}
+
+func (b *BaseHandler) GetSubmoduleConditions() []SubmoduleCondition {
+	return b.Config.SubmoduleConditions
+}
+
+// WriteDSCComponentStatus sets the managementState and releases on the
+// module's typed DSC status field (e.g. dsc.Status.Components.AIGateway).
+// The field is resolved via reflection using Config.GVK.Kind. Modules
+// without a matching field on ComponentsStatus (e.g. service modules) are
+// silently skipped.
+func (b *BaseHandler) WriteDSCComponentStatus(dsc *dscv2.DataScienceCluster, enabled bool, releases []common.ComponentRelease) {
+	setDSCComponentField(dsc, b.Config.GVK.Kind, enabled, releases)
+}
+
+// setDSCComponentField sets ManagementState and releases on a named field
+// of dsc.Status.Components using reflection. Used by both module-level
+// and submodule-level status writers.
+func setDSCComponentField(dsc *dscv2.DataScienceCluster, fieldName string, enabled bool, releases []common.ComponentRelease) {
+	if dsc == nil || fieldName == "" {
+		return
+	}
+
+	field := reflect.ValueOf(&dsc.Status.Components).Elem().FieldByName(fieldName)
+	if !field.IsValid() {
+		return
+	}
+
+	ms := operatorv1.Removed
+	if enabled {
+		ms = operatorv1.Managed
+	}
+
+	msField := field.FieldByName("ManagementState")
+	if msField.IsValid() && msField.CanSet() {
+		if msField.Kind() != reflect.String {
+			panic(fmt.Sprintf(
+				"setDSCComponentField: field %s.ManagementState is %s, expected string",
+				fieldName, msField.Kind(),
+			))
+		}
+		msField.SetString(string(ms))
+	}
+
+	setReleasesOnDSCField(field, releases)
+}
+
+// setReleasesOnDSCField sets the Releases slice on a DSC status struct field.
+// DSC status types embed a pointer-to-CommonStatus (e.g. *KserveCommonStatus)
+// that contains Releases. FieldByName panics through nil pointers, so we
+// iterate struct fields to find the pointer, allocate if nil, then set
+// Releases on the pointed-to struct. Types without a Releases field are
+// silently skipped.
+func setReleasesOnDSCField(field reflect.Value, releases []common.ComponentRelease) {
+	for i := range field.NumField() {
+		f := field.Field(i)
+		if f.Kind() != reflect.Ptr || f.Type().Elem().Kind() != reflect.Struct {
+			continue
+		}
+
+		if _, ok := f.Type().Elem().FieldByName("Releases"); !ok {
+			continue
+		}
+
+		if f.IsNil() {
+			if len(releases) == 0 {
+				return
+			}
+			f.Set(reflect.New(f.Type().Elem()))
+		}
+		f.Elem().FieldByName("Releases").Set(reflect.ValueOf(releases))
+		return
+	}
+}
+
+func (b *BaseHandler) GetExtraEnv() map[string]string {
+	if len(b.Config.ExtraEnv) == 0 {
+		return nil
+	}
+
+	result := make(map[string]string, len(b.Config.ExtraEnv))
+	maps.Copy(result, b.Config.ExtraEnv)
+	return result
 }
 
 func (b *BaseHandler) GetOperatorManifests(platform *PlatformContext) OperatorManifests {
@@ -228,36 +325,53 @@ func (b *BaseHandler) GetModuleStatus(ctx context.Context, cli client.Client) (*
 	}
 
 	observedGen, _, _ := unstructured.NestedInt64(u.Object, "status", "observedGeneration")
-	releaseVersion := extractPlatformReleaseVersion(u)
+	releases := extractReleases(u)
+	releaseVersion := platformReleaseVersion(releases)
 
 	return &ModuleStatus{
 		Conditions:         conditions,
 		ObservedGeneration: observedGen,
 		Generation:         u.GetGeneration(),
 		ReleaseVersion:     releaseVersion,
+		Releases:           releases,
 	}, nil
 }
 
 const platformReleaseName = "platform"
 
-func extractPlatformReleaseVersion(u *unstructured.Unstructured) string {
-	releases, found, _ := unstructured.NestedSlice(u.Object, "status", "releases")
+func extractReleases(u *unstructured.Unstructured) []common.ComponentRelease {
+	items, found, _ := unstructured.NestedSlice(u.Object, "status", "releases")
 	if !found {
-		return ""
+		return nil
 	}
 
-	for _, item := range releases {
-		entry, ok := item.(map[string]any)
+	result := make([]common.ComponentRelease, 0, len(items))
+	for _, item := range items {
+		entry, ok := item.(map[string]interface{})
 		if !ok {
 			continue
 		}
 		name, _, _ := unstructured.NestedString(entry, "name")
-		if name == platformReleaseName {
-			ver, _, _ := unstructured.NestedString(entry, "version")
-			return ver
+		if name == "" {
+			continue
+		}
+		version, _, _ := unstructured.NestedString(entry, "version")
+		repoURL, _, _ := unstructured.NestedString(entry, "repoUrl")
+		result = append(result, common.ComponentRelease{
+			Name:    name,
+			Version: version,
+			RepoURL: repoURL,
+		})
+	}
+	return result
+}
+
+func platformReleaseVersion(releases []common.ComponentRelease) string {
+	for _, r := range releases {
+		if r.Name == platformReleaseName {
+			return r.Version
 		}
 	}
-
 	return ""
 }
 
@@ -367,6 +481,13 @@ func (b *BaseHandler) deleteRenderedResources(
 
 		if res.GroupVersionKind() == gvk.CustomResourceDefinition {
 			log.V(1).Info("skipping CRD deletion during module cleanup",
+				"module", b.Config.Name,
+				"name", res.GetName())
+			continue
+		}
+
+		if res.GetKind() == "Namespace" {
+			log.V(1).Info("skipping Namespace deletion during module cleanup",
 				"module", b.Config.Name,
 				"name", res.GetName())
 			continue
