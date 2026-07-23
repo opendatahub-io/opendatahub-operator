@@ -1545,7 +1545,7 @@ func TestGetTemplateDataImageURLs(t *testing.T) {
 			platform:               common.Platform("Open Data Hub"),
 			envKubeRBACProxy:       "",
 			envPromLabelProxy:      "",
-			expectedKubeRBACProxy:  "quay.io/opendatahub/odh-kube-auth-proxy@sha256:dcb09fbabd8811f0956ef612a0c9ddd5236804b9bd6548a0647d2b531c9d01b3",
+			expectedKubeRBACProxy:  "quay.io/opendatahub/odh-kube-rbac-proxy@sha256:f9cad8a1389ba747f412620525328ccebda1409eab55ea80e4818349b37cbdeb",
 			expectedPromLabelProxy: "quay.io/prometheuscommunity/prom-label-proxy@sha256:28f81efb6574556011e7914851faaccce4a64b1b72a338aaaf3cc9d45e66fd96",
 		},
 		{
@@ -1553,7 +1553,7 @@ func TestGetTemplateDataImageURLs(t *testing.T) {
 			platform:               common.Platform("OpenShift AI Self-Managed"),
 			envKubeRBACProxy:       "",
 			envPromLabelProxy:      "",
-			expectedKubeRBACProxy:  "registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9@sha256:f38d3059623f8a8b05642615e6c3df5db52ff5948408abcf7a7f8e5713550be2",
+			expectedKubeRBACProxy:  "quay.io/opendatahub/odh-kube-rbac-proxy@sha256:f9cad8a1389ba747f412620525328ccebda1409eab55ea80e4818349b37cbdeb",
 			expectedPromLabelProxy: "registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9@sha256:3f44ba2d9f3d0b04c2a6c754b256ac5b5e6cfeb67651bfd0923fc2859e4b49d1",
 		},
 		{
@@ -1561,7 +1561,7 @@ func TestGetTemplateDataImageURLs(t *testing.T) {
 			platform:               common.Platform("OpenShift AI Cloud Service"),
 			envKubeRBACProxy:       "",
 			envPromLabelProxy:      "",
-			expectedKubeRBACProxy:  "registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9@sha256:f38d3059623f8a8b05642615e6c3df5db52ff5948408abcf7a7f8e5713550be2",
+			expectedKubeRBACProxy:  "quay.io/opendatahub/odh-kube-rbac-proxy@sha256:f9cad8a1389ba747f412620525328ccebda1409eab55ea80e4818349b37cbdeb",
 			expectedPromLabelProxy: "registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9@sha256:3f44ba2d9f3d0b04c2a6c754b256ac5b5e6cfeb67651bfd0923fc2859e4b49d1",
 		},
 		{

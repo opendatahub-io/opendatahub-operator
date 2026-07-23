@@ -76,6 +76,8 @@ func (in *ComponentsStatus) DeepCopyInto(out *ComponentsStatus) {
 	in.Trainer.DeepCopyInto(&out.Trainer)
 	in.SparkOperator.DeepCopyInto(&out.SparkOperator)
 	in.AIGateway.DeepCopyInto(&out.AIGateway)
+	out.ModelsAsAService = in.ModelsAsAService
+	out.BatchGateway = in.BatchGateway
 	in.MCPLifecycleOperator.DeepCopyInto(&out.MCPLifecycleOperator)
 }
 

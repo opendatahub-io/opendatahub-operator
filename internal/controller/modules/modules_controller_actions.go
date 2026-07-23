@@ -458,8 +458,14 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 	err = reg.ForEach(func(handler ModuleHandler) error {
 		name := handler.GetName()
 		condType := readyConditionTypeFor(handler)
+		submodules := submoduleConditionsFor(handler)
+		enabled := handler.IsEnabled(platformCtx)
 
-		if !handler.IsEnabled(platformCtx) {
+		if platformCtx.DSC != nil {
+			handler.WriteDSCComponentStatus(platformCtx.DSC, enabled, nil)
+		}
+
+		if !enabled {
 			rr.Conditions.SetCondition(common.Condition{
 				Type:     condType,
 				Status:   metav1.ConditionFalse,
@@ -467,6 +473,9 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 				Severity: common.ConditionSeverityInfo,
 				Message:  fmt.Sprintf("Module ManagementState is set to %s", status.RemovedReason),
 			})
+
+			setSubmodulesFallback(rr, platformCtx, submodules, true, "", "")
+
 			return nil
 		}
 
@@ -483,6 +492,12 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 				Reason:  status.NotReadyReason,
 				Message: fmt.Sprintf("Failed to get module status: %v", err),
 			})
+
+			setSubmodulesFallback(rr, platformCtx, submodules, false,
+				status.NotReadyReason,
+				fmt.Sprintf("Failed to get parent module %s status: %v", name, err),
+			)
+
 			return nil
 		}
 
@@ -500,6 +515,12 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 				Reason:  status.NotReadyReason,
 				Message: "Module status is stale (observedGeneration < generation)",
 			})
+
+			setSubmodulesFallback(rr, platformCtx, submodules, false,
+				status.NotReadyReason,
+				fmt.Sprintf("Parent module %s status is stale (observedGeneration < generation)", name),
+			)
+
 			return nil
 		}
 
@@ -537,6 +558,12 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 			notReadyModules = append(notReadyModules, name)
 		} else if degraded {
 			degradedModules = append(degradedModules, name)
+		}
+
+		mirrorSubmoduleConditions(rr, platformCtx, moduleStatus, submodules, &notReadyModules)
+
+		if platformCtx.DSC != nil {
+			handler.WriteDSCComponentStatus(platformCtx.DSC, enabled, moduleStatus.Releases)
 		}
 
 		return nil
@@ -580,72 +607,129 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 	return nil
 }
 
-// ProjectDSCCompatibilityStatus lets module handlers contribute legacy
-// component-shaped DSC status while keeping DataScienceCluster.status owned by
-// the datasciencecluster controller. This avoids cross-controller writes to the
-// DSC's atomic status.conditions list, where a later status apply can overwrite
-// conditions written by another controller.
-func ProjectDSCCompatibilityStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) ([]string, int, error) {
-	reg := DefaultRegistry()
-	if !reg.HasEntries() {
-		return nil, 0, nil
-	}
-	if rr.Client == nil {
-		return nil, 0, nil
-	}
-
-	platformCtx, err := buildPlatformContext(ctx, rr)
-	if err != nil {
-		return nil, 0, err
-	}
-	if platformCtx.DSC == nil {
-		return nil, 0, nil
-	}
-
-	notReadyModules := make([]string, 0)
-	managedModules := 0
-
-	err = reg.ForEach(func(handler ModuleHandler) error {
-		projector, ok := handler.(DSCStatusProjector)
-		if !ok {
-			return nil
-		}
-
-		cs, err := projector.UpdateDSCComponentStatus(ctx, rr, platformCtx)
-		if err != nil {
-			notReadyModules = append(notReadyModules, handler.GetName())
-			return fmt.Errorf("update DSC compatibility status for module %s: %w", handler.GetName(), err)
-		}
-
-		enabled := handler.IsEnabled(platformCtx)
-		if !enabled && cs != metav1.ConditionFalse {
-			return nil
-		}
-
-		if enabled {
-			managedModules++
-		}
-
-		if cs != metav1.ConditionTrue {
-			notReadyModules = append(notReadyModules, handler.GetName())
-		}
-
+// updateModuleStatus writes module conditions and component status into
+// the DSC status. When in-tree components are registered, the DSC
+// controller is the sole status writer — it already calls
+// ComputeModulesStatus in its own action chain. The modules controller
+// skips recomputation so its SSA apply carries only the cached status
+// values (conditions are stripped by WithoutStatusConditionsIf).
+// When no in-tree components exist (Platform CR mode), the modules
+// controller is the sole status writer and computes everything.
+func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	if cr.HasEntries() && dscFromInstance(rr) != nil {
 		return nil
-	})
-	if err != nil {
-		return notReadyModules, managedModules, fmt.Errorf("project DSC compatibility status: %w", err)
 	}
 
-	return notReadyModules, managedModules, nil
+	return ComputeModulesStatus(ctx, rr)
 }
 
-// updateModuleStatus writes ModulesReady only when no in-tree components
-// are registered, meaning the DSC controller is absent and the modules
-// controller is the sole status writer. While components exist, the DSC
-// controller handles ModulesReady.
-func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	if cr.HasEntries() {
-		return nil
+func submoduleConditionsFor(h ModuleHandler) []SubmoduleCondition {
+	if scp, ok := h.(SubmoduleConditionProvider); ok {
+		return scp.GetSubmoduleConditions()
 	}
-	return ComputeModulesStatus(ctx, rr)
+	return nil
+}
+
+// mirrorSubmoduleConditions copies declared submodule conditions from the
+// module CR's status onto the DSC conditions. It checks per-submodule
+// enablement: disabled submodules get a Removed condition. Enabled submodules
+// whose condition is not True are appended to notReadyModules so they affect
+// the aggregate.
+func mirrorSubmoduleConditions(
+	rr *odhtype.ReconciliationRequest,
+	platformCtx *PlatformContext,
+	moduleStatus *ModuleStatus,
+	submodules []SubmoduleCondition,
+	notReadyModules *[]string,
+) {
+	if len(submodules) == 0 {
+		return
+	}
+
+	condByType := make(map[string]*metav1.Condition, len(moduleStatus.Conditions))
+	for i := range moduleStatus.Conditions {
+		condByType[moduleStatus.Conditions[i].Type] = &moduleStatus.Conditions[i]
+	}
+
+	for _, sm := range submodules {
+		subEnabled := sm.IsEnabled == nil || sm.IsEnabled(platformCtx)
+
+		writeSubmoduleComponentStatus(platformCtx, sm, subEnabled)
+
+		if !subEnabled {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:     sm.DSCConditionType,
+				Status:   metav1.ConditionFalse,
+				Reason:   status.RemovedReason,
+				Severity: common.ConditionSeverityInfo,
+				Message:  "Submodule ManagementState is set to Removed",
+			})
+
+			continue
+		}
+
+		source := condByType[sm.SourceConditionType]
+		if source == nil {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    sm.DSCConditionType,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.AwaitingReadinessReason,
+				Message: "Submodule is enabled (Managed) but the module operator has not reported its status yet",
+			})
+			*notReadyModules = append(*notReadyModules, sm.DSCConditionType)
+
+			continue
+		}
+
+		rr.Conditions.SetCondition(common.Condition{
+			Type:    sm.DSCConditionType,
+			Status:  source.Status,
+			Reason:  source.Reason,
+			Message: source.Message,
+		})
+
+		if source.Status != metav1.ConditionTrue {
+			*notReadyModules = append(*notReadyModules, sm.DSCConditionType)
+		}
+	}
+}
+
+// setSubmodulesFallback writes submodule conditions and component status when
+// the parent module cannot provide real submodule status (disabled, error, or
+// stale). When parentDisabled is true all submodules are marked Removed
+// regardless of their individual IsEnabled state; otherwise each submodule's
+// own enablement is checked.
+func setSubmodulesFallback(
+	rr *odhtype.ReconciliationRequest,
+	platformCtx *PlatformContext,
+	submodules []SubmoduleCondition,
+	parentDisabled bool,
+	enabledReason string,
+	enabledMessage string,
+) {
+	for _, sm := range submodules {
+		subEnabled := !parentDisabled && (sm.IsEnabled == nil || sm.IsEnabled(platformCtx))
+		writeSubmoduleComponentStatus(platformCtx, sm, subEnabled)
+
+		if !subEnabled {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:     sm.DSCConditionType,
+				Status:   metav1.ConditionFalse,
+				Reason:   status.RemovedReason,
+				Severity: common.ConditionSeverityInfo,
+				Message:  "Submodule ManagementState is set to Removed",
+			})
+		} else {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    sm.DSCConditionType,
+				Status:  metav1.ConditionFalse,
+				Reason:  enabledReason,
+				Message: enabledMessage,
+			})
+		}
+	}
+}
+
+func writeSubmoduleComponentStatus(platformCtx *PlatformContext, sm SubmoduleCondition, enabled bool) {
+	setDSCComponentField(platformCtx.DSC, sm.StatusFieldName, enabled, nil)
 }
