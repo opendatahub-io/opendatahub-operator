@@ -24,7 +24,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -39,6 +38,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -64,21 +64,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.TrustyAIInstanceName)),
 			reconciler.WithPredicates(predicate.Or(
-				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True), // if TrustyAI CR is changed
-				predicate.Funcs{ // OR if ISVC CRD from kserve is created or deleted
-					CreateFunc: func(e event.CreateEvent) bool {
-						return e.Object.GetName() == InferenceServicesCRDName
-					},
-					UpdateFunc: func(e event.UpdateEvent) bool {
-						return false
-					},
-					DeleteFunc: func(e event.DeleteEvent) bool {
-						return e.Object.GetName() == InferenceServicesCRDName
-					},
-					GenericFunc: func(e event.GenericEvent) bool {
-						return false
-					},
-				},
+				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True),
+				resources.CreatedOrUpdatedOrDeletedNamed(InferenceServicesCRDName),
 			)),
 		).
 		WithPreCondition(precondition.MonitorCRD(gvk.InferenceServices,

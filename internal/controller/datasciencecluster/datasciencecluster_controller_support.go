@@ -11,7 +11,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
-	modules "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
@@ -61,11 +60,6 @@ func computeComponentsStatus(
 
 		return nil
 	})
-	// Module-backed components still project compatibility status into the DSC,
-	// but the datasciencecluster controller must own the final DSC status write.
-	moduleNotReady, managedModules, moduleErr := modules.ProjectDSCCompatibilityStatus(ctx, rr)
-	notReadyComponents = append(notReadyComponents, moduleNotReady...)
-	managedComponent += managedModules
 
 	switch {
 	case len(notReadyComponents) > 0:
@@ -89,9 +83,6 @@ func computeComponentsStatus(
 
 	if err != nil {
 		return err
-	}
-	if moduleErr != nil {
-		return fmt.Errorf("project DSC compatibility status: %w", moduleErr)
 	}
 
 	return nil

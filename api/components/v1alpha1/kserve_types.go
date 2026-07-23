@@ -87,6 +87,14 @@ type KserveCommonSpec struct {
 	// Configures and enables workload-variant-autoscaler (WVA) integration
 	// +kubebuilder:default={}
 	WVA WVASpec `json:"wva,omitempty"`
+	// Enables TLS for LLMInferenceService deployments.
+	// When unset, the KServe default (TLS enabled) is preserved.
+	// +optional
+	EnableLLMInferenceServiceTLS *bool `json:"enableLLMInferenceServiceTLS,omitempty"`
+	// Enables OpenShift Developer Console dashboards for LLMInferenceService.
+	// Enabled by default.
+	// +optional
+	EnableLLMInferenceServiceConsoleDashboards *bool `json:"enableLLMInferenceServiceConsoleDashboards,omitempty"`
 	// Configures and enables Model Cache integration
 	ModelCache *ModelCacheSpec `json:"modelCache,omitempty"`
 }

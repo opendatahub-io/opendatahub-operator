@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	semver "github.com/blang/semver/v4"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	ofversion "github.com/operator-framework/api/pkg/lib/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -55,104 +54,6 @@ const (
 	testProvisioningControllerEnv  = "RELATED_IMAGE_TEST_MODULE_CONTROLLER"
 )
 
-type removedProjectorStub struct{}
-
-func (removedProjectorStub) GetName() string { return "removed-projector" }
-
-func (removedProjectorStub) IsEnabled(*PlatformContext) bool { return false }
-
-func (removedProjectorStub) GetGVK() schema.GroupVersionKind { return schema.GroupVersionKind{} }
-
-func (removedProjectorStub) GetOperatorManifests(*PlatformContext) OperatorManifests {
-	return OperatorManifests{}
-}
-
-func (removedProjectorStub) BuildModuleCR(context.Context, client.Client, *PlatformContext) (*unstructured.Unstructured, error) {
-	return nil, nil
-}
-
-func (removedProjectorStub) GetRelatedImages() []string { return nil }
-
-func (removedProjectorStub) GetModuleStatus(context.Context, client.Client) (*ModuleStatus, error) {
-	return &ModuleStatus{}, nil
-}
-
-func (removedProjectorStub) GetModuleCRState(context.Context, client.Client) (CRState, error) {
-	return CRStateAbsent, nil
-}
-
-func (removedProjectorStub) DeleteModuleCR(context.Context, client.Client) error { return nil }
-
-func (removedProjectorStub) DeleteOperatorResources(context.Context, client.Client, *PlatformContext) error {
-	return nil
-}
-
-func (removedProjectorStub) UpdateDSCComponentStatus(_ context.Context, rr *types.ReconciliationRequest, platform *PlatformContext) (metav1.ConditionStatus, error) {
-	dsc, ok := rr.Instance.(*dscv2.DataScienceCluster)
-	if !ok {
-		return metav1.ConditionUnknown, nil
-	}
-	dsc.Status.Components.MLflowOperator.ManagementState = operatorv1.Removed
-	rr.Conditions.MarkFalse(
-		"MLflowOperatorReady",
-		conditions.WithReason(string(platform.DSC.Spec.Components.MLflowOperator.ManagementState)),
-		conditions.WithMessage("Component ManagementState is set to %s", string(platform.DSC.Spec.Components.MLflowOperator.ManagementState)),
-		conditions.WithSeverity(common.ConditionSeverityInfo),
-	)
-	return metav1.ConditionFalse, nil
-}
-
-func TestProjectDSCCompatibilityStatusProjectsRemovedModulesIntoDSCStatus(t *testing.T) {
-	withTestRegistry(t)
-	DefaultRegistry().Add(removedProjectorStub{})
-	provision.Add("removed-projector", provision.KindModule, dag.RL(20))
-
-	dsc := &dscv2.DataScienceCluster{
-		ObjectMeta: metav1.ObjectMeta{Name: testDSCName},
-	}
-	dsc.Spec.Components.MLflowOperator.ManagementState = operatorv1.Removed
-	dsc.Status.Components.MLflowOperator.ManagementState = operatorv1.Managed
-
-	dsci := &dsciv2.DSCInitialization{
-		ObjectMeta: metav1.ObjectMeta{Name: testDSCIName},
-	}
-	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
-	if err != nil {
-		t.Fatalf("create fake client: %v", err)
-	}
-
-	rr := &types.ReconciliationRequest{
-		Client:     cli,
-		Instance:   dsc,
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
-	}
-
-	notReady, managed, err := ProjectDSCCompatibilityStatus(context.Background(), rr)
-	if err != nil {
-		t.Fatalf("project DSC compatibility status: %v", err)
-	}
-	if managed != 0 {
-		t.Fatalf("expected no managed modules for removed projector, got %d", managed)
-	}
-	if len(notReady) != 1 || notReady[0] != "removed-projector" {
-		t.Fatalf("expected removed projector to be reported not ready, got %#v", notReady)
-	}
-
-	if got := dsc.Status.Components.MLflowOperator.ManagementState; got != operatorv1.Removed {
-		t.Fatalf("expected MLflowOperator DSC status managementState %q, got %q", operatorv1.Removed, got)
-	}
-
-	ready := conditions.FindStatusCondition(dsc.GetStatus(), "MLflowOperatorReady")
-	if ready == nil {
-		t.Fatalf("expected MLflowOperatorReady condition to be projected")
-	}
-	if ready.Reason != string(operatorv1.Removed) {
-		t.Fatalf("expected MLflowOperatorReady reason %q, got %q", operatorv1.Removed, ready.Reason)
-	}
-}
-
 type deletingCleanupStub struct{}
 
 func (deletingCleanupStub) GetName() string { return "cleanup-module" }
@@ -188,6 +89,9 @@ func (deletingCleanupStub) DeleteModuleCR(context.Context, client.Client) error 
 
 func (deletingCleanupStub) DeleteOperatorResources(context.Context, client.Client, *PlatformContext) error {
 	return nil
+}
+
+func (deletingCleanupStub) WriteDSCComponentStatus(*dscv2.DataScienceCluster, bool, []common.ComponentRelease) {
 }
 
 func (deletingCleanupStub) GetDeploymentName() string { return "cleanup-module-controller-manager" }
@@ -249,6 +153,9 @@ func (s provisioningModuleStub) DeleteModuleCR(context.Context, client.Client) e
 
 func (s provisioningModuleStub) DeleteOperatorResources(context.Context, client.Client, *PlatformContext) error {
 	return nil
+}
+
+func (s provisioningModuleStub) WriteDSCComponentStatus(*dscv2.DataScienceCluster, bool, []common.ComponentRelease) {
 }
 
 func (s provisioningModuleStub) GetDeploymentName() string {
