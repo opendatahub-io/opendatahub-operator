@@ -13,8 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -544,32 +542,6 @@ func (tc *ComponentTestCtx) ValidateCRDReinstatement(name string, version string
 			WithCondition(jq.Match(`.status.storedVersions[0] == "%s"`, version)),
 		)
 	}
-}
-
-// ValidateModelControllerInstance validates the existence and correct status of the ModelController and DataScienceCluster.
-func (tc *ComponentTestCtx) ValidateModelControllerInstance(t *testing.T) {
-	t.Helper()
-
-	skipUnless(t, Smoke)
-	tc.SkipIfXKSCluster(t)
-
-	// Ensure ModelController resource exists with the expected owner references and status phase.
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.ModelController, types.NamespacedName{Name: componentApi.ModelControllerInstanceName}),
-		WithCondition(
-			And(
-				jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
-				jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady),
-			),
-		),
-	)
-
-	// Ensure ModelController condition matches the expected status in the DataScienceCluster.
-	tc.ValidateComponentCondition(
-		gvk.DataScienceCluster,
-		tc.DataScienceClusterNamespacedName.Name,
-		modelcontroller.ReadyConditionType,
-	)
 }
 
 // ValidateAllDeletionRecovery runs the standard set of deletion recovery tests.

@@ -1345,6 +1345,16 @@ func (in *KserveCommonSpec) DeepCopyInto(out *KserveCommonSpec) {
 	out.NIM = in.NIM
 	out.ModelsAsService = in.ModelsAsService
 	out.WVA = in.WVA
+	if in.EnableLLMInferenceServiceTLS != nil {
+		in, out := &in.EnableLLMInferenceServiceTLS, &out.EnableLLMInferenceServiceTLS
+		*out = new(bool)
+		**out = **in
+	}
+	if in.EnableLLMInferenceServiceConsoleDashboards != nil {
+		in, out := &in.EnableLLMInferenceServiceConsoleDashboards, &out.EnableLLMInferenceServiceConsoleDashboards
+		*out = new(bool)
+		**out = **in
+	}
 	if in.ModelCache != nil {
 		in, out := &in.ModelCache, &out.ModelCache
 		*out = new(ModelCacheSpec)

@@ -157,17 +157,15 @@ var (
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
 				componentApi.KueueComponentName: kueueTestSuite,
-				// ModelController tests depends on KServe and ModelRegistry, so must not run with KServe, ModelRegistry, TrustyAI or ModelsAsService tests in parallel
-				componentApi.ModelControllerComponentName: modelControllerTestSuite,
 			},
 			{
-				// TrustyAI tests depends on KServe, so must not run with Kserve, ModelController or ModelsAsService tests in parallel
+				// TrustyAI tests depends on KServe, so must not run with Kserve or ModelsAsService tests in parallel
 				componentApi.TrustyAIComponentName: trustyAITestSuite,
 				// MLflowOperator tests should not run in parallel with Workbenches tests, as Workbenches tests integration with MLflowOperator
 				componentApi.MLflowOperatorComponentName: mlflowOperatorTestSuite,
 			},
 			{
-				// ModelsAsService tests depends on KServe, so must not run with Kserve, ModelController or TrustyAI tests in parallel
+				// ModelsAsService tests depends on KServe, so must not run with Kserve or TrustyAI tests in parallel
 				componentApi.ModelsAsServiceComponentName: modelsAsServiceTestSuite,
 			},
 			{
@@ -458,6 +456,10 @@ func TestOdhOperator(t *testing.T) {
 
 	if collector := startMetricsCollectorIfEnabled(); collector != nil {
 		defer collector.Stop()
+	}
+
+	if tc, err := NewTestContext(t); err == nil && tc.IsXKS() {
+		tc.EnsurePlatformCR(t)
 	}
 
 	if testOpts.dependantOperatorsManagementTest {
