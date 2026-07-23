@@ -140,19 +140,14 @@ func TestBuildModuleCR_NilDSCNilPlatformReturnsError(t *testing.T) {
 	g.Expect(err).Should(HaveOccurred())
 }
 
-func TestBuildModuleCR_PlatformMode(t *testing.T) {
+func TestBuildModuleCR_PlatformMode_ReturnsNil(t *testing.T) {
 	g := NewWithT(t)
 	h := ogxModule.NewHandler()
 	platform := newPlatformModePlatformCtx(operatorv1.Managed)
 
 	u, err := h.BuildModuleCR(context.Background(), nil, platform)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(u.GetName()).Should(Equal(componentApi.OGXInstanceName))
-	g.Expect(u.GetKind()).Should(Equal(componentApi.OGXKind))
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec["managementState"]).Should(Equal("Managed"))
+	g.Expect(u).Should(BeNil(), "Platform mode should return nil CR")
 }
 
 func TestGetName(t *testing.T) {
