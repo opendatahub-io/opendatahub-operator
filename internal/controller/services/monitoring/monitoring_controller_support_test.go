@@ -1737,3 +1737,42 @@ func TestPersesGVKs(t *testing.T) {
 	g.Expect(ds).Should(Equal(gvk.PersesDatasourceV1Alpha1))
 	g.Expect(db).Should(Equal(gvk.PersesDashboardV1Alpha1))
 }
+
+// expectedIntermediateCiphers is the expected comma-joined IANA cipher string for the
+// Intermediate TLS profile. Derived directly from the openshift/api TLSProfileIntermediateType
+// cipher list passed through the openshift/library-go OpenSSL->IANA mapping.
+// It is intentionally NOT computed from production code so it serves as an independent oracle.
+const expectedIntermediateCiphers = "TLS_AES_128_GCM_SHA256," +
+	"TLS_AES_256_GCM_SHA384," +
+	"TLS_CHACHA20_POLY1305_SHA256," +
+	"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256," +
+	"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256," +
+	"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384," +
+	"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384," +
+	"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256," +
+	"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
+
+func TestAddTLSData(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("no APIServer resource uses Intermediate defaults", func(t *testing.T) {
+		g := NewWithT(t)
+
+		fakeClient := setupTestClient(g)
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client: fakeClient,
+		}
+
+		templateData := make(map[string]any)
+		addTLSData(ctx, rr, templateData)
+
+		minVersion, ok := templateData["TLSMinVersion"]
+		g.Expect(ok).Should(BeTrue(), "TLSMinVersion should be present")
+		g.Expect(minVersion).Should(Equal("TLS1.2"))
+
+		cipherSuites, ok := templateData["TLSCipherSuites"]
+		g.Expect(ok).Should(BeTrue(), "TLSCipherSuites should be present")
+		g.Expect(cipherSuites).Should(Equal(expectedIntermediateCiphers))
+	})
+}
