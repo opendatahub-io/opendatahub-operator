@@ -61,9 +61,6 @@ map:
   odh-spark-operator:
     src: config
     dest: sparkoperator
-  odh-ogx-k8s-operator:
-    src: config
-    dest: ogx
   odh-kserve-module-operator:
     src: kserve-module/config
     dest: kserve-module-operator
@@ -82,3 +79,6 @@ map:
   odh-mcp-lifecycle-module-operator:
     src: config
     dest: mcplifecycleoperator
+  odh-ogx-module-operator:
+    src: config/
+    dest: ogx
