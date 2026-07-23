@@ -60,6 +60,9 @@ type PlatformModules struct {
 	// MCPLifecycleOperator controls the MCP Lifecycle Operator module lifecycle.
 	// +optional
 	MCPLifecycleOperator common.ManagementSpec `json:"mcplifecycleoperator,omitempty"`
+	// Kserve controls the kserve module operator lifecycle.
+	// +optional
+	Kserve common.ManagementSpec `json:"kserve,omitempty"`
 }
 
 // PlatformStatus defines the observed state of Platform.
@@ -121,6 +124,9 @@ func (m *PlatformModules) EnabledModules() []string {
 	}
 	if m.MCPLifecycleOperator.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "mcplifecycleoperator")
+	}
+	if m.Kserve.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "kserve")
 	}
 	return enabled
 }

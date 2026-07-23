@@ -144,7 +144,6 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		componentApi.DashboardComponentName:            "dashboard",
 		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
 		componentApi.FeastOperatorComponentName:        "feast-operator-controller-manager",
-		componentApi.KserveComponentName:               "kserve-controller-manager",
 		componentApi.OGXComponentName:                  "ogx-k8s-operator-controller-manager",
 		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
 		componentApi.RayComponentName:                  "kuberay-operator",
@@ -156,9 +155,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	}
 
 	// Error message includes components + internal components name
-	var internalComponentToControllerMap = map[string]string{
-		componentApi.ModelControllerComponentName: "model-controller",
-	}
+	var internalComponentToControllerMap = map[string]string{}
 
 	components := slices.Collect(maps.Keys(componentToControllerMap))
 	componentsLength := len(components)
@@ -172,7 +169,9 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// AIGateway is excluded because it is a module (reports AIGatewayReady via ModulesReady, not ComponentsReady)
 	// MCPLifecycleOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// MLflowOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
-	excludedComponents := 6 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, MCPLifecycleOperator, MLflowOperator
+	// Kserve is excluded because it is a module so it does not report DSC ComponentsReady condition
+	excludedComponents := 7 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, MCPLifecycleOperator, Kserve, MLflowOperator
+
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+
