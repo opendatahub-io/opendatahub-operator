@@ -378,11 +378,12 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 		Manifests: make([]types.ManifestInfo, 0),
 	}
 
-	// reset conditions so any unknown condition eventually set on
-	// the owned resource get cleaned up. This is the case when a
-	// condition is replaced/removed.
+	currentVersion := r.Release.Version.String()
+	isUpgrade := currentVersion != res.GetStatus().ReconciledVersion
 
-	rr.Conditions.Reset()
+	if isUpgrade {
+		rr.Conditions.Reset()
+	}
 
 	// Check if all the preconditions are met. If not, flag to stop the reconciliation.
 	shouldStop := precondition.RunAll(ctx, &rr, r.preConditions)
@@ -439,7 +440,8 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 
 	// Remove conditions that were present before Reset but were
 	// not re-set during this cycle (e.g. disabled components).
-	if !r.skipConditionCleanup {
+	// Only needed during upgrades — normal cycles preserve all conditions.
+	if isUpgrade && !r.skipConditionCleanup {
 		rr.Conditions.CleanupStaleConditions()
 	}
 
@@ -457,6 +459,10 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 	if rr.Conditions.IsHappy() {
 		is.Phase = status.PhaseReady
 		is.ObservedGeneration = rr.Instance.GetGeneration()
+	}
+
+	if isUpgrade {
+		is.ReconciledVersion = currentVersion
 	}
 
 	if r.skipStatusConditionsFn != nil && r.skipStatusConditionsFn() {

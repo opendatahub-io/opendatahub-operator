@@ -1415,3 +1415,131 @@ func TestDynamicOwnership_StaticOwnershipPrecedence(t *testing.T) {
 		BlockOwnerDeletion: ptr.To(true),
 	}))
 }
+
+func TestVersionBasedConditionCleanup(t *testing.T) {
+	ctx := t.Context()
+
+	g := NewWithT(t)
+
+	et, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
+
+	cli := et.Client()
+
+	dsci := resources.GvkToUnstructured(gvk.DSCInitialization)
+	dsci.SetName(xid.New().String())
+	dsci.SetGeneration(1)
+
+	err = cli.Create(ctx, dsci)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	t.Run("first reconcile cleans up stale conditions", func(t *testing.T) {
+		g := NewWithT(t)
+
+		dash := resources.GvkToUnstructured(gvk.Dashboard)
+		dash.SetName(componentApi.DashboardInstanceName)
+		dash.SetGeneration(1)
+
+		err = cli.Create(ctx, dash)
+		g.Expect(err).NotTo(HaveOccurred())
+		t.Cleanup(func() {
+			_ = cli.Delete(ctx, dash, client.PropagationPolicy(metav1.DeletePropagationBackground))
+			g.Eventually(func() bool {
+				return k8serr.IsNotFound(cli.Get(ctx, client.ObjectKeyFromObject(dash), dash))
+			}).WithTimeout(10 * time.Second).Should(BeTrue())
+		})
+
+		st, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&common.Status{
+			Conditions: []common.Condition{{
+				Type:               "StaleCondition",
+				Status:             metav1.ConditionTrue,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+			}},
+		})
+		g.Expect(err).NotTo(HaveOccurred())
+
+		err = unstructured.SetNestedField(dash.Object, st, "status")
+		g.Expect(err).NotTo(HaveOccurred())
+
+		err = cli.Status().Update(ctx, dash)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		cc := createReconciler(cli)
+		cc.AddAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
+			return nil
+		})
+
+		_, err = cc.Reconcile(ctx, ctrl.Request{
+			NamespacedName: types.NamespacedName{Name: componentApi.DashboardInstanceName},
+		})
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		di := resources.GvkToUnstructured(gvk.Dashboard)
+		di.SetName(componentApi.DashboardInstanceName)
+
+		err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First reconcile has empty ReconciledVersion → treated as upgrade → stale condition removed
+		g.Expect(di).Should(
+			jq.Match(`all(.status.conditions[]?.type; . != "StaleCondition")`),
+		)
+	})
+
+	t.Run("same-version reconcile preserves extra conditions", func(t *testing.T) {
+		g := NewWithT(t)
+
+		dash := resources.GvkToUnstructured(gvk.Dashboard)
+		dash.SetName(componentApi.DashboardInstanceName)
+		dash.SetGeneration(1)
+
+		err = cli.Create(ctx, dash)
+		g.Expect(err).NotTo(HaveOccurred())
+		t.Cleanup(func() {
+			_ = cli.Delete(ctx, dash, client.PropagationPolicy(metav1.DeletePropagationBackground))
+			g.Eventually(func() bool {
+				return k8serr.IsNotFound(cli.Get(ctx, client.ObjectKeyFromObject(dash), dash))
+			}).WithTimeout(10 * time.Second).Should(BeTrue())
+		})
+
+		currentVersion := cluster.GetRelease().Version.String()
+
+		st, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&common.Status{
+			ReconciledVersion: currentVersion,
+			Conditions: []common.Condition{{
+				Type:               "ExtraCondition",
+				Status:             metav1.ConditionTrue,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+			}},
+		})
+		g.Expect(err).NotTo(HaveOccurred())
+
+		err = unstructured.SetNestedField(dash.Object, st, "status")
+		g.Expect(err).NotTo(HaveOccurred())
+
+		err = cli.Status().Update(ctx, dash)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		cc := createReconciler(cli)
+		cc.AddAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
+			return nil
+		})
+
+		_, err = cc.Reconcile(ctx, ctrl.Request{
+			NamespacedName: types.NamespacedName{Name: componentApi.DashboardInstanceName},
+		})
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		di := resources.GvkToUnstructured(gvk.Dashboard)
+		di.SetName(componentApi.DashboardInstanceName)
+
+		err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Same version → no cleanup → ExtraCondition preserved
+		g.Expect(di).Should(
+			jq.Match(`.status.conditions[] | select(.type == "ExtraCondition")`),
+		)
+	})
+}
