@@ -167,8 +167,16 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 		WithCustomErrorMsg("dashboard-redirect Deployment should exist with correct nginx S2I configuration"),
 	)
 
-	// Wait for deployment readiness
-	tc.EnsureDeploymentReady(types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: appNamespace}, 2)
+	// Wait for deployment readiness using EnsureResourceExists (polls via Eventually)
+	// rather than EnsureDeploymentReady (point-in-time) to avoid a race with pod rollout.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: appNamespace}),
+		WithCondition(And(
+			jq.Match(`.status.readyReplicas == 2`),
+			jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`),
+		)),
+		WithCustomErrorMsg("dashboard-redirect Deployment should have 2 ready replicas and Available condition"),
+	)
 
 	t.Log("Dashboard redirect Deployment validation completed")
 }

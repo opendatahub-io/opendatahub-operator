@@ -119,7 +119,7 @@ func updateInferenceCM(ctx context.Context, inferenceServiceConfigMap *corev1.Co
 	if !ok {
 		return fmt.Errorf("key '%s' not found in configmap %s", LocalModelConfigKeyName, kserveConfigMapName)
 	}
-	var localModelData map[string]interface{}
+	var localModelData map[string]any
 	if err := json.Unmarshal([]byte(localModelRaw), &localModelData); err != nil {
 		return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", LocalModelConfigKeyName, kserveConfigMapName, err)
 	}

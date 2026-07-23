@@ -21,7 +21,6 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -455,8 +454,8 @@ func WithPermissiveSchema() CRDOption {
 	return func(crd *apiextensionsv1.CustomResourceDefinition) {
 		v := &crd.Spec.Versions[0]
 		v.Schema.OpenAPIV3Schema.Properties = map[string]apiextensionsv1.JSONSchemaProps{
-			"spec":   {Type: "object", XPreserveUnknownFields: ptr.To(true)},
-			"status": {Type: "object", XPreserveUnknownFields: ptr.To(true)},
+			"spec":   {Type: "object", XPreserveUnknownFields: new(true)},
+			"status": {Type: "object", XPreserveUnknownFields: new(true)},
 		}
 		v.Subresources = &apiextensionsv1.CustomResourceSubresources{
 			Status: &apiextensionsv1.CustomResourceSubresourceStatus{},

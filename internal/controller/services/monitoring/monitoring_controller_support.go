@@ -79,7 +79,7 @@ func getPersesImage() string {
 		return image
 	}
 
-	return "registry.redhat.io/cluster-observability-operator/perses-rhel9:1.5.0-1781116652@sha256:27553fd6d4b4983475a0d9a4ccc7d7fa63b1bd4b48f0e5cb2d18963fe232cfd5"
+	return "registry.redhat.io/cluster-observability-operator/perses-rhel9@sha256:27553fd6d4b4983475a0d9a4ccc7d7fa63b1bd4b48f0e5cb2d18963fe232cfd5" // 1.5.0
 }
 
 // isLocalServiceEndpoint checks if an endpoint URL is for a local/in-cluster service.
@@ -692,8 +692,8 @@ var metricsExporterSchemas = map[string]ExporterSchema{
 			"endpoint": {
 				Type:      "string",
 				Pattern:   regexp.MustCompile(`^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$`),
-				MinLength: intPtr(1),
-				MaxLength: intPtr(2048),
+				MinLength: new(1),
+				MaxLength: new(2048),
 			},
 			"headers": {
 				Type: "map[string]string",
@@ -708,7 +708,7 @@ var metricsExporterSchemas = map[string]ExporterSchema{
 			"timeout": {
 				Type:      "string",
 				Pattern:   regexp.MustCompile(`^\d+[smh]$`),
-				MaxLength: intPtr(10),
+				MaxLength: new(10),
 			},
 		},
 		FieldRules: map[string][]ValidationRule{
@@ -737,8 +737,8 @@ var metricsExporterSchemas = map[string]ExporterSchema{
 			"endpoint": {
 				Type:      "string",
 				Pattern:   regexp.MustCompile(`^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$`),
-				MinLength: intPtr(1),
-				MaxLength: intPtr(2048),
+				MinLength: new(1),
+				MaxLength: new(2048),
 			},
 			"headers": {
 				Type: "map[string]string",
@@ -750,7 +750,7 @@ var metricsExporterSchemas = map[string]ExporterSchema{
 			"timeout": {
 				Type:      "string",
 				Pattern:   regexp.MustCompile(`^\d+[smh]$`),
-				MaxLength: intPtr(10),
+				MaxLength: new(10),
 			},
 		},
 		FieldRules: map[string][]ValidationRule{
@@ -794,8 +794,8 @@ var metricsExporterSchemas = map[string]ExporterSchema{
 			"endpoint": {
 				Type:      "string",
 				Pattern:   regexp.MustCompile(`^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$`),
-				MinLength: intPtr(1),
-				MaxLength: intPtr(2048),
+				MinLength: new(1),
+				MaxLength: new(2048),
 			},
 			"headers": {
 				Type: "map[string]string",
@@ -806,7 +806,7 @@ var metricsExporterSchemas = map[string]ExporterSchema{
 			"remote_timeout": {
 				Type:      "string",
 				Pattern:   regexp.MustCompile(`^\d+[smh]$`),
-				MaxLength: intPtr(10),
+				MaxLength: new(10),
 			},
 		},
 		FieldRules: map[string][]ValidationRule{
@@ -1023,10 +1023,6 @@ func validateFieldTypeStrict(_ string, value any, expectedType string) error {
 // Helper functions.
 func contains(slice []string, item string) bool {
 	return slices.Contains(slice, item)
-}
-
-func intPtr(i int) *int {
-	return &i
 }
 
 // syncPrometheusWebTLSCA watches the prometheus-web-tls-ca ConfigMap and syncs its CA to a Secret.

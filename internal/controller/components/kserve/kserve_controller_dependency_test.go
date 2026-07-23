@@ -13,7 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 
@@ -36,7 +35,7 @@ func startKserveController(t *testing.T, ctx context.Context) (*envt.EnvT, *test
 
 	et, err := envt.New(
 		envt.WithManager(ctrl.Options{
-			Controller: ctrlconfig.Controller{SkipNameValidation: ptr.To(true)},
+			Controller: ctrlconfig.Controller{SkipNameValidation: new(true)},
 		}),
 		envt.WithRegisterControllers(func(mgr ctrl.Manager) error {
 			return NewHandler().NewComponentReconciler(ctx, mgr)

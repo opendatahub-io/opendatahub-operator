@@ -12,7 +12,6 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 
@@ -41,7 +40,7 @@ func startModelControllerController(t *testing.T, ctx context.Context) (*envt.En
 	et, err := envt.New(
 		envt.WithScheme(s),
 		envt.WithManager(ctrl.Options{
-			Controller: ctrlconfig.Controller{SkipNameValidation: ptr.To(true)},
+			Controller: ctrlconfig.Controller{SkipNameValidation: new(true)},
 		}),
 		envt.WithRegisterControllers(func(mgr ctrl.Manager) error {
 			return modelcontroller.NewHandler().NewComponentReconciler(ctx, mgr)

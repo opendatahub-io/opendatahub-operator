@@ -111,7 +111,6 @@ data:
   foo: bar
 `
 
-//nolint:gosec
 const testEngineOrderSecret = `
 apiVersion: v1
 kind: Secret

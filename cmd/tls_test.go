@@ -33,7 +33,7 @@ func TestIntermediateCiphersAreValid(t *testing.T) {
 
 func TestHardenedDefaultsTLSConfig(t *testing.T) {
 	g := NewWithT(t)
-	cfg := &tls.Config{} //nolint:gosec
+	cfg := &tls.Config{}
 	cfg.MinVersion = tls.VersionTLS12
 	cfg.CipherSuites = intermediateCiphers
 	cfg.NextProtos = []string{"h2", "http/1.1"}

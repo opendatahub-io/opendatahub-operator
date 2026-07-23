@@ -14,8 +14,8 @@ import (
 func getV1ComponentFieldNames() []string {
 	v1Type := reflect.TypeFor[dscv1.Components]()
 	fields := make([]string, 0, v1Type.NumField())
-	for i := range v1Type.NumField() {
-		fields = append(fields, v1Type.Field(i).Name)
+	for field := range v1Type.Fields() {
+		fields = append(fields, field.Name)
 	}
 	return fields
 }
@@ -35,8 +35,8 @@ func TestGetV2OnlyComponentFieldNames(t *testing.T) {
 
 		v2Type := reflect.TypeFor[dscv2.Components]()
 		var expectedV2Only []string
-		for i := range v2Type.NumField() {
-			fieldName := v2Type.Field(i).Name
+		for field := range v2Type.Fields() {
+			fieldName := field.Name
 			// Count components that are in v2 but not in v1
 			if !v1Fields[fieldName] && fieldName != "AIPipelines" { // AIPipelines is renamed from DataSciencePipelines
 				expectedV2Only = append(expectedV2Only, fieldName)

@@ -78,7 +78,7 @@ func TestCustomizeKserveConfigMap(t *testing.T) { //nolint:maintidx
 		g.Expect(serviceData["serviceClusterIPNone"]).Should(BeTrue())
 
 		// verify localModel jobNamespace and enabled
-		var localModelData map[string]interface{}
+		var localModelData map[string]any
 		err = json.Unmarshal([]byte(updatedConfigMap.Data[LocalModelConfigKeyName]), &localModelData)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(localModelData["jobNamespace"]).Should(Equal(cluster.GetApplicationNamespace()))
@@ -128,7 +128,7 @@ func TestCustomizeKserveConfigMap(t *testing.T) { //nolint:maintidx
 		g.Expect(serviceData["serviceClusterIPNone"]).Should(BeFalse())
 
 		// verify localModel jobNamespace and enabled
-		var localModelData map[string]interface{}
+		var localModelData map[string]any
 		err = json.Unmarshal([]byte(updatedConfigMap.Data[LocalModelConfigKeyName]), &localModelData)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(localModelData["jobNamespace"]).Should(Equal(cluster.GetApplicationNamespace()))
@@ -171,7 +171,7 @@ func TestCustomizeKserveConfigMap(t *testing.T) { //nolint:maintidx
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, updatedConfigMap)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		var localModelData map[string]interface{}
+		var localModelData map[string]any
 		err = json.Unmarshal([]byte(updatedConfigMap.Data[LocalModelConfigKeyName]), &localModelData)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(localModelData["enabled"]).Should(BeTrue())
@@ -1163,21 +1163,21 @@ func TestCreateLocalModelNodeGroup(t *testing.T) {
 		obj.SetGroupVersionKind(gvk.LocalModelNodeGroup)
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: "workers"}, obj)).Should(Succeed())
 
-		spec, ok := obj.Object["spec"].(map[string]interface{})
+		spec, ok := obj.Object["spec"].(map[string]any)
 		g.Expect(ok).Should(BeTrue())
 		g.Expect(spec["storageLimit"]).Should(Equal("200Gi"))
 
-		pvSpec, ok := spec["persistentVolumeSpec"].(map[string]interface{})
+		pvSpec, ok := spec["persistentVolumeSpec"].(map[string]any)
 		g.Expect(ok).Should(BeTrue())
-		capacity, ok := pvSpec["capacity"].(map[string]interface{})
+		capacity, ok := pvSpec["capacity"].(map[string]any)
 		g.Expect(ok).Should(BeTrue())
 		g.Expect(capacity["storage"]).Should(Equal("200Gi"))
 
-		pvcSpec, ok := spec["persistentVolumeClaimSpec"].(map[string]interface{})
+		pvcSpec, ok := spec["persistentVolumeClaimSpec"].(map[string]any)
 		g.Expect(ok).Should(BeTrue())
-		pvcResources, ok := pvcSpec["resources"].(map[string]interface{})
+		pvcResources, ok := pvcSpec["resources"].(map[string]any)
 		g.Expect(ok).Should(BeTrue())
-		requests, ok := pvcResources["requests"].(map[string]interface{})
+		requests, ok := pvcResources["requests"].(map[string]any)
 		g.Expect(ok).Should(BeTrue())
 		g.Expect(requests["storage"]).Should(Equal("200Gi"))
 
@@ -1225,21 +1225,21 @@ func TestCreateLocalModelNodeGroup(t *testing.T) {
 		obj.SetGroupVersionKind(gvk.LocalModelNodeGroup)
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: "workers"}, obj)).Should(Succeed())
 
-		spec, ok := obj.Object["spec"].(map[string]interface{})
+		spec, ok := obj.Object["spec"].(map[string]any)
 		g.Expect(ok).Should(BeTrue())
 		g.Expect(spec["storageLimit"]).Should(Equal("500Gi"))
 
-		pvSpec, ok := spec["persistentVolumeSpec"].(map[string]interface{})
+		pvSpec, ok := spec["persistentVolumeSpec"].(map[string]any)
 		g.Expect(ok).Should(BeTrue())
-		capacity, ok := pvSpec["capacity"].(map[string]interface{})
+		capacity, ok := pvSpec["capacity"].(map[string]any)
 		g.Expect(ok).Should(BeTrue())
 		g.Expect(capacity["storage"]).Should(Equal("500Gi"))
 
-		pvcSpec, ok := spec["persistentVolumeClaimSpec"].(map[string]interface{})
+		pvcSpec, ok := spec["persistentVolumeClaimSpec"].(map[string]any)
 		g.Expect(ok).Should(BeTrue())
-		pvcResources, ok := pvcSpec["resources"].(map[string]interface{})
+		pvcResources, ok := pvcSpec["resources"].(map[string]any)
 		g.Expect(ok).Should(BeTrue())
-		requests, ok := pvcResources["requests"].(map[string]interface{})
+		requests, ok := pvcResources["requests"].(map[string]any)
 		g.Expect(ok).Should(BeTrue())
 		g.Expect(requests["storage"]).Should(Equal("500Gi"))
 	})
@@ -1542,7 +1542,7 @@ func TestReconcileModelCache(t *testing.T) {
 		lmng := &unstructured.Unstructured{}
 		lmng.SetGroupVersionKind(gvk.LocalModelNodeGroup)
 		lmng.SetName("workers")
-		lmng.Object["spec"] = map[string]interface{}{"storageLimit": "100Gi"}
+		lmng.Object["spec"] = map[string]any{"storageLimit": "100Gi"}
 
 		node := &corev1.Node{
 			ObjectMeta: metav1.ObjectMeta{

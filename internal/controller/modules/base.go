@@ -229,9 +229,8 @@ func setDSCComponentField(dsc *dscv2.DataScienceCluster, fieldName string, enabl
 // Releases on the pointed-to struct. Types without a Releases field are
 // silently skipped.
 func setReleasesOnDSCField(field reflect.Value, releases []common.ComponentRelease) {
-	for i := range field.NumField() {
-		f := field.Field(i)
-		if f.Kind() != reflect.Ptr || f.Type().Elem().Kind() != reflect.Struct {
+	for _, f := range field.Fields() {
+		if f.Kind() != reflect.Pointer || f.Type().Elem().Kind() != reflect.Struct {
 			continue
 		}
 
@@ -347,7 +346,7 @@ func extractReleases(u *unstructured.Unstructured) []common.ComponentRelease {
 
 	result := make([]common.ComponentRelease, 0, len(items))
 	for _, item := range items {
-		entry, ok := item.(map[string]interface{})
+		entry, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}

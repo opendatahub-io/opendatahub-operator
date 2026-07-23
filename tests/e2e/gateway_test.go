@@ -38,7 +38,7 @@ const (
 	gatewayServiceTLSSecretName = gateway.GatewayServiceTLSSecretName
 	envoyFilterName             = "data-science-authn-filter"
 	expectedSecretDataKeys      = 3
-	SecretHashAnnotation        = "opendatahub.io/secret-hash" //nolint:gosec
+	SecretHashAnnotation        = "opendatahub.io/secret-hash"
 )
 
 // Gateway infrastructure and OAuth proxy configuration constants.

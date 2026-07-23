@@ -127,7 +127,7 @@ func isUnstructuredCRReady(u *unstructured.Unstructured) bool {
 		return false
 	}
 	for _, item := range conditions {
-		c, ok := item.(map[string]interface{})
+		c, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -154,5 +154,5 @@ func isComponentCRReady(obj common.PlatformObject) bool {
 }
 
 func isNilPlatformObject(v any) bool {
-	return v == nil || (reflect.ValueOf(v).Kind() == reflect.Ptr && reflect.ValueOf(v).IsNil())
+	return v == nil || (reflect.ValueOf(v).Kind() == reflect.Pointer && reflect.ValueOf(v).IsNil())
 }
