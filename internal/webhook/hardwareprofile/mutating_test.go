@@ -1973,6 +1973,169 @@ func TestHardwareProfile_ProfileChangeClearsScheduling(t *testing.T) {
 	g.Expect(foundNodeSelectorRemove).Should(BeTrue(), "Should have patch to remove nodeSelector when switching profiles")
 }
 
+// TestHardwareProfile_ContentChangeUpdatesResources tests that when the hardware profile
+// content is updated (same name, different generation), the webhook overwrites existing
+// resource values with the updated HWP values (RHOAIENG-78895).
+func TestHardwareProfile_ContentChangeUpdatesResources(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create a hardware profile with updated values (generation=2 simulates an update)
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithCPUIdentifier("1", "4"),
+		envtestutil.WithMemoryIdentifier("1Gi", "8Gi"),
+	)
+	hwp.Generation = 2
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Helper to set both requests and limits on the first container
+	setFullResources := func(obj *unstructured.Unstructured, resources map[string]any) {
+		containers, _, _ := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "containers")
+		if len(containers) > 0 {
+			if cm, ok := containers[0].(map[string]any); ok {
+				cm["resources"] = resources
+				_ = unstructured.SetNestedSlice(obj.Object, containers, "spec", "template", "spec", "containers")
+			}
+		}
+	}
+
+	oldResources := map[string]any{
+		"requests": map[string]any{"cpu": "2", "memory": "4Gi"},
+		"limits":   map[string]any{"cpu": "2", "memory": "4Gi"},
+	}
+
+	// Create the "old" notebook that was deployed with the original HWP (generation=1)
+	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace,
+		envtestutil.WithHardwareProfile(testHardwareProfile),
+		envtestutil.WithAnnotation(hardwareprofile.HardwareProfileGenerationAnnotation, "1"),
+	)
+	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+	setFullResources(oldNotebookUnstructured, oldResources)
+
+	// Create the "new" notebook (same annotations, same old resources — simulating a restart)
+	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace,
+		envtestutil.WithHardwareProfile(testHardwareProfile),
+		envtestutil.WithAnnotation(hardwareprofile.HardwareProfileGenerationAnnotation, "1"),
+	)
+	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+	setFullResources(newNotebookUnstructured, oldResources)
+
+	newObjBytes, err := json.Marshal(newNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	oldObjBytes, err := json.Marshal(oldNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	req := admission.Request{
+		AdmissionRequest: admissionv1.AdmissionRequest{
+			UID:       "test-uid",
+			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Namespace: testNamespace,
+			Operation: admissionv1.Update,
+			Object:    runtime.RawExtension{Raw: newObjBytes},
+			OldObject: runtime.RawExtension{Raw: oldObjBytes},
+		},
+	}
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+
+	// Verify that the resource values were updated to the new HWP values
+	foundCPUUpdate := false
+	foundMemoryUpdate := false
+	foundGenerationUpdate := false
+	for _, patch := range resp.Patches {
+		if strings.Contains(patch.Path, "/resources/requests/cpu") ||
+			strings.Contains(patch.Path, "/resources/limits/cpu") {
+			if patch.Value == "4" {
+				foundCPUUpdate = true
+			}
+		}
+		if strings.Contains(patch.Path, "/resources/requests/memory") ||
+			strings.Contains(patch.Path, "/resources/limits/memory") {
+			if patch.Value == "8Gi" {
+				foundMemoryUpdate = true
+			}
+		}
+		if strings.Contains(patch.Path, "hardware-profile-generation") {
+			if val, ok := patch.Value.(string); ok && val == "2" {
+				foundGenerationUpdate = true
+			}
+		}
+	}
+	g.Expect(foundCPUUpdate).Should(BeTrue(), "Should have updated CPU from old to new HWP value")
+	g.Expect(foundMemoryUpdate).Should(BeTrue(), "Should have updated memory from old to new HWP value")
+	g.Expect(foundGenerationUpdate).Should(BeTrue(), "Should have updated the generation annotation")
+}
+
+// TestHardwareProfile_SameContentPreservesResources tests that when the hardware profile
+// content has NOT changed (same generation), existing resource values are preserved.
+func TestHardwareProfile_SameContentPreservesResources(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithCPUIdentifier("1", "2"),
+	)
+	hwp.Generation = 1
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create old notebook with matching generation and manually-set CPU of "4"
+	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace,
+		envtestutil.WithHardwareProfile(testHardwareProfile),
+		envtestutil.WithAnnotation(hardwareprofile.HardwareProfileGenerationAnnotation, "1"),
+	)
+	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+	setContainerResources(oldNotebookUnstructured, "requests", "cpu", "4")
+
+	// New notebook — same generation, same manual CPU override
+	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace,
+		envtestutil.WithHardwareProfile(testHardwareProfile),
+		envtestutil.WithAnnotation(hardwareprofile.HardwareProfileGenerationAnnotation, "1"),
+	)
+	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+	setContainerResources(newNotebookUnstructured, "requests", "cpu", "4")
+
+	newObjBytes, err := json.Marshal(newNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	oldObjBytes, err := json.Marshal(oldNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	req := admission.Request{
+		AdmissionRequest: admissionv1.AdmissionRequest{
+			UID:       "test-uid",
+			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Namespace: testNamespace,
+			Operation: admissionv1.Update,
+			Object:    runtime.RawExtension{Raw: newObjBytes},
+			OldObject: runtime.RawExtension{Raw: oldObjBytes},
+		},
+	}
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+
+	// Verify CPU was NOT overwritten — the user's manual value should be preserved
+	for _, patch := range resp.Patches {
+		if strings.Contains(patch.Path, "/resources/requests/cpu") {
+			if val, ok := patch.Value.(string); ok && val == "2" {
+				t.Fatalf("Should NOT overwrite manually-set CPU when HWP generation hasn't changed")
+			}
+		}
+	}
+}
+
 // TestHardwareProfile_SameProfileMergesTolerations tests that when the hardware profile
 // hasn't changed, tolerations are merged (HWP tolerations + existing manual tolerations).
 func TestHardwareProfile_SameProfileMergesTolerations(t *testing.T) {
