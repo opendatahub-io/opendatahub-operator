@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
@@ -206,14 +207,12 @@ func (w *ISVCConnectionWebhook) performConnectionInjection(
 		}
 		log.V(1).Info("Successfully injected OCI .spec.predictor.imagePullSecrets", "secretName", connInfo.SecretName)
 		// TODO: inject .spec.model.uri
-		return true, nil
 
 	case webhookutils.ConnectionTypeProtocolURI.String(), webhookutils.ConnectionTypeRefURI.String():
 		if err := w.injectURIStorageUri(ctx, decodedObj, connInfo.SecretName, req.Namespace); err != nil {
 			return false, fmt.Errorf("failed to inject host to .spec.predictor.model.storageUri: %w", err)
 		}
 		log.V(1).Info("Successfully injected URI .spec.predictor.model.storageUri", "secretName", connInfo.SecretName)
-		return true, nil
 
 	case webhookutils.ConnectionTypeProtocolS3.String(), webhookutils.ConnectionTypeRefS3.String():
 		// inject ServiceAccount only for S3 connections
@@ -236,12 +235,14 @@ func (w *ISVCConnectionWebhook) performConnectionInjection(
 			return false, fmt.Errorf("failed to inject S3 .spec.predictor.model.storage: %w", err)
 		}
 		log.V(1).Info("Successfully injected S3 .spec.predictor.model.storage", "secretName", connInfo.SecretName)
-		return true, nil
 
 	default: // this should not enter since ValidateConnectionAnnotation ensures valid types, but keep it for safety
 		log.V(1).Info("Unknown connection type, skipping injection", "connectionType", connInfo.Type)
 		return false, nil
 	}
+
+	resources.SetAnnotation(decodedObj, annotations.InjectedConnectionType, connInfo.Type)
+	return true, nil
 }
 
 // performConnectionCleanup removes previously injected connection fields when the annotation is removed on UPDATE operation.
@@ -316,6 +317,10 @@ func (w *ISVCConnectionWebhook) performConnectionCleanup(
 		// No specific cleanup needed for unknown connection types
 		log.V(1).Info("No specific cleanup needed for connection type", "connectionType", connInfo.Type)
 		cleanupPerformed = false
+	}
+
+	if cleanupPerformed {
+		resources.RemoveAnnotation(decodedObj, annotations.InjectedConnectionType)
 	}
 
 	return cleanupPerformed, nil
