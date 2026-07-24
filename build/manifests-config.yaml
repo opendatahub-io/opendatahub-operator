@@ -1,25 +1,11 @@
 map:
-  notebooks:
-    git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 4329ba9c89b5b1006d02db6cff0bece22f5dc128
-    src: manifests
-    dest: workbenches/notebooks
-    ref_type: branch
-  odh-kserve-controller:
-    src: config
-    dest: kserve
-    git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 55801b4448e8886929a64f1fe856bbc08a973183
-  odh-kf-notebook-controller:
-    src: components/notebook-controller/config
-    dest: workbenches/kf-notebook-controller
-    git.url: https://github.com/red-hat-data-services/kubeflow
-    git.commit: 1998656679e96a2d4244dddce885ce3af5885cd2
-  odh-notebook-controller:
-    src: components/odh-notebook-controller/config
-    dest: workbenches/odh-notebook-controller
-    git.url: https://github.com/red-hat-data-services/kubeflow
-    git.commit: 1998656679e96a2d4244dddce885ce3af5885cd2
+  odh-workbenches-operator:
+    src: charts/operator
+    dest: workbenches
+    type: chart
+  odh-kserve-module-operator:
+    src: kserve-module/config
+    dest: kserve-module-operator
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
@@ -35,11 +21,6 @@ map:
     dest: trustyai
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
     git.commit: b76913c12d8fc6864b52a3f000a781182f5cf5cc
-  odh-model-controller:
-    src: config
-    dest: modelcontroller
-    git.url: https://github.com/red-hat-data-services/odh-model-controller
-    git.commit: 660045635a94b1d54e35bd29254adc79a30799b0
   odh-model-registry-operator:
     src: config
     dest: modelregistry
