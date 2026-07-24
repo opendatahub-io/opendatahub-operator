@@ -115,10 +115,10 @@ additional_meta:
     git.commit: f6d3917e946202d6fc63432b0ec2aec1b1353ca0
   odh-cli:
     git.url: https://github.com/red-hat-data-services/odh-cli
-    git.commit: c69a5f9d3bee5c2d850827f674ea542ee8d5032c
+    git.commit: 12af139e79a28a2ab009bcff87b0cf13b56e8a31
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 7d1ca09a881e682947edb5b49c355fd3c5802b7c
+    git.commit: 0347514bfce52a10657e5e43f1655bdc1675307d
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: 6f8258ce7ab39bcb31c749e5befb85641b47eada
@@ -184,10 +184,10 @@ additional_meta:
     git.commit: 3f07551ff15a5f5e348dbee9f7e3fe1c18f32932
   odh-llm-d-batch-gateway-apiserver:
     git.url: https://github.com/red-hat-data-services/batch-gateway
-    git.commit: 864785839cc627040f1b752989bfdd7e7bbbbf79
+    git.commit: 811b6979c65f84eefe0e6e400157ff030c123423
   odh-llm-d-batch-gateway-gc:
     git.url: https://github.com/red-hat-data-services/batch-gateway
-    git.commit: 864785839cc627040f1b752989bfdd7e7bbbbf79
+    git.commit: 811b6979c65f84eefe0e6e400157ff030c123423
   odh-llm-d-batch-gateway-operator:
     git.url: https://github.com/red-hat-data-services/llm-d-batch-gateway-operator
     git.commit: 4bc655ac76773ef2c8888dcfb1f5d508d0db7532
@@ -367,7 +367,7 @@ additional_meta:
     git.commit: 53c42d03ff4b52a7d0db64e2fe2b45e41addc6c8
   odh-workbench-codeserver-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 4329ba9c89b5b1006d02db6cff0bece22f5dc128
+    git.commit: 766b9e4ea99895373dfb333a1a57941562c0beda
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 766b9e4ea99895373dfb333a1a57941562c0beda

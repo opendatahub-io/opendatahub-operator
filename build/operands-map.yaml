@@ -12,9 +12,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE
   value: "quay.io/rhoai/odh-built-in-detector-rhel9@sha256:500a186f21c7fa9c4bb9c32b55e9abf45b98b6ea3ffd1c71ae810043e7a38c48"
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
-  value: "quay.io/rhoai/odh-cli-rhel9@sha256:33017313d08f5e816fc4fb8d0177469a13522f9da2cdc7ac5d9daa2b9defb1b6"
+  value: "quay.io/rhoai/odh-cli-rhel9@sha256:a0e6488bc8dbd909e85e30ec340250db56d163bcb84317117673373269e37abe"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
-  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:28e8691f0305bd9db8377c49234f881a0f0f2288579119027a1a67e924abbe8e"
+  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:d691728bbb92116b7611e2f2d8454a703136ffb0a585d6e757904694dcbf42a8"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
   value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:c03734ea650e1c02243812234ebde863b8b024b64b948b46e8c9f0d60e7bc617"
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
@@ -72,9 +72,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_LLM_D_ASYNC_IMAGE
   value: "quay.io/rhoai/odh-llm-d-async-rhel9@sha256:a02a9240ae8b8f66f9c064a632293d56a420ef6bd0bc3013c49ba55acc0ddcdc"
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_APISERVER_IMAGE
-  value: "quay.io/rhoai/odh-llm-d-batch-gateway-apiserver-rhel9@sha256:956e548b93be38413c46f55dbef000e56db038e753043f096002ab639441da7f"
+  value: "quay.io/rhoai/odh-llm-d-batch-gateway-apiserver-rhel9@sha256:c28ab08e34f9dfaf7f1fcd0aa5d297b980f7b5ce0f8ba5954d0bc1922551df5d"
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE
-  value: "quay.io/rhoai/odh-llm-d-batch-gateway-gc-rhel9@sha256:0b294801b024c1b2dbccb0513fdc3a1c4335c02710dfeb3de2714604d3d2c0c8"
+  value: "quay.io/rhoai/odh-llm-d-batch-gateway-gc-rhel9@sha256:1108bfd7fdaf1ba4627d68e8fd774a20ad919eda5a06357de84d3129dbfafee2"
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-llm-d-batch-gateway-operator-rhel9@sha256:b686f1eb0cb0880a9e62c5f262e4ab964e86b5b5dee9aae660fa3dba993eb8d0"
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE
@@ -214,7 +214,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-workbenches-operator-rhel9@sha256:9168307f5deee7af5838b39e8aff63641876aed7b59488eaebc3216e099997ad"
 - name: RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE
-  value: "quay.io/rhoai/odh-workbench-codeserver-datascience-cpu-py312-rhel9@sha256:4e0b61e5f6fe9f069711937e6966c8d7b89e57b23aabe4d113fab5bd7e38a82d"
+  value: "quay.io/rhoai/odh-workbench-codeserver-datascience-cpu-py312-rhel9@sha256:dde31dca4c112da0fb44ed86d9fc70ba0664530cf2451c4627f61578383a4930"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_DATASCIENCE_CPU_PY312_IMAGE
   value: "quay.io/rhoai/odh-workbench-jupyter-datascience-cpu-py312-rhel9@sha256:862007d2e79a781e1c29c8b9338c60f077dc59bd3f405a8c29acf4fb1f479731"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_CPU_PY312_IMAGE
