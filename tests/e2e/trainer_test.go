@@ -6,42 +6,140 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
 
-type TrainerTestCtx struct {
-	*ComponentTestCtx
-}
+const trainerControllerDeployment = "trainer-operator-controller-manager"
 
 func trainerTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Trainer{})
+	tc, err := NewTestContext(t)
 	require.NoError(t, err)
 
-	componentCtx := TrainerTestCtx{
-		ComponentTestCtx: ct,
+	moduleGVK := schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.TrainerKind,
+	}
+	moduleCRNN := types.NamespacedName{Name: componentApi.TrainerInstanceName}
+	controllerNN := types.NamespacedName{
+		Namespace: tc.AppsNamespace,
+		Name:      trainerControllerDeployment,
 	}
 
-	// Define test cases.
 	testCases := []TestCase{
-		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
-		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
-		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
-		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
-		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+		{"Validate component enabled", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Smoke, Tier1)
+
+			if !tc.IsXKS() {
+				tc.EventuallyResourcePatched(
+					WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+					WithMutateFunc(testf.Transform(`.spec.components.trainer.managementState = "Removed"`)),
+					WithCondition(jq.Match(`.spec.components.trainer.managementState == "Removed"`)),
+				)
+				tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
+			}
+
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.Transform(`.spec.components.trainer.managementState = "Managed"`)),
+				WithCondition(jq.Match(`.spec.components.trainer.managementState == "Managed"`)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+				)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Deployment, controllerNN),
+				WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeModulesReady, metav1.ConditionTrue)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.TrainerKind, metav1.ConditionTrue)),
+				WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to True", componentApi.TrainerKind),
+			)
+		}},
+		{"Validate module handler projects DSC config to Module CR", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			t.Log("Step 1: Verify Trainer Module CR exists")
+			tc.EnsureResourceExists(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithCondition(jq.Match(`.metadata.name == "%s"`, componentApi.TrainerInstanceName)),
+			)
+
+			t.Log("Step 2: Verify managementState is NOT projected into Module CR")
+			tc.EnsureResourceExists(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithCondition(jq.Match(`.spec.managementState == null`)),
+			)
+
+			t.Log("Step 3: Verify appNamespace is projected into Module CR spec")
+			tc.EnsureResourceExists(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithCondition(jq.Match(`.spec.appNamespace == "%s"`, tc.AppsNamespace)),
+			)
+
+			t.Log("Step 4: Verify Module CR has correct ownerReferences to DSC")
+			tc.EnsureResourceExists(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithCondition(jq.Match(`.metadata.ownerReferences[0].kind == "DataScienceCluster"`)),
+			)
+		}},
+		{"Validate component disabled", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Smoke, Tier1)
+
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.Transform(`.spec.components.trainer.managementState = "Removed"`)),
+				WithCondition(jq.Match(`.spec.components.trainer.managementState == "Removed"`)),
+			)
+
+			tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
+			tc.EnsureResourceGone(WithMinimalObject(gvk.Deployment, controllerNN))
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.TrainerKind, metav1.ConditionFalse),
+					jq.Match(`.status.conditions[] | select(.type == "%sReady") | .reason == "%s"`, componentApi.TrainerKind, status.RemovedReason),
+				)),
+				WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to False/Removed", componentApi.TrainerKind),
+			)
+		}},
 	}
 
-	// Run the test suite.
 	RunTestCases(t, testCases)
+}
+
+// TrainerTestCtx wraps ComponentTestCtx for degraded monitoring tests
+// that still need the component-level test helpers.
+type TrainerTestCtx struct {
+	*ComponentTestCtx
 }
 
 // trainerDegradedMonitoringTestSuite runs only the external operator degraded monitoring tests.
@@ -57,10 +155,44 @@ func trainerDegradedMonitoringTestSuite(t *testing.T) {
 
 	testCases := []TestCase{
 		// we must enable the component first since this suite runs isolated from other component tests
-		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate component enabled", componentCtx.ValidateModuleEnabled},
 		{"Validate external operator degraded condition monitoring", componentCtx.ValidateExternalOperatorDegradedMonitoring},
 	}
 	RunTestCases(t, testCases)
+}
+
+// ValidateModuleEnabled enables trainer using the module pattern: separate DSC patch
+// from readiness check, waiting for TrainerReady instead of the aggregate ModulesReady.
+func (tc *TrainerTestCtx) ValidateModuleEnabled(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Smoke, Tier1)
+
+	moduleGVK := schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.TrainerKind,
+	}
+	moduleCRNN := types.NamespacedName{Name: componentApi.TrainerInstanceName}
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.trainer.managementState = "Managed"`)),
+		WithCondition(jq.Match(`.spec.components.trainer.managementState == "Managed"`)),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(moduleGVK, moduleCRNN),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+		)),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.TrainerKind, metav1.ConditionTrue)),
+		WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to True", componentApi.TrainerKind),
+	)
 }
 
 // ValidateExternalOperatorDegradedMonitoring ensures that when the external JobSet operator CR
@@ -103,7 +235,7 @@ func (tc *TrainerTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, trainerNN),
 		WithCondition(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 		),
 	)
 
@@ -120,7 +252,7 @@ func (tc *TrainerTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, trainerNN),
 		WithCondition(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 		),
 	)
 
@@ -148,18 +280,32 @@ func (tc *TrainerTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.
 	t.Log("All external operator degraded condition monitoring tests passed")
 }
 
-// ensureJobSetBaseline clears JobSet conditions, asserts Trainer component/DSC health.
-// Returns the JobSet CR for use in test assertions.
+// ensureJobSetBaseline restores healthy conditions on the JobSetOperator CR
+// and asserts Trainer component/DSC health. Returns the JobSet CR for use
+// in test assertions.
 func (tc *TrainerTestCtx) ensureJobSetBaseline(t *testing.T) *unstructured.Unstructured {
 	t.Helper()
 
 	trainerNN := types.NamespacedName{Name: componentApi.TrainerInstanceName}
 	jobSetCR := tc.FetchSingleResourceOfKind(gvk.JobSetOperatorV1, jobSetOpNamespace)
 
-	tc.ClearAllConditionsFromResourceStatus(jobSetCR)
+	// Re-inject healthy conditions instead of clearing all — the trainer-operator
+	// treats "no conditions" as degraded (operator hasn't reconciled yet).
+	healthyConditions := []struct {
+		condType string
+		status   metav1.ConditionStatus
+	}{
+		{"Available", metav1.ConditionTrue},
+		{"Degraded", metav1.ConditionFalse},
+		{"TargetConfigControllerDegraded", metav1.ConditionFalse},
+		{"JobSetOperatorStaticResourcesDegraded", metav1.ConditionFalse},
+	}
+	for _, c := range healthyConditions {
+		tc.InjectConditionIntoResourceStatus(jobSetCR, c.condType, c.status, "AsExpected", "")
+	}
+
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, trainerNN),
-		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue)),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
 	)
 	tc.EnsureResourceExists(
@@ -212,15 +358,12 @@ func (tc *TrainerTestCtx) runDegradedConditionTest(t *testing.T, testCase degrad
 		"Simulated condition for e2e test: "+testCase.conditionType+"="+string(testCase.conditionStatus),
 	)
 
-	t.Logf("Verifying Trainer component CR (%s) reacts by setting DependenciesAvailable=False and Ready=False.", trainerNN)
+	t.Logf("Verifying Trainer component CR (%s) reacts by setting Degraded=True and Ready=False.", trainerNN)
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, trainerNN),
 		WithCondition(
 			And(
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionFalse),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionDependenciesAvailable, "PreConditionFailed"),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`, status.ConditionDependenciesAvailable, gvk.JobSetOperatorV1.Kind),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`, status.ConditionDependenciesAvailable, testCase.conditionType),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeDegraded, metav1.ConditionTrue),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionFalse),
 			),
 		),
@@ -238,14 +381,11 @@ func (tc *TrainerTestCtx) runDegradedConditionTest(t *testing.T, testCase degrad
 	jobSetCR = tc.FetchSingleResourceOfKind(gvk.JobSetOperatorV1, jobSetOpNamespace)
 	tc.RemoveConditionFromResourceStatus(jobSetCR, testCase.conditionType)
 
-	t.Logf("Verifying Trainer component CR (%s) recovers (DependenciesAvailable=True, Ready=True).", trainerNN)
+	t.Logf("Verifying Trainer component CR (%s) recovers (Ready=True).", trainerNN)
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, trainerNN),
 		WithCondition(
-			And(
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
-			),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 		),
 	)
 
@@ -258,4 +398,49 @@ func (tc *TrainerTestCtx) runDegradedConditionTest(t *testing.T, testCase degrad
 	)
 
 	t.Logf("Test case passed: %s", testCase.name)
+}
+
+// ValidateModuleHandlerProjection verifies module handler projects DSC config
+// into Trainer Module CR spec (excluding DSC-level fields like managementState).
+func (tc *TrainerTestCtx) ValidateModuleHandlerProjection(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	trainerNN := types.NamespacedName{Name: componentApi.TrainerInstanceName}
+	moduleGVK := gvk.Trainer
+
+	t.Log("Step 1: Verify Trainer Module CR exists and is created by module handler")
+	tc.EnsureResourceExists(
+		WithMinimalObject(moduleGVK, trainerNN),
+		WithCondition(
+			jq.Match(`.metadata.name == "%s"`, componentApi.TrainerInstanceName),
+		),
+	)
+
+	t.Log("Step 2: Verify managementState is NOT projected into Module CR")
+	tc.EnsureResourceExists(
+		WithMinimalObject(moduleGVK, trainerNN),
+		WithCondition(
+			jq.Match(`.spec.managementState == null`),
+		),
+	)
+
+	t.Log("Step 3: Verify appNamespace is projected into Module CR spec")
+	tc.EnsureResourceExists(
+		WithMinimalObject(moduleGVK, trainerNN),
+		WithCondition(
+			jq.Match(`.spec.appNamespace == "%s"`, tc.AppsNamespace),
+		),
+	)
+
+	t.Log("Step 4: Verify Module CR has correct ownerReferences to DSC")
+	tc.EnsureResourceExists(
+		WithMinimalObject(moduleGVK, trainerNN),
+		WithCondition(
+			jq.Match(`.metadata.ownerReferences[0].kind == "DataScienceCluster"`),
+		),
+	)
+
+	t.Log("Module handler projection validation passed - DSC config correctly projected to Module CR spec")
 }

@@ -2537,6 +2537,7 @@ _Appears in:_
 | `monitoring` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Monitoring controls the monitoring module operator lifecycle. |  |  |
 | `mcplifecycleoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | MCPLifecycleOperator controls the MCP Lifecycle Operator module lifecycle. |  |  |
 | `kserve` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Kserve controls the kserve module operator lifecycle. |  |  |
+| `trainer` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Trainer controls the Trainer module operator lifecycle. |  |  |
 | `workbenches` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Workbenches controls the workbenches module operator lifecycle. |  |  |
 
 

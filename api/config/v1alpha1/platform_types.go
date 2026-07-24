@@ -64,6 +64,10 @@ type PlatformModules struct {
 	// +optional
 	Kserve common.ManagementSpec `json:"kserve,omitempty"`
 
+	// Trainer controls the Trainer module operator lifecycle.
+	// +optional
+	Trainer common.ManagementSpec `json:"trainer,omitempty"`
+
 	// Workbenches controls the workbenches module operator lifecycle.
 	// +optional
 	Workbenches common.ManagementSpec `json:"workbenches,omitempty"`
@@ -131,6 +135,9 @@ func (m *PlatformModules) EnabledModules() []string {
 	}
 	if m.Kserve.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "kserve")
+	}
+	if m.Trainer.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "trainer")
 	}
 	if m.Workbenches.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "workbenches")

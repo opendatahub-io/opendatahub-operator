@@ -91,6 +91,7 @@ func (in *PlatformModules) DeepCopyInto(out *PlatformModules) {
 	out.Monitoring = in.Monitoring
 	out.MCPLifecycleOperator = in.MCPLifecycleOperator
 	out.Kserve = in.Kserve
+	out.Trainer = in.Trainer
 	out.Workbenches = in.Workbenches
 }
 
