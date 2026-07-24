@@ -365,6 +365,24 @@ spec:
                           operations performed in parallel.
                         format: int32
                         type: integer
+                      reconciler:
+                        description: |-
+                          Reconciler configures the orphan reconciler that detects and cleans up
+                          stale jobs missed by the normal collector sweep.
+                        properties:
+                          enabled:
+                            default: true
+                            description: Enabled controls whether the orphan reconciler
+                              runs.
+                            type: boolean
+                          interval:
+                            default: 60m
+                            description: Interval is both the scan frequency and the
+                              staleness threshold (e.g. "60m").
+                            maxLength: 32
+                            pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                            type: string
+                        type: object
                     type: object
                   imagePullPolicy:
                     description: |-
@@ -994,6 +1012,15 @@ spec:
                         description: EnablePprof enables the Go pprof profiling HTTP
                           endpoints.
                         type: boolean
+                      heartbeatInterval:
+                        default: 5m
+                        description: |-
+                          HeartbeatInterval is how often the processor refreshes in-flight job entries
+                          to signal liveness. Must be shorter than gc.config.reconciler.interval to
+                          prevent active jobs from being misidentified as orphans.
+                        maxLength: 32
+                        pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                        type: string
                       logging:
                         description: Logging configures log verbosity for the processor.
                         properties:
@@ -1375,6 +1402,10 @@ spec:
             x-kubernetes-validations:
             - message: spec.secretRef.name is required
               rule: size(self.secretRef.name) > 0
+            - message: processor.config.heartbeatInterval must be shorter than gc.config.reconciler.interval
+              rule: '!has(self.processor.config) || !has(self.processor.config.heartbeatInterval)
+                || !has(self.gc.config) || !has(self.gc.config.reconciler) || !has(self.gc.config.reconciler.interval)
+                || duration(self.processor.config.heartbeatInterval) < duration(self.gc.config.reconciler.interval)'
           status:
             description: Status defines the observed state of LLMBatchGateway.
             properties:

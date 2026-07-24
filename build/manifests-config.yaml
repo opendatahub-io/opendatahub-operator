@@ -85,7 +85,7 @@ map:
     src: config
     dest: aigateway
     git.url: https://github.com/red-hat-data-services/ai-gateway-operator
-    git.commit: 6f1cc78b9528f559d79f290731193de08a90e7fa
+    git.commit: bb788e31f72d20982c67896cf75b6b0b5629774a
   odh-mcp-lifecycle-module-operator:
     src: config
     dest: mcplifecycleoperator
@@ -190,10 +190,10 @@ additional_meta:
     git.commit: 811b6979c65f84eefe0e6e400157ff030c123423
   odh-llm-d-batch-gateway-operator:
     git.url: https://github.com/red-hat-data-services/llm-d-batch-gateway-operator
-    git.commit: 4bc655ac76773ef2c8888dcfb1f5d508d0db7532
+    git.commit: 595bad26e921d61569abd6aeb1d36a65a7df95d3
   odh-llm-d-batch-gateway-processor:
     git.url: https://github.com/red-hat-data-services/batch-gateway
-    git.commit: 864785839cc627040f1b752989bfdd7e7bbbbf79
+    git.commit: 811b6979c65f84eefe0e6e400157ff030c123423
   odh-llm-d-router-disagg-sidecar:
     git.url: https://github.com/red-hat-data-services/llm-d-router
     git.commit: ec3943e421caaf2a92a6a0cedb1bc7d5e93aa5e2
