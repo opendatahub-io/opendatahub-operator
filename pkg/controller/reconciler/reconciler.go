@@ -461,7 +461,7 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 		is.ObservedGeneration = rr.Instance.GetGeneration()
 	}
 
-	if isUpgrade {
+	if isUpgrade && !shouldStop && provisionErr == nil {
 		is.ReconciledVersion = currentVersion
 	}
 

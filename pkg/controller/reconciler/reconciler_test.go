@@ -1539,7 +1539,63 @@ func TestVersionBasedConditionCleanup(t *testing.T) {
 
 		// Same version → no cleanup → ExtraCondition preserved
 		g.Expect(di).Should(
-			jq.Match(`.status.conditions[] | select(.type == "ExtraCondition")`),
+			jq.Match(`any(.status.conditions[]?.type; . == "ExtraCondition")`),
+		)
+	})
+
+	t.Run("failed upgrade does not record version so retry still runs cleanup", func(t *testing.T) {
+		g := NewWithT(t)
+
+		dash := resources.GvkToUnstructured(gvk.Dashboard)
+		dash.SetName(componentApi.DashboardInstanceName)
+		dash.SetGeneration(1)
+
+		err = cli.Create(ctx, dash)
+		g.Expect(err).NotTo(HaveOccurred())
+		t.Cleanup(func() {
+			_ = cli.Delete(ctx, dash, client.PropagationPolicy(metav1.DeletePropagationBackground))
+			g.Eventually(func() bool {
+				return k8serr.IsNotFound(cli.Get(ctx, client.ObjectKeyFromObject(dash), dash))
+			}).WithTimeout(10 * time.Second).Should(BeTrue())
+		})
+
+		st, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&common.Status{
+			Conditions: []common.Condition{{
+				Type:               "StaleFromOldVersion",
+				Status:             metav1.ConditionTrue,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+			}},
+		})
+		g.Expect(err).NotTo(HaveOccurred())
+
+		err = unstructured.SetNestedField(dash.Object, st, "status")
+		g.Expect(err).NotTo(HaveOccurred())
+
+		err = cli.Status().Update(ctx, dash)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		actionErr := errors.New("simulated action failure")
+
+		cc := createReconciler(cli)
+		cc.AddAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
+			return actionErr
+		})
+
+		// First reconcile: upgrade (empty ReconciledVersion) but action fails
+		_, err = cc.Reconcile(ctx, ctrl.Request{
+			NamespacedName: types.NamespacedName{Name: componentApi.DashboardInstanceName},
+		})
+		g.Expect(err).Should(HaveOccurred())
+
+		di := resources.GvkToUnstructured(gvk.Dashboard)
+		di.SetName(componentApi.DashboardInstanceName)
+
+		err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// ReconciledVersion must NOT be set after a failed upgrade
+		g.Expect(di).Should(
+			jq.Match(`.status.reconciledVersion == null or .status.reconciledVersion == ""`),
 		)
 	})
 }
