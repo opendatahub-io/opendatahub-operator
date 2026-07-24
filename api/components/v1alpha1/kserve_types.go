@@ -40,9 +40,6 @@ const (
 	KserveRawHeaded   RawServiceConfig = "Headed"
 )
 
-// Check that the component implements common.PlatformObject.
-var _ common.PlatformObject = (*Kserve)(nil)
-
 // OAuthProxyResourceRequirements describes the resource requirements
 // for the OAuth proxy sidecar container.
 type OAuthProxyResourceRequirements struct {
@@ -144,73 +141,9 @@ type ModelCacheSpec struct {
 	NodeSelector *metav1.LabelSelector `json:"nodeSelector,omitempty"`
 }
 
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// KserveSpec defines the desired state of Kserve
-type KserveSpec struct {
-	// kserve spec exposed to DSC api
-	KserveCommonSpec `json:",inline"`
-	// kserve spec exposed only to internal api
-}
-
 // KserveCommonStatus defines the shared observed state of Kserve
 type KserveCommonStatus struct {
 	common.ComponentReleaseStatus `json:",inline"`
-}
-
-// KserveStatus defines the observed state of Kserve
-type KserveStatus struct {
-	common.Status      `json:",inline"`
-	KserveCommonStatus `json:",inline"`
-}
-
-// +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-kserve'",message="Kserve name must be default-kserve"
-// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
-// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
-
-// Kserve is the Schema for the kserves API
-type Kserve struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   KserveSpec   `json:"spec,omitempty"`
-	Status KserveStatus `json:"status,omitempty"`
-}
-
-func (c *Kserve) GetStatus() *common.Status {
-	return &c.Status.Status
-}
-
-func (c *Kserve) GetConditions() []common.Condition {
-	return c.Status.GetConditions()
-}
-
-func (c *Kserve) SetConditions(conditions []common.Condition) {
-	c.Status.SetConditions(conditions)
-}
-
-func (c *Kserve) GetReleaseStatus() *[]common.ComponentRelease {
-	return &c.Status.Releases
-}
-
-func (c *Kserve) SetReleaseStatus(releases []common.ComponentRelease) {
-	c.Status.Releases = releases
-}
-
-// +kubebuilder:object:root=true
-
-// KserveList contains a list of Kserve
-type KserveList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Kserve `json:"items"`
-}
-
-func init() {
-	SchemeBuilder.Register(&Kserve{}, &KserveList{})
 }
 
 // DSCKserve contains all the configuration exposed in DSC instance for Kserve component

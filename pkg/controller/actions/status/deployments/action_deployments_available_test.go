@@ -525,7 +525,7 @@ func TestDeploymentsAvailableActionReadyWithoutAutomaticPartOfUsesComponentLabel
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
-		Instance: &componentApi.ModelsAsService{},
+		Instance: &componentApi.Ray{},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
