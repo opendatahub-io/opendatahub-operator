@@ -135,6 +135,9 @@ spec:
                     disableFeatureStore:
                       type: boolean
                       description: 'When true, hides the Feature Store pages from the dashboard navigation.'
+                    featureStoreAdmin:
+                      type: boolean
+                      description: 'When true, enables the Feature Store admin UI (create wizard, manage page).'
                     genAiStudio:
                       type: boolean
                       description: 'When true, enables the Gen AI Studio plugin for generative AI features.'

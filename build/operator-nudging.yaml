@@ -14,11 +14,11 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
   value: quay.io/rhoai/odh-cli-rhel9@sha256:33017313d08f5e816fc4fb8d0177469a13522f9da2cdc7ac5d9daa2b9defb1b6
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
-  value: quay.io/rhoai/odh-core-bff-rhel9@sha256:048d820c761dcd6bb27196e2069430f7b5c2f1cebf26f0c0bcf53336a74c8b57
+  value: quay.io/rhoai/odh-core-bff-rhel9@sha256:c10c4f434cd1288b3b8a9b5c150f5a682dc98c3013be15c47dca6f9e88194e0d
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
-  value: quay.io/rhoai/odh-dashboard-rhel9@sha256:420a4cc9c2ee850406e19e74c7e7e3bb1423d6939ae5e15ea236e80301b3c9da
+  value: quay.io/rhoai/odh-dashboard-rhel9@sha256:c03734ea650e1c02243812234ebde863b8b024b64b948b46e8c9f0d60e7bc617
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
-  value: quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:61a37fbe5cc401df37ab621a9c642d8ffade287fa6be8c49caa0728381d825af
+  value: quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:0013b41bb4a4d6486b5d3e0fc92c25bd770419330c251867cde1bcb8d445b0dc
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE
   value: quay.io/rhoai/odh-data-science-pipelines-argo-argoexec-rhel9@sha256:c79ec67c60d5f166eff179befdaecf3932cf3c91230db6c4e0472387c6403aa3
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_WORKFLOWCONTROLLER_IMAGE
