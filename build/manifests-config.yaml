@@ -1,19 +1,11 @@
 map:
-  notebooks:
-    git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: github.ref_name
-    src: manifests
-    dest: workbenches/notebooks
-    ref_type: branch
-  odh-kserve-controller:
-    src: config
-    dest: kserve
-  odh-kf-notebook-controller:
-    src: components/notebook-controller/config
-    dest: workbenches/kf-notebook-controller
-  odh-notebook-controller:
-    src: components/odh-notebook-controller/config
-    dest: workbenches/odh-notebook-controller
+  odh-workbenches-operator:
+    src: charts/operator
+    dest: workbenches
+    type: chart
+  odh-kserve-module-operator:
+    src: kserve-module/config
+    dest: kserve-module-operator
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
@@ -23,9 +15,6 @@ map:
   odh-trustyai-service-operator:
     src: config
     dest: trustyai
-  odh-model-controller:
-    src: config
-    dest: modelcontroller
   odh-model-registry-operator:
     src: config
     dest: modelregistry
@@ -66,3 +55,7 @@ map:
   odh-mcp-lifecycle-module-operator:
     src: config
     dest: mcplifecycleoperator
+  odh-feast-module-operator:
+    src: config/chart
+    dest: feastoperator
+    type: chart
