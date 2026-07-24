@@ -83,6 +83,7 @@ type KserveCommonSpec struct {
 	// Existing Managed values are still respected by the operator.
 	// One-directional CEL: Managed→Removed (cleanup) is allowed; Removed→Managed is blocked.
 	// +kubebuilder:validation:XValidation:rule="self.managementState != 'Managed' || (has(oldSelf.managementState) && oldSelf.managementState == 'Managed')",message="modelsAsService is deprecated; cannot re-enable once Removed. Use spec.components.aigateway.modelsAsAService instead"
+	// +kubebuilder:default={managementState: "Removed"}
 	ModelsAsService DSCModelsAsServiceSpec `json:"modelsAsService,omitempty"`
 	// Configures and enables workload-variant-autoscaler (WVA) integration
 	// +kubebuilder:default={}
