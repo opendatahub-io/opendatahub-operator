@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -36,8 +37,10 @@ import (
 
 // Annotation constants.
 const (
-	HardwareProfileNameAnnotation      = "opendatahub.io/hardware-profile-name"
-	HardwareProfileNamespaceAnnotation = "opendatahub.io/hardware-profile-namespace"
+	HardwareProfileNameAnnotation        = "opendatahub.io/hardware-profile-name"
+	HardwareProfileNamespaceAnnotation   = "opendatahub.io/hardware-profile-namespace"
+	HardwareProfileGenerationAnnotation  = "opendatahub.io/hardware-profile-generation"
+	HardwareProfileIdentifiersAnnotation = "opendatahub.io/hardware-profile-identifiers"
 )
 
 // Container name constants.
@@ -337,8 +340,22 @@ func (i *Injector) performHardwareProfileInjection(ctx context.Context, req *adm
 
 	// Detect if the hardware profile changed (only on UPDATE operations)
 	profileChanged := i.detectProfileChange(req, profileName, profileNamespace)
+
+	// Also detect if the HWP content changed (same name but updated spec).
+	// Compare the stored generation annotation with the current HWP's generation.
+	if !profileChanged && req.Operation == admissionv1.Update {
+		storedGen := resources.GetAnnotation(obj, HardwareProfileGenerationAnnotation)
+		currentGen := strconv.FormatInt(hwp.Generation, 10)
+		if storedGen != "" && storedGen != currentGen {
+			profileChanged = true
+			log.V(1).Info("hardware profile content changed, will re-apply settings",
+				"workload", obj.GetName(), "profile", profileName,
+				"storedGeneration", storedGen, "currentGeneration", currentGen)
+		}
+	}
+
 	if profileChanged {
-		log.V(1).Info("hardware profile changed, will clear existing scheduling settings",
+		log.V(1).Info("hardware profile changed, will clear and re-apply settings",
 			"workload", obj.GetName(), "newProfile", profileName, "newNamespace", profileNamespace)
 	}
 
@@ -348,6 +365,9 @@ func (i *Injector) performHardwareProfileInjection(ctx context.Context, req *adm
 		log.Error(err, "Failed to apply hardware profile", "profile", profileName)
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
+
+	// Track the HWP generation so future updates can detect content changes
+	resources.SetAnnotation(obj, HardwareProfileGenerationAnnotation, strconv.FormatInt(hwp.Generation, 10))
 
 	// Marshal the modified object
 	marshaledObj, err := json.Marshal(obj)
@@ -661,12 +681,25 @@ func (i *Injector) handleHWPRemoval(ctx context.Context, req *admission.Request,
 	// Fetch the old HWP to know what to remove
 	oldHWP, err := i.fetchHardwareProfile(ctx, oldProfileNamespace, oldProfileName)
 	if err != nil {
-		// If HWP is not found or can't be fetched, we can't clean up
-		// Log a warning but allow the request (don't block user from removing annotation)
-		log.V(1).Info("Could not fetch old HWP for cleanup, HWP-applied settings may remain",
+		// HWP not found — use stored identifier keys for best-effort resource cleanup
+		log.V(1).Info("Could not fetch old HWP for cleanup, attempting best-effort resource removal from stored identifiers",
 			"error", err, "oldProfile", oldProfileName, "oldNamespace", oldProfileNamespace)
-		// Still remove the namespace annotation
+
+		storedIdentifiers := resources.GetAnnotation(obj, HardwareProfileIdentifiersAnnotation)
+		if storedIdentifiers != "" {
+			storedKeys := parseIdentifierKeysCSV(storedIdentifiers)
+			keysToRemove := make([]string, 0, len(storedKeys))
+			for k := range storedKeys {
+				keysToRemove = append(keysToRemove, k)
+			}
+			if len(keysToRemove) > 0 {
+				i.removeIdentifierKeysFromWorkload(obj, keysToRemove)
+			}
+		}
+
 		resources.RemoveAnnotation(obj, HardwareProfileNamespaceAnnotation)
+		resources.RemoveAnnotation(obj, HardwareProfileGenerationAnnotation)
+		resources.RemoveAnnotation(obj, HardwareProfileIdentifiersAnnotation)
 		marshaledObj, marshalErr := json.Marshal(obj)
 		if marshalErr != nil {
 			return nil
@@ -682,8 +715,10 @@ func (i *Injector) handleHWPRemoval(ctx context.Context, req *admission.Request,
 		return &resp
 	}
 
-	// Remove the HWP namespace annotation
+	// Remove the HWP namespace, generation, and identifiers annotations
 	resources.RemoveAnnotation(obj, HardwareProfileNamespaceAnnotation)
+	resources.RemoveAnnotation(obj, HardwareProfileGenerationAnnotation)
+	resources.RemoveAnnotation(obj, HardwareProfileIdentifiersAnnotation)
 
 	// Marshal and return the modified object
 	marshaledObj, err := json.Marshal(obj)
@@ -840,6 +875,99 @@ func (i *Injector) fetchHardwareProfile(ctx context.Context, namespace, name str
 	return hwp, nil
 }
 
+func (i *Injector) removeIdentifierKeysFromWorkload(obj *unstructured.Unstructured, keys []string) {
+	config, err := GetWorkloadConfig(obj.GetKind())
+	if err != nil {
+		return
+	}
+
+	switch obj.GetKind() {
+	case gvk.InferenceServices.Kind:
+		model, found, err := unstructured.NestedMap(obj.Object, config.ContainersPath...)
+		if err != nil || !found {
+			return
+		}
+		removeIdentifierKeysFromContainer(model, keys)
+		_ = unstructured.SetNestedMap(obj.Object, model, config.ContainersPath...)
+	default:
+		containers, found, err := unstructured.NestedSlice(obj.Object, config.ContainersPath...)
+		if err != nil || !found {
+			return
+		}
+		indices := mainContainerIndicesForKind(obj, config.ContainersPath)
+		for idx, c := range containers {
+			if indices != nil && !intSliceContains(indices, idx) {
+				continue
+			}
+			if cm, ok := c.(map[string]any); ok {
+				removeIdentifierKeysFromContainer(cm, keys)
+			}
+		}
+		_ = unstructured.SetNestedSlice(obj.Object, containers, config.ContainersPath...)
+	}
+}
+
+func mainContainerIndicesForKind(obj *unstructured.Unstructured, containersPath []string) []int {
+	switch obj.GetKind() {
+	case gvk.Notebook.Kind:
+		return notebookMainContainerIndices(obj, containersPath)
+	case gvk.LLMInferenceServiceV1Alpha1.Kind:
+		return llmInferenceServiceMainContainerIndices(obj, containersPath)
+	default:
+		return nil
+	}
+}
+
+func intSliceContains(s []int, v int) bool {
+	for _, i := range s {
+		if i == v {
+			return true
+		}
+	}
+	return false
+}
+
+func removeIdentifierKeysFromContainer(container map[string]any, keys []string) {
+	res, ok := container["resources"].(map[string]any)
+	if !ok {
+		return
+	}
+	if requests, ok := res["requests"].(map[string]any); ok {
+		for _, k := range keys {
+			delete(requests, k)
+		}
+	}
+	if limits, ok := res["limits"].(map[string]any); ok {
+		for _, k := range keys {
+			delete(limits, k)
+		}
+	}
+}
+
+func identifierKeysCSV(identifiers []infrav1.HardwareIdentifier) string {
+	if len(identifiers) == 0 {
+		return ""
+	}
+	keys := make([]string, len(identifiers))
+	for i, id := range identifiers {
+		keys[i] = id.Identifier
+	}
+	slices.Sort(keys)
+	return strings.Join(keys, ",")
+}
+
+func parseIdentifierKeysCSV(csv string) map[string]bool {
+	if csv == "" {
+		return nil
+	}
+	parts := strings.Split(csv, ",")
+	result := make(map[string]bool, len(parts))
+	for _, p := range parts {
+		result[p] = true
+	}
+	return result
+}
+
 // applyHardwareProfileToWorkload applies hardwareprofile specifications to any supported
 // Kubernetes workload resource. This method is the central orchestrator for applying
 // all hardware profile configurations to workload resources.
@@ -893,10 +1021,37 @@ func (i *Injector) applyHardwareProfileToWorkload(ctx context.Context, obj *unst
 
 	log.V(1).Info("applying HWP settings to workload", "workload", obj.GetName(), "kind", obj.GetKind(), "hardwareProfile", hwp.Name)
 
-	// Apply resource requirements to containers (only if there are identifiers)
-	if len(hwp.Spec.Identifiers) > 0 {
-		if err := i.applyResourceRequirementsToWorkload(ctx, obj, hwp); err != nil {
+	// Compute which identifier keys were removed since the last apply
+	var removedIdentifierKeys []string
+	if profileChanged {
+		storedKeys := parseIdentifierKeysCSV(resources.GetAnnotation(obj, HardwareProfileIdentifiersAnnotation))
+		currentKeys := make(map[string]bool, len(hwp.Spec.Identifiers))
+		for _, id := range hwp.Spec.Identifiers {
+			currentKeys[id.Identifier] = true
+		}
+		for key := range storedKeys {
+			if !currentKeys[key] {
+				removedIdentifierKeys = append(removedIdentifierKeys, key)
+			}
+		}
+	}
+
+	// Apply resource requirements to containers, and clean up stale identifiers
+	resourcesApplied := false
+	if len(hwp.Spec.Identifiers) > 0 || len(removedIdentifierKeys) > 0 {
+		applied, err := i.applyResourceRequirementsToWorkload(ctx, obj, hwp, profileChanged, removedIdentifierKeys)
+		if err != nil {
 			return nil, fmt.Errorf("failed to apply resource requirements: %w", err)
+		}
+		resourcesApplied = applied
+	}
+
+	// Only advance the identifier ledger when resources were actually reconciled
+	if resourcesApplied {
+		if csv := identifierKeysCSV(hwp.Spec.Identifiers); csv != "" {
+			resources.SetAnnotation(obj, HardwareProfileIdentifiersAnnotation, csv)
+		} else {
+			resources.RemoveAnnotation(obj, HardwareProfileIdentifiersAnnotation)
 		}
 	}
 
@@ -955,56 +1110,46 @@ func GetWorkloadConfig(kind string) (WorkloadConfig, error) {
 }
 
 // applyResourceRequirementsToWorkload applies resource requirements (cpu, memory, counts) to all containers
-// in a workload resource. This method handles the container-level resource injection
-// for both standard and custom resource types.
-//
-// Parameters:
-//   - obj: The unstructured workload object containing containers to modify
-//   - hwp: The HardwareProfile resource containing resource identifiers to apply
-//
-// Returns:
-//   - error: Any error encountered during resource requirement application, nil on success
-
-func (i *Injector) applyResourceRequirementsToWorkload(ctx context.Context, obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile) error {
+// in a workload resource. Returns true if resources were actually reconciled on a target container/model.
+func (i *Injector) applyResourceRequirementsToWorkload(ctx context.Context, obj *unstructured.Unstructured,
+	hwp *infrav1.HardwareProfile, profileChanged bool, removedIdentifierKeys []string,
+) (bool, error) {
 	config, err := GetWorkloadConfig(obj.GetKind())
 	if err != nil {
-		return err
+		return false, err
 	}
-	// Handle different workload types explicitly
 	switch obj.GetKind() {
 	case gvk.InferenceServices.Kind:
-		// For InferenceServices, apply resources to the model object
-		return i.applyResourceRequirementsToInferenceServiceModel(obj, hwp, config.ContainersPath)
+		return i.applyResourceRequirementsToInferenceServiceModel(obj, hwp, config.ContainersPath, profileChanged, removedIdentifierKeys)
 	case gvk.Notebook.Kind:
-		// For Notebooks, apply resources only to the main container (not sidecars like oauth-proxy)
-		return i.applyResourceRequirementsToContainers(ctx, obj, hwp, config.ContainersPath, notebookMainContainerIndices(obj, config.ContainersPath))
+		return i.applyResourceRequirementsToContainers(ctx, obj, hwp, config.ContainersPath,
+			notebookMainContainerIndices(obj, config.ContainersPath), profileChanged, removedIdentifierKeys)
 	case gvk.LLMInferenceServiceV1Alpha1.Kind:
-		// For LLMInferenceServices, apply resources only to the main container
-		return i.applyResourceRequirementsToContainers(ctx, obj, hwp, config.ContainersPath, llmInferenceServiceMainContainerIndices(obj, config.ContainersPath))
+		return i.applyResourceRequirementsToContainers(ctx, obj, hwp, config.ContainersPath,
+			llmInferenceServiceMainContainerIndices(obj, config.ContainersPath), profileChanged, removedIdentifierKeys)
 	default:
-		// This should never happen since isExpectedKind() should catch unsupported kinds earlier
-		return fmt.Errorf("unsupported workload kind: %s", obj.GetKind())
+		return false, fmt.Errorf("unsupported workload kind: %s", obj.GetKind())
 	}
 }
 
 // for isvc.
-func (i *Injector) applyResourceRequirementsToInferenceServiceModel(obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile, modelPath []string) error {
-	// Get the model object from the InferenceService
+func (i *Injector) applyResourceRequirementsToInferenceServiceModel(
+	obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile, modelPath []string,
+	profileChanged bool, removedIdentifierKeys []string,
+) (bool, error) {
 	model, found, err := unstructured.NestedMap(obj.Object, modelPath...)
 	if err != nil {
-		return fmt.Errorf("failed to get model: %w", err)
+		return false, fmt.Errorf("failed to get model: %w", err)
 	}
 	if !found {
-		return nil // No model found
+		return false, nil
 	}
 
-	// Apply resource requirements to the model object
-	if err := i.applyIdentifiersToContainer(model, hwp.Spec.Identifiers); err != nil {
-		return fmt.Errorf("failed to apply resources to model: %w", err)
+	if err := i.applyIdentifiersToContainer(model, hwp.Spec.Identifiers, profileChanged, removedIdentifierKeys); err != nil {
+		return false, fmt.Errorf("failed to apply resources to model: %w", err)
 	}
 
-	// Update the object with modified model
-	return unstructured.SetNestedMap(obj.Object, model, modelPath...)
+	return true, unstructured.SetNestedMap(obj.Object, model, modelPath...)
 }
 
 // notebookMainContainerIndices returns the indices of the "main" container(s) for a Notebook
@@ -1055,36 +1200,32 @@ func llmInferenceServiceMainContainerIndices(obj *unstructured.Unstructured, con
 
 // applyResourceRequirementsToContainers applies resource requirements to workload containers.
 // When mainContainerIndices is non-nil (Notebook), only those indices are modified; otherwise all containers are.
+// Returns true if resources were actually applied to at least one container.
 func (i *Injector) applyResourceRequirementsToContainers(ctx context.Context, obj *unstructured.Unstructured,
-	hwp *infrav1.HardwareProfile, containersPath []string, mainContainerIndices []int) error {
+	hwp *infrav1.HardwareProfile, containersPath []string, mainContainerIndices []int, profileChanged bool, removedIdentifierKeys []string) (bool, error) {
 	log := logf.FromContext(ctx)
 
-	// Get containers from the workload
 	containers, found, err := unstructured.NestedSlice(obj.Object, containersPath...)
 	if err != nil {
-		return fmt.Errorf("failed to get containers: %w", err)
+		return false, fmt.Errorf("failed to get containers: %w", err)
 	}
 
-	// If no containers found, create the minimal structure needed for resource injection
 	if !found || len(containers) == 0 {
 		if obj.GetKind() == gvk.LLMInferenceServiceV1Alpha1.Kind {
-			// Create minimal container with name "main"
 			containers = []any{map[string]any{
 				"name": "main",
 			}}
-		} else { // notebook kind
-			return nil
+		} else {
+			return false, nil
 		}
 	}
 
-	// When mainContainerIndices is empty (not nil), no matching main container was found
 	if mainContainerIndices != nil && len(mainContainerIndices) == 0 {
 		log.Info("No matching main container found; skipping HWP resource injection",
 			"workload", obj.GetName(), "kind", obj.GetKind(), "namespace", obj.GetNamespace())
-		return nil
+		return false, nil
 	}
 
-	// Determine which container indices to apply to
 	indicesToApply := mainContainerIndices
 	if indicesToApply == nil {
 		indicesToApply = make([]int, len(containers))
@@ -1104,13 +1245,12 @@ func (i *Injector) applyResourceRequirementsToContainers(ctx context.Context, ob
 		if !applySet[idx] {
 			continue
 		}
-		if err := i.applyIdentifiersToContainer(container, hwp.Spec.Identifiers); err != nil {
-			return fmt.Errorf("failed to apply resources to container %d: %w", idx, err)
+		if err := i.applyIdentifiersToContainer(container, hwp.Spec.Identifiers, profileChanged, removedIdentifierKeys); err != nil {
+			return false, fmt.Errorf("failed to apply resources to container %d: %w", idx, err)
 		}
 	}
 
-	// Update the object with modified containers
-	return unstructured.SetNestedSlice(obj.Object, containers, containersPath...)
+	return true, unstructured.SetNestedSlice(obj.Object, containers, containersPath...)
 }
 
 // applyIdentifiersToContainer applies resource requirements to a single container.
@@ -1123,7 +1263,7 @@ func (i *Injector) applyResourceRequirementsToContainers(ctx context.Context, ob
 //
 // Returns:
 //   - error: Any error encountered during resource application, nil on success
-func (i *Injector) applyIdentifiersToContainer(container any, identifiers []infrav1.HardwareIdentifier) error {
+func (i *Injector) applyIdentifiersToContainer(container any, identifiers []infrav1.HardwareIdentifier, profileChanged bool, removedIdentifierKeys []string) error {
 	containerMap, ok := container.(map[string]any)
 	if !ok {
 		return errors.New("container is not a map[string]interface{}")
@@ -1141,12 +1281,17 @@ func (i *Injector) applyIdentifiersToContainer(container any, identifiers []infr
 		return err
 	}
 
+	// Remove identifiers that were previously applied but removed from the HWP spec
+	for _, key := range removedIdentifierKeys {
+		delete(requests, key)
+	}
+
 	// For requests - always applies DefaultCount
 	// Note: MinCount is not used by the webhook - it's for UI validation/guidance only
 	// For non-standard resources (GPUs), DefaultCount will be used for both requests and limits
 	if err := i.applyIdentifiersToRequests(requests, identifiers, func(id infrav1.HardwareIdentifier) (intstr.IntOrString, bool) {
 		return id.DefaultCount, true
-	}); err != nil {
+	}, profileChanged); err != nil {
 		return err
 	}
 
@@ -1156,9 +1301,14 @@ func (i *Injector) applyIdentifiersToContainer(container any, identifiers []infr
 		return err
 	}
 
+	// Remove stale identifiers from limits as well
+	for _, key := range removedIdentifierKeys {
+		delete(limits, key)
+	}
+
 	// Apply limits for all identifiers (limits = requests = DefaultCount)
 	// This ensures Guaranteed QoS class consistent with dashboard behavior
-	if err := i.applyIdentifiersToLimits(requests, limits, identifiers); err != nil {
+	if err := i.applyIdentifiersToLimits(requests, limits, identifiers, profileChanged); err != nil {
 		return err
 	}
 
@@ -1189,10 +1339,12 @@ func (i *Injector) applyIdentifiersToRequests(
 	requests map[string]any,
 	identifiers []infrav1.HardwareIdentifier,
 	valueExtractor func(infrav1.HardwareIdentifier) (intstr.IntOrString, bool),
+	profileChanged bool,
 ) error {
 	for _, identifier := range identifiers {
-		// Skip if the resource identifier already exists
-		if _, exists := requests[identifier.Identifier]; exists {
+		// Skip if the resource identifier already exists (unless profile changed,
+		// in which case we overwrite to reflect the updated HWP values)
+		if _, exists := requests[identifier.Identifier]; exists && !profileChanged {
 			continue
 		}
 		value, shouldApply := valueExtractor(identifier)
@@ -1224,10 +1376,12 @@ func (i *Injector) applyIdentifiersToLimits(
 	requests map[string]any,
 	limits map[string]any,
 	identifiers []infrav1.HardwareIdentifier,
+	profileChanged bool,
 ) error {
 	for _, identifier := range identifiers {
-		// Skip if the limit already exists (preserve existing limits)
-		if _, exists := limits[identifier.Identifier]; exists {
+		// Skip if the limit already exists (unless profile changed,
+		// in which case we overwrite to reflect the updated HWP values)
+		if _, exists := limits[identifier.Identifier]; exists && !profileChanged {
 			continue
 		}
 
