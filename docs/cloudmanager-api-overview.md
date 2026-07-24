@@ -68,6 +68,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
@@ -124,6 +125,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
@@ -180,6 +182,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
