@@ -19,7 +19,7 @@ spec:
               width: 24
               height: 12
               content:
-                $ref: "#/spec/config/panels/traces"
+                $ref: "#/spec/panels/traces"
     panels:
       traces:
         kind: Panel
