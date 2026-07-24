@@ -137,7 +137,7 @@ func TestConditions(t *testing.T) {
 			name: "stop",
 			err:  odherrors.NewStopError("stop"),
 			matcher: And(
-				jq.Match(`all(.status.conditions[]?.type; . != "foo")`),
+				jq.Match(`any(.status.conditions[]?.type; . == "foo")`),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionFalse),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse),
 			),
@@ -146,7 +146,7 @@ func TestConditions(t *testing.T) {
 			name: "failure",
 			err:  errors.New("failure"),
 			matcher: And(
-				jq.Match(`all(.status.conditions[]?.type; . != "foo")`),
+				jq.Match(`any(.status.conditions[]?.type; . == "foo")`),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionFalse),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse),
 			),
