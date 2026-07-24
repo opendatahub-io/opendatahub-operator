@@ -113,6 +113,8 @@ func (w *NotebookWebhook) Handle(ctx context.Context, req admission.Request) adm
 			return admission.PatchResponseFromRaw(req.Object.Raw, marshaledObj)
 		}
 
+		resp = admission.Allowed(fmt.Sprintf("Connection annotation validation passed in namespace %s for %s, no changes required", req.Namespace, req.Kind.Kind))
+
 	default:
 		resp = admission.Allowed(fmt.Sprintf("Operation %s on %s allowed", req.Operation, req.Kind.Kind))
 	}
@@ -329,6 +331,21 @@ func (w *NotebookWebhook) checkUserHasPermission(ctx context.Context, req *admis
 }
 
 func (w *NotebookWebhook) performConnectionInjection(nb *unstructured.Unstructured, notebookSecretRefs []NotebookSecretReference) (bool, *unstructured.Unstructured, error) {
+	// If none of the secret references require a create or delete action,
+	// no injection is needed (e.g. an Update where connections are unchanged).
+	needsInjection := false
+	for i := range notebookSecretRefs {
+		if notebookSecretRefs[i].Action == Create || notebookSecretRefs[i].Action == Delete {
+			needsInjection = true
+
+			break
+		}
+	}
+
+	if !needsInjection {
+		return false, nb, nil
+	}
+
 	// Get the notebook containers
 	containers, found, err := unstructured.NestedSlice(nb.Object, NotebookContainersPath...)
 	if err != nil {
