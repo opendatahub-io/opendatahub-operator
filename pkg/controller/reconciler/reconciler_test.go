@@ -1574,11 +1574,13 @@ func TestVersionBasedConditionCleanup(t *testing.T) {
 		err = cli.Status().Update(ctx, dash)
 		g.Expect(err).NotTo(HaveOccurred())
 
-		actionErr := errors.New("simulated action failure")
-
+		shouldFail := true
 		cc := createReconciler(cli)
 		cc.AddAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
-			return actionErr
+			if shouldFail {
+				return errors.New("simulated action failure")
+			}
+			return nil
 		})
 
 		// First reconcile: upgrade (empty ReconciledVersion) but action fails
@@ -1596,6 +1598,28 @@ func TestVersionBasedConditionCleanup(t *testing.T) {
 		// ReconciledVersion must NOT be set after a failed upgrade
 		g.Expect(di).Should(
 			jq.Match(`.status.reconciledVersion == null or .status.reconciledVersion == ""`),
+		)
+
+		// Second reconcile: retry succeeds — still treated as upgrade because version was not recorded
+		shouldFail = false
+		_, err = cc.Reconcile(ctx, ctrl.Request{
+			NamespacedName: types.NamespacedName{Name: componentApi.DashboardInstanceName},
+		})
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		currentVersion := cluster.GetRelease().Version.String()
+
+		// Successful retry must record the version
+		g.Expect(di).Should(
+			jq.Match(`.status.reconciledVersion == "%s"`, currentVersion),
+		)
+
+		// Stale condition from old version must be cleaned up
+		g.Expect(di).Should(
+			jq.Match(`all(.status.conditions[]?.type; . != "StaleFromOldVersion")`),
 		)
 	})
 }
