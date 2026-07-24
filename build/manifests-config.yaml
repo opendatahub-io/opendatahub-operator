@@ -118,7 +118,7 @@ additional_meta:
     git.commit: c69a5f9d3bee5c2d850827f674ea542ee8d5032c
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: b58f7c261b94990a12838f7d4cda0b9fdec1339b
+    git.commit: 7d1ca09a881e682947edb5b49c355fd3c5802b7c
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: 6f8258ce7ab39bcb31c749e5befb85641b47eada
@@ -376,7 +376,7 @@ additional_meta:
     git.commit: 0940918d2928b832df20b5ace57f7b3e00fac7cf
   odh-workbench-jupyter-minimal-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 0940918d2928b832df20b5ace57f7b3e00fac7cf
+    git.commit: 766b9e4ea99895373dfb333a1a57941562c0beda
   odh-workbench-jupyter-minimal-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 0940918d2928b832df20b5ace57f7b3e00fac7cf
