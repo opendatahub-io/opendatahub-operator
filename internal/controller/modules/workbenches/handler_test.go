@@ -175,6 +175,19 @@ func TestGetName(t *testing.T) {
 	g.Expect(h.GetName()).Should(Equal(componentApi.WorkbenchesComponentName))
 }
 
+func TestGetOperatorManifests_InjectsApplicationsNamespace(t *testing.T) {
+	g := NewWithT(t)
+	h := NewHandler()
+	platform := newPlatformCtx(operatorv1.Managed)
+	platform.ApplicationsNamespace = "redhat-ods-applications"
+	platform.ChartsBasePath = "/opt/charts"
+
+	manifests := h.GetOperatorManifests(platform)
+	g.Expect(manifests.HelmCharts).Should(HaveLen(1))
+	g.Expect(manifests.HelmCharts[0].Source.Values).Should(HaveKeyWithValue("applicationsNamespace", "redhat-ods-applications"))
+	g.Expect(manifests.HelmCharts[0].Source.Values).Should(HaveKeyWithValue("operatorNamespace", "redhat-ods-applications"))
+}
+
 func TestBuildModuleCRMatchesBundledCRDSchema(t *testing.T) {
 	t.Parallel()
 

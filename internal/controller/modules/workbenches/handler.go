@@ -142,6 +142,18 @@ func (h *handler) BuildModuleCR(
 	return u, nil
 }
 
+// GetOperatorManifests extends the base implementation to inject the
+// applicationsNamespace Helm value. The chart defaults this to "opendatahub";
+// on RHOAI the namespace is "redhat-ods-applications", so it must be
+// overridden to match the platform's configured namespace.
+func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) modules.OperatorManifests {
+	result := h.BaseHandler.GetOperatorManifests(platform)
+	if platform != nil && platform.ApplicationsNamespace != "" && len(result.HelmCharts) > 0 {
+		result.HelmCharts[0].Source.Values["applicationsNamespace"] = platform.ApplicationsNamespace
+	}
+	return result
+}
+
 // workbenchesPlatformType maps the platform release name to the module CR platform enum.
 func workbenchesPlatformType(release common.Platform) string {
 	switch release {
