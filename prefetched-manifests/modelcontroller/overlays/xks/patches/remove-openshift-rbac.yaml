@@ -1,9 +1,0 @@
-# Remove OpenShift-specific ClusterRole rules not needed on vanilla Kubernetes.
-- op: remove
-  path: /rules/34
-- op: remove
-  path: /rules/25
-- op: remove
-  path: /rules/24
-- op: remove
-  path: /rules/3

@@ -1,8 +1,0 @@
-resources:
-- serving.kserve.io_inferenceservices.yaml
-- serving.kserve.io_servingruntimes.yaml
-- route.openshift.io_routes.yaml
-- monitoring.coreos.com_podmonitors.yaml
-- monitoring.coreos.com_servicemonitors.yaml
-# - route.openshift.io_routes.yaml  #minikube
-# - template.openshift.io_templates.yaml (used for tests, not required for deployment)

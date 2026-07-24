@@ -1,0 +1,58 @@
+{{- if .Values.webhooks.enabled }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "workbenches-operator.mutatingWebhookName" . }}
+  labels:
+    {{- include "workbenches-operator.labels" . | nindent 4 }}
+  {{- if eq .Values.webhooks.tlsProvider "openshift" }}
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"
+  {{- else if eq .Values.webhooks.tlsProvider "certmanager" }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Values.operatorNamespace }}/{{ include "workbenches-operator.webhookCertificateName" . }}
+  {{- end }}
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: {{ include "workbenches-operator.webhookServiceName" . }}
+        namespace: {{ .Values.operatorNamespace | quote }}
+        path: /workbenches-hardware-profile
+    failurePolicy: Fail
+    name: hardwareprofile-notebook-injector.opendatahub.io
+    rules:
+      - apiGroups:
+          - kubeflow.org
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - notebooks
+    sideEffects: None
+    timeoutSeconds: 5
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: {{ include "workbenches-operator.webhookServiceName" . }}
+        namespace: {{ .Values.operatorNamespace | quote }}
+        path: /workbenches-connection-notebook
+    failurePolicy: Fail
+    name: connection-notebook.opendatahub.io
+    rules:
+      - apiGroups:
+          - kubeflow.org
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - notebooks
+    sideEffects: None
+    timeoutSeconds: 5
+{{- end }}

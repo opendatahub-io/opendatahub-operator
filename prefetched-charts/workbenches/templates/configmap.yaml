@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: odh-workbenches-config
+  namespace: {{ .Values.applicationsNamespace | quote }}
+  labels:
+    platform.opendatahub.io/managed: "true"
+data:
+  distribution.name: Standalone
+  distribution.version: {{ .Chart.AppVersion | default "0.0.0" | quote }}

@@ -1,0 +1,111 @@
+# Default values for workbenches-operator.
+#
+# The platform orchestrator renders this chart at build time (template-only Helm).
+# It overrides operatorNamespace, applicationsNamespace, and the manager image via
+# ModuleHandler GetOperatorManifests / ControllerImage + injectModuleEnv.
+
+# Namespace where the module operator Deployment and namespace-scoped RBAC live.
+# Platform sets this via ModuleConfig.NamespaceValueKey (typically "operatorNamespace").
+operatorNamespace: workbenches-operator-system
+
+# Shared platform applications namespace (e.g. opendatahub, redhat-ods-applications).
+# Injected as APPLICATIONS_NAMESPACE on the operator pod.
+applicationsNamespace: opendatahub
+
+# Create the operator namespace resource. Must stay false for opendatahub-operator
+# integration (chart compliance allows Deployment/RBAC/CRD only — not Namespace).
+# Set true only for standalone local Helm installs.
+createOperatorNamespace: false
+
+# Prefix applied to operator resource names (matches config/default kustomization).
+namePrefix: workbenches-operator-
+
+replicaCount: 1
+
+# Default manager image — must stay in sync with params.env key workbenches-operator-image.
+params:
+  workbenchesOperatorImage: quay.io/opendatahub/odh-workbenches-operator:odh-stable
+
+# Manager container image. repository/tag mirror params.env; digest overrides when set.
+# In product builds, opendatahub-operator injectModuleEnv replaces the container image
+# field from ModuleConfig.ControllerImage (RELATED_IMAGE_* on the platform operator).
+image:
+  repository: quay.io/opendatahub/odh-workbenches-operator
+  tag: odh-stable
+  digest: ""
+  pullPolicy: IfNotPresent
+
+# Platform ModuleConfig.ControllerImage — injectModuleEnv overwrites Deployment.spec image.
+controllerImage:
+  relatedImageEnv: RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE
+
+rbac:
+  # Required for SSA of upstream operand ClusterRoles (bind/escalate on named roles).
+  # Disable only when those ClusterRoles are pre-provisioned out-of-band.
+  enableRuntimeEscalation: true
+
+serviceAccount:
+  # Becomes {{ namePrefix }}controller-manager when namePrefix is set.
+  name: controller-manager
+
+# Enable development logging (debug level, console format, stacktraces on warnings).
+# For production use, leave false. Toggle to true for local development/debugging.
+devLogging: false
+
+# Disabled by default: bootstrap runs a single replica; enable when scaling out.
+leaderElection:
+  enabled: false
+
+metrics:
+  bindAddress: ":8443"
+  secure: true
+
+manifests:
+  basePath: /opt/manifests
+
+# Operand RELATED_IMAGE_* env vars forwarded to the manager pod by the platform.
+# Keys must be full environment variable names (RELATED_IMAGE_*).
+# The manager's own image is NOT listed here — use controllerImage.relatedImageEnv.
+relatedImages: {}
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 10m
+    memory: 128Mi
+
+# Webhook configuration for the notebook connection and hardware profile mutating webhooks.
+webhooks:
+  enabled: true
+  port: 9443
+  # TLS provider for webhook serving certificates.
+  # Supported values:
+  #   "openshift"    — uses OpenShift service-CA (serving-cert-secret-name +
+  #                    inject-cabundle annotations). Default.
+  #   "certmanager"  — uses cert-manager Certificate + Issuer resources.
+  #                    Requires cert-manager to be installed on the cluster.
+  #   ""             — disables TLS volume mount entirely (use when the platform
+  #                    provisions certificates out-of-band).
+  tlsProvider: openshift
+  certSecret: ""   # auto-derived from namePrefix when empty
+  # cert-manager settings (only used when tlsProvider is "certmanager").
+  certManager:
+    createIssuer: true   # create a self-signed ClusterIssuer; set false to use an existing one
+    issuerRef:
+      kind: ClusterIssuer
+      name: ""           # auto-derived from namePrefix when empty
+
+# Additional container environment variables (merged before APPLICATIONS_NAMESPACE).
+extraEnv: []
+
+# Pod-level securityContext and scheduling passthrough.
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

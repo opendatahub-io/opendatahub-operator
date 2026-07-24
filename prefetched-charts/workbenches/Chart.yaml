@@ -1,0 +1,13 @@
+apiVersion: v2
+name: workbenches-operator
+description: Helm chart for deploying the Workbenches module operator (controller Deployment, RBAC, and CRD only).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - opendatahub
+  - workbenches
+  - operator
+maintainers:
+  - name: Open Data Hub
+    url: https://github.com/opendatahub-io/workbenches-operator

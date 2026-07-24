@@ -1,0 +1,380 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kserve-module-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - persistentvolumeclaims
+  - persistentvolumes
+  - serviceaccounts
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  - nodes
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resourceNames:
+  - kserve-webhook-server-secret
+  - workload-variant-autoscaler-controller-manager-token
+  - workload-variant-autoscaler-epp-metrics-token
+  - workload-variant-autoscaler-metrics-reader-token
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificates
+  - clusterissuers
+  - issuers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - kserves
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - components.platform.opendatahub.io
+  resourceNames:
+  - default-kserve
+  resources:
+  - kserves
+  - kserves/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - components.platform.opendatahub.io
+  resourceNames:
+  - default-kserve
+  resources:
+  - kserves/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - config.openshift.io
+  resources:
+  - clusterversions
+  verbs:
+  - get
+- apiGroups:
+  - infrastructure.opendatahub.io
+  resources:
+  - hardwareprofiles
+  verbs:
+  - get
+- apiGroups:
+  - monitoring.coreos.com
+  resourceNames:
+  - k8s
+  resources:
+  - prometheuses/api
+  verbs:
+  - create
+  - get
+  - update
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - servicemonitors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - nim.opendatahub.io
+  resources:
+  - accounts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - nim.opendatahub.io
+  resources:
+  - accounts/finalizers
+  - accounts/status
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - opendatahub.io
+  resources:
+  - odhdashboardconfigs
+  verbs:
+  - get
+- apiGroups:
+  - operator.openshift.io
+  resources:
+  - leaderworkersetoperators
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - operators.coreos.com
+  resources:
+  - subscriptions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - perses.dev
+  resources:
+  - persesdashboards
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
+  - rolebindings
+  - roles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings/finalizers
+  - clusterroles/finalizers
+  - rolebindings/finalizers
+  - roles/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resourceNames:
+  - account-editor-role
+  - account-viewer-role
+  - kserve-admin
+  - kserve-edit
+  - kserve-inferenceservice-distro-role
+  - kserve-llmisvc-distro-role
+  - kserve-llmisvc-manager-role
+  - kserve-localmodel-distro-role
+  - kserve-localmodel-manager-role
+  - kserve-localmodel-permfix-role
+  - kserve-localmodelnode-agent-role
+  - kserve-localmodelnode-distro-role
+  - kserve-manager-role
+  - kserve-metrics-reader-cluster-role
+  - kserve-models-admin
+  - kserve-models-edit
+  - kserve-models-view
+  - kserve-prometheus-k8s
+  - kserve-proxy-role
+  - kserve-view
+  - metrics-reader
+  - model-serving-api
+  - odh-model-controller-role
+  - openshift-ai-inferenceservice-image-volume-scc
+  - openshift-ai-llminferenceservice-scc
+  - proxy-role
+  - workload-variant-autoscaler-epp-metrics-reader-role
+  - workload-variant-autoscaler-manager-role
+  - workload-variant-autoscaler-metrics-auth-role
+  - workload-variant-autoscaler-metrics-reader
+  - workload-variant-autoscaler-variantautoscaling-admin-role
+  - workload-variant-autoscaler-variantautoscaling-editor-role
+  - workload-variant-autoscaler-variantautoscaling-viewer-role
+  resources:
+  - clusterroles
+  verbs:
+  - bind
+  - escalate
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resourceNames:
+  - kserve-leader-election-role
+  - leader-election-role
+  - llmisvc-leader-election-role
+  - workload-variant-autoscaler-leader-election-role
+  resources:
+  - roles
+  verbs:
+  - bind
+  - escalate
+- apiGroups:
+  - security.openshift.io
+  resources:
+  - securitycontextconstraints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - clusterstoragecontainers
+  - llminferenceserviceconfigs
+  - localmodelnodegroups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - inferenceservices
+  verbs:
+  - list
+  - patch
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - servingruntimes
+  verbs:
+  - get
+- apiGroups:
+  - template.openshift.io
+  resources:
+  - templates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch

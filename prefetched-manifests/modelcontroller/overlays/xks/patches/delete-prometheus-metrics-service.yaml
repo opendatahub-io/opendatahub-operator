@@ -1,6 +1,0 @@
-$patch: delete
-apiVersion: v1
-kind: Service
-metadata:
-  name: odh-model-controller-metrics-service
-  namespace: opendatahub
