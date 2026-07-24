@@ -25,7 +25,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -188,7 +187,7 @@ func cleanupModelControllerLegacyDeployment(ctx context.Context, cli client.Clie
 		return fmt.Errorf("failure getting %s deployment in namespace %s: %w", d.Name, d.Namespace, err)
 	}
 
-	if d.Labels[labels.PlatformPartOf] == componentApi.ModelControllerComponentName {
+	if d.Labels[labels.PlatformPartOf] == "modelcontroller" {
 		return nil
 	}
 
