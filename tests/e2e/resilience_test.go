@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
@@ -489,6 +490,14 @@ func (tc *OperatorResilienceTestCtx) verifyDeploymentsStuckDueToQuota(t *testing
 	expectedCount := len(allControllers)
 	allControllersMatch := strings.Join(allControllers, "|")
 
+	// Components span multiple DAG runlevels (RL20, RL31, RL32). The DAG
+	// stuck-tracker uses a 10-minute timeout per runlevel before advancing
+	// to the next batch. With the zero-pod quota blocking all pods,
+	// higher-runlevel components won't be provisioned until each preceding
+	// runlevel times out. Use a timeout that accommodates multiple
+	// runlevel timeouts (3 batches × 10 min = 30 min worst case).
+	dagAwareTimeout := 35 * time.Minute
+
 	// Then check that the matching deployments have 0 ready replicas
 	tc.EnsureResourcesExist(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
@@ -501,7 +510,7 @@ func (tc *OperatorResilienceTestCtx) verifyDeploymentsStuckDueToQuota(t *testing
         	length == %d
 		`, allControllersMatch, allControllersMatch, allControllersMatch, expectedCount)),
 		WithCustomErrorMsg(fmt.Sprintf("Expected all %d component deployments to have 0 ready replicas due to quota", expectedCount)),
-		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyTimeout(dagAwareTimeout),
 	)
 }
 
