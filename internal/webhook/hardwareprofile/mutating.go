@@ -37,8 +37,8 @@ import (
 
 // Annotation constants.
 const (
-	HardwareProfileNameAnnotation       = "opendatahub.io/hardware-profile-name"
-	HardwareProfileNamespaceAnnotation  = "opendatahub.io/hardware-profile-namespace"
+	HardwareProfileNameAnnotation        = "opendatahub.io/hardware-profile-name"
+	HardwareProfileNamespaceAnnotation   = "opendatahub.io/hardware-profile-namespace"
 	HardwareProfileGenerationAnnotation  = "opendatahub.io/hardware-profile-generation"
 	HardwareProfileIdentifiersAnnotation = "opendatahub.io/hardware-profile-identifiers"
 )
