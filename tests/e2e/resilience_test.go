@@ -465,20 +465,28 @@ func (tc *OperatorResilienceTestCtx) validateDeploymentHealth(t *testing.T) {
 	)
 }
 
-// validateSystemHealth ensures DSCI and DSC remain ready after operations.
+// validateSystemHealth ensures the operator has successfully reconciled
+// DSCI and DSC after operations. It checks ProvisioningSucceeded and
+// ComponentsReady rather than the overall phase, which also aggregates
+// module readiness (external module operators reporting their status).
 func (tc *OperatorResilienceTestCtx) validateSystemHealth(t *testing.T) {
 	t.Helper()
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
-		WithCustomErrorMsg("DSCI should remain Ready after pod operations"),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+		),
+		WithCustomErrorMsg("DSCI should have ProvisioningSucceeded=True after pod operations"),
 	)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
-		WithCustomErrorMsg("DSC should remain Ready after pod operations"),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeComponentsReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("DSC should have ProvisioningSucceeded=True and ComponentsReady=True after pod operations"),
 	)
 }
 
