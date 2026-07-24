@@ -1,6 +1,6 @@
 relatedImages:
 - name: RELATED_IMAGE_ODH_AI_GATEWAY_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-ai-gateway-operator-rhel9@sha256:1593e1b3fda33ee6cd1cf9013c1ed1a5ed773300156ebc2845aeeb640fd9ea23"
+  value: "quay.io/rhoai/odh-ai-gateway-operator-rhel9@sha256:2981e8c7e3e0c779980adef8cc90237e094a72b670d525f2ed4e9e9a46562d94"
 - name: RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_E2E_IMAGE
   value: "quay.io/rhoai/odh-ai-gateway-payload-processing-e2e-rhel9@sha256:2e5eb556ef52835715e03875cde47fdf513fb3319515ed5fc5ad01cd674b5ad4"
 - name: RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE
@@ -72,7 +72,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_LLM_D_ASYNC_IMAGE
   value: "quay.io/rhoai/odh-llm-d-async-rhel9@sha256:a02a9240ae8b8f66f9c064a632293d56a420ef6bd0bc3013c49ba55acc0ddcdc"
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_APISERVER_IMAGE
-  value: "quay.io/rhoai/odh-llm-d-batch-gateway-apiserver-rhel9@sha256:ede41698f31eedc72ee6d3bdca8caca0c2c0b3e0eff100dde7cfd11c06c7170e"
+  value: "quay.io/rhoai/odh-llm-d-batch-gateway-apiserver-rhel9@sha256:956e548b93be38413c46f55dbef000e56db038e753043f096002ab639441da7f"
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE
   value: "quay.io/rhoai/odh-llm-d-batch-gateway-gc-rhel9@sha256:0b294801b024c1b2dbccb0513fdc3a1c4335c02710dfeb3de2714604d3d2c0c8"
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_OPERATOR_IMAGE

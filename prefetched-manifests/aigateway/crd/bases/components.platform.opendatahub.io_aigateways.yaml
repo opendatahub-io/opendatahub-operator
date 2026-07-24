@@ -148,6 +148,7 @@ spec:
                     description: |-
                       Platform is the detected platform identifier (e.g. OpenShift AI Self-Managed).
                       The platform version is reported separately via status.releases.
+                      Accepts the legacy object form {"name","version"} on read for upgrade safety.
                     type: string
                   sources:
                     description: Sources lists the manifest sources loaded during
