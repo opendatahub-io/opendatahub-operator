@@ -1600,6 +1600,11 @@ func TestVersionBasedConditionCleanup(t *testing.T) {
 			jq.Match(`.status.reconciledVersion == null or .status.reconciledVersion == ""`),
 		)
 
+		// Stale condition must survive the failed reconcile
+		g.Expect(di).Should(
+			jq.Match(`any(.status.conditions[]?.type; . == "StaleFromOldVersion")`),
+		)
+
 		// Second reconcile: retry succeeds — still treated as upgrade because version was not recorded
 		shouldFail = false
 		_, err = cc.Reconcile(ctx, ctrl.Request{

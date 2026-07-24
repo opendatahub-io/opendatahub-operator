@@ -440,8 +440,9 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 
 	// Remove conditions that were present before Reset but were
 	// not re-set during this cycle (e.g. disabled components).
-	// Only needed during upgrades — normal cycles preserve all conditions.
-	if isUpgrade && !r.skipConditionCleanup {
+	// Only needed during successful upgrades — failed provisioning preserves
+	// stale conditions so the retry cycle can still clean them up.
+	if isUpgrade && !r.skipConditionCleanup && !shouldStop && provisionErr == nil {
 		rr.Conditions.CleanupStaleConditions()
 	}
 
