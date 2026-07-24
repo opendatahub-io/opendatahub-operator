@@ -2143,9 +2143,13 @@ func TestHardwareProfile_ContentChangeRemovesStaleIdentifiers(t *testing.T) {
 	resp := injector.Handle(ctx, req)
 	g.Expect(resp.Allowed).Should(BeTrue())
 
-	// Verify that the GPU resource was removed and CPU was updated
+	// Verify that the GPU resource was removed, CPU was updated, and annotations were refreshed
 	foundGPURemoveRequest := false
 	foundGPURemoveLimit := false
+	foundCPURequestUpdate := false
+	foundCPULimitUpdate := false
+	foundGenerationUpdate := false
+	foundIdentifiersUpdate := false
 	for _, patch := range resp.Patches {
 		// nvidia.com/gpu contains a slash, which is escaped as ~1 in JSON Patch paths
 		if patch.Operation == "remove" && strings.Contains(patch.Path, "nvidia.com~1gpu") {
@@ -2156,9 +2160,29 @@ func TestHardwareProfile_ContentChangeRemovesStaleIdentifiers(t *testing.T) {
 				foundGPURemoveLimit = true
 			}
 		}
+		if strings.Contains(patch.Path, "requests/cpu") && (patch.Operation == "replace" || patch.Operation == "add") {
+			g.Expect(patch.Value).Should(Equal("2"), "CPU request should be updated to new HWP default")
+			foundCPURequestUpdate = true
+		}
+		if strings.Contains(patch.Path, "limits/cpu") && (patch.Operation == "replace" || patch.Operation == "add") {
+			g.Expect(patch.Value).Should(Equal("2"), "CPU limit should be updated to new HWP default")
+			foundCPULimitUpdate = true
+		}
+		if strings.Contains(patch.Path, "hardware-profile-generation") {
+			g.Expect(patch.Value).Should(Equal("2"), "Generation annotation should be updated to 2")
+			foundGenerationUpdate = true
+		}
+		if strings.Contains(patch.Path, "hardware-profile-identifiers") {
+			g.Expect(patch.Value).Should(Equal("cpu"), "Identifiers annotation should contain only cpu")
+			foundIdentifiersUpdate = true
+		}
 	}
 	g.Expect(foundGPURemoveRequest).Should(BeTrue(), "Should remove stale GPU identifier from requests")
 	g.Expect(foundGPURemoveLimit).Should(BeTrue(), "Should remove stale GPU identifier from limits")
+	g.Expect(foundCPURequestUpdate).Should(BeTrue(), "Should update CPU request to new HWP default")
+	g.Expect(foundCPULimitUpdate).Should(BeTrue(), "Should update CPU limit to new HWP default")
+	g.Expect(foundGenerationUpdate).Should(BeTrue(), "Should update generation annotation")
+	g.Expect(foundIdentifiersUpdate).Should(BeTrue(), "Should update identifiers annotation")
 }
 
 // TestHardwareProfile_SameContentPreservesResources tests that when the hardware profile
