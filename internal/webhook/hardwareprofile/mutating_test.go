@@ -2073,6 +2073,94 @@ func TestHardwareProfile_ContentChangeUpdatesResources(t *testing.T) {
 	g.Expect(foundGenerationUpdate).Should(BeTrue(), "Should have updated the generation annotation")
 }
 
+// TestHardwareProfile_ContentChangeRemovesStaleIdentifiers tests that when the hardware profile
+// is updated to remove an identifier (e.g. GPU), stale resource entries are cleaned up.
+func TestHardwareProfile_ContentChangeRemovesStaleIdentifiers(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Updated HWP has only CPU — GPU identifier was removed (generation=2)
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithCPUIdentifier("1", "2"),
+	)
+	hwp.Generation = 2
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	setFullResources := func(obj *unstructured.Unstructured, resources map[string]any) {
+		containers, _, _ := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "containers")
+		if len(containers) > 0 {
+			if cm, ok := containers[0].(map[string]any); ok {
+				cm["resources"] = resources
+				_ = unstructured.SetNestedSlice(obj.Object, containers, "spec", "template", "spec", "containers")
+			}
+		}
+	}
+
+	// Workload has cpu and nvidia.com/gpu from the old HWP (generation=1)
+	oldResources := map[string]any{
+		"requests": map[string]any{"cpu": "1", "nvidia.com/gpu": "1"},
+		"limits":   map[string]any{"cpu": "1", "nvidia.com/gpu": "1"},
+	}
+
+	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace,
+		envtestutil.WithHardwareProfile(testHardwareProfile),
+		envtestutil.WithAnnotation(hardwareprofile.HardwareProfileGenerationAnnotation, "1"),
+		envtestutil.WithAnnotation(hardwareprofile.HardwareProfileIdentifiersAnnotation, "cpu,nvidia.com/gpu"),
+	)
+	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+	setFullResources(oldNotebookUnstructured, oldResources)
+
+	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace,
+		envtestutil.WithHardwareProfile(testHardwareProfile),
+		envtestutil.WithAnnotation(hardwareprofile.HardwareProfileGenerationAnnotation, "1"),
+		envtestutil.WithAnnotation(hardwareprofile.HardwareProfileIdentifiersAnnotation, "cpu,nvidia.com/gpu"),
+	)
+	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+	setFullResources(newNotebookUnstructured, oldResources)
+
+	newObjBytes, err := json.Marshal(newNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	oldObjBytes, err := json.Marshal(oldNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	req := admission.Request{
+		AdmissionRequest: admissionv1.AdmissionRequest{
+			UID:       "test-uid",
+			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Namespace: testNamespace,
+			Operation: admissionv1.Update,
+			Object:    runtime.RawExtension{Raw: newObjBytes},
+			OldObject: runtime.RawExtension{Raw: oldObjBytes},
+		},
+	}
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+
+	// Verify that the GPU resource was removed and CPU was updated
+	foundGPURemoveRequest := false
+	foundGPURemoveLimit := false
+	for _, patch := range resp.Patches {
+		// nvidia.com/gpu contains a slash, which is escaped as ~1 in JSON Patch paths
+		if patch.Operation == "remove" && strings.Contains(patch.Path, "nvidia.com~1gpu") {
+			if strings.Contains(patch.Path, "requests") {
+				foundGPURemoveRequest = true
+			}
+			if strings.Contains(patch.Path, "limits") {
+				foundGPURemoveLimit = true
+			}
+		}
+	}
+	g.Expect(foundGPURemoveRequest).Should(BeTrue(), "Should remove stale GPU identifier from requests")
+	g.Expect(foundGPURemoveLimit).Should(BeTrue(), "Should remove stale GPU identifier from limits")
+}
+
 // TestHardwareProfile_SameContentPreservesResources tests that when the hardware profile
 // content has NOT changed (same generation), existing resource values are preserved.
 func TestHardwareProfile_SameContentPreservesResources(t *testing.T) {
