@@ -44,6 +44,7 @@ func feastModuleTestSuite(t *testing.T) {
 
 	testCases := []TestCase{
 		{"Validate upgrade from in-tree: selector migration", ctx.ValidateUpgradeSelectorMigration},
+		{"Validate component enabled", ctx.ValidateComponentEnabled},
 		{"Validate module operator deployed", ctx.ValidateModuleOperatorDeployed},
 		{"Validate module CR created", ctx.ValidateModuleCRCreated},
 		{"Validate module CR ready", ctx.ValidateModuleCRReady},
@@ -53,6 +54,18 @@ func feastModuleTestSuite(t *testing.T) {
 	}
 
 	RunTestCases(t, testCases)
+}
+
+// ValidateComponentEnabled patches the DSC to set feastoperator to Managed,
+// triggering the module controller to deploy the feast module operator.
+func (ctx *FeastModuleTestCtx) ValidateComponentEnabled(t *testing.T) {
+	t.Helper()
+
+	ctx.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.feastoperator.managementState = "Managed"`)),
+		WithCondition(jq.Match(`.spec.components.feastoperator.managementState == "Managed"`)),
+	)
 }
 
 // ValidateModuleOperatorDeployed checks that the opendatahub-feast-operator
@@ -181,8 +194,9 @@ func (ctx *FeastModuleTestCtx) ValidateUpgradeSelectorMigration(t *testing.T) {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:  "manager",
-							Image: "registry.redhat.io/rhoai/odh-feast-operator-rhel8:v2.20.0-1746058837",
+							Name:    "manager",
+							Image:   "registry.k8s.io/pause:3.9",
+							Command: []string{"/pause"},
 						},
 					},
 				},
