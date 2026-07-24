@@ -15,7 +15,7 @@ DST_CHARTS_DIR="./opt/charts"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@c5b6a7673390855925456adfcd49e4dac90607cb:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@77e111f67c349ca5998da288679f6163625009ca:manifests"
     ["kserve"]="opendatahub-io:kserve:release-v0.17@062fe761bf57a1755bcbd6da462a8b4e9e13f262:config"
     ["kserve-module-operator"]="opendatahub-io:kserve:release-v0.17@062fe761bf57a1755bcbd6da462a8b4e9e13f262:kserve-module/config"
     ["ray"]="opendatahub-io:kuberay:dev@c992b373f0b974e8df6e66743ddc59c08e0b93d5:ray-operator/config"
@@ -31,13 +31,13 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@d08ed9fdd2d0783900a9c679053ce87cf5649eb6:config"
     ["sparkoperator"]="opendatahub-io:spark-operator:main@4dd2dae8947d76dabfcbca3a38b525b8765741bd:config"
     ["wva"]="opendatahub-io:workload-variant-autoscaler:main@8df86ea0826a9fbb5339098f38a493dabf859c37:config"
-    ["aigateway"]="opendatahub-io:ai-gateway-operator:stable@37ffeb78be2669bfc72bea0d9a3f6913cfe4dbad:config"
+    ["aigateway"]="opendatahub-io:ai-gateway-operator:stable@767b5856cd9f41a19ad606aba33fce16f3c44db6:config"
     ["mcplifecycleoperator"]="opendatahub-io:mcp-lifecycle-module-operator:main@88b399dc19350a0477126105aade516ef3f487f4:config"
 )
 
 # RHOAI Component Manifests
 declare -A RHOAI_COMPONENT_MANIFESTS=(
-    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.5@5ed6ccb7d916b7ea9f1a6cf84173d4a20d8636d3:manifests"
+    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.5@253b7f3f2b8ad0730afdefa17cd2fa25cf3ea052:manifests"
     ["kserve"]="red-hat-data-services:kserve:rhoai-3.5@03e934e940248c6f592f823c5723a1150c726993:config"
     ["kserve-module-operator"]="red-hat-data-services:kserve:rhoai-3.5@0930ed0153b5853d1bdbfadf59ea92212652f79b:kserve-module/config"
     ["ray"]="red-hat-data-services:kuberay:rhoai-3.5@cf78580a6621af6bed8d99550781b94d1f5342bd:ray-operator/config"
@@ -53,7 +53,7 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.5@d8d8e2c08749d96164ce400f6afc0ff768bc8c28:config"
     ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.5@77f949e1d3d438de39bc5f5ebccb45fdf0114852:config"
     ["wva"]="red-hat-data-services:workload-variant-autoscaler:rhoai-3.5@77a2f3ec16160dc9ec261511033260ff9402f0cf:config"
-    ["aigateway"]="red-hat-data-services:ai-gateway-operator:rhoai-3.5@6fad31b02fcb8f3de26c867d78d841e2d8b9411a:config"
+    ["aigateway"]="red-hat-data-services:ai-gateway-operator:rhoai-3.5@b99ff4c99afab9d06117a65387b8fe8c7d1188da:config"
     ["mcplifecycleoperator"]="red-hat-data-services:mcp-lifecycle-module-operator:rhoai-3.5@58b4dc4cd63aa90eedb6386969962f5dbf7816d6:config"
 )
 
