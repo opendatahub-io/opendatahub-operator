@@ -54,7 +54,7 @@ import (
 	pkgresources "github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-// NewComponentReconciler creates a ComponentReconciler for the Kserve API.
+// NewComponentReconciler creates a ComponentReconciler for the Kserve API component.
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	versionPrefix := strings.ReplaceAll("v"+cluster.GetRelease().Version.String(), ".", "-")
 

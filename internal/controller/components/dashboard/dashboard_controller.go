@@ -48,7 +48,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-// NewComponentReconciler creates a ComponentReconciler for the Dashboard API.
+// NewComponentReconciler creates a ComponentReconciler for the Dashboard API component.
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	componentName := computeComponentName()
 
