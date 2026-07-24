@@ -151,7 +151,6 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
 		componentApi.TrainerComponentName:              "kubeflow-trainer-controller-manager",
 		// componentApi.TrustyAIComponentName:             "trustyai-service-operator-controller-manager",
-		componentApi.WorkbenchesComponentName: "notebook-controller-manager",
 	}
 
 	// Error message includes components + internal components name
@@ -170,8 +169,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// MCPLifecycleOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// MLflowOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// Kserve is excluded because it is a module so it does not report DSC ComponentsReady condition
-	excludedComponents := 7 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, MCPLifecycleOperator, Kserve, MLflowOperator
-
+	// Workbenches is excluded because it is a module so it does not report DSC ComponentsReady condition
+	excludedComponents := 8 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, MCPLifecycleOperator, MLflowOperator, Kserve, Workbenches
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+
