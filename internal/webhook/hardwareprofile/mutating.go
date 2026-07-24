@@ -1111,7 +1111,9 @@ func GetWorkloadConfig(kind string) (WorkloadConfig, error) {
 
 // applyResourceRequirementsToWorkload applies resource requirements (cpu, memory, counts) to all containers
 // in a workload resource. Returns true if resources were actually reconciled on a target container/model.
-func (i *Injector) applyResourceRequirementsToWorkload(ctx context.Context, obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile, profileChanged bool, removedIdentifierKeys []string) (bool, error) {
+func (i *Injector) applyResourceRequirementsToWorkload(ctx context.Context, obj *unstructured.Unstructured,
+	hwp *infrav1.HardwareProfile, profileChanged bool, removedIdentifierKeys []string,
+) (bool, error) {
 	config, err := GetWorkloadConfig(obj.GetKind())
 	if err != nil {
 		return false, err
@@ -1120,16 +1122,21 @@ func (i *Injector) applyResourceRequirementsToWorkload(ctx context.Context, obj 
 	case gvk.InferenceServices.Kind:
 		return i.applyResourceRequirementsToInferenceServiceModel(obj, hwp, config.ContainersPath, profileChanged, removedIdentifierKeys)
 	case gvk.Notebook.Kind:
-		return i.applyResourceRequirementsToContainers(ctx, obj, hwp, config.ContainersPath, notebookMainContainerIndices(obj, config.ContainersPath), profileChanged, removedIdentifierKeys)
+		return i.applyResourceRequirementsToContainers(ctx, obj, hwp, config.ContainersPath,
+			notebookMainContainerIndices(obj, config.ContainersPath), profileChanged, removedIdentifierKeys)
 	case gvk.LLMInferenceServiceV1Alpha1.Kind:
-		return i.applyResourceRequirementsToContainers(ctx, obj, hwp, config.ContainersPath, llmInferenceServiceMainContainerIndices(obj, config.ContainersPath), profileChanged, removedIdentifierKeys)
+		return i.applyResourceRequirementsToContainers(ctx, obj, hwp, config.ContainersPath,
+			llmInferenceServiceMainContainerIndices(obj, config.ContainersPath), profileChanged, removedIdentifierKeys)
 	default:
 		return false, fmt.Errorf("unsupported workload kind: %s", obj.GetKind())
 	}
 }
 
 // for isvc.
-func (i *Injector) applyResourceRequirementsToInferenceServiceModel(obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile, modelPath []string, profileChanged bool, removedIdentifierKeys []string) (bool, error) {
+func (i *Injector) applyResourceRequirementsToInferenceServiceModel(
+	obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile, modelPath []string,
+	profileChanged bool, removedIdentifierKeys []string,
+) (bool, error) {
 	model, found, err := unstructured.NestedMap(obj.Object, modelPath...)
 	if err != nil {
 		return false, fmt.Errorf("failed to get model: %w", err)
