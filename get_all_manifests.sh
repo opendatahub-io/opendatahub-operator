@@ -15,7 +15,7 @@ DST_CHARTS_DIR="./opt/charts"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@c5b6a7673390855925456adfcd49e4dac90607cb:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@77e111f67c349ca5998da288679f6163625009ca:manifests"
     ["kserve"]="opendatahub-io:kserve:release-v0.17@062fe761bf57a1755bcbd6da462a8b4e9e13f262:config"
     ["kserve-module-operator"]="opendatahub-io:kserve:release-v0.17@062fe761bf57a1755bcbd6da462a8b4e9e13f262:kserve-module/config"
     ["ray"]="opendatahub-io:kuberay:dev@c992b373f0b974e8df6e66743ddc59c08e0b93d5:ray-operator/config"
@@ -37,7 +37,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
 
 # RHOAI Component Manifests
 declare -A RHOAI_COMPONENT_MANIFESTS=(
-    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.5@5ed6ccb7d916b7ea9f1a6cf84173d4a20d8636d3:manifests"
+    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.5@253b7f3f2b8ad0730afdefa17cd2fa25cf3ea052:manifests"
     ["kserve"]="red-hat-data-services:kserve:rhoai-3.5@03e934e940248c6f592f823c5723a1150c726993:config"
     ["kserve-module-operator"]="red-hat-data-services:kserve:rhoai-3.5@0930ed0153b5853d1bdbfadf59ea92212652f79b:kserve-module/config"
     ["ray"]="red-hat-data-services:kuberay:rhoai-3.5@cf78580a6621af6bed8d99550781b94d1f5342bd:ray-operator/config"
