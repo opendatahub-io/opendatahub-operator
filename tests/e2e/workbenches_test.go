@@ -31,9 +31,7 @@ type WorkbenchesTestCtx struct {
 func workbenchesTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Workbenches{
-		ObjectMeta: metav1.ObjectMeta{Name: componentApi.WorkbenchesInstanceName},
-	})
+	ct, err := NewModuleTestCtx(t, gvk.Workbenches, componentApi.WorkbenchesInstanceName)
 	require.NoError(t, err)
 
 	componentCtx := WorkbenchesTestCtx{

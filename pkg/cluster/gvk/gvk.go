@@ -289,12 +289,6 @@ var (
 		Kind:    componentApi.WorkbenchesKind,
 	}
 
-	ModelController = schema.GroupVersionKind{
-		Group:   componentApi.GroupVersion.Group,
-		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.ModelControllerKind,
-	}
-
 	ModelMeshServing = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,

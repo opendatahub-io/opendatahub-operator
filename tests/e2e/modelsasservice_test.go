@@ -59,7 +59,7 @@ func (tc *ModelsAsServiceTestCtx) maasDBNamespace() string {
 func modelsAsServiceTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewSubComponentTestCtx(t, &componentApi.ModelsAsService{}, componentApi.AIGatewayKind, modelsAsServiceFieldName)
+	ct, err := NewSubModuleTestCtx(t, gvk.ModelsAsService, componentApi.ModelsAsServiceInstanceName, componentApi.AIGatewayKind, modelsAsServiceFieldName)
 	require.NoError(t, err)
 
 	componentCtx := ModelsAsServiceTestCtx{

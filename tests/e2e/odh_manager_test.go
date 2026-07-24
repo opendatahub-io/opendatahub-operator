@@ -84,15 +84,10 @@ func (tc *OperatorTestCtx) ValidateOwnedCRDs(t *testing.T) {
 		{"Trainer CRD", "trainers.components.platform.opendatahub.io"},
 		{"FeastOperator CRD", "feastoperators.components.platform.opendatahub.io"},
 		{"DataSciencePipelines CRD", "datasciencepipelines.components.platform.opendatahub.io"},
-		{"Workbenches CRD", "workbenches.components.platform.opendatahub.io"},
-		{"Kserve CRD", "kserves.components.platform.opendatahub.io"},
-		{"Models As A Service CRD", "modelsasservices.components.platform.opendatahub.io"},
-		{"ModelController CRD", "modelcontrollers.components.platform.opendatahub.io"},
 		{"Monitoring CRD", "monitorings.services.platform.opendatahub.io"},
 		{"OGX CRD", "ogxs.components.platform.opendatahub.io"},
 		{"Auth CRD", "auths.services.platform.opendatahub.io"},
 		{"SparkOperator CRD", "sparkoperators.components.platform.opendatahub.io"},
-		{"MLflowOperator CRD", "mlflowoperators.components.platform.opendatahub.io"},
 		{"Platform CRD", "platforms.config.opendatahub.io"},
 	}
 

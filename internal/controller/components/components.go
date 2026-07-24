@@ -14,9 +14,7 @@ import (
 //go:embed dashboard/monitoring
 //go:embed datasciencepipelines/monitoring
 //go:embed feastoperator/monitoring
-//go:embed kserve/monitoring
 //go:embed ogx/monitoring
-//go:embed modelcontroller/monitoring
 //go:embed modelregistry/monitoring
 //go:embed ray/monitoring
 var ComponentRulesFS embed.FS

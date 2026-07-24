@@ -11,6 +11,8 @@ package gateway
 
 // OpenShift APIServer config (TLS security profile for kube-auth-proxy)
 // +kubebuilder:rbac:groups="config.openshift.io",resources=apiservers,verbs=get;list;watch
+// OpenShift Ingress config (cluster domain resolution via pkg/cluster.GetDomain)
+// +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
 
 // Gateway API resources (what the controller actually creates)
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways;gatewayclasses;httproutes,verbs=get;list;watch;create;update;patch;delete
