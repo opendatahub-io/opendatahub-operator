@@ -24,7 +24,6 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["trainingoperator"]="opendatahub-io:training-operator:stable@6f956df7cd33da24904b4469786a3cc2d6b7412c:manifests"
     ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@c408b720682f9e2009519aa4bd35ffe7275064aa:config"
     ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@e3cc4e63e2f08475ff878381637da9e44e356ad7:config"
-    ["feastoperator"]="opendatahub-io:feast:stable@bad000a710030ca06f42741715b7b215a443c85c:infra/feast-operator/config"
     ["ogx"]="opendatahub-io:ogx-k8s-operator:odh@f3fd4620a572189092d26e7308a670a2cd0fc45a:config"
     ["trainer"]="opendatahub-io:trainer:stable@fc9f4315b4ba88cfa03fabf29a730532411bab4c:manifests"
     ["maas"]="opendatahub-io:models-as-a-service:stable@8c7449c59d08c9b5a7cd2120236b5eb871cfe179:deployment"
@@ -46,7 +45,6 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-3.5@b8ae4ecfabe5ee1bff5991d20dfd66252a3d3b98:manifests"
     ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-3.5@324aa96d3bad5891701b660e6c47cf69fd8207c8:config"
     ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-3.5@6650d28e574f1a144939102e1a33af3756927875:config"
-    ["feastoperator"]="red-hat-data-services:feast:rhoai-3.5@280859e613a89c19cac50483b5ee13384d23113f:infra/feast-operator/config"
     ["ogx"]="red-hat-data-services:ogx-k8s-operator:rhoai-3.5@e8fb654b06bb1532407336e701e2b11b175a9bf8:config"
     ["trainer"]="red-hat-data-services:trainer:rhoai-3.5@119ebe8902ee20051f00b08ab000d1ccb9aa39a1:manifests"
     ["maas"]="red-hat-data-services:models-as-a-service:rhoai-3.5@1e0df2e7b658424f20fbe18ceb8eba43c750d39a:deployment"
@@ -74,6 +72,7 @@ declare -A ODH_CCM_CHARTS=(
 # ODH Component Charts
 declare -A ODH_COMPONENT_CHARTS=(
     ["workbenches"]="opendatahub-io:workbenches-operator:main@5ee7fd8fb5aa155b3f5756e72b3f8e9d50693ba8:charts/operator"
+    ["feastoperator"]="opendatahub-io:feast-module-operator:main@5d865144fc7ee0850ec8603cedaf3406d513bac9:config/chart"
 )
 
 # RHOAI CloudManager Charts
@@ -87,6 +86,7 @@ declare -A RHOAI_CCM_CHARTS=(
 # RHOAI Component Charts
 declare -A RHOAI_COMPONENT_CHARTS=(
     ["workbenches"]="red-hat-data-services:workbenches-operator:main@ca84e8752199b63ae3ea2affa8aa747214546f23:charts/operator"
+    ["feastoperator"]="red-hat-data-services:feast-module-operator:rhoai-3.5@7e1d0480b71428784752a1135627700f44140617:config/chart"
 )
 
 # merge_charts merges CCM and component charts into COMPONENT_CHARTS, failing on duplicate keys.
