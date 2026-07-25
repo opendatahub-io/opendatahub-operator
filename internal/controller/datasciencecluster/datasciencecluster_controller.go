@@ -46,7 +46,6 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 	componentsPredicate := dependent.New(dependent.WithWatchStatus(true))
 
 	b := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
-		Owns(&componentApi.Dashboard{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Ray{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.ModelRegistry{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.TrustyAI{}, reconciler.WithPredicates(componentsPredicate)).
