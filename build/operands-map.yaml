@@ -160,15 +160,15 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_MINIMAL_CPU_PY312_IMAGE
   value: "quay.io/rhoai/odh-pipeline-runtime-minimal-cpu-py312-rhel9@sha256:0809bf67ab44a58aeb1048883e4b892be962f7d40b896d544b1ecc7d95913b07"
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_CUDA_PY312_IMAGE
-  value: "quay.io/rhoai/odh-pipeline-runtime-pytorch-cuda-py312-rhel9@sha256:59f74184a24c3cdc66e8f52f1eafb3dc93680f373c579d85ae1001640ef9fb0d"
+  value: "quay.io/rhoai/odh-pipeline-runtime-pytorch-cuda-py312-rhel9@sha256:b0b8e8a4eaa67b4ea740769a97f47319d622c8795245e74a6d3251927ac4baf5"
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_LLMCOMPRESSOR_CUDA_PY312_IMAGE
   value: "quay.io/rhoai/odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312-rhel9@sha256:996079d763e4fb3c433a2e48b58c0d80db16f699fe8e6fc2e6389853aed0ef2f"
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_ROCM_PY312_IMAGE
-  value: "quay.io/rhoai/odh-pipeline-runtime-pytorch-rocm-py312-rhel9@sha256:51e6e0f461531fab6866f723ff837c94e8465c319c33555ea33e1ddf14587235"
+  value: "quay.io/rhoai/odh-pipeline-runtime-pytorch-rocm-py312-rhel9@sha256:b582314f01347137ae8480e1c8d9c3be77233c0b6755c2ba2b21d7d4de946319"
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_CUDA_PY312_IMAGE
   value: "quay.io/rhoai/odh-pipeline-runtime-tensorflow-cuda-py312-rhel9@sha256:490a483d796e47f04ff0b571974838d0636419444c9c506257c67a47227c38b0"
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_ROCM_PY312_IMAGE
-  value: "quay.io/rhoai/odh-pipeline-runtime-tensorflow-rocm-py312-rhel9@sha256:482cc9bd9acae6a14f89ad3a2bd84bbd64b39af9ccb05e208cf83a8283266882"
+  value: "quay.io/rhoai/odh-pipeline-runtime-tensorflow-rocm-py312-rhel9@sha256:06840490833b5a4a4e4ba313667e31ee0879f4dd8125cc68d43c580329b2fe7c"
 - name: RELATED_IMAGE_ODH_RHAII_CLUSTER_VALIDATOR_IMAGE
   value: "quay.io/rhoai/odh-rhaii-cluster-validator-rhel9@sha256:2292ae63f2a8e74a00c9c6eddec796f80016bd2e41e179f4a4217e26b404fe58"
 - name: RELATED_IMAGE_ODH_RHAII_VALIDATOR_TOOLS_IMAGE
@@ -224,15 +224,15 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_ROCM_PY312_IMAGE
   value: "quay.io/rhoai/odh-workbench-jupyter-minimal-rocm-py312-rhel9@sha256:6ccfc1b21674cd143c169dc6ff9e51706d090a35ff06e92e2f23ff8a3f13bc30"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_CUDA_PY312_IMAGE
-  value: "quay.io/rhoai/odh-workbench-jupyter-pytorch-cuda-py312-rhel9@sha256:d89c43ba64a4d60d6ef9ca12bdb7f6e60e513d6e614481989dc090c0fcd4021b"
+  value: "quay.io/rhoai/odh-workbench-jupyter-pytorch-cuda-py312-rhel9@sha256:3aa1495ef7b4715774dfe1193929a8cffc02f0f2fa379adc48e7e366cffac703"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_LLMCOMPRESSOR_CUDA_PY312_IMAGE
-  value: "quay.io/rhoai/odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-rhel9@sha256:437217647cae1ac531ef706bd87ff667190591a4b71d9affdde3fca1baa0fc0a"
+  value: "quay.io/rhoai/odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-rhel9@sha256:9b75c166d29b76802947d4d0bf15608d526ffed35f74e339d594cb4ecdc69f23"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_ROCM_PY312_IMAGE
   value: "quay.io/rhoai/odh-workbench-jupyter-pytorch-rocm-py312-rhel9@sha256:8c48dc6ead7965db47c104717ad5e0ac0294b71162b65aa63b2a541c718fa871"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TENSORFLOW_CUDA_PY312_IMAGE
   value: "quay.io/rhoai/odh-workbench-jupyter-tensorflow-cuda-py312-rhel9@sha256:83e9d82d892df7b032e2acd96bae9ac9e2d5126f8c295b5b5f6add37f8691cae"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TENSORFLOW_ROCM_PY312_IMAGE
-  value: "quay.io/rhoai/odh-workbench-jupyter-tensorflow-rocm-py312-rhel9@sha256:dfa2cd138df4c33fe11fe1368bc607309c746f97886a02a128b0aff32a82e390"
+  value: "quay.io/rhoai/odh-workbench-jupyter-tensorflow-rocm-py312-rhel9@sha256:6730031e4ae2042f13d0132e40d17a127b14e1dc8e3543ea10d967081ac3cde0"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TRUSTYAI_CPU_PY312_IMAGE
   value: "quay.io/rhoai/odh-workbench-jupyter-trustyai-cpu-py312-rhel9@sha256:b836e02215b194de83f9b8617b273b7942810781c67704bf1690870e35ca1943"
 - name: RELATED_IMAGE_ODH_WORKLOAD_VARIANT_AUTOSCALER_CONTROLLER_IMAGE
