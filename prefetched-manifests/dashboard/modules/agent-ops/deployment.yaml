@@ -1,0 +1,160 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-ops-ui
+  labels:
+    app.kubernetes.io/name: agent-ops
+    app.kubernetes.io/part-of: odh-dashboard
+    components.platform.opendatahub.io/managed-by: opendatahub-operator
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      deployment: agent-ops-ui
+  template:
+    metadata:
+      labels:
+        deployment: agent-ops-ui
+        app.kubernetes.io/name: agent-ops
+        app.kubernetes.io/part-of: odh-dashboard
+        components.platform.opendatahub.io/managed-by: opendatahub-operator
+    spec:
+      automountServiceAccountToken: false
+      serviceAccountName: odh-dashboard-agent-ops
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    deployment: agent-ops-ui
+                topologyKey: topology.kubernetes.io/zone
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: modules-sa-token
+          projected:
+            defaultMode: 420
+            sources:
+              - serviceAccountToken:
+                  expirationSeconds: 3607
+                  path: token
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+              - downwardAPI:
+                  items:
+                    - path: namespace
+                      fieldRef:
+                        fieldPath: metadata.namespace
+              - configMap:
+                  name: openshift-service-ca.crt
+                  items:
+                    - key: service-ca.crt
+                      path: service-ca.crt
+        - name: proxy-tls
+          secret:
+            secretName: agent-ops-proxy-tls
+        - name: odh-trusted-ca-cert
+          configMap:
+            name: odh-trusted-ca-bundle
+            optional: true
+            items:
+              - key: ca-bundle.crt
+                path: odh-trusted-ca-bundle.crt
+        - name: odh-ca-cert
+          configMap:
+            name: odh-trusted-ca-bundle
+            optional: true
+            items:
+              - key: odh-ca-bundle.crt
+                path: odh-ca-bundle.crt
+      containers:
+        - name: agent-ops-ui
+          image: $(agent-ops-ui-image)
+          imagePullPolicy: Always
+          livenessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 8843
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            timeoutSeconds: 15
+            periodSeconds: 30
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 8843
+              scheme: HTTPS
+            initialDelaySeconds: 15
+            timeoutSeconds: 15
+            periodSeconds: 30
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+              ephemeral-storage: 10Mi
+            limits:
+              memory: 256Mi
+              ephemeral-storage: 10Mi
+          ports:
+            - containerPort: 8843
+              name: agent-ops-ui
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: proxy-tls
+              mountPath: /etc/tls/private
+              readOnly: true
+            - name: odh-trusted-ca-cert
+              mountPath: /etc/pki/tls/certs/odh-trusted-ca-bundle.crt
+              subPath: odh-trusted-ca-bundle.crt
+              readOnly: true
+            - name: odh-trusted-ca-cert
+              mountPath: /etc/ssl/certs/odh-trusted-ca-bundle.crt
+              subPath: odh-trusted-ca-bundle.crt
+              readOnly: true
+            - name: odh-ca-cert
+              mountPath: /etc/pki/tls/certs/odh-ca-bundle.crt
+              subPath: odh-ca-bundle.crt
+              readOnly: true
+            - name: odh-ca-cert
+              mountPath: /etc/ssl/certs/odh-ca-bundle.crt
+              subPath: odh-ca-bundle.crt
+              readOnly: true
+            - name: modules-sa-token
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
+          args:
+            - '--deployment-mode=federated'
+            - '--auth-method=user_token'
+            - '--auth-token-header=x-forwarded-access-token'
+            - '--auth-token-prefix='
+            - '--port=8843'
+            - '--cert-file=/etc/tls/private/tls.crt'
+            - '--key-file=/etc/tls/private/tls.key'
+            - '--bundle-paths=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem,/var/run/secrets/kubernetes.io/serviceaccount/ca.crt,/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt,/etc/pki/tls/certs/odh-ca-bundle.crt,/etc/pki/tls/certs/odh-trusted-ca-bundle.crt'
+          env:
+            - name: GATEWAY_DOMAIN
+              value: $(gateway-domain)
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

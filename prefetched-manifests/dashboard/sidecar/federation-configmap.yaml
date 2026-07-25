@@ -21,8 +21,8 @@ data:
           "port": 8080
         },
         "service": {
-          "name": "rhods-dashboard",
-          "namespace": "redhat-ods-applications",
+          "name": "odh-dashboard",
+          "namespace": "opendatahub",
           "port": 8043
         }
       },
@@ -42,8 +42,8 @@ data:
             "port": 8080
           },
           "service": {
-            "name": "rhods-dashboard",
-            "namespace": "redhat-ods-applications",
+            "name": "odh-dashboard",
+            "namespace": "opendatahub",
             "port": 8143
         }
       },
@@ -63,8 +63,8 @@ data:
             "port": 8080
           },
           "service": {
-            "name": "rhods-dashboard",
-            "namespace": "redhat-ods-applications",
+            "name": "odh-dashboard",
+            "namespace": "opendatahub",
             "port": 8243
         }
       },
@@ -84,8 +84,8 @@ data:
             "port": 8080
           },
           "service": {
-            "name": "rhods-dashboard",
-            "namespace": "redhat-ods-applications",
+            "name": "odh-dashboard",
+            "namespace": "opendatahub",
             "port": 8343
         }
       },
@@ -105,8 +105,8 @@ data:
             "port": 8080
           },
           "service": {
-            "name": "rhods-dashboard",
-            "namespace": "redhat-ods-applications",
+            "name": "odh-dashboard",
+            "namespace": "opendatahub",
             "port": 8543
         }
       },
@@ -126,8 +126,8 @@ data:
             "port": 8080
           },
           "service": {
-            "name": "rhods-dashboard",
-            "namespace": "redhat-ods-applications",
+            "name": "odh-dashboard",
+            "namespace": "opendatahub",
             "port": 8643
         }
       },
@@ -147,8 +147,8 @@ data:
             "port": 8080
           },
           "service": {
-            "name": "rhods-dashboard",
-            "namespace": "redhat-ods-applications",
+            "name": "odh-dashboard",
+            "namespace": "opendatahub",
             "port": 8743
         }
       },
@@ -172,8 +172,8 @@ data:
             "port": 8080
           },
           "service": {
-            "name": "rhods-dashboard",
-            "namespace": "redhat-ods-applications",
+            "name": "odh-dashboard",
+            "namespace": "opendatahub",
             "port": 8843
         }
       },
@@ -186,8 +186,8 @@ data:
             "pathRewrite": "/api",
             "tls": true,
             "service": {
-              "name": "rhods-dashboard",
-              "namespace": "redhat-ods-applications",
+              "name": "odh-dashboard",
+              "namespace": "opendatahub",
               "port": 8943
             }
           }
@@ -203,7 +203,7 @@ data:
             "tls": false,
             "service": {
               "name": "data-science-perses",
-              "namespace": "redhat-ods-monitoring",
+              "namespace": "opendatahub",
               "port": 8080
             }
           }
@@ -216,7 +216,7 @@ data:
         "tls": true,
         "service": {
             "name": "mlflow",
-            "namespace": "redhat-ods-applications",
+            "namespace": "opendatahub",
             "port": 8443
         }
       }

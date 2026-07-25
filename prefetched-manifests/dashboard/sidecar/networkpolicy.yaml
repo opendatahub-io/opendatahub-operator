@@ -1,0 +1,63 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: odh-dashboard-allow-ports
+spec:
+  podSelector:
+    matchLabels:
+      deployment: odh-dashboard
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - port: 8443
+          protocol: TCP
+        - port: 8043
+          protocol: TCP
+        - port: 8143
+          protocol: TCP
+        - port: 8243
+          protocol: TCP
+        - port: 8343
+          protocol: TCP
+        - port: 8543
+          protocol: TCP
+        - port: 8643
+          protocol: TCP
+        - port: 8743
+          protocol: TCP
+        - port: 8843
+          protocol: TCP
+        - port: 8943
+          protocol: TCP
+      from:
+        # Allow traffic from OpenShift ingress controller
+        - namespaceSelector:
+            matchLabels:
+              network.openshift.io/policy-group: ingress
+        # Allow traffic from pods in the same namespace
+        - podSelector: {}
+  egress:
+    # Allow all in-cluster egress (DNS, inter-BFF communication, Prometheus, Perses, etc.)
+    # No port restrictions: the dashboard communicates with many in-cluster services
+    # on various ports; enumerating them creates fragile maintenance burden (RHOAIENG-59861).
+    - to:
+        - namespaceSelector: {}
+    # Allow egress to Kubernetes API server (runs on host network, not matched by namespaceSelector)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 6443
+          protocol: TCP
+    # Allow egress to external services (off-cluster backends like MaaS, MLflow, LlamaStack)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP

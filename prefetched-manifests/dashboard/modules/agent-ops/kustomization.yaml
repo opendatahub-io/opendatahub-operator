@@ -1,0 +1,35 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - service-account.yaml
+  - cluster-role.yaml
+  - cluster-role-binding.yaml
+  - deployment.yaml
+  - service.yaml
+  - networkpolicy.yaml
+configMapGenerator:
+  - name: agent-ops-params
+    env: params.env
+generatorOptions:
+  disableNameSuffixHash: true
+vars:
+  - name: agent-ops-ui-image
+    objref:
+      kind: ConfigMap
+      name: agent-ops-params
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.agent-ops-ui-image
+replacements:
+  - source:
+      kind: ConfigMap
+      name: agent-ops-params
+      fieldPath: data.gateway-domain
+    targets:
+      - select:
+          kind: Deployment
+          name: agent-ops-ui
+        fieldPaths:
+          - spec.template.spec.containers.[name=agent-ops-ui].env.[name=GATEWAY_DOMAIN].value
+configurations:
+  - params.yaml

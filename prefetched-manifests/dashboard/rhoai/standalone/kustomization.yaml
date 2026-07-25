@@ -1,0 +1,143 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Standalone mode: 3-container pod (rhods-dashboard, kube-rbac-proxy, core-bff).
+# BFF modules are deployed as separate pods by the operator.
+# Core RHOAI renames applied; sidecar container-index patches are NOT included.
+commonLabels:
+  app: rhods-dashboard
+  app.kubernetes.io/part-of: rhods-dashboard
+resources:
+  - ../../base
+  - ../consolelink
+  - ../odhdashboardconfig
+  - ../apps
+configMapGenerator:
+  - name: rhoai-dashboard-params
+    env: params.env
+generatorOptions:
+  disableNameSuffixHash: true
+vars:
+  - name: odh-dashboard-image
+    objref:
+      kind: ConfigMap
+      name: rhoai-dashboard-params
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.odh-dashboard-image
+  - name: kube-rbac-proxy
+    objref:
+      kind: ConfigMap
+      name: rhoai-dashboard-params
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.kube-rbac-proxy
+  - name: core-bff-image
+    objref:
+      kind: ConfigMap
+      name: rhoai-dashboard-params
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.core-bff-image
+  - name: section-title
+    objref:
+      kind: ConfigMap
+      name: rhoai-dashboard-params
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.section-title
+  - name: dashboard-url
+    objref:
+      kind: ConfigMap
+      name: rhoai-dashboard-params
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.dashboard-url
+  - name: gateway-name
+    objref:
+      kind: ConfigMap
+      name: rhoai-dashboard-params
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.gateway-name
+  - name: images-jobs-async-upload
+    objref:
+      kind: ConfigMap
+      name: rhoai-dashboard-params
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.images-jobs-async-upload
+configurations:
+  - params.yaml
+patchesJson6902:
+  # Core RHOAI renames only — NO sidecar container-index patches
+  - path: deployment.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: odh-dashboard
+  - path: service-account.yaml
+    target:
+      version: v1
+      kind: ServiceAccount
+      name: odh-dashboard
+  - path: role.yaml
+    target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: Role
+      name: odh-dashboard
+  - path: cluster-role.yaml
+    target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: ClusterRole
+      name: odh-dashboard
+  - path: role-binding.yaml
+    target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: RoleBinding
+      name: odh-dashboard
+  - path: cluster-role-binding.yaml
+    target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: ClusterRoleBinding
+      name: odh-dashboard
+  - path: auth-delegator.clusterrolebinding.yaml
+    target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: ClusterRoleBinding
+      name: odh-dashboard-auth-delegator
+  - path: cluster-monitoring-role-binding.yaml
+    target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: ClusterRoleBinding
+      name: odh-dashboard-monitoring
+  - path: service.yaml
+    target:
+      version: v1
+      kind: Service
+      name: odh-dashboard
+  - path: httproute.yaml
+    target:
+      group: gateway.networking.k8s.io
+      version: v1
+      kind: HTTPRoute
+      name: odh-dashboard
+  # NetworkPolicy only exists in manifests/sidecar/ — not present in ../../base.
+  # No NetworkPolicy patch needed in standalone mode.
+replacements:
+  - source:
+      kind: ConfigMap
+      name: rhoai-dashboard-params
+      fieldPath: data.gateway-domain
+    targets:
+      - select:
+          kind: Deployment
+          name: rhods-dashboard
+        fieldPaths:
+          - spec.template.spec.containers.[name=rhods-dashboard].env.[name=GATEWAY_DOMAIN].value

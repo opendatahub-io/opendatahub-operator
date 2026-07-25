@@ -1,0 +1,247 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: odh-dashboard
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      deployment: odh-dashboard
+  template:
+    metadata:
+      labels:
+        deployment: odh-dashboard
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - odh-dashboard
+                topologyKey: topology.kubernetes.io/zone
+      serviceAccount: odh-dashboard
+      containers:
+        - name: odh-dashboard
+          image: $(odh-dashboard-image)
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: GATEWAY_DOMAIN
+              value: ""
+            - name: MODULE_FEDERATION_CONFIG
+              valueFrom:
+                configMapKeyRef:
+                  name: federation-config
+                  key: module-federation-config.json
+                  optional: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+              ephemeral-storage: 50Mi
+            limits:
+              memory: 1Gi
+          livenessProbe:
+            exec:
+              command:
+                - curl
+                - -f
+                - -s
+                - --max-time
+                - "10"
+                - http://127.0.0.1:8080/
+            initialDelaySeconds: 30
+            timeoutSeconds: 15
+            periodSeconds: 30
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - curl
+                - -f
+                - -s
+                - --max-time
+                - "10"
+                - http://127.0.0.1:8080/api/health
+            initialDelaySeconds: 30
+            timeoutSeconds: 15
+            periodSeconds: 30
+            successThreshold: 1
+            failureThreshold: 3
+          volumeMounts:
+            - mountPath: /etc/pki/tls/certs/odh-trusted-ca-bundle.crt
+              name: odh-trusted-ca-cert
+              subPath: odh-trusted-ca-bundle.crt
+            - mountPath: /etc/ssl/certs/odh-trusted-ca-bundle.crt
+              name: odh-trusted-ca-cert
+              subPath: odh-trusted-ca-bundle.crt
+            - mountPath: /etc/pki/tls/certs/odh-ca-bundle.crt
+              name: odh-ca-cert
+              subPath: odh-ca-bundle.crt
+            - mountPath: /etc/ssl/certs/odh-ca-bundle.crt
+              name: odh-ca-cert
+              subPath: odh-ca-bundle.crt
+        - name: kube-rbac-proxy
+          args:
+            - --secure-listen-address=0.0.0.0:8443
+            - --upstream=http://localhost:8080
+            - --upstream-timeout=0
+            - --config-file=/etc/kube-rbac-proxy/config-file.yaml
+            - --tls-cert-file=/etc/tls/private/tls.crt
+            - --tls-private-key-file=/etc/tls/private/tls.key
+            - --auth-header-fields-enabled=true
+            - --auth-header-user-field-name=X-Auth-Request-User
+            - --auth-header-groups-field-name=X-Auth-Request-Groups
+            - --proxy-endpoints-port=8444
+            - --v=10
+          image: $(kube-rbac-proxy)
+          ports:
+            - containerPort: 8443
+              name: dashboard-ui
+            - containerPort: 8444
+              name: proxy-health
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8444
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8444
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+              ephemeral-storage: 10Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - mountPath: /etc/tls/private
+              name: proxy-tls
+            - mountPath: /etc/kube-rbac-proxy
+              name: kube-rbac-proxy-config
+            - mountPath: /etc/pki/tls/certs/odh-trusted-ca-bundle.crt
+              name: odh-trusted-ca-cert
+              subPath: odh-trusted-ca-bundle.crt
+            - mountPath: /etc/ssl/certs/odh-trusted-ca-bundle.crt
+              name: odh-trusted-ca-cert
+              subPath: odh-trusted-ca-bundle.crt
+            - mountPath: /etc/pki/tls/certs/odh-ca-bundle.crt
+              name: odh-ca-cert
+              subPath: odh-ca-bundle.crt
+            - mountPath: /etc/ssl/certs/odh-ca-bundle.crt
+              name: odh-ca-cert
+              subPath: odh-ca-bundle.crt
+        - name: core-bff
+          image: $(core-bff-image)
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8943
+              name: core-bff
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+              ephemeral-storage: 10Mi
+            limits:
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 8943
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            timeoutSeconds: 15
+            periodSeconds: 30
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 8943
+              scheme: HTTPS
+            initialDelaySeconds: 15
+            timeoutSeconds: 15
+            periodSeconds: 30
+            successThreshold: 1
+            failureThreshold: 3
+          volumeMounts:
+            - mountPath: /tmp
+              name: core-bff-tmp
+            - mountPath: /etc/tls/private
+              name: proxy-tls
+              readOnly: true
+            - mountPath: /etc/pki/tls/certs/odh-trusted-ca-bundle.crt
+              name: odh-trusted-ca-cert
+              subPath: odh-trusted-ca-bundle.crt
+            - mountPath: /etc/ssl/certs/odh-trusted-ca-bundle.crt
+              name: odh-trusted-ca-cert
+              subPath: odh-trusted-ca-bundle.crt
+            - mountPath: /etc/pki/tls/certs/odh-ca-bundle.crt
+              name: odh-ca-cert
+              subPath: odh-ca-bundle.crt
+            - mountPath: /etc/ssl/certs/odh-ca-bundle.crt
+              name: odh-ca-cert
+              subPath: odh-ca-bundle.crt
+          args:
+            - '--auth-method=user_token'
+            - '--auth-token-header=x-forwarded-access-token'
+            - '--auth-token-prefix='
+            - '--port=8943'
+            - '--cert-file=/etc/tls/private/tls.crt'
+            - '--key-file=/etc/tls/private/tls.key'
+            - '--bundle-paths=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem,/var/run/secrets/kubernetes.io/serviceaccount/ca.crt,/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt,/etc/pki/tls/certs/odh-ca-bundle.crt,/etc/pki/tls/certs/odh-trusted-ca-bundle.crt'
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: core-bff-tmp
+          emptyDir: {}
+        - name: proxy-tls
+          secret:
+            secretName: dashboard-proxy-tls
+        - name: kube-rbac-proxy-config
+          configMap:
+            name: kube-rbac-proxy-config
+        - name: odh-trusted-ca-cert
+          configMap:
+            name: odh-trusted-ca-bundle
+            items:
+            - key: ca-bundle.crt
+              path: odh-trusted-ca-bundle.crt
+            optional: true
+        - name: odh-ca-cert
+          configMap:
+            name: odh-trusted-ca-bundle
+            items:
+            - key: odh-ca-bundle.crt
+              path: odh-ca-bundle.crt
+            optional: true

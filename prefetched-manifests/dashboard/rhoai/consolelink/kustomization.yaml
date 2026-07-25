@@ -4,7 +4,7 @@ commonLabels:
   app: rhods-dashboard
   app.kubernetes.io/part-of: rhods-dashboard
 resources:
-  - ../../core-bases/consolelink
+  - ../../base/consolelink
 patchesJson6902:
   - path: consolelink.yaml
     target:

@@ -1,3 +1,5 @@
+# Core RHOAI renames for standalone mode.
+# Does NOT contain sidecar container-index patches (those only apply in sidecar mode).
 - op: replace
   path: /metadata/name
   value: rhods-dashboard
@@ -13,17 +15,6 @@
 - op: replace
   path: /spec/template/spec/containers/0/name
   value: rhods-dashboard
-  # The image value is already an env
 - op: replace
   path: /spec/template/spec/serviceAccount
   value: rhods-dashboard
-# core-bff is now container index 2; gen-ai-ui is index 4 (was 3), eval-hub-ui is index 7 (was 6)
-- op: replace
-  path: /spec/template/spec/containers/4/env/3/value
-  value: "rhods-dashboard"
-- op: replace
-  path: /spec/template/spec/containers/4/env/9/value
-  value: "rhods-dashboard"
-- op: replace
-  path: /spec/template/spec/containers/7/env/1/value
-  value: "rhods-dashboard"

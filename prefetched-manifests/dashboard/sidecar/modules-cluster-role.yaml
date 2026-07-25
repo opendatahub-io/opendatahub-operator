@@ -1,0 +1,84 @@
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: odh-dashboard-modules
+rules:
+  # DSC product type for maas-api infra namespace discovery (maas-ui)
+  - apiGroups:
+      - datasciencecluster.opendatahub.io
+    verbs:
+      - list
+    resources:
+      - datascienceclusters
+  # MLflow CR auto-discovery (mlflow-ui, gen-ai-ui)
+  - apiGroups:
+      - mlflow.opendatahub.io
+    verbs:
+      - get
+      - list
+      - watch
+    resources:
+      - mlflows
+  # Cluster domain discovery (gen-ai-ui, maas-ui)
+  - apiGroups:
+      - config.openshift.io
+    verbs:
+      - get
+      - list
+      - watch
+    resources:
+      - ingresses
+  # OTel Collector — create/manage the gen-ai-trace-collector CR for per-namespace trace routing (gen-ai-ui)
+  # TODO: Move to modules/gen-ai/cluster-role.yaml once per-module SAs are active (3.5 pod migration)
+  - apiGroups:
+      - opentelemetry.io
+    verbs:
+      - get
+      - list
+      - create
+      - update
+      - delete
+    resources:
+      - opentelemetrycollectors
+  # SubjectAccessReview for namespace access checks
+  - apiGroups:
+      - authorization.k8s.io
+    verbs:
+      - create
+    resources:
+      - subjectaccessreviews
+  # Impersonate dashboard users when AUTH_METHOD=internal (Kubeflow headers)
+  - apiGroups:
+      - ""
+    verbs:
+      - impersonate
+    resources:
+      - users
+      - groups
+      - serviceaccounts
+  # Agent Ops — Sandbox CR discovery (list/detail enrichment when modules SA reads on behalf of user)
+  - apiGroups:
+      - agents.x-k8s.io
+    verbs:
+      - get
+      - list
+      - patch
+    resources:
+      - sandboxes
+  # Agent Ops — OpenShift Route lookup for external agent card URL
+  - apiGroups:
+      - route.openshift.io
+    verbs:
+      - get
+      - list
+    resources:
+      - routes
+  # Agent Ops — MCP tool connection discovery (optional CRD)
+  - apiGroups:
+      - mcp.kuadrant.io
+      - mcp.kagenti.com
+    verbs:
+      - get
+      - list
+    resources:
+      - mcpserverregistrations

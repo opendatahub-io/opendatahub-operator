@@ -15,7 +15,7 @@ A couple key points to get out of the way first:
 1. There are multiple "types" of manifest files (specifics can be found in [this ADR](https://github.com/opendatahub-io/architecture-decision-records/blob/main/architecture-decision-records/operator/ODH-ADR-Operator-0008-resources-lifecycle.md))
     * **Unmanaged** (Rare) -- An "install once" mentality; gets onto a cluster but after that it's a user-resource (never to be managed by us again)
     * **Fully Managed** (Very Common) -- Part of the ecosystem of the Dashboard; upgrades, user-changes, and effectively anything you do to the resources on the cluster should result in the Operator setting it back to what is in the manifest file -- this is the most desired state for most of our manifests
-    * **Partially Managed** (Rare) -- Some resources (like the [Dashboard Deployment](./core-bases/base/deployment.yaml)) can have some fields modified (like replica count or resource requests/limits) but the rest falls under the managed state -- this is handled as internal Operator logic and not something we typically have any control over
+    * **Partially Managed** (Rare) -- Some resources (like the [Dashboard Deployment](./base/deployment.yaml)) can have some fields modified (like replica count or resource requests/limits) but the rest falls under the managed state -- this is handled as internal Operator logic and not something we typically have any control over
 2. The entirety of the `manifests` folder is not installed _ever_ -- a subset of it is based on which "deployment type" you choose
 
 With those said, the key takeaways from this section are:
@@ -41,11 +41,14 @@ You can use the `kustomize` tool to process the manifest for the `oc apply` comm
 ```markdown
 # Set the namespace in the manifest where you want to deploy the dashboard
 kustomize edit set namespace <DESTINATION NAMESPACE>
-kustomize build common | oc apply -f -
-kustomize build core-bases/base | oc apply -f -
+kustomize build odh | oc apply -f -
 ```
 
-Alternatively, you can use the `./install/deploy.sh` which uses the `overlays/dev` overlay to select specific folders.
+For standalone mode (BFF modules as independent pods managed by the dashboard-operator):
+
+```markdown
+kustomize build odh/standalone | oc apply -f -
+```
 
 ## Testing Changes
 
