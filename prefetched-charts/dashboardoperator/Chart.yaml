@@ -7,7 +7,7 @@ appVersion: "0.0.0"
 keywords:
   - dashboard
   - opendatahub
-  - modular-architecture
+  - sidecar
 home: https://github.com/opendatahub-io/odh-dashboard
 maintainers:
   - name: ODH Dashboard Team
