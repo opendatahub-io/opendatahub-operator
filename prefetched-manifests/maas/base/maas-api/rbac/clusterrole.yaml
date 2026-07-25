@@ -53,3 +53,8 @@ rules:
 - apiGroups: [""]
   resources: ["pods", "services", "endpoints"]
   verbs: ["get", "list", "watch"]
+
+# OpenShift cluster TLS security profile (for honoring cluster-wide TLS policy)
+- apiGroups: ["config.openshift.io"]
+  resources: ["apiservers"]
+  verbs: ["get", "list", "watch"]

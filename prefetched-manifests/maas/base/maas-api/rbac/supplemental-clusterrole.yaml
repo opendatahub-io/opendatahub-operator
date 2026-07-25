@@ -28,6 +28,11 @@ rules:
   resources: ["maasmodelrefs", "maassubscriptions"]
   verbs: ["get", "list", "watch"]
 
+# OpenShift cluster TLS security profile (for honoring cluster-wide TLS policy)
+- apiGroups: ["config.openshift.io"]
+  resources: ["apiservers"]
+  verbs: ["get", "list", "watch"]
+
 # Gateway API resources for /v1/tenants endpoint (gateway discovery)
 # Only 'get' needed - code uses .Get(gatewayName) not .List()
 - apiGroups: ["gateway.networking.k8s.io"]

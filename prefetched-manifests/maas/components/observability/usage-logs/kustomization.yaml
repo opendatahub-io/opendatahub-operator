@@ -4,3 +4,21 @@ kind: Kustomization
 resources:
   - otel-collector.yaml
   - otel-collector-rbac.yaml
+  - tenancy-proxy-rbac.yaml
+  - tenancy-proxy.yaml
+  - usage-logs-admin-dashboard.yaml
+  - usage-logs-dashboard.yaml
+
+configMapGenerator:
+  - name: usage-tenancy-proxy-source
+    namespace: opendatahub
+    files:
+      - proxy/main.py
+      - proxy/auth.py
+      - proxy/rewriter.py
+    options:
+      disableNameSuffixHash: true
+      labels:
+        app: usage-tenancy-proxy
+        app.kubernetes.io/managed-by: maas-controller
+        app.kubernetes.io/component: usage-tenancy-proxy

@@ -74,8 +74,9 @@ spec:
                   type:
                     description: |-
                       Type identifies the auth type for this provider.
-                      e.g. "simple" (header based), "sigv4", etc.
+                      e.g. "apikey" (header based), "sigv4", etc.
                     enum:
+                    - apikey
                     - simple
                     - sigv4
                     - oauth2

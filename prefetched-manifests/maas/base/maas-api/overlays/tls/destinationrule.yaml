@@ -11,9 +11,13 @@ spec:
         number: 8443
       tls:
         mode: SIMPLE
-        # Skip cert verification for internal cluster traffic. The gateway pod
-        # doesn't have access to OpenShift's service-ca bundle out of the box, and mounting it
-        # to gateway pods is complex. Traffic is still encrypted.
-        # Aligned with ODH/RHOAI managed gateway deployment.
+        # TODO(RHOAIENG-61070): Remove insecureSkipVerify and configure backend
+        # certificate validation. This remains an unmet acceptance criterion.
+        # On OpenShift < 4.22, BackendTLSPolicy is not available for
+        # this managed gateway path, so the gateway cannot receive a service-ca
+        # trust bundle through Gateway API yet. Istio can verify upstream
+        # certificates when a CA file or credentialName is available, but the
+        # managed gateway proxy does not currently mount or receive the OpenShift
+        # service-ca bundle that signs maas-api's serving cert.
+        # Traffic is still encrypted.
         insecureSkipVerify: true
-

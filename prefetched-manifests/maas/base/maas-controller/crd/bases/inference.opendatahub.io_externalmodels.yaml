@@ -88,8 +88,9 @@ spec:
                         type:
                           description: |-
                             Type identifies the auth type for this provider.
-                            e.g. "simple" (header based), "sigv4", etc.
+                            e.g. "apikey" (header based), "sigv4", etc.
                           enum:
+                          - apikey
                           - simple
                           - sigv4
                           - oauth2
@@ -139,9 +140,10 @@ spec:
                       description: |-
                         Weight determines the relative traffic proportion for this provider binding.
                         Higher weight means more traffic. Used for weighted random selection across
-                        multiple provider refs. Defaults to 1 if not set.
+                        multiple provider refs. A weight of 0 disables the ref (no traffic routed
+                        to it). Defaults to 1 if not set.
                       maximum: 100
-                      minimum: 1
+                      minimum: 0
                       type: integer
                   required:
                   - apiFormat

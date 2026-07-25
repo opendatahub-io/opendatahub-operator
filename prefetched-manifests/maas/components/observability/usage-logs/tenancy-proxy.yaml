@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: usage-logs-tenancy-proxy
+  namespace: opendatahub
+  labels:
+    app: usage-tenancy-proxy
+    app.kubernetes.io/managed-by: maas-controller
+    app.kubernetes.io/component: usage-tenancy-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: usage-tenancy-proxy
+  template:
+    metadata:
+      labels:
+        app: usage-tenancy-proxy
+    spec:
+      serviceAccountName: usage-tenancy-proxy
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1001
+      containers:
+      - name: proxy
+        # Image is set by controller (DefaultUsageLogsTenancyProxyImage or RELATED_IMAGE override)
+        command:
+        - python3
+        - /opt/app-root/src/proxy/main.py
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+        ports:
+        - containerPort: 8443
+          name: https
+          protocol: TCP
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: PYTHONPATH
+          value: "/opt/app-root/src/proxy"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: LOG_LEVEL
+          value: "INFO"
+        volumeMounts:
+        - name: proxy-source
+          mountPath: /opt/app-root/src/proxy
+          readOnly: true
+        - name: tls-cert
+          mountPath: /etc/tls/private
+          readOnly: true
+        - name: service-ca
+          mountPath: /etc/pki/ca-trust/extracted/pem
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8443
+            scheme: HTTPS
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8443
+            scheme: HTTPS
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+      volumes:
+      - name: proxy-source
+        configMap:
+          name: usage-tenancy-proxy-source
+      - name: tls-cert
+        secret:
+          secretName: usage-logs-tenancy-proxy-tls
+          defaultMode: 0440
+      - name: service-ca
+        configMap:
+          name: usage-logs-tenancy-proxy-ca-bundle
+          items:
+          - key: service-ca.crt
+            path: tls-ca-bundle.pem
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: usage-logs-tenancy-proxy-ca-bundle
+  namespace: opendatahub
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"
+  labels:
+    app.kubernetes.io/managed-by: maas-controller
+    app.kubernetes.io/component: usage-tenancy-proxy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: usage-logs-tenancy-proxy
+  namespace: opendatahub
+  labels:
+    app: usage-tenancy-proxy
+    app.kubernetes.io/managed-by: maas-controller
+    app.kubernetes.io/component: usage-tenancy-proxy
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: usage-logs-tenancy-proxy-tls
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8443
+    targetPort: 8443
+    protocol: TCP
+    name: https
+  selector:
+    app: usage-tenancy-proxy

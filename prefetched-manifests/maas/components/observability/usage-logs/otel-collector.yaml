@@ -101,7 +101,7 @@ spec:
           value: application
           action: upsert
         - key: service.name
-          value: maas-gateway
+          value: models-as-a-service
           action: upsert
         - key: kubernetes_namespace_name
           value: "${env:NAMESPACE}"
@@ -124,7 +124,7 @@ spec:
         - response_type
     exporters:
       otlp_http/loki:
-        endpoint: "https://maas-loki-gateway-http.opendatahub.svc.cluster.local:8080/api/logs/v1/application/otlp"
+        endpoint: "https://usage-gateway-http.${env:NAMESPACE}.svc:8080/api/logs/v1/application/otlp"
         auth:
           authenticator: bearertokenauth
         tls:

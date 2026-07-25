@@ -1,0 +1,428 @@
+# User-scoped usage dashboard — queries go through loki-query-proxy which
+# injects user_id filtering based on the logged-in user's Kubernetes token.
+# CEL filter restricts logs to inference-only paths; no probe traffic to filter.
+# customAllValue: ".*" on ListVariables ensures "All" matches entries with
+# absent labels (e.g. user_id when capturing is disabled). Do not remove.
+apiVersion: perses.dev/v1alpha1
+kind: PersesDashboard
+metadata:
+  name: dashboard-5-maas-usage-logs
+  namespace: opendatahub
+  labels:
+    app.kubernetes.io/managed-by: maas-controller
+    app.kubernetes.io/component: perses
+spec:
+  display:
+    name: "Usage (logs)"
+    description: >-
+      Personal view of model usage. Shows your token consumption, request
+      counts, and rate limiting. Queries are automatically filtered to your
+      user identity via the Loki query proxy.
+  duration: 1h
+
+  variables:
+    - kind: ListVariable
+      spec:
+        name: subscription
+        display:
+          name: "Subscription"
+        allowMultiple: true
+        allowAllValue: true
+        customAllValue: ".*"
+        defaultValue: "$__all"
+        plugin:
+          kind: LokiLabelValuesVariable
+          spec:
+            datasource:
+              kind: LokiDatasource
+              name: usage-logs-multi-tenancy
+            labelName: subscription
+            matchers:
+              - '{service_name="models-as-a-service", subscription!="-"}'
+    - kind: ListVariable
+      spec:
+        name: model
+        display:
+          name: "Model"
+        allowMultiple: true
+        allowAllValue: true
+        customAllValue: ".*"
+        defaultValue: "$__all"
+        plugin:
+          kind: LokiLabelValuesVariable
+          spec:
+            datasource:
+              kind: LokiDatasource
+              name: usage-logs-multi-tenancy
+            labelName: model
+            matchers:
+              - '{service_name="models-as-a-service", model!="-"}'
+    - kind: ListVariable
+      spec:
+        name: view_by
+        display:
+          name: "View by"
+        allowMultiple: false
+        allowAllValue: false
+        defaultValue: "model"
+        plugin:
+          kind: StaticListVariable
+          spec:
+            values:
+              - value: "model"
+                label: By model
+              - value: "subscription"
+                label: By subscription
+
+  panels:
+    totalTokens:
+      kind: Panel
+      spec:
+        display:
+          name: "Total tokens"
+          description: "Total tokens consumed over the selected time window."
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            format:
+              unit: decimal
+              shortValues: true
+              decimalPlaces: 0
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: LokiTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: LokiDatasource
+                    name: usage-logs-multi-tenancy
+                  query: >-
+                    sum(sum_over_time({service_name="models-as-a-service",
+                    subscription=~"$subscription", model=~"$model", response_type="hit"}
+                    | unwrap tokens_total [$__range]))
+                    or vector(0)
+
+    totalRequests:
+      kind: Panel
+      spec:
+        display:
+          name: "Total requests"
+          description: "Total API requests over the selected time window."
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            format:
+              unit: decimal
+              shortValues: true
+              decimalPlaces: 0
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: LokiTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: LokiDatasource
+                    name: usage-logs-multi-tenancy
+                  query: >-
+                    sum(count_over_time({service_name="models-as-a-service",
+                    subscription=~"$subscription", model=~"$model"}
+                    [$__range]))
+                    or vector(0)
+
+    totalRateLimited:
+      kind: Panel
+      spec:
+        display:
+          name: "Total rate limited"
+          description: "Total rate-limited requests over the selected time window."
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            format:
+              unit: decimal
+              shortValues: true
+              decimalPlaces: 0
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: LokiTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: LokiDatasource
+                    name: usage-logs-multi-tenancy
+                  query: >-
+                    sum(count_over_time({service_name="models-as-a-service",
+                    subscription=~"$subscription", model=~"$model", response_type="rate_limit"}
+                    [$__range]))
+                    or vector(0)
+
+    successRate:
+      kind: Panel
+      spec:
+        display:
+          description: "Percentage of authorized vs total requests over the selected time window."
+          name: Success rate
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            format:
+              decimalPlaces: 1
+              unit: percent-decimal
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: LokiTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: LokiDatasource
+                    name: usage-logs-multi-tenancy
+                  query: >-
+                    (
+                      (
+                        sum(count_over_time({service_name="models-as-a-service",
+                        subscription=~"$subscription", model=~"$model", response_type="hit"}
+                        [$__range]))
+                        or vector(0)
+                      )
+                      /
+                      sum(count_over_time({service_name="models-as-a-service",
+                      subscription=~"$subscription", model=~"$model"}
+                      [$__range]))
+                    )
+                    or vector(1)
+
+    tokenConsumptionOverTime:
+      kind: Panel
+      spec:
+        display:
+          name: "Token consumption chart"
+          description: >-
+            Tokens from successful requests (2xx) over time by model or subscription.
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+              mode: table
+              values: []
+            visual:
+              display: line
+              lineWidth: 3
+              areaOpacity: 1
+              connectNulls: true
+              stack: all
+              showPoints: always
+              pointRadius: 6
+            yAxis:
+              min: 0
+              format:
+                unit: decimal
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: LokiTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: LokiDatasource
+                    name: usage-logs-multi-tenancy
+                  query: >-
+                    sum by (${view_by:raw}) (sum_over_time({service_name="models-as-a-service",
+                    subscription=~"$subscription", model=~"$model", response_type="hit"}
+                    | unwrap tokens_total [30m]))
+
+    tokenConsumptionTable:
+      kind: Panel
+      spec:
+        display:
+          name: "Usage breakdown"
+          description: >-
+            All model/subscription pairs. **View by** changes the chart; table always shows full detail.
+        plugin:
+          kind: Table
+          spec:
+            density: "compact"
+            pagination: true
+            transforms:
+              - kind: "MergeSeries"
+                spec: {}
+            columnSettings:
+              - name: "timestamp"
+                hide: true
+              - name: "model"
+                header: "Model"
+                align: "left"
+                enableSorting: true
+              - name: "subscription"
+                header: "Subscription"
+                align: "left"
+                enableSorting: true
+              - name: "key_name"
+                header: "API key"
+                align: "left"
+                enableSorting: true
+              - name: "value #1"
+                header: "Tokens used"
+                align: "right"
+                enableSorting: true
+                sort: "desc"
+                format:
+                  unit: decimal
+                  shortValues: true
+              - name: "value #2"
+                header: "Successful requests"
+                align: "right"
+                enableSorting: true
+                format:
+                  unit: decimal
+                  decimalPlaces: 0
+              - name: "value #3"
+                header: "Rate limited requests"
+                align: "right"
+                enableSorting: true
+                format:
+                  unit: decimal
+                  decimalPlaces: 0
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: LokiTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: LokiDatasource
+                    name: usage-logs-multi-tenancy
+                  query: >-
+                    sum by (model, subscription, key_name) (sum_over_time(
+                    {service_name="models-as-a-service",
+                    subscription=~"$subscription", model=~"$model", response_type="hit"}
+                    | unwrap tokens_total [$__range]))
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: LokiTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: LokiDatasource
+                    name: usage-logs-multi-tenancy
+                  query: >-
+                    sum by (model, subscription, key_name) (count_over_time(
+                    {service_name="models-as-a-service",
+                    subscription=~"$subscription", model=~"$model", response_type="hit"}
+                    [$__range]))
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: LokiTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: LokiDatasource
+                    name: usage-logs-multi-tenancy
+                  query: >-
+                    sum by (model, subscription, key_name) (count_over_time(
+                    {service_name="models-as-a-service",
+                    subscription=~"$subscription", model=~"$model", response_type="rate_limit"}
+                    [$__range]))
+                    or
+                    (sum by (model, subscription, key_name) (count_over_time(
+                    {service_name="models-as-a-service",
+                    subscription=~"$subscription", model=~"$model", response_type="hit"}
+                    [$__range])) * 0)
+
+  layouts:
+    - kind: Grid
+      spec:
+        display:
+          title: "Overview"
+          collapse:
+            open: true
+        items:
+          - x: 0
+            "y": 0
+            width: 6
+            height: 5
+            content:
+              "$ref": "#/spec/panels/totalTokens"
+          - x: 6
+            "y": 0
+            width: 6
+            height: 5
+            content:
+              "$ref": "#/spec/panels/totalRequests"
+          - x: 12
+            "y": 0
+            width: 6
+            height: 5
+            content:
+              "$ref": "#/spec/panels/totalRateLimited"
+          - x: 18
+            "y": 0
+            width: 6
+            height: 5
+            content:
+              "$ref": "#/spec/panels/successRate"
+
+    - kind: Grid
+      spec:
+        display:
+          title: "Token consumption"
+          collapse:
+            open: true
+        items:
+          - x: 0
+            "y": 0
+            width: 24
+            height: 10
+            content:
+              "$ref": "#/spec/panels/tokenConsumptionOverTime"
+          - x: 0
+            "y": 10
+            width: 24
+            height: 8
+            content:
+              "$ref": "#/spec/panels/tokenConsumptionTable"
+---
+# User-scoped Loki datasource — routes through usage-logs-tenancy-proxy which
+# injects user_id filtering. Named "usage-logs-multi-tenancy" to avoid
+# collision with the admin "usage-logs" datasource.
+apiVersion: perses.dev/v1alpha1
+kind: PersesDatasource
+metadata:
+  name: usage-logs-multi-tenancy
+  namespace: opendatahub
+  labels:
+    app.kubernetes.io/managed-by: maas-controller
+    app.kubernetes.io/component: perses
+spec:
+  config:
+    display:
+      name: "Usage (logs)"
+    default: false
+    plugin:
+      kind: "LokiDatasource"
+      spec:
+        proxy:
+          kind: HTTPProxy
+          spec:
+            secret: usage-logs-multi-tenancy-secret
+            url: https://usage-logs-tenancy-proxy:8443
+            allowedEndpoints:
+              - endpointPattern: "/loki/api/v1/.*"
+                method: GET
+  client:
+    kubernetesAuth:
+      enable: true
+    tls:
+      enable: true
+      caCert:
+        type: configmap
+        name: usage-logs-tenancy-proxy-ca-bundle
+        certPath: service-ca.crt

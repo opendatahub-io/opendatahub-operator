@@ -59,7 +59,7 @@ spec:
             - endpoint:
                 address:
                   socket_address:
-                    address: usage-logs-collector.opendatahub.svc.cluster.local
+                    address: usage-logs-collector.opendatahub.svc
                     port_value: 4317
 
   # ── Composite filter: json_to_metadata with path-based pattern matching ────
@@ -381,7 +381,7 @@ spec:
                 values:
                 - key: service.name
                   value:
-                    string_value: maas-gateway
+                    string_value: models-as-a-service
                 - key: service.namespace
                   value:
                     string_value: openshift-ingress
