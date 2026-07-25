@@ -9,6 +9,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
+	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 
@@ -16,16 +17,19 @@ import (
 )
 
 var allowedKinds = map[string]bool{
-	"Deployment":                   true,
-	"Service":                      true,
-	"ServiceAccount":               true,
-	"ClusterRole":                  true,
-	"ClusterRoleBinding":           true,
-	"Role":                         true,
-	"RoleBinding":                  true,
-	"ConfigMap":                    true,
-	"CustomResourceDefinition":     true,
-	"MutatingWebhookConfiguration": true,
+	"Deployment":                     true,
+	"Service":                        true,
+	"ServiceAccount":                 true,
+	"ClusterRole":                    true,
+	"ClusterRoleBinding":             true,
+	"Role":                           true,
+	"RoleBinding":                    true,
+	"ConfigMap":                      true,
+	"CustomResourceDefinition":       true,
+	"MutatingWebhookConfiguration":   true,
+	"ValidatingWebhookConfiguration": true,
+	"Issuer":                         true,
+	"Certificate":                    true,
 }
 
 // moduleHandlers returns every module handler that the platform operator
@@ -35,6 +39,7 @@ var allowedKinds = map[string]bool{
 func moduleHandlers() []modules.ModuleHandler {
 	return []modules.ModuleHandler{
 		aigatewayModule.NewHandler(),
+		dashboardModule.NewHandler(),
 		mcplifecycleoperatorModule.NewHandler(),
 		workbenchesModule.NewHandler(),
 	}
