@@ -118,7 +118,7 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 		return nil, fmt.Errorf("failed to resolve application namespace: %w", err)
 	}
 
-	// Monitoring namespace  read directly from DSCI or set to empty when no DSCI (xKS).
+	// Monitoring namespace read directly from DSCI or set to empty when no DSCI (xKS).
 	var monitoringNS string
 	if rr.DSCI != nil {
 		monitoringNS = rr.DSCI.Spec.Monitoring.Namespace
@@ -329,11 +329,11 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 				Type:    status.ConditionTypeModulesReady,
 				Status:  metav1.ConditionFalse,
 				Reason:  status.ProvisioningFailedReason,
-				Message: fmt.Sprintf("Provisioning failed for: %s", strings.Join(failedModules, ", ")),
+				Message: fmt.Sprintf("Provisioning failed for: %s", strings.Join(failedModules, "; ")),
 			})
 		}
 
-		return fmt.Errorf("BuildModuleCR failed for modules: %s", strings.Join(failedModules, ", "))
+		return fmt.Errorf("module provisioning failed: %s", strings.Join(failedModules, "; "))
 	}
 
 	return nil
@@ -540,26 +540,35 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 			}
 		}
 
-		if readyCond != nil {
+		if !ready {
+			notReadyModules = append(notReadyModules, name)
+		} else if degraded {
+			degradedModules = append(degradedModules, name)
+		}
+
+		crState, _ := handler.GetModuleCRState(ctx, rr.Client)
+		switch {
+		case crState == CRStateDeleting:
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    condType,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.DeletingReason,
+				Message: status.DeletingMessage,
+			})
+		case readyCond != nil:
 			rr.Conditions.SetCondition(common.Condition{
 				Type:    condType,
 				Status:  readyCond.Status,
 				Reason:  readyCond.Reason,
 				Message: readyCond.Message,
 			})
-		} else {
+		default:
 			rr.Conditions.SetCondition(common.Condition{
 				Type:    condType,
 				Status:  metav1.ConditionFalse,
 				Reason:  status.NotReadyReason,
 				Message: "Module has not reported a Ready condition yet",
 			})
-		}
-
-		if !ready {
-			notReadyModules = append(notReadyModules, name)
-		} else if degraded {
-			degradedModules = append(degradedModules, name)
 		}
 
 		mirrorSubmoduleConditions(rr, platformCtx, moduleStatus, submodules, &notReadyModules)

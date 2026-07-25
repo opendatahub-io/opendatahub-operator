@@ -80,7 +80,6 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/feastoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
@@ -96,6 +95,7 @@ import (
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
+	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
@@ -135,7 +135,6 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 
 	existingComponents = map[string]cr.ComponentHandler{
-		componentApi.DashboardComponentName:            dashboard.NewHandler(),
 		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
 		componentApi.FeastOperatorComponentName:        feastoperator.NewHandler(),
 		componentApi.KueueComponentName:                kueue.NewHandler(),
@@ -156,7 +155,6 @@ var (
 	// 32 — independent extensions, no KServe dependency.
 	// 33 — components that require KServe to be Ready.
 	componentRunlevels = map[string]dag.Runlevel{
-		componentApi.DashboardComponentName:            dag.RL(20),
 		componentApi.DataSciencePipelinesComponentName: dag.RL(20),
 		componentApi.ModelRegistryComponentName:        dag.RL(20),
 		componentApi.RayComponentName:                  dag.RL(20),
@@ -181,6 +179,7 @@ var (
 	}
 
 	existingModules = map[string]mr.ModuleHandler{
+		componentApi.DashboardComponentName: dashboardModule.NewHandler(),
 		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
 		componentApi.AIGatewayComponentName:            aigatewayModule.NewHandler(),
 		componentApi.MCPLifecycleOperatorComponentName: mcplifecycleoperatorModule.NewHandler(),
@@ -190,6 +189,7 @@ var (
 	}
 
 	moduleRunlevels = map[string]dag.Runlevel{
+		componentApi.DashboardComponentName:            dag.RL(20),
 		componentApi.AIGatewayComponentName:            dag.RL(32),
 		componentApi.MCPLifecycleOperatorComponentName: dag.RL(20),
 		componentApi.MLflowOperatorComponentName:       dag.RL(32),
