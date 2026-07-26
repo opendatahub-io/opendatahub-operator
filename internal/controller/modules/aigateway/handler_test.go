@@ -349,6 +349,7 @@ func TestImageHandling(t *testing.T) {
 		"RELATED_IMAGE_ODH_MAAS_API_IMAGE",
 		"RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE",
 		"RELATED_IMAGE_UBI_MINIMAL_IMAGE",
+		"RELATED_IMAGE_ODH_PYTHON_312_IMAGE",
 	))
 
 	// The operator image is handled by ControllerImage (image override), not
