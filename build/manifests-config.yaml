@@ -151,7 +151,7 @@ additional_meta:
     git.commit: 2677519396192e88ac6e1bbd24c3de50bff86562
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 2677519396192e88ac6e1bbd24c3de50bff86562
+    git.commit: 4a182d44b97c29692d15dd07c856781ea36026c4
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 2677519396192e88ac6e1bbd24c3de50bff86562
@@ -163,7 +163,7 @@ additional_meta:
     git.commit: 2677519396192e88ac6e1bbd24c3de50bff86562
   odh-kserve-storage-initializer:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 2677519396192e88ac6e1bbd24c3de50bff86562
+    git.commit: 4a182d44b97c29692d15dd07c856781ea36026c4
   odh-kube-auth-proxy:
     git.url: https://github.com/red-hat-data-services/kube-auth-proxy
     git.commit: e8399c864723f374c1dc2ef5cdba9ede1a668c38
