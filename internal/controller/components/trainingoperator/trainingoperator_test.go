@@ -60,9 +60,9 @@ func TestIsEnabled(t *testing.T) {
 		matcher gt.GomegaMatcher
 	}{
 		{
-			name:    "should return true when management state is Managed",
+			name:    "should return false when management state is Managed (v1 deprecated)",
 			state:   operatorv1.Managed,
-			matcher: BeTrue(),
+			matcher: BeFalse(),
 		},
 		{
 			name:    "should return false when management state is Removed",
@@ -93,7 +93,7 @@ func TestIsEnabled(t *testing.T) {
 func TestUpdateDSCStatus(t *testing.T) {
 	handler := &componentHandler{}
 
-	t.Run("should handle enabled component with ready TrainingOperator CR", func(t *testing.T) {
+	t.Run("should treat Managed as disabled (v1 deprecated)", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
@@ -110,40 +110,13 @@ func TestUpdateDSCStatus(t *testing.T) {
 		})
 
 		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
-
-		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.components.trainingoperator.managementState == "%s"`, operatorv1.Managed),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionTrue),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.ReadyReason),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Component is ready"`, ReadyConditionType)),
-		))
-	})
-
-	t.Run("should handle enabled component with not ready TrainingOperator CR", func(t *testing.T) {
-		g := NewWithT(t)
-		ctx := t.Context()
-
-		dsc := createDSCWithTrainingOperator(operatorv1.Managed)
-		trainingoperator := createTrainingOperatorCR(false)
-
-		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, trainingoperator))
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
-			Client:     cli,
-			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, ReadyConditionType),
-		})
-
-		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
+		g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
 			jq.Match(`.status.components.trainingoperator.managementState == "%s"`, operatorv1.Managed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.NotReadyReason),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Component is not ready"`, ReadyConditionType)),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, operatorv1.Managed),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component ManagementState is set to Managed")`, ReadyConditionType)),
 		))
 	})
 
