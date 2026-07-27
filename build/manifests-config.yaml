@@ -30,11 +30,6 @@ map:
     dest: modelregistry
     git.url: https://github.com/red-hat-data-services/model-registry-operator
     git.commit: 4918619c6baf437f9f3052a5daf8bd4aee008f44
-  odh-dashboard:
-    src: manifests
-    dest: dashboard
-    git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 18dba8234d90614485e52246d7f561bf54ac236e
   odh-dashboard-operator:
     src: dashboard-operator/charts/dashboard
     dest: dashboard-operator
@@ -61,11 +56,6 @@ map:
     dest: mlflowoperator
     git.url: https://github.com/red-hat-data-services/mlflow-operator
     git.commit: 58139bd2fd4206c0235c3fbdd5fa342ccda5bb91
-  odh-maas-api:
-    src: deployment
-    dest: maas
-    git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: cebf6c30dadaf84fdcdc9815438b3157cc0e5fd9
   odh-spark-operator:
     src: config
     dest: sparkoperator
