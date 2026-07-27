@@ -1,11 +1,3 @@
-- op: add
-  path: /spec/template/spec/containers/0/env/-
-  value:
-    name: MODULE_FEDERATION_CONFIG
-    valueFrom:
-      configMapKeyRef:
-        key: module-federation-config.json
-        name: federation-config
 # --- SA isolation: disable auto-mount and add per-container SA tokens ---
 - op: add
   path: /spec/template/spec/automountServiceAccountToken
