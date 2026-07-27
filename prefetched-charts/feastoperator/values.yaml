@@ -4,8 +4,8 @@ config:
 fullnameOverride: ""
 image:
   fullRef: ""
-  repository: quay.io/rhoai/odh-feast-module-operator-rhel9
-  tag: rhoai-3.5
+  repository: quay.io/opendatahub/odh-feast-module-operator
+  tag: odh-stable
 imagePullSecret: ""
 leaderElect: true
 nameOverride: ""

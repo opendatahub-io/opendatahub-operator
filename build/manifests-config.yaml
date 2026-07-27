@@ -96,7 +96,7 @@ map:
     dest: feastoperator
     type: chart
     git.url: https://github.com/red-hat-data-services/feast-module-operator
-    git.commit: 7e1d0480b71428784752a1135627700f44140617
+    git.commit: 24fab3d675b1c97c6f27d376d6d42f29d5854b64
 additional_meta:
   odh-ai-gateway-payload-processing-e2e:
     git.url: https://github.com/red-hat-data-services/ai-gateway-payload-processing
