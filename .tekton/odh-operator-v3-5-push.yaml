@@ -1,6 +1,5 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
-#test1
 metadata:
   annotations:
     build.appstudio.openshift.io/repo: https://github.com/red-hat-data-services/rhods-operator?rev={{revision}}
@@ -9,12 +8,8 @@ metadata:
     pipelinesascode.tekton.dev/cancel-in-progress: "false"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
     build.appstudio.openshift.io/build-nudge-files: "bundle/bundle-patch.yaml"
-    # Skip trigger when only these files/folders change:
-    #   bundle/, build/, .tekton/, .github/workflows/, Dockerfiles/bundle.Dockerfile
-    # Exception: always trigger for:
-    #   build/operands-map.yaml, .tekton/odh-operator-v3-5-push.yaml
     pipelinesascode.tekton.dev/on-cel-expression: |
-      event == "push"
+      "non-existent-file.non-existent-ext".pathChanged() && event == "push"
       && target_branch == "rhoai-3.5"
       && ( files.all.exists(p, !(
         p.matches('^bundle/') || p.matches('^build/') || p.matches('^\\.tekton/')
