@@ -1,6 +1,0 @@
-- op: replace
-  path: /metadata/name
-  value: rhods-dashboard-allow-ports
-- op: replace
-  path: /spec/podSelector/matchLabels/deployment
-  value: rhods-dashboard

@@ -1,4 +1,0 @@
-releases:
-  - name: ModelsAsService
-    version: v0.1.1
-    repoUrl: https://github.com/opendatahub-io/models-as-a-service/

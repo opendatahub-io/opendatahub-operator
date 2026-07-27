@@ -70,7 +70,7 @@ map:
     src: config
     dest: ogx
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
-    git.commit: 4cf83e7e397f29cb1e7cf6c59528bcfffb4a94c6
+    git.commit: ab0f0a9a25bb8c2a562d52c76ab202524b0d193f
   odh-ai-gateway-operator:
     src: config
     dest: aigateway
@@ -88,9 +88,6 @@ map:
     git.url: https://github.com/red-hat-data-services/feast-module-operator
     git.commit: 24fab3d675b1c97c6f27d376d6d42f29d5854b64
 additional_meta:
-  odh-ai-gateway-payload-processing-e2e:
-    git.url: https://github.com/red-hat-data-services/ai-gateway-payload-processing
-    git.commit: 6af13e9880b8d84fcf2bdba8a28689dd5a05fbe9
   odh-ai-gateway-payload-processing:
     git.url: https://github.com/red-hat-data-services/ai-gateway-payload-processing
     git.commit: 6af13e9880b8d84fcf2bdba8a28689dd5a05fbe9
@@ -107,6 +104,9 @@ additional_meta:
     git.url: https://github.com/red-hat-data-services/odh-cli
     git.commit: 12af139e79a28a2ab009bcff87b0cf13b56e8a31
   odh-core-bff:
+    git.url: https://github.com/red-hat-data-services/odh-dashboard
+    git.commit: 4048fd9029a5a89663094ebfeceabdf7b6eed3bb
+  odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 4048fd9029a5a89663094ebfeceabdf7b6eed3bb
   odh-data-science-pipelines-argo-argoexec:
@@ -190,6 +190,9 @@ additional_meta:
   odh-llm-d-router-endpoint-picker:
     git.url: https://github.com/red-hat-data-services/llm-d-router
     git.commit: ec3943e421caaf2a92a6a0cedb1bc7d5e93aa5e2
+  odh-maas-api:
+    git.url: https://github.com/red-hat-data-services/models-as-a-service
+    git.commit: cebf6c30dadaf84fdcdc9815438b3157cc0e5fd9
   odh-maas-controller:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
     git.commit: cebf6c30dadaf84fdcdc9815438b3157cc0e5fd9
@@ -276,7 +279,7 @@ additional_meta:
     git.commit: 9ef977fd343fed0a2b353406ad17a28b593495bb
   odh-ogx-module-operator:
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
-    git.commit: 4cf83e7e397f29cb1e7cf6c59528bcfffb4a94c6
+    git.commit: ab0f0a9a25bb8c2a562d52c76ab202524b0d193f
   odh-openvino-model-server:
     git.url: https://github.com/red-hat-data-services/openvino_model_server
     git.commit: 9591069fe9b2a01cd3761d5d1e8e91c5b4ef0aa4

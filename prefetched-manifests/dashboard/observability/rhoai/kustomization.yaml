@@ -1,7 +1,0 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - network-policy.yaml
-  - perses-dashboard-cluster.yaml
-  - perses-dashboard-model.yaml
-  - perses-dashboard-model-admin.yaml
