@@ -70,7 +70,6 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	b := reconciler.ReconcilerFor(mgr, &configv1alpha1.Platform{}).
 		WithInstanceName("modules").
 		WithDynamicOwnership(reconciler.WithGVKPredicates(moduleStatusPredicates())).
-		WithoutConditionCleanup().
 		WithAction(enableModulesFromPlatform)
 
 	platformRequest := []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configv1alpha1.PlatformInstanceName}}}

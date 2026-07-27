@@ -99,8 +99,7 @@ func setupCleanupTest(t *testing.T, handler *cleanupMockHandler) (*odhtype.Recon
 	cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	condTypes := []string{handler.GetGVK().Kind + status.ReadySuffix}
-	cm := conditions.NewManager(platform, status.ConditionTypeReady, condTypes...)
+	cm := conditions.NewManager(platform, status.ConditionTypeReady, status.ConditionTypeModulesReady)
 
 	rr := &odhtype.ReconciliationRequest{
 		Client:     cli,
@@ -130,7 +129,7 @@ func TestCleanupDisabledModules_CRAbsent_DeletesOperatorResources(t *testing.T) 
 	g.Expect(handler.deletedOperatorRes).Should(BeTrue())
 }
 
-func TestCleanupDisabledModules_CRAlive_SetsErrorCondition(t *testing.T) {
+func TestCleanupDisabledModules_CRAlive_NoPerModuleCondition(t *testing.T) {
 	g := NewWithT(t)
 
 	handler := newCleanupMock("test-mod", CRStateAlive)
@@ -142,14 +141,10 @@ func TestCleanupDisabledModules_CRAlive_SetsErrorCondition(t *testing.T) {
 	g.Expect(handler.deletedOperatorRes).Should(BeFalse())
 
 	cond := rr.Conditions.GetCondition("TestModuleReady")
-	g.Expect(cond).ShouldNot(BeNil())
-	g.Expect(cond.Status).Should(Equal(metav1.ConditionFalse))
-	g.Expect(cond.Reason).Should(Equal(status.RemovedReason))
-	g.Expect(string(cond.Severity)).Should(BeEmpty())
-	g.Expect(cond.Message).Should(ContainSubstring("disabled but its CR still exists"))
+	g.Expect(cond).Should(BeNil(), "cleanup should not set per-module conditions on Platform")
 }
 
-func TestCleanupDisabledModules_CRDeleting_SetsInfoCondition(t *testing.T) {
+func TestCleanupDisabledModules_CRDeleting_NoPerModuleCondition(t *testing.T) {
 	g := NewWithT(t)
 
 	handler := newCleanupMock("test-mod", CRStateDeleting)
@@ -161,9 +156,5 @@ func TestCleanupDisabledModules_CRDeleting_SetsInfoCondition(t *testing.T) {
 	g.Expect(handler.deletedOperatorRes).Should(BeFalse())
 
 	cond := rr.Conditions.GetCondition("TestModuleReady")
-	g.Expect(cond).ShouldNot(BeNil())
-	g.Expect(cond.Status).Should(Equal(metav1.ConditionFalse))
-	g.Expect(cond.Reason).Should(Equal(status.RemovedReason))
-	g.Expect(cond.Severity).Should(Equal(common.ConditionSeverityInfo))
-	g.Expect(cond.Message).Should(ContainSubstring("being deleted"))
+	g.Expect(cond).Should(BeNil(), "cleanup should not set per-module conditions on Platform")
 }

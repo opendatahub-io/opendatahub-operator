@@ -14,6 +14,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -126,8 +127,6 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 			}
 		}
 
-		condType := readyConditionTypeFor(handler)
-
 		switch crState {
 		case CRStateAbsent:
 			log.Info("module CR gone, cleaning up operator resources", "module", handler.GetName())
@@ -135,27 +134,10 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 
 		case CRStateAlive:
 			log.Info("module disabled but CR still exists", "module", handler.GetName())
-
-			rr.Conditions.SetCondition(common.Condition{
-				Type:    condType,
-				Status:  metav1.ConditionFalse,
-				Reason:  status.RemovedReason,
-				Message: fmt.Sprintf("Module %s is disabled but its CR still exists — delete it to complete removal", handler.GetName()),
-			})
-
 			appendOperatorManifests()
 
 		case CRStateDeleting:
 			log.Info("module CR deleting, keeping operator alive for finalizers", "module", handler.GetName())
-
-			rr.Conditions.SetCondition(common.Condition{
-				Type:     condType,
-				Status:   metav1.ConditionFalse,
-				Reason:   status.RemovedReason,
-				Severity: common.ConditionSeverityInfo,
-				Message:  fmt.Sprintf("Module %s CR is being deleted", handler.GetName()),
-			})
-
 			appendOperatorManifests()
 		}
 
@@ -331,60 +313,72 @@ func deploymentNameFromManifests(manifests OperatorManifests, fallbackName strin
 	return fallbackName
 }
 
-// computeModulesStatus reads status conditions from each module's CR and
-// sets both per-module conditions (e.g. AIGatewayReady) and the aggregate
-// ModulesReady condition on rr.Conditions.
-//
-// During the transition period (in-tree components exist), the DSC
-// controller calls this and is the sole status writer — the modules
-// controller has WithoutStatusConditions so its conditions are never
-// applied. Post-migration (no in-tree components), the modules
-// controller calls this via updateModuleStatus and becomes the sole
-// status writer.
-func computeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+type perModuleResult struct {
+	condition common.Condition
+	ready     bool
+	degraded  bool
+}
+
+type modulesEvaluation struct {
+	perModule      []perModuleResult
+	notReady       []string
+	degraded       []string
+	pendingCleanup []string
+	enabledCount   int
+}
+
+// evaluateModulesStatus reads module CRs, checks staleness and readiness,
+// and returns structured results without writing any conditions.
+func evaluateModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) (*modulesEvaluation, error) {
 	log := logf.FromContext(ctx)
 
 	reg := DefaultRegistry()
 	if !reg.HasEntries() {
-		return nil
+		return &modulesEvaluation{}, nil
 	}
 
 	platformCtx, err := buildPlatformContext(ctx, rr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	var notReadyModules []string
-	var degradedModules []string
-	var enabledCount int
+	eval := &modulesEvaluation{}
 
 	err = reg.ForAll(func(handler ModuleHandler, _ bool) error {
 		name := handler.GetName()
 		condType := readyConditionTypeFor(handler)
 
 		if !handler.IsEnabled(platformCtx) {
-			rr.Conditions.SetCondition(common.Condition{
-				Type:     condType,
-				Status:   metav1.ConditionFalse,
-				Reason:   status.RemovedReason,
-				Severity: common.ConditionSeverityInfo,
-				Message:  fmt.Sprintf("Module ManagementState is set to %s", status.RemovedReason),
+			eval.perModule = append(eval.perModule, perModuleResult{
+				condition: common.Condition{
+					Type:     condType,
+					Status:   metav1.ConditionFalse,
+					Reason:   status.RemovedReason,
+					Severity: common.ConditionSeverityInfo,
+					Message:  fmt.Sprintf("Module ManagementState is set to %s", status.RemovedReason),
+				},
 			})
+
+			if crState, err := handler.GetModuleCRState(ctx, rr.Client); err == nil && crState != CRStateAbsent {
+				eval.pendingCleanup = append(eval.pendingCleanup, name)
+			}
+
 			return nil
 		}
 
-		enabledCount++
+		eval.enabledCount++
 
 		moduleStatus, err := handler.GetModuleStatus(ctx, rr.Client)
 		if err != nil {
 			log.V(1).Info("failed to get module status", "module", name, "error", err)
-			notReadyModules = append(notReadyModules, name)
-
-			rr.Conditions.SetCondition(common.Condition{
-				Type:    condType,
-				Status:  metav1.ConditionFalse,
-				Reason:  status.NotReadyReason,
-				Message: fmt.Sprintf("Failed to get module status: %v", err),
+			eval.notReady = append(eval.notReady, name)
+			eval.perModule = append(eval.perModule, perModuleResult{
+				condition: common.Condition{
+					Type:    condType,
+					Status:  metav1.ConditionFalse,
+					Reason:  status.NotReadyReason,
+					Message: fmt.Sprintf("Failed to get module status: %v", err),
+				},
 			})
 			return nil
 		}
@@ -395,13 +389,14 @@ func computeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 				"observedGeneration", moduleStatus.ObservedGeneration,
 				"generation", moduleStatus.Generation,
 			)
-			notReadyModules = append(notReadyModules, name+" (stale)")
-
-			rr.Conditions.SetCondition(common.Condition{
-				Type:    condType,
-				Status:  metav1.ConditionFalse,
-				Reason:  status.NotReadyReason,
-				Message: "Module status is stale (observedGeneration < generation)",
+			eval.notReady = append(eval.notReady, name+" (stale)")
+			eval.perModule = append(eval.perModule, perModuleResult{
+				condition: common.Condition{
+					Type:    condType,
+					Status:  metav1.ConditionFalse,
+					Reason:  status.NotReadyReason,
+					Message: "Module status is stale (observedGeneration < generation)",
+				},
 			})
 			return nil
 		}
@@ -420,56 +415,78 @@ func computeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 			}
 		}
 
+		result := perModuleResult{ready: ready, degraded: degraded}
 		if readyCond != nil {
-			rr.Conditions.SetCondition(common.Condition{
+			result.condition = common.Condition{
 				Type:    condType,
 				Status:  readyCond.Status,
 				Reason:  readyCond.Reason,
 				Message: readyCond.Message,
-			})
+			}
 		} else {
-			rr.Conditions.SetCondition(common.Condition{
+			result.condition = common.Condition{
 				Type:    condType,
 				Status:  metav1.ConditionFalse,
 				Reason:  status.NotReadyReason,
 				Message: "Module has not reported a Ready condition yet",
-			})
+			}
 		}
 
+		eval.perModule = append(eval.perModule, result)
+
 		if !ready {
-			notReadyModules = append(notReadyModules, name)
+			eval.notReady = append(eval.notReady, name)
 		} else if degraded {
-			degradedModules = append(degradedModules, name)
+			eval.degraded = append(eval.degraded, name)
 		}
 
 		return nil
 	})
 
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	return eval, nil
+}
+
+// writeAggregateCondition writes the ModulesReady aggregate condition
+// based on the evaluation results.
+func (e *modulesEvaluation) writeAggregateCondition(conditions *conditions.Manager) {
+	cleanupSuffix := ""
+	if len(e.pendingCleanup) > 0 {
+		cleanupSuffix = fmt.Sprintf("; pending deletion: %s", strings.Join(e.pendingCleanup, ", "))
 	}
 
 	switch {
-	case len(notReadyModules) > 0:
-		msg := fmt.Sprintf("Some modules are not ready: %s", strings.Join(notReadyModules, ", "))
-		if len(degradedModules) > 0 {
-			msg += fmt.Sprintf("; degraded: %s", strings.Join(degradedModules, ", "))
+	case len(e.notReady) > 0:
+		msg := fmt.Sprintf("Some modules are not ready: %s", strings.Join(e.notReady, ", "))
+		if len(e.degraded) > 0 {
+			msg += fmt.Sprintf("; degraded: %s", strings.Join(e.degraded, ", "))
 		}
-		rr.Conditions.SetCondition(common.Condition{
+		conditions.SetCondition(common.Condition{
 			Type:    status.ConditionTypeModulesReady,
 			Status:  metav1.ConditionFalse,
 			Reason:  status.NotReadyReason,
-			Message: msg,
+			Message: msg + cleanupSuffix,
 		})
-	case len(degradedModules) > 0:
-		rr.Conditions.SetCondition(common.Condition{
+	case len(e.degraded) > 0:
+		conditions.SetCondition(common.Condition{
 			Type:    status.ConditionTypeModulesReady,
 			Status:  metav1.ConditionFalse,
 			Reason:  status.ConditionTypeDegraded,
-			Message: fmt.Sprintf("Some modules are degraded: %s", strings.Join(degradedModules, ", ")),
+			Message: fmt.Sprintf("Some modules are degraded: %s", strings.Join(e.degraded, ", ")) + cleanupSuffix,
 		})
-	case enabledCount == 0:
-		rr.Conditions.SetCondition(common.Condition{
+	case len(e.pendingCleanup) > 0:
+		conditions.SetCondition(common.Condition{
+			Type:     status.ConditionTypeModulesReady,
+			Status:   metav1.ConditionTrue,
+			Severity: common.ConditionSeverityInfo,
+			Reason:   status.RemovedReason,
+			Message:  fmt.Sprintf("Modules pending deletion: %s", strings.Join(e.pendingCleanup, ", ")),
+		})
+	case e.enabledCount == 0:
+		conditions.SetCondition(common.Condition{
 			Type:     status.ConditionTypeModulesReady,
 			Status:   metav1.ConditionTrue,
 			Severity: common.ConditionSeverityInfo,
@@ -477,32 +494,43 @@ func computeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 			Message:  "All registered modules have ManagementState Removed or are not configured",
 		})
 	default:
-		rr.Conditions.MarkTrue(status.ConditionTypeModulesReady)
+		conditions.MarkTrue(status.ConditionTypeModulesReady)
 	}
+}
+
+// ComputeModulesStatusDetailed writes per-module conditions and the
+// aggregate ModulesReady condition. Called by the DSC controller for
+// full module status on the DSC CR.
+func ComputeModulesStatusDetailed(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	eval, err := evaluateModulesStatus(ctx, rr)
+	if err != nil {
+		return err
+	}
+
+	for _, r := range eval.perModule {
+		rr.Conditions.SetCondition(r.condition)
+	}
+
+	eval.writeAggregateCondition(rr.Conditions)
 
 	return nil
 }
 
-// updateModuleStatus writes ModulesReady to Platform CR status.
-// DSC mirrors this condition from Platform CR.
-func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	return computeModulesStatus(ctx, rr)
-}
-
-// OwnedConditionTypes returns the set of condition types that the module
-// controller writes to the Platform CR. The DSC controller uses this to
-// know which conditions to mirror from Platform CR to DSC status.
-func OwnedConditionTypes() map[string]bool {
-	types := map[string]bool{
-		status.ConditionTypeModulesReady:         true,
-		status.ConditionTypeProvisioningProgress: true,
+// computeModulesStatusAggregate writes only the aggregate ModulesReady
+// condition. Called by the Platform controller — Platform CR status
+// reflects DAG orchestration state, not per-module detail.
+func computeModulesStatusAggregate(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	eval, err := evaluateModulesStatus(ctx, rr)
+	if err != nil {
+		return err
 	}
 
-	DefaultRegistry().ForAll(func(handler ModuleHandler, _ bool) error { //nolint:errcheck
-		types[readyConditionTypeFor(handler)] = true
+	eval.writeAggregateCondition(rr.Conditions)
 
-		return nil
-	})
+	return nil
+}
 
-	return types
+// updateModuleStatus writes aggregate ModulesReady to Platform CR status.
+func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	return computeModulesStatusAggregate(ctx, rr)
 }
