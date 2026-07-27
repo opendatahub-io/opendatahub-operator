@@ -38,8 +38,6 @@ spec:
           value: 'true'
         - name: RHAI_DISABLE_TRAINER_COMPONENT
           value: 'true'
-        - name: RHAI_DISABLE_TRAININGOPERATOR_COMPONENT
-          value: 'true'
         - name: RHAI_DISABLE_TRUSTYAI_COMPONENT
           value: 'true'
         - name: RHAI_DISABLE_WORKBENCHES_COMPONENT

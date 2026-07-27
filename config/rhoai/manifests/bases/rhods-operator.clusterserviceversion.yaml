@@ -72,9 +72,6 @@ metadata:
             "trainer": {
               "managementState": "Managed"
             },
-            "trainingoperator": {
-              "managementState": "Removed"
-            },
             "trustyai": {
               "managementState": "Managed"
             }
@@ -87,7 +84,10 @@ metadata:
       "datasciencepipelines.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
-      "monitorings.services.platform.opendatahub.io", "trainers.components.platform.opendatahub.io",
+      "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
+      "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
+      "ogxs.components.platform.opendatahub.io", "trainers.components.platform.opendatahub.io",
+      "mlflowoperators.components.platform.opendatahub.io", "modelsasservices.components.platform.opendatahub.io",
       "sparkoperators.components.platform.opendatahub.io"]'
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
@@ -172,11 +172,6 @@ spec:
       displayName: Trainer
       kind: Trainer
       name: trainers.components.platform.opendatahub.io
-      version: v1alpha1
-    - description: TrainingOperator is the Schema for the trainingoperators API
-      displayName: Training Operator
-      kind: TrainingOperator
-      name: trainingoperators.components.platform.opendatahub.io
       version: v1alpha1
     - description: TrustyAI is the Schema for the trustyais API
       displayName: Trusty AI

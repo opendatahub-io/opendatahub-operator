@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -58,7 +57,10 @@ func (s *componentHandler) Init(platform common.Platform, cfg operatorconfig.Ope
 }
 
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
-	return dsc.Spec.Components.TrainingOperator.ManagementState == operatorv1.Managed
+	// Training Operator v1 removed in RHOAI 3.6 — always disabled.
+	// Do NOT mutate DSC spec (GitOps/ArgoCD would detect drift and revert).
+	// Framework tears down v1 resources via prefetched manifests when disabled.
+	return false
 }
 
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {

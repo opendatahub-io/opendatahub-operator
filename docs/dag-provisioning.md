@@ -13,7 +13,7 @@ batch and are provisioned together.
 
 | Runlevel | Components | Purpose |
 |----------|------------|---------|
-| 20 | Dashboard, DataSciencePipelines, ModelRegistry, Ray, Trainer, TrainingOperator, Workbenches | Core AI/ML — no inter-component dependencies |
+| 20 | Dashboard, DataSciencePipelines, ModelRegistry, Ray, Trainer, Workbenches | Core AI/ML — no inter-component dependencies |
 | 31 | Kserve, Kueue | Extension foundations |
 | 32 | FeastOperator, MLflowOperator, OGX, SparkOperator | Independent extensions |
 | 33 | ModelController, ModelsAsService, TrustyAI | Require Kserve Ready |
