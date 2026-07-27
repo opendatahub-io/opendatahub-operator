@@ -16,6 +16,7 @@ import (
 	azurev1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -82,6 +83,7 @@ func kserveTestSuite(t *testing.T) {
 	}
 
 	testCases = append(testCases,
+		TestCase{"Validate platform config ConfigMap", componentCtx.ValidatePlatformConfigMap},
 		TestCase{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	)
@@ -267,6 +269,54 @@ func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T
 				WithCustomErrorMsg("All well-known LLMInferenceServiceConfig %s resources should have names starting with a semver version (vX-Y-Z-)", configGVK.Version),
 			)
 		})
+	}
+}
+
+// ValidatePlatformConfigMap verifies that the per-module platform ConfigMap
+// (odh-kserve-config) exists and, on XKS, contains cert-manager CA keys.
+func (tc *KserveTestCtx) ValidatePlatformConfigMap(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke)
+
+	cmName := modules.PlatformConfigName(componentApi.KserveComponentName)
+
+	t.Logf("Verifying platform config ConfigMap %s exists in namespace %s.", cmName, tc.AppsNamespace)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      cmName,
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(
+			jq.Match(`.data | has("%s")`, modules.PlatformVersionKey),
+		),
+	)
+
+	if tc.IsXKS() {
+		t.Log("XKS platform: verifying cert-manager CA keys are present.")
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+				Name:      cmName,
+				Namespace: tc.AppsNamespace,
+			}),
+			WithCondition(And(
+				jq.Match(`.data | has("%s")`, modules.CertManagerIssuerRefNameKey),
+				jq.Match(`.data | has("%s")`, modules.CertManagerIssuerRefKindKey),
+				jq.Match(`.data | has("%s")`, modules.CertManagerCASecretNameKey),
+				jq.Match(`.data | has("%s")`, modules.CertManagerCASecretNamespaceKey),
+			)),
+		)
+	} else {
+		t.Log("Non-XKS platform: verifying cert-manager CA keys are absent.")
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+				Name:      cmName,
+				Namespace: tc.AppsNamespace,
+			}),
+			WithCondition(
+				jq.Match(`.data | has("%s") | not`, modules.CertManagerIssuerRefNameKey),
+			),
+		)
 	}
 }
 
