@@ -292,7 +292,7 @@ additional_meta:
     git.commit: 9591069fe9b2a01cd3761d5d1e8e91c5b4ef0aa4
   odh-pipelines-components:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 42f10f263b9e06b47329ac86ae72f1c91deab957
+    git.commit: f0b2fe74810b3142512d3c93552c2059c2d8747e
   odh-pipeline-runtime-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 16f5e49d38eccec2a9a0b020e22233c6490a17ec
@@ -367,7 +367,7 @@ additional_meta:
     git.commit: 53c42d03ff4b52a7d0db64e2fe2b45e41addc6c8
   odh-workbench-codeserver-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 6000a4157e3ca21ab00a54d0b064de4ae8e216ae
+    git.commit: 16f5e49d38eccec2a9a0b020e22233c6490a17ec
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 16f5e49d38eccec2a9a0b020e22233c6490a17ec
