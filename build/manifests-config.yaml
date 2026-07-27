@@ -23,7 +23,7 @@ map:
     dest: dashboard
   odh-dashboard-operator:
     src: dashboard-operator/charts/dashboard
-    dest: dashboardoperator
+    dest: dashboard-operator
     type: chart
   odh-training-operator:
     src: manifests
