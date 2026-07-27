@@ -19,7 +19,7 @@ var KnownComponents = map[string]string{
 	"kserve": "Kserve", "ray": "Ray", "kueue": "Kueue",
 	"modelregistry": "ModelRegistry", "trustyai": "TrustyAI",
 	"datasciencepipelines": "DataSciencePipelines",
-	"trainingoperator":     "TrainingOperator", "feastoperator": "FeastOperator",
+	"feastoperator": "FeastOperator",
 	"ogx": "OGX", "modelmeshserving": "ModelMeshServing",
 	"mlflowoperator": "MLflowOperator", "sparkoperator": "SparkOperator",
 	"modelcontroller": "ModelController", "modelsasservice": "ModelsAsService",
