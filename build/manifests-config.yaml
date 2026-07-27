@@ -70,7 +70,7 @@ map:
     src: config
     dest: ogx
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
-    git.commit: 60d96026047a9222bd2e1021a5ef4e0771218f33
+    git.commit: d40662f9df546d4b52d2f130041daad79714d368
   odh-ai-gateway-operator:
     src: config
     dest: aigateway
@@ -279,7 +279,7 @@ additional_meta:
     git.commit: 9ef977fd343fed0a2b353406ad17a28b593495bb
   odh-ogx-module-operator:
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
-    git.commit: 60d96026047a9222bd2e1021a5ef4e0771218f33
+    git.commit: d40662f9df546d4b52d2f130041daad79714d368
   odh-openvino-model-server:
     git.url: https://github.com/red-hat-data-services/openvino_model_server
     git.commit: 9591069fe9b2a01cd3761d5d1e8e91c5b4ef0aa4
