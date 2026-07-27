@@ -15,8 +15,8 @@ DST_CHARTS_DIR="./opt/charts"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["kserve"]="opendatahub-io:kserve:release-v0.17@26c347f2d0f34b3fde18e5c71c7297648e61b39a:config"
-    ["kserve-module-operator"]="opendatahub-io:kserve:release-v0.17@26c347f2d0f34b3fde18e5c71c7297648e61b39a:kserve-module/config"
+    ["kserve"]="opendatahub-io:kserve:release-v0.17@01e23b511968fc14de87b9c252154bbfbd0fe79e:config"
+    ["kserve-module-operator"]="opendatahub-io:kserve:release-v0.17@01e23b511968fc14de87b9c252154bbfbd0fe79e:kserve-module/config"
     ["ray"]="opendatahub-io:kuberay:dev@6df5eac0ee71bd6245fa8cdbc577aa689bd3aa39:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@f79b197393d44e6a5e70e478a913de0e9ab2d78e:config"
     ["modelregistry"]="opendatahub-io:model-registry-operator:main@0f6ed5b41207652873238b62716abb2167266c23:config"
@@ -63,15 +63,15 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
 
 # ODH CloudManager Charts
 declare -A ODH_CCM_CHARTS=(
-    ["cert-manager-operator"]="opendatahub-io:odh-gitops:main@6cd5007b1e7e00186bc6fe481addd21b90e76bd0:charts/dependencies/cert-manager-operator"
-    ["lws-operator"]="opendatahub-io:odh-gitops:main@6cd5007b1e7e00186bc6fe481addd21b90e76bd0:charts/dependencies/lws-operator"
-    ["sail-operator"]="opendatahub-io:odh-gitops:main@6cd5007b1e7e00186bc6fe481addd21b90e76bd0:charts/dependencies/sail-operator"
-    ["gateway-api"]="opendatahub-io:odh-gitops:main@6cd5007b1e7e00186bc6fe481addd21b90e76bd0:charts/dependencies/gateway-api"
+    ["cert-manager-operator"]="opendatahub-io:odh-gitops:main@fb256df8af631e4d882d15f6c9c8f194a2fbfab8:charts/dependencies/cert-manager-operator"
+    ["lws-operator"]="opendatahub-io:odh-gitops:main@fb256df8af631e4d882d15f6c9c8f194a2fbfab8:charts/dependencies/lws-operator"
+    ["sail-operator"]="opendatahub-io:odh-gitops:main@fb256df8af631e4d882d15f6c9c8f194a2fbfab8:charts/dependencies/sail-operator"
+    ["gateway-api"]="opendatahub-io:odh-gitops:main@fb256df8af631e4d882d15f6c9c8f194a2fbfab8:charts/dependencies/gateway-api"
 )
 
 # ODH Component Charts
 declare -A ODH_COMPONENT_CHARTS=(
-    ["dashboard-operator"]="opendatahub-io:odh-dashboard:main@79b783f1c1a8a51ba4a8fbdeae60fc6fb463d79c:dashboard-operator/charts/dashboard"
+    ["dashboard-operator"]="opendatahub-io:odh-dashboard:main@d5846b9e75b594f11ab58842e5f4429e1921431c:dashboard-operator/charts/dashboard"
     ["workbenches"]="opendatahub-io:workbenches-operator:main@c857821857adab3155801a1301dad4151cdbc4e9:charts/operator"
 )
 
