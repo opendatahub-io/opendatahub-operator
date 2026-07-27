@@ -18,9 +18,6 @@ map:
   odh-model-registry-operator:
     src: config
     dest: modelregistry
-  odh-dashboard:
-    src: manifests
-    dest: dashboard
   odh-dashboard-operator:
     src: dashboard-operator/charts/dashboard
     dest: dashboard-operator
@@ -37,9 +34,6 @@ map:
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
-  odh-maas-api:
-    src: deployment
-    dest: maas
   odh-spark-operator:
     src: config
     dest: sparkoperator
