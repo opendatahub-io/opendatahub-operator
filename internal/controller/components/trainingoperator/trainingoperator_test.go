@@ -1,4 +1,4 @@
-//nolint:testpackage,dupl
+//nolint:testpackage
 package trainingoperator
 
 import (
