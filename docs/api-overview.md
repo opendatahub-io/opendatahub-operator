@@ -740,7 +740,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `workbenchNamespace` _string_ | Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `workbenchNamespace` _string_ | Legacy JupyterHub-era notebooks namespace. Immutable after creation; defaults to "opendatahub".<br />Notebook-controller operands are deployed into DSCI ApplicationsNamespace, not this field. | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### DSCWorkbenchesStatus
@@ -2427,14 +2427,16 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `workbenchNamespace` _string_ | Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `workbenchNamespace` _string_ | Legacy JupyterHub-era notebooks namespace. Immutable after creation; defaults to "opendatahub".<br />Notebook-controller operands are deployed into DSCI ApplicationsNamespace, not this field. | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### WorkbenchesCommonStatus
 
 
 
-WorkbenchesCommonStatus defines the shared observed state of Workbenches
+WorkbenchesCommonStatus defines the shared observed state of Workbenches.
+On the module CR, status.applicationsNamespace is the operand deploy target and
+status.workbenchNamespace echoes the legacy DSC notebooks namespace.
 
 
 
@@ -2461,7 +2463,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `workbenchNamespace` _string_ | Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `workbenchNamespace` _string_ | Legacy JupyterHub-era notebooks namespace. Immutable after creation; defaults to "opendatahub".<br />Notebook-controller operands are deployed into DSCI ApplicationsNamespace, not this field. | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### WorkbenchesStatus

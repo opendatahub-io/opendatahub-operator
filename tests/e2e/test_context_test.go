@@ -65,7 +65,8 @@ type TestContext struct {
 	// Namespace where application workloads are deployed.
 	AppsNamespace string
 
-	// Namespace where the workbenches are deployed.
+	// Legacy DSC workbenchNamespace value projected onto the module CR.
+	// Operand deploy target is AppsNamespace (APPLICATIONS_NAMESPACE).
 	WorkbenchesNamespace string
 
 	// Namespace where the monitoring components are deployed.
