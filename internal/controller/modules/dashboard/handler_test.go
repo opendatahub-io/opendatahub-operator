@@ -29,6 +29,26 @@ func newPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformConte
 							ManagementState: mgmtState,
 						},
 					},
+					ModelRegistry: componentApi.DSCModelRegistry{
+						ManagementSpec: common.ManagementSpec{
+							ManagementState: operatorv1.Managed,
+						},
+					},
+					MLflowOperator: componentApi.DSCMLflowOperator{
+						ManagementSpec: common.ManagementSpec{
+							ManagementState: operatorv1.Removed,
+						},
+					},
+					TrustyAI: componentApi.DSCTrustyAI{
+						ManagementSpec: common.ManagementSpec{
+							ManagementState: operatorv1.Managed,
+						},
+					},
+					AIPipelines: componentApi.DSCDataSciencePipelines{
+						ManagementSpec: common.ManagementSpec{
+							ManagementState: operatorv1.Managed,
+						},
+					},
 				},
 			},
 		},
@@ -102,10 +122,31 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
 	g.Expect(spec["managementState"]).Should(Equal("Managed"))
+	g.Expect(spec["deploymentMode"]).Should(Equal("Standalone"))
 
 	gateway, ok := spec["gateway"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.gateway missing")
 	g.Expect(gateway["domain"]).Should(Equal("dashboard.example.com"))
+
+	components, ok := spec["components"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.components missing")
+	g.Expect(components).Should(HaveLen(4))
+
+	mrComp, ok := components["modelregistry"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(mrComp["managementState"]).Should(Equal("Managed"))
+
+	mlflowComp, ok := components["mlflowoperator"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(mlflowComp["managementState"]).Should(Equal("Removed"))
+
+	trustyComp, ok := components["trustyai"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(trustyComp["managementState"]).Should(Equal("Managed"))
+
+	pipComp, ok := components["aipipelines"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(pipComp["managementState"]).Should(Equal("Managed"))
 }
 
 func TestBuildModuleCR_OmitsGatewayWhenDomainEmpty(t *testing.T) {
@@ -134,6 +175,31 @@ func TestBuildModuleCR_EmptyManagementStateOmitted(t *testing.T) {
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
 	g.Expect(spec).ShouldNot(HaveKey("managementState"),
 		"empty ManagementState should be omitted by unstructured conversion (omitempty)")
+}
+
+func TestBuildModuleCR_ComponentsDefaultToRemovedWhenEmpty(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	platform := newPlatformCtx(operatorv1.Managed)
+	platform.DSC.Spec.Components.ModelRegistry.ManagementState = ""
+	platform.DSC.Spec.Components.AIPipelines.ManagementState = ""
+
+	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+
+	components, ok := spec["components"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+
+	mrComp, ok := components["modelregistry"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(mrComp["managementState"]).Should(Equal("Removed"))
+
+	pipComp, ok := components["aipipelines"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(pipComp["managementState"]).Should(Equal("Removed"))
 }
 
 func TestBuildModuleCR_NilPlatformContextReturnsError(t *testing.T) {
