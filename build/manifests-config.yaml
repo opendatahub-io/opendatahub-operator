@@ -28,9 +28,6 @@ map:
   odh-feast-operator:
     src: infra/feast-operator/config
     dest: feastoperator
-  odh-trainer:
-    src: manifests
-    dest: trainer
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
@@ -54,5 +51,5 @@ map:
     dest: feastoperator
     type: chart
   odh-trainer-operator:
-    src: config/
+    src: config/manifests
     dest: trainer
