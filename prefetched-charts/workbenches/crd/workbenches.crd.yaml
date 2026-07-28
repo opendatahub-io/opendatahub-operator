@@ -90,8 +90,12 @@ spec:
                 type: string
               workbenchNamespace:
                 description: |-
-                  workbenchNamespace is the namespace where workbenches (Notebooks) are deployed.
-                  This field is immutable after initial creation.
+                  workbenchNamespace is a legacy field retained for JupyterHub-era notebook
+                  namespaces (for example rhods-notebooks on RHOAI). The module operator does
+                  not use this field when deploying notebook-controller operands; those always
+                  target the resolved APPLICATIONS_NAMESPACE (falls back by platform to
+                  opendatahub or redhat-ods-applications when unset/invalid). Immutable after
+                  initial creation.
                 maxLength: 63
                 pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                 type: string
@@ -102,6 +106,14 @@ spec:
           status:
             description: WorkbenchesStatus defines the observed state of Workbenches.
             properties:
+              applicationsNamespace:
+                description: |-
+                  applicationsNamespace is the resolved namespace where notebook-controller
+                  operands and the platform ConfigMap are deployed: APPLICATIONS_NAMESPACE
+                  when set and DNS-1123 valid; otherwise the platform default (opendatahub
+                  for OpenDataHub, redhat-ods-applications for SelfManagedRhoai).
+                maxLength: 63
+                type: string
               conditions:
                 description: conditions represent the latest available observations
                   of the component's state.
@@ -217,7 +229,10 @@ spec:
                 - name
                 x-kubernetes-list-type: map
               workbenchNamespace:
-                description: workbenchNamespace reflects the active workbench namespace.
+                description: |-
+                  workbenchNamespace echoes spec.workbenchNamespace (legacy JupyterHub-era
+                  notebooks namespace). It is not the operand deploy target; see
+                  status.applicationsNamespace.
                 type: string
             type: object
         type: object

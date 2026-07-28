@@ -1,16 +1,20 @@
 # Default values for workbenches-operator.
 #
 # The platform orchestrator renders this chart at build time (template-only Helm).
-# It overrides operatorNamespace, applicationsNamespace, and the manager image via
-# ModuleHandler GetOperatorManifests / ControllerImage + injectModuleEnv.
+# It injects a single namespace Helm value via ModuleConfig.NamespaceValueKey
+# (operatorNamespace = ApplicationsNamespace) plus the manager image via
+# ControllerImage / injectModuleEnv.
 
-# Namespace where the module operator Deployment and namespace-scoped RBAC live.
-# Platform sets this via ModuleConfig.NamespaceValueKey (typically "operatorNamespace").
+# Namespace for the module operator Deployment and namespace-scoped RBAC.
+# Platform sets this to DSCI ApplicationsNamespace (simplest model: operator and
+# operands share one namespace).
 operatorNamespace: workbenches-operator-system
 
-# Shared platform applications namespace (e.g. opendatahub, redhat-ods-applications).
-# Injected as APPLICATIONS_NAMESPACE on the operator pod.
-applicationsNamespace: opendatahub
+# Optional override for operand / platform-ConfigMap namespace and the
+# APPLICATIONS_NAMESPACE env var. When empty, defaults to operatorNamespace so
+# the platform's single Helm value is enough. Standalone installs may set this
+# separately (Makefile APPLICATIONS_NAMESPACE) to keep a dedicated operator NS.
+applicationsNamespace: ""
 
 # Create the operator namespace resource. Must stay false for opendatahub-operator
 # integration (chart compliance allows Deployment/RBAC/CRD only — not Namespace).
@@ -82,13 +86,16 @@ webhooks:
   port: 9443
   # TLS provider for webhook serving certificates.
   # Supported values:
-  #   "openshift"    — uses OpenShift service-CA (serving-cert-secret-name +
-  #                    inject-cabundle annotations). Default.
-  #   "certmanager"  — uses cert-manager Certificate + Issuer resources.
-  #                    Requires cert-manager to be installed on the cluster.
-  #   ""             — disables TLS volume mount entirely (use when the platform
-  #                    provisions certificates out-of-band).
-  tlsProvider: openshift
+  #   ""             — operator auto-configures at runtime (platform path).
+  #                    Detects OpenShift service-CA, cert-manager, or disables
+  #                    webhooks when neither is available. No chart-side TLS
+  #                    annotations or Certificate/Issuer resources are rendered.
+  #   "openshift"    — explicit override for standalone Helm: OpenShift
+  #                    service-CA annotations on Service + MutatingWebhookConfiguration.
+  #   "certmanager"  — explicit override for standalone Helm: cert-manager
+  #                    Certificate + ClusterIssuer resources. Requires
+  #                    cert-manager on the cluster.
+  tlsProvider: ""
   certSecret: ""   # auto-derived from namePrefix when empty
   # cert-manager settings (only used when tlsProvider is "certmanager").
   certManager:

@@ -210,7 +210,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
   value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:9eb179aa367002fa38a40c2934213173c1b8817a41de5c78d5b453b78760815c"
 - name: RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-workbenches-operator-rhel9@sha256:9168307f5deee7af5838b39e8aff63641876aed7b59488eaebc3216e099997ad"
+  value: "quay.io/rhoai/odh-workbenches-operator-rhel9@sha256:1a3568b6c896d29c2ae9b9ac57de2f0556cd54f78caefbf6687b51e57082d7f9"
 - name: RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE
   value: "quay.io/rhoai/odh-workbench-codeserver-datascience-cpu-py312-rhel9@sha256:c8e84907fe6da34b6ec5f46f0354b9d3eaabdd655404a1bc0bf6c0dde33e968a"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_DATASCIENCE_CPU_PY312_IMAGE

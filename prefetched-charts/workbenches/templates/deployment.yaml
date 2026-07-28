@@ -37,11 +37,15 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 256Mi
-        {{- if and .Values.webhooks.enabled .Values.webhooks.tlsProvider }}
+        {{- if .Values.webhooks.enabled }}
         - name: cert
           secret:
+            # 0644: runAsNonRoot pods cannot read 0400 root-owned Secret files without fsGroup.
             defaultMode: 420
             secretName: {{ include "workbenches-operator.webhookCertSecret" . }}
+            # Optional until OpenShift service-CA / cert-manager provisions the Secret
+            # after the operator annotates the Service or creates a Certificate.
+            optional: true
         {{- end }}
       containers:
         - name: manager
@@ -85,7 +89,7 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
-            {{- if and .Values.webhooks.enabled .Values.webhooks.tlsProvider }}
+            {{- if .Values.webhooks.enabled }}
             - name: cert
               mountPath: /tmp/k8s-webhook-server/serving-certs
               readOnly: true

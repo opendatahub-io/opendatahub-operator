@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: odh-workbenches-config
-  namespace: {{ .Values.applicationsNamespace | quote }}
+  namespace: {{ include "workbenches-operator.applicationsNamespace" . | quote }}
   labels:
     platform.opendatahub.io/managed: "true"
 data:
