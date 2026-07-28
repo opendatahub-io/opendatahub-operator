@@ -10,9 +10,7 @@ import (
 //go:embed sparkoperator/monitoring
 //go:embed trainingoperator/monitoring
 //go:embed trustyai/monitoring
-//go:embed dashboard/monitoring
 //go:embed datasciencepipelines/monitoring
-//go:embed feastoperator/monitoring
 //go:embed kserve/monitoring
 //go:embed ogx/monitoring
 //go:embed modelcontroller/monitoring
