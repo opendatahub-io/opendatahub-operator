@@ -126,7 +126,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
   value: quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:f25199be3dfc06cc2732b35e8c79215e9aae60c5f78ed51a52278bf6f932a5ac
 - name: RELATED_IMAGE_ODH_MAAS-API_IMAGE
-  value: quay.io/rhoai/odh-maas-api-rhel9@sha256:1dddb6c9bf7f11f0684dc070cc240f9002f9a05e5863c355057795edd5a99091
+  value: quay.io/rhoai/odh-maas-api-rhel9@sha256:d10c8aca2247015a4ff21521e5d085931e0100b073265c21666db2bd2c36760a
 - name: RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE
   value: quay.io/rhoai/odh-model-performance-data-rhel9@sha256:e2e5e51074bb9e39436a2b87338290233b6617b1196b90d7ac68878bfc152481
 - name: RELATED_IMAGE_ODH_TRUSTYAI_RAGAS_LLS_PROVIDER_DSP_IMAGE
