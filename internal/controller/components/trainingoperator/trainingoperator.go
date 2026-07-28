@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -57,10 +59,11 @@ func (s *componentHandler) Init(platform common.Platform, cfg operatorconfig.Ope
 }
 
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
-	// Training Operator v1 removed in RHOAI 3.6 — always disabled.
-	// Do NOT mutate DSC spec (GitOps/ArgoCD would detect drift and revert).
-	// Framework tears down v1 resources via prefetched manifests when disabled.
-	return false
+	// Training Operator v1 deprecated in RHOAI 3.6.
+	// Managed: keep CR alive so existing deployment is untouched (no GC teardown).
+	//          UpdateDSCStatus reports a deprecation error.
+	// Removed: return false → framework GC deletes CR → finalizer tears down resources.
+	return dsc.Spec.Components.TrainingOperator.ManagementState == operatorv1.Managed
 }
 
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
@@ -95,14 +98,17 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	}
 
 	if s.IsEnabled(dsc) {
-		dsc.Status.Components.TrainingOperator.TrainingOperatorCommonStatus = c.Status.TrainingOperatorCommonStatus.DeepCopy()
+		// Component is Managed but deprecated — report error, leave resources untouched.
+		log := logf.FromContext(ctx)
+		log.Info("TrainingOperator v1 is deprecated in RHOAI 3.6, customer must set managementState to Removed to uninstall")
 
-		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
-			rr.Conditions.MarkFrom(ReadyConditionType, *rc)
-			cs = rc.Status
-		} else {
-			cs = metav1.ConditionFalse
-		}
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason("Deprecated"),
+			conditions.WithMessage("Training Operator v1 has been removed in RHOAI 3.6. Set managementState to Removed to uninstall, then use Trainer v2."),
+		)
+
+		cs = metav1.ConditionFalse
 	} else {
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,

@@ -60,9 +60,9 @@ func TestIsEnabled(t *testing.T) {
 		matcher gt.GomegaMatcher
 	}{
 		{
-			name:    "should return false when management state is Managed (v1 deprecated)",
+			name:    "should return true when management state is Managed (keeps CR alive for deprecation)",
 			state:   operatorv1.Managed,
-			matcher: BeFalse(),
+			matcher: BeTrue(),
 		},
 		{
 			name:    "should return false when management state is Removed",
@@ -93,7 +93,7 @@ func TestIsEnabled(t *testing.T) {
 func TestUpdateDSCStatus(t *testing.T) {
 	handler := &componentHandler{}
 
-	t.Run("should treat Managed as disabled (v1 deprecated)", func(t *testing.T) {
+	t.Run("should report deprecation error when Managed", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
@@ -110,13 +110,13 @@ func TestUpdateDSCStatus(t *testing.T) {
 		})
 
 		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
+		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
 			jq.Match(`.status.components.trainingoperator.managementState == "%s"`, operatorv1.Managed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, operatorv1.Managed),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component ManagementState is set to Managed")`, ReadyConditionType)),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "Deprecated"`, ReadyConditionType),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("removed in RHOAI 3.6")`, ReadyConditionType)),
 		))
 	})
 
