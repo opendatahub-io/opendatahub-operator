@@ -15,6 +15,8 @@ Red Hat Connectivity Link (Kuadrant) operators for vanilla Kubernetes (without O
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | bundle.version | string | `"1.3.0"` |  |
+| imagePullSecret.dockerConfigJson | string | `""` |  |
+| imagePullSecret.name | string | `"rhai-pull-secret"` |  |
 | imagePullSecrets[0].name | string | `"rhai-pull-secret"` |  |
 | operandNamespace | string | `"kuadrant-system"` |  |
 | operatorNamespace | string | `"kuadrant-operators"` |  |

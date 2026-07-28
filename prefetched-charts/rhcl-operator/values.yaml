@@ -5,5 +5,12 @@ operandNamespace: kuadrant-system
 imagePullSecrets:
   - name: rhai-pull-secret
 
+# Optional: provide dockerConfigJson to create the pull secret in RHCL namespaces.
+# If empty, no secret is created (assumes it is provided externally or not needed).
+# Use --set-file imagePullSecret.dockerConfigJson=path/to/auth.json
+imagePullSecret:
+  name: rhai-pull-secret
+  dockerConfigJson: ""
+
 bundle:
   version: "1.3.0"

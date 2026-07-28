@@ -174,7 +174,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-spark-operator-rhel9@sha256:ed4c5b91b0270bb275cdde471fbe98d9af245c5f643499885e825da6912879ad"
 - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
-  value: "quay.io/rhoai/odh-ta-lmes-driver-rhel9@sha256:1abcb35d2d139ba897951bd4da2ea84ed2ab8630e27da72e720bd609d13d8b27"
+  value: "quay.io/rhoai/odh-ta-lmes-driver-rhel9@sha256:6ce2e20e98526e85478f9f1769cf439447a975420b9db588589ff95a54290633"
 - name: RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE
   value: "quay.io/rhoai/odh-ta-lmes-job-rhel9@sha256:6565f1a0c96335811468a20e6e2e81e63d547eeec793c39b87aa72d1b2bb2fb8"
 - name: RELATED_IMAGE_ODH_TRAINER_IMAGE
@@ -204,7 +204,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE
   value: "quay.io/rhoai/odh-trustyai-service-rhel9@sha256:38fab9fe466854c46a95a07c0fbb06a4abf8020775b20f84cf7ce2d61c560938"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-trustyai-service-operator-rhel9@sha256:0a21dc674526fdd6915a2e8367bfa9319410ffef77b6f93fbc2722c74a934799"
+  value: "quay.io/rhoai/odh-trustyai-service-operator-rhel9@sha256:4ce4edc55e267c83bda556f3c3bf7ddbc3eff700bf9596918777a4be9e3b5866"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
   value: "quay.io/rhoai/odh-trustyai-vllm-orchestrator-gateway-rhel9@sha256:be4830548d9cb9eb5e8b4aaf18b3271253e2103a91e5c7526b9540d7cfe6fce0"
 - name: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
