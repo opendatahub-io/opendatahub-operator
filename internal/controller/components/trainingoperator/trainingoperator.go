@@ -3,7 +3,6 @@ package trainingoperator
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -18,7 +17,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
@@ -49,20 +47,15 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 	}, nil
 }
 
-func (s *componentHandler) Init(platform common.Platform, cfg operatorconfig.OperatorSettings) error {
-	manifestsBasePath := cfg.ManifestsBasePath
-	if err := odhdeploy.ApplyParams(manifestPath(manifestsBasePath).String(), "params.env", imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", manifestPath(manifestsBasePath), err)
-	}
-
+// Obsolete: Training Operator v1 is obsolete in RHOAI 3.6. Init is a no-op stub.
+func (s *componentHandler) Init(_ common.Platform, _ operatorconfig.OperatorSettings) error {
 	return nil
 }
 
+// Obsolete: Training Operator v1 is obsolete in RHOAI 3.6.
+// Managed: keep CR alive so existing deployment is untouched (no GC teardown).
+// Removed: return false → framework GC deletes CR → finalizer tears down resources.
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
-	// Training Operator v1 deprecated in RHOAI 3.6.
-	// Managed: keep CR alive so existing deployment is untouched (no GC teardown).
-	//          UpdateDSCStatus reports a deprecation error.
-	// Removed: return false → framework GC deletes CR → finalizer tears down resources.
 	return dsc.Spec.Components.TrainingOperator.ManagementState == operatorv1.Managed
 }
 
@@ -98,14 +91,13 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	}
 
 	if s.IsEnabled(dsc) {
-		// Component is Managed but deprecated — report error, leave resources untouched.
 		log := logf.FromContext(ctx)
-		log.Info("TrainingOperator v1 is deprecated in RHOAI 3.6, customer must set managementState to Removed to uninstall")
+		log.Info("TrainingOperator v1 is obsolete in RHOAI 3.6, customer must set managementState to Removed to uninstall")
 
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
-			conditions.WithReason("Deprecated"),
-			conditions.WithMessage("Training Operator v1 has been removed in RHOAI 3.6. Set managementState to Removed to uninstall, then use Trainer v2."),
+			conditions.WithReason("Obsolete"),
+			conditions.WithMessage("Training Operator v1 is obsolete in RHOAI 3.6. Set managementState to Removed to uninstall, then use Trainer v2."),
 		)
 
 		cs = metav1.ConditionFalse
