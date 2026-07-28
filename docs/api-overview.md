@@ -17,9 +17,7 @@
 Package v1 contains API Schema definitions for the components v1 API group
 
 ### Resource Types
-- [Dashboard](#dashboard)
 - [DataSciencePipelines](#datasciencepipelines)
-- [FeastOperator](#feastoperator)
 - [Kueue](#kueue)
 - [ModelRegistry](#modelregistry)
 - [Ray](#ray)
@@ -737,27 +735,6 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
-#### Dashboard
-
-
-
-Dashboard is the Schema for the dashboards API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `Dashboard` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[DashboardSpec](#dashboardspec)_ |  |  |  |
-| `status` _[DashboardStatus](#dashboardstatus)_ |  |  |  |
-
-
 #### DashboardCommonSpec
 
 
@@ -768,7 +745,6 @@ DashboardCommonSpec spec defines the shared desired state of Dashboard (used in 
 
 _Appears in:_
 - [DSCDashboard](#dscdashboard)
-- [DashboardSpec](#dashboardspec)
 
 
 
@@ -782,45 +758,9 @@ DashboardCommonStatus defines the shared observed state of Dashboard
 
 _Appears in:_
 - [DSCDashboardStatus](#dscdashboardstatus)
-- [DashboardStatus](#dashboardstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `url` _string_ |  |  |  |
-
-
-#### DashboardSpec
-
-
-
-DashboardSpec defines the desired state of Dashboard (Dashboard CR only).
-
-
-
-_Appears in:_
-- [Dashboard](#dashboard)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `gateway` _[GatewaySpec](#gatewayspec)_ | Gateway configuration for dashboard ingress (synced from GatewayConfig by the DSC controller when creating the Dashboard CR). |  |  |
-
-
-#### DashboardStatus
-
-
-
-DashboardStatus defines the observed state of Dashboard
-
-
-
-_Appears in:_
-- [Dashboard](#dashboard)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
 | `url` _string_ |  |  |  |
 
 
@@ -914,27 +854,6 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
-#### FeastOperator
-
-
-
-FeastOperator is the Schema for the FeastOperator API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `FeastOperator` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[FeastOperatorSpec](#feastoperatorspec)_ |  |  |  |
-| `status` _[FeastOperatorStatus](#feastoperatorstatus)_ |  |  |  |
-
-
 #### FeastOperatorCommonSpec
 
 
@@ -945,7 +864,6 @@ FeastOperatorCommonSpec defines the common spec shared across APIs for FeastOper
 
 _Appears in:_
 - [DSCFeastOperator](#dscfeastoperator)
-- [FeastOperatorSpec](#feastoperatorspec)
 
 
 
@@ -959,45 +877,9 @@ FeastOperatorCommonStatus defines the shared observed state of FeastOperator
 
 _Appears in:_
 - [DSCFeastOperatorStatus](#dscfeastoperatorstatus)
-- [FeastOperatorStatus](#feastoperatorstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### FeastOperatorSpec
-
-
-
-FeastOperatorSpec defines the desired state of FeastOperator
-
-
-
-_Appears in:_
-- [FeastOperator](#feastoperator)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `oidc` _[GatewayOIDCSpec](#gatewayoidcspec)_ | OIDC holds issuer settings synced from GatewayConfig by the DSC controller when the cluster<br />uses external OIDC (issuer URL from GatewayConfig.spec.oidc). Only issuerURL is applied to<br />Feast manifests (params.env). |  |  |
-
-
-#### FeastOperatorStatus
-
-
-
-FeastOperatorStatus defines the observed state of FeastOperator
-
-
-
-_Appears in:_
-- [FeastOperator](#feastoperator)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
