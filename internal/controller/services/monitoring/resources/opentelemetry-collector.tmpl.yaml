@@ -85,6 +85,14 @@ spec:
                   source_labels: [__meta_kubernetes_pod_node_name]
                   target_label: node
                 - action: replace
+                  source_labels: [__meta_kubernetes_pod_label_app]
+                  target_label: component
+                - action: replace
+                  replacement: 'rhoai-accelerator-metrics'
+                  target_label: job
+              metric_relabel_configs:
+                # Rename DCGM metrics to nvidia_gpu_* names before any drop/keep filtering
+                - action: replace
                   regex: 'DCGM_FI_DEV_GPU_TEMP'
                   replacement: 'nvidia_gpu_temperature_celsius'
                   source_labels: [__name__]
@@ -124,13 +132,6 @@ spec:
                   replacement: 'nvidia_gpu_memory_clock_mhz'
                   source_labels: [__name__]
                   target_label: __name__
-                - action: replace
-                  source_labels: [__meta_kubernetes_pod_label_app]
-                  target_label: component
-                - action: replace
-                  replacement: 'rhoai-accelerator-metrics'
-                  target_label: job
-              metric_relabel_configs:
                 - source_labels: [__name__]
                   regex: 'DCGM_FI_DEV_GPU_UTIL|DCGM_FI_DEV_MEM_COPY_UTIL'
                   action: drop
