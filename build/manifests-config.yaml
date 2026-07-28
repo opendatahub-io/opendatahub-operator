@@ -276,7 +276,7 @@ additional_meta:
     git.commit: 0ffc99e0f656d9ef974daa39701d0857808cc7f0
   odh-ogx-core:
     git.url: https://github.com/red-hat-data-services/ogx-distribution
-    git.commit: b9cc04336b58223da3eae03b87377fc9d212d0d4
+    git.commit: 06c2f7ca6f440ae089b904daac0d0a08dad1066b
   odh-ogx-module-operator:
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
     git.commit: 032aa577394fbfa88ecb35b92868ccd7b1a37b51
