@@ -102,7 +102,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TRUSTYAI_CPU_PY312_IMAGE
   value: quay.io/rhoai/odh-workbench-jupyter-trustyai-cpu-py312-rhel9@sha256:90aa7a2679b2b21861f7f7b23d6e21ab8551d116ca4870c3a58ce13b3082e723
 - name: RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE
-  value: quay.io/rhoai/odh-guardrails-detector-huggingface-runtime-rhel9@sha256:3094dd9e7dd9fcc161fdfe983557edc9d773b2c07e727c0bbb0e37ac16a39d93
+  value: quay.io/rhoai/odh-guardrails-detector-huggingface-runtime-rhel9@sha256:311ffc605b639d4f9c4f3370a51481b73ad41018b315daa61570f95daa9ee27f
 - name: RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE
   value: quay.io/rhoai/odh-openvino-model-server-rhel9@sha256:e4190bf90517acba0fe0b95c393a9ed20e3e955767e62d6f3b1b77b73a8356d2
 - name: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
