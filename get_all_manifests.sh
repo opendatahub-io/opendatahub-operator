@@ -85,7 +85,7 @@ declare -A RHOAI_CCM_CHARTS=(
 # RHOAI Component Charts
 declare -A RHOAI_COMPONENT_CHARTS=(
     ["dashboard-operator"]="red-hat-data-services:odh-dashboard:rhoai-3.5@483ec0c8f3f45cad3d4d185a191c36eda1cdbd47:dashboard-operator/charts/dashboard"
-    ["workbenches"]="red-hat-data-services:workbenches-operator:rhoai-3.5@0ee58985bf55b877987f3e3a9c442b276f121487:charts/operator"
+    ["workbenches"]="red-hat-data-services:workbenches-operator:rhoai-3.5@97d726ec6040b20d929585e558252769e637ddb9:charts/operator"
     ["feastoperator"]="red-hat-data-services:feast-module-operator:rhoai-3.5@bb135ff9df5e2fea2b58348c9ecd2ad3c5659759:config/chart"
 )
 
