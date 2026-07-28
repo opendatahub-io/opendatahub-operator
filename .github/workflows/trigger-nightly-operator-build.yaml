@@ -101,15 +101,21 @@ jobs:
           echo "current dir = $(pwd)"
           MANIFEST_CONFIG_PATH=${{ github.workspace }}/rhods-operator/build/manifests-config.yaml
           PREFETCHED_MANIFEST_DIR_PATH="rhods-operator/prefetched-manifests"
+          PREFETCHED_CHARTS_DIR_PATH="rhods-operator/prefetched-charts"
 
-          # Clean up old prefetched manifests
+          # Clean up old prefetched manifests and charts
           if [ -d "$PREFETCHED_MANIFEST_DIR_PATH" ]; then
               echo "Cleaning up old prefetched manifests..."
               rm -rf "$PREFETCHED_MANIFEST_DIR_PATH"
           fi
+          if [ -d "$PREFETCHED_CHARTS_DIR_PATH" ]; then
+              echo "Cleaning up old prefetched charts..."
+              rm -rf "$PREFETCHED_CHARTS_DIR_PATH"
+          fi
 
           # Create fresh directories
           mkdir -p "$PREFETCHED_MANIFEST_DIR_PATH"
+          mkdir -p "$PREFETCHED_CHARTS_DIR_PATH"
           mkdir -p manifests
           cd manifests
           while IFS= read -r value;
@@ -144,16 +150,25 @@ jobs:
 
                   src=$(value="$value" yq '.map[strenv(value)]["src"]' ${MANIFEST_CONFIG_PATH})
                   dest=$(value="$value" yq '.map[strenv(value)]["dest"]' ${MANIFEST_CONFIG_PATH})
-                  
+                  entry_type=$(value="$value" yq '.map[strenv(value)]["type"] // "manifest"' ${MANIFEST_CONFIG_PATH})
+
+                  # Route to the correct output directory based on type
+                  if [[ "$entry_type" == "chart" ]]; then
+                    PREFETCHED_DIR_PATH="${PREFETCHED_CHARTS_DIR_PATH}"
+                  else
+                    PREFETCHED_DIR_PATH="${PREFETCHED_MANIFEST_DIR_PATH}"
+                  fi
+
                   echo "component = $component"
                   echo "git_url = $git_url"
                   echo "git_commit = $git_commit"
                   echo "src = $src"
                   echo "dest = $dest"
-          
+                  echo "type = $entry_type"
+
                   mkdir -p $component
                   cd $component
-          
+
                   git config --global init.defaultBranch ${BRANCH}
                   git init
                   git remote add origin $git_url
@@ -162,19 +177,23 @@ jobs:
                   echo "$src" >> .git/info/sparse-checkout
                   git fetch --depth=1 origin $git_commit
                   git checkout $git_commit
-          
+
                   cd ../
                   echo "current dir = $(pwd)"
-                  
-                  dest_dir_path=${{ github.workspace }}/${PREFETCHED_MANIFEST_DIR_PATH}/$dest
+
+                  dest_dir_path=${{ github.workspace }}/${PREFETCHED_DIR_PATH}/$dest
                   mkdir -p ${dest_dir_path}
 
                   cp -r $component/$src/* ${dest_dir_path}
                   echo ""
               fi
           done < <(yq e '.map | keys' ${MANIFEST_CONFIG_PATH} )
-          
+
+          echo "=== Prefetched Manifests ==="
           cd ${{ github.workspace }}/${PREFETCHED_MANIFEST_DIR_PATH}
+          tree
+          echo "=== Prefetched Charts ==="
+          cd ${{ github.workspace }}/${PREFETCHED_CHARTS_DIR_PATH}
           tree
 
           # Update the schedule file to trigger the nightly build 
@@ -190,13 +209,7 @@ jobs:
           CHARTS_CONFIG_PATH=${{ github.workspace }}/rhods-operator/build/charts-config.yaml
           PREFETCHED_CHARTS_DIR_PATH="rhods-operator/prefetched-charts"
 
-          # Clean up old prefetched charts
-          if [ -d "$PREFETCHED_CHARTS_DIR_PATH" ]; then
-              echo "Cleaning up old prefetched charts..."
-              rm -rf "$PREFETCHED_CHARTS_DIR_PATH"
-          fi
-
-          # Create fresh directories
+          # Create directory if not already created by the manifests step
           mkdir -p "$PREFETCHED_CHARTS_DIR_PATH"
           mkdir -p charts
           cd charts
