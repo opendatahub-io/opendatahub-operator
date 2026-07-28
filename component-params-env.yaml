@@ -10,6 +10,7 @@
 #   Each entry MUST include a Jira link and reason.
 
 rhai_helm_components:
+  - aigateway
   - kserve
 
 # Example:
@@ -32,6 +33,27 @@ known_issues:
 - image: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE
   jira: https://redhat.atlassian.net/browse/RHAISTRAT-130
   reason: TrustyAI-Service descoped from RHOAI 3.5, delivering in 3.6-EA1
+- image: RELATED_IMAGE_ODH_AI_GATEWAY_OPERATOR_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-79520
+  reason: Missing from RHAI Helm chart values.yaml, tracked for addition to RHOAI-Build-Config
+- image: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_OPERATOR_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-79520
+  reason: Missing from RHAI Helm chart values.yaml, tracked for addition to RHOAI-Build-Config
+- image: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_APISERVER_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-79520
+  reason: Missing from RHAI Helm chart values.yaml, tracked for addition to RHOAI-Build-Config
+- image: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-79520
+  reason: Missing from RHAI Helm chart values.yaml, tracked for addition to RHOAI-Build-Config
+- image: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-79520
+  reason: Missing from RHAI Helm chart values.yaml, tracked for addition to RHOAI-Build-Config
+- image: RELATED_IMAGE_ODH_LLM_D_ASYNC_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-79520
+  reason: Missing from RHAI Helm chart values.yaml, tracked for addition to RHOAI-Build-Config
+- image: RELATED_IMAGE_ODH_PYTHON_312_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-79520
+  reason: Missing from RHAI Helm chart values.yaml, tracked for addition to RHOAI-Build-Config
 
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
