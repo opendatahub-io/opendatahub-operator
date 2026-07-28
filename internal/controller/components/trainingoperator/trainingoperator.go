@@ -47,12 +47,12 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 	}, nil
 }
 
-// Obsolete: Training Operator v1 is obsolete in RHOAI 3.6. Init is a no-op stub.
+// Deprecated: Training Operator v1 is obsolete in RHOAI 3.6. Init is a no-op stub.
 func (s *componentHandler) Init(_ common.Platform, _ operatorconfig.OperatorSettings) error {
 	return nil
 }
 
-// Obsolete: Training Operator v1 is obsolete in RHOAI 3.6.
+// Deprecated: Training Operator v1 is obsolete in RHOAI 3.6.
 // Managed: keep CR alive so existing deployment is untouched (no GC teardown).
 // Removed: return false → framework GC deletes CR → finalizer tears down resources.
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
