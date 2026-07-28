@@ -12,7 +12,6 @@ import (
 //go:embed trainer/monitoring
 //go:embed trustyai/monitoring
 //go:embed datasciencepipelines/monitoring
-//go:embed feastoperator/monitoring
 //go:embed kserve/monitoring
 //go:embed ogx/monitoring
 //go:embed modelcontroller/monitoring

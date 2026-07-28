@@ -82,6 +82,10 @@ func (h *handler) BuildModuleCR(
 		return nil, fmt.Errorf("failed to convert DSCDashboard to unstructured: %w", err)
 	}
 
+	spec["deploymentMode"] = "Standalone"
+
+	spec["components"] = buildComponentsMap(platform)
+
 	if platform.GatewayDomain != "" {
 		spec["gateway"] = map[string]any{
 			"domain": platform.GatewayDomain,
@@ -97,4 +101,34 @@ func (h *handler) BuildModuleCR(
 	u.SetName(h.Config.CRName)
 
 	return u, nil
+}
+
+// buildComponentsMap projects the management state of DSC components
+// referenced by dashboard-operator modules onto the Dashboard CR.
+func buildComponentsMap(platform *modules.PlatformContext) map[string]any {
+	c := &platform.DSC.Spec.Components
+
+	refs := []struct {
+		name  string
+		state operatorv1.ManagementState
+	}{
+		{"modelregistry", c.ModelRegistry.ManagementState},
+		{"mlflowoperator", c.MLflowOperator.ManagementState},
+		{"trustyai", c.TrustyAI.ManagementState},
+		{"aipipelines", c.AIPipelines.ManagementState},
+	}
+
+	result := make(map[string]any, len(refs))
+	for _, ref := range refs {
+		state := string(ref.state)
+		if state == "" {
+			state = string(operatorv1.Removed)
+		}
+
+		result[ref.name] = map[string]any{
+			"managementState": state,
+		}
+	}
+
+	return result
 }
