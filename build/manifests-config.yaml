@@ -53,3 +53,6 @@ map:
     src: config/chart
     dest: feastoperator
     type: chart
+  odh-trainer-operator:
+    src: config/
+    dest: trainer
