@@ -1752,6 +1752,103 @@ const expectedIntermediateCiphers = "TLS_AES_128_GCM_SHA256," +
 	"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256," +
 	"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
 
+// TestDCGMMetricRenameRulesInMetricRelabelConfigs validates that DCGM metric
+// rename rules (which rely on __name__) are placed in metric_relabel_configs
+// (post-scrape) and NOT in relabel_configs (pre-scrape, where __name__ is
+// unavailable). This is the structural invariant that RHOAIENG-79543 fixes.
+func TestDCGMMetricRenameRulesInMetricRelabelConfigs(t *testing.T) {
+	g := NewWithT(t)
+
+	content, err := resourcesFS.ReadFile(OpenTelemetryCollectorTemplate)
+	g.Expect(err).ShouldNot(HaveOccurred(), "Template file should be readable")
+
+	templateContent := string(content)
+
+	// Verify the template contains both relabel_configs and metric_relabel_configs
+	// for the DCGM exporter scrape job.
+	g.Expect(templateContent).Should(ContainSubstring("job_name: 'dcgm-exporter-accelerator-metrics'"),
+		"Template should contain the DCGM exporter scrape job")
+	g.Expect(templateContent).Should(ContainSubstring("metric_relabel_configs:"),
+		"Template should contain metric_relabel_configs section")
+
+	// Extract the DCGM scrape job block (between the job_name line and the next {{- end }})
+	dcgmJobStart := strings.Index(templateContent, "job_name: 'dcgm-exporter-accelerator-metrics'")
+	g.Expect(dcgmJobStart).Should(BeNumerically(">", 0), "DCGM job should be found in template")
+
+	dcgmBlock := templateContent[dcgmJobStart:]
+	// Find the end of the DCGM block (marked by the template end tag)
+	dcgmEndIdx := strings.Index(dcgmBlock, "{{- end }}")
+	g.Expect(dcgmEndIdx).Should(BeNumerically(">", 0), "DCGM block end should be found")
+	dcgmBlock = dcgmBlock[:dcgmEndIdx]
+
+	// Split the DCGM block into relabel_configs and metric_relabel_configs sections
+	metricRelabelIdx := strings.Index(dcgmBlock, "metric_relabel_configs:")
+	g.Expect(metricRelabelIdx).Should(BeNumerically(">", 0),
+		"metric_relabel_configs section should exist in DCGM block")
+
+	relabelSection := dcgmBlock[:metricRelabelIdx]
+	metricRelabelSection := dcgmBlock[metricRelabelIdx:]
+
+	// Verify: __name__ based rules must NOT appear in relabel_configs (pre-scrape)
+	// __name__ is not available during pre-scrape relabeling, so any rule using it
+	// as a source_label would silently fail to match.
+	dcgmMetrics := []string{
+		"DCGM_FI_DEV_GPU_TEMP",
+		"DCGM_FI_DEV_GPU_UTIL",
+		"DCGM_FI_DEV_MEM_COPY_UTIL",
+		"DCGM_FI_DEV_FB_USED",
+		"DCGM_FI_DEV_FB_FREE",
+		"DCGM_FI_DEV_POWER_USAGE",
+		"DCGM_FI_DEV_SM_CLOCK",
+		"DCGM_FI_DEV_MEM_CLOCK",
+	}
+
+	for _, metric := range dcgmMetrics {
+		g.Expect(relabelSection).ShouldNot(ContainSubstring(metric),
+			"DCGM metric %s should NOT appear in relabel_configs (pre-scrape); "+
+				"__name__ is unavailable before scraping", metric)
+	}
+
+	g.Expect(relabelSection).ShouldNot(ContainSubstring("[__name__]"),
+		"relabel_configs should not reference __name__ as source_label; "+
+			"__name__ is only available post-scrape in metric_relabel_configs")
+
+	// Verify: __name__ based rename rules MUST appear in metric_relabel_configs (post-scrape)
+	for _, metric := range dcgmMetrics {
+		g.Expect(metricRelabelSection).Should(ContainSubstring(metric),
+			"DCGM metric %s should appear in metric_relabel_configs for renaming", metric)
+	}
+
+	g.Expect(metricRelabelSection).Should(ContainSubstring("[__name__]"),
+		"metric_relabel_configs should reference __name__ for metric renaming")
+
+	// Verify the renamed nvidia_gpu_* metrics appear in metric_relabel_configs
+	renamedMetrics := []string{
+		"nvidia_gpu_temperature_celsius",
+		"nvidia_gpu_utilization_ratio",
+		"nvidia_gpu_memory_utilization_ratio",
+		"nvidia_gpu_memory_used_bytes",
+		"nvidia_gpu_memory_free_bytes",
+		"nvidia_gpu_power_usage_watts",
+		"nvidia_gpu_sm_clock_mhz",
+		"nvidia_gpu_memory_clock_mhz",
+	}
+
+	for _, metric := range renamedMetrics {
+		g.Expect(metricRelabelSection).Should(ContainSubstring(metric),
+			"Renamed metric %s should appear in metric_relabel_configs", metric)
+	}
+
+	// Verify that pre-scrape relabel_configs only contain expected SD-based labels
+	// (service discovery metadata, address rewriting, job label assignment)
+	g.Expect(relabelSection).Should(ContainSubstring("__meta_kubernetes_pod_name"),
+		"relabel_configs should use __meta_kubernetes_pod_name for pod filtering")
+	g.Expect(relabelSection).Should(ContainSubstring("__address__"),
+		"relabel_configs should use __address__ for port rewriting")
+	g.Expect(relabelSection).Should(ContainSubstring("__meta_kubernetes_pod_node_name"),
+		"relabel_configs should use __meta_kubernetes_pod_node_name for node label")
+}
+
 func TestAddTLSData(t *testing.T) {
 	ctx := t.Context()
 
