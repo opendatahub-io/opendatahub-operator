@@ -93,7 +93,7 @@ func TestIsEnabled(t *testing.T) {
 func TestUpdateDSCStatus(t *testing.T) {
 	handler := &componentHandler{}
 
-	t.Run("should report deprecation error when Managed", func(t *testing.T) {
+	t.Run("should report obsolete error when Managed", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
@@ -115,8 +115,8 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
 			jq.Match(`.status.components.trainingoperator.managementState == "%s"`, operatorv1.Managed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "Deprecated"`, ReadyConditionType),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("removed in RHOAI 3.6")`, ReadyConditionType)),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "Obsolete"`, ReadyConditionType),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("obsolete in RHOAI 3.6")`, ReadyConditionType)),
 		))
 	})
 
