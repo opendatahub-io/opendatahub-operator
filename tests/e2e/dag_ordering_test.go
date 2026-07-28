@@ -51,7 +51,7 @@ var dagBatches = []componentBatch{
 			{name: componentApi.RayComponentName, gvk: gvk.Ray},
 			{name: componentApi.TrainerComponentName, gvk: gvk.Trainer},
 			{name: componentApi.TrainingOperatorComponentName, gvk: gvk.TrainingOperator},
-			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches},
+			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches, internal: true},
 		},
 	},
 	{

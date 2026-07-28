@@ -1,20 +1,8 @@
 map:
-  notebooks:
-    src: manifests
-    dest: workbenches/notebooks
-    git.url: https://github.com/opendatahub-io/notebooks
-    ref_type: branch
-    branch: stable
   odh-kserve-controller:
     src: config
     dest: kserve
     git.url: https://github.com/opendatahub-io/kserve
-  odh-kf-notebook-controller:
-    src: components/notebook-controller/config
-    dest: workbenches/kf-notebook-controller
-  odh-notebook-controller:
-    src: components/odh-notebook-controller/config
-    dest: workbenches/odh-notebook-controller
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
@@ -36,34 +24,26 @@ map:
   odh-model-registry-operator:
     src: config
     dest: modelregistry
-  odh-dashboard:
-    src: manifests
-    dest: dashboard
   odh-dashboard-operator:
     src: dashboard-operator/charts/dashboard
-    dest: dashboardoperator
+    dest: dashboard-operator
     type: chart
   odh-training-operator:
     src: manifests
     dest: trainingoperator
-  odh-feast-operator:
-    src: infra/feast-operator/config
+  odh-feast-module-operator:
+    src: config/chart
     dest: feastoperator
+    type: chart
   odh-trainer:
     src: manifests
     dest: trainer
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
-  odh-maas-api:
-    src: deployment
-    dest: maas
   odh-spark-operator:
     src: config
     dest: sparkoperator
-  odh-ogx-k8s-operator:
-    src: config
-    dest: ogx
   odh-kserve-module-operator:
     src: kserve-module/config
     dest: kserve-module-operator
@@ -76,9 +56,16 @@ map:
   odh-batch-gateway-operator:
     src: config/
     dest: batch-gateway-operator
-  odh-workbenches-controller:
-    src: workspaces/controller/manifests/kustomize
-    dest: workbenches/odh-workbenches-controller
+  odh-workbenches-operator:
+    src: charts/operator
+    dest: workbenches
+    type: chart
+    git.url: https://github.com/opendatahub-io/workbenches-operator
+    ref_type: branch
+    branch: main
   odh-mcp-lifecycle-module-operator:
     src: config
     dest: mcplifecycleoperator
+  odh-ogx-module-operator:
+    src: config/
+    dest: ogx

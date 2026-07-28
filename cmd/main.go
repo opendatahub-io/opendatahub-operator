@@ -80,9 +80,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/feastoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ogx"
@@ -92,14 +90,16 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainer"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/workbenches"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
+	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
+	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
 	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
+	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -135,9 +135,7 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 
 	existingComponents = map[string]cr.ComponentHandler{
-		componentApi.DashboardComponentName:            dashboard.NewHandler(),
 		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
-		componentApi.FeastOperatorComponentName:        feastoperator.NewHandler(),
 		componentApi.KueueComponentName:                kueue.NewHandler(),
 		componentApi.OGXComponentName:                  ogx.NewHandler(),
 		componentApi.ModelRegistryComponentName:        modelregistry.NewHandler(),
@@ -146,7 +144,6 @@ var (
 		componentApi.TrainerComponentName:              trainer.NewHandler(),
 		componentApi.TrainingOperatorComponentName:     trainingoperator.NewHandler(),
 		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
-		componentApi.WorkbenchesComponentName:          workbenches.NewHandler(),
 	}
 
 	// Component runlevel assignments.
@@ -157,19 +154,18 @@ var (
 	// 32 — independent extensions, no KServe dependency.
 	// 33 — components that require KServe to be Ready.
 	componentRunlevels = map[string]dag.Runlevel{
-		componentApi.DashboardComponentName:            dag.RL(20),
 		componentApi.DataSciencePipelinesComponentName: dag.RL(20),
 		componentApi.ModelRegistryComponentName:        dag.RL(20),
 		componentApi.RayComponentName:                  dag.RL(20),
 		componentApi.TrainerComponentName:              dag.RL(20),
 		componentApi.TrainingOperatorComponentName:     dag.RL(20),
-		componentApi.WorkbenchesComponentName:          dag.RL(20),
 
 		componentApi.KueueComponentName: dag.RL(31),
 
-		componentApi.FeastOperatorComponentName: dag.RL(32),
-		componentApi.OGXComponentName:           dag.RL(32),
-		componentApi.SparkOperatorComponentName: dag.RL(32),
+		componentApi.FeastOperatorComponentName:  dag.RL(32),
+		componentApi.MLflowOperatorComponentName: dag.RL(32),
+		componentApi.OGXComponentName:            dag.RL(32),
+		componentApi.SparkOperatorComponentName:  dag.RL(32),
 
 		componentApi.TrustyAIComponentName: dag.RL(33),
 	}
@@ -183,18 +179,24 @@ var (
 	}
 
 	existingModules = map[string]mr.ModuleHandler{
+		componentApi.DashboardComponentName: dashboardModule.NewHandler(),
 		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
 		componentApi.AIGatewayComponentName:            aigatewayModule.NewHandler(),
 		componentApi.MCPLifecycleOperatorComponentName: mcplifecycleoperatorModule.NewHandler(),
 		componentApi.MLflowOperatorComponentName:       mlflowOperatorModule.NewHandler(),
 		componentApi.KserveComponentName:               kserveModule.NewHandler(),
+		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
+		componentApi.FeastOperatorComponentName:        feastModule.NewHandler(),
 	}
 
 	moduleRunlevels = map[string]dag.Runlevel{
+		componentApi.DashboardComponentName:            dag.RL(20),
 		componentApi.AIGatewayComponentName:            dag.RL(32),
+		componentApi.FeastOperatorComponentName:        dag.RL(32),
 		componentApi.MCPLifecycleOperatorComponentName: dag.RL(20),
 		componentApi.MLflowOperatorComponentName:       dag.RL(32),
 		componentApi.KserveComponentName:               dag.RL(31),
+		componentApi.WorkbenchesComponentName:          dag.RL(20),
 	}
 )
 
