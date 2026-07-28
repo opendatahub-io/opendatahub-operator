@@ -1,0 +1,39 @@
+# Prerequisites:
+# - The ODH DevOps GitHub App (secrets ODH_DEVOPS_APP_ID / ODH_DEVOPS_APP_PRIVATE_KEY)
+#   must be installed on opendatahub-io/odh-gitops with contents:write permission.
+
+name: Trigger GitOps Helm Chart Sync
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # CRD type definitions — controller-gen produces CRDs from these
+      - 'api/**'
+      # Controller RBAC markers — controller-gen produces ClusterRoles from these
+      - 'internal/controller/**'
+      # RHOAI kustomize overlays — the entry point for kustomize build
+      - 'config/rhaii/rhoai/**'
+      - 'config/rhoai/**'
+      # Cloud manager kustomize overlays
+      - 'config/cloudmanager/**'
+
+jobs:
+  notify-gitops:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate github-app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app_id: ${{ secrets.ODH_DEVOPS_APP_ID }}
+          private_key: ${{ secrets.ODH_DEVOPS_APP_PRIVATE_KEY }}
+
+      - name: Dispatch sync to odh-gitops
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          repository: opendatahub-io/odh-gitops
+          event-type: operator-manifest-update
+          client-payload: '{"branch": "${{ github.ref_name }}", "sha": "${{ github.sha }}"}'
