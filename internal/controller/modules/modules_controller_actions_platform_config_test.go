@@ -6,6 +6,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
+
 	. "github.com/onsi/gomega"
 )
 
@@ -21,7 +23,7 @@ func TestBuildPlatformConfigMap(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	cm := buildPlatformConfigMap("odh-testmod-config", "test-ns", "2.20.0")
+	cm := buildPlatformConfigMap("odh-testmod-config", "test-ns", "2.20.0", nil)
 
 	g.Expect(cm.Name).Should(Equal("odh-testmod-config"))
 	g.Expect(cm.Namespace).Should(Equal("test-ns"))
@@ -49,7 +51,7 @@ func TestMergePlatformKeys(t *testing.T) {
 		},
 	}
 
-	mergePlatformKeys(u, "2.20.0")
+	mergePlatformKeys(u, "2.20.0", nil)
 
 	data, _, _ := unstructured.NestedStringMap(u.Object, "data")
 	g.Expect(data).Should(HaveKeyWithValue(PlatformVersionKey, "2.20.0"))
@@ -69,7 +71,7 @@ func TestMergePlatformKeys_NilData(t *testing.T) {
 		},
 	}
 
-	mergePlatformKeys(u, "2.20.0")
+	mergePlatformKeys(u, "2.20.0", nil)
 
 	data, _, _ := unstructured.NestedStringMap(u.Object, "data")
 	g.Expect(data).Should(HaveKeyWithValue(PlatformVersionKey, "2.20.0"))
@@ -90,7 +92,7 @@ func TestMergePlatformKeys_OverwritesOldVersion(t *testing.T) {
 		},
 	}
 
-	mergePlatformKeys(u, "2.20.0")
+	mergePlatformKeys(u, "2.20.0", nil)
 
 	data, _, _ := unstructured.NestedStringMap(u.Object, "data")
 	g.Expect(data).Should(HaveKeyWithValue(PlatformVersionKey, "2.20.0"))
@@ -112,7 +114,7 @@ func TestMergePlatformKeys_UserEditedPlatformVar_ReconciledBack(t *testing.T) {
 		},
 	}
 
-	mergePlatformKeys(u, "2.20.0")
+	mergePlatformKeys(u, "2.20.0", nil)
 
 	data, _, _ := unstructured.NestedStringMap(u.Object, "data")
 	g.Expect(data).Should(HaveKeyWithValue(PlatformVersionKey, "2.20.0"),
@@ -138,7 +140,7 @@ func TestMergePlatformKeys_ModuleAddsNewKeys_Preserved(t *testing.T) {
 		},
 	}
 
-	mergePlatformKeys(u, "2.20.0")
+	mergePlatformKeys(u, "2.20.0", nil)
 
 	data, _, _ := unstructured.NestedStringMap(u.Object, "data")
 	g.Expect(data).Should(HaveLen(3),
@@ -164,7 +166,7 @@ func TestMergePlatformKeys_ModuleChangesOwnKeys_NotReverted(t *testing.T) {
 		},
 	}
 
-	mergePlatformKeys(u, "2.20.0")
+	mergePlatformKeys(u, "2.20.0", nil)
 
 	data, _, _ := unstructured.NestedStringMap(u.Object, "data")
 	g.Expect(data).Should(HaveKeyWithValue("LOG_LEVEL", "debug"),
@@ -201,7 +203,7 @@ func TestToUnstructured(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	cm := buildPlatformConfigMap("odh-test-config", "test-ns", "1.0.0")
+	cm := buildPlatformConfigMap("odh-test-config", "test-ns", "1.0.0", nil)
 	u, err := toUnstructured(cm)
 
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -211,4 +213,130 @@ func TestToUnstructured(t *testing.T) {
 
 	data, _, _ := unstructured.NestedStringMap(u.Object, "data")
 	g.Expect(data).Should(HaveKeyWithValue(PlatformVersionKey, "1.0.0"))
+}
+
+func TestBuildCertManagerConfigParams_Defaults(t *testing.T) {
+	g := NewWithT(t)
+
+	for _, envVar := range []string{
+		certmanager.EnvCAIssuerName,
+		certmanager.EnvIssuerRefKind,
+		certmanager.EnvCertName,
+		certmanager.EnvCertManagerNS,
+		certmanager.EnvIstioCACertPath,
+	} {
+		t.Setenv(envVar, "")
+	}
+
+	params := buildCertManagerConfigParams()
+
+	bc := certmanager.DefaultBootstrapConfig()
+	g.Expect(params).Should(HaveKeyWithValue(CertManagerIssuerRefNameKey, bc.CAIssuerName))
+	g.Expect(params).Should(HaveKeyWithValue(CertManagerIssuerRefKindKey, certmanager.DefaultIssuerRefKind))
+	g.Expect(params).Should(HaveKeyWithValue(CertManagerCASecretNameKey, bc.CertName))
+	g.Expect(params).Should(HaveKeyWithValue(CertManagerCASecretNamespaceKey, bc.CertManagerNamespace))
+	g.Expect(params).ShouldNot(HaveKey(CertManagerIstioCACertPathKey))
+}
+
+func TestBuildCertManagerConfigParams_EnvOverrides(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Setenv(certmanager.EnvCAIssuerName, "custom-issuer")
+	t.Setenv(certmanager.EnvIssuerRefKind, "Issuer")
+	t.Setenv(certmanager.EnvCertName, "custom-ca")
+	t.Setenv(certmanager.EnvCertManagerNS, "custom-ns")
+	t.Setenv(certmanager.EnvIstioCACertPath, "/custom/ca.crt")
+
+	params := buildCertManagerConfigParams()
+
+	g.Expect(params).Should(HaveKeyWithValue(CertManagerIssuerRefNameKey, "custom-issuer"))
+	g.Expect(params).Should(HaveKeyWithValue(CertManagerIssuerRefKindKey, "Issuer"))
+	g.Expect(params).Should(HaveKeyWithValue(CertManagerCASecretNameKey, "custom-ca"))
+	g.Expect(params).Should(HaveKeyWithValue(CertManagerCASecretNamespaceKey, "custom-ns"))
+	g.Expect(params).Should(HaveKeyWithValue(CertManagerIstioCACertPathKey, "/custom/ca.crt"))
+}
+
+func TestBuildPlatformConfigMap_WithExtraParams(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	extra := map[string]string{
+		CertManagerIssuerRefNameKey: "my-issuer",
+		CertManagerIssuerRefKindKey: "ClusterIssuer",
+	}
+
+	cm := buildPlatformConfigMap("odh-mod-config", "test-ns", "2.20.0", extra)
+
+	g.Expect(cm.Data).Should(HaveKeyWithValue(PlatformVersionKey, "2.20.0"))
+	g.Expect(cm.Data).Should(HaveKeyWithValue(CertManagerIssuerRefNameKey, "my-issuer"))
+	g.Expect(cm.Data).Should(HaveKeyWithValue(CertManagerIssuerRefKindKey, "ClusterIssuer"))
+}
+
+func TestBuildPlatformConfigMap_NilExtraParams(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	cm := buildPlatformConfigMap("odh-mod-config", "test-ns", "2.20.0", nil)
+
+	g.Expect(cm.Data).Should(HaveLen(1))
+	g.Expect(cm.Data).Should(HaveKeyWithValue(PlatformVersionKey, "2.20.0"))
+}
+
+func TestMergePlatformKeys_WithExtraParams(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	u := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata":   map[string]any{"name": "odh-mod-config"},
+			"data": map[string]any{
+				"LOG_LEVEL": "info",
+			},
+		},
+	}
+
+	extra := map[string]string{
+		CertManagerCASecretNameKey:      "my-ca",
+		CertManagerCASecretNamespaceKey: "cert-manager",
+	}
+
+	mergePlatformKeys(u, "2.20.0", extra)
+
+	data, _, _ := unstructured.NestedStringMap(u.Object, "data")
+	g.Expect(data).Should(HaveKeyWithValue(PlatformVersionKey, "2.20.0"))
+	g.Expect(data).Should(HaveKeyWithValue(CertManagerCASecretNameKey, "my-ca"))
+	g.Expect(data).Should(HaveKeyWithValue(CertManagerCASecretNamespaceKey, "cert-manager"))
+	g.Expect(data).Should(HaveKeyWithValue("LOG_LEVEL", "info"))
+}
+
+func TestMergePlatformKeys_RemovesStaleCertManagerKeys(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	u := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata":   map[string]any{"name": "odh-mod-config"},
+			"data": map[string]any{
+				PlatformVersionKey:          "2.19.0",
+				CertManagerIssuerRefNameKey: "old-issuer",
+				CertManagerIssuerRefKindKey: "ClusterIssuer",
+				CertManagerCASecretNameKey:  "old-ca",
+				"LOG_LEVEL":                 "info",
+			},
+		},
+	}
+
+	mergePlatformKeys(u, "2.20.0", nil)
+
+	data, _, _ := unstructured.NestedStringMap(u.Object, "data")
+	g.Expect(data).Should(HaveKeyWithValue(PlatformVersionKey, "2.20.0"))
+	g.Expect(data).Should(HaveKeyWithValue("LOG_LEVEL", "info"))
+	g.Expect(data).ShouldNot(HaveKey(CertManagerIssuerRefNameKey),
+		"stale cert-manager keys must be removed when extraParams is nil")
+	g.Expect(data).ShouldNot(HaveKey(CertManagerIssuerRefKindKey))
+	g.Expect(data).ShouldNot(HaveKey(CertManagerCASecretNameKey))
 }
