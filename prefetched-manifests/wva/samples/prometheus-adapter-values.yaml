@@ -1,0 +1,34 @@
+prometheus:
+  url: https://kube-prometheus-stack-prometheus.workload-variant-autoscaler-monitoring.svc.cluster.local
+  port: 9090
+
+rules:
+  external:
+  - seriesQuery: 'wva_desired_replicas{variant_name!="",exported_namespace!=""}'
+    resources:
+      overrides:
+        exported_namespace: {resource: "namespace"}
+        variant_name: {resource: "deployment"}  
+    name:
+      matches: "^wva_desired_replicas"
+      as: "wva_desired_replicas"
+    metricsQuery: 'wva_desired_replicas{<<.LabelMatchers>>}'
+
+replicas: 2
+logLevel: 4
+
+tls:
+  enable: false # Inbound TLS (Client → Adapter)
+
+extraVolumes:
+  - name: prometheus-ca
+    configMap:
+      name: prometheus-ca
+
+extraVolumeMounts:
+  - name: prometheus-ca
+    mountPath: /etc/prometheus-ca
+    readOnly: true
+
+extraArguments:
+  - --prometheus-ca-file=/etc/prometheus-ca/ca.crt

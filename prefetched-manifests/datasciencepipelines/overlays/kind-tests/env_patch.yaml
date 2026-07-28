@@ -1,0 +1,13 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: datasciencepipelinesapplications-controller
+spec:
+  template:
+    spec:
+      containers:
+        - name: manager
+          env:
+            - name: WEBHOOK_ANNOTATIONS
+              value: '{"cert-manager.io/inject-ca-from": "opendatahub/dspa-webhook-cert"}'

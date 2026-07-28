@@ -1,0 +1,89 @@
+{{- if .Values.webhook.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dashboard.webhookServiceName" . }}
+  namespace: {{ include "dashboard.namespace" . }}
+  labels:
+    {{- include "dashboard.labels" . | nindent 4 }}
+spec:
+  ports:
+    - port: 443
+      targetPort: {{ .Values.webhook.port }}
+      protocol: TCP
+      name: webhook
+  selector:
+    {{- include "dashboard.selectorLabels" . | nindent 4 }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ include "dashboard.webhookName" . }}
+  labels:
+    {{- include "dashboard.labels" . | nindent 4 }}
+  {{- if .Values.webhook.certManager.enabled }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ include "dashboard.namespace" . }}/{{ include "dashboard.webhookCertName" . }}
+  {{- end }}
+webhooks:
+  - name: validate.dashboard.platform.opendatahub.io
+    admissionReviewVersions:
+      - v1
+    clientConfig:
+      {{- if not .Values.webhook.certManager.enabled }}
+      {{- with .Values.webhook.caBundle }}
+      caBundle: {{ . }}
+      {{- end }}
+      {{- end }}
+      service:
+        name: {{ include "dashboard.webhookServiceName" . }}
+        namespace: {{ include "dashboard.namespace" . }}
+        path: /validate-dashboard
+        port: 443
+    failurePolicy: Fail
+    rules:
+      - apiGroups:
+          - components.platform.opendatahub.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+        resources:
+          - dashboards
+    sideEffects: None
+    timeoutSeconds: 5
+{{- if .Values.webhook.certManager.enabled }}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "dashboard.webhookIssuerName" . }}
+  namespace: {{ include "dashboard.namespace" . }}
+  labels:
+    {{- include "dashboard.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "dashboard.webhookCertName" . }}
+  namespace: {{ include "dashboard.namespace" . }}
+  labels:
+    {{- include "dashboard.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "dashboard.webhookCertSecretName" . }}
+  issuerRef:
+    {{- if .Values.webhook.certManager.issuerRef }}
+    {{- toYaml .Values.webhook.certManager.issuerRef | nindent 4 }}
+    {{- else }}
+    name: {{ include "dashboard.webhookIssuerName" . }}
+    kind: Issuer
+    {{- end }}
+  dnsNames:
+    - {{ include "dashboard.webhookServiceName" . }}.{{ include "dashboard.namespace" . }}.svc
+    - {{ include "dashboard.webhookServiceName" . }}.{{ include "dashboard.namespace" . }}.svc.cluster.local
+  duration: 8760h # 1 year
+  renewBefore: 720h # 30 days
+{{- end }}
+{{- end }}

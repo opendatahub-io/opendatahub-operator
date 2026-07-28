@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-d-batch-gateway-operator
+  namespace: system
+  labels:
+    control-plane: llm-d-batch-gateway-controller-manager
+    app.kubernetes.io/name: llm-d-batch-gateway-operator
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: llm-d-batch-gateway-controller-manager
+  template:
+    metadata:
+      labels:
+        control-plane: llm-d-batch-gateway-controller-manager
+        app.kubernetes.io/name: llm-d-batch-gateway-operator
+    spec:
+      containers:
+      - name: manager
+        image: controller:latest
+        imagePullPolicy: IfNotPresent
+        args:
+        - --leader-elect
+        - --batch-gateway-chart-path=/charts/batch-gateway
+        - --async-chart-path=/charts/async-processor
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: LLM_D_BATCH_GATEWAY_APISERVER_IMAGE
+          value: quay.io/opendatahub/odh-llm-d-batch-gateway-apiserver:odh-stable
+        - name: LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE
+          value: quay.io/opendatahub/odh-llm-d-batch-gateway-processor:odh-stable
+        - name: LLM_D_BATCH_GATEWAY_GC_IMAGE
+          value: quay.io/opendatahub/odh-llm-d-batch-gateway-gc:odh-stable
+        - name: LLM_D_ASYNC_IMAGE
+          value: quay.io/opendatahub/odh-llm-d-async:odh-stable
+        - name: GOMEMLIMIT
+          value: 200MiB
+        ports:
+        - containerPort: 8443
+          name: metrics
+          protocol: TCP
+
+        - containerPort: 8081
+          name: health
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+      serviceAccountName: llm-d-batch-gateway-operator
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 10

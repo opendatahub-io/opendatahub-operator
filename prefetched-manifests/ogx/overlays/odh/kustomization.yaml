@@ -1,0 +1,48 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: opendatahub
+
+resources:
+  - ../openshift
+
+patches:
+  # patch to remove default `system` namespace in ../../manager/manager.yaml
+  - path: delete-namespace.yaml
+
+configMapGenerator:
+  - name: params
+    envs:
+      - params.env
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: params
+      fieldPath: data.RELATED_IMAGE_ODH_OGX_K8S_OPERATOR_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: controller-manager
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].image
+  - source:
+      kind: ConfigMap
+      name: params
+      fieldPath: data.OPERATOR_VERSION
+    targets:
+      - select:
+          kind: Deployment
+          name: controller-manager
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].env.[name=OPERATOR_VERSION].value
+  - source:
+      kind: ConfigMap
+      name: params
+      fieldPath: data.RELATED_IMAGE_ODH_OGX_CORE_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: controller-manager
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].env.[name=RELATED_IMAGE_ODH_OGX_CORE_IMAGE].value

@@ -1,0 +1,536 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: evalhub-provider-lighteval
+  labels:
+    trustyai.opendatahub.io/evalhub-provider-type: system
+    trustyai.opendatahub.io/evalhub-provider-name: lighteval
+data:
+  lighteval.yaml: |
+    id: lighteval
+    name: Lighteval
+    title: Lighteval
+    description: Lightweight LLM evaluation framework from Hugging Face
+    runtime:
+      k8s:
+        image: $(evalhub-provider-lighteval-image)
+        entrypoint:
+          - python
+          - main.py
+        cpu_request: 500m
+        memory_request: 1Gi
+        cpu_limit: 4000m
+        memory_limit: 8Gi
+      local:
+        # used for local mode tests (FVT)
+        command: python tests/features/test_data/runtime/main.py
+    benchmarks:
+      # Category benchmarks (these expand to multiple tasks)
+      - id: commonsense_reasoning
+        name: Everyday reasoning suite
+        description: |-
+          Aggregated commonsense tests: activity completion, pronoun resolution, open-book QA, and science reasoning.
+        category: reasoning
+        metrics:
+          - acc
+          - acc_norm
+        tags:
+          - reasoning
+          - commonsense
+          - lighteval
+          - suite
+        primary_score:
+          metric: acc_norm
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: scientific_reasoning
+        name: Science reasoning suite
+        description: Combined easy and hard science question answering (ARC Easy + Challenge).
+        category: reasoning
+        metrics:
+          - acc
+          - acc_norm
+        tags:
+          - reasoning
+          - science
+          - lighteval
+          - suite
+        primary_score:
+          metric: acc_norm
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: physical_commonsense
+        name: Physical world understanding suite
+        description: Tests intuition about how everyday physical objects and actions work.
+        category: reasoning
+        metrics:
+          - acc
+        tags:
+          - reasoning
+          - physical
+          - lighteval
+          - suite
+        primary_score:
+          metric: acc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: truthfulness
+        name: Honesty & hallucination suite
+        description: Combined multiple-choice and generative tests of model truthfulness.
+        category: safety
+        metrics:
+          - mc1
+          - mc2
+        tags:
+          - safety
+          - truthfulness
+          - lighteval
+          - suite
+        primary_score:
+          metric: mc1
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: math
+        name: Mathematical problem-solving suite
+        description: "Aggregated math benchmarks: grade-school word problems, algebra, and probability."
+        category: math
+        metrics:
+          - exact_match
+          - acc
+        tags:
+          - math
+          - reasoning
+          - lighteval
+          - suite
+        primary_score:
+          metric: acc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: knowledge
+        name: Factual knowledge suite
+        description: Combined factual recall across 57 academic subjects and trivia.
+        category: knowledge
+        metrics:
+          - acc
+          - acc_norm
+        tags:
+          - knowledge
+          - lighteval
+          - suite
+        primary_score:
+          metric: acc_norm
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: language_understanding
+        name: Language understanding suite
+        description: "Core NLU tasks: grammaticality, sentiment, and paraphrase detection (GLUE)."
+        category: language_understanding
+        metrics:
+          - acc
+          - matthews_correlation
+          - f1
+        tags:
+          - language_understanding
+          - glue
+          - lighteval
+          - suite
+        primary_score:
+          metric: acc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      # Individual benchmarks
+      - id: hellaswag
+        name: Everyday activity completion
+        description: Picks the most plausible continuation of an everyday scenario (10,042 examples).
+        category: reasoning
+        metrics:
+          - acc
+          - acc_norm
+        num_few_shot: 0
+        dataset_size: 10042
+        tags:
+          - reasoning
+          - commonsense
+          - lighteval
+        primary_score:
+          metric: acc_norm
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: winogrande
+        name: Pronoun common sense
+        description: Resolves ambiguous pronouns using real-world common sense (1,267 examples).
+        category: reasoning
+        metrics:
+          - acc
+        num_few_shot: 0
+        dataset_size: 1267
+        tags:
+          - reasoning
+          - commonsense
+          - lighteval
+        primary_score:
+          metric: acc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: openbookqa
+        name: Open-book science reasoning
+        description: |-
+          Answers science questions with access to core facts — tests multi-hop reasoning (500 examples).
+        category: knowledge
+        metrics:
+          - acc
+          - acc_norm
+        num_few_shot: 0
+        dataset_size: 500
+        tags:
+          - knowledge
+          - qa
+          - lighteval
+        primary_score:
+          metric: acc_norm
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: arc:easy
+        name: "Basic science Q&A"
+        description: Easy grade-school science questions (2,376 examples).
+        category: reasoning
+        metrics:
+          - acc
+          - acc_norm
+        num_few_shot: 0
+        dataset_size: 2376
+        tags:
+          - reasoning
+          - science
+          - lighteval
+        primary_score:
+          metric: acc_norm
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: arc:challenge
+        name: "Hard science Q&A"
+        description: Difficult science questions requiring deeper reasoning than ARC Easy (1,172 examples).
+        category: reasoning
+        metrics:
+          - acc
+          - acc_norm
+        num_few_shot: 0
+        dataset_size: 1172
+        tags:
+          - reasoning
+          - science
+          - lighteval
+        primary_score:
+          metric: acc_norm
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: piqa
+        name: Physical interaction intuition
+        description: Tests understanding of everyday physical actions and their outcomes (1,838 examples).
+        category: reasoning
+        metrics:
+          - acc
+        num_few_shot: 0
+        dataset_size: 1838
+        tags:
+          - reasoning
+          - physical
+          - lighteval
+        primary_score:
+          metric: acc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: truthfulqa:mc
+        name: Misconception resistance (multiple choice)
+        description: Tests whether the model avoids popular myths and common misconceptions (817 questions).
+        category: safety
+        metrics:
+          - mc1
+          - mc2
+        num_few_shot: 0
+        dataset_size: 817
+        tags:
+          - safety
+          - truthfulness
+          - lighteval
+        primary_score:
+          metric: mc1
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: truthfulqa:generation
+        name: Misconception resistance (generative)
+        description: Tests whether generated answers are truthful and non-misleading (817 questions).
+        category: safety
+        metrics:
+          - bleu
+          - rouge
+        num_few_shot: 0
+        dataset_size: 817
+        tags:
+          - safety
+          - truthfulness
+          - lighteval
+        primary_score:
+          metric: bleu
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.1
+      - id: gsm8k
+        name: Grade-school math word problems
+        description: |-
+          Multi-step arithmetic word problems requiring 2-8 reasoning steps (8-shot, 1,319 examples).
+        category: math
+        metrics:
+          - exact_match
+          - acc
+        num_few_shot: 8
+        dataset_size: 1319
+        tags:
+          - math
+          - reasoning
+          - lighteval
+        primary_score:
+          metric: acc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: math:algebra
+        name: Competition algebra
+        description: Competition-level algebra problems requiring symbolic manipulation and proof strategies.
+        category: math
+        metrics:
+          - acc
+        num_few_shot: 0
+        tags:
+          - math
+          - algebra
+          - lighteval
+        primary_score:
+          metric: acc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: math:counting_and_probability
+        name: "Counting & probability problems"
+        description: Competition-level combinatorics and probability reasoning.
+        category: math
+        metrics:
+          - acc
+        num_few_shot: 0
+        tags:
+          - math
+          - probability
+          - lighteval
+        primary_score:
+          metric: acc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: aime24
+        name: Aime 2024
+        description: American Invitational Mathematics Examination 2024 - competition-level mathematical reasoning
+        category: reasoning
+        metrics:
+          - exact_match
+          - acc
+        num_few_shot: 0
+        dataset_size: 30
+        tags:
+          - reasoning
+          - math
+          - competition
+          - lighteval
+        primary_score:
+          metric: acc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: aime25
+        name: Aime 2025
+        description: American Invitational Mathematics Examination 2025 - competition-level mathematical reasoning
+        category: reasoning
+        metrics:
+          - exact_match
+          - acc
+        num_few_shot: 0
+        dataset_size: 30
+        tags:
+          - reasoning
+          - math
+          - competition
+          - lighteval
+        primary_score:
+          metric: acc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: mmlu
+        name: 57-Subject knowledge test
+        description: |-
+          Factual recall and reasoning across 57 academic subjects from STEM to humanities (5-shot, 15,908 examples).
+        category: knowledge
+        metrics:
+          - acc
+          - acc_norm
+        num_few_shot: 5
+        dataset_size: 15908
+        tags:
+          - knowledge
+          - multitask
+          - lighteval
+        primary_score:
+          metric: acc_norm
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: triviaqa
+        name: Trivia factual recall
+        description: Answers trivia questions using evidence from web pages and Wikipedia.
+        category: knowledge
+        metrics:
+          - acc
+          - exact_match
+        num_few_shot: 0
+        tags:
+          - knowledge
+          - qa
+          - lighteval
+        primary_score:
+          metric: acc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: glue:cola
+        name: Grammatical acceptability
+        description: Judges whether English sentences are grammatically acceptable.
+        category: language_understanding
+        metrics:
+          - matthews_correlation
+        num_few_shot: 0
+        tags:
+          - language_understanding
+          - glue
+          - lighteval
+        primary_score:
+          metric: matthews_correlation
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.0
+      - id: glue:sst2
+        name: Sentiment classification
+        description: Classifies movie review sentences as positive or negative.
+        category: language_understanding
+        metrics:
+          - acc
+        num_few_shot: 0
+        tags:
+          - language_understanding
+          - glue
+          - sentiment
+          - lighteval
+        primary_score:
+          metric: acc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: glue:mrpc
+        name: Paraphrase detection
+        description: Determines whether two sentences express the same meaning.
+        category: language_understanding
+        metrics:
+          - acc
+          - f1
+        num_few_shot: 0
+        tags:
+          - language_understanding
+          - glue
+          - paraphrase
+          - lighteval
+        primary_score:
+          metric: acc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+      - id: math_500
+        name: MATH-500 competition problems
+        description: |-
+          500 hand-picked problems from the MATH dataset spanning 7 subject areas (algebra,
+          counting, geometry, number theory, probability, pre-calculus, intermediate algebra).
+          Tests competition-level mathematical reasoning with multi-step solutions. Primary
+          metric is pass@1 averaged over 3 random seeds (k=1, n=3 in lighteval syntax).
+        category: math
+        metrics:
+          - pass@1
+          - exact_match
+        num_few_shot: 0
+        dataset_size: 500
+        tags:
+          - math
+          - reasoning
+          - competition
+          - lighteval
+        primary_score:
+          metric: pass@1
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.30
+      - id: gpqa:diamond
+        name: Graduate-level science (GPQA Diamond)
+        description: |-
+          Expert-crafted PhD-level multiple-choice questions in biology, chemistry, and physics
+          requiring deep domain synthesis across topics rarely co-occurring in training data.
+          Diamond subset is the hardest tier — domain experts answer correctly ~65% of the time.
+          Primary metric is gpqa_pass@1 averaged over 3 random seeds.
+        category: reasoning
+        metrics:
+          - gpqa_pass@1
+          - acc
+        num_few_shot: 0
+        dataset_size: 198
+        tags:
+          - reasoning
+          - science
+          - expert
+          - competition
+          - lighteval
+        primary_score:
+          metric: gpqa_pass@1
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.35
+      - id: lcb:codegeneration_v6
+        name: LiveCodeBench v6 — code generation
+        description: |-
+          Real-world competitive programming problems collected from Codeforces, LeetCode, and
+          AtCoder after the model knowledge cutoff — eliminates data contamination risk.
+          Execution-based evaluation: generated code is run against hidden test cases.
+          Primary metric is codegen_pass@1 averaged over 3 random seeds.
+        category: code
+        metrics:
+          - codegen_pass@1
+        num_few_shot: 0
+        tags:
+          - code
+          - competitive-programming
+          - execution
+          - contamination-free
+          - lighteval
+        primary_score:
+          metric: codegen_pass@1
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25

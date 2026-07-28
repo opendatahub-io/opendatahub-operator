@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kube-rbac-proxy-config-{{.APIServerDefaultResourceName}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.APIServerDefaultResourceName}}
+    component: data-science-pipelines
+data:
+  config-file.yaml: |-
+    authorization:
+      resourceAttributes:
+        namespace: {{.Namespace}}
+        apiGroup: datasciencepipelinesapplications.opendatahub.io
+        resource: datasciencepipelinesapplications
+        subresource: api
+        name: {{.Name}}

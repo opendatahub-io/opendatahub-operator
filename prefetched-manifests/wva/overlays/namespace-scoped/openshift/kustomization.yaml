@@ -1,0 +1,55 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: wva-system
+
+namePrefix: workload-variant-autoscaler-
+
+resources:
+- ../../../base/
+- allow-metrics-traffic.yaml
+
+components:
+- ../../../components/namespace-scoped/
+- ../../../components/openshift
+
+configMapGenerator:
+- name: wva-parameters
+  envs:
+  - params.env
+generatorOptions:
+  disableNameSuffixHash: true
+
+replacements:
+- source:
+    kind: ConfigMap
+    version: v1
+    name: wva-parameters
+    fieldPath: data.wva-controller-image
+  targets:
+  - select:
+      kind: Deployment
+      name: workload-variant-autoscaler-controller-manager
+    fieldPaths:
+    - spec.template.spec.containers.[name=manager].image
+
+patches:
+- patch: |-
+    - op: replace
+      path: /spec/template/spec/containers/0/args/5
+      value: "--watch-namespace="
+  target:
+    group: apps
+    version: v1
+    kind: Deployment
+    name: controller-manager
+- patch: |-
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: saturation-scaling-config
+      annotations:
+        opendatahub.io/managed: "false"
+  target:
+    kind: ConfigMap
+    name: saturation-scaling-config

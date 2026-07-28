@@ -1,0 +1,358 @@
+# RHOAI configuration for Kubeflow Training Operator (KFTO)
+
+# Adds namespace to all resources.
+namespace: opendatahub
+
+sortOptions:
+  order: legacy
+
+configMapGenerator:
+- name: rhoai-config
+  envs:
+    - params.env
+
+configurations:
+- params.yaml
+
+replacements:
+# Replace controller image
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-kubeflow-trainer-controller-image
+  targets:
+  - select:
+      kind: Deployment
+      name: kubeflow-trainer-controller-manager
+    fieldPaths:
+    - spec.template.spec.containers.0.image
+
+# Replace image for torch-distributed-rocm (floating ROCm - universal)
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-th06-rocm64-torch291-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: torch-distributed-rocm
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for torch-distributed-rocm64-torch29-py312
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-training-rocm64-torch29-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: torch-distributed-rocm64-torch29-py312
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for torch-distributed (floating CUDA - universal)
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-th06-cuda130-torch210-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: torch-distributed
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for torch-distributed-cuda128-torch29-py312
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-training-cuda128-torch29-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: torch-distributed-cuda128-torch29-py312
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for torch-distributed-cpu (floating CPU - universal)
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-th06-cpu-torch210-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: torch-distributed-cpu
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for torch-distributed-cuda130-torch210-py312
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-th06-cuda130-torch210-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: torch-distributed-cuda130-torch210-py312
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for torch-distributed-rocm64-torch291-py312
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-th06-rocm64-torch291-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: torch-distributed-rocm64-torch291-py312
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for torch-distributed-cpu-torch210-py312
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-th06-cpu-torch210-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: torch-distributed-cpu-torch210-py312
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for training-hub (floating CUDA - universal)
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-th06-cuda130-torch210-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: training-hub
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for training-hub-rocm (floating ROCm - universal)
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-th06-rocm64-torch291-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: training-hub-rocm
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for training-hub-cpu (floating CPU - universal)
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-th06-cpu-torch210-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: training-hub-cpu
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for training-hub-th05-cuda128-torch29-py312
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-training-cuda128-torch29-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: training-hub-th05-cuda128-torch29-py312
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for training-hub-th06-cuda130-torch210-py312
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-th06-cuda130-torch210-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: training-hub-th06-cuda130-torch210-py312
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for training-hub-th06-rocm64-torch291-py312
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-th06-rocm64-torch291-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: training-hub-th06-rocm64-torch291-py312
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for training-hub-th06-cpu-torch210-py312
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-th06-cpu-torch210-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: training-hub-th06-cpu-torch210-py312
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for training-hub-universal-cpu ImageStream (2026.1)
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-training-universal-workbench-image-cpu-3-4
+  targets:
+  - select:
+      group: image.openshift.io
+      kind: ImageStream
+      name: training-hub-universal-cpu
+      version: v1
+    fieldPaths:
+    - spec.tags.0.from.name
+
+# Replace image for training-hub-universal-cuda ImageStream (2026.1)
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-training-universal-workbench-image-cuda-3-4
+  targets:
+  - select:
+      group: image.openshift.io
+      kind: ImageStream
+      name: training-hub-universal-cuda
+      version: v1
+    fieldPaths:
+    - spec.tags.0.from.name
+
+# Replace image for training-hub-universal-rocm ImageStream (2026.1)
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-training-universal-workbench-image-rocm-3-4
+  targets:
+  - select:
+      group: image.openshift.io
+      kind: ImageStream
+      name: training-hub-universal-rocm
+      version: v1
+    fieldPaths:
+    - spec.tags.0.from.name
+
+# Replace image for training-hub-universal-cpu ImageStream (2026.2)
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-training-universal-workbench-image-cpu-3-5
+  targets:
+  - select:
+      group: image.openshift.io
+      kind: ImageStream
+      name: training-hub-universal-cpu
+      version: v1
+    fieldPaths:
+    - spec.tags.1.from.name
+
+# Replace image for training-hub-universal-cuda ImageStream (2026.2)
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-training-universal-workbench-image-cuda-3-5
+  targets:
+  - select:
+      group: image.openshift.io
+      kind: ImageStream
+      name: training-hub-universal-cuda
+      version: v1
+    fieldPaths:
+    - spec.tags.1.from.name
+
+# Replace image for training-hub-universal-rocm ImageStream (2026.2)
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-training-universal-workbench-image-rocm-3-5
+  targets:
+  - select:
+      group: image.openshift.io
+      kind: ImageStream
+      name: training-hub-universal-rocm
+      version: v1
+    fieldPaths:
+    - spec.tags.1.from.name
+
+# Labels to add to all resources and selectors.
+labels:
+- includeSelectors: true
+  pairs:
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/name: trainer
+
+resources:
+- ../base/crds
+- ../base/manager
+- ../base/rbac
+- ../base/webhook
+# - ../third-party/jobset #uncomment if jobset should be bundled under kubeflow trainer controller manager
+- runtimes
+- imagestreams
+- kubeflow-training-roles.yaml
+- monitor.yaml
+
+secretGenerator:
+  - name: kubeflow-trainer-webhook-cert
+    options:
+      disableNameSuffixHash: true
+
+patches:
+# Mount the controller config file for loading manager configurations
+# through a ComponentConfig type
+- path: manager_config_patch.yaml
+- path: manager_metrics_patch.yaml
+# RHAI-specific RBAC for progression tracking
+- path: rbac_progression_patch.yaml
+  target:
+    group: rbac.authorization.k8s.io
+    version: v1
+    kind: ClusterRole
+    name: kubeflow-trainer-controller-manager
+- patch: |-
+    - op: remove
+      path: /spec/ports/0
+  target:
+    group: ""
+    version: v1
+    kind: Service
+    name: kubeflow-trainer-controller-manager

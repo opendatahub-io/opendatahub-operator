@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: kuadrant
+    control-plane: controller-manager
+  name: kuadrant-operator-controller-manager
+  namespace: {{ .Values.operatorNamespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kuadrant
+      control-plane: controller-manager
+  template:
+    metadata:
+      labels:
+        app: kuadrant
+        control-plane: controller-manager
+      namespace: {{ .Values.operatorNamespace }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - args:
+            - --leader-elect
+          command:
+            - /manager
+          env:
+            - name: EXTENSIONS_DIR
+              value: /extensions
+            - name: RELATED_IMAGE_WASMSHIM
+              value: registry.access.redhat.com/rhcl-1/wasm-shim-rhel9@sha256:22c87cc5fa70cf8f10588687145a7e32551a5f3734d5fc81e72b9a4aab550db6
+            - name: RELATED_IMAGE_DEVELOPERPORTAL
+              value: registry.redhat.io/rhcl-1/developer-portal-controller-rhel9@sha256:4ab654849ee3ffb6b2ae64386380ea2344031f9a21fdaecfdd8090836e9e8ba2
+            - name: RELATED_IMAGE_CONSOLE_PLUGIN_LATEST
+              value: registry.redhat.io/rhcl-1/rhcl-console-plugin-rhel9@sha256:41755d5e16ee5409cfe8888cf5883b262820baea4eae449fcf61f06ab1756f57
+            - name: RELATED_IMAGE_CONSOLE_PLUGIN_PF5
+              value: registry.redhat.io/rhcl-1/rhcl-console-plugin-rhel9@sha256:c72f23284033de1032e2b209cd2c6087ad0f1aacb8c7312fd324df3d8fee49b9
+            - name: OPERATOR_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: ISTIO_GATEWAY_CONTROLLER_NAMES
+              value: openshift.io/gateway-controller/v1
+          image: registry.redhat.io/rhcl-1/rhcl-rhel9-operator@sha256:7aa6d6dbbde488260789adb94fa232a06d1e635cc2aaf86af24f8cf14a17eef8
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          name: manager
+          ports:
+            - containerPort: 8080
+              name: metrics
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 200m
+              memory: 300Mi
+            requests:
+              cpu: 200m
+              memory: 200Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp/kuadrant
+              name: extensions-socket-volume
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: kuadrant-operator-controller-manager
+      terminationGracePeriodSeconds: 10
+      volumes:
+        - emptyDir: {}
+          name: extensions-socket-volume

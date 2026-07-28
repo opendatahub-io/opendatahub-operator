@@ -1,0 +1,95 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: mlflowconfigs.mlflow.kubeflow.org
+spec:
+  group: mlflow.kubeflow.org
+  names:
+    kind: MLflowConfig
+    listKind: MLflowConfigList
+    plural: mlflowconfigs
+    singular: mlflowconfig
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          MLflowConfig is a namespace-scoped configuration resource that allows
+          Kubernetes namespace owners to override the default artifact storage
+          for their namespace.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired MLflow configuration for this namespace.
+            properties:
+              artifactRootPath:
+                description: |-
+                  ArtifactRootPath is an optional relative path from the bucket root specified in
+                  the ArtifactRootSecret. When provided, this path is appended to the bucket URI
+                  from the secret to form the resolved artifact root.
+
+                  Example:
+                    artifactRootSecret: "mlflow-artifact-connection"  # Contains bucket: ds-team-bucket
+                    artifactRootPath: "experiments"
+                    resolved artifact root: s3://ds-team-bucket/experiments
+                maxLength: 512
+                type: string
+                x-kubernetes-validations:
+                - message: artifactRootPath must be relative
+                  rule: self == '' || !self.startsWith('/')
+                - message: artifactRootPath must not contain '..' path segments
+                  rule: self == '' || !self.matches(r'(^|.*/)\.\.(|/.*)$')
+              artifactRootSecret:
+                description: |-
+                  ArtifactRootSecret is the name of a Secret in this namespace that contains
+                  credentials and bucket information for accessing the artifact storage.
+
+                  The Secret must have the required keys for s3 compatible storage:
+                  Example Secret:
+                    apiVersion: v1
+                    kind: Secret
+                    metadata:
+                      name: mlflow-artifact-connection
+                      namespace: ds-team-namespace
+                    data:
+                      AWS_ACCESS_KEY_ID: <base64-encoded>
+                      AWS_SECRET_ACCESS_KEY: <base64-encoded>
+                      AWS_S3_BUCKET: <base64-encoded>
+                      AWS_S3_ENDPOINT: <base64-encoded>
+                      AWS_DEFAULT_REGION: <base64-encoded>  # Optional (default region is not always required, e.g. minio)
+                minLength: 1
+                type: string
+                x-kubernetes-validations:
+                - message: artifactRootSecret must be 'mlflow-artifact-connection'
+                  rule: self == 'mlflow-artifact-connection'
+            required:
+            - artifactRootSecret
+            type: object
+        required:
+        - spec
+        type: object
+        x-kubernetes-validations:
+        - message: MLflowConfig resource name must be 'mlflow'
+          rule: self.metadata.name == 'mlflow'
+    served: true
+    storage: true

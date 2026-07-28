@@ -1,0 +1,92 @@
+apiVersion: batch.llm-d.ai/v1alpha1
+kind: LLMBatchGateway
+metadata:
+  name: batch-gateway-async
+spec:
+  secretRef:
+    name: batch-gateway-secrets
+  # if the secret is in a different namespace, create a ReferenceGrant in
+  #  the secret's namespace (see the example below the LLMBatchGateway manifest)
+  # secretRef:
+  #   name: batch-gateway-secrets
+  #   namespace: credentials-ns
+  dbBackend: postgresql
+  fileStorage:
+    s3:
+      bucket: llm-d-batch-gateway
+      region: us-east-1
+      endpoint: https://s3.example.com
+  apiServer:
+    replicas: 1
+  processor:
+    replicas: 1
+    modelGateways:
+      llama-3:
+        inferencePoolName: llama-pool
+      whisper-large:
+        inferencePoolName: whisper-pool
+    dispatchMode: async
+    asyncConfig:
+      replicas: 1
+      concurrency: 8
+      drainTimeout: 2m
+      resultPollTimeout: 30s
+      inferenceGateway:
+        url: http://epp.default.svc:8081
+      redis:
+        requestPathURL: /v1/completions
+        pollIntervalMs: 1000
+        batchSize: 10
+        gateType: prometheus-saturation
+        gateParams:
+          prometheus_url: http://prometheus:9090
+          saturation_threshold: "0.8"
+      workerPools:
+      - name: default
+        workers: 4
+        gateType: redis-quota
+        gateParams:
+          quota_key: "dispatch-quota"
+      prometheusURL: http://prometheus:9090
+      prometheusCacheTTL: 30s
+      # tls:
+      #   secretName: igw-tls-certs
+      #   insecureSkipVerify: false
+      #   caCertKey: ca.crt
+      #   certKey: tls.crt
+      #   keyKey: tls.key
+      # transformConfig:
+      #   requestTransforms:
+      #   - name: gcs-whisper
+      #     type: gcs_uri_multipart
+      #     parameters:
+      #       providers: '["whisper","faster-whisper"]'
+      # modelServerMonitor:
+      #   enabled: true
+      #   selector:
+      #     llm-d.ai/role: decode
+      #   port: modelserver
+      #   path: /metrics
+      #   interval: 15s
+  gc:
+    interval: 30m
+---
+# ReferenceGrant required for cross-namespace secretRef.
+# Create this in the namespace where the Secret lives (credentials-ns),
+# to allow LLMBatchGateway in "default" to reference the Secret named
+# "batch-gateway-secrets". Remove the `name` field to allow any Secret.
+#
+# apiVersion: gateway.networking.k8s.io/v1beta1
+# kind: ReferenceGrant
+# metadata:
+#   name: allow-batch-gateway-secret
+#   namespace: credentials-ns
+# spec:
+#   from:
+#   - group: batch.llm-d.ai
+#     kind: LLMBatchGateway
+#     namespace: default
+#   to:
+#   - group: ""
+#     kind: Secret
+#     name: batch-gateway-secrets

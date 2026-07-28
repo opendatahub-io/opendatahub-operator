@@ -1,0 +1,17 @@
+{{- if .Values.leaderElection.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "workbenches-operator.prefixed" (list . "leader-election-rolebinding") }}
+  namespace: {{ .Values.operatorNamespace | quote }}
+  labels:
+    {{- include "workbenches-operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "workbenches-operator.leaderElectionRoleName" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "workbenches-operator.serviceAccountName" . }}
+    namespace: {{ .Values.operatorNamespace | quote }}
+{{- end }}

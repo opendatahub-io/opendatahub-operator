@@ -1,0 +1,32 @@
+# Aggregated into the built-in "admin" and "edit" ClusterRoles so that
+# namespace admins/editors can manage LLMBatchGateway CRs without extra
+# RoleBindings.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: admin
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+rules:
+- apiGroups: ["batch.llm-d.ai"]
+  resources: ["llmbatchgateways"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["batch.llm-d.ai"]
+  resources: ["llmbatchgateways/status"]
+  verbs: ["get"]
+---
+# Aggregated into the built-in "view" ClusterRole for read-only access.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: view
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+rules:
+- apiGroups: ["batch.llm-d.ai"]
+  resources: ["llmbatchgateways"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch.llm-d.ai"]
+  resources: ["llmbatchgateways/status"]
+  verbs: ["get"]

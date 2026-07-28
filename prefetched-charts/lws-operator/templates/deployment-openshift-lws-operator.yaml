@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openshift-lws-operator
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: openshift-lws-operator
+  template:
+    metadata:
+      labels:
+        name: openshift-lws-operator
+      namespace: {{ .Values.namespace }}
+    spec:
+      containers:
+        - args:
+            - operator
+          command:
+            - lws-operator
+          env:
+            - name: OPERATOR_NAME
+              value: openshift-lws-operator
+            - name: RELATED_IMAGE_OPERAND_IMAGE
+              value: registry.redhat.io/leader-worker-set/lws-rhel9@sha256:affb303b1173c273231bb50fef07310b0e220d2f08bfc0aa5912d0825e3e0d4f
+          image: registry.redhat.io/leader-worker-set/lws-rhel9-operator@sha256:c202bfa15626262ff22682b64ac57539d28dd35f5960c490f5afea75cef34309
+          imagePullPolicy: Always
+          name: openshift-lws-operator
+          ports:
+            - containerPort: 8443
+              name: metrics
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: openshift-lws-operator
+      volumes:
+        - emptyDir: {}
+          name: tmp

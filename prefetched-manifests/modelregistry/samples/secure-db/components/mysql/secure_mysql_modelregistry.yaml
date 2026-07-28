@@ -1,0 +1,9 @@
+apiVersion: modelregistry.opendatahub.io/v1beta1
+kind: ModelRegistry
+metadata:
+  name: modelregistry-sample
+spec:
+  mysql:
+    sslRootCertificateConfigMap:
+      name: model-registry-db-credential
+      key: ca.crt

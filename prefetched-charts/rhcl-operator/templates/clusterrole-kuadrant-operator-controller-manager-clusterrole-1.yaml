@@ -1,0 +1,88 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kuadrant-operator-controller-manager-clusterrole-1
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - devportal.kuadrant.io
+    resources:
+      - apikeys
+      - apiproducts
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - devportal.kuadrant.io
+    resources:
+      - apikeys/finalizers
+      - apiproducts/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - devportal.kuadrant.io
+    resources:
+      - apikeys/status
+      - apiproducts/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - extensions.kuadrant.io
+    resources:
+      - planpolicies
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - extensions.kuadrant.io
+    resources:
+      - planpolicies/status
+    verbs:
+      - get
+  - apiGroups:
+      - gateway.networking.k8s.io
+    resources:
+      - httproutes
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - gateway.networking.k8s.io
+    resources:
+      - httproutes/status
+    verbs:
+      - get
+  - apiGroups:
+      - kuadrant.io
+    resources:
+      - authpolicies
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - kuadrant.io
+    resources:
+      - authpolicies/status
+    verbs:
+      - get

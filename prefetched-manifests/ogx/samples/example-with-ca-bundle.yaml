@@ -1,0 +1,24 @@
+apiVersion: ogx.io/v1beta1
+kind: OGXServer
+metadata:
+  name: ogxserver-with-ca-bundle
+spec:
+  distribution:
+    name: starter
+  overrideConfig:
+    name: starter-config
+    key: config.yaml
+  tls:
+    trust:
+      caCertificates:
+        - name: custom-ca-bundle
+          key: ca-bundle.crt
+  network:
+    port: 8321
+  workload:
+    overrides:
+      env:
+      - name: INFERENCE_MODEL
+        value: "llama3.2:1b"
+      - name: OLLAMA_URL
+        value: "http://ollama-server-service.ollama-dist.svc.cluster.local:11434"

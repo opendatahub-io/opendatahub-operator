@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dev-model-prefill-service
+  namespace: llm-d-sim
+  labels:
+    app: dev-model-prefill
+    llm-d.ai/inferenceServing: "true"
+spec:
+  selector:
+    app: dev-model-prefill
+    llm-d.ai/inferenceServing: "true"
+  ports:
+    - name: http
+      port: 8001
+      protocol: TCP
+  type: ClusterIP

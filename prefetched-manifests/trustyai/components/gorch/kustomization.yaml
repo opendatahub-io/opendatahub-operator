@@ -1,0 +1,9 @@
+# do not edit: generated via hack/generate-component-kustomization.sh
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - crd/trustyai.opendatahub.io_guardrailsorchestrators.yaml
+  - rbac/guardrailsorchestrator_user_cluster_roles.yaml
+  - rbac/manager-rbac.yaml
+  - rbac/manager-rolebinding.yaml

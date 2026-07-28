@@ -1,0 +1,43 @@
+rules:
+  external:
+  - seriesQuery: 'wva_desired_replicas{variant_name!="",exported_namespace!=""}'
+    resources:
+      overrides:
+        exported_namespace: {resource: "namespace"}
+        variant_name: {resource: "deployment"}
+    name:
+      matches: "^wva_desired_replicas"
+      as: "wva_desired_replicas"
+    metricsQuery: 'wva_desired_replicas{<<.LabelMatchers>>}'
+
+  - seriesQuery: 'inference_extension_flow_control_queue_size{inference_pool="model-a"}'
+    resources:
+      overrides:
+        namespace: {resource: namespace}
+    name:
+      as: model_a_epp_queue_size
+    metricsQuery: 'sum(inference_extension_flow_control_queue_size{inference_pool="model-a"})'
+
+  - seriesQuery: 'inference_extension_flow_control_queue_size{inference_pool="model-b"}'
+    resources:
+      overrides:
+        namespace: {resource: namespace}
+    name:
+      as: model_b_epp_queue_size
+    metricsQuery: 'sum(inference_extension_flow_control_queue_size{inference_pool="model-b"})'
+
+  - seriesQuery: 'inference_pool_per_pod_queue_size{name="model-a"}'
+    resources:
+      overrides:
+        namespace: {resource: namespace}
+    name:
+      as: model_a_pod_queue_size
+    metricsQuery: 'sum(inference_pool_per_pod_queue_size{name="model-a"})'
+
+  - seriesQuery: 'inference_pool_per_pod_queue_size{name="model-b"}'
+    resources:
+      overrides:
+        namespace: {resource: namespace}
+    name:
+      as: model_b_pod_queue_size
+    metricsQuery: 'sum(inference_pool_per_pod_queue_size{name="model-b"})'

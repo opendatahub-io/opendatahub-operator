@@ -1,0 +1,71 @@
+# MutatingWebhookConfiguration tells Kubernetes API server to send certain requests to our webhook for modification.
+# The webhook mutates (modifies) pods and SparkApplications before they're created/updated.
+# Use cases:
+# - Inject Spark configuration into driver/executor pods
+# - Add volumes, environment variables, labels
+# - Set default values on SparkApplications
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: spark-operator-webhook
+  labels:
+    app.kubernetes.io/name: spark-operator
+    app.kubernetes.io/instance: spark-operator
+    app.kubernetes.io/component: webhook
+webhooks:
+  # Webhook 1: Mutate Spark pods (driver and executor)
+  - name: mutate-pod.sparkoperator.k8s.io
+    admissionReviewVersions: ["v1"]
+    clientConfig:
+      service:
+        name: spark-operator-webhook-svc
+        namespace: system
+        port: 443
+        path: /mutate--v1-pod
+    sideEffects: NoneOnDryRun
+    failurePolicy: Fail
+    objectSelector:
+      matchLabels:
+        sparkoperator.k8s.io/launched-by-spark-operator: "true"
+    rules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+        operations: ["CREATE"]
+    timeoutSeconds: 10
+
+  # Webhook 2: Mutate SparkApplication resources
+  - name: mutate-sparkapplication.sparkoperator.k8s.io
+    admissionReviewVersions: ["v1"]
+    clientConfig:
+      service:
+        name: spark-operator-webhook-svc
+        namespace: system
+        port: 443
+        path: /mutate-sparkoperator-k8s-io-v1beta2-sparkapplication
+    sideEffects: NoneOnDryRun
+    failurePolicy: Fail
+    rules:
+      - apiGroups: ["sparkoperator.k8s.io"]
+        apiVersions: ["v1beta2"]
+        resources: ["sparkapplications"]
+        operations: ["CREATE", "UPDATE"]
+    timeoutSeconds: 10
+
+  # Webhook 3: Mutate ScheduledSparkApplication resources
+  - name: mutate-scheduledsparkapplication.sparkoperator.k8s.io
+    admissionReviewVersions: ["v1"]
+    clientConfig:
+      service:
+        name: spark-operator-webhook-svc
+        namespace: system
+        port: 443
+        path: /mutate-sparkoperator-k8s-io-v1beta2-scheduledsparkapplication
+    sideEffects: NoneOnDryRun
+    failurePolicy: Fail
+    rules:
+      - apiGroups: ["sparkoperator.k8s.io"]
+        apiVersions: ["v1beta2"]
+        resources: ["scheduledsparkapplications"]
+        operations: ["CREATE", "UPDATE"]
+    timeoutSeconds: 10

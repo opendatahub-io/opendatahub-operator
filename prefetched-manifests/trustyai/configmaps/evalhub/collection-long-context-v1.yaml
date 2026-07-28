@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: evalhub-collection-long-context-v1
+  labels:
+    trustyai.opendatahub.io/evalhub-collection-type: system
+    trustyai.opendatahub.io/evalhub-collection-name: long-context-v1
+data:
+  long-context-v1.yaml: |
+    id: long-context-v1
+    name: Long Context v1
+    category: long_context
+    description: >
+      Evaluates long-context retrieval and comprehension for instruction-tuned chat LLMs
+      using Multi-step Retrieval and Comprehension Reasoning (MRCR). MRCR scores the model
+      across sequence-length buckets from 0 to max model length; the primary metric is AUC
+      (area under the score-vs-length curve) with per-bucket subscores also available
+      (e.g. score_gt_16k_le_32k). Four needle-count variants are included: 1, 2, 4, and 8
+      needles — each harder than the previous because the model must simultaneously track
+      and return more pieces of information. Each variant is run 3 times with different seeds.
+      See: https://github.com/EleutherAI/lm-evaluation-harness/pull/3754
+      Part of the Standard LLM Evaluation Suite (standard-llm-evals-v1).
+    tags:
+      - long_context
+      - retrieval
+      - comprehension
+      - multi_needle
+      - chat
+      - lm_eval
+      - vllm
+      - standard
+    pass_criteria:
+      # Weighted average with declining weights as needle count increases.
+      # The 1-needle baseline carries the most weight; 8-needle is auxiliary.
+      threshold: 0.45
+    benchmarks:
+      - id: mrcr
+        provider_id: lm_evaluation_harness
+        weight: 4   # Baseline variant — most representative single score
+        primary_score:
+          metric: auc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.55
+        parameters:
+          num_fewshot: 0
+          apply_chat_template: true
+          repetitions: 3
+
+      - id: mrcr_2needle
+        provider_id: lm_evaluation_harness
+        weight: 3
+        primary_score:
+          metric: auc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.55
+        parameters:
+          num_fewshot: 0
+          apply_chat_template: true
+          repetitions: 3
+
+      - id: mrcr_4needle
+        provider_id: lm_evaluation_harness
+        weight: 2
+        primary_score:
+          metric: auc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.45
+        parameters:
+          num_fewshot: 0
+          apply_chat_template: true
+          repetitions: 3
+
+      - id: mrcr_8needle
+        provider_id: lm_evaluation_harness
+        weight: 1   # Hardest variant; lower absolute scores expected
+        primary_score:
+          metric: auc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.35
+        parameters:
+          num_fewshot: 0
+          apply_chat_template: true
+          repetitions: 3

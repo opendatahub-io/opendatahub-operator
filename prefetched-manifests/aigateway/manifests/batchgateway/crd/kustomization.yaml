@@ -1,0 +1,2 @@
+resources:
+- bases/batch.llm-d.ai_llmbatchgateways.yaml

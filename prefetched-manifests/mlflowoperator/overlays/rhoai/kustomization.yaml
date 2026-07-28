@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: redhat-ods-applications
+
+resources:
+  - ../openshift
+
+patches:
+  - path: manager_patch.yaml
+    target:
+      kind: Deployment
+      name: controller-manager
+      namespace: system
+
+replacements:
+  # Update serverName namespace to match the RHOAI namespace
+  - source:
+      kind: Service
+      name: controller-manager-metrics-service
+      fieldPath: metadata.namespace
+    targets:
+      - select:
+          kind: ServiceMonitor
+          name: controller-manager-metrics-monitor
+        fieldPaths:
+          - spec.endpoints.0.tlsConfig.serverName
+        options:
+          delimiter: "."
+          index: 1

@@ -1,0 +1,14 @@
+apiVersion: v2
+name: dashboard
+description: Helm chart for the ODH Dashboard module controller bootstrap (CRD, RBAC, Deployment, ConfigMap)
+type: application
+version: 0.1.0
+appVersion: "0.0.0"
+keywords:
+  - dashboard
+  - opendatahub
+  - sidecar
+home: https://github.com/opendatahub-io/odh-dashboard
+maintainers:
+  - name: ODH Dashboard Team
+    url: https://github.com/opendatahub-io/odh-dashboard

@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata:
+  name: hpa-sample
+# Annotation-based WVA discovery: no VariantAutoscaling CRD needed.
+# WVA discovers the HPA via the llm-d.ai/managed annotation.
+# Apply with: kubectl kustomize config/samples/hpa | kubectl apply -f -
+resources:
+- annotations/hpa.yaml

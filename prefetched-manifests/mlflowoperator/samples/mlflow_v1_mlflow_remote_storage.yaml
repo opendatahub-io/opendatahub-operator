@@ -1,0 +1,100 @@
+# Example with remote storage (PostgreSQL primary/read replica + S3)
+# No PVC required - all storage is remote
+#
+# This example uses secret references for database credentials (recommended for production).
+# Create the secret first:
+#
+#   kubectl create secret generic mlflow-db-credentials \
+#     --from-literal=backend-store-uri='postgresql://mlflow:password@postgres.example.com:5432/mlflow' \
+#     --from-literal=read-replica-backend-store-uri='postgresql://mlflow:password@postgres-reader.example.com:5432/mlflow'
+#
+apiVersion: mlflow.opendatahub.io/v1
+kind: MLflow
+metadata:
+  name: mlflow
+spec:
+  # MLflow container image
+  image:
+    image: quay.io/opendatahub/mlflow:odh-stable
+    imagePullPolicy: Always
+
+  # Number of replicas - can scale horizontally with remote storage
+  replicas: 2
+
+  migration:
+    # Operator-managed database migration mode
+    mode: Automatic
+
+    # Retain finished migration Jobs for 24 hours for debugging/auditing
+    ttlSecondsAfterFinished: 86400
+
+  # Compute resources
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+  # Remote database for metadata - using secret references (recommended for production)
+  # This keeps credentials out of the CR and in a Kubernetes secret
+  backendStoreUriFrom:
+    name: mlflow-db-credentials
+    key: backend-store-uri
+
+  # Optional read replica for supported tracking and model-registry reads.
+  # Writes and operator-managed migrations continue to use the primary backend store.
+  readReplicaBackendStoreUriFrom:
+    name: mlflow-db-credentials
+    key: read-replica-backend-store-uri
+
+  # Alternative: Direct URI (not recommended for production due to embedded credentials)
+  # backendStoreUri: "postgresql://mlflow:password@postgres.example.com:5432/mlflow"
+  # readReplicaBackendStoreUri: "postgresql://mlflow:password@postgres-reader.example.com:5432/mlflow"
+  # Registry storage defaults to the primary backend store configuration if not specified
+
+  # Remote S3 storage for artifacts
+  artifactsDestination: "s3://my-mlflow-bucket/artifacts"
+
+  # Default artifact root - where MLflow stores artifacts for runs that don't specify a location
+  # If not specified, defaults to artifactsDestination value
+  # You can set this to a different location or subdirectory for better organization
+  defaultArtifactRoot: "s3://my-mlflow-bucket/artifacts/runs"
+
+  # Enable artifact serving through MLflow REST API
+  # Clients can log/retrieve artifacts via MLflow instead of direct S3 access
+  serveArtifacts: true
+
+  # Number of gunicorn workers per pod
+  # For high-traffic deployments, scaling replicas is recommended over increasing workers
+  workers: 2
+
+  # Extra CORS allowed origins (Optional)
+  # The operator preconfigures safe defaults (Kubernetes service names, gateway domain, localhost).
+  # Use this to allow additional origins for cross-origin requests to the MLflow API.
+  # extraAllowedOrigins:
+  #   - "https://my-app.example.com"
+  #   - "https://jupyter.example.com:8888"
+
+  # AWS credentials for S3 access
+  envFrom:
+    - secretRef:
+        name: aws-credentials  # Contains AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+
+  # Environment variables
+  env:
+    - name: MLFLOW_LOGGING_LEVEL
+      value: INFO
+    - name: AWS_DEFAULT_REGION
+      value: us-east-1
+
+  # Garbage collection
+  garbageCollection:
+    schedule: "0 2 * * 0"
+    olderThan: "30d"
+
+  # Custom CA Bundle (Optional)
+  # For connecting to services with self-signed certificates or private CAs
+  # caBundleConfigMap:
+  #   name: mlflow-ca-bundle

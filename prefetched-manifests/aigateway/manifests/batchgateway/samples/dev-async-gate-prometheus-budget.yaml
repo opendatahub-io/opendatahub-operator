@@ -1,0 +1,57 @@
+apiVersion: batch.llm-d.ai/v1alpha1
+kind: LLMBatchGateway
+metadata:
+  name: batch-gateway-dev
+spec:
+  secretRef:
+    name: batch-gateway-secrets
+  dbBackend: postgresql
+  fileStorage:
+    s3:
+      bucket: llm-d-batch-gateway
+      region: us-east-1
+      endpoint: http://minio.default.svc.cluster.local:9000
+      accessKeyId: minioadmin
+      usePathStyle: true
+      autoCreateBucket: true
+  apiServer:
+    replicas: 1
+    imagePullPolicy: IfNotPresent
+  gc:
+    interval: 30m
+    imagePullPolicy: IfNotPresent
+  processor:
+    replicas: 1
+    imagePullPolicy: IfNotPresent
+    dispatchMode: async
+    modelGateways:
+      sim-model:
+        inferencePoolName: sim-pool-prom-budget
+    asyncConfig:
+      replicas: 1
+      concurrency: 1
+      drainTimeout: 2m
+      resultPollTimeout: 30s
+      prometheusURL: http://prometheus.default.svc.cluster.local:9090
+      prometheusCacheTTL: "0s"
+      redis:
+        requestPathURL: /v1/completions
+        pollIntervalMs: 500
+        batchSize: 10
+        queuesConfig:
+        - name: "llm-d-async:requests:sim-pool-prom-budget"     # format: llm-d-async:requests:<inferencePoolName> (from processor.modelGateways[].inferencePoolName)
+          requestPathURL: /v1/completions
+          igwBaseURL: http://vllm-sim.default.svc.cluster.local:8000
+          gateType: prometheus-budget
+          gateParams:
+            pool: sim-pool-prom-budget
+            max_concurrency: "5"
+            baseline: "0.05"
+            fallback: "1.0"
+          workerPoolID: sim-workers
+      workerPools:
+      - name: sim-workers
+        workers: 4
+        gateType: local-max-concurrency
+        gateParams:
+          limit: "2"

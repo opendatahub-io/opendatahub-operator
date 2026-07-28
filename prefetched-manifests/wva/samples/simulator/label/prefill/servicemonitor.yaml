@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: dev-model-prefill-monitor
+  namespace: workload-variant-autoscaler-monitoring
+  labels:
+    app: dev-model-prefill
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: dev-model-prefill
+  namespaceSelector:
+    matchNames:
+      - llm-d-sim
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_label_llm_d_ai_variant]
+          targetLabel: llm_d_ai_variant
+          action: replace

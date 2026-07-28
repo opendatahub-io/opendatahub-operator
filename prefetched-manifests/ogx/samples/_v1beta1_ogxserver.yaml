@@ -1,0 +1,39 @@
+apiVersion: ogx.io/v1beta1
+kind: OGXServer
+metadata:
+  name: ogxserver-sample
+spec:
+  distribution:
+    name: starter
+  overrideConfig:
+    name: starter-config
+    key: config.yaml
+  workload:
+    replicas: 1
+    workers: 1
+    storage:
+      size: "20Gi"
+      mountPath: "/.ogx"
+    overrides:
+      env:
+        - name: OLLAMA_INFERENCE_MODEL
+          value: 'llama3.2:1b'
+        - name: OLLAMA_URL
+          value: 'http://ollama-server-service.ollama-dist.svc.cluster.local:11434'
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/instance: ogxserver-sample
+    autoscaling:
+      minReplicas: 1
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 75
+      targetMemoryUtilizationPercentage: 70
+  monitoring:
+    enabled: true
+    metricsPort: 9090

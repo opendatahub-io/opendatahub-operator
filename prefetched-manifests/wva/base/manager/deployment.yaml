@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  labels:
+    control-plane: controller-manager
+    app.kubernetes.io/name: workload-variant-autoscaler
+spec:
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+      app.kubernetes.io/name: workload-variant-autoscaler
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: controller-manager
+        app.kubernetes.io/name: workload-variant-autoscaler
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - command:
+        - /manager
+        args:
+          - --leader-elect=true
+          - --health-probe-bind-address=:8081
+          - --config-file=/etc/wva/config.yaml
+          - --metrics-bind-address=:8443
+          - --metrics-secure=true
+        image: controller:latest
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: LOG_LEVEL
+            value: "info"
+          - name: PROMETHEUS_TOKEN_PATH
+            value: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+          - name: POOL_GROUP
+            value: "inference.networking.k8s.io"
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+        name: manager
+        ports:
+          - name: healthz
+            containerPort: 8081
+            protocol: TCP
+          - name: https
+            containerPort: 8443
+            protocol: TCP
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - "ALL"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        volumeMounts:
+        - name: wva-config
+          mountPath: /etc/wva/config.yaml
+          subPath: config.yaml
+          readOnly: true
+        - name: epp-metrics-token
+          mountPath: /var/run/secrets/epp-metrics
+          readOnly: true
+      volumes:
+      - name: wva-config
+        configMap:
+          name: manager-config
+      - name: epp-metrics-token
+        secret:
+          secretName: epp-metrics-token
+          defaultMode: 420
+      serviceAccountName: controller-manager
+      terminationGracePeriodSeconds: 10

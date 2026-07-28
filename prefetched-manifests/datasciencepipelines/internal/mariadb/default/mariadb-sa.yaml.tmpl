@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ds-pipelines-mariadb-sa-{{.Name}}
+  namespace: {{.Namespace}}
+  labels:
+    app: mariadb-{{.Name}}
+    component: data-science-pipelines

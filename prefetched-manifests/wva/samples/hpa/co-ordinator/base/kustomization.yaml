@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - llm-d-sim-gpu-quota.yaml
+  - model-a-hpa.yaml
+  - model-b-hpa.yaml
+  - model-a-decode.yaml
+  - model-b-decode.yaml
+  - multi-model-gateway.yaml

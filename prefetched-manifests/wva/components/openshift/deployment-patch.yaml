@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+spec:
+  template:
+    spec:
+      containers:
+      - name: manager
+        env:
+        # The Service CA cert is auto-mounted into every pod's serviceaccount
+        # secret on OpenShift; use it to verify Thanos Querier's certificate.
+        - name: PROMETHEUS_CA_CERT_PATH
+          value: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+        - name: PROMETHEUS_CLIENT_CERT_PATH
+          value: ""
+        - name: PROMETHEUS_CLIENT_KEY_PATH
+          value: ""
+        - name: PROMETHEUS_SERVER_NAME
+          value: "thanos-querier.openshift-monitoring.svc"
+        - name: SATURATION_CONFIG_MAP_NAME
+          value: "workload-variant-autoscaler-saturation-scaling-config"
+        - name: CONFIG_MAP_NAME
+          value: "workload-variant-autoscaler-manager-config"
+        volumeMounts:
+        - name: metrics-serving-cert
+          mountPath: /etc/k8s-metrics-server/serving-certs
+          readOnly: true
+      volumes:
+      - name: metrics-serving-cert
+        secret:
+          secretName: metrics-server-cert
+          defaultMode: 420

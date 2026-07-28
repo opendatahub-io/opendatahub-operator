@@ -1,0 +1,5 @@
+{{- $doc := .Files.Get "crd/workbenches.crd.yaml" | fromYaml }}
+{{- $ann := $doc.metadata.annotations | default dict }}
+{{- $_ := set $ann "helm.sh/resource-policy" "keep" }}
+{{- $_ := set $doc.metadata "annotations" $ann }}
+{{ $doc | toYaml }}

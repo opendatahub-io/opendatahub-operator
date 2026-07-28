@@ -1,0 +1,15 @@
+# DEPRECATED: This wrapper is maintained for backwards compatibility
+# New overlays should use components instead which include CRDs
+# See config/components/ for modular controller-specific CRDs
+
+resources:
+  - bases/trustyai.opendatahub.io_trustyaiservices.yaml
+  - bases/trustyai.opendatahub.io_lmevaljobs.yaml
+  - bases/trustyai.opendatahub.io_guardrailsorchestrators.yaml
+  - bases/trustyai.opendatahub.io_evalhubs.yaml
+  - bases/trustyai.opendatahub.io_nemoguardrails.yaml
+#+kubebuilder:scaffold:crdkustomizeresource
+
+patchesStrategicMerge: []
+#+kubebuilder:scaffold:crdkustomizewebhookpatch
+#+kubebuilder:scaffold:crdkustomizecainjectionpatch

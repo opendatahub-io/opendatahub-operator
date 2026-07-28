@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Overlay for OpenShift clusters using the built-in service-serving-cert-signer.
+# No cert-manager dependency is required. The platform automatically:
+# 1. Generates a TLS Secret for the webhook Service via the serving-cert annotation.
+# 2. Injects the CA bundle into the ValidatingWebhookConfiguration.
+
+resources:
+- ../../default
+
+patches:
+# Annotate the webhook Service so OpenShift's service-serving-cert-signer
+# generates a TLS certificate into the named Secret.
+- target:
+    kind: Service
+    name: webhook-service
+  patch: |-
+    - op: add
+      path: /metadata/annotations
+      value:
+        service.beta.openshift.io/serving-cert-secret-name: ogx-k8s-operator-webhook-cert
+# Annotate the ValidatingWebhookConfiguration so OpenShift injects the
+# service-ca CA bundle into webhooks[].clientConfig.caBundle.
+- target:
+    kind: ValidatingWebhookConfiguration
+  patch: |-
+    - op: add
+      path: /metadata/annotations
+      value:
+        service.beta.openshift.io/inject-cabundle: "true"

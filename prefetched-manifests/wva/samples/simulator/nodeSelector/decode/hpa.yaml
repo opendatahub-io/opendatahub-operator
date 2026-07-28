@@ -1,0 +1,41 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dev-model-hpa
+  namespace: llm-d-sim
+  annotations:
+    llm-d.ai/managed: "true"
+    llm-d.ai/model-id: test-model
+    llm-d.ai/variant-cost: "30.0"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: dev-model-decode
+  minReplicas: 1
+  maxReplicas: 4
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 10
+          periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+  metrics:
+    - type: External
+      external:
+        metric:
+          name: wva_desired_replicas
+          selector:
+            matchLabels:
+              variant_name: dev-model-hpa
+              exported_namespace: llm-d-sim
+        target:
+          type: AverageValue
+          averageValue: "1"

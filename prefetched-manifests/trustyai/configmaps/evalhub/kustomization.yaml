@@ -1,0 +1,20 @@
+resources:
+  - provider-deepeval.yaml
+  - provider-garak-kfp.yaml
+  - provider-garak.yaml
+  - provider-guidellm.yaml
+  - provider-ibm-clear.yaml
+  - provider-lighteval.yaml
+  - provider-lm-evaluation-harness.yaml
+  - provider-ragas.yaml
+  - collection-coding-v1.yaml
+  - collection-instruction-following-v1.yaml
+  - collection-leaderboard-v2.yaml
+  - collection-long-context-v1.yaml
+  - collection-model-validation.yaml
+  - collection-reasoning-v1.yaml
+  - collection-safety-and-fairness-v1.yaml
+  - collection-standard-llm-evals-v1.yaml
+  - collection-toxicity-and-ethical-principles.yaml
+
+namespace: system

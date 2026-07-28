@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: manager
+    app.kubernetes.io/created-by: dns-operator
+    app.kubernetes.io/instance: controller-manager
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: deployment
+    app.kubernetes.io/part-of: dns-operator
+    control-plane: dns-operator-controller-manager
+  name: dns-operator-controller-manager
+  namespace: {{ .Values.operatorNamespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: dns-operator-controller-manager
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: dns-operator-controller-manager
+      namespace: {{ .Values.operatorNamespace }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - args:
+            - --metrics-bind-address=:8080
+            - --leader-elect
+          command:
+            - /manager
+          env:
+            - name: WATCH_NAMESPACES
+            - name: CLUSTER_SECRET_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          envFrom:
+            - configMapRef:
+                name: dns-operator-controller-env
+          image: registry.redhat.io/rhcl-1/dns-rhel9-operator@sha256:b4e7ba67509320ca9ac5d63cc4add987fad05b098c4a7cd8dd91f264731177cf
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          name: manager
+          ports:
+            - containerPort: 8080
+              name: metrics
+            - containerPort: 8082
+              name: pprof
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 200m
+              memory: 128Mi
+            requests:
+              cpu: 10m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: dns-operator-controller-manager
+      terminationGracePeriodSeconds: 10

@@ -1,0 +1,36 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# NeMo Guardrails Only Overlay
+# Deploys only the NeMo Guardrails controller
+
+resources:
+  - ../../base
+
+components:
+  - ../../components/nemo-guardrails
+
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/part-of: trustyai
+
+namePrefix: trustyai-service-operator-
+
+patches:
+  - target:
+      kind: Deployment
+      name: controller-manager
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: "--enable-services"
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: "NEMO_GUARDRAILS"
+
+configMapGenerator:
+  - env: params.env
+    behavior: merge
+    name: config

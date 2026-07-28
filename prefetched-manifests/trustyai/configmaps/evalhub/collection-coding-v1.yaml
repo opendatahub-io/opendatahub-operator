@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: evalhub-collection-coding-v1
+  labels:
+    trustyai.opendatahub.io/evalhub-collection-type: system
+    trustyai.opendatahub.io/evalhub-collection-name: coding-v1
+data:
+  coding-v1.yaml: |
+    id: coding-v1
+    name: Coding v1
+    category: code
+    description: >
+      Evaluates code generation capability of instruction-tuned chat LLMs on real-world
+      competitive programming problems. LiveCodeBench v6 samples problems from Codeforces,
+      LeetCode, and AtCoder after the model knowledge cutoff, eliminating data contamination
+      risk. Execution-based scoring: generated code is run against hidden test cases.
+      Primary metric is codegen_pass@1 averaged over 3 random seeds (k=1, n=3).
+      SWE-Bench (agentic software engineering) will be added in v2 when the harness
+      integration is available.
+      Part of the Standard LLM Evaluation Suite (standard-llm-evals-v1).
+    tags:
+      - code
+      - competitive-programming
+      - execution
+      - contamination-free
+      - chat
+      - lighteval
+      - vllm
+      - standard
+    pass_criteria:
+      threshold: 0.25
+    benchmarks:
+      - id: lcb:codegeneration_v6
+        provider_id: lighteval
+        weight: 1
+        primary_score:
+          metric: codegen_pass@1
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+        parameters:
+          num_fewshot: 0
+          apply_chat_template: true
+          pass_at_k: 1
+          num_samples: 3

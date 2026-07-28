@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata:
+  name: keda-annotations-sample
+# Annotation-based WVA discovery: no VariantAutoscaling CRD needed.
+# Apply with: kubectl kustomize config/samples/keda/annotations | kubectl apply -f -
+resources:
+- scaledobject.yaml

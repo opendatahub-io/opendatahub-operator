@@ -1,0 +1,6 @@
+- op: add
+  path: /rules/-
+  value:
+    apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["create", "delete", "update"]

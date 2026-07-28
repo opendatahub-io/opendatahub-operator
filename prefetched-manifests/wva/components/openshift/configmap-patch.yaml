@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: manager-config
+data:
+  config.yaml: |
+    # Prometheus Configuration (OpenShift)
+    # Point WVA at the in-cluster Thanos Querier exposed by OpenShift's
+    # user-workload-monitoring stack.
+    PROMETHEUS_BASE_URL: "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091"
+    # Use the Service CA mounted into the controller pod for server verification.
+    PROMETHEUS_TLS_INSECURE_SKIP_VERIFY: "false"
+
+    # Optimization
+    GLOBAL_OPT_INTERVAL: "60s"
+
+    # Feature Flags
+    WVA_SCALE_TO_ZERO: "false"
+
+    # Prometheus Metrics Cache
+    PROMETHEUS_METRICS_CACHE_TTL: "30s"
+    PROMETHEUS_METRICS_CACHE_CLEANUP_INTERVAL: "1m"
+    PROMETHEUS_METRICS_CACHE_FETCH_INTERVAL: "30s"
+    PROMETHEUS_METRICS_CACHE_FRESH_THRESHOLD: "1m"
+    PROMETHEUS_METRICS_CACHE_STALE_THRESHOLD: "2m"
+    PROMETHEUS_METRICS_CACHE_UNAVAILABLE_THRESHOLD: "5m"

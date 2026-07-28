@@ -1,0 +1,18 @@
+---
+# ClusterRole for MLflow kubernetes-auth access
+# MLflow's kubernetes-workspace-provider checks permissions via SelfSubjectAccessReview
+# against the "mlflow.kubeflow.org" API group (not core Kubernetes resources).
+# This role is pre-created at operator installation time and bound to
+# EvalHub ServiceAccounts via RoleBindings created by the operator.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: evalhub-mlflow-access
+  labels:
+    app.kubernetes.io/name: trustyai-service-operator
+    app.kubernetes.io/component: evalhub
+rules:
+  - apiGroups: ["mlflow.kubeflow.org"]
+    resources:
+      - experiments
+    verbs: ["create", "get", "list", "update", "delete"]

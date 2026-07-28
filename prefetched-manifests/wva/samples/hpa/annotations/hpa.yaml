@@ -1,0 +1,46 @@
+# Annotation-based WVA discovery — no VariantAutoscaling CRD required.
+# WVA discovers this HPA via the llm-d.ai/managed annotation and exposes
+# wva_desired_replicas{variant_name="sample-deployment",namespace="llm-d-sim"}.
+# The Prometheus Adapter makes that metric available as an External metric so
+# this HPA can consume it directly.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: sample-deployment-hpa
+  namespace: llm-d-sim
+  annotations:
+    llm-d.ai/managed: "true"
+    llm-d.ai/model-id: "default/default"
+    llm-d.ai/variant-cost: "10.0"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: sample-deployment
+  minReplicas: 1
+  maxReplicas: 10
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Pods
+        value: 10
+        periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Pods
+        value: 10
+        periodSeconds: 15
+  metrics:
+  - type: External
+    external:
+      metric:
+        name: wva_desired_replicas
+        selector:
+          matchLabels:
+            variant_name: sample-deployment
+            exported_namespace: llm-d-sim
+      target:
+        type: AverageValue
+        averageValue: "1"

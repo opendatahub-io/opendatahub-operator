@@ -1,0 +1,15 @@
+namespace: ai-gateway-system
+
+namePrefix: ai-gateway-
+
+resources:
+- namespace.yaml
+- ../crd
+- ../rbac
+- ../manager
+- metrics_service.yaml
+
+patches:
+- path: manager_metrics_patch.yaml
+  target:
+    kind: Deployment

@@ -1,0 +1,18 @@
+---
+apiVersion: ogx.io/v1beta1
+kind: OGXServer
+metadata:
+  name: ogxserver-without-userconfig
+spec:
+  distribution:
+    name: starter
+  workload:
+    storage:
+      size: "10Gi"
+      mountPath: "/.ogx"
+    overrides:
+      env:
+      - name: OLLAMA_INFERENCE_MODEL
+        value: "llama3.2:1b"
+      - name: OLLAMA_URL
+        value: "http://ollama-server-service.ollama-dist.svc.cluster.local:11434"

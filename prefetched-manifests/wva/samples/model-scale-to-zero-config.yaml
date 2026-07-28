@@ -1,0 +1,55 @@
+# ConfigMap for per-model scale-to-zero configuration
+#
+# This ConfigMap follows the same format as saturation-scaling-config:
+# - 'default' entry: Global default thresholds applied to all models
+# - Override entries: Per-model custom configuration (must include model_id)
+#
+# Configuration fields:
+#   - model_id (string): Model identifier (required for override entries)
+#   - namespace (string): Namespace for this override (optional)
+#   - enable_scale_to_zero (boolean): Enables scale-to-zero for this model
+#   - retention_period (string): Duration after last request before scaling to zero
+#                                 (e.g., "5m", "1h", "30s"). Optional, defaults to 10 minutes.
+#
+# Configuration priority (highest to lowest):
+#   1. Per-model configuration (specific model_id in override entry)
+#   2. Global defaults in this ConfigMap (key: "default")
+#   3. WVA_SCALE_TO_ZERO environment variable
+#   4. System default (disabled, 10-minute retention)
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wva-model-scale-to-zero-config
+  namespace: workload-variant-autoscaler-system
+  labels:
+    app.kubernetes.io/name: workload-variant-autoscaler
+data:
+  # Global defaults applied to all models unless overridden
+  default: |
+    enable_scale_to_zero: true
+    retention_period: "15m"
+
+  # Example per-model override for llama model
+  # Only override retention_period, inherit enable_scale_to_zero from defaults
+  # Result: scale-to-zero ENABLED (from defaults) with 5-minute retention
+  # llama-8b-override: |
+  #   model_id: meta/llama-3.1-8b
+  #   retention_period: "5m"
+
+  # Example per-model override to DISABLE scale-to-zero
+  # Result: minimum 1 replica maintained at all times
+  # llama-70b-override: |
+  #   model_id: meta/llama-3.1-70b
+  #   enable_scale_to_zero: false
+
+  # Example per-model override with namespace
+  # llama-production: |
+  #   model_id: meta/llama-3.1-8b
+  #   namespace: production
+  #   enable_scale_to_zero: true
+  #   retention_period: "30m"
+
+# Note: Models not explicitly listed will inherit settings from "default".
+# If "default" is not specified, models fall back to the WVA_SCALE_TO_ZERO
+# environment variable, then system default (disabled).

@@ -1,0 +1,358 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.4
+  name: maassubscriptions.maas.opendatahub.io
+spec:
+  group: maas.opendatahub.io
+  names:
+    kind: MaaSSubscription
+    listKind: MaaSSubscriptionList
+    plural: maassubscriptions
+    singular: maassubscription
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .spec.priority
+      name: Priority
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: MaaSSubscription is the Schema for the maassubscriptions API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: MaaSSubscriptionSpec defines the desired state of MaaSSubscription
+            properties:
+              modelRefs:
+                description: ModelRefs defines which models are included with per-model
+                  token rate limits
+                items:
+                  description: ModelSubscriptionRef defines a model reference with
+                    rate limits
+                  properties:
+                    billingRate:
+                      description: BillingRate defines the cost per token
+                      properties:
+                        perToken:
+                          description: PerToken is the cost per token
+                          type: string
+                      required:
+                      - perToken
+                      type: object
+                    name:
+                      description: Name is the name of the MaaSModelRef
+                      maxLength: 63
+                      minLength: 1
+                      type: string
+                    namespace:
+                      description: Namespace is the namespace where the MaaSModelRef
+                        lives
+                      maxLength: 63
+                      minLength: 1
+                      type: string
+                    tokenRateLimits:
+                      description: TokenRateLimits defines token-based rate limits
+                        for this model
+                      items:
+                        description: TokenRateLimit defines a token rate limit
+                        properties:
+                          limit:
+                            description: |-
+                              Limit is the maximum number of tokens allowed within the window.
+                              Must be between 1 and 1,000,000,000 (1 billion).
+                            format: int64
+                            maximum: 1000000000
+                            minimum: 1
+                            type: integer
+                          window:
+                            description: |-
+                              Window is the time window for rate limiting (e.g., "1m", "1h", "24h").
+                              Allowed units: s (seconds), m (minutes), h (hours). Days (d) are not
+                              supported; use hours instead (e.g., "24h" for one day).
+                              The numeric part must be between 1 and 9999.
+                            maxLength: 5
+                            minLength: 2
+                            pattern: ^[1-9]\d{0,3}(s|m|h)$
+                            type: string
+                        required:
+                        - limit
+                        - window
+                        type: object
+                      minItems: 1
+                      type: array
+                  required:
+                  - name
+                  - namespace
+                  - tokenRateLimits
+                  type: object
+                minItems: 1
+                type: array
+              owner:
+                description: Owner defines who owns this subscription
+                properties:
+                  groups:
+                    description: Groups is a list of Kubernetes group names that own
+                      this subscription
+                    items:
+                      description: GroupReference references a Kubernetes group
+                      properties:
+                        name:
+                          description: Name is the name of the group
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                  users:
+                    description: Users is a list of Kubernetes user names that own
+                      this subscription
+                    items:
+                      type: string
+                    type: array
+                type: object
+              priority:
+                default: 0
+                description: |-
+                  Priority determines subscription priority when user has multiple subscriptions
+                  Higher numbers have higher priority. Defaults to 0.
+                format: int32
+                type: integer
+              tokenMetadata:
+                description: TokenMetadata contains metadata for token attribution
+                  and metering
+                properties:
+                  costCenter:
+                    description: CostCenter is the cost center for usage attribution
+                    type: string
+                  labels:
+                    additionalProperties:
+                      type: string
+                    description: Labels are additional labels for tracking and metrics
+                    type: object
+                  organizationId:
+                    description: OrganizationID is the organization identifier for
+                      metering and billing
+                    type: string
+                type: object
+            required:
+            - modelRefs
+            - owner
+            type: object
+          status:
+            description: MaaSSubscriptionStatus defines the observed state of MaaSSubscription
+            properties:
+              conditions:
+                description: Conditions represent the latest available observations
+                  of the subscription's state
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              modelRefStatuses:
+                description: ModelRefStatuses reports the status of each referenced
+                  MaaSModelRef
+                items:
+                  description: ModelRefStatus reports the status of a referenced MaaSModelRef.
+                  properties:
+                    message:
+                      description: Message is a human-readable description of the
+                        status
+                      maxLength: 1024
+                      type: string
+                    name:
+                      description: Name of the referenced resource
+                      maxLength: 253
+                      type: string
+                    namespace:
+                      description: Namespace of the referenced resource
+                      maxLength: 63
+                      type: string
+                    ready:
+                      description: Ready indicates whether the resource is valid and
+                        healthy
+                      type: boolean
+                    reason:
+                      description: Reason is a machine-readable reason code
+                      enum:
+                      - Reconciled
+                      - ReconcileFailed
+                      - PartialFailure
+                      - Valid
+                      - NotFound
+                      - GetFailed
+                      - Accepted
+                      - AcceptedEnforced
+                      - NotAccepted
+                      - Enforced
+                      - NotEnforced
+                      - BackendNotReady
+                      - ConditionsNotFound
+                      - InvalidSpec
+                      - Unknown
+                      - NoPairingFound
+                      - GovernancePaired
+                      - GovernanceGap
+                      - RuntimeHealthy
+                      - RuntimeHealthFailure
+                      type: string
+                  required:
+                  - name
+                  - namespace
+                  - ready
+                  type: object
+                type: array
+              phase:
+                description: Phase represents the current phase of the subscription
+                enum:
+                - Pending
+                - Active
+                - Degraded
+                - Failed
+                - Invalid
+                type: string
+              tokenRateLimitStatuses:
+                description: TokenRateLimitStatuses reports the status of each generated
+                  TokenRateLimitPolicy
+                items:
+                  description: TokenRateLimitStatus reports the status of a generated
+                    TokenRateLimitPolicy.
+                  properties:
+                    message:
+                      description: Message is a human-readable description of the
+                        status
+                      maxLength: 1024
+                      type: string
+                    model:
+                      description: Model is the MaaSModelRef name this TokenRateLimitPolicy
+                        targets
+                      maxLength: 63
+                      minLength: 1
+                      type: string
+                    name:
+                      description: Name of the referenced resource
+                      maxLength: 253
+                      type: string
+                    namespace:
+                      description: Namespace of the referenced resource
+                      maxLength: 63
+                      type: string
+                    ready:
+                      description: Ready indicates whether the resource is valid and
+                        healthy
+                      type: boolean
+                    reason:
+                      description: Reason is a machine-readable reason code
+                      enum:
+                      - Reconciled
+                      - ReconcileFailed
+                      - PartialFailure
+                      - Valid
+                      - NotFound
+                      - GetFailed
+                      - Accepted
+                      - AcceptedEnforced
+                      - NotAccepted
+                      - Enforced
+                      - NotEnforced
+                      - BackendNotReady
+                      - ConditionsNotFound
+                      - InvalidSpec
+                      - Unknown
+                      - NoPairingFound
+                      - GovernancePaired
+                      - GovernanceGap
+                      - RuntimeHealthy
+                      - RuntimeHealthFailure
+                      type: string
+                  required:
+                  - model
+                  - name
+                  - namespace
+                  - ready
+                  type: object
+                type: array
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

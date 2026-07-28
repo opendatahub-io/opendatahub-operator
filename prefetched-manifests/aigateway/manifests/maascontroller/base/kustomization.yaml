@@ -1,0 +1,43 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../default
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: maas-controller
+      app.kubernetes.io/component: models-as-a-service
+      app.kubernetes.io/part-of: models-as-a-service
+
+configMapGenerator:
+  # Keep a stable name because manager.yaml references this ConfigMap directly
+  # through configMapKeyRef.
+  - name: maas-parameters
+    envs:
+      - params.env
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: maas-parameters
+      fieldPath: data.maas-controller-image
+    targets:
+      - select:
+          kind: Deployment
+          name: maas-controller
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].image
+  - source:
+      kind: ConfigMap
+      name: maas-parameters
+      fieldPath: data.infrastructure-namespace
+    targets:
+      - select:
+          kind: Deployment
+          name: maas-controller
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].env.[name=INFRA_NAMESPACE].value

@@ -1,0 +1,75 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../crd
+  - ../rbac
+  - ../manager
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: llm-d-batch-gateway-operator
+      app.kubernetes.io/component: llm-d-batch-gateway
+      app.kubernetes.io/part-of: llm-d-batch-gateway
+
+patches:
+  - path: manager_metrics_patch.yaml
+    target:
+      kind: Deployment
+
+configMapGenerator:
+  - name: batch-gateway-operator-params
+    envs:
+      - params.env
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: batch-gateway-operator-params
+      fieldPath: data.LLM_D_BATCH_GATEWAY_OPERATOR_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: llm-d-batch-gateway-operator
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].image
+  - source:
+      kind: ConfigMap
+      name: batch-gateway-operator-params
+      fieldPath: data.LLM_D_BATCH_GATEWAY_APISERVER_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: llm-d-batch-gateway-operator
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].env.[name=LLM_D_BATCH_GATEWAY_APISERVER_IMAGE].value
+  - source:
+      kind: ConfigMap
+      name: batch-gateway-operator-params
+      fieldPath: data.LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: llm-d-batch-gateway-operator
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].env.[name=LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE].value
+  - source:
+      kind: ConfigMap
+      name: batch-gateway-operator-params
+      fieldPath: data.LLM_D_BATCH_GATEWAY_GC_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: llm-d-batch-gateway-operator
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].env.[name=LLM_D_BATCH_GATEWAY_GC_IMAGE].value
+  - source:
+      kind: ConfigMap
+      name: batch-gateway-operator-params
+      fieldPath: data.LLM_D_ASYNC_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: llm-d-batch-gateway-operator
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].env.[name=LLM_D_ASYNC_IMAGE].value

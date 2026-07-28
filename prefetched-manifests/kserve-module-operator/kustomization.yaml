@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: opendatahub
+
+resources:
+- crd/components.platform.opendatahub.io_kserves.yaml
+- manager.yaml
+- rbac/
+
+images:
+- name: kserve-module-controller
+  newName: quay.io/opendatahub/odh-kserve-module-operator
+  newTag: odh-stable

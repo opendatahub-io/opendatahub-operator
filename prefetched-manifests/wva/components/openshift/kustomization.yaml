@@ -1,0 +1,90 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+# Grant the WVA controller cluster-monitoring-view so it can query Thanos
+# Querier with its own SA token.
+- manager-cluster-monitoring-view-clusterrolebinding.yaml
+# Grant OpenShift's user-workload Prometheus cluster-monitoring-view so it can
+# scrape the controller's secure /metrics endpoint.
+- prometheus-cluster-monitoring-view-clusterrolebinding.yaml
+# Long-lived SA token referenced by the ServiceMonitor's bearerTokenSecret.
+- controller-manager-token-secret.yaml
+# Service-ca CA bundle used by the ServiceMonitor to verify the controller's
+# metrics serving certificate (replaces insecureSkipVerify).
+- metrics-server-ca-configmap.yaml
+
+patches:
+# Point WVA at the in-cluster Thanos Querier (OpenShift's user-workload-monitoring
+# stack) and tighten TLS verification — the Service CA certificate is mounted
+# from /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt by the
+# deployment patch below.
+- path: configmap-patch.yaml
+  target:
+    kind: ConfigMap
+    name: manager-config
+- path: deployment-patch.yaml
+  target:
+    kind: Deployment
+    name: controller-manager
+# Append the metrics cert path arg (JSON patch to avoid replacing the args list).
+- patch: |-
+    - op: add
+      path: /spec/template/spec/containers/0/args/-
+      value: --metrics-cert-path=/etc/k8s-metrics-server/serving-certs
+  target:
+    kind: Deployment
+    name: controller-manager
+# Request a service-ca serving cert for the metrics Service (metrics-server-cert Secret).
+- patch: |-
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: controller-manager-metrics-service
+      annotations:
+        service.beta.openshift.io/serving-cert-secret-name: metrics-server-cert
+# Grant the WVA controller manager SA read access to its own /metrics endpoint
+# so the ServiceMonitor can scrape it.
+- patch: |-
+    - op: replace
+      path: /subjects/0
+      value:
+        kind: ServiceAccount
+        name: controller-manager
+  target:
+    kind: ClusterRoleBinding
+    name: metrics-reader-rolebinding
+# Label the WVA namespace so OCP user-workload-monitoring Prometheus discovers
+# ServiceMonitors inside it (required for UWM to watch the namespace).
+- patch: |-
+    - op: add
+      path: /metadata/labels/openshift.io~1user-monitoring
+      value: "true"
+  target:
+    kind: Namespace
+# Configure the ServiceMonitor to authenticate using the WVA SA token Secret,
+# which is granted metrics-reader access via the patch above.
+- patch: |-
+    - op: add
+      path: /spec/endpoints/0/bearerTokenSecret
+      value:
+        name: controller-manager-token
+        key: token
+    - op: remove
+      path: /spec/endpoints/0/bearerTokenFile
+    # Enable TLS verification of the metrics serving cert.
+    - op: replace
+      path: /spec/endpoints/0/tlsConfig/insecureSkipVerify
+      value: false
+    - op: add
+      path: /spec/endpoints/0/tlsConfig/serverName
+      value: wva-controller-manager-metrics-service.wva-system.svc
+    - op: add
+      path: /spec/endpoints/0/tlsConfig/ca
+      value:
+        configMap:
+          name: wva-metrics-server-ca
+          key: service-ca.crt
+  target:
+    kind: ServiceMonitor
+    name: controller-manager-metrics-monitor

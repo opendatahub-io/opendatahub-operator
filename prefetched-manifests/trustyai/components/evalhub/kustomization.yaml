@@ -1,0 +1,31 @@
+# do not edit: generated via hack/generate-component-kustomization.sh
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - crd/trustyai.opendatahub.io_evalhubs.yaml
+  - rbac/evalhub_auth_reviewer_role.yaml
+  - rbac/evalhub_collections_access_binding.yaml
+  - rbac/evalhub_collections_access_role.yaml
+  - rbac/evalhub_hardware_profiles_reader_role.yaml
+  - rbac/evalhub_job_config_binding.yaml
+  - rbac/evalhub_job_config_role.yaml
+  - rbac/evalhub_jobs_writer_binding.yaml
+  - rbac/evalhub_jobs_writer_role.yaml
+  - rbac/evalhub_mlflow_access_binding.yaml
+  - rbac/evalhub_mlflow_access_role.yaml
+  - rbac/evalhub_mlflow_jobs_binding.yaml
+  - rbac/evalhub_mlflow_jobs_role.yaml
+  - rbac/evalhub_model_secret_role.yaml
+  - rbac/evalhub_providers_access_binding.yaml
+  - rbac/evalhub_providers_access_role.yaml
+  - rbac/manager-rbac.yaml
+  - rbac/manager-rolebinding.yaml
+
+patches:
+  - path: patches/cainjection_in_evalhubs.yaml
+  - path: patches/manager_webhook_config.yaml
+  - path: patches/webhook_in_evalhubs.yaml
+
+configurations:
+  - patches/kustomizeconfig.yaml

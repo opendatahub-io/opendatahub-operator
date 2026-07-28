@@ -1,0 +1,51 @@
+# ValidatingWebhookConfiguration tells Kubernetes API server to send requests to our webhook for validation.
+# The webhook validates SparkApplications to ensure they meet requirements before being accepted.
+# Use cases:
+# - Validate required fields are present
+# - Check resource requests are within limits
+# - Ensure Spark version compatibility
+# If validation fails, the resource creation/update is rejected.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: spark-operator-webhook
+  labels:
+    app.kubernetes.io/name: spark-operator
+    app.kubernetes.io/instance: spark-operator
+    app.kubernetes.io/component: webhook
+webhooks:
+  # Webhook 1: Validate SparkApplication resources
+  - name: validate-sparkapplication.sparkoperator.k8s.io
+    admissionReviewVersions: ["v1"]
+    clientConfig:
+      service:
+        name: spark-operator-webhook-svc
+        namespace: system
+        port: 443
+        path: /validate-sparkoperator-k8s-io-v1beta2-sparkapplication
+    sideEffects: NoneOnDryRun
+    failurePolicy: Fail
+    rules:
+      - apiGroups: ["sparkoperator.k8s.io"]
+        apiVersions: ["v1beta2"]
+        resources: ["sparkapplications"]
+        operations: ["CREATE", "UPDATE"]
+    timeoutSeconds: 10
+
+  # Webhook 2: Validate ScheduledSparkApplication resources
+  - name: validate-scheduledsparkapplication.sparkoperator.k8s.io
+    admissionReviewVersions: ["v1"]
+    clientConfig:
+      service:
+        name: spark-operator-webhook-svc
+        namespace: system
+        port: 443
+        path: /validate-sparkoperator-k8s-io-v1beta2-scheduledsparkapplication
+    sideEffects: NoneOnDryRun
+    failurePolicy: Fail
+    rules:
+      - apiGroups: ["sparkoperator.k8s.io"]
+        apiVersions: ["v1beta2"]
+        resources: ["scheduledsparkapplications"]
+        operations: ["CREATE", "UPDATE"]
+    timeoutSeconds: 10

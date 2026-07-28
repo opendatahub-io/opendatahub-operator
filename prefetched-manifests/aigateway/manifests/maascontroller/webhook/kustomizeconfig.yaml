@@ -1,0 +1,7 @@
+# kustomizeconfig.yaml for webhook CA bundle injection
+# Tells kustomize where to place the commonAnnotations
+
+commonAnnotations:
+  - path: metadata/annotations
+    create: true
+    kind: ValidatingWebhookConfiguration

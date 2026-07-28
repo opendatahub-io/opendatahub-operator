@@ -1,0 +1,58 @@
+# permissions for end users to administer FMS Guardrails Orchestrators.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: guardrailsorchestrator-admin-role
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+aggregationRule:
+  clusterRoleSelectors:
+    - matchLabels:
+        rbac.authorization.k8s.io/aggregate-to-guardrailsorchestrator-admin-role: "true"
+rules:
+  []
+---
+# permissions for end users to edit FMS Guardrails Orchestrators.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: trustyai-service-operator
+    app.kubernetes.io/managed-by: kustomize
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+    rbac.authorization.k8s.io/aggregate-to-guardrailsorchestrator-admin-role: "true"
+  name: guardrailsorchestrator-editor-role
+rules:
+  - apiGroups:
+      - trustyai.opendatahub.io
+    resources:
+      - guardrailsorchestrators
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+---
+# permissions for end users to view FMS Guardrails Orchestrators.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: trustyai-service-operator
+    app.kubernetes.io/managed-by: kustomize
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+  name: guardrailsorchestrator-viewer-role
+rules:
+  - apiGroups:
+      - trustyai.opendatahub.io
+    resources:
+      - guardrailsorchestrators
+      - guardrailsorchestrators/status
+      - guardrailsorchestrators/finalizers
+    verbs:
+      - get
+      - list
+      - watch

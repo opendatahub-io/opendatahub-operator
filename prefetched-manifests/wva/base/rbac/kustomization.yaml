@@ -1,0 +1,18 @@
+resources:
+# Controller manager: cluster role and cluster role binding.
+- manager-clusterrole.yaml
+- manager-clusterrolebinding.yaml
+# Leader election permissions.
+- leader-election-role.yaml
+- leader-election-rolebinding.yaml
+# Metrics endpoint authn/authz. Comment out to disable metrics endpoint protection.
+# More info: https://book.kubebuilder.io/reference/metrics.html
+- metrics-auth-clusterrole.yaml
+- metrics-auth-clusterrolebinding.yaml
+- metrics-reader-clusterrole.yaml
+- metrics-reader-clusterrolebinding.yaml
+# EPP metrics reader: dedicated service account with minimal privileges.
+- epp-metrics-serviceaccount.yaml
+- epp-metrics-reader-clusterrole.yaml
+- epp-metrics-reader-clusterrolebinding.yaml
+- epp-metrics-token-secret.yaml

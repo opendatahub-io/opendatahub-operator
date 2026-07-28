@@ -1,0 +1,28 @@
+apiVersion: batch.llm-d.ai/v1alpha1
+kind: LLMBatchGateway
+metadata:
+  name: batch-gateway-dev
+spec:
+  secretRef:
+    name: batch-gateway-secrets
+  dbBackend: postgresql
+  fileStorage:
+    fs:
+      basePath: /data/batch-gateway
+      claimName: batch-gateway-files
+  apiServer:
+    replicas: 1
+    imagePullPolicy: IfNotPresent
+  gc:
+    interval: 30m
+    imagePullPolicy: IfNotPresent
+  processor:
+    replicas: 1
+    imagePullPolicy: IfNotPresent
+    dispatchMode: sync
+    globalInferenceGateway:
+      url: http://vllm-sim.default.svc:8000
+      requestTimeout: 5m
+      maxRetries: 3
+      initialBackoff: 1s
+      maxBackoff: 60s

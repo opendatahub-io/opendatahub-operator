@@ -1,0 +1,38 @@
+apiVersion: v1
+data:
+  {{ if .APIServer.CustomKfpLauncherConfigMap }}
+  {{.CustomKfpLauncherConfigMapData}}
+  {{ else }}
+  {{ if .ObjectStorageConnection.BasePath }}
+  defaultPipelineRoot: s3://{{.ObjectStorageConnection.Bucket}}/{{.ObjectStorageConnection.BasePath}}
+  {{ else }}
+  defaultPipelineRoot: s3://{{.ObjectStorageConnection.Bucket}}
+  {{ end }}
+  providers: |
+    s3:
+      default:
+        endpoint: {{.ObjectStorageConnection.Endpoint}}
+        {{ if .ObjectStorageConnection.Secure }}
+        disableSSL:  false
+        {{else}}
+        disableSSL: true
+        {{end}}
+        region: {{.ObjectStorageConnection.Region}}
+        credentials:
+          {{if .ObjectStorageConnection.CredentialsSecret}}
+          fromEnv: false
+          secretRef:
+            secretName: {{.ObjectStorageConnection.CredentialsSecret.SecretName}}
+            accessKeyKey: {{.ObjectStorageConnection.CredentialsSecret.AccessKey}}
+            secretKeyKey: {{.ObjectStorageConnection.CredentialsSecret.SecretKey}}
+          {{else}}
+          fromEnv: true
+          {{end}}
+  {{ end }}
+kind: ConfigMap
+metadata:
+  name: kfp-launcher
+  namespace: {{.Namespace}}
+  labels:
+    app: ds-pipeline-{{.Name}}
+    component: data-science-pipelines

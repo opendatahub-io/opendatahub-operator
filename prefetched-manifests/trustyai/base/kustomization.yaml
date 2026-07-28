@@ -1,0 +1,130 @@
+---
+resources:
+  - ../manager
+  - ../rbac-base
+  - ../prometheus
+  - ../configmaps
+
+configMapGenerator:
+  - env: params.env
+    name: config
+
+configurations:
+  - params.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+vars:
+  - name: trustyaiServiceImage
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.trustyaiServiceImage
+  - name: trustyaiOperatorImage
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.trustyaiOperatorImage
+  - name: kube-rbac-proxy
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.kube-rbac-proxy
+  - name: kServeServerless
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.kServeServerless
+  - name: evalHubImage
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.evalHubImage
+  - name: evalHubMCPImage
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.evalHubMCPImage
+  - name: garak-provider-image
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.garak-provider-image
+  - name: evalhub-provider-guidellm-image
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.evalhub-provider-guidellm-image
+  - name: evalhub-provider-lighteval-image
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.evalhub-provider-lighteval-image
+  - name: evalhub-provider-ibm-clear-image
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.evalhub-provider-ibm-clear-image
+  - name: lmes-pod-image
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.lmes-pod-image
+  - name: lmes-driver-image
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.lmes-driver-image
+  - name: guardrails-orchestrator-image
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.guardrails-orchestrator-image
+  - name: guardrails-built-in-detector-image
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.guardrails-built-in-detector-image
+  - name: guardrails-sidecar-gateway-image
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.guardrails-sidecar-gateway-image
+  - name: nemo-guardrails-image
+    objref:
+      kind: ConfigMap
+      name: config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.nemo-guardrails-image

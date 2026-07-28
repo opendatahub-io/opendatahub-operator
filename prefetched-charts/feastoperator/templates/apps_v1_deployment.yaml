@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: opendatahub-feast-operator
+  name: opendatahub-feast-operator
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opendatahub-feast-operator
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        app.kubernetes.io/name: opendatahub-feast-operator
+    spec:
+      containers:
+      - command:
+        - /manager
+        - operator
+        env:
+        - name: ODH_MODULE_OPERATOR_CONFIGURATION_PATH
+          value: /etc/controller/config
+        - name: ODH_MODULE_OPERATOR_MANIFESTS_PATH
+          value: /opt/manifests
+        - name: ODH_MODULE_OPERATOR_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: ODH_MODULE_OPERATOR_APPLICATIONS_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: RHAI_APPLICATIONS_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: ODH_MODULE_OPERATOR_METRICS_BIND_ADDRESS
+          value: :8443
+        image: "{{ include "chart.imageRef" . }}"
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        ports:
+        - containerPort: 8081
+          name: health
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /etc/controller/config
+          name: config
+          readOnly: true
+        - mountPath: /opt/manifests
+          name: manifests
+      initContainers:
+      - command:
+        - cp
+        - -r
+        - /manifests/.
+        - /opt/manifests/
+        image: "{{ include "chart.imageRef" . }}"
+        imagePullPolicy: Always
+        name: copy-manifests
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /opt/manifests
+          name: manifests
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: {{ default (include "chart.fullname" .) .Values.serviceAccount.name }}
+      {{- with .Values.imagePullSecret }}
+      imagePullSecrets:
+        - name: {{ . }}
+      {{- end }}
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - emptyDir: {}
+        name: manifests
+      - configMap:
+          name: opendatahub-feast-config
+        name: config

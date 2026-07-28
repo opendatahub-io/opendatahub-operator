@@ -1,0 +1,26 @@
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: sample-dspa-proxy
+spec:
+  apiServer:
+    deploy: true
+    enableSamplePipeline: true
+    cABundle:
+      configMapKey: ca.crt
+      configMapName: kube-root-ca.crt
+  database:
+    mariaDB:
+      deploy: true
+  objectStorage:
+    enableExternalRoute: true
+    minio:
+      deploy: true
+      image: 'quay.io/opendatahub/minio:RELEASE.2019-08-14T20-37-41Z-license-compliance'
+  proxy:
+    # HTTP proxy URL for outbound HTTP connections
+    httpProxy: "http://squid.dspa-proxy.svc.cluster.local:3128"
+    # HTTPS proxy URL for outbound HTTPS connections
+    httpsProxy: "http://squid.dspa-proxy.svc.cluster.local:3128"
+    # Comma-separated list of hosts that should bypass the proxy
+    noProxy: "localhost,127.0.0.1,.svc.cluster.local,kubernetes.default.svc"

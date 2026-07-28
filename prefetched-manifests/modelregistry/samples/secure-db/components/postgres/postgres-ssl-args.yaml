@@ -1,0 +1,12 @@
+- op: add
+  path: /spec/template/spec/containers/0/args
+  value:
+    - postgres
+    - -c
+    - ssl=on
+    - -c
+    - ssl_cert_file=/etc/server-cert/tls.crt
+    - -c
+    - ssl_key_file=/etc/server-cert/tls.key
+    - -c
+    - ssl_ca_file=/etc/server-cert/ca.crt

@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{.ScheduledWorkflowDefaultResourceName}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.ScheduledWorkflowDefaultResourceName}}
+    component: data-science-pipelines
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{.ScheduledWorkflowDefaultResourceName}}
+subjects:
+  - kind: ServiceAccount
+    name: {{.ScheduledWorkflowDefaultResourceName}}

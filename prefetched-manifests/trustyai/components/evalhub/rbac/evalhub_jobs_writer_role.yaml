@@ -1,0 +1,14 @@
+---
+# ClusterRole for EvalHub job creation
+# Split from the monolithic evalhub-resource-manager for least-privilege.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: evalhub-jobs-writer
+  labels:
+    app.kubernetes.io/name: trustyai-service-operator
+    app.kubernetes.io/component: evalhub
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "delete", "list"]

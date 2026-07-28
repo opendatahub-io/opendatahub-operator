@@ -1,0 +1,19 @@
+{{ if .MLMD.Envoy.DeployRoute }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kube-rbac-proxy-metadata-config-{{.Name}}
+  namespace: {{.Namespace}}
+  labels:
+    app: ds-pipeline-metadata-envoy-{{.Name}}
+    component: data-science-pipelines
+data:
+  config-file.yaml: |-
+    authorization:
+      resourceAttributes:
+        namespace: {{.Namespace}}
+        apiGroup: datasciencepipelinesapplications.opendatahub.io
+        resource: datasciencepipelinesapplications
+        subresource: api
+        name: {{.Name}}
+{{ end }}

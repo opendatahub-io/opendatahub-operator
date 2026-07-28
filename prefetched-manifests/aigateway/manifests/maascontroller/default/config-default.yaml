@@ -1,0 +1,6 @@
+# Cluster-scoped anchor for MaaS platform resources. The ODH operator may apply this object;
+# maas-controller also ensures it exists at startup. Operand ownerReferences point here.
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: Config
+metadata:
+  name: default

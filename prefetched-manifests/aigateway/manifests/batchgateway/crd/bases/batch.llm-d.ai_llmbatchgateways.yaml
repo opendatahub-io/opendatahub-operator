@@ -1,0 +1,1562 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.3
+  name: llmbatchgateways.batch.llm-d.ai
+spec:
+  group: batch.llm-d.ai
+  names:
+    kind: LLMBatchGateway
+    listKind: LLMBatchGatewayList
+    plural: llmbatchgateways
+    shortNames:
+    - lbg
+    singular: llmbatchgateway
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - jsonPath: .status.componentStatus.apiServer.readyReplicas
+      name: API-Ready
+      type: integer
+    - jsonPath: .status.componentStatus.processor.readyReplicas
+      name: Proc-Ready
+      type: integer
+    - jsonPath: .status.componentStatus.gc.readyReplicas
+      name: GC-Ready
+      type: integer
+    - jsonPath: .status.componentStatus.asyncProcessor.readyReplicas
+      name: Async-Ready
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          LLMBatchGateway is the Schema for the llmbatchgateways API.
+          It represents a fully-managed deployment of the LLM-D batch gateway,
+          consisting of an API server, a request processor and a garbage-collector.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Spec defines the desired state of LLMBatchGateway.
+            properties:
+              apiServer:
+                description: APIServer configures the HTTP API server component.
+                properties:
+                  config:
+                    description: Config holds fine-grained API server configuration.
+                    properties:
+                      batchAPI:
+                        description: BatchAPI configures the batch job submission
+                          endpoint behaviour.
+                        properties:
+                          eventTTLSeconds:
+                            description: EventTTLSeconds is how long job events are
+                              retained before expiry.
+                            format: int32
+                            type: integer
+                          passThroughHeaders:
+                            description: PassThroughHeaders is a list of HTTP request
+                              headers forwarded to the inference backend.
+                            items:
+                              maxLength: 256
+                              type: string
+                            type: array
+                        type: object
+                      enablePprof:
+                        description: EnablePprof enables the Go pprof profiling HTTP
+                          endpoints.
+                        type: boolean
+                      fileAPI:
+                        description: FileAPI configures the file upload/download endpoint
+                          behaviour.
+                        properties:
+                          defaultExpirationSeconds:
+                            description: DefaultExpirationSeconds is the default TTL
+                              for uploaded files.
+                            format: int64
+                            type: integer
+                          maxLineCount:
+                            description: MaxLineCount is the maximum number of lines
+                              allowed in a JSONL batch input file.
+                            format: int64
+                            type: integer
+                          maxSizeBytes:
+                            description: MaxSizeBytes is the maximum allowed size
+                              of a single uploaded file.
+                            format: int64
+                            type: integer
+                        type: object
+                      idleTimeoutSeconds:
+                        description: IdleTimeoutSeconds is the maximum amount of time
+                          to wait for the next request.
+                        format: int32
+                        type: integer
+                      inputHeaders:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          InputHeaders maps logical header roles to HTTP header names used for tenant
+                          identification and other input metadata (e.g. {"tenant": "X-MaaS-Username"}).
+                        type: object
+                      logging:
+                        description: Logging configures log verbosity for the API
+                          server.
+                        properties:
+                          verbosity:
+                            description: Verbosity sets the log verbosity level (higher
+                              means more verbose).
+                            format: int32
+                            type: integer
+                        type: object
+                      observabilityPort:
+                        description: ObservabilityPort is the TCP port that exposes
+                          metrics and health endpoints.
+                        format: int32
+                        maximum: 65535
+                        minimum: 1
+                        type: integer
+                      port:
+                        description: Port is the TCP port the API server listens on.
+                        format: int32
+                        maximum: 65535
+                        minimum: 1
+                        type: integer
+                      readTimeoutSeconds:
+                        description: ReadTimeoutSeconds is the maximum duration for
+                          reading an entire HTTP request.
+                        format: int32
+                        type: integer
+                      writeTimeoutSeconds:
+                        description: WriteTimeoutSeconds is the maximum duration before
+                          timing out writes of the response.
+                        format: int32
+                        type: integer
+                    type: object
+                  imagePullPolicy:
+                    description: |-
+                      ImagePullPolicy overrides the image pull policy for the API server container.
+                      Useful for development workflows where the image is loaded directly into the cluster node.
+                    enum:
+                    - Always
+                    - Never
+                    - IfNotPresent
+                    type: string
+                  replicas:
+                    default: 1
+                    description: |-
+                      Replicas is the desired number of API server pods.
+                      Setting this to 0 suspends the API server; the Ready condition will be False.
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  resources:
+                    description: Resources defines CPU and memory requests/limits
+                      for the API server container.
+                    properties:
+                      claims:
+                        description: |-
+                          Claims lists the names of resources, defined in spec.resourceClaims,
+                          that are used by this container.
+
+                          This field depends on the
+                          DynamicResourceAllocation feature gate.
+
+                          This field is immutable. It can only be set for containers.
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: |-
+                                Name must match the name of one entry in pod.spec.resourceClaims of
+                                the Pod where this field is used. It makes that resource available
+                                inside a container.
+                              type: string
+                            request:
+                              description: |-
+                                Request is the name chosen for a request in the referenced claim.
+                                If empty, everything from the claim is made available, otherwise
+                                only the result of this request.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Limits describes the maximum amount of compute resources allowed.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Requests describes the minimum amount of compute resources required.
+                          If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                          otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                    type: object
+                type: object
+              dbBackend:
+                default: postgresql
+                description: DBBackend selects the database backend used for job state
+                  storage.
+                enum:
+                - redis
+                - postgresql
+                - valkey
+                type: string
+              fileStorage:
+                description: |-
+                  FileStorage configures the file storage backend used to persist batch
+                  input/output files. Exactly one of s3 or fs must be configured.
+                properties:
+                  fs:
+                    description: FS configures PVC-backed filesystem storage. Mutually
+                      exclusive with s3.
+                    properties:
+                      basePath:
+                        description: BasePath is the root directory inside the PVC
+                          where files are stored.
+                        maxLength: 4096
+                        type: string
+                      claimName:
+                        description: ClaimName is the name of the PersistentVolumeClaim
+                          to mount.
+                        maxLength: 253
+                        type: string
+                    required:
+                    - claimName
+                    type: object
+                    x-kubernetes-validations:
+                    - message: fs.claimName is required
+                      rule: size(self.claimName) > 0
+                  retry:
+                    description: Retry configures retry behaviour for transient file
+                      storage errors.
+                    properties:
+                      initialBackoff:
+                        default: 1s
+                        description: InitialBackoff is the wait duration before the
+                          first retry (e.g. "1s").
+                        pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                        type: string
+                      maxBackoff:
+                        default: 10s
+                        description: MaxBackoff is the maximum wait duration between
+                          retries (e.g. "10s").
+                        pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                        type: string
+                      maxRetries:
+                        default: 3
+                        description: MaxRetries is the maximum number of retry attempts.
+                          Set to 0 to disable retries.
+                        format: int32
+                        minimum: 0
+                        type: integer
+                    type: object
+                  s3:
+                    description: S3 configures S3-compatible object storage. Mutually
+                      exclusive with fs.
+                    properties:
+                      accessKeyId:
+                        description: |-
+                          AccessKeyID is the S3 access key ID (non-sensitive). The corresponding
+                          secret access key must be provided via spec.secretRef.
+                        maxLength: 1024
+                        type: string
+                      autoCreateBucket:
+                        description: AutoCreateBucket causes the operator to create
+                          the bucket if it does not exist.
+                        type: boolean
+                      bucket:
+                        description: |-
+                          Bucket is the S3 bucket name used for all file storage.
+                          Tenant isolation is achieved via S3 key prefixes, not separate buckets.
+                        maxLength: 63
+                        minLength: 1
+                        type: string
+                      endpoint:
+                        description: Endpoint overrides the S3 endpoint URL for non-AWS
+                          providers (e.g. MinIO).
+                        maxLength: 2048
+                        pattern: ^https?://.+$
+                        type: string
+                      prefix:
+                        description: Prefix is an optional key prefix applied to all
+                          objects written to the bucket.
+                        maxLength: 1024
+                        type: string
+                      region:
+                        description: Region is the AWS region (e.g. "us-east-1").
+                        maxLength: 253
+                        type: string
+                      usePathStyle:
+                        description: UsePathStyle forces path-style addressing (required
+                          by some S3-compatible stores).
+                        type: boolean
+                    required:
+                    - bucket
+                    type: object
+                type: object
+                x-kubernetes-validations:
+                - message: exactly one of fileStorage.s3 or fileStorage.fs must be
+                    set
+                  rule: has(self.s3) != has(self.fs)
+              gc:
+                description: GC configures the garbage-collector component that expires
+                  old jobs and files.
+                properties:
+                  config:
+                    description: Config holds fine-grained GC configuration.
+                    properties:
+                      dryRun:
+                        description: DryRun causes the GC to log what it would delete
+                          without actually deleting anything.
+                        type: boolean
+                      logging:
+                        description: Logging configures log verbosity for the GC.
+                        properties:
+                          verbosity:
+                            description: Verbosity sets the log verbosity level (higher
+                              means more verbose).
+                            format: int32
+                            type: integer
+                        type: object
+                      maxConcurrency:
+                        description: MaxConcurrency is the maximum number of deletion
+                          operations performed in parallel.
+                        format: int32
+                        type: integer
+                      reconciler:
+                        description: |-
+                          Reconciler configures the orphan reconciler that detects and cleans up
+                          stale jobs missed by the normal collector sweep.
+                        properties:
+                          enabled:
+                            default: true
+                            description: Enabled controls whether the orphan reconciler
+                              runs.
+                            type: boolean
+                          interval:
+                            default: 60m
+                            description: Interval is both the scan frequency and the
+                              staleness threshold (e.g. "60m").
+                            maxLength: 32
+                            pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                            type: string
+                        type: object
+                    type: object
+                  imagePullPolicy:
+                    description: |-
+                      ImagePullPolicy overrides the image pull policy for the GC container.
+                      Useful for development workflows where the image is loaded directly into the cluster node.
+                    enum:
+                    - Always
+                    - Never
+                    - IfNotPresent
+                    type: string
+                  interval:
+                    default: 30m
+                    description: Interval is how often the GC runs (e.g. "30m").
+                    pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                    type: string
+                  replicas:
+                    default: 1
+                    description: |-
+                      Replicas is the desired number of GC pods.
+                      Setting this to 0 suspends the GC; the Ready condition will be False.
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  resources:
+                    description: Resources defines CPU and memory requests/limits
+                      for the GC container.
+                    properties:
+                      claims:
+                        description: |-
+                          Claims lists the names of resources, defined in spec.resourceClaims,
+                          that are used by this container.
+
+                          This field depends on the
+                          DynamicResourceAllocation feature gate.
+
+                          This field is immutable. It can only be set for containers.
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: |-
+                                Name must match the name of one entry in pod.spec.resourceClaims of
+                                the Pod where this field is used. It makes that resource available
+                                inside a container.
+                              type: string
+                            request:
+                              description: |-
+                                Request is the name chosen for a request in the referenced claim.
+                                If empty, everything from the claim is made available, otherwise
+                                only the result of this request.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Limits describes the maximum amount of compute resources allowed.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Requests describes the minimum amount of compute resources required.
+                          If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                          otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                    type: object
+                type: object
+              grafana:
+                description: Grafana enables the bundled Grafana dashboard ConfigMap.
+                properties:
+                  enabled:
+                    description: Enabled controls whether a Grafana dashboard ConfigMap
+                      is created.
+                    type: boolean
+                type: object
+              httpRoute:
+                description: HTTPRoute configures a Gateway API HTTPRoute resource
+                  to expose the API server.
+                properties:
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    description: Annotations are extra annotations applied to the
+                      HTTPRoute resource.
+                    type: object
+                  enabled:
+                    description: Enabled controls whether an HTTPRoute resource is
+                      created.
+                    type: boolean
+                  parentRefs:
+                    description: ParentRefs is the list of Gateways this HTTPRoute
+                      should attach to.
+                    items:
+                      description: ParentReference identifies a Gateway to which an
+                        HTTPRoute should attach.
+                      properties:
+                        name:
+                          description: Name is the name of the Gateway resource.
+                          maxLength: 253
+                          type: string
+                        namespace:
+                          description: Namespace is the namespace of the Gateway resource.
+                            Defaults to the HTTPRoute's namespace.
+                          maxLength: 63
+                          type: string
+                        sectionName:
+                          description: SectionName is the name of a specific listener
+                            on the Gateway to attach to.
+                          maxLength: 253
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
+                type: object
+              imagePullSecrets:
+                description: |-
+                  ImagePullSecrets is a list of references to secrets for pulling container images
+                  from private registries. Applied globally to all component pods (apiServer, processor, gc).
+                items:
+                  description: |-
+                    LocalObjectReference contains enough information to let you locate the
+                    referenced object inside the same namespace.
+                  properties:
+                    name:
+                      default: ""
+                      description: |-
+                        Name of the referent.
+                        This field is effectively required, but due to backwards compatibility is
+                        allowed to be empty. Instances of this type with an empty value here are
+                        almost certainly wrong.
+                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      type: string
+                  type: object
+                  x-kubernetes-map-type: atomic
+                maxItems: 20
+                type: array
+              monitoring:
+                description: Monitoring enables Prometheus ServiceMonitor and PodMonitor
+                  resources.
+                properties:
+                  enabled:
+                    description: Enabled controls whether a ServiceMonitor and PodMonitor
+                      are created for each component.
+                    type: boolean
+                type: object
+              otel:
+                description: OTEL configures OpenTelemetry tracing for all components.
+                properties:
+                  endpoint:
+                    description: Endpoint is the OTLP gRPC or HTTP endpoint (e.g.
+                      "http://collector:4317").
+                    maxLength: 2048
+                    pattern: ^https?://.+$
+                    type: string
+                  insecure:
+                    description: Insecure disables TLS for the OTLP connection.
+                    type: boolean
+                  postgresqlTracing:
+                    description: PostgresqlTracing enables tracing of PostgreSQL operations.
+                    type: boolean
+                  redisTracing:
+                    description: RedisTracing enables tracing of Redis operations.
+                    type: boolean
+                  sampler:
+                    description: Sampler is the OTEL sampler type (e.g. "parentbased_traceidratio").
+                    maxLength: 253
+                    type: string
+                  samplerArg:
+                    description: SamplerArg is the argument passed to the sampler
+                      (e.g. "0.1" for 10% sampling).
+                    maxLength: 253
+                    type: string
+                type: object
+              processor:
+                description: Processor configures the request-processing worker component.
+                properties:
+                  asyncConfig:
+                    description: |-
+                      AsyncConfig configures the async-processor deployment.
+                      Required when dispatchMode is "async".
+                    properties:
+                      concurrency:
+                        default: 8
+                        description: Concurrency is the number of concurrent inference
+                          requests the processor dispatches.
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      drainTimeout:
+                        default: 2m
+                        description: DrainTimeout is the maximum time to wait for
+                          in-flight requests during shutdown (e.g. "2m").
+                        pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                        type: string
+                      imagePullPolicy:
+                        description: ImagePullPolicy overrides the image pull policy
+                          for the async-processor container.
+                        enum:
+                        - Always
+                        - Never
+                        - IfNotPresent
+                        type: string
+                      inferenceGateway:
+                        description: |-
+                          InferenceGateway configures the connection to the inference gateway
+                          EPP (EndpointPicker) service where inference requests are sent.
+                        properties:
+                          inferenceObjective:
+                            description: InferenceObjective specifies the scheduling
+                              objective for this gateway (e.g. "throughput", "latency").
+                            maxLength: 253
+                            type: string
+                          inferencePoolName:
+                            description: |-
+                              InferencePoolName identifies the async dispatch pool for this model.
+                              Required when dispatchMode is set to 'async'.
+                            maxLength: 253
+                            type: string
+                          initialBackoff:
+                            description: InitialBackoff is the wait duration before
+                              the first retry (e.g. "500ms").
+                            maxLength: 32
+                            pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                            type: string
+                          maxBackoff:
+                            description: MaxBackoff is the maximum wait duration between
+                              retries (e.g. "30s").
+                            maxLength: 32
+                            pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                            type: string
+                          maxRetries:
+                            description: MaxRetries is the maximum number of retry
+                              attempts on transient errors.
+                            format: int32
+                            type: integer
+                          requestTimeout:
+                            description: RequestTimeout is the maximum time to wait
+                              for a single inference response (e.g. "5m").
+                            maxLength: 32
+                            pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                            type: string
+                          tlsCACertFile:
+                            description: TLSCACertFile is the path to a custom CA
+                              certificate file for verifying the gateway's TLS certificate.
+                            maxLength: 4096
+                            type: string
+                          tlsClientCertFile:
+                            description: TLSClientCertFile is the path to the client
+                              TLS certificate file for mutual TLS.
+                            maxLength: 4096
+                            type: string
+                          tlsClientKeyFile:
+                            description: TLSClientKeyFile is the path to the client
+                              TLS private key file for mutual TLS.
+                            maxLength: 4096
+                            type: string
+                          tlsInsecureSkipVerify:
+                            description: TLSInsecureSkipVerify disables TLS certificate
+                              verification. Not recommended for production.
+                            type: boolean
+                          url:
+                            description: |-
+                              URL is the base URL of the inference gateway (e.g. "http://gateway.svc:8000").
+                              Required when dispatchMode is set to 'sync'.
+                            maxLength: 2048
+                            pattern: ^https?://.+$
+                            type: string
+                        type: object
+                        x-kubernetes-validations:
+                        - message: tlsInsecureSkipVerify is not allowed; configure
+                            trusted CA certificates instead
+                          rule: '!has(self.tlsInsecureSkipVerify) || !self.tlsInsecureSkipVerify'
+                      modelServerMonitor:
+                        description: ModelServerMonitor configs a PodMonitor that
+                          scrapes model server metrics.
+                        properties:
+                          enabled:
+                            type: boolean
+                          interval:
+                            default: 15s
+                            pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                            type: string
+                          path:
+                            default: /metrics
+                            maxLength: 2048
+                            type: string
+                          port:
+                            default: modelserver
+                            maxLength: 253
+                            type: string
+                          selector:
+                            additionalProperties:
+                              type: string
+                            type: object
+                        type: object
+                      prometheusCacheTTL:
+                        description: PrometheusCacheTTL is the cache duration for
+                          Prometheus query results (e.g. "30s").
+                        pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                        type: string
+                      prometheusURL:
+                        description: PrometheusURL is the URL of a Prometheus instance
+                          for gate metrics queries.
+                        maxLength: 2048
+                        type: string
+                      redis:
+                        description: Redis configures the Redis message queue backend.
+                        properties:
+                          batchSize:
+                            default: 10
+                            description: BatchSize is the number of requests to dequeue
+                              per poll cycle.
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          gateParams:
+                            additionalProperties:
+                              type: string
+                            description: GateParams provides parameters for the gating
+                              mechanism.
+                            type: object
+                          gateType:
+                            description: GateType specifies the dispatch gating mechanism
+                              (e.g. "prometheus-saturation", "redis-quota").
+                            maxLength: 253
+                            type: string
+                          pollIntervalMs:
+                            default: 1000
+                            description: PollIntervalMs is the polling interval in
+                              milliseconds for the Redis queue.
+                            format: int32
+                            minimum: 100
+                            type: integer
+                          queuesConfig:
+                            description: |-
+                              QueuesConfig is a list of per-queue configurations.
+                              When set, overrides the single-queue settings (RequestPathURL, GateType, etc.).
+                            items:
+                              description: AsyncQueueConfig configures a single Redis
+                                queue for the async-processor.
+                              properties:
+                                gateParams:
+                                  additionalProperties:
+                                    type: string
+                                  description: GateParams overrides the gate parameters
+                                    for this queue.
+                                  type: object
+                                gateType:
+                                  description: GateType overrides the gating mechanism
+                                    for this queue.
+                                  maxLength: 253
+                                  type: string
+                                igwBaseURL:
+                                  description: IGWBaseURL overrides the top-level
+                                    asyncConfig.inferenceGateway URL for this queue.
+                                  maxLength: 2048
+                                  pattern: ^https?://.+$
+                                  type: string
+                                name:
+                                  description: |-
+                                    Name is the Redis sorted-set key for this queue.
+                                    Must follow the convention: llm-d-async:requests:<inferencePoolName>
+                                    where <inferencePoolName> matches the corresponding modelGateways entry.
+                                    The result queue (llm-d-async:results:<inferencePoolName>) is auto-configured by the batch processor.
+                                  maxLength: 253
+                                  type: string
+                                requestPathURL:
+                                  description: RequestPathURL overrides the request
+                                    path for this queue.
+                                  maxLength: 2048
+                                  type: string
+                                workerPoolID:
+                                  description: |-
+                                    WorkerPoolID assigns this queue to a named worker pool.
+                                    Must match a workerPools[].name entry. Defaults to "default" if omitted.
+                                  maxLength: 253
+                                  type: string
+                              required:
+                              - name
+                              type: object
+                            type: array
+                          requestPathURL:
+                            default: /v1/completions
+                            description: RequestPathURL is the path appended to the
+                              inference gateway URL for requests.
+                            maxLength: 2048
+                            type: string
+                        type: object
+                      replicas:
+                        default: 1
+                        description: |-
+                          Replicas is the desired number of async-processor pods.
+                          Setting this to 0 suspends the async-processor; the Ready condition will be False.
+                          NOTE: the upstream async-processor chart currently hardcodes replicas to 1;
+                          this field will take effect once the upstream chart templates it from values.
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      resources:
+                        description: Resources defines CPU and memory requests/limits
+                          for the async-processor container.
+                        properties:
+                          claims:
+                            description: |-
+                              Claims lists the names of resources, defined in spec.resourceClaims,
+                              that are used by this container.
+
+                              This field depends on the
+                              DynamicResourceAllocation feature gate.
+
+                              This field is immutable. It can only be set for containers.
+                            items:
+                              description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                              properties:
+                                name:
+                                  description: |-
+                                    Name must match the name of one entry in pod.spec.resourceClaims of
+                                    the Pod where this field is used. It makes that resource available
+                                    inside a container.
+                                  type: string
+                                request:
+                                  description: |-
+                                    Request is the name chosen for a request in the referenced claim.
+                                    If empty, everything from the claim is made available, otherwise
+                                    only the result of this request.
+                                  type: string
+                              required:
+                              - name
+                              type: object
+                            type: array
+                            x-kubernetes-list-map-keys:
+                            - name
+                            x-kubernetes-list-type: map
+                          limits:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: |-
+                              Limits describes the maximum amount of compute resources allowed.
+                              More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                            type: object
+                          requests:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: |-
+                              Requests describes the minimum amount of compute resources required.
+                              If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                              otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                              More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                            type: object
+                        type: object
+                      resultPollTimeout:
+                        description: |-
+                          ResultPollTimeout is the maximum time the batch-gateway processor waits
+                          for an async dispatch result before timing out (e.g. "30s").
+                        maxLength: 32
+                        pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                        type: string
+                      tls:
+                        description: TLS configures TLS for connections to inference
+                          gateways.
+                        properties:
+                          caCertKey:
+                            maxLength: 253
+                            type: string
+                          certKey:
+                            maxLength: 253
+                            type: string
+                          insecureSkipVerify:
+                            type: boolean
+                          keyKey:
+                            description: KeyKey is the key in the Secret holding the
+                              private key.
+                            maxLength: 253
+                            type: string
+                          secretName:
+                            maxLength: 253
+                            type: string
+                        type: object
+                      transformConfig:
+                        description: TransformConfig modifies request bodies before
+                          forwarding to the inference gateway.
+                        properties:
+                          requestTransforms:
+                            items:
+                              properties:
+                                name:
+                                  maxLength: 253
+                                  type: string
+                                parameters:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                                type:
+                                  maxLength: 253
+                                  type: string
+                              required:
+                              - name
+                              - type
+                              type: object
+                            type: array
+                        type: object
+                      workerPools:
+                        description: WorkerPools defines named worker pool configurations.
+                        items:
+                          description: AsyncWorkerPool defines a named worker pool
+                            configuration for the async-processor.
+                          properties:
+                            gateParams:
+                              additionalProperties:
+                                type: string
+                              description: GateParams provides parameters for the
+                                gating mechanism.
+                              type: object
+                            gateType:
+                              description: |-
+                                GateType specifies the dispatch gating mechanism for this pool
+                                (e.g. "prometheus-saturation", "prometheus-budget", "redis-quota").
+                              maxLength: 253
+                              type: string
+                            name:
+                              description: Name identifies this worker pool.
+                              maxLength: 253
+                              type: string
+                            workers:
+                              description: Workers is the number of concurrent workers
+                                in this pool.
+                              format: int32
+                              minimum: 1
+                              type: integer
+                          required:
+                          - name
+                          type: object
+                        type: array
+                    type: object
+                  config:
+                    description: Config holds fine-grained processor configuration.
+                    properties:
+                      concurrency:
+                        description: Concurrency groups all dispatch-rate and concurrency
+                          control knobs.
+                        properties:
+                          aimd:
+                            description: AIMD holds adaptive concurrency control parameters.
+                            properties:
+                              additiveIncrease:
+                                description: |-
+                                  AdditiveIncrease is the number of concurrency slots added after a full
+                                  window of consecutive successes per endpoint.
+                                format: int32
+                                minimum: 1
+                                type: integer
+                              backoffFactor:
+                                description: |-
+                                  BackoffFactor is the multiplicative decrease applied to the per-endpoint
+                                  concurrency limit when the endpoint signals overload (429/5xx).
+                                  Must be a decimal in (0, 1), e.g. "0.5".
+                                maxLength: 16
+                                pattern: ^0\.[0-9]+$
+                                type: string
+                              enabled:
+                                description: |-
+                                  Enabled controls whether AIMD adaptive concurrency is active.
+                                  When false, per-endpoint concurrency is fixed at ConcurrencyConfig.PerEndpoint.
+                                type: boolean
+                              min:
+                                description: |-
+                                  Min is the floor for per-endpoint adaptive concurrency.
+                                  AIMD will never reduce a single endpoint's effective limit below this value.
+                                format: int32
+                                minimum: 1
+                                type: integer
+                            type: object
+                          global:
+                            description: |-
+                              Global limits total in-flight inference requests across all workers.
+                              Acts as a fixed ceiling — the sum of all per-endpoint concurrency is
+                              bounded by this value.
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          perEndpoint:
+                            description: PerEndpoint is the initial and maximum concurrency
+                              per inference endpoint.
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          recovery:
+                            description: Recovery limits concurrent job recoveries
+                              during startup.
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        type: object
+                      defaultOutputExpirationSeconds:
+                        description: DefaultOutputExpirationSeconds is the TTL for
+                          job output files.
+                        format: int64
+                        type: integer
+                      enablePprof:
+                        description: EnablePprof enables the Go pprof profiling HTTP
+                          endpoints.
+                        type: boolean
+                      heartbeatInterval:
+                        default: 5m
+                        description: |-
+                          HeartbeatInterval is how often the processor refreshes in-flight job entries
+                          to signal liveness. Must be shorter than gc.config.reconciler.interval to
+                          prevent active jobs from being misidentified as orphans.
+                        maxLength: 32
+                        pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                        type: string
+                      logging:
+                        description: Logging configures log verbosity for the processor.
+                        properties:
+                          verbosity:
+                            description: Verbosity sets the log verbosity level (higher
+                              means more verbose).
+                            format: int32
+                            type: integer
+                        type: object
+                      numWorkers:
+                        description: NumWorkers is the number of concurrent worker
+                          goroutines processing jobs.
+                        format: int32
+                        type: integer
+                      progressTTLSeconds:
+                        description: ProgressTTLSeconds is how long in-progress job
+                          state is retained before being considered stale.
+                        format: int64
+                        type: integer
+                      sendFairnessHeader:
+                        description: |-
+                          SendFairnessHeader controls whether the processor sends a fairness header
+                          to the inference gateway for fair scheduling across tenants.
+                        type: boolean
+                    type: object
+                  dispatchMode:
+                    default: sync
+                    description: |-
+                      DispatchMode controls how batch requests are dispatched to inference backends.
+                      - "sync" (default) sends requests directly via HTTP.
+                      - "async" deploys an async-processor that dispatches via a message queue.
+                    enum:
+                    - sync
+                    - async
+                    type: string
+                  globalInferenceGateway:
+                    description: |-
+                      GlobalInferenceGateway is the default inference gateway used for all models
+                      unless overridden by a ModelGateways entry.
+                      Not supported when dispatchMode is "async"; use modelGateways with inferencePoolName instead.
+                    properties:
+                      inferenceObjective:
+                        description: InferenceObjective specifies the scheduling objective
+                          for this gateway (e.g. "throughput", "latency").
+                        maxLength: 253
+                        type: string
+                      inferencePoolName:
+                        description: |-
+                          InferencePoolName identifies the async dispatch pool for this model.
+                          Required when dispatchMode is set to 'async'.
+                        maxLength: 253
+                        type: string
+                      initialBackoff:
+                        description: InitialBackoff is the wait duration before the
+                          first retry (e.g. "500ms").
+                        maxLength: 32
+                        pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                        type: string
+                      maxBackoff:
+                        description: MaxBackoff is the maximum wait duration between
+                          retries (e.g. "30s").
+                        maxLength: 32
+                        pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                        type: string
+                      maxRetries:
+                        description: MaxRetries is the maximum number of retry attempts
+                          on transient errors.
+                        format: int32
+                        type: integer
+                      requestTimeout:
+                        description: RequestTimeout is the maximum time to wait for
+                          a single inference response (e.g. "5m").
+                        maxLength: 32
+                        pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                        type: string
+                      tlsCACertFile:
+                        description: TLSCACertFile is the path to a custom CA certificate
+                          file for verifying the gateway's TLS certificate.
+                        maxLength: 4096
+                        type: string
+                      tlsClientCertFile:
+                        description: TLSClientCertFile is the path to the client TLS
+                          certificate file for mutual TLS.
+                        maxLength: 4096
+                        type: string
+                      tlsClientKeyFile:
+                        description: TLSClientKeyFile is the path to the client TLS
+                          private key file for mutual TLS.
+                        maxLength: 4096
+                        type: string
+                      tlsInsecureSkipVerify:
+                        description: TLSInsecureSkipVerify disables TLS certificate
+                          verification. Not recommended for production.
+                        type: boolean
+                      url:
+                        description: |-
+                          URL is the base URL of the inference gateway (e.g. "http://gateway.svc:8000").
+                          Required when dispatchMode is set to 'sync'.
+                        maxLength: 2048
+                        pattern: ^https?://.+$
+                        type: string
+                    type: object
+                    x-kubernetes-validations:
+                    - message: tlsInsecureSkipVerify is not allowed; configure trusted
+                        CA certificates instead
+                      rule: '!has(self.tlsInsecureSkipVerify) || !self.tlsInsecureSkipVerify'
+                  imagePullPolicy:
+                    description: |-
+                      ImagePullPolicy overrides the image pull policy for the processor container.
+                      Useful for development workflows where the image is loaded directly into the cluster node.
+                    enum:
+                    - Always
+                    - Never
+                    - IfNotPresent
+                    type: string
+                  modelGateways:
+                    additionalProperties:
+                      description: InferenceGatewaySpec configures a connection to
+                        an inference gateway.
+                      properties:
+                        inferenceObjective:
+                          description: InferenceObjective specifies the scheduling
+                            objective for this gateway (e.g. "throughput", "latency").
+                          maxLength: 253
+                          type: string
+                        inferencePoolName:
+                          description: |-
+                            InferencePoolName identifies the async dispatch pool for this model.
+                            Required when dispatchMode is set to 'async'.
+                          maxLength: 253
+                          type: string
+                        initialBackoff:
+                          description: InitialBackoff is the wait duration before
+                            the first retry (e.g. "500ms").
+                          maxLength: 32
+                          pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                          type: string
+                        maxBackoff:
+                          description: MaxBackoff is the maximum wait duration between
+                            retries (e.g. "30s").
+                          maxLength: 32
+                          pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                          type: string
+                        maxRetries:
+                          description: MaxRetries is the maximum number of retry attempts
+                            on transient errors.
+                          format: int32
+                          type: integer
+                        requestTimeout:
+                          description: RequestTimeout is the maximum time to wait
+                            for a single inference response (e.g. "5m").
+                          maxLength: 32
+                          pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                          type: string
+                        tlsCACertFile:
+                          description: TLSCACertFile is the path to a custom CA certificate
+                            file for verifying the gateway's TLS certificate.
+                          maxLength: 4096
+                          type: string
+                        tlsClientCertFile:
+                          description: TLSClientCertFile is the path to the client
+                            TLS certificate file for mutual TLS.
+                          maxLength: 4096
+                          type: string
+                        tlsClientKeyFile:
+                          description: TLSClientKeyFile is the path to the client
+                            TLS private key file for mutual TLS.
+                          maxLength: 4096
+                          type: string
+                        tlsInsecureSkipVerify:
+                          description: TLSInsecureSkipVerify disables TLS certificate
+                            verification. Not recommended for production.
+                          type: boolean
+                        url:
+                          description: |-
+                            URL is the base URL of the inference gateway (e.g. "http://gateway.svc:8000").
+                            Required when dispatchMode is set to 'sync'.
+                          maxLength: 2048
+                          pattern: ^https?://.+$
+                          type: string
+                      type: object
+                      x-kubernetes-validations:
+                      - message: tlsInsecureSkipVerify is not allowed; configure trusted
+                          CA certificates instead
+                        rule: '!has(self.tlsInsecureSkipVerify) || !self.tlsInsecureSkipVerify'
+                    description: |-
+                      ModelGateways maps model names to per-model inference gateway configurations.
+                      In sync mode, overrides GlobalInferenceGateway for the listed models.
+                      In async mode, this is required and each entry must include an inferencePoolName.
+                    type: object
+                  replicas:
+                    default: 1
+                    description: |-
+                      Replicas is the desired number of processor pods.
+                      Setting this to 0 suspends the processor; the Ready condition will be False.
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  resources:
+                    description: Resources defines CPU and memory requests/limits
+                      for the processor container.
+                    properties:
+                      claims:
+                        description: |-
+                          Claims lists the names of resources, defined in spec.resourceClaims,
+                          that are used by this container.
+
+                          This field depends on the
+                          DynamicResourceAllocation feature gate.
+
+                          This field is immutable. It can only be set for containers.
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: |-
+                                Name must match the name of one entry in pod.spec.resourceClaims of
+                                the Pod where this field is used. It makes that resource available
+                                inside a container.
+                              type: string
+                            request:
+                              description: |-
+                                Request is the name chosen for a request in the referenced claim.
+                                If empty, everything from the claim is made available, otherwise
+                                only the result of this request.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Limits describes the maximum amount of compute resources allowed.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Requests describes the minimum amount of compute resources required.
+                          If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                          otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                    type: object
+                type: object
+                x-kubernetes-validations:
+                - message: .spec.processor.asyncConfig is required when dispatchMode
+                    is 'async'
+                  rule: self.dispatchMode != 'async' || has(self.asyncConfig)
+              prometheusRule:
+                description: PrometheusRule configures a PrometheusRule resource with
+                  pre-built alerting rules.
+                properties:
+                  enabled:
+                    description: Enabled controls whether a PrometheusRule resource
+                      is created.
+                    type: boolean
+                  labels:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      Labels are additional labels applied to the PrometheusRule resource,
+                      used to match Prometheus operator rule selectors.
+                    type: object
+                type: object
+              redis:
+                description: RedisClient configures Redis/Valkey client connection
+                  settings (TLS, etc.).
+                properties:
+                  enableTLS:
+                    description: EnableTLS enables TLS for the Redis/Valkey connection.
+                    type: boolean
+                  insecure:
+                    description: Insecure skips TLS certificate verification. Only
+                      effective when enableTLS is true.
+                    type: boolean
+                type: object
+              secretRef:
+                description: |-
+                  SecretRef references the Kubernetes Secret that holds runtime credentials
+                  (database URL, S3 keys, inference API key, etc.).
+
+                  When Namespace is omitted the Secret must reside in the same namespace as
+                  the LLMBatchGateway CR.
+
+                  When Namespace is set to a different namespace, a Gateway API ReferenceGrant
+                  must exist in that namespace permitting this LLMBatchGateway to reference
+                  the Secret. The controller will copy the Secret into the CR's namespace
+                  under a managed name (<gateway-name>-credentials) so that the workload
+                  Pods can mount it.
+
+                  SecretRef is immutable after creation. To use a different Secret, delete
+                  and recreate the LLMBatchGateway CR.
+                properties:
+                  name:
+                    description: name is unique within a namespace to reference a
+                      secret resource.
+                    type: string
+                  namespace:
+                    description: namespace defines the space within which the secret
+                      name must be unique.
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+              tls:
+                description: TLS configures TLS termination for the API server.
+                properties:
+                  certManager:
+                    description: |-
+                      CertManager configures automatic certificate provisioning via cert-manager.
+                      Mutually exclusive with secretName.
+                    properties:
+                      dnsNames:
+                        description: DNSNames is the list of DNS SANs to include in
+                          the issued certificate.
+                        items:
+                          maxLength: 253
+                          type: string
+                        type: array
+                      issuerKind:
+                        default: ClusterIssuer
+                        description: IssuerKind is the kind of the cert-manager issuer
+                          resource.
+                        enum:
+                        - Issuer
+                        - ClusterIssuer
+                        type: string
+                      issuerName:
+                        description: IssuerName is the name of the cert-manager Issuer
+                          or ClusterIssuer.
+                        maxLength: 253
+                        minLength: 1
+                        type: string
+                    required:
+                    - issuerName
+                    type: object
+                    x-kubernetes-validations:
+                    - message: certManager.issuerName must be set
+                      rule: size(self.issuerName) > 0
+                  enabled:
+                    description: Enabled controls whether TLS termination is configured
+                      for the API server.
+                    type: boolean
+                  secretName:
+                    description: |-
+                      SecretName is the name of an existing TLS Secret (type kubernetes.io/tls)
+                      containing the certificate and key. Mutually exclusive with certManager.
+                    maxLength: 253
+                    type: string
+                type: object
+                x-kubernetes-validations:
+                - message: tls.secretName or tls.certManager must be set when tls.enabled
+                    is true
+                  rule: '!self.enabled || (has(self.secretName) && size(self.secretName)
+                    > 0) || has(self.certManager)'
+                - message: tls.secretName and tls.certManager are mutually exclusive
+                  rule: '!(has(self.secretName) && size(self.secretName) > 0 && has(self.certManager))'
+            required:
+            - apiServer
+            - fileStorage
+            - gc
+            - processor
+            - secretRef
+            type: object
+            x-kubernetes-validations:
+            - message: spec.secretRef.name is required
+              rule: size(self.secretRef.name) > 0
+            - message: processor.config.heartbeatInterval must be shorter than gc.config.reconciler.interval
+              rule: '!has(self.processor.config) || !has(self.processor.config.heartbeatInterval)
+                || !has(self.gc.config) || !has(self.gc.config.reconciler) || !has(self.gc.config.reconciler.interval)
+                || duration(self.processor.config.heartbeatInterval) < duration(self.gc.config.reconciler.interval)'
+          status:
+            description: Status defines the observed state of LLMBatchGateway.
+            properties:
+              componentStatus:
+                description: ComponentStatus reports the replica counts for each managed
+                  component.
+                properties:
+                  apiServer:
+                    description: APIServer reports the replica status of the API server
+                      Deployment.
+                    properties:
+                      readyReplicas:
+                        description: ReadyReplicas is the number of pods that have
+                          passed their readiness checks.
+                        format: int32
+                        type: integer
+                      replicas:
+                        description: Replicas is the total number of non-terminated
+                          pods.
+                        format: int32
+                        type: integer
+                    required:
+                    - readyReplicas
+                    - replicas
+                    type: object
+                  asyncProcessor:
+                    description: |-
+                      AsyncProcessor reports the replica status of the async-processor Deployment.
+                      Absent when spec.processor.dispatchMode is "sync" (do no Deployment).
+                      Present with actual replica counts when dispatchMode is "async".
+                    properties:
+                      readyReplicas:
+                        description: ReadyReplicas is the number of pods that have
+                          passed their readiness checks.
+                        format: int32
+                        type: integer
+                      replicas:
+                        description: Replicas is the total number of non-terminated
+                          pods.
+                        format: int32
+                        type: integer
+                    required:
+                    - readyReplicas
+                    - replicas
+                    type: object
+                  gc:
+                    description: GC reports the replica status of the garbage-collector
+                      Deployment.
+                    properties:
+                      readyReplicas:
+                        description: ReadyReplicas is the number of pods that have
+                          passed their readiness checks.
+                        format: int32
+                        type: integer
+                      replicas:
+                        description: Replicas is the total number of non-terminated
+                          pods.
+                        format: int32
+                        type: integer
+                    required:
+                    - readyReplicas
+                    - replicas
+                    type: object
+                  processor:
+                    description: Processor reports the replica status of the processor
+                      Deployment.
+                    properties:
+                      readyReplicas:
+                        description: ReadyReplicas is the number of pods that have
+                          passed their readiness checks.
+                        format: int32
+                        type: integer
+                      replicas:
+                        description: Replicas is the total number of non-terminated
+                          pods.
+                        format: int32
+                        type: integer
+                    required:
+                    - readyReplicas
+                    - replicas
+                    type: object
+                type: object
+              conditions:
+                description: |-
+                  Conditions represent the latest available observations of the LLMBatchGateway's state.
+                  Known condition types: Ready, APIServerAvailable, ProcessorAvailable, GCAvailable.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              observedGeneration:
+                description: ObservedGeneration is the .metadata.generation that was
+                  last processed by the controller.
+                format: int64
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -1,0 +1,111 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../crd
+  - ../../rbac
+  - ../../manager
+  - ../../webhook
+  - cert-manager/
+  # monitoring is excluded on xKS (OpenShift-specific ServiceMonitor/PodMonitor)
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: maas-controller
+      app.kubernetes.io/component: models-as-a-service
+      app.kubernetes.io/part-of: models-as-a-service
+
+configMapGenerator:
+  - name: maas-parameters
+    envs:
+      - params.env
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: maas-parameters
+      fieldPath: data.maas-controller-image
+    targets:
+      - select:
+          kind: Deployment
+          name: maas-controller
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].image
+  - source:
+      kind: ConfigMap
+      name: maas-parameters
+      fieldPath: data.infrastructure-namespace
+    targets:
+      - select:
+          kind: Deployment
+          name: maas-controller
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].env.[name=INFRA_NAMESPACE].value
+  - source:
+      kind: ConfigMap
+      name: maas-parameters
+      fieldPath: data.gateway-namespace
+    targets:
+      - select:
+          kind: Deployment
+          name: maas-controller
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].env.[name=GATEWAY_NAMESPACE].value
+
+patches:
+  # Remove OCP service-serving cert annotation (cert-manager handles TLS on xKS)
+  - target:
+      kind: Service
+      name: maas-controller-webhook-service
+    patch: |
+      - op: remove
+        path: /metadata/annotations/service.beta.openshift.io~1serving-cert-secret-name
+      - op: remove
+        path: /metadata/annotations/service.beta.openshift.io~1inject-cabundle
+
+  # Replace OCP CA injection with cert-manager CA injection on webhook
+  - target:
+      kind: ValidatingWebhookConfiguration
+      name: maas-validating-webhook-configuration
+    patch: |
+      - op: remove
+        path: /metadata/annotations/service.beta.openshift.io~1inject-cabundle
+      - op: add
+        path: /metadata/annotations/cert-manager.io~1inject-ca-from
+        value: "$(NAMESPACE)/maas-controller-webhook-server"
+
+vars:
+  - name: NAMESPACE
+    objref:
+      apiVersion: v1
+      kind: ConfigMap
+      name: maas-parameters
+    fieldref:
+      fieldpath: data.namespace
+  - name: ISSUER_REF_NAME
+    objref:
+      apiVersion: v1
+      kind: ConfigMap
+      name: maas-parameters
+    fieldref:
+      fieldpath: data.ISSUER_REF_NAME
+  - name: ISSUER_REF_KIND
+    objref:
+      apiVersion: v1
+      kind: ConfigMap
+      name: maas-parameters
+    fieldref:
+      fieldpath: data.ISSUER_REF_KIND
+  - name: ISSUER_REF_GROUP
+    objref:
+      apiVersion: v1
+      kind: ConfigMap
+      name: maas-parameters
+    fieldref:
+      fieldpath: data.ISSUER_REF_GROUP
+
+configurations:
+  - params.yaml

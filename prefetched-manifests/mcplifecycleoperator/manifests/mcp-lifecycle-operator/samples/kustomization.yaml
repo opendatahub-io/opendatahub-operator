@@ -1,0 +1,7 @@
+# Generated from kubebuilder template:
+# https://github.com/kubernetes-sigs/kubebuilder/blob/v4.11.1/pkg/plugins/common/kustomize/v2/scaffolds/internal/templates/config/samples/kustomization.go
+
+## Append samples of your project ##
+resources:
+- mcp_v1alpha1_mcpserver.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

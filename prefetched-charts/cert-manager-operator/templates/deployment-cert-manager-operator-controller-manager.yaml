@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: manager
+    app.kubernetes.io/created-by: cert-manager-operator
+    app.kubernetes.io/instance: controller-manager
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: deployment
+    app.kubernetes.io/part-of: cert-manager-operator
+  name: cert-manager-operator-controller-manager
+  namespace: {{ .Values.operatorNamespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: cert-manager-operator
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: cert-manager-operator
+      labels:
+        name: cert-manager-operator
+      namespace: {{ .Values.operatorNamespace }}
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                      - amd64
+                      - arm64
+                      - ppc64le
+                      - s390x
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+      containers:
+        - args:
+            - start
+            - --v=$(OPERATOR_LOG_LEVEL)
+            - --trusted-ca-configmap=$(TRUSTED_CA_CONFIGMAP_NAME)
+            - --cloud-credentials-secret=$(CLOUD_CREDENTIALS_SECRET_NAME)
+            - --unsupported-addon-features=$(UNSUPPORTED_ADDON_FEATURES)
+          command:
+            - /usr/bin/cert-manager-operator
+          env:
+            - name: WATCH_NAMESPACE
+              value: ""
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: cert-manager-operator
+            - name: RELATED_IMAGE_CERT_MANAGER_WEBHOOK
+              value: registry.redhat.io/cert-manager/jetstack-cert-manager-rhel9@sha256:903ce74138b1ffc735846a7c5fcdf62bbe82ca29568a6b38caec2656f6637671
+            - name: RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR
+              value: registry.redhat.io/cert-manager/jetstack-cert-manager-rhel9@sha256:903ce74138b1ffc735846a7c5fcdf62bbe82ca29568a6b38caec2656f6637671
+            - name: RELATED_IMAGE_CERT_MANAGER_CONTROLLER
+              value: registry.redhat.io/cert-manager/jetstack-cert-manager-rhel9@sha256:903ce74138b1ffc735846a7c5fcdf62bbe82ca29568a6b38caec2656f6637671
+            - name: RELATED_IMAGE_CERT_MANAGER_ACMESOLVER
+              value: registry.redhat.io/cert-manager/jetstack-cert-manager-acmesolver-rhel9@sha256:38899dcd99bcd1c8c8d2c67cd19d5b1756434028ed2f1b926a282723bd63183e
+            - name: RELATED_IMAGE_CERT_MANAGER_ISTIOCSR
+              value: registry.redhat.io/cert-manager/cert-manager-istio-csr-rhel9@sha256:fb89adfcc4bcdaf21bed27dbc90586fb2b32180259b9f9d6fcf84a38e401fe03
+            - name: OPERAND_IMAGE_VERSION
+              value: 1.18.4
+            - name: ISTIOCSR_OPERAND_IMAGE_VERSION
+              value: 0.14.2
+            - name: OPERATOR_IMAGE_VERSION
+              value: 1.18.1
+            - name: OPERATOR_LOG_LEVEL
+              value: "2"
+            - name: TRUSTED_CA_CONFIGMAP_NAME
+            - name: CLOUD_CREDENTIALS_SECRET_NAME
+            - name: UNSUPPORTED_ADDON_FEATURES
+          image: registry.redhat.io/cert-manager/cert-manager-operator-rhel9@sha256:99526f5a179816df1f7f51df0517136b247d815b7bdce0a5d0eb7cdaf4b5ce7a
+          imagePullPolicy: IfNotPresent
+          name: cert-manager-operator
+          ports:
+            - containerPort: 8443
+              name: https
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: cert-manager-operator-controller-manager
+      terminationGracePeriodSeconds: 10
+      volumes:
+        - emptyDir: {}
+          name: tmp

@@ -1,0 +1,22 @@
+# permissions for end users to view OGXServers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ogxserver-viewer-role
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+rules:
+- apiGroups:
+  - ogx.io
+  resources:
+  - ogxservers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ogx.io
+  resources:
+  - ogxservers/status
+  verbs:
+  - get

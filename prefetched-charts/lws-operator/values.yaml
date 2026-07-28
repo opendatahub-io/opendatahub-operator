@@ -1,0 +1,8 @@
+# LWS Operator Helm Chart
+namespace: openshift-lws-operator
+
+imagePullSecrets:
+  - name: rhai-pull-secret
+
+bundle:
+  version: "1.0"

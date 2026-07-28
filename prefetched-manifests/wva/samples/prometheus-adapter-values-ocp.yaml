@@ -1,0 +1,53 @@
+prometheus:
+  url: https://thanos-querier.openshift-monitoring.svc.cluster.local
+  port: 9091
+
+rules:
+  external:
+  - seriesQuery: 'wva_desired_replicas{variant_name!="",exported_namespace!=""}'
+    resources:
+      overrides:
+        exported_namespace: {resource: "namespace"}
+        variant_name: {resource: "deployment"}
+    name:
+      matches: "^wva_desired_replicas"
+      as: "wva_desired_replicas"
+    metricsQuery: 'wva_desired_replicas{<<.LabelMatchers>>}'
+
+replicas: 2
+logLevel: 4
+
+tls:
+  enable: false # Inbound TLS (Client → Adapter)
+
+extraVolumes:
+  - name: prometheus-ca
+    configMap:
+      name: prometheus-ca
+
+extraVolumeMounts:
+  - name: prometheus-ca
+    mountPath: /etc/prometheus-ca
+    readOnly: true
+
+extraArguments:
+  - --prometheus-ca-file=/etc/prometheus-ca/ca.crt
+  - --prometheus-token-file=/var/run/secrets/kubernetes.io/serviceaccount/token
+
+
+# k8s 1.21 needs fsGroup to be set for non root deployments
+# ref: https://github.com/kubernetes/kubernetes/issues/70679
+podSecurityContext:
+  fsGroup: null  # this may need to change, depending on the allowed IDs for the OCP project
+
+# SecurityContext of the container
+# ref. https://kubernetes.io/docs/tasks/configure-pod-container/security-context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: null   # this may need to change, depending on the allowed IDs for the OCP project
+  seccompProfile:
+    type: RuntimeDefault

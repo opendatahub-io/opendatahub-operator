@@ -1,0 +1,9 @@
+resources:
+- bases/datasciencepipelinesapplications.opendatahub.io_datasciencepipelinesapplications.yaml
+- bases/pipelines.kubeflow.org_pipelines.yaml
+- bases/pipelines.kubeflow.org_pipelineversions.yaml
+# +kubebuilder:scaffold:crdkustomizeresource
+- bases/scheduledworkflows.yaml
+
+configurations:
+- kustomizeconfig.yaml

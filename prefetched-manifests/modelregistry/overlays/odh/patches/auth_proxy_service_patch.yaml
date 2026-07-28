@@ -1,0 +1,8 @@
+# This patch adds OpenShift serving cert annotation in HTTPS proxy for the controller manager
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: controller-manager-metrics-service
+  name: controller-manager-metrics-service
+  namespace: system

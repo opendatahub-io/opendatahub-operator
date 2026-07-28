@@ -1,0 +1,4 @@
+releases:
+  - name: Kubeflow Training Operator
+    version: "1.9.0"
+    repoUrl: https://github.com/kubeflow/trainer

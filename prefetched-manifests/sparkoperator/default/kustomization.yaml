@@ -1,0 +1,45 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: spark-operator
+
+resources:
+  - ../crd
+  - ../rbac
+  - ../manager
+  - ../webhook
+
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/name: spark-operator
+      app.kubernetes.io/managed-by: kustomize
+
+# Generate ConfigMap from params.env (required for overlay image injection)
+configMapGenerator:
+  - name: spark-operator-params
+    envs:
+      - params.env
+
+# Replace image placeholders in deployments with values from params.env
+replacements:
+  - source:
+      kind: ConfigMap
+      name: spark-operator-params
+      fieldPath: data.SPARK_OPERATOR_CONTROLLER_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: spark-operator-controller
+        fieldPaths:
+          - spec.template.spec.containers.[name=controller].image
+  - source:
+      kind: ConfigMap
+      name: spark-operator-params
+      fieldPath: data.SPARK_OPERATOR_WEBHOOK_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: spark-operator-webhook
+        fieldPaths:
+          - spec.template.spec.containers.[name=webhook].image

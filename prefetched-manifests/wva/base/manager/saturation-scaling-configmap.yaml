@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+# This ConfigMap defines saturation-based scaling thresholds for model variants.
+# Saturation scaling uses KV cache utilization and queue length metrics to determine
+# when replicas are saturated and when to scale up.
+#
+# Configuration structure:
+# - 'default' entry: Global default thresholds applied to all variants
+# - Override entries: Per-model/namespace custom thresholds (must include model_id and namespace)
+metadata:
+  name: saturation-scaling-config
+  labels:
+    # Required: the controller cache filters ConfigMaps by this label in cluster-scoped mode
+    # (cmd/main.go). Without it, watch events are silently dropped and config changes
+    # are never picked up at runtime.
+    app.kubernetes.io/name: workload-variant-autoscaler
+data:
+  # Global defaults applied to all variants unless overridden.
+  #
+  # The `analyzers` section selects the V2 (token/capacity-based) saturation
+  # analyzer — the default since v0.9.0. Remove the `analyzers` section (and the
+  # V2-only thresholds) to opt out to the legacy V1 (percentage-based) analyzer.
+  # See docs/developer-guide/saturation-scaling-config.md.
+  default: |
+    analyzers:
+      - name: saturation
+        score: 1.0
+    # V2-only thresholds:
+    scaleUpThreshold: 0.85
+    scaleDownBoundary: 0.70
+    # Shared by V1 and V2:
+    kvCacheThreshold: 0.80
+    queueLengthThreshold: 5
+    # V1-only (ignored by V2):
+    kvSpareTrigger: 0.1
+    queueSpareTrigger: 3
+    # Enable GPU limiter to constrain scaling based on available cluster resources
+    # When true, scale-up decisions are limited by available GPU capacity
+    enableLimiter: false

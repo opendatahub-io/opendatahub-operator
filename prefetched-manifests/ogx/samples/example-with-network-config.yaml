@@ -1,0 +1,81 @@
+# Example with custom NetworkPolicy ingress rules (namespace-based access)
+apiVersion: ogx.io/v1beta1
+kind: OGXServer
+metadata:
+  name: ogxserver-network-example
+spec:
+  distribution:
+    name: starter
+  workload:
+    overrides:
+      env:
+        - name: OLLAMA_INFERENCE_MODEL
+          value: 'llama3.2:1b'
+        - name: OLLAMA_URL
+          value: 'http://ollama-server-service.ollama-dist.svc.cluster.local:11434'
+  network:
+    policy:
+      ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: nsA
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: nsB
+            - namespaceSelector:
+                matchExpressions:
+                  - key: myproject/ogx-allowed
+                    operator: Exists
+            - namespaceSelector:
+                matchExpressions:
+                  - key: team/authorized
+                    operator: Exists
+          ports:
+            - protocol: TCP
+              port: 8321
+---
+# Example with external access enabled and NetworkPolicy disabled
+apiVersion: ogx.io/v1beta1
+kind: OGXServer
+metadata:
+  name: ogxserver-public
+spec:
+  distribution:
+    name: starter
+  workload:
+    overrides:
+      env:
+        - name: OLLAMA_INFERENCE_MODEL
+          value: 'llama3.2:1b'
+        - name: OLLAMA_URL
+          value: 'http://ollama-server-service.ollama-dist.svc.cluster.local:11434'
+  network:
+    externalAccess:
+      enabled: true
+    policy:
+      ingress:
+        - from:
+            - namespaceSelector: {}
+          ports:
+            - protocol: TCP
+              port: 8321
+---
+# Example with NetworkPolicy explicitly disabled
+apiVersion: ogx.io/v1beta1
+kind: OGXServer
+metadata:
+  name: ogxserver-no-networkpolicy
+spec:
+  distribution:
+    name: starter
+  workload:
+    overrides:
+      env:
+        - name: OLLAMA_INFERENCE_MODEL
+          value: 'llama3.2:1b'
+        - name: OLLAMA_URL
+          value: 'http://ollama-server-service.ollama-dist.svc.cluster.local:11434'
+  network:
+    policy:
+      enabled: false

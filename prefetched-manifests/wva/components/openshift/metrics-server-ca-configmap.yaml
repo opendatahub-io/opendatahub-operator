@@ -1,0 +1,8 @@
+# service-ca injects the CA bundle (service-ca.crt) here; the ServiceMonitor
+# uses it to verify the metrics serving cert.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: metrics-server-ca
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"

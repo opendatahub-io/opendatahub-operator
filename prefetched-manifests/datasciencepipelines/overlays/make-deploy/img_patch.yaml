@@ -1,0 +1,11 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-science-pipelines-operator-controller-manager
+  namespace: opendatahub
+spec:
+  template:
+    spec:
+      containers:
+        - image: controller
+          name: manager

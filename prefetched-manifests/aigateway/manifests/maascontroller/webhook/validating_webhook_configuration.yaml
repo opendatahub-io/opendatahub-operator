@@ -1,0 +1,63 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: maas-validating-webhook-configuration
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: maas-controller-webhook-service
+        namespace: system
+        path: /validate-maas-opendatahub-io-v1alpha1-aitenant
+    failurePolicy: Fail
+    name: vaitenant.kb.io
+    rules:
+      - apiGroups:
+          - maas.opendatahub.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - aitenants
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: maas-controller-webhook-service
+        namespace: system
+        path: /validate-maas-opendatahub-io-v1alpha1-maassubscription
+    failurePolicy: Fail
+    name: vmaassubscription.kb.io
+    rules:
+      - apiGroups:
+          - maas.opendatahub.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+        resources:
+          - maassubscriptions
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: maas-controller-webhook-service
+        namespace: system
+        path: /validate-maas-opendatahub-io-v1alpha1-maasauthpolicy
+    failurePolicy: Fail
+    name: vmaasauthpolicy.kb.io
+    rules:
+      - apiGroups:
+          - maas.opendatahub.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+        resources:
+          - maasauthpolicies
+    sideEffects: None

@@ -1,0 +1,27 @@
+# permissions for end users to edit OGXServers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ogxserver-editor-role
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+rules:
+- apiGroups:
+  - ogx.io
+  resources:
+  - ogxservers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ogx.io
+  resources:
+  - ogxservers/status
+  verbs:
+  - get

@@ -1,0 +1,71 @@
+# Values overlay for the llm-d-router-standalone chart (oci://ghcr.io/llm-d/charts/llm-d-router-standalone).
+# Schema follows the chart's `router:` wrapper introduced with the project
+# rebrand (Inference Scheduler → llm-d Router) in llm-d v0.8.0 / chart v0.9.0.
+router:
+  inferencePool:
+    failureMode: FailOpen
+  modelServers:
+    matchLabels:
+      llm-d.ai/model-id: model-a
+  extraServicePorts:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8081
+  epp:
+    image:
+      registry: ghcr.io
+      repository: llm-d/llm-d-router-endpoint-picker
+      tag: v0.9.0
+    replicas: 1
+    flags:
+      v: 2
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    monitoring:
+      prometheus:
+        enabled: true
+        auth:
+          enabled: false
+    pluginsConfigFile: model-a-plugins.yaml
+    pluginsCustomConfig:
+      model-a-plugins.yaml: |
+        apiVersion: llm-d.ai/v1alpha1
+        kind: EndpointPickerConfig
+        featureGates:
+        - flowControl
+        plugins:
+        - type: queue-scorer
+        - type: kv-cache-utilization-scorer
+        - type: prefix-cache-scorer
+        - type: no-hit-lru-scorer
+        schedulingProfiles:
+        - name: default
+          plugins:
+          - pluginRef: queue-scorer
+            weight: 2
+          - pluginRef: kv-cache-utilization-scorer
+            weight: 2
+          - pluginRef: prefix-cache-scorer
+            weight: 3
+          - pluginRef: no-hit-lru-scorer
+            weight: 2
+  proxy:
+    args:
+    - --service-node
+    - envoy-sidecar
+    - --log-level
+    - warn
+    - --concurrency
+    - "8"
+    - --drain-strategy
+    - immediate
+    - --drain-time-s
+    - "60"
+    - -c
+    - /etc/envoy/envoy.yaml

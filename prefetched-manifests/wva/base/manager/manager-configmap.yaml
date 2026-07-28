@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: manager-config
+  labels:
+    # Required: the controller cache filters ConfigMaps by this label in cluster-scoped mode
+    # (cmd/main.go). Without it, watch events are silently dropped and config changes
+    # are never picked up at runtime.
+    app.kubernetes.io/name: workload-variant-autoscaler
+data:
+  # The main configuration is stored as a single YAML file (config.yaml) that is
+  # volume-mounted into the controller container at /etc/wva/config.yaml.
+  #
+  # Precedence: CLI flags > environment variables > config file > defaults
+  #
+  # For more information see:
+  # https://github.com/llm-d/llm-d-workload-variant-autoscaler/blob/main/docs/user-guide/configuration.md
+  config.yaml: |
+    # Prometheus Configuration (REQUIRED)
+    # Base URL for Prometheus API (must use HTTPS). The default points at a
+    # kube-prometheus-stack install in the workload-variant-autoscaler-monitoring
+    # namespace; override in your overlay (e.g. OpenShift -> Thanos Querier).
+    PROMETHEUS_BASE_URL: "https://kube-prometheus-stack-prometheus.workload-variant-autoscaler-monitoring.svc.cluster.local:9090"
+    # Whether to skip TLS certificate verification when connecting to Prometheus.
+    PROMETHEUS_TLS_INSECURE_SKIP_VERIFY: "true"
+
+    # Optimization
+    # Global optimization loop interval for autoscaling decisions.
+    GLOBAL_OPT_INTERVAL: "15s"
+
+    # Feature Flags
+    # Enables scale-to-zero behavior across managed workloads.
+    WVA_SCALE_TO_ZERO: "false"
+
+    # Coordinator (EXPERIMENTAL): cluster-wide leader-elected loop that manages
+    # HPAs and ScaledObjects that do NOT consume wva_desired_replicas (those are
+    # handled by the WVA engine). The Coordinator writes spec.maxReplicas
+    # directly via registered plugins (e.g. the gpu-rebalance UC1 plugin).
+    # Disabled by default. Set to "true" to enable.
+    EXPERIMENTAL_COORDINATOR_ENABLED: "false"
+    COORDINATOR_INTERVAL: "15s"
+
+    # Prometheus Metrics Cache
+    # Time-to-live for cached Prometheus metric responses.
+    PROMETHEUS_METRICS_CACHE_TTL: "30s"
+    # Interval for cleaning up expired entries from the metrics cache.
+    PROMETHEUS_METRICS_CACHE_CLEANUP_INTERVAL: "1m"
+    # Interval for background refresh of metrics cache entries.
+    PROMETHEUS_METRICS_CACHE_FETCH_INTERVAL: "30s"
+    # Maximum age for metrics to be considered fresh.
+    PROMETHEUS_METRICS_CACHE_FRESH_THRESHOLD: "1m"
+    # Maximum age for metrics to be considered stale (before unavailable).
+    PROMETHEUS_METRICS_CACHE_STALE_THRESHOLD: "2m"
+    # Maximum age for metrics before they are considered unavailable.
+    PROMETHEUS_METRICS_CACHE_UNAVAILABLE_THRESHOLD: "5m"

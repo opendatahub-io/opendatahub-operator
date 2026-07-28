@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ogx-k8s-operator-system
+namePrefix: ogx-k8s-operator-
+
+resources:
+- certificate.yaml
+
+configurations:
+- kustomizeconfig.yaml

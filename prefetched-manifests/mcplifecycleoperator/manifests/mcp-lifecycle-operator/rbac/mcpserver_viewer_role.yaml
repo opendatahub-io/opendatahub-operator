@@ -1,0 +1,34 @@
+# Generated from kubebuilder template:
+# https://github.com/kubernetes-sigs/kubebuilder/blob/v4.11.1/pkg/plugins/common/kustomize/v2/scaffolds/internal/templates/config/rbac/crd_viewer_role.go
+
+# This rule is not used by the project mcp-lifecycle-operator itself.
+# It is provided to allow the cluster admin to help manage permissions for users.
+#
+# Grants read-only access to mcp.x-k8s.io resources.
+# This role is intended for users who need visibility into these resources
+# without permissions to modify them. It is ideal for monitoring purposes and limited-access viewing.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: mcp-lifecycle-operator
+    app.kubernetes.io/managed-by: kustomize
+    # Add these permissions to the "view" default role.
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+  name: mcpserver-viewer-role
+rules:
+- apiGroups:
+  - mcp.x-k8s.io
+  resources:
+  - mcpservers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - mcp.x-k8s.io
+  resources:
+  - mcpservers/status
+  verbs:
+  - get

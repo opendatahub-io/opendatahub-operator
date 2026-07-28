@@ -1,0 +1,11 @@
+apiVersion: modelregistry.opendatahub.io/v1beta1
+kind: ModelRegistry
+metadata:
+  name: modelregistry-sample
+spec:
+  postgres:
+    generateDeployment: true
+  rest:
+    port: 8080
+  grpc:
+    port: 9090

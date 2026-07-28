@@ -1,0 +1,312 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.2
+  name: dashboards.components.platform.opendatahub.io
+spec:
+  group: components.platform.opendatahub.io
+  names:
+    kind: Dashboard
+    listKind: DashboardList
+    plural: dashboards
+    singular: dashboard
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.managementState
+      name: Management
+      priority: 1
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Ready")].reason
+      name: Reason
+      type: string
+    - jsonPath: .status.url
+      name: URL
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Dashboard is the Schema for the dashboards API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DashboardSpec defines the desired state of the Dashboard
+              module.
+            properties:
+              components:
+                additionalProperties:
+                  description: |-
+                    ComponentAvailability represents a DSC component's availability state
+                    as projected by the orchestrator.
+                  properties:
+                    managementState:
+                      default: Removed
+                      description: |-
+                        ManagementState is the DSC component's management state.
+                        "Managed" or "Unmanaged" means the component is available;
+                        "Removed" means it is not.
+                      enum:
+                      - Managed
+                      - Unmanaged
+                      - Removed
+                      type: string
+                  required:
+                  - managementState
+                  type: object
+                description: |-
+                  Components is a snapshot of DSC component availability, projected by
+                  the ODH Operator onto this CR.
+                type: object
+              deploymentMode:
+                default: Sidecar
+                description: |-
+                  DeploymentMode controls how BFF modules are deployed.
+                  Sidecar (default): modules run as containers in the main dashboard pod.
+                  Standalone: each module gets its own Deployment, Service, and RBAC.
+                enum:
+                - Sidecar
+                - Standalone
+                type: string
+              gateway:
+                description: Gateway configures the ingress point for the dashboard.
+                properties:
+                  domain:
+                    maxLength: 253
+                    pattern: ^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$
+                    type: string
+                required:
+                - domain
+                type: object
+              managementState:
+                default: Managed
+                description: |-
+                  ManagementState controls whether the operator actively manages the
+                  component (Managed) or removes it (Removed).
+                enum:
+                - Managed
+                - Removed
+                type: string
+              modules:
+                additionalProperties:
+                  description: |-
+                    ModuleOverride allows the orchestrator or admin to override the
+                    automatic dependency-based module enablement decision.
+                  properties:
+                    state:
+                      description: |-
+                        State overrides automatic module enablement.
+                        If empty or omitted, the controller uses dependency resolution.
+                      enum:
+                      - Enabled
+                      - Disabled
+                      type: string
+                  type: object
+                description: |-
+                  Modules contains per-module override configuration. Map keys are
+                  module names as defined in the controller's internal module registry.
+                type: object
+              observability:
+                description: Observability configures the observability stack integration.
+                properties:
+                  enabled:
+                    default: false
+                    description: Enabled controls whether the Perses proxy module
+                      is deployed.
+                    type: boolean
+                  persesService:
+                    description: |-
+                      PersesService identifies the target Perses service to proxy to.
+                      Required when Enabled is true.
+                    properties:
+                      name:
+                        minLength: 1
+                        type: string
+                      namespace:
+                        minLength: 1
+                        type: string
+                      port:
+                        default: 8080
+                        format: int32
+                        maximum: 65535
+                        minimum: 1
+                        type: integer
+                    required:
+                    - name
+                    - namespace
+                    type: object
+                type: object
+            type: object
+          status:
+            description: DashboardStatus defines the observed state of the Dashboard.
+            properties:
+              conditions:
+                description: Conditions is the set of condition observations for this
+                  module.
+                items:
+                  description: |-
+                    Condition represents an observation of a module's state at a point in time.
+                    Module controllers set conditions to communicate health signals to the
+                    orchestrator and to human operators.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        LastTransitionTime is the last time the condition transitioned from one
+                        status to another.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        Message is a human-readable description providing details about the
+                        condition's last transition.
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        ObservedGeneration is the .metadata.generation of the resource that
+                        the condition was set based upon. If this does not match the resource's
+                        current generation, the condition is likely stale.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        Reason is a programmatic, one-word CamelCase identifier for the
+                        condition's last transition, suitable for machine consumption.
+                      type: string
+                    severity:
+                      description: |-
+                        Severity indicates whether this condition represents an error or is
+                        purely informational. Empty string (default) indicates error severity.
+                      type: string
+                    status:
+                      description: Status is the status of the condition (True, False,
+                        Unknown).
+                      type: string
+                    type:
+                      description: Type is the condition type, e.g. ConditionTypeReady,
+                        ConditionTypeDegraded.
+                      minLength: 1
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-type: atomic
+              distribution:
+                description: Distribution reports the product distribution identity.
+                properties:
+                  name:
+                    maxLength: 256
+                    type: string
+                  version:
+                    maxLength: 256
+                    type: string
+                type: object
+              moduleStatuses:
+                additionalProperties:
+                  description: ModuleStatus reports the current state of a single
+                    module.
+                  properties:
+                    lastTransitionTime:
+                      format: date-time
+                      type: string
+                    message:
+                      type: string
+                    phase:
+                      description: ModulePhase represents the deployment lifecycle
+                        of an individual module.
+                      enum:
+                      - Deployed
+                      - NotDeployed
+                      - Degraded
+                      - Disabled
+                      type: string
+                    reason:
+                      description: Reason is a one-word CamelCase explanation for
+                        the current phase.
+                      type: string
+                  required:
+                  - phase
+                  type: object
+                description: ModuleStatuses reports the deployment state of each module.
+                type: object
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent .metadata.generation observed
+                  by the controller. It allows consumers to determine whether the
+                  controller has processed the latest spec changes.
+                format: int64
+                type: integer
+              phase:
+                description: Phase is the top-level lifecycle phase of the module.
+                type: string
+              releases:
+                description: Releases is the list of deployed component releases.
+                items:
+                  description: ComponentRelease describes a single software component's
+                    release metadata.
+                  properties:
+                    name:
+                      description: Name is the component name, used as the merge key
+                        in lists.
+                      type: string
+                    repoUrl:
+                      description: RepoURL is the source repository URL for this component
+                        release.
+                      type: string
+                    version:
+                      description: Version is the semantic version of the component.
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
+              url:
+                description: |-
+                  URL is the externally-reachable dashboard URL (last known good).
+                  This value persists across transient route failures — consumers must
+                  check the Ready condition before relying on this endpoint.
+                type: string
+            type: object
+        type: object
+        x-kubernetes-validations:
+        - message: Dashboard name must be default-dashboard
+          rule: self.metadata.name == 'default-dashboard'
+        - message: persesService must be specified when observability is enabled
+          rule: '!has(self.spec.observability) || !self.spec.observability.enabled
+            || has(self.spec.observability.persesService)'
+    served: true
+    storage: true
+    subresources:
+      status: {}

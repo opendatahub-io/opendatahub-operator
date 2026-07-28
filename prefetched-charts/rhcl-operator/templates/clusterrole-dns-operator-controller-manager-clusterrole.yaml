@@ -1,0 +1,43 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dns-operator-controller-manager-clusterrole
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - kuadrant.io
+    resources:
+      - dnshealthcheckprobes
+      - dnsrecords
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - kuadrant.io
+    resources:
+      - dnshealthcheckprobes/finalizers
+      - dnsrecords/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - kuadrant.io
+    resources:
+      - dnshealthcheckprobes/status
+      - dnsrecords/status
+    verbs:
+      - get
+      - patch
+      - update

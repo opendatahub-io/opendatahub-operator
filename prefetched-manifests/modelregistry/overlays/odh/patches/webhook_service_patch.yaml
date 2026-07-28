@@ -1,0 +1,8 @@
+# The following patch adds OpenShift Serving Cert to webhook-service
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: webhook-service
+  name: webhook-service
+  namespace: system

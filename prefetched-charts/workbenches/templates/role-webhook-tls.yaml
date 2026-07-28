@@ -1,0 +1,20 @@
+{{- if .Values.webhooks.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "workbenches-operator.webhookTLSRoleName" . }}
+  namespace: {{ .Values.operatorNamespace | quote }}
+  labels:
+    {{- include "workbenches-operator.labels" . | nindent 4 }}
+rules:
+  # Namespaced cert-manager Certificate used for webhook serving certs.
+  # ClusterIssuer permissions remain on the ClusterRole.
+  - apiGroups:
+      - cert-manager.io
+    resources:
+      - certificates
+    verbs:
+      - create
+      - get
+      - patch
+{{- end }}

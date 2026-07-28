@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: service
+  labels:
+    app.kubernetes.io/name: data-science-pipelines-operator
+spec:
+  ports:
+    - name: metrics
+      port: 8080
+  selector:
+    app.kubernetes.io/name: data-science-pipelines-operator

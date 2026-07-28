@@ -1,0 +1,17 @@
+varReference:
+  - path: users[]
+    kind: SecurityContextConstraints
+  - path: spec/template/spec/containers[]/image
+    kind: Deployment
+  - path: spec/dnsNames
+    kind: Certificate
+  - path: webhooks[]/clientConfig/service/namespace
+    kind: MutatingWebhookConfiguration
+  - path: webhooks[]/clientConfig/service/namespace
+    kind: ValidatingWebhookConfiguration
+  - path: metadata/annotations/cert-manager.io~1inject-ca-from
+    kind: MutatingWebhookConfiguration
+  - path: metadata/annotations/cert-manager.io~1inject-ca-from
+    kind: ValidatingWebhookConfiguration
+  - path: spec/template/spec/containers[]/env[]/value
+    kind: Deployment

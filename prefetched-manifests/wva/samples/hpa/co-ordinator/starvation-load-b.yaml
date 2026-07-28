@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: starvation-load-b
+  namespace: llm-d-sim
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: load
+        image: curlimages/curl:8.7.1
+        imagePullPolicy: IfNotPresent
+        command:
+        - sh
+        - -c
+        - |
+          GW="http://multi-model-gateway.llm-d-sim.svc.cluster.local:9002"
+          PROMPT="Describe the history and applications of machine learning, covering supervised learning, unsupervised learning, reinforcement learning, deep learning architectures, and real-world deployments."
+
+          echo "[starvation-load-b] Phase 2: equal load on both models"
+          for i in $(seq 1 80); do
+            curl -s -o /dev/null --max-time 120 -X POST "$GW/model-a/v1/completions" \
+              -H "Content-Type: application/json" \
+              -d "{\"model\":\"model-a\",\"prompt\":\"$PROMPT\",\"max_tokens\":300}" &
+            curl -s -o /dev/null --max-time 120 -X POST "$GW/model-b/v1/completions" \
+              -H "Content-Type: application/json" \
+              -d "{\"model\":\"model-b\",\"prompt\":\"$PROMPT\",\"max_tokens\":300}" &
+          done
+
+          for t in $(seq 1 300); do
+            for j in $(seq 1 10); do
+              curl -s -o /dev/null --max-time 120 -X POST "$GW/model-a/v1/completions" \
+                -H "Content-Type: application/json" \
+                -d "{\"model\":\"model-a\",\"prompt\":\"$PROMPT\",\"max_tokens\":300}" &
+              curl -s -o /dev/null --max-time 120 -X POST "$GW/model-b/v1/completions" \
+                -H "Content-Type: application/json" \
+                -d "{\"model\":\"model-b\",\"prompt\":\"$PROMPT\",\"max_tokens\":300}" &
+            done
+            sleep 1
+          done
+          wait
+          echo "[starvation-load-b] Complete"

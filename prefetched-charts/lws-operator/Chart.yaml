@@ -1,0 +1,16 @@
+apiVersion: v2
+name: lws-operator
+description: Red Hat Leader Worker Set Operator for Kubernetes
+type: application
+version: 1.0.0
+appVersion: "1.0"
+keywords:
+  - lws
+  - leader-worker-set
+  - ai-ml
+  - inference
+  - distributed-workloads
+maintainers:
+  - name: Red Hat
+sources:
+  - https://github.com/kubernetes-sigs/lws

@@ -1,0 +1,23 @@
+spec:
+  template:
+    spec:
+      containers:
+      - name: vllm
+        readinessProbe:
+            httpGet:
+              path: /health
+              port: 8200
+              scheme: HTTP
+            periodSeconds: 1
+            successThreshold: 1
+            failureThreshold: 1
+            timeoutSeconds: 1
+        startupProbe:
+            failureThreshold: 600
+            initialDelaySeconds: 30
+            periodSeconds: 1
+            httpGet:
+              path: /health
+              port: 8200
+              scheme: HTTP
+

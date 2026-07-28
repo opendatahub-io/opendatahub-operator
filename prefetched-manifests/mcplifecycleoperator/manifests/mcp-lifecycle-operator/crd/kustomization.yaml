@@ -1,0 +1,19 @@
+# Generated from kubebuilder template:
+# https://github.com/kubernetes-sigs/kubebuilder/blob/v4.11.1/pkg/plugins/common/kustomize/v2/scaffolds/internal/templates/config/crd/kustomization.go
+
+# This kustomization.yaml is not intended to be run by itself,
+# since it depends on service name and namespace that are out of this kustomize package.
+# It should be run by config/default
+resources:
+- bases/mcp.x-k8s.io_mcpservers.yaml
+# +kubebuilder:scaffold:crdkustomizeresource
+
+patches:
+# [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix.
+# patches here are for enabling the conversion webhook for each CRD
+# +kubebuilder:scaffold:crdkustomizewebhookpatch
+
+# [WEBHOOK] To enable webhook, uncomment the following section
+# the following config is for teaching kustomize how to do kustomization for CRDs.
+#configurations:
+#- kustomizeconfig.yaml

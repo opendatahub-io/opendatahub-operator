@@ -1,0 +1,134 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.PersistentAgentDefaultResourceName}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.PersistentAgentDefaultResourceName}}
+    component: data-science-pipelines
+    dspa: {{.Name}}
+spec:
+  selector:
+    matchLabels:
+      app: {{.PersistentAgentDefaultResourceName}}
+      component: data-science-pipelines
+      dspa: {{.Name}}
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: {{.PersistentAgentDefaultResourceName}}
+        component: data-science-pipelines
+        dspa: {{.Name}}
+    spec:
+      containers:
+        - env:
+            - name: NAMESPACE
+              value: "{{.Namespace}}"
+            - name: TTL_SECONDS_AFTER_WORKFLOW_FINISH
+              value: "86400"
+            - name: NUM_WORKERS
+              value: "2"
+            - name: KUBEFLOW_USERID_HEADER
+              value: kubeflow-userid
+            - name: KUBEFLOW_USERID_PREFIX
+              value: ""
+            - name: EXECUTIONTYPE
+              value: Workflow
+            {{ if .PodToPodTLS }}
+            - name: CA_CERT_PATH
+              value: "/etc/pki/tls/certs:/var/run/secrets/kubernetes.io/serviceaccount/"
+            {{ end }}
+            {{ if .ProxyConfig }}
+            {{ if .ProxyConfig.HTTPProxy }}
+            - name: HTTP_PROXY
+              value: "{{.ProxyConfig.HTTPProxy}}"
+            {{ end }}
+            {{ if .ProxyConfig.HTTPSProxy }}
+            - name: HTTPS_PROXY
+              value: "{{.ProxyConfig.HTTPSProxy}}"
+            {{ end }}
+            {{ if and .ProxyConfig.NoProxy (or .ProxyConfig.HTTPProxy .ProxyConfig.HTTPSProxy) }}
+            - name: NO_PROXY
+              value: "{{.ProxyConfig.NoProxy}}"
+            {{ end }}
+            {{ end }}
+          image: "{{.PersistenceAgent.Image}}"
+          # imagePullPolicy: default - https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+          name: ds-pipeline-persistenceagent
+          command:
+            - persistence_agent
+            - "--logtostderr=true"
+            - "--ttlSecondsAfterWorkflowFinish=86400"
+            - "--numWorker={{.PersistenceAgent.NumWorkers}}"
+            - "--mlPipelineAPIServerName={{.APIServerServiceDNSName}}"
+            {{ if .PodToPodTLS }}
+            - "--mlPipelineServiceTLSEnabled=true"
+            - "--caCertPath=/etc/pki/tls/certs/ca.crt"
+            {{ end }}
+            - "--namespace={{.Namespace}}"
+            - "--mlPipelineServiceHttpPort=8888"
+            - "--mlPipelineServiceGRPCPort=8887"
+            {{ if and .CustomCABundle .PodToPodTLS }}
+            - "--caCertPath={{ .PiplinesCABundleMountPath }}"
+            {{ end }}
+          livenessProbe:
+            exec:
+              command:
+                - test
+                - -x
+                - persistence_agent
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 2
+          readinessProbe:
+            exec:
+              command:
+                - test
+                - -x
+                - persistence_agent
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+          resources:
+            {{ if .PersistenceAgent.Resources.Requests }}
+            requests:
+              {{ if .PersistenceAgent.Resources.Requests.CPU }}
+              cpu: {{.PersistenceAgent.Resources.Requests.CPU}}
+              {{ end }}
+              {{ if .PersistenceAgent.Resources.Requests.Memory }}
+              memory: {{.PersistenceAgent.Resources.Requests.Memory}}
+              {{ end }}
+            {{ end }}
+            {{ if .PersistenceAgent.Resources.Limits }}
+            limits:
+              {{ if .PersistenceAgent.Resources.Limits.CPU }}
+              cpu: {{.PersistenceAgent.Resources.Limits.CPU}}
+              {{ end }}
+              {{ if .PersistenceAgent.Resources.Limits.Memory }}
+              memory: {{.PersistenceAgent.Resources.Limits.Memory}}
+              {{ end }}
+            {{ end }}
+          volumeMounts:
+            - mountPath: /var/run/secrets/kubeflow/tokens/persistenceagent-sa-token
+              name: persistenceagent-sa-token
+              subPath: ds-pipeline-persistenceagent-{{.Name}}-token
+            {{ if and .CustomCABundle .PodToPodTLS }}
+            - mountPath: {{ .CustomCABundleRootMountPath  }}
+              name: ca-bundle
+            {{ end }}
+      serviceAccountName: ds-pipeline-persistenceagent-{{.Name}}
+      volumes:
+        - name: persistenceagent-sa-token
+          projected:
+            sources:
+            - serviceAccountToken:
+                audience: pipelines.kubeflow.org
+                expirationSeconds: 3600
+                path: ds-pipeline-persistenceagent-{{.Name}}-token
+        {{ if and .CustomCABundle .PodToPodTLS }}
+        - name: ca-bundle
+          configMap:
+            name: {{ .CustomCABundle.ConfigMapName }}
+        {{ end }}

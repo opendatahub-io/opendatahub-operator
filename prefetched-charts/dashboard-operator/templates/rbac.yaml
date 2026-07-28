@@ -1,0 +1,633 @@
+{{- if .Values.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "dashboard.serviceAccountName" . }}
+  namespace: {{ include "dashboard.namespace" . }}
+  labels:
+    {{- include "dashboard.labels" . | nindent 4 }}
+automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+{{- end }}
+---
+{{- if .Values.rbac.create }}
+# IMPORTANT: Keep ClusterRole rules in sync with config/rbac/role.yaml.
+# chart_sync_test.go validates CRD and RBAC drift in CI via `make test`.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "dashboard.clusterRoleName" . }}
+  labels:
+    {{- include "dashboard.labels" . | nindent 4 }}
+rules:
+  # Dashboard CR access
+  - apiGroups:
+      - components.platform.opendatahub.io
+    resources:
+      - dashboards
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - components.platform.opendatahub.io
+    resources:
+      - dashboards/status
+    verbs:
+      - get
+      - update
+      - patch
+  - apiGroups:
+      - components.platform.opendatahub.io
+    resources:
+      - dashboards/finalizers
+    verbs:
+      - update
+  # Core resources the operator deploys
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - secrets
+      - services
+      - serviceaccounts
+      - persistentvolumeclaims
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # Namespace access for platform detection and operand configuration
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - get
+      - list
+      - watch
+      - patch
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - replicasets
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # OpenShift Routes for URL extraction
+  - apiGroups:
+      - route.openshift.io
+    resources:
+      - routes
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # RBAC resources
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterroles
+      - clusterrolebindings
+      - roles
+      - rolebindings
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # Networking
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - networkpolicies
+      - ingresses
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # Gateway API routes for operand ingress
+  - apiGroups:
+      - gateway.networking.k8s.io
+    resources:
+      - httproutes
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # Events
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - patch
+  - apiGroups:
+      - events.k8s.io
+    resources:
+      - events
+    verbs:
+      - get
+      - list
+      - watch
+  # Coordination for leader election
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # OAuthClients for OpenShift auth
+  - apiGroups:
+      - oauth.openshift.io
+    resources:
+      - oauthclients
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # OLM resources for platform detection
+  - apiGroups:
+      - operators.coreos.com
+    resources:
+      - catalogsources
+      - clusterserviceversions
+      - operatorconditions
+      - subscriptions
+    verbs:
+      - get
+      - list
+      - watch
+  # Console links
+  - apiGroups:
+      - console.openshift.io
+    resources:
+      - consolelinks
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # Perses observability dashboards
+  - apiGroups:
+      - perses.dev
+    resources:
+      - persesdashboards
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # CRDs managed by the operator (deploy library lookups + operand CRD deployment)
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+  #
+  # RBAC escalation: permissions required by operand manifests
+  # The operand deploys Roles/ClusterRoles that grant these permissions.
+  # Kubernetes RBAC escalation prevention requires the operator SA to hold
+  # at least the same permissions it grants via those operand RBAC resources.
+  #
+  # Core resources referenced by operand SA roles
+  - apiGroups:
+      - ""
+    resources:
+      - endpoints
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+  # Impersonation for BFF module proxy (modules-cluster-role.yaml).
+  # Unscoped: the BFF proxy forwards requests on behalf of any authenticated
+  # user, so the set of impersonatable identities is not known at deploy time.
+  - apiGroups:
+      - ""
+    resources:
+      - users
+      - groups
+      - serviceaccounts
+    verbs:
+      - impersonate
+  # Batch resources for operand notebook management
+  - apiGroups:
+      - batch
+    resources:
+      - cronjobs
+    verbs:
+      - get
+      - update
+      - delete
+  # Storage classes — mirrors sa-rbac/cluster-role.yaml + gen-ai module ClusterRole.
+  - apiGroups:
+      - storage.k8s.io
+    resources:
+      - storageclasses
+    verbs:
+      - get
+      - list
+      - update
+      - patch
+  # Auth delegation for operand service accounts
+  - apiGroups:
+      - authentication.k8s.io
+    resources:
+      - tokenreviews
+    verbs:
+      - create
+  - apiGroups:
+      - authorization.k8s.io
+    resources:
+      - subjectaccessreviews
+    verbs:
+      - create
+  # Prometheus API access for cluster-monitoring-view ClusterRoleBinding escalation.
+  # The operand deploys a ClusterRoleBinding to the OpenShift built-in
+  # cluster-monitoring-view ClusterRole, which grants these permissions.
+  - apiGroups:
+      - monitoring.coreos.com
+    resources:
+      - prometheuses/api
+    resourceNames:
+      - k8s
+    verbs:
+      - get
+      - create
+      - update
+  # OpenShift platform detection for operand
+  - apiGroups:
+      - config.openshift.io
+    resources:
+      - clusterversions
+      - ingresses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - operator.openshift.io
+    resources:
+      - consoles
+    verbs:
+      - get
+      - list
+      - watch
+  # OpenShift image and build resources
+  - apiGroups:
+      - image.openshift.io
+    resources:
+      - imagestreams
+      - imagestreams/layers
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # Verbs cover both sa-rbac/role.yaml (list) and
+  # fetch-builds-and-images.rbac.yaml (get, list, watch).
+  - apiGroups:
+      - build.openshift.io
+    resources:
+      - builds
+      - buildconfigs
+    verbs:
+      - get
+      - list
+      - watch
+  # OpenShift deployment configs
+  - apiGroups:
+      - apps.openshift.io
+    resources:
+      - deploymentconfigs
+      - deploymentconfigs/instantiate
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # OpenShift templates
+  - apiGroups:
+      - template.openshift.io
+    resources:
+      - templates
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # OpenShift user and group access
+  - apiGroups:
+      - user.openshift.io
+    resources:
+      - groups
+      - users
+    verbs:
+      - get
+      - list
+      - watch
+  # OpenShift machine management for operand cluster detection
+  - apiGroups:
+      - machine.openshift.io
+      - autoscaling.openshift.io
+    resources:
+      - machineautoscalers
+      - machinesets
+    verbs:
+      - get
+      - list
+  # RHMI detection
+  - apiGroups:
+      - integreatly.org
+    resources:
+      - rhmis
+    verbs:
+      - get
+      - list
+      - watch
+  # Console quickstarts
+  - apiGroups:
+      - console.openshift.io
+    resources:
+      - odhquickstarts
+    verbs:
+      - get
+      - list
+      - create
+      - update
+      - patch
+      - delete
+  # ODH Dashboard CRDs
+  - apiGroups:
+      - dashboard.opendatahub.io
+    resources:
+      - acceleratorprofiles
+    verbs:
+      - get
+      - list
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - dashboard.opendatahub.io
+    resources:
+      - odhapplications
+      - odhdocuments
+    verbs:
+      - get
+      - list
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - opendatahub.io
+    resources:
+      - odhdashboardconfigs
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - infrastructure.opendatahub.io
+    resources:
+      - hardwareprofiles
+    verbs:
+      - get
+      - list
+      - watch
+  # ODH platform CRDs
+  - apiGroups:
+      - datasciencecluster.opendatahub.io
+    resources:
+      - datascienceclusters
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - dscinitialization.opendatahub.io
+    resources:
+      - dscinitializations
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - services.platform.opendatahub.io
+    resources:
+      - auths
+    verbs:
+      - get
+  # Kubeflow notebooks
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - notebooks
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # KServe model serving
+  - apiGroups:
+      - serving.kserve.io
+    resources:
+      - inferenceservices
+      - llminferenceserviceconfigs
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - serving.kserve.io
+    resources:
+      - servingruntimes
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # NIM integration
+  - apiGroups:
+      - nim.opendatahub.io
+    resources:
+      - accounts
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # Model registry
+  - apiGroups:
+      - modelregistry.opendatahub.io
+    resources:
+      - modelregistries
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # TrustyAI
+  - apiGroups:
+      - trustyai.opendatahub.io
+    resources:
+      - evalhubs
+    verbs:
+      - get
+      - list
+      - watch
+  # Feast feature stores
+  - apiGroups:
+      - feast.dev
+    resources:
+      - featurestores
+    verbs:
+      - get
+      - list
+      - watch
+  # MLflow
+  - apiGroups:
+      - mlflow.opendatahub.io
+    resources:
+      - mlflows
+    verbs:
+      - get
+      - list
+      - watch
+  # AI agent and MCP server resources
+  - apiGroups:
+      - agents.x-k8s.io
+    resources:
+      - sandboxes
+    verbs:
+      - get
+      - list
+      - patch
+  - apiGroups:
+      - mcp.kuadrant.io
+      - mcp.kagenti.com
+    resources:
+      - mcpserverregistrations
+    verbs:
+      - get
+      - list
+  # OTel Collector — gen-ai BFF creates per-namespace trace routing CRs
+  - apiGroups:
+      - opentelemetry.io
+    resources:
+      - opentelemetrycollectors
+    verbs:
+      - get
+      - list
+      - create
+      - update
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "dashboard.clusterRoleBindingName" . }}
+  labels:
+    {{- include "dashboard.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "dashboard.clusterRoleName" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "dashboard.serviceAccountName" . }}
+    namespace: {{ include "dashboard.namespace" . }}
+{{- end }}

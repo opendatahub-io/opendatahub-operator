@@ -1,0 +1,81 @@
+# OpenDataHub Overlay for Spark Operator
+# All resources deployed in opendatahub namespace
+#
+# Usage:
+#   oc apply -k config/overlays/odh/ --server-side=true
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 1. Change namespace for ALL resources
+namespace: opendatahub
+
+# 2. Import base configuration
+resources:
+  - ../../default # Inherits everything from config/default/
+  - ../../spark-rbac # SA/Role/RoleBinding for Spark driver pods
+  - ../../prometheus
+  - networkpolicy.yaml
+
+# 3. Delete the Namespace resource (ODH operator manages it)
+#    Add monitoring label to PodMonitor
+patches:
+  - path: delete-namespace.yaml
+  - path: networkpolicy-rbac-patch.yaml
+    target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: ClusterRole
+      name: spark-operator-controller
+  - patch: |-
+      - op: add
+        path: /metadata/labels/opendatahub.io~1monitoring
+        value: "true"
+    target:
+      group: monitoring.coreos.com
+      version: v1
+      kind: PodMonitor
+      name: spark-operator-podmonitor
+
+# 4. Add ODH-specific labels
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: opendatahub
+    includeSelectors: false
+
+# Image substitution is handled by ODH operator's ApplyParams function
+# which replaces $(SPARK_OPERATOR_CONTROLLER_IMAGE) and $(SPARK_OPERATOR_WEBHOOK_IMAGE)
+# with values from RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE environment variable.
+# For standalone kustomize usage, use: --set-image to override images.
+
+# 5. Replace images with ODH-specific ones
+configMapGenerator:
+  - name: spark-operator-params
+    behavior: replace   # ◄── Overwrite the default ConfigMap
+    envs:
+      - params.env      # ◄── Use ODH-specific params
+
+# 6. Inject images into deployments
+# ApplyParams updates params.env with RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE,
+# and these replacements inject those values into the deployment YAMLs
+replacements:
+  - source:
+      kind: ConfigMap
+      name: spark-operator-params
+      fieldPath: data.SPARK_OPERATOR_CONTROLLER_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: spark-operator-controller
+        fieldPaths:
+          - spec.template.spec.containers.[name=controller].image
+  - source:
+      kind: ConfigMap
+      name: spark-operator-params
+      fieldPath: data.SPARK_OPERATOR_WEBHOOK_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: spark-operator-webhook
+        fieldPaths:
+          - spec.template.spec.containers.[name=webhook].image

@@ -1,0 +1,18 @@
+# Grants the user-workload Prometheus service account read access to cluster
+# monitoring so it can scrape WVA's metrics service. Adjust the subject if your
+# Prometheus stack runs under a different SA/namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus-cluster-monitoring-view
+  labels:
+    app.kubernetes.io/name: workload-variant-autoscaler
+    app.kubernetes.io/managed-by: kustomize
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-monitoring-view
+subjects:
+- kind: ServiceAccount
+  name: prometheus-user-workload
+  namespace: openshift-user-workload-monitoring

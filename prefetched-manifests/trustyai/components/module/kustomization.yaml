@@ -1,0 +1,13 @@
+# Copyright 2024 The TrustyAI Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Component kustomization for MODULE controller
+# Includes CRD and RBAC resources for the TrustyAI module (components.platform.opendatahub.io)
+
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - crd/components.platform.opendatahub.io_trustyais.yaml
+  - rbac/manager-rbac.yaml
+  - rbac/manager-rolebinding.yaml

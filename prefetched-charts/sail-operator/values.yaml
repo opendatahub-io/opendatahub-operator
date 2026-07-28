@@ -1,0 +1,8 @@
+# Sail Operator Helm Chart
+namespace: istio-system
+
+imagePullSecrets:
+  - name: rhai-pull-secret
+
+bundle:
+  version: "3.3.3"

@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+## Append samples you want in your CSV to this file as resources ##
+resources:
+- _v1beta1_ogxserver.yaml
+- example-with-configmap.yaml
+- example-with-generated-config.yaml
+- example-with-ca-bundle.yaml
+- example-with-monitoring.yaml
+- example-with-network-config.yaml

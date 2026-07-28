@@ -1,0 +1,18 @@
+apiVersion: mcp.x-k8s.io/v1alpha1
+kind: MCPServer
+metadata:
+  name: kubernetes-mcp-server
+spec:
+  source:
+    type: ContainerImage
+    containerImage:
+      ref: quay.io/containers/kubernetes_mcp_server:latest
+  config:
+    port: 8080
+    storage:
+      - path: /tmp
+        permissions: ReadWrite
+        source:
+          type: EmptyDir
+          emptyDir:
+            sizeLimit: 100Mi

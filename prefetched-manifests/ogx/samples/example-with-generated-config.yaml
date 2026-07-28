@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openai-creds
+  labels:
+    ogx.io/watch: "true"
+type: Opaque
+stringData:
+  api-key: "<replace-with-your-openai-key>"
+---
+apiVersion: ogx.io/v1beta1
+kind: OGXServer
+metadata:
+  name: ogxserver-with-generated-config
+spec:
+  distribution:
+    name: starter
+  providers:
+    inference:
+      remote:
+        openai:
+        - id: openai-primary
+          apiKey:
+            name: openai-creds
+            key: api-key
+  resources:
+    models:
+    - name: gpt-4o-mini
+      provider: openai-primary
+      modelType: llm
+  disabledAPIs:
+  - vector_io

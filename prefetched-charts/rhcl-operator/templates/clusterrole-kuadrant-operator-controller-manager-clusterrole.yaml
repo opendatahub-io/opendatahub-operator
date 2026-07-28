@@ -1,0 +1,340 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kuadrant-operator-controller-manager-clusterrole
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - leases
+      - serviceaccounts
+      - services
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - authorino.kuadrant.io
+    resources:
+      - authconfigs
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - cert-manager.io
+    resources:
+      - certificates
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - cert-manager.io
+    resources:
+      - clusterissuers
+      - issuers
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - config.openshift.io
+    resources:
+      - clusterversions
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - console.openshift.io
+    resources:
+      - consoleplugins
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - configmaps
+      - leases
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - extensions.istio.io
+    resources:
+      - wasmplugins
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - extensions.kuadrant.io
+    resources:
+      - oidcpolicies
+      - planpolicies
+      - telemetrypolicies
+    verbs:
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - extensions.kuadrant.io
+    resources:
+      - oidcpolicies/finalizers
+      - planpolicies/finalizers
+      - telemetrypolicies/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - extensions.kuadrant.io
+    resources:
+      - oidcpolicies/status
+      - planpolicies/status
+      - telemetrypolicies/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - gateway.envoyproxy.io
+    resources:
+      - envoyextensionpolicies
+      - envoypatchpolicies
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - gateway.networking.k8s.io
+    resources:
+      - gatewayclasses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - gateway.networking.k8s.io
+    resources:
+      - gateways
+    verbs:
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - gateway.networking.k8s.io
+    resources:
+      - gateways/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - gateway.networking.k8s.io
+    resources:
+      - gateways/status
+      - httproutes/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - gateway.networking.k8s.io
+    resources:
+      - httproutes
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - kuadrant.io
+    resources:
+      - authpolicies
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - kuadrant.io
+    resources:
+      - authpolicies/finalizers
+      - dnspolicies/finalizers
+      - kuadrants/finalizers
+      - ratelimitpolicies/finalizers
+      - tlspolicies/finalizers
+      - tokenratelimitpolicies/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - kuadrant.io
+    resources:
+      - authpolicies/status
+      - dnspolicies/status
+      - kuadrants/status
+      - ratelimitpolicies/status
+      - tlspolicies/status
+      - tokenratelimitpolicies/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - kuadrant.io
+    resources:
+      - dnspolicies
+      - kuadrants
+      - tlspolicies
+      - tokenratelimitpolicies
+    verbs:
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - kuadrant.io
+    resources:
+      - dnsrecords
+      - ratelimitpolicies
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - kuadrant.io
+    resources:
+      - dnsrecords/status
+    verbs:
+      - get
+  - apiGroups:
+      - limitador.kuadrant.io
+    resources:
+      - limitadors
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - monitoring.coreos.com
+    resources:
+      - podmonitors
+      - servicemonitors
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - networking.istio.io
+    resources:
+      - envoyfilters
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - operator.authorino.kuadrant.io
+    resources:
+      - authorinos
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - security.istio.io
+    resources:
+      - peerauthentications
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch

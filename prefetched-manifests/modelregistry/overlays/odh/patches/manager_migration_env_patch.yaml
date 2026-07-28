@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+spec:
+  template:
+    spec:
+      containers:
+      - name: manager
+        env:
+        - name: STORAGE_MIGRATION_SOURCE_VERSION
+          value: "v1alpha1"
+        - name: STORAGE_MIGRATION_TARGET_VERSION
+          value: "v1beta1" 

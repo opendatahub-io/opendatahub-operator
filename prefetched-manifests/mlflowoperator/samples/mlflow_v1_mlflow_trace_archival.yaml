@@ -1,0 +1,25 @@
+apiVersion: mlflow.opendatahub.io/v1
+kind: MLflow
+metadata:
+  name: mlflow
+spec:
+  backendStoreUri: "postgresql://user:pass@host:5432/mlflow"
+  serveArtifacts: true
+  artifactsDestination: "s3://mlflow-artifacts"
+
+  # Trace archival moves older span payloads from the SQL tracking store to a
+  # configured artifact location. A CronJob runs the archival process on the
+  # configured schedule. The config is also mounted into the MLflow server so
+  # the UI can surface archival status.
+  traceArchival:
+    enabled: true
+    schedule: "0 */6 * * *"
+    location: "s3://mlflow-trace-archive"
+    retention: "30d"
+    maxTracesPerPass: 1000
+    # longRetentionAllowlist:
+    #   - "12345"  # Experiment IDs allowed to exceed broader retention
+
+  envFrom:
+    - secretRef:
+        name: aws-credentials

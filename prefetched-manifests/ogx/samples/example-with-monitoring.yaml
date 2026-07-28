@@ -1,0 +1,59 @@
+# Example: monitoring with default settings.
+# Monitoring is enabled by default — no explicit config needed.
+# The operator creates a ServiceMonitor and PrometheusRule automatically
+# when the prometheus-operator CRDs (monitoring.coreos.com) are installed.
+# Metrics are served on the default port (9464).
+apiVersion: ogx.io/v1beta1
+kind: OGXServer
+metadata:
+  name: ogxserver-monitoring-defaults
+spec:
+  distribution:
+    name: starter
+  workload:
+    overrides:
+      env:
+        - name: OLLAMA_INFERENCE_MODEL
+          value: 'llama3.2:1b'
+        - name: OLLAMA_URL
+          value: 'http://ollama-server-service.ollama-dist.svc.cluster.local:11434'
+---
+# Example: monitoring with a custom metrics port.
+# A separate "metrics" port (9090) is added to both the container and the Service.
+apiVersion: ogx.io/v1beta1
+kind: OGXServer
+metadata:
+  name: ogxserver-monitoring-custom-port
+spec:
+  distribution:
+    name: starter
+  monitoring:
+    enabled: true
+    metricsPort: 9090
+  workload:
+    overrides:
+      env:
+        - name: OLLAMA_INFERENCE_MODEL
+          value: 'llama3.2:1b'
+        - name: OLLAMA_URL
+          value: 'http://ollama-server-service.ollama-dist.svc.cluster.local:11434'
+---
+# Example: monitoring explicitly disabled.
+# No ServiceMonitor, PrometheusRule, or metrics port are created.
+# If monitoring was previously enabled, existing resources are cleaned up.
+apiVersion: ogx.io/v1beta1
+kind: OGXServer
+metadata:
+  name: ogxserver-monitoring-disabled
+spec:
+  distribution:
+    name: starter
+  monitoring:
+    enabled: false
+  workload:
+    overrides:
+      env:
+        - name: OLLAMA_INFERENCE_MODEL
+          value: 'llama3.2:1b'
+        - name: OLLAMA_URL
+          value: 'http://ollama-server-service.ollama-dist.svc.cluster.local:11434'

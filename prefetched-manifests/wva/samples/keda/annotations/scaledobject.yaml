@@ -1,0 +1,67 @@
+# Annotation-based WVA discovery — no VariantAutoscaling CRD required.
+# WVA discovers this ScaledObject via the llm-d.ai/managed annotation and
+# exposes wva_desired_replicas{variant_name="sample-deployment",namespace="llm-d-sim"}.
+# KEDA then reads that metric and drives the HPA it manages.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: sample-deployment-scaler
+  namespace: llm-d-sim
+  annotations:
+    llm-d.ai/managed: "true"
+    llm-d.ai/model-id: "default/default"
+    llm-d.ai/variant-cost: "10.0"
+  labels:
+    app: sample-deployment
+    scaler: keda-workload-variant-autoscaler
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: sample-deployment
+  pollingInterval: 5
+  cooldownPeriod: 30
+  initialCooldownPeriod: 30
+  maxReplicaCount: 10
+  fallback:
+    failureThreshold: 3
+    replicas: 2
+    behavior: "currentReplicasIfHigher"
+  advanced:
+    restoreToOriginalReplicaCount: false
+    horizontalPodAutoscalerConfig:
+      name: wva-keda-hpa-sample-deployment
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 0
+          policies:
+          - type: Percent
+            value: 100
+            periodSeconds: 30
+          - type: Pods
+            value: 5
+            periodSeconds: 15
+        scaleUp:
+          stabilizationWindowSeconds: 0
+          policies:
+          - type: Percent
+            value: 100
+            periodSeconds: 30
+          - type: Pods
+            value: 5
+            periodSeconds: 15
+  triggers:
+  - type: prometheus
+    name: wva-desired-replicas
+    metadata:
+      serverAddress: https://kube-prometheus-stack-prometheus.workload-variant-autoscaler-monitoring.svc.cluster.local:9090
+      # WVA emits with label "namespace"; exported_namespace is added by Prometheus Adapter.
+      query: |
+        wva_desired_replicas{
+          variant_name="sample-deployment",
+          namespace="llm-d-sim"
+        }
+      threshold: '1'
+      activationThreshold: '0'
+      metricType: "Value"
+      unsafeSsl: "true"  # WARNING: set to "false" in production and provide a CA bundle via authenticationRef

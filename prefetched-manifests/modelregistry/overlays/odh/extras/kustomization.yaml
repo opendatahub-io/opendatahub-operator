@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Adds odh namespace to all resources.
+namespace: opendatahub
+
+# Extra model registry resources for ODH operator
+resources:
+- modelregistry_editor_role.yaml
+- modelregistry_viewer_role.yaml

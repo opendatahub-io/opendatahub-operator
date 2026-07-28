@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: gpu-quota
+  namespace: llm-d-sim
+spec:
+  hard:
+    requests.nvidia.com/gpu: "10"

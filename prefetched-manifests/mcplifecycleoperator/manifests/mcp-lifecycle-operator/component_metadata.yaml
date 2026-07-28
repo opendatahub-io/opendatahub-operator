@@ -1,0 +1,4 @@
+releases:
+  - name: MCP Lifecycle Operator
+    version: v0.1.0
+    repoUrl: https://github.com/kubernetes-sigs/mcp-lifecycle-operator

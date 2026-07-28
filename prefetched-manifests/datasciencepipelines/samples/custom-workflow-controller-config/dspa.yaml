@@ -1,0 +1,15 @@
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: sample
+spec:
+  dspVersion: v2
+  apiServer:
+    enableSamplePipeline: true
+  objectStorage:
+    minio:
+      deploy: true
+      image: 'quay.io/opendatahub/minio:RELEASE.2019-08-14T20-37-41Z-license-compliance'
+  workflowController:
+    deploy: true
+    customConfig: 'custom-workflow-controller-configmap'

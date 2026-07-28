@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-service
+  namespace: {{.Namespace}}
+  labels:
+    app: minio-{{.Name}}
+    component: data-science-pipelines
+spec:
+  ports:
+    - name: http
+      port: 9000
+      protocol: TCP
+      targetPort: 9000
+  selector:
+    app: minio-{{.Name}}
+    component: data-science-pipelines

@@ -1,0 +1,11 @@
+# do not edit: generated via hack/generate-component-kustomization.sh
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - crd/trustyai.opendatahub.io_lmevaljobs.yaml
+  - rbac/default_lmeval_user_rolebinding.yaml
+  - rbac/manager-rbac.yaml
+  - rbac/manager-rolebinding.yaml
+  - rbac/non_admin_lmeval_role.yaml
+  - configmaps/lmeval-tasks.yaml
