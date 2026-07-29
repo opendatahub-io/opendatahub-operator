@@ -142,6 +142,15 @@ rules:
       - update
       - patch
       - delete
+  # Escalation for user Ray dashboard URL reads (manifests/common/rbac/all-users)
+  - apiGroups:
+      - gateway.networking.k8s.io
+    resources:
+      - gateways
+    resourceNames:
+      - data-science-gateway
+    verbs:
+      - get
   # Events
   - apiGroups:
       - ""
@@ -497,6 +506,14 @@ rules:
       - services.platform.opendatahub.io
     resources:
       - auths
+    verbs:
+      - get
+  - apiGroups:
+      - services.platform.opendatahub.io
+    resources:
+      - gatewayconfigs
+    resourceNames:
+      - default-gateway
     verbs:
       - get
   # Kubeflow notebooks
