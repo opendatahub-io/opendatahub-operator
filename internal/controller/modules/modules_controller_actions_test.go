@@ -3,6 +3,7 @@ package modules
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	semver "github.com/blang/semver/v4"
@@ -13,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -168,6 +170,41 @@ func (s provisioningModuleStub) GetInitContainerName() string { return cleanupIn
 
 func (s provisioningModuleStub) GetExtraEnv() map[string]string {
 	return map[string]string{"ENABLE_TEST_MODULE_CONTROLLER": "true"}
+}
+
+type legacyStatusFieldsWriterStub struct {
+	provisioningModuleStub
+
+	getStatusErr error
+}
+
+func (s legacyStatusFieldsWriterStub) GetModuleStatus(ctx context.Context, cli client.Client) (*ModuleStatus, error) {
+	if s.getStatusErr != nil {
+		return nil, s.getStatusErr
+	}
+	return s.provisioningModuleStub.GetModuleStatus(ctx, cli)
+}
+
+func (s legacyStatusFieldsWriterStub) WriteLegacyStatusFields(
+	_ context.Context,
+	_ client.Client,
+	dsc *dscv2.DataScienceCluster,
+	enabled bool,
+) error {
+	if dsc == nil {
+		return nil
+	}
+	if !enabled {
+		if dsc.Status.Components.Workbenches.WorkbenchesCommonStatus != nil {
+			dsc.Status.Components.Workbenches.WorkbenchNamespace = ""
+		}
+		return nil
+	}
+	if dsc.Status.Components.Workbenches.WorkbenchesCommonStatus == nil {
+		dsc.Status.Components.Workbenches.WorkbenchesCommonStatus = &componentApi.WorkbenchesCommonStatus{}
+	}
+	dsc.Status.Components.Workbenches.WorkbenchNamespace = dsc.Spec.Components.Workbenches.WorkbenchNamespace
+	return nil
 }
 
 func TestCleanupDisabledModulesPreservesModuleEnvInjectionWhileDeleting(t *testing.T) {
@@ -364,5 +401,46 @@ func TestComputeModulesStatusMarksNotReadyModules(t *testing.T) {
 	}
 	if ready.Message == "" {
 		t.Fatalf("expected ModulesReady message to mention the not ready module")
+	}
+}
+
+func TestComputeModulesStatusPreservesWorkbenchNamespaceOnGetModuleStatusError(t *testing.T) {
+	withTestRegistry(t)
+
+	const existingNamespace = "rhods-notebooks"
+	handler := legacyStatusFieldsWriterStub{
+		provisioningModuleStub: provisioningModuleStub{
+			moduleName: "workbenches",
+			enabled:    true,
+		},
+		getStatusErr: errors.New("failed to get module status"),
+	}
+	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
+
+	dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName}}
+	dsc.Spec.Components.Workbenches.WorkbenchNamespace = "other-namespace"
+	dsc.Status.Components.Workbenches.WorkbenchesCommonStatus = &componentApi.WorkbenchesCommonStatus{
+		WorkbenchNamespace: existingNamespace,
+	}
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
+	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	rr := &types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+	}
+
+	if err := ComputeModulesStatus(context.Background(), rr); err != nil {
+		t.Fatalf("compute modules status: %v", err)
+	}
+
+	if got := dsc.Status.Components.Workbenches.WorkbenchNamespace; got != existingNamespace {
+		t.Fatalf("expected workbench namespace %q to be preserved when module status read fails, got %q", existingNamespace, got)
 	}
 }

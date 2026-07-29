@@ -104,6 +104,16 @@ type ModuleHandler interface { //nolint:interfacebloat
 	WriteDSCComponentStatus(dsc *dscv2.DataScienceCluster, enabled bool, releases []common.ComponentRelease)
 }
 
+// DSCLegacyStatusFieldsWriter is an optional interface for modules that mirror
+// legacy component status fields (beyond managementState and releases) into
+// dsc.status.components for dashboard and other consumers.
+//
+// TODO: Remove this extension point when downstream consumers (e.g. odh-dashboard)
+// read those fields directly from module CRs instead of DSC status.
+type DSCLegacyStatusFieldsWriter interface {
+	WriteLegacyStatusFields(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster, enabled bool) error
+}
+
 // ReadyConditionTyper allows a module handler to declare the condition type
 // string used for per-module status on the DSC (e.g. "AIGatewayReady").
 // All handlers embedding BaseHandler satisfy this interface automatically;
