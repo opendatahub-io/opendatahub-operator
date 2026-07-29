@@ -27,7 +27,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -86,8 +88,12 @@ var WorkloadConfigs = map[string]WorkloadConfig{
 	},
 }
 
-//+kubebuilder:webhook:path=/mutate-hardware-profile,mutating=true,failurePolicy=fail,groups=kubeflow.org,resources=notebooks,verbs=create;update,versions=v1,name=hardwareprofile-notebook-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
-//nolint:lll
+// Notebook HWP admission is owned by workbenches-operator when the module is
+// packaged (/workbenches-hardware-profile). ISVC/LLMISVC HWP moved to
+// odh-model-controller (#3777). No kubebuilder markers — OLM must not install
+// hardwareprofile-notebook-injector on the platform operator. Runtime handler
+// registration is kept with a Notebook no-op when the workbenches module is in
+// the binary (see Handle).
 
 // Injector implements a mutating admission webhook for hardware profile injection.
 type Injector struct {
@@ -164,6 +170,13 @@ func (i *Injector) Handle(ctx context.Context, req admission.Request) admission.
 	// Skip processing if object is marked for deletion
 	if !obj.GetDeletionTimestamp().IsZero() {
 		return admission.Allowed("Object marked for deletion, skipping hardware profile injection")
+	}
+
+	// Notebook HWP is owned by workbenches-operator when the workbenches module is
+	// packaged. Keep this webhook registered for legacy Handle paths; serving HWP
+	// admission was moved to odh-model-controller in #3777.
+	if req.Kind.Kind == gvk.Notebook.Kind && mr.IsEnabled(componentApi.WorkbenchesComponentName) {
+		return admission.Allowed("notebook hardware profile injection owned by workbenches module operator")
 	}
 
 	switch req.Operation {

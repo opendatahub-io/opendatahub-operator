@@ -38,13 +38,14 @@ func RegisterAllWebhooks(mgr ctrl.Manager) error {
 		{name: "dsc-v2", register: dscv2webhook.RegisterWebhooks, disabled: func() bool { return !flags.IsDSCEnabled() }},
 		{name: "dsci-v1", register: dsciv1webhook.RegisterWebhooks, disabled: func() bool { return !flags.IsDSCIEnabled() }},
 		{name: "dsci-v2", register: dsciv2webhook.RegisterWebhooks, disabled: func() bool { return !flags.IsDSCIEnabled() }},
-		{name: "hardwareprofile", register: hardwareprofilewebhook.RegisterWebhooks, disabled: func() bool {
-			// Notebook HWP injection is owned by the workbenches module operator when enabled.
-			return mr.IsEnabled(componentApi.WorkbenchesComponentName)
-		}},
+		// hardwareprofile: no OLM webhookDefinitions for Notebook (workbenches-operator)
+		// or serving (odh-model-controller, #3777). Handler stays registered as a
+		// Notebook no-op when the workbenches module is packaged.
+		{name: "hardwareprofile", register: hardwareprofilewebhook.RegisterWebhooks},
 		{name: "monitoring", register: monitoringwebhook.RegisterWebhooks, disabled: func() bool {
 			return !sr.IsEnabled(serviceApi.MonitoringServiceName) && !mr.IsEnabled(serviceApi.MonitoringServiceName)
 		}},
+		// Notebook connection: no OLM webhookDefinition; workbenches-operator owns it.
 		{name: "notebook", register: notebookwebhook.RegisterWebhooks, disabled: func() bool { return mr.IsEnabled(componentApi.WorkbenchesComponentName) }},
 		{name: "dashboard", register: dashboard.RegisterWebhooks, disabled: func() bool { return !mr.IsEnabled(componentApi.DashboardComponentName) }},
 	}
