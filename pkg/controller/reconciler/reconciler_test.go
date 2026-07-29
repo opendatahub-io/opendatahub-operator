@@ -324,7 +324,7 @@ func TestPreConditions_StopReconciliation(t *testing.T) {
 	})
 
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(result.RequeueAfter).Should(BeZero())
+	g.Expect(result.RequeueAfter).Should(BeNumerically(">", 0), "precondition failure must schedule a requeue")
 	g.Expect(actionExecuted).To(BeFalse())
 
 	di := resources.GvkToUnstructured(gvk.Dashboard)
@@ -338,6 +338,74 @@ func TestPreConditions_StopReconciliation(t *testing.T) {
 		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse),
 		jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionTypeProvisioningSucceeded, "PreConditionFailed"),
 	))
+}
+
+func TestPreConditions_StopReconciliation_RecoverAfterCRDAppears(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	fakeGVK := schema.GroupVersionKind{Group: "fake.opendatahub.io", Version: "v1", Kind: "FakeResource"}
+
+	et, err := envt.New(envt.WithManager(ctrl.Options{
+		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+	}))
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
+
+	mgr := et.Manager()
+	cli := et.Client()
+
+	dashboard := &componentApi.Dashboard{
+		ObjectMeta: metav1.ObjectMeta{Name: componentApi.DashboardInstanceName, Generation: 1},
+	}
+	dashboard.SetGroupVersionKind(gvk.Dashboard)
+	g.Expect(cli.Create(ctx, dashboard)).To(Succeed())
+
+	var actionExecuted atomic.Bool
+
+	_, err = ReconcilerFor(mgr, &componentApi.Dashboard{}).
+		WithInstanceName(xid.New().String()).
+		WithPreCondition(precondition.MonitorCRD(fakeGVK, precondition.WithStopReconciliation())).
+		WithAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
+			actionExecuted.Store(true)
+			return nil
+		}).
+		Build(ctx)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	startManager(t, g, mgr)
+
+	// Step 1: verify controller enters PreConditionFailed (CRD absent)
+	di := resources.GvkToUnstructured(gvk.Dashboard)
+	di.SetName(componentApi.DashboardInstanceName)
+
+	g.Eventually(func(gg Gomega) {
+		gg.Expect(cli.Get(ctx, client.ObjectKeyFromObject(di), di)).To(Succeed())
+		gg.Expect(di).Should(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`,
+				status.ConditionTypeProvisioningSucceeded, "PreConditionFailed"),
+		)
+	}).WithTimeout(10 * time.Second).Should(Succeed())
+	g.Expect(actionExecuted.Load()).To(BeFalse())
+
+	// Step 2: register the CRD (becomes Established)
+	crd, err := et.RegisterCRD(ctx, fakeGVK, "fakeresources", "fakeresource", apiextensionsv1.ClusterScoped)
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() {
+		_ = cli.Delete(ctx, crd, client.PropagationPolicy(metav1.DeletePropagationBackground))
+	})
+
+	// Step 3: verify controller recovers via requeue
+	g.Eventually(func() bool {
+		return actionExecuted.Load()
+	}).WithTimeout(60 * time.Second).WithPolling(1 * time.Second).Should(BeTrue(),
+		"controller should recover after CRD appears via requeue")
+
+	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(di), di)).To(Succeed())
+	g.Expect(di).Should(
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+			status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+	)
 }
 
 // TestReconcilerBuilder_WatchMethods_UseUnstructured verifies that all watch
