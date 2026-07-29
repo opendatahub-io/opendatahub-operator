@@ -310,7 +310,7 @@ func TestPreConditions_StopReconciliation(t *testing.T) {
 	cc := createReconciler(cli)
 	cc.preConditions = []precondition.PreCondition{
 		precondition.MonitorCRD(
-			schema.GroupVersionKind{Group: "fake.opendatahub.io", Version: "v1", Kind: "FakeResource"},
+			"fakeresources.fake.opendatahub.io",
 			precondition.WithStopReconciliation(),
 		),
 	}
@@ -345,6 +345,7 @@ func TestPreConditions_StopReconciliation_RecoverAfterCRDAppears(t *testing.T) {
 	g := NewWithT(t)
 
 	fakeGVK := schema.GroupVersionKind{Group: "fake.opendatahub.io", Version: "v1", Kind: "FakeResource"}
+	fakeCRDName := "fakeresources.fake.opendatahub.io"
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
 		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
@@ -365,7 +366,7 @@ func TestPreConditions_StopReconciliation_RecoverAfterCRDAppears(t *testing.T) {
 
 	_, err = ReconcilerFor(mgr, &componentApi.Dashboard{}).
 		WithInstanceName(xid.New().String()).
-		WithPreCondition(precondition.MonitorCRD(fakeGVK, precondition.WithStopReconciliation())).
+		WithPreCondition(precondition.MonitorCRD(fakeCRDName, precondition.WithStopReconciliation())).
 		WithAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
 			actionExecuted.Store(true)
 			return nil
@@ -396,9 +397,7 @@ func TestPreConditions_StopReconciliation_RecoverAfterCRDAppears(t *testing.T) {
 	})
 
 	// Step 3: verify controller recovers via requeue
-	g.Eventually(func() bool {
-		return actionExecuted.Load()
-	}).WithTimeout(60 * time.Second).WithPolling(1 * time.Second).Should(BeTrue(),
+	g.Eventually(actionExecuted.Load).WithTimeout(60*time.Second).WithPolling(1*time.Second).Should(BeTrue(),
 		"controller should recover after CRD appears via requeue")
 
 	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(di), di)).To(Succeed())
