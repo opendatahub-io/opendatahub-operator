@@ -38,7 +38,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kf-notebook-controller-rhel9@sha256:93ac40d55ad17388c3d9c91c1061ce1d80c75a4db72593bbcbe8174179d559f2"
 - name: RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE
-  value: "quay.io/rhoai/odh-kserve-agent-rhel9@sha256:a50fc998af45af09bdf1a8250ca896f0341edcede72adaa51895ed7d973ce603"
+  value: "quay.io/rhoai/odh-kserve-agent-rhel9@sha256:a08146a7d0e5eb9edcf216c36083df03bb677ce7cd1d505512672a2247e5bb64"
 - name: RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE
   value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:585a26104fdfbf6e18ca3d0a9d45b435013d49b8635424d3c340653fccd63fa1"
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
@@ -50,7 +50,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9@sha256:131d28fea0881ea0928fd7879027cf2ace591c421f55717852a3dfa7eea7104a"
 - name: RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-kserve-module-operator-rhel9@sha256:135fbdb82bfd7233c5f69d099e9261deba5e7c98d811d117b7b51c878a4055ac"
+  value: "quay.io/rhoai/odh-kserve-module-operator-rhel9@sha256:d5165c59ea4dd5c63433998809a2ccbcdb41b6f00a5979838dc8df449d7d6165"
 - name: RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE
   value: "quay.io/rhoai/odh-kserve-router-rhel9@sha256:a4cfe2a803a6518981b8df44ea866017b2290b5b07a81e921ae82f4c87d62f94"
 - name: RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE
@@ -207,6 +207,10 @@ relatedImages:
   value: "quay.io/rhoai/odh-trustyai-service-operator-rhel9@sha256:4ce4edc55e267c83bda556f3c3bf7ddbc3eff700bf9596918777a4be9e3b5866"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
   value: "quay.io/rhoai/odh-trustyai-vllm-orchestrator-gateway-rhel9@sha256:be4830548d9cb9eb5e8b4aaf18b3271253e2103a91e5c7526b9540d7cfe6fce0"
+- name: RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE
+  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:9eb179aa367002fa38a40c2934213173c1b8817a41de5c78d5b453b78760815c"
+- name: RELATED_IMAGE_ODH_VLLM_CPU_FAST_2_IMAGE
+  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:9eb179aa367002fa38a40c2934213173c1b8817a41de5c78d5b453b78760815c"
 - name: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
   value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:9eb179aa367002fa38a40c2934213173c1b8817a41de5c78d5b453b78760815c"
 - name: RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE
