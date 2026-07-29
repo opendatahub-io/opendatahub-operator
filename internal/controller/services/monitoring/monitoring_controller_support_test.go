@@ -1809,34 +1809,61 @@ func TestDCGMMetricRenameRulesInMetricRelabelConfigs(t *testing.T) {
 				"__name__ is unavailable before scraping", metric)
 	}
 
-	g.Expect(relabelSection).ShouldNot(ContainSubstring("[__name__]"),
-		"relabel_configs should not reference __name__ as source_label; "+
+	g.Expect(relabelSection).ShouldNot(ContainSubstring("__name__"),
+		"relabel_configs should not reference __name__ in any form; "+
 			"__name__ is only available post-scrape in metric_relabel_configs")
 
-	// Verify: __name__ based rename rules MUST appear in metric_relabel_configs (post-scrape)
-	for _, metric := range dcgmMetrics {
-		g.Expect(metricRelabelSection).Should(ContainSubstring(metric),
-			"DCGM metric %s should appear in metric_relabel_configs for renaming", metric)
+	// Verify: complete rename stanzas (action, source_labels, target_label, regex, replacement)
+	// MUST appear in metric_relabel_configs. Checking only for substring presence of metric
+	// names is insufficient because the keep/drop rules also reference those names.
+	renamePairs := []struct {
+		dcgm   string
+		nvidia string
+	}{
+		{"DCGM_FI_DEV_GPU_TEMP", "nvidia_gpu_temperature_celsius"},
+		{"DCGM_FI_DEV_GPU_UTIL", "nvidia_gpu_utilization_ratio"},
+		{"DCGM_FI_DEV_MEM_COPY_UTIL", "nvidia_gpu_memory_utilization_ratio"},
+		{"DCGM_FI_DEV_FB_USED", "nvidia_gpu_memory_used_bytes"},
+		{"DCGM_FI_DEV_FB_FREE", "nvidia_gpu_memory_free_bytes"},
+		{"DCGM_FI_DEV_POWER_USAGE", "nvidia_gpu_power_usage_watts"},
+		{"DCGM_FI_DEV_SM_CLOCK", "nvidia_gpu_sm_clock_mhz"},
+		{"DCGM_FI_DEV_MEM_CLOCK", "nvidia_gpu_memory_clock_mhz"},
 	}
 
-	g.Expect(metricRelabelSection).Should(ContainSubstring("[__name__]"),
-		"metric_relabel_configs should reference __name__ for metric renaming")
+	for _, pair := range renamePairs {
+		regexStr := fmt.Sprintf("regex: '%s'", pair.dcgm)
+		replacementStr := fmt.Sprintf("replacement: '%s'", pair.nvidia)
 
-	// Verify the renamed nvidia_gpu_* metrics appear in metric_relabel_configs
-	renamedMetrics := []string{
-		"nvidia_gpu_temperature_celsius",
-		"nvidia_gpu_utilization_ratio",
-		"nvidia_gpu_memory_utilization_ratio",
-		"nvidia_gpu_memory_used_bytes",
-		"nvidia_gpu_memory_free_bytes",
-		"nvidia_gpu_power_usage_watts",
-		"nvidia_gpu_sm_clock_mhz",
-		"nvidia_gpu_memory_clock_mhz",
+		regexIdx := strings.Index(metricRelabelSection, regexStr)
+		g.Expect(regexIdx).Should(BeNumerically(">=", 0),
+			"metric_relabel_configs should contain rename regex for %s", pair.dcgm)
+
+		replacementIdx := strings.Index(metricRelabelSection, replacementStr)
+		g.Expect(replacementIdx).Should(BeNumerically(">=", 0),
+			"metric_relabel_configs should contain replacement %s for %s", pair.nvidia, pair.dcgm)
+
+		precedingText := metricRelabelSection[:regexIdx]
+		actionIdx := strings.LastIndex(precedingText, "- action: replace")
+		g.Expect(actionIdx).Should(BeNumerically(">=", 0),
+			"rename rule for %s should be preceded by action: replace", pair.dcgm)
+
+		stanza := metricRelabelSection[actionIdx : replacementIdx+len(replacementStr)]
+		g.Expect(stanza).Should(ContainSubstring("source_labels: [__name__]"),
+			"rename stanza for %s should have source_labels: [__name__]", pair.dcgm)
+		g.Expect(stanza).Should(ContainSubstring("target_label: __name__"),
+			"rename stanza for %s should have target_label: __name__", pair.dcgm)
 	}
 
-	for _, metric := range renamedMetrics {
-		g.Expect(metricRelabelSection).Should(ContainSubstring(metric),
-			"Renamed metric %s should appear in metric_relabel_configs", metric)
+	// Verify rename rules precede the drop rule in metric_relabel_configs
+	dropIdx := strings.Index(metricRelabelSection, "action: drop")
+	g.Expect(dropIdx).Should(BeNumerically(">", 0),
+		"drop rule should exist in metric_relabel_configs")
+
+	for _, pair := range renamePairs {
+		regexStr := fmt.Sprintf("regex: '%s'", pair.dcgm)
+		regexIdx := strings.Index(metricRelabelSection, regexStr)
+		g.Expect(regexIdx).Should(BeNumerically("<", dropIdx),
+			"rename rule for %s should precede the drop rule", pair.dcgm)
 	}
 
 	// Verify that pre-scrape relabel_configs only contain expected SD-based labels
