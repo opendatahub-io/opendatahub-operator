@@ -22,9 +22,6 @@ map:
     src: dashboard-operator/charts/dashboard
     dest: dashboard-operator
     type: chart
-  odh-training-operator:
-    src: manifests
-    dest: trainingoperator
   odh-feast-operator:
     src: infra/feast-operator/config
     dest: feastoperator
