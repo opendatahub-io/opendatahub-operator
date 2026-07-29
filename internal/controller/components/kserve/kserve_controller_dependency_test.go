@@ -91,10 +91,10 @@ func TestCRDDependencyMonitoring(t *testing.T) {
 				status.ConditionDependenciesAvailable, precondition.PreConditionFailedReason),
 		))
 
-		for _, crdGVK := range xksDependencyCRDs {
+		for _, crdName := range xksDependencyCRDs {
 			wt.Get(gvk.Kserve, nn).Eventually().Should(
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`,
-					status.ConditionDependenciesAvailable, crdGVK.Kind),
+					status.ConditionDependenciesAvailable, crdName),
 			)
 		}
 	})
@@ -107,12 +107,14 @@ func TestCRDDependencyMonitoring(t *testing.T) {
 		et, wt := startKserveController(t, ctx)
 		t.Cleanup(cancel)
 
-		for _, crdGVK := range xksDependencyCRDs {
-			plural := strings.ToLower(crdGVK.Kind) + "s"
-			singular := strings.ToLower(crdGVK.Kind)
+		for _, crdName := range xksDependencyCRDs {
+			parts := strings.SplitN(crdName, ".", 2)
+			plural := parts[0]
+			group := parts[1]
 
+			crdGVK := schema.GroupVersionKind{Group: group, Version: "v1", Kind: plural}
 			crd, err := et.RegisterCRD(wt.Context(), crdGVK,
-				plural, singular,
+				plural, plural,
 				apiextensionsv1.NamespaceScoped)
 			wt.Expect(err).NotTo(HaveOccurred())
 			envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), crd)
@@ -143,8 +145,8 @@ func TestCRDDependencyMonitoring(t *testing.T) {
 				LLMInferenceServiceWideEPDependencies, metav1.ConditionFalse),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`,
 				LLMInferenceServiceWideEPDependencies, common.ConditionSeverityInfo),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("LeaderWorkerSet")`,
-				LLMInferenceServiceWideEPDependencies),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`,
+				LLMInferenceServiceWideEPDependencies, gvk.LeaderWorkerSetCRDName),
 		))
 	})
 
