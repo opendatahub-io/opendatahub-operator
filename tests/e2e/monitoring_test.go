@@ -763,7 +763,7 @@ func (tc *MonitoringTestCtx) ValidateDCGMMetricRenameRulesPlacement(t *testing.T
 	// The DCGM scrape job renames raw DCGM_FI_* metrics to nvidia_gpu_* names using __name__
 	// as source_label. These rules MUST be in metric_relabel_configs (post-scrape) because
 	// __name__ is not available in relabel_configs (pre-scrape target-discovery stage).
-	dcgmJob := `[.spec.config.receivers.prometheus.config.scrape_configs[]` +
+	const dcgmJob = `[.spec.config.receivers.prometheus.config.scrape_configs[]` +
 		` | select(.job_name == "dcgm-exporter-accelerator-metrics")][0]`
 
 	tc.EnsureResourceExists(
@@ -776,22 +776,26 @@ func (tc *MonitoringTestCtx) ValidateDCGMMetricRenameRulesPlacement(t *testing.T
 			jq.Match(`[.spec.config.receivers.prometheus.config.scrape_configs[]` +
 				` | select(.job_name == "dcgm-exporter-accelerator-metrics")] | length == 1`),
 			// Verify complete rename stanzas in metric_relabel_configs
-			jq.Match(`%s.metric_relabel_configs | any(.action == "replace"` +
+			jq.Match(dcgmJob +
+				`.metric_relabel_configs | any(.action == "replace"` +
 				` and .source_labels == ["__name__"] and .target_label == "__name__"` +
 				` and .regex == "DCGM_FI_DEV_GPU_UTIL"` +
-				` and .replacement == "nvidia_gpu_utilization_ratio")`, dcgmJob),
-			jq.Match(`%s.metric_relabel_configs | any(.action == "replace"` +
+				` and .replacement == "nvidia_gpu_utilization_ratio")`),
+			jq.Match(dcgmJob +
+				`.metric_relabel_configs | any(.action == "replace"` +
 				` and .source_labels == ["__name__"] and .target_label == "__name__"` +
 				` and .regex == "DCGM_FI_DEV_MEM_COPY_UTIL"` +
-				` and .replacement == "nvidia_gpu_memory_utilization_ratio")`, dcgmJob),
+				` and .replacement == "nvidia_gpu_memory_utilization_ratio")`),
 			// Verify rename rules precede the drop rule in metric_relabel_configs
-			jq.Match(`%s.metric_relabel_configs | ` +
+			jq.Match(dcgmJob +
+				`.metric_relabel_configs | ` +
 				`([to_entries[] | select(.value.regex == "DCGM_FI_DEV_GPU_UTIL"` +
 				` and .value.action == "replace")][0].key) < ` +
-				`([to_entries[] | select(.value.action == "drop")][0].key)`, dcgmJob),
+				`([to_entries[] | select(.value.action == "drop")][0].key)`),
 			// relabel_configs should NOT contain any __name__ in source_labels
-			jq.Match(`%s.relabel_configs | all(.source_labels` +
-				` | if . then all(. != "__name__") else true end)`, dcgmJob),
+			jq.Match(dcgmJob +
+				`.relabel_configs | all(.source_labels` +
+				` | if . then all(. != "__name__") else true end)`),
 		)),
 		WithCustomErrorMsg("DCGM metric rename rules should be in metric_relabel_configs (post-scrape), not relabel_configs (pre-scrape)"),
 	)
