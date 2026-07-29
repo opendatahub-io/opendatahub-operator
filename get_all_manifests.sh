@@ -70,7 +70,7 @@ declare -A ODH_CCM_CHARTS=(
 # ODH Component Charts
 declare -A ODH_COMPONENT_CHARTS=(
     ["dashboard-operator"]="opendatahub-io:odh-dashboard:main@d5846b9e75b594f11ab58842e5f4429e1921431c:dashboard-operator/charts/dashboard"
-    ["workbenches"]="opendatahub-io:workbenches-operator:main@c857821857adab3155801a1301dad4151cdbc4e9:charts/operator"
+    ["workbenches"]="opendatahub-io:workbenches-operator:main@5ee582898fe9db5730761c6c1d49e7c532ee973a:charts/operator"
     ["feastoperator"]="opendatahub-io:feast-module-operator:main@5d865144fc7ee0850ec8603cedaf3406d513bac9:config/chart"
 )
 
@@ -85,7 +85,7 @@ declare -A RHOAI_CCM_CHARTS=(
 # RHOAI Component Charts
 declare -A RHOAI_COMPONENT_CHARTS=(
     ["dashboard-operator"]="red-hat-data-services:odh-dashboard:rhoai-3.5@483ec0c8f3f45cad3d4d185a191c36eda1cdbd47:dashboard-operator/charts/dashboard"
-    ["workbenches"]="red-hat-data-services:workbenches-operator:main@eb970ef4f20a402f87ecb4b6d3f5a3860485167c:charts/operator"
+    ["workbenches"]="red-hat-data-services:workbenches-operator:rhoai-3.5@30992d8148ddf59b23c3d87bfb3f321b6a93e2ec:charts/operator"
     ["feastoperator"]="red-hat-data-services:feast-module-operator:rhoai-3.5@bb135ff9df5e2fea2b58348c9ecd2ad3c5659759:config/chart"
 )
 
