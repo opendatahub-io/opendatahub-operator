@@ -843,6 +843,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `url` _string_ |  |  |  |
 
@@ -933,6 +934,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
@@ -1038,6 +1040,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
@@ -1160,6 +1163,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
@@ -1289,6 +1293,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
@@ -1445,6 +1450,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
@@ -1580,6 +1586,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
@@ -1671,6 +1678,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `registriesNamespace` _string_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
@@ -1731,6 +1739,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
@@ -1867,6 +1876,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
@@ -1971,6 +1981,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
@@ -2055,6 +2066,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
@@ -2158,6 +2170,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
@@ -2242,6 +2255,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
@@ -2369,6 +2383,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
@@ -2479,6 +2494,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 | `workbenchNamespace` _string_ |  |  |  |
@@ -2571,6 +2587,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
@@ -2715,6 +2732,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster. |  |  |
 | `errorMessage` _string_ |  |  |  |
@@ -2867,6 +2885,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster. |  |  |
 | `errorMessage` _string_ |  |  |  |
@@ -3537,6 +3556,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
@@ -3642,6 +3662,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `domain` _string_ | Domain is the computed gateway domain (subdomain + cluster domain or default)<br />This is the single source of truth for the gateway domain used by all components |  |  |
 
@@ -3794,6 +3815,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `reconciledVersion` _string_ | The operator version that last completed a full condition cleanup.<br />When the running operator version differs from this value, the<br />reconciler treats the cycle as an upgrade: it resets the active-type<br />tracker and removes stale conditions left over from the previous<br />version. During normal (same-version) reconciles this cleanup is<br />skipped, so conditions persist across cycles without being re-set. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `url` _string_ |  |  |  |
 

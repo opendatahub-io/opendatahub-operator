@@ -137,7 +137,7 @@ func TestConditions(t *testing.T) {
 			name: "stop",
 			err:  odherrors.NewStopError("stop"),
 			matcher: And(
-				jq.Match(`all(.status.conditions[]?.type; . != "foo")`),
+				jq.Match(`any(.status.conditions[]?.type; . == "foo")`),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionFalse),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse),
 			),
@@ -146,7 +146,7 @@ func TestConditions(t *testing.T) {
 			name: "failure",
 			err:  errors.New("failure"),
 			matcher: And(
-				jq.Match(`all(.status.conditions[]?.type; . != "foo")`),
+				jq.Match(`any(.status.conditions[]?.type; . == "foo")`),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionFalse),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse),
 			),
@@ -1414,4 +1414,217 @@ func TestDynamicOwnership_StaticOwnershipPrecedence(t *testing.T) {
 		Controller:         ptr.To(true),
 		BlockOwnerDeletion: ptr.To(true),
 	}))
+}
+
+func TestVersionBasedConditionCleanup(t *testing.T) {
+	ctx := t.Context()
+
+	g := NewWithT(t)
+
+	et, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
+
+	cli := et.Client()
+
+	dsci := resources.GvkToUnstructured(gvk.DSCInitialization)
+	dsci.SetName(xid.New().String())
+	dsci.SetGeneration(1)
+
+	err = cli.Create(ctx, dsci)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	t.Run("first reconcile cleans up stale conditions", func(t *testing.T) {
+		g := NewWithT(t)
+
+		dash := resources.GvkToUnstructured(gvk.Dashboard)
+		dash.SetName(componentApi.DashboardInstanceName)
+		dash.SetGeneration(1)
+
+		err = cli.Create(ctx, dash)
+		g.Expect(err).NotTo(HaveOccurred())
+		t.Cleanup(func() {
+			_ = cli.Delete(ctx, dash, client.PropagationPolicy(metav1.DeletePropagationBackground))
+			g.Eventually(func() bool {
+				return k8serr.IsNotFound(cli.Get(ctx, client.ObjectKeyFromObject(dash), dash))
+			}).WithTimeout(10 * time.Second).Should(BeTrue())
+		})
+
+		st, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&common.Status{
+			Conditions: []common.Condition{{
+				Type:               "StaleCondition",
+				Status:             metav1.ConditionTrue,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+			}},
+		})
+		g.Expect(err).NotTo(HaveOccurred())
+
+		err = unstructured.SetNestedField(dash.Object, st, "status")
+		g.Expect(err).NotTo(HaveOccurred())
+
+		err = cli.Status().Update(ctx, dash)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		cc := createReconciler(cli)
+		cc.AddAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
+			return nil
+		})
+
+		_, err = cc.Reconcile(ctx, ctrl.Request{
+			NamespacedName: types.NamespacedName{Name: componentApi.DashboardInstanceName},
+		})
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		di := resources.GvkToUnstructured(gvk.Dashboard)
+		di.SetName(componentApi.DashboardInstanceName)
+
+		err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First reconcile has empty ReconciledVersion → treated as upgrade → stale condition removed
+		g.Expect(di).Should(
+			jq.Match(`all(.status.conditions[]?.type; . != "StaleCondition")`),
+		)
+	})
+
+	t.Run("same-version reconcile preserves extra conditions", func(t *testing.T) {
+		g := NewWithT(t)
+
+		dash := resources.GvkToUnstructured(gvk.Dashboard)
+		dash.SetName(componentApi.DashboardInstanceName)
+		dash.SetGeneration(1)
+
+		err = cli.Create(ctx, dash)
+		g.Expect(err).NotTo(HaveOccurred())
+		t.Cleanup(func() {
+			_ = cli.Delete(ctx, dash, client.PropagationPolicy(metav1.DeletePropagationBackground))
+			g.Eventually(func() bool {
+				return k8serr.IsNotFound(cli.Get(ctx, client.ObjectKeyFromObject(dash), dash))
+			}).WithTimeout(10 * time.Second).Should(BeTrue())
+		})
+
+		currentVersion := cluster.GetRelease().Version.String()
+
+		st, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&common.Status{
+			ReconciledVersion: currentVersion,
+			Conditions: []common.Condition{{
+				Type:               "ExtraCondition",
+				Status:             metav1.ConditionTrue,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+			}},
+		})
+		g.Expect(err).NotTo(HaveOccurred())
+
+		err = unstructured.SetNestedField(dash.Object, st, "status")
+		g.Expect(err).NotTo(HaveOccurred())
+
+		err = cli.Status().Update(ctx, dash)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		cc := createReconciler(cli)
+		cc.AddAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
+			return nil
+		})
+
+		_, err = cc.Reconcile(ctx, ctrl.Request{
+			NamespacedName: types.NamespacedName{Name: componentApi.DashboardInstanceName},
+		})
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		di := resources.GvkToUnstructured(gvk.Dashboard)
+		di.SetName(componentApi.DashboardInstanceName)
+
+		err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Same version → no cleanup → ExtraCondition preserved
+		g.Expect(di).Should(
+			jq.Match(`any(.status.conditions[]?.type; . == "ExtraCondition")`),
+		)
+	})
+
+	t.Run("failed upgrade does not record version so retry still runs cleanup", func(t *testing.T) {
+		g := NewWithT(t)
+
+		dash := resources.GvkToUnstructured(gvk.Dashboard)
+		dash.SetName(componentApi.DashboardInstanceName)
+		dash.SetGeneration(1)
+
+		err = cli.Create(ctx, dash)
+		g.Expect(err).NotTo(HaveOccurred())
+		t.Cleanup(func() {
+			_ = cli.Delete(ctx, dash, client.PropagationPolicy(metav1.DeletePropagationBackground))
+			g.Eventually(func() bool {
+				return k8serr.IsNotFound(cli.Get(ctx, client.ObjectKeyFromObject(dash), dash))
+			}).WithTimeout(10 * time.Second).Should(BeTrue())
+		})
+
+		st, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&common.Status{
+			Conditions: []common.Condition{{
+				Type:               "StaleFromOldVersion",
+				Status:             metav1.ConditionTrue,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+			}},
+		})
+		g.Expect(err).NotTo(HaveOccurred())
+
+		err = unstructured.SetNestedField(dash.Object, st, "status")
+		g.Expect(err).NotTo(HaveOccurred())
+
+		err = cli.Status().Update(ctx, dash)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		shouldFail := true
+		cc := createReconciler(cli)
+		cc.AddAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
+			if shouldFail {
+				return errors.New("simulated action failure")
+			}
+			return nil
+		})
+
+		// First reconcile: upgrade (empty ReconciledVersion) but action fails
+		_, err = cc.Reconcile(ctx, ctrl.Request{
+			NamespacedName: types.NamespacedName{Name: componentApi.DashboardInstanceName},
+		})
+		g.Expect(err).Should(HaveOccurred())
+
+		di := resources.GvkToUnstructured(gvk.Dashboard)
+		di.SetName(componentApi.DashboardInstanceName)
+
+		err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// ReconciledVersion must NOT be set after a failed upgrade
+		g.Expect(di).Should(
+			jq.Match(`.status.reconciledVersion == null or .status.reconciledVersion == ""`),
+		)
+
+		// Stale condition must survive the failed reconcile
+		g.Expect(di).Should(
+			jq.Match(`any(.status.conditions[]?.type; . == "StaleFromOldVersion")`),
+		)
+
+		// Second reconcile: retry succeeds — still treated as upgrade because version was not recorded
+		shouldFail = false
+		_, err = cc.Reconcile(ctx, ctrl.Request{
+			NamespacedName: types.NamespacedName{Name: componentApi.DashboardInstanceName},
+		})
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		currentVersion := cluster.GetRelease().Version.String()
+
+		// Successful retry must record the version
+		g.Expect(di).Should(
+			jq.Match(`.status.reconciledVersion == "%s"`, currentVersion),
+		)
+
+		// Stale condition from old version must be cleaned up
+		g.Expect(di).Should(
+			jq.Match(`all(.status.conditions[]?.type; . != "StaleFromOldVersion")`),
+		)
+	})
 }

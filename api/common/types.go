@@ -125,6 +125,14 @@ type Status struct {
 	// The generation observed by the resource controller.
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
+	// The operator version that last completed a full condition cleanup.
+	// When the running operator version differs from this value, the
+	// reconciler treats the cycle as an upgrade: it resets the active-type
+	// tracker and removes stale conditions left over from the previous
+	// version. During normal (same-version) reconciles this cleanup is
+	// skipped, so conditions persist across cycles without being re-set.
+	ReconciledVersion string `json:"reconciledVersion,omitempty"`
+
 	// +listType=atomic
 	Conditions []Condition `json:"conditions,omitempty"`
 }
