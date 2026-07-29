@@ -4,7 +4,6 @@ metadata:
   name: leader-election-rolebinding
   labels:
     app.kubernetes.io/name: llm-d-batch-gateway-operator
-    app.kubernetes.io/managed-by: kustomize
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role

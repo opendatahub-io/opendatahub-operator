@@ -6,7 +6,6 @@ metadata:
   labels:
     control-plane: llm-d-batch-gateway-controller-manager
     app.kubernetes.io/name: llm-d-batch-gateway-operator
-    app.kubernetes.io/managed-by: kustomize
 spec:
   replicas: 1
   selector:

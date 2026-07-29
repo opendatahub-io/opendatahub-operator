@@ -10,7 +10,6 @@ kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/name: ai-gateway-operator
-    app.kubernetes.io/managed-by: kustomize
   name: components-aigateway-editor-role
 rules:
 - apiGroups:
