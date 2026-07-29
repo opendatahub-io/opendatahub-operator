@@ -35,8 +35,10 @@ const (
 	Delete string = "delete"
 )
 
-//+kubebuilder:webhook:path=/platform-connection-notebook,mutating=true,failurePolicy=fail,groups=kubeflow.org,resources=notebooks,verbs=create;update,versions=v1,name=connection-notebook.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
-//nolint:lll
+// Connection injection for Notebooks is owned by workbenches-operator when the
+// workbenches module is packaged (/workbenches-connection-notebook). No
+// kubebuilder marker here — OLM must not install connection-notebook.opendatahub.io
+// on the platform operator. Runtime registration is skipped in webhook.go.
 
 // Validator implements webhook.AdmissionHandler for Notebook connection validation webhooks.
 type NotebookWebhook struct {
