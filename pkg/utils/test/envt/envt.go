@@ -225,6 +225,10 @@ func New(opts ...OptionFn) (*EnvT, error) {
 		result.Env.WebhookInstallOptions = envtest.WebhookInstallOptions{
 			Paths: []string{
 				filepath.Join(result.root, "config", "webhook"),
+				// Notebook connection/HWP webhooks are no longer generated into
+				// config/webhook/manifests.yaml once platform OLM stops owning them.
+				// Keep test-only admission wiring for envtest integration suites.
+				filepath.Join(result.root, "internal", "webhook", "envtestutil", "testdata", "webhooks"),
 			},
 		}
 	}

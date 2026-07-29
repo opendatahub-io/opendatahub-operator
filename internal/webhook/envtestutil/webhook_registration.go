@@ -9,7 +9,12 @@ import (
 	notebookwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/notebook"
 )
 
-// RegisterWebhooks registers hardware profile and connection webhooks for integration testing.
+// RegisterWebhooks registers platform webhook handlers for envtest integration tests.
+//
+// Production OLM no longer installs platform notebook connection/HWP webhooks once the
+// workbenches module owns them; envtest still registers these handlers and loads
+// test-only MutatingWebhookConfiguration manifests (see testdata/webhooks/) so
+// integration suites continue to exercise notebook admission paths.
 //
 // This function is specifically designed for tests that create Kubernetes resources (such as Notebooks or InferenceServices)
 // that are targeted by multiple webhook configurations. In a real cluster, when these resources are created, Kubernetes
