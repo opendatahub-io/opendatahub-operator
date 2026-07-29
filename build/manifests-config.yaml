@@ -174,16 +174,16 @@ additional_meta:
     git.commit: aa3fc57deb8831470d965cba4570e53b93671abd
   odh-llm-d-batch-gateway-apiserver:
     git.url: https://github.com/red-hat-data-services/batch-gateway
-    git.commit: 22283859abe03a8a4c7859b21c1f1b1962d78bb1
+    git.commit: fbfe15d20df8496c7744b6085956a9a04167a088
   odh-llm-d-batch-gateway-gc:
     git.url: https://github.com/red-hat-data-services/batch-gateway
-    git.commit: 22283859abe03a8a4c7859b21c1f1b1962d78bb1
+    git.commit: fbfe15d20df8496c7744b6085956a9a04167a088
   odh-llm-d-batch-gateway-operator:
     git.url: https://github.com/red-hat-data-services/llm-d-batch-gateway-operator
     git.commit: e9ca5a07e3822d87905d70729845469116e4651e
   odh-llm-d-batch-gateway-processor:
     git.url: https://github.com/red-hat-data-services/batch-gateway
-    git.commit: 22283859abe03a8a4c7859b21c1f1b1962d78bb1
+    git.commit: fbfe15d20df8496c7744b6085956a9a04167a088
   odh-llm-d-router-disagg-sidecar:
     git.url: https://github.com/red-hat-data-services/llm-d-router
     git.commit: edb537612e3fbee3c1801b715932229257a45835
@@ -321,7 +321,7 @@ additional_meta:
     git.commit: 3455cfdff2079dcde14425fc0de170cbbf91f3e2
   odh-trainer-operator:
     git.url: https://github.com/red-hat-data-services/trainer-operator
-    git.commit: 39cfda4ca53ea402c6eec5c7f458f40f00624b46
+    git.commit: 00daa94e2bf0079473d84380af25155b9b451edb
   odh-training-cuda121-torch24-py311:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 5d574fed033532dfd0afaaf2f1f3ca30fa9da9d7
@@ -363,7 +363,7 @@ additional_meta:
     git.commit: 15bb5d4c60bc7e1f261327cb1e50fd3491d17bed
   odh-workbench-codeserver-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 6e2b8fc78baa892150f6389630c46fb77c53c0fa
+    git.commit: 6f9ea7a94b5bca9a71c3732243fe919d75d17230
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: eb44715a92d4f9d607d704b0d33083ecd8dc7013
