@@ -96,8 +96,10 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 }
 
 // BuildModuleCR projects platform configuration onto the Workbenches module CR.
-// DSC-level managementState is projected into the module CR spec; orchestrator-only
-// fields (gatewayDomain, platform, mlflowEnabled) are derived from PlatformContext.
+// DSC-level managementState and legacy workbenchNamespace are projected into the
+// module CR spec for API parity; notebook-controller operands deploy into
+// APPLICATIONS_NAMESPACE (injected separately). Orchestrator-only fields
+// (gatewayDomain, platform, mlflowEnabled) are derived from PlatformContext.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,

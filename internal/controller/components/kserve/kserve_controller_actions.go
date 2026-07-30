@@ -15,7 +15,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -221,19 +220,19 @@ func versionedWellKnownLLMInferenceServiceConfigs(_ context.Context, version str
 	return nil
 }
 
-var xksDependencyCRDs = []schema.GroupVersionKind{
+var xksDependencyCRDs = []string{
 	// networking.istio.io
-	gvk.DestinationRule, gvk.EnvoyFilter, gvk.IstioGateway, gvk.ProxyConfig,
-	gvk.ServiceEntry, gvk.Sidecar, gvk.WorkloadEntry, gvk.WorkloadGroup,
+	gvk.DestinationRuleCRDName, gvk.EnvoyFilterCRDName, gvk.IstioGatewayCRDName, gvk.ProxyConfigCRDName,
+	gvk.ServiceEntryCRDName, gvk.SidecarCRDName, gvk.WorkloadEntryCRDName, gvk.WorkloadGroupCRDName,
 	// security.istio.io
-	gvk.AuthorizationPolicy, gvk.PeerAuthentication, gvk.RequestAuthentication,
+	gvk.AuthorizationPolicyCRDName, gvk.PeerAuthenticationCRDName, gvk.RequestAuthenticationCRDName,
 	// telemetry.istio.io
-	gvk.Telemetry,
+	gvk.TelemetryCRDName,
 	// extensions.istio.io
-	gvk.WasmPlugin,
+	gvk.WasmPluginCRDName,
 	// cert-manager.io
-	gvk.CertManagerCertificate, gvk.CertManagerCertificateRequest,
-	gvk.CertManagerIssuer, gvk.CertManagerClusterIssuer,
+	gvk.CertManagerCertificateCRDName, gvk.CertManagerCertificateRequestCRDName,
+	gvk.CertManagerIssuerCRDName, gvk.CertManagerClusterIssuerCRDName,
 }
 
 // deleteLLMInferenceServiceConfigs is a finalizer action that explicitly deletes

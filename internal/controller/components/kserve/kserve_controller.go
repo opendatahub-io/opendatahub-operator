@@ -28,7 +28,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -167,7 +166,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithPreCondition(precondition.MonitorCRDs(xksDependencyCRDs,
 			precondition.WithClusterTypes(cluster.ClusterTypeKubernetes))).
 		WithPreCondition(precondition.MonitorCRDs(
-			[]schema.GroupVersionKind{gvk.LeaderWorkerSetV1},
+			[]string{gvk.LeaderWorkerSetCRDName},
 			precondition.WithConditionType(LLMInferenceServiceWideEPDependencies),
 			precondition.WithClusterTypes(cluster.ClusterTypeKubernetes),
 			precondition.WithSeverity(common.ConditionSeverityInfo),
