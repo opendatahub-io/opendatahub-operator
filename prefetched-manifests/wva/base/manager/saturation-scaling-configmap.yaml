@@ -37,3 +37,11 @@ data:
     # Enable GPU limiter to constrain scaling based on available cluster resources
     # When true, scale-up decisions are limited by available GPU capacity
     enableLimiter: false
+    # Enable priority-weighted rescale: under GPU contention the V2 optimizer
+    # redistributes the whole budget by priority x demand, reclaiming from
+    # lower-priority models so higher-priority work can run. Off by default.
+    # Budget-scope flag (read only from this `default` entry): the value here
+    # governs the cluster budget; a namespace-local config's `default` governs
+    # that namespace's quota budget. Has no effect without a same-scope GPU budget
+    # (requires enableLimiter and a matching cluster/namespace budget).
+    enableRescale: false

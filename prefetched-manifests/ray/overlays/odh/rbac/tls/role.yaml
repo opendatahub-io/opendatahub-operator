@@ -1,17 +1,14 @@
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
-  labels:
-    app: training-operator
-  name: training-operator-webhook
+  name: kuberay-tls-profile-role
 rules:
 - apiGroups:
-  - ""
+  - config.openshift.io
   resources:
-  - secrets
+  - apiservers
   verbs:
   - get
   - list
-  - update
   - watch

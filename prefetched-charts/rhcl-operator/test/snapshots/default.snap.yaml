@@ -32,6 +32,18 @@ imagePullSecrets:
   - name: rhai-pull-secret
 
 ---
+# Source: rhcl-operator/templates/serviceaccount-default-operand.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: kuadrant-system
+  annotations:
+    helm.sh/resource-policy: keep
+imagePullSecrets:
+  - name: rhai-pull-secret
+
+---
 # Source: rhcl-operator/templates/serviceaccount-developer-portal-controller-manager.yaml
 apiVersion: v1
 kind: ServiceAccount

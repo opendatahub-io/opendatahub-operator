@@ -207,6 +207,10 @@ relatedImages:
   value: quay.io/rhoai/odh-trustyai-service-operator-rhel9@sha256:f5285d2344159284c19c0bce54d86baae08cc650acf8ac658f81e526682b5d6c
 - name: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
   value: quay.io/rhoai/odh-trustyai-vllm-orchestrator-gateway-rhel9@sha256:dfb0e2955cb9b0fa9ac7e09959073f4048740d9885f00d31f62d7c02cfcd9baf
+- name: RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE
+  value: quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:4f33c61bb9d8e11311245995d1148010bc05f77546d4b39cecc35a6606f47113
+- name: RELATED_IMAGE_ODH_VLLM_CPU_FAST_2_IMAGE
+  value: quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:4f33c61bb9d8e11311245995d1148010bc05f77546d4b39cecc35a6606f47113
 - name: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
   value: quay.io/rhoai/odh-vllm-cpu-rhel9@4f33c61bb9d8e11311245995d1148010bc05f77546d4b39cecc35a6606f47113
 - name: RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE
