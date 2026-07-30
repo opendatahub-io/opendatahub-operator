@@ -71,7 +71,7 @@ declare -A ODH_CCM_CHARTS=(
 declare -A ODH_COMPONENT_CHARTS=(
     ["dashboard-operator"]="opendatahub-io:odh-dashboard:main@3ee4d0bf68f629ff2d6fea0942372df356729a59:dashboard-operator/charts/dashboard"
     ["workbenches"]="opendatahub-io:workbenches-operator:main@5ee582898fe9db5730761c6c1d49e7c532ee973a:charts/operator"
-    ["feastoperator"]="opendatahub-io:feast-module-operator:main@5d865144fc7ee0850ec8603cedaf3406d513bac9:config/chart"
+    ["feastoperator"]="opendatahub-io:feast-module-operator:main@3755cdda88ffc93b5f1fab3d63937913e8f1b84f:config/chart"
 )
 
 # RHOAI CloudManager Charts
@@ -86,7 +86,7 @@ declare -A RHOAI_CCM_CHARTS=(
 declare -A RHOAI_COMPONENT_CHARTS=(
     ["dashboard-operator"]="red-hat-data-services:odh-dashboard:rhoai-3.5@6cc29775853f45b79ec06857b56f880bdd0970e1:dashboard-operator/charts/dashboard"
     ["workbenches"]="red-hat-data-services:workbenches-operator:rhoai-3.5@30992d8148ddf59b23c3d87bfb3f321b6a93e2ec:charts/operator"
-    ["feastoperator"]="red-hat-data-services:feast-module-operator:rhoai-3.5@bb135ff9df5e2fea2b58348c9ecd2ad3c5659759:config/chart"
+    ["feastoperator"]="red-hat-data-services:feast-module-operator:rhoai-3.5@22ac61d37dfb79704b1fa891823b69f297f1d809:config/chart"
 )
 
 # merge_charts merges CCM and component charts into COMPONENT_CHARTS, failing on duplicate keys.
