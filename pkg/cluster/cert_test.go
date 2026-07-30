@@ -92,11 +92,54 @@ func generateTestSelfSignedCert(t *testing.T, domain string, validity time.Durat
 	return certBytes, keyBytes
 }
 
-func createTLSSecret(namespace string, certPEM, keyPEM []byte) *corev1.Secret {
+func generateTestFutureDatedCert(t *testing.T, domain string, notBefore, notAfter time.Time) ([]byte, []byte) {
+	t.Helper()
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate RSA key: %v", err)
+	}
+
+	tmpl := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName:   domain,
+			Organization: []string{"opendatahub-self-signed"},
+		},
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+
+	if ip := net.ParseIP(domain); ip != nil {
+		tmpl.IPAddresses = append(tmpl.IPAddresses, ip)
+	} else {
+		if strings.HasPrefix(domain, "*.") {
+			tmpl.DNSNames = append(tmpl.DNSNames, domain[2:])
+		}
+		tmpl.DNSNames = append(tmpl.DNSNames, domain)
+	}
+	tmpl.DNSNames = append(tmpl.DNSNames, "localhost")
+
+	der, err := x509.CreateCertificate(rand.Reader, &tmpl, &tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatalf("failed to create certificate: %v", err)
+	}
+
+	certBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	keyBytes := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+
+	return certBytes, keyBytes
+}
+
+func createTLSSecret(certPEM, keyPEM []byte) *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-cert",
-			Namespace: namespace,
+			Namespace: "test-ns",
 		},
 		Data: map[string][]byte{
 			corev1.TLSCertKey:       certPEM,
@@ -139,7 +182,7 @@ func TestCreateSelfSignedCertificate_PreservesExistingValidCert(t *testing.T) {
 
 		// Create a certificate valid for 365 days (well beyond the 30-day renewal threshold)
 		certPEM, keyPEM := generateTestSelfSignedCert(t, domain, 365*24*time.Hour)
-		existingSecret := createTLSSecret(namespace, certPEM, keyPEM)
+		existingSecret := createTLSSecret(certPEM, keyPEM)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -161,7 +204,7 @@ func TestCreateSelfSignedCertificate_PreservesExistingValidCert(t *testing.T) {
 
 		// Create a certificate for a different domain
 		certPEM, keyPEM := generateTestSelfSignedCert(t, "old.example.com", 365*24*time.Hour)
-		existingSecret := createTLSSecret(namespace, certPEM, keyPEM)
+		existingSecret := createTLSSecret(certPEM, keyPEM)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -183,7 +226,7 @@ func TestCreateSelfSignedCertificate_PreservesExistingValidCert(t *testing.T) {
 
 		// Create a certificate that expires in 15 days (within the 30-day renewal window)
 		certPEM, keyPEM := generateTestSelfSignedCert(t, domain, 15*24*time.Hour)
-		existingSecret := createTLSSecret(namespace, certPEM, keyPEM)
+		existingSecret := createTLSSecret(certPEM, keyPEM)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -198,11 +241,31 @@ func TestCreateSelfSignedCertificate_PreservesExistingValidCert(t *testing.T) {
 		g.Expect(secret.Data[corev1.TLSCertKey]).ToNot(Equal(certPEM))
 	})
 
+	t.Run("regenerates certificate with future NotBefore", func(t *testing.T) {
+		t.Parallel()
+		g := NewWithT(t)
+
+		now := time.Now()
+		certPEM, keyPEM := generateTestFutureDatedCert(t, domain, now.Add(24*time.Hour), now.Add(365*24*time.Hour))
+		existingSecret := createTLSSecret(certPEM, keyPEM)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = cluster.CreateSelfSignedCertificate(context.Background(), cli, secretName, domain, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		secret := &corev1.Secret{}
+		err = cli.Get(context.Background(), client.ObjectKey{Name: secretName, Namespace: namespace}, secret)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(secret.Data[corev1.TLSCertKey]).ToNot(Equal(certPEM))
+	})
+
 	t.Run("regenerates certificate with corrupt data", func(t *testing.T) {
 		t.Parallel()
 		g := NewWithT(t)
 
-		existingSecret := createTLSSecret(namespace, []byte("not-a-cert"), []byte("not-a-key"))
+		existingSecret := createTLSSecret([]byte("not-a-cert"), []byte("not-a-key"))
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -221,7 +284,7 @@ func TestCreateSelfSignedCertificate_PreservesExistingValidCert(t *testing.T) {
 		t.Parallel()
 		g := NewWithT(t)
 
-		existingSecret := createTLSSecret(namespace, []byte{}, []byte("some-key"))
+		existingSecret := createTLSSecret([]byte{}, []byte("some-key"))
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -242,7 +305,7 @@ func TestCreateSelfSignedCertificate_PreservesExistingValidCert(t *testing.T) {
 
 		wildcardDomain := "*.example.com"
 		certPEM, keyPEM := generateTestSelfSignedCert(t, wildcardDomain, 365*24*time.Hour)
-		existingSecret := createTLSSecret(namespace, certPEM, keyPEM)
+		existingSecret := createTLSSecret(certPEM, keyPEM)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -262,7 +325,7 @@ func TestCreateSelfSignedCertificate_PreservesExistingValidCert(t *testing.T) {
 		g := NewWithT(t)
 
 		certPEM, _ := generateTestSelfSignedCert(t, domain, 365*24*time.Hour)
-		existingSecret := createTLSSecret(namespace, certPEM, []byte("not-a-key"))
+		existingSecret := createTLSSecret(certPEM, []byte("not-a-key"))
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -281,7 +344,7 @@ func TestCreateSelfSignedCertificate_PreservesExistingValidCert(t *testing.T) {
 		g := NewWithT(t)
 
 		certPEM, _ := generateTestSelfSignedCert(t, domain, 365*24*time.Hour)
-		existingSecret := createTLSSecret(namespace, certPEM, nil)
+		existingSecret := createTLSSecret(certPEM, nil)
 		delete(existingSecret.Data, corev1.TLSPrivateKeyKey)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
@@ -302,7 +365,7 @@ func TestCreateSelfSignedCertificate_PreservesExistingValidCert(t *testing.T) {
 		g := NewWithT(t)
 
 		certPEM, keyPEM := generateTestSelfSignedCert(t, domain, 365*24*time.Hour)
-		existingSecret := createTLSSecret(namespace, certPEM, keyPEM)
+		existingSecret := createTLSSecret(certPEM, keyPEM)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())

@@ -149,7 +149,12 @@ func isSelfSignedCertValid(secret *corev1.Secret, domain string) bool {
 		return false
 	}
 
-	if time.Until(cert.NotAfter) < CertRenewalThreshold {
+	now := time.Now()
+	if now.Before(cert.NotBefore) {
+		return false
+	}
+
+	if cert.NotAfter.Sub(now) < CertRenewalThreshold {
 		return false
 	}
 
