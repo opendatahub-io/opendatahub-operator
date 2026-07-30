@@ -118,8 +118,11 @@ func (tc *WorkbenchesTestCtx) ValidateWorkbenchesNamespaceConfiguration(t *testi
 
 	skipUnless(t, Tier1)
 
+	// Operands deploy into ApplicationsNamespace (APPLICATIONS_NAMESPACE).
+	// spec/status.workbenchNamespace are the legacy DSC notebooks NS; status
+	// reports the active operand namespace in status.applicationsNamespace.
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.WorkbenchesNamespace}),
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.AppsNamespace}),
 		WithCondition(jq.Match(`.metadata.labels["%s"] == "true"`, labels.ODH.OwnedNamespace)),
 	)
 
@@ -134,8 +137,23 @@ func (tc *WorkbenchesTestCtx) ValidateWorkbenchesNamespaceConfiguration(t *testi
 			And(
 				jq.Match(`.spec.workbenchNamespace == "%s"`, tc.WorkbenchesNamespace),
 				jq.Match(`.status.workbenchNamespace == "%s"`, tc.WorkbenchesNamespace),
+				jq.Match(`.status.applicationsNamespace == "%s"`, tc.AppsNamespace),
 			),
 		),
+		WithCustomErrorMsg(
+			"Workbenches CR should echo legacy workbenchNamespace=%s and report applicationsNamespace=%s",
+			tc.WorkbenchesNamespace,
+			tc.AppsNamespace,
+		),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "odh-notebook-controller-manager",
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
+		WithCustomErrorMsg("notebook controller should be deployed in applications namespace %s", tc.AppsNamespace),
 	)
 }
 
@@ -153,11 +171,11 @@ func (tc *WorkbenchesTestCtx) ValidateMLflowIntegration(t *testing.T) {
 		)
 	}
 
-	// Operands are reconciled into spec.workbenchNamespace, not the applications namespace
-	// where workbenches-operator runs (see ValidateWorkbenchesNamespaceConfiguration).
+	// Operands are reconciled into ApplicationsNamespace (APPLICATIONS_NAMESPACE),
+	// not the legacy DSC workbenchNamespace field.
 	odhControllerDeployment := WithMinimalObject(gvk.Deployment, types.NamespacedName{
 		Name:      odhNotebookControllerManager,
-		Namespace: tc.WorkbenchesNamespace,
+		Namespace: tc.AppsNamespace,
 	})
 
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.MLflowOperatorKind)

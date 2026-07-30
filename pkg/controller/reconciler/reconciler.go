@@ -393,6 +393,10 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 	if shouldStop {
 		l.Info("Preconditions not met, stopping reconciliation")
 
+		// Safety net: requeue so the controller retries even if all watch
+		// events for the resource type were consumed.
+		requeueAfter = 30 * time.Second
+
 		rr.Conditions.MarkFalse(
 			status.ConditionTypeProvisioningSucceeded,
 			conditions.WithReason(precondition.PreConditionFailedReason),
