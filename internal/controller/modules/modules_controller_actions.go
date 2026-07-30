@@ -8,6 +8,7 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -430,6 +431,25 @@ func deploymentNameFor(h ModuleHandler, manifests OperatorManifests) string {
 	return h.GetName()
 }
 
+func writeDSCLegacyStatusFields(
+	ctx context.Context,
+	cli client.Client,
+	handler ModuleHandler,
+	dsc *dscv2.DataScienceCluster,
+	enabled bool,
+) error {
+	if dsc == nil {
+		return nil
+	}
+
+	writer, ok := handler.(DSCLegacyStatusFieldsWriter)
+	if !ok {
+		return nil
+	}
+
+	return writer.WriteLegacyStatusFields(ctx, cli, dsc, enabled)
+}
+
 // ComputeModulesStatus reads status conditions from each module's CR and
 // sets both per-module conditions (e.g. AIGatewayReady) and the aggregate
 // ModulesReady condition on rr.Conditions.
@@ -477,6 +497,12 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 			})
 
 			setSubmodulesFallback(rr, platformCtx, submodules, true, "", "")
+
+			if platformCtx.DSC != nil {
+				if err := writeDSCLegacyStatusFields(ctx, rr.Client, handler, platformCtx.DSC, enabled); err != nil {
+					log.V(1).Info("failed to write legacy status fields", "module", name, "error", err)
+				}
+			}
 
 			return nil
 		}
@@ -575,6 +601,9 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 
 		if platformCtx.DSC != nil {
 			handler.WriteDSCComponentStatus(platformCtx.DSC, enabled, moduleStatus.Releases)
+			if err := writeDSCLegacyStatusFields(ctx, rr.Client, handler, platformCtx.DSC, enabled); err != nil {
+				log.V(1).Info("failed to write legacy status fields", "module", name, "error", err)
+			}
 		}
 
 		return nil
