@@ -36,11 +36,6 @@ map:
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: d78e0d840a7d6009b41a3a903a12bbc305258780
-  odh-training-operator:
-    src: manifests
-    dest: trainingoperator
-    git.url: https://github.com/red-hat-data-services/training-operator
-    git.commit: 2d1c0617426fe8c6534ecbff3236cbfbfafe8162
   odh-feast-operator:
     src: infra/feast-operator/config
     dest: feastoperator
