@@ -54,7 +54,7 @@ func (s *componentHandler) Init(_ common.Platform, _ operatorconfig.OperatorSett
 
 // Deprecated: Training Operator v1 is obsolete in RHOAI 3.6.
 // Managed: keep CR alive so existing deployment is untouched (no GC teardown).
-// Removed: return false → framework GC deletes CR → finalizer tears down resources.
+// Removed: return false, framework GC deletes CR, cascade GC tears down owned resources.
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
 	return dsc.Spec.Components.TrainingOperator.ManagementState == operatorv1.Managed
 }
