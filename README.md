@@ -1084,7 +1084,6 @@ Quick reference: "I changed code in directory X — which E2E test(s) should I r
 | Webhook Directory | Test Command |
 |---|---|
 | `webhook/serving/` | `E2E_TEST_COMPONENT=kserve` |
-| `webhook/notebook/` | `E2E_TEST_COMPONENT=workbenches` |
 | `webhook/kueue/` | `E2E_TEST_COMPONENT=workbenches,kueue` |
 | `webhook/dashboard/` | `E2E_TEST_COMPONENT=dashboard` |
 | `webhook/monitoring/` | `E2E_TEST_SERVICE=monitoring` |
