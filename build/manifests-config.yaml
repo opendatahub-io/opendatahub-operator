@@ -61,11 +61,6 @@ map:
     dest: wva
     git.url: https://github.com/red-hat-data-services/workload-variant-autoscaler
     git.commit: c96b3a10385cf0726f02fc48b031dc0da3f742c0
-  odh-ogx-k8s-operator:
-    src: config
-    dest: ogx
-    git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
-    git.commit: d40662f9df546d4b52d2f130041daad79714d368
   odh-ai-gateway-operator:
     src: config
     dest: aigateway
@@ -82,6 +77,11 @@ map:
     type: chart
     git.url: https://github.com/red-hat-data-services/feast-module-operator
     git.commit: 54d94296efa674e27bbb69e35590a4ae52e49ed5
+  odh-ogx-module-operator:
+    src: ogx-module/config
+    dest: ogx
+    git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
+    git.commit: d40662f9df546d4b52d2f130041daad79714d368
 additional_meta:
   odh-ai-gateway-payload-processing:
     git.url: https://github.com/red-hat-data-services/ai-gateway-payload-processing
@@ -275,7 +275,7 @@ additional_meta:
   odh-ogx-core:
     git.url: https://github.com/red-hat-data-services/ogx-distribution
     git.commit: 723b7bc9c3596689988653c2197d002e17f5151d
-  odh-ogx-module-operator:
+  odh-ogx-k8s-operator:
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
     git.commit: d40662f9df546d4b52d2f130041daad79714d368
   odh-openvino-model-server:
