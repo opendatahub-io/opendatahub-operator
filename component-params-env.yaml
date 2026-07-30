@@ -29,13 +29,13 @@ known_issues:
 - image: RELATED_IMAGE_DSP_TOOLBOX_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
   reason: Removed with InstrutLab pipeline removal since RHOAI 3.0
-- image: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHAISTRAT-130
-  reason: TrustyAI-Service descoped from RHOAI 3.5, delivering in 3.6-EA1
 
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
   reason: ppc64le/s390x only, not applicable to ODH
+- image: RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-78350
+  reason: it must be offboarded in rhoai 3.6, already offboarded in ODH-Build-Config
 
 rhoai_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE

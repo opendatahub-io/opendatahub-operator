@@ -1,8 +1,4 @@
 map:
-  odh-kserve-controller:
-    src: config
-    dest: kserve
-    git.url: https://github.com/opendatahub-io/kserve
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
@@ -12,15 +8,6 @@ map:
   odh-trustyai-service-operator:
     src: config
     dest: trustyai
-  odh-model-controller:
-    src: config
-    dest: modelcontroller
-  workload-variant-autoscaler:
-    src: config
-    dest: wva
-    git.url: https://github.com/opendatahub-io/workload-variant-autoscaler
-    ref_type: branch
-    branch: main
   odh-model-registry-operator:
     src: config
     dest: modelregistry
