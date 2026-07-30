@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: f42247dba68ef367e54e7d16aca1e5ca8b3d0001
+    git.commit: 1bd19d556163811f8b526868cbbf79bbe7ca298d
   odh-feast-operator:
     src: infra/feast-operator/config
     dest: feastoperator
@@ -100,7 +100,7 @@ additional_meta:
     git.commit: fb2291eac79e106aa550baa7f2f6eeff5b8fcc4f
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: f42247dba68ef367e54e7d16aca1e5ca8b3d0001
+    git.commit: 1bd19d556163811f8b526868cbbf79bbe7ca298d
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: cb252eb1423f097bb0a98be8c0f9eb472dd890cd
@@ -136,7 +136,7 @@ additional_meta:
     git.commit: b564ce64722b853295e4176ab17558dadc3a358b
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: b564ce64722b853295e4176ab17558dadc3a358b
+    git.commit: e765ecec804ba70d132960c8757bbf32be1c1304
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: b564ce64722b853295e4176ab17558dadc3a358b
@@ -256,7 +256,7 @@ additional_meta:
     git.commit: 5377b595b822b4386ccc91c79bc3f6b4190df71e
   odh-mod-arch-maas:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 5377b595b822b4386ccc91c79bc3f6b4190df71e
+    git.commit: 1bd19d556163811f8b526868cbbf79bbe7ca298d
   odh-mod-arch-mlflow:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: c06b2e31d051a2b1d0278c33eb628d64dd5c9f09
