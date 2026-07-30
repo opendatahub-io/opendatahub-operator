@@ -116,9 +116,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE
   value: "quay.io/rhoai/odh-model-performance-data-rhel9@sha256:f2000ef872dde33c7e1360a055cde1903f6d64a949f3595f79316158cf2fe2fb"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE
-  value: "quay.io/rhoai/odh-model-registry-rhel9@sha256:95ec61939d59b0c46c016dd34386e4edd73b6abec38732be2cea1fbbc2eb4eec"
+  value: "quay.io/rhoai/odh-model-registry-rhel9@sha256:abd5f1a3594c63ce736896106df1f480e0b0f3d8a8685545ddfa9ae1ca8739c3"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE
-  value: "quay.io/rhoai/odh-model-registry-job-async-upload-rhel9@sha256:96defadf10c4ef2b53ab00dc16482f54dba5ad2ba149426c52dff322a670c1cd"
+  value: "quay.io/rhoai/odh-model-registry-job-async-upload-rhel9@sha256:6dfe451ee3efb2cfbe6ae106365bfb03fc6890e06aed1535f7c53352435e776e"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-model-registry-operator-rhel9@sha256:955067b02c24853582a5b7187b625e70072c96b4c25cce73347ece0e9d008c04"
 - name: RELATED_IMAGE_ODH_MODEL_SERVING_API_IMAGE
@@ -198,7 +198,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH29_PY312_IMAGE
   value: "quay.io/rhoai/odh-training-rocm64-torch29-py312-rhel9@sha256:9f827ee93ae4b1b8edcd32f470ca5af6094d98ac1e6dac268632b5d4e53034a1"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE
-  value: "quay.io/rhoai/odh-trustyai-garak-lls-provider-dsp-rhel9@sha256:7eb2a89545b0afcc9a26b3a7ab03e0586a6c2c1e395ef19652d7dc7933770d27"
+  value: "quay.io/rhoai/odh-trustyai-garak-lls-provider-dsp-rhel9@sha256:90b24744b7202a9a1bd3acef8e6854f293bee912ef8f9dba209ac893bec77059"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE
   value: "quay.io/rhoai/odh-trustyai-nemo-guardrails-server-rhel9@sha256:4bc3f98f9550812cdeaa189b6ba070d7eb34cbdb6016cbdf676a9feead28c4fc"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE

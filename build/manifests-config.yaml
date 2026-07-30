@@ -235,10 +235,10 @@ additional_meta:
     git.commit: d9c268c84238caaf227b902ec2c188d837d7c14e
   odh-model-registry:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: 819dc2dfbd253260bbd606a46be70204d726f82b
+    git.commit: 70d620140d6ce74a1b1afe7382458b7f040cd71f
   odh-model-registry-job-async-upload:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: 5b68510a85fad03a2322f4ac1274a010334b4be0
+    git.commit: 70d620140d6ce74a1b1afe7382458b7f040cd71f
   odh-model-serving-api:
     git.url: https://github.com/red-hat-data-services/odh-model-controller
     git.commit: 71d8aed59804abdcdbfb63fcdbd6187bcba912f0
@@ -343,7 +343,7 @@ additional_meta:
     git.commit: 048025a498154f0ba365676066c0ce0ac268f2dc
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
-    git.commit: 7e7e5aa8e151be8bda0a10b5be9ca58e82495408
+    git.commit: dc71fdd59e14c4b628563cb0f7423317a2ce304c
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: f6c547dacc737b875ef2ab423c4e0144d9941c37
