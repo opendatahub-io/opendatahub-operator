@@ -6,6 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 
@@ -79,7 +80,7 @@ func TestStatusMockHandler_ReadyConditionType(t *testing.T) {
 	g := NewWithT(t)
 
 	mock := newStatusMock("testmod", &modules.ModuleStatus{
-		Conditions: []metav1.Condition{
+		Conditions: []common.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue},
 		},
 	})
