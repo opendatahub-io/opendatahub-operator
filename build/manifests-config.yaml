@@ -202,7 +202,7 @@ additional_meta:
     git.commit: 0a3709bae9759fcf12a8319259a0c2655ac4c94b
   odh-mlserver-cuda:
     git.url: https://github.com/red-hat-data-services/MLServer
-    git.commit: 6a1c6ca239c17e6096e86d51d9ab0a3c79bc1193
+    git.commit: d58f0ded897140bdd0c00d3feeb5c77ef8a7b62e
   odh-mlserver:
     git.url: https://github.com/red-hat-data-services/MLServer
     git.commit: d58f0ded897140bdd0c00d3feeb5c77ef8a7b62e
@@ -364,10 +364,10 @@ additional_meta:
     git.commit: abb0ddad812d1648c89800083676adb31a309138
   odh-workbench-jupyter-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: abb0ddad812d1648c89800083676adb31a309138
+    git.commit: 9646c205520725e2fe45a43d40ca804ec27ecb84
   odh-workbench-jupyter-minimal-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: abb0ddad812d1648c89800083676adb31a309138
+    git.commit: 9646c205520725e2fe45a43d40ca804ec27ecb84
   odh-workbench-jupyter-minimal-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: abb0ddad812d1648c89800083676adb31a309138
