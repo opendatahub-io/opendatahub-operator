@@ -85,7 +85,7 @@ map:
 additional_meta:
   odh-ai-gateway-payload-processing:
     git.url: https://github.com/red-hat-data-services/ai-gateway-payload-processing
-    git.commit: 58897b8ac37924daa710523982e8b418d9d15a3b
+    git.commit: c95bed36a9c8f110210b176c230ad56d0c68b543
   odh-automl:
     git.url: https://github.com/red-hat-data-services/pipelines-components
     git.commit: bd1c5eb82c8e6ae296fd69ac7aae8fe180ce5944
@@ -97,7 +97,7 @@ additional_meta:
     git.commit: 408592837b4abf5e785d71c36102136c3e04f37e
   odh-cli:
     git.url: https://github.com/red-hat-data-services/odh-cli
-    git.commit: fb2291eac79e106aa550baa7f2f6eeff5b8fcc4f
+    git.commit: a8cf2acada578cde39193c6d01912ad2f1466494
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 1bd19d556163811f8b526868cbbf79bbe7ca298d
@@ -175,7 +175,7 @@ additional_meta:
     git.commit: fbfe15d20df8496c7744b6085956a9a04167a088
   odh-llm-d-batch-gateway-operator:
     git.url: https://github.com/red-hat-data-services/llm-d-batch-gateway-operator
-    git.commit: e9ca5a07e3822d87905d70729845469116e4651e
+    git.commit: a4b4542a6a4bf56058369cef45f1de641d570c68
   odh-llm-d-batch-gateway-processor:
     git.url: https://github.com/red-hat-data-services/batch-gateway
     git.commit: fbfe15d20df8496c7744b6085956a9a04167a088
