@@ -55,7 +55,7 @@ map:
     src: config
     dest: sparkoperator
     git.url: https://github.com/red-hat-data-services/spark-operator
-    git.commit: 650d1b456f0b6dbdfa6acc61f2ce3db8069c210a
+    git.commit: a18304ada5cfcc2ebd19c2d517df921df0121d1a
   odh-workload-variant-autoscaler-controller:
     src: config
     dest: wva
@@ -130,7 +130,7 @@ additional_meta:
     git.commit: e765ecec804ba70d132960c8757bbf32be1c1304
   odh-kserve-autogluon-server:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: b564ce64722b853295e4176ab17558dadc3a358b
+    git.commit: e765ecec804ba70d132960c8757bbf32be1c1304
   odh-kserve-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: e765ecec804ba70d132960c8757bbf32be1c1304
@@ -361,7 +361,7 @@ additional_meta:
     git.commit: abb0ddad812d1648c89800083676adb31a309138
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: abb0ddad812d1648c89800083676adb31a309138
+    git.commit: 9646c205520725e2fe45a43d40ca804ec27ecb84
   odh-workbench-jupyter-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 9646c205520725e2fe45a43d40ca804ec27ecb84
