@@ -175,6 +175,7 @@ spec:
     deploymentName: opendatahub-operator-controller-manager
     generateName: cdatascienceclusters.datasciencecluster.opendatahub.io
     sideEffects: None
+    webhookPath: /convert
   keywords:
   - odh
   - notebooks

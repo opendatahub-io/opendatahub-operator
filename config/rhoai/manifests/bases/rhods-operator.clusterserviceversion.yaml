@@ -251,6 +251,7 @@ spec:
     deploymentName: rhods-operator
     generateName: cdatascienceclusters.datasciencecluster.opendatahub.io
     sideEffects: None
+    webhookPath: /convert
   keywords:
   - Operator
   - OpenShift
