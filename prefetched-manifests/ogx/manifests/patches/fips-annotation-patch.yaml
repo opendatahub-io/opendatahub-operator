@@ -1,5 +1,0 @@
-apiVersion: operators.coreos.com/v1alpha1
-kind: ClusterServiceVersion
-metadata:
-  annotations:
-    features.operators.openshift.io/fips-compliant: "true"
