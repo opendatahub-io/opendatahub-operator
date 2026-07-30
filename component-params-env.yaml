@@ -11,6 +11,7 @@
 
 rhai_helm_components:
   - kserve
+  - aigateway
 
 # Example:
 # - image: RELATED_IMAGE_ODH_ML_PIPELINES_RUNTIME_GENERIC_IMAGE
