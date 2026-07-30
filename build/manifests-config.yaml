@@ -229,7 +229,7 @@ additional_meta:
     git.commit: 71d8aed59804abdcdbfb63fcdbd6187bcba912f0
   odh-model-metadata-collection:
     git.url: https://github.com/red-hat-data-services/model-metadata-collection
-    git.commit: 8f66281ad844bbbb56dd6d77765173e986632442
+    git.commit: aff0c28ebaeba4af611ab89a7bcb3e13dc32405d
   odh-model-performance-data:
     git.url: https://github.com/red-hat-data-services/models-perf-benchmark-data
     git.commit: d9c268c84238caaf227b902ec2c188d837d7c14e
