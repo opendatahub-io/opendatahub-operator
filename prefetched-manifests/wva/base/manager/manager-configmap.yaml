@@ -26,6 +26,9 @@ data:
 
     # Optimization
     # Global optimization loop interval for autoscaling decisions.
+    # Requires a duration unit and must be at least 1s; anything else is logged
+    # and falls back to 15s. Applied at startup — changing it requires a
+    # controller restart.
     GLOBAL_OPT_INTERVAL: "15s"
 
     # Feature Flags

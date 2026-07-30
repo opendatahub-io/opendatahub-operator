@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 4bcd6a706c227dd76a84bf0c525b2e3114bae5a1
+    git.commit: f42247dba68ef367e54e7d16aca1e5ca8b3d0001
   odh-feast-operator:
     src: infra/feast-operator/config
     dest: feastoperator
@@ -60,7 +60,7 @@ map:
     src: config
     dest: wva
     git.url: https://github.com/red-hat-data-services/workload-variant-autoscaler
-    git.commit: 2e2e9b743e79ecc52dd88ee145876edbebaf44e1
+    git.commit: 0a5809afc19ecb8e7457e838f8313fc58d5c0002
   odh-ogx-k8s-operator:
     src: config
     dest: ogx
@@ -81,7 +81,7 @@ map:
     dest: feastoperator
     type: chart
     git.url: https://github.com/red-hat-data-services/feast-module-operator
-    git.commit: a732490ac7cc53d599170512de0dd78d042c5674
+    git.commit: 3d67785b4f8b607c78b5344edcb8df0d2be9f8ab
 additional_meta:
   odh-ai-gateway-payload-processing:
     git.url: https://github.com/red-hat-data-services/ai-gateway-payload-processing
@@ -100,7 +100,7 @@ additional_meta:
     git.commit: fb2291eac79e106aa550baa7f2f6eeff5b8fcc4f
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 4bcd6a706c227dd76a84bf0c525b2e3114bae5a1
+    git.commit: f42247dba68ef367e54e7d16aca1e5ca8b3d0001
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: cb252eb1423f097bb0a98be8c0f9eb472dd890cd
@@ -112,7 +112,7 @@ additional_meta:
     git.commit: 6789ed06ab64516f3e3991ef430605c28fbcf3c2
   odh-eval-hub:
     git.url: https://github.com/red-hat-data-services/eval-hub
-    git.commit: 8135eba84391d73c0ef4eadf8829b29e95d2c100
+    git.commit: 7bc638a86025821281f0d5adc12b8d0d7cdb6bc7
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: 71434d672468c3b367b27fa97faf678958a90825
@@ -181,16 +181,16 @@ additional_meta:
     git.commit: fbfe15d20df8496c7744b6085956a9a04167a088
   odh-llm-d-router-disagg-sidecar:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: 5cdb8f186c0dfdb414dfede205e83d714e50cc85
+    git.commit: 1a568eb1db4ae92c898b7d08fb2ef75a0f26fd5b
   odh-llm-d-router-endpoint-picker:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: 5cdb8f186c0dfdb414dfede205e83d714e50cc85
+    git.commit: 1a568eb1db4ae92c898b7d08fb2ef75a0f26fd5b
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: c33c6b92dd35813432a8b842d1f9f84d2b6416b9
+    git.commit: 1435cbcd33629ee958374de2b7a9a4b8183de329
   odh-maas-controller:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: c33c6b92dd35813432a8b842d1f9f84d2b6416b9
+    git.commit: 1435cbcd33629ee958374de2b7a9a4b8183de329
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
     git.commit: aa2ab5127984563963fdf4fc00fa58a592046f66
@@ -316,7 +316,7 @@ additional_meta:
     git.commit: a6919d3e80cd44e986d88a068d1d97074b6c8dc4
   odh-trainer-operator:
     git.url: https://github.com/red-hat-data-services/trainer-operator
-    git.commit: c9675e5297302ef28133e46838db6a681c98b883
+    git.commit: df8bf846724d26fe0389654e4bc7ead2070f754b
   odh-training-cuda121-torch24-py311:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 5d574fed033532dfd0afaaf2f1f3ca30fa9da9d7
