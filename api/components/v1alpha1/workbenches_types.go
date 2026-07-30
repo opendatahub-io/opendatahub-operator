@@ -39,7 +39,9 @@ type WorkbenchesSpec struct {
 	// workbenches spec exposed only to internal api
 }
 
-// WorkbenchesCommonStatus defines the shared observed state of Workbenches
+// WorkbenchesCommonStatus defines the shared observed state of Workbenches.
+// On the module CR, status.applicationsNamespace is the operand deploy target and
+// status.workbenchNamespace echoes the legacy DSC notebooks namespace.
 type WorkbenchesCommonStatus struct {
 	common.ComponentReleaseStatus `json:",inline"`
 	WorkbenchNamespace            string `json:"workbenchNamespace,omitempty"`

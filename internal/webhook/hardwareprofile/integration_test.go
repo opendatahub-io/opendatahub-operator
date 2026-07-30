@@ -28,7 +28,6 @@ import (
 type WorkloadType string
 
 const (
-	WorkloadTypeNotebook            WorkloadType = "Notebook"
 	WorkloadTypeInferenceService    WorkloadType = "InferenceService"
 	WorkloadTypeLlmInferenceService WorkloadType = "LlmInferenceService"
 	WorkloadLabelKueueQueueName     string       = "kueue.x-k8s.io/queue-name"
@@ -66,7 +65,7 @@ func expectResourceRequirementsAtPath(
 			g.Expect(requests).Should(HaveKeyWithValue("memory", expectedMemory))
 		}
 	} else {
-		// For Notebook and other workloads, work with containers
+		// For container-based workloads, work with containers
 		containers, found, err := unstructured.NestedSlice(workloadUnstructured.Object, containersPath...)
 		g.Expect(err).ShouldNot(HaveOccurred(), "should get containers from workload")
 		g.Expect(found).Should(BeTrue(), "containers should be found")
@@ -200,7 +199,7 @@ func testNoHardwareProfileAnnotationForWorkload(g Gomega, ctx context.Context, k
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(found).Should(BeFalse())
 	} else {
-		// For Notebook and other workloads, work with containers
+		// For container-based workloads, work with containers
 		containers, found, err := unstructured.NestedSlice(workloadUnstructured.Object, containersPath...)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(found).Should(BeTrue())
@@ -246,7 +245,7 @@ func testHardwareProfileWithKueueForWorkload(g Gomega, ctx context.Context, k8sC
 
 	// Verify Kueue configuration was applied
 	if expectedLabelKey != "" {
-		// For both Notebook and InferenceService - uses labels
+		// For workloads using labels - uses labels
 		g.Expect(resources.HasLabel(workload, expectedLabelKey, queueName)).Should(BeTrue())
 	} else {
 		// This branch should no longer be used since all workloads use labels
@@ -291,55 +290,6 @@ func testHardwareProfileWithNodeSchedulingForWorkload(g Gomega, ctx context.Cont
 	expectTolerationsAtPath(g, k8sClient.Scheme(), workload, expectedTolerations, tolerationsPath)
 }
 
-// testEmptyHardwareProfileAnnotation tests webhook behavior when hardware profile annotation is empty.
-func testEmptyHardwareProfileAnnotation(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-	notebook := envtestutil.NewNotebook("test-notebook-empty-annotation", ns,
-		envtestutil.WithAnnotation("opendatahub.io/hardware-profile-name", ""),
-	)
-
-	g.Expect(k8sClient.Create(ctx, notebook)).Should(Succeed())
-
-	// Verify no changes were made since annotation was empty
-	g.Expect(resources.GetAnnotation(notebook, "opendatahub.io/hardware-profile-name")).Should(Equal(""))
-}
-
-// testNonExistentHardwareProfile tests webhook behavior when referencing a non-existent hardware profile.
-func testNonExistentHardwareProfile(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-	notebook := envtestutil.NewNotebook("test-notebook-nonexistent", ns,
-		envtestutil.WithHardwareProfile("nonexistent-profile"),
-	)
-
-	// This should fail because the hardware profile doesn't exist
-	err := k8sClient.Create(ctx, notebook)
-	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring("hardware profile 'nonexistent-profile' not found"))
-}
-
-// testCrossNamespaceHardwareProfile tests webhook behavior when hardware profile is in a different namespace.
-func testCrossNamespaceHardwareProfile(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-	// Create a second namespace for the hardware profile
-	hwpNs := fmt.Sprintf("%s-hwp", ns)
-	hwpNamespace := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: hwpNs},
-	}
-	g.Expect(k8sClient.Create(ctx, hwpNamespace)).To(Succeed())
-
-	// Create hardware profile in the different namespace
-	hwp := createSimpleHardwareProfile("cross-ns-profile", hwpNs)
-	g.Expect(k8sClient.Create(ctx, hwp)).To(Succeed())
-
-	// Create notebook with cross-namespace hardware profile annotation
-	notebook := envtestutil.NewNotebook("test-notebook-cross-ns", ns,
-		envtestutil.WithHardwareProfile("cross-ns-profile"),
-		envtestutil.WithHardwareProfileNamespace(hwpNs),
-	)
-
-	g.Expect(k8sClient.Create(ctx, notebook)).To(Succeed())
-
-	// Verify the hardware profile namespace annotation was set correctly
-	g.Expect(resources.GetAnnotation(notebook, hardwareprofilewebhook.HardwareProfileNamespaceAnnotation)).Should(Equal(hwpNs))
-}
-
 // testUpdateOperationForWorkload is a generic helper for testing update operations.
 func testUpdateOperationForWorkload(g Gomega, ctx context.Context, k8sClient client.Client, ns string,
 	name string, createWorkload func() client.Object, createUnstructured func() *unstructured.Unstructured,
@@ -370,264 +320,6 @@ func testUpdateOperationForWorkload(g Gomega, ctx context.Context, k8sClient cli
 
 	// Verify resource requirements were applied during update
 	expectResourceRequirementsAtPath(g, k8sClient.Scheme(), updatedWorkload, "2", "", containersPath, workloadType)
-}
-
-// testNotebookEmptyToTolerationToEmptyProfileSwitching exercises UPDATE from empty HWP to toleration HWP and back (E2E: ValidateHWPToleration).
-func testNotebookEmptyToTolerationToEmptyProfileSwitching(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-	config, err := hardwareprofilewebhook.GetWorkloadConfig("Notebook")
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	hwpEmpty := envtestutil.NewHardwareProfile("empty-hwp-tol-switch", ns)
-	hwpTol := envtestutil.NewHardwareProfile("hwp-with-tol", ns,
-		envtestutil.WithCPUIdentifier("1", "2"),
-		envtestutil.WithNodeScheduling(
-			map[string]string{"kubernetes.io/os": "linux"},
-			[]corev1.Toleration{{
-				Key:      "test-key",
-				Operator: corev1.TolerationOpExists,
-				Effect:   corev1.TaintEffectNoSchedule,
-			}},
-		),
-	)
-	g.Expect(k8sClient.Create(ctx, hwpEmpty)).To(Succeed())
-	g.Expect(k8sClient.Create(ctx, hwpTol)).To(Succeed())
-
-	workloadName := "test-notebook-tol-switch"
-	notebook := envtestutil.NewNotebook(workloadName, ns,
-		envtestutil.WithHardwareProfile(hwpEmpty.Name),
-		envtestutil.WithHardwareProfileNamespace(ns),
-	)
-	g.Expect(k8sClient.Create(ctx, notebook)).To(Succeed())
-
-	nb1, ok := notebook.DeepCopyObject().(client.Object)
-	g.Expect(ok).To(BeTrue())
-	ann1 := nb1.GetAnnotations()
-	if ann1 == nil {
-		ann1 = make(map[string]string)
-	}
-	ann1[hardwareprofilewebhook.HardwareProfileNameAnnotation] = hwpTol.Name
-	ann1[hardwareprofilewebhook.HardwareProfileNamespaceAnnotation] = ns
-	nb1.SetAnnotations(ann1)
-	g.Expect(k8sClient.Update(ctx, nb1)).To(Succeed())
-
-	updated := unstructured.Unstructured{}
-	updated.SetAPIVersion("kubeflow.org/v1")
-	updated.SetKind("Notebook")
-	g.Eventually(func() int {
-		if err := k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: ns}, &updated); err != nil {
-			return 0
-		}
-		tols, found, err := unstructured.NestedSlice(updated.Object, config.TolerationsPath...)
-		if err != nil || !found {
-			return 0
-		}
-		return len(tols)
-	}, "10s", "500ms").Should(BeNumerically(">", 0))
-
-	expectedTols := []map[string]string{{"key": "test-key", "operator": "Exists", "effect": "NoSchedule"}}
-	expectTolerationsAtPath(g, k8sClient.Scheme(), &updated, expectedTols, config.TolerationsPath)
-	expectNodeSelectorAtPath(g, k8sClient.Scheme(), &updated, map[string]string{"kubernetes.io/os": "linux"}, config.NodeSelectorPath)
-
-	nb2, ok := updated.DeepCopyObject().(client.Object)
-	g.Expect(ok).To(BeTrue())
-	ann2 := nb2.GetAnnotations()
-	if ann2 == nil {
-		ann2 = make(map[string]string)
-	}
-	ann2[hardwareprofilewebhook.HardwareProfileNameAnnotation] = hwpEmpty.Name
-	ann2[hardwareprofilewebhook.HardwareProfileNamespaceAnnotation] = ns
-	nb2.SetAnnotations(ann2)
-	g.Expect(k8sClient.Update(ctx, nb2)).To(Succeed())
-
-	final := unstructured.Unstructured{}
-	final.SetAPIVersion("kubeflow.org/v1")
-	final.SetKind("Notebook")
-	g.Eventually(func() bool {
-		if err := k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: ns}, &final); err != nil {
-			return false
-		}
-		tols, found, err := unstructured.NestedSlice(final.Object, config.TolerationsPath...)
-		if err != nil {
-			return false
-		}
-		if !found {
-			return true
-		}
-		return len(tols) == 0
-	}, "10s", "500ms").Should(BeTrue(), "tolerations should be cleared when switching to empty HWP")
-
-	nsel, found, err := unstructured.NestedStringMap(final.Object, config.NodeSelectorPath...)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	if found {
-		g.Expect(nsel).Should(BeEmpty())
-	}
-}
-
-// testNotebookKueueProfileToResourceProfileRemovesQueueLabel switches from a Kueue HWP to a resource-only HWP and expects the queue label removed (E2E: ValidateHWPKueue).
-func testNotebookKueueProfileToResourceProfileRemovesQueueLabel(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-	queueName := "gpu-queue"
-	hwpKueue := createKueueHardwareProfile("kueue-prof-switch", ns, queueName)
-	hwpSimple := createSimpleHardwareProfile("simple-after-kueue", ns)
-	g.Expect(k8sClient.Create(ctx, hwpKueue)).To(Succeed())
-	g.Expect(k8sClient.Create(ctx, hwpSimple)).To(Succeed())
-
-	workloadName := "test-notebook-kueue-switch"
-	nb := envtestutil.NewNotebook(workloadName, ns,
-		envtestutil.WithHardwareProfile(hwpKueue.Name),
-		envtestutil.WithHardwareProfileNamespace(ns),
-	)
-	g.Expect(k8sClient.Create(ctx, nb)).To(Succeed())
-
-	fetched := unstructured.Unstructured{}
-	fetched.SetAPIVersion("kubeflow.org/v1")
-	fetched.SetKind("Notebook")
-	g.Eventually(func() bool {
-		if err := k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: ns}, &fetched); err != nil {
-			return false
-		}
-		return resources.HasLabel(&fetched, WorkloadLabelKueueQueueName, queueName)
-	}, "10s", "500ms").Should(BeTrue())
-
-	nb2, ok := fetched.DeepCopyObject().(client.Object)
-	g.Expect(ok).To(BeTrue())
-	ann := nb2.GetAnnotations()
-	if ann == nil {
-		ann = make(map[string]string)
-	}
-	ann[hardwareprofilewebhook.HardwareProfileNameAnnotation] = hwpSimple.Name
-	nb2.SetAnnotations(ann)
-	g.Expect(k8sClient.Update(ctx, nb2)).To(Succeed())
-
-	g.Eventually(func() bool {
-		u := unstructured.Unstructured{}
-		u.SetAPIVersion("kubeflow.org/v1")
-		u.SetKind("Notebook")
-		if err := k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: ns}, &u); err != nil {
-			return false
-		}
-		return !resources.HasLabel(&u, WorkloadLabelKueueQueueName, queueName)
-	}, "10s", "500ms").Should(BeTrue())
-}
-
-// TEST FUNCTIONS
-
-// TestHardwareProfileWebhook_Notebook for mutating webhook logic for hardware profile injection on Notebook workloads.
-func TestHardwareProfileWebhook_Notebook(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name string
-		test func(g Gomega, ctx context.Context, k8sClient client.Client, ns string)
-	}{
-		{
-			name: "notebook - no hardware profile annotation",
-			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-				config, err := hardwareprofilewebhook.GetWorkloadConfig("Notebook")
-				g.Expect(err).ShouldNot(HaveOccurred())
-				testNoHardwareProfileAnnotationForWorkload(g, ctx, k8sClient,
-					func() client.Object { return envtestutil.NewNotebook("test-notebook-no-annotation", ns) },
-					config.ContainersPath, WorkloadTypeNotebook)
-			},
-		},
-		{
-			name: "notebook - empty hardware profile annotation",
-			test: testEmptyHardwareProfileAnnotation,
-		},
-		{
-			name: "notebook - non-existent hardware profile",
-			test: testNonExistentHardwareProfile,
-		},
-		{
-			name: "notebook - valid hardware profile with resources",
-			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-				config, err := hardwareprofilewebhook.GetWorkloadConfig("Notebook")
-				g.Expect(err).ShouldNot(HaveOccurred())
-				testValidHardwareProfileWithResourcesForWorkload(g, ctx, k8sClient, ns,
-					func() client.Object {
-						return envtestutil.NewNotebook("test-notebook-resources", ns,
-							envtestutil.WithHardwareProfile("resource-profile"))
-					},
-					config.ContainersPath, WorkloadTypeNotebook)
-			},
-		},
-		{
-			name: "notebook - hardware profile with Kueue",
-			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-				testHardwareProfileWithKueueForWorkload(g, ctx, k8sClient, ns,
-					func() client.Object {
-						return envtestutil.NewNotebook("test-notebook-kueue", ns,
-							envtestutil.WithHardwareProfile("kueue-profile"))
-					},
-					"gpu-queue", WorkloadLabelKueueQueueName)
-			},
-		},
-		{
-			name: "notebook - hardware profile with node scheduling",
-			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-				config, err := hardwareprofilewebhook.GetWorkloadConfig("Notebook")
-				g.Expect(err).ShouldNot(HaveOccurred())
-				testHardwareProfileWithNodeSchedulingForWorkload(g, ctx, k8sClient, ns,
-					func() client.Object {
-						return envtestutil.NewNotebook("test-notebook-node", ns,
-							envtestutil.WithHardwareProfile("node-profile"))
-					},
-					config.NodeSelectorPath, config.TolerationsPath)
-			},
-		},
-		{
-			name: "notebook - cross-namespace hardware profile",
-			test: testCrossNamespaceHardwareProfile,
-		},
-		{
-			name: "notebook - update operation",
-			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-				config, err := hardwareprofilewebhook.GetWorkloadConfig("Notebook")
-				g.Expect(err).ShouldNot(HaveOccurred())
-				testUpdateOperationForWorkload(g, ctx, k8sClient, ns, "test-notebook-update",
-					func() client.Object { return envtestutil.NewNotebook("test-notebook-update", ns) },
-					func() *unstructured.Unstructured {
-						u := &unstructured.Unstructured{}
-						u.SetAPIVersion("kubeflow.org/v1")
-						u.SetKind("Notebook")
-						return u
-					},
-					config.ContainersPath, WorkloadTypeNotebook)
-			},
-		},
-		{
-			name: "notebook - empty to toleration profile and back",
-			test: testNotebookEmptyToTolerationToEmptyProfileSwitching,
-		},
-		{
-			name: "notebook - kueue profile to resource profile removes queue label",
-			test: testNotebookKueueProfileToResourceProfileRemovesQueueLabel,
-		},
-	}
-
-	ctx, env := envtestutil.SetupSharedEnvForSubtests(
-		t,
-		[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
-		[]envt.RegisterControllersFn{},
-		envtestutil.DefaultWebhookTimeout,
-		envtestutil.WithNotebook(),
-	)
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			g := NewWithT(t)
-
-			// Create test namespace
-			ns := fmt.Sprintf("test-ns-%s", xid.New().String())
-			testNamespace := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{Name: ns},
-			}
-			g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
-
-			// Run the specific test case
-			tc.test(g, ctx, env.Client(), ns)
-		})
-	}
 }
 
 // TestHardwareProfileWebhook_LlmInferenceService for the mutating webhook logic for hardware profile injection on LlmInferenceService workloads.
@@ -891,7 +583,6 @@ func TestHardwareProfile_CRDValidation(t *testing.T) {
 		[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
 		[]envt.RegisterControllersFn{},
 		envtestutil.DefaultWebhookTimeout,
-		envtestutil.WithNotebook(),
 		envtestutil.WithInferenceService(),
 	)
 

@@ -79,7 +79,14 @@ validate_namespace E2E_TEST_OPERATOR_NAMESPACE
 : "${E2E_TEST_APPLICATIONS_NAMESPACE:=opendatahub}"
 validate_namespace E2E_TEST_APPLICATIONS_NAMESPACE
 
-: "${E2E_TEST_WORKBENCHES_NAMESPACE:=opendatahub}"
+# Legacy DSC workbenchNamespace (not operand deploy target). Makefile sets
+# WORKBENCHES_NAMESPACE per flavor (ODH: opendatahub, RHOAI: rhods-notebooks) and
+# exports E2E_TEST_WORKBENCHES_NAMESPACE before invoking this script.
+: "${E2E_TEST_WORKBENCHES_NAMESPACE:=${WORKBENCHES_NAMESPACE:-}}"
+if [ -z "$E2E_TEST_WORKBENCHES_NAMESPACE" ]; then
+    echo "Error: E2E_TEST_WORKBENCHES_NAMESPACE or WORKBENCHES_NAMESPACE must be set (make e2e-test exports both from Makefile)" >&2
+    exit 1
+fi
 validate_namespace E2E_TEST_WORKBENCHES_NAMESPACE
 
 : "${E2E_TEST_DSC_MONITORING_NAMESPACE:=opendatahub}"
