@@ -48,7 +48,7 @@ func generateTestCertPEM(t *testing.T) string {
 
 // generateTestSelfSignedCert creates a self-signed TLS certificate and private key PEM
 // for the given domain with the specified validity duration.
-func generateTestSelfSignedCert(t *testing.T, domain string, validity time.Duration) (certPEM, keyPEM []byte) {
+func generateTestSelfSignedCert(t *testing.T, domain string, validity time.Duration) ([]byte, []byte) {
 	t.Helper()
 
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -92,10 +92,10 @@ func generateTestSelfSignedCert(t *testing.T, domain string, validity time.Durat
 	return certBytes, keyBytes
 }
 
-func createTLSSecret(name, namespace string, certPEM, keyPEM []byte) *corev1.Secret {
+func createTLSSecret(namespace string, certPEM, keyPEM []byte) *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name:      "test-cert",
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
@@ -139,7 +139,7 @@ func TestCreateSelfSignedCertificate_PreservesExistingValidCert(t *testing.T) {
 
 		// Create a certificate valid for 365 days (well beyond the 30-day renewal threshold)
 		certPEM, keyPEM := generateTestSelfSignedCert(t, domain, 365*24*time.Hour)
-		existingSecret := createTLSSecret(secretName, namespace, certPEM, keyPEM)
+		existingSecret := createTLSSecret(namespace, certPEM, keyPEM)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -161,7 +161,7 @@ func TestCreateSelfSignedCertificate_PreservesExistingValidCert(t *testing.T) {
 
 		// Create a certificate for a different domain
 		certPEM, keyPEM := generateTestSelfSignedCert(t, "old.example.com", 365*24*time.Hour)
-		existingSecret := createTLSSecret(secretName, namespace, certPEM, keyPEM)
+		existingSecret := createTLSSecret(namespace, certPEM, keyPEM)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -183,7 +183,7 @@ func TestCreateSelfSignedCertificate_PreservesExistingValidCert(t *testing.T) {
 
 		// Create a certificate that expires in 15 days (within the 30-day renewal window)
 		certPEM, keyPEM := generateTestSelfSignedCert(t, domain, 15*24*time.Hour)
-		existingSecret := createTLSSecret(secretName, namespace, certPEM, keyPEM)
+		existingSecret := createTLSSecret(namespace, certPEM, keyPEM)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -202,7 +202,7 @@ func TestCreateSelfSignedCertificate_PreservesExistingValidCert(t *testing.T) {
 		t.Parallel()
 		g := NewWithT(t)
 
-		existingSecret := createTLSSecret(secretName, namespace, []byte("not-a-cert"), []byte("not-a-key"))
+		existingSecret := createTLSSecret(namespace, []byte("not-a-cert"), []byte("not-a-key"))
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -221,7 +221,7 @@ func TestCreateSelfSignedCertificate_PreservesExistingValidCert(t *testing.T) {
 		t.Parallel()
 		g := NewWithT(t)
 
-		existingSecret := createTLSSecret(secretName, namespace, []byte{}, []byte("some-key"))
+		existingSecret := createTLSSecret(namespace, []byte{}, []byte("some-key"))
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -242,7 +242,7 @@ func TestCreateSelfSignedCertificate_PreservesExistingValidCert(t *testing.T) {
 
 		wildcardDomain := "*.example.com"
 		certPEM, keyPEM := generateTestSelfSignedCert(t, wildcardDomain, 365*24*time.Hour)
-		existingSecret := createTLSSecret(secretName, namespace, certPEM, keyPEM)
+		existingSecret := createTLSSecret(namespace, certPEM, keyPEM)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -255,6 +255,68 @@ func TestCreateSelfSignedCertificate_PreservesExistingValidCert(t *testing.T) {
 		err = cli.Get(context.Background(), client.ObjectKey{Name: secretName, Namespace: namespace}, secret)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(secret.Data[corev1.TLSCertKey]).To(Equal(certPEM))
+	})
+
+	t.Run("regenerates certificate with valid cert but corrupt private key", func(t *testing.T) {
+		t.Parallel()
+		g := NewWithT(t)
+
+		certPEM, _ := generateTestSelfSignedCert(t, domain, 365*24*time.Hour)
+		existingSecret := createTLSSecret(namespace, certPEM, []byte("not-a-key"))
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = cluster.CreateSelfSignedCertificate(context.Background(), cli, secretName, domain, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		secret := &corev1.Secret{}
+		err = cli.Get(context.Background(), client.ObjectKey{Name: secretName, Namespace: namespace}, secret)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(secret.Data[corev1.TLSCertKey]).ToNot(Equal(certPEM))
+	})
+
+	t.Run("regenerates certificate with missing private key", func(t *testing.T) {
+		t.Parallel()
+		g := NewWithT(t)
+
+		certPEM, _ := generateTestSelfSignedCert(t, domain, 365*24*time.Hour)
+		existingSecret := createTLSSecret(namespace, certPEM, nil)
+		delete(existingSecret.Data, corev1.TLSPrivateKeyKey)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = cluster.CreateSelfSignedCertificate(context.Background(), cli, secretName, domain, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		secret := &corev1.Secret{}
+		err = cli.Get(context.Background(), client.ObjectKey{Name: secretName, Namespace: namespace}, secret)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(secret.Data[corev1.TLSCertKey]).ToNot(BeEmpty())
+		g.Expect(secret.Data[corev1.TLSPrivateKeyKey]).ToNot(BeEmpty())
+	})
+
+	t.Run("refreshes metadata on preserved valid certificate", func(t *testing.T) {
+		t.Parallel()
+		g := NewWithT(t)
+
+		certPEM, keyPEM := generateTestSelfSignedCert(t, domain, 365*24*time.Hour)
+		existingSecret := createTLSSecret(namespace, certPEM, keyPEM)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(existingSecret))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = cluster.CreateSelfSignedCertificate(context.Background(), cli, secretName, domain, namespace,
+			cluster.WithLabels("app.kubernetes.io/managed-by", "odh-operator"),
+		)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		secret := &corev1.Secret{}
+		err = cli.Get(context.Background(), client.ObjectKey{Name: secretName, Namespace: namespace}, secret)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(secret.Data[corev1.TLSCertKey]).To(Equal(certPEM))
+		g.Expect(secret.Labels).To(HaveKeyWithValue("app.kubernetes.io/managed-by", "odh-operator"))
 	})
 }
 
