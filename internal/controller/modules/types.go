@@ -3,7 +3,6 @@ package modules
 import (
 	"context"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -199,7 +198,7 @@ type ExtraEnvProvider interface {
 // the release version for the platform version handshake.
 type ModuleStatus struct {
 	// Conditions from .status.conditions on the module CR.
-	Conditions []metav1.Condition
+	Conditions []common.Condition
 	// ObservedGeneration from .status.observedGeneration on the module CR.
 	ObservedGeneration int64
 	// Generation from .metadata.generation on the module CR.
