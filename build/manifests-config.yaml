@@ -205,7 +205,7 @@ additional_meta:
     git.commit: 6a1c6ca239c17e6096e86d51d9ab0a3c79bc1193
   odh-mlserver:
     git.url: https://github.com/red-hat-data-services/MLServer
-    git.commit: 6a1c6ca239c17e6096e86d51d9ab0a3c79bc1193
+    git.commit: d58f0ded897140bdd0c00d3feeb5c77ef8a7b62e
   odh-ml-pipelines-api-server-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
     git.commit: 71609e069e60402a88d14308ed7a74660692bcd5
@@ -226,7 +226,7 @@ additional_meta:
     git.commit: d09d1fde9fa57bd5242385479cc6c41a842bbac3
   odh-model-metadata-collection:
     git.url: https://github.com/red-hat-data-services/model-metadata-collection
-    git.commit: 95f0e7509050bf2e75dd0f0f5db50103b19d88d9
+    git.commit: 5f2a6f68d598675e1ba04019a1f23ce9952800a5
   odh-model-performance-data:
     git.url: https://github.com/red-hat-data-services/models-perf-benchmark-data
     git.commit: 70b4444014b19b93cd089c1171661ff40ad1efe5
@@ -316,7 +316,7 @@ additional_meta:
     git.commit: a6919d3e80cd44e986d88a068d1d97074b6c8dc4
   odh-trainer-operator:
     git.url: https://github.com/red-hat-data-services/trainer-operator
-    git.commit: df8bf846724d26fe0389654e4bc7ead2070f754b
+    git.commit: 5ebb9bf47fbe53f249ef3bbe4dab43e0724f9a87
   odh-training-cuda121-torch24-py311:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 5d574fed033532dfd0afaaf2f1f3ca30fa9da9d7
