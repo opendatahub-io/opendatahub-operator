@@ -367,19 +367,20 @@ func TestPreConditions_StopReconciliation_RecoverAfterCRDAppears(t *testing.T) {
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
+	registerTestPlatformObjectCRD(t, g, et)
 
 	mgr := et.Manager()
 	cli := et.Client()
 
-	dashboard := &componentApi.Dashboard{
-		ObjectMeta: metav1.ObjectMeta{Name: componentApi.DashboardInstanceName, Generation: 1},
+	instance := &scheme.TestPlatformObject{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-instance", Generation: 1},
 	}
-	dashboard.SetGroupVersionKind(gvk.Dashboard)
-	g.Expect(cli.Create(ctx, dashboard)).To(Succeed())
+	instance.SetGroupVersionKind(scheme.TestPlatformObjectGVK)
+	g.Expect(cli.Create(ctx, instance)).To(Succeed())
 
 	var actionExecuted atomic.Bool
 
-	_, err = ReconcilerFor(mgr, &componentApi.Dashboard{}).
+	_, err = ReconcilerFor(mgr, &scheme.TestPlatformObject{}).
 		WithInstanceName(xid.New().String()).
 		WithPreCondition(precondition.MonitorCRD(fakeCRDName, precondition.WithStopReconciliation())).
 		WithAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
@@ -392,12 +393,12 @@ func TestPreConditions_StopReconciliation_RecoverAfterCRDAppears(t *testing.T) {
 	startManager(t, g, mgr)
 
 	// Step 1: verify controller enters PreConditionFailed (CRD absent)
-	di := resources.GvkToUnstructured(gvk.Dashboard)
-	di.SetName(componentApi.DashboardInstanceName)
+	fetched := resources.GvkToUnstructured(scheme.TestPlatformObjectGVK)
+	fetched.SetName("test-instance")
 
 	g.Eventually(func(gg Gomega) {
-		gg.Expect(cli.Get(ctx, client.ObjectKeyFromObject(di), di)).To(Succeed())
-		gg.Expect(di).Should(
+		gg.Expect(cli.Get(ctx, client.ObjectKeyFromObject(fetched), fetched)).To(Succeed())
+		gg.Expect(fetched).Should(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`,
 				status.ConditionTypeProvisioningSucceeded, "PreConditionFailed"),
 		)
@@ -415,8 +416,8 @@ func TestPreConditions_StopReconciliation_RecoverAfterCRDAppears(t *testing.T) {
 	g.Eventually(actionExecuted.Load).WithTimeout(60*time.Second).WithPolling(1*time.Second).Should(BeTrue(),
 		"controller should recover after CRD appears via requeue")
 
-	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(di), di)).To(Succeed())
-	g.Expect(di).Should(
+	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(fetched), fetched)).To(Succeed())
+	g.Expect(fetched).Should(
 		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
 			status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
 	)
