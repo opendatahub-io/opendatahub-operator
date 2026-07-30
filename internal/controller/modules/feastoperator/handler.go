@@ -38,6 +38,7 @@ func NewHandler() *handler {
 				ChartDir:          chartDir,
 				NamespaceValueKey: "namespace",
 				ControllerImage:   "RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE",
+				InitContainerName: "copy-manifests",
 				GVK:               gvk.FeastOperator,
 				RelatedImages: []string{
 					"RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE",
