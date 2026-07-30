@@ -31,6 +31,11 @@ import (
 const (
 	CertFieldOwner   = resources.PlatformFieldOwner + "/cert"
 	IngressNamespace = "openshift-ingress"
+
+	// CertRenewalThreshold is the duration before certificate expiry within which
+	// a self-signed certificate should be regenerated. Certificates that expire
+	// within this window are considered approaching expiration and will be renewed.
+	CertRenewalThreshold = 30 * 24 * time.Hour // 30 days
 )
 
 var IngressControllerName = types.NamespacedName{
@@ -75,6 +80,19 @@ func ValidateCustomCABundle(pemData string) error {
 }
 
 func CreateSelfSignedCertificate(ctx context.Context, c client.Client, secretName, domain, namespace string, metaOptions ...MetaOptions) error {
+	// Check if a valid certificate already exists before generating a new one.
+	// This avoids unnecessary certificate churn on every reconcile cycle.
+	existingSecret := &corev1.Secret{}
+	err := c.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, existingSecret)
+	if err == nil {
+		// Secret exists — check if the certificate is still valid for this domain.
+		if isSelfSignedCertValid(existingSecret, domain) {
+			return nil
+		}
+	} else if !k8serr.IsNotFound(err) {
+		return fmt.Errorf("failed to check existing certificate secret: %w", err)
+	}
+
 	certSecret, err := GenerateSelfSignedCertificateAsSecret(secretName, domain, namespace)
 	if err != nil {
 		return fmt.Errorf("failed generating self-signed certificate: %w", err)
@@ -94,6 +112,38 @@ func CreateSelfSignedCertificate(ctx context.Context, c client.Client, secretNam
 	}
 
 	return nil
+}
+
+// isSelfSignedCertValid checks whether the TLS certificate stored in the given secret
+// is still valid for the specified domain and is not approaching expiration. It returns
+// true if the certificate can be kept as-is and false if it should be regenerated.
+func isSelfSignedCertValid(secret *corev1.Secret, domain string) bool {
+	certPEM, ok := secret.Data[corev1.TLSCertKey]
+	if !ok || len(certPEM) == 0 {
+		return false
+	}
+
+	block, _ := pem.Decode(certPEM)
+	if block == nil {
+		return false
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return false
+	}
+
+	// Check that the certificate is not approaching expiration.
+	if time.Until(cert.NotAfter) < CertRenewalThreshold {
+		return false
+	}
+
+	// Check that the domain matches the certificate.
+	if err := cert.VerifyHostname(domain); err != nil {
+		return false
+	}
+
+	return true
 }
 
 func GenerateSelfSignedCertificateAsSecret(name, addr, namespace string) (*corev1.Secret, error) {
