@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 61a335571b932a58cb4f3d7066f8be66ca8f8b17
+    git.commit: 453e1fbe218e2ebf7bc02d3869cafd8e54ad8649
   odh-feast-operator:
     src: infra/feast-operator/config
     dest: feastoperator
@@ -100,7 +100,7 @@ additional_meta:
     git.commit: a8cf2acada578cde39193c6d01912ad2f1466494
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 61a335571b932a58cb4f3d7066f8be66ca8f8b17
+    git.commit: 453e1fbe218e2ebf7bc02d3869cafd8e54ad8649
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: cb252eb1423f097bb0a98be8c0f9eb472dd890cd
