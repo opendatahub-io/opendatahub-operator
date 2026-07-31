@@ -38,12 +38,11 @@ func registerLabeledCRD(
 	ctx context.Context,
 	et *envt.EnvT,
 	gvk schema.GroupVersionKind,
-	singular string,
 ) *apiextensionsv1.CustomResourceDefinition {
 	t.Helper()
 	g := NewWithT(t)
 
-	crd, err := et.RegisterCRD(ctx, gvk, "crdtestresources", singular, apiextensionsv1.ClusterScoped)
+	crd, err := et.RegisterCRD(ctx, gvk, "crdtestresources", "crdtestresource", apiextensionsv1.ClusterScoped)
 	g.Expect(err).NotTo(HaveOccurred())
 
 	g.Expect(et.Client().Get(ctx, client.ObjectKeyFromObject(crd), crd)).To(Succeed())
@@ -167,7 +166,7 @@ func TestCRDInstanceCleanupFinalizer_NoCRInstances(t *testing.T) {
 	t.Cleanup(func() { _ = envTest.Stop() })
 
 	ctx := context.Background()
-	registerLabeledCRD(t, ctx, envTest, crdTestGVK, "crdtestresource")
+	registerLabeledCRD(t, ctx, envTest, crdTestGVK)
 
 	instance := &scheme.TestPlatformObject{}
 	instance.SetUID("owner-uid")
@@ -186,7 +185,7 @@ func TestCRDInstanceCleanupFinalizer_OperatorFinalizersRemoved(t *testing.T) {
 	ctx := context.Background()
 	cli := envTest.Client()
 
-	registerLabeledCRD(t, ctx, envTest, crdTestGVK, "crdtestresource")
+	registerLabeledCRD(t, ctx, envTest, crdTestGVK)
 
 	cr := makeCRDTestCR([]string{"controller.opendatahub.io/cleanup", "reconciler.opendatahub.io/hold"})
 	g.Expect(cli.Create(ctx, cr)).To(Succeed())
@@ -213,7 +212,7 @@ func TestCRDInstanceCleanupFinalizer_MixedFinalizers(t *testing.T) {
 	ctx := context.Background()
 	cli := envTest.Client()
 
-	registerLabeledCRD(t, ctx, envTest, crdTestGVK, "crdtestresource")
+	registerLabeledCRD(t, ctx, envTest, crdTestGVK)
 
 	cr := makeCRDTestCR([]string{"external.io/lock", "controller.opendatahub.io/cleanup"})
 	g.Expect(cli.Create(ctx, cr)).To(Succeed())
@@ -240,7 +239,7 @@ func TestCRDInstanceCleanupFinalizer_NoOperatorFinalizers(t *testing.T) {
 	ctx := context.Background()
 	cli := envTest.Client()
 
-	registerLabeledCRD(t, ctx, envTest, crdTestGVK, "crdtestresource")
+	registerLabeledCRD(t, ctx, envTest, crdTestGVK)
 
 	cr := makeCRDTestCR([]string{"external.io/lock", "other.io/hold"})
 	g.Expect(cli.Create(ctx, cr)).To(Succeed())
@@ -267,7 +266,7 @@ func TestCRDInstanceCleanupFinalizer_MultipleCRs(t *testing.T) {
 	ctx := context.Background()
 	cli := envTest.Client()
 
-	registerLabeledCRD(t, ctx, envTest, crdTestGVK, "crdtestresource")
+	registerLabeledCRD(t, ctx, envTest, crdTestGVK)
 
 	cr1 := makeCRDTestCR([]string{"controller.opendatahub.io/cleanup"})
 	g.Expect(cli.Create(ctx, cr1)).To(Succeed())
@@ -339,7 +338,7 @@ func TestCRDInstanceCleanupFinalizer_NoOpWhenCRAlreadyDeleted(t *testing.T) {
 	ctx := context.Background()
 	cli := envTest.Client()
 
-	registerLabeledCRD(t, ctx, envTest, crdTestGVK, "crdtestresource")
+	registerLabeledCRD(t, ctx, envTest, crdTestGVK)
 
 	cr := makeCRDTestCR([]string{"controller.opendatahub.io/cleanup"})
 	g.Expect(cli.Create(ctx, cr)).To(Succeed())
