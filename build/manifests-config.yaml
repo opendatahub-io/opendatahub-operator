@@ -158,9 +158,6 @@ additional_meta:
   odh-latency-predictor-prediction:
     git.url: https://github.com/red-hat-data-services/llm-d-latency-predictor
     git.commit: 6ae227e1d7010aefacb1c17b3c2ee2d0aeea9341
-  odh-latency-predictor-test:
-    git.url: https://github.com/red-hat-data-services/llm-d-latency-predictor
-    git.commit: 6ae227e1d7010aefacb1c17b3c2ee2d0aeea9341
   odh-latency-predictor-training:
     git.url: https://github.com/red-hat-data-services/llm-d-latency-predictor
     git.commit: 6ae227e1d7010aefacb1c17b3c2ee2d0aeea9341
@@ -358,7 +355,7 @@ additional_meta:
     git.commit: 15bb5d4c60bc7e1f261327cb1e50fd3491d17bed
   odh-workbench-codeserver-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: e5cdd2187f832e0b6268d939379a503a1018eb81
+    git.commit: 919ccb8a3b78c58371b65584d0416580af2358bb
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 919ccb8a3b78c58371b65584d0416580af2358bb

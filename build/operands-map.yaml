@@ -63,8 +63,6 @@ relatedImages:
   value: "quay.io/rhoai/odh-kube-rbac-proxy-rhel9@sha256:3f685021a2d34cbb921d40806fe37aed5771efd17823710ccecbca9c394c33e4"
 - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_PREDICTION_IMAGE
   value: "quay.io/rhoai/odh-latency-predictor-prediction-rhel9@sha256:c2374cb81cfd2dd546773f8c49b18053ec67d46e1e6695dd6b7b164a189e2722"
-- name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TEST_IMAGE
-  value: "quay.io/rhoai/odh-latency-predictor-test-rhel9@sha256:8c55adca093e82048772e072f1d54040f37fee6197ddee6cc74cc1a11930408d"
 - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TRAINING_IMAGE
   value: "quay.io/rhoai/odh-latency-predictor-training-rhel9@sha256:50c610f536880e0373cebe244e3fcd25b5b70af8eb8ff45a360a9e6c11d54fba"
 - name: RELATED_IMAGE_ODH_LLM_D_ASYNC_IMAGE
@@ -216,7 +214,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-workbenches-operator-rhel9@sha256:5c0d5b8a160635dd95a54cf7db024b877da60633e11b37d840bcbaba3e2eb3a9"
 - name: RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE
-  value: "quay.io/rhoai/odh-workbench-codeserver-datascience-cpu-py312-rhel9@sha256:f6226cfec580bb3410cbc6a3aac7fb0cfce86f1b49c65666ada8c5492457fa74"
+  value: "quay.io/rhoai/odh-workbench-codeserver-datascience-cpu-py312-rhel9@sha256:19f3a6caab282f872ed5c9764b3636a88fa27f25718805d59c798bee7146df0b"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_DATASCIENCE_CPU_PY312_IMAGE
   value: "quay.io/rhoai/odh-workbench-jupyter-datascience-cpu-py312-rhel9@sha256:cf4dc1b8c85a87f9445e798d5e01b3873241f6dcbcdb359610de3e32faace4ec"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_CPU_PY312_IMAGE
