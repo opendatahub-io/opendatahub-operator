@@ -112,7 +112,7 @@ additional_meta:
     git.commit: 6789ed06ab64516f3e3991ef430605c28fbcf3c2
   odh-eval-hub:
     git.url: https://github.com/red-hat-data-services/eval-hub
-    git.commit: 7bc638a86025821281f0d5adc12b8d0d7cdb6bc7
+    git.commit: 21e86dbdc8b35a118c6f32348dc8dec7b2192c34
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: 71434d672468c3b367b27fa97faf678958a90825
@@ -166,7 +166,7 @@ additional_meta:
     git.commit: d06054486b4c391aa29d2824fc8b7b2532e2b88a
   odh-llm-d-async:
     git.url: https://github.com/red-hat-data-services/llm-d-async
-    git.commit: 441731688619ac184c04dc5261c0492dfcc4deaa
+    git.commit: 90c623eb32a68a4dae24a69afc0338d92f91b425
   odh-llm-d-batch-gateway-apiserver:
     git.url: https://github.com/red-hat-data-services/batch-gateway
     git.commit: fbfe15d20df8496c7744b6085956a9a04167a088
