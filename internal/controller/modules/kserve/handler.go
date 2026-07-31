@@ -52,7 +52,6 @@ func NewHandler() *handler {
 				// Keep in sync with kserve-module/pkg/kservemodule/images.go
 				// and ODH-Build-Config bundle-patch.yaml.
 				RelatedImages: []string{
-					"RELATED_IMAGE_ODH_CAIKIT_NLP_IMAGE",
 					"RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE",
 					"RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE",
 					"RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",

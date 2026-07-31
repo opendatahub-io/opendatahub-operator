@@ -51,7 +51,7 @@ var dagBatches = []componentBatch{
 			{name: componentApi.RayComponentName, gvk: gvk.Ray},
 			{name: componentApi.TrainerComponentName, gvk: gvk.Trainer},
 			{name: componentApi.TrainingOperatorComponentName, gvk: gvk.TrainingOperator},
-			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches},
+			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches, internal: true},
 		},
 	},
 	{
@@ -68,7 +68,7 @@ var dagBatches = []componentBatch{
 		components: []componentEntry{
 			{name: componentApi.FeastOperatorComponentName, gvk: gvk.FeastOperator},
 			{name: componentApi.MLflowOperatorComponentName, gvk: gvk.MLflowOperator},
-			{name: componentApi.OGXComponentName, gvk: gvk.OGX},
+			{name: componentApi.OGXComponentName, gvk: gvk.OGX, internal: true},
 			{name: componentApi.SparkOperatorComponentName, gvk: gvk.SparkOperator},
 		},
 	},
@@ -111,7 +111,6 @@ var extensionGVKs = []schema.GroupVersionKind{
 	gvk.Kserve,
 	gvk.FeastOperator,
 	gvk.MLflowOperator,
-	gvk.OGX,
 	gvk.SparkOperator,
 }
 
