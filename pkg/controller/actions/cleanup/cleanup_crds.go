@@ -97,7 +97,7 @@ func removeCRFinalizers(
 			continue
 		}
 
-		kept, removed := filterOperatorFinalizers(finalizers)
+		kept, removed := FilterOperatorFinalizers(finalizers)
 		if len(removed) == 0 {
 			continue
 		}
@@ -110,11 +110,7 @@ func removeCRFinalizers(
 		)
 
 		patch := client.MergeFrom(cr.DeepCopy())
-		if len(kept) == 0 {
-			cr.SetFinalizers(nil)
-		} else {
-			cr.SetFinalizers(kept)
-		}
+		cr.SetFinalizers(kept)
 
 		if err := cli.Patch(ctx, cr, patch); err != nil {
 			if k8serr.IsNotFound(err) {
@@ -129,10 +125,10 @@ func removeCRFinalizers(
 	return nil
 }
 
-// filterOperatorFinalizers splits finalizers into those that should be kept
+// FilterOperatorFinalizers splits finalizers into those that should be kept
 // (not owned by the operator) and those that should be removed (containing
 // the operator's domain).
-func filterOperatorFinalizers(finalizers []string) ([]string, []string) {
+func FilterOperatorFinalizers(finalizers []string) ([]string, []string) {
 	var kept, removed []string
 	for _, f := range finalizers {
 		if strings.Contains(f, operatorFinalizerDomain) {
