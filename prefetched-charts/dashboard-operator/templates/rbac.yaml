@@ -115,6 +115,19 @@ rules:
       - update
       - patch
       - delete
+  # PodDisruptionBudgets for core dashboard availability
+  - apiGroups:
+      - policy
+    resources:
+      - poddisruptionbudgets
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
   # Networking
   - apiGroups:
       - networking.k8s.io
