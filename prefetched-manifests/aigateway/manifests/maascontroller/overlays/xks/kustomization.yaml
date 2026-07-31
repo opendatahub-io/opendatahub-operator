@@ -77,6 +77,17 @@ patches:
         path: /metadata/annotations/cert-manager.io~1inject-ca-from
         value: "$(NAMESPACE)/maas-controller-webhook-server"
 
+  # Set platform manifests path so maas-controller uses xKS tenant overlay
+  - target:
+      kind: Deployment
+      name: maas-controller
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: MAAS_PLATFORM_MANIFESTS
+          value: /maas-api/deploy/overlays/xks
+
 vars:
   - name: NAMESPACE
     objref:

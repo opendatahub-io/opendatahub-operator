@@ -3,7 +3,6 @@ kind: Service
 metadata:
   labels:
     app.kubernetes.io/name: ai-gateway-operator
-    app.kubernetes.io/managed-by: kustomize
   name: metrics-service
   namespace: system
 spec:

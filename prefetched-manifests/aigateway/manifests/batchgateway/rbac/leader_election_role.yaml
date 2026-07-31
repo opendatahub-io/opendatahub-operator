@@ -4,7 +4,6 @@ metadata:
   name: leader-election-role
   labels:
     app.kubernetes.io/name: llm-d-batch-gateway-operator
-    app.kubernetes.io/managed-by: kustomize
 rules:
 - apiGroups:
   - coordination.k8s.io
