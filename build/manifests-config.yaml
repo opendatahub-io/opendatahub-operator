@@ -292,7 +292,7 @@ additional_meta:
     git.commit: 8ba30e5a9690a492c97a579c50b75edb4ececd54
   odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: e5cdd2187f832e0b6268d939379a503a1018eb81
+    git.commit: 8ba30e5a9690a492c97a579c50b75edb4ececd54
   odh-pipeline-runtime-pytorch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 8ba30e5a9690a492c97a579c50b75edb4ececd54
