@@ -5,14 +5,18 @@ import (
 	"testing"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/cleanup"
 	ctypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
@@ -100,6 +104,36 @@ func TestFilterOperatorFinalizers(t *testing.T) {
 			finalizers:      []string{"a.io/first", "test.opendatahub.io/mid", "z.io/last"},
 			expectedKept:    []string{"a.io/first", "z.io/last"},
 			expectedRemoved: []string{"test.opendatahub.io/mid"},
+		},
+		{
+			name:            "near-match domain in name segment not removed",
+			finalizers:      []string{"vendor.io/opendatahub.io-migration-lock"},
+			expectedKept:    []string{"vendor.io/opendatahub.io-migration-lock"},
+			expectedRemoved: nil,
+		},
+		{
+			name:            "near-match domain prefix not removed",
+			finalizers:      []string{"notopendatahub.io/cleanup"},
+			expectedKept:    []string{"notopendatahub.io/cleanup"},
+			expectedRemoved: nil,
+		},
+		{
+			name:            "exact operator domain finalizer removed",
+			finalizers:      []string{"opendatahub.io/cleanup"},
+			expectedKept:    nil,
+			expectedRemoved: []string{"opendatahub.io/cleanup"},
+		},
+		{
+			name:            "subdomain operator finalizer removed",
+			finalizers:      []string{"controller.opendatahub.io/cleanup"},
+			expectedKept:    nil,
+			expectedRemoved: []string{"controller.opendatahub.io/cleanup"},
+		},
+		{
+			name:            "bare domain without slash",
+			finalizers:      []string{"opendatahub.io"},
+			expectedKept:    nil,
+			expectedRemoved: []string{"opendatahub.io"},
 		},
 	}
 
@@ -297,7 +331,7 @@ func TestCRDInstanceCleanupFinalizer_UnlabeledCRDIgnored(t *testing.T) {
 	g.Expect(got.GetFinalizers()).To(Equal([]string{"controller.opendatahub.io/cleanup"}))
 }
 
-func TestCRDInstanceCleanupFinalizer_CRDeletedBetweenListAndPatch(t *testing.T) {
+func TestCRDInstanceCleanupFinalizer_NoOpWhenCRAlreadyDeleted(t *testing.T) {
 	g := NewWithT(t)
 
 	envTest, err := envt.New()
@@ -327,4 +361,83 @@ func TestCRDInstanceCleanupFinalizer_CRDeletedBetweenListAndPatch(t *testing.T) 
 	rr := &ctypes.ReconciliationRequest{Client: cli, Instance: instance}
 
 	g.Expect(invokeCRDCleanup(ctx, rr)).NotTo(HaveOccurred())
+}
+
+func TestCRDInstanceCleanupFinalizer_NoStorageVersion(t *testing.T) {
+	g := NewWithT(t)
+
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	crd.SetName("nostorageresources.crdtest.opendatahub.io")
+	crd.Labels = map[string]string{crdLabelKey: crdLabelValue}
+	crd.Spec.Group = "crdtest.opendatahub.io"
+	crd.Spec.Names = apiextensionsv1.CustomResourceDefinitionNames{
+		Kind:     "NoStorageResource",
+		Plural:   "nostorageresources",
+		Singular: "nostorageresource",
+	}
+	crd.Spec.Versions = []apiextensionsv1.CustomResourceDefinitionVersion{
+		{Name: "v1", Storage: false, Served: true},
+	}
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(crd))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	instance := &scheme.TestPlatformObject{}
+	instance.SetUID("owner-uid")
+	rr := &ctypes.ReconciliationRequest{Client: cli, Instance: instance}
+
+	g.Expect(invokeCRDCleanup(context.Background(), rr)).NotTo(HaveOccurred())
+}
+
+func TestCRDInstanceCleanupFinalizer_PatchNotFoundRace(t *testing.T) {
+	g := NewWithT(t)
+
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	crd.SetName("crdtestresources.crdtest.opendatahub.io")
+	crd.Labels = map[string]string{crdLabelKey: crdLabelValue}
+	crd.Spec.Group = crdTestGVK.Group
+	crd.Spec.Names = apiextensionsv1.CustomResourceDefinitionNames{
+		Kind:     crdTestGVK.Kind,
+		Plural:   "crdtestresources",
+		Singular: "crdtestresource",
+	}
+	crd.Spec.Versions = []apiextensionsv1.CustomResourceDefinitionVersion{
+		{Name: "v1", Storage: true, Served: true},
+	}
+
+	cr := &unstructured.Unstructured{}
+	cr.SetGroupVersionKind(crdTestGVK)
+	cr.SetName("test-cr-race")
+	cr.SetFinalizers([]string{"controller.opendatahub.io/cleanup"})
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(crd, cr),
+		fakeclient.WithGVKs(fakeclient.GVKMapping{
+			GVK:   crdTestGVK,
+			Scope: meta.RESTScopeRoot,
+		}),
+		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			Patch: func(
+				ctx context.Context,
+				c client.WithWatch,
+				obj client.Object,
+				patch client.Patch,
+				opts ...client.PatchOption,
+			) error {
+				return k8serr.NewNotFound(schema.GroupResource{
+					Group:    crdTestGVK.Group,
+					Resource: "crdtestresources",
+				}, obj.GetName())
+			},
+		}),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	instance := &scheme.TestPlatformObject{}
+	instance.SetUID("owner-uid")
+	rr := &ctypes.ReconciliationRequest{Client: cli, Instance: instance}
+
+	// Cleanup should succeed — the Patch NotFound error is treated as the CR
+	// being deleted between List and Patch, so it is silently skipped.
+	g.Expect(invokeCRDCleanup(context.Background(), rr)).NotTo(HaveOccurred())
 }

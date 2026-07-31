@@ -109,7 +109,7 @@ func removeCRFinalizers(
 			"removedFinalizers", removed,
 		)
 
-		patch := client.MergeFrom(cr.DeepCopy())
+		patch := client.MergeFromWithOptions(cr.DeepCopy(), client.MergeFromWithOptimisticLock{})
 		cr.SetFinalizers(kept)
 
 		if err := cli.Patch(ctx, cr, patch); err != nil {
@@ -126,12 +126,12 @@ func removeCRFinalizers(
 }
 
 // FilterOperatorFinalizers splits finalizers into those that should be kept
-// (not owned by the operator) and those that should be removed (containing
+// (not owned by the operator) and those that should be removed (owned by
 // the operator's domain).
 func FilterOperatorFinalizers(finalizers []string) ([]string, []string) {
 	var kept, removed []string
 	for _, f := range finalizers {
-		if strings.Contains(f, operatorFinalizerDomain) {
+		if isOperatorFinalizer(f) {
 			removed = append(removed, f)
 		} else {
 			kept = append(kept, f)
@@ -139,4 +139,19 @@ func FilterOperatorFinalizers(finalizers []string) ([]string, []string) {
 	}
 
 	return kept, removed
+}
+
+// isOperatorFinalizer checks whether a finalizer belongs to the operator's
+// domain. It extracts the domain segment (the part before the first '/') and
+// checks whether it exactly equals operatorFinalizerDomain or is a subdomain
+// of it (i.e. ends with "."+operatorFinalizerDomain). Finalizers without a
+// '/' separator are checked as bare domain names.
+func isOperatorFinalizer(finalizer string) bool {
+	domain := finalizer
+	if idx := strings.Index(finalizer, "/"); idx >= 0 {
+		domain = finalizer[:idx]
+	}
+
+	return domain == operatorFinalizerDomain ||
+		strings.HasSuffix(domain, "."+operatorFinalizerDomain)
 }
