@@ -42,7 +42,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE
   value: quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:5a9177583187bf672785ff379310f6d867cc02e956361c801224f8aafdb6c3dc
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
-  value: quay.io/rhoai/odh-kserve-controller-rhel9@sha256:c0d42bc0bc5a0577d26b956cc75177f27479d90d626bbfd91b6fd8c5c1a3c44c
+  value: quay.io/rhoai/odh-kserve-controller-rhel9@sha256:04e6d19f98c14cbf2a1031346551726288516fa467a532b8311cf7668dad2350
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
   value: quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:dc2e1e783bebeb2672f4183d98a2918fc4cd6a38554a075e0892c1b6bb82388f
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
