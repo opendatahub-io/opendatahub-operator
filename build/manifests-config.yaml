@@ -9,7 +9,7 @@ map:
     src: kserve-module/config
     dest: kserve-module-operator
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 4378bb345e94e9400af02a61ede4697cdfbff7eb
+    git.commit: 3dc50c5c46c7d9174711c51c8198622b3e40f5b2
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
@@ -130,25 +130,25 @@ additional_meta:
     git.commit: 1998656679e96a2d4244dddce885ce3af5885cd2
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 4378bb345e94e9400af02a61ede4697cdfbff7eb
+    git.commit: 3dc50c5c46c7d9174711c51c8198622b3e40f5b2
   odh-kserve-autogluon-server:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 4378bb345e94e9400af02a61ede4697cdfbff7eb
   odh-kserve-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 4378bb345e94e9400af02a61ede4697cdfbff7eb
+    git.commit: 3dc50c5c46c7d9174711c51c8198622b3e40f5b2
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 3dc50c5c46c7d9174711c51c8198622b3e40f5b2
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 4378bb345e94e9400af02a61ede4697cdfbff7eb
+    git.commit: 3dc50c5c46c7d9174711c51c8198622b3e40f5b2
   odh-kserve-localmodel-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 4378bb345e94e9400af02a61ede4697cdfbff7eb
   odh-kserve-router:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 4378bb345e94e9400af02a61ede4697cdfbff7eb
+    git.commit: 3dc50c5c46c7d9174711c51c8198622b3e40f5b2
   odh-kserve-storage-initializer:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 4a182d44b97c29692d15dd07c856781ea36026c4
