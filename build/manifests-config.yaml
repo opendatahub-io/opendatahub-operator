@@ -24,7 +24,7 @@ map:
     src: config
     dest: trustyai
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
-    git.commit: cf4182d62a77d441dbd56e30ec3da7bfacd60f59
+    git.commit: 866b2f2e61cc5e2c714af6eb9be1a331ccf97349
   odh-model-registry-operator:
     src: config
     dest: modelregistry
@@ -70,7 +70,7 @@ map:
     src: config
     dest: aigateway
     git.url: https://github.com/red-hat-data-services/ai-gateway-operator
-    git.commit: 1ac95cd6ffa3aba49c2fc0cf9c6f80d018b9dabb
+    git.commit: d18369dd55f1d01498b6205b753f658a7915f337
   odh-mcp-lifecycle-module-operator:
     src: config
     dest: mcplifecycleoperator
@@ -157,13 +157,13 @@ additional_meta:
     git.commit: 162ee3b7228b4498709c7f23a7d34e65094ad48a
   odh-latency-predictor-prediction:
     git.url: https://github.com/red-hat-data-services/llm-d-latency-predictor
-    git.commit: d06054486b4c391aa29d2824fc8b7b2532e2b88a
+    git.commit: 6ae227e1d7010aefacb1c17b3c2ee2d0aeea9341
   odh-latency-predictor-test:
     git.url: https://github.com/red-hat-data-services/llm-d-latency-predictor
-    git.commit: d06054486b4c391aa29d2824fc8b7b2532e2b88a
+    git.commit: 6ae227e1d7010aefacb1c17b3c2ee2d0aeea9341
   odh-latency-predictor-training:
     git.url: https://github.com/red-hat-data-services/llm-d-latency-predictor
-    git.commit: d06054486b4c391aa29d2824fc8b7b2532e2b88a
+    git.commit: 6ae227e1d7010aefacb1c17b3c2ee2d0aeea9341
   odh-llm-d-async:
     git.url: https://github.com/red-hat-data-services/llm-d-async
     git.commit: 90c623eb32a68a4dae24a69afc0338d92f91b425
@@ -280,7 +280,7 @@ additional_meta:
     git.commit: 5894b9557c5a21ba3e669317cdc93de101ac73e5
   odh-pipelines-components:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: bd1c5eb82c8e6ae296fd69ac7aae8fe180ce5944
+    git.commit: 5346474d8986b68f46259e7b120f438e7fb808df
   odh-pipeline-runtime-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: e5cdd2187f832e0b6268d939379a503a1018eb81
@@ -310,7 +310,7 @@ additional_meta:
     git.commit: ae5244f85b828b124e0621dce68fbf7d758d15c0
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
-    git.commit: cf4182d62a77d441dbd56e30ec3da7bfacd60f59
+    git.commit: 866b2f2e61cc5e2c714af6eb9be1a331ccf97349
   odh-ta-lmes-job:
     git.url: https://github.com/red-hat-data-services/lm-evaluation-harness
     git.commit: a6919d3e80cd44e986d88a068d1d97074b6c8dc4

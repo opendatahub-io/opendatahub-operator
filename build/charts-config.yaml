@@ -1,7 +1,7 @@
 map:
   rhaii-helm-chart:
     git.url: https://github.com/red-hat-data-services/odh-gitops
-    git.commit: 63120bdfb1c5f575a0d16baa45477cf7c6a2f0e0
+    git.commit: adc34814684591387668da9c24a76490d037f7fb
     src: charts/dependencies
     # dest is relative to PREFETCHED_CHARTS_DIR_PATH (prefetched-charts/).
     # The Dockerfile copies prefetched-charts/ contents into /opt/charts/,

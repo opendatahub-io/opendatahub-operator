@@ -295,8 +295,7 @@ data:
           Multi-step arithmetic word problems requiring 2-8 reasoning steps (8-shot, 1,319 examples).
         category: math
         metrics:
-          - exact_match
-          - acc
+          - extractive_match
         num_few_shot: 8
         dataset_size: 1319
         tags:
@@ -304,7 +303,7 @@ data:
           - reasoning
           - lighteval
         primary_score:
-          metric: acc
+          metric: extractive_match
           lower_is_better: false
         pass_criteria:
           threshold: 0.25
@@ -345,8 +344,7 @@ data:
         description: American Invitational Mathematics Examination 2024 - competition-level mathematical reasoning
         category: reasoning
         metrics:
-          - exact_match
-          - acc
+          - pass@1
         num_few_shot: 0
         dataset_size: 30
         tags:
@@ -355,7 +353,7 @@ data:
           - competition
           - lighteval
         primary_score:
-          metric: acc
+          metric: pass@1
           lower_is_better: false
         pass_criteria:
           threshold: 0.25
@@ -364,8 +362,7 @@ data:
         description: American Invitational Mathematics Examination 2025 - competition-level mathematical reasoning
         category: reasoning
         metrics:
-          - exact_match
-          - acc
+          - pass@1
         num_few_shot: 0
         dataset_size: 30
         tags:
@@ -374,7 +371,7 @@ data:
           - competition
           - lighteval
         primary_score:
-          metric: acc
+          metric: pass@1
           lower_is_better: false
         pass_criteria:
           threshold: 0.25
@@ -475,7 +472,6 @@ data:
         category: math
         metrics:
           - pass@1
-          - exact_match
         num_few_shot: 0
         dataset_size: 500
         tags:
@@ -498,7 +494,6 @@ data:
         category: reasoning
         metrics:
           - gpqa_pass@1
-          - acc
         num_few_shot: 0
         dataset_size: 198
         tags:

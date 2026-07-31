@@ -4,6 +4,7 @@ resources:
   - provider-garak.yaml
   - provider-guidellm.yaml
   - provider-ibm-clear.yaml
+  - provider-inspect.yaml
   - provider-lighteval.yaml
   - provider-lm-evaluation-harness.yaml
   - provider-ragas.yaml
