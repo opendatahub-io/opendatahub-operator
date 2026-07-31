@@ -9,7 +9,7 @@ map:
     src: kserve-module/config
     dest: kserve-module-operator
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: e765ecec804ba70d132960c8757bbf32be1c1304
+    git.commit: 9abdacb244d77eb1cac1a08b04cc39592a61fbc3
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
@@ -127,25 +127,25 @@ additional_meta:
     git.commit: 29cd421e5b156149d20839e3e773a6c5b88658ee
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: e765ecec804ba70d132960c8757bbf32be1c1304
+    git.commit: 9abdacb244d77eb1cac1a08b04cc39592a61fbc3
   odh-kserve-autogluon-server:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: e765ecec804ba70d132960c8757bbf32be1c1304
+    git.commit: 9abdacb244d77eb1cac1a08b04cc39592a61fbc3
   odh-kserve-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: e765ecec804ba70d132960c8757bbf32be1c1304
+    git.commit: 9abdacb244d77eb1cac1a08b04cc39592a61fbc3
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 9abdacb244d77eb1cac1a08b04cc39592a61fbc3
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: e765ecec804ba70d132960c8757bbf32be1c1304
+    git.commit: 9abdacb244d77eb1cac1a08b04cc39592a61fbc3
   odh-kserve-localmodel-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: e765ecec804ba70d132960c8757bbf32be1c1304
+    git.commit: 9abdacb244d77eb1cac1a08b04cc39592a61fbc3
   odh-kserve-router:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: e765ecec804ba70d132960c8757bbf32be1c1304
+    git.commit: 9abdacb244d77eb1cac1a08b04cc39592a61fbc3
   odh-kserve-storage-initializer:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 180037f1a388741cee7225e5543731da19eca73c
@@ -283,10 +283,10 @@ additional_meta:
     git.commit: 5346474d8986b68f46259e7b120f438e7fb808df
   odh-pipeline-runtime-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: e5cdd2187f832e0b6268d939379a503a1018eb81
+    git.commit: 919ccb8a3b78c58371b65584d0416580af2358bb
   odh-pipeline-runtime-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: e5cdd2187f832e0b6268d939379a503a1018eb81
+    git.commit: 919ccb8a3b78c58371b65584d0416580af2358bb
   odh-pipeline-runtime-pytorch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 8ba30e5a9690a492c97a579c50b75edb4ececd54
@@ -361,16 +361,16 @@ additional_meta:
     git.commit: e5cdd2187f832e0b6268d939379a503a1018eb81
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 8ba30e5a9690a492c97a579c50b75edb4ececd54
+    git.commit: 919ccb8a3b78c58371b65584d0416580af2358bb
   odh-workbench-jupyter-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 8ba30e5a9690a492c97a579c50b75edb4ececd54
+    git.commit: 919ccb8a3b78c58371b65584d0416580af2358bb
   odh-workbench-jupyter-minimal-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 919ccb8a3b78c58371b65584d0416580af2358bb
   odh-workbench-jupyter-minimal-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 8ba30e5a9690a492c97a579c50b75edb4ececd54
+    git.commit: 919ccb8a3b78c58371b65584d0416580af2358bb
   odh-workbench-jupyter-pytorch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 8ba30e5a9690a492c97a579c50b75edb4ececd54
@@ -388,4 +388,4 @@ additional_meta:
     git.commit: 8ba30e5a9690a492c97a579c50b75edb4ececd54
   odh-workbench-jupyter-trustyai-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 8ba30e5a9690a492c97a579c50b75edb4ececd54
+    git.commit: 919ccb8a3b78c58371b65584d0416580af2358bb
