@@ -21,6 +21,13 @@ data:
   # analyzer — the default since v0.9.0. Remove the `analyzers` section (and the
   # V2-only thresholds) to opt out to the legacy V1 (percentage-based) analyzer.
   # See docs/developer-guide/saturation-scaling-config.md.
+  #
+  # Each analyzer accepts the ScalingPolicy plugin envelope (proposal #1245):
+  #   analyzers:
+  #     - type: saturation            # plugin type; `name:` still works as an alias
+  #       parameters: { scaleUpThreshold: 0.90 }
+  # Well-known parameters (scaleUpThreshold, scaleDownBoundary, score, enabled)
+  # are equivalent to the corresponding top-level/typed fields.
   default: |
     analyzers:
       - name: saturation
@@ -45,3 +52,40 @@ data:
     # that namespace's quota budget. Has no effect without a same-scope GPU budget
     # (requires enableLimiter and a matching cluster/namespace budget).
     enableRescale: false
+  #
+  # ---------------------------------------------------------------------------
+  # ScalingPolicy schema (Phase 1) — additional fields, shown here as examples.
+  # Uncomment and adapt. An override entry's DATA KEY must be "{modelID}#{namespace}"
+  # (the engine looks up overrides by that key); the inner model_id/namespace are
+  # informational only.
+  # ---------------------------------------------------------------------------
+  #
+  # Per-model override using the plugin envelope + inline scale-to-zero:
+  #
+  # "granite-premium#production": |
+  #   model_id: granite-premium
+  #   namespace: production
+  #   priority: 2.0
+  #   # scaleToZero here overrides the wva-model-scale-to-zero-config ConfigMap
+  #   # for this model/namespace; omit it to inherit that ConfigMap.
+  #   scaleToZero: { enabled: false }
+  #   analyzers:
+  #     - type: saturation
+  #       parameters: { scaleUpThreshold: 0.95 }
+  #
+  # Cluster GPU limiter — the sole source that selects the limiter, applied live
+  # (no restart) and honored ONLY on this `default` entry (a cluster-budget scope,
+  # like enableRescale). A limiters list selects a SINGLE mode: a quota entry wins
+  # over any gpu-inventory entry, so pick one of the two forms below (not both).
+  # With no limiters: declared, the physical-inventory limiter is used.
+  #
+  #   # (a) physical-capacity limiter:
+  #   limiters:
+  #     - type: gpu-inventory
+  #
+  #   # (b) operator-declared quota limiter (same schema as QuotaLimiterConfig):
+  #   limiters:
+  #     - type: quota
+  #       name: cluster-h100
+  #       scope: cluster
+  #       quotas: { H100: 32 }

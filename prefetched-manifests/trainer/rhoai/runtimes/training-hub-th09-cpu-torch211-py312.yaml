@@ -1,7 +1,7 @@
 apiVersion: trainer.kubeflow.org/v1alpha1
 kind: ClusterTrainingRuntime
 metadata:
-  name: training-hub-cpu
+  name: training-hub-th09-cpu-torch211-py312
   labels:
     trainer.kubeflow.org/framework: training-hub
 spec:
@@ -22,4 +22,4 @@ spec:
                 spec:
                   containers:
                     - name: node
-                      image: quay.io/opendatahub/odh-th06-cpu-torch210-py312:odh-3.5-ea1
+                      image: quay.io/opendatahub/odh-th-torch-cpu-py312:odh-3.5
