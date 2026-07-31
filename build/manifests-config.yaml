@@ -4,7 +4,7 @@ map:
     dest: workbenches
     type: chart
     git.url: https://github.com/red-hat-data-services/workbenches-operator
-    git.commit: a2b8604ae3000b4fa2717e6c7d02572f265d4ccc
+    git.commit: b6a7cba45421933bcc5c4e8ed9aa489ae437ce9d
   odh-kserve-module-operator:
     src: kserve-module/config
     dest: kserve-module-operator
@@ -97,7 +97,7 @@ additional_meta:
     git.commit: 408592837b4abf5e785d71c36102136c3e04f37e
   odh-cli:
     git.url: https://github.com/red-hat-data-services/odh-cli
-    git.commit: a8cf2acada578cde39193c6d01912ad2f1466494
+    git.commit: d9b13281a5d70ffeea9d1ed57862ad10ca1ee16d
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: bc1967e9ad458f1c083cdd2fe8fc87135b2aedfa
