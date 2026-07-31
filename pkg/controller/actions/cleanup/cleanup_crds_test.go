@@ -366,6 +366,12 @@ func TestCRDInstanceCleanupFinalizer_NoOpWhenCRAlreadyDeleted(t *testing.T) {
 func TestCRDInstanceCleanupFinalizer_NoStorageVersion(t *testing.T) {
 	g := NewWithT(t)
 
+	noStorageGVK := schema.GroupVersionKind{
+		Group:   "crdtest.opendatahub.io",
+		Version: "v1",
+		Kind:    "NoStorageResource",
+	}
+
 	crd := &apiextensionsv1.CustomResourceDefinition{}
 	crd.SetName("nostorageresources.crdtest.opendatahub.io")
 	crd.Labels = map[string]string{crdLabelKey: crdLabelValue}
@@ -379,7 +385,18 @@ func TestCRDInstanceCleanupFinalizer_NoStorageVersion(t *testing.T) {
 		{Name: "v1", Storage: false, Served: true},
 	}
 
-	cli, err := fakeclient.New(fakeclient.WithObjects(crd))
+	cr := &unstructured.Unstructured{}
+	cr.SetGroupVersionKind(noStorageGVK)
+	cr.SetName("test-no-storage-cr")
+	cr.SetFinalizers([]string{"controller.opendatahub.io/cleanup"})
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(crd, cr),
+		fakeclient.WithGVKs(fakeclient.GVKMapping{
+			GVK:   noStorageGVK,
+			Scope: meta.RESTScopeRoot,
+		}),
+	)
 	g.Expect(err).NotTo(HaveOccurred())
 
 	instance := &scheme.TestPlatformObject{}
@@ -387,6 +404,11 @@ func TestCRDInstanceCleanupFinalizer_NoStorageVersion(t *testing.T) {
 	rr := &ctypes.ReconciliationRequest{Client: cli, Instance: instance}
 
 	g.Expect(invokeCRDCleanup(context.Background(), rr)).NotTo(HaveOccurred())
+
+	got := &unstructured.Unstructured{}
+	got.SetGroupVersionKind(noStorageGVK)
+	g.Expect(cli.Get(context.Background(), client.ObjectKeyFromObject(cr), got)).To(Succeed())
+	g.Expect(got.GetFinalizers()).To(ContainElement("controller.opendatahub.io/cleanup"))
 }
 
 func TestCRDInstanceCleanupFinalizer_PatchNotFoundRace(t *testing.T) {
