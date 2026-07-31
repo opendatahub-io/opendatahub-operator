@@ -100,7 +100,7 @@ additional_meta:
     git.commit: a8cf2acada578cde39193c6d01912ad2f1466494
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 453e1fbe218e2ebf7bc02d3869cafd8e54ad8649
+    git.commit: bc1967e9ad458f1c083cdd2fe8fc87135b2aedfa
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: cb252eb1423f097bb0a98be8c0f9eb472dd890cd
@@ -367,7 +367,7 @@ additional_meta:
     git.commit: 8ba30e5a9690a492c97a579c50b75edb4ececd54
   odh-workbench-jupyter-minimal-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 8ba30e5a9690a492c97a579c50b75edb4ececd54
+    git.commit: 919ccb8a3b78c58371b65584d0416580af2358bb
   odh-workbench-jupyter-minimal-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 8ba30e5a9690a492c97a579c50b75edb4ececd54
