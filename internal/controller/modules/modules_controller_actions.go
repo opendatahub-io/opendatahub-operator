@@ -554,7 +554,7 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 
 		ready := false
 		degraded := false
-		var readyCond *metav1.Condition
+		var readyCond *common.Condition
 
 		for i := range moduleStatus.Conditions {
 			switch moduleStatus.Conditions[i].Type {
@@ -597,7 +597,7 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 			})
 		}
 
-		mirrorSubmoduleConditions(rr, platformCtx, moduleStatus, submodules, &notReadyModules)
+		mirrorSubmoduleConditions(rr, platformCtx, moduleStatus, submodules)
 
 		if platformCtx.DSC != nil {
 			handler.WriteDSCComponentStatus(platformCtx.DSC, enabled, moduleStatus.Releases)
@@ -671,22 +671,22 @@ func submoduleConditionsFor(h ModuleHandler) []SubmoduleCondition {
 }
 
 // mirrorSubmoduleConditions copies declared submodule conditions from the
-// module CR's status onto the DSC conditions. It checks per-submodule
-// enablement: disabled submodules get a Removed condition. Enabled submodules
-// whose condition is not True are appended to notReadyModules so they affect
-// the aggregate.
+// module CR's status onto the DSC conditions, preserving severity. These
+// conditions are informational only: module readiness is defined solely by the
+// module CR's Ready (and Degraded) condition — which the module already
+// aggregates severity-aware internally — so mirrored submodule conditions never
+// gate ModulesReady. Disabled submodules get a Removed condition.
 func mirrorSubmoduleConditions(
 	rr *odhtype.ReconciliationRequest,
 	platformCtx *PlatformContext,
 	moduleStatus *ModuleStatus,
 	submodules []SubmoduleCondition,
-	notReadyModules *[]string,
 ) {
 	if len(submodules) == 0 {
 		return
 	}
 
-	condByType := make(map[string]*metav1.Condition, len(moduleStatus.Conditions))
+	condByType := make(map[string]*common.Condition, len(moduleStatus.Conditions))
 	for i := range moduleStatus.Conditions {
 		condByType[moduleStatus.Conditions[i].Type] = &moduleStatus.Conditions[i]
 	}
@@ -716,21 +716,17 @@ func mirrorSubmoduleConditions(
 				Reason:  status.AwaitingReadinessReason,
 				Message: "Submodule is enabled (Managed) but the module operator has not reported its status yet",
 			})
-			*notReadyModules = append(*notReadyModules, sm.DSCConditionType)
 
 			continue
 		}
 
 		rr.Conditions.SetCondition(common.Condition{
-			Type:    sm.DSCConditionType,
-			Status:  source.Status,
-			Reason:  source.Reason,
-			Message: source.Message,
+			Type:     sm.DSCConditionType,
+			Status:   source.Status,
+			Reason:   source.Reason,
+			Message:  source.Message,
+			Severity: source.Severity,
 		})
-
-		if source.Status != metav1.ConditionTrue {
-			*notReadyModules = append(*notReadyModules, sm.DSCConditionType)
-		}
 	}
 }
 
