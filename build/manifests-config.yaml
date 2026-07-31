@@ -91,7 +91,7 @@ additional_meta:
     git.commit: 5897dd31c21d6435f003d042627cd380cf49bd01
   odh-autorag:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 1e0bbb7d59d02e1a9e87522fb22c6e2a3cc7f0c9
+    git.commit: 5897dd31c21d6435f003d042627cd380cf49bd01
   odh-built-in-detector:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: f6d3917e946202d6fc63432b0ec2aec1b1353ca0
@@ -229,7 +229,7 @@ additional_meta:
     git.commit: 71d8aed59804abdcdbfb63fcdbd6187bcba912f0
   odh-model-metadata-collection:
     git.url: https://github.com/red-hat-data-services/model-metadata-collection
-    git.commit: aff0c28ebaeba4af611ab89a7bcb3e13dc32405d
+    git.commit: 45fc307523ac1c3b99f9a4c4660b2abb741bc218
   odh-model-performance-data:
     git.url: https://github.com/red-hat-data-services/models-perf-benchmark-data
     git.commit: d9c268c84238caaf227b902ec2c188d837d7c14e
@@ -367,7 +367,7 @@ additional_meta:
     git.commit: 16f5e49d38eccec2a9a0b020e22233c6490a17ec
   odh-workbench-jupyter-minimal-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 16f5e49d38eccec2a9a0b020e22233c6490a17ec
+    git.commit: 47efb6ccd92749add6ee147546f4aa9653d881a0
   odh-workbench-jupyter-minimal-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 16f5e49d38eccec2a9a0b020e22233c6490a17ec
