@@ -339,6 +339,22 @@ spec:
   type: ClusterIP
 `, GatewayServiceTLSSecretName)
 
+	// Set resource limits for the istio-proxy container to prevent OOMKilled
+	// under heavy dashboard/Observe load.
+	deploymentConfig := `spec:
+  template:
+    spec:
+      containers:
+      - name: istio-proxy
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            cpu: "2"
+            memory: 2Gi
+`
+
 	infraConfigMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      GatewayInfraConfigMapName,
@@ -348,7 +364,8 @@ spec:
 			},
 		},
 		Data: map[string]string{
-			"service": serviceConfig,
+			"service":    serviceConfig,
+			"deployment": deploymentConfig,
 		},
 	}
 	if err := rr.AddResources(infraConfigMap); err != nil {
