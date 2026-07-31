@@ -28,6 +28,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/gomega"
@@ -144,7 +145,7 @@ func testResourceNotReDeployed(t *testing.T, cli client.Client, obj client.Objec
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
@@ -217,7 +218,7 @@ func testCacheTTL(t *testing.T, cli client.Client, obj client.Object) {
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
@@ -278,7 +279,7 @@ func testDeletionTimestampHandling(t *testing.T, cli client.Client, obj client.O
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},

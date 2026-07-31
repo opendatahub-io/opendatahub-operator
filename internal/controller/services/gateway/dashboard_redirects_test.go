@@ -15,7 +15,9 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
 	. "github.com/onsi/gomega"
@@ -56,11 +58,8 @@ func TestCreateDashboardRedirects_CreatesWhenDashboardExists(t *testing.T) {
 		},
 	}
 
-	dashboard := &componentApi.Dashboard{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: componentApi.DashboardInstanceName,
-		},
-	}
+	dashboard := resources.GvkToUnstructured(gvk.Dashboard)
+	dashboard.SetName(componentApi.DashboardInstanceName)
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig, dashboard))
 	g.Expect(err).To(Succeed())
@@ -87,11 +86,8 @@ func TestCreateDashboardRedirects_SkipsWhenEnvDisabled(t *testing.T) {
 		},
 	}
 
-	dashboard := &componentApi.Dashboard{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: componentApi.DashboardInstanceName,
-		},
-	}
+	dashboard := resources.GvkToUnstructured(gvk.Dashboard)
+	dashboard.SetName(componentApi.DashboardInstanceName)
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig, dashboard))
 	g.Expect(err).To(Succeed())

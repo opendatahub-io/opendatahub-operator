@@ -29,7 +29,7 @@ type DashboardTestCtx struct {
 func dashboardTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Dashboard{})
+	ct, err := NewModuleTestCtx(t, gvk.Dashboard, componentApi.DashboardInstanceName)
 	require.NoError(t, err)
 
 	componentCtx := DashboardTestCtx{

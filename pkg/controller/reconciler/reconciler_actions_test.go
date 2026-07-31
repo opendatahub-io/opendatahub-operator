@@ -14,10 +14,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -33,7 +33,7 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 	}{
 		{
 			name:       "should register a watcher if no predicates",
-			object:     &componentApi.Dashboard{TypeMeta: metav1.TypeMeta{Kind: gvk.Dashboard.Kind}},
+			object:     &scheme.TestPlatformObject{TypeMeta: metav1.TypeMeta{Kind: gvk.Dashboard.Kind}},
 			preds:      []DynamicPredicate{},
 			errMatcher: Not(HaveOccurred()),
 			cntMatcher: BeNumerically("==", 1),
@@ -42,7 +42,7 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 
 		{
 			name:   "should register a watcher when the predicate evaluate to true",
-			object: &componentApi.Dashboard{TypeMeta: metav1.TypeMeta{Kind: gvk.Dashboard.Kind}},
+			object: &scheme.TestPlatformObject{TypeMeta: metav1.TypeMeta{Kind: gvk.Dashboard.Kind}},
 			preds: []DynamicPredicate{
 				func(_ context.Context, rr *types.ReconciliationRequest) bool {
 					return true
@@ -55,7 +55,7 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 
 		{
 			name: "should register a watcher when all predicates evaluate to true",
-			object: &componentApi.Dashboard{
+			object: &scheme.TestPlatformObject{
 				TypeMeta: metav1.TypeMeta{
 					Kind: gvk.Dashboard.Kind,
 				},
@@ -79,7 +79,7 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 
 		{
 			name:   "should not register a watcher the predicate returns false",
-			object: &componentApi.Dashboard{TypeMeta: metav1.TypeMeta{Kind: gvk.Dashboard.Kind}},
+			object: &scheme.TestPlatformObject{TypeMeta: metav1.TypeMeta{Kind: gvk.Dashboard.Kind}},
 			preds: []DynamicPredicate{
 				func(_ context.Context, rr *types.ReconciliationRequest) bool {
 					return false
@@ -92,7 +92,7 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 
 		{
 			name: "should not register a watcher when a predicate returns false",
-			object: &componentApi.Dashboard{
+			object: &scheme.TestPlatformObject{
 				TypeMeta: metav1.TypeMeta{
 					Kind: gvk.Dashboard.Kind,
 				},
@@ -178,7 +178,7 @@ func TestDynamicWatchAction_Inputs(t *testing.T) {
 	}
 
 	action := newDynamicWatch(mockFn, watches)
-	err := action.run(ctx, &types.ReconciliationRequest{Instance: &componentApi.Dashboard{
+	err := action.run(ctx, &types.ReconciliationRequest{Instance: &scheme.TestPlatformObject{
 		TypeMeta: metav1.TypeMeta{
 			Kind: gvk.Dashboard.Kind,
 		},
@@ -221,7 +221,7 @@ func TestDynamicWatchAction_NotTwice(t *testing.T) {
 
 	action := newDynamicWatch(mockFn, watches)
 
-	err1 := action.run(ctx, &types.ReconciliationRequest{Instance: &componentApi.Dashboard{
+	err1 := action.run(ctx, &types.ReconciliationRequest{Instance: &scheme.TestPlatformObject{
 		TypeMeta: metav1.TypeMeta{
 			Kind: gvk.Dashboard.Kind,
 		},
@@ -233,7 +233,7 @@ func TestDynamicWatchAction_NotTwice(t *testing.T) {
 	g.Expect(err1).
 		ShouldNot(HaveOccurred())
 
-	err2 := action.run(ctx, &types.ReconciliationRequest{Instance: &componentApi.Dashboard{
+	err2 := action.run(ctx, &types.ReconciliationRequest{Instance: &scheme.TestPlatformObject{
 		TypeMeta: metav1.TypeMeta{
 			Kind: gvk.Dashboard.Kind,
 		},
