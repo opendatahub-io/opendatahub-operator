@@ -1,7 +1,7 @@
 apiVersion: trainer.kubeflow.org/v1alpha1
 kind: ClusterTrainingRuntime
 metadata:
-  name: torch-distributed-rocm64-torch29-py312
+  name: torch-distributed-cpu
   labels:
     trainer.kubeflow.org/framework: torch
 spec:
@@ -22,4 +22,4 @@ spec:
                 spec:
                   containers:
                     - name: node
-                      image: quay.io/opendatahub/odh-training-rocm64-torch29-py312@sha256:80878d0d51fa6bc8957f669e7f3facac13669562d393a6bfc45ca8dff277c2fa
+                      image: quay.io/opendatahub/odh-th-torch-cpu-py312:odh-3.5

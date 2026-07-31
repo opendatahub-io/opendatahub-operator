@@ -28,38 +28,12 @@ replacements:
     fieldPaths:
     - spec.template.spec.containers.0.image
 
-# Replace image for torch-distributed-rocm (floating ROCm - universal)
+# Replace image for torch-distributed (floating CUDA)
 - source:
     kind: ConfigMap
     name: rhoai-config
     version: v1
-    fieldPath: data.odh-th06-rocm64-torch291-py312-image
-  targets:
-  - select:
-      kind: ClusterTrainingRuntime
-      name: torch-distributed-rocm
-    fieldPaths:
-    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
-
-# Replace image for torch-distributed-rocm64-torch29-py312
-- source:
-    kind: ConfigMap
-    name: rhoai-config
-    version: v1
-    fieldPath: data.odh-training-rocm64-torch29-py312-image
-  targets:
-  - select:
-      kind: ClusterTrainingRuntime
-      name: torch-distributed-rocm64-torch29-py312
-    fieldPaths:
-    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
-
-# Replace image for torch-distributed (floating CUDA - universal)
-- source:
-    kind: ConfigMap
-    name: rhoai-config
-    version: v1
-    fieldPath: data.odh-th06-cuda130-torch210-py312-image
+    fieldPath: data.odh-th-torch-cuda-py312-image
   targets:
   - select:
       kind: ClusterTrainingRuntime
@@ -67,25 +41,12 @@ replacements:
     fieldPaths:
     - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
 
-# Replace image for torch-distributed-cuda128-torch29-py312
+# Replace image for torch-distributed-cpu (floating CPU)
 - source:
     kind: ConfigMap
     name: rhoai-config
     version: v1
-    fieldPath: data.odh-training-cuda128-torch29-py312-image
-  targets:
-  - select:
-      kind: ClusterTrainingRuntime
-      name: torch-distributed-cuda128-torch29-py312
-    fieldPaths:
-    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
-
-# Replace image for torch-distributed-cpu (floating CPU - universal)
-- source:
-    kind: ConfigMap
-    name: rhoai-config
-    version: v1
-    fieldPath: data.odh-th06-cpu-torch210-py312-image
+    fieldPath: data.odh-th-torch-cpu-py312-image
   targets:
   - select:
       kind: ClusterTrainingRuntime
@@ -93,51 +54,64 @@ replacements:
     fieldPaths:
     - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
 
-# Replace image for torch-distributed-cuda130-torch210-py312
+# Replace image for torch-distributed-rocm (floating ROCm)
 - source:
     kind: ConfigMap
     name: rhoai-config
     version: v1
-    fieldPath: data.odh-th06-cuda130-torch210-py312-image
+    fieldPath: data.odh-th-torch-rocm-py312-image
   targets:
   - select:
       kind: ClusterTrainingRuntime
-      name: torch-distributed-cuda130-torch210-py312
+      name: torch-distributed-rocm
     fieldPaths:
     - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
 
-# Replace image for torch-distributed-rocm64-torch291-py312
+# Replace image for torch-distributed-cuda130-torch211-py312
 - source:
     kind: ConfigMap
     name: rhoai-config
     version: v1
-    fieldPath: data.odh-th06-rocm64-torch291-py312-image
+    fieldPath: data.odh-th-torch-cuda-py312-image
   targets:
   - select:
       kind: ClusterTrainingRuntime
-      name: torch-distributed-rocm64-torch291-py312
+      name: torch-distributed-cuda130-torch211-py312
     fieldPaths:
     - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
 
-# Replace image for torch-distributed-cpu-torch210-py312
+# Replace image for torch-distributed-rocm714-torch211-py312
 - source:
     kind: ConfigMap
     name: rhoai-config
     version: v1
-    fieldPath: data.odh-th06-cpu-torch210-py312-image
+    fieldPath: data.odh-th-torch-rocm-py312-image
   targets:
   - select:
       kind: ClusterTrainingRuntime
-      name: torch-distributed-cpu-torch210-py312
+      name: torch-distributed-rocm714-torch211-py312
     fieldPaths:
     - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
 
-# Replace image for training-hub (floating CUDA - universal)
+# Replace image for torch-distributed-cpu-torch211-py312
 - source:
     kind: ConfigMap
     name: rhoai-config
     version: v1
-    fieldPath: data.odh-th06-cuda130-torch210-py312-image
+    fieldPath: data.odh-th-torch-cpu-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: torch-distributed-cpu-torch211-py312
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for training-hub (floating CUDA)
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-th-torch-cuda-py312-image
   targets:
   - select:
       kind: ClusterTrainingRuntime
@@ -145,25 +119,12 @@ replacements:
     fieldPaths:
     - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
 
-# Replace image for training-hub-rocm (floating ROCm - universal)
+# Replace image for training-hub-cpu (floating CPU)
 - source:
     kind: ConfigMap
     name: rhoai-config
     version: v1
-    fieldPath: data.odh-th06-rocm64-torch291-py312-image
-  targets:
-  - select:
-      kind: ClusterTrainingRuntime
-      name: training-hub-rocm
-    fieldPaths:
-    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
-
-# Replace image for training-hub-cpu (floating CPU - universal)
-- source:
-    kind: ConfigMap
-    name: rhoai-config
-    version: v1
-    fieldPath: data.odh-th06-cpu-torch210-py312-image
+    fieldPath: data.odh-th-torch-cpu-py312-image
   targets:
   - select:
       kind: ClusterTrainingRuntime
@@ -171,55 +132,55 @@ replacements:
     fieldPaths:
     - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
 
-# Replace image for training-hub-th05-cuda128-torch29-py312
+# Replace image for training-hub-rocm (floating ROCm)
 - source:
     kind: ConfigMap
     name: rhoai-config
     version: v1
-    fieldPath: data.odh-training-cuda128-torch29-py312-image
+    fieldPath: data.odh-th-torch-rocm-py312-image
   targets:
   - select:
       kind: ClusterTrainingRuntime
-      name: training-hub-th05-cuda128-torch29-py312
+      name: training-hub-rocm
     fieldPaths:
     - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
 
-# Replace image for training-hub-th06-cuda130-torch210-py312
+# Replace image for training-hub-th09-cuda130-torch211-py312
 - source:
     kind: ConfigMap
     name: rhoai-config
     version: v1
-    fieldPath: data.odh-th06-cuda130-torch210-py312-image
+    fieldPath: data.odh-th-torch-cuda-py312-image
   targets:
   - select:
       kind: ClusterTrainingRuntime
-      name: training-hub-th06-cuda130-torch210-py312
+      name: training-hub-th09-cuda130-torch211-py312
     fieldPaths:
     - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
 
-# Replace image for training-hub-th06-rocm64-torch291-py312
+# Replace image for training-hub-th09-rocm714-torch211-py312
 - source:
     kind: ConfigMap
     name: rhoai-config
     version: v1
-    fieldPath: data.odh-th06-rocm64-torch291-py312-image
+    fieldPath: data.odh-th-torch-rocm-py312-image
   targets:
   - select:
       kind: ClusterTrainingRuntime
-      name: training-hub-th06-rocm64-torch291-py312
+      name: training-hub-th09-rocm714-torch211-py312
     fieldPaths:
     - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
 
-# Replace image for training-hub-th06-cpu-torch210-py312
+# Replace image for training-hub-th09-cpu-torch211-py312
 - source:
     kind: ConfigMap
     name: rhoai-config
     version: v1
-    fieldPath: data.odh-th06-cpu-torch210-py312-image
+    fieldPath: data.odh-th-torch-cpu-py312-image
   targets:
   - select:
       kind: ClusterTrainingRuntime
-      name: training-hub-th06-cpu-torch210-py312
+      name: training-hub-th09-cpu-torch211-py312
     fieldPaths:
     - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
 

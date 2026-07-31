@@ -45,7 +45,7 @@ map:
     src: manifests
     dest: trainer
     git.url: https://github.com/red-hat-data-services/trainer
-    git.commit: 7280dd4483ff21406ec62c8a5c442511755ce616
+    git.commit: 719361878481f54f2c3af2b1e13c7085aeb17deb
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
@@ -364,10 +364,10 @@ additional_meta:
     git.commit: 47efb6ccd92749add6ee147546f4aa9653d881a0
   odh-workbench-jupyter-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 47efb6ccd92749add6ee147546f4aa9653d881a0
+    git.commit: 955afa61d8aadd63d65ee95230852328f17a8d3b
   odh-workbench-jupyter-minimal-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 47efb6ccd92749add6ee147546f4aa9653d881a0
+    git.commit: 955afa61d8aadd63d65ee95230852328f17a8d3b
   odh-workbench-jupyter-minimal-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 47efb6ccd92749add6ee147546f4aa9653d881a0
