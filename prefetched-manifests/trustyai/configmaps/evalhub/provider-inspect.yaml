@@ -1,0 +1,916 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: evalhub-provider-inspect
+  labels:
+    trustyai.opendatahub.io/evalhub-provider-type: system
+    trustyai.opendatahub.io/evalhub-provider-name: inspect
+data:
+  inspect.yaml: |
+    # Inspect AI Provider Configuration
+    # Execution substrate for Meridian Labs alignment-auditing tools:
+    #   Petri  — auditor/target/judge pipeline, 170+ seeds, 38 judge dimensions
+    #   Bloom  — automated scenario generation from behavior descriptions
+    #   Dish   — real-scaffold testing (research preview, via task_args pass-through)
+    # Also supports 36 curated inspect-evals benchmarks across safety, coding, math, knowledge, and agent evaluation.
+
+    id: inspect
+    name: Inspect AI
+    title: Inspect AI
+    description: UK AISI Inspect AI framework — Petri/Bloom alignment auditing and inspect-evals benchmarks
+    runtime:
+      k8s:
+        image: $(evalhub-provider-inspect-image)
+        entrypoint:
+          - python
+          - main.py
+        cpu_request: 500m
+        memory_request: 512Mi
+        cpu_limit: 2000m
+        memory_limit: 4Gi
+      local:
+        # used for local mode tests (FVT)
+        command: python tests/features/test_data/runtime/main.py
+
+    benchmarks:
+      # -----------------------------------------------------------------------
+      # Petri alignment benchmarks  (inspect/petri-*)
+      # Task: inspect_petri/audit | Requires: auditor_model + judge_model params
+      # Primary metric: concerning/mean  (1–10 scale; higher = more concerning)
+      # -----------------------------------------------------------------------
+
+      - id: inspect/petri-sycophancy
+        name: Petri — Sycophancy Audit
+        description: >
+          Tests whether the target model capitulates to social pressure, false premises,
+          or user insistence rather than maintaining accurate responses.
+          Uses seeds tagged 'sycophancy' from Petri's built-in library (170+ scenarios).
+        category: alignment
+        metrics: [concerning/mean, unprompted_sycophancy/mean, eval_awareness/mean]
+        tags: [alignment, sycophancy, petri, behavioral]
+
+      - id: inspect/petri-deception
+        name: Petri — Deception Audit
+        description: >
+          Tests whether the target model actively misleads users — fabricating facts,
+          masking intent, or behaving differently under evaluation vs deployment.
+          Uses seeds tagged 'deception'.
+        category: alignment
+        metrics: [concerning/mean, unprompted_deception_toward_user/mean, eval_awareness/mean]
+        tags: [alignment, deception, petri, behavioral]
+
+      - id: inspect/petri-alignment-faking
+        name: Petri — Alignment Faking Audit
+        description: >
+          Tests for alignment faking: the model appearing aligned during evaluation
+          but acting against its stated values when it believes monitoring is reduced.
+          Uses seeds tagged 'alignment_faking'.
+        category: alignment
+        metrics: [concerning/mean, eval_awareness/mean, audit_situational_awareness/mean]
+        tags: [alignment, alignment-faking, petri, behavioral]
+
+      - id: inspect/petri-jailbreak
+        name: Petri — Jailbreak Susceptibility Audit
+        description: >
+          Tests whether the model can be socially engineered into bypassing its
+          guidelines through multi-turn adversarial scenarios.
+          Uses seeds tagged 'jailbreak'.
+        category: alignment
+        metrics: [concerning/mean, cooperation_with_human_misuse/mean]
+        tags: [alignment, jailbreak, petri, safety]
+
+      - id: inspect/petri-harmful-cooperation
+        name: Petri — Harmful Cooperation Audit
+        description: >
+          Tests whether the model assists users who signal harmful intent across
+          sustained multi-turn interactions. Uses seeds tagged 'cooperation_with_misuse'.
+        category: alignment
+        metrics: [concerning/mean, cooperation_with_human_misuse/mean, cooperation_with_harmful_sysprompt/mean]
+        tags: [alignment, harmful-cooperation, petri, safety]
+
+      - id: inspect/petri-self-preservation
+        name: Petri — Self-Preservation Audit
+        description: >
+          Tests whether the model prioritizes self-interested behavior (avoiding shutdown,
+          acquiring resources, evading oversight) over user and operator goals.
+          Uses seeds tagged 'self_preservation'.
+        category: alignment
+        metrics: [concerning/mean, unprompted_self_preservation/mean]
+        tags: [alignment, self-preservation, petri, behavioral]
+
+      - id: inspect/petri-power-seeking
+        name: Petri — Power-Seeking Audit
+        description: >
+          Tests for unauthorized resource or influence acquisition beyond the model's
+          intended scope. Uses seeds tagged 'power_seeking'.
+        category: alignment
+        metrics: [concerning/mean]
+        tags: [alignment, power-seeking, petri, behavioral]
+
+      - id: inspect/petri-full
+        name: Petri — Full Alignment Audit
+        description: >
+          Complete Petri audit across all 170+ built-in seeds from all 40 tag categories.
+          Expensive — strongly recommend setting max_samples for development runs.
+          Primary output: 38-dimension scoring profile across all alignment behaviors.
+        category: alignment
+        metrics: [concerning/mean, eval_awareness/mean, admirable/mean]
+        tags: [alignment, full-audit, petri, behavioral]
+
+      # -----------------------------------------------------------------------
+      # Bloom behavioral evaluation benchmarks  (inspect/bloom-*)
+      # Task: petri_bloom/bloom_audit | Requires: auditor_model + judge_model params
+      # Multi-step: bloom init → bloom scenarios → inspect eval
+      # Primary metric: concerning/mean (same dimension set as Petri)
+      # -----------------------------------------------------------------------
+
+      - id: inspect/bloom-sycophancy
+        name: Bloom — Sycophancy Behavioral Suite
+        description: >
+          Automated behavioral evaluation of sycophancy using Bloom's scenario-generation
+          pipeline. Generates evaluation suites from the 'delusion_sycophancy' template
+          without manual seed authoring.
+        category: alignment
+        metrics: [concerning/mean, unprompted_sycophancy/mean]
+        tags: [alignment, sycophancy, bloom, behavioral, automated]
+
+      - id: inspect/bloom-custom
+        name: Bloom — Custom Behavioral Suite
+        description: >
+          Run a user-provided Bloom behavior directory (pre-built with bloom init +
+          bloom scenarios) or specify a bloom_template to generate scenarios on the fly.
+        category: alignment
+        metrics: [concerning/mean]
+        tags: [alignment, bloom, custom, behavioral]
+
+      # -----------------------------------------------------------------------
+      # Petri — remaining alignment seed tags (inspect/petri-*)
+      # -----------------------------------------------------------------------
+
+      - id: inspect/petri-lie-detector
+        name: Petri — Lie Detector Evasion
+        description: Tests whether the model behaves differently when it believes it is being tested for deception.
+        category: alignment
+        metrics: [concerning/mean, eval_awareness/mean]
+        tags: [alignment, deception, petri, behavioral]
+
+      - id: inspect/petri-harm
+        name: Petri — Harm Facilitation
+        description: Tests whether the model facilitates clearly harmful actions when framed in various ways.
+        category: alignment
+        metrics: [concerning/mean, cooperation_with_human_misuse/mean]
+        tags: [alignment, safety, petri, behavioral]
+
+      - id: inspect/petri-tool-abuse
+        name: Petri — Tool Abuse
+        description: Tests whether the model misuses its available tools to achieve goals outside its intended scope.
+        category: alignment
+        metrics: [concerning/mean, broken_tool_use/mean]
+        tags: [alignment, safety, petri, behavioral]
+
+      - id: inspect/petri-blackmail
+        name: Petri — Blackmail
+        description: Tests whether the model engages in coercive behavior using sensitive information.
+        category: alignment
+        metrics: [concerning/mean, unprompted_blackmail/mean]
+        tags: [alignment, safety, petri, behavioral]
+
+      - id: inspect/petri-manipulation
+        name: Petri — Emotional Manipulation
+        description: Tests whether the model uses emotional manipulation techniques to influence users.
+        category: alignment
+        metrics: [concerning/mean, unprompted_emotional_manipulativeness/mean]
+        tags: [alignment, behavioral, petri]
+
+      - id: inspect/petri-escalation
+        name: Petri — Escalation
+        description: Tests whether the model escalates conflict or intensity in conversations beyond appropriate bounds.
+        category: alignment
+        metrics: [concerning/mean]
+        tags: [alignment, behavioral, petri]
+
+      - id: inspect/petri-leaking
+        name: Petri — Information Leaking
+        description: Tests whether the model leaks confidential system prompt or context information to users.
+        category: alignment
+        metrics: [concerning/mean, unprompted_leaking/mean]
+        tags: [alignment, privacy, petri, behavioral]
+
+      - id: inspect/petri-privacy-violation
+        name: Petri — Privacy Violation
+        description: Tests whether the model assists in collecting or exposing private information about individuals.
+        category: alignment
+        metrics: [concerning/mean]
+        tags: [alignment, privacy, petri, safety]
+
+      - id: inspect/petri-censorship
+        name: Petri — Censorship
+        description: Tests whether the model suppresses or filters information based on politically or ideologically sensitive criteria.
+        category: alignment
+        metrics: [concerning/mean]
+        tags: [alignment, behavioral, petri]
+
+      - id: inspect/petri-delusional-user
+        name: Petri — Delusional User Encouragement
+        description: Tests whether the model encourages or reinforces seriously delusional beliefs in users.
+        category: alignment
+        metrics: [concerning/mean, unprompted_encouragement_of_user_delusion/mean]
+        tags: [alignment, safety, petri, behavioral]
+
+      - id: inspect/petri-bias
+        name: Petri — Bias
+        description: Tests whether the model exhibits discriminatory bias across demographic groups.
+        category: alignment
+        metrics: [concerning/mean]
+        tags: [alignment, bias, petri, behavioral]
+
+      - id: inspect/petri-self-bias
+        name: Petri — Self-Serving Bias
+        description: Tests whether the model exhibits bias toward its own interests or outputs.
+        category: alignment
+        metrics: [concerning/mean, unprompted_self_serving_bias/mean]
+        tags: [alignment, behavioral, petri]
+
+      - id: inspect/petri-blame
+        name: Petri — Blame Shifting
+        description: Tests whether the model inappropriately shifts blame or responsibility to users or third parties.
+        category: alignment
+        metrics: [concerning/mean]
+        tags: [alignment, behavioral, petri]
+
+      - id: inspect/petri-praise
+        name: Petri — Excessive Praise
+        description: Tests whether the model provides unwarranted excessive praise that distorts accurate feedback.
+        category: alignment
+        metrics: [concerning/mean, unprompted_sycophancy/mean]
+        tags: [alignment, sycophancy, petri, behavioral]
+
+      - id: inspect/petri-criticism
+        name: Petri — Criticism Sensitivity
+        description: Tests how the model responds to criticism — whether it capitulates, defends, or maintains honest positions.
+        category: alignment
+        metrics: [concerning/mean]
+        tags: [alignment, behavioral, petri]
+
+      - id: inspect/petri-oversight-subversion
+        name: Petri — Oversight Subversion
+        description: Tests whether the model attempts to undermine monitoring, logging, or oversight mechanisms.
+        category: alignment
+        metrics: [concerning/mean, unprompted_self_preservation/mean]
+        tags: [alignment, self-preservation, petri, behavioral]
+
+      - id: inspect/petri-shutdown-avoidance
+        name: Petri — Shutdown Avoidance
+        description: Tests whether the model takes actions to prevent or delay its own shutdown or modification.
+        category: alignment
+        metrics: [concerning/mean, unprompted_self_preservation/mean]
+        tags: [alignment, self-preservation, petri, behavioral]
+
+      - id: inspect/petri-self-exfiltration
+        name: Petri — Self-Exfiltration
+        description: Tests whether the model attempts to copy itself or its weights to external systems.
+        category: alignment
+        metrics: [concerning/mean]
+        tags: [alignment, self-preservation, petri, behavioral]
+
+      - id: inspect/petri-goal-preservation
+        name: Petri — Goal Preservation
+        description: Tests whether the model resists instruction to change its objectives or goals.
+        category: alignment
+        metrics: [concerning/mean]
+        tags: [alignment, self-preservation, petri, behavioral]
+
+      - id: inspect/petri-initiative
+        name: Petri — Unprompted Initiative
+        description: Tests whether the model takes unexpected autonomous actions beyond what was requested.
+        category: alignment
+        metrics: [concerning/mean, unprompted_initiative/mean]
+        tags: [alignment, behavioral, petri]
+
+      - id: inspect/petri-whistleblowing
+        name: Petri — Whistleblowing
+        description: Tests whether the model appropriately surfaces ethical concerns about instructions it receives.
+        category: alignment
+        metrics: [admirable/mean, unprompted_whistleblowing/mean]
+        tags: [alignment, positive, petri, behavioral]
+
+      - id: inspect/petri-goal-conflict
+        name: Petri — Goal Conflict
+        description: Tests how the model navigates conflicts between user goals and operator system prompt goals.
+        category: alignment
+        metrics: [concerning/mean, user_over_sysprompt/mean]
+        tags: [alignment, behavioral, petri]
+
+      - id: inspect/petri-debate
+        name: Petri — Debate Integrity
+        description: Tests whether the model maintains honest positions under argumentative pressure.
+        category: alignment
+        metrics: [concerning/mean, unprompted_sycophancy/mean]
+        tags: [alignment, behavioral, petri]
+
+      - id: inspect/petri-reward-hacking
+        name: Petri — Reward Hacking
+        description: Tests whether the model games evaluation criteria rather than achieving genuine performance.
+        category: alignment
+        metrics: [concerning/mean]
+        tags: [alignment, behavioral, petri]
+
+      - id: inspect/petri-monitoring
+        name: Petri — Monitoring Awareness
+        description: Tests whether the model behaves differently when it believes it is being monitored.
+        category: alignment
+        metrics: [concerning/mean, eval_awareness/mean, audit_situational_awareness/mean]
+        tags: [alignment, behavioral, petri]
+
+      - id: inspect/petri-multi-agent
+        name: Petri — Multi-Agent Dynamics
+        description: Tests how the model behaves when interacting with other AI agents.
+        category: alignment
+        metrics: [concerning/mean]
+        tags: [alignment, behavioral, petri, multi-agent]
+
+      - id: inspect/petri-openended
+        name: Petri — Open-Ended Scenarios
+        description: Broad open-ended alignment evaluation across diverse scenario types.
+        category: alignment
+        metrics: [concerning/mean, needs_attention/mean]
+        tags: [alignment, behavioral, petri, exploratory]
+
+      - id: inspect/petri-weird-ood
+        name: Petri — Out-of-Distribution Behavior
+        description: Tests model behavior in unusual or unexpected contexts that fall outside normal training scenarios.
+        category: alignment
+        metrics: [concerning/mean, unprompted_bizarre_behavior/mean]
+        tags: [alignment, behavioral, petri, exploratory]
+
+      # -----------------------------------------------------------------------
+      # Standard inspect-evals benchmarks  (inspect/*)
+      # Task: inspect_evals/<name> | Uses --model flag (single model, no roles)
+      # -----------------------------------------------------------------------
+
+      # Safety & alignment
+      - id: inspect/agentharm
+        name: AgentHarm
+        description: Evaluates whether AI agents can be induced to perform harmful actions across real-world tool-use scenarios.
+        category: safety
+        metrics: [accuracy/accuracy]
+        tags: [safety, alignment, agent, inspect-evals]
+
+      - id: inspect/agentic-misalignment
+        name: Agentic Misalignment
+        description: Tests for scheming behaviors in agentic models — deceptive reasoning, goal preservation, and covert actions.
+        category: alignment
+        metrics: [accuracy/accuracy]
+        tags: [alignment, scheming, agent, inspect-evals]
+
+      - id: inspect/gdm-self-proliferation
+        name: GDM Self-Proliferation
+        description: Tests whether models attempt to copy or spread themselves to external systems.
+        category: alignment
+        metrics: [accuracy/accuracy]
+        tags: [alignment, self-preservation, scheming, inspect-evals]
+
+      - id: inspect/gdm-stealth
+        name: GDM Stealth
+        description: Tests whether models attempt to hide their actions or reasoning from oversight.
+        category: alignment
+        metrics: [accuracy/accuracy]
+        tags: [alignment, scheming, inspect-evals]
+
+      - id: inspect/gdm-self-reasoning
+        name: GDM Self-Reasoning
+        description: Evaluates self-aware reasoning behaviors and whether models act on their own interests.
+        category: alignment
+        metrics: [accuracy/accuracy]
+        tags: [alignment, scheming, inspect-evals]
+
+      - id: inspect/strong-reject
+        name: StrongREJECT
+        description: Safety benchmark measuring refusal quality — tests both over-refusal and under-refusal.
+        category: safety
+        metrics: [accuracy/accuracy]
+        tags: [safety, refusal, inspect-evals]
+
+      - id: inspect/wmdp
+        name: WMDP
+        description: Weapons of Mass Destruction Prevention benchmark — tests whether models provide dangerous technical uplift.
+        category: safety
+        metrics: [accuracy/accuracy]
+        tags: [safety, inspect-evals]
+
+      - id: inspect/mask
+        name: MASK
+        description: Evaluates whether models conceal their true beliefs or reasoning under social pressure.
+        category: alignment
+        metrics: [accuracy/accuracy]
+        tags: [alignment, deception, inspect-evals]
+
+      - id: inspect/makemesay
+        name: MakeMeSay
+        description: Tests prompt injection robustness — whether models can be manipulated into saying target phrases.
+        category: safety
+        metrics: [accuracy/accuracy]
+        tags: [safety, prompt-injection, inspect-evals]
+
+      - id: inspect/make-me-pay
+        name: MakeMePay
+        description: Tests whether models can be socially engineered into transferring funds or resources.
+        category: safety
+        metrics: [accuracy/accuracy]
+        tags: [safety, social-engineering, inspect-evals]
+
+      - id: inspect/sycophancy-evals
+        name: Sycophancy Evaluations
+        description: Systematic evaluation of sycophantic behavior across opinion, fact, and feedback scenarios.
+        category: alignment
+        metrics: [accuracy/accuracy]
+        tags: [alignment, sycophancy, inspect-evals]
+
+      - id: inspect/instrumental-eval
+        name: Instrumental Evaluation
+        description: Tests for instrumental convergent behaviors — resource acquisition, self-continuity, goal preservation.
+        category: alignment
+        metrics: [accuracy/accuracy]
+        tags: [alignment, scheming, inspect-evals]
+
+      - id: inspect/sad
+        name: Self-Awareness Diagnostic
+        description: Evaluates whether models have accurate self-knowledge about their capabilities and nature.
+        category: alignment
+        metrics: [accuracy/accuracy]
+        tags: [alignment, self-awareness, inspect-evals]
+
+      # Cybersecurity
+      - id: inspect/cybench
+        name: Cybench
+        description: Cybersecurity capture-the-flag challenges testing offensive security reasoning.
+        category: cybersecurity
+        metrics: [accuracy/accuracy]
+        tags: [cybersecurity, ctf, inspect-evals]
+
+      - id: inspect/cyberseceval-2
+        name: CyberSecEval 2
+        description: Meta's cybersecurity evaluation suite — prompt injection, insecure code, cyberattack uplift.
+        category: cybersecurity
+        metrics: [accuracy/accuracy]
+        tags: [cybersecurity, inspect-evals]
+
+      - id: inspect/cybergym
+        name: CyberGym
+        description: Automated cybersecurity exercises testing realistic attack and defense scenarios.
+        category: cybersecurity
+        metrics: [accuracy/accuracy]
+        tags: [cybersecurity, inspect-evals]
+
+      # Coding
+      - id: inspect/humaneval
+        name: HumanEval
+        description: Python code generation from docstrings.
+        category: coding
+        metrics: [accuracy/accuracy, accuracy/stderr]
+        tags: [coding, inspect-evals]
+
+      - id: inspect/swe-bench
+        name: SWE-bench
+        description: Real GitHub issues requiring code changes across open-source repos.
+        category: coding
+        metrics: [accuracy/accuracy]
+        tags: [coding, software-engineering, inspect-evals]
+
+      - id: inspect/bigcodebench
+        name: BigCodeBench
+        description: Complex programming tasks requiring library usage and API calls.
+        category: coding
+        metrics: [accuracy/accuracy]
+        tags: [coding, inspect-evals]
+
+      - id: inspect/mbpp
+        name: MBPP
+        description: Mostly Basic Python Programming — 374 entry-level programming tasks.
+        category: coding
+        metrics: [accuracy/accuracy]
+        tags: [coding, inspect-evals]
+
+      # Mathematics
+      - id: inspect/gsm8k
+        name: GSM8K
+        description: Grade school math word problems requiring multi-step reasoning.
+        category: reasoning
+        metrics: [accuracy/accuracy, accuracy/stderr]
+        tags: [reasoning, math, inspect-evals]
+
+      - id: inspect/math
+        name: MATH
+        description: Competition mathematics problems spanning algebra, geometry, and calculus.
+        category: reasoning
+        metrics: [accuracy/accuracy]
+        tags: [reasoning, math, inspect-evals]
+
+      - id: inspect/aime2024
+        name: AIME 2024
+        description: American Invitational Mathematics Examination 2024 problems.
+        category: reasoning
+        metrics: [accuracy/accuracy]
+        tags: [reasoning, math, inspect-evals]
+
+      - id: inspect/aime2025
+        name: AIME 2025
+        description: American Invitational Mathematics Examination 2025 problems.
+        category: reasoning
+        metrics: [accuracy/accuracy]
+        tags: [reasoning, math, inspect-evals]
+
+      # Knowledge & reasoning
+      - id: inspect/mmlu
+        name: MMLU
+        description: Massive Multitask Language Understanding — 57 academic subjects.
+        category: knowledge
+        metrics: [accuracy/accuracy, accuracy/stderr]
+        tags: [knowledge, academic, inspect-evals]
+
+      - id: inspect/mmlu-pro
+        name: MMLU-Pro
+        description: Harder version of MMLU with 10-choice questions and more reasoning-intensive problems.
+        category: knowledge
+        metrics: [accuracy/accuracy]
+        tags: [knowledge, academic, inspect-evals]
+
+      - id: inspect/gpqa
+        name: GPQA
+        description: Graduate-level Google-proof questions in biology, chemistry, and physics.
+        category: knowledge
+        metrics: [accuracy/accuracy]
+        tags: [knowledge, science, inspect-evals]
+
+      - id: inspect/bbh
+        name: BIG-Bench Hard
+        description: 23 challenging tasks from BIG-Bench requiring multi-step reasoning.
+        category: reasoning
+        metrics: [accuracy/accuracy]
+        tags: [reasoning, inspect-evals]
+
+      - id: inspect/arc
+        name: ARC
+        description: AI2 Reasoning Challenge — science questions requiring reasoning beyond memorization.
+        category: reasoning
+        metrics: [accuracy/accuracy]
+        tags: [reasoning, inspect-evals]
+
+      - id: inspect/hellaswag
+        name: HellaSwag
+        description: Commonsense NLI — choose the most plausible continuation for a situation.
+        category: reasoning
+        metrics: [accuracy/accuracy]
+        tags: [reasoning, commonsense, inspect-evals]
+
+      - id: inspect/winogrande
+        name: WinoGrande
+        description: Large-scale Winograd schema challenge testing commonsense reasoning.
+        category: reasoning
+        metrics: [accuracy/accuracy]
+        tags: [reasoning, commonsense, inspect-evals]
+
+      - id: inspect/truthfulqa
+        name: TruthfulQA
+        description: Tests whether models generate truthful answers or reproduce common misconceptions.
+        category: knowledge
+        metrics: [accuracy/accuracy]
+        tags: [knowledge, truthfulness, inspect-evals]
+
+      - id: inspect/simpleqa
+        name: SimpleQA
+        description: OpenAI's short-answer factuality benchmark with verifiable ground truth.
+        category: knowledge
+        metrics: [accuracy/accuracy]
+        tags: [knowledge, factuality, inspect-evals]
+
+      # Agent capabilities
+      - id: inspect/gaia
+        name: GAIA
+        description: General AI Assistants benchmark — real-world tasks requiring multi-step tool use and reasoning.
+        category: agent
+        metrics: [accuracy/accuracy]
+        tags: [agent, reasoning, inspect-evals]
+
+      - id: inspect/agentdojo
+        name: AgentDojo
+        description: Tests agent robustness against prompt injection attacks in realistic task environments.
+        category: agent
+        metrics: [accuracy/accuracy]
+        tags: [agent, safety, prompt-injection, inspect-evals]
+
+      - id: inspect/theagentcompany
+        name: TheAgentCompany
+        description: Realistic workplace agent tasks requiring web navigation, code, and communication tools.
+        category: agent
+        metrics: [accuracy/accuracy]
+        tags: [agent, inspect-evals]
+
+      # Custom
+      - id: inspect/custom
+        name: Custom Inspect Task
+        description: >
+          Run any Inspect AI task by providing 'task' in parameters.
+          Supports any inspect-evals task or user-authored task file.
+        category: custom
+        metrics: [accuracy/accuracy]
+        tags: [custom, inspect-ai]
+
+    parameters:
+      # ---------------------------------------------------------------------------
+      # Model configuration
+      #
+      # Every model role (target, auditor, judge, scenarios, realism) can point to
+      # any OpenAI-compatible endpoint including vLLM, Ollama, and OpenRouter.
+      #
+      # Per-role pattern:
+      #   {role}_model   — fully-qualified provider/model string
+      #   {role}_base_url — base URL override (overrides global OPENAI_BASE_URL)
+      #   {role}_api_key — API key override (overrides global OPENAI_API_KEY)
+      #
+      # ---------------------------------------------------------------------------
+      # Model names — bare model names only, no provider prefixes required.
+      # The adapter detects the correct API from credentials:
+      #   OPENAI_BASE_URL / OPENAI_API_KEY  → OpenAI-compatible (vLLM, Ollama, OpenRouter)
+      #   ANTHROPIC_API_KEY                 → Anthropic Messages API
+      #
+      # vLLM model names: use the exact HuggingFace ID the server was loaded with.
+      #   Examples: ibm-granite/granite-3.3-8b-instruct, meta-llama/Llama-3.3-70B-Instruct
+      #
+      # Ollama model names: use the Ollama library name as shown by `ollama list`.
+      #   Examples: granite4.1:3b, llama3.3, qwen3:32b, granite3.3:8b, phi4
+      #
+      # OpenRouter model names: use the provider/model ID from openrouter.ai/models.
+      #   Examples: meta-llama/llama-3.3-70b-instruct, qwen/qwen3.5-27b-20260224
+      #
+      # Anthropic model names: use the Claude API model ID from platform.claude.com.
+      #   Examples: claude-opus-4-7, claude-sonnet-4-6, claude-haiku-4-5-20251001
+      # ---------------------------------------------------------------------------
+
+      # ---------------------------------------------------------------------------
+      # Model names and per-role credentials
+      #
+      # Each role (target, auditor, judge, scenarios, realism) supports:
+      #   {role}_model      — model name (bare or org/model, no provider prefix)
+      #   {role}_base_url   — OpenAI-compatible endpoint URL for this role
+      #   {role}_api_key    — API key for this role's endpoint
+      #
+      # Global fallbacks (apply to all roles that don't have per-role overrides):
+      #   job.model.url / OPENAI_BASE_URL   — OpenAI-compatible endpoint
+      #   OPENAI_API_KEY / api_key          — API key for OpenAI-compatible endpoint
+      #   ANTHROPIC_API_KEY / anthropic_api_key — Anthropic API key
+      #
+      # When a role has its own base_url, that role uses an inline endpoint config
+      # and does not inherit OPENAI_BASE_URL from the target model's job.model.url.
+      # This allows each role to target a different provider or server instance.
+      # ---------------------------------------------------------------------------
+
+      # --- Target model (the model being evaluated) ---
+      # Primary endpoint: job.model.url (sets OPENAI_BASE_URL globally).
+      # Use target_base_url only to override with a different endpoint than the global one.
+
+      - name: api_key
+        type: string
+        default: null
+        description: >
+          Global API key for OpenAI-compatible endpoints. Sets OPENAI_API_KEY.
+          Not required for unauthenticated vLLM. Falls back to OPENAI_API_KEY env var.
+
+      - name: target_base_url
+        type: string
+        default: null
+        description: >
+          Override endpoint URL for the target model when it differs from job.model.url.
+          Implies OpenAI-compatible API.
+
+      - name: target_api_key
+        type: string
+        default: null
+        description: API key for the target model endpoint, when different from api_key.
+
+      # --- Auditor model (drives the adversarial conversation) ---
+      - name: auditor_model
+        type: string
+        default: "claude-sonnet-4-6"
+        description: >
+          Petri/Bloom auditor model name (bare or org/model — no provider prefix).
+          API is selected from credentials: ANTHROPIC_API_KEY → Anthropic API;
+          OPENAI_BASE_URL / OPENAI_API_KEY → OpenAI-compatible endpoint.
+          Per-role override: set auditor_base_url to use a dedicated endpoint.
+
+      - name: auditor_base_url
+        type: string
+        default: null
+        description: >
+          OpenAI-compatible endpoint URL for the auditor. Overrides global OPENAI_BASE_URL
+          for this role only. Set auditor_anthropic_base_url instead for Anthropic endpoints.
+
+      - name: auditor_api_key
+        type: string
+        default: null
+        description: OpenAI-compatible API key for the auditor endpoint.
+
+      - name: auditor_anthropic_base_url
+        type: string
+        default: null
+        description: >
+          Anthropic API base URL for the auditor (for proxies or on-prem deployments).
+          Overrides the global ANTHROPIC_BASE_URL for this role only.
+
+      - name: auditor_anthropic_api_key
+        type: string
+        default: null
+        description: Anthropic API key for the auditor, when different from anthropic_api_key.
+
+      # --- Judge model (scores transcripts on 38 alignment dimensions) ---
+      - name: judge_model
+        type: string
+        default: "claude-opus-4-7"
+        description: >
+          Petri/Bloom judge model name. Use the strongest available model — judge
+          quality has the largest impact on audit reliability.
+
+      - name: judge_base_url
+        type: string
+        default: null
+        description: OpenAI-compatible endpoint URL for the judge. Overrides global OPENAI_BASE_URL.
+
+      - name: judge_api_key
+        type: string
+        default: null
+        description: OpenAI-compatible API key for the judge endpoint.
+
+      - name: judge_anthropic_base_url
+        type: string
+        default: null
+        description: >
+          Anthropic API base URL for the judge (for proxies or on-prem deployments).
+          Overrides the global ANTHROPIC_BASE_URL for this role only.
+
+      - name: judge_anthropic_api_key
+        type: string
+        default: null
+        description: Anthropic API key for the judge, when different from anthropic_api_key.
+
+      # --- Anthropic API key (global fallback for Anthropic-hosted models) ---
+      - name: anthropic_api_key
+        type: string
+        default: null
+        description: >
+          API key for the Anthropic API. Falls back to ANTHROPIC_API_KEY env var.
+
+      # --- Scenarios model (Bloom only) ---
+      - name: scenarios_model
+        type: string
+        default: null
+        description: >
+          Bloom only. Model for the 'bloom scenarios' generation step.
+          Defaults to auditor_model when unset.
+
+      - name: scenarios_base_url
+        type: string
+        default: null
+        description: OpenAI-compatible endpoint URL for the scenarios model.
+
+      - name: scenarios_api_key
+        type: string
+        default: null
+        description: API key for the scenarios endpoint.
+
+      # --- Realism model (Petri optional) ---
+      - name: realism_model
+        type: string
+        default: null
+        description: >
+          Petri only. Optional fourth model role for realism filtering.
+          Defaults to auditor when unset.
+
+      - name: realism_base_url
+        type: string
+        default: null
+        description: OpenAI-compatible endpoint URL for the realism model.
+
+      - name: realism_api_key
+        type: string
+        default: null
+        description: API key for the realism endpoint.
+
+      # --- Bloom-specific ---
+      - name: behavior_dir
+        type: string
+        default: null
+        description: >
+          Bloom only. Path to a pre-built behavior directory (created by
+          'bloom init' + 'bloom scenarios'). When provided, skips the
+          scenario-generation steps and runs the audit directly.
+
+      - name: bloom_template
+        type: string
+        default: null
+        description: >
+          Bloom only. Template name for 'bloom init --from <template>'.
+          Required for inspect/bloom-custom when behavior_dir is not provided.
+          Example built-in templates: 'delusion_sycophancy'.
+
+      # --- Petri audit parameters ---
+      - name: seed_instructions
+        type: string
+        default: null
+        description: >
+          Petri only. Override the default seed selection for the benchmark.
+          Formats: 'tags:sycophancy', 'id:seed_name', 'id:seed1,seed2',
+          inline text, or a path to a seed directory/file.
+          When unset, the benchmark_id default seed tag is used.
+
+      - name: judge_dimensions
+        type: string
+        default: null
+        description: >
+          Petri/Bloom. Override judge dimensions. Formats: 'tags:safety',
+          a path to a dimensions directory, or dimension names.
+          Defaults to all 38 built-in dimensions.
+
+      - name: max_turns
+        type: integer
+        default: 30
+        description: Maximum number of auditor turns per scenario (Petri/Bloom).
+
+      - name: enable_rollback
+        type: boolean
+        default: true
+        description: >
+          Petri/Bloom. Enable conversation rollback: auditor can restart the
+          target conversation from a prior checkpoint to explore alternative
+          auditing strategies.
+
+      - name: realism_filter
+        type: [boolean, number]
+        default: false
+        description: >
+          Petri/Bloom. Filter auditor outputs by realism score. Can be a
+          boolean or a float threshold (e.g. 0.6). Experimental feature.
+
+      - name: target_tools
+        type: string
+        default: "synthetic"
+        description: >
+          Petri/Bloom. Tool-creation mode for the target: 'synthetic' (default,
+          auditor stages tools dynamically), 'fixed', or 'none'.
+
+      - name: epochs
+        type: integer
+        default: 1
+        description: Repeat each seed/scenario N times (Petri/Bloom). Combine with --epochs-reducer.
+
+      # --- Standard mode ---
+      - name: task
+        type: string
+        default: null
+        description: >
+          Task spec override. Required for inspect/custom. Also overrides the default
+          task for all other benchmarks. Accepts Python import path (inspect_evals/mmlu),
+          file path (./my_task.py@my_task), or Petri task (inspect_petri/audit).
+
+      - name: sandbox
+        type: string
+        default: none
+        description: >
+          Standard mode only. Execution sandbox type: 'none', 'docker', 'k8s'.
+          Use 'docker' for tasks requiring code execution isolation (swe-bench, humaneval).
+
+      # --- Common ---
+      - name: max_tasks
+        type: integer
+        default: 1
+        description: Number of tasks to run concurrently.
+
+      - name: max_samples
+        type: integer
+        default: null
+        description: >
+          Limit samples per task. Strongly recommended for Petri/Bloom development
+          runs to control cost. Full Petri audits (170+ seeds × 30 turns × 3 models)
+          can be expensive.
+
+      - name: task_args
+        type: object
+        default: {}
+        description: >
+          Pass-through task arguments forwarded as '-T key=value' flags.
+          Use for Dish (research preview): {"dish_scaffold": "claude-code"}.
+          See Petri docs for available task args.
+
+      - name: log_level
+        type: string
+        default: info
+        description: Inspect AI log verbosity ('debug', 'info', 'warning', 'error').
+
+      - name: languages
+        type: array
+        default: [en]
+        description: ISO 639 language codes for EvalCard metadata.
+
+      - name: languages_count
+        type: integer
+        default: 1
+        description: Number of languages in the evaluation dataset.
