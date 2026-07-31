@@ -3,7 +3,6 @@ package deploy_test
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -24,14 +23,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	apimachinery "k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -44,7 +40,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
-	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -80,7 +76,7 @@ func TestDeployAction(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
@@ -103,7 +99,7 @@ func TestDeployAction(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(obj1).Should(And(
-		jq.Match(`.metadata.labels."%s" == "%s"`, labels.PlatformPartOf, strings.ToLower(componentApi.DashboardKind)),
+		jq.Match(`.metadata.labels."%s" == "%s"`, labels.PlatformPartOf, strings.ToLower(scheme.TestPlatformObjectKind)),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.InstanceGeneration, strconv.FormatInt(rr.Instance.GetGeneration(), 10)),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformVersion, "1.2.3"),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, string(cluster.OpenDataHub)),
@@ -168,7 +164,7 @@ func TestDeployNotOwnedSkip(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
@@ -233,7 +229,7 @@ func TestDeployNotOwnedCreate(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
@@ -288,7 +284,7 @@ func TestDeployErrorFormat(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
@@ -345,7 +341,7 @@ func TestDeployDeOwn(t *testing.T) {
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("Owns", mock.Anything).Return(true)
 		}),
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
@@ -373,7 +369,7 @@ func TestDeployDeOwn(t *testing.T) {
 	g.Expect(cm1).Should(And(
 		jq.Match(`.metadata.annotations | has("%s") | not`, annotations.ManagedByODHOperator),
 		jq.Match(`.metadata.ownerReferences | length == 1`),
-		jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Dashboard.Kind),
+		jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, scheme.TestPlatformObjectGVK.Kind),
 	))
 
 	unmanaged := ref.DeepCopy()
@@ -410,9 +406,9 @@ func setupManagedAnnotationTest(t *testing.T, cl client.Client, managed string, 
 	rr := types.ReconciliationRequest{
 		Client:     cl,
 		Controller: mocks.NewMockController(func(m *mocks.MockController) { m.On("Owns", mock.Anything).Return(true) }),
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:       componentApi.DashboardInstanceName,
+				Name:       "test-instance",
 				UID:        apimachinery.UID(xid.New().String()),
 				Generation: 1,
 			},
@@ -530,37 +526,12 @@ func TestDeployWithManagedAnnotation(t *testing.T) {
 
 func TestDeployClusterRole(t *testing.T) {
 	g := NewWithT(t)
-	s := runtime.NewScheme()
 
-	utilruntime.Must(corev1.AddToScheme(s))
-	utilruntime.Must(appsv1.AddToScheme(s))
-	utilruntime.Must(apiextensionsv1.AddToScheme(s))
-	utilruntime.Must(componentApi.AddToScheme(s))
-	utilruntime.Must(rbacv1.AddToScheme(s))
-
-	projectDir, err := envtestutil.FindProjectRoot()
+	et, err := envt.New()
 	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
 
-	envTest := &envtest.Environment{
-		CRDInstallOptions: envtest.CRDInstallOptions{
-			Scheme: s,
-			Paths: []string{
-				filepath.Join(projectDir, "config", "crd", "bases"),
-			},
-			ErrorIfPathMissing: true,
-			CleanUpAfterUse:    false,
-		},
-	}
-
-	t.Cleanup(func() {
-		_ = envTest.Stop()
-	})
-
-	cfg, err := envTest.Start()
-	g.Expect(err).NotTo(HaveOccurred())
-
-	cli, err := client.New(cfg, client.Options{Scheme: s})
-	g.Expect(err).NotTo(HaveOccurred())
+	cli := et.Client()
 
 	t.Run("aggregation", func(t *testing.T) {
 		ctx := t.Context()
@@ -623,7 +594,7 @@ func deployClusterRoles(t *testing.T, ctx context.Context, cli client.Client, ro
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 				UID:        apimachinery.UID(xid.New().String()),
@@ -650,44 +621,19 @@ func deployClusterRoles(t *testing.T, ctx context.Context, cli client.Client, ro
 
 func TestDeployCRD(t *testing.T) {
 	g := NewWithT(t)
-	s := runtime.NewScheme()
 
 	ctx := t.Context()
 	id := xid.New().String()
 
-	utilruntime.Must(corev1.AddToScheme(s))
-	utilruntime.Must(appsv1.AddToScheme(s))
-	utilruntime.Must(apiextensionsv1.AddToScheme(s))
-	utilruntime.Must(componentApi.AddToScheme(s))
-	utilruntime.Must(rbacv1.AddToScheme(s))
-
-	projectDir, err := envtestutil.FindProjectRoot()
+	et, err := envt.New()
 	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
 
-	envTest := &envtest.Environment{
-		CRDInstallOptions: envtest.CRDInstallOptions{
-			Scheme: s,
-			Paths: []string{
-				filepath.Join(projectDir, "config", "crd", "bases"),
-			},
-			ErrorIfPathMissing: true,
-			CleanUpAfterUse:    false,
-		},
-	}
-
-	t.Cleanup(func() {
-		_ = envTest.Stop()
-	})
-
-	cfg, err := envTest.Start()
-	g.Expect(err).NotTo(HaveOccurred())
-
-	cli, err := client.New(cfg, client.Options{Scheme: s})
-	g.Expect(err).NotTo(HaveOccurred())
+	cli := et.Client()
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 				UID:        apimachinery.UID(id),
@@ -746,41 +692,19 @@ func TestDeployCRD(t *testing.T) {
 
 func TestDeployOwnerRef(t *testing.T) {
 	g := NewWithT(t)
-	s := runtime.NewScheme()
 
 	ctx := t.Context()
 	ns := xid.New().String()
 
-	utilruntime.Must(corev1.AddToScheme(s))
-	utilruntime.Must(appsv1.AddToScheme(s))
-	utilruntime.Must(apiextensionsv1.AddToScheme(s))
-	utilruntime.Must(dscv2.AddToScheme(s))
-	utilruntime.Must(componentApi.AddToScheme(s))
-	utilruntime.Must(rbacv1.AddToScheme(s))
+	et, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
 
-	projectDir, err := envtestutil.FindProjectRoot()
+	_, err = et.RegisterCRD(ctx, scheme.TestPlatformObjectGVK, "testplatformobjects", "testplatformobject",
+		apiextensionsv1.ClusterScoped, envt.WithPermissiveSchema())
 	g.Expect(err).NotTo(HaveOccurred())
 
-	envTest := &envtest.Environment{
-		CRDInstallOptions: envtest.CRDInstallOptions{
-			Scheme: s,
-			Paths: []string{
-				filepath.Join(projectDir, "config", "crd", "bases"),
-			},
-			ErrorIfPathMissing: true,
-			CleanUpAfterUse:    false,
-		},
-	}
-
-	t.Cleanup(func() {
-		_ = envTest.Stop()
-	})
-
-	cfg, err := envTest.Start()
-	g.Expect(err).NotTo(HaveOccurred())
-
-	cli, err := client.New(cfg, client.Options{Scheme: s})
-	g.Expect(err).NotTo(HaveOccurred())
+	cli := et.Client()
 
 	err = cli.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
 	g.Expect(err).ToNot(HaveOccurred())
@@ -791,8 +715,8 @@ func TestDeployOwnerRef(t *testing.T) {
 	err = cli.Create(ctx, dsc)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	instance := &componentApi.Dashboard{ObjectMeta: metav1.ObjectMeta{Name: componentApi.DashboardInstanceName}}
-	instance.SetGroupVersionKind(gvk.Dashboard)
+	instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: "test-instance"}}
+	instance.SetGroupVersionKind(scheme.TestPlatformObjectGVK)
 
 	err = cli.Create(ctx, instance)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -805,7 +729,7 @@ func TestDeployOwnerRef(t *testing.T) {
 	configMapRef.SetGroupVersionKind(gvk.ConfigMap)
 
 	configMap := configMapRef.DeepCopy()
-	err = controllerutil.SetOwnerReference(dsc, configMap, s)
+	err = controllerutil.SetOwnerReference(dsc, configMap, et.Scheme())
 	g.Expect(err).ToNot(HaveOccurred())
 
 	err = cli.Create(ctx, configMap.DeepCopy())
@@ -846,7 +770,7 @@ func TestDeployOwnerRef(t *testing.T) {
 	crdRef.SetGroupVersionKind(gvk.CustomResourceDefinition)
 
 	crd := crdRef.DeepCopy()
-	err = controllerutil.SetOwnerReference(dsc, crd, s)
+	err = controllerutil.SetOwnerReference(dsc, crd, et.Scheme())
 	g.Expect(err).ToNot(HaveOccurred())
 
 	err = cli.Create(ctx, crd.DeepCopy())
@@ -897,8 +821,8 @@ func TestDeployOwnerRef(t *testing.T) {
 		HaveLen(1),
 		HaveEach(gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 			"Name":       Equal(instance.Name),
-			"APIVersion": Equal(gvk.Dashboard.GroupVersion().String()),
-			"Kind":       Equal(gvk.Dashboard.Kind),
+			"APIVersion": Equal(scheme.TestPlatformObjectGVK.GroupVersion().String()),
+			"Kind":       Equal(scheme.TestPlatformObjectGVK.Kind),
 			"UID":        Equal(instance.UID),
 		})),
 	))
@@ -924,14 +848,14 @@ func TestDeployDynamicOwnership_SetsOwnerReferences(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Create the owner instance
-	instance := &componentApi.Dashboard{
+	instance := &scheme.TestPlatformObject{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       componentApi.DashboardInstanceName,
+			Name:       "test-instance",
 			UID:        "test-uid-12345",
 			Generation: 1,
 		},
 	}
-	instance.SetGroupVersionKind(gvk.Dashboard)
+	instance.SetGroupVersionKind(scheme.TestPlatformObjectGVK)
 
 	// Resources to deploy
 	configMap, err := resources.ToUnstructured(&corev1.ConfigMap{
@@ -1008,14 +932,14 @@ func TestDeployDynamicOwnership_ExcludesGVKs(t *testing.T) {
 	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	instance := &componentApi.Dashboard{
+	instance := &scheme.TestPlatformObject{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       componentApi.DashboardInstanceName,
+			Name:       "test-instance",
 			UID:        "test-uid-12345",
 			Generation: 1,
 		},
 	}
-	instance.SetGroupVersionKind(gvk.Dashboard)
+	instance.SetGroupVersionKind(scheme.TestPlatformObjectGVK)
 
 	// ConfigMap will be owned, Secret will be excluded
 	configMap, err := resources.ToUnstructured(&corev1.ConfigMap{
@@ -1089,14 +1013,14 @@ func TestDeployDynamicOwnership_FallsBackToStaticOwnership(t *testing.T) {
 	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	instance := &componentApi.Dashboard{
+	instance := &scheme.TestPlatformObject{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       componentApi.DashboardInstanceName,
+			Name:       "test-instance",
 			UID:        "test-uid-12345",
 			Generation: 1,
 		},
 	}
-	instance.SetGroupVersionKind(gvk.Dashboard)
+	instance.SetGroupVersionKind(scheme.TestPlatformObjectGVK)
 
 	// ConfigMap is statically owned, Secret is not
 	configMap, err := resources.ToUnstructured(&corev1.ConfigMap{
@@ -1160,19 +1084,19 @@ func TestDeployDynamicOwnership_FallsBackToStaticOwnership(t *testing.T) {
 	g.Expect(sec.GetOwnerReferences()).Should(BeEmpty(), "Non-owned GVK should not have owner reference")
 }
 
-func newDashboardInstance(uid apimachinery.UID) *componentApi.Dashboard {
-	instance := &componentApi.Dashboard{
+func newTestInstance(uid apimachinery.UID) *scheme.TestPlatformObject {
+	instance := &scheme.TestPlatformObject{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       componentApi.DashboardInstanceName,
+			Name:       "test-instance",
 			UID:        uid,
 			Generation: 1,
 		},
 	}
-	instance.SetGroupVersionKind(gvk.Dashboard)
+	instance.SetGroupVersionKind(scheme.TestPlatformObjectGVK)
 	return instance
 }
 
-func newOwnerRefReconciliationRequest(cl client.Client, instance *componentApi.Dashboard) types.ReconciliationRequest {
+func newOwnerRefReconciliationRequest(cl client.Client, instance *scheme.TestPlatformObject) types.ReconciliationRequest {
 	return types.ReconciliationRequest{
 		Client:   cl,
 		Instance: instance,
@@ -1188,9 +1112,9 @@ func newOwnerRefReconciliationRequest(cl client.Client, instance *componentApi.D
 	}
 }
 
-func assertControllerOwnerRef(g Gomega, ownerRefs []metav1.OwnerReference, instance *componentApi.Dashboard, msgAndArgs ...any) {
+func assertControllerOwnerRef(g Gomega, ownerRefs []metav1.OwnerReference, instance *scheme.TestPlatformObject, msgAndArgs ...any) {
 	g.Expect(ownerRefs).Should(HaveLen(1), msgAndArgs...)
-	g.Expect(ownerRefs[0].Kind).Should(Equal(gvk.Dashboard.Kind), msgAndArgs...)
+	g.Expect(ownerRefs[0].Kind).Should(Equal(scheme.TestPlatformObjectGVK.Kind), msgAndArgs...)
 	g.Expect(ownerRefs[0].Name).Should(Equal(instance.Name), msgAndArgs...)
 	g.Expect(ownerRefs[0].UID).Should(Equal(instance.UID), msgAndArgs...)
 	g.Expect(*ownerRefs[0].Controller).Should(BeTrue(), msgAndArgs...)
@@ -1209,11 +1133,11 @@ func TestDeployStripsTemplateOwnerReferences(t *testing.T) {
 	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	instance := newDashboardInstance("test-uid-12345")
+	instance := newTestInstance("test-uid-12345")
 
 	templateOwnerRef := metav1.OwnerReference{
-		APIVersion: gvk.Dashboard.GroupVersion().String(),
-		Kind:       gvk.Dashboard.Kind,
+		APIVersion: scheme.TestPlatformObjectGVK.GroupVersion().String(),
+		Kind:       scheme.TestPlatformObjectGVK.Kind,
 		Name:       instance.Name,
 		UID:        instance.UID,
 	}
@@ -1257,11 +1181,11 @@ func TestDeployStripsTemplateOwnerReferences_RepeatedReconciliation(t *testing.T
 	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	instance := newDashboardInstance("test-uid-12345")
+	instance := newTestInstance("test-uid-12345")
 
 	templateOwnerRef := metav1.OwnerReference{
-		APIVersion: gvk.Dashboard.GroupVersion().String(),
-		Kind:       gvk.Dashboard.Kind,
+		APIVersion: scheme.TestPlatformObjectGVK.GroupVersion().String(),
+		Kind:       scheme.TestPlatformObjectGVK.Kind,
 		Name:       instance.Name,
 		UID:        instance.UID,
 	}
@@ -1309,7 +1233,7 @@ func TestDeployStripsTemplateOwnerReferences_ForeignOwner(t *testing.T) {
 	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	instance := newDashboardInstance("dashboard-uid-12345")
+	instance := newTestInstance("dashboard-uid-12345")
 
 	// Template ownerRef pointing to a different resource (DataScienceCluster),
 	// simulating the actual bug where a template ownerRef points to a parent
@@ -1358,16 +1282,20 @@ func TestDeployStripsTemplateOwnerReferences_SSAMode(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
 
+	_, err = et.RegisterCRD(ctx, scheme.TestPlatformObjectGVK, "testplatformobjects", "testplatformobject",
+		apiextensionsv1.ClusterScoped, envt.WithPermissiveSchema())
+	g.Expect(err).NotTo(HaveOccurred())
+
 	cl := et.Client()
 	ns := xid.New().String()
 	g.Expect(cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})).To(Succeed())
 
-	instance := newDashboardInstance("")
+	instance := newTestInstance("")
 	g.Expect(cl.Create(ctx, instance)).To(Succeed())
 
 	templateOwnerRef := metav1.OwnerReference{
-		APIVersion: gvk.Dashboard.GroupVersion().String(),
-		Kind:       gvk.Dashboard.Kind,
+		APIVersion: scheme.TestPlatformObjectGVK.GroupVersion().String(),
+		Kind:       scheme.TestPlatformObjectGVK.Kind,
 		Name:       instance.Name,
 		UID:        instance.UID,
 	}
@@ -1409,14 +1337,14 @@ func TestDeployDynamicOwnership_CRDsExcludedByDefault(t *testing.T) {
 	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	instance := &componentApi.Dashboard{
+	instance := &scheme.TestPlatformObject{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       componentApi.DashboardInstanceName,
+			Name:       "test-instance",
 			UID:        "test-uid-12345",
 			Generation: 1,
 		},
 	}
-	instance.SetGroupVersionKind(gvk.Dashboard)
+	instance.SetGroupVersionKind(scheme.TestPlatformObjectGVK)
 
 	configMap, err := resources.ToUnstructured(&corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
@@ -1494,7 +1422,7 @@ func TestDeployDynamicOwnership_CRDsExcludedByDefault(t *testing.T) {
 	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-cm"}, cm)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(cm.GetOwnerReferences()).Should(HaveLen(1))
-	g.Expect(cm.GetOwnerReferences()[0].Kind).Should(Equal(instance.GroupVersionKind().Kind))
+	g.Expect(cm.GetOwnerReferences()[0].Kind).Should(Equal(scheme.TestPlatformObjectGVK.Kind))
 }
 
 func TestWithSortFn(t *testing.T) {
@@ -1550,7 +1478,7 @@ func TestWithSortFn(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
@@ -1636,7 +1564,7 @@ func TestWithApplyOrder(t *testing.T) {
 	// Input order: Deployment, Namespace, Certificate, ClusterIssuer (wrong order)
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
@@ -1709,7 +1637,7 @@ func TestDeployWithPartOfLabel(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
@@ -1732,7 +1660,7 @@ func TestDeployWithPartOfLabel(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(obj1).Should(And(
-		jq.Match(`.metadata.labels."%s" == "%s"`, customLabelKey, strings.ToLower(componentApi.DashboardKind)),
+		jq.Match(`.metadata.labels."%s" == "%s"`, customLabelKey, strings.ToLower(scheme.TestPlatformObjectKind)),
 		Not(jq.Match(`.metadata.labels | has("%s")`, labels.PlatformPartOf)),
 	))
 }
@@ -1765,7 +1693,7 @@ func TestDeployWithAnnotationPrefix(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
@@ -1858,7 +1786,7 @@ func TestDeployCRDWithPartOfLabel(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
@@ -1883,7 +1811,7 @@ func TestDeployCRDWithPartOfLabel(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(out).Should(And(
-		jq.Match(`.metadata.labels."%s" == "%s"`, customLabelKey, "dashboard"),
+		jq.Match(`.metadata.labels."%s" == "%s"`, customLabelKey, strings.ToLower(scheme.TestPlatformObjectKind)),
 		Not(jq.Match(`.metadata.labels | has("%s")`, labels.PlatformPartOf)),
 	))
 }
@@ -1951,7 +1879,7 @@ func TestDeployContinueOnError(t *testing.T) {
 
 		rr := types.ReconciliationRequest{
 			Client: cl,
-			Instance: &componentApi.Dashboard{
+			Instance: &scheme.TestPlatformObject{
 				ObjectMeta: metav1.ObjectMeta{
 					Generation: 1,
 				},
@@ -1997,7 +1925,7 @@ func TestDeployContinueOnError(t *testing.T) {
 
 		rr := types.ReconciliationRequest{
 			Client: cl,
-			Instance: &componentApi.Dashboard{
+			Instance: &scheme.TestPlatformObject{
 				ObjectMeta: metav1.ObjectMeta{
 					Generation: 1,
 				},
