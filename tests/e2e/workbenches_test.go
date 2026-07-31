@@ -93,8 +93,6 @@ func (tc *WorkbenchesTestCtx) ValidateModuleOperatorDeployment(t *testing.T) {
 }
 
 // ValidateModuleReleases ensures the Workbenches module CR exposes release metadata.
-// Typed status (releases, workbenchNamespace) lives on the module CR owned by
-// workbenches-operator; the platform does not project it into DSC status.
 func (tc *WorkbenchesTestCtx) ValidateModuleReleases(t *testing.T) {
 	t.Helper()
 
@@ -154,6 +152,11 @@ func (tc *WorkbenchesTestCtx) ValidateWorkbenchesNamespaceConfiguration(t *testi
 		}),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
 		WithCustomErrorMsg("notebook controller should be deployed in applications namespace %s", tc.AppsNamespace),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.status.components.workbenches.workbenchNamespace == "%s"`, tc.WorkbenchesNamespace)),
 	)
 }
 
