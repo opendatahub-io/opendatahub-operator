@@ -91,7 +91,6 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 			))
 
 	_, err := b.
-		WithAction(initialize).
 		WithAction(checkPreConditions).
 		WithAction(updateStatus).
 		WithAction(checkUpgradeGates).
