@@ -358,7 +358,7 @@ additional_meta:
     git.commit: 15bb5d4c60bc7e1f261327cb1e50fd3491d17bed
   odh-workbench-codeserver-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: abb0ddad812d1648c89800083676adb31a309138
+    git.commit: e5cdd2187f832e0b6268d939379a503a1018eb81
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: e5cdd2187f832e0b6268d939379a503a1018eb81
