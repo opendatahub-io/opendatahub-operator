@@ -20,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -79,7 +80,7 @@ func TestDeploymentsAvailableActionNotReady(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
-		Instance: &componentApi.Dashboard{},
+		Instance: &scheme.TestPlatformObject{},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
@@ -164,7 +165,7 @@ func TestDeploymentsAvailableActionReady(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
-		Instance: &componentApi.Dashboard{},
+		Instance: &scheme.TestPlatformObject{},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
@@ -216,7 +217,7 @@ func TestDeploymentsAvailableReadyAutoSelector(t *testing.T) {
 					Name:      "my-deployment",
 					Namespace: ns,
 					Labels: map[string]string{
-						labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+						labels.PlatformPartOf: strings.ToLower(scheme.TestPlatformObjectKind),
 					},
 				},
 				Status: appsv1.DeploymentStatus{
@@ -229,7 +230,7 @@ func TestDeploymentsAvailableReadyAutoSelector(t *testing.T) {
 					Name:      "my-deployment-2",
 					Namespace: ns,
 					Labels: map[string]string{
-						labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+						labels.PlatformPartOf: strings.ToLower(scheme.TestPlatformObjectKind),
 					},
 				},
 				Status: appsv1.DeploymentStatus{
@@ -246,7 +247,7 @@ func TestDeploymentsAvailableReadyAutoSelector(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
-		Instance: &componentApi.Dashboard{},
+		Instance: &scheme.TestPlatformObject{},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
@@ -288,7 +289,7 @@ func TestDeploymentsAvailableActionWithPartOfLabel(t *testing.T) {
 					Name:      "test-deployment",
 					Namespace: ns,
 					Labels: map[string]string{
-						customLabelKey: strings.ToLower(componentApi.DashboardKind),
+						customLabelKey: strings.ToLower(scheme.TestPlatformObjectKind),
 					},
 				},
 				Status: appsv1.DeploymentStatus{
@@ -307,7 +308,7 @@ func TestDeploymentsAvailableActionWithPartOfLabel(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
-		Instance: &componentApi.Dashboard{},
+		Instance: &scheme.TestPlatformObject{},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
@@ -378,7 +379,7 @@ func TestDeploymentsAvailableActionWithCustomConditionType(t *testing.T) {
 
 			rr := types.ReconciliationRequest{
 				Client:   cl,
-				Instance: &componentApi.Dashboard{},
+				Instance: &scheme.TestPlatformObject{},
 				Release:  common.Release{Name: cluster.OpenDataHub},
 			}
 			rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady, customCondition)
@@ -455,7 +456,7 @@ func TestDeploymentsAvailableActionNotReadyNotFound(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
-		Instance: &componentApi.Dashboard{},
+		Instance: &scheme.TestPlatformObject{},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
@@ -525,7 +526,7 @@ func TestDeploymentsAvailableActionReadyWithoutAutomaticPartOfUsesComponentLabel
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
-		Instance: &componentApi.ModelsAsService{},
+		Instance: &scheme.TestPlatformObject{},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
