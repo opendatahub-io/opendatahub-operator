@@ -12,7 +12,6 @@ import (
 	apytypes "k8s.io/apimachinery/pkg/types"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
@@ -20,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -60,7 +60,7 @@ func TestRenderTemplate(t *testing.T) {
 	for i := 1; i < 3; i++ {
 		rr := types.ReconciliationRequest{
 			Client: cl,
-			Instance: &componentApi.Dashboard{
+			Instance: &scheme.TestPlatformObject{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: ns,
 				},
@@ -129,7 +129,7 @@ func TestRenderTemplateWithData(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: ns,
 				UID:  apytypes.UID(xid.New().String()),
@@ -173,7 +173,7 @@ func TestRenderTemplateWithDataErr(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: ns,
 			},
@@ -215,7 +215,7 @@ func TestRenderTemplateWithCache(t *testing.T) {
 	render.RenderedResourcesTotal.Reset()
 
 	for i := range 3 {
-		d := componentApi.Dashboard{
+		d := scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: ns,
 			},
@@ -288,7 +288,7 @@ func TestRenderTemplateWithGlob(t *testing.T) {
 
 	rrRef := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: id,
 			},
@@ -370,7 +370,7 @@ func TestRenderTemplateWithCustomInfo(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: id,
 			},

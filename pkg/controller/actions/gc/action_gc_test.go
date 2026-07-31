@@ -28,7 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
@@ -37,6 +36,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -51,6 +51,13 @@ func TestMain(m *testing.M) {
 	sharedEnvTest, err = envt.New()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to start envtest: %v\n", err)
+		os.Exit(1)
+	}
+
+	if _, err := sharedEnvTest.RegisterCRD(context.Background(), scheme.TestPlatformObjectGVK,
+		"testplatformobjects", "testplatformobject",
+		apiextensionsv1.ClusterScoped, envt.WithPermissiveSchema()); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to register TestPlatformObject CRD: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -165,7 +172,7 @@ func TestGcAction(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gc.CyclesTotal.Reset()
-			gc.CyclesTotal.WithLabelValues("dashboard").Add(0)
+			gc.CyclesTotal.WithLabelValues("testplatformobject").Add(0)
 
 			g := NewWithT(t)
 			id := xid.New().String()
@@ -180,31 +187,7 @@ func TestGcAction(t *testing.T) {
 			g.Expect(cli.Create(ctx, &ns)).
 				NotTo(HaveOccurred())
 
-			rr := types.ReconciliationRequest{
-				Client: cli,
-				Instance: &componentApi.Dashboard{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: componentApi.GroupVersion.String(),
-						Kind:       componentApi.DashboardKind,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name: componentApi.DashboardInstanceName,
-					},
-				},
-				Release: common.Release{
-					Name: cluster.OpenDataHub,
-					Version: version.OperatorVersion{
-						Version: tt.version,
-					},
-				},
-				Generated: tt.generated,
-				Controller: mocks.NewMockController(func(m *mocks.MockController) {
-					m.On("GetClient").Return(sharedEnvTest.Client())
-					m.On("GetDynamicClient").Return(sharedEnvTest.DynamicClient())
-					m.On("GetDiscoveryClient").Return(sharedEnvTest.DiscoveryClient())
-					m.On("Owns", mock.Anything).Return(false)
-				}),
-			}
+			rr := newGCReconciliationRequest(cli, sharedEnvTest, tt.version, tt.generated)
 
 			g.Expect(cli.Create(ctx, rr.Instance)).
 				NotTo(HaveOccurred())
@@ -268,7 +251,7 @@ func TestGcAction(t *testing.T) {
 			}
 
 			commonLabels := map[string]string{
-				labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+				labels.PlatformPartOf: strings.ToLower(scheme.TestPlatformObjectKind),
 			}
 
 			// should never get deleted
@@ -375,7 +358,7 @@ func TestGcActionOwn(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gc.CyclesTotal.Reset()
-			gc.CyclesTotal.WithLabelValues("dashboard").Add(0)
+			gc.CyclesTotal.WithLabelValues("testplatformobject").Add(0)
 
 			g := NewWithT(t)
 			nsn := xid.New().String()
@@ -389,31 +372,7 @@ func TestGcActionOwn(t *testing.T) {
 			g.Expect(cli.Create(ctx, &ns)).
 				NotTo(HaveOccurred())
 
-			rr := types.ReconciliationRequest{
-				Client: cli,
-				Instance: &componentApi.Dashboard{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: componentApi.GroupVersion.String(),
-						Kind:       componentApi.DashboardKind,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name: componentApi.DashboardInstanceName,
-					},
-				},
-				Release: common.Release{
-					Name: cluster.OpenDataHub,
-					Version: version.OperatorVersion{
-						Version: semver.Version{Major: 0, Minor: 0, Patch: 1},
-					},
-				},
-				Generated: true,
-				Controller: mocks.NewMockController(func(m *mocks.MockController) {
-					m.On("GetClient").Return(sharedEnvTest.Client())
-					m.On("GetDynamicClient").Return(sharedEnvTest.DynamicClient())
-					m.On("GetDiscoveryClient").Return(sharedEnvTest.DiscoveryClient())
-					m.On("Owns", mock.Anything).Return(false)
-				}),
-			}
+			rr := newGCReconciliationRequest(cli, sharedEnvTest, semver.Version{Major: 0, Minor: 0, Patch: 1}, true)
 
 			g.Expect(cli.Create(ctx, rr.Instance)).
 				NotTo(HaveOccurred())
@@ -436,7 +395,7 @@ func TestGcActionOwn(t *testing.T) {
 						annotations.PlatformType:       string(rr.Release.Name),
 					},
 					Labels: map[string]string{
-						labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+						labels.PlatformPartOf: strings.ToLower(scheme.TestPlatformObjectKind),
 					},
 				},
 			}
@@ -489,31 +448,7 @@ func TestGcActionCluster(t *testing.T) {
 	g.Expect(cli.Create(ctx, &ns)).
 		NotTo(HaveOccurred())
 
-	rr := types.ReconciliationRequest{
-		Client: cli,
-		Instance: &componentApi.Dashboard{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: componentApi.GroupVersion.String(),
-				Kind:       componentApi.DashboardKind,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: componentApi.DashboardInstanceName,
-			},
-		},
-		Release: common.Release{
-			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{
-				Version: semver.Version{Major: 0, Minor: 2, Patch: 0},
-			},
-		},
-		Generated: true,
-		Controller: mocks.NewMockController(func(m *mocks.MockController) {
-			m.On("GetClient").Return(sharedEnvTest.Client())
-			m.On("GetDynamicClient").Return(sharedEnvTest.DynamicClient())
-			m.On("GetDiscoveryClient").Return(sharedEnvTest.DiscoveryClient())
-			m.On("Owns", mock.Anything).Return(false)
-		}),
-	}
+	rr := newGCReconciliationRequest(cli, sharedEnvTest, semver.Version{Major: 0, Minor: 2, Patch: 0}, true)
 
 	g.Expect(cli.Create(ctx, rr.Instance)).
 		NotTo(HaveOccurred())
@@ -533,7 +468,7 @@ func TestGcActionCluster(t *testing.T) {
 			annotations.PlatformType:       string(cluster.OpenDataHub),
 		},
 		Labels: map[string]string{
-			labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+			labels.PlatformPartOf: strings.ToLower(scheme.TestPlatformObjectKind),
 		},
 	}
 
@@ -588,7 +523,7 @@ func TestGcActionCluster(t *testing.T) {
 	a := gc.NewAction(gc.WithDeletePropagationPolicy(metav1.DeletePropagationBackground), gc.InNamespace(nsn))
 
 	gc.DeletedTotal.Reset()
-	gc.DeletedTotal.WithLabelValues("dashboard").Add(0)
+	gc.DeletedTotal.WithLabelValues("testplatformobject").Add(0)
 
 	g.Expect(a(ctx, &rr)).NotTo(HaveOccurred())
 
@@ -619,6 +554,11 @@ func TestGcActionWithPartOfLabel(t *testing.T) {
 	})
 
 	ctx := context.Background()
+
+	_, err = envTest.RegisterCRD(ctx, scheme.TestPlatformObjectGVK, "testplatformobjects", "testplatformobject",
+		apiextensionsv1.ClusterScoped, envt.WithPermissiveSchema())
+	g.Expect(err).NotTo(HaveOccurred())
+
 	cli := envTest.Client()
 	nsn := xid.New().String()
 	customLabelKey := "custom.example.io/part-of"
@@ -631,31 +571,7 @@ func TestGcActionWithPartOfLabel(t *testing.T) {
 
 	g.Expect(cli.Create(ctx, &ns)).NotTo(HaveOccurred())
 
-	rr := types.ReconciliationRequest{
-		Client: cli,
-		Instance: &componentApi.Dashboard{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: componentApi.GroupVersion.String(),
-				Kind:       componentApi.DashboardKind,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: componentApi.DashboardInstanceName,
-			},
-		},
-		Release: common.Release{
-			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{
-				Version: semver.Version{Major: 0, Minor: 1, Patch: 0},
-			},
-		},
-		Generated: true,
-		Controller: mocks.NewMockController(func(m *mocks.MockController) {
-			m.On("GetClient").Return(envTest.Client())
-			m.On("GetDynamicClient").Return(envTest.DynamicClient())
-			m.On("GetDiscoveryClient").Return(envTest.DiscoveryClient())
-			m.On("Owns", mock.Anything).Return(false)
-		}),
-	}
+	rr := newGCReconciliationRequest(cli, envTest, semver.Version{Major: 0, Minor: 1, Patch: 0}, true)
 
 	g.Expect(cli.Create(ctx, rr.Instance)).NotTo(HaveOccurred())
 
@@ -679,7 +595,7 @@ func TestGcActionWithPartOfLabel(t *testing.T) {
 			Namespace:   nsn,
 			Annotations: maps.Clone(staleAnnotations),
 			Labels: map[string]string{
-				customLabelKey: strings.ToLower(componentApi.DashboardKind),
+				customLabelKey: strings.ToLower(scheme.TestPlatformObjectKind),
 			},
 		},
 	}
@@ -702,7 +618,7 @@ func TestGcActionWithPartOfLabel(t *testing.T) {
 			Namespace:   nsn,
 			Annotations: maps.Clone(staleAnnotations),
 			Labels: map[string]string{
-				labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+				labels.PlatformPartOf: strings.ToLower(scheme.TestPlatformObjectKind),
 			},
 		},
 	}
@@ -751,31 +667,7 @@ func TestGcActionOnce(t *testing.T) {
 	g.Expect(cli.Create(ctx, &ns)).
 		NotTo(HaveOccurred())
 
-	rr := types.ReconciliationRequest{
-		Client: cli,
-		Instance: &componentApi.Dashboard{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: componentApi.GroupVersion.String(),
-				Kind:       componentApi.DashboardKind,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: componentApi.DashboardInstanceName,
-			},
-		},
-		Release: common.Release{
-			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{
-				Version: semver.Version{Major: 0, Minor: 2, Patch: 0},
-			},
-		},
-		Generated: true,
-		Controller: mocks.NewMockController(func(m *mocks.MockController) {
-			m.On("GetClient").Return(sharedEnvTest.Client())
-			m.On("GetDynamicClient").Return(sharedEnvTest.DynamicClient())
-			m.On("GetDiscoveryClient").Return(sharedEnvTest.DiscoveryClient())
-			m.On("Owns", mock.Anything).Return(false)
-		}),
-	}
+	rr := newGCReconciliationRequest(cli, sharedEnvTest, semver.Version{Major: 0, Minor: 2, Patch: 0}, true)
 
 	g.Expect(cli.Create(ctx, rr.Instance)).
 		NotTo(HaveOccurred())
@@ -797,7 +689,7 @@ func TestGcActionOnce(t *testing.T) {
 			annotations.PlatformVersion:    rr.Release.Version.String(),
 		},
 		Labels: map[string]string{
-			labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+			labels.PlatformPartOf: strings.ToLower(scheme.TestPlatformObjectKind),
 		},
 	}}
 
@@ -810,7 +702,7 @@ func TestGcActionOnce(t *testing.T) {
 	a := gc.NewAction(gc.WithDeletePropagationPolicy(metav1.DeletePropagationBackground), gc.InNamespace(nsn))
 
 	gc.DeletedTotal.Reset()
-	gc.DeletedTotal.WithLabelValues("dashboard").Add(0)
+	gc.DeletedTotal.WithLabelValues("testplatformobject").Add(0)
 
 	g.Expect(a(ctx, &rr)).NotTo(HaveOccurred())
 	deletedAfterFirstRun := testutil.ToFloat64(gc.DeletedTotal)
@@ -818,4 +710,37 @@ func TestGcActionOnce(t *testing.T) {
 
 	g.Expect(a(ctx, &rr)).NotTo(HaveOccurred())
 	g.Expect(testutil.ToFloat64(gc.DeletedTotal)).Should(BeNumerically("==", deletedAfterFirstRun))
+}
+
+func newGCReconciliationRequest(
+	cli ctrlCli.Client,
+	et *envt.EnvT,
+	ver semver.Version,
+	generated bool,
+) types.ReconciliationRequest {
+	return types.ReconciliationRequest{
+		Client: cli,
+		Instance: &scheme.TestPlatformObject{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: scheme.TestPlatformObjectGVK.GroupVersion().String(),
+				Kind:       scheme.TestPlatformObjectKind,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "default-testplatformobject",
+			},
+		},
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{
+				Version: ver,
+			},
+		},
+		Generated: generated,
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("GetClient").Return(et.Client())
+			m.On("GetDynamicClient").Return(et.DynamicClient())
+			m.On("GetDiscoveryClient").Return(et.DiscoveryClient())
+			m.On("Owns", mock.Anything).Return(false)
+		}),
+	}
 }
