@@ -313,7 +313,7 @@ additional_meta:
     git.commit: a6919d3e80cd44e986d88a068d1d97074b6c8dc4
   odh-trainer-operator:
     git.url: https://github.com/red-hat-data-services/trainer-operator
-    git.commit: 5da5575a4c7da7c8273eeeafeef93983338c9d51
+    git.commit: be0dbe34aceedded8b9959e7fd0eb183a97b35e6
   odh-training-cuda121-torch24-py311:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 5d574fed033532dfd0afaaf2f1f3ca30fa9da9d7
