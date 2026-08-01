@@ -12,11 +12,11 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
   value: "quay.io/rhoai/odh-cli-rhel9@sha256:582d0496ee45e55274fa19563268882c54f652c1599655ebc84169306fec203d"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
-  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:eb3f33e81cab38f522ea95dce7c8d73184b6d99afc81b765f63f0ce373899676"
+  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:aaaae556ed2de45130355a7c3d4d776af435385116a791f5cc18228093f6e7bd"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:babbb3c4b8d8b5f25343bc54cab8adbdd6f9725f9b91132f793d93c09f60bb56"
+  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:e095fdf0bacc1a38ac6254d9844a993c01bb0d428ee57590b8e4043411be3bcb"
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:a8cee2b05912d8775495f98e5ce2fda4e9ec12bc006ed1bc3f758d6ae2ce329d"
+  value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:638731200b328d3b68fc95ad894b222628ce5fab22e52374fb76bfeffc96a5fb"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE
   value: "quay.io/rhoai/odh-data-science-pipelines-argo-argoexec-rhel9@sha256:33152771bad3bf3b4e4a1cd4d6b03f802845d933e9ef4e15f5ad9fb8a821ca65"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_WORKFLOWCONTROLLER_IMAGE
@@ -142,7 +142,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-notebook-controller-rhel9@sha256:0ed316261a551a311b668106e9facf60cc76ce1dacb2dcd371a0b33f4c06ef69"
 - name: RELATED_IMAGE_ODH_OGX_CORE_IMAGE
-  value: "quay.io/rhoai/odh-ogx-core-rhel9@sha256:9a4b1d42ad65bb03b8a14d28dc2372859ace3ac29cee838832ed33cf4b3f669e"
+  value: "quay.io/rhoai/odh-ogx-core-rhel9@sha256:0daac62e2e897a9797df9a6dfe02e3c875343b47aa58e01a82d2a7d81bd29623"
 - name: RELATED_IMAGE_ODH_OGX_K8S_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-ogx-k8s-operator-rhel9@sha256:611d86c8eb9ec6d71845c18c71e318fd8d53eaa96d076d1ac01a6bab2ec23fb2"
 - name: RELATED_IMAGE_ODH_OGX_MODULE_OPERATOR_IMAGE
