@@ -92,6 +92,17 @@ func (h *handler) BuildModuleCR(
 		}
 	}
 
+	if platform.MonitoringNamespace != "" {
+		spec["observability"] = map[string]any{
+			"enabled": true,
+			"persesService": map[string]any{
+				"name":      "data-science-perses",
+				"namespace": platform.MonitoringNamespace,
+				"port":      int64(8080),
+			},
+		}
+	}
+
 	u := &unstructured.Unstructured{
 		Object: map[string]any{
 			"spec": spec,
