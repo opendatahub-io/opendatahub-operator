@@ -421,6 +421,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	return templateData, nil
 }
 
+//nolint:unparam // signature required by WithAction; always returns nil to let the action chain continue.
 func addMonitoringCapability(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
