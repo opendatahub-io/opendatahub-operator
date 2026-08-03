@@ -223,6 +223,30 @@ func cleanupKserveWebhookConfigurations(t *testing.T, tc *TestContext) {
 			WithWaitForDeletion(true),
 		)
 	}
+
+	// Strip finalizers from LLMInferenceServiceConfig resources. The kserve
+	// controller that processes llmisvcconfig-finalizer is already gone at
+	// this point (its Deployment was deleted as part of kserve teardown), so
+	// these resources would be stuck in Terminating indefinitely.
+	// Uses individual DeleteResource calls because DeleteResources (bulk
+	// DeleteAllOf) does not honor WithRemoveFinalizersOnDelete.
+	t.Log("Stripping finalizers from LLMInferenceServiceConfig resources")
+	llmConfigs := tc.FetchResources(
+		WithMinimalObject(gvk.LLMInferenceServiceConfigV1Alpha2, types.NamespacedName{}),
+		WithListOptions(&client.ListOptions{Namespace: tc.AppsNamespace}),
+		WithAcceptableErr(meta.IsNoMatchError, "IsNoMatchError"),
+	)
+	for _, cfg := range llmConfigs {
+		tc.DeleteResource(
+			WithMinimalObject(gvk.LLMInferenceServiceConfigV1Alpha2, types.NamespacedName{
+				Namespace: cfg.GetNamespace(),
+				Name:      cfg.GetName(),
+			}),
+			WithIgnoreNotFound(true),
+			WithRemoveFinalizersOnDelete(true),
+			WithWaitForDeletion(false),
+		)
+	}
 }
 
 func cleanupGateSourceConfigMaps(t *testing.T, tc *TestContext) {

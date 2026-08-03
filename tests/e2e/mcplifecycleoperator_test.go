@@ -68,6 +68,30 @@ func mcpLifecycleOperatorTestSuite(t *testing.T) {
 				WithMinimalObject(gvk.Deployment, controllerNN),
 				WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
 			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(jq.Match(`.status.components.mcplifecycleoperator.managementState == "Managed"`)),
+				WithCustomErrorMsg("DSC status.components.mcplifecycleoperator.managementState should be Managed"),
+			)
+		}},
+		{"Validate releases mirrored to DSC", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			// Module CR should have releases populated by the module operator.
+			tc.EnsureResourceExists(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithCondition(jq.Match(`.status.releases | length > 0`)),
+				WithCustomErrorMsg("MCPLifecycleOperator module CR should have releases in status"),
+			)
+
+			// DSC should mirror the module CR's releases.
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(jq.Match(`.status.components.mcplifecycleoperator.releases | length > 0`)),
+				WithCustomErrorMsg("DSC status.components.mcplifecycleoperator.releases should be mirrored from module CR"),
+			)
 		}},
 		{"Validate component disabled", func(t *testing.T) {
 			t.Helper()
@@ -81,6 +105,12 @@ func mcpLifecycleOperatorTestSuite(t *testing.T) {
 
 			tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
 			tc.EnsureResourceGone(WithMinimalObject(gvk.Deployment, controllerNN))
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(jq.Match(`.status.components.mcplifecycleoperator.managementState == "Removed"`)),
+				WithCustomErrorMsg("DSC status.components.mcplifecycleoperator.managementState should be Removed"),
+			)
 		}},
 	}
 

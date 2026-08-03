@@ -36,7 +36,7 @@ func (m *statusTestHandler) IsEnabled(_ *PlatformContext) bool {
 	return m.enabled
 }
 
-func (m *statusTestHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext) (*unstructured.Unstructured, error) {
+func (m *statusTestHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
 	return nil, nil
 }
 
@@ -134,12 +134,12 @@ func TestComputeModulesStatusDetailed_AllReady(t *testing.T) {
 	g := NewWithT(t)
 
 	h1 := newStatusTestHandler("gw", "AIGateway", true, &ModuleStatus{
-		Conditions:         []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"}},
+		Conditions:         []common.Condition{{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"}},
 		ObservedGeneration: 1,
 		Generation:         1,
 	})
 	h2 := newStatusTestHandler("mon", "Monitoring", true, &ModuleStatus{
-		Conditions:         []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"}},
+		Conditions:         []common.Condition{{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"}},
 		ObservedGeneration: 1,
 		Generation:         1,
 	})
@@ -164,12 +164,12 @@ func TestComputeModulesStatusDetailed_SomeNotReady(t *testing.T) {
 	g := NewWithT(t)
 
 	h1 := newStatusTestHandler("gw", "AIGateway", true, &ModuleStatus{
-		Conditions:         []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"}},
+		Conditions:         []common.Condition{{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"}},
 		ObservedGeneration: 1,
 		Generation:         1,
 	})
 	h2 := newStatusTestHandler("mon", "Monitoring", true, &ModuleStatus{
-		Conditions:         []metav1.Condition{{Type: "Ready", Status: metav1.ConditionFalse, Reason: "NotReady"}},
+		Conditions:         []common.Condition{{Type: "Ready", Status: metav1.ConditionFalse, Reason: "NotReady"}},
 		ObservedGeneration: 1,
 		Generation:         1,
 	})
@@ -251,12 +251,12 @@ func TestComputeModulesStatusAggregate_AllReady_NoPerModuleConditions(t *testing
 	g := NewWithT(t)
 
 	h1 := newStatusTestHandler("gw", "AIGateway", true, &ModuleStatus{
-		Conditions:         []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"}},
+		Conditions:         []common.Condition{{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"}},
 		ObservedGeneration: 1,
 		Generation:         1,
 	})
 	h2 := newStatusTestHandler("mon", "Monitoring", true, &ModuleStatus{
-		Conditions:         []metav1.Condition{{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"}},
+		Conditions:         []common.Condition{{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"}},
 		ObservedGeneration: 1,
 		Generation:         1,
 	})
@@ -280,7 +280,7 @@ func TestComputeModulesStatusAggregate_SomeNotReady(t *testing.T) {
 	g := NewWithT(t)
 
 	h1 := newStatusTestHandler("gw", "AIGateway", true, &ModuleStatus{
-		Conditions:         []metav1.Condition{{Type: "Ready", Status: metav1.ConditionFalse, Reason: "NotReady"}},
+		Conditions:         []common.Condition{{Type: "Ready", Status: metav1.ConditionFalse, Reason: "NotReady"}},
 		ObservedGeneration: 1,
 		Generation:         1,
 	})
@@ -303,7 +303,7 @@ func TestComputeModulesStatusAggregate_Degraded(t *testing.T) {
 	g := NewWithT(t)
 
 	h1 := newStatusTestHandler("gw", "AIGateway", true, &ModuleStatus{
-		Conditions: []metav1.Condition{
+		Conditions: []common.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"},
 			{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "Degraded"},
 		},

@@ -12,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -24,32 +23,13 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-const (
-	// TODO: remove after https://issues.redhat.com/browse/RHOAIENG-15920
-	finalizerName = "datasciencecluster.opendatahub.io/finalizer"
-)
 
 func isNilInterface(v any) bool {
 	return v == nil || (reflect.ValueOf(v).Kind() == reflect.Ptr && reflect.ValueOf(v).IsNil())
-}
-
-func initialize(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
-	}
-
-	// TODO: remove after https://issues.redhat.com/browse/RHOAIENG-15920
-	if controllerutil.RemoveFinalizer(instance, finalizerName) {
-		if err := rr.Client.Update(ctx, instance); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func checkPreConditions(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
@@ -328,10 +308,18 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		return nil
 	}
 
-	pm := buildPlatformModules(&modules.DSCContext{DSC: instance})
+	dscCtx := &modules.DSCContext{DSC: instance}
+
+	pm := buildPlatformModules(dscCtx)
 	enabledModules := make(map[string]bool)
 	for _, name := range pm.EnabledModules() {
 		enabledModules[name] = true
+	}
+
+	gatewayDomain, _ := resources.GetGatewayDomain(ctx, rr.Client)
+	crCfg := &modules.ModuleCRConfig{
+		GatewayDomain: gatewayDomain,
+		Release:       rr.Release,
 	}
 
 	return moduleReg.ForAll(func(handler modules.ModuleHandler, _ bool) error {
@@ -341,7 +329,7 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 			return nil
 		}
 
-		moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, &modules.DSCContext{DSC: instance})
+		moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, dscCtx, crCfg)
 		if err != nil {
 			return fmt.Errorf("BuildModuleCR failed for module %s: %w", name, err)
 		}

@@ -38,7 +38,7 @@ func (m *cleanupMockHandler) IsEnabled(_ *PlatformContext) bool {
 	return false
 }
 
-func (m *cleanupMockHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext) (*unstructured.Unstructured, error) {
+func (m *cleanupMockHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
 	return nil, nil
 }
 

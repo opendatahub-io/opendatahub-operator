@@ -165,7 +165,7 @@ func TestBuildModuleCR_LegacyKserveModelsAsService_PopulatesModelsAsAService(t *
 		},
 	}
 
-	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSC: dsc})
+	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSC: dsc}, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -204,7 +204,7 @@ func TestBuildModuleCR_ExplicitModelsAsAServiceWinsOverLegacy(t *testing.T) {
 		},
 	}
 
-	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSC: dsc})
+	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSC: dsc}, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -221,7 +221,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	h := aigateway.NewHandler()
 	dsc := newDSC(operatorv1.Managed)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSC: dsc})
+	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSC: dsc}, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u.GetName()).Should(Equal(componentApi.AIGatewayInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(componentApi.AIGatewayKind))
@@ -235,7 +235,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := aigateway.NewHandler()
-	_, err := h.BuildModuleCR(context.Background(), nil, nil)
+	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
 	g.Expect(err).Should(HaveOccurred())
 }
 
@@ -276,6 +276,7 @@ func TestImageHandling(t *testing.T) {
 		"RELATED_IMAGE_ODH_MAAS_API_IMAGE",
 		"RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE",
 		"RELATED_IMAGE_UBI_MINIMAL_IMAGE",
+		"RELATED_IMAGE_ODH_PYTHON_312_IMAGE",
 	))
 
 	// The operator image is handled by ControllerImage (image override), not

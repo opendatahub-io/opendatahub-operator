@@ -65,7 +65,8 @@ type TestContext struct {
 	// Namespace where application workloads are deployed.
 	AppsNamespace string
 
-	// Namespace where the workbenches are deployed.
+	// Legacy DSC workbenchNamespace value projected onto the module CR.
+	// Operand deploy target is AppsNamespace (APPLICATIONS_NAMESPACE).
 	WorkbenchesNamespace string
 
 	// Namespace where the monitoring components are deployed.
@@ -1520,6 +1521,38 @@ func (tc *TestContext) SkipIfXKSCluster(t *testing.T) {
 	if tc.IsXKS() {
 		t.Skip("Skipping test because it is not supported on XKS platform")
 	}
+}
+
+// EnsurePlatformCR creates the Platform CR if it does not already exist.
+// On xKS clusters there is no DSC controller to create it, so E2E tests
+// must ensure it exists before enabling modules.
+func (tc *TestContext) EnsurePlatformCR(t *testing.T) {
+	t.Helper()
+
+	platform := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": gvk.Platform.GroupVersion().String(),
+			"kind":       gvk.Platform.Kind,
+			"metadata":   map[string]any{"name": platformInstanceName},
+			"spec":       map[string]any{},
+		},
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(platform),
+		WithEventuallyTimeout(30*time.Second),
+	)
+}
+
+// SetModuleStateInPlatformCR patches the Platform CR to set a module's
+// managementState. Used on xKS to enable/disable modules via the Platform CR.
+func (tc *TestContext) SetModuleStateInPlatformCR(t *testing.T, moduleName string, state operatorv1.ManagementState) {
+	t.Helper()
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.modules.%s.managementState = "%s"`, moduleName, state)),
+	)
 }
 
 // FetchResource ensures a Kubernetes resource exists and retrieves it as an Unstructured object.

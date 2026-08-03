@@ -67,6 +67,7 @@ func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
 	dscCtx *modules.DSCContext,
+	_ *modules.ModuleCRConfig,
 ) (*unstructured.Unstructured, error) {
 	if dscCtx == nil || dscCtx.DSC == nil {
 		return nil, errors.New("DSC is nil, cannot build MCPLifecycleOperator CR")

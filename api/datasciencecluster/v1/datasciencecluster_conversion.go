@@ -226,6 +226,21 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 					ManagementState: operatorv1.Removed,
 				},
 			},
+			BatchGateway: componentApi.DSCBatchGatewayStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
+			ModelsAsAService: componentApi.DSCModelsAsServiceStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
+			MCPLifecycleOperator: componentApi.DSCMCPLifecycleOperatorStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
 		},
 		Release: c.Status.Release,
 	}

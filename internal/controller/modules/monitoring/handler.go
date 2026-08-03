@@ -65,6 +65,7 @@ func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
 	dscCtx *modules.DSCContext,
+	_ *modules.ModuleCRConfig,
 ) (*unstructured.Unstructured, error) {
 	if dscCtx == nil || dscCtx.DSCI == nil {
 		return nil, errors.New("DSCI is nil, cannot build monitoring CR")

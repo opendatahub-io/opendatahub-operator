@@ -3,6 +3,7 @@ package modules
 import (
 	"context"
 	"fmt"
+	"os"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -10,7 +11,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/env"
 )
 
 const (
@@ -24,7 +28,21 @@ const (
 	// PlatformVersionKey is the data key containing the platform version.
 	// This is platform-managed and reconciled back if modified externally.
 	PlatformVersionKey = "platformVersion"
+
+	CertManagerIssuerRefNameKey     = "CERT_MANAGER_ISSUER_REF_NAME"
+	CertManagerIssuerRefKindKey     = "CERT_MANAGER_ISSUER_REF_KIND"
+	CertManagerCASecretNameKey      = "CERT_MANAGER_CA_SECRET_NAME"      //nolint:gosec // ConfigMap key name, not a credential.
+	CertManagerCASecretNamespaceKey = "CERT_MANAGER_CA_SECRET_NAMESPACE" //nolint:gosec // ConfigMap key name, not a credential.
+	CertManagerIstioCACertPathKey   = "CERT_MANAGER_ISTIO_CA_CERT_PATH"
 )
+
+var platformManagedCertManagerKeys = []string{
+	CertManagerIssuerRefNameKey,
+	CertManagerIssuerRefKindKey,
+	CertManagerCASecretNameKey,
+	CertManagerCASecretNamespaceKey,
+	CertManagerIstioCACertPathKey,
+}
 
 // PlatformConfigName returns the well-known ConfigMap name for a module.
 func PlatformConfigName(moduleName string) string {
@@ -63,6 +81,11 @@ func injectPlatformConfig(ctx context.Context, rr *odhtype.ReconciliationRequest
 
 	platformVersion := rr.Release.Version.String()
 
+	var extraParams map[string]string
+	if rr.Release.Name == cluster.XKS {
+		extraParams = buildCertManagerConfigParams()
+	}
+
 	existingCMs := indexConfigMapsByName(rr.Resources)
 
 	return reg.ForEach(func(handler ModuleHandler) error {
@@ -78,11 +101,11 @@ func injectPlatformConfig(ctx context.Context, rr *odhtype.ReconciliationRequest
 		if idx, ok := existingCMs[cmName]; ok {
 			log.V(1).Info("merging platform config into existing ConfigMap",
 				"module", name, "configmap", cmName)
-			mergePlatformKeys(&rr.Resources[idx], platformVersion)
+			mergePlatformKeys(&rr.Resources[idx], platformVersion, extraParams)
 		} else {
 			log.V(1).Info("creating platform config ConfigMap",
 				"module", name, "configmap", cmName)
-			cm := buildPlatformConfigMap(cmName, ns, platformVersion)
+			cm := buildPlatformConfigMap(cmName, ns, platformVersion, extraParams)
 			u, err := toUnstructured(cm)
 			if err != nil {
 				return fmt.Errorf("converting platform config ConfigMap for %s: %w", name, err)
@@ -94,7 +117,14 @@ func injectPlatformConfig(ctx context.Context, rr *odhtype.ReconciliationRequest
 	})
 }
 
-func buildPlatformConfigMap(name, namespace, platformVersion string) *corev1.ConfigMap {
+func buildPlatformConfigMap(name, namespace, platformVersion string, extraParams map[string]string) *corev1.ConfigMap {
+	data := map[string]string{
+		PlatformVersionKey: platformVersion,
+	}
+	for k, v := range extraParams {
+		data[k] = v
+	}
+
 	return &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -104,23 +134,45 @@ func buildPlatformConfigMap(name, namespace, platformVersion string) *corev1.Con
 			Name:      name,
 			Namespace: namespace,
 		},
-		Data: map[string]string{
-			PlatformVersionKey: platformVersion,
-		},
+		Data: data,
 	}
 }
 
 // mergePlatformKeys sets the platform-managed keys on an existing
 // unstructured ConfigMap. Existing module-owned keys are preserved.
-func mergePlatformKeys(u *unstructured.Unstructured, platformVersion string) {
+func mergePlatformKeys(u *unstructured.Unstructured, platformVersion string, extraParams map[string]string) {
 	data, _, _ := unstructured.NestedStringMap(u.Object, "data")
 	if data == nil {
 		data = make(map[string]string)
 	}
 
+	for _, k := range platformManagedCertManagerKeys {
+		delete(data, k)
+	}
+
 	data[PlatformVersionKey] = platformVersion
+	for k, v := range extraParams {
+		data[k] = v
+	}
 
 	_ = unstructured.SetNestedStringMap(u.Object, data, "data")
+}
+
+func buildCertManagerConfigParams() map[string]string {
+	bc := certmanager.DefaultBootstrapConfig()
+
+	params := map[string]string{
+		CertManagerIssuerRefNameKey:     bc.CAIssuerName,
+		CertManagerIssuerRefKindKey:     env.GetOrDefault(certmanager.EnvIssuerRefKind, certmanager.DefaultIssuerRefKind),
+		CertManagerCASecretNameKey:      bc.CertName,
+		CertManagerCASecretNamespaceKey: bc.CertManagerNamespace,
+	}
+
+	if v := os.Getenv(certmanager.EnvIstioCACertPath); v != "" {
+		params[CertManagerIstioCACertPathKey] = v
+	}
+
+	return params
 }
 
 func indexConfigMapsByName(resources []unstructured.Unstructured) map[string]int {

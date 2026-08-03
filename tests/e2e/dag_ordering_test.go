@@ -59,7 +59,7 @@ var dagBatches = []componentBatch{
 			{name: componentApi.RayComponentName, gvk: gvk.Ray},
 			{name: componentApi.TrainerComponentName, gvk: gvk.Trainer},
 			{name: componentApi.TrainingOperatorComponentName, gvk: gvk.TrainingOperator},
-			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches},
+			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches, internal: true},
 			{name: componentApi.MCPLifecycleOperatorComponentName, gvk: gvk.MCPLifecycleOperator, internal: true},
 		},
 	},
@@ -68,7 +68,6 @@ var dagBatches = []componentBatch{
 		runlevel: 31,
 		components: []componentEntry{
 			{name: componentApi.KserveComponentName, gvk: gvk.Kserve},
-			{name: componentApi.ModelControllerComponentName, gvk: gvk.ModelController},
 			{name: componentApi.KueueComponentName, gvk: gvk.Kueue, internal: true},
 		},
 	},
@@ -78,7 +77,7 @@ var dagBatches = []componentBatch{
 		components: []componentEntry{
 			{name: componentApi.FeastOperatorComponentName, gvk: gvk.FeastOperator},
 			{name: componentApi.MLflowOperatorComponentName, gvk: gvk.MLflowOperator},
-			{name: componentApi.OGXComponentName, gvk: gvk.OGX},
+			{name: componentApi.OGXComponentName, gvk: gvk.OGX, internal: true},
 			{name: componentApi.SparkOperatorComponentName, gvk: gvk.SparkOperator},
 			{name: componentApi.AIGatewayComponentName, gvk: gvk.AIGateway, internal: true},
 		},
@@ -117,13 +116,12 @@ var dscComponentFields = []string{
 }
 
 // extensionGVKs lists the explicitly-enabled Extension components.
-// ModelController and ModelsAsService are excluded — they are internal
-// components auto-created by the operator and may not have CRs.
+// ModelsAsService is excluded — it is an internal
+// component auto-created by the operator and may not have a CR.
 var extensionGVKs = []schema.GroupVersionKind{
 	gvk.Kserve,
 	gvk.FeastOperator,
 	gvk.MLflowOperator,
-	gvk.OGX,
 	gvk.SparkOperator,
 }
 
@@ -400,6 +398,14 @@ func (tc *DAGOrderingTestCtx) ValidatePlatformReady(t *testing.T) {
 		for _, comp := range batch.components {
 			if comp.internal {
 				t.Logf("Skipping internal component %s (CR may not exist)", comp.name)
+				continue
+			}
+			if comp.name == componentApi.MLflowOperatorComponentName {
+				// MLflow now reconciles through the module controller path. The
+				// legacy in-tree component controller was the writer of the
+				// informational PlatformReady condition, so the module-backed CR
+				// no longer participates in this assertion.
+				t.Logf("Skipping module-backed component %s for %s assertion", comp.name, precondition.PlatformReadyConditionType)
 				continue
 			}
 

@@ -53,6 +53,12 @@ Read existing files in same area. File locations follow pattern `<component>` = 
 - Reconciler builder: `pkg/controller/reconciler/`
 - Component handler interface: `internal/controller/components/registry/registry.go`
 
+For modularized components, also check:
+- Module handlers: `internal/controller/modules/<module>/handler.go`
+- Module framework: `internal/controller/modules/`
+
+`mlflowoperator` keeps its DSC API stanza in `api/components/v1alpha1/mlflowoperator_types.go`, but the platform-side orchestration now lives in `internal/controller/modules/mlflowoperator/` rather than the in-tree component registry. Its module handler injects `APPLICATIONS_NAMESPACE` into the operator Deployment and no longer projects a separate `applicationsNamespace` field into the `MLflowOperator` module CR spec.
+
 ## Cluster Diagnostics
 
 Use the `/diagnose` skill (Claude Code) to investigate cluster health, troubleshoot ODH failures, or diagnose component issues. Other agents MUST follow the diagnostic methodology in `cmd/mcp-server/prompts/diagnostic.md` using the `opendatahub-health` MCP server tools — do not improvise a diagnostic workflow.

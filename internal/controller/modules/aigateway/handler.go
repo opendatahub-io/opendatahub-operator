@@ -65,6 +65,7 @@ var (
 		"RELATED_IMAGE_ODH_MAAS_API_IMAGE",
 		"RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE",
 		"RELATED_IMAGE_UBI_MINIMAL_IMAGE",
+		"RELATED_IMAGE_ODH_PYTHON_312_IMAGE",
 	}
 )
 
@@ -82,10 +83,42 @@ func NewHandler() *handler {
 				ContextDir:           "manifests/ai-gateway-operator",
 				SourcePathByPlatform: sourcePathByPlatform,
 				ControllerImage:      controllerImage,
-				InitContainerName:    initContainerName, // use same controller image for initContainer
+				InitContainerName:    initContainerName,
 				RelatedImages:        relatedImages,
-				DeploymentName:       deploymentName, // different name need to set explicitly
+				DeploymentName:       deploymentName,
 				GVK:                  gvk.AIGateway,
+				SubmoduleConditions: []modules.SubmoduleCondition{
+					{
+						SourceConditionType: "ModelsAsAServiceReady",
+						DSCConditionType:    "ModelsAsAServiceReady",
+						StatusFieldName:     "ModelsAsAService",
+						IsEnabled: func(dscCtx *modules.DSCContext) bool {
+							if dscCtx == nil || dscCtx.DSC == nil {
+								return false
+							}
+							dsc := dscCtx.DSC.Spec.Components
+							if dsc.AIGateway.ModelsAsAService.ManagementState != "" {
+								return dsc.AIGateway.ModelsAsAService.ManagementState == operatorv1.Managed
+							}
+							// Deprecated: fall back to kserve.modelsAsService for
+							// users who haven't migrated their DSC to the explicit
+							// aigateway block yet.
+							return dsc.Kserve.ManagementState == operatorv1.Managed &&
+								dsc.Kserve.ModelsAsService.ManagementState == operatorv1.Managed //nolint:staticcheck
+						},
+					},
+					{
+						SourceConditionType: "BatchGatewayReady",
+						DSCConditionType:    "BatchGatewayReady",
+						StatusFieldName:     "BatchGateway",
+						IsEnabled: func(dscCtx *modules.DSCContext) bool {
+							if dscCtx == nil || dscCtx.DSC == nil {
+								return false
+							}
+							return dscCtx.DSC.Spec.Components.AIGateway.BatchGateway.ManagementState == operatorv1.Managed
+						},
+					},
+				},
 			},
 		},
 	}
@@ -118,6 +151,7 @@ func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
 	dscCtx *modules.DSCContext,
+	_ *modules.ModuleCRConfig,
 ) (*unstructured.Unstructured, error) {
 	if dscCtx == nil || dscCtx.DSC == nil {
 		return nil, errors.New("DSC is nil, cannot build AIGateway CR")

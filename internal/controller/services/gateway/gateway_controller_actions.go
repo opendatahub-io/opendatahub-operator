@@ -379,7 +379,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 	templateData["EnableK8sTokenValidation"] = enableK8sTokenValidation
 
-	tlsMinVersion, tlsCipherSuites, err := getKubeAuthProxyTLSFromAPIServer(ctx, rr.Client)
+	tlsMinVersion, tlsCipherSuites, err := GetKubeAuthProxyTLSFromAPIServer(ctx, rr.Client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve APIServer TLS profile: %w", err)
 	}

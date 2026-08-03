@@ -67,4 +67,12 @@ rules:
       - get
       - watch
       - list
+  - apiGroups:
+      - loki.grafana.com
+    resources:
+      - application
+    resourceNames:
+      - logs
+    verbs:
+      - get
 

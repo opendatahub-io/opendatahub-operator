@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -21,7 +22,7 @@ import (
 	helmrender "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
 	kustomizerender "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
+	dependentpredicates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -73,7 +74,7 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		WithAction(enableModulesFromPlatform)
 
 	platformRequest := []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configv1alpha1.PlatformInstanceName}}}
-	statusPredicate := dependent.New(dependent.WithWatchStatus(true))
+	statusPredicate := dependentpredicates.New(dependentpredicates.WithWatchStatus(true))
 
 	if err := cr.DefaultRegistry().ForEach(func(handler cr.ComponentHandler) error {
 		b = b.WatchesGVK(handler.GroupVersionKind(),
@@ -112,6 +113,8 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 				resources.CreatedOrUpdatedOrDeletedLabeled(gates.UpgradeGateLabel, "true"),
 			)))
 
+	b = addModuleCRWatches(b)
+
 	for _, a := range commonActions() {
 		b = b.WithAction(a)
 	}
@@ -123,8 +126,54 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	if err != nil {
 		return fmt.Errorf("failed to create platform controller: %w", err)
 	}
-
 	registerModuleCROwnedTypes(rec)
-
 	return nil
+}
+
+func addModuleCRWatches[T common.PlatformObject](b *reconciler.ReconcilerBuilder[T]) *reconciler.ReconcilerBuilder[T] {
+	reg := DefaultRegistry()
+	if !reg.HasEntries() {
+		return b
+	}
+
+	_ = reg.ForAll(func(handler ModuleHandler, _ bool) error {
+		b.OwnsGVK(
+			handler.GetGVK(),
+			reconciler.Dynamic(reconciler.CrdExists(handler.GetGVK())),
+			reconciler.WithPredicates(dependentpredicates.New(dependentpredicates.WithWatchStatus(true))),
+		)
+		return nil
+	})
+
+	return b
+}
+
+// AddDSCCompatibilityProjectorWatches registers watches for module CR status
+// changes that must requeue the user-facing DSC controller.
+//
+// The datasciencecluster controller computes generic module readiness
+// (ModulesReady, AIGatewayReady, etc.) via ComputeModulesStatus. DSC must
+// watch every registered module CR so its status stays current as module
+// CRs transition.
+func AddDSCCompatibilityProjectorWatches[T common.PlatformObject](b *reconciler.ReconcilerBuilder[T]) *reconciler.ReconcilerBuilder[T] {
+	reg := DefaultRegistry()
+	if !reg.HasEntries() {
+		return b
+	}
+
+	_ = reg.ForAll(func(handler ModuleHandler, _ bool) error {
+		// Requeue the DSC controller from module CR status changes without
+		// claiming ownership of the module CR type itself. The modules
+		// controller provisions module CRs; the DSC controller only needs the
+		// watch so its generic module status and any compatibility projections
+		// stay current as module CRs transition.
+		b.WatchesGVK(
+			handler.GetGVK(),
+			reconciler.Dynamic(reconciler.CrdExists(handler.GetGVK())),
+			reconciler.WithPredicates(dependentpredicates.New(dependentpredicates.WithWatchStatus(true))),
+		)
+		return nil
+	})
+
+	return b
 }

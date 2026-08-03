@@ -148,7 +148,7 @@ var (
 				componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
 				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
 				componentApi.KserveComponentName:               kserveTestSuite,
-				componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
+				componentApi.FeastOperatorComponentName:        feastModuleTestSuite,
 				componentApi.OGXComponentName:                  ogxTestSuite,
 				componentApi.SparkOperatorComponentName:        sparkOperatorTestSuite,
 				componentApi.AIGatewayComponentName:            aiGatewayTestSuite,
@@ -157,17 +157,15 @@ var (
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
 				componentApi.KueueComponentName: kueueTestSuite,
-				// ModelController tests depends on KServe and ModelRegistry, so must not run with KServe, ModelRegistry, TrustyAI or ModelsAsService tests in parallel
-				componentApi.ModelControllerComponentName: modelControllerTestSuite,
 			},
 			{
-				// TrustyAI tests depends on KServe, so must not run with Kserve, ModelController or ModelsAsService tests in parallel
+				// TrustyAI tests depends on KServe, so must not run with Kserve or ModelsAsService tests in parallel
 				componentApi.TrustyAIComponentName: trustyAITestSuite,
 				// MLflowOperator tests should not run in parallel with Workbenches tests, as Workbenches tests integration with MLflowOperator
 				componentApi.MLflowOperatorComponentName: mlflowOperatorTestSuite,
 			},
 			{
-				// ModelsAsService tests depends on KServe, so must not run with Kserve, ModelController or TrustyAI tests in parallel
+				// ModelsAsService tests depends on KServe, so must not run with Kserve or TrustyAI tests in parallel
 				componentApi.ModelsAsServiceComponentName: modelsAsServiceTestSuite,
 			},
 			{
@@ -460,10 +458,7 @@ func TestOdhOperator(t *testing.T) {
 		defer collector.Stop()
 	}
 
-	// On xKS there is no DSC controller to create the Platform CR.
-	// Ensure it exists before any test suite that depends on the module controller.
-	tc, err := NewTestContext(t)
-	if err == nil && tc.IsXKS() {
+	if tc, err := NewTestContext(t); err == nil && tc.IsXKS() {
 		tc.EnsurePlatformCR(t)
 	}
 
@@ -582,7 +577,7 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("operator-namespace", viper.GetEnvPrefix()+"_OPERATOR_NAMESPACE"))
 	pflag.String("applications-namespace", "opendatahub", "Namespace where the odh applications are deployed")
 	checkEnvVarBindingError(viper.BindEnv("applications-namespace", viper.GetEnvPrefix()+"_APPLICATIONS_NAMESPACE"))
-	pflag.String("workbenches-namespace", "opendatahub", "Namespace where the workbenches are deployed")
+	pflag.String("workbenches-namespace", "opendatahub", "Legacy DSC workbenchNamespace value (operands deploy into applications-namespace)")
 	checkEnvVarBindingError(viper.BindEnv("workbenches-namespace", viper.GetEnvPrefix()+"_WORKBENCHES_NAMESPACE"))
 	pflag.String("dsc-monitoring-namespace", "opendatahub", "Namespace where the odh monitoring is deployed")
 	checkEnvVarBindingError(viper.BindEnv("dsc-monitoring-namespace", viper.GetEnvPrefix()+"_DSC_MONITORING_NAMESPACE"))
