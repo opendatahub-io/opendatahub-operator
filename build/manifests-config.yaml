@@ -100,7 +100,7 @@ additional_meta:
     git.commit: 24d283b2b2d35f8f1d684c215b94bfb921c80d2d
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: e2851f9dccf9b6c7bc6092384aa3de1fa1cbc214
+    git.commit: dee1012464146772d61a3207bf864e667f7e8ef3
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: e2851f9dccf9b6c7bc6092384aa3de1fa1cbc214
@@ -268,7 +268,7 @@ additional_meta:
     git.commit: d60961630c21d343d172106b3f3db0bc935e1034
   odh-ogx-core:
     git.url: https://github.com/red-hat-data-services/ogx-distribution
-    git.commit: 858e0f4f854dbb708d06097544b32c4e7900085a
+    git.commit: 61215b004bdf6a9784aa7c706cde682ba28ac991
   odh-ogx-module-operator:
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
     git.commit: 3b8ae39a7bbfb492fb3bdf9ca7b32ac506a32986
