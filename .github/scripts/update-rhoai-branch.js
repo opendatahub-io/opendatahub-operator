@@ -9,7 +9,7 @@ module.exports = async function ({ github, core }) {
 
   console.log(`Updating RHOAI manifests to branch: ${newBranch}`);
 
-  const manifestFile = 'get_all_manifests.sh';
+  const manifestFile = 'manifests-config.yaml';
   const parsedManifests = parseManifestFile(manifestFile);
 
   const updates = [];
@@ -32,12 +32,10 @@ module.exports = async function ({ github, core }) {
 
       updates.push({
         componentName: manifest.componentName,
-        org: manifest.org,
-        repo: manifest.repo,
+        platform: manifest.platform,
+        section: manifest.section,
         newRef: `${newBranch}@${latestSha}`,
-        sourcePath: manifest.sourcePath,
-        originalLine: manifest.originalLine,
-        logMessage: `✅ Updated ${manifest.componentName}: ${manifest.ref} → ${newBranch}@${latestSha.substring(0, 8)}`
+        logMessage: `Updated ${manifest.componentName}: ${manifest.ref} -> ${newBranch}@${latestSha.substring(0, 8)}`
       });
     }
   }

@@ -1,8 +1,9 @@
 const fs = require('fs');
+const { execFileSync } = require('child_process');
 
 /**
- * Shared utilities for manifest file operations
- * Used by both update-manifests-tags.js and update-manifests-commit-sha.js
+ * Shared utilities for manifest file operations (YAML-based, using yq for conversion)
+ * Used by update-manifests-tags.js, update-manifests-commit-sha.js, and update-rhoai-branch.js
  */
 
 /**
@@ -29,83 +30,110 @@ async function getLatestCommitSha(github, org, repo, ref) {
 }
 
 /**
- * Parse a manifest block from the content
- * @param {string} content - Full file content
- * @param {string} arrayName - Name of the array to extract (e.g., 'ODH_COMPONENT_MANIFESTS')
- * @param {string} platform - Platform identifier ('odh' or 'rhoai')
- * @returns {Array} Array of component info objects
+ * Read YAML file as JSON object using yq
+ * @param {string} filePath - Path to YAML file
+ * @returns {object} Parsed data
  */
-function parseManifestBlock(content, arrayName, platform) {
-    const components = [];
-
-    // Extract the entire manifest block using regex
-    const blockRegex = new RegExp(
-        `declare -A ${arrayName}=\\(([\\s\\S]*?)\\n\\)`,
-        'm'
-    );
-    const blockMatch = content.match(blockRegex);
-
-    if (!blockMatch) {
-        return components;
-    }
-
-    const blockContent = blockMatch[1];
-
-    // Regex to match component manifest definitions (line by line)
-    // Pattern: ["component"]="org:repo:ref:path"
-    const manifestRegex = /\["([^"]+)"\]="([^:]+):([^:]+):([^:]+):([^"]+)"/g;
-
-    let match;
-    while ((match = manifestRegex.exec(blockContent)) !== null) {
-        const [fullMatch, componentName, org, repo, ref, sourcePath] = match;
-
-        components.push({
-            componentName,
-            org,
-            repo,
-            ref,
-            sourcePath,
-            originalLine: fullMatch.trim(),
-            platform
-        });
-    }
-
-    return components;
+function readYaml(filePath) {
+    const yq = process.env.YQ || 'yq';
+const json = execFileSync(yq, ['eval', '-o=json', '.', filePath], { encoding: 'utf8' });
+    return JSON.parse(json);
 }
 
 /**
- * Parse the get_all_manifests.sh file to extract component definitions
- * Now supports both ODH and RHOAI platform types
- * @param {string} filePath - Path to the manifest file
- * @returns {object} Object containing:
- *   - odh: Array of component info for ODH
- *   - rhoai: Array of component info for RHOAI
+ * Write JSON object back to YAML file using yq
+ * @param {string} filePath - Path to YAML file
+ * @param {object} data - Data to write
+ */
+function writeYaml(filePath, data) {
+    const yq = process.env.YQ || 'yq';
+const jsonFile = filePath + '.tmp.json';
+    try {
+        fs.writeFileSync(jsonFile, JSON.stringify(data, null, 2));
+        const yamlOutput = execFileSync(yq, ['eval', '-P', '.', jsonFile], { encoding: 'utf8' });
+        fs.writeFileSync(filePath, yamlOutput);
+    } finally {
+        try { fs.unlinkSync(jsonFile); } catch (_) { /* ignore cleanup errors */ }
+    }
+}
+
+/**
+ * Parse a single section of the YAML config and return component arrays per platform
+ * @param {object} sectionData - The section object (e.g., data.components)
+ * @param {string} section - Section name ('components', 'ccmCharts', 'componentCharts')
+ * @returns {object} { odh: [...], rhoai: [...] }
+ */
+function parseSectionComponents(sectionData, section) {
+    const odh = [];
+    const rhoai = [];
+
+    if (!sectionData) {
+        return { odh, rhoai };
+    }
+
+    for (const [componentName, entry] of Object.entries(sectionData)) {
+        if (!entry || typeof entry !== 'object') {
+            continue;
+        }
+        for (const platform of ['odh', 'rhoai']) {
+            const platformEntry = entry[platform];
+            if (!platformEntry || !platformEntry.repo) {
+                continue;
+            }
+
+            const repoParts = platformEntry.repo.split('/');
+            const org = repoParts[0];
+            const repo = repoParts.slice(1).join('/');
+
+            const component = {
+                componentName,
+                org,
+                repo,
+                ref: platformEntry.ref,
+                sourcePath: platformEntry.sourcePath,
+                originalRef: platformEntry.ref,
+                platform,
+                section
+            };
+
+            if (platform === 'odh') {
+                odh.push(component);
+            } else {
+                rhoai.push(component);
+            }
+        }
+    }
+
+    return { odh, rhoai };
+}
+
+/**
+ * Parse manifests-config.yaml to extract component definitions
+ * @param {string} filePath - Path to manifests-config.yaml
+ * @returns {object} Object with odh, rhoai, odhCcmCharts, rhoaiCcmCharts, odhCharts, rhoaiCharts arrays
  */
 function parseManifestFile(filePath) {
-    const content = fs.readFileSync(filePath, 'utf8');
+    const data = readYaml(filePath);
 
-    // Parse both ODH and RHOAI manifest blocks
-    const odhComponents = parseManifestBlock(content, 'ODH_COMPONENT_MANIFESTS', 'odh');
-    const rhoaiComponents = parseManifestBlock(content, 'RHOAI_COMPONENT_MANIFESTS', 'rhoai');
-    const odhCcmCharts = parseManifestBlock(content, 'ODH_CCM_CHARTS', 'odh');
-    const odhCharts = parseManifestBlock(content, 'ODH_COMPONENT_CHARTS', 'odh');
-    const rhoaiCcmCharts = parseManifestBlock(content, 'RHOAI_CCM_CHARTS', 'rhoai');
-    const rhoaiCharts = parseManifestBlock(content, 'RHOAI_COMPONENT_CHARTS', 'rhoai');
+    const components = parseSectionComponents(data.components, 'components');
+    const ccmCharts = parseSectionComponents(data.ccmCharts, 'ccmCharts');
+    const componentCharts = parseSectionComponents(data.componentCharts, 'componentCharts');
 
     return {
-        odh: odhComponents,
-        rhoai: rhoaiComponents,
-        odhCcmCharts: odhCcmCharts,
-        odhCharts: odhCharts,
-        rhoaiCcmCharts: rhoaiCcmCharts,
-        rhoaiCharts: rhoaiCharts
+        odh: components.odh,
+        rhoai: components.rhoai,
+        odhCcmCharts: ccmCharts.odh,
+        rhoaiCcmCharts: ccmCharts.rhoai,
+        odhCharts: componentCharts.odh,
+        rhoaiCharts: componentCharts.rhoai
     };
 }
 
 /**
- * Update the manifest file with new component information
- * @param {string} filePath - Path to the manifest file
- * @param {Array} updates - Array of update objects containing componentName and update info
+ * Update the manifest YAML file with new component references
+ * @param {string} filePath - Path to manifests-config.yaml
+ * @param {Array} updates - Array of update objects with componentName, platform, section, newRef, logMessage
+ * @returns {boolean} Whether any changes were made
  */
 function updateManifestFile(filePath, updates) {
     if (!updates || updates.length === 0) {
@@ -113,27 +141,30 @@ function updateManifestFile(filePath, updates) {
         return false;
     }
 
-    let content = fs.readFileSync(filePath, 'utf8');
+    const data = readYaml(filePath);
     let hasChanges = false;
 
     for (const update of updates) {
-        const { componentName, org, repo, newRef, sourcePath, originalLine, logMessage } = update;
-        const oldLine = originalLine;
-        const newLine = `["${componentName}"]="${org}:${repo}:${newRef}:${sourcePath}"`;
+        const { componentName, platform, section, newRef, logMessage } = update;
 
-        if (content.includes(oldLine)) {
-            content = content.replace(oldLine, newLine);
+        const sectionData = data[section];
+        if (!sectionData || !sectionData[componentName] || !sectionData[componentName][platform]) {
+            console.log(`Warning: Could not find ${section}.${componentName}.${platform} in manifest file`);
+            continue;
+        }
+
+        const currentRef = sectionData[componentName][platform].ref;
+        if (currentRef !== newRef) {
+            sectionData[componentName][platform].ref = newRef;
             hasChanges = true;
             if (logMessage) {
                 console.log(logMessage);
             }
-        } else {
-            console.log(`Warning: Could not find component in manifest file (originalLine: ${oldLine})`);
         }
     }
 
     if (hasChanges) {
-        fs.writeFileSync(filePath, content);
+        writeYaml(filePath, data);
     }
 
     return hasChanges;
@@ -153,13 +184,13 @@ function filterComponentsWithBranchSha(components) {
 
         const refParts = componentInfo.ref.split('@');
         if (refParts.length !== 2) {
-            console.log(`⚠️  Skipping ${componentInfo.platform}:${componentInfo.componentName}: invalid ref format "${componentInfo.ref}" (expected "branch@sha")`);
+            console.log(`Warning: Skipping ${componentInfo.platform}:${componentInfo.componentName}: invalid ref format "${componentInfo.ref}" (expected "branch@sha")`);
             continue;
         }
 
         const [branchRef, commitSha] = refParts;
         if (!branchRef || !commitSha) {
-            console.log(`⚠️  Skipping ${componentInfo.platform}:${componentInfo.componentName}: empty branch or SHA in ref "${componentInfo.ref}"`);
+            console.log(`Warning: Skipping ${componentInfo.platform}:${componentInfo.componentName}: empty branch or SHA in ref "${componentInfo.ref}"`);
             continue;
         }
 

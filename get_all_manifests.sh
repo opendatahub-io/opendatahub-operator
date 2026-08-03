@@ -1,120 +1,124 @@
 #!/usr/bin/env bash
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GITHUB_URL="https://github.com"
 DST_MANIFESTS_DIR="./opt/manifests"
 DST_CHARTS_DIR="./opt/charts"
+CONFIG_FILE="${SCRIPT_DIR}/manifests-config.yaml"
 
-# {ODH,RHOAI}_COMPONENT_MANIFESTS are lists of components repositories info to fetch the manifests
-# in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
-# ref-name can be a branch name, tag name, or a commit SHA (7-40 hex characters)
-# ref-name supports:
-# 1. "branch" - tracks latest commit on branch (e.g., main)
-# 2. "tag" - immutable reference (e.g., v1.0.0)
-# 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "ERROR: $CONFIG_FILE not found"
+    exit 1
+fi
 
-# ODH Component Manifests
-declare -A ODH_COMPONENT_MANIFESTS=(
-    ["kserve-module-operator"]="opendatahub-io:kserve:release-v0.17@f392023c798b6b5e74b17feb87d4f77788b0d783:kserve-module/config"
-    ["ray"]="opendatahub-io:kuberay:dev@ad425f7febc4039f2378747f2a0ea5dcf5a2263f:ray-operator/config"
-    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@ca83772ab303f41377a4558e3ae28b20ebb42bcd:config"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main@dbcce4cc09a3c22019a21f70691435b5d20ee0eb:config"
-    ["trainingoperator"]="opendatahub-io:training-operator:stable@f6c57e481ca17a27bca4d4324240fcd245770287:manifests"
-    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@ed98cd55e9d094d5928dc3723e491bf04252b1ab:config"
-    ["ogx"]="opendatahub-io:ogx-k8s-operator:odh@28841b04a33d0196a17dc37aca08e2d9ff119533:ogx-module/config"
-    ["trainer"]="opendatahub-io:trainer:stable@d063877c480bbd9a35512691ded96c97d8937b44:manifests"
-    ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@932229356b110a5f9893741b91f93a9cb1a7632b:config"
-    ["sparkoperator"]="opendatahub-io:spark-operator:main@35be1e6616ef10aa027f4c54f12fbab5f40181fc:config"
-    ["aigateway"]="opendatahub-io:ai-gateway-operator:stable@166a63155938b86ee16f5617de1504f67f3e3f7f:config"
-    ["mcplifecycleoperator"]="opendatahub-io:mcp-lifecycle-module-operator:main@fd06fbef28c5d723c5621911f2d352364fc01bed:config"
-)
+# read_yaml_section populates a bash associative array from a YAML section.
+# Parses the fixed 4-level YAML structure (section → key → platform → field)
+# using awk. No external dependencies beyond awk.
+# Output format: "org:repo:ref:sourcePath" per entry (legacy download format).
+read_yaml_section() {
+    local -n _target=$1
+    local section=$2
+    local platform=$3
 
-# RHOAI Component Manifests
-declare -A RHOAI_COMPONENT_MANIFESTS=(
-    ["kserve-module-operator"]="red-hat-data-services:kserve:rhoai-3.5@07034bbeb8ee548d5d84cbf12863e8614c6ef66d:kserve-module/config"
-    ["ray"]="red-hat-data-services:kuberay:rhoai-3.5@b6e2cb5afb65f14562a3d2821dfaa7b14366c1e4:ray-operator/config"
-    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.5@a55df5bd9718a144fd9856e89e03c5e0e80c168d:config"
-    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-3.5@4918619c6baf437f9f3052a5daf8bd4aee008f44:config"
-    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-3.5@ce3a66c2bbd69e9c66445e09ba397be6ae684819:manifests"
-    ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-3.5@324aa96d3bad5891701b660e6c47cf69fd8207c8:config"
-    ["ogx"]="red-hat-data-services:ogx-k8s-operator:rhoai-3.5@d40662f9df546d4b52d2f130041daad79714d368:ogx-module/config"
-    ["trainer"]="red-hat-data-services:trainer:rhoai-3.5@7280dd4483ff21406ec62c8a5c442511755ce616:manifests"
-    ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.5@ad4d69319021467da660c51bbc62962c4863bfe8:config"
-    ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.5@7b15494e3af5a29e599adde04e7d612759de1122:config"
-    ["aigateway"]="red-hat-data-services:ai-gateway-operator:rhoai-3.5@764991cef768256c45ae9fc29c1f5079b76a7614:config"
-    ["mcplifecycleoperator"]="red-hat-data-services:mcp-lifecycle-module-operator:rhoai-3.5@a7501e87d48cbd3d24130fcf33f2eecd5e98c777:config"
-)
+    while IFS='|' read -r key value; do
+        [[ -z "$key" ]] && continue
+        _target["$key"]="$value"
+    done < <(awk -v section="$section" -v platform="$platform" '
+        # Skip comments and blank lines
+        /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+        {
+            # Measure indentation (number of leading spaces)
+            indent = 0
+            for (i = 1; i <= length($0); i++) {
+                if (substr($0, i, 1) == " ") indent++
+                else break
+            }
+            # Strip leading/trailing whitespace, remove trailing colon for key lines
+            line = $0
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+        }
 
-# {ODH,RHOAI}_{CCM,COMPONENT}_CHARTS are lists of chart repositories info to fetch helm charts
-# in the same format as manifests: "repo-org:repo-name:ref-name:source-folder"
-# key is the target folder under charts/
-# CCM_CHARTS: charts deployed by the CloudManager controller (dependencies)
-# COMPONENT_CHARTS: charts deployed by individual component controllers
+        # Level 0: top-level section (components, ccmCharts, etc.)
+        indent == 0 {
+            if (line == section":") in_section = 1
+            else in_section = 0
+            cur_key = ""
+            cur_platform = ""
+            next
+        }
 
-# ODH CloudManager Charts
-declare -A ODH_CCM_CHARTS=(
-    ["cert-manager-operator"]="opendatahub-io:odh-gitops:main@eb660db9f93ce6eda414873ad1d2ca2b5ec649ca:charts/dependencies/cert-manager-operator"
-    ["lws-operator"]="opendatahub-io:odh-gitops:main@eb660db9f93ce6eda414873ad1d2ca2b5ec649ca:charts/dependencies/lws-operator"
-    ["sail-operator"]="opendatahub-io:odh-gitops:main@eb660db9f93ce6eda414873ad1d2ca2b5ec649ca:charts/dependencies/sail-operator"
-    ["gateway-api"]="opendatahub-io:odh-gitops:main@eb660db9f93ce6eda414873ad1d2ca2b5ec649ca:charts/dependencies/gateway-api"
-)
+        !in_section { next }
 
-# ODH Component Charts
-declare -A ODH_COMPONENT_CHARTS=(
-    ["dashboard-operator"]="opendatahub-io:odh-dashboard:main@7baeb444fd30477c3d0e9bb85bc07d847bd3a3c4:dashboard-operator/charts/dashboard"
-    ["workbenches"]="opendatahub-io:workbenches-operator:main@0a7d371b78fe510663c2e82dab38bcdcf7abbb29:charts/operator"
-    ["feastoperator"]="opendatahub-io:feast-module-operator:main@a1729ece208b9a5f7e785f6a1ff430e509261a17:config/chart"
-)
+        # Level 1 (2-space): entry key
+        indent == 2 {
+            sub(/:$/, "", line)
+            cur_key = line
+            cur_platform = ""
+            repo = ""; ref = ""; source_path = ""
+            next
+        }
 
-# RHOAI CloudManager Charts
-declare -A RHOAI_CCM_CHARTS=(
-    ["cert-manager-operator"]="red-hat-data-services:odh-gitops:rhoai-3.5@37d04302385298155b26f229df75dde0b9c8aa02:charts/dependencies/cert-manager-operator"
-    ["lws-operator"]="red-hat-data-services:odh-gitops:rhoai-3.5@37d04302385298155b26f229df75dde0b9c8aa02:charts/dependencies/lws-operator"
-    ["sail-operator"]="red-hat-data-services:odh-gitops:rhoai-3.5@37d04302385298155b26f229df75dde0b9c8aa02:charts/dependencies/sail-operator"
-    ["gateway-api"]="red-hat-data-services:odh-gitops:rhoai-3.5@37d04302385298155b26f229df75dde0b9c8aa02:charts/dependencies/gateway-api"
-)
+        # Level 2 (4-space): platform
+        indent == 4 {
+            sub(/:$/, "", line)
+            if (line == platform) cur_platform = line
+            else cur_platform = ""
+            repo = ""; ref = ""; source_path = ""
+            next
+        }
 
-# RHOAI Component Charts
-declare -A RHOAI_COMPONENT_CHARTS=(
-    ["dashboard-operator"]="red-hat-data-services:odh-dashboard:rhoai-3.5@bb0a50ca2e7e23a7df282c123a554ad2aba462cd:dashboard-operator/charts/dashboard"
-    ["workbenches"]="red-hat-data-services:workbenches-operator:rhoai-3.5@72fbc99eb1d0c1768df2f6f4409a1366da34a7a2:charts/operator"
-    ["feastoperator"]="red-hat-data-services:feast-module-operator:rhoai-3.5@54d94296efa674e27bbb69e35590a4ae52e49ed5:config/chart"
-)
+        # Level 3 (6-space): field values
+        indent == 6 && cur_platform != "" {
+            # Extract "key: value"
+            field_name = line
+            field_val = line
+            sub(/:.*/, "", field_name)
+            sub(/^[^:]+:[[:space:]]*/, "", field_val)
 
-# merge_charts merges CCM and component charts into COMPONENT_CHARTS, failing on duplicate keys.
-merge_charts() {
-    local -n _ccm=$1
-    local -n _comp=$2
-    for k in "${!_ccm[@]}"; do
-        if [[ -n "${_comp[$k]+x}" ]]; then
-            echo "ERROR: duplicate chart key '$k' in CCM and component charts" >&2
-            exit 1
-        fi
-        COMPONENT_CHARTS["$k"]="${_ccm[$k]}"
-    done
-    for k in "${!_comp[@]}"; do
-        COMPONENT_CHARTS["$k"]="${_comp[$k]}"
-    done
+            if (field_name == "repo") repo = field_val
+            else if (field_name == "ref") ref = field_val
+            else if (field_name == "sourcePath") source_path = field_val
+
+            # Emit when all 3 fields collected
+            if (repo != "" && ref != "" && source_path != "") {
+                # Convert org/name → org:name
+                gsub(/\//, ":", repo)
+                printf "%s|%s:%s:%s\n", cur_key, repo, ref, source_path
+                repo = ""; ref = ""; source_path = ""
+            }
+            next
+        }
+    ' "$CONFIG_FILE")
 }
 
-# Select the appropriate manifest based on platform type
+# Select platform
 if [ "${ODH_PLATFORM_TYPE:-OpenDataHub}" = "OpenDataHub" ]; then
+    platform="odh"
     echo "Cloning manifests and charts for ODH"
-    declare -A COMPONENT_MANIFESTS=()
-    for key in "${!ODH_COMPONENT_MANIFESTS[@]}"; do
-        COMPONENT_MANIFESTS["$key"]="${ODH_COMPONENT_MANIFESTS[$key]}"
-    done
-    declare -A COMPONENT_CHARTS=()
-    merge_charts ODH_CCM_CHARTS ODH_COMPONENT_CHARTS
 else
+    platform="rhoai"
     echo "Cloning manifests and charts for RHOAI"
-    declare -A COMPONENT_MANIFESTS=()
-    for key in "${!RHOAI_COMPONENT_MANIFESTS[@]}"; do
-        COMPONENT_MANIFESTS["$key"]="${RHOAI_COMPONENT_MANIFESTS[$key]}"
-    done
-    declare -A COMPONENT_CHARTS=()
-    merge_charts RHOAI_CCM_CHARTS RHOAI_COMPONENT_CHARTS
 fi
+
+# Build arrays from YAML
+declare -A COMPONENT_MANIFESTS=()
+read_yaml_section COMPONENT_MANIFESTS "components" "$platform"
+
+declare -A CCM_CHARTS=()
+read_yaml_section CCM_CHARTS "ccmCharts" "$platform"
+
+declare -A COMPONENT_CHARTS=()
+read_yaml_section COMPONENT_CHARTS "componentCharts" "$platform"
+
+# Merge CCM charts into COMPONENT_CHARTS, checking for duplicates
+for k in "${!CCM_CHARTS[@]}"; do
+    if [[ -n "${COMPONENT_CHARTS[$k]+x}" ]]; then
+        echo "ERROR: duplicate chart key '$k' in CCM and component charts" >&2
+        exit 1
+    fi
+    COMPONENT_CHARTS["$k"]="${CCM_CHARTS[$k]}"
+done
 
 # PLATFORM_MANIFESTS is a list of manifests that are contained in the operator repository. Please also add them to the
 # Dockerfile COPY instructions. Declaring them here causes this script to create a symlink in the manifests folder, so

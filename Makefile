@@ -353,6 +353,30 @@ validate-related-images: yq ## Validate RELATED_IMAGE_* names against build conf
 	@RHOAI_BUILD_CONFIG_BRANCH=rhoai-$(shell echo $(VERSION) | sed 's/\([0-9]*\.[0-9]*\)\.[0-9]*/\1/') \
 		YQ=$(YQ) ./.github/scripts/validate-related-images.sh
 
+.PHONY: resolve-image-digests
+resolve-image-digests: yq ## Resolve image digests from registry and update manifests-config.yaml
+	YQ=$(YQ) ./hack/resolve-image-digests.sh
+
+.PHONY: generate-image-overrides
+generate-image-overrides: yq ## Generate RELATED_IMAGE_* override env file from manifests-config.yaml
+	ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE) YQ=$(YQ) ./hack/generate-image-overrides.sh
+
+.PHONY: apply-image-overrides
+apply-image-overrides: generate-image-overrides ## Apply image overrides to manager.yaml (for make deploy)
+	@if [ -f opt/related-images-override.env ] && [ -s opt/related-images-override.env ]; then \
+		while IFS='=' read -r name value; do \
+			[ -z "$$name" ] && continue; \
+			case "$$name" in \#*) continue ;; esac; \
+			case "$$value" in *'$$('*|*'`'*|*$$'\n'*) echo "ERROR: unsafe value for $$name" >&2; exit 1 ;; esac; \
+			export "$$name=$$value"; \
+		done < opt/related-images-override.env && \
+		./.github/scripts/apply-operator-images.sh; \
+	fi
+
+.PHONY: apply-image-overrides-olm
+apply-image-overrides-olm: generate-image-overrides ## Apply image overrides to OLM Subscription (for operator-sdk run bundle)
+	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) OPERATOR_PACKAGE=$(OPERATOR_PACKAGE) ./hack/apply-image-overrides-olm.sh
+
 # Default to standard sed command
 SED_COMMAND = sed
 
@@ -442,6 +466,9 @@ uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/c
 	$(KUSTOMIZE) build $(CONFIG_DIR)/crd/bases | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
+ifndef SKIP_IMAGE_OVERRIDES
+deploy: apply-image-overrides
+endif
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
@@ -750,6 +777,11 @@ export E2E_TEST_DSC_MONITORING_NAMESPACE = $(MONITORING_NAMESPACE)
 endif
 ifdef ARTIFACT_DIR
 export JUNIT_OUTPUT_PATH = ${ARTIFACT_DIR}/junit_report.xml
+endif
+# Auto-apply digest-pinned image overrides to the OLM Subscription before E2E tests.
+# Set SKIP_IMAGE_OVERRIDES=1 to disable.
+ifndef SKIP_IMAGE_OVERRIDES
+e2e-test: apply-image-overrides-olm
 endif
 e2e-test:
 	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}

@@ -1,12 +1,12 @@
 const { getLatestCommitSha, parseManifestFile, updateManifestFile, filterComponentsWithBranchSha } = require('./manifest-utils');
 
 module.exports = async function ({ github, core }) {
-  const manifestFile = 'get_all_manifests.sh';
+  const manifestFile = 'manifests-config.yaml';
   const parsedManifests = parseManifestFile(manifestFile);
 
   const updates = [];
 
-  // Process both ODH and RHOAI platforms
+  // Process all platforms and sections
   for (const components of [parsedManifests.odh, parsedManifests.rhoai, parsedManifests.odhCcmCharts, parsedManifests.odhCharts, parsedManifests.rhoaiCcmCharts, parsedManifests.rhoaiCharts]) {
     const componentsWithSha = filterComponentsWithBranchSha(components);
 
@@ -18,16 +18,14 @@ module.exports = async function ({ github, core }) {
       const latestSha = await getLatestCommitSha(github, manifest.org, manifest.repo, manifest.branchRef);
 
       if (latestSha && latestSha !== manifest.commitSha) {
-        console.log(`Update needed for ${manifest.platform}:${manifest.componentName}: ${manifest.commitSha.substring(0, 8)} → ${latestSha.substring(0, 8)}`);
+        console.log(`Update needed for ${manifest.platform}:${manifest.componentName}: ${manifest.commitSha.substring(0, 8)} -> ${latestSha.substring(0, 8)}`);
 
         updates.push({
           componentName: manifest.componentName,
-          org: manifest.org,
-          repo: manifest.repo,
+          platform: manifest.platform,
+          section: manifest.section,
           newRef: `${manifest.branchRef}@${latestSha}`,
-          sourcePath: manifest.sourcePath,
-          originalLine: manifest.originalLine,
-          logMessage: `✅ Updated ${manifest.platform}:${manifest.componentName}: ${manifest.commitSha.substring(0, 8)} → ${latestSha.substring(0, 8)}`
+          logMessage: `Updated ${manifest.platform}:${manifest.componentName}: ${manifest.commitSha.substring(0, 8)} -> ${latestSha.substring(0, 8)}`
         });
       } else {
         console.log(`No update needed for ${manifest.platform}:${manifest.componentName}`);

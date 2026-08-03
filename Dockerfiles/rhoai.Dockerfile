@@ -16,6 +16,7 @@ WORKDIR /
 COPY opt/manifests/ /opt/manifests/
 COPY opt/charts/ /opt/charts/
 COPY get_all_manifests.sh get_all_manifests.sh
+COPY manifests-config.yaml manifests-config.yaml
 RUN if [[ "${BUILD_TYPE}" == "RELEASE" && "${USE_LOCAL}" != "true" ]]; then \
         rm -rf /opt/manifests/*; \
         ODH_PLATFORM_TYPE=rhoai ./get_all_manifests.sh ${OVERWRITE_MANIFESTS}; \

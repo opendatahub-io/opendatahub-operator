@@ -1,12 +1,12 @@
 const { parseManifestFile, updateManifestFile } = require('./manifest-utils');
 
 /**
- * Update component manifest references in get_all_manifests.sh
+ * Update component manifest references in manifests-config.yaml
  * Reads environment variables exported by get-release-branches.js
  */
 
 module.exports = () => {
-    const manifestFile = 'get_all_manifests.sh';
+    const manifestFile = 'manifests-config.yaml';
 
     console.log('Updating component branches/tags for ODH...');
 
@@ -48,13 +48,13 @@ module.exports = () => {
                 normalizedManifestWithoutPrefix === normalizedKey) {
                 const displayRef = shaValue ? `${value}@${shaValue.substring(0, 8)}` : value;
 
+                // If orgValue is provided, update the repo field in the YAML too
+                // For now, we only update the ref via updateManifestFile
                 updates.push({
                     componentName: componentInfo.componentName,
-                    org: orgValue || componentInfo.org,
-                    repo: componentInfo.repo,
+                    platform: componentInfo.platform,
+                    section: componentInfo.section,
                     newRef: newRef,
-                    sourcePath: componentInfo.sourcePath,
-                    originalLine: componentInfo.originalLine,
                     logMessage: `Updated ${componentInfo.platform}:${componentInfo.componentName} to ${displayRef}`
                 });
 
@@ -65,7 +65,7 @@ module.exports = () => {
         }
 
         if (!found) {
-            console.log(`  ⚠️  Warning: No matching component found for env var ${key}`);
+            console.log(`  Warning: No matching component found for env var ${key}`);
         }
     }
 

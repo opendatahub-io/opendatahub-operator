@@ -31,9 +31,11 @@ and configure these applications.
     - [Build Image](#build-image)
     - [Deployment](#deployment)
       - [Deployment Methods Comparison](#deployment-methods-comparison)
+    - [Image Overrides](#image-overrides)
   - [Cloud Manager (CCM)](#cloud-manager-ccm)
     - [Supported Providers](#supported-providers)
     - [CCM Deployment](#ccm-deployment)
+    - [CCM Configuration](#ccm-configuration)
   - [RHAII Mode](#rhaii-mode)
     - [Prerequisites](#prerequisites-1)
     - [Supported Providers](#supported-providers-1)
@@ -357,6 +359,27 @@ e.g `make image-build USE_LOCAL=true"`
   ```commandline
   make undeploy
   ```
+
+- `make deploy` auto-applies digest-pinned image overrides from `manifests-config.yaml` to `config/manager/manager.yaml`. To skip: `SKIP_IMAGE_OVERRIDES=1 make deploy`.
+
+#### Image Overrides
+
+Component operator images can be pinned by digest for reproducible testing. Image digests are configured in `manifests-config.yaml` under the `imageOverrides` section.
+
+```shell
+# Resolve digests (run after updating manifest SHAs)
+make resolve-image-digests
+
+# For make deploy (auto-applied, skip with SKIP_IMAGE_OVERRIDES=1)
+make deploy IMG=...
+
+# For OLM deploy (manual)
+operator-sdk run bundle ...
+make apply-image-overrides-olm
+
+# For E2E with OLM overrides (opt-in)
+APPLY_IMAGE_OVERRIDES=1 make e2e-test
+```
 
 **Deploying operator using OLM**
 
@@ -932,6 +955,7 @@ Evn vars can be set to configure e2e tests:
 | E2E_TEST_CIRCUIT_BREAKER_THRESHOLD       | Consecutive infrastructure failures before health-checking for infrastructure problems.                                                                                                                                    | `3`                           |
 | E2E_TEST_TAG                             | Tag to run tests for. Options: `All`, `Smoke`, `Tier1`.                                                                                                                                                                    | `All`                         |
 | E2E_TEST_FLAGS                           | Alternatively the above configurations can be passed to e2e-tests as flags using this env var (see flags table below)                                                                                                      |                               |
+| SKIP_IMAGE_OVERRIDES                     | Skip auto-applying digest-pinned image overrides during `make deploy` and `make e2e-test`. Set to any value to disable.                                                                                                    | *(unset)*                     |
 
 Alternatively the above configurations can be passed to e2e-tests as flags by setting up `E2E_TEST_FLAGS` variable. Following table lists all the available flags:
 

@@ -33,21 +33,23 @@ if [[ ! -d "$CHARTS_DIR" ]]; then
   exit 1
 fi
 
-# Extract cloudmanager chart names from ODH_CCM_CHARTS keys in get_all_manifests.sh.
+# Extract cloudmanager chart names from ccmCharts in manifests-config.yaml.
 extract_cloudmanager_charts() {
-  if [[ ! -f "$CHARTS_SOURCE" ]]; then
-    echo "ERROR: Charts source file '$CHARTS_SOURCE' not found" >&2
+  local config_file="${REPO_ROOT}/manifests-config.yaml"
+  if [[ ! -f "$config_file" ]]; then
+    echo "ERROR: Config file '$config_file' not found" >&2
     return 1
   fi
 
-  local charts
-  charts=$(sed -n '/^declare -A ODH_CCM_CHARTS=(/,/^)/p' "$CHARTS_SOURCE" \
-    | grep -oE '\["[^"]+"\]' \
-    | tr -d '[]"' \
-    | LC_ALL=C sort || true)
+  local charts yq_output
+  yq_output=$("$YQ" eval '.ccmCharts | keys | .[]' "$config_file") || {
+    echo "ERROR: failed to parse '$config_file' with yq" >&2
+    return 1
+  }
+  charts=$(echo "$yq_output" | LC_ALL=C sort)
 
   if [[ -z "$charts" ]]; then
-    echo "ERROR: No chart keys found in ODH_CCM_CHARTS in '$CHARTS_SOURCE'" >&2
+    echo "ERROR: No chart keys found in ccmCharts in '$config_file'" >&2
     return 1
   fi
 
