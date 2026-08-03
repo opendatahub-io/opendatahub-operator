@@ -243,10 +243,9 @@ func addModuleCRWatches[T common.PlatformObject](b *reconciler.ReconcilerBuilder
 	return b
 }
 
-// AddDSCCRDWatches registers a non-dynamic CRD watch for the DSC controller,
-// so that module CRD creation triggers a DSC reconcile. This mirrors the
-// internal addModuleCRDWatches but is exported for use by the DSC controller.
-func AddDSCCRDWatches[T common.PlatformObject](
+// AddModuleCRDWatches registers a non-dynamic CRD watch so that module CRD
+// creation triggers a reconcile. Exported for use by the DSC controller.
+func AddModuleCRDWatches[T common.PlatformObject](
 	b *reconciler.ReconcilerBuilder[T],
 	mapper func(ctx context.Context, obj client.Object) []reconcile.Request,
 ) *reconciler.ReconcilerBuilder[T] {
