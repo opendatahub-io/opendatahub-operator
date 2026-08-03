@@ -16,17 +16,17 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
   value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:bedf2ddcfd64b5466161662cf289193092bf9477ccac95e27af890fd13a60147"
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:8b4b690abcb003f62b608a2f1f119b198ca4ae50fc3bc38a12be3f228e9c91d2"
+  value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:23194e05ab1cdd1b41d1111bf30fc1eeb717de190f74023517f7ca54142a3daf"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE
-  value: "quay.io/rhoai/odh-data-science-pipelines-argo-argoexec-rhel9@sha256:dcda4abef8ef69c6ee12e320367fdd19adf78dc640cd400df096773f1f9a8b32"
+  value: "quay.io/rhoai/odh-data-science-pipelines-argo-argoexec-rhel9@sha256:720d575d9d8b9cee642971588621831eabb807d59fb463f31cd1f85bef78a4fd"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_WORKFLOWCONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-data-science-pipelines-argo-workflowcontroller-rhel9@sha256:e385ea877cebfae90434da683b6652593f5fbe745aa94db9997dff87dd18ad1f"
+  value: "quay.io/rhoai/odh-data-science-pipelines-argo-workflowcontroller-rhel9@sha256:1098d62ca226b5d7e1525fa2c2f491365178ce9544b1ea870e734db72cad7c97"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-data-science-pipelines-operator-controller-rhel9@sha256:184605681726b2aa107be8a7009c83da502fb31c0f50e53987d6b91e5671fc43"
 - name: RELATED_IMAGE_ODH_EVAL_HUB_IMAGE
   value: "quay.io/rhoai/odh-eval-hub-rhel9@sha256:778b11c34563c0e7fee72617f1303a284055dc6f7fedd72ba11cade10a431f66"
 - name: RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-feast-module-operator-rhel9@sha256:5f15ed932f849a101f2d36b68f48c0f875a13c254dd145b07316988e28783c4e"
+  value: "quay.io/rhoai/odh-feast-module-operator-rhel9@sha256:fd988b98d23fa2fb0b0e0643ba1ea16d33a01b927d9a8f52fc7d79e95248a40f"
 - name: RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-feast-operator-rhel9@sha256:1a720938b8f3ef25cfad0ed4181846377ae8b6231bda363f0af66fddd528e77d"
 - name: RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE
