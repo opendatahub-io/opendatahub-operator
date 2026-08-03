@@ -88,10 +88,10 @@ additional_meta:
     git.commit: 5bdc0637067f4a4815d0d31eb4fbb7c2d969ff71
   odh-automl:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 5346474d8986b68f46259e7b120f438e7fb808df
+    git.commit: a627600dfbad703c7f1aa7515e50b7f09d7bbde1
   odh-autorag:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 5346474d8986b68f46259e7b120f438e7fb808df
+    git.commit: a627600dfbad703c7f1aa7515e50b7f09d7bbde1
   odh-built-in-detector:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: 408592837b4abf5e785d71c36102136c3e04f37e
@@ -289,7 +289,7 @@ additional_meta:
     git.commit: 8ba30e5a9690a492c97a579c50b75edb4ececd54
   odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 8ba30e5a9690a492c97a579c50b75edb4ececd54
+    git.commit: 5fe4cc70892090992aca9284309ae71db20684ad
   odh-pipeline-runtime-pytorch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 391bbac38fe5c47761764bd84616752376e0cf5c
@@ -298,7 +298,7 @@ additional_meta:
     git.commit: 391bbac38fe5c47761764bd84616752376e0cf5c
   odh-pipeline-runtime-tensorflow-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 391bbac38fe5c47761764bd84616752376e0cf5c
+    git.commit: 5fe4cc70892090992aca9284309ae71db20684ad
   odh-rhaii-cluster-validator:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
     git.commit: ae5244f85b828b124e0621dce68fbf7d758d15c0
@@ -358,7 +358,7 @@ additional_meta:
     git.commit: 6beb1ad62737dd37152b424f043dbe6a11b42a1f
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 391bbac38fe5c47761764bd84616752376e0cf5c
+    git.commit: 5fe4cc70892090992aca9284309ae71db20684ad
   odh-workbench-jupyter-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 5fe4cc70892090992aca9284309ae71db20684ad
