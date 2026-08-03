@@ -85,6 +85,13 @@ spec:
                 - kind
                 - name
                 type: object
+              tenantRef:
+                description: |-
+                  TenantRef is the name of the AITenant this model belongs to.
+                  When omitted, the model is assigned to the default tenant.
+                maxLength: 253
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                type: string
             required:
             - modelRef
             type: object
@@ -219,6 +226,12 @@ spec:
                   For LLMInferenceService: publishers/{namespace}/models/{spec.model.name}.
                   For ExternalModel: the targetModel from spec.externalProviderRefs[0].targetModel.
                   The maas-api uses this for reverse-lookup when matching subscription model refs.
+                type: string
+              resolvedTenantRef:
+                description: |-
+                  ResolvedTenantRef is the name of the AITenant this model was resolved to.
+                  Set from spec.tenantRef when provided, or left empty for models using the
+                  default tenant.
                 type: string
             type: object
         required:

@@ -63,8 +63,6 @@ relatedImages:
   value: quay.io/rhoai/odh-kube-rbac-proxy-rhel9@sha256:d2e4c77f612005dc8e7f9b73c03e244f173604c476598b1c59cfe8ec35fe8016
 - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_PREDICTION_IMAGE
   value: quay.io/rhoai/odh-latency-predictor-prediction-rhel9@sha256:de171b50975b332df6663b2145926722d94b3255c83a1cfc1463f435192aa12b
-- name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TEST_IMAGE
-  value: quay.io/rhoai/odh-latency-predictor-test-rhel9@sha256:ef45aea490b32c163944dc161fb15a67a2b41eebb56dd48d5fdba9629b3e77d1
 - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TRAINING_IMAGE
   value: quay.io/rhoai/odh-latency-predictor-training-rhel9@sha256:a672d4e698da5d9dbf4cdfb2c53d5581b9f8b89020f6ad29ab4b9d5fae72ee05
 - name: RELATED_IMAGE_ODH_LLM_D_ASYNC_IMAGE
@@ -177,6 +175,12 @@ relatedImages:
   value: quay.io/rhoai/odh-ta-lmes-driver-rhel9@sha256:98893760951f53984c558018105ffb8eb98264998f20758a4571398f44f39eb4
 - name: RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE
   value: quay.io/rhoai/odh-ta-lmes-job-rhel9@sha256:b0bc9db133515452c4426f7c0a4a4d8c948f6639594d956a9ff653a7bdda8b44
+- name: RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE
+  value: quay.io/rhoai/odh-th-torch-cpu-py312-rhel9@sha256:63e7a842bc5eaf0f303bc64dd6be35d7251d1ce3a86edaff37ea11f8513b47c6
+- name: RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE
+  value: quay.io/rhoai/odh-th-torch-cuda-py312-rhel9@sha256:5b0de2dc3c1f7946eb09278fc7b3cb02ccd2bda736a1a04d97eeab27f152e9b9
+- name: RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE
+  value: quay.io/rhoai/odh-th-torch-rocm-py312-rhel9@sha256:a9aa347f2f7f51d442d93b8c08a113a5dc99a3e4e4d49a77bd2d1cd3512f1b20
 - name: RELATED_IMAGE_ODH_TRAINER_IMAGE
   value: quay.io/rhoai/odh-trainer-rhel9@sha256:4fa097d59eefae4ebe7f140b7b4faa1810bf39cbd869ae01393cfb4c9b79ed6d
 - name: RELATED_IMAGE_ODH_TRAINING_CUDA121_TORCH24_PY311_IMAGE
