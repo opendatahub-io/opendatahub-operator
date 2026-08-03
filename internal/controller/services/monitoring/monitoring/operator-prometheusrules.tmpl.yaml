@@ -18,15 +18,15 @@ spec:
           labels:
             instance: datasciencecluster-controller
           record: controller_runtime_reconcile_total:rate15m
-      
+
       - name: Operator Pod Health
         interval: 1m
         rules:
         - alert: OperatorPodRestartingFrequently
           expr: |
             increase(kube_pod_container_status_restarts_total{
-              namespace=~"redhat-ods-operator|opendatahub-operator-system",
-              pod=~"rhods-operator.*|opendatahub-operator-controller-manager.*"
+              namespace=~"redhat-ods-operator|opendatahub-operator-system|opendatahub",
+              pod=~"rhods-operator.*|opendatahub-operator.*"
             }[5m]) > 3
           for: 2m
           labels:
