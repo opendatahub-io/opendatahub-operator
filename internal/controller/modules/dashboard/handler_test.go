@@ -216,7 +216,7 @@ func TestBuildModuleCR_ObservabilitySetWhenMonitoringNamespaceConfigured(t *test
 
 	obs, ok := spec["observability"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.observability missing")
-	g.Expect(obs["enabled"]).Should(Equal(true))
+	g.Expect(obs["enabled"]).Should(BeTrue())
 
 	svc, ok := obs["persesService"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.observability.persesService missing")
