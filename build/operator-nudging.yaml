@@ -12,7 +12,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
   value: quay.io/rhoai/odh-cli-rhel9@sha256:023632e8ca742b17951f79fe1a5e2581f12dab8eb86f4829dbd5f4d04d9cbe21
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
-  value: quay.io/rhoai/odh-core-bff-rhel9@sha256:75ee37e826f8ec14bee4d2b2b025102707936a8fbde1e60363f85d31c093ee20
+  value: quay.io/rhoai/odh-core-bff-rhel9@sha256:1b826755384e0824c5fe9b66d0e79f20893a74824af7831fb9629442ca99ff2c
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
   value: quay.io/rhoai/odh-dashboard-rhel9@sha256:5732ad5dbaac8fe75c38d99ec5c075b73e945b97beabb5f4a080c9cdc4121321
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
