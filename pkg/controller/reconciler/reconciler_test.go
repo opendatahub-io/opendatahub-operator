@@ -33,7 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -47,6 +46,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -54,6 +54,18 @@ import (
 //nolint:gochecknoinits
 func init() {
 	log.SetLogger(zap.New(zap.WriteTo(io.Discard)))
+}
+
+func registerTestPlatformObjectCRD(t *testing.T, g *WithT, et *envt.EnvT) {
+	t.Helper()
+	_, err := et.RegisterCRD(
+		t.Context(),
+		scheme.TestPlatformObjectGVK,
+		"testplatformobjects", "testplatformobject",
+		apiextensionsv1.ClusterScoped,
+		envt.WithPermissiveSchema(),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
 }
 
 func createReconciler(cli client.Client) *Reconciler {
@@ -65,10 +77,10 @@ func createReconciler(cli client.Client) *Reconciler {
 		Recorder: events.NewFakeRecorder(100),
 		name:     "test",
 		instanceFactory: func() (common.PlatformObject, error) {
-			i := &componentApi.Dashboard{
+			i := &scheme.TestPlatformObject{
 				TypeMeta: ctrl.TypeMeta{
-					APIVersion: gvk.Dashboard.GroupVersion().String(),
-					Kind:       gvk.Dashboard.Kind,
+					APIVersion: scheme.TestPlatformObjectGVK.GroupVersion().String(),
+					Kind:       scheme.TestPlatformObjectGVK.Kind,
 				},
 			}
 
@@ -107,6 +119,7 @@ func TestConditions(t *testing.T) {
 	et, err := envt.New()
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
+	registerTestPlatformObjectCRD(t, g, et)
 
 	cli := et.Client()
 
@@ -154,8 +167,8 @@ func TestConditions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dash := resources.GvkToUnstructured(gvk.Dashboard)
-			dash.SetName(componentApi.DashboardInstanceName)
+			dash := resources.GvkToUnstructured(scheme.TestPlatformObjectGVK)
+			dash.SetName("test-instance")
 			dash.SetGeneration(1)
 
 			err = cli.Create(ctx, dash)
@@ -183,7 +196,7 @@ func TestConditions(t *testing.T) {
 
 			req := ctrl.Request{
 				NamespacedName: types.NamespacedName{
-					Name: componentApi.DashboardInstanceName,
+					Name: "test-instance",
 				},
 			}
 
@@ -201,7 +214,7 @@ func TestConditions(t *testing.T) {
 
 			g.Expect(result.RequeueAfter).Should(BeZero())
 
-			di := resources.GvkToUnstructured(gvk.Dashboard)
+			di := resources.GvkToUnstructured(scheme.TestPlatformObjectGVK)
 			di.SetName(dash.GetName())
 
 			err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
@@ -211,8 +224,8 @@ func TestConditions(t *testing.T) {
 			err = cli.Delete(ctx, di, client.PropagationPolicy(metav1.DeletePropagationBackground))
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			g.Eventually(func() ([]componentApi.Dashboard, error) {
-				l := componentApi.DashboardList{}
+			g.Eventually(func() ([]scheme.TestPlatformObject, error) {
+				l := scheme.TestPlatformObjectList{}
 				if err := cli.List(ctx, &l, client.InNamespace("")); err != nil {
 					return nil, err
 				}
@@ -231,6 +244,7 @@ func TestRequeueAfterError_CausesRequeue(t *testing.T) {
 	et, err := envt.New()
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
+	registerTestPlatformObjectCRD(t, g, et)
 
 	cli := et.Client()
 
@@ -241,8 +255,8 @@ func TestRequeueAfterError_CausesRequeue(t *testing.T) {
 	err = cli.Create(ctx, dsci)
 	g.Expect(err).NotTo(HaveOccurred())
 
-	dash := resources.GvkToUnstructured(gvk.Dashboard)
-	dash.SetName(componentApi.DashboardInstanceName)
+	dash := resources.GvkToUnstructured(scheme.TestPlatformObjectGVK)
+	dash.SetName("test-instance")
 	dash.SetGeneration(1)
 
 	err = cli.Create(ctx, dash)
@@ -264,15 +278,15 @@ func TestRequeueAfterError_CausesRequeue(t *testing.T) {
 	})
 
 	result, err := cc.Reconcile(ctx, ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: componentApi.DashboardInstanceName},
+		NamespacedName: types.NamespacedName{Name: "test-instance"},
 	})
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(result.RequeueAfter).Should(Equal(requeueDuration))
 	g.Expect(secondActionExecuted).To(BeTrue(), "actions after RequeueAfterError should still execute")
 
-	di := resources.GvkToUnstructured(gvk.Dashboard)
-	di.SetName(componentApi.DashboardInstanceName)
+	di := resources.GvkToUnstructured(scheme.TestPlatformObjectGVK)
+	di.SetName("test-instance")
 
 	err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -291,11 +305,12 @@ func TestPreConditions_StopReconciliation(t *testing.T) {
 	et, err := envt.New()
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
+	registerTestPlatformObjectCRD(t, g, et)
 
 	cli := et.Client()
 
-	dash := resources.GvkToUnstructured(gvk.Dashboard)
-	dash.SetName(componentApi.DashboardInstanceName)
+	dash := resources.GvkToUnstructured(scheme.TestPlatformObjectGVK)
+	dash.SetName("test-instance")
 	dash.SetGeneration(1)
 
 	err = cli.Create(ctx, dash)
@@ -309,7 +324,7 @@ func TestPreConditions_StopReconciliation(t *testing.T) {
 	cc := createReconciler(cli)
 	cc.preConditions = []precondition.PreCondition{
 		precondition.MonitorCRD(
-			schema.GroupVersionKind{Group: "fake.opendatahub.io", Version: "v1", Kind: "FakeResource"},
+			"fakeresources.fake.opendatahub.io",
 			precondition.WithStopReconciliation(),
 		),
 	}
@@ -319,15 +334,15 @@ func TestPreConditions_StopReconciliation(t *testing.T) {
 	})
 
 	result, err := cc.Reconcile(ctx, ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: componentApi.DashboardInstanceName},
+		NamespacedName: types.NamespacedName{Name: "test-instance"},
 	})
 
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(result.RequeueAfter).Should(BeZero())
+	g.Expect(result.RequeueAfter).Should(BeNumerically(">", 0), "precondition failure must schedule a requeue")
 	g.Expect(actionExecuted).To(BeFalse())
 
-	di := resources.GvkToUnstructured(gvk.Dashboard)
-	di.SetName(componentApi.DashboardInstanceName)
+	di := resources.GvkToUnstructured(scheme.TestPlatformObjectGVK)
+	di.SetName("test-instance")
 
 	err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -337,6 +352,74 @@ func TestPreConditions_StopReconciliation(t *testing.T) {
 		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse),
 		jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionTypeProvisioningSucceeded, "PreConditionFailed"),
 	))
+}
+
+func TestPreConditions_StopReconciliation_RecoverAfterCRDAppears(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	fakeGVK := schema.GroupVersionKind{Group: "fake.opendatahub.io", Version: "v1", Kind: "FakeResource"}
+	fakeCRDName := "fakeresources.fake.opendatahub.io"
+
+	et, err := envt.New(envt.WithManager(ctrl.Options{
+		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+	}))
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
+	registerTestPlatformObjectCRD(t, g, et)
+
+	mgr := et.Manager()
+	cli := et.Client()
+
+	instance := &scheme.TestPlatformObject{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-instance", Generation: 1},
+	}
+	instance.SetGroupVersionKind(scheme.TestPlatformObjectGVK)
+	g.Expect(cli.Create(ctx, instance)).To(Succeed())
+
+	var actionExecuted atomic.Bool
+
+	_, err = ReconcilerFor(mgr, &scheme.TestPlatformObject{}).
+		WithInstanceName(xid.New().String()).
+		WithPreCondition(precondition.MonitorCRD(fakeCRDName, precondition.WithStopReconciliation())).
+		WithAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
+			actionExecuted.Store(true)
+			return nil
+		}).
+		Build(ctx)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	startManager(t, g, mgr)
+
+	// Step 1: verify controller enters PreConditionFailed (CRD absent)
+	fetched := resources.GvkToUnstructured(scheme.TestPlatformObjectGVK)
+	fetched.SetName("test-instance")
+
+	g.Eventually(func(gg Gomega) {
+		gg.Expect(cli.Get(ctx, client.ObjectKeyFromObject(fetched), fetched)).To(Succeed())
+		gg.Expect(fetched).Should(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`,
+				status.ConditionTypeProvisioningSucceeded, "PreConditionFailed"),
+		)
+	}).WithTimeout(10 * time.Second).Should(Succeed())
+	g.Expect(actionExecuted.Load()).To(BeFalse())
+
+	// Step 2: register the CRD (becomes Established)
+	crd, err := et.RegisterCRD(ctx, fakeGVK, "fakeresources", "fakeresource", apiextensionsv1.ClusterScoped)
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() {
+		_ = cli.Delete(ctx, crd, client.PropagationPolicy(metav1.DeletePropagationBackground))
+	})
+
+	// Step 3: verify controller recovers via requeue
+	g.Eventually(actionExecuted.Load).WithTimeout(60*time.Second).WithPolling(1*time.Second).Should(BeTrue(),
+		"controller should recover after CRD appears via requeue")
+
+	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(fetched), fetched)).To(Succeed())
+	g.Expect(fetched).Should(
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+			status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+	)
 }
 
 // TestReconcilerBuilder_WatchMethods_UseUnstructured verifies that all watch
@@ -351,34 +434,35 @@ func TestReconcilerBuilder_WatchMethods_UseUnstructured(t *testing.T) {
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
+	registerTestPlatformObjectCRD(t, g, et)
 
 	mgr := et.Manager()
 
 	tests := []struct {
 		name       string
-		setupWatch func(*ReconcilerBuilder[*componentApi.Dashboard])
+		setupWatch func(*ReconcilerBuilder[*scheme.TestPlatformObject])
 	}{
 		{
 			name: "Owns with typed object",
-			setupWatch: func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+			setupWatch: func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
 				b.Owns(&corev1.ConfigMap{})
 			},
 		},
 		{
 			name: "Watches with typed object",
-			setupWatch: func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+			setupWatch: func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
 				b.Watches(&corev1.Secret{})
 			},
 		},
 		{
 			name: "OwnsGVK",
-			setupWatch: func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+			setupWatch: func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
 				b.OwnsGVK(gvk.Deployment)
 			},
 		},
 		{
 			name: "WatchesGVK",
-			setupWatch: func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+			setupWatch: func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
 				b.WatchesGVK(gvk.Secret)
 			},
 		},
@@ -386,7 +470,7 @@ func TestReconcilerBuilder_WatchMethods_UseUnstructured(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			builder := ReconcilerFor(mgr, &componentApi.Dashboard{})
+			builder := ReconcilerFor(mgr, &scheme.TestPlatformObject{})
 			tt.setupWatch(builder)
 
 			g.Expect(builder.watches).To(HaveLen(1),
@@ -407,14 +491,15 @@ func TestReconcilerBuilder_ComposeWith(t *testing.T) {
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
+	registerTestPlatformObjectCRD(t, g, et)
 
 	mgr := et.Manager()
 
 	t.Run("fn is called with the builder", func(t *testing.T) {
 		g := NewWithT(t)
 		called := false
-		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
-		b.ComposeWith(func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+		b := ReconcilerFor(mgr, &scheme.TestPlatformObject{})
+		b.ComposeWith(func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
 			called = true
 		})
 		g.Expect(called).To(BeTrue())
@@ -422,17 +507,17 @@ func TestReconcilerBuilder_ComposeWith(t *testing.T) {
 
 	t.Run("returns the same builder", func(t *testing.T) {
 		g := NewWithT(t)
-		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
-		result := b.ComposeWith(func(*ReconcilerBuilder[*componentApi.Dashboard]) {})
+		b := ReconcilerFor(mgr, &scheme.TestPlatformObject{})
+		result := b.ComposeWith(func(*ReconcilerBuilder[*scheme.TestPlatformObject]) {})
 		g.Expect(result).To(BeIdenticalTo(b))
 	})
 
 	t.Run("actions registered inside fn land at call position", func(t *testing.T) {
 		g := NewWithT(t)
 		noop := func(_ context.Context, _ *odhtype.ReconciliationRequest) error { return nil }
-		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
+		b := ReconcilerFor(mgr, &scheme.TestPlatformObject{})
 		b.WithAction(noop)
-		b.ComposeWith(func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+		b.ComposeWith(func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
 			b.WithAction(noop)
 			b.WithAction(noop)
 		})
@@ -443,10 +528,10 @@ func TestReconcilerBuilder_ComposeWith(t *testing.T) {
 	t.Run("multiple ComposeWith calls compose correctly", func(t *testing.T) {
 		g := NewWithT(t)
 		noop := func(_ context.Context, _ *odhtype.ReconciliationRequest) error { return nil }
-		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
-		b.ComposeWith(func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+		b := ReconcilerFor(mgr, &scheme.TestPlatformObject{})
+		b.ComposeWith(func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
 			b.WithAction(noop)
-		}).ComposeWith(func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+		}).ComposeWith(func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
 			b.WithAction(noop)
 			b.WithAction(noop)
 		})
@@ -455,7 +540,7 @@ func TestReconcilerBuilder_ComposeWith(t *testing.T) {
 
 	t.Run("nil fn panics immediately", func(t *testing.T) {
 		g := NewWithT(t)
-		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
+		b := ReconcilerFor(mgr, &scheme.TestPlatformObject{})
 		g.Expect(func() {
 			b.ComposeWith(nil)
 		}).To(Panic())
@@ -464,8 +549,8 @@ func TestReconcilerBuilder_ComposeWith(t *testing.T) {
 	t.Run("errors from fn surface in b.errors and are returned by Build()", func(t *testing.T) {
 		g := NewWithT(t)
 		injected := errors.New("injected error")
-		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
-		b.ComposeWith(func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+		b := ReconcilerFor(mgr, &scheme.TestPlatformObject{})
+		b.ComposeWith(func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
 			b.errors = injected
 		})
 		_, buildErr := b.Build(context.Background())
@@ -477,7 +562,7 @@ func TestReconcilerBuilder_WithActionE(t *testing.T) {
 	t.Run("adds action when no error", func(t *testing.T) {
 		g := NewWithT(t)
 		noop := func(_ context.Context, _ *odhtype.ReconciliationRequest) error { return nil }
-		b := &ReconcilerBuilder[*componentApi.Dashboard]{}
+		b := &ReconcilerBuilder[*scheme.TestPlatformObject]{}
 		b.WithActionE(noop, nil)
 		g.Expect(b.actions).To(HaveLen(1))
 		g.Expect(b.errors).ToNot(HaveOccurred())
@@ -485,7 +570,7 @@ func TestReconcilerBuilder_WithActionE(t *testing.T) {
 
 	t.Run("accumulates error and skips action", func(t *testing.T) {
 		g := NewWithT(t)
-		b := &ReconcilerBuilder[*componentApi.Dashboard]{}
+		b := &ReconcilerBuilder[*scheme.TestPlatformObject]{}
 		b.WithActionE(nil, errors.New("action init failed"))
 		g.Expect(b.actions).To(BeEmpty())
 		g.Expect(b.errors).To(HaveOccurred())
@@ -493,7 +578,7 @@ func TestReconcilerBuilder_WithActionE(t *testing.T) {
 
 	t.Run("error surfaces in Build()", func(t *testing.T) {
 		g := NewWithT(t)
-		b := &ReconcilerBuilder[*componentApi.Dashboard]{}
+		b := &ReconcilerBuilder[*scheme.TestPlatformObject]{}
 		b.WithActionE(nil, errors.New("action init failed"))
 		_, buildErr := b.Build(context.Background())
 		g.Expect(buildErr).To(MatchError(ContainSubstring("action init failed")))
@@ -508,17 +593,18 @@ func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
+	registerTestPlatformObjectCRD(t, g, et)
 
 	mgr := et.Manager()
 
 	t.Run("dynamic ownership disabled by default", func(t *testing.T) {
-		r, err := NewReconciler(mgr, "test", &componentApi.Dashboard{})
+		r, err := NewReconciler(mgr, "test", &scheme.TestPlatformObject{})
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(r.IsDynamicOwnershipEnabled()).To(BeFalse())
 	})
 
 	t.Run("dynamic ownership enabled with option", func(t *testing.T) {
-		r, err := NewReconciler(mgr, "test", &componentApi.Dashboard{},
+		r, err := NewReconciler(mgr, "test", &scheme.TestPlatformObject{},
 			withDynamicOwnership(),
 		)
 		g.Expect(err).NotTo(HaveOccurred())
@@ -526,7 +612,7 @@ func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 	})
 
 	t.Run("dynamic ownership with excluded GVKs", func(t *testing.T) {
-		r, err := NewReconciler(mgr, "test", &componentApi.Dashboard{},
+		r, err := NewReconciler(mgr, "test", &scheme.TestPlatformObject{},
 			withDynamicOwnership(ExcludeGVKs(gvk.ConfigMap, gvk.Secret)),
 		)
 		g.Expect(err).NotTo(HaveOccurred())
@@ -538,7 +624,7 @@ func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 
 	t.Run("Owns returns true after AddDynamicOwnedType", func(t *testing.T) {
 		g := NewWithT(t)
-		r, err := NewReconciler(mgr, "test", &componentApi.Dashboard{},
+		r, err := NewReconciler(mgr, "test", &scheme.TestPlatformObject{},
 			withDynamicOwnership(),
 		)
 		g.Expect(err).NotTo(HaveOccurred())
@@ -556,7 +642,7 @@ func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 
 	t.Run("Owns returns true for both static and dynamic ownership", func(t *testing.T) {
 		g := NewWithT(t)
-		r, err := NewReconciler(mgr, "test", &componentApi.Dashboard{},
+		r, err := NewReconciler(mgr, "test", &scheme.TestPlatformObject{},
 			withDynamicOwnership(),
 		)
 		g.Expect(err).NotTo(HaveOccurred())
@@ -583,6 +669,7 @@ func TestDynamicOwnership_DeployAction(t *testing.T) {
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
+	registerTestPlatformObjectCRD(t, g, et)
 
 	mgr := et.Manager()
 	cli := et.Client()
@@ -592,10 +679,10 @@ func TestDynamicOwnership_DeployAction(t *testing.T) {
 	g.Expect(cli.Create(ctx, ns)).To(Succeed())
 
 	// Create Dashboard instance (owner)
-	dashboard := &componentApi.Dashboard{
-		ObjectMeta: metav1.ObjectMeta{Name: componentApi.DashboardInstanceName, Generation: 1},
+	dashboard := &scheme.TestPlatformObject{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-instance", Generation: 1},
 	}
-	dashboard.SetGroupVersionKind(gvk.Dashboard)
+	dashboard.SetGroupVersionKind(scheme.TestPlatformObjectGVK)
 	g.Expect(cli.Create(ctx, dashboard)).To(Succeed())
 	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(dashboard), dashboard)).To(Succeed())
 
@@ -604,7 +691,7 @@ func TestDynamicOwnership_DeployAction(t *testing.T) {
 	notManagedCMName := xid.New().String()
 
 	// Create reconciler using builder pattern with dynamic ownership enabled
-	rec, err := ReconcilerFor(mgr, &componentApi.Dashboard{}).
+	rec, err := ReconcilerFor(mgr, &scheme.TestPlatformObject{}).
 		WithInstanceName(xid.New().String()).
 		WithDynamicOwnership(ExcludeGVKs(gvk.Secret)).
 		WithAction(func(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
@@ -656,9 +743,9 @@ func TestDynamicOwnership_DeployAction(t *testing.T) {
 	ownerRefs := deployedConfigMap.GetOwnerReferences()
 	g.Expect(ownerRefs).To(HaveLen(1), "Resource should have exactly one owner reference")
 	g.Expect(ownerRefs[0]).To(Equal(metav1.OwnerReference{
-		APIVersion:         gvk.Dashboard.GroupVersion().String(),
-		Kind:               gvk.Dashboard.Kind,
-		Name:               componentApi.DashboardInstanceName,
+		APIVersion:         scheme.TestPlatformObjectGVK.GroupVersion().String(),
+		Kind:               scheme.TestPlatformObjectGVK.Kind,
+		Name:               "test-instance",
 		UID:                dashboard.GetUID(),
 		Controller:         new(true),
 		BlockOwnerDeletion: new(true),
@@ -789,6 +876,7 @@ func TestDynamicOwnership_DisabledByDefault(t *testing.T) {
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
+	registerTestPlatformObjectCRD(t, g, et)
 
 	mgr := et.Manager()
 	cli := et.Client()
@@ -796,15 +884,15 @@ func TestDynamicOwnership_DisabledByDefault(t *testing.T) {
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: nsName}}
 	g.Expect(cli.Create(ctx, ns)).To(Succeed())
 
-	dashboard := &componentApi.Dashboard{
-		ObjectMeta: metav1.ObjectMeta{Name: componentApi.DashboardInstanceName, Generation: 1},
+	dashboard := &scheme.TestPlatformObject{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-instance", Generation: 1},
 	}
-	dashboard.SetGroupVersionKind(gvk.Dashboard)
+	dashboard.SetGroupVersionKind(scheme.TestPlatformObjectGVK)
 	g.Expect(cli.Create(ctx, dashboard)).To(Succeed())
 	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(dashboard), dashboard)).To(Succeed())
 
 	// Create reconciler WITHOUT dynamic ownership (default)
-	rec, err := ReconcilerFor(mgr, &componentApi.Dashboard{}).
+	rec, err := ReconcilerFor(mgr, &scheme.TestPlatformObject{}).
 		WithInstanceName(xid.New().String()).
 		WithAction(func(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 			// Prepare a ConfigMap to deploy
@@ -843,6 +931,7 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
+	registerTestPlatformObjectCRD(t, g, et)
 
 	mgr := et.Manager()
 	cli := et.Client()
@@ -852,10 +941,10 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 	g.Expect(cli.Create(ctx, ns)).To(Succeed())
 
 	// Create Dashboard instance (owner)
-	dashboard := &componentApi.Dashboard{
-		ObjectMeta: metav1.ObjectMeta{Name: componentApi.DashboardInstanceName, Generation: 1},
+	dashboard := &scheme.TestPlatformObject{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-instance", Generation: 1},
 	}
-	dashboard.SetGroupVersionKind(gvk.Dashboard)
+	dashboard.SetGroupVersionKind(scheme.TestPlatformObjectGVK)
 	g.Expect(cli.Create(ctx, dashboard)).To(Succeed())
 	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(dashboard), dashboard)).To(Succeed())
 
@@ -876,7 +965,7 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 	cmName := xid.New().String()
 
 	// Create reconciler with dynamic ownership, excluding CRDs from ownership
-	rec, err := ReconcilerFor(mgr, &componentApi.Dashboard{}).
+	rec, err := ReconcilerFor(mgr, &scheme.TestPlatformObject{}).
 		WithInstanceName(xid.New().String()).
 		WithDynamicOwnership().
 		WithAction(func(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
@@ -924,7 +1013,7 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 	g.Eventually(func(gg Gomega) {
 		gg.Expect(cli.Get(ctx, client.ObjectKey{Name: crName, Namespace: nsName}, deployedCR)).To(Succeed())
 		gg.Expect(deployedCR.GetOwnerReferences()).To(HaveLen(1), "CR should have owner reference")
-		gg.Expect(deployedCR.GetOwnerReferences()[0].Kind).To(Equal("Dashboard"))
+		gg.Expect(deployedCR.GetOwnerReferences()[0].Kind).To(Equal(scheme.TestPlatformObjectGVK.Kind))
 	}).WithTimeout(30*time.Second).WithPolling(1*time.Second).Should(Succeed(), "CR should be deployed with owner reference")
 
 	// Verify ConfigMap was deployed WITH owner reference
@@ -991,6 +1080,7 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
+	registerTestPlatformObjectCRD(t, g, et)
 
 	mgr := et.Manager()
 	cli := et.Client()
@@ -1000,10 +1090,10 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 	g.Expect(cli.Create(ctx, ns)).To(Succeed())
 
 	// Create Dashboard instance (owner)
-	dashboard := &componentApi.Dashboard{
-		ObjectMeta: metav1.ObjectMeta{Name: componentApi.DashboardInstanceName, Generation: 1},
+	dashboard := &scheme.TestPlatformObject{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-instance", Generation: 1},
 	}
-	dashboard.SetGroupVersionKind(gvk.Dashboard)
+	dashboard.SetGroupVersionKind(scheme.TestPlatformObjectGVK)
 	g.Expect(cli.Create(ctx, dashboard)).To(Succeed())
 	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(dashboard), dashboard)).To(Succeed())
 
@@ -1018,7 +1108,7 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 	}
 
 	// Create reconciler with dynamic ownership and custom GVK predicates
-	rec, err := ReconcilerFor(mgr, &componentApi.Dashboard{}).
+	rec, err := ReconcilerFor(mgr, &scheme.TestPlatformObject{}).
 		WithInstanceName(xid.New().String()).
 		WithDynamicOwnership(
 			WithGVKPredicates(map[schema.GroupVersionKind][]predicate.Predicate{
@@ -1077,7 +1167,7 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 	deployedDeployment := &appsv1.Deployment{}
 	g.Expect(cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: nsName}, deployedDeployment)).To(Succeed())
 	g.Expect(deployedDeployment.GetOwnerReferences()).To(HaveLen(1))
-	g.Expect(deployedDeployment.GetOwnerReferences()[0].Kind).To(Equal(gvk.Dashboard.Kind))
+	g.Expect(deployedDeployment.GetOwnerReferences()[0].Kind).To(Equal(scheme.TestPlatformObjectGVK.Kind))
 
 	// Verify ConfigMap was deployed with owner reference
 	deployedCM := &corev1.ConfigMap{}
@@ -1211,6 +1301,7 @@ func TestDynamicOwnership_GCWithDynamicAction(t *testing.T) {
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
+	registerTestPlatformObjectCRD(t, g, et)
 
 	mgr := et.Manager()
 	cli := et.Client()
@@ -1220,10 +1311,10 @@ func TestDynamicOwnership_GCWithDynamicAction(t *testing.T) {
 	g.Expect(cli.Create(ctx, ns)).To(Succeed())
 
 	// Create Dashboard instance (owner)
-	dashboard := &componentApi.Dashboard{
-		ObjectMeta: metav1.ObjectMeta{Name: componentApi.DashboardInstanceName, Generation: 1},
+	dashboard := &scheme.TestPlatformObject{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-instance", Generation: 1},
 	}
-	dashboard.SetGroupVersionKind(gvk.Dashboard)
+	dashboard.SetGroupVersionKind(scheme.TestPlatformObjectGVK)
 	g.Expect(cli.Create(ctx, dashboard)).To(Succeed())
 	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(dashboard), dashboard)).To(Succeed())
 
@@ -1238,7 +1329,7 @@ func TestDynamicOwnership_GCWithDynamicAction(t *testing.T) {
 
 	// Build reconciler with deploy + GC (using Owns-based TypePredicate, like DSC) + dynamic ownership.
 	// Action order: addResources → deploy → GC → [internal: dynamicWatch, dynamicOwnership]
-	rec, err := ReconcilerFor(mgr, &componentApi.Dashboard{}).
+	rec, err := ReconcilerFor(mgr, &scheme.TestPlatformObject{}).
 		WithInstanceName(xid.New().String()).
 		WithDynamicOwnership().
 		WithAction(func(_ context.Context, rr *odhtype.ReconciliationRequest) error {
@@ -1347,6 +1438,7 @@ func TestDynamicOwnership_StaticOwnershipPrecedence(t *testing.T) {
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
+	registerTestPlatformObjectCRD(t, g, et)
 
 	mgr := et.Manager()
 	cli := et.Client()
@@ -1356,10 +1448,10 @@ func TestDynamicOwnership_StaticOwnershipPrecedence(t *testing.T) {
 	g.Expect(cli.Create(ctx, ns)).To(Succeed())
 
 	// Create Dashboard instance (owner)
-	dashboard := &componentApi.Dashboard{
-		ObjectMeta: metav1.ObjectMeta{Name: componentApi.DashboardInstanceName, Generation: 1},
+	dashboard := &scheme.TestPlatformObject{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-instance", Generation: 1},
 	}
-	dashboard.SetGroupVersionKind(gvk.Dashboard)
+	dashboard.SetGroupVersionKind(scheme.TestPlatformObjectGVK)
 	g.Expect(cli.Create(ctx, dashboard)).To(Succeed())
 	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(dashboard), dashboard)).To(Succeed())
 
@@ -1369,7 +1461,7 @@ func TestDynamicOwnership_StaticOwnershipPrecedence(t *testing.T) {
 	// - Static ownership of ConfigMap via .OwnsGVK()
 	// - Dynamic ownership enabled with ConfigMap EXCLUDED
 	// Static ownership should take precedence: ConfigMap gets owner references despite exclusion.
-	rec, err := ReconcilerFor(mgr, &componentApi.Dashboard{}).
+	rec, err := ReconcilerFor(mgr, &scheme.TestPlatformObject{}).
 		WithInstanceName(xid.New().String()).
 		OwnsGVK(gvk.ConfigMap).
 		WithDynamicOwnership(ExcludeGVKs(gvk.ConfigMap)).
@@ -1406,9 +1498,9 @@ func TestDynamicOwnership_StaticOwnershipPrecedence(t *testing.T) {
 	ownerRefs := deployedCM.GetOwnerReferences()
 	g.Expect(ownerRefs).To(HaveLen(1), "Static ownership should set owner reference despite dynamic exclusion")
 	g.Expect(ownerRefs[0]).To(Equal(metav1.OwnerReference{
-		APIVersion:         gvk.Dashboard.GroupVersion().String(),
-		Kind:               gvk.Dashboard.Kind,
-		Name:               componentApi.DashboardInstanceName,
+		APIVersion:         scheme.TestPlatformObjectGVK.GroupVersion().String(),
+		Kind:               scheme.TestPlatformObjectGVK.Kind,
+		Name:               "test-instance",
 		UID:                dashboard.GetUID(),
 		Controller:         new(true),
 		BlockOwnerDeletion: new(true),

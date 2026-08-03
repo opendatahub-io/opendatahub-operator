@@ -15,7 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -23,6 +22,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -373,7 +373,7 @@ func TestCertManagerDependencyOrderingIntegration(t *testing.T) {
 
 		rr := controllerTypes.ReconciliationRequest{
 			Client:   envTest.Client(),
-			Instance: &componentApi.Dashboard{ObjectMeta: metav1.ObjectMeta{Generation: 1}},
+			Instance: &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Generation: 1}},
 			Release: common.Release{
 				Name: cluster.OpenDataHub,
 				Version: version.OperatorVersion{Version: semver.Version{
