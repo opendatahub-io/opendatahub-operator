@@ -60,7 +60,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
   value: "quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:9678988fa6e909e261d25ca3b3c6ff967fc1c8475569e4eeeec1d8b3ca2565fe"
 - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
-  value: "quay.io/rhoai/odh-kube-rbac-proxy-rhel9@sha256:d2e4c77f612005dc8e7f9b73c03e244f173604c476598b1c59cfe8ec35fe8016"
+  value: "quay.io/rhoai/odh-kube-rbac-proxy-rhel9@sha256:f02c33ea723654e0ad8de37ebe82f74c4968a74cd21ed27f0b47806fadc4fac3"
 - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_PREDICTION_IMAGE
   value: "quay.io/rhoai/odh-latency-predictor-prediction-rhel9@sha256:6ef7ba11877425b3b914d8d7b2e13fd5d3e9dc17e0f9c719627bff2a2f828426"
 - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TRAINING_IMAGE
@@ -206,7 +206,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE
   value: "quay.io/rhoai/odh-trustyai-nemo-guardrails-server-rhel9@sha256:4bc3f98f9550812cdeaa189b6ba070d7eb34cbdb6016cbdf676a9feead28c4fc"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE
-  value: "quay.io/rhoai/odh-trustyai-service-rhel9@sha256:38fab9fe466854c46a95a07c0fbb06a4abf8020775b20f84cf7ce2d61c560938"
+  value: "quay.io/rhoai/odh-trustyai-service-rhel9@sha256:9f4acbd6d3ea4277dae4296972c9533ccf5d38e538fb222b65c46cbb723b15ea"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-trustyai-service-operator-rhel9@sha256:e76a65def284544a1f7e1dd7dcff0108d5872bab6db556ff3cc4df086c71fef3"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
