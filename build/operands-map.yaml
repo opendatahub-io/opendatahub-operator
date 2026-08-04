@@ -12,9 +12,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
   value: "quay.io/rhoai/odh-cli-rhel9@sha256:a0e6488bc8dbd909e85e30ec340250db56d163bcb84317117673373269e37abe"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
-  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:98b974e81c37ee95bd828b68688a7dc105c3736bafc116dc6869ca673c208ea5"
+  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:62cb2c87da310c225714a46e65fa18cb4246f46b5126b360470adbdc30b2b487"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:2ee72ddb8ad927d14694f087327fcc3aeb819e42edbe4a2c78773b23ce012c85"
+  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:b2b071e0d35b772cea2ba2860ca2acb76baede53e5abe8a4558167481e585b74"
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:55d72f43b3c9393f7980205ce721a135a44d37219453b1bb7c002759fa481a13"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE
@@ -130,7 +130,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-eval-hub-rhel9@sha256:a1414cc7266595d51bc0740c10c349fff1b3f350ab121e1243213aea80e0579c"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE
-  value: "quay.io/rhoai/odh-mod-arch-gen-ai-rhel9@sha256:60d969ed77b193146e0e87b87f8694feb040000f4ffdc4e19a4357c1f5809a34"
+  value: "quay.io/rhoai/odh-mod-arch-gen-ai-rhel9@sha256:b845d8ed54063c8d343e4afcec2d2a70696509f851271a508a519c40b64a36a0"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-maas-rhel9@sha256:777f69df44d6c30d4eee88d04f832bd11f07cce57c5e641059dd1498c87b21b5"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MLFLOW_IMAGE
