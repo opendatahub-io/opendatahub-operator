@@ -156,6 +156,18 @@ func (h *handler) BuildModuleCR(
 			return nil, fmt.Errorf("failed to convert KserveCommonSpec to unstructured: %w", err)
 		}
 		delete(spec, "modelsAsService")
+
+		// Inject cross-component ModelRegistry state.
+		// ModelRegistry is a separate DSC component, not a Kserve sub-component.
+		// We forward its management state so kserve-module can propagate it
+		// to odh-model-controller's params.env as "modelregistry-state".
+		mrState := string(platform.DSC.Spec.Components.ModelRegistry.ManagementState)
+		if mrState == "" {
+			mrState = string(operatorv1.Removed)
+		}
+		spec["modelRegistry"] = map[string]any{
+			"managementState": mrState,
+		}
 	case platform.Platform != nil:
 		return nil, nil
 	default:
