@@ -49,23 +49,4 @@ spec:
       app.kubernetes.io/name: data-science-collector-prometheus
       app.kubernetes.io/part-of: opentelemetry
 {{- end }}
----
-apiVersion: monitoring.rhobs/v1
-kind: ServiceMonitor
-metadata:
-  name: opendatahub-operator-metrics
-  namespace: {{.Namespace}}
-spec:
-  endpoints:
-    - port: https
-      scheme: https
-      tlsConfig:
-        insecureSkipVerify: true
-      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
-  namespaceSelector:
-    matchNames:
-      - {{.OperatorNamespace}}
-  selector:
-    matchLabels:
-      control-plane: controller-manager
 
