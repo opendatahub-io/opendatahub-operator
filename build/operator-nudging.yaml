@@ -46,7 +46,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
   value: quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:b1f1d3d48ef816757c4588e306367a5b0df8fe16bc4f685dedeb0b15a7cb93bc
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
-  value: quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:68562cc1b04deb3e731058f6061a26100298fc227a2d61ed077ebcafe2023716
+  value: quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:79f434fe7b2ff56d95c83bdc50f2096dbf9867cf49025649476408fd3d6a4021
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
   value: quay.io/rhoai/odh-kserve-localmodel-controller-rhel9@sha256:a6b768505279d65a8fa29082b543de4c10ffe3faef5a417a99ec054bcacb959e
 - name: RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE
