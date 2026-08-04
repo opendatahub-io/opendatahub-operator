@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/config"
@@ -362,7 +363,7 @@ func TestPreConditions_StopReconciliation_RecoverAfterCRDAppears(t *testing.T) {
 	fakeCRDName := "fakeresources.fake.opendatahub.io"
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: ptr.To(true)}, //nolint:modernize
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
