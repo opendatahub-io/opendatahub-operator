@@ -100,7 +100,7 @@ additional_meta:
     git.commit: 636f1eaaac556e1c7a32d2d0eca598a25c6731d1
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 9bbbd1aeeffd7814cb8162cea422c2694c38f9e9
+    git.commit: e744f0b2ad768c15bd729bb72abc3cf20b0d6b75
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: e744f0b2ad768c15bd729bb72abc3cf20b0d6b75
