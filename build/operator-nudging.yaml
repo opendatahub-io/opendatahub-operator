@@ -50,7 +50,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
   value: quay.io/rhoai/odh-kserve-localmodel-controller-rhel9@sha256:f42fbe2fbbc5d6845dd4542b97fda767d025d13457b201a1b705ed70d991c217
 - name: RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE
-  value: quay.io/rhoai/odh-kserve-module-operator-rhel9@sha256:4f16d9f0ca66d5df9b4a648105f4cf668850c89399cc1f04f0c050e3ef70f80b
+  value: quay.io/rhoai/odh-kserve-module-operator-rhel9@sha256:7d4a1ffbc940bdb1ed3d0ead27cb0668577a980bcc850340e9c8d118bb5adc71
 - name: RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE
   value: quay.io/rhoai/odh-kserve-router-rhel9@sha256:bb631d90749e2daef9a24c8a15b87cc84ca328ee6b8308fc249b56bb009f9838
 - name: RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE
