@@ -14,7 +14,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
   value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:ca6aeac5c8a7506e1333c19f50a1a218f66220503fc20053f9212d78da7ebdc9"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:b05e7f84f0f778f4b06d8cf5856a0d4e41bcfff435289899d9e80f6d25a7d100"
+  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:cdf38f4e13b97a06fcd13ec2b30012f135a808307368c67334f070a5fe4ee427"
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:87d2429d7653330cd9caa9b5533824d0a45e58ff3f58cedd78007fdf585702cc"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE
@@ -38,7 +38,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kf-notebook-controller-rhel9@sha256:397cfee166ac6b3a7a1bf699891dd60970771b0c2ea1e096591bcb005d585553"
 - name: RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE
-  value: "quay.io/rhoai/odh-kserve-agent-rhel9@sha256:06d513b468300a243fa8ae731d4e350ddce4482e62ce2700f2a446d7aed1dca3"
+  value: "quay.io/rhoai/odh-kserve-agent-rhel9@sha256:8125061612541d653f97027c0b9f1db83366607a67cd8e1ade50a1e9ea5db26b"
 - name: RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE
   value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:bfa757afe5b3cb972c992a0f7df36196c012c121ac251bd91021987bd76ec8a3"
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
@@ -48,9 +48,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
   value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:e0362b007090a0bc64304d72d9c5f54e511bfa8804d97e027907d6eb34bc66ed"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9@sha256:f42fbe2fbbc5d6845dd4542b97fda767d025d13457b201a1b705ed70d991c217"
+  value: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9@sha256:363747a8781decf06d75aa710cf31b6558a6eea073a02ca9a96fa5ab29fc8bfa"
 - name: RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-kserve-module-operator-rhel9@sha256:4f16d9f0ca66d5df9b4a648105f4cf668850c89399cc1f04f0c050e3ef70f80b"
+  value: "quay.io/rhoai/odh-kserve-module-operator-rhel9@sha256:7d4a1ffbc940bdb1ed3d0ead27cb0668577a980bcc850340e9c8d118bb5adc71"
 - name: RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE
   value: "quay.io/rhoai/odh-kserve-router-rhel9@sha256:bb631d90749e2daef9a24c8a15b87cc84ca328ee6b8308fc249b56bb009f9838"
 - name: RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE
@@ -72,7 +72,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE
   value: "quay.io/rhoai/odh-llm-d-batch-gateway-gc-rhel9@sha256:8343f465f2fcc311503e2bff57301e86914ff3bcc71aeb96dd8bfa82442f2cd0"
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-llm-d-batch-gateway-operator-rhel9@sha256:c4c30a20db11cbd364eb8bcfed7b8eb4e8c7c43e3a5f5b9d38d7a82268136b34"
+  value: "quay.io/rhoai/odh-llm-d-batch-gateway-operator-rhel9@sha256:daba30d6137f06f811d07df1b5e378d8fa7f01217803494a49e8c2d2edf6a9b8"
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE
   value: "quay.io/rhoai/odh-llm-d-batch-gateway-processor-rhel9@sha256:d25f74c68e3dd19b5cb7ec20c8647c9e1139bf7cc41762a940d39fdbcba7859a"
 - name: RELATED_IMAGE_ODH_LLM_D_ROUTER_DISAGG_SIDECAR_IMAGE
@@ -114,7 +114,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE
   value: "quay.io/rhoai/odh-model-performance-data-rhel9@sha256:4a7d385e320beedc5aa8b10c676283aa9d706191878aded22469bee3d2cf5694"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE
-  value: "quay.io/rhoai/odh-model-registry-rhel9@sha256:39ef4fd08ccdd100636be875311db0f560745c7461a6eb2c99b38ad8783b42f6"
+  value: "quay.io/rhoai/odh-model-registry-rhel9@sha256:2c336efcaf4e92984d66f2164eb62e02cdfb17c3f0ded29d85ff04b80140d92e"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE
   value: "quay.io/rhoai/odh-model-registry-job-async-upload-rhel9@sha256:88dab9eec30c82e9e92a43eec08feca8c2c4afb037dc2c0b20b34b923a0edf32"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE
