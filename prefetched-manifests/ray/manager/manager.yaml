@@ -37,6 +37,9 @@ spec:
         - name: http
           containerPort: 8080
           protocol: TCP
+        - name: health
+          containerPort: 8082
+          protocol: TCP
         name: kuberay-operator
         securityContext:
           allowPrivilegeEscalation: false
@@ -48,15 +51,15 @@ spec:
             type: RuntimeDefault
         livenessProbe:
           httpGet:
-            path: /metrics
-            port: http
+            path: /healthz
+            port: health
           initialDelaySeconds: 10
           periodSeconds: 5
           failureThreshold: 5
         readinessProbe:
           httpGet:
-            path: /metrics
-            port: http
+            path: /readyz
+            port: health
           initialDelaySeconds: 10
           periodSeconds: 5
           failureThreshold: 5

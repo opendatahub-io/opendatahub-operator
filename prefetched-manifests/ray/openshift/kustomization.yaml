@@ -38,6 +38,7 @@ resources:
 - ray_operator_scc.yaml
 - ../default
 - webhook.yaml
+- ../overlays/odh/rbac/tls
 
 commonLabels:
   app.kubernetes.io/name: kuberay
@@ -56,4 +57,15 @@ patches:
     group: apps
     version: v1
     kind: Deployment
+    name: kuberay-operator
+- path: tls-metrics-patch.yaml
+  target:
+    group: apps
+    version: v1
+    kind: Deployment
+    name: kuberay-operator
+- path: tls-service-patch.yaml
+  target:
+    version: v1
+    kind: Service
     name: kuberay-operator
