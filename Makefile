@@ -354,28 +354,20 @@ validate-related-images: yq ## Validate RELATED_IMAGE_* names against build conf
 		YQ=$(YQ) ./.github/scripts/validate-related-images.sh
 
 .PHONY: resolve-image-digests
-resolve-image-digests: yq ## Resolve image digests from registry and update manifests-config.yaml
-	YQ=$(YQ) ./hack/resolve-image-digests.sh
+resolve-image-digests: ## Resolve image digests from Build-Config and update manifests-config.yaml
+	go run -C ./cmd/manifest-tools main.go resolve-digests --config $(CURDIR)/manifests-config.yaml --manifests-dir $(CURDIR)/opt/manifests
 
 .PHONY: generate-image-overrides
-generate-image-overrides: yq ## Generate RELATED_IMAGE_* override env file from manifests-config.yaml
-	ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE) YQ=$(YQ) ./hack/generate-image-overrides.sh
+generate-image-overrides: ## Generate RELATED_IMAGE_* override env file from manifests-config.yaml
+	go run -C ./cmd/manifest-tools main.go generate-overrides --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --output $(CURDIR)/opt/related-images-override.env
 
 .PHONY: apply-image-overrides
-apply-image-overrides: generate-image-overrides ## Apply image overrides to manager.yaml (for make deploy)
-	@if [ -f opt/related-images-override.env ] && [ -s opt/related-images-override.env ]; then \
-		while IFS='=' read -r name value; do \
-			[ -z "$$name" ] && continue; \
-			case "$$name" in \#*) continue ;; esac; \
-			case "$$value" in *'$$('*|*'`'*|*$$'\n'*) echo "ERROR: unsafe value for $$name" >&2; exit 1 ;; esac; \
-			export "$$name=$$value"; \
-		done < opt/related-images-override.env && \
-		./.github/scripts/apply-operator-images.sh; \
-	fi
+apply-image-overrides: ## Apply image overrides to manager.yaml (for make deploy)
+	go run -C ./cmd/manifest-tools main.go apply-deploy --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --manager-file $(CURDIR)/config/manager/manager.yaml
 
 .PHONY: apply-image-overrides-olm
-apply-image-overrides-olm: generate-image-overrides ## Apply image overrides to OLM Subscription (for operator-sdk run bundle)
-	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) OPERATOR_PACKAGE=$(OPERATOR_PACKAGE) ./hack/apply-image-overrides-olm.sh
+apply-image-overrides-olm: ## Apply image overrides to OLM Subscription (for operator-sdk run bundle)
+	go run -C ./cmd/manifest-tools main.go apply-olm --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --namespace $(OPERATOR_NAMESPACE) --package $(OPERATOR_PACKAGE)
 
 # Default to standard sed command
 SED_COMMAND = sed

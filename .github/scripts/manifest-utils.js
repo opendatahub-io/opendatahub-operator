@@ -36,18 +36,22 @@ async function getLatestCommitSha(github, org, repo, ref) {
  */
 function readYaml(filePath) {
     const yq = process.env.YQ || 'yq';
-const json = execFileSync(yq, ['eval', '-o=json', '.', filePath], { encoding: 'utf8' });
+    const json = execFileSync(yq, ['eval', '-o=json', '.', filePath], { encoding: 'utf8' });
     return JSON.parse(json);
 }
 
 /**
- * Write JSON object back to YAML file using yq
+ * Write JSON object back to YAML file using yq.
+ * Note: this JSON round-trip does not preserve YAML comments. This is acceptable
+ * because the JS scripts only update ref fields in the components/charts sections,
+ * not the imageOverrides section which has comments. For comment-preserving edits,
+ * use the Go manifest-tools CLI instead.
  * @param {string} filePath - Path to YAML file
  * @param {object} data - Data to write
  */
 function writeYaml(filePath, data) {
     const yq = process.env.YQ || 'yq';
-const jsonFile = filePath + '.tmp.json';
+    const jsonFile = filePath + '.tmp.json';
     try {
         fs.writeFileSync(jsonFile, JSON.stringify(data, null, 2));
         const yamlOutput = execFileSync(yq, ['eval', '-P', '.', jsonFile], { encoding: 'utf8' });
@@ -77,13 +81,11 @@ function parseSectionComponents(sectionData, section) {
         }
         for (const platform of ['odh', 'rhoai']) {
             const platformEntry = entry[platform];
-            if (!platformEntry || !platformEntry.repo) {
+            if (!platformEntry || !platformEntry.repo || !platformEntry.ref) {
                 continue;
             }
 
-            const repoParts = platformEntry.repo.split('/');
-            const org = repoParts[0];
-            const repo = repoParts.slice(1).join('/');
+            const [org, repo] = platformEntry.repo.split('/', 2);
 
             const component = {
                 componentName,

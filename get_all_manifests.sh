@@ -76,6 +76,9 @@ read_yaml_section() {
             sub(/:.*/, "", field_name)
             sub(/^[^:]+:[[:space:]]*/, "", field_val)
 
+            # Strip surrounding quotes from value
+            gsub(/^["'"'"']|["'"'"']$/, "", field_val)
+
             if (field_name == "repo") repo = field_val
             else if (field_name == "ref") ref = field_val
             else if (field_name == "sourcePath") source_path = field_val
@@ -85,11 +88,20 @@ read_yaml_section() {
                 # Convert org/name → org:name
                 gsub(/\//, ":", repo)
                 printf "%s|%s:%s:%s\n", cur_key, repo, ref, source_path
+                count++
                 repo = ""; ref = ""; source_path = ""
             }
             next
         }
+        END { printf "COUNT|%d\n", count }
     ' "$CONFIG_FILE")
+
+    local actual_count="${_target[COUNT]:-0}"
+    unset '_target[COUNT]'
+
+    if [[ "$actual_count" -gt 0 ]]; then
+        echo "  Parsed $actual_count entries from $section/$platform"
+    fi
 }
 
 # Select platform

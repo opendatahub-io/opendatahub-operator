@@ -364,7 +364,9 @@ e.g `make image-build USE_LOCAL=true"`
 
 #### Image Overrides
 
-Component operator images can be pinned by digest for reproducible testing. Image digests are configured in `manifests-config.yaml` under the `imageOverrides` section.
+Component operator images can be pinned by digest for reproducible testing. Image digests are configured in `manifests-config.yaml` under the `imageOverrides` section, sourced from the ODH-Build-Config CSV.
+
+> **Note:** For OLM deployments, image overrides are applied *after* `operator-sdk run bundle` creates the Subscription. This is safe because the DSC starts with all components set to `Removed`, so no component images are pulled before the overrides are applied.
 
 ```shell
 # Resolve digests (run after updating manifest SHAs)
@@ -377,8 +379,8 @@ make deploy IMG=...
 operator-sdk run bundle ...
 make apply-image-overrides-olm
 
-# For E2E with OLM overrides (opt-in)
-APPLY_IMAGE_OVERRIDES=1 make e2e-test
+# For E2E with OLM overrides (auto-applied, skip with SKIP_IMAGE_OVERRIDES=1)
+make e2e-test
 ```
 
 **Deploying operator using OLM**
