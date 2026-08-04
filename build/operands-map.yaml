@@ -42,17 +42,17 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE
   value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:a4c23a666fc618adb35e35c2759aa848638d77732319e5e39f3373edcce8523b"
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:674ae79dc3268525e6d72b0fbae73953145df0941a39b75505da8abb0952072d"
+  value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:eed36b81c33a5ea945955ad24c8ca685d5642bbcd3686e809cd662984b40e0d8"
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:0f12ce0e3ff39665e2ded5f1f7069aca227e75080bffa5e5095f6380ff1ebe85"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
-  value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:79f434fe7b2ff56d95c83bdc50f2096dbf9867cf49025649476408fd3d6a4021"
+  value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:0074e899ce5080c61d0010066500bde0b6170f19cd625a70a6d444f2162e1388"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9@sha256:3451b74878b46a1227e4f4ec7c4a7aab3d929dba5d3df35c4a9562e50476dcc4"
 - name: RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-kserve-module-operator-rhel9@sha256:a601967fed2f057512eb73f64c6b8f8ed5ac4465b206b90233721fc77453559a"
+  value: "quay.io/rhoai/odh-kserve-module-operator-rhel9@sha256:9dbd3f4782a23ee04b130ce65cc69c9ee443e79e171ed5cd9219ee57a3c57f29"
 - name: RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-router-rhel9@sha256:0157bcd1c229282c93c9916bd726273c9caa5d00d43002e05e77ae7ca2f8997e"
+  value: "quay.io/rhoai/odh-kserve-router-rhel9@sha256:db99f4d2c6fb10f4c84a0d5f6d93580af0927b15c0e2991b37f62bc19d5b7e6d"
 - name: RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE
   value: "quay.io/rhoai/odh-kserve-storage-initializer-rhel9@sha256:65f5cb3580d55024249e5ff3ed653a80008eda8a4ec58bbd52b4865940c35c3d"
 - name: RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE
