@@ -5,9 +5,11 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	semver "github.com/blang/semver/v4"
 	ofversion "github.com/operator-framework/api/pkg/lib/version"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -18,6 +20,7 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
@@ -517,5 +520,111 @@ func TestComputeModulesStatusInfoDependencyKeepsModulesReady(t *testing.T) {
 	}
 	if ready.Status != metav1.ConditionTrue {
 		t.Fatalf("expected ModulesReady=True (Info dep is non-gating), got %s: %q", ready.Status, ready.Message)
+	}
+}
+
+// noMatchErrorModuleStub is a ModuleHandler whose GetModuleStatus returns a
+// NoKindMatchError, simulating a missing CRD.
+type noMatchErrorModuleStub struct {
+	provisioningModuleStub
+}
+
+func (s noMatchErrorModuleStub) GetModuleStatus(_ context.Context, _ client.Client) (*ModuleStatus, error) {
+	return nil, &meta.NoKindMatchError{
+		GroupKind: schema.GroupKind{
+			Group: testProvisioningModuleGroup,
+			Kind:  testProvisioningModuleKind,
+		},
+	}
+}
+
+func TestComputeModulesStatusRequeuesOnCRDAbsent(t *testing.T) {
+	withTestRegistry(t)
+
+	handler := noMatchErrorModuleStub{
+		provisioningModuleStub: provisioningModuleStub{
+			moduleName: "crd-absent-module",
+			enabled:    true,
+		},
+	}
+	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
+
+	dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName}}
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
+	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	rr := &types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+	}
+
+	err = ComputeModulesStatus(context.Background(), rr)
+
+	// Must return a RequeueAfterError so the controller retries.
+	var requeueErr odherrors.RequeueAfterError
+	if !errors.As(err, &requeueErr) {
+		t.Fatalf("expected RequeueAfterError when module CRD is absent, got: %v", err)
+	}
+	if requeueErr.After != 30*time.Second {
+		t.Fatalf("expected 30s requeue delay, got %v", requeueErr.After)
+	}
+
+	// ModulesReady condition must still be set (aggregation ran despite the requeue).
+	modulesReady := conditions.FindStatusCondition(dsc.GetStatus(), status.ConditionTypeModulesReady)
+	if modulesReady == nil {
+		t.Fatalf("expected ModulesReady condition to be set even when CRD is absent")
+	}
+	if modulesReady.Status != metav1.ConditionFalse {
+		t.Fatalf("expected ModulesReady=False, got %s", modulesReady.Status)
+	}
+
+	// Per-module condition must mention the missing CRD.
+	moduleCond := conditions.FindStatusCondition(dsc.GetStatus(), testProvisioningModuleKind+status.ReadySuffix)
+	if moduleCond == nil {
+		t.Fatalf("expected per-module condition to be set")
+	}
+	if moduleCond.Status != metav1.ConditionFalse {
+		t.Fatalf("expected per-module condition=False, got %s", moduleCond.Status)
+	}
+}
+
+func TestComputeModulesStatusNoRequeueOnRegularError(t *testing.T) {
+	withTestRegistry(t)
+
+	handler := legacyStatusFieldsWriterStub{
+		provisioningModuleStub: provisioningModuleStub{
+			moduleName: "error-module",
+			enabled:    true,
+		},
+		getStatusErr: errors.New("some transient API error"),
+	}
+	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
+
+	dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName}}
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
+	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	rr := &types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+	}
+
+	err = ComputeModulesStatus(context.Background(), rr)
+
+	// Regular errors should NOT trigger a requeue.
+	if err != nil {
+		t.Fatalf("expected nil error for regular GetModuleStatus failures, got: %v", err)
 	}
 }
