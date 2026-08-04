@@ -94,7 +94,7 @@ additional_meta:
     git.commit: 5897dd31c21d6435f003d042627cd380cf49bd01
   odh-built-in-detector:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
-    git.commit: f6d3917e946202d6fc63432b0ec2aec1b1353ca0
+    git.commit: 44da11b03e6ed6d54da3a0d89e64db76d5673ecf
   odh-cli:
     git.url: https://github.com/red-hat-data-services/odh-cli
     git.commit: 12af139e79a28a2ab009bcff87b0cf13b56e8a31
