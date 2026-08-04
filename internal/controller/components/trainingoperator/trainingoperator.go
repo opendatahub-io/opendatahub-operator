@@ -92,7 +92,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	if s.IsEnabled(dsc) {
 		log := logf.FromContext(ctx)
-		log.Info("TrainingOperator v1 is obsolete in RHOAI 3.6, customer must set managementState to Removed to uninstall")
+		log.V(1).Info("TrainingOperator v1 is obsolete in RHOAI 3.6, customer must set managementState to Removed to uninstall")
 
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
