@@ -20,7 +20,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dynamicownership"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -28,6 +27,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -60,7 +60,7 @@ func TestDynamicOwnershipAction_SkipsWhenDisabled(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "test-dashboard",
 			},
@@ -104,7 +104,7 @@ func TestDynamicOwnershipAction(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "test-dashboard",
 			},
@@ -166,7 +166,7 @@ func TestDynamicOwnershipAction_CRDWatch(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "test-dashboard",
 			},
@@ -239,7 +239,7 @@ func TestDynamicOwnershipAction_ManagedByFalseWithSameGVK(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "test-dashboard",
 			},
@@ -297,7 +297,7 @@ func TestDynamicOwnershipAction_CRDWatchDeduplication(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "test-dashboard",
 			},
@@ -361,7 +361,7 @@ func TestDynamicOwnershipAction_WithCustomManagedByFalseMatcher(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "test-dashboard",
 			},
@@ -438,7 +438,7 @@ func TestDynamicOwnershipAction_WithGVKPredicates(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "test-dashboard",
 			},
@@ -502,7 +502,7 @@ func TestDynamicOwnershipAction_DynamicOwnsDedup(t *testing.T) {
 	// First reconciliation: watch should be registered
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "test-dashboard",
 			},
