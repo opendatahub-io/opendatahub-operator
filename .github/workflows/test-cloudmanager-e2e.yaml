@@ -117,7 +117,20 @@ jobs:
 
       - name: Build operator image
         if: steps.prior-run.outputs.already_passed != 'true'
-        run: make image-build
+        run: |
+          for attempt in {1..3}; do
+            echo "Build attempt $attempt..."
+            if make image-build; then
+              echo "Build succeeded"
+              exit 0
+            fi
+            if [ $attempt -lt 3 ]; then
+              echo "Build failed, waiting before retry..."
+              sleep 10
+            fi
+          done
+          echo "Build failed after 3 attempts"
+          exit 1
 
       - name: Load image into kind
         if: steps.prior-run.outputs.already_passed != 'true'
