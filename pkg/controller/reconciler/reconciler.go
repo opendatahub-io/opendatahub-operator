@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"time"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -69,6 +70,18 @@ func WithConditionsManagerFactory(happy string, dependents ...string) Reconciler
 	}
 }
 
+func withSkipConditionCleanup() ReconcilerOpt {
+	return func(reconciler *Reconciler) {
+		reconciler.skipConditionCleanup = true
+	}
+}
+
+func withSkipStatusConditions(pred func() bool) ReconcilerOpt {
+	return func(reconciler *Reconciler) {
+		reconciler.skipStatusConditionsFn = pred
+	}
+}
+
 // withDynamicOwnership enables dynamic ownership mode for the reconciler.
 // When enabled, the controller will automatically track ownership of resources
 // that are deployed, without requiring explicit .Owns() declarations.
@@ -112,6 +125,8 @@ type Reconciler struct {
 	dynamicGvks                 sync.Map
 	dynamicOwnershipEnabled     bool
 	excludeFromDynamicOwnership map[schema.GroupVersionKind]struct{}
+	skipConditionCleanup        bool
+	skipStatusConditionsFn      func() bool
 }
 
 // NewReconciler creates a new reconciler for the given type.
@@ -259,8 +274,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, err
 		}
 
-		if err := r.apply(ctx, res); err != nil {
+		requeueAfter, err := r.apply(ctx, res)
+		if err != nil {
 			return ctrl.Result{}, err
+		}
+
+		if requeueAfter > 0 {
+			l.V(1).Info("scheduling requeue for DAG timeout", "after", requeueAfter.Truncate(time.Second))
+			return ctrl.Result{RequeueAfter: requeueAfter}, nil
 		}
 	}
 
@@ -341,7 +362,7 @@ func (r *Reconciler) delete(ctx context.Context, res common.PlatformObject) erro
 	return nil
 }
 
-func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error {
+func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time.Duration, error) {
 	l := log.FromContext(ctx)
 	l.Info("apply")
 
@@ -367,9 +388,14 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 	shouldStop := precondition.RunAll(ctx, &rr, r.preConditions)
 
 	var provisionErr error
+	var requeueAfter time.Duration
 
 	if shouldStop {
 		l.Info("Preconditions not met, stopping reconciliation")
+
+		// Safety net: requeue so the controller retries even if all watch
+		// events for the resource type were consumed.
+		requeueAfter = 30 * time.Second
 
 		rr.Conditions.MarkFalse(
 			status.ConditionTypeProvisioningSucceeded,
@@ -389,6 +415,14 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 
 			provisionErr = action(actx, &rr)
 			if provisionErr != nil {
+				re := odherrors.RequeueAfterError{}
+				if errors.As(provisionErr, &re) {
+					requeueAfter = re.After
+					provisionErr = nil
+
+					continue
+				}
+
 				break
 			}
 		}
@@ -409,7 +443,9 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 
 	// Remove conditions that were present before Reset but were
 	// not re-set during this cycle (e.g. disabled components).
-	rr.Conditions.CleanupStaleConditions()
+	if !r.skipConditionCleanup {
+		rr.Conditions.CleanupStaleConditions()
+	}
 
 	is := rr.Instance.GetStatus()
 	is.Phase = status.PhaseNotReady
@@ -425,6 +461,12 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 	if rr.Conditions.IsHappy() {
 		is.Phase = status.PhaseReady
 		is.ObservedGeneration = rr.Instance.GetGeneration()
+	}
+
+	if r.skipStatusConditionsFn != nil && r.skipStatusConditionsFn() {
+		is.Conditions = nil
+		is.Phase = ""
+		is.ObservedGeneration = 0
 	}
 
 	err := resources.ApplyStatus(
@@ -445,7 +487,7 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 			err.Error(),
 		)
 
-		return fmt.Errorf("reconcile failed: %w", err)
+		return 0, fmt.Errorf("reconcile failed: %w", err)
 	}
 
 	if provisionErr != nil {
@@ -458,8 +500,8 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 			provisionErr.Error(),
 		)
 
-		return fmt.Errorf("provisioning failed: %w", provisionErr)
+		return 0, fmt.Errorf("provisioning failed: %w", provisionErr)
 	}
 
-	return nil
+	return requeueAfter, nil
 }

@@ -1,0 +1,11 @@
+# Cloned eval harness (installed by setup.sh)
+.agent-eval-harness/
+
+# Generated at runtime
+dataset/
+results/
+.runtime-*.yaml
+
+# Python
+__pycache__/
+*.pyc

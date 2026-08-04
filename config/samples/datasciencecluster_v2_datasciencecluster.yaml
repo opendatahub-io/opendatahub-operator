@@ -6,6 +6,12 @@ metadata:
     app.kubernetes.io/name: datasciencecluster
 spec:
   components:
+    aigateway:
+      managementState: "Removed"
+      modelsAsAService:
+        managementState: "Removed"
+      batchGateway:
+        managementState: "Removed"
     dashboard:
       managementState: "Managed"
     aipipelines:
@@ -37,8 +43,10 @@ spec:
     llamastackoperator:
       managementState: "Removed"
     ogx:
-      managementState: "Removed"
+      managementState: "Managed"
     mlflowoperator:
-      managementState: "Removed"
+      managementState: "Managed"
     sparkoperator:
+      managementState: "Removed"
+    mcplifecycleoperator:
       managementState: "Removed"

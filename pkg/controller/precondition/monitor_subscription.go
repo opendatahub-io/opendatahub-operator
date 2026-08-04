@@ -16,6 +16,9 @@ type SubscriptionDependency struct {
 
 	// DisplayName is the human-readable name used in condition messages.
 	DisplayName string
+
+	// If set, overrides the default "<DisplayName>: subscription not found"
+	Message string
 }
 
 // MonitorSubscriptions creates a precondition that checks for OLM subscription
@@ -48,7 +51,11 @@ func MonitorSubscriptions(subscriptions []SubscriptionDependency, opts ...Option
 			}
 
 			if !found {
-				missing = append(missing, sub.DisplayName+": subscription not found")
+				msg := sub.DisplayName + ": subscription not found"
+				if sub.Message != "" {
+					msg = sub.Message
+				}
+				missing = append(missing, msg)
 			}
 		}
 

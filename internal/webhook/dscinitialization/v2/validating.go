@@ -5,7 +5,9 @@ package v2
 import (
 	"context"
 	"fmt"
+	"net/http"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -13,18 +15,21 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
-//+kubebuilder:webhook:path=/validate-dscinitialization-v2,matchPolicy=Exact,mutating=false,failurePolicy=fail,sideEffects=None,groups=dscinitialization.opendatahub.io,resources=dscinitializations,verbs=create;delete,versions=v2,name=dscinitialization-v2-validator.opendatahub.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-dscinitialization-v2,matchPolicy=Exact,mutating=false,failurePolicy=fail,sideEffects=None,groups=dscinitialization.opendatahub.io,resources=dscinitializations,verbs=create;update;delete,versions=v2,name=dscinitialization-v2-validator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
 // Validator implements webhook.AdmissionHandler for DSCInitialization v2 validation webhooks.
 // It enforces singleton creation and deletion rules for DSCInitialization resources.
 type Validator struct {
-	Client client.Reader
-	Name   string
+	Client  client.Reader
+	Name    string
+	Decoder admission.Decoder
 }
 
 // Assert that Validator implements admission.Handler interface.
@@ -46,8 +51,8 @@ func (v *Validator) SetupWithManager(mgr ctrl.Manager) error {
 	return nil
 }
 
-// Handle processes admission requests for create and delete operations on DSCInitialization v2 resources.
-// It enforces singleton and deletion rules, allowing other operations by default.
+// Handle processes admission requests for create, update, and delete operations on DSCInitialization v2 resources.
+// It enforces singleton creation, PEM validation for customCABundle, and deletion rules.
 //
 // Parameters:
 //   - ctx: Context for the admission request (logger is extracted from here).
@@ -59,21 +64,42 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 	log := logf.FromContext(ctx)
 	ctx = logf.IntoContext(ctx, log)
 
-	var resp admission.Response
+	allowMessage := fmt.Sprintf("Operation %s on %s v2 allowed", req.Operation, req.Kind.Kind)
 
 	switch req.Operation {
 	case admissionv1.Create:
-		resp = webhookutils.ValidateSingletonCreation(ctx, v.Client, &req, gvk.DSCInitialization)
+		if resp := webhookutils.ValidateSingletonCreation(ctx, v.Client, &req, gvk.DSCInitialization); !resp.Allowed {
+			return resp
+		}
+		return v.validateSpec(ctx, &req, allowMessage)
+	case admissionv1.Update:
+		return v.validateSpec(ctx, &req, allowMessage)
 	case admissionv1.Delete:
-		resp = webhookutils.DenyCountGtZero(ctx, v.Client, gvk.DataScienceCluster,
+		resp := webhookutils.DenyCountGtZero(ctx, v.Client, gvk.DataScienceCluster,
 			"Cannot delete DSCInitialization v2 object when DataScienceCluster object still exists")
+		if !resp.Allowed {
+			return resp
+		}
+		return admission.Allowed(allowMessage)
 	default:
-		resp.Allowed = true
+		return admission.Allowed(allowMessage)
+	}
+}
+
+func (v *Validator) validateSpec(ctx context.Context, req *admission.Request, allowMessage string) admission.Response {
+	dsci := &dsciv2.DSCInitialization{}
+	if err := v.Decoder.DecodeRaw(req.Object, dsci); err != nil {
+		logf.FromContext(ctx).Error(err, "failed to decode DSCInitialization v2")
+		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	if !resp.Allowed {
-		return resp
+	if dsci.Spec.TrustedCABundle != nil &&
+		dsci.Spec.TrustedCABundle.ManagementState == operatorv1.Managed &&
+		dsci.Spec.TrustedCABundle.CustomCABundle != "" {
+		if err := cluster.ValidateCustomCABundle(dsci.Spec.TrustedCABundle.CustomCABundle); err != nil {
+			return admission.Denied(fmt.Sprintf("invalid customCABundle: %v", err))
+		}
 	}
 
-	return admission.Allowed(fmt.Sprintf("Operation %s on %s v2 allowed", req.Operation, req.Kind.Kind))
+	return admission.Allowed(allowMessage)
 }

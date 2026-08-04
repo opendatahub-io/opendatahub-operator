@@ -18,9 +18,52 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
+
+// ModuleEnvInjection holds aggregated environment variable injection data
+// for all enabled modules. Set by provisionModules and consumed by the
+// injectModuleEnv action to inject RELATED_IMAGE_*, APPLICATIONS_NAMESPACE,
+// MONITORING_NAMESPACE and platform identity env vars into module operator
+// Deployments.
+type ModuleEnvInjection struct {
+	// PerModuleImages maps each module's related images to its chart/manifest
+	// resources. Each entry's images are only injected into Deployments
+	// rendered from that module's operator manifests.
+	PerModuleImages []ModuleImages
+	// ApplicationsNamespace is the platform's shared application namespace.
+	ApplicationsNamespace string
+	// MonitoringNamespace is the platform's monitoring namespace. "" when
+	// monitoring is not configured or DSCI not exist (e.g xks).
+	MonitoringNamespace string
+	// PlatformType is the platform identifier (e.g. OpenDataHub,
+	// SelfManagedRHOAI, XKS). Forwarded to module operators so they
+	// can select platform-specific manifests without auto-detecting.
+	PlatformType common.Platform
+}
+
+// ModuleImages associates a module's related images with a deployment name
+// pattern so injection can be scoped to that module's operator Deployment.
+type ModuleImages struct {
+	// DeploymentName is the expected name of the module's operator Deployment.
+	// Typically the Helm release name, or the module handler name for Kustomize modules.
+	DeploymentName string
+	// ContainerName is the target container within the Deployment.
+	// Defaults to "manager" (the kubebuilder convention).
+	ContainerName string
+	// ControllerImage is the RELATED_IMAGE_* env var name whose value
+	// replaces the target container's image field. Empty means no override.
+	ControllerImage string
+	// InitContainerName is the name of an init container whose image field
+	// should also be overridden with the ControllerImage value.
+	InitContainerName string
+	// Images is the list of RELATED_IMAGE_* env var names for this module.
+	Images []string
+	// ExtraEnv is a fixed set of env vars injected directly into the target Deployment.
+	ExtraEnv map[string]string
+}
 
 // Controller defines the core interface for a controller in the OpenDataHub Operator.
 type Controller interface {
@@ -64,6 +107,11 @@ type ManifestInfo struct {
 	Path       string
 	ContextDir string
 	SourcePath string
+
+	// Namespace overrides the default ApplicationsNamespace for Kustomize
+	// rendering. When empty, the render action uses ApplicationsNamespace.
+	// Set this for modules that deploy into a dedicated namespace.
+	Namespace string
 }
 
 func (mi ManifestInfo) String() string {
@@ -75,6 +123,10 @@ func (mi ManifestInfo) String() string {
 
 	if mi.SourcePath != "" {
 		result = path.Join(result, mi.SourcePath)
+	}
+
+	if mi.Namespace != "" {
+		result += "@ns=" + mi.Namespace
 	}
 
 	return result
@@ -90,6 +142,16 @@ type TemplateInfo struct {
 
 // HookFn is the signature for pre/post apply hooks.
 type HookFn func(ctx context.Context, rr *ReconciliationRequest) error
+
+// OperatorCR identifies the custom resource created by the operator that
+// this chart deploys. Used by the two-phase cleanup: when a dependency is
+// set to Unmanaged, the CR is filtered from deploy so GC can delete it
+// while operator resources are kept alive.
+type OperatorCR struct {
+	GVK       schema.GroupVersionKind
+	Name      string
+	Namespace string
+}
 
 // HelmChartInfo describes a Helm chart to render.
 type HelmChartInfo struct {
@@ -142,6 +204,29 @@ type ReconciliationRequest struct {
 	//       replaced with a better way of describing resources and
 	//       their origin
 	Generated bool
+
+	// SkipDeploy is set by the RunlevelGate action when the platform
+	// orchestrator has not yet reached this component's runlevel.
+	// Render, deploy, and GC actions check this flag and return early,
+	// while status-reporting actions always run so that healthy
+	// components continue to report their actual health.
+	SkipDeploy bool
+
+	// ModuleEnvInjection holds aggregated env var injection data for module
+	// operator Deployments. Set by provisionModules, consumed by
+	// injectModuleEnv. Nil when no modules are enabled.
+	ModuleEnvInjection *ModuleEnvInjection
+
+	// DSCI is the DSCInitialization instance fetched by provisionModules.
+	// Stored here so updateModuleStatus can build a PlatformContext without
+	// a duplicate API call.
+	DSCI *dsciv2.DSCInitialization
+
+	// GateEntries holds upgrade gate entries extracted from rendered chart
+	// resources by ExtractUpgradeGates. Passed to CheckUpgradeGates so all
+	// gate sources (in-tree, cluster-discovered, chart-extracted) are
+	// merged before the gate check runs.
+	GateEntries map[string]string
 }
 
 // AddResources adds one or more resources to the ReconciliationRequest's Resources slice.

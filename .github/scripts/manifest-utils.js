@@ -87,13 +87,17 @@ function parseManifestFile(filePath) {
     // Parse both ODH and RHOAI manifest blocks
     const odhComponents = parseManifestBlock(content, 'ODH_COMPONENT_MANIFESTS', 'odh');
     const rhoaiComponents = parseManifestBlock(content, 'RHOAI_COMPONENT_MANIFESTS', 'rhoai');
+    const odhCcmCharts = parseManifestBlock(content, 'ODH_CCM_CHARTS', 'odh');
     const odhCharts = parseManifestBlock(content, 'ODH_COMPONENT_CHARTS', 'odh');
+    const rhoaiCcmCharts = parseManifestBlock(content, 'RHOAI_CCM_CHARTS', 'rhoai');
     const rhoaiCharts = parseManifestBlock(content, 'RHOAI_COMPONENT_CHARTS', 'rhoai');
 
     return {
         odh: odhComponents,
         rhoai: rhoaiComponents,
+        odhCcmCharts: odhCcmCharts,
         odhCharts: odhCharts,
+        rhoaiCcmCharts: rhoaiCcmCharts,
         rhoaiCharts: rhoaiCharts
     };
 }

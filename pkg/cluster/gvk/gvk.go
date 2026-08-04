@@ -19,6 +19,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
@@ -33,6 +34,39 @@ const (
 	LeaderWorkerSetOperatorCRDname = "leaderworkersetoperators.operator.openshift.io"
 	SubscriptionCRDname            = "subscriptions.operators.coreos.com"
 	VariantAutoscalingCRDname      = "variantautoscalings.llmd.ai"
+
+	// Istio CRDs — networking.istio.io.
+	DestinationRuleCRDName = "destinationrules.networking.istio.io"
+	EnvoyFilterCRDName     = "envoyfilters.networking.istio.io"
+	IstioGatewayCRDName    = "gateways.networking.istio.io"
+	ProxyConfigCRDName     = "proxyconfigs.networking.istio.io"
+	ServiceEntryCRDName    = "serviceentries.networking.istio.io"
+	SidecarCRDName         = "sidecars.networking.istio.io"
+	WorkloadEntryCRDName   = "workloadentries.networking.istio.io"
+	WorkloadGroupCRDName   = "workloadgroups.networking.istio.io"
+
+	// Istio CRDs — security.istio.io.
+	AuthorizationPolicyCRDName   = "authorizationpolicies.security.istio.io"
+	PeerAuthenticationCRDName    = "peerauthentications.security.istio.io"
+	RequestAuthenticationCRDName = "requestauthentications.security.istio.io"
+
+	// Istio CRDs — telemetry.istio.io.
+	TelemetryCRDName = "telemetries.telemetry.istio.io"
+
+	// Istio CRDs — extensions.istio.io.
+	WasmPluginCRDName = "wasmplugins.extensions.istio.io"
+
+	// cert-manager CRDs.
+	CertManagerCertificateCRDName        = "certificates.cert-manager.io"
+	CertManagerCertificateRequestCRDName = "certificaterequests.cert-manager.io"
+	CertManagerIssuerCRDName             = "issuers.cert-manager.io"
+	CertManagerClusterIssuerCRDName      = "clusterissuers.cert-manager.io"
+
+	// LeaderWorkerSet CRD.
+	LeaderWorkerSetCRDName = "leaderworkersets.leaderworkerset.x-k8s.io"
+
+	// KServe CRDs.
+	InferenceServicesCRDName = "inferenceservices.serving.kserve.io"
 )
 
 var (
@@ -228,6 +262,12 @@ var (
 		Kind:    "Ingress",
 	}
 
+	OpenshiftAPIServer = schema.GroupVersionKind{
+		Group:   configv1.GroupVersion.Group,
+		Version: configv1.GroupVersion.Version,
+		Kind:    "APIServer",
+	}
+
 	SecurityContextConstraints = schema.GroupVersionKind{
 		Group:   securityv1.SchemeGroupVersion.Group,
 		Version: securityv1.SchemeGroupVersion.Version,
@@ -280,12 +320,6 @@ var (
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
 		Kind:    componentApi.WorkbenchesKind,
-	}
-
-	ModelController = schema.GroupVersionKind{
-		Group:   componentApi.GroupVersion.Group,
-		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.ModelControllerKind,
 	}
 
 	ModelMeshServing = schema.GroupVersionKind{
@@ -360,6 +394,12 @@ var (
 		Kind:    serviceApi.MonitoringKind,
 	}
 
+	Platform = schema.GroupVersionKind{
+		Group:   configApi.GroupVersion.Group,
+		Version: configApi.GroupVersion.Version,
+		Kind:    configApi.PlatformKind,
+	}
+
 	FeastOperator = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
@@ -378,16 +418,28 @@ var (
 		Kind:    componentApi.SparkOperatorKind,
 	}
 
+	MCPLifecycleOperator = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.MCPLifecycleOperatorKind,
+	}
+
 	ModelsAsService = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
 		Kind:    componentApi.ModelsAsServiceKind,
 	}
 
-	Tenant = schema.GroupVersionKind{
+	AIGateway = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.AIGatewayKind,
+	}
+
+	MaasTenantConfig = schema.GroupVersionKind{
 		Group:   "maas.opendatahub.io",
 		Version: "v1alpha1",
-		Kind:    "Tenant",
+		Kind:    "MaasTenantConfig",
 	}
 
 	// MaasConfig is the cluster-scoped MaaS anchor CR (maas.opendatahub.io/v1alpha1, Kind=Config).
@@ -508,6 +560,12 @@ var (
 		Group:   "sailoperator.io",
 		Version: "v1",
 		Kind:    "Istio",
+	}
+
+	IstioRevision = schema.GroupVersionKind{
+		Group:   "sailoperator.io",
+		Version: "v1",
+		Kind:    "IstioRevision",
 	}
 
 	GatewayConfig = schema.GroupVersionKind{

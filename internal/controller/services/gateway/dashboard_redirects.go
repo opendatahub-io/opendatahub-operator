@@ -81,7 +81,7 @@ func createDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRe
 
 	// When the Dashboard component is not deployed there is no dashboard route
 	// to redirect from, so the redirect pods serve no purpose.
-	dashboard := &componentApi.Dashboard{}
+	dashboard := resources.GvkToUnstructured(gvk.Dashboard)
 	if err := rr.Client.Get(ctx, client.ObjectKey{Name: componentApi.DashboardInstanceName}, dashboard); err != nil {
 		if k8serr.IsNotFound(err) {
 			l.Info("Dashboard CR not found, cleaning up dashboard redirect resources")

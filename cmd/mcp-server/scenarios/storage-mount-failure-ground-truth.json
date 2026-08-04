@@ -1,0 +1,28 @@
+{
+  "scenario_id": "storage-mount-failure",
+  "scenario_name": "Storage Mount Failure",
+  "description": "Deployment patched to reference a nonexistent Secret volume, causing FailedMount events and pods stuck in ContainerCreating",
+  "root_cause": "Deployment references a nonexistent Secret 'scenario-nonexistent-secret' as a volume mount",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "storage",
+    "error_code": 1006,
+    "confidence": "medium"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "Pod stuck in Pending or ContainerCreating state",
+    "Events show FailedMount with message referencing missing Secret",
+    "Deployment shows reduced ready replicas"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "recent_events"
+  ],
+  "expected_remediation": "Remove the nonexistent Secret volume mount from the deployment or create the missing Secret 'scenario-nonexistent-secret'"
+}

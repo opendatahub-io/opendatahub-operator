@@ -8,7 +8,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
+	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dashboard"
 	dscv1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v1"
@@ -17,8 +17,6 @@ import (
 	dsciv2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v2"
 	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	monitoringwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/monitoring"
-	notebookwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/notebook"
-	serving "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/serving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
@@ -39,15 +37,13 @@ func RegisterAllWebhooks(mgr ctrl.Manager) error {
 		{name: "dsc-v2", register: dscv2webhook.RegisterWebhooks, disabled: func() bool { return !flags.IsDSCEnabled() }},
 		{name: "dsci-v1", register: dsciv1webhook.RegisterWebhooks, disabled: func() bool { return !flags.IsDSCIEnabled() }},
 		{name: "dsci-v2", register: dsciv2webhook.RegisterWebhooks, disabled: func() bool { return !flags.IsDSCIEnabled() }},
-		{name: "hardwareprofile", register: hardwareprofilewebhook.RegisterWebhooks, disabled: func() bool {
-			return !cr.IsEnabled(componentApi.KserveComponentName) && !cr.IsEnabled(componentApi.WorkbenchesComponentName)
+		// hardwareprofile: no OLM webhookDefinitions for serving (odh-model-controller, #3777).
+		// Notebook connection/HWP admission is owned by workbenches-operator.
+		{name: "hardwareprofile", register: hardwareprofilewebhook.RegisterWebhooks},
+		{name: "monitoring", register: monitoringwebhook.RegisterWebhooks, disabled: func() bool {
+			return !sr.IsEnabled(serviceApi.MonitoringServiceName) && !mr.IsEnabled(serviceApi.MonitoringServiceName)
 		}},
-		// NOTE: kueue validating webhook is disabled. To re-enable, uncomment the entry below.
-		// {name: "kueue", register: kueuewebhook.RegisterWebhooks, disabled: func() bool { return !cr.IsEnabled(componentApi.KueueComponentName) }},
-		{name: "monitoring", register: monitoringwebhook.RegisterWebhooks, disabled: func() bool { return !sr.IsEnabled(serviceApi.MonitoringServiceName) }},
-		{name: "serving", register: serving.RegisterWebhooks, disabled: func() bool { return !cr.IsEnabled(componentApi.KserveComponentName) }},
-		{name: "notebook", register: notebookwebhook.RegisterWebhooks, disabled: func() bool { return !cr.IsEnabled(componentApi.WorkbenchesComponentName) }},
-		{name: "dashboard", register: dashboard.RegisterWebhooks, disabled: func() bool { return !cr.IsEnabled(componentApi.DashboardComponentName) }},
+		{name: "dashboard", register: dashboard.RegisterWebhooks, disabled: func() bool { return !mr.IsEnabled(componentApi.DashboardComponentName) }},
 	}
 
 	for _, e := range entries {

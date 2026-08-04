@@ -412,8 +412,8 @@ func (r *DSCInitializationReconciler) watchMonitoringResource(ctx context.Contex
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: serviceApi.MonitoringInstanceName}}}
 	}
 
-	// Monitoring CR exists — trigger DSCI reconciliation so it can propagate
-	// the latest Monitoring status conditions into its own status.
+	// Monitoring CR exists — trigger DSCI reconciliation so it can
+	// propagate the latest Monitoring status into its own conditions.
 	dsciList := &dsciv2.DSCInitializationList{}
 	if err := r.Client.List(ctx, dsciList); err != nil {
 		log.Error(err, "Failed to get DSCInitializationList")
@@ -441,8 +441,6 @@ func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Co
 	monitoringConditions := monitoring.GetConditions()
 	conditions := make([]DSCInitializationCondition, 0, len(monitoringConditions)+1)
 
-	// we filter the conditions from the Monitoring CR to the list to be returned later
-	// we only care about the ones that are related to dependant operators (e.g. Thanos, OpenTelemetry, etc.)
 	for _, c := range monitoringConditions {
 		switch c.Type {
 		case status.ConditionTypeReady,
@@ -467,7 +465,6 @@ func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Co
 		return []DSCInitializationCondition{{status.ConditionMonitoringReady, status.NotReadyReason, "Monitoring stack is initializing", metav1.ConditionUnknown}}
 	}
 
-	// If Monitoring stack is initialized, we add the MonitoringReady condition as True
 	conditions = append(conditions, DSCInitializationCondition{
 		Type:         status.ConditionMonitoringReady,
 		ReadyReason:  status.ReadyReason,
@@ -493,7 +490,6 @@ func (r *DSCInitializationReconciler) deleteMonitoringCR(ctx context.Context) er
 }
 
 func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci *dsciv2.DSCInitialization) error {
-	// Create Monitoring CR singleton
 	defaultMonitoring := &serviceApi.Monitoring{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       serviceApi.MonitoringKind,
@@ -520,7 +516,6 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 
 	if tracesEnabled {
 		defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
-		// Without this, when TLS.Enabled is false, the TLS struct is not removed from the Monitoring CR and it causes an error.
 		if defaultMonitoring.Spec.Traces.TLS != nil && !defaultMonitoring.Spec.Traces.TLS.Enabled {
 			defaultMonitoring.Spec.Traces.TLS = nil
 		}

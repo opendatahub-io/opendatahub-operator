@@ -1,0 +1,61 @@
+# Cluster Prometheus Tenancy Datasource for Perses
+#
+# This is a short-term workaround to provide namespace-scoped access to cluster
+# metrics via the OpenShift Monitoring stack's Thanos Querier tenancy endpoint.
+#
+# This datasource points to the cluster's Thanos Querier (in openshift-monitoring)
+# on the tenancy port (9092), which enforces namespace-level isolation by requiring
+# a namespace parameter in every query.
+#
+# This will be replaced/updated once decentralized metrics collection is implemented.
+#
+# The configuration uses:
+# - ConfigMap-based TLS CA (prometheus-web-tls-ca with OpenShift service CA)
+# - A secret for bearer token authentication to Thanos Querier
+#
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-prometheus-tenancy-datasource-secret
+  namespace: {{.Namespace}}
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+  annotations:
+    kubernetes.io/service-account.name: data-science-prometheus-cluster-proxy
+type: kubernetes.io/service-account-token
+---
+apiVersion: perses.dev/{{.PersesAPIVersion}}
+kind: PersesDatasource
+metadata:
+  name: cluster-prometheus-tenancy-datasource
+  namespace: {{.Namespace}}
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+  annotations:
+    platform.opendatahub.io/description: "Namespace-scoped Prometheus metrics via OpenShift Monitoring Thanos Querier tenancy endpoint"
+spec:
+  client:
+    tls:
+      enable: true
+      caCert:
+        type: configmap
+        namespace: {{.Namespace}}
+        name: prometheus-web-tls-ca
+        certPath: service-ca.crt
+  config:
+    default: false
+    display:
+      name: "Cluster Prometheus Tenancy"
+      description: "OpenShift Monitoring Thanos Querier tenancy endpoint - provides namespace-scoped metrics"
+    plugin:
+      kind: "PrometheusDatasource"
+      spec:
+        proxy:
+          kind: HTTPProxy
+          spec:
+            # Secret contains bearer token for Thanos Querier authentication
+            secret: cluster-prometheus-tenancy-datasource-secret
+            url: https://thanos-querier.openshift-monitoring.svc:9092
+        queryParams:
+          namespace: "${namespace:queryparam}"

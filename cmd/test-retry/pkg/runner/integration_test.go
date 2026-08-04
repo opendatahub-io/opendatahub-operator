@@ -199,6 +199,42 @@ func TestRunnerIntegration(t *testing.T) {
 	}
 }
 
+func TestRunnerTimeoutRecovery(t *testing.T) {
+	options := types.E2ETestOptions{
+		MaxRetries:        2,
+		TestPath:          "./testdata/timeout",
+		TestFlags:         "-timeout 500ms",
+		Config:            &config.Config{Verbose: false},
+		NeverSkipPrefixes: []string{},
+		SkipAtPrefixes:    []string{"TestFastPass"},
+		JUnitOutputPath:   filepath.Join(t.TempDir(), "junit.xml"),
+	}
+
+	runner := NewE2ETestRunner(options)
+	err := runner.Run()
+
+	// TestFastFail and TestSlow (timeout) persist; TestFastPass skipped in retries after passing in run 1
+	require.EqualError(t, err, "2 tests failed after retries")
+
+	suite := readJUnitFile(t, runner.opts.JUnitOutputPath)
+
+	results := make([]testCaseOutput, 0)
+	for _, tc := range suite.TestCases {
+		results = append(results, testCaseOutput{Name: tc.Name, HasFailure: tc.Failure != nil})
+	}
+	// run1: TestFastPass(pass) + TestFastFail(fail) + TestSlow(fail via panic event)
+	// retries 1 and 2: TestFastFail(fail) + TestSlow(fail) only (TestFastPass skipped)
+	require.Equal(t, []testCaseOutput{
+		{Name: "TestFastPass", HasFailure: false},
+		{Name: "TestFastFail", HasFailure: true},
+		{Name: "TestSlow", HasFailure: true},
+		{Name: "TestFastFail", HasFailure: true},
+		{Name: "TestSlow", HasFailure: true},
+		{Name: "TestFastFail", HasFailure: true},
+		{Name: "TestSlow", HasFailure: true},
+	}, results)
+}
+
 func TestNotExistsFolderShouldFail(t *testing.T) {
 	testPath := "./testdata/not-exists"
 	opts := types.E2ETestOptions{

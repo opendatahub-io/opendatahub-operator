@@ -32,6 +32,23 @@ import (
 
 var testResourceID = labels.NormalizePartOfValue(ccmv1alpha1.AzureKubernetesEngineKind)
 
+// monitorTestBuildFn extracts MonitorConfigs from instance deps without rendering any charts.
+// Used by TestMonitorDependencies to isolate monitoring logic from chart file availability.
+func monitorTestBuildFn(ctx context.Context, rr *types.ReconciliationRequest) (ccmcharts.BuildResult, error) {
+	dp, ok := rr.Instance.(ccmcommon.KubernetesEngineInstance)
+	if !ok {
+		return ccmcharts.BuildResult{}, nil
+	}
+	result, err := ccmcharts.BuildHelmCharts(ctx, rr.Client, dp.GetDependencies(), "")
+	if err != nil {
+		return ccmcharts.BuildResult{}, err
+	}
+
+	return ccmcharts.BuildResult{
+		MonitorConfigs: result.MonitorConfigs,
+	}, nil
+}
+
 var testOperatorGVK = schema.GroupVersionKind{
 	Group:   "test.cloudmanager.io",
 	Version: "v1",
@@ -143,7 +160,7 @@ func TestMonitorDependencies(t *testing.T) {
 			}
 			rr.Conditions = conditions.NewManager(instance, status.ConditionTypeReady, ConditionsTypes...)
 
-			action, err := NewReconcileAction(testResourceID)
+			action, err := NewReconcileAction(testResourceID, WithBuildChartsFn(monitorTestBuildFn))
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			err = action(ctx, rr)
@@ -257,9 +274,11 @@ func TestMonitorDependencies_OperatorCR(t *testing.T) {
 					Policy:         ccmcommon.Managed,
 					HasDeployments: true,
 					Namespace:      nsn,
-					OperatorGVK:    testOperatorGVK,
-					CRName:         "default",
-					CRNamespace:    nsn,
+					OperatorCR: &types.OperatorCR{
+						GVK:       testOperatorGVK,
+						Name:      "default",
+						Namespace: nsn,
+					},
 				},
 			}
 
@@ -362,7 +381,7 @@ func TestSummarizeDependencyStatus(t *testing.T) {
 			}
 			rr.Conditions = conditions.NewManager(instance, status.ConditionTypeReady, ConditionsTypes...)
 
-			action, err := NewReconcileAction(testResourceID)
+			action, err := NewReconcileAction(testResourceID, WithBuildChartsFn(monitorTestBuildFn))
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			err = action(ctx, rr)

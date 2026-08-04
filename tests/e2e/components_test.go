@@ -13,8 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -65,11 +63,46 @@ func NewComponentTestCtx(t *testing.T, object common.PlatformObject) (*Component
 	return &componentCtx, nil
 }
 
+// NewModuleTestCtx initializes a component test context for modules that
+// do not have a typed Go struct registered in the scheme.
+func NewModuleTestCtx(t *testing.T, moduleGVK schema.GroupVersionKind, instanceName string) (*ComponentTestCtx, error) { //nolint:thelper
+	baseCtx, err := NewTestContext(t)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ComponentTestCtx{
+		TestContext:    baseCtx,
+		GVK:            moduleGVK,
+		NamespacedName: types.NamespacedName{Name: instanceName},
+	}, nil
+}
+
 // NewSubComponentTestCtx initializes a new component test context for a subcomponent.
 // parentKind is the kind of the parent component (e.g., "Kserve").
 // subComponentFieldName is the JSON field name of the subcomponent in the parent's spec (e.g., "modelsAsService").
 func NewSubComponentTestCtx(t *testing.T, object common.PlatformObject, parentKind string, subComponentFieldName string) (*ComponentTestCtx, error) { //nolint:thelper
 	componentCtx, err := NewComponentTestCtx(t, object)
+	if err != nil {
+		return nil, err
+	}
+
+	componentCtx.ParentKind = parentKind
+	componentCtx.SubComponentFieldName = subComponentFieldName
+
+	return componentCtx, nil
+}
+
+// NewSubModuleTestCtx initializes a component test context for a submodule
+// that does not have a typed Go struct registered in the scheme.
+func NewSubModuleTestCtx( //nolint:thelper
+	t *testing.T,
+	moduleGVK schema.GroupVersionKind,
+	instanceName string,
+	parentKind string,
+	subComponentFieldName string,
+) (*ComponentTestCtx, error) {
+	componentCtx, err := NewModuleTestCtx(t, moduleGVK, instanceName)
 	if err != nil {
 		return nil, err
 	}
@@ -544,32 +577,6 @@ func (tc *ComponentTestCtx) ValidateCRDReinstatement(name string, version string
 			WithCondition(jq.Match(`.status.storedVersions[0] == "%s"`, version)),
 		)
 	}
-}
-
-// ValidateModelControllerInstance validates the existence and correct status of the ModelController and DataScienceCluster.
-func (tc *ComponentTestCtx) ValidateModelControllerInstance(t *testing.T) {
-	t.Helper()
-
-	skipUnless(t, Smoke)
-	tc.SkipIfXKSCluster(t)
-
-	// Ensure ModelController resource exists with the expected owner references and status phase.
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.ModelController, types.NamespacedName{Name: componentApi.ModelControllerInstanceName}),
-		WithCondition(
-			And(
-				jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
-				jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady),
-			),
-		),
-	)
-
-	// Ensure ModelController condition matches the expected status in the DataScienceCluster.
-	tc.ValidateComponentCondition(
-		gvk.DataScienceCluster,
-		tc.DataScienceClusterNamespacedName.Name,
-		modelcontroller.ReadyConditionType,
-	)
 }
 
 // ValidateAllDeletionRecovery runs the standard set of deletion recovery tests.

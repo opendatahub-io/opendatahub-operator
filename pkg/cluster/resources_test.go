@@ -12,11 +12,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -178,14 +180,14 @@ func TestHasCRDWithVersion(t *testing.T) {
 
 		crd := apiextensionsv1.CustomResourceDefinition{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "dashboards.components.platform.opendatahub.io",
+				Name: "testplatformobjects.test.opendatahub.io",
 			},
 		}
 
 		err = cli.Create(ctx, &crd)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		hasCRD, err := cluster.HasCRDWithVersion(ctx, cli, gvk.Dashboard.GroupKind(), gvk.Dashboard.Version)
+		hasCRD, err := cluster.HasCRDWithVersion(ctx, cli, scheme.TestPlatformObjectGVK.GroupKind(), scheme.TestPlatformObjectGVK.Version)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(hasCRD).Should(BeTrue())
 	})
@@ -198,7 +200,7 @@ func TestHasCRDWithVersion(t *testing.T) {
 
 		crd := apiextensionsv1.CustomResourceDefinition{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "dashboards.components.platform.opendatahub.io",
+				Name: "testplatformobjects.test.opendatahub.io",
 			},
 			Status: apiextensionsv1.CustomResourceDefinitionStatus{
 				StoredVersions: []string{"v1alpha2"},
@@ -208,7 +210,7 @@ func TestHasCRDWithVersion(t *testing.T) {
 		err = cli.Create(ctx, &crd)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		hasCRD, err := cluster.HasCRDWithVersion(ctx, cli, gvk.Dashboard.GroupKind(), gvk.Dashboard.Version)
+		hasCRD, err := cluster.HasCRDWithVersion(ctx, cli, scheme.TestPlatformObjectGVK.GroupKind(), scheme.TestPlatformObjectGVK.Version)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(hasCRD).Should(BeTrue(), "StoredVersions is an internal etcd detail and should not affect version availability")
 	})
@@ -237,7 +239,7 @@ func TestHasCRDWithVersion(t *testing.T) {
 
 		crd := apiextensionsv1.CustomResourceDefinition{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "dashboards.components.platform.opendatahub.io",
+				Name: "testplatformobjects.test.opendatahub.io",
 			},
 			Status: apiextensionsv1.CustomResourceDefinitionStatus{
 				Conditions: []apiextensionsv1.CustomResourceDefinitionCondition{{
@@ -250,7 +252,7 @@ func TestHasCRDWithVersion(t *testing.T) {
 		err = cli.Create(ctx, &crd)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		hasCRD, err := cluster.HasCRDWithVersion(ctx, cli, gvk.Dashboard.GroupKind(), gvk.Dashboard.Version)
+		hasCRD, err := cluster.HasCRDWithVersion(ctx, cli, scheme.TestPlatformObjectGVK.GroupKind(), scheme.TestPlatformObjectGVK.Version)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(hasCRD).Should(BeFalse())
 	})
@@ -258,13 +260,13 @@ func TestHasCRDWithVersion(t *testing.T) {
 	t.Run("should return false when RESTMapper resolves but CRD object is missing", func(t *testing.T) {
 		g := NewWithT(t)
 
-		// fakeclient registers Dashboard in its RESTMapper via the scheme,
+		// fakeclient registers TestPlatformObject in its RESTMapper via the scheme,
 		// but we don't create the CRD object — simulates a stale cache
 		// after CRD deletion.
 		cli, err := fakeclient.New()
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		hasCRD, err := cluster.HasCRDWithVersion(ctx, cli, gvk.Dashboard.GroupKind(), gvk.Dashboard.Version)
+		hasCRD, err := cluster.HasCRDWithVersion(ctx, cli, scheme.TestPlatformObjectGVK.GroupKind(), scheme.TestPlatformObjectGVK.Version)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(hasCRD).Should(BeFalse(), "Should return false when CRD object doesn't exist despite RESTMapper entry")
 	})
@@ -288,13 +290,13 @@ func TestIsAPIAvailable(t *testing.T) {
 	t.Run("should return true for CR with existing CRD", func(t *testing.T) {
 		g := NewWithT(t)
 
-		// fakeclient registers the Dashboard CRD in its scheme and RESTMapper
+		// fakeclient registers the TestPlatformObject CRD in its scheme and RESTMapper
 		cli, err := fakeclient.New()
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		available, err := cluster.IsAPIAvailable(cli, gvk.Dashboard)
+		available, err := cluster.IsAPIAvailable(cli, scheme.TestPlatformObjectGVK)
 		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(available).To(BeTrue(), "Dashboard (CR with registered CRD) should be available")
+		g.Expect(available).To(BeTrue(), "TestPlatformObject (CR with registered CRD) should be available")
 	})
 
 	t.Run("should return false for CR with non-existent CRD", func(t *testing.T) {
@@ -365,5 +367,18 @@ func TestListConfigMapUsingGVK(t *testing.T) {
 		g.Expect(res).Should(HaveLen(1))
 		g.Expect(res[0].GetName()).Should(Equal("configmap2"))
 		g.Expect(res[0].GetNamespace()).Should(Equal(ns))
+	})
+}
+
+func TestWatchPlatforms(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should return request for the Platform singleton", func(t *testing.T) {
+		t.Parallel()
+		g := NewWithT(t)
+
+		requests := cluster.WatchPlatforms(t.Context(), nil)
+		g.Expect(requests).Should(HaveLen(1))
+		g.Expect(requests[0].Name).Should(Equal(configv1alpha1.PlatformInstanceName))
 	})
 }

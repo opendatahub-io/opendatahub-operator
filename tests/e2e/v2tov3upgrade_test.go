@@ -348,10 +348,12 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateDefaultDSCIRemainsReadyAfterDeprecatedCR
 func (tc *V2Tov3UpgradeTestCtx) triggerDSCIReconciliation(t *testing.T) {
 	t.Helper()
 
-	// trigger DSCI reconciliation by setting a customCABundle
+	validPEM := generateTestCertPEM(t)
+
+	// trigger DSCI reconciliation by setting a customCABundle with a valid PEM
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.trustedCABundle.customCABundle = "# reconcile trigger"`)),
+		WithMutateFunc(setCustomCABundle(validPEM)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to trigger DSCI reconciliation"),
 	)
@@ -359,7 +361,7 @@ func (tc *V2Tov3UpgradeTestCtx) triggerDSCIReconciliation(t *testing.T) {
 	// restore original customCABundle in DSCInitialization instance
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.trustedCABundle.customCABundle = ""`)),
+		WithMutateFunc(setCustomCABundle("")),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to trigger DSCI reconciliation"),
 	)

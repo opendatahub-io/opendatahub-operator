@@ -19,6 +19,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/dsc/compare"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
@@ -77,9 +78,9 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 
 	switch req.Operation {
 	case admissionv1.Create:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState, denyMultipleDsc}, allowMessage, v.Client, &req)
+		return validate(ctx, []validationCheck{v.denyKueueManagedState, denyMultipleDsc, v.warnDeprecatedModelsAsService}, allowMessage, v.Client, &req)
 	case admissionv1.Update:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyV1PatchWhenV2ComponentsManaged}, allowMessage, v.Client, &req)
+		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyV1PatchWhenV2ComponentsManaged, v.warnDeprecatedModelsAsService}, allowMessage, v.Client, &req)
 	default:
 		return admission.Allowed(allowMessage)
 	}
@@ -88,14 +89,18 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 type validationCheck func(context.Context, client.Reader, *admission.Request) admission.Response
 
 func validate(ctx context.Context, checks []validationCheck, allowedMessage string, cli client.Reader, request *admission.Request) admission.Response {
+	var warnings []string
 	for _, check := range checks {
 		resp := check(ctx, cli, request)
 		if !resp.Allowed {
 			return resp
 		}
+		warnings = append(warnings, resp.Warnings...)
 	}
 
-	return admission.Allowed(allowedMessage)
+	resp := admission.Allowed(allowedMessage)
+	resp.Warnings = warnings
+	return resp
 }
 
 func denyMultipleDsc(ctx context.Context, cli client.Reader, req *admission.Request) admission.Response {
@@ -113,6 +118,21 @@ func (v *Validator) denyKueueManagedState(ctx context.Context, _ client.Reader, 
 	}
 
 	return admission.Allowed("")
+}
+
+// warnDeprecatedModelsAsService emits an oc/kubectl Warning when the deprecated
+// kserve.modelsAsService field is Managed. Admission is still allowed so upgrades
+// and no-op syncs keep working; CEL blocks Removed→Managed separately.
+func (v *Validator) warnDeprecatedModelsAsService(ctx context.Context, _ client.Reader, req *admission.Request) admission.Response {
+	dcsV1 := &dscv1.DataScienceCluster{}
+	if err := v.Decoder.DecodeRaw(req.Object, dcsV1); err != nil {
+		logf.FromContext(ctx).Error(err, "Error converting request object to "+gvk.DataScienceClusterV1.String())
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	resp := admission.Allowed("")
+	resp.Warnings = dscwebhook.ModelsAsServiceDeprecationWarnings(dcsV1.Spec.Components.Kserve.ModelsAsService.ManagementState) //nolint:staticcheck
+	return resp
 }
 
 // denyV1PatchWhenV2ComponentsManaged prevents v1 API updates when v2-only components are Managed.

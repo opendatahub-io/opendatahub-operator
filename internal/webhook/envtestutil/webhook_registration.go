@@ -6,37 +6,22 @@ import (
 
 	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	monitoringwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/monitoring"
-	notebookwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/notebook"
-	servingwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/serving"
-	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
-// RegisterWebhooks registers hardware profile, Kueue, and connection webhooks for integration testing.
+// RegisterWebhooks registers platform webhook handlers for envtest integration tests.
 //
-// This function is specifically designed for tests that create Kubernetes resources (such as Notebooks or InferenceServices)
-// that are targeted by multiple webhook configurations. In a real cluster, when these resources are created, Kubernetes
-// will attempt to call all relevant webhooks. To properly simulate this behavior in envtest, all webhook handlers must be
-// registered, even if the test is primarily focused on one webhook's functionality.
+// This function is specifically designed for tests that create Kubernetes resources
+// (such as InferenceServices) that are targeted by multiple webhook configurations.
+// In a real cluster, when these resources are created, Kubernetes will attempt to call
+// all relevant webhooks. To properly simulate this behavior in envtest, all webhook handlers
+// must be registered, even if the test is primarily focused on one webhook's functionality.
 //
 // Use this function when:
-//   - Testing hardware profile injection functionality (which creates Notebooks)
-//   - Testing InferenceService or Notebook creation with hardware profiles
+//   - Testing hardware profile injection functionality
+//   - Testing InferenceService or LLMInferenceService creation with hardware profiles
 //   - Testing any workflow that creates resources matching multiple webhook selectors
 //   - You need all webhooks to be available to avoid "webhook endpoint not found" errors
 func RegisterWebhooks(mgr manager.Manager) error {
-	// NOTE: kueue validating webhook registration is disabled.
-	// To re-enable, uncomment the block below and restore the kueuewebhook import.
-	//
-	// kueueValidator := &kueuewebhook.Validator{
-	// 	Client:  mgr.GetAPIReader(),
-	// 	Decoder: admission.NewDecoder(mgr.GetScheme()),
-	// 	Name:    "kueue-validating",
-	// }
-	// if err := kueueValidator.SetupWithManager(mgr); err != nil {
-	// 	return err
-	// }
-
-	// Register Hardware Profile webhook
 	hardwareProfileInjector := &hardwareprofilewebhook.Injector{
 		Client:  mgr.GetAPIReader(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
@@ -46,44 +31,6 @@ func RegisterWebhooks(mgr manager.Manager) error {
 		return err
 	}
 
-	// Register Connection webhook for InferenceService
-	isvcConnectionWebhook := &servingwebhook.ISVCConnectionWebhook{
-		Webhook: webhookutils.BaseServingConnectionWebhook{
-			Client:    mgr.GetClient(),
-			APIReader: mgr.GetAPIReader(),
-			Decoder:   admission.NewDecoder(mgr.GetScheme()),
-			Name:      "connection-isvc",
-		},
-	}
-	if err := isvcConnectionWebhook.SetupWithManager(mgr); err != nil {
-		return err
-	}
-
-	// Register Connection webhook for LLMInferenceService
-	llmisvcConnectionWebhook := &servingwebhook.LLMISVCConnectionWebhook{
-		Webhook: webhookutils.BaseServingConnectionWebhook{
-			Client:    mgr.GetClient(),
-			APIReader: mgr.GetAPIReader(),
-			Decoder:   admission.NewDecoder(mgr.GetScheme()),
-			Name:      "connection-llmisvc",
-		},
-	}
-	if err := llmisvcConnectionWebhook.SetupWithManager(mgr); err != nil {
-		return err
-	}
-
-	// Register Connection webhook for Notebook
-	notebookConnectionWebhook := &notebookwebhook.NotebookWebhook{
-		Client:    mgr.GetClient(),
-		APIReader: mgr.GetAPIReader(),
-		Decoder:   admission.NewDecoder(mgr.GetScheme()),
-		Name:      "notebook-webhook",
-	}
-	if err := notebookConnectionWebhook.SetupWithManager(mgr); err != nil {
-		return err
-	}
-
-	// Register monitoring injector webhook
 	monitoringInjector := &monitoringwebhook.Injector{
 		Client:  mgr.GetAPIReader(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),

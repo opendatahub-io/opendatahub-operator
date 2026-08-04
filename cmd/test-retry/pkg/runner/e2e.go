@@ -45,9 +45,16 @@ func (r *E2ETestRunner) Run() error {
 	// Run initial test execution
 	testResult, err := r.runE2ETests("")
 	if err != nil {
-		// Best-effort JUnit: write whatever we collected so far.
-		r.exportJUnitBestEffort(aggregateResult, "initial run failed: "+err.Error())
-		return fmt.Errorf("failed to run initial e2e tests: %w", err)
+		if testResult == nil || (len(testResult.PassedTest) == 0 && len(testResult.FailedTest) == 0) {
+			// No usable results — fail immediately.
+			r.exportJUnitBestEffort(aggregateResult, "initial run failed: "+err.Error())
+			return fmt.Errorf("failed to run initial e2e tests: %w", err)
+		}
+		// Partial results from timeout: binary ran and streamed output before panic.
+		if r.opts.Config.Verbose {
+			fmt.Printf("Warning: initial run exited with error (%v), partial results recovered (%d passed, %d failed) — proceeding with retry\n",
+				err, len(testResult.PassedTest), len(testResult.FailedTest))
+		}
 	}
 
 	// Add initial results to aggregate
@@ -71,10 +78,17 @@ func (r *E2ETestRunner) Run() error {
 		// Run tests again, skipping the ones that passed
 		retrySummary, err := r.runE2ETests(r.buildSkipFilter(aggregateResult))
 		if err != nil {
-			if r.opts.Config.Verbose {
-				fmt.Printf("Error in retry attempt %d: %v\n", attempt, err)
+			if retrySummary == nil || (len(retrySummary.PassedTest) == 0 && len(retrySummary.FailedTest) == 0) {
+				if r.opts.Config.Verbose {
+					fmt.Printf("Error in retry attempt %d (no results recovered): %v\n", attempt, err)
+				}
+				continue
 			}
-			continue
+			// Partial results from timeout: continue with what was collected.
+			if r.opts.Config.Verbose {
+				fmt.Printf("Retry %d exited with error (%v), partial results recovered (%d passed, %d failed)\n",
+					attempt, err, len(retrySummary.PassedTest), len(retrySummary.FailedTest))
+			}
 		}
 
 		// Add retry results to aggregate
@@ -278,12 +292,18 @@ func (r *E2ETestRunner) runE2ETests(skipTestFilter string) (*types.TestResult, e
 		if testCmd != nil {
 			testCmd.Wait() // Also wait for test binary
 		}
+		if isTimeoutError(exitErr) {
+			return testResult, exitErr // partial results valid: binary ran and streamed output up to panic
+		}
 		return nil, exitErr
 	}
 
 	// Wait for test binary if running in custom command mode
 	if testCmd != nil {
 		if exitErr := testCmd.Wait(); isExitError(exitErr) {
+			if isTimeoutError(exitErr) {
+				return testResult, exitErr // partial results valid: binary ran and streamed output up to panic
+			}
 			return nil, exitErr
 		}
 	}
@@ -300,6 +320,15 @@ func isExitError(err error) bool {
 		if code := exiterr.ExitCode(); code > 1 {
 			return true
 		}
+	}
+	return false
+}
+
+// isTimeoutError returns true when go test panics due to -timeout expiry (exit code 2).
+// Only exit code 2 guarantees the binary ran and produced a valid partial JSON stream.
+func isTimeoutError(err error) bool {
+	if exiterr, ok := err.(*exec.ExitError); ok {
+		return exiterr.ExitCode() == 2
 	}
 	return false
 }

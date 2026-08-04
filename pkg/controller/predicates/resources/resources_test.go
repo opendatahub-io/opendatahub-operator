@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	configv1 "github.com/openshift/api/config/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	res "github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -1256,4 +1258,127 @@ func TestHTTPRouteReferencesGateway_DefaultNamespace(t *testing.T) {
 	}
 
 	g.Expect(predicate.Create(event.CreateEvent{Object: routeWithoutNamespace})).To(BeTrue())
+}
+
+func TestAPIServerTLSSecurityProfileChanged(t *testing.T) {
+	t.Parallel()
+
+	pred := resources.APIServerTLSSecurityProfileChanged()
+
+	clusterAPIServer := func(profileType configv1.TLSProfileType) *configv1.APIServer {
+		api := &configv1.APIServer{
+			ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAPIServerObj},
+		}
+		if profileType != "" {
+			api.Spec.TLSSecurityProfile = &configv1.TLSSecurityProfile{Type: profileType}
+		}
+		return api
+	}
+	otherAPIServer := &configv1.APIServer{ObjectMeta: metav1.ObjectMeta{Name: "other"}}
+	clusterPod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAPIServerObj}}
+
+	tests := []struct {
+		name   string
+		invoke func() bool
+		want   bool
+	}{
+		// Create: triggers iff the object is the cluster APIServer
+		{
+			name: "Create/cluster APIServer triggers reconcile",
+			invoke: func() bool {
+				return pred.Create(event.CreateEvent{Object: clusterAPIServer(configv1.TLSProfileIntermediateType)})
+			},
+			want: true,
+		},
+		{
+			name:   "Create/non-cluster APIServer does not trigger reconcile",
+			invoke: func() bool { return pred.Create(event.CreateEvent{Object: otherAPIServer}) },
+			want:   false,
+		},
+		// Delete: same name-based rule as Create
+		{
+			name: "Delete/cluster APIServer triggers reconcile",
+			invoke: func() bool {
+				return pred.Delete(event.DeleteEvent{Object: clusterAPIServer(configv1.TLSProfileIntermediateType)})
+			},
+			want: true,
+		},
+		{
+			name:   "Delete/non-cluster APIServer does not trigger reconcile",
+			invoke: func() bool { return pred.Delete(event.DeleteEvent{Object: otherAPIServer}) },
+			want:   false,
+		},
+		// Update: profile diff on the cluster APIServer
+		{
+			name: "Update/profile change triggers reconcile",
+			invoke: func() bool {
+				return pred.Update(event.UpdateEvent{
+					ObjectOld: clusterAPIServer(configv1.TLSProfileIntermediateType),
+					ObjectNew: clusterAPIServer(configv1.TLSProfileOldType),
+				})
+			},
+			want: true,
+		},
+		{
+			name: "Update/unchanged profile does not trigger reconcile",
+			invoke: func() bool {
+				return pred.Update(event.UpdateEvent{
+					ObjectOld: clusterAPIServer(configv1.TLSProfileIntermediateType),
+					ObjectNew: clusterAPIServer(configv1.TLSProfileIntermediateType),
+				})
+			},
+			want: false,
+		},
+		{
+			name: "Update/non-cluster APIServer does not trigger reconcile",
+			invoke: func() bool {
+				return pred.Update(event.UpdateEvent{
+					ObjectOld: clusterAPIServer(configv1.TLSProfileIntermediateType),
+					ObjectNew: otherAPIServer,
+				})
+			},
+			want: false,
+		},
+		{
+			name: "Update/old object conversion failure triggers reconcile",
+			invoke: func() bool {
+				return pred.Update(event.UpdateEvent{
+					ObjectOld: clusterPod,
+					ObjectNew: clusterAPIServer(configv1.TLSProfileOldType),
+				})
+			},
+			want: true,
+		},
+		{
+			name: "Update/new object conversion failure triggers reconcile",
+			invoke: func() bool {
+				return pred.Update(event.UpdateEvent{
+					ObjectOld: clusterAPIServer(configv1.TLSProfileIntermediateType),
+					ObjectNew: clusterPod,
+				})
+			},
+			want: true,
+		},
+		// Generic: always false regardless of object
+		{
+			name: "Generic/cluster APIServer always returns false",
+			invoke: func() bool {
+				return pred.Generic(event.GenericEvent{Object: clusterAPIServer(configv1.TLSProfileIntermediateType)})
+			},
+			want: false,
+		},
+		{
+			name:   "Generic/non-cluster APIServer always returns false",
+			invoke: func() bool { return pred.Generic(event.GenericEvent{Object: otherAPIServer}) },
+			want:   false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			g.Expect(tc.invoke()).To(Equal(tc.want))
+		})
+	}
 }

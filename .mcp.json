@@ -3,6 +3,10 @@
     "opendatahub-health": {
       "command": "bash",
       "args": ["-c", "cd cmd/mcp-server && go run ."]
+    },
+    "openshift": {
+      "command": "npx",
+      "args": ["-y", "kubernetes-mcp-server@0.0.63", "--read-only", "--toolsets", "core"]
     }
   }
 }

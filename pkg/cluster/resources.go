@@ -20,7 +20,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -111,6 +113,34 @@ func GetDSC(ctx context.Context, cli client.Reader) (*dscv2.DataScienceCluster, 
 	}
 }
 
+// WatchDataScienceClusters lists all DSC instances and returns reconcile
+// requests for each. Use this as an event mapper to re-queue the DSC
+// controller when related resources (DSCI, GatewayConfig, module CRs) change.
+func WatchDataScienceClusters(ctx context.Context, cli client.Client) []reconcile.Request {
+	instanceList := &dscv2.DataScienceClusterList{}
+	if err := cli.List(ctx, instanceList); err != nil {
+		logf.FromContext(ctx).Error(err, "failed to list DataScienceCluster instances for watch mapping")
+		return []reconcile.Request{}
+	}
+
+	requests := make([]reconcile.Request, len(instanceList.Items))
+	for i := range instanceList.Items {
+		requests[i] = reconcile.Request{
+			NamespacedName: types.NamespacedName{Name: instanceList.Items[i].Name},
+		}
+	}
+
+	return requests
+}
+
+// WatchPlatforms returns a reconcile request for the Platform singleton.
+// Platform has a webhook-enforced name so no list call is needed.
+func WatchPlatforms(_ context.Context, _ client.Client) []reconcile.Request {
+	return []reconcile.Request{
+		{NamespacedName: types.NamespacedName{Name: configv1alpha1.PlatformInstanceName}},
+	}
+}
+
 // GetDSCI retrieves the DSCInitialization (DSCI) instance from the Kubernetes cluster.
 func GetDSCI(ctx context.Context, cli client.Client) (*dsciv2.DSCInitialization, error) {
 	instances := dsciv2.DSCInitializationList{}
@@ -151,8 +181,6 @@ func ApplicationNamespace(ctx context.Context, cli client.Client) (string, error
 }
 
 // MonitoringNamespace returns the monitoring namespace from DSCInitialization.
-// Unlike ApplicationNamespace, this does not fall back to a cached value because
-// the monitoring namespace has no equivalent override mechanism (no RHAI_ env var).
 func MonitoringNamespace(ctx context.Context, cli client.Client) (string, error) {
 	dsci, err := GetDSCI(ctx, cli)
 	if err != nil {

@@ -15,7 +15,8 @@ import (
 
 	azurev1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -29,6 +30,9 @@ const (
 	// lwsOperatorDeploymentName is the name of the LWS operator deployment within
 	// the CSV. We use this when patching the CSV to scale the operator.
 	lwsOperatorDeploymentName = "openshift-lws-operator"
+
+	llmInferenceServiceConfigWellKnownAnnotationKey   = "serving.kserve.io/well-known-config"
+	llmInferenceServiceConfigWellKnownAnnotationValue = "true"
 )
 
 type KserveTestCtx struct {
@@ -38,7 +42,7 @@ type KserveTestCtx struct {
 func kserveTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Kserve{})
+	ct, err := NewModuleTestCtx(t, gvk.Kserve, componentApi.KserveInstanceName)
 	require.NoError(t, err)
 
 	componentCtx := KserveTestCtx{
@@ -52,12 +56,16 @@ func kserveTestSuite(t *testing.T) {
 		WithEventuallyPollingInterval(ct.TestTimeouts.defaultEventuallyPollInterval),
 	}
 
+	if componentCtx.IsXKS() {
+		componentCtx.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Managed)
+		defer componentCtx.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Removed)
+	}
+
 	// Define test cases.
 	testCases := make([]TestCase, 0, 11)
 	testCases = append(testCases,
 		TestCase{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		TestCase{"Validate component spec", componentCtx.ValidateSpec},
-		TestCase{"Validate model controller", componentCtx.ValidateModelControllerInstance},
 		TestCase{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		TestCase{"Validate no Kserve FeatureTrackers", componentCtx.ValidateNoKserveFeatureTrackers},
 		TestCase{"Validate VAP created when kserve is enabled", componentCtx.ValidateS3SecretCheckBucketExist},
@@ -67,16 +75,22 @@ func kserveTestSuite(t *testing.T) {
 	)
 
 	// Always run deletion recovery and component disable tests last
-	if !componentCtx.IsXKS() {
+	if componentCtx.IsXKS() {
+		testCases = append(testCases,
+			TestCase{"Validate CRD dependency conditions", componentCtx.ValidateCRDDependencyConditions},
+		)
+	} else {
 		testCases = append(testCases,
 			TestCase{"Validate subscription dependency conditions", componentCtx.ValidateSubscriptionDependencyConditions},
 		)
 	}
 
 	testCases = append(testCases,
+		TestCase{"Validate platform config ConfigMap", componentCtx.ValidatePlatformConfigMap},
 		TestCase{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	)
+
 	// Run the test suite.
 	RunTestCases(t, testCases)
 }
@@ -85,7 +99,7 @@ func kserveTestSuite(t *testing.T) {
 func kserveDegradedMonitoringTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Kserve{})
+	ct, err := NewModuleTestCtx(t, gvk.Kserve, componentApi.KserveInstanceName)
 	require.NoError(t, err)
 
 	componentCtx := KserveTestCtx{
@@ -97,6 +111,11 @@ func kserveDegradedMonitoringTestSuite(t *testing.T) {
 	componentCtx.DefaultResourceOpts = []ResourceOpts{
 		WithEventuallyTimeout(ct.TestTimeouts.longEventuallyTimeout),
 		WithEventuallyPollingInterval(ct.TestTimeouts.defaultEventuallyPollInterval),
+	}
+
+	if componentCtx.IsXKS() {
+		componentCtx.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Managed)
+		defer componentCtx.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Removed)
 	}
 
 	testCases := []TestCase{
@@ -124,6 +143,26 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 			// Validate management states of NIM and serving components.
 			jq.Match(`.spec.nim.managementState == "%s"`, dsc.Spec.Components.Kserve.NIM.ManagementState),
 		),
+		),
+	)
+}
+
+// ValidateCRDDependencyConditions verifies that the LWS WideEP CRD dependency
+// condition is present and True on the KServe component CR when the LWS CRD
+// is installed by the cloud manager. xKS only.
+func (tc *KserveTestCtx) ValidateCRDDependencyConditions(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	kserveNN := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+	t.Log("Verifying WideEP CRD dependency condition is True on KServe component CR.")
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.GVK, kserveNN),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				kserve.LLMInferenceServiceWideEPDependencies, metav1.ConditionTrue),
 		),
 	)
 }
@@ -211,8 +250,8 @@ func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T
 					map(select(.metadata.annotations["%s"] == "%s"))
 					| length > 0
 				`,
-					kserve.LLMInferenceServiceConfigWellKnownAnnotationKey,
-					kserve.LLMInferenceServiceConfigWellKnownAnnotationValue,
+					llmInferenceServiceConfigWellKnownAnnotationKey,
+					llmInferenceServiceConfigWellKnownAnnotationValue,
 				)),
 				WithCustomErrorMsg("Expected at least one well-known LLMInferenceServiceConfig %s to exist", configGVK.Version),
 			)
@@ -227,8 +266,8 @@ func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T
 					map(select(.metadata.annotations["%s"] == "%s"))
 					| all(.metadata.name | test("^v[0-9]+-[0-9]+-[0-9]+-.*"))
 				`,
-					kserve.LLMInferenceServiceConfigWellKnownAnnotationKey,
-					kserve.LLMInferenceServiceConfigWellKnownAnnotationValue,
+					llmInferenceServiceConfigWellKnownAnnotationKey,
+					llmInferenceServiceConfigWellKnownAnnotationValue,
 				)),
 				WithCustomErrorMsg("All well-known LLMInferenceServiceConfig %s resources should have names starting with a semver version (vX-Y-Z-)", configGVK.Version),
 			)
@@ -236,12 +275,61 @@ func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T
 	}
 }
 
-// ValidateComponentDisabled validates that KServe component is properly removed and all
-// LLMInferenceServiceConfig resources are cleaned up. It expands the base
-// ValidateComponentDisabled flow so that LLMInferenceServiceConfig checks run while the
-// webhook service is still alive (before the component CR is deleted). Checking after the
-// CR is gone would hit webhook connection errors because the conversion webhook service
-// is owned by the component CR and gets garbage-collected with it.
+// ValidatePlatformConfigMap verifies that the per-module platform ConfigMap
+// (odh-kserve-config) exists and, on XKS, contains cert-manager CA keys.
+func (tc *KserveTestCtx) ValidatePlatformConfigMap(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke)
+
+	cmName := modules.PlatformConfigName(componentApi.KserveComponentName)
+
+	t.Logf("Verifying platform config ConfigMap %s exists in namespace %s.", cmName, tc.AppsNamespace)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      cmName,
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(
+			jq.Match(`.data | has("%s")`, modules.PlatformVersionKey),
+		),
+	)
+
+	if tc.IsXKS() {
+		t.Log("XKS platform: verifying cert-manager CA keys are present.")
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+				Name:      cmName,
+				Namespace: tc.AppsNamespace,
+			}),
+			WithCondition(And(
+				jq.Match(`.data | has("%s")`, modules.CertManagerIssuerRefNameKey),
+				jq.Match(`.data | has("%s")`, modules.CertManagerIssuerRefKindKey),
+				jq.Match(`.data | has("%s")`, modules.CertManagerCASecretNameKey),
+				jq.Match(`.data | has("%s")`, modules.CertManagerCASecretNamespaceKey),
+			)),
+		)
+	} else {
+		t.Log("Non-XKS platform: verifying cert-manager CA keys are absent.")
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+				Name:      cmName,
+				Namespace: tc.AppsNamespace,
+			}),
+			WithCondition(
+				jq.Match(`.data | has("%s") | not`, modules.CertManagerIssuerRefNameKey),
+			),
+		)
+	}
+}
+
+// ValidateComponentDisabled validates that KServe component is properly removed while
+// LLMInferenceServiceConfig resources remain (managed by the module operator with finalizers).
+//
+// XKS ordering: delete the module CR first (while the module operator is still
+// alive to process its finalizer), wait for it to disappear, then set the
+// Platform CR to Removed so the platform operator cleans up the operator
+// deployment.
 func (tc *KserveTestCtx) ValidateComponentDisabled(t *testing.T) {
 	t.Helper()
 
@@ -249,19 +337,31 @@ func (tc *KserveTestCtx) ValidateComponentDisabled(t *testing.T) {
 
 	tc.EnsureResourcesExist(WithMinimalObject(tc.GVK, tc.NamespacedName))
 
-	tc.UpdateComponentState(operatorv1.Removed)
+	if tc.IsXKS() {
+		tc.DeleteResource(
+			WithMinimalObject(tc.GVK, types.NamespacedName{Name: componentApi.KserveInstanceName}),
+			WithWaitForDeletion(true),
+			WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
+		)
+
+		tc.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Removed)
+	} else {
+		tc.UpdateComponentState(operatorv1.Removed)
+
+		tc.EnsureResourcesGone(WithMinimalObject(tc.GVK, tc.NamespacedName))
+	}
 
 	for _, configGVK := range []schema.GroupVersionKind{
 		gvk.LLMInferenceServiceConfigV1Alpha1,
 		gvk.LLMInferenceServiceConfigV1Alpha2,
 	} {
-		tc.EnsureResourcesGone(
+		tc.EnsureResourcesExist(
 			WithMinimalObject(configGVK, types.NamespacedName{Namespace: tc.AppsNamespace}),
 			WithListOptions(&client.ListOptions{
 				Namespace: tc.AppsNamespace,
 			}),
 			WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
-			WithCustomErrorMsg("LLMInferenceServiceConfig %s resources should not remain after component removal", configGVK.Version),
+			WithCustomErrorMsg("LLMInferenceServiceConfig %s resources should remain after component removal (managed by module operator)", configGVK.Version),
 		)
 	}
 
@@ -277,8 +377,6 @@ func (tc *KserveTestCtx) ValidateComponentDisabled(t *testing.T) {
 		),
 		WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
 	)
-
-	tc.EnsureResourcesGone(WithMinimalObject(tc.GVK, tc.NamespacedName))
 }
 
 // ensureLWSBaseline clears LWS conditions, asserts Kserve component and DSC health.
@@ -436,7 +534,7 @@ func (tc *KserveTestCtx) runDegradedConditionTest(t *testing.T, testCase degrade
 		WithCondition(
 			And(
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionFalse),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionDependenciesAvailable, "PreConditionFailed"),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionDependenciesAvailable, "DependencyDegraded"),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`, status.ConditionDependenciesAvailable, gvk.LeaderWorkerSetOperatorV1.Kind),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`, status.ConditionDependenciesAvailable, testCase.conditionType),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`, status.ConditionDependenciesAvailable, "TestInjected"),
@@ -482,17 +580,19 @@ func (tc *KserveTestCtx) runDegradedConditionTest(t *testing.T, testCase degrade
 }
 
 // runXKSDegradedMonitoringTest verifies that setting the AzureKubernetesEngine LWS dependency
-// to Unmanaged causes the Kserve DependenciesAvailable condition to become False,
+// to Unmanaged causes the Kserve WideEP condition to become False (informational),
 // and that setting it back to Managed restores it to True.
+// LWS is an optional dependency on xKS — its absence does not affect DependenciesAvailable.
 func (tc *KserveTestCtx) runXKSDegradedMonitoringTest(t *testing.T, kserveNN types.NamespacedName) {
 	t.Helper()
 
-	t.Logf("Verifying Kserve component DependenciesAvailable=True before test (name=%s).", kserveNN.Name)
+	t.Logf("Verifying Kserve component is healthy before test (name=%s).", kserveNN.Name)
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, kserveNN),
-		WithCondition(
+		WithCondition(And(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue),
-		),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, kserve.LLMInferenceServiceWideEPDependencies, metav1.ConditionTrue),
+		)),
 	)
 
 	t.Logf("Setting AzureKubernetesEngine LWS managementPolicy to Unmanaged.")
@@ -504,11 +604,19 @@ func (tc *KserveTestCtx) runXKSDegradedMonitoringTest(t *testing.T, kserveNN typ
 		WithCustomErrorMsg("Failed to set AzureKubernetesEngine LWS managementPolicy to Unmanaged"),
 	)
 
-	t.Logf("Verifying Kserve component DependenciesAvailable=False after setting LWS to Unmanaged (name=%s).", kserveNN.Name)
+	t.Logf("Verifying Kserve component WideEPDependencies=False after setting LWS to Unmanaged (name=%s).", kserveNN.Name)
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, kserveNN),
 		WithCondition(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, kserve.LLMInferenceServiceWideEPDependencies, metav1.ConditionFalse),
+		),
+	)
+
+	t.Logf("Verifying Kserve DependenciesAvailable remains True (LWS is informational).")
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.GVK, kserveNN),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue),
 		),
 	)
 
@@ -521,11 +629,11 @@ func (tc *KserveTestCtx) runXKSDegradedMonitoringTest(t *testing.T, kserveNN typ
 		WithCustomErrorMsg("Failed to set AzureKubernetesEngine LWS managementPolicy to Managed"),
 	)
 
-	t.Logf("Verifying Kserve component DependenciesAvailable=True after restoring LWS to Managed (name=%s).", kserveNN.Name)
+	t.Logf("Verifying Kserve component WideEPDependencies=True after restoring LWS to Managed (name=%s).", kserveNN.Name)
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, kserveNN),
 		WithCondition(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, kserve.LLMInferenceServiceWideEPDependencies, metav1.ConditionTrue),
 		),
 	)
 
@@ -537,11 +645,16 @@ func (tc *KserveTestCtx) runXKSDegradedMonitoringTest(t *testing.T, kserveNN typ
 func kserveModelCacheTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Kserve{})
+	ct, err := NewModuleTestCtx(t, gvk.Kserve, componentApi.KserveInstanceName)
 	require.NoError(t, err)
 
 	componentCtx := KserveTestCtx{
 		ComponentTestCtx: ct,
+	}
+
+	if componentCtx.IsXKS() {
+		componentCtx.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Managed)
+		defer componentCtx.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Removed)
 	}
 
 	testCases := []TestCase{

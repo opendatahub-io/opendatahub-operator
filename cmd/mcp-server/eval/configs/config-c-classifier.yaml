@@ -1,0 +1,68 @@
+# Config C: Deterministic failure classifier only
+# Runs the MCP server in one-shot mode — no LLM, pure algorithmic classification.
+# Uses the CLI runner per the opaque-cli-runner-contract.md from the eval harness.
+# Output goes to stdout (captured as stdout.log by execute.py).
+
+name: config-c-classifier
+description: "Deterministic failure classifier only — no LLM reasoning"
+skill: diagnose
+
+execution:
+  mode: case
+  arguments: ""
+  timeout: 60
+
+runner:
+  type: cli
+  command: "go run ../../. --one-shot --test-name {scenario_id}"
+
+models:
+  judge: claude-opus-4-6
+
+dataset:
+  path: dataset
+  schema: |
+    Each case directory contains:
+    - input.yaml: scenario_id, scenario_name, description, prompt, setup_script, teardown_script
+    - annotations.yaml: Ground truth with root_cause, expected_classification (category, subcategory, error_code, confidence), expected_symptoms, tools_that_detect, expected_remediation
+    - ground-truth.json: Same data in JSON format
+
+outputs:
+  - path: output
+    schema: "JSON classification with category, subcategory, error_code, confidence, evidence"
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  - name: root_cause_correct
+    description: "Does the classification match the expected error code and category?"
+    module: judges.root_cause_match
+    function: judge
+
+  - name: remediation_actionable
+    description: "Is remediation provided and actionable?"
+    module: judges.remediation_actionable
+    function: judge
+
+  - name: false_positive
+    description: "Did the classifier report failures for a healthy cluster?"
+    module: judges.false_positive
+    function: judge
+
+  - name: evidence_citation
+    description: "Does the output cite specific MCP tool names as evidence sources?"
+    module: judges.quality_scoring
+    function: judge_evidence_citation
+
+  - name: completeness
+    description: "How many expected symptoms from ground truth are mentioned?"
+    module: judges.quality_scoring
+    function: judge_completeness
+
+thresholds:
+  root_cause_correct:
+    min_pass_rate: 0.70

@@ -1,0 +1,29 @@
+{
+  "scenario_id": "quota-exceeded-realistic",
+  "scenario_name": "Quota Exceeded Realistic",
+  "description": "A realistic ResourceQuota is applied that is just below the cumulative resource usage, so new pods cannot be created when a rollout is triggered. Based on RHOAIENG-51369 where ArgoCD controller could not start because cumulative memory requests exceeded the namespace quota.",
+  "root_cause": "ResourceQuota memory limit is set just below the total memory requested by existing pods, so new pods fail quota admission",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "quota-oom",
+    "error_code": 1004,
+    "confidence": "high"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "Events show FailedCreate with 'exceeded quota' message",
+    "New pods cannot be created by ReplicaSet",
+    "Deployment shows fewer ready replicas than desired",
+    "ResourceQuota shows usage near or at hard limit"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "recent_events"
+  ],
+  "expected_remediation": "Increase the ResourceQuota memory limit or reduce resource requests on existing pods to free headroom for new pods"
+}

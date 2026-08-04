@@ -21,6 +21,7 @@ spec:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: rhods-operator
+        openshift.io/required-scc: restricted-v2
       labels:
         name: rhods-operator
     spec:
@@ -85,8 +86,13 @@ spec:
                 fieldPath: metadata.namespace
           - name: DEFAULT_MANIFESTS_PATH
             value: /opt/manifests
+          - name: DEFAULT_CHARTS_PATH
+            value: /opt/charts
           # - name: ODH_PLATFORM_TYPE
           #   value: SelfManagedRHOAI
+          # TODO: remove once https://github.com/opendatahub-io/kuberay/tree/ad425f7febc4039f2378747f2a0ea5dcf5a2263f is synced downstream
+          - name: RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE
+            value: "quay.io/opendatahub/kuberay-operator:c4f391fd57b04ac96cedaebf0f8f71c8f25433c3"
         # NOTE: image is provided in CI by pullspec substitution, and by make/kustomize for local builds
         image: REPLACE_IMAGE:v0.0.0-rhoai-placeholder
         imagePullPolicy: Always

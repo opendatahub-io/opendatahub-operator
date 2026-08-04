@@ -65,7 +65,8 @@ type TestContext struct {
 	// Namespace where application workloads are deployed.
 	AppsNamespace string
 
-	// Namespace where the workbenches are deployed.
+	// Legacy DSC workbenchNamespace value projected onto the module CR.
+	// Operand deploy target is AppsNamespace (APPLICATIONS_NAMESPACE).
 	WorkbenchesNamespace string
 
 	// Namespace where the monitoring components are deployed.
@@ -76,6 +77,9 @@ type TestContext struct {
 
 	// Namespaced name of the DataScienceCluster custom resource used for testing.
 	DataScienceClusterNamespacedName types.NamespacedName
+
+	// Namespaced name of the Platform custom resource used for testing (xKS mode).
+	PlatformNamespacedName types.NamespacedName
 
 	// DefaultResourceOpts are applied as a baseline to every NewResourceOptions call.
 	// Individual per-operation opts (e.g., WithEventuallyTimeout) override these defaults.
@@ -125,6 +129,7 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 		logger:                           t,
 		DSCInitializationNamespacedName:  types.NamespacedName{Name: dsciInstanceName},
 		DataScienceClusterNamespacedName: types.NamespacedName{Name: dscInstanceName},
+		PlatformNamespacedName:           types.NamespacedName{Name: platformInstanceName},
 		OperatorNamespace:                testOpts.operatorNamespace,
 		AppsNamespace:                    testOpts.appsNamespace,
 		WorkbenchesNamespace:             testOpts.workbenchesNamespace,
@@ -1139,7 +1144,7 @@ func (tc *TestContext) waitForDeletionBestEffort(gvk schema.GroupVersionKind, nn
 //   - WithIgnoreNotFound: If true, skips existence check and ignores NotFound errors during deletion.
 //   - WithWaitForDeletion: If true, waits until the resource is fully deleted from the cluster.
 //   - WithWaitForRecreation: If true, waits for the resource to be recreated after deletion (useful for managed resources).
-//   - WithRemoveFinalizersOnDelete: If true, removes all finalizers before deletion to prevent stuck deletions.
+//   - WithRemoveFinalizersOnDelete: If true, removes all finalizers after deletion (while Terminating) to prevent stuck deletions.
 //   - WithClientDeleteOptions: Configures deletion behavior (e.g., propagation policy).
 //
 // Parameters:
@@ -1156,13 +1161,6 @@ func (tc *TestContext) DeleteResource(opts ...ResourceOpts) {
 		)
 	}
 
-	// Remove finalizers if requested, before attempting deletion
-	if ro.RemoveFinalizersOnDelete {
-		// Try to remove finalizers in a best-effort manner
-		// If this fails (e.g., due to validation errors), we continue with deletion anyway
-		tc.tryRemoveFinalizers(ro.GVK, ro.NN)
-	}
-
 	// Perform the delete and handle errors appropriately
 	err := tc.g.Delete(ro.GVK, ro.NN, ro.ClientDeleteOptions).Get()
 
@@ -1175,6 +1173,13 @@ func (tc *TestContext) DeleteResource(opts ...ResourceOpts) {
 
 	// For all remaining cases, expect success
 	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to delete %s instance %s", ro.GVK.Kind, ro.ResourceID)
+
+	// Remove finalizers AFTER the delete so the resource already has a
+	// deletionTimestamp. This prevents a running controller from re-adding
+	// its finalizer between the strip and the delete.
+	if ro.RemoveFinalizersOnDelete {
+		tc.tryRemoveFinalizers(ro.GVK, ro.NN)
+	}
 
 	if ro.WaitForDeletion {
 		opts = append(opts, WithCustomErrorMsg("Resource %s instance %s was not fully deleted", ro.GVK.Kind, ro.ResourceID))
@@ -1495,6 +1500,38 @@ func (tc *TestContext) SkipIfXKSCluster(t *testing.T) {
 	if tc.IsXKS() {
 		t.Skip("Skipping test because it is not supported on XKS platform")
 	}
+}
+
+// EnsurePlatformCR creates the Platform CR if it does not already exist.
+// On xKS clusters there is no DSC controller to create it, so E2E tests
+// must ensure it exists before enabling modules.
+func (tc *TestContext) EnsurePlatformCR(t *testing.T) {
+	t.Helper()
+
+	platform := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": gvk.Platform.GroupVersion().String(),
+			"kind":       gvk.Platform.Kind,
+			"metadata":   map[string]any{"name": platformInstanceName},
+			"spec":       map[string]any{},
+		},
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(platform),
+		WithEventuallyTimeout(30*time.Second),
+	)
+}
+
+// SetModuleStateInPlatformCR patches the Platform CR to set a module's
+// managementState. Used on xKS to enable/disable modules via the Platform CR.
+func (tc *TestContext) SetModuleStateInPlatformCR(t *testing.T, moduleName string, state operatorv1.ManagementState) {
+	t.Helper()
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.modules.%s.managementState = "%s"`, moduleName, state)),
+	)
 }
 
 // FetchResource ensures a Kubernetes resource exists and retrieves it as an Unstructured object.

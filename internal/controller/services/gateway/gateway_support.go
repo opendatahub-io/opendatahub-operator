@@ -43,6 +43,7 @@ const (
 	LegacyGatewaySubdomain  = "data-science-gateway"               // Legacy subdomain to redirect from
 
 	// Authentication constants.
+	LegacyAuthClientID       = "odh"          // Legacy OauthClient name from RHOAI 3.3.
 	AuthClientID             = "data-science" // OauthClient name.
 	KubeAuthProxyName        = "kube-auth-proxy"
 	KubeAuthProxySecretsName = "kube-auth-proxy-creds" //nolint:gosec // This is a resource name, not actual credentials
@@ -58,6 +59,7 @@ const (
 	GatewayHTTPSPort     = 8443
 
 	AuthProxyOAuth2Path = "/oauth2"
+	OAuthCallbackPath   = AuthProxyOAuth2Path + "/callback"
 	// OAuth2 proxy cookie name - used in both proxy args and EnvoyFilter Lua filter.
 	AuthProxyCookieName = "_oauth2_proxy"
 
@@ -385,7 +387,7 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, 
 	if err != nil {
 		return fmt.Errorf("failed to resolve domain: %w", err)
 	}
-	redirectURL := fmt.Sprintf("https://%s/oauth2/callback", domain)
+	redirectURL := fmt.Sprintf("https://%s%s", domain, OAuthCallbackPath)
 	oauthClient := &oauthv1.OAuthClient{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: AuthClientID,
@@ -533,8 +535,8 @@ func getKubeAuthProxyImage() string {
 	if image := os.Getenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE"); image != "" {
 		return image
 	}
-	// Fallback for ODH development
-	return "quay.io/opendatahub/odh-kube-auth-proxy:latest"
+	// Fallback for ODH development - pinned to sha256 digest for disconnected/air-gapped support
+	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:f9d9dc6e0e05fe7b47141e605e1dd147302dd023936c2d20e205afbc96a51d9d" // latest as of 2026-07-06 (6a6aa63c)
 }
 
 // getDashboardRedirectImage returns the nginx image for dashboard redirects.
@@ -546,7 +548,8 @@ func getDashboardRedirectImage() string {
 	}
 	// Fallback for ODH and local development - publicly accessible UBI9 nginx S2I image
 	// This image is identical to registry.redhat.io/ubi9/nginx-126 but does not require authentication
-	return "registry.access.redhat.com/ubi9/nginx-126:latest"
+	// Pinned to sha256 digest for disconnected/air-gapped support
+	return "registry.access.redhat.com/ubi9/nginx-126@sha256:f0a79ccf21b8780a7534d78ee0e49d1852654f5f0f52e17ebdbe185a71d93253" // 1-1782419572
 }
 
 // GetDashboardRouteName returns the platform-specific dashboard route name.
@@ -584,10 +587,16 @@ func getAuthProxySecretValues(
 	if secretErr == nil {
 		clientSecretBytes, hasClientSecret := existingSecret.Data["OAUTH2_PROXY_CLIENT_SECRET"]
 		cookieSecretBytes, hasCookieSecret := existingSecret.Data["OAUTH2_PROXY_COOKIE_SECRET"]
-		clientIDBytes, hasClientID := existingSecret.Data["OAUTH2_PROXY_CLIENT_ID"]
 
-		if hasClientSecret && hasCookieSecret && hasClientID {
-			return string(clientIDBytes), string(clientSecretBytes), string(cookieSecretBytes), nil
+		if hasClientSecret && hasCookieSecret {
+			switch authMode {
+			case cluster.AuthModeOIDC:
+				return oidcConfig.ClientID, string(clientSecretBytes), string(cookieSecretBytes), nil
+			case cluster.AuthModeIntegratedOAuth:
+				return AuthClientID, string(clientSecretBytes), string(cookieSecretBytes), nil
+			default:
+				return "", "", "", fmt.Errorf("auth mode: %s is not supported", authMode)
+			}
 		}
 	}
 

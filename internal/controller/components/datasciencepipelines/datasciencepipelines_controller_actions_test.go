@@ -21,6 +21,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -33,7 +34,8 @@ func TestCheckPreConditions(t *testing.T) {
 		name                    string
 		setupClient             func() client.Client
 		instance                *componentApi.DataSciencePipelines
-		expectedError           error
+		expectedPass            bool
+		expectedResultMessage   string
 		expectedConditionStatus metav1.ConditionStatus
 		expectedReason          string
 		expectedMessage         string
@@ -57,7 +59,8 @@ func TestCheckPreConditions(t *testing.T) {
 					},
 				},
 			},
-			expectedError:           ErrArgoWorkflowCRDMissing,
+			expectedPass:            false,
+			expectedResultMessage:   status.DataSciencePipelinesArgoWorkflowsCRDMissingMessage,
 			expectedConditionStatus: metav1.ConditionFalse,
 			expectedReason:          status.DataSciencePipelinesArgoWorkflowsCRDMissingReason,
 			expectedMessage:         status.DataSciencePipelinesArgoWorkflowsCRDMissingMessage,
@@ -95,7 +98,7 @@ func TestCheckPreConditions(t *testing.T) {
 					},
 				},
 			},
-			expectedError:           nil,
+			expectedPass:            true,
 			expectedConditionStatus: metav1.ConditionTrue,
 			expectedReason:          status.DataSciencePipelinesArgoWorkflowsNotManagedReason,
 			expectedMessage:         status.DataSciencePipelinesArgoWorkflowsNotManagedMessage,
@@ -119,7 +122,7 @@ func TestCheckPreConditions(t *testing.T) {
 					},
 				},
 			},
-			expectedError:           nil,
+			expectedPass:            true,
 			expectedConditionStatus: metav1.ConditionTrue,
 			expectedReason:          "",
 			expectedMessage:         "",
@@ -161,7 +164,7 @@ func TestCheckPreConditions(t *testing.T) {
 					},
 				},
 			},
-			expectedError:           nil,
+			expectedPass:            true,
 			expectedConditionStatus: metav1.ConditionTrue,
 			expectedReason:          "",
 			expectedMessage:         "",
@@ -203,7 +206,8 @@ func TestCheckPreConditions(t *testing.T) {
 					},
 				},
 			},
-			expectedError:           ErrArgoWorkflowAPINotOwned,
+			expectedPass:            false,
+			expectedResultMessage:   status.DataSciencePipelinesDoesntOwnArgoCRDMessage,
 			expectedConditionStatus: metav1.ConditionFalse,
 			expectedReason:          status.DataSciencePipelinesDoesntOwnArgoCRDReason,
 			expectedMessage:         status.DataSciencePipelinesDoesntOwnArgoCRDMessage,
@@ -223,7 +227,7 @@ func TestCheckPreConditions(t *testing.T) {
 					DataSciencePipelinesCommonSpec: componentApi.DataSciencePipelinesCommonSpec{},
 				},
 			},
-			expectedError:           nil,
+			expectedPass:            true,
 			expectedConditionStatus: metav1.ConditionTrue,
 			expectedReason:          "",
 			expectedMessage:         "",
@@ -240,12 +244,12 @@ func TestCheckPreConditions(t *testing.T) {
 				Conditions: conditions.NewManager(tt.instance, status.ConditionTypeReady),
 			}
 
-			err := checkPreConditions(ctx, &rr)
+			result, err := checkPreConditions(ctx, &rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(result.Pass).Should(Equal(tt.expectedPass))
 
-			if tt.expectedError != nil {
-				g.Expect(err).Should(Equal(tt.expectedError))
-			} else {
-				g.Expect(err).ShouldNot(HaveOccurred())
+			if tt.expectedResultMessage != "" {
+				g.Expect(result.Message).Should(ContainSubstring(tt.expectedResultMessage))
 			}
 
 			// Check condition status
@@ -282,7 +286,7 @@ func TestCheckPreConditions_WrongInstanceType(t *testing.T) {
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	wrongInstance := &componentApi.Dashboard{
+	wrongInstance := &scheme.TestPlatformObject{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-dashboard",
 		},
@@ -294,7 +298,7 @@ func TestCheckPreConditions_WrongInstanceType(t *testing.T) {
 		Conditions: conditions.NewManager(wrongInstance, status.ConditionTypeReady),
 	}
 
-	err = checkPreConditions(ctx, &rr)
+	_, err = checkPreConditions(ctx, &rr)
 	g.Expect(err).Should(HaveOccurred())
 	g.Expect(err.Error()).Should(ContainSubstring("is not a componentApi.DataSciencePipelines"))
 }
@@ -342,7 +346,7 @@ func TestArgoWorkflowsControllersOptions(t *testing.T) {
 		},
 		{
 			name: "error when instance is not DataSciencePipelines",
-			instance: &componentApi.Dashboard{
+			instance: &scheme.TestPlatformObject{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-dashboard",
 				},

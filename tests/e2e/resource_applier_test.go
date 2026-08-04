@@ -111,6 +111,13 @@ func applyMatchers(
 
 		// If working on a single resource
 		if u, ok := resource.(*unstructured.Unstructured); ok {
+			if u == nil {
+				g.Expect(u).NotTo(BeNil(),
+					"Resource '%s' of kind '%s' is nil, cannot match condition %v.",
+					resourceID, gvk.Kind, dereferenceCondition(condition),
+				)
+				return
+			}
 			g.Expect(u.Object).To(v, defaultErrorMessageIfNone(
 				"Expected resource '%s' of kind '%s' to match condition %v.",
 				[]any{resourceID, gvk.Kind, dereferenceCondition(condition)}, args,

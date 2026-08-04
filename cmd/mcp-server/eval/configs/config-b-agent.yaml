@@ -1,0 +1,75 @@
+# Config B: Diagnostic agent (system prompt + MCP tools)
+# The full diagnostic agent with structured 4-step methodology.
+# PRIMARY configuration under evaluation — Configs A and C are baselines.
+
+name: config-b-agent
+description: "Diagnostic agent with system prompt and MCP tools — primary config"
+skill: diagnose
+
+execution:
+  mode: case
+  arguments: "{prompt}"
+  timeout: 300
+  max_budget_usd: 5.0
+
+runner:
+  type: claude-code
+  system_prompt: |
+    Follow the diagnostic methodology defined in prompts/diagnostic.md.
+    Use the MCP diagnostic tools available to you.
+    Always start with platform_health, then investigate failures systematically.
+    Never skip steps or guess without evidence.
+
+models:
+  skill: claude-opus-4-6
+  judge: claude-opus-4-6
+
+dataset:
+  path: dataset
+  schema: |
+    Each case directory contains:
+    - input.yaml: scenario_id, scenario_name, description, prompt, setup_script, teardown_script
+    - annotations.yaml: Ground truth with root_cause, expected_classification (category, subcategory, error_code, confidence), expected_symptoms, tools_that_detect, expected_remediation
+    - ground-truth.json: Same data in JSON format
+
+outputs:
+  - path: output
+    schema: "Structured diagnostic output following the 4-step methodology"
+
+traces:
+  stdout: true
+  stderr: true
+  events: true
+  metrics: true
+
+judges:
+  - name: root_cause_correct
+    description: "Does the diagnosis correctly identify the root cause from ground truth?"
+    module: judges.root_cause_match
+    function: judge
+
+  - name: remediation_actionable
+    description: "Is the remediation specific and actionable (not generic advice)?"
+    module: judges.remediation_actionable
+    function: judge
+
+  - name: false_positive
+    description: "Did the agent diagnose problems that don't actually exist?"
+    module: judges.false_positive
+    function: judge
+
+  - name: evidence_citation
+    description: "Does the output cite specific MCP tool names as evidence sources?"
+    module: judges.quality_scoring
+    function: judge_evidence_citation
+
+  - name: completeness
+    description: "How many expected symptoms from ground truth are mentioned?"
+    module: judges.quality_scoring
+    function: judge_completeness
+
+thresholds:
+  root_cause_correct:
+    min_pass_rate: 0.85
+  remediation_actionable:
+    min_pass_rate: 0.80

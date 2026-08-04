@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/rs/xid"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -22,6 +23,8 @@ import (
 // It uses table-driven tests to verify singleton enforcement and deletion restrictions in a real envtest environment.
 func TestDSCIWebhook_Integration(t *testing.T) {
 	t.Parallel()
+
+	validPEM := envtestutil.GenerateTestCertPEM(t)
 
 	testCases := []struct {
 		name  string
@@ -81,6 +84,51 @@ func TestDSCIWebhook_Integration(t *testing.T) {
 				key := types.NamespacedName{Name: "v2-dsci-delete", Namespace: ns}
 				g.Expect(k8sClient.Get(ctx, key, dsci)).To(Succeed(), "should get DSCI v2 for deletion test")
 				g.Expect(k8sClient.Delete(ctx, dsci)).To(Succeed(), "should allow deletion if no DSC exists")
+			},
+		},
+		{
+			name: "V2 Update: allows update with valid PEM when TrustedCABundle is Managed",
+			setup: func(ns string) []client.Object {
+				return nil
+			},
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				dsci := envtestutil.NewDSCI("v2-dsci-update-valid")
+				g.Expect(k8sClient.Create(ctx, dsci)).To(Succeed())
+				dsci.Spec.TrustedCABundle = &dsciv2.TrustedCABundleSpec{
+					ManagementState: operatorv1.Managed,
+					CustomCABundle:  validPEM,
+				}
+				g.Expect(k8sClient.Update(ctx, dsci)).To(Succeed(), "should allow update with valid PEM")
+			},
+		},
+		{
+			name: "V2 Update: denies update with invalid PEM when TrustedCABundle is Managed",
+			setup: func(ns string) []client.Object {
+				return nil
+			},
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				dsci := envtestutil.NewDSCI("v2-dsci-update-invalid")
+				g.Expect(k8sClient.Create(ctx, dsci)).To(Succeed())
+				dsci.Spec.TrustedCABundle = &dsciv2.TrustedCABundleSpec{
+					ManagementState: operatorv1.Managed,
+					CustomCABundle:  "not-a-valid-pem",
+				}
+				g.Expect(k8sClient.Update(ctx, dsci)).NotTo(Succeed(), "should deny update with invalid PEM")
+			},
+		},
+		{
+			name: "V2 Update: allows update with invalid PEM when TrustedCABundle is Removed",
+			setup: func(ns string) []client.Object {
+				return nil
+			},
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				dsci := envtestutil.NewDSCI("v2-dsci-update-removed")
+				g.Expect(k8sClient.Create(ctx, dsci)).To(Succeed())
+				dsci.Spec.TrustedCABundle = &dsciv2.TrustedCABundleSpec{
+					ManagementState: operatorv1.Removed,
+					CustomCABundle:  "not-a-valid-pem",
+				}
+				g.Expect(k8sClient.Update(ctx, dsci)).To(Succeed(), "should allow update when TrustedCABundle is Removed")
 			},
 		},
 	}

@@ -114,8 +114,9 @@ each adjustment requires manual implementation specific to your cluster setup:
    (Route, ConsoleLink, Template, SCC, OperatorCondition, ImageStream, etc.). Stub CRDs
    with `x-kubernetes-preserve-unknown-fields: true` prevent controller startup failures.
 
-3. **Fake OpenShift configs** — The gateway controller reads `ingresses.config.openshift.io/cluster`
-   and `authentications.config.openshift.io/cluster`. Minimal stub resources satisfy these lookups.
+3. **Fake OpenShift configs** — The gateway controller reads `ingresses.config.openshift.io/cluster`,
+   `authentications.config.openshift.io/cluster`, and `apiservers.config.openshift.io/cluster` (for
+   kube-auth-proxy TLS settings from `spec.tlsSecurityProfile`). Minimal stub resources satisfy these lookups.
 
 4. **Webhook CA injection** — On OpenShift, the service-CA operator injects CA bundles into
    webhook configurations and CRD conversion webhooks. On KinD, the CA must be extracted from

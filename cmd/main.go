@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"maps"
@@ -37,6 +38,7 @@ import (
 	securityv1 "github.com/openshift/api/security/v1"
 	templatev1 "github.com/openshift/api/template/v1"
 	userv1 "github.com/openshift/api/user/v1"
+	tlspkg "github.com/openshift/controller-runtime-common/pkg/tls"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -48,12 +50,14 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -67,6 +71,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
@@ -75,25 +80,26 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/feastoperator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/mlflowoperator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ogx"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/sparkoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainer"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/workbenches"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
+	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
+	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
+	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
+	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
+	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
+	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
+	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
+	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -104,6 +110,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/bootstrap"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
@@ -111,27 +119,51 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
+// intermediateCiphers is the Mozilla Intermediate cipher set for non-OpenShift fallback.
+// This restricts TLS 1.2 to strong AEAD ciphers when no cluster TLS profile is available.
+var intermediateCiphers = []uint16{
+	tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+	tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+	tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+	tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+}
+
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
 
 	existingComponents = map[string]cr.ComponentHandler{
-		componentApi.DashboardComponentName:            dashboard.NewHandler(),
 		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
-		componentApi.FeastOperatorComponentName:        feastoperator.NewHandler(),
-		componentApi.KserveComponentName:               kserve.NewHandler(),
 		componentApi.KueueComponentName:                kueue.NewHandler(),
-		componentApi.OGXComponentName:                  ogx.NewHandler(),
-		componentApi.MLflowOperatorComponentName:       mlflowoperator.NewHandler(),
-		componentApi.ModelControllerComponentName:      modelcontroller.NewHandler(),
 		componentApi.ModelRegistryComponentName:        modelregistry.NewHandler(),
-		componentApi.ModelsAsServiceComponentName:      modelsasservice.NewHandler(),
 		componentApi.RayComponentName:                  ray.NewHandler(),
 		componentApi.SparkOperatorComponentName:        sparkoperator.NewHandler(),
 		componentApi.TrainerComponentName:              trainer.NewHandler(),
 		componentApi.TrainingOperatorComponentName:     trainingoperator.NewHandler(),
 		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
-		componentApi.WorkbenchesComponentName:          workbenches.NewHandler(),
+	}
+
+	// Component runlevel assignments.
+	//
+	// 20 — core AI/ML, all independent; gateway deps are on GatewayConfig
+	//      service (separate lifecycle), not on other components.
+	// 31 — serving stack co-deployed together (kserve, modelcontroller, kueue).
+	// 32 — independent extensions, no KServe dependency.
+	// 33 — components that require KServe to be Ready.
+	componentRunlevels = map[string]dag.Runlevel{
+		componentApi.DataSciencePipelinesComponentName: dag.RL(20),
+		componentApi.ModelRegistryComponentName:        dag.RL(20),
+		componentApi.RayComponentName:                  dag.RL(20),
+		componentApi.TrainerComponentName:              dag.RL(20),
+		componentApi.TrainingOperatorComponentName:     dag.RL(20),
+
+		componentApi.KueueComponentName: dag.RL(31),
+
+		componentApi.SparkOperatorComponentName: dag.RL(32),
+
+		componentApi.TrustyAIComponentName: dag.RL(33),
 	}
 
 	existingServices = map[string]sr.ServiceHandler{
@@ -140,6 +172,29 @@ var (
 		serviceApi.GatewayServiceName:      gateway.NewHandler(),
 		serviceApi.MonitoringServiceName:   monitoring.NewHandler(),
 		setup.ServiceName:                  setup.NewHandler(),
+	}
+
+	existingModules = map[string]mr.ModuleHandler{
+		componentApi.DashboardComponentName: dashboardModule.NewHandler(),
+		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
+		componentApi.AIGatewayComponentName:            aigatewayModule.NewHandler(),
+		componentApi.MCPLifecycleOperatorComponentName: mcplifecycleoperatorModule.NewHandler(),
+		componentApi.MLflowOperatorComponentName:       mlflowOperatorModule.NewHandler(),
+		componentApi.KserveComponentName:               kserveModule.NewHandler(),
+		componentApi.OGXComponentName:                  ogxModule.NewHandler(),
+		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
+		componentApi.FeastOperatorComponentName:        feastModule.NewHandler(),
+	}
+
+	moduleRunlevels = map[string]dag.Runlevel{
+		componentApi.DashboardComponentName:            dag.RL(20),
+		componentApi.AIGatewayComponentName:            dag.RL(32),
+		componentApi.FeastOperatorComponentName:        dag.RL(32),
+		componentApi.MCPLifecycleOperatorComponentName: dag.RL(20),
+		componentApi.MLflowOperatorComponentName:       dag.RL(32),
+		componentApi.KserveComponentName:               dag.RL(31),
+		componentApi.OGXComponentName:                  dag.RL(32),
+		componentApi.WorkbenchesComponentName:          dag.RL(20),
 	}
 )
 
@@ -176,6 +231,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(templatev1.Install(scheme))
 	utilruntime.Must(gwapiv1.Install(scheme))
 	utilruntime.Must(maasv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(configv1alpha1.AddToScheme(scheme))
 }
 
 func initComponents(_ context.Context, p common.Platform, cfg operatorconfig.OperatorSettings) error {
@@ -192,9 +248,17 @@ func initServices(_ context.Context, p common.Platform) error {
 
 func registerComponents() {
 	for name, handler := range existingComponents {
-		cr.Add(handler)
+		rl := dag.RL(99)
+		if r, ok := componentRunlevels[name]; ok {
+			rl = r
+		}
+
+		cr.Add(handler, cr.WithRunlevel(rl))
+		provision.Add(name, provision.KindComponent, rl)
+
 		if !flags.IsComponentEnabled(name) {
 			cr.Disable(name)
+			provision.Disable(name)
 		}
 	}
 }
@@ -204,6 +268,23 @@ func registerServices() {
 		sr.Add(handler)
 		if !flags.IsServiceEnabled(name) {
 			sr.Disable(name)
+		}
+	}
+}
+
+func registerModules() {
+	for name, handler := range existingModules {
+		rl := dag.RL(99)
+		if r, ok := moduleRunlevels[name]; ok {
+			rl = r
+		}
+
+		mr.Add(handler, mr.WithRunlevel(rl))
+		provision.Add(name, provision.KindModule, rl)
+
+		if !flags.IsModuleEnabled(name) {
+			mr.Disable(name)
+			provision.Disable(name)
 		}
 	}
 }
@@ -223,6 +304,15 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		fmt.Printf("Error registering service suppression flags: %s", err.Error())
 		os.Exit(1)
 	}
+	if err := flags.RegisterModuleSuppressionFlags(slices.Collect(maps.Keys(existingModules))); err != nil {
+		fmt.Printf("Error registering module suppression flags: %s", err.Error())
+		os.Exit(1)
+	}
+
+	if err := flags.RegisterDAGOrderingFlags(); err != nil {
+		fmt.Printf("Error registering DAG ordering flags: %s", err.Error())
+		os.Exit(1)
+	}
 
 	oconfig, err := operatorconfig.LoadConfig()
 	if err != nil {
@@ -230,9 +320,10 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	// Register handlers and apply suppression flags disabling the corresponding component/service
+	// Register handlers and apply suppression flags disabling the corresponding component/service/module
 	registerComponents()
 	registerServices()
+	registerModules()
 
 	ctrl.SetLogger(logger.NewLogger(oconfig.LogMode, oconfig.ZapOptions))
 
@@ -374,15 +465,18 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	addCacheIfAvailable(setupClient, cacheOptions.ByObject, &promv1.PrometheusRule{}, gvk.PrometheusRule, cache.ByObject{Namespaces: oDHCache})
 	addCacheIfAvailable(setupClient, cacheOptions.ByObject, &promv1.ServiceMonitor{}, gvk.ServiceMonitor, cache.ByObject{Namespaces: oDHCache})
 
-	ctrlMgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
+	// Fetch the cluster TLS security profile for webhook and metrics servers
+	tlsOpts, tlsProfile, tlsAdherence, hasOpenShiftConfigAPI := fetchTLSProfile(ctx, scheme, oconfig.RestConfig)
+
+	ctrlMgr, err := ctrl.NewManager(oconfig.RestConfig, ctrl.Options{ // single pod does not need to have LeaderElection
 		Scheme: scheme,
 		// This is the default mapper provider, we define it to ensure it remains
 		// consistent with controller-runtime updates. It is needed for the action dynamicownership.
 		MapperProvider: apiutil.NewDynamicRESTMapper,
-		Metrics:        ctrlmetrics.Options{BindAddress: oconfig.MetricsAddr},
+		Metrics:        ctrlmetrics.Options{BindAddress: oconfig.MetricsAddr, TLSOpts: tlsOpts},
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
-			Port: 9443,
-			// TLSOpts: , // TODO: it was not set in the old code
+			Port:    9443,
+			TLSOpts: tlsOpts,
 		}),
 		PprofBindAddress:       oconfig.PprofAddr,
 		HealthProbeBindAddress: oconfig.HealthProbeAddr,
@@ -422,7 +516,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	// Wrap the manager to return the wrapped client from GetClient()
-	mgr := manager.New(ctrlMgr, manager.WithManifestsBasePath(oconfig.ManifestsBasePath))
+	mgr := manager.New(ctrlMgr, manager.WithManifestsBasePath(oconfig.ManifestsBasePath), manager.WithChartsBasePath(oconfig.ChartsBasePath))
 
 	// Register all webhooks using the helper
 	if err := webhook.RegisterAllWebhooks(mgr); err != nil {
@@ -451,6 +545,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		}
 	} else {
 		setupLog.Info("DSC controller is suppressed")
+	}
+
+	if err = mr.NewModuleReconciler(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "modules")
+		os.Exit(1)
 	}
 
 	// Initialize service reconcilers
@@ -495,8 +594,34 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
+	// Register SecurityProfileWatcher on OpenShift: cancel context on TLS profile change so pod restarts
+	mgrCtx := ctx
+	if hasOpenShiftConfigAPI {
+		var mgrCancel context.CancelFunc
+		mgrCtx, mgrCancel = context.WithCancel(ctx)
+
+		watcher := &tlspkg.SecurityProfileWatcher{
+			Client:                    mgr.GetClient(),
+			InitialTLSProfileSpec:     tlsProfile,
+			InitialTLSAdherencePolicy: tlsAdherence,
+			OnProfileChange: func(_ context.Context, _, _ configv1.TLSProfileSpec) {
+				setupLog.Info("TLS profile changed, initiating graceful shutdown to reload")
+				mgrCancel()
+			},
+			OnAdherencePolicyChange: func(_ context.Context, _, _ configv1.TLSAdherencePolicy) {
+				setupLog.Info("TLS adherence policy changed, initiating graceful shutdown to reload")
+				mgrCancel()
+			},
+		}
+		if err := watcher.SetupWithManager(mgr); err != nil {
+			mgrCancel()
+			setupLog.Error(err, "unable to register TLS security profile watcher")
+			os.Exit(1)
+		}
+	}
+
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctx); err != nil {
+	if err := mgr.Start(mgrCtx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
@@ -575,6 +700,65 @@ func addCacheIfAvailable(cli client.Client, byObject map[client.Object]cache.ByO
 	if ok, _ := cluster.IsAPIAvailable(cli, g); ok {
 		byObject[obj] = opts
 	}
+}
+
+func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.Config) ([]func(*tls.Config), configv1.TLSProfileSpec, configv1.TLSAdherencePolicy, bool) {
+	var tlsOpts []func(*tls.Config)
+	var profile configv1.TLSProfileSpec
+	var adherence configv1.TLSAdherencePolicy
+	hasAPI := false
+	nextProtos := []string{"h2", "http/1.1"}
+
+	bootstrapClient, err := client.New(restCfg, client.Options{Scheme: scheme})
+	if err != nil {
+		setupLog.Error(err, "unable to create bootstrap client for TLS profile, using hardened defaults")
+		tlsOpts = append(tlsOpts, func(c *tls.Config) {
+			c.MinVersion = tls.VersionTLS12
+			c.CipherSuites = intermediateCiphers
+			c.NextProtos = nextProtos
+		})
+		return tlsOpts, *configv1.TLSProfiles[configv1.TLSProfileIntermediateType], adherence, false
+	}
+
+	profile, err = tlspkg.FetchAPIServerTLSProfile(ctx, bootstrapClient)
+	if err != nil {
+		switch {
+		case meta.IsNoMatchError(err):
+			setupLog.Info("TLS profile not available, using hardened defaults (non-OpenShift cluster)")
+		case k8serr.IsNotFound(err):
+			setupLog.Info("APIServer resource not found, using hardened defaults")
+		case k8serr.IsServiceUnavailable(err),
+			k8serr.IsTimeout(err),
+			k8serr.IsServerTimeout(err),
+			k8serr.IsTooManyRequests(err):
+			setupLog.Info("Transient API error reading TLS profile, using hardened defaults", "error", err)
+			hasAPI = true // watcher self-heals when the API recovers
+		default:
+			setupLog.Error(err, "unable to read APIServer TLS profile, refusing to start with unknown TLS posture")
+			os.Exit(1)
+		}
+		tlsOpts = append(tlsOpts, func(c *tls.Config) {
+			c.MinVersion = tls.VersionTLS12
+			c.CipherSuites = intermediateCiphers
+			c.NextProtos = nextProtos
+		})
+	} else {
+		hasAPI = true
+		tlsConfigFn, unsupportedCiphers := tlspkg.NewTLSConfigFromProfile(profile)
+		if len(unsupportedCiphers) > 0 {
+			setupLog.Info("some ciphers from TLS profile are not supported by Go", "unsupported", unsupportedCiphers)
+		}
+		tlsOpts = append(tlsOpts, tlsConfigFn, func(c *tls.Config) {
+			c.NextProtos = nextProtos
+		})
+
+		adherence, err = tlspkg.FetchAPIServerTLSAdherencePolicy(ctx, bootstrapClient)
+		if err != nil {
+			setupLog.Info("unable to fetch TLS adherence policy, watcher will retry", "error", err)
+		}
+	}
+
+	return tlsOpts, profile, adherence, hasAPI
 }
 
 func CreateComponentReconcilers(ctx context.Context, mgr *manager.Manager) error {

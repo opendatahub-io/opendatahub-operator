@@ -25,20 +25,22 @@ import (
 
 // Constants for monitoring resource names.
 const (
-	MonitoringCRName                  = "default-monitoring"
-	MonitoringStackName               = "data-science-monitoringstack"
-	OpenTelemetryCollectorName        = "data-science-collector"
-	TargetAllocatorDeploymentName     = "data-science-collector-targetallocator"
-	TargetAllocatorServiceAccount     = "data-science-collector-collector"
-	TempoMonolithicName               = "data-science-tempomonolithic"
-	TempoStackName                    = "data-science-tempostack"
-	InstrumentationName               = "data-science-instrumentation"
-	ThanosQuerierName                 = "data-science-thanos-querier"
-	ThanosQuerierRouteName            = "data-science-thanos-querier-route"
-	PersesName                        = "data-science-perses"
-	PersesDatasourceName              = "data-science-prometheus-datasource"
-	ClusterPrometheusDatasourceName   = "cluster-prometheus-datasource"
-	ClusterPrometheusDatasourceSecret = "cluster-prometheus-datasource-secret"
+	MonitoringCRName                         = "default-monitoring"
+	MonitoringStackName                      = "data-science-monitoringstack"
+	OpenTelemetryCollectorName               = "data-science-collector"
+	TargetAllocatorDeploymentName            = "data-science-collector-targetallocator"
+	TargetAllocatorServiceAccount            = "data-science-collector-collector"
+	TempoMonolithicName                      = "data-science-tempomonolithic"
+	TempoStackName                           = "data-science-tempostack"
+	InstrumentationName                      = "data-science-instrumentation"
+	ThanosQuerierName                        = "data-science-thanos-querier"
+	ThanosQuerierRouteName                   = "data-science-thanos-querier-route"
+	PersesName                               = "data-science-perses"
+	PersesDatasourceName                     = "data-science-prometheus-datasource"
+	ClusterPrometheusDatasourceName          = "cluster-prometheus-datasource"
+	ClusterPrometheusDatasourceSecret        = "cluster-prometheus-datasource-secret"
+	ClusterPrometheusTenancyDatasourceName   = "cluster-prometheus-tenancy-datasource"
+	ClusterPrometheusTenancyDatasourceSecret = "cluster-prometheus-tenancy-datasource-secret"
 )
 
 // Constants for common test values.
@@ -275,6 +277,7 @@ func (tc *MonitoringTestCtx) runTracesWithPVBackendTests(t *testing.T) {
 		})
 
 		t.Run("Test TempoMonolithic CR Creation with PV backend", tc.ValidateTempoMonolithicCRCreation)
+		t.Run("Test Collector MLflow integration RBAC", tc.ValidateCollectorMLflowIntegrationRBAC)
 	})
 }
 
@@ -920,35 +923,22 @@ func (tc *MonitoringTestCtx) ValidateTracesExportersReservedNameValidation(t *te
 	)
 }
 
-// ValidatePrometheusRulesLifecycle validates that Prometheus rules are created when monitoring and dashboard are enabled, and deleted when both are disabled.
+// ValidatePrometheusRulesLifecycle validates that operator Prometheus rules are created when alerting is enabled and deleted when monitoring is disabled.
 func (tc *MonitoringTestCtx) ValidatePrometheusRulesLifecycle(t *testing.T) {
 	t.Helper()
 
-	// First, ensure dashboard is disabled to establish a known initial state.
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, gvk.Dashboard.Kind)
-
-	// Enable alerting + dashboard → Prometheus rules created
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
 		tc.withMetricsConfig(),
 		withEmptyAlerting(),
 	)
 
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, gvk.Dashboard.Kind)
-
-	tc.EnsureResourceExists(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: tc.MonitoringNamespace}))
 	tc.EnsureResourceExists(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "operator-prometheusrules", Namespace: tc.MonitoringNamespace}))
 
-	// Disable both dashboard and monitoring
 	tc.resetMonitoringConfigToRemoved()
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, gvk.Dashboard.Kind)
 
-	// Verify both Prometheus rules are deleted
-	tc.EnsureResourceGone(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: tc.MonitoringNamespace}))
 	tc.EnsureResourceGone(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "operator-prometheusrules", Namespace: tc.MonitoringNamespace}))
 
-	// Cleanup: Remove alerting configuration from DSCInitialization to prevent validation issues
-	// This ensures that subsequent tests can set metrics=null without violating the validation rule
 	tc.updateMonitoringConfig(withNoAlerting())
 }
 
@@ -1008,7 +998,7 @@ func (tc *MonitoringTestCtx) ValidatePersesCRConfiguration(t *testing.T) {
 		WithCondition(And(
 			jq.Match(`.spec.containerPort == 8080`),
 			jq.Match(`.spec.config.database.file != null`),
-			jq.Match(`.spec.storage.size == "1Gi"`),
+			jq.Match(`(.apiVersion | contains("v1alpha1") | not) or .spec.storage.size == "1Gi"`),
 			jq.Match(`.metadata.labels["platform.opendatahub.io/part-of"] == "monitoring"`),
 		)),
 		WithCustomErrorMsg("Perses CR configuration validation failed"),
@@ -1197,6 +1187,23 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceWithPrometheus(t *testing.T
 		)),
 		WithCustomErrorMsg("Cluster Prometheus PersesDatasource CR should be created with correct openshift-monitoring Thanos Querier configuration"),
 	)
+
+	// Verify Cluster Prometheus Tenancy PersesDatasource CR is created (default: false, namespace-scoped via port 9092)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: ClusterPrometheusTenancyDatasourceName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			monitoringOwnerReferencesCondition,
+			jq.Match(`.spec.config.default == false`),
+			jq.Match(`.spec.config.plugin.kind == "PrometheusDatasource"`),
+			jq.Match(`.spec.config.plugin.spec.proxy.kind == "HTTPProxy"`),
+			jq.Match(`.spec.config.plugin.spec.proxy.spec.url | contains("thanos-querier.openshift-monitoring")`),
+			jq.Match(`.spec.config.plugin.spec.proxy.spec.url | endswith(":9092")`),
+			jq.Match(`.spec.client.tls.enable == true`),
+			jq.Match(`.spec.config.plugin.spec.proxy.spec.secret == "%s"`, ClusterPrometheusTenancyDatasourceSecret),
+			jq.Match(`.spec.config.plugin.spec.queryParams.namespace == "${namespace:queryparam}"`),
+		)),
+		WithCustomErrorMsg("Cluster Prometheus Tenancy PersesDatasource CR should be created with namespace-scoped configuration on port 9092"),
+	)
 }
 
 // ValidatePersesDatasourceLifecycle tests the complete lifecycle of PersesDatasource deployment and cleanup.
@@ -1221,6 +1228,13 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceLifecycle(t *testing.T) {
 		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: ClusterPrometheusDatasourceName, Namespace: tc.MonitoringNamespace}),
 		WithCondition(jq.Match(`.metadata.name == "%s"`, ClusterPrometheusDatasourceName)),
 		WithCustomErrorMsg("Cluster Prometheus PersesDatasource should exist when metrics are configured"),
+	)
+
+	// Verify Cluster Prometheus Tenancy datasource is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: ClusterPrometheusTenancyDatasourceName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(jq.Match(`.metadata.name == "%s"`, ClusterPrometheusTenancyDatasourceName)),
+		WithCustomErrorMsg("Cluster Prometheus Tenancy PersesDatasource should exist when metrics are configured"),
 	)
 
 	// Step 2: Remove metrics configuration and verify datasources are deleted
@@ -1248,6 +1262,11 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceLifecycle(t *testing.T) {
 		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: ClusterPrometheusDatasourceName, Namespace: tc.MonitoringNamespace}),
 	)
 
+	// Verify Cluster Prometheus Tenancy datasource is deleted
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: ClusterPrometheusTenancyDatasourceName, Namespace: tc.MonitoringNamespace}),
+	)
+
 	// Step 3: Re-enable metrics and verify datasources are recreated
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
@@ -1264,6 +1283,12 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceLifecycle(t *testing.T) {
 		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: ClusterPrometheusDatasourceName, Namespace: tc.MonitoringNamespace}),
 		WithCondition(jq.Match(`.metadata.name == "%s"`, ClusterPrometheusDatasourceName)),
 		WithCustomErrorMsg("Cluster Prometheus PersesDatasource should be recreated when metrics are re-enabled"),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: ClusterPrometheusTenancyDatasourceName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(jq.Match(`.metadata.name == "%s"`, ClusterPrometheusTenancyDatasourceName)),
+		WithCustomErrorMsg("Cluster Prometheus Tenancy PersesDatasource should be recreated when metrics are re-enabled"),
 	)
 }
 
@@ -1296,6 +1321,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringServiceDisabled(t *testing.T) {
 		{gvk: gvk.Perses, name: PersesName},
 		{gvk: gvk.PersesDatasource, name: PersesDatasourceName},
 		{gvk: gvk.PersesDatasource, name: ClusterPrometheusDatasourceName},
+		{gvk: gvk.PersesDatasource, name: ClusterPrometheusTenancyDatasourceName},
 	} {
 		if resource.forceWithFinalizer {
 			tc.DeleteResource(
@@ -2858,6 +2884,62 @@ func (tc *MonitoringTestCtx) ValidateTargetAllocatorRBACConfiguration(t *testing
 			jq.Match(`.subjects[0].namespace == "%s"`, tc.MonitoringNamespace),
 		)),
 		WithCustomErrorMsg("ClusterRoleBinding should bind Target Allocator ClusterRole to ServiceAccount"),
+	)
+}
+
+// ValidateCollectorMLflowIntegrationRBAC tests that the collector SA has the MLflow trace export ClusterRole and ClusterRoleBinding.
+func (tc *MonitoringTestCtx) ValidateCollectorMLflowIntegrationRBAC(t *testing.T) {
+	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withMonitoringTraces(TracesStorageBackendPV, "", TracesStorageSize1Gi, DefaultRetention),
+	)
+
+	// Step 1: Verify ClusterRole grants only experiments update on mlflow.kubeflow.org
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRole, types.NamespacedName{
+			Name: "data-science-collector-mlflow-trace-export",
+		}),
+		WithCondition(And(
+			jq.Match(`.rules | length == 1`),
+			jq.Match(`.rules[0].apiGroups[0] == "mlflow.kubeflow.org"`),
+			jq.Match(`.rules[0].resources[0] == "experiments"`),
+			jq.Match(`.rules[0].verbs[0] == "update"`),
+		)),
+		WithCustomErrorMsg("ClusterRole should grant only experiments update on mlflow.kubeflow.org"),
+	)
+
+	// Step 2: Verify ClusterRoleBinding binds the collector SA to the trace export ClusterRole
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "data-science-collector-mlflow-trace-export",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "data-science-collector-mlflow-trace-export"`),
+			jq.Match(`.subjects[0].name == "%s"`, TargetAllocatorServiceAccount),
+			jq.Match(`.subjects[0].namespace == "%s"`, tc.MonitoringNamespace),
+		)),
+		WithCustomErrorMsg("ClusterRoleBinding should bind collector SA to mlflow trace export ClusterRole"),
+	)
+
+	// Step 3: Disable traces and verify both resources are removed
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoTraces(),
+	)
+
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.ClusterRole, types.NamespacedName{
+			Name: "data-science-collector-mlflow-trace-export",
+		}),
+	)
+
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "data-science-collector-mlflow-trace-export",
+		}),
 	)
 }
 

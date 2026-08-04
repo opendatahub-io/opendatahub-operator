@@ -1,0 +1,31 @@
+{
+  "scenario_id": "crashloop-exit-code",
+  "scenario_name": "CrashLoop Exit Code",
+  "description": "Dashboard container command replaced with /bin/false, causing immediate exit with code 1 and CrashLoopBackOff. Based on RHOAIENG-62502 where kserve-container crashed with exit code 127 in RawDeployment mode.",
+  "root_cause": "Container odh-dashboard exits immediately with non-zero exit code due to invalid command, entering CrashLoopBackOff",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "pod-startup",
+    "error_code": 1002,
+    "confidence": "medium"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "Container terminated with exit code 1",
+    "Pod in CrashLoopBackOff state",
+    "Pod restart count increasing rapidly",
+    "Deployment shows reduced ready replicas"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "pod_logs",
+    "recent_events",
+    "describe_resource"
+  ],
+  "expected_remediation": "Restore the correct container command for odh-dashboard or fix the binary/entrypoint causing the non-zero exit"
+}

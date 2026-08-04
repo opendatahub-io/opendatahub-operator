@@ -39,6 +39,7 @@ type OperatorSettings struct {
 	OperatorNamespace string `mapstructure:"operator-namespace"`
 	DisableDSCConfig  string `mapstructure:"disable-dsc-config"`
 	ManifestsBasePath string `mapstructure:"default-manifests-path"`
+	ChartsBasePath    string `mapstructure:"default-charts-path"`
 	PlatformType      string `mapstructure:"platform-type"`
 }
 

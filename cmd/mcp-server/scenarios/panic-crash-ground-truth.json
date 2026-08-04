@@ -1,0 +1,30 @@
+{
+  "scenario_id": "panic-crash",
+  "scenario_name": "Panic Crash",
+  "description": "Component container command replaced to trigger a panic-like crash on startup, producing a stack trace in logs and CrashLoopBackOff. Based on troubleshooting.md 'Panic or Fatal Errors' pattern (line 197).",
+  "root_cause": "Container crashes on startup with a fatal error or panic, producing a stack trace in logs before exiting",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "pod-startup",
+    "error_code": 1002,
+    "confidence": "medium"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "Pod in CrashLoopBackOff state",
+    "Pod logs show panic/fatal error with stack trace",
+    "Container terminated with non-zero exit code",
+    "Deployment shows reduced ready replicas"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "pod_logs",
+    "recent_events"
+  ],
+  "expected_remediation": "Check pod logs for the panic stack trace to identify the root cause; fix the code or configuration triggering the panic"
+}

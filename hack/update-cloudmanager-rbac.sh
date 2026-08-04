@@ -9,6 +9,7 @@ fi
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CHARTS_DIR="${REPO_ROOT}/opt/charts"
 TARGET_FILE="${REPO_ROOT}/internal/controller/cloudmanager/common/kubebuilder_rbac.go"
+CHARTS_SOURCE="${REPO_ROOT}/get_all_manifests.sh"
 
 YQ="${1:?yq binary path is required as first argument}"
 HELM="${2:?helm binary path is required as second argument}"
@@ -32,12 +33,41 @@ if [[ ! -d "$CHARTS_DIR" ]]; then
   exit 1
 fi
 
+# Extract cloudmanager chart names from ODH_CCM_CHARTS keys in get_all_manifests.sh.
+extract_cloudmanager_charts() {
+  if [[ ! -f "$CHARTS_SOURCE" ]]; then
+    echo "ERROR: Charts source file '$CHARTS_SOURCE' not found" >&2
+    return 1
+  fi
+
+  local charts
+  charts=$(sed -n '/^declare -A ODH_CCM_CHARTS=(/,/^)/p' "$CHARTS_SOURCE" \
+    | grep -oE '\["[^"]+"\]' \
+    | tr -d '[]"' \
+    | LC_ALL=C sort || true)
+
+  if [[ -z "$charts" ]]; then
+    echo "ERROR: No chart keys found in ODH_CCM_CHARTS in '$CHARTS_SOURCE'" >&2
+    return 1
+  fi
+
+  echo "Cloudmanager charts: $(echo "$charts" | paste -sd ', ' -)" >&2
+  echo "$charts"
+}
+
 # Collect role and clusterrole names from rendered chart templates.
+# Only processes charts referenced by cloudmanager (extracted from get_all_manifests.sh).
 # Output format: <chart_name> <kind> <name>
 collect_names() {
-  for chart_dir in "${CHARTS_DIR}"/*/; do
-    [ -d "$chart_dir" ] || continue
-    chart_name=$(basename "$chart_dir")
+  local chart_names
+  chart_names=$(extract_cloudmanager_charts) || return 1
+
+  while IFS= read -r chart_name; do
+    local chart_dir="${CHARTS_DIR}/${chart_name}"
+    if [[ ! -d "$chart_dir" ]]; then
+      echo "ERROR: Chart directory '$chart_dir' does not exist. Run 'make get-manifests' first." >&2
+      return 1
+    fi
 
     # Render chart with default values.
     local rendered helm_stderr
@@ -54,7 +84,7 @@ collect_names() {
       select(.kind == "Role" or .kind == "ClusterRole") |
       env(chart) + " " + .kind + " " + .metadata.name
     ' -
-  done
+  done <<< "$chart_names"
 }
 
 # Sort semicolon-separated names within a value.

@@ -37,6 +37,15 @@ var (
 		"kubeflow.org/xgboostjob":                  "XGBoostJob",
 		"trainer.kubeflow.org/trainjob":            "TrainJob",
 		"leaderworkerset.x-k8s.io/leaderworkerset": "LeaderWorkerSet",
+		"sparkoperator.k8s.io/sparkapplication":    "SparkApplication",
+	}
+
+	// frameworkMinVersion maps framework names to the minimum Kueue version
+	// that supports them. Frameworks not listed here are assumed to be
+	// supported by all versions.
+	frameworkMinVersion = map[string]string{
+		"TrainJob":         "v1.2.0",
+		"SparkApplication": "v1.4.0",
 	}
 )
 
@@ -157,6 +166,27 @@ func createKueueCR(ctx context.Context, rr *odhtypes.ReconciliationRequest) (*un
 	return u, nil
 }
 
+// FrameworkMinVersion returns a copy of the minimum Kueue version requirements
+// for version-gated frameworks. Used by e2e tests to build version-aware assertions.
+func FrameworkMinVersion() map[string]string {
+	result := make(map[string]string, len(frameworkMinVersion))
+	for k, v := range frameworkMinVersion {
+		result[k] = v
+	}
+	return result
+}
+
+// isFrameworkSupported checks whether a framework is supported by the given
+// Kueue version. Frameworks listed in frameworkMinVersion require at least that
+// version; all others are assumed supported.
+func isFrameworkSupported(framework, kueueVersion string) bool {
+	minVersion, ok := frameworkMinVersion[framework]
+	if !ok {
+		return true
+	}
+	return semver.Compare(kueueVersion, minVersion) >= 0
+}
+
 // convertIntegrations converts the integrations section from ConfigMap to Kueue operator format.
 func convertIntegrations(config map[string]any, kueueVersion string) (map[string]any, error) {
 	integrations := map[string]any{}
@@ -179,16 +209,20 @@ func convertIntegrations(config map[string]any, kueueVersion string) (map[string
 		"StatefulSet",
 	)
 
-	// Support for TrainJob was added in Kueue 1.2.0, so if the installed version
-	// of kueue is equal or greater than 1.2.0, add TrainJob to the list of frameworks.
-	versionCmp := semver.Compare(kueueVersion, "v1.2.0")
-	if versionCmp >= 0 {
-		frameworkSet.Insert("TrainJob")
+	// Add version-gated default frameworks.
+	for framework := range frameworkMinVersion {
+		if isFrameworkSupported(framework, kueueVersion) {
+			frameworkSet.Insert(framework)
+		}
 	}
 
+	// Convert ConfigMap framework entries, filtering out any that are
+	// unsupported by the installed Kueue version.
 	for _, framework := range frameworks {
 		if converted, ok := frameworkMapping[framework]; ok {
-			frameworkSet.Insert(converted)
+			if isFrameworkSupported(converted, kueueVersion) {
+				frameworkSet.Insert(converted)
+			}
 		}
 	}
 
@@ -215,7 +249,9 @@ func convertIntegrations(config map[string]any, kueueVersion string) (map[string
 
 	for _, framework := range externalFrameworks {
 		if converted, ok := frameworkMapping[framework]; ok {
-			externalFrameworksSet.Insert(converted)
+			if isFrameworkSupported(converted, kueueVersion) {
+				externalFrameworksSet.Insert(converted)
+			}
 		}
 	}
 

@@ -11,6 +11,7 @@ spec:
       enable: true
       caCert:
         type: configmap
+        namespace: {{.Namespace}}
         name: tempo-service-ca
         certPath: service-ca.crt
   config:

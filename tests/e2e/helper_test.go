@@ -1,9 +1,15 @@
 package e2e_test
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"flag"
 	"fmt"
+	"math/big"
 	"os"
 	"strings"
 	"testing"
@@ -72,7 +78,7 @@ const (
 	leaderWorkerSetNamespace    = "openshift-lws-operator"                   // Namespace for the Leader Worker Set Operator
 	leaderWorkerSetChannel      = "stable-v1.0"                              // Channel for the Leader Worker Set Operator
 	kueueOcpOperatorNamespace   = "openshift-kueue-operator"                 // Namespace for the OCP Kueue Operator
-	kueueOcpOperatorChannel     = "stable-v1.3"                              // Channel for the OCP Kueue Operator
+	kueueOcpOperatorChannel     = "stable-v1.4"                              // Channel for the OCP Kueue Operator
 	kuadrantOpName              = "rhcl-operator"                            // Name of the Red Hat Connectivity Link Operator subscription.
 	kuadrantNamespace           = "kuadrant-system"                          // Namespace for the Red Hat Connectivity Link Operator.
 
@@ -82,8 +88,9 @@ const (
 const (
 	ownedNamespaceNumber = 1 // Number of namespaces owned, adjust to 4 for RHOAI deployment
 
-	dsciInstanceName = "default-dsci" // Instance name for the DSCInitialization
-	dscInstanceName  = "default-dsc"  // Instance name for the DataScienceCluster
+	dsciInstanceName     = "default-dsci" // Instance name for the DSCInitialization
+	dscInstanceName      = "default-dsc"  // Instance name for the DataScienceCluster
+	platformInstanceName = "default"      // Instance name for the Platform CR (xKS mode)
 
 	// Standard error messages format.
 	resourceNotNilErrorMsg       = "Expected a non-nil resource object but got nil."
@@ -252,7 +259,6 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
-					KserveCommonSpec: componentApi.KserveCommonSpec{},
 				},
 				Ray: componentApi.DSCRay{
 					ManagementSpec: common.ManagementSpec{
@@ -312,6 +318,16 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 						ManagementState: operatorv1.Removed,
 					},
 				},
+				AIGateway: componentApi.DSCAIGateway{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				MCPLifecycleOperator: componentApi.DSCMCPLifecycleOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
 			},
 		},
 	}
@@ -358,7 +374,6 @@ func CreateDSCv1(name string, workbenchesNamespace string) *dscv1.DataScienceClu
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
-					KserveCommonSpec: componentApi.KserveCommonSpec{},
 				},
 				CodeFlare: componentApi.DSCCodeFlare{
 					ManagementSpec: common.ManagementSpec{
@@ -692,6 +707,35 @@ func RestoreResourceFromBackup(t *testing.T, tc *TestContext, backupPath string)
 	} else {
 		t.Logf("%s backup file %s removed successfully", backedUpObject.GetKind(), backupPath)
 	}
+}
+
+func setCustomCABundle(value string) func(*unstructured.Unstructured) error {
+	return func(obj *unstructured.Unstructured) error {
+		return unstructured.SetNestedField(obj.Object, value, "spec", "trustedCABundle", "customCABundle")
+	}
+}
+
+func generateTestCertPEM(t *testing.T) string {
+	t.Helper()
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate RSA key: %v", err)
+	}
+
+	tmpl := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "test"},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Hour),
+	}
+
+	der, err := x509.CreateCertificate(rand.Reader, &tmpl, &tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatalf("failed to create certificate: %v", err)
+	}
+
+	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
 }
 
 func loadResourceFromTempFile(path string) (*unstructured.Unstructured, error) {

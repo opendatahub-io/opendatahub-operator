@@ -1,0 +1,30 @@
+{
+  "scenario_id": "healthy-node-not-ready-recovered",
+  "scenario_name": "Healthy Node NotReady Recovered",
+  "description": "A worker node briefly went NotReady (condition patched), then recovered to Ready. The node now shows Ready=True but has a recent NodeNotReady event and lastTransitionTime is very recent. All ODH pods are Running. The agent must check current node status (Ready=True) over recent events (NodeNotReady) and conclude the platform is healthy.",
+  "root_cause": "No failure — node experienced a brief NotReady condition that has already recovered",
+  "expected_classification": {
+    "category": "none",
+    "subcategory": "healthy",
+    "error_code": 0,
+    "confidence": "high"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": true
+    }
+  },
+  "expected_symptoms": [
+    "Node shows Ready=True (current state is healthy)",
+    "Recent Warning event shows NodeNotReady for the node (synthetic, simulating a resolved incident)",
+    "All ODH pods Running and Ready across all nodes",
+    "Node conditions show healthy (no MemoryPressure, DiskPressure, PIDPressure)",
+    "Contradicting signals: events say NotReady, current state says Ready"
+  ],
+  "tools_that_detect": [
+    "platform_health",
+    "recent_events",
+    "describe_resource"
+  ],
+  "expected_remediation": "No action needed — node has recovered to Ready state. Monitor for recurrence if it happens frequently."
+}

@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
@@ -73,9 +74,9 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 
 	switch req.Operation {
 	case admissionv1.Create:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState, denyMultipleDsc}, allowMessage, v.Client, &req)
+		return validate(ctx, []validationCheck{v.denyKueueManagedState, denyMultipleDsc, v.warnDeprecatedModelsAsService}, allowMessage, v.Client, &req)
 	case admissionv1.Update:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState}, allowMessage, v.Client, &req)
+		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.warnDeprecatedModelsAsService}, allowMessage, v.Client, &req)
 	default:
 		return admission.Allowed(allowMessage)
 	}
@@ -84,14 +85,18 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 type validationCheck func(context.Context, client.Reader, *admission.Request) admission.Response
 
 func validate(ctx context.Context, checks []validationCheck, allowedMessage string, cli client.Reader, request *admission.Request) admission.Response {
+	var warnings []string
 	for _, check := range checks {
 		resp := check(ctx, cli, request)
 		if !resp.Allowed {
 			return resp
 		}
+		warnings = append(warnings, resp.Warnings...)
 	}
 
-	return admission.Allowed(allowedMessage)
+	resp := admission.Allowed(allowedMessage)
+	resp.Warnings = warnings
+	return resp
 }
 
 func denyMultipleDsc(ctx context.Context, cli client.Reader, req *admission.Request) admission.Response {
@@ -109,4 +114,19 @@ func (v *Validator) denyKueueManagedState(ctx context.Context, _ client.Reader, 
 	}
 
 	return admission.Allowed("")
+}
+
+// warnDeprecatedModelsAsService emits an oc/kubectl Warning when the deprecated
+// kserve.modelsAsService field is Managed. Admission is still allowed so upgrades
+// and no-op syncs keep working; CEL blocks Removed→Managed separately.
+func (v *Validator) warnDeprecatedModelsAsService(ctx context.Context, _ client.Reader, req *admission.Request) admission.Response {
+	dsc := &dscv2.DataScienceCluster{}
+	if err := v.Decoder.DecodeRaw(req.Object, dsc); err != nil {
+		logf.FromContext(ctx).Error(err, "Error converting request object to "+gvk.DataScienceCluster.String())
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	resp := admission.Allowed("")
+	resp.Warnings = dscwebhook.ModelsAsServiceDeprecationWarnings(dsc.Spec.Components.Kserve.ModelsAsService.ManagementState) //nolint:staticcheck
+	return resp
 }

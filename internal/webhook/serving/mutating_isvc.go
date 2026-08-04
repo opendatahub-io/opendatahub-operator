@@ -37,9 +37,6 @@ var IsvcConfigs = InferenceServingPath{
 	ServiceAccountNamePath: []string{"spec", "predictor", "serviceAccountName"},  // used by all, has string
 }
 
-//+kubebuilder:webhook:path=/platform-connection-isvc,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=connection-isvc.opendatahub.io,sideEffects=NoneOnDryRun,admissionReviewVersions=v1
-//nolint:lll
-
 var _ admission.Handler = &ISVCConnectionWebhook{}
 
 func (w *ISVCConnectionWebhook) SetupWithManager(mgr ctrl.Manager) error {

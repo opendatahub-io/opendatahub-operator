@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/failureclassifier"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/failureclassifier"
 )
 
 func TestDiagnoseReportJSON(t *testing.T) {

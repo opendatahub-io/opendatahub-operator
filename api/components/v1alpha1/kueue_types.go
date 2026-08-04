@@ -119,10 +119,21 @@ type KueueManagementSpec struct {
 
 // +kubebuilder:object:generate=true
 type KueueDefaultQueueSpec struct {
+	// AutoCreateQueues controls whether the operator automatically creates default
+	// ClusterQueue, LocalQueue and ResourceFlavor resources in managed namespaces.
+	// When false (the default), the operator skips queue creation entirely, allowing
+	// administrators to manage queues via GitOps or other external tooling.
+	// HardwareProfiles of type "Queue" continue to reference externally-managed
+	// LocalQueues without change.
+	// This flag does not affect the Kueue config CR, which is always created.
+	// +kubebuilder:default=false
+	AutoCreateQueues *bool `json:"autoCreateQueues,omitempty"`
 	// Configures the automatically created, in the managed namespaces, local queue name.
+	// Only used when autoCreateQueues is true.
 	// +kubebuilder:default=default
 	DefaultLocalQueueName string `json:"defaultLocalQueueName,omitempty"`
 	// Configures the automatically created cluster queue name.
+	// Only used when autoCreateQueues is true.
 	// +kubebuilder:default=default
 	DefaultClusterQueueName string `json:"defaultClusterQueueName,omitempty"`
 }

@@ -19,6 +19,7 @@ import (
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	ccmcharts "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
@@ -40,19 +41,23 @@ const testReleaseName = "test"
 // the test suite should be expanded upon accordingly.
 var testResourceID = labels.NormalizePartOfValue(ccmv1alpha1.AzureKubernetesEngineKind)
 
-func newTestReconcileAction(t *testing.T) func(context.Context, *types.ReconciliationRequest) error {
+func newTestReconcileAction(t *testing.T, charts []types.HelmChartInfo) func(context.Context, *types.ReconciliationRequest) error {
 	t.Helper()
 	g := NewWithT(t)
 	action, err := cloudmanager.NewReconcileAction(
 		testResourceID,
 		cloudmanager.WithDeployOptions(),
 		cloudmanager.WithHelmOptions(helm.WithCache(false)),
+		cloudmanager.WithBuildChartsFn(func(_ context.Context, _ *types.ReconciliationRequest) (ccmcharts.BuildResult, error) {
+			return ccmcharts.BuildResult{Charts: charts}, nil
+		}),
 	)
 	g.Expect(err).NotTo(HaveOccurred())
 	return action
 }
 
-func newTestReconciliationRequest(cl client.Client, charts []types.HelmChartInfo) *types.ReconciliationRequest {
+func newTestReconciliationRequest(t *testing.T, cl client.Client) *types.ReconciliationRequest {
+	t.Helper()
 	instance := &ccmv1alpha1.AzureKubernetesEngine{}
 
 	rr := &types.ReconciliationRequest{
@@ -67,7 +72,6 @@ func newTestReconciliationRequest(cl client.Client, charts []types.HelmChartInfo
 				Major: 1, Minor: 0, Patch: 0,
 			}},
 		},
-		HelmCharts: charts,
 	}
 
 	rr.Conditions = conditions.NewManager(instance, status.ConditionTypeReady)
@@ -92,14 +96,14 @@ func TestNewReconcileAction_RendersAndDeploys(t *testing.T) {
 	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := newTestReconcileAction(t)
-	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
+	action := newTestReconcileAction(t, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
 			ReleaseName: testReleaseName,
 			Values:      helmRenderer.Values(map[string]any{"namespace": ns}),
 		},
 	}})
+	rr := newTestReconciliationRequest(t, cl)
 
 	err = action(ctx, rr)
 
@@ -121,8 +125,7 @@ func TestNewReconcileAction_ExecutesPreApplyHooks(t *testing.T) {
 	var resourceCountAtPreHook int
 	var resourceNotDeployedAtPreHook bool
 
-	action := newTestReconcileAction(t)
-	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
+	action := newTestReconcileAction(t, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
 			ReleaseName: testReleaseName,
@@ -141,6 +144,7 @@ func TestNewReconcileAction_ExecutesPreApplyHooks(t *testing.T) {
 			return nil
 		}},
 	}})
+	rr := newTestReconciliationRequest(t, cl)
 
 	err = action(ctx, rr)
 
@@ -160,8 +164,7 @@ func TestNewReconcileAction_ExecutesPostApplyHooks(t *testing.T) {
 	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := newTestReconcileAction(t)
-	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
+	action := newTestReconcileAction(t, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
 			ReleaseName: testReleaseName,
@@ -173,6 +176,7 @@ func TestNewReconcileAction_ExecutesPostApplyHooks(t *testing.T) {
 			return nil
 		}},
 	}})
+	rr := newTestReconciliationRequest(t, cl)
 
 	err = action(ctx, rr)
 
@@ -187,8 +191,7 @@ func TestNewReconcileAction_PreApplyHookCanModifyResources(t *testing.T) {
 	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := newTestReconcileAction(t)
-	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
+	action := newTestReconcileAction(t, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
 			ReleaseName: testReleaseName,
@@ -205,6 +208,7 @@ func TestNewReconcileAction_PreApplyHookCanModifyResources(t *testing.T) {
 			return nil
 		}},
 	}})
+	rr := newTestReconciliationRequest(t, cl)
 
 	err = action(ctx, rr)
 
@@ -229,8 +233,7 @@ func TestNewReconcileAction_PreApplyHookErrorStopsPipeline(t *testing.T) {
 
 	hookErr := errors.New("pre-apply failed")
 
-	action := newTestReconcileAction(t)
-	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
+	action := newTestReconcileAction(t, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
 			ReleaseName: testReleaseName,
@@ -240,6 +243,7 @@ func TestNewReconcileAction_PreApplyHookErrorStopsPipeline(t *testing.T) {
 			return hookErr
 		}},
 	}})
+	rr := newTestReconciliationRequest(t, cl)
 
 	err = action(ctx, rr)
 
@@ -263,8 +267,7 @@ func TestNewReconcileAction_PostApplyHookErrorPropagates(t *testing.T) {
 
 	hookErr := errors.New("post-apply failed")
 
-	action := newTestReconcileAction(t)
-	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
+	action := newTestReconcileAction(t, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
 			ReleaseName: testReleaseName,
@@ -274,6 +277,7 @@ func TestNewReconcileAction_PostApplyHookErrorPropagates(t *testing.T) {
 			return hookErr
 		}},
 	}})
+	rr := newTestReconciliationRequest(t, cl)
 
 	err = action(ctx, rr)
 
@@ -291,14 +295,14 @@ func TestNewReconcileAction_SetsInfrastructureLabel(t *testing.T) {
 	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := newTestReconcileAction(t)
-	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
+	action := newTestReconcileAction(t, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
 			ReleaseName: testReleaseName,
 			Values:      helmRenderer.Values(map[string]any{"namespace": ns}),
 		},
 	}})
+	rr := newTestReconciliationRequest(t, cl)
 
 	err = action(ctx, rr)
 
@@ -325,8 +329,7 @@ func TestNewReconcileAction_MultipleCharts(t *testing.T) {
 
 	var hookOrder []string
 
-	action := newTestReconcileAction(t)
-	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{
+	action := newTestReconcileAction(t, []types.HelmChartInfo{
 		{
 			Source: helmRenderer.Source{
 				Chart:       filepath.Join("testdata", "test-chart"),
@@ -358,6 +361,7 @@ func TestNewReconcileAction_MultipleCharts(t *testing.T) {
 			}},
 		},
 	})
+	rr := newTestReconciliationRequest(t, cl)
 
 	err = action(ctx, rr)
 

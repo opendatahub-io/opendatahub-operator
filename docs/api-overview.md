@@ -2,6 +2,7 @@
 
 ## Packages
 - [components.platform.opendatahub.io/v1alpha1](#componentsplatformopendatahubiov1alpha1)
+- [config.opendatahub.io/v1alpha1](#configopendatahubiov1alpha1)
 - [datasciencecluster.opendatahub.io/v1](#datascienceclusteropendatahubiov1)
 - [datasciencecluster.opendatahub.io/v2](#datascienceclusteropendatahubiov2)
 - [dscinitialization.opendatahub.io/v1](#dscinitializationopendatahubiov1)
@@ -16,39 +17,66 @@
 Package v1 contains API Schema definitions for the components v1 API group
 
 ### Resource Types
-- [Dashboard](#dashboard)
 - [DataSciencePipelines](#datasciencepipelines)
-- [FeastOperator](#feastoperator)
-- [Kserve](#kserve)
 - [Kueue](#kueue)
-- [MLflowOperator](#mlflowoperator)
-- [ModelController](#modelcontroller)
 - [ModelRegistry](#modelregistry)
-- [ModelsAsService](#modelsasservice)
-- [OGX](#ogx)
 - [Ray](#ray)
 - [SparkOperator](#sparkoperator)
 - [Trainer](#trainer)
 - [TrainingOperator](#trainingoperator)
 - [TrustyAI](#trustyai)
-- [Workbenches](#workbenches)
 
 
 
-#### APIKeysConfig
+#### AIGatewayBatchGatewaySpec
 
 
 
-APIKeysConfig defines configuration options for API key management.
+AIGatewayBatchGatewaySpec configures the batch-gateway operator lifecycle.
 
 
 
 _Appears in:_
-- [ModelsAsServiceSpec](#modelsasservicespec)
+- [AIGatewayCommonSpec](#aigatewaycommonspec)
+- [DSCAIGateway](#dscaigateway)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `maxExpirationDays` _integer_ | MaxExpirationDays is the maximum allowed expiration in days for API keys.<br />When set, users cannot create API keys with expiration longer than this value.<br />Examples: 30 (one month), 90 (three months), 365 (one year).<br />If not set, no expiration limit is enforced. |  | Minimum: 1 <br />Optional: \{\} <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  |  | Enum: [Managed Removed] <br /> |
+
+
+#### AIGatewayCommonSpec
+
+
+
+AIGatewayCommonSpec defines the user-facing configuration for AIGateway,
+shared between DSC and the AIGateway CR.
+
+
+
+_Appears in:_
+- [DSCAIGateway](#dscaigateway)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `modelsAsAService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | ModelsAsAService controls the Models as a Service sub-component.<br />Note: the field uses "AsA" (modelsAsAService) intentionally — this matches the<br />ai-gateway-operator CRD field name (spec.modelsAsAService). The type name<br />DSCModelsAsServiceSpec is shared with the deprecated kserve.modelsAsService field<br />and predates the rename; the JSON tag is the authoritative API surface. |  |  |
+| `batchGateway` _[AIGatewayBatchGatewaySpec](#aigatewaybatchgatewayspec)_ | BatchGateway controls the batch-gateway operator sub-component. |  |  |
+
+
+#### AIGatewayCommonStatus
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCAIGatewayStatus](#dscaigatewaystatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### ArgoWorkflowsControllersSpec
@@ -67,6 +95,57 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the bundled Argo Workflows controllers.<br />              It will only upgrade the Argo Workflows controllers if it is safe to do so. This is the default<br />              behavior.<br />- "Removed" : the operator is not managing the bundled Argo Workflows controllers and will not install it.<br />              If it is installed, the operator will remove it but will not remove other Argo Workflows<br />              installations. | Managed | Enum: [Managed Removed] <br /> |
+
+
+#### DSCAIGateway
+
+
+
+DSCAIGateway contains all the configuration exposed in DSC instance for AIGateway component.
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `modelsAsAService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | ModelsAsAService controls the Models as a Service sub-component.<br />Note: the field uses "AsA" (modelsAsAService) intentionally — this matches the<br />ai-gateway-operator CRD field name (spec.modelsAsAService). The type name<br />DSCModelsAsServiceSpec is shared with the deprecated kserve.modelsAsService field<br />and predates the rename; the JSON tag is the authoritative API surface. |  |  |
+| `batchGateway` _[AIGatewayBatchGatewaySpec](#aigatewaybatchgatewayspec)_ | BatchGateway controls the batch-gateway operator sub-component. |  |  |
+
+
+#### DSCAIGatewayStatus
+
+
+
+DSCAIGatewayStatus struct holds the status for the AIGateway component exposed in the DSC.
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCBatchGatewayStatus
+
+
+
+DSCBatchGatewayStatus contains the observed state of the BatchGateway
+submodule exposed in the DSC instance.
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCDashboard
@@ -189,9 +268,11 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
-| `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
-| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
-| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration |  |  |
+| `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
+| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Deprecated: ModelsAsService is preserved for backward compatibility at least through 3.6.<br />MaaS is now configured via spec.components.aigateway.modelsAsAService.<br />Existing Managed values are still respected by the operator.<br />One-directional CEL: Managed→Removed (cleanup) is allowed; Removed→Managed is blocked. | \{ managementState:Removed \} |  |
+| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
+| `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
+| `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 
@@ -226,8 +307,9 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : present for backwards compatibility with OLM upgrades, but not supported at runtime.<br />                The operator will reject this value. Use "Unmanaged" or "Removed" instead.<br />- "Unmanaged" : the operator will not deploy or manage the component's lifecycle, but may create supporting configuration resources.<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
-| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
-| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
+| `autoCreateQueues` _boolean_ | AutoCreateQueues controls whether the operator automatically creates default<br />ClusterQueue, LocalQueue and ResourceFlavor resources in managed namespaces.<br />When false (the default), the operator skips queue creation entirely, allowing<br />administrators to manage queues via GitOps or other external tooling.<br />HardwareProfiles of type "Queue" continue to reference externally-managed<br />LocalQueues without change.<br />This flag does not affect the Kueue config CR, which is always created. | false |  |
+| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name.<br />Only used when autoCreateQueues is true. | default |  |
+| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name.<br />Only used when autoCreateQueues is true. | default |  |
 
 
 #### DSCKueueStatus
@@ -281,6 +363,38 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
+#### DSCMCPLifecycleOperator
+
+
+
+DSCMCPLifecycleOperator contains all the configuration exposed in DSC instance for MCPLifecycleOperator component.
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCMCPLifecycleOperatorStatus
+
+
+
+DSCMCPLifecycleOperatorStatus struct holds the status for the MCPLifecycleOperator component exposed in the DSC.
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
 #### DSCMLflowOperator
 
 
@@ -295,6 +409,9 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `gateway` _[GatewaySpec](#gatewayspec)_ | Gateway configuration for MLflow ingress (synced from GatewayConfig by the DSC controller<br />when creating the MLflowOperator CR). |  |  |
+| `gatewayName` _string_ | GatewayName is the gateway resource name projected into the MLflowOperator singleton CR. |  |  |
+| `sectionTitle` _string_ | SectionTitle is the console section title projected into the MLflowOperator singleton CR. |  |  |
 
 
 #### DSCMLflowOperatorStatus
@@ -357,22 +474,37 @@ DSCModelsAsServiceSpec enables ModelsAsService integration
 
 
 _Appears in:_
+- [AIGatewayCommonSpec](#aigatewaycommonspec)
+- [DSCAIGateway](#dscaigateway)
 - [DSCKserve](#dsckserve)
 - [KserveCommonSpec](#kservecommonspec)
-- [KserveSpec](#kservespec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Removed] <br /> |
 
 
+#### DSCModelsAsServiceStatus
+
+
+
+DSCModelsAsServiceStatus contains the observed state of the ModelsAsService exposed in the DSC instance
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCOGX
 
 
 
-DSCOGX contains all the configuration exposed in DSC instance for OGX component
+
 
 
 
@@ -388,7 +520,7 @@ _Appears in:_
 
 
 
-DSCOGXStatus struct holds the status for the OGX component exposed in the DSC
+
 
 
 
@@ -583,7 +715,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `workbenchNamespace` _string_ | Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `workbenchNamespace` _string_ | Legacy JupyterHub-era notebooks namespace. Immutable after creation; defaults to "opendatahub".<br />Notebook-controller operands are deployed into DSCI ApplicationsNamespace, not this field. | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### DSCWorkbenchesStatus
@@ -603,27 +735,6 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
-#### Dashboard
-
-
-
-Dashboard is the Schema for the dashboards API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `Dashboard` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[DashboardSpec](#dashboardspec)_ |  |  |  |
-| `status` _[DashboardStatus](#dashboardstatus)_ |  |  |  |
-
-
 #### DashboardCommonSpec
 
 
@@ -634,7 +745,6 @@ DashboardCommonSpec spec defines the shared desired state of Dashboard (used in 
 
 _Appears in:_
 - [DSCDashboard](#dscdashboard)
-- [DashboardSpec](#dashboardspec)
 
 
 
@@ -648,45 +758,9 @@ DashboardCommonStatus defines the shared observed state of Dashboard
 
 _Appears in:_
 - [DSCDashboardStatus](#dscdashboardstatus)
-- [DashboardStatus](#dashboardstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `url` _string_ |  |  |  |
-
-
-#### DashboardSpec
-
-
-
-DashboardSpec defines the desired state of Dashboard (Dashboard CR only).
-
-
-
-_Appears in:_
-- [Dashboard](#dashboard)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `gateway` _[GatewaySpec](#gatewayspec)_ | Gateway configuration for dashboard ingress (synced from GatewayConfig by the DSC controller when creating the Dashboard CR). |  |  |
-
-
-#### DashboardStatus
-
-
-
-DashboardStatus defines the observed state of Dashboard
-
-
-
-_Appears in:_
-- [Dashboard](#dashboard)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
 | `url` _string_ |  |  |  |
 
 
@@ -780,45 +854,6 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
-#### ExternalOIDCConfig
-
-
-
-ExternalOIDCConfig defines the external OIDC provider settings.
-
-
-
-_Appears in:_
-- [ModelsAsServiceSpec](#modelsasservicespec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `issuerUrl` _string_ | IssuerURL is the OIDC issuer URL (e.g. https://keycloak.example.com/realms/maas).<br />Must serve a .well-known/openid-configuration endpoint over HTTPS. |  | MaxLength: 2048 <br />MinLength: 9 <br />Pattern: `^https://\S+$` <br /> |
-| `clientId` _string_ | ClientID is the OAuth2 client ID. Incoming OIDC tokens must have an<br />azp (authorized party) claim matching this value. |  | MaxLength: 256 <br />MinLength: 1 <br />Pattern: `^\S+$` <br /> |
-| `ttl` _integer_ | TTL is the JWKS cache duration in seconds. | 300 | Minimum: 30 <br />Optional: \{\} <br /> |
-
-
-#### FeastOperator
-
-
-
-FeastOperator is the Schema for the FeastOperator API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `FeastOperator` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[FeastOperatorSpec](#feastoperatorspec)_ |  |  |  |
-| `status` _[FeastOperatorStatus](#feastoperatorstatus)_ |  |  |  |
-
-
 #### FeastOperatorCommonSpec
 
 
@@ -829,7 +864,6 @@ FeastOperatorCommonSpec defines the common spec shared across APIs for FeastOper
 
 _Appears in:_
 - [DSCFeastOperator](#dscfeastoperator)
-- [FeastOperatorSpec](#feastoperatorspec)
 
 
 
@@ -843,85 +877,10 @@ FeastOperatorCommonStatus defines the shared observed state of FeastOperator
 
 _Appears in:_
 - [DSCFeastOperatorStatus](#dscfeastoperatorstatus)
-- [FeastOperatorStatus](#feastoperatorstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### FeastOperatorSpec
-
-
-
-FeastOperatorSpec defines the desired state of FeastOperator
-
-
-
-_Appears in:_
-- [FeastOperator](#feastoperator)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `oidc` _[GatewayOIDCSpec](#gatewayoidcspec)_ | OIDC holds issuer settings synced from GatewayConfig by the DSC controller when the cluster<br />uses external OIDC (issuer URL from GatewayConfig.spec.oidc). Only issuerURL is applied to<br />Feast manifests (params.env). |  |  |
-
-
-#### FeastOperatorStatus
-
-
-
-FeastOperatorStatus defines the observed state of FeastOperator
-
-
-
-_Appears in:_
-- [FeastOperator](#feastoperator)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### GatewayRef
-
-
-
-GatewayRef defines the reference to the global Gateway (Gw API) where
-models should be published to when exposed as services.
-
-
-
-_Appears in:_
-- [ModelsAsServiceSpec](#modelsasservicespec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `namespace` _string_ | Namespace is the namespace where the Gateway resource is located. | openshift-ingress | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
-| `name` _string_ | Name is the name of the Gateway resource. | maas-default-gateway | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
-
-
-#### Kserve
-
-
-
-Kserve is the Schema for the kserves API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `Kserve` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[KserveSpec](#kservespec)_ |  |  |  |
-| `status` _[KserveStatus](#kservestatus)_ |  |  |  |
 
 
 #### KserveCommonSpec
@@ -934,15 +893,16 @@ KserveCommonSpec spec defines the shared desired state of Kserve
 
 _Appears in:_
 - [DSCKserve](#dsckserve)
-- [KserveSpec](#kservespec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
-| `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
-| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
-| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration |  |  |
+| `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
+| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Deprecated: ModelsAsService is preserved for backward compatibility at least through 3.6.<br />MaaS is now configured via spec.components.aigateway.modelsAsAService.<br />Existing Managed values are still respected by the operator.<br />One-directional CEL: Managed→Removed (cleanup) is allowed; Removed→Managed is blocked. | \{ managementState:Removed \} |  |
+| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
+| `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
+| `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 
@@ -956,50 +916,9 @@ KserveCommonStatus defines the shared observed state of Kserve
 
 _Appears in:_
 - [DSCKserveStatus](#dsckservestatus)
-- [KserveStatus](#kservestatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### KserveSpec
-
-
-
-KserveSpec defines the desired state of Kserve
-
-
-
-_Appears in:_
-- [Kserve](#kserve)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
-| `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
-| `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
-| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
-| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration |  |  |
-| `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
-
-
-#### KserveStatus
-
-
-
-KserveStatus defines the observed state of Kserve
-
-
-
-_Appears in:_
-- [Kserve](#kserve)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
@@ -1071,8 +990,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
-| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
+| `autoCreateQueues` _boolean_ | AutoCreateQueues controls whether the operator automatically creates default<br />ClusterQueue, LocalQueue and ResourceFlavor resources in managed namespaces.<br />When false (the default), the operator skips queue creation entirely, allowing<br />administrators to manage queues via GitOps or other external tooling.<br />HardwareProfiles of type "Queue" continue to reference externally-managed<br />LocalQueues without change.<br />This flag does not affect the Kueue config CR, which is always created. | false |  |
+| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name.<br />Only used when autoCreateQueues is true. | default |  |
+| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name.<br />Only used when autoCreateQueues is true. | default |  |
 
 
 #### KueueManagementSpec
@@ -1107,8 +1027,9 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : present for backwards compatibility with OLM upgrades, but not supported at runtime.<br />                The operator will reject this value. Use "Unmanaged" or "Removed" instead.<br />- "Unmanaged" : the operator will not deploy or manage the component's lifecycle, but may create supporting configuration resources.<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
-| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
-| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
+| `autoCreateQueues` _boolean_ | AutoCreateQueues controls whether the operator automatically creates default<br />ClusterQueue, LocalQueue and ResourceFlavor resources in managed namespaces.<br />When false (the default), the operator skips queue creation entirely, allowing<br />administrators to manage queues via GitOps or other external tooling.<br />HardwareProfiles of type "Queue" continue to reference externally-managed<br />LocalQueues without change.<br />This flag does not affect the Kueue config CR, which is always created. | false |  |
+| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name.<br />Only used when autoCreateQueues is true. | default |  |
+| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name.<br />Only used when autoCreateQueues is true. | default |  |
 
 
 #### KueueStatus
@@ -1162,25 +1083,34 @@ _Appears in:_
 
 
 
-#### MLflowOperator
+#### MCPLifecycleOperatorCommonSpec
 
 
 
-MLflowOperator is the Schema for the MLflowOperators API
+MCPLifecycleOperatorCommonSpec holds config fields shared between the
+standalone CRD (owned by the module operator) and the DSC embedding.
 
 
 
+_Appears in:_
+- [DSCMCPLifecycleOperator](#dscmcplifecycleoperator)
 
+
+
+#### MCPLifecycleOperatorCommonStatus
+
+
+
+MCPLifecycleOperatorCommonStatus defines the shared observed state of MCPLifecycleOperator.
+
+
+
+_Appears in:_
+- [DSCMCPLifecycleOperatorStatus](#dscmcplifecycleoperatorstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `MLflowOperator` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[MLflowOperatorSpec](#mlflowoperatorspec)_ |  |  |  |
-| `status` _[MLflowOperatorStatus](#mlflowoperatorstatus)_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### MLflowOperatorCommonSpec
@@ -1193,8 +1123,12 @@ MLflowOperator is the Schema for the MLflowOperators API
 
 _Appears in:_
 - [DSCMLflowOperator](#dscmlflowoperator)
-- [MLflowOperatorSpec](#mlflowoperatorspec)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `gateway` _[GatewaySpec](#gatewayspec)_ | Gateway configuration for MLflow ingress (synced from GatewayConfig by the DSC controller<br />when creating the MLflowOperator CR). |  |  |
+| `gatewayName` _string_ | GatewayName is the gateway resource name projected into the MLflowOperator singleton CR. |  |  |
+| `sectionTitle` _string_ | SectionTitle is the console section title projected into the MLflowOperator singleton CR. |  |  |
 
 
 #### MLflowOperatorCommonStatus
@@ -1207,64 +1141,10 @@ MLflowOperatorCommonStatus defines the shared observed state of MLflowOperator
 
 _Appears in:_
 - [DSCMLflowOperatorStatus](#dscmlflowoperatorstatus)
-- [MLflowOperatorStatus](#mlflowoperatorstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### MLflowOperatorSpec
-
-
-
-
-
-
-
-_Appears in:_
-- [MLflowOperator](#mlflowoperator)
-
-
-
-#### MLflowOperatorStatus
-
-
-
-MLflowOperatorStatus defines the observed state of MLflowOperator
-
-
-
-_Appears in:_
-- [MLflowOperator](#mlflowoperator)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### MetricsConfig
-
-
-
-MetricsConfig defines which dimensions (labels) are captured in telemetry metrics.
-Each dimension can be enabled or disabled to control metric cardinality and storage costs.
-Note: subscription, cost_center, and tier dimensions are always emitted for billing and access control.
-
-
-
-_Appears in:_
-- [TelemetryConfig](#telemetryconfig)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `captureOrganization` _boolean_ | CaptureOrganization enables the organization_id label on metrics. | true | Optional: \{\} <br /> |
-| `captureUser` _boolean_ | CaptureUser enables the user label on metrics.<br />Disabled by default for privacy/GDPR compliance. | false | Optional: \{\} <br /> |
-| `captureGroup` _boolean_ | CaptureGroup enables the group label on metrics for team-based chargeback.<br />Note: This is a high-cardinality dimension and is disabled by default. | false | Optional: \{\} <br /> |
-| `captureModelUsage` _boolean_ | CaptureModelUsage enables the model label on metrics. | true | Optional: \{\} <br /> |
 
 
 #### ModelCacheSpec
@@ -1278,7 +1158,6 @@ ModelCacheSpec enables Model Cache integration
 _Appears in:_
 - [DSCKserve](#dsckserve)
 - [KserveCommonSpec](#kservecommonspec)
-- [KserveSpec](#kservespec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1286,98 +1165,6 @@ _Appears in:_
 | `cacheSize` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CacheSize specifies the storage capacity for the model cache PersistentVolume<br />and PersistentVolumeClaim (e.g., "100Gi", "500Gi", "1Ti"). |  |  |
 | `nodeNames` _string array_ | NodeNames is a list of specific node names to enable model caching on.<br />The operator will label these nodes with kserve/localmodel=worker.<br />Mutually exclusive with NodeSelector. |  | MinItems: 1 <br />Optional: \{\} <br /> |
 | `nodeSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#labelselector-v1-meta)_ | NodeSelector is a label selector that identifies nodes for model caching<br />using pre-existing node labels (e.g., nvidia.com/gpu).<br />The operator will label matching nodes with kserve/localmodel=worker.<br />Mutually exclusive with NodeNames. |  | Optional: \{\} <br /> |
-
-
-#### ModelController
-
-
-
-ModelController is the Schema for the modelcontroller API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `ModelController` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[ModelControllerSpec](#modelcontrollerspec)_ |  |  |  |
-| `status` _[ModelControllerStatus](#modelcontrollerstatus)_ |  |  |  |
-
-
-#### ModelControllerKerveSpec
-
-
-
-a mini version of the DSCKserve only keeps management, NIM, and WVA spec
-
-
-
-_Appears in:_
-- [ModelControllerSpec](#modelcontrollerspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  |  |  |
-| `nim` _[NimSpec](#nimspec)_ |  |  |  |
-| `wva` _[WVASpec](#wvaspec)_ |  |  |  |
-
-
-
-
-#### ModelControllerMRSpec
-
-
-
-
-
-
-
-_Appears in:_
-- [ModelControllerSpec](#modelcontrollerspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  |  |  |
-
-
-#### ModelControllerSpec
-
-
-
-ModelControllerSpec defines the desired state of ModelController
-
-
-
-_Appears in:_
-- [ModelController](#modelcontroller)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `kserve` _[ModelControllerKerveSpec](#modelcontrollerkervespec)_ |  |  |  |
-| `modelRegistry` _[ModelControllerMRSpec](#modelcontrollermrspec)_ |  |  |  |
-
-
-#### ModelControllerStatus
-
-
-
-ModelControllerStatus defines the observed state of ModelController
-
-
-
-_Appears in:_
-- [ModelController](#modelcontroller)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
 #### ModelRegistry
@@ -1473,64 +1260,6 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
-#### ModelsAsService
-
-
-
-ModelsAsService is the Schema for the modelsasservice API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `ModelsAsService` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[ModelsAsServiceSpec](#modelsasservicespec)_ |  |  |  |
-| `status` _[ModelsAsServiceStatus](#modelsasservicestatus)_ |  |  |  |
-
-
-#### ModelsAsServiceSpec
-
-
-
-ModelsAsServiceSpec defines the desired state of ModelsAsService
-
-
-
-_Appears in:_
-- [ModelsAsService](#modelsasservice)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `gatewayRef` _[GatewayRef](#gatewayref)_ | GatewayRef specifies which Gateway (Gateway API) to use for exposing model endpoints.<br />If omitted, defaults to openshift-ingress/maas-default-gateway. |  | Optional: \{\} <br /> |
-| `apiKeys` _[APIKeysConfig](#apikeysconfig)_ | APIKeys contains configuration for API key management. |  | Optional: \{\} <br /> |
-| `externalOIDC` _[ExternalOIDCConfig](#externaloidcconfig)_ | ExternalOIDC configures an external OIDC identity provider (e.g. Keycloak, Azure AD)<br />for the maas-api AuthPolicy. When set, the operator patches the AuthPolicy to accept<br />JWTs from the specified issuer alongside OpenShift TokenReview and API key authentication. |  | Optional: \{\} <br /> |
-| `telemetry` _[TelemetryConfig](#telemetryconfig)_ | Telemetry contains configuration for telemetry and metrics collection.<br />When enabled, deploys TelemetryPolicy for usage metrics and<br />Istio Telemetry for per-subscription latency tracking. |  | Optional: \{\} <br /> |
-
-
-#### ModelsAsServiceStatus
-
-
-
-ModelsAsServiceStatus defines the observed state of ModelsAsService
-
-
-
-_Appears in:_
-- [ModelsAsService](#modelsasservice)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-
-
 #### NimSpec
 
 
@@ -1542,8 +1271,6 @@ nimSpec enables NVIDIA NIM integration
 _Appears in:_
 - [DSCKserve](#dsckserve)
 - [KserveCommonSpec](#kservecommonspec)
-- [KserveSpec](#kservespec)
-- [ModelControllerKerveSpec](#modelcontrollerkervespec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1563,7 +1290,6 @@ OAuthProxyConfig configures the OAuth proxy sidecar container in the
 _Appears in:_
 - [DSCKserve](#dsckserve)
 - [KserveCommonSpec](#kservecommonspec)
-- [KserveSpec](#kservespec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1584,27 +1310,6 @@ _Appears in:_
 
 
 
-#### OGX
-
-
-
-OGX is the Schema for the OGX API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `OGX` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[OGXSpec](#ogxspec)_ |  |  |  |
-| `status` _[OGXStatus](#ogxstatus)_ |  |  |  |
-
-
 #### OGXCommonSpec
 
 
@@ -1615,7 +1320,6 @@ OGX is the Schema for the OGX API
 
 _Appears in:_
 - [DSCOGX](#dscogx)
-- [OGXSpec](#ogxspec)
 
 
 
@@ -1623,49 +1327,13 @@ _Appears in:_
 
 
 
-OGXCommonStatus defines the shared observed state of OGX
+
 
 
 
 _Appears in:_
 - [DSCOGXStatus](#dscogxstatus)
-- [OGXStatus](#ogxstatus)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### OGXSpec
-
-
-
-OGXSpec defines the desired state of OGX
-
-
-
-_Appears in:_
-- [OGX](#ogx)
-
-
-
-#### OGXStatus
-
-
-
-OGXStatus defines the observed state of OGX
-
-
-
-_Appears in:_
-- [OGX](#ogx)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### RawServiceConfig
@@ -1680,7 +1348,6 @@ _Validation:_
 _Appears in:_
 - [DSCKserve](#dsckserve)
 - [KserveCommonSpec](#kservecommonspec)
-- [KserveSpec](#kservespec)
 
 | Field | Description |
 | --- | --- |
@@ -1854,25 +1521,6 @@ _Appears in:_
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### TelemetryConfig
-
-
-
-TelemetryConfig defines configuration for telemetry collection.
-When enabled, deploys TelemetryPolicy for usage metrics (Limitador) and
-Istio Telemetry for per-subscription latency tracking.
-
-
-
-_Appears in:_
-- [ModelsAsServiceSpec](#modelsasservicespec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `enabled` _boolean_ | Enabled controls whether telemetry resources are deployed.<br />When true, creates TelemetryPolicy for usage metrics and<br />Istio Telemetry for per-subscription latency tracking.<br />Default is true (telemetry enabled). | true | Optional: \{\} <br /> |
-| `metrics` _[MetricsConfig](#metricsconfig)_ | Metrics contains configuration for optional metric dimensions/labels. |  | Optional: \{\} <br /> |
 
 
 #### Trainer
@@ -2181,33 +1829,10 @@ WVASpec enables workload-variant-autoscaler integration
 _Appears in:_
 - [DSCKserve](#dsckserve)
 - [KserveCommonSpec](#kservecommonspec)
-- [KserveSpec](#kservespec)
-- [ModelControllerKerveSpec](#modelcontrollerkervespec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Removed] <br /> |
-
-
-#### Workbenches
-
-
-
-Workbenches is the Schema for the workbenches API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `Workbenches` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[WorkbenchesSpec](#workbenchesspec)_ |  |  |  |
-| `status` _[WorkbenchesStatus](#workbenchesstatus)_ |  |  |  |
 
 
 #### WorkbenchesCommonSpec
@@ -2220,24 +1845,24 @@ Workbenches is the Schema for the workbenches API
 
 _Appears in:_
 - [DSCWorkbenches](#dscworkbenches)
-- [WorkbenchesSpec](#workbenchesspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `workbenchNamespace` _string_ | Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `workbenchNamespace` _string_ | Legacy JupyterHub-era notebooks namespace. Immutable after creation; defaults to "opendatahub".<br />Notebook-controller operands are deployed into DSCI ApplicationsNamespace, not this field. | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### WorkbenchesCommonStatus
 
 
 
-WorkbenchesCommonStatus defines the shared observed state of Workbenches
+WorkbenchesCommonStatus defines the shared observed state of Workbenches.
+On the module CR, status.applicationsNamespace is the operand deploy target and
+status.workbenchNamespace echoes the legacy DSC notebooks namespace.
 
 
 
 _Appears in:_
 - [DSCWorkbenchesStatus](#dscworkbenchesstatus)
-- [WorkbenchesStatus](#workbenchesstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -2245,40 +1870,95 @@ _Appears in:_
 | `workbenchNamespace` _string_ |  |  |  |
 
 
-#### WorkbenchesSpec
+
+## config.opendatahub.io/v1alpha1
+
+Package v1alpha1 contains API Schema definitions for the config v1alpha1 API group
+
+### Resource Types
+- [Platform](#platform)
 
 
 
-WorkbenchesSpec defines the desired state of Workbenches
+#### Platform
 
 
 
-_Appears in:_
-- [Workbenches](#workbenches)
+Platform is the Schema for the platforms API. It serves as the primary
+reconcile trigger for the module reconciler on clusters where
+DataScienceCluster is not installed (xKS / vanilla Kubernetes).
+
+
+
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `workbenchNamespace` _string_ | Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `apiVersion` _string_ | `config.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `Platform` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[PlatformSpec](#platformspec)_ |  |  |  |
+| `status` _[PlatformStatus](#platformstatus)_ |  |  |  |
 
 
-#### WorkbenchesStatus
+#### PlatformModules
 
 
 
-WorkbenchesStatus defines the observed state of Workbenches
+PlatformModules declares per-module management state for Platform mode.
+Each field maps to a registered module handler by name. Add new module
+fields here when onboarding additional modules.
 
 
 
 _Appears in:_
-- [Workbenches](#workbenches)
+- [PlatformSpec](#platformspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `aigateway` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | AIGateway controls the ai-gateway-operator module lifecycle. |  |  |
+| `mlflowoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | MLflowOperator controls the MLflow module operator lifecycle. |  |  |
+| `monitoring` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Monitoring controls the monitoring module operator lifecycle. |  |  |
+| `mcplifecycleoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | MCPLifecycleOperator controls the MCP Lifecycle Operator module lifecycle. |  |  |
+| `kserve` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Kserve controls the kserve module operator lifecycle. |  |  |
+| `workbenches` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Workbenches controls the workbenches module operator lifecycle. |  |  |
+| `ogx` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | OGX controls the OGX module operator lifecycle. |  |  |
+
+
+#### PlatformSpec
+
+
+
+PlatformSpec defines the desired state of Platform.
+
+
+
+_Appears in:_
+- [Platform](#platform)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `modules` _[PlatformModules](#platformmodules)_ | Modules declares the set of modules managed by this Platform instance.<br />Each field corresponds to a registered module handler. Modules follow<br />the same Managed/Removed/empty convention as DSC components: Managed<br />deploys the module, Removed tears it down, empty means not managed. |  |  |
+
+
+#### PlatformStatus
+
+
+
+PlatformStatus defines the observed state of Platform.
+
+
+
+_Appears in:_
+- [Platform](#platform)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-| `workbenchNamespace` _string_ |  |  |  |
 
 
 
@@ -2365,8 +2045,9 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator will not deploy or manage the component's lifecycle, but may create supporting configuration resources.<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
-| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
-| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
+| `autoCreateQueues` _boolean_ | AutoCreateQueues controls whether the operator automatically creates default<br />ClusterQueue, LocalQueue and ResourceFlavor resources in managed namespaces.<br />When false (the default), the operator skips queue creation entirely, allowing<br />administrators to manage queues via GitOps or other external tooling.<br />HardwareProfiles of type "Queue" continue to reference externally-managed<br />LocalQueues without change.<br />This flag does not affect the Kueue config CR, which is always created. | false |  |
+| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name.<br />Only used when autoCreateQueues is true. | default |  |
+| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name.<br />Only used when autoCreateQueues is true. | default |  |
 
 
 #### DataScienceCluster
@@ -2483,6 +2164,8 @@ _Appears in:_
 | `mlflowoperator` _[DSCMLflowOperator](#dscmlflowoperator)_ | MLflow Operator component configuration. |  |  |
 | `trainer` _[DSCTrainer](#dsctrainer)_ | Trainer component configuration. |  |  |
 | `sparkoperator` _[DSCSparkOperator](#dscsparkoperator)_ | SparkOperator component configuration. |  |  |
+| `aigateway` _[DSCAIGateway](#dscaigateway)_ | AIGateway component configuration. |  |  |
+| `mcplifecycleoperator` _[DSCMCPLifecycleOperator](#dscmcplifecycleoperator)_ | MCPLifecycleOperator component configuration. |  |  |
 
 
 #### ComponentsStatus
@@ -2513,6 +2196,10 @@ _Appears in:_
 | `mlflowoperator` _[DSCMLflowOperatorStatus](#dscmlflowoperatorstatus)_ | MLflow Operator component status. |  |  |
 | `trainer` _[DSCTrainerStatus](#dsctrainerstatus)_ | Trainer component status. |  |  |
 | `sparkoperator` _[DSCSparkOperatorStatus](#dscsparkoperatorstatus)_ | SparkOperator component status. |  |  |
+| `aigateway` _[DSCAIGatewayStatus](#dscaigatewaystatus)_ | AIGateway component status. |  |  |
+| `modelsAsAService` _[DSCModelsAsServiceStatus](#dscmodelsasservicestatus)_ | ModelsAsAService submodule status (submodule of AIGateway). |  |  |
+| `batchGateway` _[DSCBatchGatewayStatus](#dscbatchgatewaystatus)_ | BatchGateway submodule status (submodule of AIGateway). |  |  |
+| `mcplifecycleoperator` _[DSCMCPLifecycleOperatorStatus](#dscmcplifecycleoperatorstatus)_ | MCPLifecycleOperator component status. |  |  |
 
 
 #### DataScienceCluster

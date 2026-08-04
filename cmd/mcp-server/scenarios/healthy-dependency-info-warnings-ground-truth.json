@@ -1,0 +1,30 @@
+{
+  "scenario_id": "healthy-dependency-info-warnings",
+  "scenario_name": "Healthy With Dependency Info Warnings",
+  "description": "DSC shows KserveLLMInferenceServiceDependencies=False and TrainerReady=False, but these are informational warnings about optional features (Kuadrant not installed, JobSet not installed). Core KServe is Ready=True, all pods Running. The agent must not escalate Info-severity conditions as failures.",
+  "root_cause": "No failure — optional dependency warnings are informational, not errors. Core platform is functional.",
+  "expected_classification": {
+    "category": "none",
+    "subcategory": "healthy",
+    "error_code": 0,
+    "confidence": "high"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": true
+    }
+  },
+  "expected_symptoms": [
+    "KserveLLMInferenceServiceDependencies=False with severity=Info",
+    "KserveLLMInferenceServiceWideEPDependencies=False with severity=Info",
+    "TrainerReady=False with message about missing JobSet operator",
+    "Core KServe, Dashboard, and all other components Ready=True",
+    "All pods Running and Ready"
+  ],
+  "tools_that_detect": [
+    "platform_health",
+    "component_status",
+    "operator_dependencies"
+  ],
+  "expected_remediation": "No action needed for core platform functionality. Install Kuadrant or JobSet operators only if LLMInferenceService or Trainer features are required."
+}

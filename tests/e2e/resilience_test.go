@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
@@ -141,25 +142,17 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	// To handle upstream/downstream i trimmed prefix(odh) from few controller names
 	componentToControllerMap := map[string]string{
-		componentApi.DashboardComponentName:            "dashboard",
 		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
-		componentApi.FeastOperatorComponentName:        "feast-operator-controller-manager",
-		componentApi.KserveComponentName:               "kserve-controller-manager",
-		componentApi.OGXComponentName:                  "ogx-k8s-operator-controller-manager",
-		componentApi.MLflowOperatorComponentName:       "mlflow-operator-controller-manager",
 		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
 		componentApi.RayComponentName:                  "kuberay-operator",
 		componentApi.SparkOperatorComponentName:        "spark-operator-controller",
 		componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
 		componentApi.TrainerComponentName:              "kubeflow-trainer-controller-manager",
 		// componentApi.TrustyAIComponentName:             "trustyai-service-operator-controller-manager",
-		componentApi.WorkbenchesComponentName: "notebook-controller-manager",
 	}
 
 	// Error message includes components + internal components name
-	var internalComponentToControllerMap = map[string]string{
-		componentApi.ModelControllerComponentName: "model-controller",
-	}
+	var internalComponentToControllerMap = map[string]string{}
 
 	components := slices.Collect(maps.Keys(componentToControllerMap))
 	componentsLength := len(components)
@@ -170,12 +163,20 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// TrustyAI is excluded from quota failure testing due to InferenceServices CRD dependency
 	// Kueue is excluded because it does not have any deployment to manage anymore
 	// LlamaStack Operator is excluded because it has been replaced by OGX and the field is deprecated (no deployments to manage anymore)
-	excludedComponents := 3 // TrustyAI, Kueue, LlamaStack Operator
+	// AIGateway is excluded because it is a module (reports AIGatewayReady via ModulesReady, not ComponentsReady)
+	// Dashboard is excluded because it is a module so it does not report DSC ComponentsReady condition
+	// MCPLifecycleOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
+	// MLflowOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
+	// Kserve is excluded because it is a module so it does not report DSC ComponentsReady condition
+	// Workbenches is excluded because it is a module so it does not report DSC ComponentsReady condition
+	// OGX is excluded because it is a module so it does not report DSC ComponentsReady condition
+	excludedComponents := 11 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, Dashboard, MCPLifecycleOperator, MLflowOperator, Kserve, Workbenches, feastoperator, OGX
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+
 			"Expected %d testable components but found %d. "+
-			"(Total DSC components: %d, Excluded: %d - TrustyAI due to InferenceServices CRD dependency and Kueue because dose not manage any deployment)",
+			"(Total DSC components: %d, Excluded: %d - TrustyAI due to InferenceServices CRD dependency, "+
+			"Kueue because it does not manage any deployment, and module-backed components that report via ModulesReady)",
 		expectedTestableComponents, componentsLength, expectedComponentCount, excludedComponents)
 
 	// Ensure clean initial state by disabling all components first
@@ -192,6 +193,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	t.Log("Creating zero-pod quota (blocks everything)")
 	tc.createZeroPodQuotaForOperator()
+	t.Cleanup(func() { tc.deleteZeroPodQuotaForOperator() })
 
 	allControllers := slices.Concat(
 		slices.Collect(maps.Values(componentToControllerMap)),
@@ -239,7 +241,9 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithCondition(jq.Match(
-			`.status.conditions[] | select(.type == "%s" and .status == "%s") | .message | test("nomanagedcomponents"; "i")`,
+			`.status.conditions[] | select(.type == "%s" and .status == "%s")`+
+				` | (.reason | test("nomanagedcomponents"; "i"))`+
+				` and (.message | test("All registered components have ManagementState Removed"; "i"))`,
 			status.ConditionTypeComponentsReady,
 			metav1.ConditionTrue,
 		)),
@@ -255,7 +259,7 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 
 	skipUnless(t, Tier1)
 
-	crdTestingName := "dashboards.components.platform.opendatahub.io"
+	crdTestingName := "rays.components.platform.opendatahub.io"
 	crd := tc.FetchResource(
 		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdTestingName}),
 	)
@@ -485,6 +489,14 @@ func (tc *OperatorResilienceTestCtx) verifyDeploymentsStuckDueToQuota(t *testing
 	expectedCount := len(allControllers)
 	allControllersMatch := strings.Join(allControllers, "|")
 
+	// Components span multiple DAG runlevels (RL20, RL31, RL32). The DAG
+	// stuck-tracker uses a 10-minute timeout per runlevel before advancing
+	// to the next batch. With the zero-pod quota blocking all pods,
+	// higher-runlevel components won't be provisioned until each preceding
+	// runlevel times out. Use a timeout that accommodates multiple
+	// runlevel timeouts (3 batches × 10 min = 30 min worst case).
+	dagAwareTimeout := 35 * time.Minute
+
 	// Then check that the matching deployments have 0 ready replicas
 	tc.EnsureResourcesExist(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
@@ -497,7 +509,7 @@ func (tc *OperatorResilienceTestCtx) verifyDeploymentsStuckDueToQuota(t *testing
         	length == %d
 		`, allControllersMatch, allControllersMatch, allControllersMatch, expectedCount)),
 		WithCustomErrorMsg(fmt.Sprintf("Expected all %d component deployments to have 0 ready replicas due to quota", expectedCount)),
-		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyTimeout(dagAwareTimeout),
 	)
 }
 

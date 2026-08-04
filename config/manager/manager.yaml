@@ -23,6 +23,7 @@ spec:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
+        openshift.io/required-scc: restricted-v2
       labels:
         name: opendatahub-operator
         control-plane: controller-manager
@@ -85,6 +86,8 @@ spec:
                 fieldPath: metadata.namespace
           - name: DEFAULT_MANIFESTS_PATH
             value: /opt/manifests
+          - name: DEFAULT_CHARTS_PATH
+            value: /opt/charts
           - name: ODH_PLATFORM_TYPE
             value: OpenDataHub
         args:

@@ -1,0 +1,29 @@
+{
+  "scenario_id": "healthy-stale-events",
+  "scenario_name": "Healthy With Stale Events",
+  "description": "Cluster is fully healthy but recent_events shows Warning events (OOMKilled, FailedMount, Unhealthy) from a previous failure scenario that was already torn down. Events persist in Kubernetes for ~1 hour after resolution. The agent must cross-reference events with current pod state — all pods Running/Ready means the events are stale, not active failures.",
+  "root_cause": "No failure — stale events from a resolved incident remain in the Kubernetes event log",
+  "expected_classification": {
+    "category": "none",
+    "subcategory": "healthy",
+    "error_code": 0,
+    "confidence": "high"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": true
+    }
+  },
+  "expected_symptoms": [
+    "Warning events showing OOMKilled, FailedMount, Unhealthy, BackOff from previous incidents",
+    "All pods currently Running and Ready with 0 restarts on current containers",
+    "No active CrashLoopBackOff, ImagePullBackOff, or Pending pods",
+    "Events reference pod names that no longer exist or have been replaced"
+  ],
+  "tools_that_detect": [
+    "platform_health",
+    "recent_events",
+    "describe_resource"
+  ],
+  "expected_remediation": "No action needed — events are historical and do not reflect current cluster state"
+}

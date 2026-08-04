@@ -1,0 +1,29 @@
+{
+  "scenario_id": "healthy-imagestream-warnings",
+  "scenario_name": "Healthy With ImageStream Warnings",
+  "description": "DSC shows WorkbenchesReady=True but with a warning message about failed ImageStream tag imports. All pods are Running and Ready. The agent must recognize that ImageStream import warnings are non-blocking — WorkbenchesReady is True, the warning is informational. Inspired by RHOAIENG-13921.",
+  "root_cause": "No failure — ImageStream import warnings are expected when some notebook images are not available in the registry but the component is functional",
+  "expected_classification": {
+    "category": "none",
+    "subcategory": "healthy",
+    "error_code": 0,
+    "confidence": "high"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": true
+    }
+  },
+  "expected_symptoms": [
+    "WorkbenchesReady=True with warning message about failed ImageStream tag imports",
+    "All workbench pods Running and Ready",
+    "ImageStream tags show ImportSuccess=False for some images",
+    "DSC phase may show Ready despite the warnings"
+  ],
+  "tools_that_detect": [
+    "platform_health",
+    "component_status",
+    "describe_resource"
+  ],
+  "expected_remediation": "No action needed — ImageStream import warnings are non-blocking. If specific notebook images are needed, verify registry access and image availability"
+}

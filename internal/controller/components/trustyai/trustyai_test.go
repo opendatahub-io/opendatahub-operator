@@ -8,8 +8,11 @@ import (
 
 	gt "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -468,4 +471,199 @@ func createTrustyAICRWithMCPGuardrailsMode(mcpGuardrailsMode bool) *componentApi
 	c := createTrustyAICR(true)
 	c.Spec.MCPGuardrailsMode = mcpGuardrailsMode
 	return c
+}
+
+func createTrustyAIDeployment(selectorLabels map[string]string) *appsv1.Deployment {
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      trustyaiDeploymentName,
+			Namespace: testNS,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: selectorLabels,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: selectorLabels},
+				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "manager", Image: "test"}}},
+			},
+		},
+	}
+}
+
+const testNS = "redhat-ods-applications"
+
+func TestMigrateDeploymentSelector(t *testing.T) {
+	t.Run("should delete Deployment with old control-plane selector value", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		staleSelector := map[string]string{controlPlaneLabelKey: "controller-manager"}
+		deploy := createTrustyAIDeployment(staleSelector)
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Name: trustyaiDeploymentName, Namespace: testNS}, result)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(client.IgnoreNotFound(err)).To(Succeed())
+	})
+
+	t.Run("should delete Deployment missing app.kubernetes.io/part-of label", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		selectorMissingPartOf := map[string]string{controlPlaneLabelKey: controlPlaneLabelValue}
+		deploy := createTrustyAIDeployment(selectorMissingPartOf)
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Name: trustyaiDeploymentName, Namespace: testNS}, result)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(client.IgnoreNotFound(err)).To(Succeed())
+	})
+
+	t.Run("should not delete Deployment with correct selector", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		correctSelector := map[string]string{
+			controlPlaneLabelKey: controlPlaneLabelValue,
+			partOfLabelKey:       partOfLabelValue,
+		}
+		deploy := createTrustyAIDeployment(correctSelector)
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Name: trustyaiDeploymentName, Namespace: testNS}, result)
+		g.Expect(err).To(Succeed())
+	})
+
+	t.Run("should not delete Deployment with correct labels plus extra labels", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		selectorWithExtra := map[string]string{
+			controlPlaneLabelKey:          controlPlaneLabelValue,
+			partOfLabelKey:                partOfLabelValue,
+			"app.opendatahub.io/trustyai": "true",
+		}
+		deploy := createTrustyAIDeployment(selectorWithExtra)
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Name: trustyaiDeploymentName, Namespace: testNS}, result)
+		g.Expect(err).To(Succeed())
+	})
+
+	t.Run("should delete Deployment with nil MatchLabels", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		deploy := createTrustyAIDeployment(nil)
+		deploy.Spec.Selector = &metav1.LabelSelector{MatchLabels: nil}
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Name: trustyaiDeploymentName, Namespace: testNS}, result)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(client.IgnoreNotFound(err)).To(Succeed())
+	})
+
+	t.Run("should delete Deployment with empty MatchLabels", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		deploy := createTrustyAIDeployment(map[string]string{})
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Name: trustyaiDeploymentName, Namespace: testNS}, result)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(client.IgnoreNotFound(err)).To(Succeed())
+	})
+
+	t.Run("should delete Deployment with nil selector", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		deploy := createTrustyAIDeployment(nil)
+		deploy.Spec.Selector = nil
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Name: trustyaiDeploymentName, Namespace: testNS}, result)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(client.IgnoreNotFound(err)).To(Succeed())
+	})
+
+	t.Run("should be no-op when Deployment does not exist", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+	})
 }

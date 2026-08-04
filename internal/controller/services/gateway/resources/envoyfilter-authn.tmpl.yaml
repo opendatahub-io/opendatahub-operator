@@ -40,6 +40,7 @@ spec:
                 patterns:
                 - exact: cookie
                 - exact: authorization
+                - exact: user-agent
             authorization_response:
               allowed_upstream_headers:
                 patterns:

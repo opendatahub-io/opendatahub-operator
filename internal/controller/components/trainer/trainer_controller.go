@@ -79,6 +79,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			CRName:      jobSetOperatorCRName,
 			Filter:      jobSetConditionFilter,
 		})).
+		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
 		WithAction(checkJobSetCRD).
 		WithAction(releases.NewAction()).

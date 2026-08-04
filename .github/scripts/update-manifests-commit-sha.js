@@ -7,7 +7,7 @@ module.exports = async function ({ github, core }) {
   const updates = [];
 
   // Process both ODH and RHOAI platforms
-  for (const components of [parsedManifests.odh, parsedManifests.rhoai, parsedManifests.odhCharts, parsedManifests.rhoaiCharts]) {
+  for (const components of [parsedManifests.odh, parsedManifests.rhoai, parsedManifests.odhCcmCharts, parsedManifests.odhCharts, parsedManifests.rhoaiCcmCharts, parsedManifests.rhoaiCharts]) {
     const componentsWithSha = filterComponentsWithBranchSha(components);
 
     console.log(`Found ${componentsWithSha.length} ${componentsWithSha.length > 0 ? componentsWithSha[0].platform.toUpperCase() : ''} components with branch@sha format`);

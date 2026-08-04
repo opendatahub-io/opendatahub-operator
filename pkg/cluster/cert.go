@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -35,6 +36,42 @@ const (
 var IngressControllerName = types.NamespacedName{
 	Namespace: "openshift-ingress-operator",
 	Name:      "default",
+}
+
+func ValidateCustomCABundle(pemData string) error {
+	if pemData == "" {
+		return nil
+	}
+
+	rest := []byte(pemData)
+	blockCount := 0
+
+	for {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		blockCount++
+
+		if block.Type != "CERTIFICATE" {
+			return fmt.Errorf("PEM block %d has type %q, expected CERTIFICATE", blockCount, block.Type)
+		}
+
+		if _, err := x509.ParseCertificate(block.Bytes); err != nil {
+			return fmt.Errorf("PEM block %d is not a valid certificate: %w", blockCount, err)
+		}
+	}
+
+	if blockCount == 0 {
+		return errors.New("no valid PEM blocks found in customCABundle")
+	}
+
+	if len(strings.TrimSpace(string(rest))) > 0 {
+		return fmt.Errorf("trailing non-PEM data after %d valid certificate block(s)", blockCount)
+	}
+
+	return nil
 }
 
 func CreateSelfSignedCertificate(ctx context.Context, c client.Client, secretName, domain, namespace string, metaOptions ...MetaOptions) error {

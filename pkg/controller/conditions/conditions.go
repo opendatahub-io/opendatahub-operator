@@ -14,6 +14,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 )
 
+const ConditionReasonNotSet = "ConditionNotSet"
+
 type Option func(*common.Condition)
 
 func WithReason(value string) Option {
@@ -329,26 +331,51 @@ func (r *Manager) Reset() {
 	r.activeTypes = make(map[string]struct{})
 }
 
-// CleanupStaleConditions removes conditions present in the accessor that
-// were not re-set during this reconciliation cycle. This preserves the
-// garbage-collection behavior of the old Reset (removing conditions for
-// components that have been disabled) without clearing conditions that
-// are still active.
+// CleanupStaleConditions handles conditions that were not re-set during
+// this reconciliation cycle (not present in activeTypes).
 //
-// If any stale conditions are removed, happiness is recomputed.
+// Declared dependents that were not set are treated as an error: they
+// are marked False with reason ConditionNotSet, since every declared
+// dependent should be explicitly set during each reconcile cycle.
+// Conditions for disabled/Removed components are not affected because
+// their UpdateDSCStatus still actively sets the condition to False.
+//
+// Non-dependent conditions that were not re-set are removed (e.g.,
+// orphaned conditions from previous operator versions).
+//
+// If any conditions are changed or removed, happiness is recomputed.
 func (r *Manager) CleanupStaleConditions() {
 	if r.accessor == nil || r.activeTypes == nil {
 		return
 	}
 
-	var toRemove []string
+	dependentSet := make(map[string]struct{}, len(r.dependents))
+	for _, d := range r.dependents {
+		dependentSet[d] = struct{}{}
+	}
 
-	for _, c := range r.accessor.GetConditions() {
+	var toRemove []string
+	changed := false
+
+	for _, c := range slices.Clone(r.accessor.GetConditions()) {
 		if c.Type == r.happy {
 			continue
 		}
 
-		if _, active := r.activeTypes[c.Type]; !active {
+		if _, active := r.activeTypes[c.Type]; active {
+			continue
+		}
+
+		if _, isDependent := dependentSet[c.Type]; isDependent {
+			SetStatusCondition(r.accessor, common.Condition{
+				Type:     c.Type,
+				Status:   metav1.ConditionFalse,
+				Severity: common.ConditionSeverityError,
+				Reason:   ConditionReasonNotSet,
+				Message:  fmt.Sprintf("condition %s was not set during reconciliation", c.Type),
+			})
+			changed = true
+		} else {
 			toRemove = append(toRemove, c.Type)
 		}
 	}
@@ -357,7 +384,7 @@ func (r *Manager) CleanupStaleConditions() {
 		RemoveStatusCondition(r.accessor, t)
 	}
 
-	if len(toRemove) > 0 {
+	if len(toRemove) > 0 || changed {
 		r.RecomputeHappiness("")
 	}
 }

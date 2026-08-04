@@ -137,8 +137,9 @@ func WithSortFn(fn SortFn) ActionOpts {
 	}
 }
 
-// WithApplyOrder is a convenience option that sorts resources into
-// dependency order (CRDs first, webhooks last) before deploying.
+// WithApplyOrder explicitly sets SortByApplyOrder as the sort function.
+// This is now the default for NewAction, so callers only need this if
+// the default was previously overridden by WithSortFn(nil).
 func WithApplyOrder() ActionOpts {
 	return WithSortFn(resources.SortByApplyOrder)
 }
@@ -170,6 +171,10 @@ func (a *Action) resolveFieldOwner(rr *odhTypes.ReconciliationRequest) (string, 
 }
 
 func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) error {
+	if rr.SkipDeploy {
+		return nil
+	}
+
 	if a.sortFn != nil {
 		sorted, err := a.sortFn(ctx, rr.Resources)
 		if err != nil {
@@ -674,6 +679,7 @@ func NewAction(opts ...ActionOpts) actions.Fn {
 		deployMode:       ModeSSA,
 		partOfLabelKey:   labels.PlatformPartOf,
 		annotationPrefix: labels.ODHPlatformPrefix,
+		sortFn:           resources.SortByApplyOrder,
 	}
 
 	for _, opt := range opts {

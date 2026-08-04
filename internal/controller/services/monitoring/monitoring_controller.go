@@ -142,6 +142,13 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(
 				handlers.ToNamed(serviceApi.MonitoringInstanceName)),
 		).
+		// Reconcile when cluster APIServer TLS profile changes (kube-rbac-proxy sidecar TLS args).
+		WatchesGVK(
+			gvk.OpenshiftAPIServer,
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.MonitoringInstanceName)),
+			reconciler.WithPredicates(resources.APIServerTLSSecurityProfileChanged()),
+		).
 		// Watch ConfigMaps for CA rotation sync (specifically prometheus-web-tls-ca)
 		Watches(
 			&corev1.ConfigMap{},

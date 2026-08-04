@@ -73,10 +73,18 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		).
 		// Reconcile when Dashboard CR is created or deleted so dashboard redirect
 		// resources are deployed or cleaned up accordingly.
-		Watches(
-			&componentApi.Dashboard{},
+		WatchesGVK(
+			gvk.Dashboard,
+			reconciler.Dynamic(reconciler.CrdExists(gvk.Dashboard)),
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(componentApi.DashboardInstanceName)),
+		).
+		// Reconcile when cluster APIServer TLS profile changes (kube-auth-proxy TLS args).
+		WatchesGVK(
+			gvk.OpenshiftAPIServer,
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(resources.APIServerTLSSecurityProfileChanged()),
 		).
 		WithAction(createGatewayInfrastructure).
 		WithAction(createKubeAuthProxyInfrastructure). //  include destinationrule

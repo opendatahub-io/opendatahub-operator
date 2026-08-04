@@ -33,6 +33,9 @@ const (
 	// Default cluster-scope Authentication CR name.
 	ClusterAuthenticationObj = "cluster"
 
+	// Default cluster-scope APIServer CR name.
+	ClusterAPIServerObj = "cluster"
+
 	// Default OpenShift version CR name.
 	OpenShiftVersionObj = "version"
 

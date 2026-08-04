@@ -89,6 +89,7 @@ type TestContextConfig struct {
 	operatorControllerTest           bool
 	operatorResilienceTest           bool
 	webhookTest                      bool
+	dagOrderingTest                  bool
 	v2tov3upgradeTest                bool
 	circuitBreakerEnabled            bool
 	circuitBreakerThreshold          int
@@ -147,24 +148,24 @@ var (
 				componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
 				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
 				componentApi.KserveComponentName:               kserveTestSuite,
-				componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
+				componentApi.FeastOperatorComponentName:        feastModuleTestSuite,
 				componentApi.OGXComponentName:                  ogxTestSuite,
 				componentApi.SparkOperatorComponentName:        sparkOperatorTestSuite,
+				componentApi.AIGatewayComponentName:            aiGatewayTestSuite,
+				componentApi.MCPLifecycleOperatorComponentName: mcpLifecycleOperatorTestSuite,
 			},
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
 				componentApi.KueueComponentName: kueueTestSuite,
-				// ModelController tests depends on KServe and ModelRegistry, so must not run with KServe, ModelRegistry, TrustyAI or ModelsAsService tests in parallel
-				componentApi.ModelControllerComponentName: modelControllerTestSuite,
 			},
 			{
-				// TrustyAI tests depends on KServe, so must not run with Kserve, ModelController or ModelsAsService tests in parallel
+				// TrustyAI tests depends on KServe, so must not run with Kserve or ModelsAsService tests in parallel
 				componentApi.TrustyAIComponentName: trustyAITestSuite,
 				// MLflowOperator tests should not run in parallel with Workbenches tests, as Workbenches tests integration with MLflowOperator
 				componentApi.MLflowOperatorComponentName: mlflowOperatorTestSuite,
 			},
 			{
-				// ModelsAsService tests depends on KServe, so must not run with Kserve, ModelController or TrustyAI tests in parallel
+				// ModelsAsService tests depends on KServe, so must not run with Kserve or TrustyAI tests in parallel
 				componentApi.ModelsAsServiceComponentName: modelsAsServiceTestSuite,
 			},
 			{
@@ -457,6 +458,10 @@ func TestOdhOperator(t *testing.T) {
 		defer collector.Stop()
 	}
 
+	if tc, err := NewTestContext(t); err == nil && tc.IsXKS() {
+		tc.EnsurePlatformCR(t)
+	}
+
 	if testOpts.dependantOperatorsManagementTest {
 		mustRun(t, "Dependant Operators Management E2E Tests", dependantOperatorsManagementTestSuite)
 	}
@@ -474,6 +479,12 @@ func TestOdhOperator(t *testing.T) {
 	if testOpts.dscValidationTest {
 		// Run DSCI/DSC test validation test suite
 		mustRun(t, "DSCInitialization and DataScienceCluster validation E2E Tests", dscValidationTestSuite)
+	}
+
+	// Run DAG ordering tests before individual component tests to verify
+	// the unified batch provisioning order on a clean DSC.
+	if testOpts.dagOrderingTest {
+		mustRun(t, "DAG Ordering E2E Tests", dagOrderingTestSuite)
 	}
 
 	// Run monitoring before components — monitoring setup is a prerequisite.
@@ -566,7 +577,7 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("operator-namespace", viper.GetEnvPrefix()+"_OPERATOR_NAMESPACE"))
 	pflag.String("applications-namespace", "opendatahub", "Namespace where the odh applications are deployed")
 	checkEnvVarBindingError(viper.BindEnv("applications-namespace", viper.GetEnvPrefix()+"_APPLICATIONS_NAMESPACE"))
-	pflag.String("workbenches-namespace", "opendatahub", "Namespace where the workbenches are deployed")
+	pflag.String("workbenches-namespace", "opendatahub", "Legacy DSC workbenchNamespace value (operands deploy into applications-namespace)")
 	checkEnvVarBindingError(viper.BindEnv("workbenches-namespace", viper.GetEnvPrefix()+"_WORKBENCHES_NAMESPACE"))
 	pflag.String("dsc-monitoring-namespace", "opendatahub", "Namespace where the odh monitoring is deployed")
 	checkEnvVarBindingError(viper.BindEnv("dsc-monitoring-namespace", viper.GetEnvPrefix()+"_DSC_MONITORING_NAMESPACE"))
@@ -599,6 +610,8 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-operator-v2tov3upgrade", viper.GetEnvPrefix()+"_OPERATOR_V2TOV3UPGRADE"))
 	pflag.Bool("test-webhook", true, "run webhook tests")
 	checkEnvVarBindingError(viper.BindEnv("test-webhook", viper.GetEnvPrefix()+"_WEBHOOK"))
+	pflag.Bool("test-dag-ordering", false, "run DAG upgrade ordering tests")
+	checkEnvVarBindingError(viper.BindEnv("test-dag-ordering", viper.GetEnvPrefix()+"_DAG_ORDERING"))
 
 	pflag.Bool("circuit-breaker", true, "enable circuit breaker to halt tests on infrastructure failures")
 	checkEnvVarBindingError(viper.BindEnv("circuit-breaker", viper.GetEnvPrefix()+"_CIRCUIT_BREAKER"))
@@ -674,6 +687,7 @@ func TestMain(m *testing.M) {
 	testOpts.operatorResilienceTest = viper.GetBool("test-operator-resilience")
 	testOpts.v2tov3upgradeTest = viper.GetBool("test-operator-v2tov3upgrade")
 	testOpts.webhookTest = viper.GetBool("test-webhook")
+	testOpts.dagOrderingTest = viper.GetBool("test-dag-ordering")
 	testOpts.circuitBreakerEnabled = viper.GetBool("circuit-breaker")
 	testOpts.circuitBreakerThreshold = viper.GetInt("circuit-breaker-threshold")
 	Components.enabled = viper.GetBool("test-components")

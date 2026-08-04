@@ -3,6 +3,13 @@ package annotations
 // ManagedByODHOperator is used to denote if a resource/component should be reconciled - when true, reconcile.
 const ManagedByODHOperator = "opendatahub.io/managed"
 
+// AIGatewayConversionState preserves the full AIGateway spec on v1 DataScienceCluster
+// objects during v2→v1→v2 round-trips so sub-component state (e.g. BatchGateway) that
+// v1 cannot represent natively is not lost. This annotation is written by ConvertFrom
+// and consumed by ConvertTo — it is internal to the conversion webhook and must not be
+// set or relied upon by users.
+const AIGatewayConversionState = "conversion.opendatahub.io/aigateway-state"
+
 // trust CA bundler.
 const InjectionOfCABundleAnnotatoion = "security.opendatahub.io/inject-trusted-ca-bundle"
 

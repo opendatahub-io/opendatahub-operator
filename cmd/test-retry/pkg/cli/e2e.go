@@ -77,6 +77,7 @@ Example: test-retry e2e -- -run TestFoo -v`,
 	cmd.Flags().IntVar(&maxRetries, "max-retries", 3, "Maximum number of retries for failed tests")
 	cmd.Flags().StringSliceVar(&neverSkip, "never-skip", []string{"TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests", "TestOdhOperator/DataScienceCluster"}, "Test prefixes that should never be skipped (always run, repeatable)")
 	cmd.Flags().StringSliceVar(&skipAtPrefix, "skip-at-prefix", []string{
+		"TestOdhOperator/monitoring/",   // Extract monitoring tests at group level for efficient retry
 		"TestOdhOperator/services/*/",   // Extract services at service level
 		"TestOdhOperator/components/*/", // Extract components at component level
 		"TestOdhOperator/",              // Fallback: extract at root level
