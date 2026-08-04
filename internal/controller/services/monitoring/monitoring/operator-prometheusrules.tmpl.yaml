@@ -5,20 +5,6 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   groups:
-      - name: SLOs - RHODS Operator v2
-        interval: 15m
-        rules:
-        - expr: |
-            rate(controller_runtime_reconcile_total{controller="dscinitialization-controller", job="RHOAI Metrics", result!="success"}[15m])
-          labels:
-            instance: dscinitialization-controller
-          record: controller_runtime_reconcile_total:rate15m
-        - expr: |
-            rate(controller_runtime_reconcile_total{controller="datasciencecluster-controller", job="RHOAI Metrics", result!="success"}[15m])
-          labels:
-            instance: datasciencecluster-controller
-          record: controller_runtime_reconcile_total:rate15m
-
       - name: Operator Pod Health
         interval: 1m
         rules:
@@ -83,14 +69,3 @@ spec:
             summary: "Data Science Alertmanager self-monitoring scrape target is down"
             description: "The alertmanager-self target has been down for more than 10 minutes. Alertmanager health cannot be verified, which may mask alert delivery failures."
             triage: "https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/troubleshooting.md#alertmanager-self-scrape-target-down"
-
-        - alert: OperatorMetricsScrapeTargetDown
-          expr: |
-            absent(up{job="opendatahub-operator-controller-manager-metrics-service"}) or up{job="opendatahub-operator-controller-manager-metrics-service"} == 0
-          for: 10m
-          labels:
-            severity: warning
-          annotations:
-            summary: "opendatahub-operator metrics scrape target is down"
-            description: "The opendatahub-operator-controller-manager-metrics-service target has been down for more than 10 minutes. Operator health/reconcile metrics are not being collected."
-            triage: "https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/troubleshooting.md#operator-metrics-scrape-target-down"
