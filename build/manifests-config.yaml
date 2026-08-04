@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: ee70af677d69cc2e479a7d678df844034bc04734
+    git.commit: 1f43dcd22980405481db9591fdaea8b8576e41bc
   odh-feast-operator:
     src: infra/feast-operator/config
     dest: feastoperator
@@ -250,7 +250,7 @@ additional_meta:
     git.commit: 1f43dcd22980405481db9591fdaea8b8576e41bc
   odh-mod-arch-gen-ai:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: ee70af677d69cc2e479a7d678df844034bc04734
+    git.commit: 1f43dcd22980405481db9591fdaea8b8576e41bc
   odh-mod-arch-maas:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 1f43dcd22980405481db9591fdaea8b8576e41bc
@@ -268,7 +268,7 @@ additional_meta:
     git.commit: 14660157aa99acb1cf8c2e536ba97861b219b052
   odh-ogx-core:
     git.url: https://github.com/red-hat-data-services/ogx-distribution
-    git.commit: bf4485d3310a0a0e91802ca439bade1f0604628c
+    git.commit: 7e87a799ef40c2baff9511e8e58d63c3147aa7eb
   odh-ogx-module-operator:
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
     git.commit: d48e3ea0bba5611b20684186664045a12c431b5b
