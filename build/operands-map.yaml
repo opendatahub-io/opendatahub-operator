@@ -12,11 +12,11 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
   value: "quay.io/rhoai/odh-cli-rhel9@sha256:eb57b1af7fd11d8ed480f4973950edd01cc8d582fd96b94dc2c7e2854865554e"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
-  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:72223fdde1190c47b619f63a12ebe3625847c4b38db9c1fc9a0028039c43a409"
+  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:2102e9646cbf48f3a1c8f20d6f5162d64339d1f5ff09efad923e25cfc268ece4"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:96133ef040a6c267d7084319c5600a662943179d50fd3a40725662c214183ba7"
+  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:e143744de60fe7f2cb794bcbbe11adc53d595bb90f0a84ffea59c69a4a5763cd"
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:03e677ebdd6109fe15f94897145788a7398000d5af9dd9f7ec485413af0d76b7"
+  value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:c759752ff9757f6ba5b389e1f97e68aaa304ce08f98d547076a4d765c5cf6b26"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE
   value: "quay.io/rhoai/odh-data-science-pipelines-argo-argoexec-rhel9@sha256:720d575d9d8b9cee642971588621831eabb807d59fb463f31cd1f85bef78a4fd"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_WORKFLOWCONTROLLER_IMAGE
@@ -130,7 +130,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-eval-hub-rhel9@sha256:57e55a9b14eee852a008cde3fa85d87d06a3e075192d6d8b3b0db6f897c2d844"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE
-  value: "quay.io/rhoai/odh-mod-arch-gen-ai-rhel9@sha256:e963ce082a81d246295618238ad3e6c02fdb95269d0aab99fcc76e1e01cb3805"
+  value: "quay.io/rhoai/odh-mod-arch-gen-ai-rhel9@sha256:4e767d08e2c4b199e098d7db9832d251156096267dc391b8a8f7da39a5d2dd04"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-maas-rhel9@sha256:75a539f2b3ab2488bacf95984d8ff72e39e9f3c1e88da28644b46fc76cb26a82"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MLFLOW_IMAGE
