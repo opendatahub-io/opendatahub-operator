@@ -32,17 +32,17 @@ const (
 
 // lifecycleModuleStub is a configurable stub that tracks calls.
 type lifecycleModuleStub struct {
-	name      string
-	gvk       schema.GroupVersionKind
-	enabled   bool
-	crState   CRState
+	name         string
+	gvk          schema.GroupVersionKind
+	enabled      bool
+	crState      CRState
 	moduleStatus *ModuleStatus
 
-	deleteCRCalls              int
-	deleteOperatorCalls        int
+	deleteCRCalls       int
+	deleteOperatorCalls int
 }
 
-func (s *lifecycleModuleStub) GetName() string    { return s.name }
+func (s *lifecycleModuleStub) GetName() string                 { return s.name }
 func (s *lifecycleModuleStub) IsEnabled(*PlatformContext) bool { return s.enabled }
 func (s *lifecycleModuleStub) GetGVK() schema.GroupVersionKind { return s.gvk }
 

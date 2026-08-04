@@ -109,7 +109,7 @@ func TestHandlerCompliance_GetOperatorManifestsReturnsAtLeastOneSource(t *testin
 		t.Run(h.GetName(), func(t *testing.T) {
 			g := NewWithT(t)
 			manifests := h.GetOperatorManifests(platform)
-			g.Expect(len(manifests.HelmCharts) + len(manifests.Manifests)).Should(
+			g.Expect(len(manifests.HelmCharts)+len(manifests.Manifests)).Should(
 				BeNumerically(">", 0),
 				"handler must return at least one Helm chart or Kustomize manifest")
 		})

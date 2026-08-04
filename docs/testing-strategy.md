@@ -1,14 +1,12 @@
-# Shared Utilities Library QA Testing Strategy
+# Module Framework QA Testing Strategy
 
-**JIRA:** RHOAIENG-61426
-**Parent Epic:** RHOAIENG-41729
 **Date:** 2026-08-04
 
 ## Overview
 
-This document defines the testing strategy for the shared utilities library (`pkg/controller/`) and the module framework (`internal/controller/modules/`) in the opendatahub-operator. The library provides reconciliation primitives (actions, renderers, status, DAG ordering, conditions, predicates) consumed by the operator's component and module controllers. The module framework orchestrates Helm-based module lifecycle on top of these primitives.
+This document defines the testing strategy for the module framework (`internal/controller/modules/`) and its underlying shared utilities library (`pkg/controller/`) in the opendatahub-operator. The module framework orchestrates Helm-based module lifecycle (provisioning, status aggregation, cleanup) on top of reconciliation primitives (actions, renderers, status, DAG ordering, conditions, predicates) provided by `pkg/controller/`.
 
-The strategy is organized into three validation levels, progressing from isolated unit coverage through consumer integration to contract enforcement.
+The strategy is organized into three validation levels, progressing from isolated unit coverage of the shared utilities through consumer integration to module contract enforcement.
 
 ---
 
@@ -124,7 +122,7 @@ Contract interfaces define the behavioral expectations that any consumer or hand
 
 - **`chart_compliance_test.go`** (`internal/controller/modules/`): Validates that Helm chart output for each module handler conforms to allowed Kubernetes resource kinds. Ensures charts do not introduce unsupported resource types. Requires charts to be fetched (`make get-manifests`).
 
-- **`handler_compliance_test.go`** (`internal/controller/modules/`, NEW): Behavioral compliance test that exercises all registered `ModuleHandler` implementations against a common set of behavioral assertions (correct status reporting, proper cleanup, idempotent reconciliation). Validates that new handlers meet the same contract as existing ones.
+- **`handler_compliance_test.go`** (`internal/controller/modules/`, NEW): Behavioral compliance test that exercises all registered `ModuleHandler` implementations against a common set of structural assertions: non-empty unique names, valid GVKs, manifest source presence, CR/GVK consistency, nil-safety for `IsEnabled` and `WriteDSCComponentStatus`, and optional interface conformance (`ReadyConditionTyper`, `ContainerNamer`, `DeploymentNamer`, `SubmoduleConditionProvider`). Validates that new handlers satisfy the same structural contract as existing ones.
 
 - **`lifecycle_integration_test.go`** (`internal/controller/modules/`, NEW): Integration test that exercises the full module provision/cleanup state machine -- from initial creation through Managed state, status convergence, transition to Removed state, and resource cleanup -- in a single envtest session.
 
