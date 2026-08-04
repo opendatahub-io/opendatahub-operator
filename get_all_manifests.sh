@@ -17,7 +17,7 @@ DST_CHARTS_DIR="./opt/charts"
 declare -A ODH_COMPONENT_MANIFESTS=(
     ["kserve"]="opendatahub-io:kserve:odh-v3.5@12c805695fa066937e315cb021865cfbc66ca8b2:config"
     ["kserve-module-operator"]="opendatahub-io:kserve:release-v0.17@01e23b511968fc14de87b9c252154bbfbd0fe79e:kserve-module/config"
-    ["ray"]="opendatahub-io:kuberay:v1.6.2@560baadd3a5c4268e6c021f6cfe36591a7b2551e:ray-operator/config"
+    ["ray"]="opendatahub-io:kuberay:dev@ad425f7febc4039f2378747f2a0ea5dcf5a2263f:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:release/odh-3.5@cdb6ddb576af0da8f721ce3ecdc8877295109f22:config"
     ["modelregistry"]="opendatahub-io:model-registry-operator:release/v0.3.14@d321b6a59be110f4172aed868e0bc9bed47fd707:config"
     ["trainingoperator"]="opendatahub-io:training-operator:main@925ed0764cdfcffa35a018b8328ee4ec97378e6e:manifests"
@@ -65,7 +65,7 @@ declare -A ODH_CCM_CHARTS=(
 
 # ODH Component Charts
 declare -A ODH_COMPONENT_CHARTS=(
-    ["dashboard-operator"]="opendatahub-io:odh-dashboard:main@7baeb444fd30477c3d0e9bb85bc07d847bd3a3c4:dashboard-operator/charts/dashboard"
+    ["dashboard-operator"]="opendatahub-io:odh-dashboard:main@60748ccdb862c9b18f5bd7e648371ad286e95eeb:dashboard-operator/charts/dashboard"
     ["workbenches"]="opendatahub-io:workbenches-operator:main@0a7d371b78fe510663c2e82dab38bcdcf7abbb29:charts/operator"
     ["feastoperator"]="opendatahub-io:feast-module-operator:main@a1729ece208b9a5f7e785f6a1ff430e509261a17:config/chart"
 )
