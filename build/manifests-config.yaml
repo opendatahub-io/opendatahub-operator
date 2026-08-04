@@ -100,7 +100,7 @@ additional_meta:
     git.commit: 925b7e61bdbf9a5685de82a76cdc03557540bac6
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 1f43dcd22980405481db9591fdaea8b8576e41bc
+    git.commit: c6ed1e47fc7b68ee79ea78df468abda98942a6ad
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 1f43dcd22980405481db9591fdaea8b8576e41bc
@@ -304,7 +304,7 @@ additional_meta:
     git.commit: 18a4185bf86ffd60baa0cea156f01d4a358a5bfb
   odh-rhaii-validator-tools:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: a8b69a8136b0b9fec3a3bf11555041493987244a
+    git.commit: 18a4185bf86ffd60baa0cea156f01d4a358a5bfb
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
     git.commit: 866b2f2e61cc5e2c714af6eb9be1a331ccf97349
