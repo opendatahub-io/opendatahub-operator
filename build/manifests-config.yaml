@@ -223,7 +223,7 @@ additional_meta:
     git.commit: d578ecd157974ca29b1e5ff410ae042ebff82239
   odh-model-controller:
     git.url: https://github.com/red-hat-data-services/odh-model-controller
-    git.commit: 71d8aed59804abdcdbfb63fcdbd6187bcba912f0
+    git.commit: 8df08b9e43d7d68d8f0c937339be6ac812d0271d
   odh-model-metadata-collection:
     git.url: https://github.com/red-hat-data-services/model-metadata-collection
     git.commit: 45fc307523ac1c3b99f9a4c4660b2abb741bc218
@@ -238,7 +238,7 @@ additional_meta:
     git.commit: 70d620140d6ce74a1b1afe7382458b7f040cd71f
   odh-model-serving-api:
     git.url: https://github.com/red-hat-data-services/odh-model-controller
-    git.commit: 71d8aed59804abdcdbfb63fcdbd6187bcba912f0
+    git.commit: 8df08b9e43d7d68d8f0c937339be6ac812d0271d
   odh-mod-arch-agent-ops:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: bb0a50ca2e7e23a7df282c123a554ad2aba462cd
