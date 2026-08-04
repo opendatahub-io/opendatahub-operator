@@ -139,7 +139,7 @@ additional_meta:
     git.commit: d7d3a8be9f2d9d13373128b4ffbcf62d5a9e99d8
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: eac599e097a060546ea1b115856d68c0be2eb17a
+    git.commit: d7d3a8be9f2d9d13373128b4ffbcf62d5a9e99d8
   odh-kserve-localmodel-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: d7d3a8be9f2d9d13373128b4ffbcf62d5a9e99d8
@@ -241,7 +241,7 @@ additional_meta:
     git.commit: 7ff51437681bbb3b7378e6a16391fea241291631
   odh-mod-arch-automl:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 7ff51437681bbb3b7378e6a16391fea241291631
+    git.commit: 9bbbd1aeeffd7814cb8162cea422c2694c38f9e9
   odh-mod-arch-autorag:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 9bbbd1aeeffd7814cb8162cea422c2694c38f9e9
