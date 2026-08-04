@@ -29,7 +29,7 @@ map:
     src: config
     dest: modelregistry
     git.url: https://github.com/red-hat-data-services/model-registry-operator
-    git.commit: b7a9141c7fa3e4797789e81c0b107fb9f3d6b1a1
+    git.commit: 7eb210083afe5b14bdb13e4b999da1ce9ef041ef
   odh-dashboard-operator:
     src: dashboard-operator/charts/dashboard
     dest: dashboard-operator
@@ -358,7 +358,7 @@ additional_meta:
     git.commit: 5fe4cc70892090992aca9284309ae71db20684ad
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 5fe4cc70892090992aca9284309ae71db20684ad
+    git.commit: aabe4cb0249a36b0754e4603fd1abc1b50042013
   odh-workbench-jupyter-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 5fe4cc70892090992aca9284309ae71db20684ad

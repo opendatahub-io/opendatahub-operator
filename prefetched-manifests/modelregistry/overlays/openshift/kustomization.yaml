@@ -1,0 +1,43 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../default
+  - ../../prometheus
+  - tls_clusterrole.yaml
+  - tls_clusterrole_binding.yaml
+  - service_ca_configmap.yaml
+
+patches:
+  - path: servicemonitor_patch.yaml
+    target:
+      kind: ServiceMonitor
+      name: controller-manager-metrics-monitor
+
+replacements:
+  - source:
+      kind: Service
+      name: controller-manager-metrics-service
+      fieldPath: metadata.name
+    targets:
+      - select:
+          kind: ServiceMonitor
+          name: controller-manager-metrics-monitor
+        fieldPaths:
+          - spec.endpoints.0.tlsConfig.serverName
+        options:
+          delimiter: "."
+          index: 0
+  - source:
+      kind: Service
+      name: controller-manager-metrics-service
+      fieldPath: metadata.namespace
+    targets:
+      - select:
+          kind: ServiceMonitor
+          name: controller-manager-metrics-monitor
+        fieldPaths:
+          - spec.endpoints.0.tlsConfig.serverName
+        options:
+          delimiter: "."
+          index: 1

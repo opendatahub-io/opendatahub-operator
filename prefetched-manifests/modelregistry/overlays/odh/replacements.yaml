@@ -149,6 +149,33 @@
         name: controller-manager
       fieldPaths:
         - spec.template.spec.containers.[name=manager].env.[name=HTTPROUTE_NAMESPACE].value
+# ServiceMonitor serverName derived from the metrics Service name and namespace
+- source:
+    kind: Service
+    name: controller-manager-metrics-service
+    fieldPath: metadata.name
+  targets:
+    - select:
+        kind: ServiceMonitor
+        name: controller-manager-metrics-monitor
+      fieldPaths:
+        - spec.endpoints.0.tlsConfig.serverName
+      options:
+        delimiter: "."
+        index: 0
+- source:
+    kind: Service
+    name: controller-manager-metrics-service
+    fieldPath: metadata.namespace
+  targets:
+    - select:
+        kind: ServiceMonitor
+        name: controller-manager-metrics-monitor
+      fieldPaths:
+        - spec.endpoints.0.tlsConfig.serverName
+      options:
+        delimiter: "."
+        index: 1
 # Metrics service name replacements for auth proxy serving cert
 - source:
     kind: Service

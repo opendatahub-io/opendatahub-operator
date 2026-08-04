@@ -79,15 +79,6 @@ rules:
   - list
   - watch
 - apiGroups:
-  - config.openshift.io
-  resources:
-  - apiservers
-  - ingresses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
   - gateway.networking.k8s.io
   resources:
   - httproutes

@@ -11,6 +11,9 @@ patches:
 # patch to add OpenShift serving cert annotation in metrics service
 - path: patches/auth_proxy_service_patch.yaml
 
+# patch ServiceMonitor selector to match the label the ODH labels transformer applies
+- path: patches/servicemonitor_selector_patch.yaml
+
 # patch to add serving cert to auth proxy container
 - path: patches/manager_auth_proxy_patch.yaml
 
@@ -44,7 +47,7 @@ labels:
 
 # Overlay on operator default config with prometheus monitor
 resources:
-- ../../default
+- ../openshift
 - ../../jobs-async-upload
 - ../../webhook
 
