@@ -112,7 +112,7 @@ additional_meta:
     git.commit: ae7b222116a1ed8fbe0accfc920f07419ed898eb
   odh-eval-hub:
     git.url: https://github.com/red-hat-data-services/eval-hub
-    git.commit: 7d63d3eb8ab75d27ef73092ec50a340001662fbd
+    git.commit: 8b0c158fb9066ee517ced834c83afe5dddb9bc49
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: 71434d672468c3b367b27fa97faf678958a90825
@@ -145,7 +145,7 @@ additional_meta:
     git.commit: d7d3a8be9f2d9d13373128b4ffbcf62d5a9e99d8
   odh-kserve-router:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: eac599e097a060546ea1b115856d68c0be2eb17a
+    git.commit: d7d3a8be9f2d9d13373128b4ffbcf62d5a9e99d8
   odh-kserve-storage-initializer:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 180037f1a388741cee7225e5543731da19eca73c
