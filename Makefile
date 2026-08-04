@@ -181,7 +181,7 @@ IMAGE_BUILD_FLAGS += --build-arg CGO_ENABLED=$(CGO_ENABLED)
 IMAGE_BUILD_FLAGS += --platform $(PLATFORM)
 
 # Prometheus-Unit Tests Parameters
-PROMETHEUS_RULES_DIR = ./internal/controller/components
+PROMETHEUS_RULES_DIR = ./internal/controller
 PROMETHEUS_RULE_TEMPLATES = $(shell find $(PROMETHEUS_RULES_DIR) -name "*-prometheusrules.tmpl.yaml" 2>/dev/null)
 PROMETHEUS_ALERT_TESTS = $(shell find $(PROMETHEUS_RULES_DIR) -name "*-alerting.unit-tests.yaml" 2>/dev/null)
 
@@ -715,8 +715,8 @@ test-alerts: validate-prometheus-rules $(PROMETHEUS_ALERT_RULES)
 
 #Check for alerts without unit-tests
 .PHONY: check-prometheus-alert-unit-tests
-check-prometheus-alert-unit-tests: $(PROMETHEUS_ALERT_RULES)
-	./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_RULES_DIR) $(ALERT_SEVERITY)
+check-prometheus-alert-unit-tests: $(PROMETHEUS_ALERT_RULES) $(YQ)
+	YQ=$(YQ) ./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_RULES_DIR) $(ALERT_SEVERITY)
 CLEANFILES += $(PROMETHEUS_ALERT_RULES)
 
 # Cluster health targets (cluster-health, cluster-health-*, etc.) are in cmd/health-check/Makefile.
