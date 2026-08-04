@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 1f43dcd22980405481db9591fdaea8b8576e41bc
+    git.commit: c6ed1e47fc7b68ee79ea78df468abda98942a6ad
   odh-feast-operator:
     src: infra/feast-operator/config
     dest: feastoperator
@@ -301,7 +301,7 @@ additional_meta:
     git.commit: 5fe4cc70892090992aca9284309ae71db20684ad
   odh-rhaii-cluster-validator:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: a8b69a8136b0b9fec3a3bf11555041493987244a
+    git.commit: 18a4185bf86ffd60baa0cea156f01d4a358a5bfb
   odh-rhaii-validator-tools:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
     git.commit: a8b69a8136b0b9fec3a3bf11555041493987244a

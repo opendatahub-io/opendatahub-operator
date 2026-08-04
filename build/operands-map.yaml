@@ -16,7 +16,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
   value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:3432d28550df5a2f69bdbdf75c3eb240d75c1b0d99d267e6f6e12f03680e239c"
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:b3a2b347ad025a3e96dcbaa44d2587d61d7af2ef15c3628175aaf1eafa063a0b"
+  value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:0186f81340ef635d534de29e1e103fe3792b747576bc366ab1adcf325f3e288a"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE
   value: "quay.io/rhoai/odh-data-science-pipelines-argo-argoexec-rhel9@sha256:720d575d9d8b9cee642971588621831eabb807d59fb463f31cd1f85bef78a4fd"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_WORKFLOWCONTROLLER_IMAGE
@@ -166,7 +166,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_ROCM_PY312_IMAGE
   value: "quay.io/rhoai/odh-pipeline-runtime-tensorflow-rocm-py312-rhel9@sha256:ae6d5638b63a3c971912f7ab8c42fe8dd6b7cb4b5d099fbd25411ea890e7f9df"
 - name: RELATED_IMAGE_ODH_RHAII_CLUSTER_VALIDATOR_IMAGE
-  value: "quay.io/rhoai/odh-rhaii-cluster-validator-rhel9@sha256:db9881affb323a5a5faf4b15b6cff7490029fc3dafdb60a68ecbdd88991990e9"
+  value: "quay.io/rhoai/odh-rhaii-cluster-validator-rhel9@sha256:014dfc14fb3eb0ed2fc099b70210332bcfc22cf1b9b15bd7ec6eb0ad15717d8d"
 - name: RELATED_IMAGE_ODH_RHAII_VALIDATOR_TOOLS_IMAGE
   value: "quay.io/rhoai/odh-rhaii-validator-tools-rhel9@sha256:c4f1daf137c591ad1315a76662c1dcdfe62e95de167d5e1e80fac88340d1b26e"
 - name: RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE
