@@ -130,7 +130,7 @@ additional_meta:
     git.commit: d7d3a8be9f2d9d13373128b4ffbcf62d5a9e99d8
   odh-kserve-autogluon-server:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: eac599e097a060546ea1b115856d68c0be2eb17a
+    git.commit: d7d3a8be9f2d9d13373128b4ffbcf62d5a9e99d8
   odh-kserve-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: eac599e097a060546ea1b115856d68c0be2eb17a
@@ -187,7 +187,7 @@ additional_meta:
     git.commit: adb9f38ad8b51a4733a5e88f2fc05aae1e5ea302
   odh-maas-controller:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: ca22308f10d5fef419fc8a91e2644ecec43823dc
+    git.commit: adb9f38ad8b51a4733a5e88f2fc05aae1e5ea302
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
     git.commit: aa2ab5127984563963fdf4fc00fa58a592046f66
@@ -253,7 +253,7 @@ additional_meta:
     git.commit: 7ff51437681bbb3b7378e6a16391fea241291631
   odh-mod-arch-maas:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 7ff51437681bbb3b7378e6a16391fea241291631
+    git.commit: 9bbbd1aeeffd7814cb8162cea422c2694c38f9e9
   odh-mod-arch-mlflow:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: c06b2e31d051a2b1d0278c33eb628d64dd5c9f09
@@ -313,7 +313,7 @@ additional_meta:
     git.commit: a6919d3e80cd44e986d88a068d1d97074b6c8dc4
   odh-trainer-operator:
     git.url: https://github.com/red-hat-data-services/trainer-operator
-    git.commit: bee82034c5ad89fe278b54b74d9c4df03201718f
+    git.commit: e9a69c228e10f3f5cefeededa531637c5dfbd0e2
   odh-training-cuda121-torch24-py311:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 5d574fed033532dfd0afaaf2f1f3ca30fa9da9d7
