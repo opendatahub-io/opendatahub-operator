@@ -22,7 +22,7 @@ import (
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
-	rr.Manifests = append(rr.Manifests, manifestPath(rr.ManifestsBasePath))
+// Deprecated: Training Operator v1 is obsolete in RHOAI 3.6. No manifests are loaded.
+func initialize(_ context.Context, _ *odhtypes.ReconciliationRequest) error { //nolint:unparam
 	return nil
 }

@@ -19,66 +19,23 @@ package trainingoperator
 import (
 	"context"
 
-	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/platformrelease"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
+// Deprecated: Training Operator v1 is obsolete in RHOAI 3.6.
+// The reconciler is a no-op: it watches the TrainingOperator CR but takes no
+// deploy/render/gc actions. Existing cluster resources are left untouched.
+// When a customer sets managementState to Removed, the DSC reconciler stops
+// creating the CR and Kubernetes cascade GC deletes owned resources.
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &componentApi.TrainingOperator{}).
-		// customized Owns() for Component with new predicates
-		Owns(&corev1.ConfigMap{}).
-		Owns(&promv1.PodMonitor{}).
-		Owns(&rbacv1.ClusterRoleBinding{}).
-		Owns(&rbacv1.ClusterRole{}).
-		Owns(&corev1.ServiceAccount{}).
-		Owns(&corev1.Service{}).
-		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(predicates.DefaultDeploymentPredicate)).
-		Watches(
-			&extv1.CustomResourceDefinition{},
-			reconciler.WithEventHandler(
-				handlers.ToNamed(componentApi.TrainingOperatorInstanceName)),
-			reconciler.WithPredicates(
-				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
-		).
-		WithPostStatusFn(platformrelease.NewPostStatusFn()).
-		WithAction(precondition.RunlevelGateAction()).
-		WithAction(initialize).
-		WithAction(releases.NewAction()).
-		WithAction(kustomize.NewAction(
-			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
-		)).
-		WithAction(deploy.NewAction(
-			deploy.WithCache(),
-		)).
-		WithAction(deployments.NewAction()).
-		// must be the final action
-		WithAction(gc.NewAction()).
-		// declares the list of additional, controller specific conditions that are
-		// contributing to the controller readiness status
-		WithConditions(conditionTypes...).
 		Build(ctx)
 
 	if err != nil {
-		return err // no need customize error, it is done in the caller main
+		return err
 	}
 
 	return nil
