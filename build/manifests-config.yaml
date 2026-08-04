@@ -115,7 +115,7 @@ additional_meta:
     git.commit: 85ec7874b22174d874ee8bfeb16cfea9b357421d
   odh-feast-operator:
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: ae29faefe49f13ce1ec6fabd846c2aface508ad0
+    git.commit: 2fd0449701dd6dc17cd8536a1bf02e9f6e9811a0
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: 2fd0449701dd6dc17cd8536a1bf02e9f6e9811a0
