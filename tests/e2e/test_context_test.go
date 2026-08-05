@@ -65,7 +65,8 @@ type TestContext struct {
 	// Namespace where application workloads are deployed.
 	AppsNamespace string
 
-	// Namespace where the workbenches are deployed.
+	// Legacy DSC workbenchNamespace value projected onto the module CR.
+	// Operand deploy target is AppsNamespace (APPLICATIONS_NAMESPACE).
 	WorkbenchesNamespace string
 
 	// Namespace where the monitoring components are deployed.
@@ -508,7 +509,7 @@ func (tc *TestContext) EnsureResourceDoesNotExist(opts ...ResourceOpts) {
 	if ro.AcceptableErrMatcher != nil {
 		tc.g.Expect(err).To(ro.AcceptableErrMatcher, unexpectedErrorMismatchMsg, ro.AcceptableErrMatcher, err, ro.GVK.Kind)
 	} else {
-		tc.g.Expect(err).To(BeNil(), unexpectedErrorMismatchMsg, ro.GVK.Kind, err)
+		tc.g.Expect(err).ToNot(HaveOccurred(), unexpectedErrorMismatchMsg, ro.GVK.Kind, err)
 	}
 }
 
@@ -2247,7 +2248,7 @@ func (tc *TestContext) ScaleCSVDeploymentReplicas(
 
 	spec := &deployments[depIdx].Spec
 	originalReplicas := ptr.Deref(spec.Replicas, 1)
-	spec.Replicas = ptr.To(replicas)
+	spec.Replicas = new(replicas)
 	tc.Logf("Scaling deployment %s from %d to %d replicas.", deploymentName, originalReplicas, replicas)
 
 	tc.Logf("Updating CSV %s.", targetCSV.Name)

@@ -34,6 +34,39 @@ const (
 	LeaderWorkerSetOperatorCRDname = "leaderworkersetoperators.operator.openshift.io"
 	SubscriptionCRDname            = "subscriptions.operators.coreos.com"
 	VariantAutoscalingCRDname      = "variantautoscalings.llmd.ai"
+
+	// Istio CRDs — networking.istio.io.
+	DestinationRuleCRDName = "destinationrules.networking.istio.io"
+	EnvoyFilterCRDName     = "envoyfilters.networking.istio.io"
+	IstioGatewayCRDName    = "gateways.networking.istio.io"
+	ProxyConfigCRDName     = "proxyconfigs.networking.istio.io"
+	ServiceEntryCRDName    = "serviceentries.networking.istio.io"
+	SidecarCRDName         = "sidecars.networking.istio.io"
+	WorkloadEntryCRDName   = "workloadentries.networking.istio.io"
+	WorkloadGroupCRDName   = "workloadgroups.networking.istio.io"
+
+	// Istio CRDs — security.istio.io.
+	AuthorizationPolicyCRDName   = "authorizationpolicies.security.istio.io"
+	PeerAuthenticationCRDName    = "peerauthentications.security.istio.io"
+	RequestAuthenticationCRDName = "requestauthentications.security.istio.io"
+
+	// Istio CRDs — telemetry.istio.io.
+	TelemetryCRDName = "telemetries.telemetry.istio.io"
+
+	// Istio CRDs — extensions.istio.io.
+	WasmPluginCRDName = "wasmplugins.extensions.istio.io"
+
+	// cert-manager CRDs.
+	CertManagerCertificateCRDName        = "certificates.cert-manager.io"
+	CertManagerCertificateRequestCRDName = "certificaterequests.cert-manager.io"
+	CertManagerIssuerCRDName             = "issuers.cert-manager.io"
+	CertManagerClusterIssuerCRDName      = "clusterissuers.cert-manager.io"
+
+	// LeaderWorkerSet CRD.
+	LeaderWorkerSetCRDName = "leaderworkersets.leaderworkerset.x-k8s.io"
+
+	// KServe CRDs.
+	InferenceServicesCRDName = "inferenceservices.serving.kserve.io"
 )
 
 var (
@@ -287,12 +320,6 @@ var (
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
 		Kind:    componentApi.WorkbenchesKind,
-	}
-
-	ModelController = schema.GroupVersionKind{
-		Group:   componentApi.GroupVersion.Group,
-		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.ModelControllerKind,
 	}
 
 	ModelMeshServing = schema.GroupVersionKind{

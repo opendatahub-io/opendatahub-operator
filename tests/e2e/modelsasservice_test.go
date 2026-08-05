@@ -42,9 +42,9 @@ const (
 	maasPostgresName     = "maas-postgres"
 	maasPostgresImage    = "registry.redhat.io/rhel9/postgresql-15:latest"
 	maasPostgresUser     = "maas"
-	maasPostgresPassword = "maas-e2e-test" //nolint:gosec // test-only credential, not a real secret
+	maasPostgresPassword = "maas-e2e-test"
 	maasPostgresDB       = "maas"
-	maasDBConfigSecret   = "maas-db-config" //nolint:gosec // secret name reference, not a credential
+	maasDBConfigSecret   = "maas-db-config"
 )
 
 func (tc *ModelsAsServiceTestCtx) maasDBNamespace() string {
@@ -59,7 +59,7 @@ func (tc *ModelsAsServiceTestCtx) maasDBNamespace() string {
 func modelsAsServiceTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewSubComponentTestCtx(t, &componentApi.ModelsAsService{}, componentApi.AIGatewayKind, modelsAsServiceFieldName)
+	ct, err := NewSubModuleTestCtx(t, gvk.ModelsAsService, componentApi.ModelsAsServiceInstanceName, componentApi.AIGatewayKind, modelsAsServiceFieldName)
 	require.NoError(t, err)
 
 	componentCtx := ModelsAsServiceTestCtx{

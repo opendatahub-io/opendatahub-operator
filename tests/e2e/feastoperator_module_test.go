@@ -179,7 +179,7 @@ func (ctx *FeastModuleTestCtx) ValidateUpgradeSelectorMigration(t *testing.T) {
 			},
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: ptr.To(int32(1)),
+			Replicas: ptr.To[int32](1),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"control-plane": "controller-manager",

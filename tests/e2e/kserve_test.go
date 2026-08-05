@@ -15,8 +15,8 @@ import (
 
 	azurev1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -30,6 +30,9 @@ const (
 	// lwsOperatorDeploymentName is the name of the LWS operator deployment within
 	// the CSV. We use this when patching the CSV to scale the operator.
 	lwsOperatorDeploymentName = "openshift-lws-operator"
+
+	llmInferenceServiceConfigWellKnownAnnotationKey   = "serving.kserve.io/well-known-config"
+	llmInferenceServiceConfigWellKnownAnnotationValue = "true"
 )
 
 type KserveTestCtx struct {
@@ -39,7 +42,7 @@ type KserveTestCtx struct {
 func kserveTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Kserve{})
+	ct, err := NewModuleTestCtx(t, gvk.Kserve, componentApi.KserveInstanceName)
 	require.NoError(t, err)
 
 	componentCtx := KserveTestCtx{
@@ -96,7 +99,7 @@ func kserveTestSuite(t *testing.T) {
 func kserveDegradedMonitoringTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Kserve{})
+	ct, err := NewModuleTestCtx(t, gvk.Kserve, componentApi.KserveInstanceName)
 	require.NoError(t, err)
 
 	componentCtx := KserveTestCtx{
@@ -247,8 +250,8 @@ func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T
 					map(select(.metadata.annotations["%s"] == "%s"))
 					| length > 0
 				`,
-					kserve.LLMInferenceServiceConfigWellKnownAnnotationKey,
-					kserve.LLMInferenceServiceConfigWellKnownAnnotationValue,
+					llmInferenceServiceConfigWellKnownAnnotationKey,
+					llmInferenceServiceConfigWellKnownAnnotationValue,
 				)),
 				WithCustomErrorMsg("Expected at least one well-known LLMInferenceServiceConfig %s to exist", configGVK.Version),
 			)
@@ -263,8 +266,8 @@ func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T
 					map(select(.metadata.annotations["%s"] == "%s"))
 					| all(.metadata.name | test("^v[0-9]+-[0-9]+-[0-9]+-.*"))
 				`,
-					kserve.LLMInferenceServiceConfigWellKnownAnnotationKey,
-					kserve.LLMInferenceServiceConfigWellKnownAnnotationValue,
+					llmInferenceServiceConfigWellKnownAnnotationKey,
+					llmInferenceServiceConfigWellKnownAnnotationValue,
 				)),
 				WithCustomErrorMsg("All well-known LLMInferenceServiceConfig %s resources should have names starting with a semver version (vX-Y-Z-)", configGVK.Version),
 			)
@@ -642,7 +645,7 @@ func (tc *KserveTestCtx) runXKSDegradedMonitoringTest(t *testing.T, kserveNN typ
 func kserveModelCacheTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Kserve{})
+	ct, err := NewModuleTestCtx(t, gvk.Kserve, componentApi.KserveInstanceName)
 	require.NoError(t, err)
 
 	componentCtx := KserveTestCtx{
@@ -689,10 +692,10 @@ func (tc *KserveTestCtx) enableModelCache(t *testing.T, nodeName string) {
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(func(obj *unstructured.Unstructured) error {
-			return unstructured.SetNestedField(obj.Object, map[string]interface{}{
+			return unstructured.SetNestedField(obj.Object, map[string]any{
 				"managementState": "Managed",
 				"cacheSize":       "5Gi",
-				"nodeNames":       []interface{}{nodeName},
+				"nodeNames":       []any{nodeName},
 			}, "spec", "components", "kserve", "modelCache")
 		}),
 		WithCondition(

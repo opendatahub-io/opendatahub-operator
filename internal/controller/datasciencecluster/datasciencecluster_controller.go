@@ -32,7 +32,6 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
@@ -53,10 +52,6 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		Owns(&componentApi.TrainingOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Trainer{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.DataSciencePipelines{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.ModelController{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.ModelsAsService{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.OGX{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.MLflowOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.SparkOperator{}, reconciler.WithPredicates(componentsPredicate))
 
 	// Module CRs are not owned by the DSC controller, but their status
@@ -74,13 +69,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		return nil
 	})
 
-	b = b.WatchesGVK(gvk.MaasTenantConfig,
-		reconciler.Dynamic(reconciler.CrdExists(gvk.MaasTenantConfig)),
-		reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
-			return watchDataScienceClusters(ctx, mgr.GetClient())
-		}),
-		reconciler.WithPredicates(componentsPredicate),
-	).
+	b = b.
 		Watches(
 			&dsciv2.DSCInitialization{},
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
@@ -101,8 +90,11 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
 			))
 
+	b = modules.AddModuleCRDWatches(b, func(ctx context.Context, _ client.Object) []reconcile.Request {
+		return watchDataScienceClusters(ctx, mgr.GetClient())
+	})
+
 	_, err := b.
-		WithAction(initialize).
 		WithAction(checkPreConditions).
 		WithAction(updateStatus).
 		WithAction(checkUpgradeGates).

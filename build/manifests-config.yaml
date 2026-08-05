@@ -54,5 +54,5 @@ map:
     src: config
     dest: mcplifecycleoperator
   odh-ogx-module-operator:
-    src: config/
+    src: ogx-module/config
     dest: ogx

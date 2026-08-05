@@ -141,7 +141,7 @@ HELM ?= $(LOCALBIN)/helm
 KUSTOMIZE_VERSION ?= v5.8.1
 CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
-GOLANGCI_LINT_VERSION ?= v2.5.0
+GOLANGCI_LINT_VERSION ?= v2.12.2
 YQ_VERSION ?= v4.53.2
 HELM_VERSION ?= v4.1.1
 KUBE_LINTER_VERSION ?= v0.7.6
@@ -154,6 +154,7 @@ CRD_REF_DOCS_VERSION = 0.2.0
 GINKGO_VERSION ?= v2.28.1
 
 
+GO_VERSION ?= $(shell sed -n 's/^go //p' go.mod)
 PLATFORM ?= linux/amd64
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -180,7 +181,7 @@ IMAGE_BUILD_FLAGS += --build-arg CGO_ENABLED=$(CGO_ENABLED)
 IMAGE_BUILD_FLAGS += --platform $(PLATFORM)
 
 # Prometheus-Unit Tests Parameters
-PROMETHEUS_RULES_DIR = ./internal/controller/components
+PROMETHEUS_RULES_DIR = ./internal/controller
 PROMETHEUS_RULE_TEMPLATES = $(shell find $(PROMETHEUS_RULES_DIR) -name "*-prometheusrules.tmpl.yaml" 2>/dev/null)
 PROMETHEUS_ALERT_TESTS = $(shell find $(PROMETHEUS_RULES_DIR) -name "*-alerting.unit-tests.yaml" 2>/dev/null)
 
@@ -279,7 +280,6 @@ endif
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/oauth.openshift.io_oauthclients.yaml
 	@# Copy KServe CRD to shared rhaii overlay and generate kustomization
 	@mkdir -p config/rhaii/crd/bases
-	@cp $(CONFIG_DIR)/crd/bases/components.platform.opendatahub.io_kserves.yaml config/rhaii/crd/bases/
 	@cp $(CONFIG_DIR)/crd/bases/config.opendatahub.io_platforms.yaml config/rhaii/crd/bases/
 	@$(call add-crd-to-kustomization,config/rhaii/crd/bases)
 MANIFEST_GENERATED_FILES = config/crd/bases config/rhoai/crd/bases config/rhaii/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
@@ -715,8 +715,8 @@ test-alerts: validate-prometheus-rules $(PROMETHEUS_ALERT_RULES)
 
 #Check for alerts without unit-tests
 .PHONY: check-prometheus-alert-unit-tests
-check-prometheus-alert-unit-tests: $(PROMETHEUS_ALERT_RULES)
-	./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_RULES_DIR) $(ALERT_SEVERITY)
+check-prometheus-alert-unit-tests: $(PROMETHEUS_ALERT_RULES) $(YQ)
+	YQ=$(YQ) ./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_RULES_DIR) $(ALERT_SEVERITY)
 CLEANFILES += $(PROMETHEUS_ALERT_RULES)
 
 # Cluster health targets (cluster-health, cluster-health-*, etc.) are in cmd/health-check/Makefile.
@@ -936,7 +936,7 @@ set -e; \
 package=$(2)@$(3) ;\
 echo "Downloading $${package}" ;\
 rm -f "$(1)" || true ;\
-GOBIN=$(LOCALBIN) go install $${package} ;\
+GOTOOLCHAIN="go$(GO_VERSION)" GOBIN="$(LOCALBIN)" go install "$${package}" ;\
 mv "$(1)" "$(1)-$(3)" ;\
 } ;\
 [ "$$(readlink "$(1)")" = "$(1)-$(3)" ] || ln -sf "$(1)-$(3)" "$(1)"
