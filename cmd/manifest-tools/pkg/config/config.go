@@ -10,10 +10,11 @@ import (
 )
 
 type ManifestsConfig struct {
-	Components      map[string]Component     `yaml:"components"`
-	CCMCharts       map[string]Component     `yaml:"ccmCharts"`
-	ComponentCharts map[string]Component     `yaml:"componentCharts"`
-	ImageOverrides  map[string]ImageOverride `yaml:"imageOverrides"`
+	Components        map[string]Component     `yaml:"components"`
+	CCMCharts         map[string]Component     `yaml:"ccmCharts"`
+	ComponentCharts   map[string]Component     `yaml:"componentCharts"`
+	PlatformManifests map[string]string        `yaml:"platformManifests"`
+	ImageOverrides    map[string]ImageOverride `yaml:"imageOverrides"`
 }
 
 type Component struct {
@@ -137,6 +138,13 @@ func LoadNode(path string) (*NodeDoc, error) {
 		return nil, fmt.Errorf("parsing config: %w", err)
 	}
 
+	if len(doc.Content) == 0 {
+		return nil, fmt.Errorf("empty YAML document in %s", path)
+	}
+	if doc.Content[0].Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("root node must be a mapping in %s", path)
+	}
+
 	return &NodeDoc{Root: &doc}, nil
 }
 
@@ -183,6 +191,30 @@ func (d *NodeDoc) SetImageOverrideField(envName, platform, field, value string) 
 	return nil
 }
 
+// SetComponentRef sets the ref field for a component in a specific section and platform.
+// section must be "components", "ccmCharts", or "componentCharts".
+func (d *NodeDoc) SetComponentRef(section, componentName, platform, newRef string) error {
+	root := d.Root.Content[0]
+
+	sectionNode := findMapValue(root, section)
+	if sectionNode == nil {
+		return fmt.Errorf("%s not found", section)
+	}
+
+	compNode := findMapValue(sectionNode, componentName)
+	if compNode == nil {
+		return fmt.Errorf("%s.%s not found", section, componentName)
+	}
+
+	platNode := findMapValue(compNode, platform)
+	if platNode == nil {
+		return fmt.Errorf("%s.%s.%s not found", section, componentName, platform)
+	}
+
+	setMapField(platNode, "ref", newRef)
+	return nil
+}
+
 func findMapValue(mapping *yaml.Node, key string) *yaml.Node {
 	if mapping.Kind != yaml.MappingNode {
 		return nil
@@ -199,7 +231,6 @@ func setMapField(mapping *yaml.Node, key, value string) {
 	for i := 0; i < len(mapping.Content)-1; i += 2 {
 		if mapping.Content[i].Value == key {
 			mapping.Content[i+1].Value = value
-			mapping.Content[i+1].Style = yaml.DoubleQuotedStyle
 			return
 		}
 	}

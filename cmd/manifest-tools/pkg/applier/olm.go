@@ -90,7 +90,13 @@ func applyToSubscription(ctx context.Context, dynClient dynamic.Interface, clien
 		return fmt.Errorf("getting subscription: %w", err)
 	}
 
-	existingEnv, _, _ := unstructured.NestedSlice(sub.Object, "spec", "config", "env")
+	existingEnv, found, err := unstructured.NestedSlice(sub.Object, "spec", "config", "env")
+	if err != nil {
+		return fmt.Errorf("reading subscription env: %w", err)
+	}
+	if !found {
+		existingEnv = []any{}
+	}
 	envMap := make(map[string]int, len(existingEnv))
 	var merged []envVar
 	for i, raw := range existingEnv {

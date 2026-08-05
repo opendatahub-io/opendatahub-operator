@@ -60,7 +60,7 @@ else
 	# To re-generate a bundle for another specific version without changing the standard setup, you can:
 	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-	# NOTE: see also the git branches for RHOAI in get_all_manifests.sh. This variable does NOT affect those
+	# NOTE: see also the git branches for RHOAI in manifests-config.yaml. This variable does NOT affect those
 	ifeq ($(VERSION), )
 		VERSION = 3.5.0
 	endif
@@ -329,9 +329,7 @@ kube-lint: prepare ## Run kube-linter against rendered manifests.
 
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
-	ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE) VERSION=$(VERSION) ./get_all_manifests.sh
-	@echo "Validating manifest image tags..."
-	@./.github/scripts/validate-manifest-images.sh
+	go run -C ./cmd/manifest-tools main.go download --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --manifests-dir $(CURDIR)/opt/manifests --charts-dir $(CURDIR)/opt/charts
 CLEANFILES += opt/manifests/* opt/charts/*
 
 .PHONY: update-rhai-images
@@ -357,9 +355,18 @@ validate-related-images: yq ## Validate RELATED_IMAGE_* names against build conf
 resolve-image-digests: ## Resolve image digests from Build-Config and update manifests-config.yaml
 	go run -C ./cmd/manifest-tools main.go resolve-digests --config $(CURDIR)/manifests-config.yaml --manifests-dir $(CURDIR)/opt/manifests
 
-.PHONY: generate-image-overrides
-generate-image-overrides: ## Generate RELATED_IMAGE_* override env file from manifests-config.yaml
-	go run -C ./cmd/manifest-tools main.go generate-overrides --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --output $(CURDIR)/opt/related-images-override.env
+.PHONY: update-refs-shas
+update-refs-shas: ## Update branch@sha refs to latest commit SHAs from GitHub (requires GITHUB_TOKEN)
+	go run -C ./cmd/manifest-tools main.go update-refs shas --config $(CURDIR)/manifests-config.yaml
+
+.PHONY: update-refs-tags
+update-refs-tags: ## Parse tracker issue and update ODH component refs (requires TRACKER_URL)
+	go run -C ./cmd/manifest-tools main.go update-refs tags --tracker-url $(TRACKER_URL) --config $(CURDIR)/manifests-config.yaml
+
+.PHONY: update-refs-rhoai-branch
+update-refs-rhoai-branch: ## Update all RHOAI refs to a new branch (requires GITHUB_TOKEN, NEW_RHOAI_BRANCH)
+	go run -C ./cmd/manifest-tools main.go update-refs rhoai-branch --branch $(NEW_RHOAI_BRANCH) --config $(CURDIR)/manifests-config.yaml
+
 
 .PHONY: apply-image-overrides
 apply-image-overrides: ## Apply image overrides to manager.yaml (for make deploy)

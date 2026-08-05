@@ -245,40 +245,36 @@ spec:
 
 #### Download manifests
 
-The [get_all_manifests.sh](/get_all_manifests.sh) script facilitates the process of fetching manifests from remote git repositories. It is configured to work with a predefined map of components and their corresponding manifest locations.
+The `manifest-tools download` command (in `cmd/manifest-tools/`) fetches manifests from remote git repositories. It reads `manifests-config.yaml` for component definitions and their manifest locations.
 
-#### Structure of `COMPONENT_MANIFESTS`
+#### Structure of `manifests-config.yaml`
 
-Each component is associated with its manifest location in the `COMPONENT_MANIFESTS` map. The key is the component's name, and the value is its location, formatted as `<repo-org>:<repo-name>:<branch-name>:<source-folder>:<target-folder>`
+Each component is defined under the `components` section with per-platform (odh/rhoai) entries containing `repo`, `ref`, and `sourcePath` fields.
 
 #### Workflow
 
-1. The script clones the remote repository `<repo-org>/<repo-name>` from the specified `<branch-name>`.
-2. It then copies the content from the relative path `<source-folder>` to the local `opt/manifests/<target-folder>` folder.
+1. The tool shallow-clones each component’s repository at the specified `ref` (supports `branch@sha` tracking format).
+2. It copies the content from `sourcePath` to the local `opt/manifests/<component>/` folder.
 
 #### Local Storage
 
-The script utilizes a local, empty folder named `opt/manifests` to host all required manifests, sourced directly from each component’s source repository.
+The tool uses `opt/manifests` and `opt/charts` folders to host all required manifests, sourced from each component’s repository.
 
 #### Adding New Components
 
-To include a new component in the list of manifest repositories, simply extend the `COMPONENT_MANIFESTS` map with a new entry, as shown below:
-
-```shell
-declare -A COMPONENT_MANIFESTS=(
-  // existing components ...
-  ["new-component"]="<repo-org>:<repo-name>:<branch-name>:<source-folder>:<target-folder>"
-)
-```
+To include a new component, add a new entry in the `components` section of `manifests-config.yaml`.
 
 #### Customizing Manifests Source
-You have the flexibility to change the source of the manifests. Invoke the `get_all_manifests.sh` script with specific flags, as illustrated below:
+
+You can override a component’s source using the `--component` flag:
 
 ```shell
-./get_all_manifests.sh --odh-dashboard="maistra:odh-dashboard:test-manifests:manifests:odh-dashboard"
+make get-manifests
+# or with overrides:
+go run -C ./cmd/manifest-tools main.go download --component dashboard=maistra:odh-dashboard:test-manifests:manifests
 ```
 
-If the flag name matches components key defined in `COMPONENT_MANIFESTS` it will overwrite its location, otherwise the command will fail.
+If the component key does not exist in `manifests-config.yaml`, the command will fail.
 
 ##### for local development
 

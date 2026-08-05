@@ -9,7 +9,7 @@ fi
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CHARTS_DIR="${REPO_ROOT}/opt/charts"
 TARGET_FILE="${REPO_ROOT}/internal/controller/cloudmanager/common/kubebuilder_rbac.go"
-CHARTS_SOURCE="${REPO_ROOT}/get_all_manifests.sh"
+CHARTS_SOURCE="${REPO_ROOT}/manifests-config.yaml"
 
 YQ="${1:?yq binary path is required as first argument}"
 HELM="${2:?helm binary path is required as second argument}"
@@ -58,7 +58,7 @@ extract_cloudmanager_charts() {
 }
 
 # Collect role and clusterrole names from rendered chart templates.
-# Only processes charts referenced by cloudmanager (extracted from get_all_manifests.sh).
+# Only processes charts referenced by cloudmanager (extracted from manifests-config.yaml).
 # Output format: <chart_name> <kind> <name>
 collect_names() {
   local chart_names

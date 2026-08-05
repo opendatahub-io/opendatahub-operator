@@ -71,33 +71,3 @@ func TestSplitImageRef_EdgeCases(t *testing.T) {
 	}
 }
 
-func TestFetchBuildConfigImages_AllowedRepos(t *testing.T) {
-	allowedRepos := []string{
-		"opendatahub-io/ODH-Build-Config",
-		"red-hat-data-services/RHOAI-Build-Config",
-	}
-
-	for _, repo := range allowedRepos {
-		_, err := resolver.FetchBuildConfigImages(repo, "nonexistent-branch-for-test")
-		if err == nil {
-			continue
-		}
-		// Should NOT be an allowlist error — should be a fetch error
-		if err.Error() == "repository \""+repo+"\" not in allowlist" {
-			t.Errorf("repo %q should be in allowlist but got rejection", repo)
-		}
-	}
-
-	rejectedRepos := []string{
-		"evil-org/evil-repo",
-		"opendatahub-io/not-build-config",
-		"",
-	}
-
-	for _, repo := range rejectedRepos {
-		_, err := resolver.FetchBuildConfigImages(repo, "main")
-		if err == nil {
-			t.Errorf("repo %q should be rejected but was accepted", repo)
-		}
-	}
-}

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Apply operator-level image environment variables to manager.yaml
-# Reads RELATED_IMAGE_* env vars exported by get-release-branches.js and updates the deployment spec
+# Reads RELATED_IMAGE_* env vars exported by manifest-tools update-refs tags and updates the deployment spec
 
 set -e
 

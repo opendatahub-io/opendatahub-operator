@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -12,10 +13,8 @@ import (
 )
 
 type Options struct {
-	ConfigFile        string
-	ManifestsDir      string
-	BuildConfigRepo   string
-	BuildConfigBranch string
+	ConfigFile   string
+	ManifestsDir string
 }
 
 type Result struct {
@@ -26,7 +25,7 @@ type Result struct {
 	Source   string // "commit-sha", "Build-Config", "params.env", "params.env+registry", "shaFrom"
 }
 
-func Resolve(opts Options) ([]Result, error) {
+func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 	cfg, err := config.Load(opts.ConfigFile)
 	if err != nil {
 		return nil, err
@@ -36,13 +35,6 @@ func Resolve(opts Options) ([]Result, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	bcImages, err := FetchBuildConfigImages(opts.BuildConfigRepo, opts.BuildConfigBranch)
-	if err != nil {
-		slog.Warn("Build-Config fetch failed, will use fallbacks only", slog.String("error", err.Error()))
-		bcImages = map[string]string{}
-	}
-	slog.Info("Loaded RELATED_IMAGE entries from Build-Config", slog.Int("count", len(bcImages)))
 
 	var results []Result
 
@@ -107,7 +99,7 @@ func Resolve(opts Options) ([]Result, error) {
 				resolvedTag = strings.ReplaceAll(resolvedTag, "{SHORT_SHA}", shortSHA)
 				imageRef := effectiveBase + ":" + resolvedTag
 
-				digest, err := ResolveDigestViaRegistry(imageRef)
+				digest, err := ResolveDigestViaRegistry(ctx, imageRef)
 				if err == nil && config.DigestPattern.MatchString(digest) {
 					if err := nodeDoc.SetImageOverrideField(envName, platform, "base", effectiveBase); err != nil {
 						slog.Warn("Failed to set base field", slog.String("error", err.Error()))
@@ -130,27 +122,7 @@ func Resolve(opts Options) ([]Result, error) {
 				slog.Info("Registry lookup failed, falling through", slog.String("env", envName), slog.String("platform", platform), slog.String("imageRef", imageRef))
 			}
 
-			// Priority 2: Build-Config CSV
-			if bcValue, ok := bcImages[envName]; ok {
-				bcBase, bcDigest := SplitImageRef(bcValue)
-				if config.DigestPattern.MatchString(bcDigest) {
-					if err := nodeDoc.SetImageOverrideField(envName, platform, "base", bcBase); err != nil {
-						slog.Warn("Failed to set base field", slog.String("error", err.Error()))
-					}
-					if err := nodeDoc.SetImageOverrideField(envName, platform, "digest", bcDigest); err != nil {
-						slog.Warn("Failed to set digest field", slog.String("error", err.Error()))
-					}
-					results = append(results, Result{envName, platform, bcBase, bcDigest, "Build-Config"})
-					if resolved[envName] == nil {
-						resolved[envName] = map[string]resolvedImage{}
-					}
-					resolved[envName][platform] = resolvedImage{bcBase, bcDigest}
-					slog.Info("Resolved via Build-Config", slog.String("env", envName), slog.String("platform", platform), slog.String("base", bcBase), slog.String("digest", bcDigest))
-					continue
-				}
-			}
-
-			// Priority 3: params.env
+			// Priority 2: params.env
 			if override.ParamsEnvKey != "" && override.Component != "" {
 				paramsFile := fmt.Sprintf("%s/%s/params.env", opts.ManifestsDir, override.Component)
 				if imageRef, err := ReadParamsEnvKey(paramsFile, override.ParamsEnvKey); err == nil && imageRef != "" {
@@ -173,9 +145,9 @@ func Resolve(opts Options) ([]Result, error) {
 						}
 					}
 					// Tagged image → registry lookup
-					digest, err := ResolveDigestViaRegistry(imageRef)
+					digest, err := ResolveDigestViaRegistry(ctx, imageRef)
 					if err == nil && config.DigestPattern.MatchString(digest) {
-						pBase := strings.SplitN(imageRef, ":", 2)[0]
+						pBase, _, _ := strings.Cut(imageRef, ":")
 						if err := nodeDoc.SetImageOverrideField(envName, platform, "base", pBase); err != nil {
 							slog.Warn("Failed to set base field", slog.String("error", err.Error()))
 						}
@@ -246,13 +218,12 @@ func printSummary(results []Result) {
 		dim     = "\033[2m"
 	)
 
-	sourceOrder := []string{"commit-sha", "Build-Config", "params.env", "params.env+registry", "shaFrom"}
+	sourceOrder := []string{"commit-sha", "params.env", "params.env+registry", "shaFrom"}
 	sourceColor := map[string]string{
-		"commit-sha":         green,
-		"Build-Config":       cyan,
-		"params.env":         yellow,
+		"commit-sha":          green,
+		"params.env":          yellow,
 		"params.env+registry": yellow,
-		"shaFrom":            magenta,
+		"shaFrom":             magenta,
 	}
 
 	grouped := map[string][]Result{}
@@ -281,6 +252,14 @@ func printSummary(results []Result) {
 	fmt.Fprintf(os.Stderr, "\n%sTotal: %d images resolved%s\n\n", bold, len(results), reset)
 }
 
+func SplitImageRef(ref string) (base, digest string) {
+	idx := strings.LastIndex(ref, "@")
+	if idx < 0 {
+		return ref, ""
+	}
+	return ref[:idx], ref[idx+1:]
+}
+
 func ReadParamsEnvKey(path, key string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -292,8 +271,8 @@ func ReadParamsEnvKey(path, key string) (string, error) {
 	prefix := key + "="
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, prefix) {
-			return strings.TrimPrefix(line, prefix), nil
+		if val, ok := strings.CutPrefix(line, prefix); ok {
+			return val, nil
 		}
 	}
 	if err := scanner.Err(); err != nil {

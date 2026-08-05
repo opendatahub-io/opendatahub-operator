@@ -9,8 +9,8 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 )
 
-func ResolveDigestViaRegistry(imageRef string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+func ResolveDigestViaRegistry(ctx context.Context, imageRef string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
 	digest, err := crane.Digest(imageRef,

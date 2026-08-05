@@ -154,3 +154,43 @@ func TestFindDeploymentDoc(t *testing.T) {
 		t.Errorf("expected Deployment at index 1, got %d", idx)
 	}
 }
+
+func TestFindDeploymentDoc_NotFound(t *testing.T) {
+	yaml := `---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-svc
+`
+	docs, err := parseMultiDoc([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+	idx := findDeploymentDoc(docs)
+	if idx != -1 {
+		t.Errorf("expected -1 for no Deployment, got %d", idx)
+	}
+}
+
+func TestFindManagerEnvNode_NoManagerContainer(t *testing.T) {
+	yaml := `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+      - name: sidecar
+        image: sidecar:latest
+`
+	docs, err := parseMultiDoc([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := docs[0].Content[0]
+	_, err = findManagerEnvNode(root)
+	if err == nil {
+		t.Fatal("expected error when manager container not found")
+	}
+}

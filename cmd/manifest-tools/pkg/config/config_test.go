@@ -219,6 +219,39 @@ func TestDigestPattern(t *testing.T) {
 	}
 }
 
+func TestLoadNode_EmptyDocument(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "empty.yaml")
+	if err := os.WriteFile(path, []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := config.LoadNode(path)
+	if err == nil {
+		t.Fatal("expected error for empty YAML document")
+	}
+}
+
+func TestLoadNode_NonMappingRoot(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "list.yaml")
+	if err := os.WriteFile(path, []byte("- item1\n- item2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := config.LoadNode(path)
+	if err == nil {
+		t.Fatal("expected error for non-mapping root node")
+	}
+}
+
+func TestLoadNode_MissingFile(t *testing.T) {
+	_, err := config.LoadNode("/nonexistent/path.yaml")
+	if err == nil {
+		t.Fatal("expected error for missing file")
+	}
+}
+
 func TestNodeDocSetAndSave(t *testing.T) {
 	path := writeTestConfig(t)
 	doc, err := config.LoadNode(path)

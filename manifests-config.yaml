@@ -189,6 +189,13 @@ componentCharts:
       ref: rhoai-3.5@22ac61d37dfb79704b1fa891823b69f297f1d809
       sourcePath: config/chart
 # Image overrides — pinned operator image digests, keyed by RELATED_IMAGE_* env var name.
+# Local directories symlinked into opt/manifests/ during development.
+# In container builds, these are COPYed directly in the Dockerfile.
+platformManifests:
+  osd-configs: config/osd-configs
+  hardwareprofiles: config/hardwareprofiles
+  connectionAPI: config/connectionAPI
+  segment: config/segment
 #   component:    which component's SHA to use for tagTemplate (matches key in components/ccmCharts/componentCharts)
 #   paramsEnvKey: (optional) params.env key for Go runtime
 #   tagTemplate:  (optional) tag template for skopeo fallback (must be quoted when containing {SHORT_SHA})

@@ -22,9 +22,10 @@ func NewRootCommand() *cobra.Command {
 
 	cmd.AddCommand(
 		newResolveCommand(opts),
-		newGenerateCommand(opts),
 		newApplyOLMCommand(opts),
 		newApplyDeployCommand(opts),
+		newDownloadCommand(opts),
+		newUpdateRefsCommand(opts),
 	)
 
 	return cmd
