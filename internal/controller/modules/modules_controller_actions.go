@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -475,6 +476,7 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 
 	var notReadyModules []string
 	var degradedModules []string
+	var crdAbsentModules []string
 	var enabledCount int
 
 	err = reg.ForEach(func(handler ModuleHandler) error {
@@ -513,6 +515,10 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 		if err != nil {
 			log.V(1).Info("failed to get module status", "module", name, "error", err)
 			notReadyModules = append(notReadyModules, name)
+
+			if meta.IsNoMatchError(err) {
+				crdAbsentModules = append(crdAbsentModules, name)
+			}
 
 			rr.Conditions.SetCondition(common.Condition{
 				Type:    condType,
@@ -642,6 +648,12 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 		})
 	default:
 		rr.Conditions.MarkTrue(status.ConditionTypeModulesReady)
+	}
+
+	if len(crdAbsentModules) > 0 {
+		log.Info("module CRDs not yet available, requesting requeue",
+			"modules", strings.Join(crdAbsentModules, ", "))
+		return odherrors.NewRequeueAfterError(30 * time.Second)
 	}
 
 	return nil

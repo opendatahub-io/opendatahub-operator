@@ -128,7 +128,7 @@ func preflightCheck() error {
 	return nil
 }
 
-func stripManagedFields(value interface{}) (string, bool) {
+func stripManagedFields(value any) (string, bool) {
 	switch v := value.(type) {
 	case *unstructured.Unstructured:
 		c := v.DeepCopy()
@@ -143,7 +143,7 @@ func stripManagedFields(value interface{}) (string, bool) {
 
 		return format.Object(c.Object, 1), true
 	case []unstructured.Unstructured:
-		stripped := make([]map[string]interface{}, 0, len(v))
+		stripped := make([]map[string]any, 0, len(v))
 		for i := range v {
 			c := v[i].DeepCopy()
 			c.SetManagedFields(nil)
