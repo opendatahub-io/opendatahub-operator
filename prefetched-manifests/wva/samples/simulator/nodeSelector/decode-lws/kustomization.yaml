@@ -1,5 +1,0 @@
-resources:
-  - lws.yaml
-  - service.yaml
-  - servicemonitor.yaml
-  - hpa.yaml

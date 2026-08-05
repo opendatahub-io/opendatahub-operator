@@ -1,14 +1,32 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: redhat-ods-applications
-
 resources:
-  - ../openshift
+  - ../../default
 
 patches:
-  # patch to remove default `system` namespace in ../../manager/manager.yaml
-  - path: delete-namespace.yaml
+  # Rename ConfigMap to odh-ogx-config so the ODH operator's
+  # injectPlatformConfig action can merge platformVersion into it.
+  # Also set platform-name for RHOAI so the module reconciler picks
+  # the correct root-operator overlay (overlays/rhoai).
+  - target:
+      kind: ConfigMap
+      name: opendatahub-ogx-config
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: odh-ogx-config
+      - op: replace
+        path: /data/platform-name
+        value: "Red Hat OpenShift AI"
+  # Update Deployment volume ref to match renamed ConfigMap.
+  - target:
+      kind: Deployment
+      name: opendatahub-ogx-operator
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/volumes/1/configMap/name
+        value: odh-ogx-config
 
 configMapGenerator:
   - name: params
@@ -19,30 +37,11 @@ replacements:
   - source:
       kind: ConfigMap
       name: params
-      fieldPath: data.RELATED_IMAGE_ODH_OGX_K8S_OPERATOR_IMAGE
+      fieldPath: data.RELATED_IMAGE_ODH_OGX_MODULE_OPERATOR_IMAGE
     targets:
       - select:
           kind: Deployment
-          name: controller-manager
+          name: opendatahub-ogx-operator
         fieldPaths:
           - spec.template.spec.containers.[name=manager].image
-  - source:
-      kind: ConfigMap
-      name: params
-      fieldPath: data.OPERATOR_VERSION
-    targets:
-      - select:
-          kind: Deployment
-          name: controller-manager
-        fieldPaths:
-          - spec.template.spec.containers.[name=manager].env.[name=OPERATOR_VERSION].value
-  - source:
-      kind: ConfigMap
-      name: params
-      fieldPath: data.RELATED_IMAGE_ODH_OGX_CORE_IMAGE
-    targets:
-      - select:
-          kind: Deployment
-          name: controller-manager
-        fieldPaths:
-          - spec.template.spec.containers.[name=manager].env.[name=RELATED_IMAGE_ODH_OGX_CORE_IMAGE].value
+          - spec.template.spec.initContainers.[name=copy-manifests].image
