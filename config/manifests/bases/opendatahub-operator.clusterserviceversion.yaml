@@ -6,7 +6,7 @@ metadata:
     capabilities: Full Lifecycle
     categories: AI/Machine Learning, Big Data
     certified: "False"
-    containerImage: quay.io/opendatahub/opendatahub-operator:v3.5.0
+    containerImage: quay.io/opendatahub/opendatahub-operator@sha256:71e15da7c3007d1b613dbb77a0d00fbbda03914d83ff57300da40b9275efd7c1
     createdAt: "2026-7-03T00:00:00Z"
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "datasciencepipelines.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
