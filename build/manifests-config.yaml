@@ -197,7 +197,7 @@ additional_meta:
     git.commit: 46a953407697963c9e9c90450e529b2f3ab516d8
   odh-mlserver-cuda:
     git.url: https://github.com/red-hat-data-services/MLServer
-    git.commit: f3836a377c924aac558bc2ffa512317a99c63751
+    git.commit: c1455ca755720333a5360294858e72b91a7416c2
   odh-mlserver:
     git.url: https://github.com/red-hat-data-services/MLServer
     git.commit: c1455ca755720333a5360294858e72b91a7416c2
@@ -392,4 +392,4 @@ additional_meta:
     git.commit: 2c9e33f4ec0029979a54f4e6ff3cf1f78ed3033d
   odh-workload-variant-autoscaler-controller:
     git.url: https://github.com/red-hat-data-services/workload-variant-autoscaler
-    git.commit: c96b3a10385cf0726f02fc48b031dc0da3f742c0
+    git.commit: 555bb6d76b5ba266f1f84b92268d143c236eedf8
