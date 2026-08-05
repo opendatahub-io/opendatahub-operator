@@ -22,9 +22,6 @@ map:
     src: dashboard-operator/charts/dashboard
     dest: dashboard-operator
     type: chart
-  odh-feast-operator:
-    src: infra/feast-operator/config
-    dest: feastoperator
   odh-trainer:
     src: manifests
     dest: trainer
@@ -34,12 +31,6 @@ map:
   odh-spark-operator:
     src: config
     dest: sparkoperator
-  odh-workload-variant-autoscaler-controller:
-    src: config
-    dest: wva
-  odh-ogx-k8s-operator:
-    src: config
-    dest: ogx
   odh-ai-gateway-operator:
     src: config
     dest: aigateway
@@ -50,3 +41,6 @@ map:
     src: config/chart
     dest: feastoperator
     type: chart
+  odh-ogx-module-operator:
+    src: ogx-module/config
+    dest: ogx
