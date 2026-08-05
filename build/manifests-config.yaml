@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: c6ed1e47fc7b68ee79ea78df468abda98942a6ad
+    git.commit: 733c8f81c08c35dddb42cb15ab00d882b8884349
   odh-feast-operator:
     src: infra/feast-operator/config
     dest: feastoperator
@@ -100,10 +100,10 @@ additional_meta:
     git.commit: 307108a7906274e45e9ca243658993d16c1a06d5
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: c6ed1e47fc7b68ee79ea78df468abda98942a6ad
+    git.commit: 733c8f81c08c35dddb42cb15ab00d882b8884349
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: c6ed1e47fc7b68ee79ea78df468abda98942a6ad
+    git.commit: 733c8f81c08c35dddb42cb15ab00d882b8884349
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: ae7b222116a1ed8fbe0accfc920f07419ed898eb
@@ -253,7 +253,7 @@ additional_meta:
     git.commit: 1f43dcd22980405481db9591fdaea8b8576e41bc
   odh-mod-arch-maas:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 1f43dcd22980405481db9591fdaea8b8576e41bc
+    git.commit: 733c8f81c08c35dddb42cb15ab00d882b8884349
   odh-mod-arch-mlflow:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 1f43dcd22980405481db9591fdaea8b8576e41bc
