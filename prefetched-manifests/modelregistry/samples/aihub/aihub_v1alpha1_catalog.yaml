@@ -1,0 +1,24 @@
+apiVersion: aihub.opendatahub.io/v1alpha1
+kind: Catalog
+metadata:
+  name: catalog
+  namespace: opendatahub
+spec:
+  resources:
+    catalog:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+    postgres:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+  database:
+    volume:
+      sizeLimit: "10Gi"
