@@ -90,7 +90,7 @@ additional_meta:
     git.commit: 307108a7906274e45e9ca243658993d16c1a06d5
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 733c8f81c08c35dddb42cb15ab00d882b8884349
+    git.commit: 6a9dbce47bf25c71cabbaa19f46571d5f06e8be5
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 6a9dbce47bf25c71cabbaa19f46571d5f06e8be5
@@ -189,7 +189,7 @@ additional_meta:
     git.commit: 1f9ac1eca388370ca3136018055f7ac04860c318
   odh-mlmd-grpc-server:
     git.url: https://github.com/red-hat-data-services/ml-metadata
-    git.commit: 55e6d370ff5bed2b99c030772516712a307155c2
+    git.commit: 0b05ad9d8267b6e88783c80cecc40d6f67efc9ef
   odh-mlserver-cuda:
     git.url: https://github.com/red-hat-data-services/MLServer
     git.commit: d58f0ded897140bdd0c00d3feeb5c77ef8a7b62e

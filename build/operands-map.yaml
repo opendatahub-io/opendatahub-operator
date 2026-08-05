@@ -12,7 +12,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
   value: "quay.io/rhoai/odh-cli-rhel9@sha256:4e1a1c52afe0f2c9bb8049a6ef216755f8116cf213f9c6ce460ebae3f38ec08d"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
-  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:cc8a0e998b94e412b50d702a59cc369659930ba0216a54bd13cf9e6b2d0a2896"
+  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:17e76f87d5cb314dbf4aa4d9f75152dfb47014e33e640893dd7ab85bc464296d"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
   value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:fc4c84a1582470f759a03d8eb341f5913114b2a3f3749e6e8fa053dfa57971f1"
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
@@ -92,7 +92,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-mlflow-operator-rhel9@sha256:77048a7a40f82f603c2578a2b93846d154699833a382bce74e6bf1a0677cfe74"
 - name: RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE
-  value: "quay.io/rhoai/odh-mlmd-grpc-server-rhel9@sha256:4b1044e96af916b42f10847248f1c8d1fb9a0ec521e910a31ae7b50ca52b249c"
+  value: "quay.io/rhoai/odh-mlmd-grpc-server-rhel9@sha256:b25a7e714b7d00a22aad441e7fbfa326891dbae939e0129353292ecdee400156"
 - name: RELATED_IMAGE_ODH_MLSERVER_CUDA_IMAGE
   value: "quay.io/rhoai/odh-mlserver-cuda-rhel9@sha256:463fcedc61f221f9d921422d2a092030a9b2affc3020db5a5078cc3e30492759"
 - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
