@@ -178,7 +178,7 @@ func TestDSCToModuleCRFlow(t *testing.T) {
 			t.Errorf("Unexpected GVK: %s", gvk.String())
 		}
 
-		spec, ok := moduleCR.Object["spec"].(map[string]interface{})
+		spec, ok := moduleCR.Object["spec"].(map[string]any)
 		if !ok {
 			t.Fatal("Module CR missing spec")
 		}
