@@ -90,6 +90,10 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
 			))
 
+	b = modules.AddModuleCRDWatches(b, func(ctx context.Context, _ client.Object) []reconcile.Request {
+		return watchDataScienceClusters(ctx, mgr.GetClient())
+	})
+
 	_, err := b.
 		WithAction(initialize).
 		WithAction(checkPreConditions).
