@@ -126,13 +126,13 @@ additional_meta:
     git.commit: d7d3a8be9f2d9d13373128b4ffbcf62d5a9e99d8
   odh-kserve-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: d7d3a8be9f2d9d13373128b4ffbcf62d5a9e99d8
+    git.commit: 2c8462a088d2c61a59a439de250dd79e23a1054c
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: d7d3a8be9f2d9d13373128b4ffbcf62d5a9e99d8
+    git.commit: 2c8462a088d2c61a59a439de250dd79e23a1054c
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: d7d3a8be9f2d9d13373128b4ffbcf62d5a9e99d8
+    git.commit: 2c8462a088d2c61a59a439de250dd79e23a1054c
   odh-kserve-localmodel-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 2c8462a088d2c61a59a439de250dd79e23a1054c
@@ -294,10 +294,10 @@ additional_meta:
     git.commit: 5fe4cc70892090992aca9284309ae71db20684ad
   odh-rhaii-cluster-validator:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: 49b580fe49001b74f31542ed7be50ad5885c0a30
+    git.commit: 109f366a3f22dcd7e41a87b6b9e3863e593dec57
   odh-rhaii-validator-tools:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: 49b580fe49001b74f31542ed7be50ad5885c0a30
+    git.commit: 109f366a3f22dcd7e41a87b6b9e3863e593dec57
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
     git.commit: 866b2f2e61cc5e2c714af6eb9be1a331ccf97349

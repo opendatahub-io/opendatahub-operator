@@ -42,11 +42,11 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE
   value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:ad1e8540ced411484075faebb5f237b187664e477bb3a9ac92e64f9c459a4fc7"
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:903b38a10929b8c1779f4c06eb4b5600a93013e15d24a46ad0ce4b87fc443c99"
+  value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:12517fd93e5b76f33f161148aa7d86e0ae87e57616d867c9a1a20b6daee0fec8"
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:2423b51a106ee0c389526de8a8aa14058378326e86be2e85c7c8baa8669c18cf"
+  value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:0ea0c69e6b75d5bd3c0e7d23a2aaeb42e3ba33db47e09fbf925beeb725aa8892"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
-  value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:8bf3fbbc054b2aaf157fecdeaa2e84b78818d84d45e3c2e88ce357b0546363ff"
+  value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:98cd0322eaa9dbcac9717b2313f7db1ad01d6e0ecbfd01e7189a684e8e9ba4ae"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9@sha256:92e9a83f2e0691a8970000d7e539f4ee55c9e0e0cb8439abe486e2315cd09501"
 - name: RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE
@@ -166,9 +166,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_ROCM_PY312_IMAGE
   value: "quay.io/rhoai/odh-pipeline-runtime-tensorflow-rocm-py312-rhel9@sha256:ae6d5638b63a3c971912f7ab8c42fe8dd6b7cb4b5d099fbd25411ea890e7f9df"
 - name: RELATED_IMAGE_ODH_RHAII_CLUSTER_VALIDATOR_IMAGE
-  value: "quay.io/rhoai/odh-rhaii-cluster-validator-rhel9@sha256:15e8de811e4fd26a508f6314927bb5eb705f717154043c60dcd999000c226ee6"
+  value: "quay.io/rhoai/odh-rhaii-cluster-validator-rhel9@sha256:c93850e43af90192283df4ad65b411cc4201218a495d7d9511a76b6e56a0c02a"
 - name: RELATED_IMAGE_ODH_RHAII_VALIDATOR_TOOLS_IMAGE
-  value: "quay.io/rhoai/odh-rhaii-validator-tools-rhel9@sha256:d36e95e3af0abeafd6f60a7cb43abda9d2b1159f4149471ce401e6bb7859a9ce"
+  value: "quay.io/rhoai/odh-rhaii-validator-tools-rhel9@sha256:d136c40d16c6ee4e0adc6ed4043ae5da88ee64f46cc55dbb4da2f5ae998046a2"
 - name: RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-spark-operator-rhel9@sha256:f3621929861960d502aea5053070d734a6d0544dc47681b521bb104fc94a47cc"
 - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
