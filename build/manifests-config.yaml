@@ -185,7 +185,7 @@ additional_meta:
     git.commit: 58e59decbc847522685ffaa1339fff1ca52728ea
   odh-maas-controller:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: 58e59decbc847522685ffaa1339fff1ca52728ea
+    git.commit: 26631a4987b486c19450842e07d004f0cbe6f022
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
     git.commit: 4ac8f439f98e5ff3ab59f951e00c05860a499867
