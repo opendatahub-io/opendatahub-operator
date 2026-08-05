@@ -83,7 +83,7 @@ metadata:
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "datasciencepipelines.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
-      "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
+      "trustyais.components.platform.opendatahub.io",
       "monitorings.services.platform.opendatahub.io", "trainers.components.platform.opendatahub.io",
       "sparkoperators.components.platform.opendatahub.io"]'
     repository: https://github.com/red-hat-data-services/rhods-operator
