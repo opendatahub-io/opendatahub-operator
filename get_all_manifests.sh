@@ -31,7 +31,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
 
 # RHOAI Component Manifests
 declare -A RHOAI_COMPONENT_MANIFESTS=(
-    ["kserve-module-operator"]="red-hat-data-services:kserve:rhoai-3.5@07034bbeb8ee548d5d84cbf12863e8614c6ef66d:kserve-module/config"
+    ["kserve-module-operator"]="red-hat-data-services:kserve:rhoai-3.5@ca4a57f8300033eaac5ccb8acee034bf2d86096b:kserve-module/config"
     ["ray"]="red-hat-data-services:kuberay:rhoai-3.5@b6e2cb5afb65f14562a3d2821dfaa7b14366c1e4:ray-operator/config"
     ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.5@a55df5bd9718a144fd9856e89e03c5e0e80c168d:config"
     ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-3.5@4918619c6baf437f9f3052a5daf8bd4aee008f44:config"
