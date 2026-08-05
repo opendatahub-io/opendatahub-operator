@@ -63,10 +63,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				resources.CreatedOrUpdatedOrDeletedNamed(gvk.InferenceServicesCRDName),
 			)),
 		).
-		WithPreCondition(precondition.MonitorCRD(gvk.InferenceServicesCRDName,
+		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{precondition.MonitorCRD(gvk.InferenceServicesCRDName,
 			precondition.WithStopReconciliation(),
 			precondition.WithMessage(status.ISVCMissingCRDMessage),
-		)).
+		)})).
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
 		WithAction(createConfigMap).
