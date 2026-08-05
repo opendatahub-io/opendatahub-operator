@@ -29,7 +29,7 @@ map:
     src: config
     dest: modelregistry
     git.url: https://github.com/red-hat-data-services/model-registry-operator
-    git.commit: 7eb210083afe5b14bdb13e4b999da1ce9ef041ef
+    git.commit: c6a657d1d969278347496ad6abfe01fedcfa2f24
   odh-dashboard-operator:
     src: dashboard-operator/charts/dashboard
     dest: dashboard-operator
@@ -96,7 +96,7 @@ additional_meta:
     git.commit: 6a9dbce47bf25c71cabbaa19f46571d5f06e8be5
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
-    git.commit: ae7b222116a1ed8fbe0accfc920f07419ed898eb
+    git.commit: 7ea3c89537c9f4fd158d8b0703e0b93c3d8f0a38
   odh-data-science-pipelines-argo-workflowcontroller:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: 7ea3c89537c9f4fd158d8b0703e0b93c3d8f0a38
@@ -252,7 +252,7 @@ additional_meta:
     git.commit: 1f43dcd22980405481db9591fdaea8b8576e41bc
   odh-mod-arch-model-registry:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 1f43dcd22980405481db9591fdaea8b8576e41bc
+    git.commit: 6a9dbce47bf25c71cabbaa19f46571d5f06e8be5
   odh-must-gather:
     git.url: https://github.com/red-hat-data-services/must-gather
     git.commit: 5c43d1262cb855d4177ef319b8af3ca756380a10
