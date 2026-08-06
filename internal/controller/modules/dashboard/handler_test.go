@@ -308,7 +308,7 @@ func TestBuildModuleCR_ProjectsObservabilityWhenMonitoringManaged(t *testing.T) 
 
 	obs, ok := spec["observability"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.observability should be present")
-	g.Expect(obs["enabled"]).Should(Equal(true))
+	g.Expect(obs["enabled"]).Should(BeTrue())
 
 	ps, ok := obs["persesService"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.observability.persesService should be present")
