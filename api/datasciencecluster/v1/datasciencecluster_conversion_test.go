@@ -530,30 +530,53 @@ func TestConvertTo_CorruptStashAnnotationDoesNotLeak(t *testing.T) {
 }
 
 func TestConvertRoundTrip_EnableAuditLogging(t *testing.T) {
-	g := NewWithT(t)
+	trueVal := true
+	falseVal := false
 
-	enabled := true
-	v2Original := &dscv2.DataScienceCluster{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
-		Spec: dscv2.DataScienceClusterSpec{
-			Components: dscv2.Components{
-				Kserve: componentApi.DSCKserve{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-					KserveCommonSpec: componentApi.KserveCommonSpec{
-						EnableAuditLogging: &enabled,
-					},
-				},
-			},
-		},
+	cases := []struct {
+		name     string
+		input    *bool
+		wantNil  bool
+		wantVal  bool
+	}{
+		{name: "enabled", input: &trueVal, wantNil: false, wantVal: true},
+		{name: "disabled", input: &falseVal, wantNil: false, wantVal: false},
+		{name: "nil", input: nil, wantNil: true},
 	}
 
-	v1DSC := &DataScienceCluster{}
-	g.Expect(v1DSC.ConvertFrom(v2Original)).To(Succeed())
-	g.Expect(v1DSC.Spec.Components.Kserve.EnableAuditLogging).ToNot(BeNil())
-	g.Expect(*v1DSC.Spec.Components.Kserve.EnableAuditLogging).To(BeTrue())
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
 
-	v2RoundTripped := &dscv2.DataScienceCluster{}
-	g.Expect(v1DSC.ConvertTo(v2RoundTripped)).To(Succeed())
-	g.Expect(v2RoundTripped.Spec.Components.Kserve.EnableAuditLogging).ToNot(BeNil())
-	g.Expect(*v2RoundTripped.Spec.Components.Kserve.EnableAuditLogging).To(BeTrue())
+			v2Original := &dscv2.DataScienceCluster{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
+				Spec: dscv2.DataScienceClusterSpec{
+					Components: dscv2.Components{
+						Kserve: componentApi.DSCKserve{
+							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+							KserveCommonSpec: componentApi.KserveCommonSpec{
+								EnableAuditLogging: tc.input,
+							},
+						},
+					},
+				},
+			}
+
+			v1DSC := &DataScienceCluster{}
+			g.Expect(v1DSC.ConvertFrom(v2Original)).To(Succeed())
+
+			v2RoundTripped := &dscv2.DataScienceCluster{}
+			g.Expect(v1DSC.ConvertTo(v2RoundTripped)).To(Succeed())
+
+			if tc.wantNil {
+				g.Expect(v1DSC.Spec.Components.Kserve.EnableAuditLogging).To(BeNil())
+				g.Expect(v2RoundTripped.Spec.Components.Kserve.EnableAuditLogging).To(BeNil())
+			} else {
+				g.Expect(v1DSC.Spec.Components.Kserve.EnableAuditLogging).ToNot(BeNil())
+				g.Expect(*v1DSC.Spec.Components.Kserve.EnableAuditLogging).To(Equal(tc.wantVal))
+				g.Expect(v2RoundTripped.Spec.Components.Kserve.EnableAuditLogging).ToNot(BeNil())
+				g.Expect(*v2RoundTripped.Spec.Components.Kserve.EnableAuditLogging).To(Equal(tc.wantVal))
+			}
+		})
+	}
 }
