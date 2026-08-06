@@ -136,7 +136,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MLFLOW_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-mlflow-rhel9@sha256:03ac07dfff0b34bf3d597727e1939d26eb9d181c88ed07a8a6221a8f15c6e369"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE
-  value: "quay.io/rhoai/odh-mod-arch-model-registry-rhel9@sha256:071a6a3b994959d862246cd962e75567218c5d3d0648e99c3b99f1dfa2c6c5f2"
+  value: "quay.io/rhoai/odh-mod-arch-model-registry-rhel9@sha256:f8530ffb27c8d4c2d75a121167f9c586d671ff605f4685f5e611ea9e38a78241"
 - name: RELATED_IMAGE_ODH_MUST_GATHER_IMAGE
   value: "quay.io/rhoai/odh-must-gather-rhel9@sha256:24f2698b077fadd286798c7fef8d8e256e233bc8a78c751c883ea5855eb83873"
 - name: RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE
