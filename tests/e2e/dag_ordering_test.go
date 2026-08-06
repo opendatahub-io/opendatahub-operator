@@ -44,7 +44,6 @@ var dagBatches = []componentBatch{
 		name:     "Batch20",
 		runlevel: 20,
 		components: []componentEntry{
-			{name: componentApi.AIGatewayComponentName, gvk: gvk.AIGateway, internal: true},
 			{name: componentApi.DashboardComponentName, gvk: gvk.Dashboard},
 			{name: componentApi.DataSciencePipelinesComponentName, gvk: gvk.DataSciencePipelines},
 			{name: componentApi.ModelRegistryComponentName, gvk: gvk.ModelRegistry},
@@ -66,10 +65,11 @@ var dagBatches = []componentBatch{
 		name:     "Batch32",
 		runlevel: 32,
 		components: []componentEntry{
+			{name: componentApi.AIGatewayComponentName, gvk: gvk.AIGateway, internal: true},
 			{name: componentApi.FeastOperatorComponentName, gvk: gvk.FeastOperator},
 			{name: componentApi.MLflowOperatorComponentName, gvk: gvk.MLflowOperator},
 			{name: componentApi.OGXComponentName, gvk: gvk.OGX, internal: true},
-			{name: componentApi.SparkOperatorComponentName, gvk: gvk.SparkOperator},
+			{name: componentApi.SparkOperatorComponentName, gvk: gvk.SparkOperator, internal: true},
 		},
 	},
 	{
