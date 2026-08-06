@@ -15,7 +15,7 @@ DST_CHARTS_DIR="./opt/charts"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["kserve-module-operator"]="opendatahub-io:kserve:release-v0.17@f392023c798b6b5e74b17feb87d4f77788b0d783:kserve-module/config"
+    ["kserve-module-operator"]="opendatahub-io:kserve:release-v0.17@a0ecb0d58041c8c9a1ad1aa344fb420f59c0f0e7:kserve-module/config"
     ["ray"]="opendatahub-io:kuberay:dev@ad425f7febc4039f2378747f2a0ea5dcf5a2263f:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@ca83772ab303f41377a4558e3ae28b20ebb42bcd:config"
     ["modelregistry"]="opendatahub-io:model-registry-operator:main@dbcce4cc09a3c22019a21f70691435b5d20ee0eb:config"
