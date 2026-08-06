@@ -375,6 +375,16 @@ rules:
       - update
       - patch
       - delete
+  # system:image-puller (referenced by the cluster-image-pullers
+  # RoleBinding) grants imagestreams/layers get under both "" and
+  # image.openshift.io. RBAC escalation prevention requires the
+  # operator SA to hold the core-group variant as well.
+  - apiGroups:
+      - ""
+    resources:
+      - imagestreams/layers
+    verbs:
+      - get
   # Verbs cover both sa-rbac/role.yaml (list) and
   # fetch-builds-and-images.rbac.yaml (get, list, watch).
   - apiGroups:

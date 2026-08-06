@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 2c6d85d9a56499936c2910c8abb07803a8d60c17
+    git.commit: 9768f2510ce1cbf7d05061a474b4028efcca5d5f
   odh-trainer:
     src: manifests
     dest: trainer
@@ -55,7 +55,7 @@ map:
     src: config
     dest: aigateway
     git.url: https://github.com/red-hat-data-services/ai-gateway-operator
-    git.commit: 91cb023bba37ef4f22745661acdfc3be4123236b
+    git.commit: ea9d9afe9e10b7cc87cdf7c9583e169f68307735
   odh-mcp-lifecycle-module-operator:
     src: config
     dest: mcplifecycleoperator
@@ -177,10 +177,10 @@ additional_meta:
     git.commit: 3c6168d62fe2ca1e43dbf1a806d9cecc04c996cf
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: d33b1f1a391e79469b6cee43306e5fa9bba322ea
+    git.commit: c4416ffac11b87dd45fd6eee836704837fc28f6a
   odh-maas-controller:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: d33b1f1a391e79469b6cee43306e5fa9bba322ea
+    git.commit: c4416ffac11b87dd45fd6eee836704837fc28f6a
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
     git.commit: aa2ab5127984563963fdf4fc00fa58a592046f66
@@ -270,7 +270,7 @@ additional_meta:
     git.commit: 5894b9557c5a21ba3e669317cdc93de101ac73e5
   odh-pipelines-components:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 92023e42e1376a0784fb2a0fb22b7c130a40f01d
+    git.commit: dc27aa3764275019695ba58581c364f4862c15d8
   odh-pipeline-runtime-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 5fe4cc70892090992aca9284309ae71db20684ad
