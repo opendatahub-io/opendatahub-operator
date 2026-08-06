@@ -40,7 +40,7 @@ map:
     src: manifests
     dest: trainingoperator
     git.url: https://github.com/red-hat-data-services/training-operator
-    git.commit: ce3a66c2bbd69e9c66445e09ba397be6ae684819
+    git.commit: 2898c84fb866737b11fe9700a06717e783e3d8a6
   odh-trainer:
     src: manifests
     dest: trainer
@@ -224,7 +224,7 @@ additional_meta:
     git.commit: 45fc307523ac1c3b99f9a4c4660b2abb741bc218
   odh-model-performance-data:
     git.url: https://github.com/red-hat-data-services/models-perf-benchmark-data
-    git.commit: d9c268c84238caaf227b902ec2c188d837d7c14e
+    git.commit: 3adb98913402f54d241a28a99db6ceac0ab1a710
   odh-model-registry:
     git.url: https://github.com/red-hat-data-services/model-registry
     git.commit: 70d620140d6ce74a1b1afe7382458b7f040cd71f
@@ -299,10 +299,10 @@ additional_meta:
     git.commit: 955afa61d8aadd63d65ee95230852328f17a8d3b
   odh-rhaii-cluster-validator:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: 767325d98ddedf9332fdf4a07d4c25b0eb2655a9
+    git.commit: 20990bb3bb098ccecc5fe212ef9721f25795354e
   odh-rhaii-validator-tools:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: 767325d98ddedf9332fdf4a07d4c25b0eb2655a9
+    git.commit: 20990bb3bb098ccecc5fe212ef9721f25795354e
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
     git.commit: a55df5bd9718a144fd9856e89e03c5e0e80c168d
@@ -359,7 +359,7 @@ additional_meta:
     git.commit: 53c42d03ff4b52a7d0db64e2fe2b45e41addc6c8
   odh-workbench-codeserver-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 955afa61d8aadd63d65ee95230852328f17a8d3b
+    git.commit: 7cb806aa66016aaa5a66b0fe426de8a4457f7d76
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 2c9e33f4ec0029979a54f4e6ff3cf1f78ed3033d
