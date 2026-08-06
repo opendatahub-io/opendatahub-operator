@@ -115,6 +115,14 @@ jobs:
         env:
           PULL_SECRET: ${{ secrets.CCM_PULL_SECRET }}
 
+      - name: Install cert-manager
+        if: steps.prior-run.outputs.already_passed != 'true'
+        run: |
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.17.2/cert-manager.yaml
+          kubectl wait --for=condition=Available deployment/cert-manager -n cert-manager --timeout=120s
+          kubectl wait --for=condition=Available deployment/cert-manager-webhook -n cert-manager --timeout=120s
+          kubectl wait --for=condition=Available deployment/cert-manager-cainjector -n cert-manager --timeout=120s
+
       - name: Build operator image
         if: steps.prior-run.outputs.already_passed != 'true'
         run: |

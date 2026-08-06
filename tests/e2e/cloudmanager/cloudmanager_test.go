@@ -56,7 +56,6 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 	// Read namespace values from the CR spec (custom namespaces configured in depsWithCustomNamespaces).
 	crObj := wt.Get(provider.GVK, k8sEngineCrNn()).Eventually().Should(Not(BeNil()))
 	deployments := getManagedDependencyDeployments(wt, crObj)
-	certManagerOperandNS := getCertManagerOperandNamespace()
 	sailOperatorNS := getSailOperatorNamespace(wt, crObj)
 	lwsNS := getLWSNamespace(wt, crObj)
 
@@ -79,18 +78,6 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 		}
 
 		waitForDeploymentsAvailable(wt, deployments)
-
-		t.Run("cert-manager operand namespace", func(t *testing.T) {
-			wt := tc.NewWithT(t)
-			wt.Get(gvk.Namespace, types.NamespacedName{Name: certManagerOperandNS}).
-				Eventually().
-				Should(Not(BeNil()))
-		})
-
-		t.Run("cert-manager operand available", func(t *testing.T) {
-			wt := tc.NewWithT(t)
-			waitForCertManagerOperandAvailable(wt)
-		})
 	})
 
 	// --- 2. ReadOnlyValidation ---
@@ -109,7 +96,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			t.Run("Dependency deployments running", func(t *testing.T) {
 				wt := tc.NewWithT(t)
 
-				for _, ns := range []string{certManagerOperatorNS, customLWSOperatorNS, customSailOperatorNS} {
+				for _, ns := range []string{customLWSOperatorNS, customSailOperatorNS} {
 					wt.List(gvk.Deployment,
 						client.InNamespace(ns),
 						client.MatchingLabels{labels.InfrastructurePartOf: getPartOfLabelValue()},
@@ -126,7 +113,6 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 				wt.Get(provider.GVK, k8sEngineCrNn()).Eventually().Should(And(
 					jq.Match(`.status.conditions[] | select(.type == "DependenciesReady") | .status == "True"`),
 					jq.Match(`.status.conditions[] | select(.type == "GatewayAPIReady") | .status == "True"`),
-					jq.Match(`.status.conditions[] | select(.type == "CertManagerReady") | .status == "True"`),
 					jq.Match(`.status.conditions[] | select(.type == "LWSReady") | .status == "True"`),
 					jq.Match(`.status.conditions[] | select(.type == "SailOperatorReady") | .status == "True"`),
 				))
@@ -154,12 +140,9 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			t.Run("deployments in custom namespaces", func(t *testing.T) {
 				wt := tc.NewWithT(t)
 
-				// Verify all managed deployments are in the expected namespaces
-				// (custom for LWS/Sail, hardcoded for cert-manager)
 				for _, dep := range deployments {
 					ns := dep.GetNamespace()
 					wt.Expect(ns).To(SatisfyAny(
-						Equal(certManagerOperatorNS),
 						Equal(customLWSOperatorNS),
 						Equal(customSailOperatorNS),
 					), "deployment %s should be in one of the expected namespaces", dep.GetName())
@@ -353,7 +336,6 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 
 			// Verify that custom namespaces still have their original values
 			// after all the rejected update attempts above.
-			// Note: cert-manager uses hardcoded namespaces and has no configuration section.
 			wt.Get(provider.GVK, k8sEngineCrNn()).Eventually().Should(And(
 				jq.Match(`.spec.dependencies.lws.configuration.namespace == "%s"`, customLWSOperatorNS),
 				jq.Match(`.spec.dependencies.sailOperator.configuration.namespace == "%s"`, customSailOperatorNS),
@@ -464,7 +446,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			staleCM := &unstructured.Unstructured{}
 			staleCM.SetGroupVersionKind(gvk.ConfigMap)
 			staleCM.SetName("stale-ccm-resource")
-			staleCM.SetNamespace("cert-manager-operator")
+			staleCM.SetNamespace(customLWSOperatorNS)
 			staleCM.SetLabels(map[string]string{
 				labels.InfrastructurePartOf: strings.ToLower(provider.GVK.Kind),
 			})
@@ -517,9 +499,6 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			// Use a fresh CR from the cluster to ensure current spec values.
 			freshCR := wt.Get(provider.GVK, k8sEngineCrNn()).Eventually().Should(Not(BeNil()))
 
-			certManagerDep := getManagedDependencyDeploymentByName(wt, freshCR, "cert-manager")
-			certManagerNN := types.NamespacedName{Name: certManagerDep.GetName(), Namespace: certManagerDep.GetNamespace()}
-
 			lwsDep := getManagedDependencyDeploymentByName(wt, freshCR, "lws")
 			lwsNN := types.NamespacedName{Name: lwsDep.GetName(), Namespace: lwsDep.GetNamespace()}
 
@@ -530,18 +509,11 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 				Name: "istiod", Namespace: sailOperatorNS,
 			}).Eventually().Should(Not(BeNil()))
 
-			// TODO(RHOAIENG-68252): cert-manager must be transitioned separately because
-			// its webhook may block SSA-apply of PKI resources during Phase 2 cleanup.
-			// Once the cross-dependency is resolved, all deps can transition together.
-
-			// --- Phase A: switch sail-operator, LWS, gatewayAPI to Unmanaged ---
-			wt.Log("Phase A: switching sail-operator, LWS, gatewayAPI to Unmanaged")
-
-			allUnmanaged := depsWithCustomNamespaces(ccmapi.Unmanaged)
-			allUnmanaged["certManager"] = map[string]any{"managementPolicy": string(ccmapi.Managed)}
+			// Switch all dependencies to Unmanaged.
+			wt.Log("switching all dependencies to Unmanaged")
 
 			wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
-				return unstructured.SetNestedField(obj.Object, allUnmanaged, "spec", "dependencies")
+				return unstructured.SetNestedField(obj.Object, depsWithCustomNamespaces(ccmapi.Unmanaged), "spec", "dependencies")
 			}).Eventually().Should(Not(BeNil()))
 
 			// sail-operator cleanup check.
@@ -565,24 +537,6 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			wt.Get(ccmcommon.LWSOperatorCR.GVK, types.NamespacedName{
 				Name: ccmcommon.LWSOperatorCR.Name, Namespace: lwsNS,
 			}).Eventually().Should(BeNil())
-
-			// --- Phase B: switch cert-manager to Unmanaged separately (CM-1019) ---
-			wt.Log("Phase B: switching cert-manager to Unmanaged")
-
-			wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
-				return unstructured.SetNestedField(obj.Object, string(ccmapi.Unmanaged),
-					"spec", "dependencies", "certManager", "managementPolicy")
-			}).Eventually().Should(Not(BeNil()))
-
-			// cert-manager: operator deployment removed by cleanup.
-			wt.Get(gvk.Deployment, certManagerNN).Eventually().Should(BeNil())
-
-			// CM-1019: cert-manager-operator may recreate CertManager/cluster during
-			// graceful shutdown and die before processing its finalizers, leaving
-			// operand deployments orphaned. Force-clean the CR and operands.
-			forceDeleteCertManagerCR(wt)
-			wt.DeleteAll(gvk.Deployment, client.InNamespace(certManagerOperandNS)).Eventually().Should(Succeed())
-			wt.List(gvk.Deployment, client.InNamespace(certManagerOperandNS)).Eventually().Should(BeEmpty())
 
 			// All managed deployments should be gone.
 			wt.Log("verifying all managed deployments are gone")
@@ -625,17 +579,6 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			)
 		}
 
-		// CertManager/cluster must exist and be owned by this CR.
-		wt.Get(ccmcommon.CertManagerOperatorCR.GVK, types.NamespacedName{Name: ccmcommon.CertManagerOperatorCR.Name}).
-			Eventually().Should(jq.Match(`.metadata.ownerReferences | length > 0`))
-
-		// cert-manager operand Deployments must be running before we delete the CR.
-		for _, dep := range certManagerOperandDeployments {
-			wt.Get(gvk.Deployment, types.NamespacedName{
-				Name: dep.Name, Namespace: dep.Namespace,
-			}).Eventually().Should(Not(BeNil()))
-		}
-
 		// Verify namespaces have owner references pointing to the CR.
 		namespaces := getAllManagedNamespaces(wt)
 
@@ -668,20 +611,6 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 				Name: dep.GetName(), Namespace: dep.GetNamespace(),
 			}).Eventually().Should(BeNil())
 		}
-
-		// FIXME(CM-1019, RHOAIENG-68252): CertManager/cluster CR may be recreated by the dying
-		// cert-manager-operator. Skipped until the operator stops auto-recreating it or
-		// cert-manager is removed from the CCM managed dependencies.
-		// wt.Get(ccmcommon.CertManagerOperatorCR.GVK, types.NamespacedName{Name: ccmcommon.CertManagerOperatorCR.Name}).
-		// 	Eventually().Should(BeNil())
-		// cert-manager operand Deployments must be removed by the cert-manager-operator
-		// finalizer. They are not directly owned by our CR, so cascade deletion
-		// does not cover them.
-		// for _, dep := range certManagerOperandDeployments {
-		// 	wt.Get(gvk.Deployment, types.NamespacedName{
-		// 		Name: dep.Name, Namespace: dep.Namespace,
-		// 	}).Eventually().Should(BeNil())
-		// }
 
 		// Namespaces survive CR deletion because they have no owner references.
 		for _, ns := range namespaces {

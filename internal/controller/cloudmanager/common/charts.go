@@ -89,31 +89,6 @@ func allChartDefs(deps ccmcommon.Dependencies, chartsPath string) []chartDef {
 			},
 		},
 		{
-			// FIXME(CM-1019): cert-manager-operator recreates CertManager/cluster after
-			// deletion, blocking Phase 1→Phase 2 cleanup. operatorCR is set to nil to
-			// skip the two-phase mechanism; cleanup relies on GC via generation mismatch.
-			stateFn: makeStateFn(func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
-				return d.CertManager.ManagementPolicy
-			}, nil),
-			chart: types.HelmChartInfo{
-				Source: helm.Source{
-					Chart:       filepath.Join(chartsPath, "cert-manager-operator"),
-					ReleaseName: "cert-manager-operator",
-					Values: helm.Values(map[string]any{
-						"operatorNamespace": ccmcommon.DefaultNamespaceCertManagerOperator,
-						"operandNamespace":  ccmcommon.DefaultNamespaceCertManagerOperand,
-					}),
-				},
-				PreApply: []types.HookFn{},
-			},
-			operatorCR: &CertManagerOperatorCR,
-			monitor: monitorConfig{
-				ConditionType:  status.ConditionCertManagerReady,
-				HasDeployments: true,
-				Namespace:      ccmcommon.DefaultNamespaceCertManagerOperator,
-			},
-		},
-		{
 			stateFn: makeStateFn(func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
 				return d.LWS.ManagementPolicy
 			}, &LWSOperatorCR),
