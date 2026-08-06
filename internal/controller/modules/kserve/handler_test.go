@@ -172,6 +172,49 @@ func TestBuildModuleCR_HeadedRawServiceConfig(t *testing.T) {
 	g.Expect(spec["rawDeploymentServiceConfig"]).Should(Equal("Headed"))
 }
 
+func TestBuildModuleCR_EnableAuditLogging(t *testing.T) {
+	g := NewWithT(t)
+	h := kserve.NewHandler()
+	platform := newPlatformCtx(operatorv1.Managed)
+	enabled := true
+	platform.DSC.Spec.Components.Kserve.EnableAuditLogging = &enabled
+
+	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec["enableAuditLogging"]).Should(BeTrue())
+}
+
+func TestBuildModuleCR_EnableAuditLogging_Disabled(t *testing.T) {
+	g := NewWithT(t)
+	h := kserve.NewHandler()
+	platform := newPlatformCtx(operatorv1.Managed)
+	disabled := false
+	platform.DSC.Spec.Components.Kserve.EnableAuditLogging = &disabled
+
+	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec["enableAuditLogging"]).Should(BeFalse())
+}
+
+func TestBuildModuleCR_EnableAuditLogging_Nil(t *testing.T) {
+	g := NewWithT(t)
+	h := kserve.NewHandler()
+	platform := newPlatformCtx(operatorv1.Managed)
+
+	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).ShouldNot(HaveKey("enableAuditLogging"))
+}
+
 func TestGetRelatedImages(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()

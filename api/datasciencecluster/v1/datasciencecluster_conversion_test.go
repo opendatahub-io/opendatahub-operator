@@ -528,3 +528,32 @@ func TestConvertTo_CorruptStashAnnotationDoesNotLeak(t *testing.T) {
 	// Annotation must not leak onto the v2 object even though unmarshal failed
 	g.Expect(v2DSC.GetAnnotations()).NotTo(HaveKey("conversion.opendatahub.io/aigateway-state"))
 }
+
+func TestConvertRoundTrip_EnableAuditLogging(t *testing.T) {
+	g := NewWithT(t)
+
+	enabled := true
+	v2Original := &dscv2.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						EnableAuditLogging: &enabled,
+					},
+				},
+			},
+		},
+	}
+
+	v1DSC := &DataScienceCluster{}
+	g.Expect(v1DSC.ConvertFrom(v2Original)).To(Succeed())
+	g.Expect(v1DSC.Spec.Components.Kserve.EnableAuditLogging).ToNot(BeNil())
+	g.Expect(*v1DSC.Spec.Components.Kserve.EnableAuditLogging).To(BeTrue())
+
+	v2RoundTripped := &dscv2.DataScienceCluster{}
+	g.Expect(v1DSC.ConvertTo(v2RoundTripped)).To(Succeed())
+	g.Expect(v2RoundTripped.Spec.Components.Kserve.EnableAuditLogging).ToNot(BeNil())
+	g.Expect(*v2RoundTripped.Spec.Components.Kserve.EnableAuditLogging).To(BeTrue())
+}
