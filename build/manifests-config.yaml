@@ -183,7 +183,7 @@ additional_meta:
     git.commit: c4416ffac11b87dd45fd6eee836704837fc28f6a
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
-    git.commit: aa2ab5127984563963fdf4fc00fa58a592046f66
+    git.commit: 0306d6992d814d64affab44aeae52187817d82c3
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
     git.commit: 1f9ac1eca388370ca3136018055f7ac04860c318
