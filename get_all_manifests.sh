@@ -24,7 +24,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["ogx"]="opendatahub-io:ogx-k8s-operator:odh@28841b04a33d0196a17dc37aca08e2d9ff119533:ogx-module/config"
     ["trainer"]="opendatahub-io:trainer:stable@d063877c480bbd9a35512691ded96c97d8937b44:manifests"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@932229356b110a5f9893741b91f93a9cb1a7632b:config"
-    ["sparkoperator"]="opendatahub-io:spark-operator:main@35be1e6616ef10aa027f4c54f12fbab5f40181fc:config"
+    ["sparkoperator"]="opendatahub-io:spark-operator:main@4dd2dae8947d76dabfcbca3a38b525b8765741bd:spark-operator-module/config"
     ["aigateway"]="opendatahub-io:ai-gateway-operator:stable@166a63155938b86ee16f5617de1504f67f3e3f7f:config"
     ["mcplifecycleoperator"]="opendatahub-io:mcp-lifecycle-module-operator:main@fd06fbef28c5d723c5621911f2d352364fc01bed:config"
 )
@@ -40,7 +40,7 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["ogx"]="red-hat-data-services:ogx-k8s-operator:rhoai-3.5@d40662f9df546d4b52d2f130041daad79714d368:ogx-module/config"
     ["trainer"]="red-hat-data-services:trainer:rhoai-3.5@7280dd4483ff21406ec62c8a5c442511755ce616:manifests"
     ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.5@ad4d69319021467da660c51bbc62962c4863bfe8:config"
-    ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.5@7b15494e3af5a29e599adde04e7d612759de1122:config"
+    ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.5@77f949e1d3d438de39bc5f5ebccb45fdf0114852:spark-operator-module/config"
     ["aigateway"]="red-hat-data-services:ai-gateway-operator:rhoai-3.5@764991cef768256c45ae9fc29c1f5079b76a7614:config"
     ["mcplifecycleoperator"]="red-hat-data-services:mcp-lifecycle-module-operator:rhoai-3.5@a7501e87d48cbd3d24130fcf33f2eecd5e98c777:config"
 )

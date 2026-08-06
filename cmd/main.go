@@ -85,7 +85,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/sparkoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainer"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
@@ -99,6 +98,7 @@ import (
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
 	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
+	sparkoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/sparkoperator"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
@@ -139,7 +139,6 @@ var (
 		componentApi.KueueComponentName:                kueue.NewHandler(),
 		componentApi.ModelRegistryComponentName:        modelregistry.NewHandler(),
 		componentApi.RayComponentName:                  ray.NewHandler(),
-		componentApi.SparkOperatorComponentName:        sparkoperator.NewHandler(),
 		componentApi.TrainerComponentName:              trainer.NewHandler(),
 		componentApi.TrainingOperatorComponentName:     trainingoperator.NewHandler(),
 		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
@@ -160,8 +159,6 @@ var (
 		componentApi.TrainingOperatorComponentName:     dag.RL(20),
 
 		componentApi.KueueComponentName: dag.RL(31),
-
-		componentApi.SparkOperatorComponentName: dag.RL(32),
 
 		componentApi.TrustyAIComponentName: dag.RL(33),
 	}
@@ -184,6 +181,7 @@ var (
 		componentApi.OGXComponentName:                  ogxModule.NewHandler(),
 		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
 		componentApi.FeastOperatorComponentName:        feastModule.NewHandler(),
+		componentApi.SparkOperatorComponentName:        sparkoperatorModule.NewHandler(),
 	}
 
 	moduleRunlevels = map[string]dag.Runlevel{
@@ -195,6 +193,7 @@ var (
 		componentApi.KserveComponentName:               dag.RL(31),
 		componentApi.OGXComponentName:                  dag.RL(32),
 		componentApi.WorkbenchesComponentName:          dag.RL(20),
+		componentApi.SparkOperatorComponentName:        dag.RL(32),
 	}
 )
 

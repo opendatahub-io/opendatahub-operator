@@ -2,20 +2,34 @@
 
 Since the ODH operator is the integration point to deploy ODH component manifests, it is essential to have common processes to integrate new components.
 
-Currently, each component is expected to have its own dedicated internal API/CRD and dedicated reconciler.
+The platform supports two integration models:
+
+| Model | When to use | Where the reconciler lives | Registration |
+|-------|-------------|----------------------------|--------------|
+| **In-tree component** | Legacy / not yet modularized | `internal/controller/components/<name>/` | `existingComponents` in `cmd/main.go` |
+| **Out-of-tree module** | Preferred for new work and migrations | Standalone module-operator repo + thin handler in `internal/controller/modules/<name>/` | `existingModules` in `cmd/main.go` |
+
+This document covers **in-tree component** integration. For out-of-tree
+modules (for example AI Gateway and Spark Operator), follow
+[`internal/controller/modules/README.md`](../internal/controller/modules/README.md)
+instead — embed `BaseHandler`, implement `IsEnabled` / `BuildModuleCR`, and
+register the handler in `existingModules`. Do **not** add a static
+`.Owns()` for module CRs on the DSC controller; the modules controller uses
+dynamic ownership.
+
 To understand the current operator architecture and its inner workings, please refer to [the design document](https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/DESIGN.md).
 
-The list of the currently integrated ODH components is provided [at the end of this document](#integrated-components).
+The list of currently integrated components and modules is provided [at the end of this document](#integrated-components).
 
 ## Use scaffolding to create boilerplate code
 
-Integrating a new component into the Open Data Hub (ODH) operator is easier with the [component-codegen CLI](../cmd/component-codegen/README.md). The CLI automates much of the boilerplate code and file generation, significantly reducing manual effort and ensuring consistency.
+Integrating a new **in-tree** component into the Open Data Hub (ODH) operator is easier with the [component-codegen CLI](../cmd/component-codegen/README.md). The CLI automates much of the boilerplate code and file generation, significantly reducing manual effort and ensuring consistency.
 
 While the CLI handles most of the heavy lifting, it’s still important to understand the purpose of each generated file. Please refer to the following sections for a detailed breakdown of the key files and their roles in the integration process.
 
-## Integrating a new component
+## Integrating a new in-tree component
 
-To ensure a new component is integrated seamlessly in the operator, please follow the steps listed below.
+To ensure a new in-tree component is integrated seamlessly in the operator, please follow the steps listed below.
 
 ### 1. Update API specs
 
@@ -230,16 +244,23 @@ make generate manifests api-docs bundle
 ```
 This command will (re-)generate the necessary kubebuilder functions, and update both the API documentation and the operator bundle manifests.
 
-### 2. Create a module for the new component reconciliation logic
+### 2. Create an in-tree package for the new component reconciliation logic
 
-To add new component-specific reconciler logic, create a dedicated `<example_component_name>` module, located in the `internal/controller/components` directory.
-For reference, the `internal/controller/components` directory contains reconciler implementations for the currently integrated components.
+To add new component-specific reconciler logic, create a dedicated
+`<example_component_name>` package under `internal/controller/components`.
+For reference, that directory contains reconciler implementations for the
+currently integrated **in-tree** components.
+
+> **Note:** This section is for in-tree components only. For out-of-tree
+> modules, do not add a controller under `internal/controller/components`.
+> Implement a `ModuleHandler` under `internal/controller/modules/` instead
+> (see [modules README](../internal/controller/modules/README.md)).
 
 #### Implement the component handler interface
 
-Each component that is intended to be managed by the operator is expected to be included in the components registry.
-The components registry (currently implemented in `pkg/componentsregistry`) defines a component handler interface which is required to be implemented for the new component.
-To do so, create a dedicated `<example_component_name>.go` file within the newly created component module and provide the interface implementation:
+Each in-tree component that is intended to be managed by the operator is expected to be included in the components registry.
+The components registry defines a component handler interface which is required to be implemented for the new component.
+To do so, create a dedicated `<example_component_name>.go` file within the newly created component package and provide the interface implementation:
 
 ```go
 type componentHandler struct{}
@@ -303,7 +324,7 @@ func exampleAction(ctx context.Context, rr *odhtypes.ReconciliationRequest) erro
 ```
 
 Such actions can be then introduced to the reconciler builder using `.WithAction()` calls.
-As seen in the existing component reconciler implementations, it would be recommended to include the action implementations in a separate file within the module, such as `<example_component_name>_controller_actions.go`.
+As seen in the existing component reconciler implementations, it would be recommended to include the action implementations in a separate file within the package, such as `<example_component_name>_controller_actions.go`.
 
 "Generic"/commonly-implemented actions for each of the currently integrated components include:
 - `initialize()` - to register paths to the component manifests
@@ -363,12 +384,21 @@ Add new component CRD reference in `./config/crd/kustomization.yaml` file.
 
 ### 6. Update list of owned/watched types by DataScienceCluster reconciler
 
-Adjust function `NewDataScienceClusterReconciler` in `./internal/controller/datasciencecluster/datasciencecluster_controller.go` to add component CR to be owned by DataScienceCluster .
+For **in-tree** components, adjust `NewDataScienceClusterReconciler` in
+`./internal/controller/datasciencecluster/datasciencecluster_controller.go`
+to `.Owns()` the component CR.
+
+For **out-of-tree modules**, skip this step. Module CRs are owned via the
+modules controller's dynamic ownership path (see
+[modules README](../internal/controller/modules/README.md)).
 
 
 ## Integrated components
 
-Currently integrated components are:
+### In-tree components
+
+Controller implementations live under `internal/controller/components/`.
+APIs live under `api/components/v1alpha1/`.
 
 - [Dashboard](https://github.com/opendatahub-io/odh-dashboard)
 - [Data Science Pipelines](https://github.com/opendatahub-io/data-science-pipelines)
@@ -382,6 +412,12 @@ Currently integrated components are:
 - [Workbenches](https://github.com/opendatahub-io/notebooks)
 - [Feast Operator](https://github.com/opendatahub-io/feast)
 - [MLflow Operator](https://github.com/opendatahub-io/mlflow-operator)
-- [Spark Operator](https://github.com/opendatahub-io/spark-operator)
 
-The particular controller implementations for the listed components are located in the `internal/controller/components` directory and the corresponding internal component APIs are located in `api/component/v1alpha1`.
+### Out-of-tree modules
+
+Platform handlers live under `internal/controller/modules/`. The workload /
+module operators live in their own repositories. See
+[modules README](../internal/controller/modules/README.md).
+
+- [AI Gateway](https://github.com/opendatahub-io/ai-gateway-operator) — handler: `internal/controller/modules/aigateway/`
+- [Spark Operator](https://github.com/opendatahub-io/spark-operator/tree/main/spark-operator-module) — handler: `internal/controller/modules/sparkoperator/`
