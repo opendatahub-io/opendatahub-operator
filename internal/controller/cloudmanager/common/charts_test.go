@@ -24,7 +24,6 @@ const testChartsPath = "/test/charts"
 func getAllUnmanagedDependencies() ccmcommon.Dependencies {
 	return ccmcommon.Dependencies{
 		GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
-		CertManager:  ccmcommon.CertManagerDependency{ManagementPolicy: ccmcommon.Unmanaged},
 		LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Unmanaged},
 		SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
 	}
@@ -45,7 +44,6 @@ func TestBuildHelmCharts(t *testing.T) {
 
 	expectedReleaseNames := []string{
 		"gateway-api",
-		"cert-manager-operator",
 		"lws-operator",
 		"sail-operator",
 	}
@@ -76,7 +74,7 @@ func TestBuildHelmCharts(t *testing.T) {
 		g.Expect(result.Charts).To(HaveLen(1))
 		g.Expect(result.Charts[0].ReleaseName).To(Equal("lws-operator"))
 		g.Expect(result.FilterCRs).To(BeEmpty())
-		g.Expect(result.CleanupCharts).To(HaveLen(2))
+		g.Expect(result.CleanupCharts).To(HaveLen(1))
 	})
 
 	t.Run("returns empty slice when all unmanaged and no CRs on cluster", func(t *testing.T) {
@@ -89,10 +87,9 @@ func TestBuildHelmCharts(t *testing.T) {
 
 		g.Expect(result.Charts).To(BeEmpty())
 		g.Expect(result.FilterCRs).To(BeEmpty())
-		g.Expect(result.CleanupCharts).To(HaveLen(3))
-		g.Expect(result.CleanupCharts[0].ReleaseName).To(Equal("cert-manager-operator"))
-		g.Expect(result.CleanupCharts[1].ReleaseName).To(Equal("lws-operator"))
-		g.Expect(result.CleanupCharts[2].ReleaseName).To(Equal("sail-operator"))
+		g.Expect(result.CleanupCharts).To(HaveLen(2))
+		g.Expect(result.CleanupCharts[0].ReleaseName).To(Equal("lws-operator"))
+		g.Expect(result.CleanupCharts[1].ReleaseName).To(Equal("sail-operator"))
 	})
 
 	t.Run("monitor configs include policy derived from state", func(t *testing.T) {
@@ -104,11 +101,10 @@ func TestBuildHelmCharts(t *testing.T) {
 		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
 		g.Expect(err).NotTo(HaveOccurred())
 
-		g.Expect(result.MonitorConfigs).To(HaveLen(4))
+		g.Expect(result.MonitorConfigs).To(HaveLen(3))
 		g.Expect(result.MonitorConfigs[0].Policy).To(Equal(ccmcommon.Managed))
 		g.Expect(result.MonitorConfigs[1].Policy).To(Equal(ccmcommon.Unmanaged))
 		g.Expect(result.MonitorConfigs[2].Policy).To(Equal(ccmcommon.Unmanaged))
-		g.Expect(result.MonitorConfigs[3].Policy).To(Equal(ccmcommon.Unmanaged))
 	})
 
 	t.Run("uses custom namespaces in chart values", func(t *testing.T) {
@@ -130,22 +126,15 @@ func TestBuildHelmCharts(t *testing.T) {
 		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
 		g.Expect(err).NotTo(HaveOccurred())
 
-		g.Expect(result.Charts).To(HaveLen(4))
+		g.Expect(result.Charts).To(HaveLen(3))
 
-		certManagerChart := result.Charts[1]
-		g.Expect(certManagerChart.ReleaseName).To(Equal("cert-manager-operator"))
-		values, err := certManagerChart.Values(ctx)
-		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(values).To(HaveKeyWithValue("operatorNamespace", "cert-manager-operator"))
-		g.Expect(values).To(HaveKeyWithValue("operandNamespace", "cert-manager"))
-
-		lwsChart := result.Charts[2]
+		lwsChart := result.Charts[1]
 		g.Expect(lwsChart.ReleaseName).To(Equal("lws-operator"))
-		values, err = lwsChart.Values(ctx)
+		values, err := lwsChart.Values(ctx)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(values).To(HaveKeyWithValue("namespace", "custom-lws-ns"))
 
-		sailChart := result.Charts[3]
+		sailChart := result.Charts[2]
 		g.Expect(sailChart.ReleaseName).To(Equal("sail-operator"))
 		values, err = sailChart.Values(ctx)
 		g.Expect(err).NotTo(HaveOccurred())
@@ -211,10 +200,9 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
 		g.Expect(err).NotTo(HaveOccurred())
 
-		g.Expect(result.Charts).To(HaveLen(3))
-		g.Expect(result.Charts[0].ReleaseName).To(Equal("cert-manager-operator"))
-		g.Expect(result.Charts[1].ReleaseName).To(Equal("lws-operator"))
-		g.Expect(result.Charts[2].ReleaseName).To(Equal("sail-operator"))
+		g.Expect(result.Charts).To(HaveLen(2))
+		g.Expect(result.Charts[0].ReleaseName).To(Equal("lws-operator"))
+		g.Expect(result.Charts[1].ReleaseName).To(Equal("sail-operator"))
 		g.Expect(result.FilterCRs).To(BeEmpty())
 		g.Expect(result.CleanupCharts).To(BeEmpty())
 	})
@@ -226,22 +214,16 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 		istioCR.SetGroupVersionKind(gvk.Istio)
 		istioCR.SetName("default")
 
-		certManagerCR := &unstructured.Unstructured{}
-		certManagerCR.SetGroupVersionKind(gvk.CertManagerV1Alpha1)
-		certManagerCR.SetName("cluster")
-
 		lwsCR := &unstructured.Unstructured{}
 		lwsCR.SetGroupVersionKind(gvk.LeaderWorkerSetOperatorV1)
 		lwsCR.SetName("cluster")
 
-		cli := newFakeClient(t, fakeclient.WithObjects(istioCR, certManagerCR, lwsCR))
+		cli := newFakeClient(t, fakeclient.WithObjects(istioCR, lwsCR))
 
 		deps := getAllUnmanagedDependencies()
 		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
 		g.Expect(err).NotTo(HaveOccurred())
 
-		// cert-manager has operatorCR=nil (CM-1019), so it goes straight to
-		// chartExcluded even with CertManager CR on cluster.
 		g.Expect(result.Charts).To(HaveLen(2))
 		g.Expect(result.Charts[0].ReleaseName).To(Equal("lws-operator"))
 		g.Expect(result.Charts[1].ReleaseName).To(Equal("sail-operator"))
@@ -258,7 +240,7 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 
 		g.Expect(result.Charts).To(BeEmpty())
 		g.Expect(result.FilterCRs).To(BeEmpty())
-		g.Expect(result.CleanupCharts).To(HaveLen(3))
+		g.Expect(result.CleanupCharts).To(HaveLen(2))
 	})
 
 	t.Run("transient Get error propagates instead of forcing Phase 2", func(t *testing.T) {
@@ -291,7 +273,6 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 
 		deps := ccmcommon.Dependencies{
 			GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Managed},
-			CertManager:  ccmcommon.CertManagerDependency{ManagementPolicy: ccmcommon.Managed},
 			LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Unmanaged},
 			SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
 		}
@@ -299,10 +280,9 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
 		g.Expect(err).NotTo(HaveOccurred())
 
-		g.Expect(result.Charts).To(HaveLen(3))
+		g.Expect(result.Charts).To(HaveLen(2))
 		g.Expect(result.Charts[0].ReleaseName).To(Equal("gateway-api"))
-		g.Expect(result.Charts[1].ReleaseName).To(Equal("cert-manager-operator"))
-		g.Expect(result.Charts[2].ReleaseName).To(Equal("sail-operator"))
+		g.Expect(result.Charts[1].ReleaseName).To(Equal("sail-operator"))
 		g.Expect(result.FilterCRs).To(HaveLen(1))
 		g.Expect(result.FilterCRs[0].GVK).To(Equal(gvk.Istio))
 		g.Expect(result.CleanupCharts).To(HaveLen(1))

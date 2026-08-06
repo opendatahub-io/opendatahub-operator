@@ -53,7 +53,6 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
 
 # ODH CloudManager Charts
 declare -A ODH_CCM_CHARTS=(
-    ["cert-manager-operator"]="opendatahub-io:odh-gitops:main@eb660db9f93ce6eda414873ad1d2ca2b5ec649ca:charts/dependencies/cert-manager-operator"
     ["lws-operator"]="opendatahub-io:odh-gitops:main@eb660db9f93ce6eda414873ad1d2ca2b5ec649ca:charts/dependencies/lws-operator"
     ["sail-operator"]="opendatahub-io:odh-gitops:main@eb660db9f93ce6eda414873ad1d2ca2b5ec649ca:charts/dependencies/sail-operator"
     ["gateway-api"]="opendatahub-io:odh-gitops:main@eb660db9f93ce6eda414873ad1d2ca2b5ec649ca:charts/dependencies/gateway-api"
@@ -68,7 +67,6 @@ declare -A ODH_COMPONENT_CHARTS=(
 
 # RHOAI CloudManager Charts
 declare -A RHOAI_CCM_CHARTS=(
-    ["cert-manager-operator"]="red-hat-data-services:odh-gitops:rhoai-3.5@37d04302385298155b26f229df75dde0b9c8aa02:charts/dependencies/cert-manager-operator"
     ["lws-operator"]="red-hat-data-services:odh-gitops:rhoai-3.5@37d04302385298155b26f229df75dde0b9c8aa02:charts/dependencies/lws-operator"
     ["sail-operator"]="red-hat-data-services:odh-gitops:rhoai-3.5@37d04302385298155b26f229df75dde0b9c8aa02:charts/dependencies/sail-operator"
     ["gateway-api"]="red-hat-data-services:odh-gitops:rhoai-3.5@37d04302385298155b26f229df75dde0b9c8aa02:charts/dependencies/gateway-api"

@@ -30,7 +30,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/cleanup"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	resourcespredicates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -293,6 +292,20 @@ func createCABackedIssuer(config BootstrapConfig) (*unstructured.Unstructured, e
 	return u, nil
 }
 
+// certManagerConditionFilter reports unhealthy state when the CertManager/cluster
+// operator CR is degraded or not available. If the CRD or CR is absent,
+// MonitorOperator treats it as healthy — only CRD presence is required.
+func certManagerConditionFilter(condType, condStatus string) bool {
+	switch condType {
+	case "Degraded":
+		return condStatus == "True"
+	case "Available":
+		return condStatus == "False"
+	default:
+		return false
+	}
+}
+
 func monitoredCRDs() []string {
 	names := make([]string, len(monitoredCRDList))
 	for i := range monitoredCRDList {
@@ -369,19 +382,13 @@ func Bootstrap[T common.PlatformObject](instanceName string, config BootstrapCon
 			).
 			WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
 				precondition.MonitorCRDs(monitoredCRDs()),
+				precondition.MonitorOperator(precondition.OperatorConfig{
+					OperatorGVK: gvk.CertManagerV1Alpha1,
+					CRName:      "cluster",
+					Filter:      certManagerConditionFilter,
+				}),
 			})).
 			WithActionE(NewBootstrapAction(config)).
-			WithConditions(status.ConditionDependenciesAvailable).
-			WithFinalizer(cleanup.NewFinalizer(BootstrapCleanupTarget()))
-	}
-}
-
-// BootstrapCleanupTarget returns the cleanup.Target for the CertManager/cluster
-// CR. Used by Bootstrap to register the finalizer, and by the finalizer
-// cleanup targets to ensure the CR is deleted before cascade.
-func BootstrapCleanupTarget() cleanup.Target {
-	return cleanup.Target{
-		GVK:  gvk.CertManagerV1Alpha1,
-		Name: "cluster",
+			WithConditions(status.ConditionDependenciesAvailable)
 	}
 }
