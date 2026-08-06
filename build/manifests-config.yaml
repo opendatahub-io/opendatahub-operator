@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: acbcc4ebf42eecceedfb145d58dd3cdac9d68ef9
+    git.commit: f9b4da908912151b5ec803418175cb08a0bcd52f
   odh-trainer:
     src: manifests
     dest: trainer
@@ -351,7 +351,7 @@ additional_meta:
     git.commit: 5fe4cc70892090992aca9284309ae71db20684ad
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: b072b780451b7308963b3340a40b79c630c1741f
+    git.commit: 81cc5b722c9c129fdd1b3268eebc2171fab35041
   odh-workbench-jupyter-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 5fe4cc70892090992aca9284309ae71db20684ad
@@ -372,7 +372,7 @@ additional_meta:
     git.commit: b072b780451b7308963b3340a40b79c630c1741f
   odh-workbench-jupyter-tensorflow-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: beab2124bd475b0ab715f1dbe5d2421bdeda0e21
+    git.commit: 81cc5b722c9c129fdd1b3268eebc2171fab35041
   odh-workbench-jupyter-tensorflow-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: b072b780451b7308963b3340a40b79c630c1741f
