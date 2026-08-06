@@ -378,7 +378,7 @@ additional_meta:
     git.commit: 81cc5b722c9c129fdd1b3268eebc2171fab35041
   odh-workbench-jupyter-trustyai-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: beab2124bd475b0ab715f1dbe5d2421bdeda0e21
+    git.commit: 81cc5b722c9c129fdd1b3268eebc2171fab35041
   odh-workload-variant-autoscaler-controller:
     git.url: https://github.com/red-hat-data-services/workload-variant-autoscaler
     git.commit: ab22d0a9d45dbbed9aadda403887c883de563542
