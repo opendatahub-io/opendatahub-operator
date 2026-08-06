@@ -7,7 +7,15 @@ Please complete the following sections for a smooth review.
 ## Description
 <!--- Describe your changes in detail -->
 
-<!--- Link your JIRA and related links here for reference. -->
+<!-- For RHOAI PRs, request review on #ai-core-platform-requests Slack channel -->
+
+## Release tracking
+<!-- These fields are mandatory - CI will block merging unless they are set -->
+<!-- Target release for this PR, e.g. rhoai-3.6 or rhoai-3.7ea1 -->
+Release: 
+<!-- Full link to a jira ticket, e.g. https://redhat.atlassian.net/browse/RHOAIENG-XXXXX -->
+Jira:
+
 
 ## How Has This Been Tested?
 <!--- Please describe in detail how you tested your changes. -->
