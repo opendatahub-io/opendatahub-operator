@@ -92,6 +92,31 @@ We follow the conventional commits format for writing commit messages. A good co
 3. Use developer [guide](./README.md#developer-guide) to deploy operator [using OLM](./README.md#deployment) on a cluster.
 4. Follow the steps given [here](./README.md#run-e2e-tests) to run e2e tests in your environment.
 
+## Release Freeze Windows
+
+Before each release, a freeze window automatically holds non-release PRs from Tide's merge pool to free E2E test capacity for release-critical PRs.
+
+### How it works
+
+- The release schedule is defined in [`.github/freeze.json`](.github/freeze.json) with freeze dates and a `hold-window-days` value (default: 7 days).
+- When the current date falls within `hold-window-days` before a release's freeze date, the `pr-freeze-hold` workflow applies the `do-not-merge/release-freeze-hold` label to PRs that lack the matching release label (e.g., `rhoai-3.6`).
+- When the freeze window passes, the hold label is automatically removed and normal merging resumes.
+- Manual `/hold` commands (which use the standard `do-not-merge/hold` label) are unaffected.
+
+### How to exempt a PR during freeze
+
+Add the current release label (e.g., `rhoai-3.6`) to your PR. The workflow will remove the hold on the next evaluation.
+
+Labels for a previous release that is still listed in `.github/freeze.json` also exempt a PR — even after that release's freeze date has passed. This keeps blocker fixes for an already-frozen release (which merge upstream before being cherry-picked downstream) moving during a later release's freeze. Once a release is fully shipped, remove it from `.github/freeze.json` so its label no longer grants an exemption.
+
+### Updating the freeze schedule
+
+Edit `.github/freeze.json` when release dates are known or change. The workflow re-evaluates all open PRs immediately when the config file is updated on `main`.
+
+### Important note
+
+Manual pushes to held PRs still trigger E2E tests even though the PR cannot merge. Avoid pushing to non-release PRs during freeze to conserve test capacity.
+
 ## Communication
 
 For general questions, feel free to open a discussion in our repository or communicate via:
