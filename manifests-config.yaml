@@ -115,15 +115,6 @@ components:
       ref: rhoai-3.5@755b33268c236db30f291b4eea5ee8d2859eb8f8
       sourcePath: config
 ccmCharts:
-  cert-manager-operator:
-    odh:
-      repo: opendatahub-io/odh-gitops
-      ref: main@f5bf180baba8c1414879f30e5d6f789872c13849
-      sourcePath: charts/dependencies/cert-manager-operator
-    rhoai:
-      repo: red-hat-data-services/odh-gitops
-      ref: rhoai-3.5@679eaa9941cee7516f3b80f56236714219015538
-      sourcePath: charts/dependencies/cert-manager-operator
   lws-operator:
     odh:
       repo: opendatahub-io/odh-gitops
