@@ -24,8 +24,9 @@ jobs:
     steps:
       - name: Extract PR number from Prow URL
         id: extract-pr
+        env:
+          TARGET_URL: ${{ github.event.target_url }}
         run: |
-          TARGET_URL="${{ github.event.target_url }}"
           PR_NUMBER=$(echo "$TARGET_URL" | grep -oP 'pull/[^/]+/\K[0-9]+')
 
           if [[ -z "$PR_NUMBER" ]]; then
@@ -76,12 +77,18 @@ jobs:
 
       - name: Fetch existing triage comment
         if: steps.extract-pr.outputs.skip != 'true' && steps.check-label.outputs.skip != 'true'
+        id: fetch-comment
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api "repos/${{ github.repository }}/issues/${{ steps.extract-pr.outputs.pr_number }}/comments" \
+          if gh api "repos/${{ github.repository }}/issues/${{ steps.extract-pr.outputs.pr_number }}/comments" \
             --jq '[.[] | select(.body | contains("<!-- e2e-triage-section:"))] | last | .body // empty' \
-            > "${{ runner.temp }}/existing-comment.md" 2>/dev/null || true
+            > "${{ runner.temp }}/existing-comment.md" 2>&1; then
+            echo "fetch_ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Failed to fetch existing triage comment — comment may lose other suite's section"
+            echo "fetch_ok=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Run triage script
         if: steps.extract-pr.outputs.skip != 'true' && steps.check-label.outputs.skip != 'true'
