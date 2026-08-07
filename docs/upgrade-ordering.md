@@ -196,7 +196,7 @@ The current assignments produce the following provisioning sequence:
 ```text
 Batch 1 — RL(20):
   dashboard, datasciencepipelines, modelregistry, ray,
-  trainer, trainingoperator, workbenches
+  trainer, workbenches
 
 Batch 2 — RL(31):
   kserve, kueue
