@@ -125,7 +125,7 @@ additional_meta:
     git.commit: 1998656679e96a2d4244dddce885ce3af5885cd2
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 61bef69d6e290af28ceddb2cb4967442add998a3
+    git.commit: 22627d3df3406e53d6423465356701f84fc04fa6
   odh-kserve-autogluon-server:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 61bef69d6e290af28ceddb2cb4967442add998a3
@@ -143,7 +143,7 @@ additional_meta:
     git.commit: 22627d3df3406e53d6423465356701f84fc04fa6
   odh-kserve-router:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 61bef69d6e290af28ceddb2cb4967442add998a3
+    git.commit: 22627d3df3406e53d6423465356701f84fc04fa6
   odh-kserve-storage-initializer:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 5f7b55d062d4f8de9b71f6b788d01f08cf20a327
@@ -308,7 +308,7 @@ additional_meta:
     git.commit: a55df5bd9718a144fd9856e89e03c5e0e80c168d
   odh-ta-lmes-job:
     git.url: https://github.com/red-hat-data-services/lm-evaluation-harness
-    git.commit: 59d668e2b0cee33aceea1303275c9e72fa509cab
+    git.commit: 2f7a86a9e4bd31c4982cf91e7b4764eb7898ca84
   odh-th-torch-cpu-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 2dd348ce0d7f0db1ed29b03d6120f2f2d22d60b2
