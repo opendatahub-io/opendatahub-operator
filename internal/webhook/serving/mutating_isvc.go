@@ -69,14 +69,14 @@ func (w *ISVCConnectionWebhook) Handle(ctx context.Context, req admission.Reques
 	switch req.Operation {
 	case admissionv1.Create, admissionv1.Update:
 		// allowed connection types for connection validation on isvc.
-		//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still supported for backward compatibility
+
 		allowedTypes := map[string][]string{
 			annotations.ConnectionTypeProtocol: {
 				webhookutils.ConnectionTypeProtocolURI.String(),
 				webhookutils.ConnectionTypeProtocolS3.String(),
 				webhookutils.ConnectionTypeProtocolOCI.String(),
 			},
-			annotations.ConnectionTypeRef: {
+			annotations.ConnectionTypeRef: { //nolint:staticcheck // deprecated fallback
 				webhookutils.ConnectionTypeRefURI.String(),
 				webhookutils.ConnectionTypeRefS3.String(),
 				webhookutils.ConnectionTypeRefOCI.String(),

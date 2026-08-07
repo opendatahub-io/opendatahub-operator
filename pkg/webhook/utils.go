@@ -270,12 +270,11 @@ func ValidateServingConnectionAnnotation(ctx context.Context,
 
 	// If neither connection type is present, allow the operation but skip injection
 	if connectionType == "" {
-		//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still supported for backward compatibility
 		log.Info(fmt.Sprintf("Secret does not have '%s' or '%s' annotation, allowing operation but skipping injection",
-			annotations.ConnectionTypeProtocol, annotations.ConnectionTypeRef), "connectionType", connectionType, "allowedTypes", allowedTypes)
-		//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still supported for backward compatibility
+			annotations.ConnectionTypeProtocol, annotations.ConnectionTypeRef), "connectionType", connectionType, "allowedTypes", allowedTypes) //nolint:staticcheck // deprecated fallback
+
 		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' or '%s' annotation",
-			annotationValue, annotations.ConnectionTypeProtocol, annotations.ConnectionTypeRef)), ConnectionInfo{}
+			annotationValue, annotations.ConnectionTypeProtocol, annotations.ConnectionTypeRef)), ConnectionInfo{} //nolint:staticcheck // deprecated fallback
 	}
 
 	// Allow unknown connection types but log a warning and skip injection
@@ -318,12 +317,12 @@ func ValidateInferenceServiceConnectionType(secretMeta *metav1.PartialObjectMeta
 	}
 
 	// If the connection type protocol annotation doesn't exist, check the deprecated connection type ref annotation
-	//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still supported for backward compatibility
-	connectionType = resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef)
+
+	connectionType = resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef) //nolint:staticcheck // deprecated fallback
 	if connectionType != "" {
 		// If it exists, check that the connection type is one of the allowed values
-		//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still supported for backward compatibility
-		isValidType := slices.Contains(allowedTypes[annotations.ConnectionTypeRef], connectionType)
+
+		isValidType := slices.Contains(allowedTypes[annotations.ConnectionTypeRef], connectionType) //nolint:staticcheck // deprecated fallback
 		return connectionType, isValidType
 	}
 
@@ -515,8 +514,7 @@ func (w *BaseServingConnectionWebhook) GetOldConnectionInfo(ctx context.Context,
 	// First check the connection type protocol annotation, then fall back to the deprecated ref annotation
 	oldConnectionType := resources.GetAnnotation(secretMeta, annotations.ConnectionTypeProtocol)
 	if oldConnectionType == "" {
-		//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still supported for backward compatibility
-		oldConnectionType = resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef)
+		oldConnectionType = resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef) //nolint:staticcheck // deprecated fallback
 	}
 	oldConnectionPath := resources.GetAnnotation(oldObj, annotations.ConnectionPath)
 
