@@ -284,7 +284,7 @@ additional_meta:
     git.commit: 861afce3002d1e0703d77d9ae7aaa248cb8fbb67
   odh-pipeline-runtime-pytorch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 955afa61d8aadd63d65ee95230852328f17a8d3b
+    git.commit: 861afce3002d1e0703d77d9ae7aaa248cb8fbb67
   odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 861afce3002d1e0703d77d9ae7aaa248cb8fbb67
@@ -371,7 +371,7 @@ additional_meta:
     git.commit: 861afce3002d1e0703d77d9ae7aaa248cb8fbb67
   odh-workbench-jupyter-minimal-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 9bd210a2a6db506cd3a55bc3a25c05d41a7a9e16
+    git.commit: 861afce3002d1e0703d77d9ae7aaa248cb8fbb67
   odh-workbench-jupyter-pytorch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 861afce3002d1e0703d77d9ae7aaa248cb8fbb67
@@ -389,7 +389,7 @@ additional_meta:
     git.commit: 2c9e33f4ec0029979a54f4e6ff3cf1f78ed3033d
   odh-workbench-jupyter-trustyai-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 2c9e33f4ec0029979a54f4e6ff3cf1f78ed3033d
+    git.commit: 861afce3002d1e0703d77d9ae7aaa248cb8fbb67
   odh-workload-variant-autoscaler-controller:
     git.url: https://github.com/red-hat-data-services/workload-variant-autoscaler
     git.commit: cca70ae5902d513bc576f86a85cebfbb79354d00
