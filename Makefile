@@ -751,8 +751,23 @@ endif
 ifdef ARTIFACT_DIR
 export JUNIT_OUTPUT_PATH = ${ARTIFACT_DIR}/junit_report.xml
 endif
+RESOLVE_COMPONENTS_SCRIPT := tests/e2e/scripts/resolve_affected_components.sh
+E2E_AUTO_RESOLVE ?=
 e2e-test:
-	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}
+	@if [ "$(E2E_AUTO_RESOLVE)" = "true" ] && [ -z "$${E2E_TEST_COMPONENT:-}" ] && [ -f "$(RESOLVE_COMPONENTS_SCRIPT)" ]; then \
+		if resolved=$$(bash $(RESOLVE_COMPONENTS_SCRIPT) 2>/dev/null); then \
+			components=$$(echo "$$resolved" | grep '^COMPONENTS=' | cut -d= -f2); \
+			services=$$(echo "$$resolved" | grep '^SERVICES=' | cut -d= -f2); \
+			if [ -n "$$components" ]; then \
+				echo "Selective e2e: components=[$$components] services=[$$services]"; \
+				export E2E_TEST_COMPONENT="$$components"; \
+				if [ -n "$$services" ]; then export E2E_TEST_SERVICE="$$services"; fi; \
+			fi; \
+		else \
+			echo "Running all e2e tests (no selective resolution)"; \
+		fi; \
+	fi; \
+	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- $(E2E_TEST_FLAGS)
 
 .PHONY: e2e-test-single
 e2e-test-single:
