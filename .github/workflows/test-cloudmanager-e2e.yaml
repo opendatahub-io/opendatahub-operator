@@ -14,7 +14,8 @@ on:
       - 'pkg/operatorconfig/cloudmanager.go'
       - 'pkg/utils/test/cloudmanager/**'
       - '.github/workflows/test-cloudmanager-e2e.yaml'
-      - 'get_all_manifests.sh'
+      - 'cmd/manifest-tools/**'
+      - 'manifests-config.yaml'
 
 permissions:
   contents: read
