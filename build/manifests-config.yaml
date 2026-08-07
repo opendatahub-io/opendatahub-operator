@@ -140,7 +140,7 @@ additional_meta:
     git.commit: 61bef69d6e290af28ceddb2cb4967442add998a3
   odh-kserve-localmodel-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: ca4a57f8300033eaac5ccb8acee034bf2d86096b
+    git.commit: 61bef69d6e290af28ceddb2cb4967442add998a3
   odh-kserve-router:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 61bef69d6e290af28ceddb2cb4967442add998a3
