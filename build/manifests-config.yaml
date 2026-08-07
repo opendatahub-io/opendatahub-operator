@@ -165,16 +165,16 @@ additional_meta:
     git.commit: 0bf05d93ff642f155d1a881074a4f6f8db5d3794
   odh-llm-d-batch-gateway-operator:
     git.url: https://github.com/red-hat-data-services/llm-d-batch-gateway-operator
-    git.commit: 938b9aef825ce1054b792a8583a2a3046c926fbf
+    git.commit: f9e2ddc1598467f92262890575af7c2090ccc6ec
   odh-llm-d-batch-gateway-processor:
     git.url: https://github.com/red-hat-data-services/batch-gateway
     git.commit: 0bf05d93ff642f155d1a881074a4f6f8db5d3794
   odh-llm-d-router-disagg-sidecar:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: 1f031761b601a22ddef8cb3af001e27060220138
+    git.commit: 39f5882dd6541da9f13939c2b1b85eb1d833a3f2
   odh-llm-d-router-endpoint-picker:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: 1f031761b601a22ddef8cb3af001e27060220138
+    git.commit: 39f5882dd6541da9f13939c2b1b85eb1d833a3f2
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
     git.commit: 179b8e87b973d3912d407823f8f20fd6147e8780
@@ -216,13 +216,13 @@ additional_meta:
     git.commit: 36d8efcf7af3a2157f5c2b32e239f5973dd5e29e
   odh-model-metadata-collection:
     git.url: https://github.com/red-hat-data-services/model-metadata-collection
-    git.commit: c40e1ad03e9fcfbbbfdd57ce72743c32c23a41dc
+    git.commit: ddf361ad8802ce8e4b479d10d0af644e837e560b
   odh-model-performance-data:
     git.url: https://github.com/red-hat-data-services/models-perf-benchmark-data
     git.commit: 70b4444014b19b93cd089c1171661ff40ad1efe5
   odh-model-registry:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: 559b831fdb253373fb501dc2254be701edd0ae8b
+    git.commit: a1e8c9edd3d6bd6dace9bbe3dd65390407a3d4e5
   odh-model-registry-job-async-upload:
     git.url: https://github.com/red-hat-data-services/model-registry
     git.commit: d955474cb97bb26c56ac6a74b9184ee90d48ded1
@@ -381,4 +381,4 @@ additional_meta:
     git.commit: 81cc5b722c9c129fdd1b3268eebc2171fab35041
   odh-workload-variant-autoscaler-controller:
     git.url: https://github.com/red-hat-data-services/workload-variant-autoscaler
-    git.commit: e126fa62f28c59f699b3f59b3fa732c290d90459
+    git.commit: 3990625fc957240f99b08ba6132c634448632082
