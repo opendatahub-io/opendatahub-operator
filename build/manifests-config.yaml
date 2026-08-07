@@ -60,7 +60,7 @@ map:
     src: config
     dest: mcplifecycleoperator
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-module-operator
-    git.commit: 242cdff0b5f3ac8db823660ae6a74ca0be426158
+    git.commit: 8bb148be12dd242d16f6bb111b4cc37e1da2274f
   odh-feast-module-operator:
     src: config/chart
     dest: feastoperator
