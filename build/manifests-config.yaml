@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 1a9159010a7ca42bcaf2863bf15879a23627e5c9
+    git.commit: 68019f5d0da8c7b3f573200946ef1f9fd5f1439f
   odh-trainer:
     src: manifests
     dest: trainer
@@ -90,10 +90,10 @@ additional_meta:
     git.commit: 7966f505a003dbe1d6ee509e963bf92ae4a44383
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 1a9159010a7ca42bcaf2863bf15879a23627e5c9
+    git.commit: 68019f5d0da8c7b3f573200946ef1f9fd5f1439f
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 1a9159010a7ca42bcaf2863bf15879a23627e5c9
+    git.commit: 68019f5d0da8c7b3f573200946ef1f9fd5f1439f
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: 7ea3c89537c9f4fd158d8b0703e0b93c3d8f0a38
@@ -225,7 +225,7 @@ additional_meta:
     git.commit: 5c2e77d099f15393816439f24f1146f52725da52
   odh-model-registry-job-async-upload:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: a1e8c9edd3d6bd6dace9bbe3dd65390407a3d4e5
+    git.commit: 5c2e77d099f15393816439f24f1146f52725da52
   odh-model-serving-api:
     git.url: https://github.com/red-hat-data-services/odh-model-controller
     git.commit: 36d8efcf7af3a2157f5c2b32e239f5973dd5e29e
@@ -249,7 +249,7 @@ additional_meta:
     git.commit: 1a9159010a7ca42bcaf2863bf15879a23627e5c9
   odh-mod-arch-mlflow:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 1a9159010a7ca42bcaf2863bf15879a23627e5c9
+    git.commit: 68019f5d0da8c7b3f573200946ef1f9fd5f1439f
   odh-mod-arch-model-registry:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 1a9159010a7ca42bcaf2863bf15879a23627e5c9
@@ -259,6 +259,9 @@ additional_meta:
   odh-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
     git.commit: 9c9e220b38753216a89d0f05f4007b0628400665
+  odh-observability:
+    git.url: https://github.com/red-hat-data-services/odh-observability
+    git.commit: 67deb169c9266a3f0e0f18e7f1bfc065cb17c2a6
   odh-ogx-core:
     git.url: https://github.com/red-hat-data-services/ogx-distribution
     git.commit: 7e87a799ef40c2baff9511e8e58d63c3147aa7eb
