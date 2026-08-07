@@ -87,7 +87,7 @@ additional_meta:
     git.commit: 408592837b4abf5e785d71c36102136c3e04f37e
   odh-cli:
     git.url: https://github.com/red-hat-data-services/odh-cli
-    git.commit: 4a27decb9a6b087b3166416149fcca0dc7c2304d
+    git.commit: 7966f505a003dbe1d6ee509e963bf92ae4a44383
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 45a77fae6dce5bd28415f3a39039f601a859fd91
@@ -165,7 +165,7 @@ additional_meta:
     git.commit: 0bf05d93ff642f155d1a881074a4f6f8db5d3794
   odh-llm-d-batch-gateway-operator:
     git.url: https://github.com/red-hat-data-services/llm-d-batch-gateway-operator
-    git.commit: 2b077534fb089080b1c0c6310a0de44418adadc2
+    git.commit: 938b9aef825ce1054b792a8583a2a3046c926fbf
   odh-llm-d-batch-gateway-processor:
     git.url: https://github.com/red-hat-data-services/batch-gateway
     git.commit: 0bf05d93ff642f155d1a881074a4f6f8db5d3794
@@ -216,7 +216,7 @@ additional_meta:
     git.commit: 36d8efcf7af3a2157f5c2b32e239f5973dd5e29e
   odh-model-metadata-collection:
     git.url: https://github.com/red-hat-data-services/model-metadata-collection
-    git.commit: 615dd0dec5274b86006f2203dcbc70e0d7dc2346
+    git.commit: c40e1ad03e9fcfbbbfdd57ce72743c32c23a41dc
   odh-model-performance-data:
     git.url: https://github.com/red-hat-data-services/models-perf-benchmark-data
     git.commit: 70b4444014b19b93cd089c1171661ff40ad1efe5
@@ -381,4 +381,4 @@ additional_meta:
     git.commit: 81cc5b722c9c129fdd1b3268eebc2171fab35041
   odh-workload-variant-autoscaler-controller:
     git.url: https://github.com/red-hat-data-services/workload-variant-autoscaler
-    git.commit: ab22d0a9d45dbbed9aadda403887c883de563542
+    git.commit: e126fa62f28c59f699b3f59b3fa732c290d90459
