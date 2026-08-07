@@ -170,7 +170,7 @@ additional_meta:
     git.commit: 811b6979c65f84eefe0e6e400157ff030c123423
   odh-llm-d-batch-gateway-operator:
     git.url: https://github.com/red-hat-data-services/llm-d-batch-gateway-operator
-    git.commit: 6d08b2bd7b8453961d1a10c31f975ff109590837
+    git.commit: 4d4bb58f5b09bd95c969188a45329c831f3e0539
   odh-llm-d-batch-gateway-processor:
     git.url: https://github.com/red-hat-data-services/batch-gateway
     git.commit: 811b6979c65f84eefe0e6e400157ff030c123423
@@ -314,7 +314,7 @@ additional_meta:
     git.commit: 2dd348ce0d7f0db1ed29b03d6120f2f2d22d60b2
   odh-th-torch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 3f885bc06df13beaab3eafa3580f52820c86c8a6
+    git.commit: 2dd348ce0d7f0db1ed29b03d6120f2f2d22d60b2
   odh-th-torch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 2dd348ce0d7f0db1ed29b03d6120f2f2d22d60b2
@@ -392,4 +392,4 @@ additional_meta:
     git.commit: 2c9e33f4ec0029979a54f4e6ff3cf1f78ed3033d
   odh-workload-variant-autoscaler-controller:
     git.url: https://github.com/red-hat-data-services/workload-variant-autoscaler
-    git.commit: 555bb6d76b5ba266f1f84b92268d143c236eedf8
+    git.commit: cca70ae5902d513bc576f86a85cebfbb79354d00
