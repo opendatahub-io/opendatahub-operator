@@ -87,6 +87,7 @@ func kserveTestSuite(t *testing.T) {
 
 	testCases = append(testCases,
 		TestCase{"Validate platform config ConfigMap", componentCtx.ValidatePlatformConfigMap},
+		TestCase{"Validate ModelRegistry state propagation", componentCtx.ValidateModelRegistryStatePropagation},
 		TestCase{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	)
@@ -142,6 +143,14 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 		WithCondition(And(
 			// Validate management states of NIM and serving components.
 			jq.Match(`.spec.nim.managementState == "%s"`, dsc.Spec.Components.Kserve.NIM.ManagementState),
+			// Validate ModelRegistry state is injected from DSC
+			jq.Match(`.spec.modelRegistry.managementState == "%s"`,
+				func() string {
+					if dsc.Spec.Components.ModelRegistry.ManagementState == "" {
+						return "Removed"
+					}
+					return string(dsc.Spec.Components.ModelRegistry.ManagementState)
+				}()),
 		),
 		),
 	)
