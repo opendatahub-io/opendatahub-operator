@@ -80,7 +80,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_LLM_D_ROUTER_ENDPOINT_PICKER_IMAGE
   value: quay.io/rhoai/odh-llm-d-router-endpoint-picker-rhel9@sha256:51a847d36074d987ef861de2be83c54ad15c9e4afdbb697f30fef03f7ea0e688
 - name: RELATED_IMAGE_ODH_MAAS_API_IMAGE
-  value: quay.io/rhoai/odh-maas-api-rhel9@sha256:f9cf9714cef4a95a89c81a2044d1e4020ae9a2ad61d6eb40f56b5cae3bc2fa6c
+  value: quay.io/rhoai/odh-maas-api-rhel9@sha256:0dfc2c612646659e8e1cf3412cf60e40708b991744d3de5a550ee7c383e1268d
 - name: RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE
   value: quay.io/rhoai/odh-maas-controller-rhel9@sha256:368217eef790d24f14821f6b1c0d2bc8c3ad768752d510103e2fde3c034b9a98
 - name: RELATED_IMAGE_ODH_MCP_LIFECYCLE_MODULE_OPERATOR_IMAGE
