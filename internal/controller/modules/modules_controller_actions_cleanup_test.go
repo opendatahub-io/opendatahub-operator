@@ -34,7 +34,7 @@ type cleanupMockHandler struct {
 	operatorManifests  OperatorManifests
 }
 
-func (m *cleanupMockHandler) IsEnabled(_ *PlatformContext) bool {
+func (m *cleanupMockHandler) IsEnabled(_ *configv1alpha1.PlatformModules) bool {
 	return false
 }
 

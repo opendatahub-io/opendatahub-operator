@@ -69,9 +69,8 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 	pm.OGX.ManagementState = dscCtx.DSC.Spec.Components.OGX.ManagementState
 }
 
-func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
-	return platform != nil && platform.Platform != nil &&
-		platform.Platform.Spec.Modules.OGX.ManagementState == operatorv1.Managed
+func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+	return modules != nil && modules.OGX.ManagementState == operatorv1.Managed
 }
 
 func (h *handler) BuildModuleCR(

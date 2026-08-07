@@ -34,26 +34,20 @@ func TestIsEnabled(t *testing.T) {
 	handler := NewHandler()
 
 	if handler.IsEnabled(nil) {
-		t.Fatalf("expected nil platform context to disable module")
+		t.Fatalf("expected nil modules to disable module")
 	}
 
-	platform := &modules.PlatformContext{
-		Platform: &configv1alpha1.Platform{
-			Spec: configv1alpha1.PlatformSpec{
-				Modules: configv1alpha1.PlatformModules{
-					MLflowOperator: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-			},
+	pm := &configv1alpha1.PlatformModules{
+		MLflowOperator: common.ManagementSpec{
+			ManagementState: operatorv1.Removed,
 		},
 	}
-	if handler.IsEnabled(platform) {
+	if handler.IsEnabled(pm) {
 		t.Fatalf("expected Removed MLflowOperator to be disabled")
 	}
 
-	platform.Platform.Spec.Modules.MLflowOperator.ManagementState = operatorv1.Managed
-	if !handler.IsEnabled(platform) {
+	pm.MLflowOperator.ManagementState = operatorv1.Managed
+	if !handler.IsEnabled(pm) {
 		t.Fatalf("expected Managed MLflowOperator to enable module")
 	}
 }
@@ -61,23 +55,17 @@ func TestIsEnabled(t *testing.T) {
 func TestIsEnabled_PlatformMode(t *testing.T) {
 	handler := NewHandler()
 
-	platform := &modules.PlatformContext{
-		Platform: &configv1alpha1.Platform{
-			Spec: configv1alpha1.PlatformSpec{
-				Modules: configv1alpha1.PlatformModules{
-					MLflowOperator: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-			},
+	pm := &configv1alpha1.PlatformModules{
+		MLflowOperator: common.ManagementSpec{
+			ManagementState: operatorv1.Removed,
 		},
 	}
-	if handler.IsEnabled(platform) {
+	if handler.IsEnabled(pm) {
 		t.Fatalf("expected Removed MLflowOperator platform mode to disable module")
 	}
 
-	platform.Platform.Spec.Modules.MLflowOperator.ManagementState = operatorv1.Managed
-	if !handler.IsEnabled(platform) {
+	pm.MLflowOperator.ManagementState = operatorv1.Managed
+	if !handler.IsEnabled(pm) {
 		t.Fatalf("expected Managed MLflowOperator platform mode to enable module")
 	}
 }

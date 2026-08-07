@@ -14,23 +14,15 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
 
 	. "github.com/onsi/gomega"
 )
 
-func newFeastPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformContext {
-	return &modules.PlatformContext{
-		ApplicationsNamespace: "opendatahub",
-		Platform: &configv1alpha1.Platform{
-			Spec: configv1alpha1.PlatformSpec{
-				Modules: configv1alpha1.PlatformModules{
-					FeastOperator: common.ManagementSpec{
-						ManagementState: mgmtState,
-					},
-				},
-			},
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
+	return &configv1alpha1.PlatformModules{
+		FeastOperator: common.ManagementSpec{
+			ManagementState: mgmtState,
 		},
 	}
 }
@@ -45,26 +37,25 @@ func newTestScheme() *runtime.Scheme {
 func TestIsEnabled_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := feastoperator.NewHandler()
-	g.Expect(h.IsEnabled(newFeastPlatformCtx(operatorv1.Managed))).Should(BeTrue())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Managed))).Should(BeTrue())
 }
 
 func TestIsEnabled_Removed(t *testing.T) {
 	g := NewWithT(t)
 	h := feastoperator.NewHandler()
-	g.Expect(h.IsEnabled(newFeastPlatformCtx(operatorv1.Removed))).Should(BeFalse())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Removed))).Should(BeFalse())
 }
 
-func TestIsEnabled_NilPlatformContext(t *testing.T) {
+func TestIsEnabled_NilModules(t *testing.T) {
 	g := NewWithT(t)
 	h := feastoperator.NewHandler()
 	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
 }
 
-func TestIsEnabled_NilPlatform(t *testing.T) {
+func TestIsEnabled_EmptyModules(t *testing.T) {
 	g := NewWithT(t)
 	h := feastoperator.NewHandler()
-	ctx := &modules.PlatformContext{}
-	g.Expect(h.IsEnabled(ctx)).Should(BeFalse())
+	g.Expect(h.IsEnabled(&configv1alpha1.PlatformModules{})).Should(BeFalse())
 }
 
 func TestBuildModuleCR_NilClientReturnsError_BothNil(t *testing.T) {

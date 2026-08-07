@@ -17,19 +17,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func newPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformContext {
-	return &modules.PlatformContext{
-		ApplicationsNamespace: "opendatahub",
-		ChartsBasePath:        "/opt/charts",
-		GatewayDomain:         "dashboard.example.com",
-		Platform: &configv1alpha1.Platform{
-			Spec: configv1alpha1.PlatformSpec{
-				Modules: configv1alpha1.PlatformModules{
-					Dashboard: common.ManagementSpec{
-						ManagementState: mgmtState,
-					},
-				},
-			},
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
+	return &configv1alpha1.PlatformModules{
+		Dashboard: common.ManagementSpec{
+			ManagementState: mgmtState,
 		},
 	}
 }
@@ -100,29 +91,28 @@ func TestDashboardInstanceName_MatchesOperatorCEL(t *testing.T) {
 func TestIsEnabled_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformCtx(operatorv1.Managed))).Should(BeTrue())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Managed))).Should(BeTrue())
 }
 
 func TestIsEnabled_Removed(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformCtx(operatorv1.Removed))).Should(BeFalse())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Removed))).Should(BeFalse())
 }
 
 func TestIsEnabled_Empty(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformCtx(""))).Should(BeFalse())
+	g.Expect(h.IsEnabled(newPlatformModules(""))).Should(BeFalse())
 }
 
-func TestIsEnabled_NilPlatform(t *testing.T) {
+func TestIsEnabled_EmptyModules(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	ctx := &modules.PlatformContext{ApplicationsNamespace: "opendatahub"}
-	g.Expect(h.IsEnabled(ctx)).Should(BeFalse())
+	g.Expect(h.IsEnabled(&configv1alpha1.PlatformModules{})).Should(BeFalse())
 }
 
-func TestIsEnabled_NilPlatformContext(t *testing.T) {
+func TestIsEnabled_NilModules(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
@@ -240,7 +230,11 @@ func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 func TestGetOperatorManifests(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
+	platform := &modules.PlatformContext{
+		ApplicationsNamespace: "opendatahub",
+		ChartsBasePath:        "/opt/charts",
+		GatewayDomain:         "dashboard.example.com",
+	}
 
 	manifests := h.GetOperatorManifests(platform)
 	g.Expect(manifests.HelmCharts).Should(HaveLen(1))

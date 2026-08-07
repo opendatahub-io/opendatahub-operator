@@ -13,6 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -101,7 +102,7 @@ type submoduleTestHandler struct {
 	BaseHandler
 }
 
-func (h *submoduleTestHandler) IsEnabled(_ *PlatformContext) bool { return true }
+func (h *submoduleTestHandler) IsEnabled(_ *configv1alpha1.PlatformModules) bool { return true }
 func (h *submoduleTestHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
 	return nil, nil
 }

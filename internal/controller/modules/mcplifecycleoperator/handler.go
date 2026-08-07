@@ -55,11 +55,8 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 	pm.MCPLifecycleOperator.ManagementState = dscCtx.DSC.Spec.Components.MCPLifecycleOperator.ManagementState
 }
 
-func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
-	if platform == nil || platform.Platform == nil {
-		return false
-	}
-	return platform.Platform.Spec.Modules.MCPLifecycleOperator.ManagementState == operatorv1.Managed
+func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+	return modules != nil && modules.MCPLifecycleOperator.ManagementState == operatorv1.Managed
 }
 
 // BuildModuleCR constructs the MCPLifecycleOperator CR from DSC spec.

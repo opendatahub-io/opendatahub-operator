@@ -32,7 +32,7 @@ type statusTestHandler struct {
 	crState      CRState
 }
 
-func (m *statusTestHandler) IsEnabled(_ *PlatformContext) bool {
+func (m *statusTestHandler) IsEnabled(_ *configv1alpha1.PlatformModules) bool {
 	return m.enabled
 }
 

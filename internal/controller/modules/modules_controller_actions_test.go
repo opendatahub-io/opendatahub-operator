@@ -61,7 +61,7 @@ type deletingCleanupStub struct{}
 
 func (deletingCleanupStub) GetName() string { return "cleanup-module" }
 
-func (deletingCleanupStub) IsEnabled(*PlatformContext) bool { return false }
+func (deletingCleanupStub) IsEnabled(*configv1alpha1.PlatformModules) bool { return false }
 
 func (deletingCleanupStub) GetGVK() schema.GroupVersionKind { return schema.GroupVersionKind{} }
 
@@ -123,7 +123,7 @@ func (s provisioningModuleStub) GetSubmoduleConditions() []SubmoduleCondition {
 
 func (s provisioningModuleStub) GetName() string { return s.moduleName }
 
-func (s provisioningModuleStub) IsEnabled(*PlatformContext) bool { return s.enabled }
+func (s provisioningModuleStub) IsEnabled(*configv1alpha1.PlatformModules) bool { return s.enabled }
 
 func (s provisioningModuleStub) GetGVK() schema.GroupVersionKind {
 	return schema.GroupVersionKind{Group: testProvisioningModuleGroup, Version: testProvisioningModuleVersion, Kind: testProvisioningModuleKind}
@@ -237,7 +237,8 @@ func TestCleanupDisabledModulesPreservesModuleEnvInjectionWhileDeleting(t *testi
 	}
 
 	rr := &types.ReconciliationRequest{
-		Client: cli,
+		Client:   cli,
+		Instance: &configv1alpha1.Platform{},
 	}
 
 	if err := cleanupDisabledModules(context.Background(), rr); err != nil {

@@ -10,6 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 
 	. "github.com/onsi/gomega"
@@ -19,7 +20,7 @@ type testModuleHandler struct {
 	BaseHandler
 }
 
-func (h *testModuleHandler) IsEnabled(_ *PlatformContext) bool {
+func (h *testModuleHandler) IsEnabled(_ *configv1alpha1.PlatformModules) bool {
 	return true
 }
 

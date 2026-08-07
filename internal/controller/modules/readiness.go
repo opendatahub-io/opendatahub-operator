@@ -7,6 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 )
@@ -19,7 +20,7 @@ type ModuleReadinessChecker struct {
 	registry        *Registry
 	client          client.Client
 	platformVersion string
-	platform        *PlatformContext
+	modules         *configv1alpha1.PlatformModules
 }
 
 // NewReadinessChecker creates a ReadinessChecker backed by the
@@ -41,12 +42,12 @@ func NewReadinessChecker(reg *Registry, cli client.Client, platformVersion strin
 // ReadinessCheckerOption configures a ModuleReadinessChecker.
 type ReadinessCheckerOption func(*ModuleReadinessChecker)
 
-// WithPlatformContext sets the PlatformContext used to evaluate
+// WithPlatformModules sets the PlatformModules used to evaluate
 // handler-level enablement (DSC managementState). Without this,
 // the checker falls back to registry-level enablement only.
-func WithPlatformContext(p *PlatformContext) ReadinessCheckerOption {
+func WithPlatformModules(pm *configv1alpha1.PlatformModules) ReadinessCheckerOption {
 	return func(m *ModuleReadinessChecker) {
-		m.platform = p
+		m.modules = pm
 	}
 }
 
@@ -64,7 +65,7 @@ func (m *ModuleReadinessChecker) IsReady(ctx context.Context, name string) (bool
 		return true, nil
 	}
 
-	if m.platform != nil && !handler.IsEnabled(m.platform) {
+	if m.modules != nil && !handler.IsEnabled(m.modules) {
 		return true, nil
 	}
 

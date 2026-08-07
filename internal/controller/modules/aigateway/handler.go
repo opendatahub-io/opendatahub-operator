@@ -139,11 +139,8 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 	pm.AIGateway.ManagementState = state
 }
 
-func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
-	if platform == nil || platform.Platform == nil {
-		return false
-	}
-	return platform.Platform.Spec.Modules.AIGateway.ManagementState == operatorv1.Managed
+func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+	return modules != nil && modules.AIGateway.ManagementState == operatorv1.Managed
 }
 
 // BuildModuleCR constructs the AIGateway CR from DSC spec.

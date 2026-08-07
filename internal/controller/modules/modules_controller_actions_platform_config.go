@@ -89,7 +89,7 @@ func injectPlatformConfig(ctx context.Context, rr *odhtype.ReconciliationRequest
 	existingCMs := indexConfigMapsByName(rr.Resources)
 
 	return reg.ForEach(func(handler ModuleHandler) error {
-		if !handler.IsEnabled(platformCtx) {
+		if !handler.IsEnabled(platformCtx.Modules) {
 			return nil
 		}
 

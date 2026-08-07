@@ -57,9 +57,8 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 	pm.FeastOperator.ManagementState = dscCtx.DSC.Spec.Components.FeastOperator.ManagementState
 }
 
-func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
-	return platform != nil && platform.Platform != nil &&
-		platform.Platform.Spec.Modules.FeastOperator.ManagementState == operatorv1.Managed
+func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+	return modules != nil && modules.FeastOperator.ManagementState == operatorv1.Managed
 }
 
 // BuildModuleCR constructs the FeastOperator CR with OIDC settings projected

@@ -13,18 +13,17 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
@@ -53,7 +52,7 @@ var dagBatches = []componentBatch{
 		name:     "Batch20",
 		runlevel: 20,
 		components: []componentEntry{
-			{name: componentApi.DashboardComponentName, gvk: gvk.Dashboard},
+			{name: componentApi.DashboardComponentName, gvk: gvk.Dashboard, internal: true},
 			{name: componentApi.DataSciencePipelinesComponentName, gvk: gvk.DataSciencePipelines},
 			{name: componentApi.ModelRegistryComponentName, gvk: gvk.ModelRegistry},
 			{name: componentApi.RayComponentName, gvk: gvk.Ray},
@@ -67,7 +66,7 @@ var dagBatches = []componentBatch{
 		name:     "Batch31",
 		runlevel: 31,
 		components: []componentEntry{
-			{name: componentApi.KserveComponentName, gvk: gvk.Kserve},
+			{name: componentApi.KserveComponentName, gvk: gvk.Kserve, internal: true},
 			{name: componentApi.KueueComponentName, gvk: gvk.Kueue, internal: true},
 		},
 	},
@@ -75,8 +74,8 @@ var dagBatches = []componentBatch{
 		name:     "Batch32",
 		runlevel: 32,
 		components: []componentEntry{
-			{name: componentApi.FeastOperatorComponentName, gvk: gvk.FeastOperator},
-			{name: componentApi.MLflowOperatorComponentName, gvk: gvk.MLflowOperator},
+			{name: componentApi.FeastOperatorComponentName, gvk: gvk.FeastOperator, internal: true},
+			{name: componentApi.MLflowOperatorComponentName, gvk: gvk.MLflowOperator, internal: true},
 			{name: componentApi.OGXComponentName, gvk: gvk.OGX, internal: true},
 			{name: componentApi.SparkOperatorComponentName, gvk: gvk.SparkOperator},
 			{name: componentApi.AIGatewayComponentName, gvk: gvk.AIGateway, internal: true},
@@ -86,7 +85,6 @@ var dagBatches = []componentBatch{
 		name:     "Batch33",
 		runlevel: 33,
 		components: []componentEntry{
-			{name: componentApi.ModelsAsServiceComponentName, gvk: gvk.ModelsAsService, internal: true},
 			{name: componentApi.TrustyAIComponentName, gvk: gvk.TrustyAI},
 		},
 	},
@@ -115,14 +113,13 @@ var dscComponentFields = []string{
 	"sparkoperator",
 }
 
-// extensionGVKs lists the explicitly-enabled Extension components.
-// ModelsAsService is excluded — it is an internal
-// component auto-created by the operator and may not have a CR.
+// extensionGVKs lists in-tree component CRs at RL 31+ whose controllers
+// write PlatformReady via RunlevelGateAction. Fully-modularized components
+// (Kserve, FeastOperator, MLflowOperator) are excluded — they have no
+// in-tree controller to write PlatformReady.
 var extensionGVKs = []schema.GroupVersionKind{
-	gvk.Kserve,
-	gvk.FeastOperator,
-	gvk.MLflowOperator,
 	gvk.SparkOperator,
+	gvk.TrustyAI,
 }
 
 const dagQuotaName = "dag-test-restrictive-quota"
@@ -140,6 +137,13 @@ func dagOrderingTestSuite(t *testing.T) {
 	t.Log("Ensuring clean slate: setting all components to Removed")
 	ctx.setAllRemoved(t)
 	ctx.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
+
+	// Final cleanup: ensure cluster is left clean regardless of test outcomes
+	t.Cleanup(func() {
+		t.Log("Cleanup: setting all components to Removed")
+		// ctx.setAllRemoved(t)
+		ctx.deleteDAGQuota()
+	})
 
 	// Tests are ordered to minimise expensive enable/disable cycles.
 	// Each test's end state feeds the next test's start state.
@@ -194,14 +198,20 @@ func dagOrderingTestSuite(t *testing.T) {
 		WithEventuallyPollingInterval(10*time.Second),
 	)
 
-	// Module operators are separate deployments that don't restart when
-	// the main operator version changes. They still report the old
-	// platform version, blocking the DAG readiness checker.
-	// Force a rollout restart so they re-read the updated platform config.
-	// TODO(dag): the operator should handle this automatically by
-	// annotating module Deployments with a version hash so that a
-	// platform version change triggers a pod restart.
-	ctx.restartModuleOperators(t)
+	// Workbenches-operator gates version updates behind the Standalone
+	// distribution check, so it never re-stamps status.releases[platform]
+	// after a version change. Delete the CR to force fresh creation.
+	// TODO(dag): remove once workbenches-operator fixes the version
+	// update gate for Standalone distribution.
+	// https://redhat.atlassian.net/browse/RHOAIENG-81892
+	ctx.deleteWorkbenchesCR(t)
+
+	// Other module operators write the version correctly on reconcile
+	// but don't watch the config ConfigMap. Touch their CRs to trigger
+	// a reconcile so they re-read the updated platformVersion.
+	// TODO(dag): remove once module operators watch their platform
+	// config ConfigMap for changes.
+	ctx.touchModuleCRs(t)
 
 	t.Log("Waiting for convergence at original version")
 	ctx.EnsureResourceExists(
@@ -219,13 +229,6 @@ func dagOrderingTestSuite(t *testing.T) {
 		{"Validate PlatformReady condition on component CRs", ctx.ValidatePlatformReady},
 		{"Validate component stability across enable/disable cycles (RHOAIENG-73142)", ctx.ValidateComponentStability},
 		{"Validate DAG cleanup", ctx.ValidateDAGCleanup},
-	})
-
-	// Final cleanup: ensure cluster is left clean regardless of test outcomes
-	t.Cleanup(func() {
-		t.Log("Cleanup: setting all components to Removed")
-		ctx.setAllRemoved(t)
-		ctx.deleteDAGQuota()
 	})
 }
 
@@ -398,14 +401,6 @@ func (tc *DAGOrderingTestCtx) ValidatePlatformReady(t *testing.T) {
 		for _, comp := range batch.components {
 			if comp.internal {
 				t.Logf("Skipping internal component %s (CR may not exist)", comp.name)
-				continue
-			}
-			if comp.name == componentApi.MLflowOperatorComponentName {
-				// MLflow now reconciles through the module controller path. The
-				// legacy in-tree component controller was the writer of the
-				// informational PlatformReady condition, so the module-backed CR
-				// no longer participates in this assertion.
-				t.Logf("Skipping module-backed component %s for %s assertion", comp.name, precondition.PlatformReadyConditionType)
 				continue
 			}
 
@@ -1107,49 +1102,88 @@ func (tc *DAGOrderingTestCtx) operatorDeploymentNN() types.NamespacedName {
 	return types.NamespacedName{Name: tc.operatorDeploymentName(), Namespace: tc.OperatorNamespace}
 }
 
-// restartModuleOperators forces a restart of module operator pods in
-// the applications namespace. Module operators are separate processes that
-// don't automatically detect platform version changes; a restart causes
-// them to re-read the platform config ConfigMap and report the updated
-// version in their module CR status.
-func (tc *DAGOrderingTestCtx) restartModuleOperators(t *testing.T) {
+// deleteWorkbenchesCR deletes the Workbenches CR so the DSC controller
+// recreates it with empty status.releases. The workbenches-operator gates
+// version updates behind the Standalone distribution check, so this is the
+// only way to force it to stamp the current platformVersion.
+// TODO(dag): remove once workbenches-operator fixes the version update
+// gate for Standalone distribution.
+func (tc *DAGOrderingTestCtx) deleteWorkbenchesCR(t *testing.T) {
 	t.Helper()
 
-	deps := tc.FetchResources(
-		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
-		WithListOptions(&client.ListOptions{
-			Namespace: tc.AppsNamespace,
-			LabelSelector: k8slabels.SelectorFromSet(k8slabels.Set{
-				labels.PlatformPartOf: labels.Platform,
-			}),
-		}),
+	instanceName := tc.GetInstanceName(gvk.Workbenches)
+	if instanceName == "" {
+		return
+	}
+
+	t.Logf("Deleting Workbenches CR %s to reset platform version", instanceName)
+	tc.DeleteResource(
+		WithMinimalObject(gvk.Workbenches, types.NamespacedName{Name: instanceName}),
+		WithIgnoreNotFound(true),
 	)
+}
 
-	for _, dep := range deps {
-		name := dep.GetName()
+// touchModuleCRs annotates each module CR with a timestamp to trigger a
+// reconcile. Module operators re-read the platform config ConfigMap on
+// reconcile and stamp the updated platformVersion into status.releases,
+// but don't watch the ConfigMap for changes.
+// TODO(dag): remove once module operators watch their platform config
+// ConfigMap for changes.
+func (tc *DAGOrderingTestCtx) touchModuleCRs(t *testing.T) {
+	t.Helper()
 
-		matchLabels, _, _ := unstructured.NestedStringMap(dep.Object, "spec", "selector", "matchLabels")
-		if len(matchLabels) == 0 {
-			t.Logf("Deployment %s has no selector matchLabels, skipping", name)
-			continue
-		}
+	deployedVersion := tc.getDeployedVersion(t)
 
-		pods := tc.FetchResources(
-			WithMinimalObject(gvk.Pod, types.NamespacedName{Namespace: tc.AppsNamespace}),
-			WithListOptions(&client.ListOptions{
-				Namespace:     tc.AppsNamespace,
-				LabelSelector: k8slabels.SelectorFromSet(matchLabels),
-			}),
-		)
+	for _, batch := range dagBatches {
+		for _, comp := range batch.components {
+			if !comp.internal {
+				continue
+			}
 
-		for _, pod := range pods {
-			t.Logf("Deleting pod %s (module operator %s)", pod.GetName(), name)
-			tc.DeleteResource(
-				WithMinimalObject(gvk.Pod, types.NamespacedName{
-					Namespace: pod.GetNamespace(),
-					Name:      pod.GetName(),
+			// Only touch modules that have a platform config ConfigMap.
+			// In-tree components (kueue) and modules that don't participate
+			// in the handshake (ogx) are skipped.
+			cmName := modules.PlatformConfigName(comp.name)
+			cm := tc.FetchResource(WithMinimalObject(
+				gvk.ConfigMap,
+				types.NamespacedName{Namespace: tc.AppsNamespace, Name: cmName},
+			))
+			if cm == nil {
+				t.Logf("ConfigMap %s not found, skipping touch for %s", cmName, comp.name)
+				continue
+			}
+
+			// Wait for the ConfigMap to have the correct version before
+			// triggering a reconcile.
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.ConfigMap, types.NamespacedName{Namespace: tc.AppsNamespace, Name: cmName}),
+				WithCondition(jq.Match(`.data.%s == "%s"`, modules.PlatformVersionKey, deployedVersion)),
+				WithEventuallyTimeout(2*time.Minute),
+				WithEventuallyPollingInterval(10*time.Second),
+				WithCustomErrorMsg("ConfigMap %s should have %s=%s", cmName, modules.PlatformVersionKey, deployedVersion),
+			)
+
+			list := &unstructured.UnstructuredList{}
+			list.SetGroupVersionKind(comp.gvk.GroupVersion().WithKind(comp.gvk.Kind + "List"))
+			if err := tc.Client().List(tc.Context(), list); err != nil || len(list.Items) == 0 {
+				t.Logf("No %s CRs found, skipping touch", comp.gvk.Kind)
+				continue
+			}
+
+			instanceName := list.Items[0].GetName()
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
+				WithMutateFunc(func(obj *unstructured.Unstructured) error {
+					ann := obj.GetAnnotations()
+					if ann == nil {
+						ann = map[string]string{}
+					}
+					ann["test.platform.opendatahub.io/version-touch"] = time.Now().Format(time.RFC3339)
+					obj.SetAnnotations(ann)
+					return nil
 				}),
 			)
+			t.Logf("Touched module CR %s/%s to trigger version re-read", comp.gvk.Kind, instanceName)
 		}
 	}
 }

@@ -40,9 +40,9 @@ type ModuleHandler interface {
 	// GetName returns the unique identifier for this module.
 	GetName() string
 
-	// IsEnabled returns whether the module should be deployed based on platform
-	// configuration.
-	IsEnabled(platform *PlatformContext) bool
+	// IsEnabled returns whether the module should be deployed based on the
+	// platform modules configuration (derived from Platform CR or DSC spec).
+	IsEnabled(modules *configv1alpha1.PlatformModules) bool
 
 	// GetGVK returns the GroupVersionKind of the module CR that this handler
 	// manages. Used for dynamic watch registration so module CR status changes
@@ -274,10 +274,10 @@ type PlatformContext struct {
 	// Release identifies the platform (ODH/RHOAI) and version.
 	Release common.Release
 
-	// Platform is the Platform CR instance. Handlers read per-module
-	// ManagementSpec from Platform.Spec.Modules. On OpenShift, DSC/DSCI
-	// controllers project enablement into Platform CR via SSA.
-	Platform *configv1alpha1.Platform
+	// Modules holds per-module ManagementSpec derived from either the
+	// Platform CR (when called from Platform controller) or the DSC spec
+	// (when called from DSC controller).
+	Modules *configv1alpha1.PlatformModules
 
 	// ChartsBasePath is the base directory for locally-bundled Helm charts.
 	ChartsBasePath string

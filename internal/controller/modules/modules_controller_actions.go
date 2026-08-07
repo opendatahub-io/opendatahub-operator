@@ -34,19 +34,36 @@ func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) e
 		return err
 	}
 
-	if !reg.AnyEnabled(platformCtx) {
+	if !reg.AnyEnabled(platformCtx.Modules) {
 		return nil
 	}
 
 	return provision.CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, rr.GateEntries)
 }
 
-// platformFromInstance extracts the Platform CR from the reconcile instance.
-func platformFromInstance(rr *odhtype.ReconciliationRequest) *configv1alpha1.Platform {
+// modulesFromInstance derives PlatformModules from whichever CR is the
+// reconcile instance — Platform CR (platform controller) or DSC (DSC
+// controller).
+func modulesFromInstance(rr *odhtype.ReconciliationRequest) (*configv1alpha1.PlatformModules, error) {
 	if p, ok := rr.Instance.(*configv1alpha1.Platform); ok {
-		return p
+		return &p.Spec.Modules, nil
 	}
-	return nil
+	if dsc, ok := rr.Instance.(*dscv2.DataScienceCluster); ok {
+		pm := BuildPlatformModules(&DSCContext{DSC: dsc})
+		return &pm, nil
+	}
+	return nil, fmt.Errorf("cannot derive PlatformModules from instance type %T", rr.Instance)
+}
+
+// BuildPlatformModules iterates all module handlers to derive their
+// management state from DSC/DSCI, producing the PlatformModules struct.
+func BuildPlatformModules(dscCtx *DSCContext) configv1alpha1.PlatformModules {
+	var pm configv1alpha1.PlatformModules
+	DefaultRegistry().ForAll(func(handler ModuleHandler, _ bool) error { //nolint:errcheck
+		handler.PopulatePlatformModule(&pm, dscCtx)
+		return nil
+	})
+	return pm
 }
 
 // enableModulesFromPlatform reads spec.modules from the Platform CR and
@@ -56,12 +73,12 @@ func platformFromInstance(rr *odhtype.ReconciliationRequest) *configv1alpha1.Pla
 // controller uses the default MaxConcurrentReconciles=1, so only one
 // reconcile is in-flight at a time.
 func enableModulesFromPlatform(_ context.Context, rr *odhtype.ReconciliationRequest) error {
-	p := platformFromInstance(rr)
-	if p == nil {
-		return nil
+	modules, err := modulesFromInstance(rr)
+	if err != nil {
+		return err
 	}
 
-	EnableFromList(p.Spec.Modules.EnabledModules())
+	EnableFromList(modules.EnabledModules())
 
 	return nil
 }
@@ -80,11 +97,16 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 		monitoringNS = rr.DSCI.Spec.Monitoring.Namespace
 	}
 
+	modules, err := modulesFromInstance(rr)
+	if err != nil {
+		return nil, err
+	}
+
 	return &PlatformContext{
 		ApplicationsNamespace: appNS,
 		MonitoringNamespace:   monitoringNS,
 		Release:               rr.Release,
-		Platform:              platformFromInstance(rr),
+		Modules:               modules,
 		ChartsBasePath:        rr.ChartsBasePath,
 		ManifestsBasePath:     rr.ManifestsBasePath,
 	}, nil
@@ -110,7 +132,7 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 	}
 
 	cleanupOne := func(handler ModuleHandler) error {
-		if handler.IsEnabled(platformCtx) && reg.IsEnabled(handler.GetName()) {
+		if handler.IsEnabled(platformCtx.Modules) && reg.IsEnabled(handler.GetName()) {
 			return nil
 		}
 
@@ -199,7 +221,7 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 	checker := provision.NewCompositeChecker(
 		cr.NewReadinessChecker(cr.DefaultRegistry(), rr.Client, rr.Release.Version.String()),
 		NewReadinessChecker(reg, rr.Client, rr.Release.Version.String(),
-			WithPlatformContext(platformCtx)),
+			WithPlatformModules(platformCtx.Modules)),
 	)
 
 	requeueAfter, walkErr := provision.WalkBatches(ctx, checker, moduleStuckTracker, string(rr.Instance.GetUID()), rr.Release.Version.String(), rr.Conditions,
@@ -211,7 +233,7 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 				}
 				name := handler.GetName()
 
-				if !handler.IsEnabled(platformCtx) {
+				if !handler.IsEnabled(platformCtx.Modules) {
 					continue
 				}
 
@@ -374,7 +396,8 @@ type modulesEvaluation struct {
 
 // evaluateModulesStatus reads module CRs, checks staleness and readiness,
 // and returns structured results without writing any conditions.
-func evaluateModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) (*modulesEvaluation, error) {
+// The isEnabled callback lets each caller decide how to resolve enablement.
+func evaluateModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest, isEnabled func(ModuleHandler) bool) (*modulesEvaluation, error) {
 	log := logf.FromContext(ctx)
 
 	reg := DefaultRegistry()
@@ -382,18 +405,13 @@ func evaluateModulesStatus(ctx context.Context, rr *odhtype.ReconciliationReques
 		return &modulesEvaluation{}, nil
 	}
 
-	platformCtx, err := buildPlatformContext(ctx, rr)
-	if err != nil {
-		return nil, err
-	}
-
 	eval := &modulesEvaluation{}
 
-	err = reg.ForAll(func(handler ModuleHandler, _ bool) error {
+	err := reg.ForAll(func(handler ModuleHandler, _ bool) error {
 		name := handler.GetName()
 		condType := readyConditionTypeFor(handler)
 		submodules := submoduleConditionsFor(handler)
-		enabled := handler.IsEnabled(platformCtx)
+		enabled := isEnabled(handler)
 
 		if !enabled {
 			eval.perModule = append(eval.perModule, perModuleResult{
@@ -574,13 +592,19 @@ func (e *modulesEvaluation) writeAggregateCondition(conditions *conditions.Manag
 func ComputeModulesStatusDetailed(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
-	eval, err := evaluateModulesStatus(ctx, rr)
+	dsc, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	if !ok {
+		return fmt.Errorf("ComputeModulesStatusDetailed requires DataScienceCluster instance, got %T", rr.Instance)
+	}
+	dscCtx := &DSCContext{DSC: dsc}
+	pm := BuildPlatformModules(dscCtx)
+
+	eval, err := evaluateModulesStatus(ctx, rr, func(h ModuleHandler) bool {
+		return h.IsEnabled(&pm)
+	})
 	if err != nil {
 		return err
 	}
-
-	dsc, _ := rr.Instance.(*dscv2.DataScienceCluster)
-	dscCtx := &DSCContext{DSC: dsc}
 
 	for _, r := range eval.perModule {
 		rr.Conditions.SetCondition(r.condition)
@@ -615,7 +639,14 @@ func ComputeModulesStatusDetailed(ctx context.Context, rr *odhtype.Reconciliatio
 // condition. Called by the Platform controller — Platform CR status
 // reflects DAG orchestration state, not per-module detail.
 func computeModulesStatusAggregate(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	eval, err := evaluateModulesStatus(ctx, rr)
+	p, ok := rr.Instance.(*configv1alpha1.Platform)
+	if !ok {
+		return fmt.Errorf("computeModulesStatusAggregate requires Platform instance, got %T", rr.Instance)
+	}
+
+	eval, err := evaluateModulesStatus(ctx, rr, func(h ModuleHandler) bool {
+		return h.IsEnabled(&p.Spec.Modules)
+	})
 	if err != nil {
 		return err
 	}

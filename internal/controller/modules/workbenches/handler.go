@@ -89,10 +89,9 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 }
 
 // IsEnabled checks whether the Workbenches module should be deployed based on
-// Platform.Spec.Modules.Workbenches.ManagementState.
-func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
-	return platform != nil && platform.Platform != nil &&
-		platform.Platform.Spec.Modules.Workbenches.ManagementState == operatorv1.Managed
+// PlatformModules.Workbenches.ManagementState.
+func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+	return modules != nil && modules.Workbenches.ManagementState == operatorv1.Managed
 }
 
 // BuildModuleCR projects platform configuration onto the Workbenches module CR.
