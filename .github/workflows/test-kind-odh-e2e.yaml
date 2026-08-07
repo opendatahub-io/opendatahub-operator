@@ -20,7 +20,8 @@ on:
       - 'pkg/operatorconfig/cloudmanager.go'
       - 'pkg/utils/test/cloudmanager/**'
       - 'config/rhaii/**'
-      - 'get_all_manifests.sh'
+      - 'cmd/manifest-tools/**'
+      - 'manifests-config.yaml'
       - '.github/workflows/test-kind-odh-e2e.yaml'
 
 permissions:

@@ -90,9 +90,6 @@ spec:
             value: /opt/charts
           # - name: ODH_PLATFORM_TYPE
           #   value: SelfManagedRHOAI
-          # TODO: remove once https://github.com/opendatahub-io/kuberay/tree/ad425f7febc4039f2378747f2a0ea5dcf5a2263f is synced downstream
-          - name: RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE
-            value: "quay.io/opendatahub/kuberay-operator@sha256:d03dcec7730f2ef7f96cffe1c68ce521726f4fe17765bd3dd71abbf569ed4df2"
         # NOTE: image is provided in CI by pullspec substitution, and by make/kustomize for local builds
         image: REPLACE_IMAGE:v0.0.0-rhoai-placeholder
         imagePullPolicy: Always
