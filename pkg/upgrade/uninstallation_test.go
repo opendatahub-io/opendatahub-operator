@@ -1,6 +1,7 @@
 package upgrade_test
 
 import (
+	"context"
 	"sync/atomic"
 	"testing"
 
@@ -96,15 +97,23 @@ func TestOperatorUninstallDeletesDSCBeforeDSCI(t *testing.T) {
 
 		// Simulate delayed deletion: DeleteAllOf for DSC is a no-op (foreground
 		// propagation delay), and the DSC is only actually removed on the second
-		// List poll.
+		// List poll. Also track DSCI deletion to verify ordering.
 		var listCallCount atomic.Int32
 		var deleteAllOfCalled atomic.Bool
+		var dscRemovedBeforeDSCIDelete atomic.Bool
+		dscRemovedBeforeDSCIDelete.Store(true)
+		var dscActuallyRemoved atomic.Bool
 
 		interceptorFuncs := interceptor.Funcs{
 			DeleteAllOf: func(ctx2 context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteAllOfOption) error {
 				if _, ok := obj.(*dscv2.DataScienceCluster); ok {
 					deleteAllOfCalled.Store(true)
 					return nil
+				}
+				if _, ok := obj.(*dsciv2.DSCInitialization); ok {
+					if !dscActuallyRemoved.Load() {
+						dscRemovedBeforeDSCIDelete.Store(false)
+					}
 				}
 				return c.DeleteAllOf(ctx2, obj, opts...)
 			},
@@ -113,6 +122,7 @@ func TestOperatorUninstallDeletesDSCBeforeDSCI(t *testing.T) {
 					count := listCallCount.Add(1)
 					if count >= 2 {
 						_ = c.DeleteAllOf(ctx2, &dscv2.DataScienceCluster{})
+						dscActuallyRemoved.Store(true)
 					}
 				}
 				return c.List(ctx2, list, opts...)
@@ -129,6 +139,9 @@ func TestOperatorUninstallDeletesDSCBeforeDSCI(t *testing.T) {
 
 		g.Expect(listCallCount.Load()).To(BeNumerically(">=", 2),
 			"removeDSC should have polled multiple times waiting for DSC deletion")
+
+		g.Expect(dscRemovedBeforeDSCIDelete.Load()).To(BeTrue(),
+			"DSCI deletion should only occur after DSC objects are fully removed")
 
 		var dscList dscv2.DataScienceClusterList
 		g.Expect(cli.List(ctx, &dscList)).To(Succeed())
