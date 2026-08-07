@@ -9,7 +9,7 @@ import (
 )
 
 func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
-	pflag.String("metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
+	pflag.String("metrics-bind-address", ":8443", "The address the metric endpoint binds to.")
 	if err := viper.BindEnv("metrics-bind-address", envvarPrefix+"_METRICS_BIND_ADDRESS"); err != nil {
 		return err
 	}
@@ -29,6 +29,23 @@ func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
 	}
 	pflag.String("pprof-bind-address", "", "The address that pprof binds to. ")
 	if err := viper.BindEnv("pprof-bind-address", envvarPrefix+"_PPROF_BIND_ADDRESS", "PPROF_BIND_ADDRESS"); err != nil {
+		return err
+	}
+	pflag.Bool("metrics-secure", true, "Serve metrics via HTTPS. Use --metrics-secure=false for HTTP.")
+	if err := viper.BindEnv("metrics-secure", envvarPrefix+"_METRICS_SECURE"); err != nil {
+		return err
+	}
+	pflag.String("metrics-cert-path", "", "Directory containing the metrics server TLS cert and key. "+
+		"If not set, controller-runtime generates self-signed certificates.")
+	if err := viper.BindEnv("metrics-cert-path", envvarPrefix+"_METRICS_CERT_PATH"); err != nil {
+		return err
+	}
+	pflag.String("metrics-cert-name", "tls.crt", "Metrics server certificate filename.")
+	if err := viper.BindEnv("metrics-cert-name", envvarPrefix+"_METRICS_CERT_NAME"); err != nil {
+		return err
+	}
+	pflag.String("metrics-cert-key", "tls.key", "Metrics server key filename.")
+	if err := viper.BindEnv("metrics-cert-key", envvarPrefix+"_METRICS_CERT_KEY"); err != nil {
 		return err
 	}
 
