@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -252,6 +253,11 @@ func stripLLMISvcConfigFinalizers(ctx context.Context, cli client.Client, platfo
 
 			controllerutil.RemoveFinalizer(obj, llmISvcConfigFinalizer)
 			if err := cli.Update(ctx, obj); err != nil {
+				if k8serr.IsNotFound(err) {
+					// Object was deleted between List and Update — finalizer
+					// removal is moot, continue with remaining items.
+					continue
+				}
 				return fmt.Errorf("removing finalizer from LLMInferenceServiceConfig %s/%s: %w",
 					obj.GetNamespace(), obj.GetName(), err)
 			}
