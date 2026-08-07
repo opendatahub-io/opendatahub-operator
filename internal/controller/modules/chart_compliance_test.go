@@ -59,7 +59,7 @@ func TestModuleChartCompliance(t *testing.T) {
 	}
 
 	if _, err := os.Stat(absChartsRoot); os.IsNotExist(err) {
-		t.Skipf("charts root %s not found (run get_all_manifests.sh first)", absChartsRoot)
+		t.Skipf("charts root %s not found (run make get-manifests first)", absChartsRoot)
 	}
 
 	handlers := moduleHandlers()
@@ -81,7 +81,7 @@ func TestModuleChartCompliance(t *testing.T) {
 
 		for _, chartInfo := range manifests.HelmCharts {
 			if _, err := os.Stat(chartInfo.Chart); os.IsNotExist(err) {
-				t.Fatalf("chart directory %s not found for module %s (run get_all_manifests.sh first)",
+				t.Fatalf("chart directory %s not found for module %s (run make get-manifests first)",
 					chartInfo.Chart, handler.GetName())
 			}
 
