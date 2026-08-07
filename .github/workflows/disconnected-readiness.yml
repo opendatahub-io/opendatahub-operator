@@ -12,4 +12,4 @@ jobs:
     uses: opendatahub-io/disconnected-readiness-scorer/.github/workflows/disconnected-readiness-check.yml@v1
     with:
       rules: ""
-      operator-path: "${{ github.workspace }}"
+      operator-path: "."
