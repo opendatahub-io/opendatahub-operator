@@ -38,21 +38,21 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kf-notebook-controller-rhel9@sha256:08802eaf9405593a4952b3a0cd00e53a83f653665b44686163b188a2b7c05ce7"
 - name: RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE
-  value: "quay.io/rhoai/odh-kserve-agent-rhel9@sha256:71bf359c7cef4ce32ff2e802aac34be9f088afaa0abb84990c171b2d057d672f"
+  value: "quay.io/rhoai/odh-kserve-agent-rhel9@sha256:5d12792ea3eb5294518874973a612d1595d9ab1b6108a3de495808c318df1e82"
 - name: RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE
   value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:2ec4a2ade6d25fad799f9a8afbb76487a89ed4a3549ba9b99a857d5762b7b2ed"
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:c8cd3024d19f079998edfb15f14acf09ca58628a402dbcaedf70e4071fea6647"
+  value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:2de3adf08d6a11b131c539319224c801ca8a713d41c421b2dc23621f5e960ad8"
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:d9bb13ac0b3c6daad44cfdfd2c7601704ebaa95deba5ce4400aedd20a5c0d7ac"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
-  value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:139afa746723cab51f4fb331b9a71bfbfdf03223c1b5a6c2871689c1ac160366"
+  value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:f99b80aa79df366ef4011ac3d10d5632cc5a8fa0c20e32899426c64afe6dfd33"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9@sha256:4fd2d20ee4b7d4e19ebdf8b56418424d57cdf460ca5b7353ad14b5c8d817a942"
 - name: RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-kserve-module-operator-rhel9@sha256:1918ac936fbc68cf0b21a4c965c82452db90f770fe2a67abcb44d0bb9864e122"
+  value: "quay.io/rhoai/odh-kserve-module-operator-rhel9@sha256:330dfdb3b4c62b0be236668cdaf400012523145cffc39b27ef9034a2ca23fb9f"
 - name: RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-router-rhel9@sha256:4834ba04e4156710c2b0764133d0716d635ddd8a712a4f05e70c63aef032841c"
+  value: "quay.io/rhoai/odh-kserve-router-rhel9@sha256:5d7adc4fa527be7c3147a38bcc497aeac5d7f387e734a6243f83793c7176574b"
 - name: RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE
   value: "quay.io/rhoai/odh-kserve-storage-initializer-rhel9@sha256:f4bd53b75f6fc4b73bf60925ed471d984c4db5ae85d1dc609e6dbded16a91b53"
 - name: RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE
