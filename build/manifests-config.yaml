@@ -9,7 +9,7 @@ map:
     src: kserve-module/config
     dest: kserve-module-operator
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 22627d3df3406e53d6423465356701f84fc04fa6
+    git.commit: d6ee768437d5ad90ed104b778d121b63fbf3a174
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
