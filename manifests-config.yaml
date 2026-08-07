@@ -22,7 +22,7 @@ components:
       sourcePath: kserve-module/config
     rhoai:
       repo: red-hat-data-services/kserve
-      ref: rhoai-3.5@4a182d44b97c29692d15dd07c856781ea36026c4
+      ref: rhoai-3.6-ea.1@7aba5001338a8cfb431e57753c277727273657f8
       sourcePath: kserve-module/config
   ray:
     odh:
@@ -31,7 +31,7 @@ components:
       sourcePath: ray-operator/config
     rhoai:
       repo: red-hat-data-services/kuberay
-      ref: rhoai-3.5@b6e2cb5afb65f14562a3d2821dfaa7b14366c1e4
+      ref: rhoai-3.6-ea.1@4dbc3cbe6aeffe151999f67f53ad1a3a8d967ef4
       sourcePath: ray-operator/config
   trustyai:
     odh:
@@ -40,7 +40,7 @@ components:
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/trustyai-service-operator
-      ref: rhoai-3.5@b76913c12d8fc6864b52a3f000a781182f5cf5cc
+      ref: rhoai-3.6-ea.1@866b2f2e61cc5e2c714af6eb9be1a331ccf97349
       sourcePath: config
   modelregistry:
     odh:
@@ -49,7 +49,7 @@ components:
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/model-registry-operator
-      ref: rhoai-3.5@4918619c6baf437f9f3052a5daf8bd4aee008f44
+      ref: rhoai-3.6-ea.1@070ceabae1c46a929d4e35f700c2eb18dc3f7ce6
       sourcePath: config
   trainingoperator:
     odh:
@@ -58,7 +58,7 @@ components:
       sourcePath: manifests
     rhoai:
       repo: red-hat-data-services/training-operator
-      ref: rhoai-3.5@ce3a66c2bbd69e9c66445e09ba397be6ae684819
+      ref: rhoai-3.6-ea.1@0588a6695a5b7ee69bddf53d942ded8d0057ee57
       sourcePath: manifests
   datasciencepipelines:
     odh:
@@ -67,7 +67,7 @@ components:
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/data-science-pipelines-operator
-      ref: rhoai-3.5@324aa96d3bad5891701b660e6c47cf69fd8207c8
+      ref: rhoai-3.6-ea.1@4d79f03ec71ec2a1895676b0a7af2d7847acd6d9
       sourcePath: config
   ogx:
     odh:
@@ -76,7 +76,7 @@ components:
       sourcePath: ogx-module/config
     rhoai:
       repo: red-hat-data-services/ogx-k8s-operator
-      ref: rhoai-3.5@d40662f9df546d4b52d2f130041daad79714d368
+      ref: rhoai-3.6-ea.1@6f0f0b1243f889fb177d9639aa230dda58921675
       sourcePath: ogx-module/config
   trainer:
     odh:
@@ -85,7 +85,7 @@ components:
       sourcePath: manifests
     rhoai:
       repo: red-hat-data-services/trainer
-      ref: rhoai-3.5@7280dd4483ff21406ec62c8a5c442511755ce616
+      ref: rhoai-3.6-ea.1@6cafd3e9056b534e1899f4bb052fc4af1111af9d
       sourcePath: manifests
   mlflowoperator:
     odh:
@@ -94,7 +94,7 @@ components:
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/mlflow-operator
-      ref: rhoai-3.5@58139bd2fd4206c0235c3fbdd5fa342ccda5bb91
+      ref: rhoai-3.6-ea.1@2d87b53096daf09b2ce21cbd1a2ac399fc2bad22
       sourcePath: config
   sparkoperator:
     odh:
@@ -103,7 +103,7 @@ components:
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/spark-operator
-      ref: rhoai-3.5@7b15494e3af5a29e599adde04e7d612759de1122
+      ref: rhoai-3.6-ea.1@af84752d1df9ae605abea7ac224d05e15b3579d4
       sourcePath: config
   aigateway:
     odh:
@@ -112,7 +112,7 @@ components:
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/ai-gateway-operator
-      ref: rhoai-3.5@de4865c978a2424f77e4a84f9cd504ba7badeb0a
+      ref: rhoai-3.6-ea.1@ea9d9afe9e10b7cc87cdf7c9583e169f68307735
       sourcePath: config
   mcplifecycleoperator:
     odh:
@@ -121,7 +121,7 @@ components:
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/mcp-lifecycle-module-operator
-      ref: rhoai-3.5@a7501e87d48cbd3d24130fcf33f2eecd5e98c777
+      ref: rhoai-3.6-ea.1@8bb148be12dd242d16f6bb111b4cc37e1da2274f
       sourcePath: config
 ccmCharts:
   cert-manager-operator:
@@ -131,7 +131,7 @@ ccmCharts:
       sourcePath: charts/dependencies/cert-manager-operator
     rhoai:
       repo: red-hat-data-services/odh-gitops
-      ref: rhoai-3.5@fedc4c0cb90ee19c4b351663753745b001f04622
+      ref: rhoai-3.6-ea.1@470aa713e26f06a2c98d0f3ae8a7a0fbe27b466c
       sourcePath: charts/dependencies/cert-manager-operator
   lws-operator:
     odh:
@@ -140,7 +140,7 @@ ccmCharts:
       sourcePath: charts/dependencies/lws-operator
     rhoai:
       repo: red-hat-data-services/odh-gitops
-      ref: rhoai-3.5@fedc4c0cb90ee19c4b351663753745b001f04622
+      ref: rhoai-3.6-ea.1@470aa713e26f06a2c98d0f3ae8a7a0fbe27b466c
       sourcePath: charts/dependencies/lws-operator
   sail-operator:
     odh:
@@ -149,7 +149,7 @@ ccmCharts:
       sourcePath: charts/dependencies/sail-operator
     rhoai:
       repo: red-hat-data-services/odh-gitops
-      ref: rhoai-3.5@fedc4c0cb90ee19c4b351663753745b001f04622
+      ref: rhoai-3.6-ea.1@470aa713e26f06a2c98d0f3ae8a7a0fbe27b466c
       sourcePath: charts/dependencies/sail-operator
   gateway-api:
     odh:
@@ -158,7 +158,7 @@ ccmCharts:
       sourcePath: charts/dependencies/gateway-api
     rhoai:
       repo: red-hat-data-services/odh-gitops
-      ref: rhoai-3.5@fedc4c0cb90ee19c4b351663753745b001f04622
+      ref: rhoai-3.6-ea.1@470aa713e26f06a2c98d0f3ae8a7a0fbe27b466c
       sourcePath: charts/dependencies/gateway-api
 componentCharts:
   dashboard-operator:
@@ -168,7 +168,7 @@ componentCharts:
       sourcePath: dashboard-operator/charts/dashboard
     rhoai:
       repo: red-hat-data-services/odh-dashboard
-      ref: rhoai-3.5@6cc29775853f45b79ec06857b56f880bdd0970e1
+      ref: rhoai-3.6-ea.1@45a77fae6dce5bd28415f3a39039f601a859fd91
       sourcePath: dashboard-operator/charts/dashboard
   workbenches:
     odh:
@@ -177,7 +177,7 @@ componentCharts:
       sourcePath: charts/operator
     rhoai:
       repo: red-hat-data-services/workbenches-operator
-      ref: rhoai-3.5@30992d8148ddf59b23c3d87bfb3f321b6a93e2ec
+      ref: rhoai-3.6-ea.1@c3bb77bf697426e020fd925b0bc13c412cbd7dd7
       sourcePath: charts/operator
   feastoperator:
     odh:
@@ -186,7 +186,7 @@ componentCharts:
       sourcePath: config/chart
     rhoai:
       repo: red-hat-data-services/feast-module-operator
-      ref: rhoai-3.5@22ac61d37dfb79704b1fa891823b69f297f1d809
+      ref: rhoai-3.6-ea.1@350ec7b910d2529859ff0ea9d35ff9997190a363
       sourcePath: config/chart
 # Image overrides — pinned operator image digests, keyed by RELATED_IMAGE_* env var name.
 # Local directories symlinked into opt/manifests/ during development.
