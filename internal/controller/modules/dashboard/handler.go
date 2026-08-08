@@ -19,6 +19,9 @@ const (
 	moduleName = componentApi.DashboardComponentName
 	// crName must match dashboard-operator CRD CEL (default-dashboard); see odh-dashboard#8093.
 	crName = componentApi.DashboardInstanceName
+
+	defaultPersesServiceName = "data-science-perses"
+	defaultPersesServicePort = 8080
 )
 
 type handler struct {
@@ -89,6 +92,19 @@ func (h *handler) BuildModuleCR(
 	if platform.GatewayDomain != "" {
 		spec["gateway"] = map[string]any{
 			"domain": platform.GatewayDomain,
+		}
+	}
+
+	if platform.DSCI != nil &&
+		platform.DSCI.Spec.Monitoring.ManagementState == operatorv1.Managed &&
+		platform.MonitoringNamespace != "" {
+		spec["observability"] = map[string]any{
+			"enabled": true,
+			"persesService": map[string]any{
+				"name":      defaultPersesServiceName,
+				"namespace": platform.MonitoringNamespace,
+				"port":      int64(defaultPersesServicePort),
+			},
 		}
 	}
 
