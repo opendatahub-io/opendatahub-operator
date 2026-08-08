@@ -125,6 +125,18 @@ spec:
     type: MultiNamespace
   - supported: true
     type: AllNamespaces
+  webhookdefinitions:
+  - type: ConversionWebhook
+    admissionReviewVersions:
+    - v1
+    containerPort: 9443
+    conversionCRDs:
+    - datascienceclusters.datasciencecluster.opendatahub.io
+    - dscinitializations.dscinitialization.opendatahub.io
+    deploymentName: opendatahub-operator-controller-manager
+    generateName: cdatascienceclusters.datasciencecluster.opendatahub.io
+    sideEffects: None
+    webhookPath: /convert
   keywords:
   - odh
   - notebooks
