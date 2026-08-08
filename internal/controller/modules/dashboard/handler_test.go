@@ -12,6 +12,7 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 
 	. "github.com/onsi/gomega"
 )
@@ -118,6 +119,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g.Expect(u.GetKind()).Should(Equal(componentApi.DashboardKind))
 	g.Expect(u.GroupVersionKind().Group).Should(Equal("components.platform.opendatahub.io"))
 	g.Expect(u.GroupVersionKind().Version).Should(Equal("v1alpha1"))
+	g.Expect(u.GetAnnotations()).Should(HaveKeyWithValue(annotations.ManagementStateAnnotation, string(operatorv1.Managed)))
 
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
