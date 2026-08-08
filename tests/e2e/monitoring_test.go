@@ -202,6 +202,7 @@ func (tc *MonitoringTestCtx) runOpenTelemetryCollectorTests(t *testing.T) {
 		t.Run("Test OpenTelemetry Collector Configurations", tc.ValidateOpenTelemetryCollectorConfigurations)
 		t.Run("Test OpenTelemetry Collector replicas", tc.ValidateMonitoringCRCollectorReplicas)
 		t.Run("Test Metrics TLS is always enabled for Prometheus exporter", tc.ValidateMetricsTLSAlwaysEnabled)
+		t.Run("Test DCGM metric rename rules are in metric_relabel_configs", tc.ValidateDCGMMetricRenameRulesPlacement)
 	})
 }
 
@@ -732,6 +733,71 @@ func (tc *MonitoringTestCtx) ValidateMetricsTLSAlwaysEnabled(t *testing.T) {
 			jq.Match(`.spec.endpoints[0].tlsConfig.serverName == "data-science-collector-prometheus.%s.svc"`, tc.MonitoringNamespace),
 		)),
 		WithCustomErrorMsg("ServiceMonitor should always use HTTPS to scrape Prometheus exporter"),
+	)
+}
+
+// ValidateDCGMMetricRenameRulesPlacement validates that the deployed OpenTelemetry Collector's
+// DCGM scrape job has metric rename rules (which rely on __name__) in metric_relabel_configs
+// (post-scrape) and NOT in relabel_configs (pre-scrape, where __name__ is unavailable).
+// This is the E2E regression guard for RHOAIENG-79543.
+func (tc *MonitoringTestCtx) ValidateDCGMMetricRenameRulesPlacement(t *testing.T) {
+	t.Helper()
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics != null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be ready with metrics configured"),
+	)
+
+	tc.ensureOpenTelemetryCollectorReady(t)
+
+	// Validate DCGM metric rename rules placement in the deployed OpenTelemetryCollector CR.
+	// The DCGM scrape job renames raw DCGM_FI_* metrics to nvidia_gpu_* names using __name__
+	// as source_label. These rules MUST be in metric_relabel_configs (post-scrape) because
+	// __name__ is not available in relabel_configs (pre-scrape target-discovery stage).
+	const dcgmJob = `[.spec.config.receivers.prometheus.config.scrape_configs[]` +
+		` | select(.job_name == "dcgm-exporter-accelerator-metrics")][0]`
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
+			Name:      OpenTelemetryCollectorName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			// DCGM scrape job should exist in the config
+			jq.Match(`[.spec.config.receivers.prometheus.config.scrape_configs[]` +
+				` | select(.job_name == "dcgm-exporter-accelerator-metrics")] | length == 1`),
+			// Verify complete rename stanzas in metric_relabel_configs
+			jq.Match(dcgmJob +
+				`.metric_relabel_configs | any(.action == "replace"` +
+				` and .source_labels == ["__name__"] and .target_label == "__name__"` +
+				` and .regex == "DCGM_FI_DEV_GPU_UTIL"` +
+				` and .replacement == "nvidia_gpu_utilization_ratio")`),
+			jq.Match(dcgmJob +
+				`.metric_relabel_configs | any(.action == "replace"` +
+				` and .source_labels == ["__name__"] and .target_label == "__name__"` +
+				` and .regex == "DCGM_FI_DEV_MEM_COPY_UTIL"` +
+				` and .replacement == "nvidia_gpu_memory_utilization_ratio")`),
+			// Verify rename rules precede the drop rule in metric_relabel_configs
+			jq.Match(dcgmJob +
+				`.metric_relabel_configs | ` +
+				`([to_entries[] | select(.value.regex == "DCGM_FI_DEV_GPU_UTIL"` +
+				` and .value.action == "replace")][0].key) < ` +
+				`([to_entries[] | select(.value.action == "drop")][0].key)`),
+			// relabel_configs should NOT contain any __name__ in source_labels
+			jq.Match(dcgmJob +
+				`.relabel_configs | all(.source_labels` +
+				` | if . then all(. != "__name__") else true end)`),
+		)),
+		WithCustomErrorMsg("DCGM metric rename rules should be in metric_relabel_configs (post-scrape), not relabel_configs (pre-scrape)"),
 	)
 }
 
