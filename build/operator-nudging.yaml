@@ -181,22 +181,6 @@ relatedImages:
   value: quay.io/rhoai/odh-trainer-rhel9@sha256:d4519e5f9fa47718e52a5c80dd249e539d706c5dfb98e9cacf712250ddff4afc
 - name: RELATED_IMAGE_ODH_TRAINER_OPERATOR_IMAGE
   value: quay.io/rhoai/odh-trainer-operator-rhel9@sha256:5ab97d6691ed9e62baae972aad9909b66c36ef9a1c57a9d8ee7d46fe9acfcabb
-- name: RELATED_IMAGE_ODH_TRAINING_CUDA121_TORCH24_PY311_IMAGE
-  value: quay.io/rhoai/odh-training-cuda121-torch24-py311-rhel9@sha256:4f3dc0d8a421722f8a22cd262235cf99d4e6962e3cb35411aaacd4067f6382ed
-- name: RELATED_IMAGE_ODH_TRAINING_CUDA124_TORCH25_PY311_IMAGE
-  value: quay.io/rhoai/odh-training-cuda124-torch25-py311-rhel9@sha256:5635ff7cd76052b604c09a2fba9b12771ff3c4eb380521a459992bbb833ccd57
-- name: RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH28_PY312_IMAGE
-  value: quay.io/rhoai/odh-training-cuda128-torch28-py312-rhel9@sha256:37c5c427ab040d0ce554f9ea5e4a1624fa4389f0ad93b0150eafd97a3d804e25
-- name: RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH29_PY312_IMAGE
-  value: quay.io/rhoai/odh-training-cuda128-torch29-py312-rhel9@sha256:9ec61a637d9e45789d2b7c6cbdfbb85e1f9064e7e217664049fc946e02516f93
-- name: RELATED_IMAGE_ODH_TRAINING_ROCM62_TORCH24_PY311_IMAGE
-  value: quay.io/rhoai/odh-training-rocm62-torch24-py311-rhel9@sha256:820d3c378d7d2c28c4e1670bcc37b5d67be9be638c488acb9db0824bbeae22fd
-- name: RELATED_IMAGE_ODH_TRAINING_ROCM62_TORCH25_PY311_IMAGE
-  value: quay.io/rhoai/odh-training-rocm62-torch25-py311-rhel9@sha256:a9b68bbaa18e35b0d57e639102904c4307c04c631d99824fb0fd3e754a511506
-- name: RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH28_PY312_IMAGE
-  value: quay.io/rhoai/odh-training-rocm64-torch28-py312-rhel9@sha256:501794be7653f12539fc420394c5ecfa2986109ef71785534e6e068212d07c25
-- name: RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH29_PY312_IMAGE
-  value: quay.io/rhoai/odh-training-rocm64-torch29-py312-rhel9@sha256:8f9ba738fe8411e598496cff70620465a5440c54db4072f7ab5cd3871a38b5ea
 - name: RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE
   value: quay.io/rhoai/odh-trustyai-garak-lls-provider-dsp-rhel9@sha256:df9e6911c324796eb7499d3663c9036a8cb1e9a85ac6f09cc19ad9480d869d96
 - name: RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE
