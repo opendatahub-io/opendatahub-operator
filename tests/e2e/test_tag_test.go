@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"slices"
 	"testing"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/tagging"
 )
 
