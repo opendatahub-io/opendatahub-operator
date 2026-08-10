@@ -4,7 +4,7 @@ map:
     dest: workbenches
     type: chart
     git.url: https://github.com/red-hat-data-services/workbenches-operator
-    git.commit: c3bb77bf697426e020fd925b0bc13c412cbd7dd7
+    git.commit: 1193b3378db10f0cb14dbd7b4cb43ca21b506cae
   odh-kserve-module-operator:
     src: kserve-module/config
     dest: kserve-module-operator
@@ -66,12 +66,12 @@ map:
     dest: feastoperator
     type: chart
     git.url: https://github.com/red-hat-data-services/feast-module-operator
-    git.commit: 350ec7b910d2529859ff0ea9d35ff9997190a363
+    git.commit: 1b437dede69f65a68571e423201f636fc6b3831e
   odh-ogx-module-operator:
     src: ogx-module/config
     dest: ogx
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
-    git.commit: 6f0f0b1243f889fb177d9639aa230dda58921675
+    git.commit: e1314f139109ec09c550d6029f77962407fbb87a
 additional_meta:
   odh-ai-gateway-payload-processing:
     git.url: https://github.com/red-hat-data-services/ai-gateway-payload-processing
@@ -96,10 +96,10 @@ additional_meta:
     git.commit: 830fb6ed2e455666f61f7b9bf1e7d64e7182fe5a
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
-    git.commit: 7ea3c89537c9f4fd158d8b0703e0b93c3d8f0a38
+    git.commit: d324f399366781869062bacee0c53e862ea68169
   odh-data-science-pipelines-argo-workflowcontroller:
     git.url: https://github.com/red-hat-data-services/argo-workflows
-    git.commit: 7ea3c89537c9f4fd158d8b0703e0b93c3d8f0a38
+    git.commit: d324f399366781869062bacee0c53e862ea68169
   odh-eval-hub:
     git.url: https://github.com/red-hat-data-services/eval-hub
     git.commit: 39f9bfeeed2bcedc73a9860a23eaa27f7d921557
@@ -267,7 +267,7 @@ additional_meta:
     git.commit: 7e87a799ef40c2baff9511e8e58d63c3147aa7eb
   odh-ogx-k8s-operator:
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
-    git.commit: 6f0f0b1243f889fb177d9639aa230dda58921675
+    git.commit: e1314f139109ec09c550d6029f77962407fbb87a
   odh-openvino-model-server:
     git.url: https://github.com/red-hat-data-services/openvino_model_server
     git.commit: 5894b9557c5a21ba3e669317cdc93de101ac73e5
@@ -303,13 +303,13 @@ additional_meta:
     git.commit: ebd07d992e866d5a9066f356b1a052108a354382
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
-    git.commit: 866b2f2e61cc5e2c714af6eb9be1a331ccf97349
+    git.commit: 43f7369229ae85257e983bf7c3256220ff9dc461
   odh-ta-lmes-job:
     git.url: https://github.com/red-hat-data-services/lm-evaluation-harness
     git.commit: d2156e4953ea5054b15e1565b457c1e89cead067
   odh-trainer-operator:
     git.url: https://github.com/red-hat-data-services/trainer-operator
-    git.commit: e313bd100c98f76d3941503af60b62e1c0f037d9
+    git.commit: f2bb2499938b3a1b4001ad78646bd51da5385f7f
   odh-training-cuda121-torch24-py311:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 5d574fed033532dfd0afaaf2f1f3ca30fa9da9d7
