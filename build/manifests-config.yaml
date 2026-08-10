@@ -104,7 +104,7 @@ additional_meta:
     git.commit: e09628d8d67e5dc717b173a51e15798631b35165
   odh-data-science-pipelines-argo-workflowcontroller:
     git.url: https://github.com/red-hat-data-services/argo-workflows
-    git.commit: 1588b722825e7f2b65ddc499eadd9b964a13e98a
+    git.commit: e09628d8d67e5dc717b173a51e15798631b35165
   odh-eval-hub:
     git.url: https://github.com/red-hat-data-services/eval-hub
     git.commit: 85ec7874b22174d874ee8bfeb16cfea9b357421d
