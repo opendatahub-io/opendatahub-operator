@@ -4,7 +4,7 @@ map:
     dest: workbenches
     type: chart
     git.url: https://github.com/red-hat-data-services/workbenches-operator
-    git.commit: 01a1e20e786a7d916b5fe494eb53a33ea8aafdf9
+    git.commit: b6f3822586f984eddde3af23d2f3f9c9b23ee79a
   odh-kserve-module-operator:
     src: kserve-module/config
     dest: kserve-module-operator
@@ -93,7 +93,7 @@ additional_meta:
     git.commit: fa5fbc1b0db1fa6b5627a9472714ce8cf1761086
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: fa5fbc1b0db1fa6b5627a9472714ce8cf1761086
+    git.commit: e2a48750a5e6698a9e452caf9298d2e172c9ea77
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: d324f399366781869062bacee0c53e862ea68169
@@ -192,7 +192,7 @@ additional_meta:
     git.commit: 5a35fc5c22d7fcb84d44a62c1e6a979779894aa5
   odh-mlserver-cuda:
     git.url: https://github.com/red-hat-data-services/MLServer
-    git.commit: d58f0ded897140bdd0c00d3feeb5c77ef8a7b62e
+    git.commit: 9f15a0a30d25e3eac6ebb073eaba2b3511c12bab
   odh-mlserver:
     git.url: https://github.com/red-hat-data-services/MLServer
     git.commit: 9f15a0a30d25e3eac6ebb073eaba2b3511c12bab
@@ -243,7 +243,7 @@ additional_meta:
     git.commit: e2a48750a5e6698a9e452caf9298d2e172c9ea77
   odh-mod-arch-gen-ai:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: fa5fbc1b0db1fa6b5627a9472714ce8cf1761086
+    git.commit: e2a48750a5e6698a9e452caf9298d2e172c9ea77
   odh-mod-arch-maas:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: e2a48750a5e6698a9e452caf9298d2e172c9ea77
@@ -273,7 +273,7 @@ additional_meta:
     git.commit: 5894b9557c5a21ba3e669317cdc93de101ac73e5
   odh-pipelines-components:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: f4ee27cff8890d462da2aa66ddb70e96093e6c60
+    git.commit: d29f31c34cda64ea6548cbc355f695a92491263a
   odh-pipeline-runtime-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 2226af749a26f94cb9ff45cc44a82a33c1ac0b89
