@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 64f1cbed4d766f05987c61bca380e5fb33a99fe8
+    git.commit: b649cda6ef626a456c6287802ad19a4938c9a005
   odh-training-operator:
     src: manifests
     dest: trainingoperator
@@ -95,7 +95,7 @@ additional_meta:
     git.commit: e2c1f6b68d93b8315214a63de2b906428e345ea7
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 64f1cbed4d766f05987c61bca380e5fb33a99fe8
+    git.commit: b649cda6ef626a456c6287802ad19a4938c9a005
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: f0601f5f9f36484fb52597e89b2980819acc3deb
@@ -257,7 +257,7 @@ additional_meta:
     git.commit: bb0a50ca2e7e23a7df282c123a554ad2aba462cd
   odh-mod-arch-model-registry:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 6cc29775853f45b79ec06857b56f880bdd0970e1
+    git.commit: b649cda6ef626a456c6287802ad19a4938c9a005
   odh-must-gather:
     git.url: https://github.com/red-hat-data-services/must-gather
     git.commit: 0d6ef55d312742637a2b4123fec7161a31e2efad
