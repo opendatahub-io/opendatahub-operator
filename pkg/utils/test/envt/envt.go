@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/onsi/gomega"
+	frameworkmanager "github.com/opendatahub-io/odh-platform-utilities/framework/manager"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,7 +30,6 @@ import (
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	opmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
@@ -102,7 +102,7 @@ func (et *EnvT) createManager() error {
 	if err != nil {
 		return fmt.Errorf("failed to create manager: %w", err)
 	}
-	mgr = opmanager.New(mgr, et.opManagerOpts...)
+	mgr = frameworkmanager.New(mgr, et.opManagerOpts...)
 	et.mgr = mgr
 	for _, reg := range et.registerWebhooks {
 		if err := reg(mgr); err != nil {
@@ -156,7 +156,7 @@ func WithRegisterWebhooks(funcs ...RegisterWebhooksFn) OptionFn {
 }
 
 // WithOpManagerOptions sets options for the opmanager.New wrapper (e.g. WithChartsBasePath).
-func WithOpManagerOptions(opts ...opmanager.Option) OptionFn {
+func WithOpManagerOptions(opts ...frameworkmanager.Option) OptionFn {
 	return func(in *EnvT) {
 		in.opManagerOpts = append(in.opManagerOpts, opts...)
 	}
@@ -274,7 +274,7 @@ type EnvT struct {
 	managerOpts         *manager.Options
 	registerWebhooks    []RegisterWebhooksFn
 	registerControllers []RegisterControllersFn
-	opManagerOpts       []opmanager.Option
+	opManagerOpts       []frameworkmanager.Option
 	s                   *runtime.Scheme
 	Env                 envtest.Environment
 	cfg                 *rest.Config

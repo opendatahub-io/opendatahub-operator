@@ -18,11 +18,11 @@ components:
   kserve-module-operator:
     odh:
       repo: opendatahub-io/kserve
-      ref: release-v0.17@01e23b511968fc14de87b9c252154bbfbd0fe79e
+      ref: release-v0.17@a0ecb0d58041c8c9a1ad1aa344fb420f59c0f0e7
       sourcePath: kserve-module/config
     rhoai:
       repo: red-hat-data-services/kserve
-      ref: rhoai-3.5@4a182d44b97c29692d15dd07c856781ea36026c4
+      ref: rhoai-3.5@ca4a57f8300033eaac5ccb8acee034bf2d86096b
       sourcePath: kserve-module/config
   ray:
     odh:
@@ -182,11 +182,11 @@ componentCharts:
   feastoperator:
     odh:
       repo: opendatahub-io/feast-module-operator
-      ref: main@3755cdda88ffc93b5f1fab3d63937913e8f1b84f
+      ref: main@dcd8099577492bf1869c7ea1122420c71b31c780
       sourcePath: config/chart
     rhoai:
       repo: red-hat-data-services/feast-module-operator
-      ref: rhoai-3.5@22ac61d37dfb79704b1fa891823b69f297f1d809
+      ref: rhoai-3.5@44aa9444229c1aba6eab7cc30b1def58cfca371b
       sourcePath: config/chart
 # Image overrides — pinned operator image digests, keyed by RELATED_IMAGE_* env var name.
 # Local directories symlinked into opt/manifests/ during development.
