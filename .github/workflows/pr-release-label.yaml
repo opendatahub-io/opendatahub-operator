@@ -22,50 +22,42 @@ jobs:
       pull-requests: write
     runs-on: ubuntu-latest
     steps:
-      - name: Generate GitHub App Token
-        id: app-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
-        with:
-          app-id: ${{ secrets.ODH_DEVOPS_APP_ID }}
-          private-key: ${{ secrets.ODH_DEVOPS_APP_PRIVATE_KEY }}
       - name: Apply release label
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
-          github-token: ${{ steps.app-token.outputs.token }}
           script: |
             const { owner, repo } = context.repo;
             const prNumber = context.payload.pull_request.number;
+            const prBody = context.payload.pull_request.body || '';
 
-            const { data: pr } = await github.rest.pulls.get({
-              owner,
-              repo,
-              pull_number: prNumber,
-            });
-            const prBody = pr.body || '';
+            const isReleaseLabel = name => /^rhoai-\d+\.\d+(?:ea\d+)?$/.test(name);
 
-            const match = prBody.match(/^Release:\s*(rhoai-\d+\.\d+(?:ea\d+)?)\s*$/m);
-            if (!match) {
-              console.log('No release target found in PR description');
-              return;
-            }
-
-            const targetLabel = match[1];
-            console.log(`Found release target: ${targetLabel}`);
-
+            // Fetch labels fresh (not from the payload): this job mutates them and
+            // concurrent runs may have changed them since the event fired.
             const { data: labels } = await github.rest.issues.listLabelsOnIssue({
               owner,
               repo,
               issue_number: prNumber,
             });
 
-            const isReleaseLabel = name =>
-              /^rhoai-\d+\.\d+(?:ea\d+)?$/.test(name);
+            // The `Release:` field in the PR description is the source of truth.
+            const match = prBody.match(/^Release:\s*(rhoai-\d+\.\d+(?:ea\d+)?)\s*$/m);
+            const targetLabel = match ? match[1] : null;
 
+            // No release target in the description: leave labels untouched so
+            // manually applied release labels are preserved.
+            if (!targetLabel) {
+              console.log('No release target found in PR description; leaving existing labels untouched');
+              return;
+            }
+
+            // A release target is set — treat it as authoritative and drop any
+            // other release labels that no longer match it.
             const staleLabels = labels.filter(
               l => isReleaseLabel(l.name) && l.name !== targetLabel
             );
             for (const label of staleLabels) {
-              console.log(`Removing stale label: ${label.name}`);
+              console.log(`Removing stale release label: ${label.name}`);
               await github.rest.issues.removeLabel({
                 owner,
                 repo,
@@ -74,8 +66,7 @@ jobs:
               });
             }
 
-            const alreadyApplied = labels.some(l => l.name === targetLabel);
-            if (alreadyApplied) {
+            if (labels.some(l => l.name === targetLabel)) {
               console.log(`Label ${targetLabel} already applied`);
               return;
             }
@@ -87,7 +78,7 @@ jobs:
                 issue_number: prNumber,
                 labels: [targetLabel],
               });
-              console.log(`Applied label: ${targetLabel}`);
+              console.log(`Applied release label: ${targetLabel}`);
             } catch (error) {
               if (error.status === 404) {
                 console.log(`Label "${targetLabel}" does not exist in the repository. A maintainer needs to create it first.`);
