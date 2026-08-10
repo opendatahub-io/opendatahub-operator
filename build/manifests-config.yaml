@@ -9,7 +9,7 @@ map:
     src: kserve-module/config
     dest: kserve-module-operator
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 598310f1655a81dcc9a4e01fd6f20483fef56ada
+    git.commit: f50eee148663128d12624ac3265f516b845635a0
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
@@ -120,25 +120,25 @@ additional_meta:
     git.commit: 0b644fdbb7bd5d88cb9ec7d1cdf43cccab9db4c0
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 598310f1655a81dcc9a4e01fd6f20483fef56ada
+    git.commit: f50eee148663128d12624ac3265f516b845635a0
   odh-kserve-autogluon-server:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 7aba5001338a8cfb431e57753c277727273657f8
   odh-kserve-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 598310f1655a81dcc9a4e01fd6f20483fef56ada
+    git.commit: f50eee148663128d12624ac3265f516b845635a0
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 598310f1655a81dcc9a4e01fd6f20483fef56ada
+    git.commit: f50eee148663128d12624ac3265f516b845635a0
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 598310f1655a81dcc9a4e01fd6f20483fef56ada
+    git.commit: f50eee148663128d12624ac3265f516b845635a0
   odh-kserve-localmodel-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 598310f1655a81dcc9a4e01fd6f20483fef56ada
+    git.commit: f50eee148663128d12624ac3265f516b845635a0
   odh-kserve-router:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 598310f1655a81dcc9a4e01fd6f20483fef56ada
+    git.commit: f50eee148663128d12624ac3265f516b845635a0
   odh-kserve-storage-initializer:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 180037f1a388741cee7225e5543731da19eca73c
@@ -156,7 +156,7 @@ additional_meta:
     git.commit: 1bc745b9e2424945cb15113fd3bc6705d65c7971
   odh-llm-d-async:
     git.url: https://github.com/red-hat-data-services/llm-d-async
-    git.commit: dd1ce0f9089eeec2f69489353a699bb244334495
+    git.commit: f0846d4b535db5d53fe8b1e65b184c12b5f6e279
   odh-llm-d-batch-gateway-apiserver:
     git.url: https://github.com/red-hat-data-services/batch-gateway
     git.commit: c42359c0b0c4a483081bc29aa603989dd8862312
@@ -174,7 +174,7 @@ additional_meta:
     git.commit: a10bea3a0231d65b34449523c98990da13ca0448
   odh-llm-d-router-endpoint-picker:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: 39f5882dd6541da9f13939c2b1b85eb1d833a3f2
+    git.commit: a10bea3a0231d65b34449523c98990da13ca0448
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
     git.commit: da4e78a251ba66406630705e53c4920f665bd93f
@@ -261,7 +261,7 @@ additional_meta:
     git.commit: 0b644fdbb7bd5d88cb9ec7d1cdf43cccab9db4c0
   odh-observability:
     git.url: https://github.com/red-hat-data-services/odh-observability
-    git.commit: 67deb169c9266a3f0e0f18e7f1bfc065cb17c2a6
+    git.commit: 171726c6b27c527ce9c74c913f2bd84f9c80f9f8
   odh-ogx-core:
     git.url: https://github.com/red-hat-data-services/ogx-distribution
     git.commit: 7e87a799ef40c2baff9511e8e58d63c3147aa7eb
@@ -273,7 +273,7 @@ additional_meta:
     git.commit: 5894b9557c5a21ba3e669317cdc93de101ac73e5
   odh-pipelines-components:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: dc27aa3764275019695ba58581c364f4862c15d8
+    git.commit: 1f2f48e157bfb373d1ba22e60a23670ad3325c92
   odh-pipeline-runtime-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 2226af749a26f94cb9ff45cc44a82a33c1ac0b89
@@ -309,7 +309,7 @@ additional_meta:
     git.commit: d2156e4953ea5054b15e1565b457c1e89cead067
   odh-trainer-operator:
     git.url: https://github.com/red-hat-data-services/trainer-operator
-    git.commit: f2bb2499938b3a1b4001ad78646bd51da5385f7f
+    git.commit: 76b68f7e5af8dc74098ff61eb6c380412c9b110e
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
     git.commit: 4760481cd6e2db0e144ed6c3553cd0181a16354b
