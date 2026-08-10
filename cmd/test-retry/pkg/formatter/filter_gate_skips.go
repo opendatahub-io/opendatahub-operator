@@ -4,48 +4,31 @@ import (
 	"encoding/xml"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
-// gateSkipPrefix matches skip messages emitted by e2e tag gating (skipUnless).
 const gateSkipPrefix = "Skipping test: passed tag:"
 
-// JUnit structs used only for gate-skip filtering (gotestsum XML shape).
+// unmarshalJUnit parses JUnit XML that uses either <testsuites> or bare <testsuite> as root.
+func unmarshalJUnit(content []byte) (TestSuites, error) {
+	var suites TestSuites
+	if err := xml.Unmarshal(content, &suites); err == nil && len(suites.Suites) > 0 {
+		return suites, nil
+	}
 
-type filterTestSuites struct {
-	XMLName  xml.Name          `xml:"testsuites"`
-	Tests    int               `xml:"tests,attr"`
-	Failures int               `xml:"failures,attr"`
-	Skipped  int               `xml:"skipped,attr"`
-	Time     string            `xml:"time,attr,omitempty"`
-	Suites   []filterTestSuite `xml:"testsuite"`
-}
+	var single TestSuite
+	if err := xml.Unmarshal(content, &single); err != nil {
+		return TestSuites{}, fmt.Errorf("parse junit xml: %w", err)
+	}
 
-type filterTestSuite struct {
-	XMLName   xml.Name         `xml:"testsuite"`
-	Name      string           `xml:"name,attr"`
-	Tests     int              `xml:"tests,attr"`
-	Failures  int              `xml:"failures,attr"`
-	Skipped   int              `xml:"skipped,attr"`
-	Time      string           `xml:"time,attr,omitempty"`
-	TestCases []filterTestCase `xml:"testcase"`
-}
-
-type filterTestCase struct {
-	Classname string         `xml:"classname,attr,omitempty"`
-	Name      string         `xml:"name,attr"`
-	Time      string         `xml:"time,attr,omitempty"`
-	Skipped   *filterSkipped `xml:"skipped,omitempty"`
-	Failure   *filterFailure `xml:"failure,omitempty"`
-}
-
-type filterSkipped struct {
-	Message string `xml:"message,attr,omitempty"`
-}
-
-type filterFailure struct {
-	Message string `xml:"message,attr,omitempty"`
-	Content string `xml:",chardata"`
+	return TestSuites{
+		Tests:    single.Tests,
+		Failures: single.Failures,
+		Skipped:  single.Skipped,
+		Time:     single.Time,
+		Suites:   []TestSuite{single},
+	}, nil
 }
 
 // FilterGateSkippedTestsFile filters gate-skipped cases in path and overwrites the file.
@@ -60,18 +43,36 @@ func FilterGateSkippedTestsFile(path string) error {
 		return err
 	}
 
-	if err := os.WriteFile(path, filtered, 0o644); err != nil {
-		return fmt.Errorf("write junit file %q: %w", path, err)
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, "junit-filtered-*.xml")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
 	}
-	return nil
+	defer os.Remove(tmp.Name())
+
+	if _, err := tmp.Write(filtered); err != nil {
+		tmp.Close()
+		return fmt.Errorf("write temp junit file: %w", err)
+	}
+	
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temp file: %w", err)
+	}
+
+	if err := os.Rename(tmp.Name(), path); err != nil {
+        return fmt.Errorf("rename temp file: %w", err)
+    }
+
+    return nil
 }
 
 // FilterGateSkippedTests removes testcases skipped only by tag-gate mismatch.
 // Other skipped, passed, and failed cases are preserved; suite counters are recomputed.
+// Handles both <testsuites> (gotestsum) and bare <testsuite> (test-retry) root elements.
 func FilterGateSkippedTests(content []byte) ([]byte, error) {
-	var suites filterTestSuites
-	if err := xml.Unmarshal(content, &suites); err != nil {
-		return nil, fmt.Errorf("parse junit xml: %w", err)
+	suites, err := unmarshalJUnit(content)
+	if err != nil {
+		return nil, err
 	}
 
 	totalTests := 0
@@ -79,7 +80,7 @@ func FilterGateSkippedTests(content []byte) ([]byte, error) {
 	totalSkipped := 0
 
 	for i := range suites.Suites {
-		kept := make([]filterTestCase, 0, len(suites.Suites[i].TestCases))
+		kept := make([]TestCase, 0, len(suites.Suites[i].TestCases))
 		failures := 0
 		skipped := 0
 

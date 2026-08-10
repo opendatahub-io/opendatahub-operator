@@ -37,7 +37,7 @@ func TestFilterGateSkippedTests(t *testing.T) {
 	out, err := FilterGateSkippedTests(input)
 	require.NoError(t, err)
 
-	var suites filterTestSuites
+	var suites TestSuites
 	require.NoError(t, xml.Unmarshal(out, &suites))
 
 	require.Len(t, suites.Suites, 1)
@@ -81,7 +81,7 @@ func TestFilterGateSkippedTests_NoGateSkipsUnchangedCounts(t *testing.T) {
 	out, err := FilterGateSkippedTests(input)
 	require.NoError(t, err)
 
-	var suites filterTestSuites
+	var suites TestSuites
 	require.NoError(t, xml.Unmarshal(out, &suites))
 	require.Equal(t, 2, suites.Tests)
 	require.Equal(t, 1, suites.Skipped)
@@ -109,7 +109,7 @@ func TestFilterGateSkippedTestsFile(t *testing.T) {
 	content, err := os.ReadFile(path)
 	require.NoError(t, err)
 
-	var suites filterTestSuites
+	var suites TestSuites
 	require.NoError(t, xml.Unmarshal(content, &suites))
 	require.Equal(t, 1, suites.Tests)
 	require.Equal(t, 0, suites.Skipped)
@@ -139,7 +139,7 @@ func TestFilterGateSkippedTests_AllGateSkipsRemoved(t *testing.T) {
 	out, err := FilterGateSkippedTests(input)
 	require.NoError(t, err)
 
-	var suites filterTestSuites
+	var suites TestSuites
 	require.NoError(t, xml.Unmarshal(out, &suites))
 	require.Equal(t, 0, suites.Tests)
 	require.Equal(t, 0, suites.Skipped)
@@ -170,7 +170,7 @@ func TestFilterGateSkippedTests_MultipleSuites(t *testing.T) {
 	out, err := FilterGateSkippedTests(input)
 	require.NoError(t, err)
 
-	var suites filterTestSuites
+	var suites TestSuites
 	require.NoError(t, xml.Unmarshal(out, &suites))
 	require.Len(t, suites.Suites, 2)
 
@@ -205,7 +205,7 @@ func TestFilterGateSkippedTests_KeepsSimilarButNonGateSkipMessage(t *testing.T) 
 	out, err := FilterGateSkippedTests(input)
 	require.NoError(t, err)
 
-	var suites filterTestSuites
+	var suites TestSuites
 	require.NoError(t, xml.Unmarshal(out, &suites))
 	require.Equal(t, 2, suites.Tests)
 	require.Equal(t, 2, suites.Skipped)
@@ -224,10 +224,51 @@ func TestFilterGateSkippedTests_EmptySuite(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(string(out), xml.Header))
 
-	var suites filterTestSuites
+	var suites TestSuites
 	require.NoError(t, xml.Unmarshal(out, &suites))
 	require.Equal(t, 0, suites.Tests)
 	require.Empty(t, suites.Suites[0].TestCases)
+}
+
+func TestFilterGateSkippedTests_BareTestSuiteRoot(t *testing.T) {
+	input := []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="e2e" tests="4" failures="1">
+  <testcase name="passed" time="1.200"></testcase>
+  <testcase name="gate-skip" time="0.001">
+    <skipped message="Skipping test: passed tag: Smoke, test tags: [Tier2]"></skipped>
+  </testcase>
+  <testcase name="real-skip" time="0.001">
+    <skipped message="feature disabled"></skipped>
+  </testcase>
+  <testcase name="failed" time="2.500">
+    <failure message="assertion failed">expected 1 got 0</failure>
+  </testcase>
+</testsuite>
+`)
+
+	out, err := FilterGateSkippedTests(input)
+	require.NoError(t, err)
+
+	var suites TestSuites
+	require.NoError(t, xml.Unmarshal(out, &suites))
+
+	require.Len(t, suites.Suites, 1)
+	suite := suites.Suites[0]
+
+	require.Equal(t, 3, suite.Tests)
+	require.Equal(t, 1, suite.Failures)
+	require.Equal(t, 1, suite.Skipped)
+	require.Equal(t, 3, suites.Tests)
+	require.Equal(t, 1, suites.Failures)
+	require.Equal(t, 1, suites.Skipped)
+
+	names := make([]string, 0, len(suite.TestCases))
+	for _, tc := range suite.TestCases {
+		names = append(names, tc.Name)
+	}
+	require.Equal(t, []string{"passed", "real-skip", "failed"}, names)
+
+	require.NotContains(t, string(out), "Skipping test: passed tag:")
 }
 
 func TestFilterGateSkippedTestsFile_MissingFile(t *testing.T) {

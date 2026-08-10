@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Validation functions
 validate_bool() {
-    local var_name=$1
+    local var_name=$1 
     local value=${!var_name}
     case "$value" in
         true|false|0|1) return 0 ;;
@@ -125,7 +125,11 @@ filter_gate_skips_if_present() {
   fi
 
   echo "Filtering tag-gate skips from ${JUNIT_FILE}"
-  test-retry filter-gate-skips --junit "$JUNIT_FILE"
+  test-retry filter-gate-skips --junit "$JUNIT_FILE" || {
+    echo "Warning: gate-skip filter failed; leaving ${JUNIT_FILE} unfiltered" >&2
+    return 0
+  }
+
 }
 
 # Choose test runner based on USE_TEST_RETRY flag
