@@ -50,7 +50,7 @@ map:
     src: config
     dest: sparkoperator
     git.url: https://github.com/red-hat-data-services/spark-operator
-    git.commit: 549c9d04fa236b67e55fb067721e61ba8607c041
+    git.commit: 6ecc23ac219e5a3eebb83c4d5eaf655a37b92376
   odh-ai-gateway-operator:
     src: config
     dest: aigateway
@@ -78,10 +78,10 @@ additional_meta:
     git.commit: 937cfa613951f27e3908d2748d7955b6ec8260bc
   odh-automl:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: f4ee27cff8890d462da2aa66ddb70e96093e6c60
+    git.commit: d29f31c34cda64ea6548cbc355f695a92491263a
   odh-autorag:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: f4ee27cff8890d462da2aa66ddb70e96093e6c60
+    git.commit: d29f31c34cda64ea6548cbc355f695a92491263a
   odh-built-in-detector:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: 408592837b4abf5e785d71c36102136c3e04f37e
