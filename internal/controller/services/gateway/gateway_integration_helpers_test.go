@@ -45,7 +45,7 @@ import (
 	"testing"
 	"time"
 
-	frameworkmanager "github.com/opendatahub-io/odh-platform-utilities/framework/manager"
+	"github.com/opendatahub-io/odh-platform-utilities/framework/manager"
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
@@ -403,7 +403,7 @@ func SetupTestEnvForMain(authMode string, clusterDomain string) *TestEnvContext 
 		testEnv.Stop() //nolint:errcheck
 		panic(fmt.Sprintf("Failed to create manager: %v", err))
 	}
-	mgr := frameworkmanager.New(ctrlMgr)
+	mgr := manager.New(ctrlMgr)
 
 	handler := &gateway.ServiceHandler{}
 	if err := handler.NewReconciler(ctx, mgr); err != nil {

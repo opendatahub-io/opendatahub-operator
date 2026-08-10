@@ -142,9 +142,10 @@ func dagOrderingTestSuite(t *testing.T) {
 	ctx.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
 
 	t.Cleanup(func() {
-		t.Log("Cleanup: setting all components to Removed and deleting quota")
+		t.Log("Cleanup: setting all components to Removed, deleting quota, and restoring operator env vars")
 		ctx.setAllRemoved(t)
 		ctx.deleteDAGQuota()
+		ctx.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
 	})
 
 	// Tests are ordered to minimise expensive enable/disable cycles.
