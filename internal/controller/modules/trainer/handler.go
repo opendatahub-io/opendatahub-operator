@@ -37,8 +37,9 @@ func NewHandler() *handler {
 				DeploymentName:  "trainer-operator-controller-manager",
 				RelatedImages: []string{
 					"RELATED_IMAGE_ODH_TRAINER_IMAGE",
-					"RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH29_PY312_IMAGE",
-					"RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH29_PY312_IMAGE",
+					"RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE",
+					"RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE",
+					"RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE",
 				},
 			},
 		},
