@@ -38,17 +38,17 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kf-notebook-controller-rhel9@sha256:08802eaf9405593a4952b3a0cd00e53a83f653665b44686163b188a2b7c05ce7"
 - name: RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE
-  value: "quay.io/rhoai/odh-kserve-agent-rhel9@sha256:fe927a27325caace7ac66cb7f268a4cc77ce768344766350b1f218952aac4d03"
+  value: "quay.io/rhoai/odh-kserve-agent-rhel9@sha256:938469f9f410b47be2bc8e7d13c8b0d57143435a01b4b325495f65cd7d891b90"
 - name: RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:f8f0fe63848ca37d8d5a6985e2e88e5317e3983a84bb3cf0b48727f2c99db647"
+  value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:691ec93b46705157dfc99529791caeb5f31221bb65f398b4a4c1b27dbd405f4b"
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:7ad05740ab00364a5d2e70a09e1a1747a5dfd9425c3e3382f0be9754ba6c86c5"
+  value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:45d0039d6ed9710a6583f52f74081a6188167b58c065ad40850db69b22e90d5a"
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:8010b91f9242d8d21748eb8814bb61b9013e414fd3c3d85b3fc769e7d1e40d3f"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
   value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:3bd514816e355bccaace42ef93191b7ee6e42c30cc9f851776327469888af0df"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9@sha256:1723762e8350b274707c32bf3879fa53e876cb0089253a723f223ca2f7bc843a"
+  value: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9@sha256:aed6be662d49c9b5f3fbc71e5a3d96ef815c03b8f71061041224307b08db46e7"
 - name: RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-kserve-module-operator-rhel9@sha256:56e604b7876f0b09c0c726b777c5c284b7e723d23131942ad0d8c8c4e2b9f1fc"
 - name: RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE
