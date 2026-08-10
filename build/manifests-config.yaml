@@ -81,7 +81,7 @@ additional_meta:
     git.commit: dc27aa3764275019695ba58581c364f4862c15d8
   odh-autorag:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: dc27aa3764275019695ba58581c364f4862c15d8
+    git.commit: f4ee27cff8890d462da2aa66ddb70e96093e6c60
   odh-built-in-detector:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: 408592837b4abf5e785d71c36102136c3e04f37e
@@ -120,7 +120,7 @@ additional_meta:
     git.commit: 452e409f4a138095847e48059db22967c023eba3
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: f50eee148663128d12624ac3265f516b845635a0
+    git.commit: 33f4c57b2f97dceceeadd2a77c9569a51eca267b
   odh-kserve-autogluon-server:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: f50eee148663128d12624ac3265f516b845635a0
@@ -330,7 +330,7 @@ additional_meta:
     git.commit: 2b67d0e369af710e745b087565470d8e4919c418
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 2226af749a26f94cb9ff45cc44a82a33c1ac0b89
+    git.commit: 4be3ff4e86767170f72f115967e32ffce2fc9989
   odh-workbench-jupyter-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 2226af749a26f94cb9ff45cc44a82a33c1ac0b89
