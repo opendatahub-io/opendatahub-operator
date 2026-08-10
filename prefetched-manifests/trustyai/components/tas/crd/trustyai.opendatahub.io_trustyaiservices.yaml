@@ -85,36 +85,68 @@ spec:
             description: TrustyAIServiceStatus defines the observed state of TrustyAIService
             properties:
               conditions:
+                description: Conditions represent the latest available observations
+                  of the service's state.
                 items:
+                  description: |-
+                    TASCondition mirrors metav1.Condition for platform contract compliance (RHOAIENG-67659),
+                    but keeps lastTransitionTime, reason, and message optional to preserve backward
+                    compatibility with conditions stored by prior operator versions.
                   properties:
                     lastTransitionTime:
+                      description: lastTransitionTime is when the condition last changed
+                        status.
                       format: date-time
                       type: string
                     message:
+                      description: message is a human-readable description of the
+                        condition.
                       type: string
+                    observedGeneration:
+                      description: observedGeneration is the generation when this
+                        condition was last set.
+                      format: int64
+                      type: integer
                     reason:
+                      description: reason is a CamelCase identifier for the condition's
+                        cause.
                       type: string
                     status:
+                      description: 'status is the condition status: True, False, or
+                        Unknown.'
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
                       type: string
                     type:
+                      description: type is the condition type in CamelCase.
                       type: string
                   required:
                   - status
                   - type
                   type: object
                 type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              observedGeneration:
+                description: ObservedGeneration is the last generation reconciled
+                  by the controller
+                format: int64
+                type: integer
               phase:
-                description: Define your status fields here
+                description: Phase represents the current phase of the service
                 type: string
               ready:
+                description: |-
+                  Ready indicates whether the service is ready
+                  Deprecated: Use Conditions with type "Ready" instead
                 type: string
               replicas:
+                description: Replicas is the number of running replicas
                 format: int32
                 type: integer
-            required:
-            - conditions
-            - phase
-            - replicas
             type: object
         type: object
     served: true

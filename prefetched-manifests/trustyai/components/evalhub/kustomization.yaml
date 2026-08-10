@@ -6,6 +6,7 @@ resources:
   - crd/trustyai.opendatahub.io_evalhubs.yaml
   - rbac/evalhub_auth_reviewer_role.yaml
   - rbac/evalhub_collections_access_binding.yaml
+  - rbac/evalhub_events_role.yaml
   - rbac/evalhub_collections_access_role.yaml
   - rbac/evalhub_hardware_profiles_reader_role.yaml
   - rbac/evalhub_job_config_binding.yaml

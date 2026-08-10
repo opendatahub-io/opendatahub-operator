@@ -24,12 +24,12 @@ map:
     src: config
     dest: trustyai
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
-    git.commit: 866b2f2e61cc5e2c714af6eb9be1a331ccf97349
+    git.commit: 43f7369229ae85257e983bf7c3256220ff9dc461
   odh-model-registry-operator:
     src: config
     dest: modelregistry
     git.url: https://github.com/red-hat-data-services/model-registry-operator
-    git.commit: 2dbdefedb876ad7d01277e38ad9790da5275347f
+    git.commit: 056edaf62b78ab9d066a279f87860425360eefff
   odh-dashboard-operator:
     src: dashboard-operator/charts/dashboard
     dest: dashboard-operator
@@ -40,7 +40,7 @@ map:
     src: manifests
     dest: trainer
     git.url: https://github.com/red-hat-data-services/trainer
-    git.commit: 6cafd3e9056b534e1899f4bb052fc4af1111af9d
+    git.commit: e6dea88d914c62ced02524409bf4cc2761f713a0
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
@@ -147,7 +147,7 @@ additional_meta:
     git.commit: a8dfeda8a71f0f79fbfa59504c44229faf4278f9
   odh-kube-rbac-proxy:
     git.url: https://github.com/red-hat-data-services/kube-rbac-proxy
-    git.commit: 815f93cb0719bbfa544ad9f22add8cc85351692b
+    git.commit: 27f2ed4e6678534b9c218de34f4f2104207404a7
   odh-latency-predictor-prediction:
     git.url: https://github.com/red-hat-data-services/llm-d-latency-predictor
     git.commit: 1bc745b9e2424945cb15113fd3bc6705d65c7971
@@ -177,7 +177,7 @@ additional_meta:
     git.commit: 39f5882dd6541da9f13939c2b1b85eb1d833a3f2
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: 179b8e87b973d3912d407823f8f20fd6147e8780
+    git.commit: da4e78a251ba66406630705e53c4920f665bd93f
   odh-maas-controller:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
     git.commit: da4e78a251ba66406630705e53c4920f665bd93f
