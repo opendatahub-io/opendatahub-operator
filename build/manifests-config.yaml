@@ -98,7 +98,7 @@ additional_meta:
     git.commit: b649cda6ef626a456c6287802ad19a4938c9a005
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: f0601f5f9f36484fb52597e89b2980819acc3deb
+    git.commit: b649cda6ef626a456c6287802ad19a4938c9a005
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: e09628d8d67e5dc717b173a51e15798631b35165
@@ -275,7 +275,7 @@ additional_meta:
     git.commit: 9591069fe9b2a01cd3761d5d1e8e91c5b4ef0aa4
   odh-pipelines-components:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 5897dd31c21d6435f003d042627cd380cf49bd01
+    git.commit: 6cb095ec17e88c4528f3905e6e46d0197fb924b0
   odh-pipeline-runtime-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 861afce3002d1e0703d77d9ae7aaa248cb8fbb67
