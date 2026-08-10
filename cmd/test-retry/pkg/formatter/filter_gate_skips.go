@@ -13,7 +13,7 @@ const gateSkipPrefix = "Skipping test: passed tag:"
 // unmarshalJUnit parses JUnit XML that uses either <testsuites> or bare <testsuite> as root.
 func unmarshalJUnit(content []byte) (TestSuites, error) {
 	var suites TestSuites
-	if err := xml.Unmarshal(content, &suites); err == nil && len(suites.Suites) > 0 {
+	if err := xml.Unmarshal(content, &suites); err == nil {
 		return suites, nil
 	}
 
