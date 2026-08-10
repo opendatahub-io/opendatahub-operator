@@ -123,6 +123,7 @@ func TestPopulatePlatformModule_ExplicitRemovedWinsOverLegacy(t *testing.T) {
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
 				},
 				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 					KserveCommonSpec: componentApi.KserveCommonSpec{
 						ModelsAsService: componentApi.DSCModelsAsServiceSpec{ManagementState: operatorv1.Managed},
 					},
@@ -186,6 +187,7 @@ func TestBuildModuleCR_ExplicitModelsAsAServiceWinsOverLegacy(t *testing.T) {
 					},
 				},
 				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 					KserveCommonSpec: componentApi.KserveCommonSpec{
 						ModelsAsService: componentApi.DSCModelsAsServiceSpec{
 							ManagementState: operatorv1.Managed, // legacy

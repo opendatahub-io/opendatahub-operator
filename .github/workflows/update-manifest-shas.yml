@@ -55,6 +55,7 @@ jobs:
         with:
           token: ${{ steps.generate-token.outputs.token }}
           commit-message: "chore: update manifest commit SHAs"
+          labels: "auto-bump-manifests-and-images"
           title: "chore: update manifest commit SHAs"
           body: |
             This PR updates the manifest commit SHAs to the latest available commits.
