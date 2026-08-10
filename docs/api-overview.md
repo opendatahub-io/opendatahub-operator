@@ -74,9 +74,6 @@ _Appears in:_
 _Appears in:_
 - [DSCAIGatewayStatus](#dscaigatewaystatus)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### ArgoWorkflowsControllersSpec
@@ -814,9 +811,6 @@ _Appears in:_
 - [DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)
 - [DataSciencePipelinesStatus](#datasciencepipelinesstatus)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### DataSciencePipelinesSpec
@@ -846,12 +840,6 @@ DataSciencePipelinesStatus defines the observed state of DataSciencePipelines
 _Appears in:_
 - [DataSciencePipelines](#datasciencepipelines)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### FeastOperatorCommonSpec
@@ -878,9 +866,6 @@ FeastOperatorCommonStatus defines the shared observed state of FeastOperator
 _Appears in:_
 - [DSCFeastOperatorStatus](#dscfeastoperatorstatus)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### KserveCommonSpec
@@ -917,9 +902,6 @@ KserveCommonStatus defines the shared observed state of Kserve
 _Appears in:_
 - [DSCKserveStatus](#dsckservestatus)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### Kueue
@@ -970,9 +952,6 @@ _Appears in:_
 - [DSCKueueStatus](#dsckueuestatus)
 - [KueueStatus](#kueuestatus)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### KueueDefaultQueueSpec
@@ -1043,12 +1022,6 @@ KueueStatus defines the observed state of Kueue
 _Appears in:_
 - [Kueue](#kueue)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### LlamaStackOperatorCommonSpec
@@ -1076,9 +1049,6 @@ _Appears in:_
 - [DSCLlamaStackOperatorStatus](#dscllamastackoperatorstatus)
 - [LlamaStackOperatorStatus](#llamastackoperatorstatus)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 
@@ -1108,9 +1078,6 @@ MCPLifecycleOperatorCommonStatus defines the shared observed state of MCPLifecyc
 _Appears in:_
 - [DSCMCPLifecycleOperatorStatus](#dscmcplifecycleoperatorstatus)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### MLflowOperatorCommonSpec
@@ -1142,9 +1109,6 @@ MLflowOperatorCommonStatus defines the shared observed state of MLflowOperator
 _Appears in:_
 - [DSCMLflowOperatorStatus](#dscmlflowoperatorstatus)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### ModelCacheSpec
@@ -1220,7 +1184,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `registriesNamespace` _string_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### ModelRegistrySpec
@@ -1253,11 +1216,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
 | `registriesNamespace` _string_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### NimSpec
@@ -1402,9 +1361,6 @@ _Appears in:_
 - [DSCRayStatus](#dscraystatus)
 - [RayStatus](#raystatus)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### RaySpec
@@ -1431,12 +1387,6 @@ RayStatus defines the observed state of Ray
 _Appears in:_
 - [Ray](#ray)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### SparkOperator
@@ -1486,9 +1436,6 @@ _Appears in:_
 - [DSCSparkOperatorStatus](#dscsparkoperatorstatus)
 - [SparkOperatorStatus](#sparkoperatorstatus)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### SparkOperatorSpec
@@ -1515,12 +1462,6 @@ SparkOperatorStatus defines the observed state
 _Appears in:_
 - [SparkOperator](#sparkoperator)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### Trainer
@@ -1570,9 +1511,6 @@ _Appears in:_
 - [DSCTrainerStatus](#dsctrainerstatus)
 - [TrainerStatus](#trainerstatus)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### TrainerSpec
@@ -1599,12 +1537,6 @@ TrainerStatus defines the observed state of Trainer
 _Appears in:_
 - [Trainer](#trainer)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### TrainingOperator
@@ -1654,9 +1586,6 @@ _Appears in:_
 - [DSCTrainingOperatorStatus](#dsctrainingoperatorstatus)
 - [TrainingOperatorStatus](#trainingoperatorstatus)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### TrainingOperatorSpec
@@ -1683,12 +1612,6 @@ TrainingOperatorStatus defines the observed state of TrainingOperator
 _Appears in:_
 - [TrainingOperator](#trainingoperator)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### TrustyAI
@@ -1742,9 +1665,6 @@ _Appears in:_
 - [DSCTrustyAIStatus](#dsctrustyaistatus)
 - [TrustyAIStatus](#trustyaistatus)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### TrustyAIEvalSpec
@@ -1810,12 +1730,6 @@ TrustyAIStatus defines the observed state of TrustyAI
 _Appears in:_
 - [TrustyAI](#trustyai)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### WVASpec
@@ -1866,7 +1780,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 | `workbenchNamespace` _string_ |  |  |  |
 
 
@@ -1955,11 +1868,6 @@ PlatformStatus defines the observed state of Platform.
 _Appears in:_
 - [Platform](#platform)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
 
@@ -2101,9 +2009,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster. |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `installedComponents` _object (keys:string, values:boolean)_ | List of components with status if installed or not |  |  |
@@ -2253,9 +2158,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster. |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `components` _[ComponentsStatus](#componentsstatus)_ | Expose component's specific status |  |  |
@@ -2334,7 +2236,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ | Phase describes the Phase of DSCInitializationStatus<br />This is used by OLM UI to provide status information to the user |  |  |
-| `conditions` _[Condition](#condition) array_ | Conditions describes the state of the DSCInitializationStatus resource |  |  |
+| `conditions` _Condition array_ | Conditions describes the state of the DSCInitializationStatus resource |  |  |
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `release` _[Release](#release)_ | Version and release type |  |  |
@@ -2440,7 +2342,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ | Phase describes the Phase of DSCInitializationStatus<br />This is used by OLM UI to provide status information to the user |  |  |
-| `conditions` _[Condition](#condition) array_ | Conditions describes the state of the DSCInitializationStatus resource |  |  |
+| `conditions` _Condition array_ | Conditions describes the state of the DSCInitializationStatus resource |  |  |
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `release` _[Release](#release)_ | Version and release type |  |  |
@@ -2921,11 +2823,6 @@ AuthStatus defines the observed state of Auth
 _Appears in:_
 - [Auth](#auth)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
 #### CookieConfig
@@ -3028,9 +2925,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
 | `domain` _string_ | Domain is the computed gateway domain (subdomain + cluster domain or default)<br />This is the single source of truth for the gateway domain used by all components |  |  |
 
 
@@ -3180,9 +3074,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
 | `url` _string_ |  |  |  |
 
 

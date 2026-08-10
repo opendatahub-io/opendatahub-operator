@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
+	frameworkmanager "github.com/opendatahub-io/odh-platform-utilities/framework/manager"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
 	configv1 "github.com/openshift/api/config/v1"
@@ -113,7 +114,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
@@ -517,7 +517,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	// Wrap the manager to return the wrapped client from GetClient()
-	mgr := manager.New(ctrlMgr, manager.WithManifestsBasePath(oconfig.ManifestsBasePath), manager.WithChartsBasePath(oconfig.ChartsBasePath))
+	mgr := frameworkmanager.New(ctrlMgr, frameworkmanager.WithManifestsBasePath(oconfig.ManifestsBasePath), frameworkmanager.WithChartsBasePath(oconfig.ChartsBasePath))
 
 	// Register all webhooks using the helper
 	if err := webhook.RegisterAllWebhooks(mgr); err != nil {
@@ -762,7 +762,7 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 	return tlsOpts, profile, adherence, hasAPI
 }
 
-func CreateComponentReconcilers(ctx context.Context, mgr *manager.Manager) error {
+func CreateComponentReconcilers(ctx context.Context, mgr *frameworkmanager.Manager) error {
 	l := logf.FromContext(ctx)
 
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
@@ -775,7 +775,7 @@ func CreateComponentReconcilers(ctx context.Context, mgr *manager.Manager) error
 	})
 }
 
-func CreateServiceReconcilers(ctx context.Context, mgr *manager.Manager) error {
+func CreateServiceReconcilers(ctx context.Context, mgr *frameworkmanager.Manager) error {
 	log := logf.FromContext(ctx)
 
 	return sr.ForEach(func(sh sr.ServiceHandler) error {
