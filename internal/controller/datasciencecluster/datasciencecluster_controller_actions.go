@@ -91,10 +91,10 @@ func cleanupDisabledComponents(ctx context.Context, rr *odhtype.ReconciliationRe
 
 	reverseBatches, err := provision.DefaultRegistry().ReverseBatches()
 	if err != nil {
-		log.Error(err, "DAG reverse resolution failed, skipping component cleanup")
-
-		return nil
+		return fmt.Errorf("DAG reverse resolution failed during component cleanup: %w", err)
 	}
+
+	var errs []error
 
 	for _, batch := range reverseBatches {
 		for _, entry := range provision.ComponentsInBatch(batch) {
@@ -109,11 +109,12 @@ func cleanupDisabledComponents(ctx context.Context, rr *odhtype.ReconciliationRe
 
 			if err := deleteComponentCR(ctx, rr.Client, handler, instance); err != nil {
 				log.Error(err, "failed to delete component CR", "component", handler.GetName())
+				errs = append(errs, err)
 			}
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 func deleteComponentCR(ctx context.Context, cli client.Client, handler cr.ComponentHandler, owner client.Object) error {
@@ -184,12 +185,16 @@ func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationReq
 			if !enabledModules[handler.GetName()] {
 				if delErr := handler.DeleteModuleCR(ctx, rr.Client); delErr != nil {
 					log.Error(delErr, "DeleteModuleCR failed", "module", handler.GetName())
+
+					return delErr
 				}
 			}
 
 			return nil
 		})
 	}
+
+	var errs []error
 
 	for _, batch := range reverseBatches {
 		for _, entry := range provision.ModulesInBatch(batch) {
@@ -204,11 +209,12 @@ func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationReq
 
 			if err := handler.DeleteModuleCR(ctx, rr.Client); err != nil {
 				log.Error(err, "DeleteModuleCR failed", "module", handler.GetName())
+				errs = append(errs, err)
 			}
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 // provisionComponents iterates over all enabled components and creates

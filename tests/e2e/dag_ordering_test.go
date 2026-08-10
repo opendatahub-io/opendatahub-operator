@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -10,6 +11,8 @@ import (
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -138,10 +141,9 @@ func dagOrderingTestSuite(t *testing.T) {
 	ctx.setAllRemoved(t)
 	ctx.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
 
-	// Final cleanup: ensure cluster is left clean regardless of test outcomes
 	t.Cleanup(func() {
-		t.Log("Cleanup: setting all components to Removed")
-		// ctx.setAllRemoved(t)
+		t.Log("Cleanup: setting all components to Removed and deleting quota")
+		ctx.setAllRemoved(t)
 		ctx.deleteDAGQuota()
 	})
 
@@ -364,16 +366,12 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 			if !comp.internal {
 				continue
 			}
-			instanceName := tc.GetInstanceName(comp.gvk)
+			instanceName := tc.findFirstCRName(t, comp.gvk)
 			if instanceName == "" {
+				t.Logf("No %s CRs found, skipping readiness check", comp.gvk.Kind)
 				continue
 			}
-			u := tc.FetchResource(
-				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
-			)
-			if u == nil {
-				continue
-			}
+
 			tc.EnsureResourceExists(
 				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
 				WithCondition(jq.Match(
@@ -1004,6 +1002,22 @@ func (tc *DAGOrderingTestCtx) patchSubscriptionEnvVarRemovals(t *testing.T, envN
 	return true
 }
 
+// findFirstCRName lists CRs of the given GVK and returns the name of the first one.
+// Returns empty string if none exist.
+func (tc *DAGOrderingTestCtx) findFirstCRName(t *testing.T, gvk schema.GroupVersionKind) string {
+	t.Helper()
+
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk.GroupVersion().WithKind(gvk.Kind + "List"))
+	require.NoError(t, tc.Client().List(tc.Context(), list), "failed to list %s CRs", gvk.Kind)
+
+	if len(list.Items) == 0 {
+		return ""
+	}
+
+	return list.Items[0].GetName()
+}
+
 // findSubscription returns the operator Subscription, or nil if not found.
 func (tc *DAGOrderingTestCtx) findSubscription(t *testing.T) *ofapi.Subscription {
 	t.Helper()
@@ -1011,7 +1025,10 @@ func (tc *DAGOrderingTestCtx) findSubscription(t *testing.T) *ofapi.Subscription
 	subList := &ofapi.SubscriptionList{}
 	err := tc.Client().List(tc.Context(), subList, client.InNamespace(tc.OperatorNamespace))
 	if err != nil {
-		return nil
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+			return nil
+		}
+		require.NoError(t, err, "failed to list Subscriptions")
 	}
 
 	subIdx := slices.IndexFunc(subList.Items, func(sub ofapi.Subscription) bool {
@@ -1042,11 +1059,11 @@ func (tc *DAGOrderingTestCtx) patchDeploymentEnvVars(t *testing.T, toSet []corev
 		WithMutateFunc(func(obj *unstructured.Unstructured) error {
 			containers, _, _ := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "containers")
 			if len(containers) == 0 {
-				return nil
+				return errors.New("operator Deployment has no containers")
 			}
 			container, ok := containers[0].(map[string]any)
 			if !ok {
-				return nil
+				return errors.New("first container is not a map[string]any")
 			}
 			env, _ := container["env"].([]any)
 
@@ -1163,14 +1180,11 @@ func (tc *DAGOrderingTestCtx) touchModuleCRs(t *testing.T) {
 				WithCustomErrorMsg("ConfigMap %s should have %s=%s", cmName, modules.PlatformVersionKey, deployedVersion),
 			)
 
-			list := &unstructured.UnstructuredList{}
-			list.SetGroupVersionKind(comp.gvk.GroupVersion().WithKind(comp.gvk.Kind + "List"))
-			if err := tc.Client().List(tc.Context(), list); err != nil || len(list.Items) == 0 {
+			instanceName := tc.findFirstCRName(t, comp.gvk)
+			if instanceName == "" {
 				t.Logf("No %s CRs found, skipping touch", comp.gvk.Kind)
 				continue
 			}
-
-			instanceName := list.Items[0].GetName()
 			tc.EventuallyResourcePatched(
 				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
 				WithMutateFunc(func(obj *unstructured.Unstructured) error {

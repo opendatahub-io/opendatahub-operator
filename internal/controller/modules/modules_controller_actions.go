@@ -430,7 +430,11 @@ func evaluateModulesStatus(ctx context.Context, rr *odhtype.ReconciliationReques
 				submodules: submodules,
 			})
 
-			if crState, err := handler.GetModuleCRState(ctx, rr.Client); err == nil && crState != CRStateAbsent {
+			crState, crErr := handler.GetModuleCRState(ctx, rr.Client)
+			if crErr != nil {
+				log.V(1).Info("failed to get module CR state for disabled module", "module", name, "error", crErr)
+				eval.pendingCleanup = append(eval.pendingCleanup, name)
+			} else if crState != CRStateAbsent {
 				eval.pendingCleanup = append(eval.pendingCleanup, name)
 			}
 

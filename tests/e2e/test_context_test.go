@@ -1493,6 +1493,15 @@ func (tc *TestContext) IsXKS() bool {
 	return cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes
 }
 
+// SkipIfXKSCluster is used to skip a test if the platform where its being executed is XKS.
+func (tc *TestContext) SkipIfXKSCluster(t *testing.T) {
+	t.Helper()
+
+	if tc.IsXKS() {
+		t.Skip("Skipping test because it is not supported on XKS platform")
+	}
+}
+
 // EnsurePlatformCR creates the Platform CR if it does not exist. On
 // OpenShift the DSC controller creates it via syncPlatformCR; on xKS
 // there is no DSC controller so the E2E test must create it.
@@ -1512,15 +1521,6 @@ func (tc *TestContext) EnsurePlatformCR(t *testing.T) {
 		WithObjectToCreate(platform),
 		WithEventuallyTimeout(30*time.Second),
 	)
-}
-
-// SkipIfXKSCluster is used to skip a test if the platform where its being executed is XKS.
-func (tc *TestContext) SkipIfXKSCluster(t *testing.T) {
-	t.Helper()
-
-	if tc.IsXKS() {
-		t.Skip("Skipping test because it is not supported on XKS platform")
-	}
 }
 
 // SetModuleStateInPlatformCR patches the Platform CR to set a module's

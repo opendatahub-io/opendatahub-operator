@@ -73,7 +73,7 @@ func commonActions() []actions.Fn {
 func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	b := reconciler.ReconcilerFor(mgr, &configv1alpha1.Platform{}).
 		WithInstanceName("modules").
-		WithDynamicOwnership(reconciler.WithGVKPredicates(moduleStatusPredicates())).
+		WithDynamicOwnership().
 		WithAction(enableModulesFromPlatform)
 
 	platformRequest := []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configv1alpha1.PlatformInstanceName}}}
@@ -125,14 +125,14 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		b = b.WithAction(a)
 	}
 
-	rec, err := b.WithConditions(
+	_, err := b.WithConditions(
 		status.ConditionTypeModulesReady,
 		status.ConditionTypeProvisioningProgress,
 	).Build(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create platform controller: %w", err)
 	}
-	registerModuleCROwnedTypes(rec)
+
 	return nil
 }
 

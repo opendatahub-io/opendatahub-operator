@@ -56,7 +56,7 @@ func NewHandler() *handler {
 }
 
 func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
-	if dscCtx == nil || dscCtx.DSC == nil {
+	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
 	pm.Dashboard.ManagementState = dscCtx.DSC.Spec.Components.Dashboard.ManagementState
@@ -69,7 +69,7 @@ func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
 }
 
 // BuildModuleCR projects user-facing DSC dashboard configuration and platform
-// fields from PlatformContext onto the module CR.
+// fields from DSCContext and ModuleCRConfig onto the module CR.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,

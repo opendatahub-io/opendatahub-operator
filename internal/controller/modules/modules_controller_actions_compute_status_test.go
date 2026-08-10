@@ -13,6 +13,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -73,8 +74,11 @@ func newStatusTestHandler(name, kind string, enabled bool, ms *ModuleStatus) *st
 
 // setupStatusTest creates a test reconciliation request with per-module
 // conditions declared as dependents (simulates DSC controller).
+// Uses DataScienceCluster as instance since ComputeModulesStatusDetailed
+// requires it.
 func setupStatusTest(t *testing.T, handlers ...*statusTestHandler) (*odhtype.ReconciliationRequest, func()) {
 	t.Helper()
+	g := NewWithT(t)
 
 	condTypes := make([]string, 0, len(handlers)+1)
 	for _, h := range handlers {
@@ -82,17 +86,42 @@ func setupStatusTest(t *testing.T, handlers ...*statusTestHandler) (*odhtype.Rec
 	}
 	condTypes = append(condTypes, status.ConditionTypeModulesReady)
 
-	return setupStatusTestWithCondTypes(t, condTypes, handlers...)
+	oldR := r
+	r = &Registry{}
+	for _, h := range handlers {
+		r.Add(h)
+	}
+
+	dsc := &dscv2.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "default-dsc"},
+	}
+
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{Name: "default-dsci"},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: "test-ns",
+		},
+	}
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	cm := conditions.NewManager(dsc, status.ConditionTypeReady, condTypes...)
+
+	rr := &odhtype.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		Conditions: cm,
+		Release:    common.Release{Name: cluster.OpenDataHub},
+	}
+
+	return rr, func() { r = oldR }
 }
 
 // setupStatusTestAggregateOnly creates a test reconciliation request
 // with only aggregate ModulesReady declared (simulates Platform controller).
+// Uses Platform as instance since computeModulesStatusAggregate requires it.
 func setupStatusTestAggregateOnly(t *testing.T, handlers ...*statusTestHandler) (*odhtype.ReconciliationRequest, func()) {
-	t.Helper()
-	return setupStatusTestWithCondTypes(t, []string{status.ConditionTypeModulesReady}, handlers...)
-}
-
-func setupStatusTestWithCondTypes(t *testing.T, condTypes []string, handlers ...*statusTestHandler) (*odhtype.ReconciliationRequest, func()) {
 	t.Helper()
 	g := NewWithT(t)
 
@@ -116,7 +145,7 @@ func setupStatusTestWithCondTypes(t *testing.T, condTypes []string, handlers ...
 	cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	cm := conditions.NewManager(platform, status.ConditionTypeReady, condTypes...)
+	cm := conditions.NewManager(platform, status.ConditionTypeReady, status.ConditionTypeModulesReady)
 
 	rr := &odhtype.ReconciliationRequest{
 		Client:     cli,
@@ -125,9 +154,7 @@ func setupStatusTestWithCondTypes(t *testing.T, condTypes []string, handlers ...
 		Release:    common.Release{Name: cluster.OpenDataHub},
 	}
 
-	cleanup := func() { r = oldR }
-
-	return rr, cleanup
+	return rr, func() { r = oldR }
 }
 
 func TestComputeModulesStatusDetailed_AllReady(t *testing.T) {

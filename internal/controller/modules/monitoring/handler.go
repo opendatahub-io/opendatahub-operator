@@ -46,7 +46,7 @@ func NewHandler() *handler {
 }
 
 func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
-	if dscCtx == nil || dscCtx.DSCI == nil {
+	if pm == nil || dscCtx == nil || dscCtx.DSCI == nil {
 		return
 	}
 	pm.Monitoring.ManagementState = dscCtx.DSCI.Spec.Monitoring.ManagementState

@@ -127,7 +127,7 @@ func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) module
 }
 
 func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
-	if dscCtx == nil || dscCtx.DSC == nil {
+	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
 	pm.Kserve.ManagementState = dscCtx.DSC.Spec.Components.Kserve.ManagementState

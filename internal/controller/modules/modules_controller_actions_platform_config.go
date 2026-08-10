@@ -61,8 +61,9 @@ func PlatformConfigName(moduleName string) string {
 // enforced via SSA on every reconcile — external modifications are
 // reverted.
 //
-// TODO(dag): module operators currently only read platformVersion on
-// startup. When the platform version changes (upgrade), module operator
+// TODO(dag): module operators which mount the ConfigMap as volume will only
+// read platformVersion on startup.
+// When the platform version changes (upgrade), module operator
 // pods must be restarted for the version handshake to complete. The
 // platform controller should annotate module Deployments with a configmap
 // hash (e.g. pod template annotation) so that a version change triggers

@@ -20,17 +20,18 @@ package datasciencecluster
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -42,15 +43,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 	b := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
 		WithDynamicOwnership(
 			reconciler.WithDefaultPredicates(componentsPredicate),
-		).
-		Owns(&componentApi.Ray{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.ModelRegistry{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.TrustyAI{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.Kueue{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.TrainingOperator{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.Trainer{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.DataSciencePipelines{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.SparkOperator{}, reconciler.WithPredicates(componentsPredicate))
+		)
 
 	_ = modules.ForAll(func(h modules.ModuleHandler, _ bool) error {
 		moduleGVK := h.GetGVK()
@@ -75,7 +68,15 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
 				return watchDataScienceClusters(ctx, mgr.GetClient())
 			}),
-			reconciler.WithPredicates(resources.GatewayConfigDomainChanged()))
+			reconciler.WithPredicates(resources.GatewayConfigDomainChanged())).
+		Watches(
+			&corev1.ConfigMap{},
+			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
+				return watchDataScienceClusters(ctx, mgr.GetClient())
+			}),
+			reconciler.WithPredicates(
+				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
+			))
 
 	b = modules.AddModuleCRDWatches(b, func(ctx context.Context, _ client.Object) []reconcile.Request {
 		return watchDataScienceClusters(ctx, mgr.GetClient())
