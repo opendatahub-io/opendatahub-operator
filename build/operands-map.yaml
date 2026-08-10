@@ -10,7 +10,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE
   value: "quay.io/rhoai/odh-built-in-detector-rhel9@sha256:0b68a08fa62481d51463cfee84d6871ca0c8e509bb5a181bf021140e865631d2"
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
-  value: "quay.io/rhoai/odh-cli-rhel9@sha256:35f6e580b86d3be86df0d1ff0df2d8a66544fe688ffeac267626b17c9cc6b6e3"
+  value: "quay.io/rhoai/odh-cli-rhel9@sha256:4d9524afa9c76095d96c50fc538bb46c1a5151edceb3a46e0c7b7a61c3de8d51"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
   value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:cbb38df3db8e02455e1bb2d89e9f8c19e5a3b3418ec21592c6e64adc2c60ed2a"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
