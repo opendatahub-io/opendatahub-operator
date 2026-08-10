@@ -1,7 +1,11 @@
 name: Check PR release label and JIRA link
 on:
   pull_request:
-    types: [opened, edited, labeled, unlabeled, synchronize]
+    types: [opened, edited, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   check-pr-requirements:
@@ -22,71 +26,42 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
-            const { owner, repo } = context.repo;
-            const prNumber = context.payload.pull_request.number;
+            const prBody = context.payload.pull_request.body || '';
 
-            const { data: pr } = await github.rest.pulls.get({
-              owner,
-              repo,
-              pull_number: prNumber,
-            });
+            // The `Release:` field in the PR description is the source of truth.
+            // Setting it is optional; it means the PR should be prioritized for
+            // that release, and the auto-labeler applies the matching label.
+            const match = prBody.match(/^Release:\s*(rhoai-\d+\.\d+(?:ea\d+)?)\s*$/m);
+            const targetRelease = match ? match[1] : null;
 
-            const prBody = pr.body || '';
-            const errors = [];
-
-            // Check for release label
-            const { data: labels } = await github.rest.issues.listLabelsOnIssue({
-              owner,
-              repo,
-              issue_number: prNumber,
-            });
-
-            const hasReleaseLabel = labels.some(l => /^rhoai-\d+\.\d+(ea\d+)?$/.test(l.name));
-            if (!hasReleaseLabel) {
-              errors.push({
-                title: 'Missing release label',
-                detail: [
-                  'Every PR must have a release label (e.g., `rhoai-3.6`, `rhoai-3.7ea1`).',
-                  '',
-                  '**How to fix:**',
-                  '1. Edit the PR description and set the `Release:` field to your target release',
-                  '   (e.g., `Release: rhoai-3.6`). A CI workflow will apply the label automatically.',
-                  '2. Or ask a maintainer to add the label manually.',
-                ].join('\n'),
-              });
+            // No release target set — release and Jira are both optional. Pass.
+            if (!targetRelease) {
+              let summary = '## ✅ PR Requirements Check Passed\n\n';
+              summary += '- No release target set — release label and Jira link are optional\n';
+              await core.summary.addRaw(summary).write();
+              console.log('No release target set; nothing required');
+              return;
             }
 
-            // Check for JIRA URL
+            // A release target is set, so a Jira link is required.
             const hasJiraUrl = /https:\/\/redhat\.atlassian\.net\/browse\/[A-Z]+-\d+/.test(prBody);
             if (!hasJiraUrl) {
-              errors.push({
-                title: 'Missing JIRA link',
-                detail: [
-                  'Every PR must include a JIRA ticket URL in the description.',
-                  '',
-                  '**How to fix:**',
-                  'Edit the PR description and fill in the `Jira:` field with a valid JIRA URL, e.g.:',
-                  '`Jira: https://redhat.atlassian.net/browse/RHOAIENG-12345`',
-                ].join('\n'),
-              });
-            }
-
-            // Report results
-            if (errors.length > 0) {
               let summary = '## ❌ PR Requirements Check Failed\n\n';
-              for (const err of errors) {
-                summary += `### ${err.title}\n\n${err.detail}\n\n`;
-              }
+              summary += '### Missing Jira link\n\n';
+              summary += `You set a release target (\`${targetRelease}\`), so a Jira link is required.\n\n`;
+              summary += '**How to fix:**\n';
+              summary += 'Edit the PR description and fill in the `Jira:` field with a valid Jira URL, e.g.:\n';
+              summary += '`Jira: https://redhat.atlassian.net/browse/RHOAIENG-12345`\n\n';
+              summary += 'Or remove the `Release:` field if this PR does not need to ship in a specific release.\n\n';
               summary += '---\n';
-              summary += '*This check is required before merge. Bot PRs and automated branches are exempt.*\n';
-
+              summary += '*Bot PRs and automated branches are exempt.*\n';
               await core.summary.addRaw(summary).write();
-              core.setFailed(`Missing: ${errors.map(e => e.title).join(', ')}`);
-            } else {
-              let summary = '## ✅ PR Requirements Check Passed\n\n';
-              summary += `- Release label: \`${labels.find(l => /^rhoai-\d+\.\d+(ea\d+)?$/.test(l.name)).name}\`\n`;
-              summary += '- JIRA link: found\n';
-
-              await core.summary.addRaw(summary).write();
-              console.log('All PR requirements met');
+              core.setFailed('Release target set but no Jira link found');
+              return;
             }
+
+            let summary = '## ✅ PR Requirements Check Passed\n\n';
+            summary += `- Release target: \`${targetRelease}\`\n`;
+            summary += '- Jira link: found\n';
+            await core.summary.addRaw(summary).write();
+            console.log('All PR requirements met');
