@@ -125,4 +125,3 @@ func sectionTitle(platformName common.Platform) string {
 	}
 	return "MLflow"
 }
-

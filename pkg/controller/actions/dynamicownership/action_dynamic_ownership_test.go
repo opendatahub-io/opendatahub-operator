@@ -548,10 +548,10 @@ func TestDynamicOwnershipAction_WithDefaultPredicates(t *testing.T) {
 
 	ns := xid.New().String()
 	cmName := xid.New().String()
-	deploymentName := xid.New().String()
+	secretName := xid.New().String()
 
 	cm := createConfigMap(t, g, cmName, ns)
-	deployment := createDeployment(t, g, deploymentName, ns)
+	secret := createSecret(t, g, secretName, ns)
 
 	type watchCall struct {
 		gvk        string
@@ -585,7 +585,7 @@ func TestDynamicOwnershipAction_WithDefaultPredicates(t *testing.T) {
 				Name: "test-dashboard",
 			},
 		},
-		Resources: []unstructured.Unstructured{*cm, *deployment},
+		Resources: []unstructured.Unstructured{*cm, *secret},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("IsDynamicOwnershipEnabled").Return(true)
 			m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
@@ -597,6 +597,9 @@ func TestDynamicOwnershipAction_WithDefaultPredicates(t *testing.T) {
 
 	g.Expect(watchCalls).To(HaveLen(2))
 
+	// Both ConfigMap and Secret should use the custom default predicate
+	// (Deployments have a built-in override in the framework, so we avoid
+	// using them here to test default predicate behavior cleanly).
 	for _, call := range watchCalls {
 		g.Expect(call.predicates).To(HaveLen(1),
 			"GVK %s should use default predicate", call.gvk)

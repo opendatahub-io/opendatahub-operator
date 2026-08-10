@@ -15,8 +15,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func newReconciliationRequest(instance common.PlatformObject, ver string, skipDeploy bool) types.ReconciliationRequest {
-	sv := semver.MustParse(ver)
+func newReconciliationRequest(instance common.PlatformObject, skipDeploy bool) types.ReconciliationRequest {
+	sv := semver.MustParse("2.5.0")
 
 	return types.ReconciliationRequest{
 		Instance:   instance,
@@ -31,7 +31,7 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		ctx := t.Context()
 
 		instance := &componentApi.Ray{ObjectMeta: metav1.ObjectMeta{Name: "default-ray"}}
-		rr := newReconciliationRequest(instance, "2.5.0", false)
+		rr := newReconciliationRequest(instance, false)
 
 		fn := platformrelease.NewPostStatusFn()
 		err := fn(ctx, &rr, true)
@@ -49,7 +49,7 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		ctx := t.Context()
 
 		instance := &componentApi.Ray{ObjectMeta: metav1.ObjectMeta{Name: "default-ray"}}
-		rr := newReconciliationRequest(instance, "2.5.0", false)
+		rr := newReconciliationRequest(instance, false)
 
 		fn := platformrelease.NewPostStatusFn()
 		err := fn(ctx, &rr, false)
@@ -65,7 +65,7 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		ctx := t.Context()
 
 		instance := &componentApi.Ray{ObjectMeta: metav1.ObjectMeta{Name: "default-ray"}}
-		rr := newReconciliationRequest(instance, "2.5.0", true)
+		rr := newReconciliationRequest(instance, true)
 
 		fn := platformrelease.NewPostStatusFn()
 		err := fn(ctx, &rr, true)
@@ -86,7 +86,7 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 			{Name: common.PlatformReleaseName, Version: "2.0.0"},
 		})
 
-		rr := newReconciliationRequest(instance, "2.5.0", false)
+		rr := newReconciliationRequest(instance, false)
 
 		fn := platformrelease.NewPostStatusFn()
 		err := fn(ctx, &rr, true)
@@ -108,7 +108,7 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 			{Name: "ray", Version: "1.0.0"},
 		})
 
-		rr := newReconciliationRequest(instance, "2.5.0", false)
+		rr := newReconciliationRequest(instance, false)
 
 		fn := platformrelease.NewPostStatusFn()
 		err := fn(ctx, &rr, true)
@@ -119,5 +119,4 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		g.Expect(*releases).To(HaveLen(2))
 		g.Expect((*releases)[1]).To(Equal(common.ComponentRelease{Name: common.PlatformReleaseName, Version: "2.5.0"}))
 	})
-
 }

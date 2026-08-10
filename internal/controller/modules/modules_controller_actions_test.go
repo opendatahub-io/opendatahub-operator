@@ -573,7 +573,7 @@ func TestComputeModulesStatusRequeuesOnCRDAbsent(t *testing.T) {
 		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
-	err = ComputeModulesStatus(context.Background(), rr)
+	err = ComputeModulesStatusDetailed(context.Background(), rr)
 
 	// Must return a RequeueAfterError so the controller retries.
 	var requeueErr odherrors.RequeueAfterError
@@ -630,7 +630,7 @@ func TestComputeModulesStatusNoRequeueOnRegularError(t *testing.T) {
 		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
-	err = ComputeModulesStatus(context.Background(), rr)
+	err = ComputeModulesStatusDetailed(context.Background(), rr)
 
 	// Regular errors should NOT trigger a requeue.
 	if err != nil {

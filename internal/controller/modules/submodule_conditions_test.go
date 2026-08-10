@@ -43,10 +43,6 @@ func newTestRR() (*odhtype.ReconciliationRequest, *conditions.Manager) {
 	}, mgr
 }
 
-func newTestPlatformCtx() *PlatformContext {
-	return &PlatformContext{}
-}
-
 func newTestDSCCtx() *DSCContext {
 	return &DSCContext{
 		DSC: &dscv2.DataScienceCluster{},

@@ -23,10 +23,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
-
 
 func isNilInterface(v any) bool {
 	return v == nil || (reflect.ValueOf(v).Kind() == reflect.Pointer && reflect.ValueOf(v).IsNil())
@@ -77,7 +76,6 @@ func syncPlatformCR(_ context.Context, rr *odhtype.ReconciliationRequest) error 
 
 	return rr.AddResources(platform)
 }
-
 
 // cleanupDisabledComponents deletes component CRs for disabled components
 // in reverse batch order. Higher-RL components are cleaned up before

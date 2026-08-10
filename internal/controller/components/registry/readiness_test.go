@@ -133,8 +133,8 @@ func TestReadinessChecker_VersionHandshake_MatchingVersion(t *testing.T) {
 	cr := &unstructured.Unstructured{}
 	cr.SetGroupVersionKind(testGVK)
 	cr.SetName("default-comp")
-	_ = unstructured.SetNestedSlice(cr.Object, []interface{}{
-		map[string]interface{}{
+	_ = unstructured.SetNestedSlice(cr.Object, []any{
+		map[string]any{
 			"name":    "platform",
 			"version": "2.0.0",
 		},
@@ -157,8 +157,8 @@ func TestReadinessChecker_VersionHandshake_MismatchBlocks(t *testing.T) {
 	cr := &unstructured.Unstructured{}
 	cr.SetGroupVersionKind(testGVK)
 	cr.SetName("default-comp")
-	_ = unstructured.SetNestedSlice(cr.Object, []interface{}{
-		map[string]interface{}{
+	_ = unstructured.SetNestedSlice(cr.Object, []any{
+		map[string]any{
 			"name":    "platform",
 			"version": "1.0.0",
 		},

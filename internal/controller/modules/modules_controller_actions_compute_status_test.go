@@ -3,7 +3,7 @@ package modules
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -76,7 +76,7 @@ func newStatusTestHandler(name, kind string, enabled bool, ms *ModuleStatus) *st
 func setupStatusTest(t *testing.T, handlers ...*statusTestHandler) (*odhtype.ReconciliationRequest, func()) {
 	t.Helper()
 
-	var condTypes []string
+	condTypes := make([]string, 0, len(handlers)+1)
 	for _, h := range handlers {
 		condTypes = append(condTypes, h.GetGVK().Kind+status.ReadySuffix)
 	}
@@ -232,7 +232,7 @@ func TestComputeModulesStatusDetailed_StatusError(t *testing.T) {
 	g := NewWithT(t)
 
 	h1 := newStatusTestHandler("gw", "AIGateway", true, nil)
-	h1.statusErr = fmt.Errorf("CR not found")
+	h1.statusErr = errors.New("CR not found")
 
 	rr, cleanup := setupStatusTest(t, h1)
 	defer cleanup()

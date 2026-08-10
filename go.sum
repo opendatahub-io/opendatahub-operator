@@ -191,14 +191,8 @@ github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJw
 github.com/opencontainers/image-spec v1.1.1/go.mod h1:qpqAh3Dmcf36wStyyWU+kCeDgrGnAve2nCC8+7h8Q0M=
 github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a h1:MQWRo9YDTNsJh+82XWkDhqxQEJcd0I4vScIArwVIDCU=
 github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a/go.mod h1:uMYnqqPwy+1ub8me0YMZRZ1vrUQY9jS9nMcUXLBp88k=
-github.com/opendatahub-io/odh-platform-utilities/framework v0.0.0-20260805122551-b8da1945829a h1:9Zg6+Pm2wLQ7S+5y9KdDs43ganC3OLEDW7hJmi+/ITE=
-github.com/opendatahub-io/odh-platform-utilities/framework v0.0.0-20260805122551-b8da1945829a/go.mod h1:Y1ikx4tFljFiTf15gsOtFmjHmtp/DF7Mbhl2xO4i/rk=
 github.com/opendatahub-io/odh-platform-utilities/framework v0.0.0-20260810103007-dd94df3e806f h1:y9wZsjvM92IhvEhjRSd2SjH5GDFxDpwnQAE+xp3A7zU=
 github.com/opendatahub-io/odh-platform-utilities/framework v0.0.0-20260810103007-dd94df3e806f/go.mod h1:PD+ImhLaGrGvjPcuDQHWvofvQyZtD6ZFGoGQIa8yCJo=
-github.com/opendatahub-io/odh-platform-utilities/framework v0.1.0 h1:jRKIPs6iOVNO97Oc/dq/8a3TSCZr5gFk+SU33LcUsKE=
-github.com/opendatahub-io/odh-platform-utilities/framework v0.1.0/go.mod h1:/nIqgY+gC69mclLgIK1Nu6aa3n4qNwuciySSKZx0A8E=
-github.com/openshift/api v0.0.0-20260317165824-54a3998d81eb h1:iwBR3mzmyE3EMFx7R3CQ9lOccTS0dNht8TW82aGITg0=
-github.com/openshift/api v0.0.0-20260317165824-54a3998d81eb/go.mod h1:pyVjK0nZ4sRs4fuQVQ4rubsJdahI1PB94LnQ8sGdvxo=
 github.com/openshift/api v0.0.0-20260610192510-1b2a074e0bd6 h1:W8yZzA6a8zTNOq+pzUAKJmpZCyxP8rTjRaLC0aLap/8=
 github.com/openshift/api v0.0.0-20260610192510-1b2a074e0bd6/go.mod h1:pyVjK0nZ4sRs4fuQVQ4rubsJdahI1PB94LnQ8sGdvxo=
 github.com/openshift/controller-runtime-common v0.0.0-20260428152732-64ee174f5e2e h1:k89oIo2EjX0PRSdi1kesktCyWp50SC9WwKurvupvRGs=
@@ -241,8 +235,6 @@ github.com/sirupsen/logrus v1.9.4 h1:TsZE7l11zFCLZnZ+teH4Umoq5BhEIfIzfRDZ1Uzql2w
 github.com/sirupsen/logrus v1.9.4/go.mod h1:ftWc9WdOfJ0a92nsE2jF5u5ZwH8Bv2zdeOC42RjbV2g=
 github.com/sourcegraph/conc v0.3.0 h1:OQTbbt6P72L20UqAkXXuLOj79LfEanQ+YQFNpLA9ySo=
 github.com/sourcegraph/conc v0.3.0/go.mod h1:Sdozi7LEKbFPqYX2/J+iBAM6HpqSLTASQIKqDmF7Mt0=
-github.com/spf13/afero v1.12.0 h1:UcOPyRBYczmFn6yvphxkn9ZEOY65cpwGKb5mL36mrqs=
-github.com/spf13/afero v1.12.0/go.mod h1:ZTlWwG4/ahT8W7T0WQ5uYmjI9duaLQGy3Q2OAl4sk/4=
 github.com/spf13/afero v1.15.0 h1:b/YBCLWAJdFWJTN9cLhiXXcD7mzKn9Dm86dNnfyQw1I=
 github.com/spf13/afero v1.15.0/go.mod h1:NC2ByUVxtQs4b3sIUphxK0NioZnmxgyCrfzeuq8lxMg=
 github.com/spf13/cast v1.10.0 h1:h2x0u2shc1QuLHfxi+cTJvs30+ZAHOGRic8uyGTDWxY=

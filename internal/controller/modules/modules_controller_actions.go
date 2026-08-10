@@ -264,7 +264,6 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 		return odherrors.NewRequeueAfterError(requeueAfter)
 	}
 
-
 	return nil
 }
 
