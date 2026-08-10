@@ -4,7 +4,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE
   value: "quay.io/rhoai/odh-ai-gateway-payload-processing-rhel9@sha256:84cee292c03e579ed79ed3d2e6813ad69b23c1a60303c7e341bf125ebab7e7ae"
 - name: RELATED_IMAGE_ODH_AUTOML_IMAGE
-  value: "quay.io/rhoai/odh-automl-rhel9@sha256:ee9575e1a766184eb8a9b8214ff7b29ae8002e5c8f493d5317291b765a65a541"
+  value: "quay.io/rhoai/odh-automl-rhel9@sha256:dffd44e1782fdc54aa3b71eb4dad30a5d149c9785bd59c794d5583da5cd43b8b"
 - name: RELATED_IMAGE_ODH_AUTORAG_IMAGE
   value: "quay.io/rhoai/odh-autorag-rhel9@sha256:b62ed041b65f2388e310c9ca61ee0eb5ed12e42cb6be4cdb65946dd1d7eebcaf"
 - name: RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE
@@ -80,9 +80,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_LLM_D_ROUTER_ENDPOINT_PICKER_IMAGE
   value: "quay.io/rhoai/odh-llm-d-router-endpoint-picker-rhel9@sha256:51a847d36074d987ef861de2be83c54ad15c9e4afdbb697f30fef03f7ea0e688"
 - name: RELATED_IMAGE_ODH_MAAS_API_IMAGE
-  value: "quay.io/rhoai/odh-maas-api-rhel9@sha256:0dfc2c612646659e8e1cf3412cf60e40708b991744d3de5a550ee7c383e1268d"
+  value: "quay.io/rhoai/odh-maas-api-rhel9@sha256:a47fe00614f35599e1073a3e8fc11fc0a9550949ce4f30765f8703b3146ef713"
 - name: RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-maas-controller-rhel9@sha256:368217eef790d24f14821f6b1c0d2bc8c3ad768752d510103e2fde3c034b9a98"
+  value: "quay.io/rhoai/odh-maas-controller-rhel9@sha256:cbab6fa5177fed8122aec727aef336bbe079374f7c5c61cddf7b143aa43e98ef"
 - name: RELATED_IMAGE_ODH_MCP_LIFECYCLE_MODULE_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-mcp-lifecycle-module-operator-rhel9@sha256:a25ba299ade84a344926bce143e3e7cc5fdc34190a2204628b199ce372c07612"
 - name: RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_IMAGE

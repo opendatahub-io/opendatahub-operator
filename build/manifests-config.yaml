@@ -83,7 +83,7 @@ additional_meta:
     git.commit: 6af13e9880b8d84fcf2bdba8a28689dd5a05fbe9
   odh-automl:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 6cb095ec17e88c4528f3905e6e46d0197fb924b0
+    git.commit: 5740b0e2633716e8efef378ba106b3f4ca688167
   odh-autorag:
     git.url: https://github.com/red-hat-data-services/pipelines-components
     git.commit: 6cb095ec17e88c4528f3905e6e46d0197fb924b0
@@ -182,10 +182,10 @@ additional_meta:
     git.commit: ec3943e421caaf2a92a6a0cedb1bc7d5e93aa5e2
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: a9f335c45b43f1c8a03df4a04ee2cfb6a14510f6
+    git.commit: 930851f3271f510551a51fe469b49637d298c32d
   odh-maas-controller:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: a9f335c45b43f1c8a03df4a04ee2cfb6a14510f6
+    git.commit: 930851f3271f510551a51fe469b49637d298c32d
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
     git.commit: 4ac8f439f98e5ff3ab59f951e00c05860a499867
