@@ -90,7 +90,7 @@ additional_meta:
     git.commit: 798f61c1ed7461038699676747633250b4da60e5
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 830fb6ed2e455666f61f7b9bf1e7d64e7182fe5a
+    git.commit: 2c804bccb35b97d1f300f5e39dd63b615b9f1da6
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 2c804bccb35b97d1f300f5e39dd63b615b9f1da6
@@ -231,10 +231,10 @@ additional_meta:
     git.commit: b2b13075abfe758f9a6179181feb85fbd17fa96d
   odh-mod-arch-agent-ops:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 830fb6ed2e455666f61f7b9bf1e7d64e7182fe5a
+    git.commit: 2c804bccb35b97d1f300f5e39dd63b615b9f1da6
   odh-mod-arch-automl:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: acbcc4ebf42eecceedfb145d58dd3cdac9d68ef9
+    git.commit: 2c804bccb35b97d1f300f5e39dd63b615b9f1da6
   odh-mod-arch-autorag:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: acbcc4ebf42eecceedfb145d58dd3cdac9d68ef9
@@ -243,16 +243,16 @@ additional_meta:
     git.commit: 2c804bccb35b97d1f300f5e39dd63b615b9f1da6
   odh-mod-arch-gen-ai:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 830fb6ed2e455666f61f7b9bf1e7d64e7182fe5a
+    git.commit: 2c804bccb35b97d1f300f5e39dd63b615b9f1da6
   odh-mod-arch-maas:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 830fb6ed2e455666f61f7b9bf1e7d64e7182fe5a
+    git.commit: 2c804bccb35b97d1f300f5e39dd63b615b9f1da6
   odh-mod-arch-mlflow:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 565d6accab762ae7fd5a7f9229b79f41ca5f349c
   odh-mod-arch-model-registry:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 830fb6ed2e455666f61f7b9bf1e7d64e7182fe5a
+    git.commit: 2c804bccb35b97d1f300f5e39dd63b615b9f1da6
   odh-must-gather:
     git.url: https://github.com/red-hat-data-services/must-gather
     git.commit: 5c43d1262cb855d4177ef319b8af3ca756380a10
