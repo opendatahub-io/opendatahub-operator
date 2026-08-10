@@ -445,20 +445,6 @@ class JiraClient:
             log.error("Failed to search Jira: %s", e)
             return None
 
-    def get_template_issue(self) -> dict | None:
-        """Fetch the template issue fields. Read-only."""
-        try:
-            resp = self.session.get(
-                self._api_url(f"issue/{TEMPLATE_ISSUE_KEY}"),
-                params={"fields": "summary,description,priority,labels,issuetype,fixVersions"},
-                timeout=30,
-            )
-            resp.raise_for_status()
-            return resp.json()
-        except requests.RequestException as e:
-            log.error("Failed to fetch template issue %s: %s", TEMPLATE_ISSUE_KEY, e)
-            return None
-
     def create_blocker_bug(
         self,
         jira_component: str,
@@ -761,18 +747,15 @@ def run_triage(args: argparse.Namespace) -> TriageResult:
 
     pr_number = extract_pr_number(args.prow_url)
     if pr_number is None:
-        log.error("Could not extract PR number from Prow URL: %s", args.prow_url)
-        sys.exit(1)
+        raise ValueError(f"Could not extract PR number from Prow URL: {args.prow_url}")
 
     gcs_path = extract_gcs_path(args.prow_url)
     if gcs_path is None:
-        log.error("Could not extract GCS path from Prow URL: %s", args.prow_url)
-        sys.exit(1)
+        raise ValueError(f"Could not extract GCS path from Prow URL: {args.prow_url}")
 
     job_as_name = extract_job_as_name(gcs_path)
     if job_as_name is None:
-        log.error("Could not extract job-as-name from GCS path: %s", gcs_path)
-        sys.exit(1)
+        raise ValueError(f"Could not extract job-as-name from GCS path: {gcs_path}")
 
     context = job_as_name  # e.g. "opendatahub-operator-e2e" or "opendatahub-operator-rhoai-e2e"
 
@@ -987,16 +970,6 @@ def main() -> None:
         help="Run analysis only, skip Jira and PR comment actions",
     )
     parser.add_argument(
-        "--jira-email",
-        default=os.environ.get("JIRA_USER_EMAIL", ""),
-        help="Jira user email (or JIRA_USER_EMAIL env var)",
-    )
-    parser.add_argument(
-        "--jira-token",
-        default=os.environ.get("JIRA_API_TOKEN", ""),
-        help="Jira API token (or JIRA_API_TOKEN env var)",
-    )
-    parser.add_argument(
         "--verbose",
         action="store_true",
         default=False,
@@ -1032,15 +1005,17 @@ def main() -> None:
     print(f"\nMakefile VERSION: {version}")
     print(f"Affects Version:  {affects_version}")
 
+    jira_email = os.environ.get("JIRA_USER_EMAIL", "")
+    jira_token = os.environ.get("JIRA_API_TOKEN", "")
+
+    if not args.dry_run and (not jira_email or not jira_token):
+        raise ValueError("Jira credentials required for non-dry-run mode. Set JIRA_USER_EMAIL and JIRA_API_TOKEN.")
+
     jira_config = JiraConfig(
-        email=args.jira_email,
-        api_token=args.jira_token,
+        email=jira_email,
+        api_token=jira_token,
         dry_run=args.dry_run,
     )
-
-    if not args.dry_run and (not jira_config.email or not jira_config.api_token):
-        log.error("Jira credentials required for non-dry-run mode. Set JIRA_USER_EMAIL and JIRA_API_TOKEN.")
-        sys.exit(1)
 
     jira_client = JiraClient(jira_config)
 
@@ -1072,4 +1047,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (ValueError, FileNotFoundError) as e:
+        log.error("%s", e)
+        sys.exit(1)
