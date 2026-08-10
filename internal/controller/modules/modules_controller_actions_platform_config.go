@@ -3,6 +3,7 @@ package modules
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 
 	corev1 "k8s.io/api/core/v1"
@@ -121,9 +122,7 @@ func buildPlatformConfigMap(name, namespace, platformVersion string, extraParams
 	data := map[string]string{
 		PlatformVersionKey: platformVersion,
 	}
-	for k, v := range extraParams {
-		data[k] = v
-	}
+	maps.Copy(data, extraParams)
 
 	return &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
@@ -151,9 +150,7 @@ func mergePlatformKeys(u *unstructured.Unstructured, platformVersion string, ext
 	}
 
 	data[PlatformVersionKey] = platformVersion
-	for k, v := range extraParams {
-		data[k] = v
-	}
+	maps.Copy(data, extraParams)
 
 	_ = unstructured.SetNestedStringMap(u.Object, data, "data")
 }

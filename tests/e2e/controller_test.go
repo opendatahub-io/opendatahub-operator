@@ -142,7 +142,6 @@ var (
 			{
 				componentApi.DashboardComponentName:            dashboardTestSuite,
 				componentApi.RayComponentName:                  rayTestSuite,
-				componentApi.ModelRegistryComponentName:        modelRegistryTestSuite,
 				componentApi.TrainingOperatorComponentName:     trainingOperatorTestSuite,
 				componentApi.TrainerComponentName:              trainerTestSuite,
 				componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
@@ -157,6 +156,8 @@ var (
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
 				componentApi.KueueComponentName: kueueTestSuite,
+				// ModelRegistry and Kserve are coupled, so must not run with Kserve tests in parallel
+				componentApi.ModelRegistryComponentName: modelRegistryTestSuite,
 			},
 			{
 				// TrustyAI tests depends on KServe, so must not run with Kserve or ModelsAsService tests in parallel

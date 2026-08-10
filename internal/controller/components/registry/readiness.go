@@ -67,7 +67,7 @@ func (c *ComponentReadinessChecker) IsReady(ctx context.Context, name string) (b
 	if c.targetVersion != "" {
 		rv := extractPlatformReleaseVersion(obj)
 		// Platform release version is only set when the component reaches
-		// Ready=True (see reconciler.go setPlatformRelease). A matching
+		// Ready=True (see platformrelease.NewPostStatusFn). A matching
 		// version proves the component was successfully reconciled at this
 		// version — skip the Ready check since transient failures (crashloop,
 		// missing secret) are unrelated to upgrade ordering.
@@ -86,9 +86,8 @@ func extractPlatformReleaseVersion(u *unstructured.Unstructured) string {
 	if !found {
 		return ""
 	}
-
 	for _, item := range releases {
-		entry, ok := item.(map[string]interface{})
+		entry, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}

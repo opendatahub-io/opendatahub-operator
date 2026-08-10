@@ -29,7 +29,7 @@ import (
 
 
 func isNilInterface(v any) bool {
-	return v == nil || (reflect.ValueOf(v).Kind() == reflect.Ptr && reflect.ValueOf(v).IsNil())
+	return v == nil || (reflect.ValueOf(v).Kind() == reflect.Pointer && reflect.ValueOf(v).IsNil())
 }
 
 func checkPreConditions(ctx context.Context, rr *odhtype.ReconciliationRequest) error {

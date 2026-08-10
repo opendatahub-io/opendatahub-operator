@@ -1,0 +1,98 @@
+name: Auto-label PR with release target
+on:
+  pull_request_target:
+    types: [opened, edited]
+
+concurrency:
+  group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  apply-release-label:
+    name: Apply release label from PR description
+    if: >-
+      github.event.pull_request.user.login != 'odh-release-bot[bot]' &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'openshift-merge-bot[bot]' &&
+      github.event.pull_request.user.login != 'red-hat-konflux[bot]' &&
+      github.event.pull_request.user.login != 'github-actions[bot]' &&
+      github.event.pull_request.user.login != 'odh-drs-automation-bot[bot]' &&
+      github.head_ref != 'sync/upgrade-manifest-shas'
+    permissions:
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        with:
+          app-id: ${{ secrets.ODH_DEVOPS_APP_ID }}
+          private-key: ${{ secrets.ODH_DEVOPS_APP_PRIVATE_KEY }}
+      - name: Apply release label
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const { owner, repo } = context.repo;
+            const prNumber = context.payload.pull_request.number;
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: prNumber,
+            });
+            const prBody = pr.body || '';
+
+            const match = prBody.match(/^Release:\s*(rhoai-\d+\.\d+(?:ea\d+)?)\s*$/m);
+            if (!match) {
+              console.log('No release target found in PR description');
+              return;
+            }
+
+            const targetLabel = match[1];
+            console.log(`Found release target: ${targetLabel}`);
+
+            const { data: labels } = await github.rest.issues.listLabelsOnIssue({
+              owner,
+              repo,
+              issue_number: prNumber,
+            });
+
+            const isReleaseLabel = name =>
+              /^rhoai-\d+\.\d+(?:ea\d+)?$/.test(name);
+
+            const staleLabels = labels.filter(
+              l => isReleaseLabel(l.name) && l.name !== targetLabel
+            );
+            for (const label of staleLabels) {
+              console.log(`Removing stale label: ${label.name}`);
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: prNumber,
+                name: label.name,
+              });
+            }
+
+            const alreadyApplied = labels.some(l => l.name === targetLabel);
+            if (alreadyApplied) {
+              console.log(`Label ${targetLabel} already applied`);
+              return;
+            }
+
+            try {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: prNumber,
+                labels: [targetLabel],
+              });
+              console.log(`Applied label: ${targetLabel}`);
+            } catch (error) {
+              if (error.status === 404) {
+                console.log(`Label "${targetLabel}" does not exist in the repository. A maintainer needs to create it first.`);
+                core.warning(`Label "${targetLabel}" does not exist in the repository. A maintainer needs to create it first.`);
+              } else {
+                throw error;
+              }
+            }

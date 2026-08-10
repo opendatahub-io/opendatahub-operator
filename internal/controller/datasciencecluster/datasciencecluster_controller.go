@@ -77,6 +77,10 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 			}),
 			reconciler.WithPredicates(resources.GatewayConfigDomainChanged()))
 
+	b = modules.AddModuleCRDWatches(b, func(ctx context.Context, _ client.Object) []reconcile.Request {
+		return watchDataScienceClusters(ctx, mgr.GetClient())
+	})
+
 	_, err := b.
 		WithAction(checkPreConditions).
 		WithAction(updateStatus).

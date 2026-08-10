@@ -33,6 +33,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/platformrelease"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
@@ -73,13 +74,15 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				),
 			),
 			reconciler.Dynamic(reconciler.CrdExists(gvk.JobSetOperatorV1))).
-		WithPreCondition(precondition.Custom(checkPreConditions, precondition.WithStopReconciliation())).
-		WithPreCondition(precondition.MonitorOperator(precondition.OperatorConfig{
-			OperatorGVK: gvk.JobSetOperatorV1,
-			CRName:      jobSetOperatorCRName,
-			Filter:      jobSetConditionFilter,
+		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
+			precondition.Custom(checkPreConditions, precondition.WithStopReconciliation()),
+			precondition.MonitorOperator(precondition.OperatorConfig{
+				OperatorGVK: gvk.JobSetOperatorV1,
+				CRName:      jobSetOperatorCRName,
+				Filter:      jobSetConditionFilter,
+			}),
 		})).
-		WithPlatformRelease().
+		WithPostStatusFn(platformrelease.NewPostStatusFn()).
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
 		WithAction(checkJobSetCRD).

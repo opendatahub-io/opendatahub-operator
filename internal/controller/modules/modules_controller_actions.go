@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -93,8 +95,8 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 
 	// Monitoring namespace read directly from DSCI or set to empty when no DSCI (xKS).
 	var monitoringNS string
-	if rr.DSCI != nil {
-		monitoringNS = rr.DSCI.Spec.Monitoring.Namespace
+	if dsci := odhtype.GetDSCI(rr); dsci != nil {
+		monitoringNS = dsci.Spec.Monitoring.Namespace
 	}
 
 	modules, err := modulesFromInstance(rr)
@@ -321,23 +323,25 @@ func appendModuleEnvInjection(
 	platformType common.Platform,
 	moduleImages odhtype.ModuleImages,
 ) {
-	if rr.ModuleEnvInjection == nil {
-		rr.ModuleEnvInjection = &odhtype.ModuleEnvInjection{
+	mei := odhtype.GetModuleEnvInjection(rr)
+	if mei == nil {
+		mei = &odhtype.ModuleEnvInjection{
 			ApplicationsNamespace: applicationsNamespace,
 			MonitoringNamespace:   monitoringNamespace,
 			PlatformType:          platformType,
 		}
-	} else if rr.ModuleEnvInjection.ApplicationsNamespace == "" {
-		rr.ModuleEnvInjection.ApplicationsNamespace = applicationsNamespace
+	} else if mei.ApplicationsNamespace == "" {
+		mei.ApplicationsNamespace = applicationsNamespace
 	}
-	if rr.ModuleEnvInjection.MonitoringNamespace == "" {
-		rr.ModuleEnvInjection.MonitoringNamespace = monitoringNamespace
+	if mei.MonitoringNamespace == "" {
+		mei.MonitoringNamespace = monitoringNamespace
 	}
-	if rr.ModuleEnvInjection.PlatformType == "" {
-		rr.ModuleEnvInjection.PlatformType = platformType
+	if mei.PlatformType == "" {
+		mei.PlatformType = platformType
 	}
 
-	rr.ModuleEnvInjection.PerModuleImages = append(rr.ModuleEnvInjection.PerModuleImages, moduleImages)
+	mei.PerModuleImages = append(mei.PerModuleImages, moduleImages)
+	odhtype.SetModuleEnvInjection(rr, mei)
 }
 
 // deploymentNameFor returns the expected Deployment name for a module.
@@ -390,6 +394,7 @@ type modulesEvaluation struct {
 	perModule      []perModuleResult
 	notReady       []string
 	degraded       []string
+	crdAbsent      []string
 	pendingCleanup []string
 	enabledCount   int
 }
@@ -439,6 +444,11 @@ func evaluateModulesStatus(ctx context.Context, rr *odhtype.ReconciliationReques
 		if err != nil {
 			log.V(1).Info("failed to get module status", "module", name, "error", err)
 			eval.notReady = append(eval.notReady, name)
+
+			if meta.IsNoMatchError(err) {
+				eval.crdAbsent = append(eval.crdAbsent, name)
+			}
+
 			eval.perModule = append(eval.perModule, perModuleResult{
 				handler: handler,
 				enabled: true,
@@ -631,6 +641,12 @@ func ComputeModulesStatusDetailed(ctx context.Context, rr *odhtype.Reconciliatio
 	}
 
 	eval.writeAggregateCondition(rr.Conditions)
+
+	if len(eval.crdAbsent) > 0 {
+		log.Info("module CRDs not yet available, requesting requeue",
+			"modules", strings.Join(eval.crdAbsent, ", "))
+		return odherrors.NewRequeueAfterError(30 * time.Second)
+	}
 
 	return nil
 }

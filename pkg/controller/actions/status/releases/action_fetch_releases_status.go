@@ -75,9 +75,8 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 	}
 
 	// Carry forward the platform release entry from the existing
-	// status. This entry is managed by the reconciler (when
-	// WithPlatformRelease is enabled), not by the component metadata
-	// YAML.
+	// status. This entry is managed by the PostStatusFn hook
+	// (platformrelease package), not by the component metadata YAML.
 	result := append([]common.ComponentRelease{}, a.componentReleaseStatus...)
 
 	for _, r := range *obj.GetReleaseStatus() {
