@@ -44,7 +44,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:7ad05740ab00364a5d2e70a09e1a1747a5dfd9425c3e3382f0be9754ba6c86c5"
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:2defb6eb5cd4ba7f1575e13b13faa5d5c099168e94f5733a765f503073df0852"
+  value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:8010b91f9242d8d21748eb8814bb61b9013e414fd3c3d85b3fc769e7d1e40d3f"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
   value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:7db7aadb405d052233ea9da404e28d5f6518ab95696fcb2a4350d6fa21c64488"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
@@ -108,13 +108,13 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_SCHEDULEDWORKFLOW_V2_IMAGE
   value: "quay.io/rhoai/odh-ml-pipelines-scheduledworkflow-v2-rhel9@sha256:4808637069394a334552e9f7d713d752508bd743344923b55f3a64bd27241672"
 - name: RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-model-controller-rhel9@sha256:f5d33a3a0ea51551de06684b949b28e8a1b8be29f09bdc2b73882d15c2086526"
+  value: "quay.io/rhoai/odh-model-controller-rhel9@sha256:e345553d8ccbb2800baf879ec359773c3c0866664e6fc06d19f1e0ad801032f9"
 - name: RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE
-  value: "quay.io/rhoai/odh-model-metadata-collection-rhel9@sha256:afb0dc0538547acdaac33b07839fc781c6f6b4477eaca4d44e9b20b19bcc2719"
+  value: "quay.io/rhoai/odh-model-metadata-collection-rhel9@sha256:8a2716f2d9cc15379eb2283ba4ee3acaaa362b1fc5d16c1235cf43b00b9381da"
 - name: RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE
   value: "quay.io/rhoai/odh-model-performance-data-rhel9@sha256:2a9d465446cb8c02c46a2f6babf200158efb05ef3e586e28e3210b371aaeeead"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE
-  value: "quay.io/rhoai/odh-model-registry-rhel9@sha256:abd5f1a3594c63ce736896106df1f480e0b0f3d8a8685545ddfa9ae1ca8739c3"
+  value: "quay.io/rhoai/odh-model-registry-rhel9@sha256:577f0b348d1d5c594e2694a12915aeecf580e47b9388af3a4f4d4296bb7cfd26"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE
   value: "quay.io/rhoai/odh-model-registry-job-async-upload-rhel9@sha256:6dfe451ee3efb2cfbe6ae106365bfb03fc6890e06aed1535f7c53352435e776e"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE

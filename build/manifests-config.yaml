@@ -134,7 +134,7 @@ additional_meta:
     git.commit: d6ee768437d5ad90ed104b778d121b63fbf3a174
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: d6ee768437d5ad90ed104b778d121b63fbf3a174
+    git.commit: d1dc7fca4c3fb9081bbf64b161a113627cceaf64
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: d6ee768437d5ad90ed104b778d121b63fbf3a174
@@ -218,16 +218,16 @@ additional_meta:
     git.commit: d578ecd157974ca29b1e5ff410ae042ebff82239
   odh-model-controller:
     git.url: https://github.com/red-hat-data-services/odh-model-controller
-    git.commit: 8df08b9e43d7d68d8f0c937339be6ac812d0271d
+    git.commit: b6c9ef6c6e8e2e8cf3fd7bd3b896a646417b8cfe
   odh-model-metadata-collection:
     git.url: https://github.com/red-hat-data-services/model-metadata-collection
-    git.commit: 45fc307523ac1c3b99f9a4c4660b2abb741bc218
+    git.commit: 7ed2e6e3ff43ffb7c90f550c09d4b72c24043b39
   odh-model-performance-data:
     git.url: https://github.com/red-hat-data-services/models-perf-benchmark-data
     git.commit: 3adb98913402f54d241a28a99db6ceac0ab1a710
   odh-model-registry:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: 70d620140d6ce74a1b1afe7382458b7f040cd71f
+    git.commit: d4edf5a1e0d7cd30d610f5a2fc0347ee366392ee
   odh-model-registry-job-async-upload:
     git.url: https://github.com/red-hat-data-services/model-registry
     git.commit: 70d620140d6ce74a1b1afe7382458b7f040cd71f
