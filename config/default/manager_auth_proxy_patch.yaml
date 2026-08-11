@@ -1,5 +1,5 @@
-# This patch inject a sidecar container which is a HTTP proxy for the
-# controller manager, it performs RBAC authorization against the Kubernetes API using SubjectAccessReviews.
+# This patch configures the controller manager with SecureServing metrics
+# and service-ca certificate provisioning on OpenShift.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -12,5 +12,15 @@ spec:
       - name: manager
         args:
         - "--health-probe-bind-address=:8081"
-        - "--metrics-bind-address=0.0.0.0:8080"
+        - "--metrics-bind-address=:8443"
+        - "--metrics-secure=true"
+        - "--metrics-cert-path=/etc/metrics-certs"
         - "--leader-elect"
+        volumeMounts:
+        - name: metrics-cert
+          mountPath: /etc/metrics-certs
+          readOnly: true
+      volumes:
+      - name: metrics-cert
+        secret:
+          secretName: opendatahub-operator-metrics-tls  # pragma: allowlist secret

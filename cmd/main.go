@@ -66,6 +66,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	crtlmanager "sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -473,7 +474,22 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		// This is the default mapper provider, we define it to ensure it remains
 		// consistent with controller-runtime updates. It is needed for the action dynamicownership.
 		MapperProvider: apiutil.NewDynamicRESTMapper,
-		Metrics:        ctrlmetrics.Options{BindAddress: oconfig.MetricsAddr, TLSOpts: tlsOpts},
+		Metrics: func() ctrlmetrics.Options {
+			opts := ctrlmetrics.Options{
+				BindAddress:   oconfig.MetricsAddr,
+				SecureServing: oconfig.MetricsSecure,
+				TLSOpts:       tlsOpts,
+			}
+			if oconfig.MetricsSecure {
+				opts.FilterProvider = filters.WithAuthenticationAndAuthorization
+			}
+			if oconfig.MetricsCertPath != "" {
+				opts.CertDir = oconfig.MetricsCertPath
+				opts.CertName = oconfig.MetricsCertName
+				opts.KeyName = oconfig.MetricsCertKey
+			}
+			return opts
+		}(),
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
 			Port:    9443,
 			TLSOpts: tlsOpts,

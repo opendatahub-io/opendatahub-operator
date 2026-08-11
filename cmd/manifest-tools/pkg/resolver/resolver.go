@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -13,8 +15,9 @@ import (
 )
 
 type Options struct {
-	ConfigFile   string
-	ManifestsDir string
+	ConfigFile          string
+	ManifestsDir        string
+	CSVImportRegistries []string
 }
 
 type Result struct {
@@ -37,6 +40,15 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 	}
 
 	var results []Result
+	var unresolved []Result
+	var csvStale []string
+
+	csvImages, err := FetchCSVRelatedImages(ctx)
+	if err != nil {
+		slog.Warn("Failed to fetch CSV related images, csv fallback disabled", slog.String("error", err.Error()))
+	} else {
+		slog.Info("Fetched CSV related images", slog.Int("count", len(csvImages)))
+	}
 
 	// Track resolved digests so shaFrom can reference freshly-resolved values
 	type resolvedImage struct {
@@ -62,6 +74,29 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 	for _, envName := range envNames {
 		override := cfg.ImageOverrides[envName]
 		for _, platform := range []string{"odh", "rhoai"} {
+			// Entries with source: csv are always updated from CSV
+			if override.Source == "csv" {
+				if csvImages != nil {
+					if img, ok := csvImages[envName]; ok && config.DigestPattern.MatchString(img.Digest) {
+						if len(opts.CSVImportRegistries) > 0 && !matchesRegistry(img.Base, opts.CSVImportRegistries) {
+							slog.Info("CSV entry skipped (registry not allowed)", slog.String("env", envName), slog.String("platform", platform))
+							continue
+						}
+						if err := nodeDoc.SetImageOverrideField(envName, platform, "base", img.Base); err != nil {
+							slog.Warn("Failed to set base field", slog.String("error", err.Error()))
+						}
+						if err := nodeDoc.SetImageOverrideField(envName, platform, "digest", img.Digest); err != nil {
+							slog.Warn("Failed to set digest field", slog.String("error", err.Error()))
+						}
+						results = append(results, Result{envName, platform, img.Base, img.Digest, "csv"})
+						slog.Info("Updated from CSV (auto-managed)", slog.String("env", envName), slog.String("platform", platform))
+					} else if platform == "odh" {
+						csvStale = append(csvStale, envName)
+					}
+				}
+				continue
+			}
+
 			comp := cfg.FindComponent(override.Component)
 			if comp == nil {
 				continue
@@ -124,8 +159,8 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 
 			// Priority 2: params.env
 			if override.ParamsEnvKey != "" && override.Component != "" {
-				paramsFile := fmt.Sprintf("%s/%s/params.env", opts.ManifestsDir, override.Component)
-				if imageRef, err := ReadParamsEnvKey(paramsFile, override.ParamsEnvKey); err == nil && imageRef != "" {
+				componentDir := fmt.Sprintf("%s/%s", opts.ManifestsDir, override.Component)
+				if imageRef, err := FindParamsEnvKey(componentDir, override.ParamsEnvKey); err == nil && imageRef != "" {
 					if strings.Contains(imageRef, "@sha256:") {
 						pBase, pDigest := SplitImageRef(imageRef)
 						if config.DigestPattern.MatchString(pDigest) {
@@ -165,7 +200,28 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 				}
 			}
 
-			slog.Warn("No source found", slog.String("env", envName), slog.String("platform", platform))
+			slog.Warn("No source found via commit-sha or params.env", slog.String("env", envName), slog.String("platform", platform))
+
+			// Priority 3: ODH-Build-Config CSV
+			if csvImages != nil {
+				if img, ok := csvImages[envName]; ok && config.DigestPattern.MatchString(img.Digest) {
+					if err := nodeDoc.SetImageOverrideField(envName, platform, "base", img.Base); err != nil {
+						slog.Warn("Failed to set base field", slog.String("error", err.Error()))
+					}
+					if err := nodeDoc.SetImageOverrideField(envName, platform, "digest", img.Digest); err != nil {
+						slog.Warn("Failed to set digest field", slog.String("error", err.Error()))
+					}
+					results = append(results, Result{envName, platform, img.Base, img.Digest, "csv"})
+					if resolved[envName] == nil {
+						resolved[envName] = map[string]resolvedImage{}
+					}
+					resolved[envName][platform] = resolvedImage{img.Base, img.Digest}
+					slog.Info("Resolved via CSV", slog.String("env", envName), slog.String("platform", platform), slog.String("base", img.Base), slog.String("digest", img.Digest))
+					continue
+				}
+			}
+
+			unresolved = append(unresolved, Result{envName, platform, "", "", "unresolved"})
 		}
 	}
 
@@ -186,6 +242,7 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 		}
 		if src.Digest == "" {
 			slog.Warn("shaFrom has no digest available", slog.String("env", entry.envName), slog.String("platform", entry.platform), slog.String("shaFrom", entry.source))
+			unresolved = append(unresolved, Result{entry.envName, entry.platform, "", "", "unresolved"})
 			continue
 		}
 		if err := nodeDoc.SetImageOverrideField(entry.envName, entry.platform, "base", src.Base); err != nil {
@@ -198,32 +255,73 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 		slog.Info("Copied from shaFrom source", slog.String("env", entry.envName), slog.String("platform", entry.platform), slog.String("source", entry.source))
 	}
 
+	// Third pass: import CSV entries not already in manifests-config
+	if csvImages != nil {
+		csvEnvNames := make([]string, 0, len(csvImages))
+		for envName := range csvImages {
+			csvEnvNames = append(csvEnvNames, envName)
+		}
+		sort.Strings(csvEnvNames)
+
+		for _, envName := range csvEnvNames {
+			if _, exists := cfg.ImageOverrides[envName]; exists {
+				continue
+			}
+			img := csvImages[envName]
+			if !config.DigestPattern.MatchString(img.Digest) {
+				continue
+			}
+			if len(opts.CSVImportRegistries) > 0 && !matchesRegistry(img.Base, opts.CSVImportRegistries) {
+				continue
+			}
+			if err := nodeDoc.AddImageOverride(envName, "odh", img.Base, img.Digest); err != nil {
+				slog.Warn("Failed to add CSV image override", slog.String("env", envName), slog.String("error", err.Error()))
+				continue
+			}
+			results = append(results, Result{envName, "odh", img.Base, img.Digest, "csv-imported"})
+			slog.Info("Imported from CSV", slog.String("env", envName), slog.String("base", img.Base))
+		}
+	}
+
+	// Remove source: csv entries no longer present in CSV
+	for _, envName := range csvStale {
+		if err := nodeDoc.RemoveImageOverride(envName); err != nil {
+			slog.Warn("Failed to remove stale CSV entry", slog.String("env", envName), slog.String("error", err.Error()))
+			continue
+		}
+		slog.Info("Removed stale CSV entry", slog.String("env", envName))
+	}
+
 	if err := nodeDoc.Save(opts.ConfigFile); err != nil {
 		return nil, fmt.Errorf("saving config: %w", err)
 	}
 
 	slog.Info("Digests updated", slog.String("file", opts.ConfigFile))
-	printSummary(results)
+	printSummary(results, unresolved)
 	return results, nil
 }
 
-func printSummary(results []Result) {
+func printSummary(results []Result, unresolved []Result) {
 	const (
 		reset   = "\033[0m"
 		bold    = "\033[1m"
 		green   = "\033[32m"
+		red     = "\033[31m"
 		cyan    = "\033[36m"
 		yellow  = "\033[33m"
 		magenta = "\033[35m"
 		dim     = "\033[2m"
 	)
 
-	sourceOrder := []string{"commit-sha", "params.env", "params.env+registry", "shaFrom"}
+	blue := "\033[34m"
+	sourceOrder := []string{"commit-sha", "params.env", "params.env+registry", "csv", "shaFrom", "csv-imported"}
 	sourceColor := map[string]string{
 		"commit-sha":          green,
 		"params.env":          yellow,
 		"params.env+registry": yellow,
+		"csv":                 cyan,
 		"shaFrom":             magenta,
+		"csv-imported":        blue,
 	}
 
 	grouped := map[string][]Result{}
@@ -249,6 +347,13 @@ func printSummary(results []Result) {
 		}
 	}
 
+	if len(unresolved) > 0 {
+		fmt.Fprintf(os.Stderr, "\n%s%s▸ unresolved%s %s(%d)%s\n", bold, red, reset, dim, len(unresolved), reset)
+		for _, r := range unresolved {
+			fmt.Fprintf(os.Stderr, "  %s%-5s%s %s\n", dim, r.Platform, reset, r.EnvName)
+		}
+	}
+
 	fmt.Fprintf(os.Stderr, "\n%sTotal: %d images resolved%s\n\n", bold, len(results), reset)
 }
 
@@ -258,6 +363,39 @@ func SplitImageRef(ref string) (base, digest string) {
 		return ref, ""
 	}
 	return ref[:idx], ref[idx+1:]
+}
+
+// FindParamsEnvKey searches for params.env files recursively under dir
+// and returns the value for the given key from the first file that contains it.
+func FindParamsEnvKey(dir, key string) (string, error) {
+	var result string
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || d.Name() != "params.env" {
+			return err
+		}
+		val, err := ReadParamsEnvKey(path, key)
+		if err == nil {
+			result = val
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	if result != "" {
+		return result, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return "", fmt.Errorf("key %q not found in any params.env under %s", key, dir)
+}
+
+func matchesRegistry(imageBase string, registries []string) bool {
+	for _, reg := range registries {
+		if strings.HasPrefix(imageBase, reg) {
+			return true
+		}
+	}
+	return false
 }
 
 func ReadParamsEnvKey(path, key string) (string, error) {
