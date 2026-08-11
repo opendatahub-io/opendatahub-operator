@@ -3,6 +3,7 @@ package kueue
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -170,9 +171,7 @@ func createKueueCR(ctx context.Context, rr *odhtypes.ReconciliationRequest) (*un
 // for version-gated frameworks. Used by e2e tests to build version-aware assertions.
 func FrameworkMinVersion() map[string]string {
 	result := make(map[string]string, len(frameworkMinVersion))
-	for k, v := range frameworkMinVersion {
-		result[k] = v
-	}
+	maps.Copy(result, frameworkMinVersion)
 	return result
 }
 

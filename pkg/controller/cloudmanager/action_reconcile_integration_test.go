@@ -9,6 +9,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	helmRenderer "github.com/k8s-manifest-kit/renderer-helm/pkg"
+	fwapi "github.com/opendatahub-io/odh-platform-utilities/framework/api"
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/mock"
@@ -18,7 +19,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	ccmcharts "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -66,7 +66,7 @@ func newTestReconciliationRequest(t *testing.T, cl client.Client) *types.Reconci
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("Owns", mock.Anything).Return(false)
 		}),
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 0, Patch: 0,

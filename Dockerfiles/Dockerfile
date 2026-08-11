@@ -5,6 +5,13 @@ ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 
 ################################################################################
+FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as manifest-tools-builder
+USER root
+WORKDIR /workspace
+COPY cmd/manifest-tools/ cmd/manifest-tools/
+RUN cd cmd/manifest-tools && CGO_ENABLED=0 go build -ldflags="-s -w" -o /manifest-tools main.go
+
+################################################################################
 FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/toolbox as manifests
 ARG USE_LOCAL=false
 ARG OVERWRITE_MANIFESTS=""
@@ -12,10 +19,11 @@ USER root
 WORKDIR /
 COPY opt/manifests/ /opt/manifests/
 COPY opt/charts/ /opt/charts/
-COPY get_all_manifests.sh get_all_manifests.sh
+COPY --from=manifest-tools-builder /manifest-tools /usr/local/bin/manifest-tools
+COPY manifests-config.yaml manifests-config.yaml
 RUN if [ "${USE_LOCAL}" != "true" ]; then \
         rm -rf /opt/manifests/*; \
-        ./get_all_manifests.sh ${OVERWRITE_MANIFESTS}; \
+        manifest-tools download --config manifests-config.yaml --manifests-dir /opt/manifests --charts-dir /opt/charts ${OVERWRITE_MANIFESTS}; \
     fi
 
 # Clean up unwanted directories and files from manifests
