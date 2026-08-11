@@ -93,7 +93,7 @@ additional_meta:
     git.commit: 34f63fe1be7bccf4fb40d6c64658892e86c85ed1
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: cd10c1b3dde7572249cea9db2c174fe5f345f36e
+    git.commit: 34f63fe1be7bccf4fb40d6c64658892e86c85ed1
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: 8512521fc2769e92642bcf94b46d2817af4109b7
@@ -135,7 +135,7 @@ additional_meta:
     git.commit: 70e6bb52a9badab0cf0579044937dc02596e90f1
   odh-kserve-localmodel-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 78b0c65b225dd188ce9cbcbd991ac8afde04ebe3
+    git.commit: 70e6bb52a9badab0cf0579044937dc02596e90f1
   odh-kserve-router:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 70e6bb52a9badab0cf0579044937dc02596e90f1
