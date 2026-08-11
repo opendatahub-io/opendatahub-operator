@@ -309,10 +309,16 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		enabledModules[name] = true
 	}
 
+	appNS, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to resolve application namespace: %w", err)
+	}
+
 	gatewayDomain, _ := resources.GetGatewayDomain(ctx, rr.Client)
 	crCfg := &modules.ModuleCRConfig{
-		GatewayDomain: gatewayDomain,
-		Release:       rr.Release,
+		ApplicationsNamespace: appNS,
+		GatewayDomain:         gatewayDomain,
+		Release:               rr.Release,
 	}
 
 	return moduleReg.ForAll(func(handler modules.ModuleHandler, _ bool) error {

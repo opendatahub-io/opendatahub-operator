@@ -232,6 +232,9 @@ type OperatorManifests struct {
 // that are not part of DSC/DSCI. These values are resolved by the DSC
 // controller and passed alongside the DSCContext.
 type ModuleCRConfig struct {
+	// ApplicationsNamespace is the namespace where module operands deploy.
+	ApplicationsNamespace string
+
 	// GatewayDomain is the cluster ingress domain from GatewayConfig.Status.Domain.
 	GatewayDomain string
 
