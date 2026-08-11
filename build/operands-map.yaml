@@ -58,7 +58,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kuberay-operator-controller-rhel9@sha256:5f6b8baafc291cecafc3740b20c4bccd9c99e1c80cbd6943f1c4cea3b72a9a5c"
 - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
-  value: "quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:f2e752f7bc7b0afe59eb0f0457b4b4231d67e5dfb5c9e61e8b6a60d34660ee04"
+  value: "quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:7b19df817f22ea1af8280d4e3be6e7f09913025e851bc54f6fa5b5e3fd8ce5b8"
 - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
   value: "quay.io/rhoai/odh-kube-rbac-proxy-rhel9@sha256:9ad9f8823daf4c3af9818b3c48ec649ab295c6c2070f0034a916d58f8e1dcabe"
 - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_PREDICTION_IMAGE
@@ -198,7 +198,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE
   value: "quay.io/rhoai/odh-trustyai-nemo-guardrails-server-rhel9@sha256:9f71179f6fa4e90b4458076d80b4be32975591d97dcaf01cf6540991630684b2"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE
-  value: "quay.io/rhoai/odh-trustyai-service-rhel9@sha256:3668eb0253212428791722ba0144dd85cb851bf99a3f07a7f7221d13011dace2"
+  value: "quay.io/rhoai/odh-trustyai-service-rhel9@sha256:6bc02c771dd7dafe467d1c4ec0839b0278154c015e974f168aa6bb1d656a0cc9"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-trustyai-service-operator-rhel9@sha256:9b6fb249dd468e4dafaa32300787008c3942aa536a336061740b0b029fb1ab65"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
@@ -236,4 +236,4 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_WORKLOAD_VARIANT_AUTOSCALER_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-workload-variant-autoscaler-controller-rhel9@sha256:4a8e8beac1a27f13c2af4b772572a03d508f0586c080d8a0e5f0fdaadedc254b"
 - name: RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE
-  value: "quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:f2e752f7bc7b0afe59eb0f0457b4b4231d67e5dfb5c9e61e8b6a60d34660ee04"
+  value: "quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:7b19df817f22ea1af8280d4e3be6e7f09913025e851bc54f6fa5b5e3fd8ce5b8"
