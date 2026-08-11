@@ -4,7 +4,7 @@ map:
     dest: workbenches
     type: chart
     git.url: https://github.com/red-hat-data-services/workbenches-operator
-    git.commit: b6f3822586f984eddde3af23d2f3f9c9b23ee79a
+    git.commit: d9d48c0276f98b0240978798acfaeedc85e3671c
   odh-kserve-module-operator:
     src: kserve-module/config
     dest: kserve-module-operator
