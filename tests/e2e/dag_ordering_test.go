@@ -389,8 +389,6 @@ func (tc *DAGOrderingTestCtx) ValidatePlatformReady(t *testing.T) {
 					`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
 					precondition.PlatformReadyConditionType, metav1.ConditionTrue,
 				)),
-				WithEventuallyTimeout(30*time.Second),
-				WithEventuallyPollingInterval(5*time.Second),
 				WithCustomErrorMsg("Component %s should have %s=True condition", comp.name, precondition.PlatformReadyConditionType),
 			)
 			t.Logf("Component %s: %s=True (correct)", comp.name, precondition.PlatformReadyConditionType)
