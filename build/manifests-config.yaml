@@ -40,7 +40,7 @@ map:
     src: manifests
     dest: trainer
     git.url: https://github.com/red-hat-data-services/trainer
-    git.commit: f53ae36477619ea51fc69da5310f9d962abff769
+    git.commit: 8317dfc9564e5c904ca3e17d5b682a52308c87ac
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator

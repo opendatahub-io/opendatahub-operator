@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: kubeflow-system
+- op: replace
+  path: /webhooks/0/clientConfig/service/name
+  value: kubeflow-trainer-controller-manager
+- op: replace
+  path: /metadata/name
+  value: defaulter.trainer.kubeflow.org

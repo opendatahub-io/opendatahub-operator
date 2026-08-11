@@ -1,3 +1,17 @@
+# Copyright The Kubeflow Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -12,7 +26,7 @@ resources:
 # Add data cache image tags
 images:
   - name: ghcr.io/kubeflow/trainer/dataset-initializer
-    newTag: v2.1.0
+    newTag: latest
 
 # Patch namespace-rbac resources to install in default namespace
 patches:
@@ -30,24 +44,3 @@ patches:
       - op: add
         path: /metadata/namespace
         value: default
-  # Add unique label to JobSet controller pods
-  - path: jobset_patches/controller_pod_labels.yaml
-    target:
-      group: apps
-      version: v1
-      kind: Deployment
-      name: jobset-controller-manager
-  # Update JobSet webhook service selector to use unique label
-  - path: jobset_patches/webhook_service_selector.yaml
-    target:
-      group: ""
-      version: v1
-      kind: Service
-      name: jobset-webhook-service
-  # Update JobSet metrics service selector to use unique label
-  - path: jobset_patches/metrics_service_selector.yaml
-    target:
-      group: ""
-      version: v1
-      kind: Service
-      name: jobset-controller-manager-metrics-service

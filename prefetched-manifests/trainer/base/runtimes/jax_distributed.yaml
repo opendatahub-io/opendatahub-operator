@@ -12,7 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: v1
-kind: Namespace
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: ClusterTrainingRuntime
 metadata:
-  name: kubeflow-system
+  name: jax-distributed
+  labels:
+    trainer.kubeflow.org/framework: jax
+spec:
+  mlPolicy:
+    numNodes: 1
+    jax: {}
+  template:
+    spec:
+      replicatedJobs:
+        - name: node
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              template:
+                spec:
+                  containers:
+                    - name: node
+                      image: nvcr.io/nvidia/jax:25.10-py3
