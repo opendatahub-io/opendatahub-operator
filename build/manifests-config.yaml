@@ -4,7 +4,7 @@ map:
     dest: workbenches
     type: chart
     git.url: https://github.com/red-hat-data-services/workbenches-operator
-    git.commit: b140da68a69d1452ef13f26a90500c5114dd0f64
+    git.commit: 9ad4c4880899e49864f2463d19459447b23b4d8a
   odh-kserve-module-operator:
     src: kserve-module/config
     dest: kserve-module-operator
@@ -194,10 +194,10 @@ additional_meta:
     git.commit: ff6f2b59f82f24473da999b42105f8edd9c392cd
   odh-mlmd-grpc-server:
     git.url: https://github.com/red-hat-data-services/ml-metadata
-    git.commit: 46a953407697963c9e9c90450e529b2f3ab516d8
+    git.commit: 006b5c51106dbdeedfe28c92b49ec22c9d923d22
   odh-mlserver-cuda:
     git.url: https://github.com/red-hat-data-services/MLServer
-    git.commit: c1455ca755720333a5360294858e72b91a7416c2
+    git.commit: 56968dc389bfb39dca799ab92cb63be77058b27b
   odh-mlserver:
     git.url: https://github.com/red-hat-data-services/MLServer
     git.commit: 56968dc389bfb39dca799ab92cb63be77058b27b
@@ -263,7 +263,7 @@ additional_meta:
     git.commit: 3783c9a145b2ea08a39fb3a85f951d32da843482
   odh-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
-    git.commit: 1998656679e96a2d4244dddce885ce3af5885cd2
+    git.commit: 548279cee72107707f11f19432f529bc7e65bc3c
   odh-ogx-core:
     git.url: https://github.com/red-hat-data-services/ogx-distribution
     git.commit: fcf260869e7f0858a5f1fac8bdc374ff55dbf721
