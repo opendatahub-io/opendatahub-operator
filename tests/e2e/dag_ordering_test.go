@@ -183,38 +183,7 @@ func dagOrderingTestSuite(t *testing.T) {
 	t.Log("Restoring operator to original version for Phase 3")
 	ctx.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
 
-	// Wait for the operator to acquire the leader lease and complete its
-	// first reconciliation at the restored version. This ensures the
-	// platform config ConfigMaps are updated with the correct
-	// platformVersion BEFORE module operators are restarted. Without
-	// this, module operators may read a stale ConfigMap (still containing
-	// the Phase 2 version) because they only read platformVersion at
-	// startup and never re-read it.
-	t.Log("Waiting for operator to reconcile at restored version (ProvisioningProgress=False)")
-	ctx.EnsureResourceExists(
-		WithMinimalObject(gvk.Platform, ctx.PlatformNamespacedName),
-		WithCondition(jq.Match(
-			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
-			status.ConditionTypeProvisioningProgress, metav1.ConditionFalse,
-		)),
-		WithEventuallyTimeout(5*time.Minute),
-		WithEventuallyPollingInterval(10*time.Second),
-	)
-
-	// Workbenches-operator gates version updates behind the Standalone
-	// distribution check, so it never re-stamps status.releases[platform]
-	// after a version change. Delete the CR to force fresh creation.
-	// TODO(dag): remove once workbenches-operator fixes the version
-	// update gate for Standalone distribution.
-	// https://redhat.atlassian.net/browse/RHOAIENG-81892
-	ctx.deleteWorkbenchesCR(t)
-
-	// Other module operators write the version correctly on reconcile
-	// but don't watch the config ConfigMap. Touch their CRs to trigger
-	// a reconcile so they re-read the updated platformVersion.
-	// TODO(dag): remove once module operators watch their platform
-	// config ConfigMap for changes.
-	ctx.touchModuleCRs(t)
+	ctx.forceModuleVersionSync(t)
 
 	t.Log("Waiting for convergence at original version")
 	ctx.EnsureResourceExists(
@@ -264,6 +233,7 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(allComponentsTransform("Managed")),
 		WithCondition(And(
+			jq.Match(`.status.observedGeneration == .metadata.generation`),
 			jq.Match(
 				`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
 				status.ConditionTypeComponentsReady, metav1.ConditionTrue,
@@ -276,6 +246,8 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 		WithEventuallyTimeout(15*time.Minute),
 		WithEventuallyPollingInterval(15*time.Second),
 	)
+
+	tc.forceModuleVersionSync(t)
 
 	// Step 2: Apply quota and simulate version upgrade.
 	// Quota blocks new pod creation. Version change triggers readiness
@@ -319,6 +291,8 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 	// Step 4: Remove quota and verify convergence at new version.
 	t.Log("Removing quota to unblock deployments")
 	tc.deleteDAGQuota()
+
+	tc.forceModuleVersionSync(t)
 
 	t.Log("Waiting for DAG convergence (ProvisioningProgress=True on Platform CR)")
 	tc.EnsureResourceExists(
@@ -403,7 +377,11 @@ func (tc *DAGOrderingTestCtx) ValidatePlatformReady(t *testing.T) {
 				continue
 			}
 
-			instanceName := tc.GetInstanceName(comp.gvk)
+			instanceName := tc.findFirstCRName(t, comp.gvk)
+			if instanceName == "" {
+				t.Logf("No %s CRs found, skipping PlatformReady check", comp.gvk.Kind)
+				continue
+			}
 
 			tc.EnsureResourceExists(
 				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
@@ -1118,6 +1096,38 @@ func (tc *DAGOrderingTestCtx) operatorDeploymentName() string {
 
 func (tc *DAGOrderingTestCtx) operatorDeploymentNN() types.NamespacedName {
 	return types.NamespacedName{Name: tc.operatorDeploymentName(), Namespace: tc.OperatorNamespace}
+}
+
+// forceModuleVersionSync works around module operators that don't
+// automatically re-read the platform config ConfigMap. It waits for
+// ModulesReady=True (so module operator pods are running), then deletes
+// the Workbenches CR (RHOAIENG-81892) and touches all other module CRs
+// to trigger a reconcile so they re-stamp the correct platformVersion.
+// TODO(dag): remove once all module operators watch their platform
+// config ConfigMap for changes.
+func (tc *DAGOrderingTestCtx) forceModuleVersionSync(t *testing.T) {
+	t.Helper()
+
+	// Wait for the operator to acquire the leader lease and complete its
+	// first reconciliation at the restored version. This ensures the
+	// platform config ConfigMaps are updated with the correct
+	// platformVersion BEFORE module operators are restarted. Without
+	// this, module operators may read a stale ConfigMap (still containing
+	// the Phase 2 version) because they only read platformVersion at
+	// startup and never re-read it.
+	t.Log("Waiting for operator to reconcile at restored version (ProvisioningProgress=False)")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
+		WithCondition(jq.Match(
+			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+			status.ConditionTypeProvisioningProgress, metav1.ConditionFalse,
+		)),
+		WithEventuallyTimeout(5*time.Minute),
+		WithEventuallyPollingInterval(10*time.Second),
+	)
+
+	tc.deleteWorkbenchesCR(t)
+	tc.touchModuleCRs(t)
 }
 
 // deleteWorkbenchesCR deletes the Workbenches CR so the DSC controller
