@@ -49,7 +49,6 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		Owns(&componentApi.ModelRegistry{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.TrustyAI{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Kueue{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.TrainingOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Trainer{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.DataSciencePipelines{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.SparkOperator{}, reconciler.WithPredicates(componentsPredicate))
