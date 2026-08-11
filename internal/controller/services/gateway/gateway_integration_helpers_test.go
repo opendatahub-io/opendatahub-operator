@@ -45,6 +45,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opendatahub-io/odh-platform-utilities/framework/manager"
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
@@ -77,7 +78,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	metadatalabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
