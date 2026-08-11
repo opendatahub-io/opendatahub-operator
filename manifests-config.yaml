@@ -80,13 +80,13 @@ components:
       sourcePath: ogx-module/config
   trainer:
     odh:
-      repo: opendatahub-io/trainer
-      ref: stable@d063877c480bbd9a35512691ded96c97d8937b44
-      sourcePath: manifests
+      repo: opendatahub-io/trainer-operator
+      ref: main@99bd561c3bdecebac058597c41a7d9bacdf6085b
+      sourcePath: config
     rhoai:
-      repo: red-hat-data-services/trainer
-      ref: rhoai-3.5@7280dd4483ff21406ec62c8a5c442511755ce616
-      sourcePath: manifests
+      repo: opendatahub-io/trainer-operator
+      ref: main@99bd561c3bdecebac058597c41a7d9bacdf6085b
+      sourcePath: config
   mlflowoperator:
     odh:
       repo: opendatahub-io/mlflow-operator
