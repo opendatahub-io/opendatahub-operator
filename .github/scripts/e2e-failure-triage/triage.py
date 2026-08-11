@@ -1005,11 +1005,11 @@ def main() -> None:
     print(f"\nMakefile VERSION: {version}")
     print(f"Affects Version:  {affects_version}")
 
-    jira_email = os.environ.get("JIRA_USER_EMAIL", "")
-    jira_token = os.environ.get("JIRA_API_TOKEN", "")
+    jira_email = os.environ.get("E2E_TRIAGE_JIRA_EMAIL", "")
+    jira_token = os.environ.get("E2E_TRIAGE_JIRA_API_TOKEN", "")
 
     if not args.dry_run and (not jira_email or not jira_token):
-        raise ValueError("Jira credentials required for non-dry-run mode. Set JIRA_USER_EMAIL and JIRA_API_TOKEN.")
+        raise ValueError("Jira credentials required for non-dry-run mode. Set E2E_TRIAGE_JIRA_EMAIL and E2E_TRIAGE_JIRA_API_TOKEN.")
 
     jira_config = JiraConfig(
         email=jira_email,
