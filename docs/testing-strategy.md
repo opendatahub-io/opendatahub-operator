@@ -60,7 +60,7 @@ Additional tested packages outside the core action/predicate tree:
 
 ## Level 2: Consumer Integration Validation
 
-The opendatahub-operator is the primary (and currently only) consumer of `pkg/controller/`. Its own test suite validates library usage at two tiers.
+The opendatahub-operator's own test suite validates `pkg/controller/` library usage at two tiers.
 
 ### Unit/Integration (envtest)
 
@@ -155,7 +155,7 @@ Handler implementations use compile-time interface satisfaction checks (e.g., `v
 
 ## Gaps and Future Work
 
-1. **Upgrade compatibility testing**: Deferred until the library is versioned and consumed as a Go module by external repositories. Currently, all consumers live in-tree, so API breakage is caught at compile time.
+1. **Upgrade compatibility testing**: Deferred until the library is versioned and released as a standalone Go module. API breakage for in-tree consumers is caught at compile time, but external consumers would benefit from semver guarantees.
 
 2. **Full pipeline envtest**: No single test currently exercises the complete render-deploy-GC pipeline in one envtest session. Individual actions are tested in isolation; a unified pipeline test would validate action composition.
 
