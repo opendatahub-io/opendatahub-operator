@@ -21,7 +21,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -93,15 +92,27 @@ var dagBatches = []componentBatch{
 	},
 }
 
-// dscComponentFields lists the JSON field names in DSC spec.components
-// that have a managementState field. DataSciencePipelines uses "aipipelines"
-// as its field name.
-// Kueue is excluded: a validating webhook rejects managementState=Managed
-// for Kueue because it no longer manages deployments directly.
-var dscComponentFields = []string{
+// dscComponentFieldsWithBrokenVersionHandshake lists modules excluded
+// from DAG tests because they don't watch their platform config
+// ConfigMap or don't report the platform release, causing the DAG
+// version handshake to stall. Re-enable once fixed:
+//   - aigateway:            RHOAIENG-81918
+//   - dashboard:            RHOAIENG-81919
+//   - mcplifecycleoperator: RHOAIENG-81920
+//   - workbenches:          RHOAIENG-81892
+var dscComponentFieldsWithBrokenVersionHandshake = []string{
 	"aigateway",
 	"dashboard",
+	"mcplifecycleoperator",
 	"workbenches",
+}
+
+// dscComponentFields lists the components enabled during DAG tests.
+// Kueue is excluded: a validating webhook rejects managementState=Managed.
+var dscComponentFields = []string{
+	// "aigateway",
+	// "dashboard",
+	// "workbenches",
 	"aipipelines",
 	"kserve",
 	"ray",
@@ -110,7 +121,7 @@ var dscComponentFields = []string{
 	"trustyai",
 	"feastoperator",
 	"ogx",
-	"mcplifecycleoperator",
+	// "mcplifecycleoperator",
 	"mlflowoperator",
 	"trainer",
 	"sparkoperator",
@@ -183,8 +194,6 @@ func dagOrderingTestSuite(t *testing.T) {
 	t.Log("Restoring operator to original version for Phase 3")
 	ctx.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
 
-	ctx.forceModuleVersionSync(t)
-
 	t.Log("Waiting for convergence at original version")
 	ctx.EnsureResourceExists(
 		WithMinimalObject(gvk.Platform, ctx.PlatformNamespacedName),
@@ -231,7 +240,7 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 	t.Log("Enabling all components for initial deployment and waiting for initial convergence (ComponentsReady=True and ModulesReady=True on DSC)")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(allComponentsTransform("Managed")),
+		WithMutateFunc(allComponentsManagedTransform()),
 		WithCondition(And(
 			jq.Match(`.status.observedGeneration == .metadata.generation`),
 			jq.Match(
@@ -246,8 +255,6 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 		WithEventuallyTimeout(15*time.Minute),
 		WithEventuallyPollingInterval(15*time.Second),
 	)
-
-	tc.forceModuleVersionSync(t)
 
 	// Step 2: Apply quota and simulate version upgrade.
 	// Quota blocks new pod creation. Version change triggers readiness
@@ -291,8 +298,6 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 	// Step 4: Remove quota and verify convergence at new version.
 	t.Log("Removing quota to unblock deployments")
 	tc.deleteDAGQuota()
-
-	tc.forceModuleVersionSync(t)
 
 	t.Log("Waiting for DAG convergence (ProvisioningProgress=True on Platform CR)")
 	tc.EnsureResourceExists(
@@ -785,8 +790,15 @@ func (tc *DAGOrderingTestCtx) deleteGateSourceCMs(t *testing.T, names ...string)
 
 // --- helpers ---
 
-func allComponentsTransform(state string) func(*unstructured.Unstructured) error {
-	return selectComponentsTransform(state, dscComponentFields)
+func allComponentsManagedTransform() func(*unstructured.Unstructured) error {
+	return selectComponentsTransform("Managed", dscComponentFields)
+}
+
+func allComponentsRemovedTransform() func(*unstructured.Unstructured) error {
+	all := make([]string, 0, len(dscComponentFieldsWithBrokenVersionHandshake)+len(dscComponentFields))
+	all = append(all, dscComponentFieldsWithBrokenVersionHandshake...)
+	all = append(all, dscComponentFields...)
+	return selectComponentsTransform("Removed", all)
 }
 
 func selectComponentsTransform(state string, fields []string) func(*unstructured.Unstructured) error {
@@ -809,7 +821,7 @@ func (tc *DAGOrderingTestCtx) setAllRemoved(t *testing.T) {
 
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(allComponentsTransform("Removed")),
+		WithMutateFunc(allComponentsRemovedTransform()),
 	)
 
 	tc.EnsureResourceExists(
@@ -1094,119 +1106,4 @@ func (tc *DAGOrderingTestCtx) operatorDeploymentName() string {
 
 func (tc *DAGOrderingTestCtx) operatorDeploymentNN() types.NamespacedName {
 	return types.NamespacedName{Name: tc.operatorDeploymentName(), Namespace: tc.OperatorNamespace}
-}
-
-// forceModuleVersionSync works around module operators that don't
-// automatically re-read the platform config ConfigMap. It waits for
-// ModulesReady=True (so module operator pods are running), then deletes
-// the Workbenches CR (RHOAIENG-81892) and touches all other module CRs
-// to trigger a reconcile so they re-stamp the correct platformVersion.
-// TODO(dag): remove once all module operators watch their platform
-// config ConfigMap for changes.
-func (tc *DAGOrderingTestCtx) forceModuleVersionSync(t *testing.T) {
-	t.Helper()
-
-	// Wait for the operator to acquire the leader lease and complete its
-	// first reconciliation at the restored version. This ensures the
-	// platform config ConfigMaps are updated with the correct
-	// platformVersion BEFORE module operators are restarted. Without
-	// this, module operators may read a stale ConfigMap (still containing
-	// the Phase 2 version) because they only read platformVersion at
-	// startup and never re-read it.
-	t.Log("Waiting for operator to reconcile at restored version (ProvisioningProgress=False)")
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
-		WithCondition(jq.Match(
-			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
-			status.ConditionTypeProvisioningProgress, metav1.ConditionFalse,
-		)),
-		WithEventuallyTimeout(5*time.Minute),
-		WithEventuallyPollingInterval(10*time.Second),
-	)
-
-	tc.deleteWorkbenchesCR(t)
-	tc.touchModuleCRs(t)
-}
-
-// deleteWorkbenchesCR deletes the Workbenches CR so the DSC controller
-// recreates it with empty status.releases. The workbenches-operator gates
-// version updates behind the Standalone distribution check, so this is the
-// only way to force it to stamp the current platformVersion.
-// TODO(dag): remove once workbenches-operator fixes the version update
-// gate for Standalone distribution.
-func (tc *DAGOrderingTestCtx) deleteWorkbenchesCR(t *testing.T) {
-	t.Helper()
-
-	instanceName := tc.GetInstanceName(gvk.Workbenches)
-	if instanceName == "" {
-		return
-	}
-
-	t.Logf("Deleting Workbenches CR %s to reset platform version", instanceName)
-	tc.DeleteResource(
-		WithMinimalObject(gvk.Workbenches, types.NamespacedName{Name: instanceName}),
-		WithIgnoreNotFound(true),
-	)
-}
-
-// touchModuleCRs annotates each module CR with a timestamp to trigger a
-// reconcile. Module operators re-read the platform config ConfigMap on
-// reconcile and stamp the updated platformVersion into status.releases,
-// but don't watch the ConfigMap for changes.
-// TODO(dag): remove once module operators watch their platform config
-// ConfigMap for changes.
-func (tc *DAGOrderingTestCtx) touchModuleCRs(t *testing.T) {
-	t.Helper()
-
-	deployedVersion := tc.getDeployedVersion(t)
-
-	for _, batch := range dagBatches {
-		for _, comp := range batch.components {
-			if !comp.internal {
-				continue
-			}
-
-			// Only touch modules that have a platform config ConfigMap.
-			// In-tree components (kueue) and modules that don't participate
-			// in the handshake (ogx) are skipped.
-			cmName := modules.PlatformConfigName(comp.name)
-			cm := tc.FetchResource(WithMinimalObject(
-				gvk.ConfigMap,
-				types.NamespacedName{Namespace: tc.AppsNamespace, Name: cmName},
-			))
-			if cm == nil {
-				t.Logf("ConfigMap %s not found, skipping touch for %s", cmName, comp.name)
-				continue
-			}
-
-			// Wait for the ConfigMap to have the correct version before
-			// triggering a reconcile.
-			tc.EnsureResourceExists(
-				WithMinimalObject(gvk.ConfigMap, types.NamespacedName{Namespace: tc.AppsNamespace, Name: cmName}),
-				WithCondition(jq.Match(`.data.%s == "%s"`, modules.PlatformVersionKey, deployedVersion)),
-				WithEventuallyTimeout(2*time.Minute),
-				WithEventuallyPollingInterval(10*time.Second),
-				WithCustomErrorMsg("ConfigMap %s should have %s=%s", cmName, modules.PlatformVersionKey, deployedVersion),
-			)
-
-			instanceName := tc.findFirstCRName(t, comp.gvk)
-			if instanceName == "" {
-				t.Logf("No %s CRs found, skipping touch", comp.gvk.Kind)
-				continue
-			}
-			tc.EventuallyResourcePatched(
-				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
-				WithMutateFunc(func(obj *unstructured.Unstructured) error {
-					ann := obj.GetAnnotations()
-					if ann == nil {
-						ann = map[string]string{}
-					}
-					ann["test.platform.opendatahub.io/version-touch"] = time.Now().Format(time.RFC3339)
-					obj.SetAnnotations(ann)
-					return nil
-				}),
-			)
-			t.Logf("Touched module CR %s/%s to trigger version re-read", comp.gvk.Kind, instanceName)
-		}
-	}
 }
