@@ -116,7 +116,7 @@ additional_meta:
     git.commit: 2fd0449701dd6dc17cd8536a1bf02e9f6e9811a0
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
-    git.commit: 4494aa9900caddd935eb2f4cdc68c5df92e664c5
+    git.commit: 56622702292bb22a88bca0457168cd1a7273d4d3
   odh-guardrails-detector-huggingface-runtime:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: 44da11b03e6ed6d54da3a0d89e64db76d5673ecf
@@ -137,7 +137,7 @@ additional_meta:
     git.commit: 74b9a76611037f1a75e5f631bf047d5215ed9a7d
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: d1dc7fca4c3fb9081bbf64b161a113627cceaf64
+    git.commit: 74b9a76611037f1a75e5f631bf047d5215ed9a7d
   odh-kserve-localmodel-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: d1dc7fca4c3fb9081bbf64b161a113627cceaf64
@@ -311,10 +311,10 @@ additional_meta:
     git.commit: 2f7a86a9e4bd31c4982cf91e7b4764eb7898ca84
   odh-th-torch-cpu-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 7f38264c1eb7670e300326caa80bf32a508b7878
+    git.commit: 25a0c22dd68de614310a61a33b314da758b9d188
   odh-th-torch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: dd5d616d730c5bc50e8e88ed9be1692cc3789248
+    git.commit: 7f38264c1eb7670e300326caa80bf32a508b7878
   odh-th-torch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 7f38264c1eb7670e300326caa80bf32a508b7878
