@@ -4,7 +4,7 @@ map:
     dest: workbenches
     type: chart
     git.url: https://github.com/red-hat-data-services/workbenches-operator
-    git.commit: d9d48c0276f98b0240978798acfaeedc85e3671c
+    git.commit: bfc2ce57b5298f41c14ba714ed534a46f9b70f2f
   odh-kserve-module-operator:
     src: kserve-module/config
     dest: kserve-module-operator
@@ -168,7 +168,7 @@ additional_meta:
     git.commit: 112b98f2f517400106ca48f065a47ca511cd2016
   odh-llm-d-batch-gateway-processor:
     git.url: https://github.com/red-hat-data-services/batch-gateway
-    git.commit: f5a70ef004b6d292aeecc9f51e4e5fcb9972dc34
+    git.commit: 4ed7b00d7bfff992889732fcae8bb099b2f29a25
   odh-llm-d-router-disagg-sidecar:
     git.url: https://github.com/red-hat-data-services/llm-d-router
     git.commit: dc669710f452ea69d48a0bfbf6fcc554273ef96f
@@ -216,7 +216,7 @@ additional_meta:
     git.commit: f00da26dc3adc5a8092e3a0ee919be37ffe310fd
   odh-model-metadata-collection:
     git.url: https://github.com/red-hat-data-services/model-metadata-collection
-    git.commit: 9e6f3a54608011cf820d7d7852035f6c36b057cf
+    git.commit: 592c683e575aac7b06819527941ce0e1a6d71342
   odh-model-performance-data:
     git.url: https://github.com/red-hat-data-services/models-perf-benchmark-data
     git.commit: 70b4444014b19b93cd089c1171661ff40ad1efe5
