@@ -33,7 +33,7 @@ func addTestTypesToScheme(s *runtime.Scheme) error {
 	if err := s.AddConversionFunc(
 		&unstructured.Unstructured{},
 		&TestPlatformObject{},
-		func(a, b interface{}, _ conversion.Scope) error {
+		func(a, b any, _ conversion.Scope) error {
 			src, ok := a.(*unstructured.Unstructured)
 			if !ok {
 				return fmt.Errorf("expected *unstructured.Unstructured, got %T", a)
@@ -52,7 +52,7 @@ func addTestTypesToScheme(s *runtime.Scheme) error {
 	return s.AddConversionFunc(
 		&TestPlatformObject{},
 		&TestPlatformObject{},
-		func(a, b interface{}, _ conversion.Scope) error {
+		func(a, b any, _ conversion.Scope) error {
 			in, ok := a.(*TestPlatformObject)
 			if !ok {
 				return fmt.Errorf("expected *TestPlatformObject, got %T", a)

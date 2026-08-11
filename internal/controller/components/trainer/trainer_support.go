@@ -23,9 +23,13 @@ const (
 
 var (
 	imageParamMap = map[string]string{
-		"odh-kubeflow-trainer-controller-image":    "RELATED_IMAGE_ODH_TRAINER_IMAGE",
-		"odh-training-cuda128-torch29-py312-image": "RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH29_PY312_IMAGE",
-		"odh-training-rocm64-torch29-py312-image":  "RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH29_PY312_IMAGE",
+		"odh-kubeflow-trainer-controller-image":           "RELATED_IMAGE_ODH_TRAINER_IMAGE",
+		"odh-th-torch-cuda-py312-image":                   "RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE",
+		"odh-th-torch-rocm-py312-image":                   "RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE",
+		"odh-th-torch-cpu-py312-image":                    "RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE",
+		"odh-training-universal-workbench-image-cuda-3-5": "RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE",
+		"odh-training-universal-workbench-image-rocm-3-5": "RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE",
+		"odh-training-universal-workbench-image-cpu-3-5":  "RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE",
 	}
 
 	conditionTypes = []string{

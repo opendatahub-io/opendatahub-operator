@@ -146,6 +146,10 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	wva, ok := spec["wva"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.wva missing")
 	g.Expect(wva["managementState"]).Should(Equal("Removed"))
+
+	mr, ok := spec["modelRegistry"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.modelRegistry missing")
+	g.Expect(mr["managementState"]).Should(Equal("Removed"))
 }
 
 func TestBuildModuleCR_PlatformMode_ReturnsNil(t *testing.T) {

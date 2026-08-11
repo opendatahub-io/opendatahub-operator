@@ -5,9 +5,11 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	semver "github.com/blang/semver/v4"
 	ofversion "github.com/operator-framework/api/pkg/lib/version"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -18,6 +20,7 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
@@ -238,17 +241,18 @@ func TestCleanupDisabledModulesPreservesModuleEnvInjectionWhileDeleting(t *testi
 	if len(rr.Manifests) != 1 {
 		t.Fatalf("expected deleting module manifests to be kept alive, got %d", len(rr.Manifests))
 	}
-	if rr.ModuleEnvInjection == nil {
+	mei := types.GetModuleEnvInjection(rr)
+	if mei == nil {
 		t.Fatalf("expected module env injection to be preserved for deleting module")
 	}
-	if rr.ModuleEnvInjection.ApplicationsNamespace != testApplicationsNamespace {
-		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, rr.ModuleEnvInjection.ApplicationsNamespace)
+	if mei.ApplicationsNamespace != testApplicationsNamespace {
+		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, mei.ApplicationsNamespace)
 	}
-	if len(rr.ModuleEnvInjection.PerModuleImages) != 1 {
-		t.Fatalf("expected one deleting module env injection entry, got %d", len(rr.ModuleEnvInjection.PerModuleImages))
+	if len(mei.PerModuleImages) != 1 {
+		t.Fatalf("expected one deleting module env injection entry, got %d", len(mei.PerModuleImages))
 	}
 
-	moduleImages := rr.ModuleEnvInjection.PerModuleImages[0]
+	moduleImages := mei.PerModuleImages[0]
 	if moduleImages.DeploymentName != "cleanup-module-controller-manager" {
 		t.Fatalf("expected deployment name %q, got %q", "cleanup-module-controller-manager", moduleImages.DeploymentName)
 	}
@@ -308,14 +312,15 @@ func TestProvisionModulesAddsResourcesAndEnvInjection(t *testing.T) {
 	if len(rr.Manifests) != 1 {
 		t.Fatalf("expected one module manifest entry, got %d", len(rr.Manifests))
 	}
-	if rr.ModuleEnvInjection == nil || len(rr.ModuleEnvInjection.PerModuleImages) != 1 {
-		t.Fatalf("expected one module env injection entry, got %#v", rr.ModuleEnvInjection)
+	mei2 := types.GetModuleEnvInjection(rr)
+	if mei2 == nil || len(mei2.PerModuleImages) != 1 {
+		t.Fatalf("expected one module env injection entry, got %#v", mei2)
 	}
-	if rr.ModuleEnvInjection.ApplicationsNamespace != testApplicationsNamespace {
-		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, rr.ModuleEnvInjection.ApplicationsNamespace)
+	if mei2.ApplicationsNamespace != testApplicationsNamespace {
+		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, mei2.ApplicationsNamespace)
 	}
-	if rr.ModuleEnvInjection.PerModuleImages[0].DeploymentName != testProvisioningDeploymentName {
-		t.Fatalf("expected deployment name to be preserved, got %#v", rr.ModuleEnvInjection.PerModuleImages[0])
+	if mei2.PerModuleImages[0].DeploymentName != testProvisioningDeploymentName {
+		t.Fatalf("expected deployment name to be preserved, got %#v", mei2.PerModuleImages[0])
 	}
 }
 
@@ -517,5 +522,111 @@ func TestComputeModulesStatusInfoDependencyKeepsModulesReady(t *testing.T) {
 	}
 	if ready.Status != metav1.ConditionTrue {
 		t.Fatalf("expected ModulesReady=True (Info dep is non-gating), got %s: %q", ready.Status, ready.Message)
+	}
+}
+
+// noMatchErrorModuleStub is a ModuleHandler whose GetModuleStatus returns a
+// NoKindMatchError, simulating a missing CRD.
+type noMatchErrorModuleStub struct {
+	provisioningModuleStub
+}
+
+func (s noMatchErrorModuleStub) GetModuleStatus(_ context.Context, _ client.Client) (*ModuleStatus, error) {
+	return nil, &meta.NoKindMatchError{
+		GroupKind: schema.GroupKind{
+			Group: testProvisioningModuleGroup,
+			Kind:  testProvisioningModuleKind,
+		},
+	}
+}
+
+func TestComputeModulesStatusRequeuesOnCRDAbsent(t *testing.T) {
+	withTestRegistry(t)
+
+	handler := noMatchErrorModuleStub{
+		provisioningModuleStub: provisioningModuleStub{
+			moduleName: "crd-absent-module",
+			enabled:    true,
+		},
+	}
+	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
+
+	dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName}}
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
+	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	rr := &types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+	}
+
+	err = ComputeModulesStatus(context.Background(), rr)
+
+	// Must return a RequeueAfterError so the controller retries.
+	var requeueErr odherrors.RequeueAfterError
+	if !errors.As(err, &requeueErr) {
+		t.Fatalf("expected RequeueAfterError when module CRD is absent, got: %v", err)
+	}
+	if requeueErr.After != 30*time.Second {
+		t.Fatalf("expected 30s requeue delay, got %v", requeueErr.After)
+	}
+
+	// ModulesReady condition must still be set (aggregation ran despite the requeue).
+	modulesReady := conditions.FindStatusCondition(dsc.GetStatus(), status.ConditionTypeModulesReady)
+	if modulesReady == nil {
+		t.Fatalf("expected ModulesReady condition to be set even when CRD is absent")
+	}
+	if modulesReady.Status != metav1.ConditionFalse {
+		t.Fatalf("expected ModulesReady=False, got %s", modulesReady.Status)
+	}
+
+	// Per-module condition must mention the missing CRD.
+	moduleCond := conditions.FindStatusCondition(dsc.GetStatus(), testProvisioningModuleKind+status.ReadySuffix)
+	if moduleCond == nil {
+		t.Fatalf("expected per-module condition to be set")
+	}
+	if moduleCond.Status != metav1.ConditionFalse {
+		t.Fatalf("expected per-module condition=False, got %s", moduleCond.Status)
+	}
+}
+
+func TestComputeModulesStatusNoRequeueOnRegularError(t *testing.T) {
+	withTestRegistry(t)
+
+	handler := legacyStatusFieldsWriterStub{
+		provisioningModuleStub: provisioningModuleStub{
+			moduleName: "error-module",
+			enabled:    true,
+		},
+		getStatusErr: errors.New("some transient API error"),
+	}
+	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
+
+	dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName}}
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
+	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	rr := &types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+	}
+
+	err = ComputeModulesStatus(context.Background(), rr)
+
+	// Regular errors should NOT trigger a requeue.
+	if err != nil {
+		t.Fatalf("expected nil error for regular GetModuleStatus failures, got: %v", err)
 	}
 }
