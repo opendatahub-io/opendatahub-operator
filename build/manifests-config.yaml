@@ -119,7 +119,7 @@ additional_meta:
     git.commit: 56622702292bb22a88bca0457168cd1a7273d4d3
   odh-guardrails-detector-huggingface-runtime:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
-    git.commit: 44da11b03e6ed6d54da3a0d89e64db76d5673ecf
+    git.commit: 10f9f7d9b78f124ef19cb9dd5ce9c8e528e51c62
   odh-kf-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
     git.commit: 548279cee72107707f11f19432f529bc7e65bc3c
@@ -308,16 +308,16 @@ additional_meta:
     git.commit: 0fa0da05a23454ca3cc73be3e46156b6ea76e61b
   odh-ta-lmes-job:
     git.url: https://github.com/red-hat-data-services/lm-evaluation-harness
-    git.commit: 2f7a86a9e4bd31c4982cf91e7b4764eb7898ca84
+    git.commit: 071a04a58c05af5578cf93c09adc4e7ed0cd0465
   odh-th-torch-cpu-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: e0c1598b91a5a6fad58bae7c4005cac5767e5939
   odh-th-torch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 7f38264c1eb7670e300326caa80bf32a508b7878
+    git.commit: e0c1598b91a5a6fad58bae7c4005cac5767e5939
   odh-th-torch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: e0c1598b91a5a6fad58bae7c4005cac5767e5939
+    git.commit: 25a0c22dd68de614310a61a33b314da758b9d188
   odh-training-cuda128-torch28-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 7f38264c1eb7670e300326caa80bf32a508b7878
@@ -344,7 +344,7 @@ additional_meta:
     git.commit: 189f6e1f2d6f776810ecffdb9ddfbf4d78355d72
   odh-vllm-cpu:
     git.url: https://github.com/red-hat-data-services/vllm-cpu
-    git.commit: 53c42d03ff4b52a7d0db64e2fe2b45e41addc6c8
+    git.commit: 1202dd7838edf22a11cc14e1746d796ded4877be
   odh-workbench-codeserver-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 861afce3002d1e0703d77d9ae7aaa248cb8fbb67
