@@ -1,0 +1,17 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rhods-operator-openshift-tls-profile-reader
+rules:
+- apiGroups:
+  - config.openshift.io
+  resources:
+  - apiservers
+  - authentications
+  - clusterversions
+  - infrastructures
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch

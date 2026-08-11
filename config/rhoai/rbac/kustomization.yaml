@@ -6,3 +6,5 @@ resources:
 - role_binding.yaml
 - role.yaml
 - service_account.yaml
+- tls_clusterrole.yaml
+- tls_clusterrolebinding.yaml
