@@ -24,7 +24,7 @@ map:
     src: config
     dest: trustyai
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
-    git.commit: 43f7369229ae85257e983bf7c3256220ff9dc461
+    git.commit: 6d7b941d6bc657abc6a4142dc193a8e01f6e4d47
   odh-model-registry-operator:
     src: config
     dest: modelregistry
@@ -35,12 +35,12 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 33aa9dfa9ba93032d6498cc96bca4d8438853613
+    git.commit: cd10c1b3dde7572249cea9db2c174fe5f345f36e
   odh-trainer:
     src: manifests
     dest: trainer
     git.url: https://github.com/red-hat-data-services/trainer
-    git.commit: cb498bca089ca911d554548456a6a5426365dffa
+    git.commit: f53ae36477619ea51fc69da5310f9d962abff769
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
@@ -234,10 +234,10 @@ additional_meta:
     git.commit: 9bf192fd9957bf2618d00301127a345ca5a7326c
   odh-mod-arch-automl:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 9bf192fd9957bf2618d00301127a345ca5a7326c
+    git.commit: cd10c1b3dde7572249cea9db2c174fe5f345f36e
   odh-mod-arch-autorag:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 9bf192fd9957bf2618d00301127a345ca5a7326c
+    git.commit: cd10c1b3dde7572249cea9db2c174fe5f345f36e
   odh-mod-arch-eval-hub:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 9bf192fd9957bf2618d00301127a345ca5a7326c
@@ -303,7 +303,7 @@ additional_meta:
     git.commit: 1b2be9d1065a590ec1466c0f2f48e9a67a85e7e3
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
-    git.commit: 43f7369229ae85257e983bf7c3256220ff9dc461
+    git.commit: 6d7b941d6bc657abc6a4142dc193a8e01f6e4d47
   odh-ta-lmes-job:
     git.url: https://github.com/red-hat-data-services/lm-evaluation-harness
     git.commit: d2156e4953ea5054b15e1565b457c1e89cead067
@@ -318,13 +318,13 @@ additional_meta:
     git.commit: c5d0e80e0a102b6a51ade5b7aa8114a837d862ed
   odh-trustyai-service:
     git.url: https://github.com/red-hat-data-services/trustyai-explainability
-    git.commit: 8078f216cfa050f826247849955f61595b20c2fb
+    git.commit: 8416f278aeb12df69daabae8c7d95634af4e7727
   odh-trustyai-service-py:
     git.url: https://github.com/red-hat-data-services/trustyai-service
     git.commit: 6e483b708127adb5f7ea6df4d880a20ad5cfea22
   odh-trustyai-vllm-orchestrator-gateway:
     git.url: https://github.com/red-hat-data-services/vllm-orchestrator-gateway
-    git.commit: 7685c524e7b13288109651fee2836f7630c9c2ab
+    git.commit: 73215ed5c36c71bf826cd40be46777c2a06e11dd
   odh-vllm-cpu:
     git.url: https://github.com/red-hat-data-services/vllm-cpu
     git.commit: 15bb5d4c60bc7e1f261327cb1e50fd3491d17bed
