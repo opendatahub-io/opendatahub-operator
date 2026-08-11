@@ -110,7 +110,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-model-controller-rhel9@sha256:14b324ad805229a8ae5b96a763ec8e7ec594755d93a49deb9ddb76a45d4a9dcc"
 - name: RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE
-  value: "quay.io/rhoai/odh-model-metadata-collection-rhel9@sha256:a216c6077546b51e0f4a73a93a7275ee6a40fff40488d4463a06669fc6e3902d"
+  value: "quay.io/rhoai/odh-model-metadata-collection-rhel9@sha256:41481c43de81ecc3efc9fad0d8e15fc4533b40163bb85e5a80c36fcb304bf74b"
 - name: RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE
   value: "quay.io/rhoai/odh-model-performance-data-rhel9@sha256:b24b29c173a91ec10e3db1e2b3198f1f7f7cd3e9b0fce65a483321da21ea0081"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE
@@ -178,7 +178,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE
   value: "quay.io/rhoai/odh-th-torch-cpu-py312-rhel9@sha256:5e95e5fa13c1e9cfd892c17f23e703cbf44b039d00a28604038bb4f5fd662c4e"
 - name: RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE
-  value: "quay.io/rhoai/odh-th-torch-cuda-py312-rhel9@sha256:d73690ef86ba98b7f091429bf023e7ea5132d3826702b39225bbe23cdcae893b"
+  value: "quay.io/rhoai/odh-th-torch-cuda-py312-rhel9@sha256:35eabddb4ff78be328ac3b0c16ee59aa87162107cfe57684763c81cf21de1701"
 - name: RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE
   value: "quay.io/rhoai/odh-th-torch-rocm-py312-rhel9@sha256:d0e3b534892fec0d7fcc11fa8a51ec6e9a384d5dda9e21f32d253f1c9e1f409d"
 - name: RELATED_IMAGE_ODH_TRAINER_IMAGE
