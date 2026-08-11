@@ -55,7 +55,7 @@ map:
     src: config
     dest: sparkoperator
     git.url: https://github.com/red-hat-data-services/spark-operator
-    git.commit: 7b15494e3af5a29e599adde04e7d612759de1122
+    git.commit: ffb8155b1ebf626931194880bfe41f968ec6620d
   odh-ai-gateway-operator:
     src: config
     dest: aigateway
@@ -269,7 +269,7 @@ additional_meta:
     git.commit: fcf260869e7f0858a5f1fac8bdc374ff55dbf721
   odh-ogx-k8s-operator:
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
-    git.commit: d40662f9df546d4b52d2f130041daad79714d368
+    git.commit: 7fc1f4ffe7cba45d3d11fef70d6bb81aa5385c3c
   odh-openvino-model-server:
     git.url: https://github.com/red-hat-data-services/openvino_model_server
     git.commit: f86e0909220873b2590933fcea0d3512f45f71dc

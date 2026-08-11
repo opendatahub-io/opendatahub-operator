@@ -144,7 +144,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_OGX_CORE_IMAGE
   value: "quay.io/rhoai/odh-ogx-core-rhel9@sha256:d769af5f18481a4ed9af0313689de3cedf8cefbb4d9d2ea4222dd79cf72aed8a"
 - name: RELATED_IMAGE_ODH_OGX_K8S_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-ogx-k8s-operator-rhel9@sha256:13558f4abbdd7d2a153c220cc36f48bd16c9041ad46b532a17bfbb21d3a2a922"
+  value: "quay.io/rhoai/odh-ogx-k8s-operator-rhel9@sha256:dc147454cedbefd00d9e31968a2083351f0511a25ba28b08e98c4ad25447f94d"
 - name: RELATED_IMAGE_ODH_OGX_MODULE_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-ogx-module-operator-rhel9@sha256:722fa8707e436f5ddc50abb85c83f815c15b16e2207ec4c956e81a47a154540a"
 - name: RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE
@@ -170,7 +170,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_RHAII_VALIDATOR_TOOLS_IMAGE
   value: "quay.io/rhoai/odh-rhaii-validator-tools-rhel9@sha256:21d2d46ba263146fe80de78aee0be3d55e82d8621dfd7e783bc56a34301020ea"
 - name: RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-spark-operator-rhel9@sha256:701415d261b893b74de83e95718eb9698bf218bc872a84fd593ce9651effe145"
+  value: "quay.io/rhoai/odh-spark-operator-rhel9@sha256:4d32030d7e5d77c89fadc19445598c1ab950a140effdb33e21cbd6962b0eb210"
 - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
   value: "quay.io/rhoai/odh-ta-lmes-driver-rhel9@sha256:31735fc3fd8568c83040f9a55ab4c1bb4fb321bbd792f18bc8613f56f0e2610c"
 - name: RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE
