@@ -29,24 +29,24 @@ jobs:
           private-key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
-      - name: Update manifest SHAs
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-        id: update-shas
-        with:
-          github-token: ${{ steps.generate-token.outputs.token }}
-          script: |
-            const script = require('./.github/scripts/update-manifests-commit-sha.js')
-            await script({github, core})
-
       - name: Set up Go
-        if: steps.update-shas.outputs.updates-needed == 'true'
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
           go-version-file: go.mod
 
+      - name: Update manifest SHAs
+        id: update-shas
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: GITHUB_TOKEN=$GITHUB_TOKEN make update-refs-shas
+
       - name: Update cloud manager RBAC
         if: steps.update-shas.outputs.updates-needed == 'true'
         run: make update-cloudmanager-rbac
+
+      - name: Resolve image digests
+        if: steps.update-shas.outputs.updates-needed == 'true'
+        run: make resolve-image-digests
 
       - name: Create Pull Request
         if: steps.update-shas.outputs.updates-needed == 'true'
@@ -55,6 +55,7 @@ jobs:
         with:
           token: ${{ steps.generate-token.outputs.token }}
           commit-message: "chore: update manifest commit SHAs"
+          labels: "auto-bump-manifests-and-images"
           title: "chore: update manifest commit SHAs"
           body: |
             This PR updates the manifest commit SHAs to the latest available commits.
