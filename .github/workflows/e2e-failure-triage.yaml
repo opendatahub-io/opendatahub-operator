@@ -1,0 +1,113 @@
+name: E2E Failure Triage
+
+on:
+  status
+
+permissions:
+  contents: read
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: e2e-failure-triage-${{ github.event.sha }}
+      cancel-in-progress: false
+    if: >-
+      github.event.state == 'failure' &&
+      (
+        github.event.context == 'ci/prow/opendatahub-operator-e2e' ||
+        github.event.context == 'ci/prow/opendatahub-operator-rhoai-e2e'
+      )
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Extract PR number from Prow URL
+        id: extract-pr
+        env:
+          TARGET_URL: ${{ github.event.target_url }}
+        run: |
+          PR_NUMBER=$(echo "$TARGET_URL" | grep -oP 'pull/[^/]+/\K[0-9]+')
+
+          if [[ -z "$PR_NUMBER" ]]; then
+            echo "Could not extract PR number from target_url: $TARGET_URL"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "prow_url=$TARGET_URL" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Check PR for auto-bump label
+        if: steps.extract-pr.outputs.skip != 'true'
+        id: check-label
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUMBER="${{ steps.extract-pr.outputs.pr_number }}"
+
+          HAS_LABEL=$(gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}" \
+            --jq '[.labels[].name] | any(. == "auto-bump-manifests-and-images")')
+
+          if [[ "$HAS_LABEL" != "true" ]]; then
+            echo "PR #${PR_NUMBER} does not have auto-bump-manifests-and-images label — skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "PR #${PR_NUMBER} has auto-bump-manifests-and-images label — proceeding with triage"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout code
+        if: steps.extract-pr.outputs.skip != 'true' && steps.check-label.outputs.skip != 'true'
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        if: steps.extract-pr.outputs.skip != 'true' && steps.check-label.outputs.skip != 'true'
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        if: steps.extract-pr.outputs.skip != 'true' && steps.check-label.outputs.skip != 'true'
+        run: pip install -r .github/scripts/e2e-failure-triage/requirements.txt
+
+      - name: Fetch existing triage comment
+        if: steps.extract-pr.outputs.skip != 'true' && steps.check-label.outputs.skip != 'true'
+        id: fetch-comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${{ github.repository }}/issues/${{ steps.extract-pr.outputs.pr_number }}/comments" \
+            --jq '[.[] | select(.body | contains("<!-- e2e-triage-section:"))] | last | .body // empty' \
+            > "${{ runner.temp }}/existing-comment.md" 2>&1; then
+            echo "fetch_ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Failed to fetch existing triage comment — comment may lose other suite's section"
+            echo "fetch_ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run triage script
+        if: steps.extract-pr.outputs.skip != 'true' && steps.check-label.outputs.skip != 'true'
+        env:
+          PROW_URL: ${{ steps.extract-pr.outputs.prow_url }}
+          E2E_TRIAGE_JIRA_EMAIL: ${{ secrets.E2E_TRIAGE_JIRA_EMAIL }}
+          E2E_TRIAGE_JIRA_API_TOKEN: ${{ secrets.E2E_TRIAGE_JIRA_API_TOKEN }}
+          GITHUB_ACTION_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python .github/scripts/e2e-failure-triage/triage.py \
+            --prow-url "$PROW_URL" \
+            --existing-comment "${{ runner.temp }}/existing-comment.md" \
+            --comment-output "${{ runner.temp }}/pr-comment.md"
+
+      - name: Comment on PR
+        if: steps.extract-pr.outputs.skip != 'true' && steps.check-label.outputs.skip != 'true'
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
+        with:
+          file-path: ${{ runner.temp }}/pr-comment.md
+          pr-number: ${{ steps.extract-pr.outputs.pr_number }}
+          comment-tag: e2e-failure-triage
+          mode: upsert

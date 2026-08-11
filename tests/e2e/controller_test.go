@@ -142,7 +142,6 @@ var (
 			{
 				componentApi.DashboardComponentName:            dashboardTestSuite,
 				componentApi.RayComponentName:                  rayTestSuite,
-				componentApi.ModelRegistryComponentName:        modelRegistryTestSuite,
 				componentApi.TrainingOperatorComponentName:     trainingOperatorTestSuite,
 				componentApi.TrainerComponentName:              trainerTestSuite,
 				componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
@@ -157,16 +156,14 @@ var (
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
 				componentApi.KueueComponentName: kueueTestSuite,
+				// ModelRegistry and Kserve are coupled, so must not run with Kserve tests in parallel
+				componentApi.ModelRegistryComponentName: modelRegistryTestSuite,
 			},
 			{
-				// TrustyAI tests depends on KServe, so must not run with Kserve or ModelsAsService tests in parallel
+				// TrustyAI tests depends on KServe, so must not run with Kserve tests in parallel
 				componentApi.TrustyAIComponentName: trustyAITestSuite,
 				// MLflowOperator tests should not run in parallel with Workbenches tests, as Workbenches tests integration with MLflowOperator
 				componentApi.MLflowOperatorComponentName: mlflowOperatorTestSuite,
-			},
-			{
-				// ModelsAsService tests depends on KServe, so must not run with Kserve or TrustyAI tests in parallel
-				componentApi.ModelsAsServiceComponentName: modelsAsServiceTestSuite,
 			},
 			{
 				// run external operator degraded monitoring tests isolated from other component tests

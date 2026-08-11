@@ -1,0 +1,14 @@
+# This patch reverts the metrics Service to plain HTTP for xKS deployments
+# where service-ca is not available and --metrics-secure=false is set.
+apiVersion: v1
+kind: Service
+metadata:
+  name: controller-manager-metrics-service
+  namespace: system
+spec:
+  ports:
+  - $patch: replace
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
