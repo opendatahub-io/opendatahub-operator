@@ -66,6 +66,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	crtlmanager "sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -474,7 +475,22 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		// This is the default mapper provider, we define it to ensure it remains
 		// consistent with controller-runtime updates. It is needed for the action dynamicownership.
 		MapperProvider: apiutil.NewDynamicRESTMapper,
-		Metrics:        ctrlmetrics.Options{BindAddress: oconfig.MetricsAddr, TLSOpts: tlsOpts},
+		Metrics: func() ctrlmetrics.Options {
+			opts := ctrlmetrics.Options{
+				BindAddress:   oconfig.MetricsAddr,
+				SecureServing: oconfig.MetricsSecure,
+				TLSOpts:       tlsOpts,
+			}
+			if oconfig.MetricsSecure {
+				opts.FilterProvider = filters.WithAuthenticationAndAuthorization
+			}
+			if oconfig.MetricsCertPath != "" {
+				opts.CertDir = oconfig.MetricsCertPath
+				opts.CertName = oconfig.MetricsCertName
+				opts.KeyName = oconfig.MetricsCertKey
+			}
+			return opts
+		}(),
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
 			Port:    9443,
 			TLSOpts: tlsOpts,
@@ -755,7 +771,20 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 
 		adherence, err = tlspkg.FetchAPIServerTLSAdherencePolicy(ctx, bootstrapClient)
 		if err != nil {
-			setupLog.Info("unable to fetch TLS adherence policy, watcher will retry", "error", err)
+			switch {
+			case meta.IsNoMatchError(err):
+				setupLog.Info("TLS adherence API not available (non-OpenShift or pre-4.22 cluster)")
+			case k8serr.IsNotFound(err):
+				setupLog.Info("APIServer resource not found for adherence, skipping")
+			case k8serr.IsServiceUnavailable(err),
+				k8serr.IsTimeout(err),
+				k8serr.IsServerTimeout(err),
+				k8serr.IsTooManyRequests(err):
+				setupLog.Info("Transient error fetching TLS adherence policy, watcher will retry", "error", err)
+			default:
+				setupLog.Error(err, "unable to read TLS adherence policy, refusing to start with unknown adherence posture")
+				os.Exit(1)
+			}
 		}
 	}
 

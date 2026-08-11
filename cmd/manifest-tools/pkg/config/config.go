@@ -33,6 +33,7 @@ type ImageOverride struct {
 	ParamsEnvKey string         `yaml:"paramsEnvKey,omitempty"`
 	TagTemplate  string         `yaml:"tagTemplate,omitempty"`
 	Base         string         `yaml:"base,omitempty"`
+	Source       string         `yaml:"source,omitempty"`
 	ODH          *PlatformImage `yaml:"odh,omitempty"`
 	RHOAI        *PlatformImage `yaml:"rhoai,omitempty"`
 }
@@ -189,6 +190,57 @@ func (d *NodeDoc) SetImageOverrideField(envName, platform, field, value string) 
 
 	setMapField(platNode, field, value)
 	return nil
+}
+
+// AddImageOverride creates a new entry under imageOverrides with the given platform, base, and digest.
+func (d *NodeDoc) AddImageOverride(envName, platform, base, digest string) error {
+	root := d.Root.Content[0]
+
+	overridesNode := findMapValue(root, "imageOverrides")
+	if overridesNode == nil {
+		return fmt.Errorf("imageOverrides not found")
+	}
+
+	if existing := findMapValue(overridesNode, envName); existing != nil {
+		return fmt.Errorf("imageOverrides.%s already exists", envName)
+	}
+
+	platNode := &yaml.Node{Kind: yaml.MappingNode}
+	setMapField(platNode, "base", base)
+	setMapField(platNode, "digest", digest)
+
+	entryNode := &yaml.Node{Kind: yaml.MappingNode}
+	setMapField(entryNode, "source", "csv")
+	entryNode.Content = append(entryNode.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Value: platform},
+		platNode,
+	)
+
+	overridesNode.Content = append(overridesNode.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Value: envName},
+		entryNode,
+	)
+
+	return nil
+}
+
+// RemoveImageOverride removes an entry from imageOverrides by env name.
+func (d *NodeDoc) RemoveImageOverride(envName string) error {
+	root := d.Root.Content[0]
+
+	overridesNode := findMapValue(root, "imageOverrides")
+	if overridesNode == nil {
+		return fmt.Errorf("imageOverrides not found")
+	}
+
+	for i := 0; i < len(overridesNode.Content)-1; i += 2 {
+		if overridesNode.Content[i].Value == envName {
+			overridesNode.Content = append(overridesNode.Content[:i], overridesNode.Content[i+2:]...)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("imageOverrides.%s not found", envName)
 }
 
 // SetComponentRef sets the ref field for a component in a specific section and platform.
