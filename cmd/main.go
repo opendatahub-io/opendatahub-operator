@@ -770,7 +770,20 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 
 		adherence, err = tlspkg.FetchAPIServerTLSAdherencePolicy(ctx, bootstrapClient)
 		if err != nil {
-			setupLog.Info("unable to fetch TLS adherence policy, watcher will retry", "error", err)
+			switch {
+			case meta.IsNoMatchError(err):
+				setupLog.Info("TLS adherence API not available (non-OpenShift or pre-4.22 cluster)")
+			case k8serr.IsNotFound(err):
+				setupLog.Info("APIServer resource not found for adherence, skipping")
+			case k8serr.IsServiceUnavailable(err),
+				k8serr.IsTimeout(err),
+				k8serr.IsServerTimeout(err),
+				k8serr.IsTooManyRequests(err):
+				setupLog.Info("Transient error fetching TLS adherence policy, watcher will retry", "error", err)
+			default:
+				setupLog.Error(err, "unable to read TLS adherence policy, refusing to start with unknown adherence posture")
+				os.Exit(1)
+			}
 		}
 	}
 
