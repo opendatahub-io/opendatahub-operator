@@ -15,6 +15,7 @@ resources:
   - ../../default # Inherits everything from config/default/
   - ../../spark-rbac # SA/Role/RoleBinding for Spark driver pods
   - ../../prometheus
+  - rbac/tls # TLS security profile watcher RBAC (OpenShift only)
   - networkpolicy.yaml
 
 # 3. Delete the Namespace resource (ODH operator manages it)
