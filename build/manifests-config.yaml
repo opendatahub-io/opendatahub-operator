@@ -116,7 +116,7 @@ additional_meta:
     git.commit: 2fd0449701dd6dc17cd8536a1bf02e9f6e9811a0
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
-    git.commit: d08d517364e4ac46616afbe204d83f708d54e776
+    git.commit: 4494aa9900caddd935eb2f4cdc68c5df92e664c5
   odh-guardrails-detector-huggingface-runtime:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: 44da11b03e6ed6d54da3a0d89e64db76d5673ecf
