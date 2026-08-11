@@ -55,7 +55,7 @@ map:
     src: config
     dest: sparkoperator
     git.url: https://github.com/red-hat-data-services/spark-operator
-    git.commit: ffb8155b1ebf626931194880bfe41f968ec6620d
+    git.commit: 16a00b96d73ba29152d6b0f415699dc7d13ac7f8
   odh-ai-gateway-operator:
     src: config
     dest: aigateway
@@ -332,7 +332,7 @@ additional_meta:
     git.commit: a12267a9d09d2c7b30dd37bfb01de85202ca959b
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
-    git.commit: dc71fdd59e14c4b628563cb0f7423317a2ce304c
+    git.commit: f9d7740fe66fd4fdde67a758ba30e08b5239d48f
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: 342c953cab5a366aa3142a7bf12a98a7466eabfe
