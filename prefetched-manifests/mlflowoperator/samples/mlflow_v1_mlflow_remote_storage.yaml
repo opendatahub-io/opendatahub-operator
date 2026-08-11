@@ -66,6 +66,10 @@ spec:
   # Clients can log/retrieve artifacts via MLflow instead of direct S3 access
   serveArtifacts: true
 
+  # Writable temporary storage for proxied artifact upload/download flows
+  temporaryStorage:
+    sizeLimit: 2Gi
+
   # Number of gunicorn workers per pod
   # For high-traffic deployments, scaling replicas is recommended over increasing workers
   workers: 2

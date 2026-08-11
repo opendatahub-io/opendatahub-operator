@@ -2659,6 +2659,23 @@ spec:
                       backing this claim.
                     type: string
                 type: object
+              temporaryStorage:
+                description: |-
+                  TemporaryStorage configures the writable /tmp emptyDir shared by the MLflow pod
+                  containers and related Jobs rendered from the chart.
+                  This is especially relevant when serving artifacts from remote storage because
+                  proxied upload/download flows can use temporary local disk space.
+                properties:
+                  sizeLimit:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      SizeLimit caps the writable /tmp emptyDir volume.
+                      When omitted, the operator/chart default is used.
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                type: object
               tolerations:
                 description: Tolerations are the pod's tolerations
                 items:
