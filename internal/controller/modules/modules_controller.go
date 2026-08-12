@@ -37,12 +37,15 @@ import (
 
 // commonActions returns the shared action chain for both DSC and Platform modes.
 //
-// Ordering: provisionModules and render run before the gate check so
-// that gate ConfigMaps embedded in module Helm charts are discovered
-// before the check runs. ExtractUpgradeGates pulls gate CMs out of
-// rr.Resources and stashes them on rr.GateEntries. checkUpgradeGates
-// then merges all gate sources and writes descriptions to
-// odh-upgrade-acks. If unacked gates exist, deploy never runs.
+// provisionModules and render run before the gate check so that gate
+// ConfigMaps embedded in module Helm charts are discovered first.
+// provisionModules only populates rr.Resources — nothing is applied
+// to the cluster until deploy runs. ExtractUpgradeGates pulls gate CMs
+// out of rr.Resources, AutoAcknowledgeUpgradeGates auto-acks healthy
+// or unmanaged components, and checkUpgradeGates blocks deploy when
+// any gate remains unacknowledged. Gate entries are loaded from the
+// embedded in-tree gates file so they are available on the very first
+// reconcile without waiting for the informer cache to sync.
 func commonActions() []actions.Fn {
 	return []actions.Fn{
 		initializeModules,
@@ -52,6 +55,7 @@ func commonActions() []actions.Fn {
 		helmrender.NewAction(),
 		kustomizerender.NewAction(),
 		provision.ExtractUpgradeGates,
+		provision.AutoAcknowledgeUpgradeGates,
 		checkUpgradeGates,
 		injectModuleEnv,
 		injectPlatformConfig,

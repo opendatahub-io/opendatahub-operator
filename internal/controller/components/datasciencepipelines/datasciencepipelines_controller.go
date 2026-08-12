@@ -37,6 +37,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -64,6 +65,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		).
 		WithPreCondition(precondition.Custom(checkPreConditions, precondition.WithStopReconciliation())).
 		WithAction(precondition.RunlevelGateAction()).
+		WithAction(provision.ComponentUpgradeGateAction).
 		WithAction(initialize).
 		WithAction(argoWorkflowsControllersOptions).
 		WithAction(releases.NewAction()).
