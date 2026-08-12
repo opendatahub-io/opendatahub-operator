@@ -491,6 +491,13 @@ spec:
                       Value must be a JSON string. For example, to disable tls for Pipeline Server DB connection
                       the user can provide a string: {"tls":"true"}
 
+                      Only the following parameter keys are accepted: tls, charset, loc, timeout,
+                      readTimeout, writeTimeout, parseTime, collation, sql_mode, checkConnLiveness,
+                      clientFoundRows, columnsWithAlias, maxAllowedPacket, rejectReadOnly,
+                      timeTruncate, connectionAttributes, sslmode, connect_timeout, application_name.
+                      Any other key (including driver-level flags such as allowAllFiles or
+                      allowCleartextPasswords) will be rejected.
+
                       If updating post DSPA deployment, then a manual restart of the pipeline server pod will be required
                       so the new configmap may be consumed.
                     type: string

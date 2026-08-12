@@ -8,8 +8,14 @@ rules:
   - ""
   resources:
   - configmaps
+  - persistentvolumeclaims
+  - persistentvolumes
+  - pods
+  - pods/exec
+  - pods/log
   - secrets
   - serviceaccounts
+  - services
   verbs:
   - create
   - delete
@@ -28,42 +34,12 @@ rules:
   - patch
 - apiGroups:
   - ""
-  resources:
-  - persistentvolumeclaims
-  - persistentvolumes
-  - services
-  verbs:
-  - '*'
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  - pods/exec
-  - pods/log
-  verbs:
-  - '*'
-- apiGroups:
-  - ""
   - apps
   - extensions
   resources:
   - deployments
   - deployments/finalizers
   - replicasets
-  verbs:
-  - '*'
-- apiGroups:
-  - '*'
-  resources:
-  - deployments
-  - services
   verbs:
   - create
   - delete
@@ -112,7 +88,13 @@ rules:
   - workflowartifactgctasks/finalizers
   - workflows
   verbs:
-  - '*'
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - argoproj.io
   resources:
@@ -137,7 +119,13 @@ rules:
   resources:
   - jobs
   verbs:
-  - '*'
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - config.openshift.io
   resources:
@@ -182,15 +170,16 @@ rules:
 - apiGroups:
   - kubeflow.org
   resources:
-  - '*'
+  - scheduledworkflows
+  - scheduledworkflows/finalizers
   verbs:
-  - '*'
-- apiGroups:
-  - machinelearning.seldon.io
-  resources:
-  - seldondeployments
-  verbs:
-  - '*'
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - mlflow.kubeflow.org
   resources:

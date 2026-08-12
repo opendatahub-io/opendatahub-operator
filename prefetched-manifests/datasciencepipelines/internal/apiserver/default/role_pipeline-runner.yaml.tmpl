@@ -28,7 +28,13 @@ rules:
       - persistentvolumes
       - persistentvolumeclaims
     verbs:
-      - '*'
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
   - apiGroups:
       - snapshot.storage.k8s.io
     resources:
@@ -58,11 +64,16 @@ rules:
       - ""
     resources:
       - pods
-      - pods/exec
       - pods/log
       - services
     verbs:
-      - '*'
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
   - apiGroups:
       - ""
       - apps
@@ -71,25 +82,38 @@ rules:
       - deployments
       - replicasets
     verbs:
-      - '*'
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
   - apiGroups:
       - kubeflow.org
     resources:
-      - '*'
+      - scheduledworkflows
+      - scheduledworkflows/finalizers
     verbs:
-      - '*'
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
   - apiGroups:
       - batch
     resources:
       - jobs
     verbs:
-      - '*'
-  - apiGroups:
-      - machinelearning.seldon.io
-    resources:
-      - seldondeployments
-    verbs:
-      - '*'
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
   - apiGroups:
       - ray.io
     resources:
