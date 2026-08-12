@@ -22,7 +22,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_WORKFLOWCONTROLLER_IMAGE
   value: quay.io/rhoai/odh-data-science-pipelines-argo-workflowcontroller-rhel9@sha256:842dec509c717ecbf496d68e34e8c75872b48c830c956e0598fcf0a9a8284f53
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE
-  value: quay.io/rhoai/odh-data-science-pipelines-operator-controller-rhel9@sha256:0c7670afacae88de4c5f3185247991df5c48bfd28fa03c35232803445dcb449b
+  value: quay.io/rhoai/odh-data-science-pipelines-operator-controller-rhel9@sha256:5cd75866fe218afa0d58df4e166e1a8e825a8f27ba686979bdd7b4d034d40f71
 - name: RELATED_IMAGE_ODH_EVAL_HUB_IMAGE
   value: quay.io/rhoai/odh-eval-hub-rhel9@sha256:dee69e223429418e366c92b4287ee7624caf1eebe28be907b2034f164e235681
 - name: RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE
