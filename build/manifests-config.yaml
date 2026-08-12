@@ -9,7 +9,7 @@ map:
     src: kserve-module/config
     dest: kserve-module-operator
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: d1dc7fca4c3fb9081bbf64b161a113627cceaf64
+    git.commit: ada82da92aab0b14a639c3cc46d2d7121d7c1b12
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
@@ -116,34 +116,34 @@ additional_meta:
     git.commit: 4393fc50b79e21f2a76136c730b786ce3145506c
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
-    git.commit: 720f64dfed08023428e4dd3235350de17093a1d5
+    git.commit: d69e4c8d621e90959b1e1afb0a962e60fc713cf6
   odh-guardrails-detector-huggingface-runtime:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: fcacb898ffd28260adadac71a579fc98dcfbdbf7
   odh-kf-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
-    git.commit: 834277488c8d60c8113d59a477365cb3e34e4e13
+    git.commit: 2f2ed6c99ee4395f74a97ffb3b1c4f1dc6276d62
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 74b9a76611037f1a75e5f631bf047d5215ed9a7d
+    git.commit: ada82da92aab0b14a639c3cc46d2d7121d7c1b12
   odh-kserve-autogluon-server:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 74b9a76611037f1a75e5f631bf047d5215ed9a7d
   odh-kserve-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 74b9a76611037f1a75e5f631bf047d5215ed9a7d
+    git.commit: ada82da92aab0b14a639c3cc46d2d7121d7c1b12
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: ada82da92aab0b14a639c3cc46d2d7121d7c1b12
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 74b9a76611037f1a75e5f631bf047d5215ed9a7d
+    git.commit: ada82da92aab0b14a639c3cc46d2d7121d7c1b12
   odh-kserve-localmodel-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 74b9a76611037f1a75e5f631bf047d5215ed9a7d
+    git.commit: ada82da92aab0b14a639c3cc46d2d7121d7c1b12
   odh-kserve-router:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 74b9a76611037f1a75e5f631bf047d5215ed9a7d
+    git.commit: ada82da92aab0b14a639c3cc46d2d7121d7c1b12
   odh-kserve-storage-initializer:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 74b9a76611037f1a75e5f631bf047d5215ed9a7d
@@ -191,7 +191,7 @@ additional_meta:
     git.commit: d53b12e6dff1394ecede686a5647f4608185245d
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
-    git.commit: ce60ebc48c31e66d327ae5745dc784a64c6ef6bd
+    git.commit: dcad9ddd0d64bcfb1339396c90a3b03757797207
   odh-mlmd-grpc-server:
     git.url: https://github.com/red-hat-data-services/ml-metadata
     git.commit: 006b5c51106dbdeedfe28c92b49ec22c9d923d22
@@ -332,7 +332,7 @@ additional_meta:
     git.commit: a12267a9d09d2c7b30dd37bfb01de85202ca959b
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
-    git.commit: a3f2e643254f47169c5ef9ed673a1c95c7dd9020
+    git.commit: 3a0f9de6e3fd3517a92f52e0564144f55cf8ad71
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: 1e14806356027ea41aaa7c845c1acc7bcb30c8ee
