@@ -555,6 +555,17 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	rm bundle.Dockerfile
 	rm -f $(BUNDLE_DIR)/manifests/opendatahub-operator-webhook-service_v1_service.yaml
 	rm -f $(BUNDLE_DIR)/manifests/rhods-operator-webhook-service_v1_service.yaml
+	# RHOAIENG-76183: strip spec.conversion from the bundle CRDs so OLM fully owns the
+	# conversion webhook config. operator-sdk has already synthesised the ConversionWebhook
+	# entry into the CSV webhookdefinitions above (from the CRD's spec.conversion), so OLM
+	# will apply the correct conversion (service + caBundle) after install. Shipping
+	# spec.conversion in the bundle CRD instead makes OLM apply it verbatim during the
+	# InstallPlan preflight (wrong service, no caBundle) and the CR-validation LIST hits an
+	# unreachable webhook -> 404 -> failed upgrade. Non-OLM installs (config/crd) keep their
+	# static conversion, so xKS/self-managed deployments are unaffected.
+	for f in $(BUNDLE_DIR)/manifests/datasciencecluster.opendatahub.io_datascienceclusters.yaml $(BUNDLE_DIR)/manifests/dscinitialization.opendatahub.io_dscinitializations.yaml; do \
+		[ -f "$$f" ] && $(YQ) -i 'del(.spec.conversion)' "$$f"; \
+	done
 CLEANFILES += rhoai-bundle odh-bundle
 
 .PHONY: bundle-all
