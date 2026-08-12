@@ -31,7 +31,7 @@ components:
       sourcePath: ray-operator/config
     rhoai:
       repo: red-hat-data-services/kuberay
-      ref: rhoai-3.5@b6e2cb5afb65f14562a3d2821dfaa7b14366c1e4
+      ref: rhoai-3.5@a93af8009d0bc6a8a070b4f864e67c9b663557ba
       sourcePath: ray-operator/config
   trustyai:
     odh:
@@ -252,10 +252,9 @@ imageOverrides:
       base: "quay.io/opendatahub/kuberay-operator"
       digest: "sha256:d5c32e7b6c4dd520fb16e6de07aec200b487f222aa503e464a92b2b97ba7bfc3"
     rhoai:
-      pinned: true # pinned because the rhoai-3.5 manifests are not updated with permissions needed from latest digest
       shaFrom: odh
       base: quay.io/opendatahub/kuberay-operator
-      digest: "sha256:257a3c2ada279123774368ed4ac430e9d337196de1ff512d7faf0fea5ecc7acf"
+      digest: "sha256:d5c32e7b6c4dd520fb16e6de07aec200b487f222aa503e464a92b2b97ba7bfc3"
   RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE:
     component: trustyai
     paramsEnvKey: trustyaiOperatorImage
