@@ -272,7 +272,7 @@ additional_meta:
     git.commit: 632f9b34a0b9d99d66285b245fa0fd7624f53c5a
   odh-openvino-model-server:
     git.url: https://github.com/red-hat-data-services/openvino_model_server
-    git.commit: f86e0909220873b2590933fcea0d3512f45f71dc
+    git.commit: f342c8f29ba87b214f5f7734633a519351cefe1b
   odh-pipelines-components:
     git.url: https://github.com/red-hat-data-services/pipelines-components
     git.commit: 902b7cfd0a5413dbe8c60469b8fd8f5e35bed4db
@@ -317,7 +317,7 @@ additional_meta:
     git.commit: 23bfeae0bdbf98f0444daf7d3cb71e71e105b498
   odh-th-torch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: e421a258b394fd3904bcbc0c62be369204e5bd41
+    git.commit: 779eb3dc33831c724214fcf1dad6f49257c83de7
   odh-training-cuda128-torch28-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: a12267a9d09d2c7b30dd37bfb01de85202ca959b
@@ -332,7 +332,7 @@ additional_meta:
     git.commit: a12267a9d09d2c7b30dd37bfb01de85202ca959b
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
-    git.commit: f9d7740fe66fd4fdde67a758ba30e08b5239d48f
+    git.commit: a3f2e643254f47169c5ef9ed673a1c95c7dd9020
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: 1e14806356027ea41aaa7c845c1acc7bcb30c8ee
