@@ -270,7 +270,7 @@ additional_meta:
     git.commit: 6a170bf4a2c08a0720de09c10ff4b063bd09a33e
   odh-openvino-model-server:
     git.url: https://github.com/red-hat-data-services/openvino_model_server
-    git.commit: 5894b9557c5a21ba3e669317cdc93de101ac73e5
+    git.commit: 04cfd157cc94c138ce07259cd8d3b958a1af6040
   odh-pipelines-components:
     git.url: https://github.com/red-hat-data-services/pipelines-components
     git.commit: c2a205a3769c16f6745986d264e39d0c16ac1dd6
@@ -312,7 +312,7 @@ additional_meta:
     git.commit: 0b38384ab9ea5d6fcbfdfc213b122e03ae3123b2
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
-    git.commit: 4760481cd6e2db0e144ed6c3553cd0181a16354b
+    git.commit: d1f467e5aab106a3d582ffcc3a1e83fffe581203
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: c5d0e80e0a102b6a51ade5b7aa8114a837d862ed
