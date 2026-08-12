@@ -32,6 +32,26 @@ patches:
     version: v1
     kind: CustomResourceDefinition
     name: datascienceclusters.datasciencecluster.opendatahub.io
+# Remove spec.conversion from bundle CRDs so OLM does not own conversion webhook
+# lifecycle. The operator patches spec.conversion at runtime after its webhook server
+# is ready, eliminating the upgrade-time race where OLM activates conversion before
+# new pods are serving /convert (RHOAIENG-76183).
+- patch: |-
+    - op: remove
+      path: /spec/conversion
+  target:
+    group: apiextensions.k8s.io
+    version: v1
+    kind: CustomResourceDefinition
+    name: dscinitializations.dscinitialization.opendatahub.io
+- patch: |-
+    - op: remove
+      path: /spec/conversion
+  target:
+    group: apiextensions.k8s.io
+    version: v1
+    kind: CustomResourceDefinition
+    name: datascienceclusters.datasciencecluster.opendatahub.io
 
 # [WEBHOOK] To enable webhooks, uncomment all the sections with [WEBHOOK] prefix.
 # Do NOT uncomment sections with prefix [CERTMANAGER], as OLM does not support cert-manager.
