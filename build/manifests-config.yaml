@@ -65,7 +65,7 @@ map:
     src: config
     dest: mcplifecycleoperator
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-module-operator
-    git.commit: 2c09e853f3162f919b6a28af30a58a3c0766b0de
+    git.commit: cf2426974bfb5e731148f3000d5fc56713c90cea
   odh-feast-module-operator:
     src: config/chart
     dest: feastoperator
@@ -188,7 +188,7 @@ additional_meta:
     git.commit: 243cff41b4f9312999d11ff01eab0a6b0c73110b
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
-    git.commit: ff59f4c354f4e06d1f8f7fcd6c1dbef411320a1a
+    git.commit: 81694e96d512be56263467e9d9af865a991ba449
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
     git.commit: ce60ebc48c31e66d327ae5745dc784a64c6ef6bd
@@ -314,7 +314,7 @@ additional_meta:
     git.commit: e460665963565a80bf0e14f5b8853e09497c2018
   odh-th-torch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: e460665963565a80bf0e14f5b8853e09497c2018
+    git.commit: 0c0c74c16719f3cc399ca92c4eb8104182238346
   odh-th-torch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 0c0c74c16719f3cc399ca92c4eb8104182238346
@@ -344,7 +344,7 @@ additional_meta:
     git.commit: c942a083b4108c08d4ddacf47c80cb10de207fe2
   odh-vllm-cpu:
     git.url: https://github.com/red-hat-data-services/vllm-cpu
-    git.commit: a0104c463ff7131ac5ae2bc613afd21bb77b178e
+    git.commit: 36eb1783c3b82c08f7c1b147433a4c6e38cdbdd1
   odh-workbench-codeserver-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: d51aa1d5bc0bfd0b173cc3efd29247ccf5d1b245
