@@ -83,10 +83,10 @@ additional_meta:
     git.commit: 89eaf81689d0861bf3e8eae9916546c13c5eb15f
   odh-automl:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 4ebf46cc79ccd30b87b35f64808cdf58e639bdc3
+    git.commit: 902b7cfd0a5413dbe8c60469b8fd8f5e35bed4db
   odh-autorag:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 4ebf46cc79ccd30b87b35f64808cdf58e639bdc3
+    git.commit: 902b7cfd0a5413dbe8c60469b8fd8f5e35bed4db
   odh-built-in-detector:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: 10f9f7d9b78f124ef19cb9dd5ce9c8e528e51c62
@@ -122,7 +122,7 @@ additional_meta:
     git.commit: 10f9f7d9b78f124ef19cb9dd5ce9c8e528e51c62
   odh-kf-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
-    git.commit: 548279cee72107707f11f19432f529bc7e65bc3c
+    git.commit: 284db802dae0e00094996910198406b097d435ac
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 74b9a76611037f1a75e5f631bf047d5215ed9a7d
@@ -263,7 +263,7 @@ additional_meta:
     git.commit: b221ec82747a253cded812d9af0eb75660f045c1
   odh-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
-    git.commit: 548279cee72107707f11f19432f529bc7e65bc3c
+    git.commit: 284db802dae0e00094996910198406b097d435ac
   odh-ogx-core:
     git.url: https://github.com/red-hat-data-services/ogx-distribution
     git.commit: bdca3f2257f3a78f1a0db4b0baae86f79fd25422
