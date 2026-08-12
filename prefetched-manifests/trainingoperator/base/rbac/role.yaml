@@ -40,12 +40,6 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - pods/exec
-  verbs:
-  - create
-- apiGroups:
-  - ""
-  resources:
   - serviceaccounts
   verbs:
   - create
@@ -245,8 +239,8 @@ rules:
   - rolebindings
   verbs:
   - create
+  - get
   - list
-  - update
   - watch
 - apiGroups:
   - rbac.authorization.k8s.io
@@ -254,6 +248,7 @@ rules:
   - roles
   verbs:
   - create
+  - get
   - list
   - update
   - watch
@@ -295,9 +290,6 @@ rules:
   - networkpolicies
   verbs:
   - create
-  - delete
   - get
-  - list
   - patch
   - update
-  - watch
