@@ -266,7 +266,7 @@ additional_meta:
     git.commit: 284db802dae0e00094996910198406b097d435ac
   odh-ogx-core:
     git.url: https://github.com/red-hat-data-services/ogx-distribution
-    git.commit: bdca3f2257f3a78f1a0db4b0baae86f79fd25422
+    git.commit: 1c48ec65b36daa97679c2f9739641718b11800df
   odh-ogx-k8s-operator:
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
     git.commit: 632f9b34a0b9d99d66285b245fa0fd7624f53c5a
@@ -311,7 +311,7 @@ additional_meta:
     git.commit: 071a04a58c05af5578cf93c09adc4e7ed0cd0465
   odh-th-torch-cpu-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: e421a258b394fd3904bcbc0c62be369204e5bd41
+    git.commit: 779eb3dc33831c724214fcf1dad6f49257c83de7
   odh-th-torch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 23bfeae0bdbf98f0444daf7d3cb71e71e105b498
