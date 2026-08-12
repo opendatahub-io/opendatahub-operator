@@ -1,7 +1,7 @@
 name: Post-Codefreeze Gatekeeper
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, edited, labeled]
     branches:
       - 'rhoai-3.5'
