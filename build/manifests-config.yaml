@@ -83,7 +83,7 @@ additional_meta:
     git.commit: a67d81ae45581b61330c707fa46d32e71d4f246a
   odh-automl:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 5740b0e2633716e8efef378ba106b3f4ca688167
+    git.commit: 6dbfd568341c0d8796fbd145537ba416d9e5d711
   odh-autorag:
     git.url: https://github.com/red-hat-data-services/pipelines-components
     git.commit: 4ebf46cc79ccd30b87b35f64808cdf58e639bdc3
@@ -224,7 +224,7 @@ additional_meta:
     git.commit: 1a9648d46da8db5f20f6a5c1a3e428bd34332ad5
   odh-model-performance-data:
     git.url: https://github.com/red-hat-data-services/models-perf-benchmark-data
-    git.commit: f43a0157972c7e993c261da5d5280357915f55c2
+    git.commit: f9ff416b4bf90bd173a6a5158f686a1d5874e2fb
   odh-model-registry:
     git.url: https://github.com/red-hat-data-services/model-registry
     git.commit: ad9da13c25d64e3a9b22b2db5cd8aa82b79b7601
@@ -314,10 +314,10 @@ additional_meta:
     git.commit: e421a258b394fd3904bcbc0c62be369204e5bd41
   odh-th-torch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: c05ed0f6b03e10be9fbe5d1e7a470ef7abf21bdd
+    git.commit: e421a258b394fd3904bcbc0c62be369204e5bd41
   odh-th-torch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 23bfeae0bdbf98f0444daf7d3cb71e71e105b498
+    git.commit: e421a258b394fd3904bcbc0c62be369204e5bd41
   odh-training-cuda128-torch28-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: a12267a9d09d2c7b30dd37bfb01de85202ca959b
