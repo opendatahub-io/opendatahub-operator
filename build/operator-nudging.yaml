@@ -182,7 +182,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRAINER_OPERATOR_IMAGE
   value: quay.io/rhoai/odh-trainer-operator-rhel9@sha256:c06db4b9dbcf407ed7cad519c876044aee4e152d670d198ea7de3910db259a3f
 - name: RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE
-  value: quay.io/rhoai/odh-trustyai-garak-lls-provider-dsp-rhel9@sha256:df9e6911c324796eb7499d3663c9036a8cb1e9a85ac6f09cc19ad9480d869d96
+  value: quay.io/rhoai/odh-trustyai-garak-lls-provider-dsp-rhel9@sha256:496470c57269f0f2c84e149e26cf8cef200d28aba2991bfa9459bb823af04c3e
 - name: RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE
   value: quay.io/rhoai/odh-trustyai-nemo-guardrails-server-rhel9@sha256:f62f0997988f0a9d839b41e3040c72c7984f9f14397ecfa5e2512ba141a4c428
 - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE
