@@ -428,10 +428,10 @@ func (b *BaseHandler) DeleteOperatorResources(ctx context.Context, cli client.Cl
 	manifests := b.GetOperatorManifests(platform)
 
 	for _, chartInfo := range manifests.HelmCharts {
-		if _, err := os.Stat(chartInfo.Source.Chart); errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Stat(chartInfo.Chart); errors.Is(err, os.ErrNotExist) {
 			log.V(1).Info("chart directory does not exist, skipping cleanup",
 				"module", b.Config.Name,
-				"path", chartInfo.Source.Chart)
+				"path", chartInfo.Chart)
 
 			continue
 		}
