@@ -50,7 +50,7 @@ map:
     src: config
     dest: sparkoperator
     git.url: https://github.com/red-hat-data-services/spark-operator
-    git.commit: 9d5bea9d7d2b1a2220c5880342d48c1c6a9e0fee
+    git.commit: 4ba2a6a6c6a4ab0249fb3b991999d46bcbab74ce
   odh-ai-gateway-operator:
     src: config
     dest: aigateway
@@ -123,7 +123,7 @@ additional_meta:
     git.commit: 61b84dcdad6de98eb989e152c5f7bb180f05a443
   odh-kserve-autogluon-server:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 5b6ac40853ce85a9d14a437ed56b9afbb1e6066e
+    git.commit: 61b84dcdad6de98eb989e152c5f7bb180f05a443
   odh-kserve-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 61b84dcdad6de98eb989e152c5f7bb180f05a443
@@ -315,7 +315,7 @@ additional_meta:
     git.commit: 6ff088752ecfbd9fc43dafddf662ff13de8e2e5b
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
-    git.commit: d1f467e5aab106a3d582ffcc3a1e83fffe581203
+    git.commit: b5857ede0e16bad3396d883509ee5e35a37f1d2f
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: c5d0e80e0a102b6a51ade5b7aa8114a837d862ed
@@ -330,7 +330,7 @@ additional_meta:
     git.commit: 0afd551437dc04b2bda04090d3e4f87662d9e7f7
   odh-vllm-cpu:
     git.url: https://github.com/red-hat-data-services/vllm-cpu
-    git.commit: 15bb5d4c60bc7e1f261327cb1e50fd3491d17bed
+    git.commit: 82b16ccf2038e219b9d7309e1e62ac1bbb8b470c
   odh-workbench-codeserver-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 2b67d0e369af710e745b087565470d8e4919c418
