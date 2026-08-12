@@ -98,7 +98,7 @@ additional_meta:
     git.commit: 6c89f529572a64d45236a85d0ee95eda72af3796
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 66c80b33ed6ef88c72e66866ac79acff6d383113
+    git.commit: 6c89f529572a64d45236a85d0ee95eda72af3796
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: 05b9fcca6eb520f3a124e90abd0720d7e5553157
@@ -311,7 +311,7 @@ additional_meta:
     git.commit: 071a04a58c05af5578cf93c09adc4e7ed0cd0465
   odh-th-torch-cpu-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: e460665963565a80bf0e14f5b8853e09497c2018
+    git.commit: 230da64fdb07245518703e8d2808c4596df9fc5a
   odh-th-torch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 0c0c74c16719f3cc399ca92c4eb8104182238346
