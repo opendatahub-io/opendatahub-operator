@@ -50,7 +50,7 @@ map:
     src: config
     dest: sparkoperator
     git.url: https://github.com/red-hat-data-services/spark-operator
-    git.commit: 9a7851fc3f86fd28def243092f20221e56178177
+    git.commit: c7bcee49db3355f59929b0c86142477dd0b46076
   odh-ai-gateway-operator:
     src: config
     dest: aigateway
@@ -78,10 +78,10 @@ additional_meta:
     git.commit: f3a7ac5fef94d5c1558eebaa1ffcfb543bf620c9
   odh-automl:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: b1ecc6d579a2511ff65180a79d864e8121a0fb66
+    git.commit: ff3f112645ae66560e885b31f472c839c84856a3
   odh-autorag:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: b1ecc6d579a2511ff65180a79d864e8121a0fb66
+    git.commit: ff3f112645ae66560e885b31f472c839c84856a3
   odh-built-in-detector:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: 408592837b4abf5e785d71c36102136c3e04f37e
@@ -186,7 +186,7 @@ additional_meta:
     git.commit: dc6fc9469f5231008f5768c455509cf9e9b5c347
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
-    git.commit: 1f9ac1eca388370ca3136018055f7ac04860c318
+    git.commit: 434c4245c28386be7862d8851b995b3f24f7c967
   odh-mlmd-grpc-server:
     git.url: https://github.com/red-hat-data-services/ml-metadata
     git.commit: 53cc2c903b0a781bd3bd2e56c7088d6b5d0047b3
@@ -318,7 +318,7 @@ additional_meta:
     git.commit: 285b37f46014821b7980f5422bff9024d8dc06fb
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
-    git.commit: c5d0e80e0a102b6a51ade5b7aa8114a837d862ed
+    git.commit: e12419d19413ffd1bfcc10e4a2eb65e8380a21a6
   odh-trustyai-service:
     git.url: https://github.com/red-hat-data-services/trustyai-explainability
     git.commit: 8509d22668ecb520884e3df8e2099c18d21656aa
