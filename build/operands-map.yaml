@@ -40,7 +40,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE
   value: "quay.io/rhoai/odh-kserve-agent-rhel9@sha256:377a1d1220b5166c9a4763ce81fda08bba710c3bf38f592a241aa808b3a728a5"
 - name: RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:57cfcff3060cbb765b810a370077f65cd98e621254367dbff5a61819f6cf133a"
+  value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:ad14a888c06fbae81df038402b00e40bf441a31dd0d88254997ce49cc109714d"
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:d503bfb992ca640ff8efcda2e7a4fd6f510ed8c45437da5d6db58571f06542e8"
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
@@ -178,7 +178,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
   value: "quay.io/rhoai/odh-ta-lmes-driver-rhel9@sha256:226e9ddec9d612a00354a9d955d9fbee036ee6012f7381dee696ef931f15e02a"
 - name: RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE
-  value: "quay.io/rhoai/odh-ta-lmes-job-rhel9@sha256:962936dcd572cb06d94a2d150f54eb86bf94eaf1b6a6df4824ee23482f11de3f"
+  value: "quay.io/rhoai/odh-ta-lmes-job-rhel9@sha256:79b348edf6f7c542490eb958bcbc75a03bc0b2baae6472523d2b60855665faca"
 - name: RELATED_IMAGE_ODH_TRAINER_IMAGE
   value: "quay.io/rhoai/odh-trainer-rhel9@sha256:fbd053d4898fa49f9256e02c5a612fed2a70c91ecae318fe8d9ddc9e79466fdb"
 - name: RELATED_IMAGE_ODH_TRAINER_OPERATOR_IMAGE

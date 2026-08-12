@@ -123,7 +123,7 @@ additional_meta:
     git.commit: 0351038d4bbfcbac8ddad9fec79a3342d3f62ae4
   odh-kserve-autogluon-server:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 61b84dcdad6de98eb989e152c5f7bb180f05a443
+    git.commit: 0351038d4bbfcbac8ddad9fec79a3342d3f62ae4
   odh-kserve-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 0351038d4bbfcbac8ddad9fec79a3342d3f62ae4
@@ -309,7 +309,7 @@ additional_meta:
     git.commit: 740167661a2f504b32f37c0498029f304433b7aa
   odh-ta-lmes-job:
     git.url: https://github.com/red-hat-data-services/lm-evaluation-harness
-    git.commit: d2156e4953ea5054b15e1565b457c1e89cead067
+    git.commit: 22a7339845af19d85090dba366a97e2fb695477e
   odh-trainer-operator:
     git.url: https://github.com/red-hat-data-services/trainer-operator
     git.commit: 6ff088752ecfbd9fc43dafddf662ff13de8e2e5b
