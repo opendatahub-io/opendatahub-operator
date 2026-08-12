@@ -23,6 +23,7 @@ var gateResourcesFS embed.FS
 const (
 	UpgradeGateLabel    = "platform.opendatahub.io/upgrade-gate"
 	AcksConfigMap       = "odh-upgrade-acks"
+	GateConfigMap       = "odh-2.x-operator-upgrade-gates"
 	ManagedByAnnotation = "platform.opendatahub.io/managed-by"
 )
 
