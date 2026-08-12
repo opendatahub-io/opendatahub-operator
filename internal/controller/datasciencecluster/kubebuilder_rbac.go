@@ -117,6 +117,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="core",resources=clusterversions,verbs=watch;list;get
 
 // +kubebuilder:rbac:groups="config.openshift.io",resources=clusterversions,verbs=watch;list;get
+// +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
 
 // +kubebuilder:rbac:groups="coordination.k8s.io",resources=leases,verbs=get;list;watch;create;update;patch;delete
 
