@@ -237,7 +237,7 @@ additional_meta:
     git.commit: 5e8cb6e70b1dd7411463ee0f3bcc955683ce1829
   odh-mod-arch-autorag:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 2ce742a965259ff6f7a9fc7e5ad9105ecc55df3c
+    git.commit: 5e8cb6e70b1dd7411463ee0f3bcc955683ce1829
   odh-mod-arch-eval-hub:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 5e8cb6e70b1dd7411463ee0f3bcc955683ce1829
@@ -270,7 +270,7 @@ additional_meta:
     git.commit: 6a170bf4a2c08a0720de09c10ff4b063bd09a33e
   odh-openvino-model-server:
     git.url: https://github.com/red-hat-data-services/openvino_model_server
-    git.commit: 04cfd157cc94c138ce07259cd8d3b958a1af6040
+    git.commit: c3ba072daf18c3937f57dd54ccbc6ec97cb602ba
   odh-pipelines-components:
     git.url: https://github.com/red-hat-data-services/pipelines-components
     git.commit: c2a205a3769c16f6745986d264e39d0c16ac1dd6
@@ -327,7 +327,7 @@ additional_meta:
     git.commit: 6e483b708127adb5f7ea6df4d880a20ad5cfea22
   odh-trustyai-vllm-orchestrator-gateway:
     git.url: https://github.com/red-hat-data-services/vllm-orchestrator-gateway
-    git.commit: 73215ed5c36c71bf826cd40be46777c2a06e11dd
+    git.commit: 0afd551437dc04b2bda04090d3e4f87662d9e7f7
   odh-vllm-cpu:
     git.url: https://github.com/red-hat-data-services/vllm-cpu
     git.commit: 15bb5d4c60bc7e1f261327cb1e50fd3491d17bed
