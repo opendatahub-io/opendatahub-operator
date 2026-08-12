@@ -32,7 +32,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE
   value: "quay.io/rhoai/odh-feature-server-rhel9@sha256:d1944f3a02b61dbe7ca2f0bc9d81fffc3e206771d0ef4d01c45aba902a28e1bf"
 - name: RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE
-  value: "quay.io/rhoai/odh-fms-guardrails-orchestrator-rhel9@sha256:057432ddc78d7c35216f3bbcf70280ef3f95e1cdc48318b2b1d02f7a21dc0300"
+  value: "quay.io/rhoai/odh-fms-guardrails-orchestrator-rhel9@sha256:fade5c159d7a404bf533a0919daf045d8f91dfe8becca068b7a766e7da299875"
 - name: RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE
   value: "quay.io/rhoai/odh-guardrails-detector-huggingface-runtime-rhel9@sha256:a7f77c2f5b47e7850cc778231bea38ac287170218f117d918ecc48bd0997c3c1"
 - name: RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE
@@ -204,11 +204,11 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
   value: "quay.io/rhoai/odh-trustyai-vllm-orchestrator-gateway-rhel9@sha256:5926d8d18e9765fc8b6f9164149400af8e9c1e03f44e47b3954101274de8aae8"
 - name: RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE
-  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:5457c0dcf96afc4cac3b5312a099dbcfd24e972becd9539fe86d7d14646041da"
+  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:16830664b776478ceb50c63af7c00ee678da68074aff00a97f44f24e2c0feda6"
 - name: RELATED_IMAGE_ODH_VLLM_CPU_FAST_2_IMAGE
-  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:5457c0dcf96afc4cac3b5312a099dbcfd24e972becd9539fe86d7d14646041da"
+  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:16830664b776478ceb50c63af7c00ee678da68074aff00a97f44f24e2c0feda6"
 - name: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
-  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:5457c0dcf96afc4cac3b5312a099dbcfd24e972becd9539fe86d7d14646041da"
+  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:16830664b776478ceb50c63af7c00ee678da68074aff00a97f44f24e2c0feda6"
 - name: RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-workbenches-operator-rhel9@sha256:8aa26147862a59ddb1780be6e622aa233750f3da4aa5418e6c53e1f93a77d9d6"
 - name: RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE

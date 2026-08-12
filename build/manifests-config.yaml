@@ -116,7 +116,7 @@ additional_meta:
     git.commit: 4393fc50b79e21f2a76136c730b786ce3145506c
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
-    git.commit: 56622702292bb22a88bca0457168cd1a7273d4d3
+    git.commit: 720f64dfed08023428e4dd3235350de17093a1d5
   odh-guardrails-detector-huggingface-runtime:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: 10f9f7d9b78f124ef19cb9dd5ce9c8e528e51c62
@@ -344,7 +344,7 @@ additional_meta:
     git.commit: 1e7c9114e72a4c4431e22fa7b39273691a72b57e
   odh-vllm-cpu:
     git.url: https://github.com/red-hat-data-services/vllm-cpu
-    git.commit: 1202dd7838edf22a11cc14e1746d796ded4877be
+    git.commit: a0104c463ff7131ac5ae2bc613afd21bb77b178e
   odh-workbench-codeserver-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: d51aa1d5bc0bfd0b173cc3efd29247ccf5d1b245
