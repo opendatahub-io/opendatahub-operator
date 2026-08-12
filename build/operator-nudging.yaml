@@ -36,7 +36,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE
   value: quay.io/rhoai/odh-guardrails-detector-huggingface-runtime-rhel9@sha256:456e24a03724ff40a72b11b63ee90690b321d8d6de7d4a3d18d081735b60d46d
 - name: RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE
-  value: quay.io/rhoai/odh-kf-notebook-controller-rhel9@sha256:e6b0969fdd141ef54a990938b6ea041f923b45930c5cf728a1789e8c2f379545
+  value: quay.io/rhoai/odh-kf-notebook-controller-rhel9@sha256:05120f36d2d89e3e2ecde04aa1af0d59d49cacce84a05d1418260b4394ef822f
 - name: RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE
   value: quay.io/rhoai/odh-kserve-agent-rhel9@sha256:393a2fc501af28d2882f76ccf5c281da80c434e71aace3964b19461ab525029b
 - name: RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE
