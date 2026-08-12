@@ -61,10 +61,17 @@ rules:
   resources:
   - validatingwebhookconfigurations
   verbs:
-  - get
   - list
-  - update
   - watch
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - validatingwebhookconfigurations
+  resourceNames:
+  - kubeflow-validator.training-operator.kubeflow.org
+  verbs:
+  - get
+  - update
 - apiGroups:
   - autoscaling
   resources:

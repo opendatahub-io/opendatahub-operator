@@ -4,8 +4,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: training-edit
-  labels:
-    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+  labels: {}
 rules:
   - apiGroups:
       - trainer.kubeflow.org
@@ -46,8 +45,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: training-admin
-  labels:
-    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+  labels: {}
 rules:
   - apiGroups:
       - trainer.kubeflow.org
