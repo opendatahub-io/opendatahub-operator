@@ -37,6 +37,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
@@ -98,6 +99,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		WithAction(initialize).
 		WithAction(checkPreConditions).
 		WithAction(updateStatus).
+		WithAction(provision.AutoAcknowledgeUpgradeGates).
 		WithAction(checkUpgradeGates).
 		WithAction(provisionComponents).
 		WithAction(deploy.NewAction(

@@ -18,6 +18,11 @@ import (
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
+// TODO(RHOAIENG-82327): during an OLM upgrade the new operator binary
+// inherits the old CSV's version. Hardcode the target gate version so
+// in-tree gates are evaluated correctly regardless of what OLM reports.
+const gateVersion = "3.5.1"
+
 // ExtractUpgradeGates scans rr.Resources for ConfigMaps carrying the
 // upgrade-gate label, collects their data entries into rr.GateEntries,
 // and removes the gate CMs from rr.Resources so they are not deployed
@@ -70,6 +75,15 @@ func ExtractUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest)
 	return nil
 }
 
+// ComponentUpgradeGateAction is an actions.Fn suitable for component
+// controller action chains. It blocks reconciliation when any upgrade
+// gate remains unacknowledged. Gate entries are loaded from the
+// embedded in-tree gates file, so they are available immediately
+// without waiting for the informer cache to sync cluster ConfigMaps.
+func ComponentUpgradeGateAction(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	return CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, nil)
+}
+
 // CheckUpgradeGates evaluates admin-acknowledgment gates for the current
 // operator version. It collects gates from all sources (in-tree, labeled
 // cluster ConfigMaps, chart-extracted entries), writes their descriptions
@@ -94,7 +108,12 @@ func CheckUpgradeGatesInNamespace(
 	log := logf.FromContext(ctx)
 
 	gc := gates.NewGateChecker(cli, namespace)
-	version := release.Version.String()
+
+	// TODO(RHOAIENG-82327): OLM sets the release version from the
+	// installed CSV, so during an upgrade the new binary still reports
+	// the OLD version. Use the hardcoded gate version for the in-tree
+	// lookup and EnsureGates so the 3.5.1 gates are always evaluated.
+	version := gateVersion
 
 	allGates := make(map[string]string)
 
