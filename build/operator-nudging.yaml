@@ -170,7 +170,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_RHAII_CLUSTER_VALIDATOR_IMAGE
   value: quay.io/rhoai/odh-rhaii-cluster-validator-rhel9@sha256:42358099ec670b0611209d7577a01ae5c51369b00627c51570e0f7ea23a0aa93
 - name: RELATED_IMAGE_ODH_RHAII_VALIDATOR_TOOLS_IMAGE
-  value: quay.io/rhoai/odh-rhaii-validator-tools-rhel9@sha256:45b08fc73e728f39c75166df11d174cd47a62d76d2391dd2e98e00c1019f64b3
+  value: quay.io/rhoai/odh-rhaii-validator-tools-rhel9@sha256:487d244266e1feae103312caf61152ee053a3c314997ad0da4aad097a7dbac52
 - name: RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE
   value: quay.io/rhoai/odh-spark-operator-rhel9@sha256:99462d34ece70a89d64dde0fc35c59e9bcdc4acb7ff48baea2c5521179b50576
 - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
