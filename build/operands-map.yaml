@@ -196,11 +196,11 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
   value: "quay.io/rhoai/odh-trustyai-vllm-orchestrator-gateway-rhel9@sha256:c545557b793c2b57e20b6cfc0185d036cae6f5e871551ebfa259c3aad458fd23"
 - name: RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE
-  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:e52bcb4940da79fb2be7f52f98c56960859e35dde0f4b6b673736a3adaeae38e"
+  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:2e17ea268a73d221c4724508ab275c56b15ffd76b66a3396f3fb16d2d31c78d2"
 - name: RELATED_IMAGE_ODH_VLLM_CPU_FAST_2_IMAGE
-  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:e52bcb4940da79fb2be7f52f98c56960859e35dde0f4b6b673736a3adaeae38e"
+  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:2e17ea268a73d221c4724508ab275c56b15ffd76b66a3396f3fb16d2d31c78d2"
 - name: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
-  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:e52bcb4940da79fb2be7f52f98c56960859e35dde0f4b6b673736a3adaeae38e"
+  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:2e17ea268a73d221c4724508ab275c56b15ffd76b66a3396f3fb16d2d31c78d2"
 - name: RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-workbenches-operator-rhel9@sha256:66d0b74544026e9a97af635bbb006ebcba25fb8c7c4b2f137aea10bcf2eafb6b"
 - name: RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE
