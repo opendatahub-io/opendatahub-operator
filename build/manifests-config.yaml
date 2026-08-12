@@ -263,7 +263,7 @@ additional_meta:
     git.commit: b221ec82747a253cded812d9af0eb75660f045c1
   odh-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
-    git.commit: 745d3dea90247d863b5793728890ac87a405fbbf
+    git.commit: 834277488c8d60c8113d59a477365cb3e34e4e13
   odh-ogx-core:
     git.url: https://github.com/red-hat-data-services/ogx-distribution
     git.commit: 1c48ec65b36daa97679c2f9739641718b11800df
@@ -317,7 +317,7 @@ additional_meta:
     git.commit: 0c0c74c16719f3cc399ca92c4eb8104182238346
   odh-th-torch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 0c0c74c16719f3cc399ca92c4eb8104182238346
+    git.commit: 230da64fdb07245518703e8d2808c4596df9fc5a
   odh-training-cuda128-torch28-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: a12267a9d09d2c7b30dd37bfb01de85202ca959b
