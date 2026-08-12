@@ -191,7 +191,7 @@ additional_meta:
     git.commit: ff59f4c354f4e06d1f8f7fcd6c1dbef411320a1a
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
-    git.commit: ff6f2b59f82f24473da999b42105f8edd9c392cd
+    git.commit: ce60ebc48c31e66d327ae5745dc784a64c6ef6bd
   odh-mlmd-grpc-server:
     git.url: https://github.com/red-hat-data-services/ml-metadata
     git.commit: 006b5c51106dbdeedfe28c92b49ec22c9d923d22
@@ -311,7 +311,7 @@ additional_meta:
     git.commit: 071a04a58c05af5578cf93c09adc4e7ed0cd0465
   odh-th-torch-cpu-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 779eb3dc33831c724214fcf1dad6f49257c83de7
+    git.commit: e460665963565a80bf0e14f5b8853e09497c2018
   odh-th-torch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 23bfeae0bdbf98f0444daf7d3cb71e71e105b498
