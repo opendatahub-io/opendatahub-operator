@@ -301,6 +301,9 @@ additional_meta:
   odh-rhaii-validator-tools:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
     git.commit: 43840ef2c7f1128d3846b25eeea4d91c8ffa89e0
+  odh-rhoai-mcp:
+    git.url: https://github.com/red-hat-data-services/rhoai-mcp
+    git.commit: 0bf98982a7d052d6e8bebc4ab3f8725abc0a7391
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
     git.commit: 6d7b941d6bc657abc6a4142dc193a8e01f6e4d47
