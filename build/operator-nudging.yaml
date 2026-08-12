@@ -148,7 +148,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_OGX_MODULE_OPERATOR_IMAGE
   value: quay.io/rhoai/odh-ogx-module-operator-rhel9@sha256:d5b7bde818fe419d469e74146454c11671707fc62a12599af4521dffd62e73c8
 - name: RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE
-  value: quay.io/rhoai/odh-openvino-model-server-rhel9@sha256:35c6dc5e5fee896ee13ad58f62cb9b2506deeb16c67f9370a5e57458ba8f751f
+  value: quay.io/rhoai/odh-openvino-model-server-rhel9@sha256:15be7256d60a9bfe07abf17feae3fe7f9ac7c001e439a0e7e04de5d3df01c623
 - name: RELATED_IMAGE_ODH_PIPELINES_COMPONENTS_IMAGE
   value: quay.io/rhoai/odh-pipelines-components-rhel9@sha256:2397e5da2a2430bf04a708413eff65b6fb2c06aa5af2ffc6c33ba515b4052535
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_DATASCIENCE_CPU_PY312_IMAGE
