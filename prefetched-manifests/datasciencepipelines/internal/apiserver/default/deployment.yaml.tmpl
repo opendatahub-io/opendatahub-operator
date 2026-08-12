@@ -121,6 +121,8 @@ spec:
               value: "{{.ObjectStorageConnection.CredentialsSecret.SecretKey}}"
             - name: DEFAULTPIPELINERUNNERSERVICEACCOUNT
               value: "pipeline-runner-{{.Name}}"
+            - name: ALLOWEDSERVICEACCOUNTS
+              value: "pipeline-runner-{{.Name}}"
             - name: OBJECTSTORECONFIG_BUCKETNAME
               value: "{{.ObjectStorageConnection.Bucket}}"
             - name: OBJECTSTORECONFIG_ACCESSKEY
