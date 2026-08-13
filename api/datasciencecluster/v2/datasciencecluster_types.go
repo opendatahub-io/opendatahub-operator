@@ -29,7 +29,7 @@ type DataScienceClusterSpec struct {
 	Components Components `json:"components,omitempty"`
 }
 
-// +kubebuilder:validation:XValidation:rule="!has(self.trainingoperator) || !has(self.trainingoperator.managementState) || self.trainingoperator.managementState != 'Managed' || (has(oldSelf.trainingoperator) && has(oldSelf.trainingoperator.managementState) && oldSelf.trainingoperator.managementState == 'Managed')",message="TrainingOperator v1 is obsolete in RHOAI 3.6. Set managementState to Removed to uninstall, then use Trainer v2."
+// +kubebuilder:validation:XValidation:rule="!has(self.trainingoperator) || !has(self.trainingoperator.managementState) || self.trainingoperator.managementState != 'Managed' || (has(oldSelf.trainingoperator) && has(oldSelf.trainingoperator.managementState) && oldSelf.trainingoperator.managementState == 'Managed')",message="TrainingOperator v1 is obsolete in RHOAI 3.6. Set managementState to Removed, then delete the TrainingOperator CR to clean up. Use Trainer v2 instead."
 type Components struct {
 	// Dashboard component configuration.
 	Dashboard componentApi.DSCDashboard `json:"dashboard,omitempty"`

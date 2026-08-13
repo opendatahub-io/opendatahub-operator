@@ -112,7 +112,7 @@ func updateDeprecatedTrainingOperatorStatus(rr *types.ReconciliationRequest) err
 		rr.Conditions.MarkFalse(
 			condType,
 			conditions.WithReason("Obsolete"),
-			conditions.WithMessage("Training Operator v1 is obsolete in RHOAI 3.6. Set managementState to Removed to uninstall, then use Trainer v2."),
+			conditions.WithMessage("Training Operator v1 is obsolete in RHOAI 3.6. Set managementState to Removed, then delete the TrainingOperator CR to clean up. Use Trainer v2 instead."),
 		)
 	} else {
 		rr.Conditions.MarkFalse(
