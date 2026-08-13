@@ -85,7 +85,11 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
-	pm.Workbenches.ManagementState = dscCtx.DSC.Spec.Components.Workbenches.ManagementState
+	ms := dscCtx.DSC.Spec.Components.Workbenches.ManagementState
+	if ms == "" {
+		ms = operatorv1.Removed
+	}
+	pm.Workbenches.ManagementState = ms
 }
 
 // IsEnabled checks whether the Workbenches module should be deployed based on

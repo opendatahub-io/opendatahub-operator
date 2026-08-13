@@ -54,7 +54,11 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
-	pm.FeastOperator.ManagementState = dscCtx.DSC.Spec.Components.FeastOperator.ManagementState
+	ms := dscCtx.DSC.Spec.Components.FeastOperator.ManagementState
+	if ms == "" {
+		ms = operatorv1.Removed
+	}
+	pm.FeastOperator.ManagementState = ms
 }
 
 func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {

@@ -136,6 +136,9 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 		dsc.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed { //nolint:staticcheck
 		state = operatorv1.Managed
 	}
+	if state == "" {
+		state = operatorv1.Removed
+	}
 	pm.AIGateway.ManagementState = state
 }
 

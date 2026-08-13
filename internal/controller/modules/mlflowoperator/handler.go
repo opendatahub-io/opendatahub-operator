@@ -73,7 +73,11 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
-	pm.MLflowOperator.ManagementState = dscCtx.DSC.Spec.Components.MLflowOperator.ManagementState
+	ms := dscCtx.DSC.Spec.Components.MLflowOperator.ManagementState
+	if ms == "" {
+		ms = operatorv1.Removed
+	}
+	pm.MLflowOperator.ManagementState = ms
 }
 
 func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {

@@ -3,9 +3,11 @@ package modules
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -59,13 +61,34 @@ func modulesFromInstance(rr *odhtype.ReconciliationRequest) (*configv1alpha1.Pla
 
 // BuildPlatformModules iterates all module handlers to derive their
 // management state from DSC/DSCI, producing the PlatformModules struct.
+// Empty management states are normalized to Removed so the Platform CR
+// always carries valid enum values (prevents CRD validation errors on
+// SSA apply where zero-value structs serialize as null).
 func BuildPlatformModules(dscCtx *DSCContext) configv1alpha1.PlatformModules {
 	var pm configv1alpha1.PlatformModules
 	DefaultRegistry().ForAll(func(handler ModuleHandler, _ bool) error { //nolint:errcheck
 		handler.PopulatePlatformModule(&pm, dscCtx)
 		return nil
 	})
+	normalizePlatformModules(&pm)
 	return pm
+}
+
+func normalizePlatformModules(pm *configv1alpha1.PlatformModules) {
+	v := reflect.ValueOf(pm).Elem()
+	for i := range v.NumField() {
+		f := v.Field(i)
+		if f.Kind() != reflect.Struct {
+			continue
+		}
+		ms := f.FieldByName("ManagementState")
+		if !ms.IsValid() || !ms.CanSet() {
+			continue
+		}
+		if ms.String() == "" {
+			ms.SetString(string(operatorv1.Removed))
+		}
+	}
 }
 
 // enableModulesFromPlatform reads spec.modules from the Platform CR and

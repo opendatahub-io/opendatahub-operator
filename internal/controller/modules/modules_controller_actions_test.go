@@ -4,10 +4,12 @@ package modules
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
 	semver "github.com/blang/semver/v4"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	ofversion "github.com/operator-framework/api/pkg/lib/version"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -635,5 +637,28 @@ func TestComputeModulesStatusNoRequeueOnRegularError(t *testing.T) {
 	// Regular errors should NOT trigger a requeue.
 	if err != nil {
 		t.Fatalf("expected nil error for regular GetModuleStatus failures, got: %v", err)
+	}
+}
+
+func TestBuildPlatformModules_NoEmptyManagementState(t *testing.T) {
+	t.Parallel()
+
+	dsc := &dscv2.DataScienceCluster{}
+	pm := BuildPlatformModules(&DSCContext{DSC: dsc})
+
+	v := reflect.ValueOf(pm)
+	for i := range v.NumField() {
+		field := v.Type().Field(i)
+		ms := v.Field(i).FieldByName("ManagementState")
+		if !ms.IsValid() {
+			continue
+		}
+		state := operatorv1.ManagementState(ms.String())
+		if state == "" {
+			t.Errorf("PlatformModules.%s.ManagementState is empty; must be Managed or Removed", field.Name)
+		}
+		if state != operatorv1.Managed && state != operatorv1.Removed {
+			t.Errorf("PlatformModules.%s.ManagementState = %q; want Managed or Removed", field.Name, state)
+		}
 	}
 }

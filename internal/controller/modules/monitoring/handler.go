@@ -49,7 +49,11 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 	if pm == nil || dscCtx == nil || dscCtx.DSCI == nil {
 		return
 	}
-	pm.Monitoring.ManagementState = dscCtx.DSCI.Spec.Monitoring.ManagementState
+	ms := dscCtx.DSCI.Spec.Monitoring.ManagementState
+	if ms == "" {
+		ms = operatorv1.Removed
+	}
+	pm.Monitoring.ManagementState = ms
 }
 
 func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {

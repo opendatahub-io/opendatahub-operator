@@ -59,7 +59,11 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
-	pm.Dashboard.ManagementState = dscCtx.DSC.Spec.Components.Dashboard.ManagementState
+	ms := dscCtx.DSC.Spec.Components.Dashboard.ManagementState
+	if ms == "" {
+		ms = operatorv1.Removed
+	}
+	pm.Dashboard.ManagementState = ms
 }
 
 // IsEnabled checks whether the dashboard module should be deployed based on

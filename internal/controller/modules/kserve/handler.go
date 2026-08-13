@@ -130,7 +130,11 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
-	pm.Kserve.ManagementState = dscCtx.DSC.Spec.Components.Kserve.ManagementState
+	ms := dscCtx.DSC.Spec.Components.Kserve.ManagementState
+	if ms == "" {
+		ms = operatorv1.Removed
+	}
+	pm.Kserve.ManagementState = ms
 }
 
 func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
