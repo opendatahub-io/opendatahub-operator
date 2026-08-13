@@ -28,7 +28,6 @@ const (
 	colorReset  = "\033[0m"
 )
 
-
 type Options struct {
 	ConfigFile   string
 	Platform     string

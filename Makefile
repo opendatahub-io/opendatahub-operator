@@ -679,7 +679,7 @@ $(ENVTEST): $(LOCALBIN)
 test: unit-test e2e-test
 
 .PHONY: unit-test
-unit-test: unit-test-operator unit-test-clusterhealth
+unit-test: unit-test-operator unit-test-clusterhealth unit-test-manifest-tools unit-test-scoperules unit-test-e2e-scope-completeness
 
 .PHONY: unit-test-operator
 unit-test-operator: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
@@ -700,13 +700,26 @@ unit-test-operator: envtest ginkgo # directly use ginkgo since the framework is 
         		--cover \
         		--coverprofile=cover.out \
         		--succinct \
-        		--skip-package=pkg/clusterhealth,pkg/mcptools,cmd/health-check \
+        		--skip-package=pkg/clusterhealth,pkg/mcptools,pkg/scoperules,cmd/health-check \
         		$(TEST_SRC)
 CLEANFILES += cover.out
 
 .PHONY: unit-test-clusterhealth
 unit-test-clusterhealth:
 	cd pkg/clusterhealth && go test -cover ./...
+
+.PHONY: unit-test-manifest-tools
+unit-test-manifest-tools: ## cmd/manifest-tools is a separate Go module (own go.mod), so go test ./... from root never reaches it
+	go -C cmd/manifest-tools test ./...
+
+.PHONY: unit-test-scoperules
+unit-test-scoperules:
+	cd pkg/scoperules && go test -cover ./...
+
+.PHONY: unit-test-e2e-scope-completeness
+unit-test-e2e-scope-completeness: ## Registry-completeness checks for tests/e2e/scripts/e2e-scope-rules.yaml. No cluster needed, so these run outside ginkgo's TEST_SRC and outside make e2e-test's ^TestOdhOperator filter.
+	go test ./cmd
+	go test ./tests/e2e/ -run "^TestScopeRules"
 
 # Pattern rule to generate .rules.yaml from PrometheusRule templates
 # This finds the corresponding *-prometheusrules.tmpl.yaml in the same directory
@@ -768,6 +781,12 @@ endif
 
 .PHONY: e2e-test e2e
 e2e: e2e-test ## Alias for e2e-test
+# Path-based e2e test scoping (cmd/manifest-tools' resolve-e2e-scope subcommand)
+# runs and logs its decision whenever E2E_TEST_COMPONENT and E2E_TEST_SERVICE are
+# both unset (e.g. not already set explicitly by e2e-test-xks). Only when
+# E2E_AUTO_RESOLVE=true does it narrow what actually runs; otherwise it only logs.
+export E2E_AUTO_RESOLVE
+E2E_AUTO_RESOLVE ?= false
 e2e-test:
 # Specifies the namespace where the operator pods are deployed
 ifndef E2E_TEST_OPERATOR_NAMESPACE
@@ -794,6 +813,24 @@ ifndef SKIP_IMAGE_OVERRIDES
 e2e-test: apply-image-overrides-olm
 endif
 e2e-test:
+	@if [ -z "$${E2E_TEST_COMPONENT:-}" ] && [ -z "$${E2E_TEST_SERVICE:-}" ]; then \
+		if resolved=$$(go run -C ./cmd/manifest-tools main.go --config $(CURDIR)/manifests-config.yaml resolve-e2e-scope) \
+			&& echo "$$resolved" | grep -q '^COMPONENTS=' \
+			&& echo "$$resolved" | grep -q '^SERVICES='; then \
+			components=$$(echo "$$resolved" | grep '^COMPONENTS=' | cut -d= -f2); \
+			services=$$(echo "$$resolved" | grep '^SERVICES=' | cut -d= -f2); \
+			echo "SELECTIVE-E2E: would run components=[$$components] services=[$$services]"; \
+			if [ "$${E2E_AUTO_RESOLVE:-false}" = "true" ]; then \
+				if [ -n "$$components" ]; then export E2E_TEST_COMPONENT="$$components"; else export E2E_TEST_COMPONENTS=false; fi; \
+				if [ -n "$$services" ]; then export E2E_TEST_SERVICE="$$services"; else export E2E_TEST_SERVICES=false; fi; \
+				echo "SELECTIVE-E2E: E2E_AUTO_RESOLVE=true -- applying selective scope"; \
+			else \
+				echo "SELECTIVE-E2E: E2E_AUTO_RESOLVE is not 'true' -- running full suite (dry-run only)"; \
+			fi; \
+		else \
+			echo "SELECTIVE-E2E: could not resolve affected components -- running full suite"; \
+		fi; \
+	fi; \
 	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}
 
 .PHONY: e2e-test-single

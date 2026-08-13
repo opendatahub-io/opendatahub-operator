@@ -187,7 +187,7 @@ func TestSymlinkPlatformManifests(t *testing.T) {
 	}
 
 	testManifests := map[string]string{
-		"osd-configs":     "config/osd-configs",
+		"osd-configs":      "config/osd-configs",
 		"hardwareprofiles": "config/hardwareprofiles",
 	}
 

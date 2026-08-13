@@ -4,11 +4,11 @@ import "testing"
 
 func TestParseTrackerURL(t *testing.T) {
 	tests := []struct {
-		url         string
-		wantOwner   string
-		wantRepo    string
-		wantIssue   int
-		wantErr     bool
+		url       string
+		wantOwner string
+		wantRepo  string
+		wantIssue int
+		wantErr   bool
 	}{
 		{
 			url:       "https://github.com/opendatahub-io/odh-release-tracker/issues/42",

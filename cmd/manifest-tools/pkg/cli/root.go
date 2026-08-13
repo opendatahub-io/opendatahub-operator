@@ -26,6 +26,7 @@ func NewRootCommand() *cobra.Command {
 		newApplyDeployCommand(opts),
 		newDownloadCommand(opts),
 		newUpdateRefsCommand(opts),
+		newResolveE2EScopeCommand(opts),
 	)
 
 	return cmd

@@ -348,6 +348,7 @@ Existing e2e test suites for the integrated components can be also found there.
 Lastly, please update the following files to fully integrate new component tests into the overall test suite:
 - update `CreateDSC()` function in `tests/e2e/helper_test.go` to set new component in DSC
 - update `componentsTestSuites` map in `tests/e2e/controller_test.go` to include the reference for the new component e2e test suite
+- add a `components.<name>` entry to `tests/e2e/scripts/e2e-scope-rules.yaml`, so path-based e2e test scoping (see [docs/e2e-testing.md](e2e-testing.md#path-based-test-scoping)) knows about the new component. `cmd/main_test.go` and `tests/e2e/e2e_scope_rules_registry_test.go` fail if this is missing, though see that doc's follow-up gap note on when those tests actually run.
 
 ### 4. Update Prometheus config and tests
 
