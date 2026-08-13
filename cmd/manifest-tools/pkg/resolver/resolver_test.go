@@ -126,4 +126,3 @@ func TestSplitImageRef_EdgeCases(t *testing.T) {
 		}
 	}
 }
-

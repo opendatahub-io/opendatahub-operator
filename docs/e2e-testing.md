@@ -38,9 +38,9 @@ For OpenShift tests additionally:
 The E2E test suite is organized into test groups that run sequentially. Within each group,
 component tests run in parallel. The suite supports two main targets:
 
-- **`make e2e-test-xks`** — KServe-only tests on KinD / vanilla Kubernetes.
-  This is the CI-equivalent E2E for KinD and covers component enable, update, delete,
-  recovery, and versioning.
+- **`make e2e-test-xks`** — KServe-focused platform orchestration tests on KinD / vanilla Kubernetes.
+  This is the CI-equivalent E2E for KinD and covers component CR lifecycle, spec projection,
+  status propagation, and resilience.
 
 - **`make e2e-test`** — Full suite across all components, DSC/DSCI lifecycle,
   services, webhooks, and operator resilience. Requires an OpenShift cluster.
@@ -375,23 +375,15 @@ done
 
 ### Environment variables
 
+Build/cluster variables (`IMG`, `IMAGE_BUILDER`, `CLUSTER_NAME`, `PULL_SECRET`, etc.) are
+documented in the Makefile help text — run `make help` for the full list.
+
+E2E test suites are controlled by `E2E_TEST_*` env vars (or equivalent `--test-*` CLI flags).
+Each var enables/disables a test group or filters components. Defaults and descriptions live
+in `tests/e2e/controller_test.go` (`TestMain`). Key vars:
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `IMG` | `quay.io/opendatahub/opendatahub-operator:latest` | Operator image |
-| `IMAGE_BUILDER` | `podman` | Container image builder (`podman` or `docker`) |
-| `CLUSTER_NAME` | `kind-odh` | KinD cluster name (used by `kind-create`) |
-| `KIND_CLUSTER_NAME` | `kind-odh` | KinD cluster name (used by `image-kind-load`) |
-| `KIND_CONFIG_PATH` | `config/kind/kind-config.yaml` | KinD cluster config |
-| `PULL_SECRET` | *(required)* | Path to container registry auth config |
-| `E2E_TEST_COMPONENT` | *(all)* | Single component to test (e.g., `kserve`) |
-| `E2E_TEST_SERVICES` | `true` | Enable/disable service tests |
-| `E2E_TEST_WEBHOOK` | `true` | Enable/disable webhook tests |
-| `E2E_TEST_DSC_MANAGEMENT` | `true` | Enable/disable DSC lifecycle tests |
-| `E2E_TEST_DSC_VALIDATION` | `true` | Enable/disable DSC validation tests |
-| `E2E_TEST_OPERATOR_RESILIENCE` | `true` | Enable/disable operator resilience tests |
-| `E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES` | `true` | Clean up existing resources before tests |
-| `E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT` | `true` | Enable/disable dependent operator management |
-| `E2E_TEST_OPERATOR_CONTROLLER` | `true` | Enable/disable operator controller tests |
-| `E2E_TEST_OPERATOR_V2TOV3UPGRADE` | `true` | Enable/disable v2-to-v3 upgrade tests |
-| `E2E_TEST_COMPONENTS` | `true` | Enable/disable component tests |
-| `E2E_TEST_DELETION_POLICY` | `always` | Deletion policy for test resources (`never`, `always`, `on-failure`) |
+| `E2E_TEST_PLATFORM_ORCHESTRATION` | `true` | Enable platform orchestration contract tests |
+| `E2E_TEST_PLATFORM_COMPONENT` | *(all)* | Filter platform orchestration tests to specific components |
+| `E2E_TEST_DELETION_POLICY` | `always` | When to delete test resources (`never`, `always`, `on-failure`) |
