@@ -7,12 +7,17 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
@@ -343,4 +348,55 @@ func TestUninstallTimeoutIncludesRemainingDSCNames(t *testing.T) {
 	g.Expect(uninstallErr.Error()).To(ContainSubstring("failure waiting for DSC deletion"))
 	g.Expect(dsciDeleteCalled.Load()).To(BeFalse(),
 		"DSCI deletion should not be attempted when DSC deletion times out")
+}
+
+func TestUninstallPropagatesFinalizerStripError(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "redhat-ods-applications",
+			Labels: map[string]string{labels.ODH.OwnedNamespace: "true"},
+		},
+		Status: corev1.NamespaceStatus{Phase: corev1.NamespaceActive},
+	}
+
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk.LLMInferenceServiceConfigV1Alpha1)
+	obj.SetName("config-test")
+	obj.SetNamespace(ns.Name)
+	obj.SetFinalizers([]string{"serving.kserve.io/llmisvcconfig-finalizer"})
+
+	var nsDeleteCalled atomic.Bool
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(ns, obj),
+		fakeclient.WithGVKs(
+			fakeclient.GVKMapping{GVK: gvk.LLMInferenceServiceConfigV1Alpha1, Scope: meta.RESTScopeNamespace},
+			fakeclient.GVKMapping{GVK: gvk.LLMInferenceServiceConfigV1Alpha2, Scope: meta.RESTScopeNamespace},
+		),
+		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			Update: func(ctx2 context.Context, c client.WithWatch, o client.Object, opts ...client.UpdateOption) error {
+				if _, ok := o.(*unstructured.Unstructured); ok {
+					return errors.New("simulated API failure")
+				}
+				return c.Update(ctx2, o, opts...)
+			},
+			Delete: func(ctx2 context.Context, c client.WithWatch, o client.Object, opts ...client.DeleteOption) error {
+				if _, ok := o.(*corev1.Namespace); ok {
+					nsDeleteCalled.Store(true)
+				}
+				return c.Delete(ctx2, o, opts...)
+			},
+		}),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	uninstallErr := upgrade.OperatorUninstall(ctx, cli, "")
+
+	g.Expect(uninstallErr).To(HaveOccurred())
+	g.Expect(uninstallErr.Error()).To(ContainSubstring("stripping LLMInferenceServiceConfig finalizers"))
+	g.Expect(nsDeleteCalled.Load()).To(BeFalse(),
+		"namespace deletion should not be attempted when finalizer cleanup fails")
 }

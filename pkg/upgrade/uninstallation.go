@@ -62,7 +62,8 @@ func OperatorUninstall(ctx context.Context, cli client.Client, platform common.P
 	// remove them — leaving the namespace stuck in Terminating state.
 	for i := range generatedNamespaces.Items {
 		if err := kserve.StripLLMISvcConfigFinalizers(ctx, cli, generatedNamespaces.Items[i].Name); err != nil {
-			log.Error(err, "failed to strip LLMInferenceServiceConfig finalizers", "namespace", generatedNamespaces.Items[i].Name)
+			return fmt.Errorf("stripping LLMInferenceServiceConfig finalizers in namespace %s: %w",
+				generatedNamespaces.Items[i].Name, err)
 		}
 	}
 
