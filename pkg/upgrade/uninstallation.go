@@ -8,6 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -103,10 +104,39 @@ func removeDSCI(ctx context.Context, cli client.Client) error {
 }
 
 func removeDSC(ctx context.Context, cli client.Client) error {
+	log := logf.FromContext(ctx)
 	instance := &dscv2.DataScienceCluster{}
 
 	if err := cli.DeleteAllOf(ctx, instance, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
 		return fmt.Errorf("failure deleting DSC: %w", err)
+	}
+
+	// The DSCI validating webhook denies DSCI deletion while any DSC still exists.
+	// Wait for all DSC objects to be fully removed before returning.
+	backoff := wait.Backoff{
+		Duration: 2 * time.Second,
+		Factor:   2.0,
+		Steps:    7,
+	}
+
+	var remainingNames []string
+
+	if err := wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
+		dscList := &dscv2.DataScienceClusterList{}
+		if err := cli.List(ctx, dscList); err != nil {
+			return false, err
+		}
+		if len(dscList.Items) == 0 {
+			return true, nil
+		}
+		remainingNames = make([]string, len(dscList.Items))
+		for i := range dscList.Items {
+			remainingNames[i] = dscList.Items[i].Name
+		}
+		log.Info("Waiting for DataScienceCluster objects to be deleted", "remaining", remainingNames)
+		return false, nil
+	}); err != nil {
+		return fmt.Errorf("failure waiting for DSC deletion, remaining objects %v: %w", remainingNames, err)
 	}
 
 	return nil

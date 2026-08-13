@@ -88,7 +88,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/sparkoperator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainer"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
@@ -101,6 +100,7 @@ import (
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
 	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
+	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
@@ -141,7 +141,6 @@ var (
 		componentApi.ModelRegistryComponentName:        modelregistry.NewHandler(),
 		componentApi.RayComponentName:                  ray.NewHandler(),
 		componentApi.SparkOperatorComponentName:        sparkoperator.NewHandler(),
-		componentApi.TrainerComponentName:              trainer.NewHandler(),
 		componentApi.TrainingOperatorComponentName:     trainingoperator.NewHandler(),
 		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
 	}
@@ -183,6 +182,7 @@ var (
 		componentApi.MLflowOperatorComponentName:       mlflowOperatorModule.NewHandler(),
 		componentApi.KserveComponentName:               kserveModule.NewHandler(),
 		componentApi.OGXComponentName:                  ogxModule.NewHandler(),
+		componentApi.TrainerComponentName:              trainerModule.NewHandler(),
 		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
 		componentApi.FeastOperatorComponentName:        feastModule.NewHandler(),
 	}
@@ -195,6 +195,7 @@ var (
 		componentApi.MLflowOperatorComponentName:       dag.RL(32),
 		componentApi.KserveComponentName:               dag.RL(31),
 		componentApi.OGXComponentName:                  dag.RL(32),
+		componentApi.TrainerComponentName:              dag.RL(20),
 		componentApi.WorkbenchesComponentName:          dag.RL(20),
 	}
 )
@@ -778,7 +779,8 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 			case k8serr.IsServiceUnavailable(err),
 				k8serr.IsTimeout(err),
 				k8serr.IsServerTimeout(err),
-				k8serr.IsTooManyRequests(err):
+				k8serr.IsTooManyRequests(err),
+				k8serr.IsInternalError(err):
 				setupLog.Info("Transient error fetching TLS adherence policy, watcher will retry", "error", err)
 			default:
 				setupLog.Error(err, "unable to read TLS adherence policy, refusing to start with unknown adherence posture")
