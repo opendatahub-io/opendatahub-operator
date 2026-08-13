@@ -50,7 +50,7 @@ map:
     src: config
     dest: mlflowoperator
     git.url: https://github.com/red-hat-data-services/mlflow-operator
-    git.commit: 9f516d0ca98d12d6141aabe0ee0702d9a1b92f39
+    git.commit: b61c7d6d7ed7382197e065496212cc8435def422
   odh-spark-operator:
     src: config
     dest: sparkoperator
