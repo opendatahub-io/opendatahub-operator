@@ -115,10 +115,9 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 		return nil, fmt.Errorf("failed to resolve application namespace: %w", err)
 	}
 
-	// Monitoring namespace read directly from DSCI or set to empty when no DSCI (xKS).
-	var monitoringNS string
-	if dsci := odhtype.GetDSCI(rr); dsci != nil {
-		monitoringNS = dsci.Spec.Monitoring.Namespace
+	monitoringNS, err := cluster.MonitoringNamespace(ctx, rr.Client)
+	if err != nil {
+		logf.FromContext(ctx).V(1).Info("monitoring namespace not available, skipping MONITORING_NAMESPACE injection", "error", err)
 	}
 
 	modules, err := modulesFromInstance(rr)

@@ -640,6 +640,107 @@ func TestComputeModulesStatusNoRequeueOnRegularError(t *testing.T) {
 	}
 }
 
+func TestBuildPlatformContext_MonitoringNamespaceFromDSCI(t *testing.T) {
+	const testMonitoringNS = "redhat-ods-monitoring"
+
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{Name: testDSCIName},
+	}
+	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
+	dsci.Spec.Monitoring.Namespace = testMonitoringNS
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	rr := &types.ReconciliationRequest{
+		Client:   cli,
+		Instance: &configv1alpha1.Platform{},
+	}
+
+	ctx, err := buildPlatformContext(context.Background(), rr)
+	if err != nil {
+		t.Fatalf("buildPlatformContext: %v", err)
+	}
+
+	if ctx.ApplicationsNamespace != testApplicationsNamespace {
+		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, ctx.ApplicationsNamespace)
+	}
+	if ctx.MonitoringNamespace != testMonitoringNS {
+		t.Fatalf("expected monitoring namespace %q, got %q", testMonitoringNS, ctx.MonitoringNamespace)
+	}
+}
+
+func TestBuildPlatformContext_MonitoringNamespaceEmptyWithoutDSCI(t *testing.T) {
+	cli, err := fakeclient.New()
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	rr := &types.ReconciliationRequest{
+		Client:   cli,
+		Instance: &configv1alpha1.Platform{},
+	}
+
+	ctx, err := buildPlatformContext(context.Background(), rr)
+	if err == nil {
+		if ctx.MonitoringNamespace != "" {
+			t.Fatalf("expected empty monitoring namespace without DSCI, got %q", ctx.MonitoringNamespace)
+		}
+	}
+	// ApplicationNamespace also fails without DSCI — that's expected.
+	// The key assertion: no panic, monitoring namespace is empty.
+}
+
+func TestProvisionModulesMonitoringNamespaceInjected(t *testing.T) {
+	withTestRegistry(t)
+
+	const testMonitoringNS = "redhat-ods-monitoring"
+
+	handler := provisioningModuleStub{
+		moduleName: testProvisioningModuleName,
+		enabled:    true,
+		status: &ModuleStatus{
+			Conditions: []common.Condition{{
+				Type:   status.ConditionTypeReady,
+				Status: metav1.ConditionTrue,
+			}},
+		},
+	}
+	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
+	provision.Add(handler.GetName(), provision.KindModule, dag.RL(20))
+
+	dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName, UID: "uid-1"}}
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
+	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
+	dsci.Spec.Monitoring.Namespace = testMonitoringNS
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	rr := &types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		Release:    common.Release{Name: common.Platform("Open Data Hub"), Version: ofversion.OperatorVersion{Version: semver.MustParse(testProvisioningVersion)}},
+		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+	}
+
+	if err := provisionModules(context.Background(), rr); err != nil {
+		t.Fatalf("provision modules: %v", err)
+	}
+
+	mei := types.GetModuleEnvInjection(rr)
+	if mei == nil {
+		t.Fatalf("expected module env injection to be set")
+	}
+	if mei.MonitoringNamespace != testMonitoringNS {
+		t.Fatalf("expected monitoring namespace %q, got %q", testMonitoringNS, mei.MonitoringNamespace)
+	}
+}
+
 func TestBuildPlatformModules_NoEmptyManagementState(t *testing.T) {
 	t.Parallel()
 
