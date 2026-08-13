@@ -76,12 +76,11 @@ func BuildPlatformModules(dscCtx *DSCContext) configv1alpha1.PlatformModules {
 
 func normalizePlatformModules(pm *configv1alpha1.PlatformModules) {
 	v := reflect.ValueOf(pm).Elem()
-	for i := range v.NumField() {
-		f := v.Field(i)
-		if f.Kind() != reflect.Struct {
+	for _, fv := range v.Fields() {
+		if fv.Kind() != reflect.Struct {
 			continue
 		}
-		ms := f.FieldByName("ManagementState")
+		ms := fv.FieldByName("ManagementState")
 		if !ms.IsValid() || !ms.CanSet() {
 			continue
 		}

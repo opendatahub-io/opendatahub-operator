@@ -647,18 +647,17 @@ func TestBuildPlatformModules_NoEmptyManagementState(t *testing.T) {
 	pm := BuildPlatformModules(&DSCContext{DSC: dsc})
 
 	v := reflect.ValueOf(pm)
-	for i := range v.NumField() {
-		field := v.Type().Field(i)
-		ms := v.Field(i).FieldByName("ManagementState")
+	for sf, fv := range v.Fields() {
+		ms := fv.FieldByName("ManagementState")
 		if !ms.IsValid() {
 			continue
 		}
 		state := operatorv1.ManagementState(ms.String())
 		if state == "" {
-			t.Errorf("PlatformModules.%s.ManagementState is empty; must be Managed or Removed", field.Name)
+			t.Errorf("PlatformModules.%s.ManagementState is empty; must be Managed or Removed", sf.Name)
 		}
 		if state != operatorv1.Managed && state != operatorv1.Removed {
-			t.Errorf("PlatformModules.%s.ManagementState = %q; want Managed or Removed", field.Name, state)
+			t.Errorf("PlatformModules.%s.ManagementState = %q; want Managed or Removed", sf.Name, state)
 		}
 	}
 }
