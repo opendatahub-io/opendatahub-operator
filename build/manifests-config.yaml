@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 892c46be2f1e9baf6acec514ec2c8a89d0c24dc2
+    git.commit: c2b0922db1d6b7b389cc75d6b6288f750684675a
   odh-trainer:
     src: manifests
     dest: trainer
@@ -108,7 +108,7 @@ additional_meta:
     git.commit: 4507893b047ab297e3912147760b14cf2d4a942f
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: 71434d672468c3b367b27fa97faf678958a90825
+    git.commit: 4507893b047ab297e3912147760b14cf2d4a942f
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
     git.commit: 3aef0f649db4b64f43b6988f1486da43b9ccf375
@@ -285,7 +285,7 @@ additional_meta:
     git.commit: 2226af749a26f94cb9ff45cc44a82a33c1ac0b89
   odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 2226af749a26f94cb9ff45cc44a82a33c1ac0b89
+    git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
   odh-pipeline-runtime-pytorch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 2226af749a26f94cb9ff45cc44a82a33c1ac0b89
@@ -318,13 +318,13 @@ additional_meta:
     git.commit: 0d3c373b2928da93e0cb56fea93fd769456f4c9b
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
-    git.commit: e12419d19413ffd1bfcc10e4a2eb65e8380a21a6
+    git.commit: 6ecd942dafcaa1fd0d7080af97fdeeada654cc14
   odh-trustyai-service:
     git.url: https://github.com/red-hat-data-services/trustyai-explainability
     git.commit: 7fa02f5de175a9b8611e7528341d36468f6cfaf9
   odh-trustyai-service-py:
     git.url: https://github.com/red-hat-data-services/trustyai-service
-    git.commit: 6e483b708127adb5f7ea6df4d880a20ad5cfea22
+    git.commit: ed7ac0cee1470730414169357de26e25ecc256ae
   odh-trustyai-vllm-orchestrator-gateway:
     git.url: https://github.com/red-hat-data-services/vllm-orchestrator-gateway
     git.commit: f5538df20bb88a2cdc3323e9adc977d455a3255c
@@ -348,7 +348,7 @@ additional_meta:
     git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
   odh-workbench-jupyter-pytorch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 3c7d41d64b763665d52617dd0080c016ca1e5d9f
+    git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
   odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 3c7d41d64b763665d52617dd0080c016ca1e5d9f
@@ -360,7 +360,7 @@ additional_meta:
     git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
   odh-workbench-jupyter-tensorflow-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 3c7d41d64b763665d52617dd0080c016ca1e5d9f
+    git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
   odh-workbench-jupyter-trustyai-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 3c7d41d64b763665d52617dd0080c016ca1e5d9f
