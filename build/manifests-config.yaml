@@ -93,7 +93,7 @@ additional_meta:
     git.commit: 96151c9a7ccddf456a8b9638bf4005ce359bd988
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 892c46be2f1e9baf6acec514ec2c8a89d0c24dc2
+    git.commit: c2b0922db1d6b7b389cc75d6b6288f750684675a
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: dbe8891f4ed27ede56716acaec517a022143415c
@@ -126,7 +126,7 @@ additional_meta:
     git.commit: 0351038d4bbfcbac8ddad9fec79a3342d3f62ae4
   odh-kserve-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 0351038d4bbfcbac8ddad9fec79a3342d3f62ae4
+    git.commit: da0e07f0d03c7f0c9c7fa0232d5c51d068e64452
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: da0e07f0d03c7f0c9c7fa0232d5c51d068e64452
@@ -186,7 +186,7 @@ additional_meta:
     git.commit: 6ed7c18b34e6719c0599e8557164a092e4f04568
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
-    git.commit: 434c4245c28386be7862d8851b995b3f24f7c967
+    git.commit: 1cccfac973b98eea1cafe03565da6a47ea08c449
   odh-mlmd-grpc-server:
     git.url: https://github.com/red-hat-data-services/ml-metadata
     git.commit: 687db875c4a7461b4ca72fbf170154b238df27d4
@@ -276,7 +276,7 @@ additional_meta:
     git.commit: 86d4897f62464b22992518461c1110196b9654ab
   odh-pipeline-runtime-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 2226af749a26f94cb9ff45cc44a82a33c1ac0b89
+    git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
   odh-pipeline-runtime-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
@@ -315,7 +315,7 @@ additional_meta:
     git.commit: 4dfb4d58ecab3822b49486226ddc3b78ea723ca0
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
-    git.commit: 285b37f46014821b7980f5422bff9024d8dc06fb
+    git.commit: 0d3c373b2928da93e0cb56fea93fd769456f4c9b
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: e12419d19413ffd1bfcc10e4a2eb65e8380a21a6
@@ -357,7 +357,7 @@ additional_meta:
     git.commit: 3c7d41d64b763665d52617dd0080c016ca1e5d9f
   odh-workbench-jupyter-tensorflow-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 3c7d41d64b763665d52617dd0080c016ca1e5d9f
+    git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
   odh-workbench-jupyter-tensorflow-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 3c7d41d64b763665d52617dd0080c016ca1e5d9f
