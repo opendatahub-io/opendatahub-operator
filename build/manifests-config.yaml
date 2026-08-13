@@ -113,13 +113,13 @@ additional_meta:
     git.commit: 4393fc50b79e21f2a76136c730b786ce3145506c
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: 809a800f2025f9a96c467f3fed1686d43e450b53
+    git.commit: 4ab22d2fefd2d6252b568968ae31ae9d0d5e639d
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
     git.commit: d69e4c8d621e90959b1e1afb0a962e60fc713cf6
   odh-guardrails-detector-huggingface-runtime:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
-    git.commit: 3f86bbacdd932a214f127f391c82a5a6c001718d
+    git.commit: 3d9eda68280a5f43964d407028af04c531234062
   odh-kf-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
     git.commit: 2f2ed6c99ee4395f74a97ffb3b1c4f1dc6276d62
@@ -182,10 +182,10 @@ additional_meta:
     git.commit: b7c57aedd5b085058f4192c8a7d4f61c2f753908
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: 37d12d155643f6462b80867a5052c35083647c3e
+    git.commit: 8311c786bd820ba87f5f5d7f31ba1f886c0d5261
   odh-maas-controller:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: 37d12d155643f6462b80867a5052c35083647c3e
+    git.commit: 8311c786bd820ba87f5f5d7f31ba1f886c0d5261
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
     git.commit: d53b12e6dff1394ecede686a5647f4608185245d
