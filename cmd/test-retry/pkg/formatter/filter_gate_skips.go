@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-)
 
-const gateSkipPrefix = "Skipping test: passed tag:"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/tagging"
+)
 
 // unmarshalJUnit parses JUnit XML that uses either <testsuites> or bare <testsuite> as root.
 func unmarshalJUnit(content []byte) (TestSuites, error) {
@@ -85,7 +85,7 @@ func FilterGateSkippedTests(content []byte) ([]byte, error) {
 		skipped := 0
 
 		for _, tc := range suites.Suites[i].TestCases {
-			if tc.Skipped != nil && strings.Contains(tc.Skipped.Message, gateSkipPrefix) {
+			if tc.Skipped != nil && strings.Contains(tc.Skipped.Message, tagging.GateSkipPrefix) {
 				continue
 			}
 
