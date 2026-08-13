@@ -528,11 +528,14 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			Cache: &client.CacheOptions{
 				DisableFor: []client.Object{
 					resources.GvkToUnstructured(gvk.OpenshiftIngress),
+					&configv1.Infrastructure{},
 					&ofapiv1alpha1.Subscription{},
 					&authorizationv1.SelfSubjectRulesReview{},
 					&corev1.Pod{},
+					&corev1.Node{},
 					&userv1.Group{},
 					&ofapiv1alpha1.CatalogSource{},
+					&ofapiv1alpha1.ClusterServiceVersion{},
 				},
 				// Set it to true so the cache-backed client reads unstructured objects
 				// or lists from the cache instead of a live lookup.
