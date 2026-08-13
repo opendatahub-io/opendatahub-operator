@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 19cf774170987f2c86d33990952f17f438faa8ed
+    git.commit: 417c512f5e6da25fc0ed07b749f948b07e921210
   odh-trainer-operator:
     src: config
     dest: trainer
@@ -93,7 +93,7 @@ additional_meta:
     git.commit: 96151c9a7ccddf456a8b9638bf4005ce359bd988
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 19cf774170987f2c86d33990952f17f438faa8ed
+    git.commit: 417c512f5e6da25fc0ed07b749f948b07e921210
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: dbe8891f4ed27ede56716acaec517a022143415c
@@ -342,7 +342,7 @@ additional_meta:
     git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
   odh-workbench-jupyter-minimal-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
+    git.commit: 24a8efcf4977c830ab23aa13deaa2aa499a20840
   odh-workbench-jupyter-minimal-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
@@ -351,7 +351,7 @@ additional_meta:
     git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
   odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 3c7d41d64b763665d52617dd0080c016ca1e5d9f
+    git.commit: 4c40441b86cb32ccea4b8e8eb224ac8ca4c7310d
   odh-workbench-jupyter-pytorch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
