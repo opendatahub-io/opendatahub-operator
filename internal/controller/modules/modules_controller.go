@@ -48,6 +48,7 @@ func commonActions() []actions.Fn {
 		initializeModules,
 		cleanupDisabledModules,
 		provisionModules,
+		ensureDashboardNamespacedRBAC,
 		helmrender.NewAction(),
 		kustomizerender.NewAction(),
 		provision.ExtractUpgradeGates,
