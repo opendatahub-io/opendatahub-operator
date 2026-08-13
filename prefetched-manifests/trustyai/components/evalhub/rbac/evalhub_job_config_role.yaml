@@ -1,0 +1,14 @@
+---
+# ClusterRole for EvalHub job ConfigMap management
+# Split from the monolithic evalhub-resource-manager for least-privilege.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: evalhub-job-config
+  labels:
+    app.kubernetes.io/name: trustyai-service-operator
+    app.kubernetes.io/component: evalhub
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "get", "update", "delete", "list"]

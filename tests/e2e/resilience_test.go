@@ -143,12 +143,10 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// To handle upstream/downstream i trimmed prefix(odh) from few controller names
 	componentToControllerMap := map[string]string{
 		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
-		componentApi.OGXComponentName:                  "ogx-k8s-operator-controller-manager",
 		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
 		componentApi.RayComponentName:                  "kuberay-operator",
 		componentApi.SparkOperatorComponentName:        "spark-operator-controller",
 		componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
-		componentApi.TrainerComponentName:              "kubeflow-trainer-controller-manager",
 		// componentApi.TrustyAIComponentName:             "trustyai-service-operator-controller-manager",
 	}
 
@@ -170,7 +168,9 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// MLflowOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// Kserve is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// Workbenches is excluded because it is a module so it does not report DSC ComponentsReady condition
-	excludedComponents := 10 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, Dashboard, MCPLifecycleOperator, MLflowOperator, Kserve, Workbenches, feastoperator
+	// OGX is excluded because it is a module so it does not report DSC ComponentsReady condition
+	// Trainer is excluded because it is a module so it does not report DSC ComponentsReady condition
+	excludedComponents := 12 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, Dashboard, MCPLifecycleOperator, MLflowOperator, Kserve, Workbenches, feastoperator, OGX, Trainer
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+

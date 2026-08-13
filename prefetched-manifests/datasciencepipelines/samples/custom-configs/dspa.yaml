@@ -1,0 +1,76 @@
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: sample
+spec:
+  dspVersion: v2
+  apiServer:
+    deploy: true
+    enableSamplePipeline: true
+    stripEOF: true
+    terminateStatus: Cancelled
+    trackArtifacts: true
+    dbConfigConMaxLifetimeSec: 120
+    collectMetrics: true
+    autoUpdatePipelineDefaultVersion: true
+    resources:
+      requests:
+        cpu: 250m
+        memory: 500Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+  persistenceAgent:
+    deploy: true
+    numWorkers: 2
+    resources:
+      requests:
+        cpu: 120m
+        memory: 500Mi
+      limits:
+        cpu: 250m
+        memory: 1Gi
+  scheduledWorkflow:
+    deploy: true
+    cronScheduleTimezone: UTC
+    resources:
+      requests:
+        cpu: 120m
+        memory: 100Mi
+      limits:
+        cpu: 250m
+        memory: 250Mi
+  database:
+    mariaDB:
+      deploy: true
+      image: registry.redhat.io/rhel8/mariadb-103:1-188
+      username: mlpipeline
+      pipelineDBName: randomDBName
+      pvcSize: 10Gi
+      resources:
+        requests:
+          cpu: 300m
+          memory: 800Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+      passwordSecret:
+        name: testdbsecret
+        key: password
+  objectStorage:
+    minio:
+      deploy: true
+      image: quay.io/opendatahub/minio:RELEASE.2019-08-14T20-37-41Z-license-compliance
+      bucket: mlpipeline
+      pvcSize: 10Gi
+      resources:
+        requests:
+          cpu: 200m
+          memory: 100Mi
+        limits:
+          cpu: 250m
+          memory: 1Gi
+      s3CredentialsSecret:
+        secretName: teststoragesecret
+        accessKey: AWS_ACCESS_KEY_ID
+        secretKey: AWS_SECRET_ACCESS_KEY

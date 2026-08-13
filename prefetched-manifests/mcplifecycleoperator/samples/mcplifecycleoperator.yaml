@@ -1,0 +1,6 @@
+apiVersion: components.platform.opendatahub.io/v1alpha1
+kind: MCPLifecycleOperator
+metadata:
+  name: default
+spec:
+  managementState: Managed

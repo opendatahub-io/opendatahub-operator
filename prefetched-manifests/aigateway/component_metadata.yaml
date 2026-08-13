@@ -1,0 +1,16 @@
+releases:
+  - name: AI Gateway Operator
+    version: v0.1.0
+    repoUrl: https://github.com/opendatahub-io/ai-gateway-operator
+  - name: Batch Gateway
+    version: v0.3.0
+    repoUrl: https://github.com/llm-d/llm-d-batch-gateway
+  - name: Async Processor
+    version: v0.7.4
+    repoUrl: https://github.com/llm-d/llm-d-async
+  - name: Model as a service
+    version: v0.2.0
+    repoUrl: https://github.com/opendatahub-io/models-as-a-service
+  - name: AI Gateway Payload Processing
+    version: v0.1.0
+    repoUrl: https://github.com/opendatahub-io/ai-gateway-payload-processing

@@ -1,0 +1,114 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mariadb-{{.Name}}
+  namespace: {{.Namespace}}
+  labels:
+    app: mariadb-{{.Name}}
+    component: data-science-pipelines
+    dspa: {{.Name}}
+spec:
+  strategy:
+    # Need this since backing PVC is ReadWriteOnce,
+    # which creates resource lock condition in default
+    # Rolling strategy
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mariadb-{{.Name}}
+      component: data-science-pipelines
+      dspa: {{.Name}}
+  template:
+    metadata:
+      labels:
+        app: mariadb-{{.Name}}
+        component: data-science-pipelines
+        dspa: {{.Name}}
+    spec:
+      serviceAccountName: ds-pipelines-mariadb-sa-{{.Name}}
+      containers:
+        - name: mariadb
+          image: {{.MariaDB.Image}}
+          ports:
+            - containerPort: 3306
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - "-i"
+                - "-c"
+                - >-
+                  MYSQL_PWD=$MYSQL_PASSWORD mysql -h 127.0.0.1 -u $MYSQL_USER -D
+                  $MYSQL_DATABASE -e 'SELECT 1'
+            failureThreshold: 3
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3306
+            timeoutSeconds: 1
+          env:
+            - name: MYSQL_USER
+              value: "{{.DBConnection.Username}}"
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: "{{.DBConnection.CredentialsSecret.Key}}"
+                  name: "{{.DBConnection.CredentialsSecret.Name}}"
+            - name: MYSQL_DATABASE
+              value: "{{.DBConnection.DBName}}"
+            - name: MYSQL_ALLOW_EMPTY_PASSWORD
+              value: "true"
+          resources:
+            {{ if .MariaDB.Resources.Requests }}
+            requests:
+              {{ if .MariaDB.Resources.Requests.CPU }}
+              cpu: {{.MariaDB.Resources.Requests.CPU}}
+              {{ end }}
+              {{ if .MariaDB.Resources.Requests.Memory }}
+              memory: {{.MariaDB.Resources.Requests.Memory}}
+              {{ end }}
+            {{ end }}
+            {{ if .MariaDB.Resources.Limits }}
+            limits:
+              {{ if .MariaDB.Resources.Limits.CPU }}
+              cpu: {{.MariaDB.Resources.Limits.CPU}}
+              {{ end }}
+              {{ if .MariaDB.Resources.Limits.Memory }}
+              memory: {{.MariaDB.Resources.Limits.Memory}}
+              {{ end }}
+            {{ end }}
+          volumeMounts:
+            - name: mariadb-persistent-storage
+              mountPath: /var/lib/mysql
+            {{ if .PodToPodTLS }}
+            - name: mariadb-tls
+              mountPath: /.mariadb/certs
+            - name: mariadb-tls-config
+              mountPath: /etc/my.cnf.d/mariadb-tls-config.cnf
+              subPath: mariadb-tls-config.cnf
+            {{ end }}
+      volumes:
+        - name: mariadb-persistent-storage
+          persistentVolumeClaim:
+            claimName: mariadb-{{.Name}}
+        {{ if .PodToPodTLS }}
+        - name: mariadb-tls
+          secret:
+            secretName: ds-pipelines-mariadb-tls-{{.Name}}
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+        - name: mariadb-tls-config
+          configMap:
+            name: ds-pipelines-mariadb-tls-config-{{.Name}}
+        {{ end }}

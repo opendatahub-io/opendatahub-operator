@@ -137,8 +137,8 @@ func TestReadinessChecker_NilDSC_CRExistsReadinessStatus(t *testing.T) {
 			cr := &unstructured.Unstructured{}
 			cr.SetGroupVersionKind(testGVK)
 			cr.SetName("default-comp")
-			_ = unstructured.SetNestedSlice(cr.Object, []interface{}{
-				map[string]interface{}{
+			_ = unstructured.SetNestedSlice(cr.Object, []any{
+				map[string]any{
 					"type":   status.ConditionTypeReady,
 					"status": string(tt.condStatus),
 				},

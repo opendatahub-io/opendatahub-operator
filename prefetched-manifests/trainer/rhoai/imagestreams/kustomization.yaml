@@ -1,0 +1,6 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - training-hub-universal-cpu-imagestream.yaml
+  - training-hub-universal-cuda-imagestream.yaml
+  - training-hub-universal-rocm-imagestream.yaml

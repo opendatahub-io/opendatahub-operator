@@ -1,0 +1,20 @@
+# Service exposes the webhook server so the Kubernetes API server can send admission requests to it.
+# The API server connects to this service when pods or SparkApplications are created/updated.
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-operator-webhook-svc
+  namespace: system
+  labels:
+    app.kubernetes.io/name: spark-operator
+    app.kubernetes.io/instance: spark-operator
+    app.kubernetes.io/component: webhook
+spec:
+  selector:
+    app.kubernetes.io/name: spark-operator
+    app.kubernetes.io/instance: spark-operator
+    app.kubernetes.io/component: webhook
+  ports:
+    - port: 443
+      targetPort: webhook
+      name: webhook

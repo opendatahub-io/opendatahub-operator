@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    name: sample-config-{{.Name}}
+    namespace: {{.Namespace}}
+    labels:
+        app: {{.APIServerDefaultResourceName}}
+        component: data-science-pipelines
+data:
+    sample_config.json: |-
+      {{ .SampleConfigJSON }}

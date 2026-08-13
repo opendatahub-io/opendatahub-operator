@@ -16,7 +16,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -32,6 +31,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 )
 
 const (
@@ -84,7 +84,7 @@ func (f *MockManager) AddReadyzCheck(name string, check healthz.Checker) error {
 //nolint:ireturn
 func (f *MockManager) GetAPIReader() client.Reader { return nil }
 func (f *MockManager) GetControllerOptions() config.Controller {
-	return config.Controller{SkipNameValidation: ptr.To(true)}
+	return config.Controller{SkipNameValidation: new(true)}
 }
 func (f *MockManager) GetHTTPClient() *http.Client { return &http.Client{} }
 
@@ -95,12 +95,14 @@ func (f *MockManager) GetWebhookServer() webhook.Server { return nil }
 func (f *MockManager) GetConverterRegistry() conversion.Registry { return nil }
 
 //nolint:ireturn
-func setupTest(mockDashboard *componentApi.Dashboard) (context.Context, *MockManager, client.WithWatch) {
+func setupTest(mockDashboard *scheme.TestPlatformObject) (context.Context, *MockManager, client.WithWatch) {
 	ctx := context.Background()
 
-	scheme := runtime.NewScheme()
-	_ = componentApi.AddToScheme(scheme)
-	_ = dsciv2.AddToScheme(scheme)
+	s := runtime.NewScheme()
+	_ = componentApi.AddToScheme(s)
+	_ = dsciv2.AddToScheme(s)
+	s.AddKnownTypes(scheme.TestSchemeGroupVersion, &scheme.TestPlatformObject{}, &scheme.TestPlatformObjectList{})
+	metav1.AddToGroupVersion(s, scheme.TestSchemeGroupVersion)
 
 	mockDsci := &dsciv2.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
@@ -109,23 +111,23 @@ func setupTest(mockDashboard *componentApi.Dashboard) (context.Context, *MockMan
 		Spec: dsciv2.DSCInitializationSpec{},
 	}
 
-	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{componentApi.GroupVersion})
+	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{scheme.TestSchemeGroupVersion})
 	mapper.Add(
 		schema.GroupVersionKind{
-			Group:   componentApi.GroupVersion.Group,
-			Version: componentApi.GroupVersion.Version,
-			Kind:    componentApi.DashboardKind,
+			Group:   scheme.TestSchemeGroupVersion.Group,
+			Version: scheme.TestSchemeGroupVersion.Version,
+			Kind:    scheme.TestPlatformObjectKind,
 		},
 		meta.RESTScopeNamespace,
 	)
 
 	mockClient := fake.NewClientBuilder().
-		WithScheme(scheme).
+		WithScheme(s).
 		WithRESTMapper(mapper).
 		WithObjects(mockDashboard, mockDsci).
 		Build()
 
-	mockMgr := &MockManager{client: mockClient, scheme: scheme, mapper: mapper}
+	mockMgr := &MockManager{client: mockClient, scheme: s, mapper: mapper}
 
 	return ctx, mockMgr, mockClient
 }
@@ -133,13 +135,13 @@ func setupTest(mockDashboard *componentApi.Dashboard) (context.Context, *MockMan
 func TestFinalizer_Add(t *testing.T) {
 	g := gomega.NewWithT(t)
 
-	mockDashboard := &componentApi.Dashboard{
+	mockDashboard := &scheme.TestPlatformObject{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: mockDashboardName,
 		},
 		TypeMeta: metav1.TypeMeta{
-			Kind:       componentApi.DashboardKind,
-			APIVersion: componentApi.GroupVersion.Version,
+			Kind:       scheme.TestPlatformObjectKind,
+			APIVersion: scheme.TestSchemeGroupVersion.Version,
 		},
 	}
 
@@ -151,7 +153,7 @@ func TestFinalizer_Add(t *testing.T) {
 	g.Expect(err).ToNot(gomega.HaveOccurred())
 	g.Expect(r.Finalizer).To(gomega.HaveLen(1))
 
-	d := &componentApi.Dashboard{}
+	d := &scheme.TestPlatformObject{}
 	err = cli.Get(
 		ctx,
 		client.ObjectKey{
@@ -169,7 +171,7 @@ func TestFinalizer_Add(t *testing.T) {
 	})
 	g.Expect(err).ToNot(gomega.HaveOccurred())
 
-	d = &componentApi.Dashboard{}
+	d = &scheme.TestPlatformObject{}
 	err = cli.Get(
 		ctx,
 		client.ObjectKey{
@@ -184,13 +186,13 @@ func TestFinalizer_Add(t *testing.T) {
 func TestFinalizer_NotPresent(t *testing.T) {
 	g := gomega.NewWithT(t)
 
-	mockDashboard := &componentApi.Dashboard{
+	mockDashboard := &scheme.TestPlatformObject{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: mockDashboardName,
 		},
 		TypeMeta: metav1.TypeMeta{
-			Kind:       componentApi.DashboardKind,
-			APIVersion: componentApi.GroupVersion.Version,
+			Kind:       scheme.TestPlatformObjectKind,
+			APIVersion: scheme.TestSchemeGroupVersion.Version,
 		},
 	}
 
@@ -207,7 +209,7 @@ func TestFinalizer_NotPresent(t *testing.T) {
 	})
 	g.Expect(err).ToNot(gomega.HaveOccurred())
 
-	d := &componentApi.Dashboard{}
+	d := &scheme.TestPlatformObject{}
 	err = cli.Get(
 		ctx,
 		client.ObjectKey{
@@ -222,17 +224,17 @@ func TestFinalizer_NotPresent(t *testing.T) {
 func TestFinalizer_Remove(t *testing.T) {
 	g := gomega.NewWithT(t)
 
-	mockDashboard := &componentApi.Dashboard{
+	mockDashboard := &scheme.TestPlatformObject{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       mockDashboardName,
-			Finalizers: []string{platformFinalizer},
+			Finalizers: []string{finalizerName},
 			DeletionTimestamp: &metav1.Time{
 				Time: time.Now(),
 			},
 		},
 		TypeMeta: metav1.TypeMeta{
-			Kind:       componentApi.DashboardKind,
-			APIVersion: componentApi.GroupVersion.Version,
+			Kind:       scheme.TestPlatformObjectKind,
+			APIVersion: scheme.TestSchemeGroupVersion.Version,
 		},
 	}
 
@@ -251,7 +253,7 @@ func TestFinalizer_Remove(t *testing.T) {
 	})
 	g.Expect(err).ToNot(gomega.HaveOccurred())
 
-	d := &componentApi.Dashboard{}
+	d := &scheme.TestPlatformObject{}
 	err = cli.Get(
 		ctx,
 		client.ObjectKey{

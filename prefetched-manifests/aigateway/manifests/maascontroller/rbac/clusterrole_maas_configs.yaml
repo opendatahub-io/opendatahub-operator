@@ -1,0 +1,57 @@
+# Extra ClusterRole for Config: ODH reconciles maas-controller-role (ownerRef to ModelsAsService)
+# and strips unknown rules. This role is not owned by the operator and is merged at the apiserver
+# via a second ClusterRoleBinding on the same ServiceAccount.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: maas-controller-cluster-config-role
+  labels:
+    app.kubernetes.io/part-of: modelsasservice
+    app.opendatahub.io/modelsasservice: "true"
+rules:
+  # The controller cache lists/watches Config cluster-wide. Kubernetes only
+  # honors resourceNames on list/watch when the request also carries a matching
+  # metadata.name field selector, which controller-runtime cache does not use.
+  - apiGroups:
+      - maas.opendatahub.io
+    resources:
+      - configs
+    verbs:
+      - list
+      - watch
+  # Singleton Config/default only (create cannot be restricted by resourceNames in RBAC).
+  - apiGroups:
+      - maas.opendatahub.io
+    resources:
+      - configs
+    resourceNames:
+      - default
+    verbs:
+      - delete
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - maas.opendatahub.io
+    resources:
+      - configs
+    verbs:
+      - create
+  - apiGroups:
+      - maas.opendatahub.io
+    resources:
+      - configs/status
+    resourceNames:
+      - default
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - maas.opendatahub.io
+    resources:
+      - configs/finalizers
+    resourceNames:
+      - default
+    verbs:
+      - update

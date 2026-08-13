@@ -1,0 +1,27 @@
+# NetworkPolicy to allow the RHOAI monitoring stack (OpenTelemetry Collector)
+# to scrape metrics from maas-controller pods.
+#
+# Required by ODH-ADR-Operator-0010: components exposing metrics must allow
+# ingress from the monitoring namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: maas-controller-allow-monitoring
+  labels:
+    app.opendatahub.io/modelsasservice: "true"
+    app.kubernetes.io/part-of: maas
+    app.kubernetes.io/component: monitoring
+spec:
+  podSelector:
+    matchLabels:
+      control-plane: maas-controller
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: redhat-ods-monitoring
+      ports:
+        - protocol: TCP
+          port: 8080

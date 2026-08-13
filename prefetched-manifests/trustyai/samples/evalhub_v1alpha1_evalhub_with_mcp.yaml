@@ -1,0 +1,25 @@
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: EvalHub
+metadata:
+  name: evalhub-mcp-sample
+  namespace: default
+spec:
+  # SQLite (database below) is file-based and does not support concurrent writes across multiple EvalHub replicas; replicas > 1 can cause locking or corruption. Use postgresql for production or horizontal scaling.
+  replicas: 1
+
+  database:
+    type: sqlite  # dev / single-replica; use postgresql before increasing spec.replicas
+
+  collections:
+    - leaderboard-v2
+
+  # MCP server deployment configuration
+  mcp:
+    enabled: true
+    replicas: 1
+    # transport defaults to http (streamable HTTP). Use http-sse only for legacy MCP clients.
+    # Secret token for evalhub-mcp → EvalHub API (kube-rbac-proxy). MCP itself is also fronted by kube-rbac-proxy;
+    # callers need RBAC get/create on evalhubs/proxy for this instance.
+    authSecret: evalhub-mcp-token
+    # transport: http
+    # evalHubTransport: http-sse  # optional override for EVALHUB_TRANSPORT only

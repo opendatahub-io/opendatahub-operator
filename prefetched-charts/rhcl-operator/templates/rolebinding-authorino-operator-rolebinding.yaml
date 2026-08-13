@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: authorino-operator-rolebinding
+  namespace: {{ .Values.operatorNamespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: authorino-operator-role
+subjects:
+  - kind: ServiceAccount
+    name: authorino-operator
+    namespace: {{ .Values.operatorNamespace }}

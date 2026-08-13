@@ -34,6 +34,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
+const systemAuthenticatedGroup = "system:authenticated"
+
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Templates = []odhtypes.TemplateInfo{
 		{
@@ -99,7 +101,7 @@ func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []
 			roleName == "data-science-admingroup-maas-role" ||
 			roleName == "data-science-admingroup-kuadrant-role"
 		// we want to disallow adding system:authenticated to the adminGroups
-		if e == "" || (isAdminRole && e == "system:authenticated") {
+		if e == "" || (isAdminRole && e == systemAuthenticatedGroup) {
 			log := logf.FromContext(ctx)
 			log.Info("skipping adding invalid group to RoleBinding")
 			continue
@@ -137,7 +139,7 @@ func bindClusterRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, gr
 	for _, e := range groups {
 		// we want to disallow adding system:authenticated to the adminGroups
 		isAdminRole := roleName == "data-science-admingroupcluster-role"
-		if e == "" || (isAdminRole && e == "system:authenticated") {
+		if e == "" || (isAdminRole && e == systemAuthenticatedGroup) {
 			log := logf.FromContext(ctx)
 			log.Info("skipping adding invalid group to ClusterRoleBinding")
 			continue

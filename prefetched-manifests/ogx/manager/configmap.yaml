@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config
+  namespace: system
+  labels:
+    app.kubernetes.io/name: opendatahub-ogx-operator
+data:
+  platform-name: "OpenDataHub"

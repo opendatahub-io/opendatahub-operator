@@ -1,0 +1,9 @@
+# cert-manager Operator Helm Chart
+operatorNamespace: cert-manager-operator
+operandNamespace: cert-manager
+
+imagePullSecrets:
+  - name: rhai-pull-secret
+
+bundle:
+  version: "v1.18.1"

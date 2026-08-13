@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/opendatahub-io/feast-module-operator/cmd/chartgen/values",
+  "$ref": "#/$defs/Values",
+  "$defs": {
+    "ImageSpec": {
+      "properties": {
+        "repository": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "fullRef": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "repository",
+        "tag",
+        "fullRef"
+      ]
+    },
+    "ResourceList": {
+      "properties": {
+        "cpu": {
+          "type": "string"
+        },
+        "memory": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "cpu",
+        "memory"
+      ]
+    },
+    "ResourceSpec": {
+      "properties": {
+        "limits": {
+          "$ref": "#/$defs/ResourceList"
+        },
+        "requests": {
+          "$ref": "#/$defs/ResourceList"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "limits",
+        "requests"
+      ]
+    },
+    "ServiceAccountSpec": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "annotations": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "annotations"
+      ]
+    },
+    "Values": {
+      "properties": {
+        "namespace": {
+          "type": "string"
+        },
+        "nameOverride": {
+          "type": "string"
+        },
+        "fullnameOverride": {
+          "type": "string"
+        },
+        "image": {
+          "$ref": "#/$defs/ImageSpec"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "resources": {
+          "$ref": "#/$defs/ResourceSpec"
+        },
+        "leaderElect": {
+          "type": "boolean",
+          "default": true
+        },
+        "serviceAccount": {
+          "$ref": "#/$defs/ServiceAccountSpec"
+        },
+        "imagePullSecret": {
+          "type": "string"
+        },
+        "config": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "upgradeGates": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": ["object", "null"]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "namespace",
+        "nameOverride",
+        "fullnameOverride",
+        "image",
+        "replicas",
+        "resources",
+        "leaderElect",
+        "serviceAccount",
+        "imagePullSecret",
+        "config"
+      ]
+    }
+  }
+}

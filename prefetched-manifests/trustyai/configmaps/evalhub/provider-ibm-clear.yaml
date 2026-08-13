@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: evalhub-provider-ibm-clear
+  labels:
+    trustyai.opendatahub.io/evalhub-provider-type: system
+    trustyai.opendatahub.io/evalhub-provider-name: ibm-clear
+data:
+  ibm-clear.yaml: |
+    id: ibm-clear
+    name: IBM CLEAR
+    title: IBM CLEAR
+    description: IBM CLEAR evaluation framework for error analysis and reporting
+    runtime:
+      k8s:
+        image: $(evalhub-provider-ibm-clear-image)
+        entrypoint:
+          - python
+          - main.py
+        cpu_request: 100m
+        memory_request: 128Mi
+        cpu_limit: 500m
+        memory_limit: 1Gi
+      local:
+        # used for local mode tests (FVT)
+        command: python tests/features/test_data/runtime/main.py
+    benchmarks:
+      - id: agentic-evaluation
+        name: Agentic Evaluation
+        description: Agentic evaluation that identifies error categories from agent traces and quantifies their frequencies
+        category: error-analysis
+        metrics:
+          - total_interactions
+          - total_issues
+          - interactions_with_issues
+          - interactions_no_issues
+          - total_agents
+          - pct_interactions_with_issues
+          - issues_per_interaction
+          - average_score
+        tags:
+          - erroranalysis
+          - ibmclear
+        primary_score:
+          metric: average_score
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.5

@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 
 	. "github.com/onsi/gomega"
@@ -54,7 +55,7 @@ func TestReadinessChecker_ReadyWithMatchingVersion(t *testing.T) {
 
 	reg := &modules.Registry{}
 	reg.Add(newStatusMock("mod-a", &modules.ModuleStatus{
-		Conditions: []metav1.Condition{
+		Conditions: []common.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue},
 		},
 		ObservedGeneration: 1,
@@ -74,7 +75,7 @@ func TestReadinessChecker_NotReadyVersionMismatch(t *testing.T) {
 
 	reg := &modules.Registry{}
 	reg.Add(newStatusMock("mod-b", &modules.ModuleStatus{
-		Conditions: []metav1.Condition{
+		Conditions: []common.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue},
 		},
 		ObservedGeneration: 1,
@@ -94,7 +95,7 @@ func TestReadinessChecker_EmptyVersionSkipsCheck(t *testing.T) {
 
 	reg := &modules.Registry{}
 	reg.Add(newStatusMock("mod-c", &modules.ModuleStatus{
-		Conditions: []metav1.Condition{
+		Conditions: []common.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue},
 		},
 		ObservedGeneration: 1,
@@ -114,7 +115,7 @@ func TestReadinessChecker_StaleGenerationNotReady(t *testing.T) {
 
 	reg := &modules.Registry{}
 	reg.Add(newStatusMock("mod-d", &modules.ModuleStatus{
-		Conditions: []metav1.Condition{
+		Conditions: []common.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue},
 		},
 		ObservedGeneration: 1,
@@ -134,7 +135,7 @@ func TestReadinessChecker_ReadyFalseNotReady(t *testing.T) {
 
 	reg := &modules.Registry{}
 	reg.Add(newStatusMock("mod-e", &modules.ModuleStatus{
-		Conditions: []metav1.Condition{
+		Conditions: []common.Condition{
 			{Type: "Ready", Status: metav1.ConditionFalse},
 		},
 		ObservedGeneration: 1,
@@ -154,7 +155,7 @@ func TestReadinessChecker_NoPlatformVersionSkipsCheck(t *testing.T) {
 
 	reg := &modules.Registry{}
 	reg.Add(newStatusMock("mod-f", &modules.ModuleStatus{
-		Conditions: []metav1.Condition{
+		Conditions: []common.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue},
 		},
 		ObservedGeneration: 1,

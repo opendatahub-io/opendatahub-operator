@@ -15,6 +15,10 @@ import (
 // Config holds common configuration shared by all binaries (main operator and cloudmanager).
 type Config struct {
 	MetricsAddr         string `mapstructure:"metrics-bind-address"`
+	MetricsSecure       bool   `mapstructure:"metrics-secure"`
+	MetricsCertPath     string `mapstructure:"metrics-cert-path"`
+	MetricsCertName     string `mapstructure:"metrics-cert-name"`
+	MetricsCertKey      string `mapstructure:"metrics-cert-key"`
 	HealthProbeAddr     string `mapstructure:"health-probe-bind-address"`
 	LeaderElection      bool   `mapstructure:"leader-elect"`
 	MonitoringNamespace string `mapstructure:"dsc-monitoring-namespace"`

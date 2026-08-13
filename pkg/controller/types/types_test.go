@@ -12,11 +12,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -129,7 +129,7 @@ func TestReconciliationRequest_RemoveResources(t *testing.T) {
 func TestHash_HelmChartValuesIsDeterministic(t *testing.T) {
 	g := NewWithT(t)
 
-	instance := &v1alpha1.Dashboard{}
+	instance := &scheme.TestPlatformObject{}
 	instance.SetUID("uid")
 	instance.SetGeneration(1)
 
@@ -175,7 +175,7 @@ func TestHash_WithNilDSCI(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Create a Dashboard component as test instance (implements PlatformObject)
-	instance := &v1alpha1.Dashboard{}
+	instance := &scheme.TestPlatformObject{}
 	instance.SetName("test-dashboard")
 	instance.SetNamespace("test-ns")
 	instance.SetUID("test-uid-123")

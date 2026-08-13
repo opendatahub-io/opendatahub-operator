@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.WebhookName}}
+  namespace: {{.DSPONamespace}}
+  labels:
+    app: {{.WebhookName}}
+    component: data-science-pipelines
+spec:
+  selector:
+    matchLabels:
+      app: {{.WebhookName}}
+      component: data-science-pipelines
+  template:
+    metadata:
+      labels:
+        app: {{.WebhookName}}
+        component: data-science-pipelines
+    spec:
+      containers:
+        - env:
+            - name: POD_NAMESPACE
+              value: "{{.DSPONamespace}}"
+          image: {{.APIServer.Image}}
+          # imagePullPolicy: default - https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+          name: ds-pipeline-webhook
+          command: ['/bin/apiserver']
+          args:
+            - --config=/config
+            - -logtostderr=true
+            - --sampleconfig=/config/sample_config.json
+            - --webhookPortFlag=:8443
+            - --webhookTLSCertPath=/etc/webhook/certs/tls.crt
+            - --webhookTLSKeyPath=/etc/webhook/certs/tls.key
+            - --globalKubernetesWebhookMode=true
+          ports:
+            - containerPort: 8443
+              name: webhook
+          volumeMounts:
+            - mountPath: /etc/webhook/certs
+              name: webhook-tls
+      serviceAccountName: {{.WebhookName}}
+      volumes:
+          - name: webhook-tls
+            secret:
+              secretName: {{.WebhookName}}-tls

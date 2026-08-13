@@ -29,7 +29,7 @@ type DashboardTestCtx struct {
 func dashboardTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Dashboard{})
+	ct, err := NewModuleTestCtx(t, gvk.Dashboard, componentApi.DashboardInstanceName)
 	require.NoError(t, err)
 
 	componentCtx := DashboardTestCtx{
@@ -212,8 +212,38 @@ func (tc *DashboardTestCtx) ValidateVAPBlocksDashboardCRCreation(t *testing.T) {
 }
 
 // ValidateAllDeletionRecovery runs the standard set of deletion recovery tests.
+// Before running, it waits for all dashboard-labeled deployments to complete any
+// in-progress rollouts. Earlier tests (Validate_update_operand_resources,
+// Validate_dynamically_watches_operands) can trigger a rhods-dashboard rollout
+// that restarts the dashboard-operator pod; if deletion recovery runs while the
+// operator is mid-restart, it cannot recreate deleted ConfigMaps in time.
 func (tc *DashboardTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 	t.Helper()
+
+	// Wait for all dashboard deployments to finish rolling out
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
+		WithCondition(
+			HaveEach(
+				And(
+					jq.Match(`.metadata.generation == .status.observedGeneration`),
+					jq.Match(`.status.updatedReplicas == .spec.replicas`),
+					jq.Match(`.status.availableReplicas == .spec.replicas`),
+					jq.Match(`.status.readyReplicas == .spec.replicas`),
+				),
+			),
+		),
+		WithEventuallyTimeout(tc.TestTimeouts.defaultEventuallyTimeout),
+		WithCustomErrorMsg("All dashboard deployments should be fully rolled out before testing deletion recovery"),
+	)
 
 	// Run all the standard recovery tests first
 	tc.ComponentTestCtx.ValidateAllDeletionRecovery(t)

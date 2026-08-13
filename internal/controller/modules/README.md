@@ -84,7 +84,7 @@ for the full process.
 
 A module team contributes four things to this repository:
 
-### 1. Manifest source entry (`get_all_manifests.sh`)
+### 1. Manifest source entry (`manifests-config.yaml`)
 
 Add the module's manifests (Helm chart **or** Kustomize overlays) to the
 `ODH_COMPONENT_CHARTS` and `RHOAI_COMPONENT_CHARTS` maps:

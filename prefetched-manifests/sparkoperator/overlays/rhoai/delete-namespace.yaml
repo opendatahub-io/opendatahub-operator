@@ -1,0 +1,7 @@
+# Remove the Namespace resource from the output.
+# The redhat-ods-applications namespace is managed by the RHOAI operator, not by us.
+$patch: delete
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spark-operator

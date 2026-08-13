@@ -8,7 +8,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -24,11 +23,6 @@ import (
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-const (
-	// TODO: remove after https://issues.redhat.com/browse/RHOAIENG-15920
-	finalizerName = "datasciencecluster.opendatahub.io/finalizer"
-)
-
 // persistAPI is implemented by component CRs that expose an alternative object
 // for the deploy action to persist (e.g. when the "public" CR wraps an inner
 // object that should actually be applied to the cluster).
@@ -37,23 +31,7 @@ type persistAPI interface {
 }
 
 func isNilInterface(v any) bool {
-	return v == nil || (reflect.ValueOf(v).Kind() == reflect.Ptr && reflect.ValueOf(v).IsNil())
-}
-
-func initialize(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
-	}
-
-	// TODO: remove after https://issues.redhat.com/browse/RHOAIENG-15920
-	if controllerutil.RemoveFinalizer(instance, finalizerName) {
-		if err := rr.Client.Update(ctx, instance); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return v == nil || (reflect.ValueOf(v).Kind() == reflect.Pointer && reflect.ValueOf(v).IsNil())
 }
 
 func checkPreConditions(ctx context.Context, rr *odhtype.ReconciliationRequest) error {

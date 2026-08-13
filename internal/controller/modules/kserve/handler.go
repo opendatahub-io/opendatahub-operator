@@ -53,6 +53,7 @@ func NewHandler() *handler {
 				// and ODH-Build-Config bundle-patch.yaml.
 				RelatedImages: []string{
 					"RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE",
+					"RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE",
 					"RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE",
 					"RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
 					"RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE",
@@ -106,6 +107,7 @@ func NewHandler() *handler {
 					"RELATED_IMAGE_RHAII_VLLM_SPYRE_FAST_2_IMAGE_UPSTREAM_VERSION",
 					"RELATED_IMAGE_RHAII_VLLM_SPYRE_IMAGE",
 					"RELATED_IMAGE_RHAII_VLLM_SPYRE_IMAGE_UPSTREAM_VERSION",
+					"RELATED_IMAGE_ODH_UBI_MICRO_IMAGE",
 				},
 			},
 		},
@@ -155,6 +157,18 @@ func (h *handler) BuildModuleCR(
 			return nil, fmt.Errorf("failed to convert KserveCommonSpec to unstructured: %w", err)
 		}
 		delete(spec, "modelsAsService")
+
+		// Inject cross-component ModelRegistry state.
+		// ModelRegistry is a separate DSC component, not a Kserve sub-component.
+		// We forward its management state so kserve-module can propagate it
+		// to odh-model-controller's params.env as "modelregistry-state".
+		mrState := string(platform.DSC.Spec.Components.ModelRegistry.ManagementState)
+		if mrState == "" {
+			mrState = string(operatorv1.Removed)
+		}
+		spec["modelRegistry"] = map[string]any{
+			"managementState": mrState,
+		}
 	case platform.Platform != nil:
 		return nil, nil
 	default:

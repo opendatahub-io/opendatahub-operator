@@ -1,0 +1,140 @@
+# Complete MCPServer example showing all available fields.
+# Most fields are optional - see the API reference for details:
+# https://mcp-lifecycle-operator.sigs.k8s.io/reference/
+apiVersion: mcp.x-k8s.io/v1alpha1
+kind: MCPServer
+metadata:
+  name: complete-example
+  namespace: default
+spec:
+  # Extra labels applied to the Deployment, PodTemplate, and Service metadata.
+  # The operator-managed keys "app" and "mcp-server" cannot be overridden.
+  extraLabels:
+    team: platform
+    environment: production
+
+  # Extra annotations applied to the Deployment, PodTemplate, and Service metadata.
+  extraAnnotations:
+    prometheus.io/scrape: "true"
+
+  # Source defines where the MCP server container image is located.
+  source:
+    type: ContainerImage
+    containerImage:
+      ref: quay.io/containers/kubernetes_mcp_server:latest
+
+  # Config defines how the MCP server is configured.
+  config:
+    # Port the MCP server listens on (1-65535, required).
+    port: 8080
+
+    # HTTP path for MCP connections (defaults to /mcp).
+    path: /mcp
+
+    # Command-line arguments for the container.
+    arguments:
+      - --config
+      - /etc/mcp-config/config.toml
+
+    # Environment variables.
+    env:
+      - name: LOG_LEVEL
+        value: "info"
+      - name: API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: mcp-secrets
+            key: api-key
+
+    # Bulk environment variable injection from ConfigMaps/Secrets.
+    envFrom:
+      - configMapRef:
+          name: mcp-env-config
+      - secretRef:
+          name: mcp-env-secrets
+
+    # Storage mounts for ConfigMaps, Secrets, and EmptyDirs (max 64 items).
+    storage:
+      # ConfigMap mount (ReadOnly by default).
+      - path: /etc/mcp-config
+        source:
+          type: ConfigMap
+          configMap:
+            name: mcp-server-config
+
+      # Secret mount.
+      - path: /etc/mcp-secrets
+        permissions: ReadOnly
+        source:
+          type: Secret
+          secret:
+            secretName: mcp-tls-certs
+
+      # EmptyDir mount for writable scratch space.
+      - path: /tmp
+        permissions: ReadWrite
+        source:
+          type: EmptyDir
+          emptyDir:
+            sizeLimit: 100Mi
+
+  # Runtime defines execution configuration (optional, all fields optional).
+  runtime:
+    # Number of replicas (defaults to 1, set to 0 for scale-to-zero).
+    replicas: 2
+
+    # Resource requests and limits.
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "256Mi"
+
+    # Security configuration.
+    security:
+      # ServiceAccount for RBAC (defaults to the namespace's default SA).
+      serviceAccountName: mcp-viewer
+
+      # Pod-level security context.
+      podSecurityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+
+      # Container-level security context.
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - ALL
+
+    # Health probes (full Kubernetes Probe API: httpGet, tcpSocket, exec, grpc).
+    health:
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        initialDelaySeconds: 10
+        periodSeconds: 30
+        timeoutSeconds: 5
+        failureThreshold: 3
+
+      readinessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        timeoutSeconds: 3
+        failureThreshold: 2
+
+  # MCP protocol-specific configuration.
+  mcp:
+    # Whether the MCP server is stateless (no session state).
+    # When true, the Service uses SessionAffinity "None" for free load balancing.
+    # When false (default), the Service uses SessionAffinity "ClientIP".
+    stateless: false

@@ -1,0 +1,16 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: maas-controller-webhook-server
+spec:
+  commonName: maas-controller-webhook-service.$(NAMESPACE).svc
+  dnsNames:
+    - maas-controller-webhook-service.$(NAMESPACE).svc
+    - maas-controller-webhook-service.$(NAMESPACE).svc.cluster.local
+  duration: 8760h # 1 year
+  renewBefore: 720h # 30 days
+  issuerRef:
+    name: $(ISSUER_REF_NAME)
+    kind: $(ISSUER_REF_KIND)
+    group: $(ISSUER_REF_GROUP)
+  secretName: maas-controller-webhook-cert

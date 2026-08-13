@@ -1,0 +1,39 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+ name: spark-operator-allow-internal
+spec:
+ # This targets the Spark Pods themselves
+ podSelector:
+   matchLabels:
+     sparkoperator.k8s.io/launched-by-spark-operator: "true"
+ policyTypes:
+   - Ingress
+ ingress:
+   # Internal Spark communication + Spark UI ingress
+   - ports:
+       - port: 7078 # driver-rpc
+         protocol: TCP
+       - port: 7079 # blockmanager
+         protocol: TCP
+       - port: 4040 # spark-ui
+         protocol: TCP
+     from:
+       # Allow traffic from ANY pod in the same namespace (matching Dashboard style)
+       - podSelector: {}
+       # OPTIONAL: Add OpenShift Ingress if you want the Spark UI accessible from outside
+       - namespaceSelector:
+           matchLabels:
+             network.openshift.io/policy-group: ingress
+   # SparkConnect gRPC access from same namespace and workbench namespaces
+   - ports:
+       - port: 15002 # spark-connect-grpc
+         protocol: TCP
+     from:
+       - podSelector: {}
+       - namespaceSelector:
+           matchLabels:
+             opendatahub.io/dashboard: "true"
+         podSelector:
+           matchLabels:
+             opendatahub.io/workbenches: "true"

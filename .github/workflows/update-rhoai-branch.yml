@@ -41,16 +41,16 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Derived version: $VERSION"
 
+      - name: Set up Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version-file: go.mod
+
       - name: Update RHOAI manifest branches and SHAs
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         id: update-branches
         env:
-          NEW_RHOAI_BRANCH: ${{ inputs.new-rhoai-branch }}
-        with:
-          github-token: ${{ github.token }}
-          script: |
-            const script = require('./.github/scripts/update-rhoai-branch.js')
-            await script({github, core})
+          GITHUB_TOKEN: ${{ github.token }}
+        run: GITHUB_TOKEN=$GITHUB_TOKEN make update-refs-rhoai-branch NEW_RHOAI_BRANCH=${{ inputs.new-rhoai-branch }}
 
       - name: Update ODH version
         env:
@@ -61,6 +61,9 @@ jobs:
         env:
           VERSION: ${{ steps.derive-version.outputs.version }}
         run: sed -i "/^else$/,/^endif$/{s/^[[:space:]]*VERSION = .*/\t\tVERSION = $VERSION/;}" Makefile
+
+      - name: Resolve image digests
+        run: make resolve-image-digests
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8

@@ -1,0 +1,4 @@
+releases:
+  - name: LLM-D Batch Gateway Operator
+    version: v0.1.0
+    repoUrl: https://github.com/opendatahub-io/llm-d-batch-gateway-operator

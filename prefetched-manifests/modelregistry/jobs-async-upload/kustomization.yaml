@@ -1,0 +1,2 @@
+resources:
+- jobs-async-upload-s3-to-oci-template.yaml

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	fwapi "github.com/opendatahub-io/odh-platform-utilities/framework/api"
 	"github.com/rs/xid"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -17,7 +18,6 @@ import (
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	ccmcharts "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -156,7 +156,7 @@ func TestMonitorDependencies(t *testing.T) {
 			rr := &types.ReconciliationRequest{
 				Client:   cl,
 				Instance: instance,
-				Release:  common.Release{Name: cluster.OpenDataHub},
+				Release:  fwapi.Release{Name: cluster.OpenDataHub},
 			}
 			rr.Conditions = conditions.NewManager(instance, status.ConditionTypeReady, ConditionsTypes...)
 
@@ -264,7 +264,7 @@ func TestMonitorDependencies_OperatorCR(t *testing.T) {
 			rr := &types.ReconciliationRequest{
 				Client:   cli,
 				Instance: instance,
-				Release:  common.Release{Name: cluster.OpenDataHub},
+				Release:  fwapi.Release{Name: cluster.OpenDataHub},
 			}
 			rr.Conditions = conditions.NewManager(instance, status.ConditionTypeReady, ConditionsTypes...)
 
@@ -377,7 +377,7 @@ func TestSummarizeDependencyStatus(t *testing.T) {
 			rr := &types.ReconciliationRequest{
 				Client:   cl,
 				Instance: instance,
-				Release:  common.Release{Name: cluster.OpenDataHub},
+				Release:  fwapi.Release{Name: cluster.OpenDataHub},
 			}
 			rr.Conditions = conditions.NewManager(instance, status.ConditionTypeReady, ConditionsTypes...)
 

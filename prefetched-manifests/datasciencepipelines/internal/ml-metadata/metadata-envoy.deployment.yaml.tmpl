@@ -1,0 +1,168 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ds-pipeline-metadata-envoy-{{.Name}}
+  namespace: {{.Namespace}}
+  labels:
+    app: ds-pipeline-metadata-envoy-{{.Name}}
+    component: data-science-pipelines
+    dspa: {{.Name}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ds-pipeline-metadata-envoy-{{.Name}}
+      component: data-science-pipelines
+      dspa: {{.Name}}
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: ds-pipeline-metadata-envoy-{{.Name}}
+        component: data-science-pipelines
+        dspa: {{.Name}}
+    spec:
+      containers:
+        - image: {{.MLMD.Envoy.Image}}
+          name: container
+          command: ["/usr/local/bin/envoy"]
+          args: [
+            "-c",
+            "/etc/envoy.yaml"
+          ]
+          {{ if .ProxyConfig }}
+          env:
+          {{ if .ProxyConfig.HTTPProxy }}
+            - name: HTTP_PROXY
+              value: "{{.ProxyConfig.HTTPProxy}}"
+          {{ end }}
+          {{ if .ProxyConfig.HTTPSProxy }}
+            - name: HTTPS_PROXY
+              value: "{{.ProxyConfig.HTTPSProxy}}"
+          {{ end }}
+          {{ if and .ProxyConfig.NoProxy (or .ProxyConfig.HTTPProxy .ProxyConfig.HTTPSProxy) }}
+            - name: NO_PROXY
+              value: "{{.ProxyConfig.NoProxy}}"
+          {{ end }}
+          {{ end }}
+          ports:
+            - containerPort: 9090
+              name: md-envoy
+            - containerPort: 9901
+              name: envoy-admin
+          livenessProbe:
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            tcpSocket:
+              port: md-envoy
+            timeoutSeconds: 2
+          readinessProbe:
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            tcpSocket:
+              port: md-envoy
+            timeoutSeconds: 2
+          resources:
+            {{ if .MLMD.Envoy.Resources.Requests }}
+            requests:
+              {{ if .MLMD.Envoy.Resources.Requests.CPU }}
+              cpu: {{.MLMD.Envoy.Resources.Requests.CPU}}
+              {{ end }}
+              {{ if .MLMD.Envoy.Resources.Requests.Memory }}
+              memory: {{.MLMD.Envoy.Resources.Requests.Memory}}
+              {{ end }}
+            {{ end }}
+            {{ if .MLMD.Envoy.Resources.Limits }}
+            limits:
+              {{ if .MLMD.Envoy.Resources.Limits.CPU }}
+              cpu: {{.MLMD.Envoy.Resources.Limits.CPU}}
+              {{ end }}
+              {{ if .MLMD.Envoy.Resources.Limits.Memory }}
+              memory: {{.MLMD.Envoy.Resources.Limits.Memory}}
+              {{ end }}
+            {{ end }}
+          volumeMounts:
+            - mountPath: /etc/envoy.yaml
+              name: envoy-config
+              subPath: envoy.yaml
+            {{ if .PodToPodTLS }}
+            - name: proxy-tls-upstream
+              mountPath: "/etc/ssl/certs/"
+            {{ end }}
+        {{ if .MLMD.Envoy.DeployRoute }}
+        - name: kube-rbac-proxy
+          args:
+            - --secure-listen-address=0.0.0.0:8443
+            - --proxy-endpoints-port=8444
+            - --upstream=http://127.0.0.1:9090
+            - --config-file=/etc/kube-rbac-proxy/config-file.yaml
+            - --tls-cert-file=/etc/tls/private/tls.crt
+            - --tls-private-key-file=/etc/tls/private/tls.key
+            - --ignore-paths=/healthz,/apis/v1beta1/healthz,/metrics
+          image: {{.KubeRBACProxy}}
+          ports:
+            - containerPort: 8443
+              name: proxy
+              protocol: TCP
+            - containerPort: 8444
+              name: proxy-metrics
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: proxy-metrics
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: proxy-metrics
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            limits:
+              cpu: 100m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+            - mountPath: /etc/tls/private
+              name: proxy-tls
+            - mountPath: /etc/kube-rbac-proxy
+              name: proxy-config
+            {{ if and .CustomCABundle .PodToPodTLS }}
+            - mountPath: {{ .CustomCABundleRootMountPath }}
+              name: ca-bundle
+            {{ end }}
+        {{ end }}
+      serviceAccountName: ds-pipeline-metadata-envoy-{{.Name}}
+      volumes:
+        - name: envoy-config
+          configMap:
+            name: ds-pipeline-metadata-envoy-config-{{.Name}}
+        - name: proxy-tls
+          secret:
+            secretName: ds-pipelines-envoy-proxy-tls-{{.Name}}
+        - name: proxy-tls-upstream
+          configMap:
+            name: dsp-trusted-ca-{{.Name}}
+        {{ if .MLMD.Envoy.DeployRoute }}
+        - name: proxy-config
+          configMap:
+            name: kube-rbac-proxy-metadata-config-{{.Name}}
+        {{ end }}
+        {{ if and .CustomCABundle .PodToPodTLS }}
+        - name: ca-bundle
+          configMap:
+            name: {{ .CustomCABundle.ConfigMapName }}
+        {{ end }}

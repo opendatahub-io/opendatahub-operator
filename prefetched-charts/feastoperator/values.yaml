@@ -1,0 +1,24 @@
+config:
+  platform-name: OpenDataHub
+  platform-version: unknown
+fullnameOverride: ""
+image:
+  fullRef: ""
+  repository: quay.io/rhoai/odh-feast-module-operator-rhel9
+  tag: rhoai-3.5
+imagePullSecret: ""
+leaderElect: true
+nameOverride: ""
+namespace: ""
+replicas: 1
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 10m
+    memory: 128Mi
+serviceAccount:
+  annotations: {}
+  name: ""
+upgradeGates: {}

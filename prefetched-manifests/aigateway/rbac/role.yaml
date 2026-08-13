@@ -1,0 +1,605 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - serviceaccounts
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts/token
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - validatingwebhookconfigurations
+  verbs:
+  - create
+  - list
+  - watch
+- apiGroups:
+  - admissionregistration.k8s.io
+  resourceNames:
+  - maas-validating-webhook-configuration
+  resources:
+  - validatingwebhookconfigurations
+  verbs:
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apiextensions.k8s.io
+  resourceNames:
+  - aitenants.maas.opendatahub.io
+  - configs.maas.opendatahub.io
+  - externalmodels.inference.opendatahub.io
+  - externalmodels.maas.opendatahub.io
+  - externalproviders.inference.opendatahub.io
+  - maasauthpolicies.maas.opendatahub.io
+  - maasmodelrefs.maas.opendatahub.io
+  - maassubscriptions.maas.opendatahub.io
+  - maastenantconfigs.maas.opendatahub.io
+  - modelsasservices.components.platform.opendatahub.io
+  - tenants.maas.opendatahub.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - apiextensions.k8s.io
+  resourceNames:
+  - llmbatchgateways.batch.llm-d.ai
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+- apiGroups:
+  - batch.llm-d.ai
+  resources:
+  - llmbatchgateways
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch.llm-d.ai
+  resources:
+  - llmbatchgateways/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - batch.llm-d.ai
+  resources:
+  - llmbatchgateways/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - aigateways
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - aigateways/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - aigateways/status
+  - modelsasservices/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - modelsasservices
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - config.openshift.io
+  resources:
+  - apiservers
+  - authentications
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - dscinitialization.opendatahub.io
+  resources:
+  - dscinitializations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - extensions.kuadrant.io
+  resources:
+  - telemetrypolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways
+  - referencegrants
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - inference.opendatahub.io
+  resources:
+  - externalmodels
+  - externalproviders
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - inference.opendatahub.io
+  resources:
+  - externalmodels/finalizers
+  - externalproviders/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - inference.opendatahub.io
+  resources:
+  - externalmodels/status
+  - externalproviders/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - kuadrant.io
+  resources:
+  - authpolicies
+  - tokenratelimitpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kuadrant.io
+  resources:
+  - ratelimitpolicies
+  - telemetrypolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - maas.opendatahub.io
+  resources:
+  - aitenants
+  - configs
+  - externalmodels
+  - maasauthpolicies
+  - maasmodelrefs
+  - maassubscriptions
+  - maastenantconfigs
+  - tenants
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - maas.opendatahub.io
+  resources:
+  - aitenants/finalizers
+  - configs/finalizers
+  - externalmodels/finalizers
+  - maasauthpolicies/finalizers
+  - maasmodelrefs/finalizers
+  - maassubscriptions/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - maas.opendatahub.io
+  resources:
+  - aitenants/status
+  - configs/status
+  - maasauthpolicies/status
+  - maasmodelrefs/status
+  - maassubscriptions/status
+  - maastenantconfigs/status
+  - tenants/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - podmonitors
+  - prometheusrules
+  - servicemonitors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.istio.io
+  resources:
+  - destinationrules
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.istio.io
+  resources:
+  - envoyfilters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - networking.istio.io
+  resources:
+  - serviceentries
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - opentelemetry.io
+  resources:
+  - opentelemetrycollectors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - operator.authorino.kuadrant.io
+  resources:
+  - authorinos
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - perses.dev
+  resources:
+  - persesdashboards
+  - persesdatasources
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resourceNames:
+  - llm-d-batch-gateway-operator
+  resources:
+  - clusterrolebindings
+  verbs:
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resourceNames:
+  - maas-controller-cluster-config-rolebinding
+  - maas-controller-rolebinding
+  resources:
+  - clusterrolebindings
+  verbs:
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resourceNames:
+  - llm-d-batch-gateway-admin
+  - llm-d-batch-gateway-operator
+  - llm-d-batch-gateway-view
+  resources:
+  - clusterroles
+  verbs:
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resourceNames:
+  - maas-controller-cluster-config-role
+  - maas-controller-role
+  - maas-owner-role
+  - maas-viewer-role
+  resources:
+  - clusterroles
+  verbs:
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  - roles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - llminferenceservices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - telemetry.istio.io
+  resources:
+  - telemetries
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch

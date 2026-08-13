@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+spec:
+  template:
+    spec:
+      containers:
+      - name: manager
+        args:
+          - --leader-elect
+          - --health-probe-bind-address=:8081
+          - --metrics-bind-address=:8443
+          - --metrics-cert-path=/etc/metrics-certs
+        volumeMounts:
+          - name: metrics-cert
+            mountPath: /etc/metrics-certs
+            readOnly: true
+      volumes:
+        - name: metrics-cert
+          secret:
+            secretName: controller-manager-metrics-tls

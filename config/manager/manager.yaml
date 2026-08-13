@@ -98,9 +98,9 @@ spec:
         imagePullPolicy: Always
         name: manager
         ports:
-          - containerPort: 8080
+          - containerPort: 8443
             protocol: TCP
-            name: http
+            name: https
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true

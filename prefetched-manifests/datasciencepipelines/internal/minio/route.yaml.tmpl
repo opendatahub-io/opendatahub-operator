@@ -1,0 +1,18 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: minio-{{.Name}}
+  namespace: {{.Namespace}}
+  labels:
+    app: minio-{{.Name}}
+    component: data-science-pipelines
+spec:
+  to:
+    kind: Service
+    name: minio-{{.Name}}
+    weight: 100
+  port:
+    targetPort: 9000
+  tls:
+    termination: Edge
+    insecureEdgeTerminationPolicy: Redirect

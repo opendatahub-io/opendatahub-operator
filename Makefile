@@ -60,7 +60,7 @@ else
 	# To re-generate a bundle for another specific version without changing the standard setup, you can:
 	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-	# NOTE: see also the git branches for RHOAI in get_all_manifests.sh. This variable does NOT affect those
+	# NOTE: see also the git branches for RHOAI in manifests-config.yaml. This variable does NOT affect those
 	ifeq ($(VERSION), )
 		VERSION = 3.5.0
 	endif
@@ -141,7 +141,7 @@ HELM ?= $(LOCALBIN)/helm
 KUSTOMIZE_VERSION ?= v5.8.1
 CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
-GOLANGCI_LINT_VERSION ?= v2.5.0
+GOLANGCI_LINT_VERSION ?= v2.12.2
 YQ_VERSION ?= v4.53.2
 HELM_VERSION ?= v4.1.1
 KUBE_LINTER_VERSION ?= v0.7.6
@@ -154,6 +154,7 @@ CRD_REF_DOCS_VERSION = 0.2.0
 GINKGO_VERSION ?= v2.28.1
 
 
+GO_VERSION ?= $(shell sed -n 's/^go //p' go.mod)
 PLATFORM ?= linux/amd64
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -180,7 +181,7 @@ IMAGE_BUILD_FLAGS += --build-arg CGO_ENABLED=$(CGO_ENABLED)
 IMAGE_BUILD_FLAGS += --platform $(PLATFORM)
 
 # Prometheus-Unit Tests Parameters
-PROMETHEUS_RULES_DIR = ./internal/controller/components
+PROMETHEUS_RULES_DIR = ./internal/controller
 PROMETHEUS_RULE_TEMPLATES = $(shell find $(PROMETHEUS_RULES_DIR) -name "*-prometheusrules.tmpl.yaml" 2>/dev/null)
 PROMETHEUS_ALERT_TESTS = $(shell find $(PROMETHEUS_RULES_DIR) -name "*-alerting.unit-tests.yaml" 2>/dev/null)
 
@@ -279,7 +280,6 @@ endif
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/oauth.openshift.io_oauthclients.yaml
 	@# Copy KServe CRD to shared rhaii overlay and generate kustomization
 	@mkdir -p config/rhaii/crd/bases
-	@cp $(CONFIG_DIR)/crd/bases/components.platform.opendatahub.io_kserves.yaml config/rhaii/crd/bases/
 	@cp $(CONFIG_DIR)/crd/bases/config.opendatahub.io_platforms.yaml config/rhaii/crd/bases/
 	@$(call add-crd-to-kustomization,config/rhaii/crd/bases)
 MANIFEST_GENERATED_FILES = config/crd/bases config/rhoai/crd/bases config/rhaii/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
@@ -329,9 +329,7 @@ kube-lint: prepare ## Run kube-linter against rendered manifests.
 
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
-	ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE) VERSION=$(VERSION) ./get_all_manifests.sh
-	@echo "Validating manifest image tags..."
-	@./.github/scripts/validate-manifest-images.sh
+	go run -C ./cmd/manifest-tools main.go download --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --manifests-dir $(CURDIR)/opt/manifests --charts-dir $(CURDIR)/opt/charts
 CLEANFILES += opt/manifests/* opt/charts/*
 
 .PHONY: update-rhai-images
@@ -352,6 +350,31 @@ update-rhai-images: yq ## Fetch RHAI component manifests and update images from 
 validate-related-images: yq ## Validate RELATED_IMAGE_* names against build configs
 	@RHOAI_BUILD_CONFIG_BRANCH=rhoai-$(shell echo $(VERSION) | sed 's/\([0-9]*\.[0-9]*\)\.[0-9]*/\1/') \
 		YQ=$(YQ) ./.github/scripts/validate-related-images.sh
+
+.PHONY: resolve-image-digests
+resolve-image-digests: ## Resolve image digests from Build-Config and update manifests-config.yaml
+	go run -C ./cmd/manifest-tools main.go resolve-digests --config $(CURDIR)/manifests-config.yaml --manifests-dir $(CURDIR)/opt/manifests
+
+.PHONY: update-refs-shas
+update-refs-shas: ## Update branch@sha refs to latest commit SHAs from GitHub (requires GITHUB_TOKEN)
+	go run -C ./cmd/manifest-tools main.go update-refs shas --config $(CURDIR)/manifests-config.yaml
+
+.PHONY: update-refs-tags
+update-refs-tags: ## Parse tracker issue and update ODH component refs (requires TRACKER_URL)
+	go run -C ./cmd/manifest-tools main.go update-refs tags --tracker-url $(TRACKER_URL) --config $(CURDIR)/manifests-config.yaml
+
+.PHONY: update-refs-rhoai-branch
+update-refs-rhoai-branch: ## Update all RHOAI refs to a new branch (requires GITHUB_TOKEN, NEW_RHOAI_BRANCH)
+	go run -C ./cmd/manifest-tools main.go update-refs rhoai-branch --branch $(NEW_RHOAI_BRANCH) --config $(CURDIR)/manifests-config.yaml
+
+
+.PHONY: apply-image-overrides
+apply-image-overrides: ## Apply image overrides to manager.yaml (for make deploy)
+	go run -C ./cmd/manifest-tools main.go apply-deploy --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --manager-file $(CURDIR)/config/manager/manager.yaml
+
+.PHONY: apply-image-overrides-olm
+apply-image-overrides-olm: ## Apply image overrides to OLM Subscription (for operator-sdk run bundle)
+	go run -C ./cmd/manifest-tools main.go apply-olm --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --namespace $(OPERATOR_NAMESPACE) --package $(OPERATOR_PACKAGE)
 
 # Default to standard sed command
 SED_COMMAND = sed
@@ -442,6 +465,9 @@ uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/c
 	$(KUSTOMIZE) build $(CONFIG_DIR)/crd/bases | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
+ifndef SKIP_IMAGE_OVERRIDES
+deploy: apply-image-overrides
+endif
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
@@ -529,6 +555,17 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	rm bundle.Dockerfile
 	rm -f $(BUNDLE_DIR)/manifests/opendatahub-operator-webhook-service_v1_service.yaml
 	rm -f $(BUNDLE_DIR)/manifests/rhods-operator-webhook-service_v1_service.yaml
+	# RHOAIENG-76183: strip spec.conversion from the bundle CRDs so OLM fully owns the
+	# conversion webhook config. operator-sdk has already synthesised the ConversionWebhook
+	# entry into the CSV webhookdefinitions above (from the CRD's spec.conversion), so OLM
+	# will apply the correct conversion (service + caBundle) after install. Shipping
+	# spec.conversion in the bundle CRD instead makes OLM apply it verbatim during the
+	# InstallPlan preflight (wrong service, no caBundle) and the CR-validation LIST hits an
+	# unreachable webhook -> 404 -> failed upgrade. Non-OLM installs (config/crd) keep their
+	# static conversion, so xKS/self-managed deployments are unaffected.
+	for f in $(BUNDLE_DIR)/manifests/datasciencecluster.opendatahub.io_datascienceclusters.yaml $(BUNDLE_DIR)/manifests/dscinitialization.opendatahub.io_dscinitializations.yaml; do \
+		[ -f "$$f" ] && $(YQ) -i 'del(.spec.conversion)' "$$f"; \
+	done
 CLEANFILES += rhoai-bundle odh-bundle
 
 .PHONY: bundle-all
@@ -715,8 +752,8 @@ test-alerts: validate-prometheus-rules $(PROMETHEUS_ALERT_RULES)
 
 #Check for alerts without unit-tests
 .PHONY: check-prometheus-alert-unit-tests
-check-prometheus-alert-unit-tests: $(PROMETHEUS_ALERT_RULES)
-	./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_RULES_DIR) $(ALERT_SEVERITY)
+check-prometheus-alert-unit-tests: $(PROMETHEUS_ALERT_RULES) $(YQ)
+	YQ=$(YQ) ./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_RULES_DIR) $(ALERT_SEVERITY)
 CLEANFILES += $(PROMETHEUS_ALERT_RULES)
 
 # Cluster health targets (cluster-health, cluster-health-*, etc.) are in cmd/health-check/Makefile.
@@ -750,6 +787,11 @@ export E2E_TEST_DSC_MONITORING_NAMESPACE = $(MONITORING_NAMESPACE)
 endif
 ifdef ARTIFACT_DIR
 export JUNIT_OUTPUT_PATH = ${ARTIFACT_DIR}/junit_report.xml
+endif
+# Auto-apply digest-pinned image overrides to the OLM Subscription before E2E tests.
+# Set SKIP_IMAGE_OVERRIDES=1 to disable.
+ifndef SKIP_IMAGE_OVERRIDES
+e2e-test: apply-image-overrides-olm
 endif
 e2e-test:
 	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}
@@ -936,7 +978,7 @@ set -e; \
 package=$(2)@$(3) ;\
 echo "Downloading $${package}" ;\
 rm -f "$(1)" || true ;\
-GOBIN=$(LOCALBIN) go install $${package} ;\
+GOTOOLCHAIN="go$(GO_VERSION)" GOBIN="$(LOCALBIN)" go install "$${package}" ;\
 mv "$(1)" "$(1)-$(3)" ;\
 } ;\
 [ "$$(readlink "$(1)")" = "$(1)-$(3)" ] || ln -sf "$(1)-$(3)" "$(1)"

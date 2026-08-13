@@ -48,28 +48,19 @@ jobs:
     - name: Update versions in relevant files
       run: ./.github/scripts/update-versions.sh ${{ env.VERSION }}
 
-    - name: Parse tracker for components and operator images
-      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-      with:
-        script: |
-          const script = require('./.github/scripts/get-release-branches.js')
-          await script({github, core})
-
-    - name: Update versions
-      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-      with:
-        script: |
-          const script = require('./.github/scripts/update-manifests-tags.js')
-          script()
-
-    - name: Apply operator images to manager.yaml
-      run: ./.github/scripts/apply-operator-images.sh
-
     - name: Setup Go
-      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+      uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
       with:
         go-version-file: go.mod
         cache: false
+
+    - name: Parse tracker and update component refs
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: GITHUB_TOKEN=$GITHUB_TOKEN make update-refs-tags TRACKER_URL=${{ env.TRACKER_URL }}
+
+    - name: Apply operator images to manager.yaml
+      run: ./.github/scripts/apply-operator-images.sh
 
     - name: Run make manifests
       run: make manifests
@@ -77,9 +68,9 @@ jobs:
     - name: Show changes summary
       shell: bash
       run: |
-        echo "Summary of changes to get_all_manifests.sh:"
+        echo "Summary of changes to manifests-config.yaml:"
         echo ""
-        git diff get_all_manifests.sh || echo "No changes detected"
+        git diff manifests-config.yaml || echo "No changes detected"
 
     - name: Push changes to release branch
       uses: actions-js/push@5a7cbd780d82c0c937b5977586e641b2fd94acc5 # v1.5

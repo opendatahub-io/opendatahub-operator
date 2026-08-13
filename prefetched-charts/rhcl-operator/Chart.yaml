@@ -1,0 +1,15 @@
+apiVersion: v2
+name: rhcl-operator
+description: Red Hat Connectivity Link (Kuadrant) operators for vanilla Kubernetes (without OLM)
+type: application
+version: 1.0.0
+appVersion: "1.3.0"
+keywords:
+  - kuadrant
+  - authorino
+  - limitador
+  - rhcl
+  - api-gateway
+  - rate-limiting
+maintainers:
+  - name: Red Hat

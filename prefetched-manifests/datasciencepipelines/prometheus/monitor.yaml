@@ -1,0 +1,12 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: service-monitor
+  namespace: data-science-pipelines-operator
+spec:
+  endpoints:
+    - path: /metrics
+      port: metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: data-science-pipelines-operator

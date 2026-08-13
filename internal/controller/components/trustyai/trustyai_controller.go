@@ -43,11 +43,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-const (
-	// InferenceServicesCRDName is the name of the InferenceServices CRD that TrustyAI depends on.
-	InferenceServicesCRDName = "inferenceservices.serving.kserve.io"
-)
-
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &componentApi.TrustyAI{}).
 		// customized Owns() for Component with new predicates
@@ -65,13 +60,13 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				handlers.ToNamed(componentApi.TrustyAIInstanceName)),
 			reconciler.WithPredicates(predicate.Or(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True),
-				resources.CreatedOrUpdatedOrDeletedNamed(InferenceServicesCRDName),
+				resources.CreatedOrUpdatedOrDeletedNamed(gvk.InferenceServicesCRDName),
 			)),
 		).
-		WithPreCondition(precondition.MonitorCRD(gvk.InferenceServices,
+		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{precondition.MonitorCRD(gvk.InferenceServicesCRDName,
 			precondition.WithStopReconciliation(),
 			precondition.WithMessage(status.ISVCMissingCRDMessage),
-		)).
+		)})).
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
 		WithAction(createConfigMap).

@@ -1,7 +1,7 @@
 # Build the manager binary
 ################################################################################
 
-FROM registry.redhat.io/ubi9/go-toolset:1.26@sha256:5e231f8c5eab7812a1e2c701ce48c63eb3bb02dc9f372d8fbb59e3e1cd9c493c as builder
+FROM registry.redhat.io/ubi9/go-toolset:1.26@sha256:444e81b3e88d8a68b92a081a7b3abc7d3fed2450f8473ea6b3caebf3bb73a0b8 as builder
 
 # These built-in args are defined in the global scope, and are not automatically accessible within build stages or RUN commands.
 # To expose these arguments inside the build stage, we need to redefine it without a value.
@@ -58,7 +58,7 @@ RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOEXPERIMENT=strictfipsr
 # Build cloudmanager binary
 RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -ldflags="-s -w" -tags strictfipsruntime -o cloudmanager ./cmd/cloudmanager/
 ################################################################################
-FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:2a98ec380ad75004992b8538380a5003da64442f0a69237ed236859e023c71d0
+FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:7c372902c8d211db2d25c8277ba534a73b92742a334874dced829a63b0f21221
 WORKDIR /
 COPY --from=builder /workspace/manager .
 COPY --from=builder /workspace/cloudmanager .

@@ -1,0 +1,206 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: evalhub-collection-standard-llm-evals-v1
+  labels:
+    trustyai.opendatahub.io/evalhub-collection-type: system
+    trustyai.opendatahub.io/evalhub-collection-name: standard-llm-evals-v1
+data:
+  standard-llm-evals-v1.yaml: |
+    id: standard-llm-evals-v1
+    name: Standard LLM Evaluation Suite v1
+    category: general
+    description: >
+      Standard evaluation protocol for instruction-tuned chat LLMs covering instruction following,
+      reasoning, math, coding, and long-context tasks. Uses lm-eval (LM Evaluation Harness) for
+      generative and multiple-choice tasks, and lighteval for pass@k math and coding evaluations.
+      Follows the vLLM evaluation protocol: always apply chat template, use fewshot_as_multiturn
+      for 1+ fewshot examples, and match sampling parameters to the model provider recommendation.
+      Each benchmark is run with 3 repetitions (8 for AIME 25) using different seeds; the
+      repetition count is encoded in the pass@k n parameter (e.g. k=1,n=3 or k=1,n=8).
+    tags:
+      - instruction_following
+      - reasoning
+      - math
+      - coding
+      - long_context
+      - lm_eval
+      - lighteval
+      - standard
+      - chat
+      - vllm
+    pass_criteria:
+      # Weighted average across all benchmarks. Weights reflect benchmark importance;
+      # AIME 25 and MRCR variants carry lower weight (hard / auxiliary).
+      threshold: 0.45
+    benchmarks:
+      # ── Instruction Following ──────────────────────────────────────────────────
+      - id: gsm8k_platinum_cot_llama
+        provider_id: lm_evaluation_harness
+        weight: 2
+        primary_score:
+          metric: exact_match
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.65
+        parameters:
+          num_fewshot: 5
+          apply_chat_template: true
+          fewshot_as_multiturn: true
+          # Category: Instruction Following (5-shot)
+          # For Reasoning use 0-shot instead — submit as a separate job with num_fewshot: 0
+
+      - id: mmlu_cot_llama
+        provider_id: lm_evaluation_harness
+        weight: 2
+        primary_score:
+          metric: exact_match
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.60
+        parameters:
+          num_fewshot: 5
+          apply_chat_template: true
+          fewshot_as_multiturn: true
+
+      - id: leaderboard_mmlu_pro
+        provider_id: lm_evaluation_harness
+        weight: 2
+        primary_score:
+          metric: acc_norm
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.45
+        parameters:
+          num_fewshot: 5
+          apply_chat_template: true
+          fewshot_as_multiturn: true
+
+      - id: ifeval
+        provider_id: lm_evaluation_harness
+        weight: 2
+        primary_score:
+          metric: inst_level_strict_acc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.60
+        parameters:
+          num_fewshot: 0
+          apply_chat_template: true
+
+      # ── Math & Reasoning ───────────────────────────────────────────────────────
+      - id: math_500
+        provider_id: lighteval
+        weight: 2
+        primary_score:
+          metric: pass@1
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.30
+        parameters:
+          num_fewshot: 0
+          apply_chat_template: true
+          # k=1, n=3: average over 3 seeds. Equivalent to 3 separate runs with different seeds.
+          pass_at_k: 1
+          num_samples: 3
+
+      - id: aime25
+        provider_id: lighteval
+        weight: 1   # Competition math — very hard, lower absolute scores expected
+        primary_score:
+          metric: pass@1
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.15
+        parameters:
+          num_fewshot: 0
+          apply_chat_template: true
+          # k=1, n=8: average over 8 seeds per protocol (equivalent to 8 separate runs)
+          pass_at_k: 1
+          num_samples: 8
+
+      - id: gpqa:diamond
+        provider_id: lighteval
+        weight: 2
+        primary_score:
+          metric: gpqa_pass@1
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.35
+        parameters:
+          num_fewshot: 0
+          apply_chat_template: true
+          pass_at_k: 1
+          num_samples: 3
+
+      # ── Coding ─────────────────────────────────────────────────────────────────
+      - id: lcb:codegeneration_v6
+        provider_id: lighteval
+        weight: 2
+        primary_score:
+          metric: codegen_pass@1
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+        parameters:
+          num_fewshot: 0
+          apply_chat_template: true
+          pass_at_k: 1
+          num_samples: 3
+
+      # ── Long Context ───────────────────────────────────────────────────────────
+      # MRCR evaluates long-context recall at multiple sequence-length buckets.
+      # Primary metric is AUC (area under the score-vs-length curve).
+      # Per-bucket scores: score_gt_16k_le_32k, score_gt_32k_le_64k, score_gt_64k_le_128k, etc.
+      # See: https://github.com/EleutherAI/lm-evaluation-harness/pull/3754
+      - id: mrcr
+        provider_id: lm_evaluation_harness
+        weight: 1
+        primary_score:
+          metric: auc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.55
+        parameters:
+          num_fewshot: 0
+          apply_chat_template: true
+          repetitions: 3     # 3 runs with different seeds
+
+      - id: mrcr_2needle
+        provider_id: lm_evaluation_harness
+        weight: 1
+        primary_score:
+          metric: auc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.55
+        parameters:
+          num_fewshot: 0
+          apply_chat_template: true
+          repetitions: 3
+
+      - id: mrcr_4needle
+        provider_id: lm_evaluation_harness
+        weight: 1
+        primary_score:
+          metric: auc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.45
+        parameters:
+          num_fewshot: 0
+          apply_chat_template: true
+          repetitions: 3
+
+      - id: mrcr_8needle
+        provider_id: lm_evaluation_harness
+        weight: 1
+        primary_score:
+          metric: auc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.35
+        parameters:
+          num_fewshot: 0
+          apply_chat_template: true
+          repetitions: 3

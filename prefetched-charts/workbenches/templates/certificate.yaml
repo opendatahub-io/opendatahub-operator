@@ -1,0 +1,17 @@
+{{- if and .Values.webhooks.enabled (eq .Values.webhooks.tlsProvider "certmanager") }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "workbenches-operator.webhookCertificateName" . }}
+  namespace: {{ .Values.operatorNamespace | quote }}
+  labels:
+    {{- include "workbenches-operator.labels" . | nindent 4 }}
+spec:
+  dnsNames:
+    - {{ include "workbenches-operator.webhookServiceName" . }}.{{ .Values.operatorNamespace }}.svc
+    - {{ include "workbenches-operator.webhookServiceName" . }}.{{ .Values.operatorNamespace }}.svc.cluster.local
+  issuerRef:
+    kind: {{ .Values.webhooks.certManager.issuerRef.kind }}
+    name: {{ include "workbenches-operator.webhookIssuerName" . }}
+  secretName: {{ include "workbenches-operator.webhookCertSecret" . }}
+{{- end }}

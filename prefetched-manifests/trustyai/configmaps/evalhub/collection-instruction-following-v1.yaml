@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: evalhub-collection-instruction-following-v1
+  labels:
+    trustyai.opendatahub.io/evalhub-collection-type: system
+    trustyai.opendatahub.io/evalhub-collection-name: instruction-following-v1
+data:
+  instruction-following-v1.yaml: |
+    id: instruction-following-v1
+    name: Instruction Following v1
+    category: instruction_following
+    description: >
+      Evaluates how well instruction-tuned chat LLMs follow explicit instructions across
+      math word problems, broad knowledge, multi-choice reasoning, formatting constraints,
+      and competition mathematics. Uses 5-shot with chain-of-thought and fewshot_as_multiturn
+      for knowledge-intensive tasks; IFEval and Math 500 are always 0-shot. All benchmarks
+      require --apply_chat_template and a vLLM OpenAI-compatible endpoint.
+      Part of the Standard LLM Evaluation Suite (standard-llm-evals-v1).
+    tags:
+      - instruction_following
+      - chat
+      - lm_eval
+      - lighteval
+      - vllm
+      - standard
+    pass_criteria:
+      # Weighted average across 5 benchmarks (equal weight).
+      # Threshold reflects a capable instruction-following model.
+      threshold: 0.50
+    benchmarks:
+      - id: gsm8k_platinum_cot_llama
+        provider_id: lm_evaluation_harness
+        weight: 1
+        primary_score:
+          metric: exact_match
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.65
+        parameters:
+          num_fewshot: 5
+          apply_chat_template: true
+          fewshot_as_multiturn: true
+
+      - id: mmlu_cot_llama
+        provider_id: lm_evaluation_harness
+        weight: 1
+        primary_score:
+          metric: exact_match
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.60
+        parameters:
+          num_fewshot: 5
+          apply_chat_template: true
+          fewshot_as_multiturn: true
+
+      - id: leaderboard_mmlu_pro
+        provider_id: lm_evaluation_harness
+        weight: 1
+        primary_score:
+          metric: acc_norm
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.45
+        parameters:
+          num_fewshot: 5
+          apply_chat_template: true
+          fewshot_as_multiturn: true
+
+      - id: ifeval
+        provider_id: lm_evaluation_harness
+        weight: 1
+        primary_score:
+          metric: inst_level_strict_acc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.60
+        parameters:
+          num_fewshot: 0
+          apply_chat_template: true
+
+      - id: math_500
+        provider_id: lighteval
+        weight: 1
+        primary_score:
+          metric: pass@1
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.30
+        parameters:
+          num_fewshot: 0
+          apply_chat_template: true
+          pass_at_k: 1
+          num_samples: 3

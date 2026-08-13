@@ -1,0 +1,10 @@
+{{- if and .Values.webhooks.enabled (eq .Values.webhooks.tlsProvider "certmanager") .Values.webhooks.certManager.createIssuer }}
+apiVersion: cert-manager.io/v1
+kind: {{ .Values.webhooks.certManager.issuerRef.kind }}
+metadata:
+  name: {{ include "workbenches-operator.webhookIssuerName" . }}
+  labels:
+    {{- include "workbenches-operator.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+{{- end }}

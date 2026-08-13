@@ -1,10 +1,8 @@
 package common
 
 import (
+	fwapi "github.com/opendatahub-io/odh-platform-utilities/framework/api"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"github.com/operator-framework/api/pkg/lib/version"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // ManagementSpec struct defines the component's management configuration.
@@ -47,141 +45,31 @@ type GatewaySpec struct {
 	Domain string `json:"domain"`
 }
 
-// ConditionSeverity expresses the severity of a Condition Type failing.
-type ConditionSeverity string
+type ConditionSeverity = fwapi.ConditionSeverity
 
 const (
-	ConditionSeverityError ConditionSeverity = ""
-	ConditionSeverityInfo  ConditionSeverity = "Info"
+	ConditionSeverityError = fwapi.ConditionSeverityError
+	ConditionSeverityInfo  = fwapi.ConditionSeverityInfo
 
-	ConditionReasonError = "Error"
+	ConditionReasonError = fwapi.ConditionReasonError
 )
 
-// +kubebuilder:object:generate=true
-type Condition struct {
-	// type of condition in CamelCase or in foo.example.com/CamelCase.
-	//
-	// +required
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`
-	// +kubebuilder:validation:MaxLength=316
-	Type string `json:"type"`
+type Condition = fwapi.Condition
 
-	// status of the condition, one of True, False, Unknown.
-	// +required
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=True;False;Unknown
-	Status metav1.ConditionStatus `json:"status"`
+type Status = fwapi.Status
 
-	// observedGeneration represents the .metadata.generation that the condition was set based upon.
-	// For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration
-	// is 9, the condition is out of date with respect to the current state of the instance.
-	//
-	// +optional
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Minimum=0
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+type ComponentRelease = fwapi.ComponentRelease
 
-	// lastTransitionTime is the last time the condition transitioned from one status to another.
-	// This should be when the underlying condition changed.
-	// If that is not known, then using the time when the API field changed is acceptable.
-	//
-	// +optional
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Format=date-time
-	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
+type ComponentReleaseStatus = fwapi.ComponentReleaseStatus
 
-	// reason contains a programmatic identifier indicating the reason for the condition's last transition.
-	// The value should be a CamelCase string.
-	//
-	// +optional
-	// +kubebuilder:validation:Optional
-	Reason string `json:"reason,omitempty"`
+type WithStatus = fwapi.WithStatus
 
-	// message is a human-readable message indicating details about the transition.
-	// +optional
-	// +kubebuilder:validation:Optional
-	Message string `json:"message,omitempty"`
+type ConditionsAccessor = fwapi.ConditionsAccessor
 
-	// Severity with which to treat failures of this type of condition.
-	// When this is not specified, it defaults to Error.
-	// +optional
-	// +kubebuilder:validation:Optional
-	Severity ConditionSeverity `json:"severity,omitempty"`
+type WithReleases = fwapi.WithReleases
 
-	// The last time we got an update on a given condition, this should not be set and is
-	// present only for backward compatibility reasons
-	//
-	// +optional
-	// +kubebuilder:validation:Optional
-	LastHeartbeatTime *metav1.Time `json:"lastHeartbeatTime,omitempty"`
-}
+type PlatformObject = fwapi.PlatformObject
 
-// +kubebuilder:object:generate=true
-type Status struct {
-	Phase string `json:"phase,omitempty"`
+type Platform = fwapi.Platform
 
-	// The generation observed by the resource controller.
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
-
-	// +listType=atomic
-	Conditions []Condition `json:"conditions,omitempty"`
-}
-
-func (s *Status) GetConditions() []Condition {
-	return s.Conditions
-}
-
-func (s *Status) SetConditions(conditions []Condition) {
-	s.Conditions = append(conditions[:0:0], conditions...)
-}
-
-// ComponentRelease represents the detailed status of a component release.
-// +kubebuilder:object:generate=true
-type ComponentRelease struct {
-	// +required
-	// +kubebuilder:validation:Required
-	Name    string `yaml:"name" json:"name"`
-	Version string `yaml:"version,omitempty" json:"version,omitempty"`
-	RepoURL string `yaml:"repoUrl,omitempty" json:"repoUrl,omitempty"`
-}
-
-// ComponentReleaseStatus tracks the list of component releases, including their name, version, and repository URL.
-// +kubebuilder:object:generate=true
-type ComponentReleaseStatus struct {
-	// +patchMergeKey=name
-	// +patchStrategy=merge
-	// +listType=map
-	// +listMapKey=name
-	Releases []ComponentRelease `yaml:"releases,omitempty" json:"releases,omitempty"`
-}
-
-type WithStatus interface {
-	GetStatus() *Status
-}
-
-type ConditionsAccessor interface {
-	GetConditions() []Condition
-	SetConditions([]Condition)
-}
-
-type WithReleases interface {
-	GetReleaseStatus() *[]ComponentRelease
-	SetReleaseStatus(status []ComponentRelease)
-}
-
-type PlatformObject interface {
-	client.Object
-	WithStatus
-	ConditionsAccessor
-}
-
-type Platform string
-
-// Release includes information on operator version and platform
-// +kubebuilder:object:generate=true
-type Release struct {
-	Name    Platform                `json:"name,omitempty"`
-	Version version.OperatorVersion `json:"version,omitempty"`
-}
+type Release = fwapi.Release

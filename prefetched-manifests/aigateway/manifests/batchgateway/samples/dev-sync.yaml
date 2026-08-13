@@ -1,0 +1,33 @@
+apiVersion: batch.llm-d.ai/v1alpha1
+kind: LLMBatchGateway
+metadata:
+  name: batch-gateway-dev
+spec:
+  secretRef:
+    name: batch-gateway-secrets
+  dbBackend: postgresql
+  fileStorage:
+    s3:
+      bucket: llm-d-batch-gateway
+      region: us-east-1
+      endpoint: http://minio.default.svc.cluster.local:9000
+      accessKeyId: minioadmin
+      usePathStyle: true
+      autoCreateBucket: true
+  apiServer:
+    replicas: 1
+    imagePullPolicy: IfNotPresent
+  gc:
+    interval: 30m
+    imagePullPolicy: IfNotPresent
+  processor:
+    replicas: 1
+    imagePullPolicy: IfNotPresent
+    dispatchMode: sync
+    globalInferenceGateway:
+      url: http://vllm-sim.default.svc:8000
+      requestTimeout: 5m
+      maxRetries: 3
+      initialBackoff: 1s
+      maxBackoff: 60s
+

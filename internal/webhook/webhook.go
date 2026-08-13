@@ -17,7 +17,6 @@ import (
 	dsciv2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v2"
 	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	monitoringwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/monitoring"
-	notebookwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/notebook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
@@ -38,14 +37,12 @@ func RegisterAllWebhooks(mgr ctrl.Manager) error {
 		{name: "dsc-v2", register: dscv2webhook.RegisterWebhooks, disabled: func() bool { return !flags.IsDSCEnabled() }},
 		{name: "dsci-v1", register: dsciv1webhook.RegisterWebhooks, disabled: func() bool { return !flags.IsDSCIEnabled() }},
 		{name: "dsci-v2", register: dsciv2webhook.RegisterWebhooks, disabled: func() bool { return !flags.IsDSCIEnabled() }},
-		{name: "hardwareprofile", register: hardwareprofilewebhook.RegisterWebhooks, disabled: func() bool {
-			// Notebook HWP injection is owned by the workbenches module operator when enabled.
-			return mr.IsEnabled(componentApi.WorkbenchesComponentName)
-		}},
+		// hardwareprofile: no OLM webhookDefinitions for serving (odh-model-controller, #3777).
+		// Notebook connection/HWP admission is owned by workbenches-operator.
+		{name: "hardwareprofile", register: hardwareprofilewebhook.RegisterWebhooks},
 		{name: "monitoring", register: monitoringwebhook.RegisterWebhooks, disabled: func() bool {
 			return !sr.IsEnabled(serviceApi.MonitoringServiceName) && !mr.IsEnabled(serviceApi.MonitoringServiceName)
 		}},
-		{name: "notebook", register: notebookwebhook.RegisterWebhooks, disabled: func() bool { return mr.IsEnabled(componentApi.WorkbenchesComponentName) }},
 		{name: "dashboard", register: dashboard.RegisterWebhooks, disabled: func() bool { return !mr.IsEnabled(componentApi.DashboardComponentName) }},
 	}
 

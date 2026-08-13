@@ -1,0 +1,30 @@
+{{- if .Values.rbac.enableRuntimeEscalation }}
+# Hand-maintained: escalate and bind scoped to specific upstream manifest resources.
+# Update resourceNames when upstream manifests add/rename ClusterRoles.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "workbenches-operator.escalateClusterRoleName" . }}
+  labels:
+    {{- include "workbenches-operator.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterroles
+    verbs:
+      - bind
+      - escalate
+    resourceNames:
+      # Must match ClusterRoles in baked /opt/manifests/workbenches/* operands.
+      # Sync when get_all_manifests.sh pins change; see config/rbac/rbac_escalate_role.yaml.
+      - notebook-controller-kubeflow-notebooks-admin
+      - notebook-controller-kubeflow-notebooks-edit
+      - notebook-controller-kubeflow-notebooks-view
+      - notebook-controller-role
+      - notebook-controller-proxy-role
+      - odh-notebook-controller-notebooks-admin
+      - odh-notebook-controller-notebooks-edit
+      - odh-notebook-controller-notebooks-view
+      - odh-notebook-controller-manager-role
+{{- end }}

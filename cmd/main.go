@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
+	frameworkmanager "github.com/opendatahub-io/odh-platform-utilities/framework/manager"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
 	configv1 "github.com/openshift/api/config/v1"
@@ -65,6 +66,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	crtlmanager "sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -83,11 +85,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ogx"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/sparkoperator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainer"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
@@ -99,6 +99,8 @@ import (
 	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
+	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
+	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
@@ -113,7 +115,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
@@ -137,11 +138,9 @@ var (
 	existingComponents = map[string]cr.ComponentHandler{
 		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
 		componentApi.KueueComponentName:                kueue.NewHandler(),
-		componentApi.OGXComponentName:                  ogx.NewHandler(),
 		componentApi.ModelRegistryComponentName:        modelregistry.NewHandler(),
 		componentApi.RayComponentName:                  ray.NewHandler(),
 		componentApi.SparkOperatorComponentName:        sparkoperator.NewHandler(),
-		componentApi.TrainerComponentName:              trainer.NewHandler(),
 		componentApi.TrainingOperatorComponentName:     trainingoperator.NewHandler(),
 		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
 	}
@@ -162,10 +161,7 @@ var (
 
 		componentApi.KueueComponentName: dag.RL(31),
 
-		componentApi.FeastOperatorComponentName:  dag.RL(32),
-		componentApi.MLflowOperatorComponentName: dag.RL(32),
-		componentApi.OGXComponentName:            dag.RL(32),
-		componentApi.SparkOperatorComponentName:  dag.RL(32),
+		componentApi.SparkOperatorComponentName: dag.RL(32),
 
 		componentApi.TrustyAIComponentName: dag.RL(33),
 	}
@@ -185,6 +181,8 @@ var (
 		componentApi.MCPLifecycleOperatorComponentName: mcplifecycleoperatorModule.NewHandler(),
 		componentApi.MLflowOperatorComponentName:       mlflowOperatorModule.NewHandler(),
 		componentApi.KserveComponentName:               kserveModule.NewHandler(),
+		componentApi.OGXComponentName:                  ogxModule.NewHandler(),
+		componentApi.TrainerComponentName:              trainerModule.NewHandler(),
 		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
 		componentApi.FeastOperatorComponentName:        feastModule.NewHandler(),
 	}
@@ -196,6 +194,8 @@ var (
 		componentApi.MCPLifecycleOperatorComponentName: dag.RL(20),
 		componentApi.MLflowOperatorComponentName:       dag.RL(32),
 		componentApi.KserveComponentName:               dag.RL(31),
+		componentApi.OGXComponentName:                  dag.RL(32),
+		componentApi.TrainerComponentName:              dag.RL(20),
 		componentApi.WorkbenchesComponentName:          dag.RL(20),
 	}
 )
@@ -475,7 +475,22 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		// This is the default mapper provider, we define it to ensure it remains
 		// consistent with controller-runtime updates. It is needed for the action dynamicownership.
 		MapperProvider: apiutil.NewDynamicRESTMapper,
-		Metrics:        ctrlmetrics.Options{BindAddress: oconfig.MetricsAddr, TLSOpts: tlsOpts},
+		Metrics: func() ctrlmetrics.Options {
+			opts := ctrlmetrics.Options{
+				BindAddress:   oconfig.MetricsAddr,
+				SecureServing: oconfig.MetricsSecure,
+				TLSOpts:       tlsOpts,
+			}
+			if oconfig.MetricsSecure {
+				opts.FilterProvider = filters.WithAuthenticationAndAuthorization
+			}
+			if oconfig.MetricsCertPath != "" {
+				opts.CertDir = oconfig.MetricsCertPath
+				opts.CertName = oconfig.MetricsCertName
+				opts.KeyName = oconfig.MetricsCertKey
+			}
+			return opts
+		}(),
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
 			Port:    9443,
 			TLSOpts: tlsOpts,
@@ -518,7 +533,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	// Wrap the manager to return the wrapped client from GetClient()
-	mgr := manager.New(ctrlMgr, manager.WithManifestsBasePath(oconfig.ManifestsBasePath), manager.WithChartsBasePath(oconfig.ChartsBasePath))
+	mgr := frameworkmanager.New(ctrlMgr, frameworkmanager.WithManifestsBasePath(oconfig.ManifestsBasePath), frameworkmanager.WithChartsBasePath(oconfig.ChartsBasePath))
 
 	// Register all webhooks using the helper
 	if err := webhook.RegisterAllWebhooks(mgr); err != nil {
@@ -756,14 +771,28 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 
 		adherence, err = tlspkg.FetchAPIServerTLSAdherencePolicy(ctx, bootstrapClient)
 		if err != nil {
-			setupLog.Info("unable to fetch TLS adherence policy, watcher will retry", "error", err)
+			switch {
+			case meta.IsNoMatchError(err):
+				setupLog.Info("TLS adherence API not available (non-OpenShift or pre-4.22 cluster)")
+			case k8serr.IsNotFound(err):
+				setupLog.Info("APIServer resource not found for adherence, skipping")
+			case k8serr.IsServiceUnavailable(err),
+				k8serr.IsTimeout(err),
+				k8serr.IsServerTimeout(err),
+				k8serr.IsTooManyRequests(err),
+				k8serr.IsInternalError(err):
+				setupLog.Info("Transient error fetching TLS adherence policy, watcher will retry", "error", err)
+			default:
+				setupLog.Error(err, "unable to read TLS adherence policy, refusing to start with unknown adherence posture")
+				os.Exit(1)
+			}
 		}
 	}
 
 	return tlsOpts, profile, adherence, hasAPI
 }
 
-func CreateComponentReconcilers(ctx context.Context, mgr *manager.Manager) error {
+func CreateComponentReconcilers(ctx context.Context, mgr *frameworkmanager.Manager) error {
 	l := logf.FromContext(ctx)
 
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
@@ -776,7 +805,7 @@ func CreateComponentReconcilers(ctx context.Context, mgr *manager.Manager) error
 	})
 }
 
-func CreateServiceReconcilers(ctx context.Context, mgr *manager.Manager) error {
+func CreateServiceReconcilers(ctx context.Context, mgr *frameworkmanager.Manager) error {
 	log := logf.FromContext(ctx)
 
 	return sr.ForEach(func(sh sr.ServiceHandler) error {

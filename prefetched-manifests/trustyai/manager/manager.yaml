@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+  labels:
+    control-plane: trustyai-service-operator
+    app.kubernetes.io/name: deployment
+    app.kubernetes.io/instance: trustyai-service-operator-controller-manager
+    app.kubernetes.io/component: manager
+    app.kubernetes.io/created-by: trustyai-service-operator
+    app.kubernetes.io/part-of: trustyai-service-operator
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  selector:
+    matchLabels:
+      control-plane: trustyai-service-operator
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: trustyai-service-operator
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - command:
+            - /manager
+          args:
+            - --leader-elect
+            # --enable-services will be set by overlays based on which components are included
+          image: $(trustyaiOperatorImage)
+          name: manager
+          env:
+            - name: GOMEMLIMIT
+              value: "630MiB"
+            - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE
+              value: $(trustyaiServiceImage)
+            - name: RELATED_IMAGE_ODH_EVAL_HUB_IMAGE
+              value: $(evalHubImage)
+            - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
+              value: $(kube-rbac-proxy)
+            - name: RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE
+              value: $(lmes-pod-image)
+            - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
+              value: $(lmes-driver-image)
+            - name: RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE
+              value: $(guardrails-orchestrator-image)
+            - name: RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE
+              value: $(guardrails-built-in-detector-image)
+            - name: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
+              value: $(guardrails-sidecar-gateway-image)
+            - name: RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE
+              value: $(garak-provider-image)
+            - name: RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE
+              value: $(nemo-guardrails-image)
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - "ALL"
+            seccompProfile:
+              type: RuntimeDefault
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 900m
+              memory: 700Mi
+            requests:
+              cpu: 10m
+              memory: 64Mi
+      serviceAccountName: controller-manager
+      terminationGracePeriodSeconds: 10

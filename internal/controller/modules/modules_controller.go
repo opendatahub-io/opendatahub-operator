@@ -3,8 +3,10 @@ package modules
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -119,6 +121,9 @@ func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 			)))
 
 	b = addModuleCRWatches(b)
+	b = addModuleCRDWatches(b, func(ctx context.Context, _ client.Object) []reconcile.Request {
+		return cluster.WatchDataScienceClusters(ctx, mgr.GetClient())
+	})
 
 	for _, a := range commonActions() {
 		b = b.WithAction(a)
@@ -161,6 +166,10 @@ func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		}
 	}
 
+	b = addModuleCRDWatches(b, func(ctx context.Context, _ client.Object) []reconcile.Request {
+		return cluster.WatchPlatforms(ctx, mgr.GetClient())
+	})
+
 	for _, a := range commonActions() {
 		b = b.WithAction(a)
 	}
@@ -174,6 +183,46 @@ func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	}
 	registerModuleCROwnedTypes(rec)
 	return nil
+}
+
+// addModuleCRDWatches registers a non-dynamic watch on CustomResourceDefinition
+// resources filtered to the API groups used by registered modules. When a module
+// CRD is created, this triggers a reconcile so the controller can register the
+// dynamic module CR watch and read the module's status — resolving the race
+// where the controller reconciles before a module CRD is available.
+func addModuleCRDWatches[T common.PlatformObject](
+	b *reconciler.ReconcilerBuilder[T],
+	mapper func(ctx context.Context, obj client.Object) []reconcile.Request,
+) *reconciler.ReconcilerBuilder[T] {
+	reg := DefaultRegistry()
+	if !reg.HasEntries() {
+		return b
+	}
+
+	groupSet := make(map[string]bool)
+	_ = reg.ForAll(func(h ModuleHandler, _ bool) error {
+		groupSet[h.GetGVK().Group] = true
+		return nil
+	})
+
+	groups := make([]string, 0, len(groupSet))
+	for g := range groupSet {
+		groups = append(groups, g)
+	}
+	sort.Strings(groups)
+
+	crdPredicates := make([]predicate.Predicate, 0, len(groups))
+	for _, g := range groups {
+		crdPredicates = append(crdPredicates, resources.CreatedOrUpdatedOrDeletedNameSuffixed("."+g))
+	}
+
+	b.Watches(
+		&apiextensionsv1.CustomResourceDefinition{},
+		reconciler.WithEventMapper(mapper),
+		reconciler.WithPredicates(predicate.Or(crdPredicates...)),
+	)
+
+	return b
 }
 
 func addModuleCRWatches[T common.PlatformObject](b *reconciler.ReconcilerBuilder[T]) *reconciler.ReconcilerBuilder[T] {
@@ -192,6 +241,15 @@ func addModuleCRWatches[T common.PlatformObject](b *reconciler.ReconcilerBuilder
 	})
 
 	return b
+}
+
+// AddModuleCRDWatches registers a non-dynamic CRD watch so that module CRD
+// creation triggers a reconcile. Exported for use by the DSC controller.
+func AddModuleCRDWatches[T common.PlatformObject](
+	b *reconciler.ReconcilerBuilder[T],
+	mapper func(ctx context.Context, obj client.Object) []reconcile.Request,
+) *reconciler.ReconcilerBuilder[T] {
+	return addModuleCRDWatches(b, mapper)
 }
 
 // AddDSCCompatibilityProjectorWatches registers watches for module CR status

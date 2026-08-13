@@ -1,0 +1,3 @@
+resources:
+- batch_v1alpha1_llmbatchgateway_async.yaml
+- batch_v1alpha1_llmbatchgateway_sync.yaml

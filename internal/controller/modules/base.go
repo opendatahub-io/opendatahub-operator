@@ -229,9 +229,8 @@ func setDSCComponentField(dsc *dscv2.DataScienceCluster, fieldName string, enabl
 // Releases on the pointed-to struct. Types without a Releases field are
 // silently skipped.
 func setReleasesOnDSCField(field reflect.Value, releases []common.ComponentRelease) {
-	for i := range field.NumField() {
-		f := field.Field(i)
-		if f.Kind() != reflect.Ptr || f.Type().Elem().Kind() != reflect.Struct {
+	for _, f := range field.Fields() {
+		if f.Kind() != reflect.Pointer || f.Type().Elem().Kind() != reflect.Struct {
 			continue
 		}
 
@@ -347,7 +346,7 @@ func extractReleases(u *unstructured.Unstructured) []common.ComponentRelease {
 
 	result := make([]common.ComponentRelease, 0, len(items))
 	for _, item := range items {
-		entry, ok := item.(map[string]interface{})
+		entry, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -510,9 +509,14 @@ func (b *BaseHandler) deleteRenderedResources(
 	return nil
 }
 
-// ParseConditions extracts []metav1.Condition from an unstructured object's
-// .status.conditions field.
-func ParseConditions(u *unstructured.Unstructured) ([]metav1.Condition, error) {
+// ParseConditions extracts []common.Condition from an unstructured object's
+// .status.conditions field. common.Condition is used instead of
+// metav1.Condition because it carries the Severity field: a module CR may
+// report a condition as Info severity to signal it is informational only
+// (e.g. an optional dependency is missing). Preserving it lets the
+// DSC-mirrored submodule condition keep its real severity label instead of
+// defaulting to Error.
+func ParseConditions(u *unstructured.Unstructured) ([]common.Condition, error) {
 	rawConditions, found, err := unstructured.NestedSlice(u.Object, "status", "conditions")
 	if err != nil {
 		return nil, err
@@ -522,7 +526,7 @@ func ParseConditions(u *unstructured.Unstructured) ([]metav1.Condition, error) {
 		return nil, nil
 	}
 
-	conditions := make([]metav1.Condition, 0, len(rawConditions))
+	conditions := make([]common.Condition, 0, len(rawConditions))
 
 	for _, raw := range rawConditions {
 		cm, ok := raw.(map[string]any)
@@ -530,7 +534,7 @@ func ParseConditions(u *unstructured.Unstructured) ([]metav1.Condition, error) {
 			continue
 		}
 
-		c := metav1.Condition{}
+		c := common.Condition{}
 
 		if v, ok := cm["type"].(string); ok {
 			c.Type = v
@@ -546,6 +550,10 @@ func ParseConditions(u *unstructured.Unstructured) ([]metav1.Condition, error) {
 
 		if v, ok := cm["message"].(string); ok {
 			c.Message = v
+		}
+
+		if v, ok := cm["severity"].(string); ok {
+			c.Severity = common.ConditionSeverity(v)
 		}
 
 		if v, ok := cm["observedGeneration"].(int64); ok {

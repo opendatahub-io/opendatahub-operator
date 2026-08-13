@@ -1,0 +1,10 @@
+# This file tracks version information for the Spark Operator component
+# Used by ODH operator for component management and version tracking
+
+releases:
+  - name: Spark Operator
+    version: v2.4.0
+    repoUrl: https://github.com/opendatahub-io/spark-operator
+  - name: Spark
+    version: "4.0.1"
+    repoUrl: https://github.com/apache/spark

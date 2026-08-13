@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/blang/semver/v4"
+	fwapi "github.com/opendatahub-io/odh-platform-utilities/framework/api"
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/xid"
@@ -20,7 +21,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -28,6 +28,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/gomega"
@@ -144,12 +145,12 @@ func testResourceNotReDeployed(t *testing.T, cli client.Client, obj client.Objec
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -217,12 +218,12 @@ func testCacheTTL(t *testing.T, cli client.Client, obj client.Object) {
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -278,12 +279,12 @@ func testDeletionTimestampHandling(t *testing.T, cli client.Client, obj client.O
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		Instance: &componentApi.Dashboard{
+		Instance: &scheme.TestPlatformObject{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,

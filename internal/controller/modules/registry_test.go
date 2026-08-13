@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 
@@ -247,6 +248,45 @@ func TestParseConditions(t *testing.T) {
 	g.Expect(conditions[1].Status).Should(Equal(metav1.ConditionFalse))
 	g.Expect(conditions[1].ObservedGeneration).Should(Equal(int64(0)))
 	g.Expect(conditions[1].LastTransitionTime.IsZero()).Should(BeTrue())
+}
+
+// ParseConditions must preserve the severity field. A module CR reports an
+// optional dependency as Info severity to signal it is non-gating; if that
+// signal is dropped here, aggregation would treat it as a hard failure (Error
+// == "") and flip the DSC to Not Ready. A condition without a severity field
+// must default to Error ("").
+func TestParseConditionsPreservesSeverity(t *testing.T) {
+	g := NewWithT(t)
+
+	u := &unstructured.Unstructured{
+		Object: map[string]any{
+			"status": map[string]any{
+				"conditions": []any{
+					map[string]any{
+						"type":     "KserveLLMInferenceServiceDependencies",
+						"status":   "False",
+						"reason":   "PreConditionFailed",
+						"severity": "Info",
+					},
+					map[string]any{
+						"type":   "Ready",
+						"status": "True",
+					},
+				},
+			},
+		},
+	}
+
+	conditions, err := modules.ParseConditions(u)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(conditions).Should(HaveLen(2))
+
+	g.Expect(conditions[0].Type).Should(Equal("KserveLLMInferenceServiceDependencies"))
+	g.Expect(conditions[0].Severity).Should(Equal(common.ConditionSeverityInfo))
+
+	// No severity field -> defaults to Error (empty string).
+	g.Expect(conditions[1].Type).Should(Equal("Ready"))
+	g.Expect(conditions[1].Severity).Should(Equal(common.ConditionSeverityError))
 }
 
 func TestParseConditionsNoStatus(t *testing.T) {

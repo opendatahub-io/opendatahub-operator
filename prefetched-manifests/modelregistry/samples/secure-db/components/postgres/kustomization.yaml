@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+## Append samples of your project ##
+
+# PostgreSQL TLS args patch
+patches:
+  - path: postgres-ssl-args.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: model-registry-db
+  - path: secure_postgres_modelregistry.yaml
+
+#+kubebuilder:scaffold:manifestskustomizesamples

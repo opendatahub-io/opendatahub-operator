@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -57,13 +59,13 @@ func initializeModules(ctx context.Context, rr *odhtype.ReconciliationRequest) e
 	dsci, err := cluster.GetDSCI(ctx, rr.Client)
 	if err != nil {
 		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
-			rr.DSCI = nil
+			odhtype.SetDSCI(rr, nil)
 			return nil
 		}
 		return fmt.Errorf("failed to get DSCI for module reconciler: %w", err)
 	}
 
-	rr.DSCI = dsci
+	odhtype.SetDSCI(rr, dsci)
 
 	return nil
 }
@@ -88,7 +90,7 @@ func platformFromInstance(rr *odhtype.ReconciliationRequest) *configv1alpha1.Pla
 
 // dsciOrNil returns the DSCI from the reconcile request, or nil if absent.
 func dsciOrNil(rr *odhtype.ReconciliationRequest) *dsciv2.DSCInitialization {
-	return rr.DSCI
+	return odhtype.GetDSCI(rr)
 }
 
 // enableModulesFromPlatform reads spec.modules from the Platform CR and
@@ -120,8 +122,8 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 
 	// Monitoring namespace read directly from DSCI or set to empty when no DSCI (xKS).
 	var monitoringNS string
-	if rr.DSCI != nil {
-		monitoringNS = rr.DSCI.Spec.Monitoring.Namespace
+	if dsci := odhtype.GetDSCI(rr); dsci != nil {
+		monitoringNS = dsci.Spec.Monitoring.Namespace
 	}
 
 	return &PlatformContext{
@@ -394,23 +396,25 @@ func appendModuleEnvInjection(
 	platformType common.Platform,
 	moduleImages odhtype.ModuleImages,
 ) {
-	if rr.ModuleEnvInjection == nil {
-		rr.ModuleEnvInjection = &odhtype.ModuleEnvInjection{
+	mei := odhtype.GetModuleEnvInjection(rr)
+	if mei == nil {
+		mei = &odhtype.ModuleEnvInjection{
 			ApplicationsNamespace: applicationsNamespace,
 			MonitoringNamespace:   monitoringNamespace,
 			PlatformType:          platformType,
 		}
-	} else if rr.ModuleEnvInjection.ApplicationsNamespace == "" {
-		rr.ModuleEnvInjection.ApplicationsNamespace = applicationsNamespace
+	} else if mei.ApplicationsNamespace == "" {
+		mei.ApplicationsNamespace = applicationsNamespace
 	}
-	if rr.ModuleEnvInjection.MonitoringNamespace == "" {
-		rr.ModuleEnvInjection.MonitoringNamespace = monitoringNamespace
+	if mei.MonitoringNamespace == "" {
+		mei.MonitoringNamespace = monitoringNamespace
 	}
-	if rr.ModuleEnvInjection.PlatformType == "" {
-		rr.ModuleEnvInjection.PlatformType = platformType
+	if mei.PlatformType == "" {
+		mei.PlatformType = platformType
 	}
 
-	rr.ModuleEnvInjection.PerModuleImages = append(rr.ModuleEnvInjection.PerModuleImages, moduleImages)
+	mei.PerModuleImages = append(mei.PerModuleImages, moduleImages)
+	odhtype.SetModuleEnvInjection(rr, mei)
 }
 
 // deploymentNameFor returns the expected Deployment name for a module.
@@ -428,6 +432,25 @@ func deploymentNameFor(h ModuleHandler, manifests OperatorManifests) string {
 		}
 	}
 	return h.GetName()
+}
+
+func writeDSCLegacyStatusFields(
+	ctx context.Context,
+	cli client.Client,
+	handler ModuleHandler,
+	dsc *dscv2.DataScienceCluster,
+	enabled bool,
+) error {
+	if dsc == nil {
+		return nil
+	}
+
+	writer, ok := handler.(DSCLegacyStatusFieldsWriter)
+	if !ok {
+		return nil
+	}
+
+	return writer.WriteLegacyStatusFields(ctx, cli, dsc, enabled)
 }
 
 // ComputeModulesStatus reads status conditions from each module's CR and
@@ -455,6 +478,7 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 
 	var notReadyModules []string
 	var degradedModules []string
+	var crdAbsentModules []string
 	var enabledCount int
 
 	err = reg.ForEach(func(handler ModuleHandler) error {
@@ -478,6 +502,12 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 
 			setSubmodulesFallback(rr, platformCtx, submodules, true, "", "")
 
+			if platformCtx.DSC != nil {
+				if err := writeDSCLegacyStatusFields(ctx, rr.Client, handler, platformCtx.DSC, enabled); err != nil {
+					log.V(1).Info("failed to write legacy status fields", "module", name, "error", err)
+				}
+			}
+
 			return nil
 		}
 
@@ -487,6 +517,10 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 		if err != nil {
 			log.V(1).Info("failed to get module status", "module", name, "error", err)
 			notReadyModules = append(notReadyModules, name)
+
+			if meta.IsNoMatchError(err) {
+				crdAbsentModules = append(crdAbsentModules, name)
+			}
 
 			rr.Conditions.SetCondition(common.Condition{
 				Type:    condType,
@@ -528,7 +562,7 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 
 		ready := false
 		degraded := false
-		var readyCond *metav1.Condition
+		var readyCond *common.Condition
 
 		for i := range moduleStatus.Conditions {
 			switch moduleStatus.Conditions[i].Type {
@@ -571,10 +605,13 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 			})
 		}
 
-		mirrorSubmoduleConditions(rr, platformCtx, moduleStatus, submodules, &notReadyModules)
+		mirrorSubmoduleConditions(rr, platformCtx, moduleStatus, submodules)
 
 		if platformCtx.DSC != nil {
 			handler.WriteDSCComponentStatus(platformCtx.DSC, enabled, moduleStatus.Releases)
+			if err := writeDSCLegacyStatusFields(ctx, rr.Client, handler, platformCtx.DSC, enabled); err != nil {
+				log.V(1).Info("failed to write legacy status fields", "module", name, "error", err)
+			}
 		}
 
 		return nil
@@ -615,6 +652,12 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 		rr.Conditions.MarkTrue(status.ConditionTypeModulesReady)
 	}
 
+	if len(crdAbsentModules) > 0 {
+		log.Info("module CRDs not yet available, requesting requeue",
+			"modules", strings.Join(crdAbsentModules, ", "))
+		return odherrors.NewRequeueAfterError(30 * time.Second)
+	}
+
 	return nil
 }
 
@@ -642,22 +685,22 @@ func submoduleConditionsFor(h ModuleHandler) []SubmoduleCondition {
 }
 
 // mirrorSubmoduleConditions copies declared submodule conditions from the
-// module CR's status onto the DSC conditions. It checks per-submodule
-// enablement: disabled submodules get a Removed condition. Enabled submodules
-// whose condition is not True are appended to notReadyModules so they affect
-// the aggregate.
+// module CR's status onto the DSC conditions, preserving severity. These
+// conditions are informational only: module readiness is defined solely by the
+// module CR's Ready (and Degraded) condition — which the module already
+// aggregates severity-aware internally — so mirrored submodule conditions never
+// gate ModulesReady. Disabled submodules get a Removed condition.
 func mirrorSubmoduleConditions(
 	rr *odhtype.ReconciliationRequest,
 	platformCtx *PlatformContext,
 	moduleStatus *ModuleStatus,
 	submodules []SubmoduleCondition,
-	notReadyModules *[]string,
 ) {
 	if len(submodules) == 0 {
 		return
 	}
 
-	condByType := make(map[string]*metav1.Condition, len(moduleStatus.Conditions))
+	condByType := make(map[string]*common.Condition, len(moduleStatus.Conditions))
 	for i := range moduleStatus.Conditions {
 		condByType[moduleStatus.Conditions[i].Type] = &moduleStatus.Conditions[i]
 	}
@@ -687,21 +730,17 @@ func mirrorSubmoduleConditions(
 				Reason:  status.AwaitingReadinessReason,
 				Message: "Submodule is enabled (Managed) but the module operator has not reported its status yet",
 			})
-			*notReadyModules = append(*notReadyModules, sm.DSCConditionType)
 
 			continue
 		}
 
 		rr.Conditions.SetCondition(common.Condition{
-			Type:    sm.DSCConditionType,
-			Status:  source.Status,
-			Reason:  source.Reason,
-			Message: source.Message,
+			Type:     sm.DSCConditionType,
+			Status:   source.Status,
+			Reason:   source.Reason,
+			Message:  source.Message,
+			Severity: source.Severity,
 		})
-
-		if source.Status != metav1.ConditionTrue {
-			*notReadyModules = append(*notReadyModules, sm.DSCConditionType)
-		}
 	}
 }
 

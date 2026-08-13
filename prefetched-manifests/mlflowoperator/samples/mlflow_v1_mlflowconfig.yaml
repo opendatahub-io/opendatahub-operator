@@ -1,0 +1,9 @@
+apiVersion: mlflow.kubeflow.org/v1
+kind: MLflowConfig
+metadata:
+  name: mlflow
+spec:
+  # Override artifact storage for this namespace with custom bucket and path
+  # Secret 'mlflow-artifact-connection' must exist in this namespace
+  artifactRootSecret: mlflow-artifact-connection
+  artifactRootPath: experiments

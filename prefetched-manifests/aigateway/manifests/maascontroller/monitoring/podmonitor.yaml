@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: maas-controller-metrics
+  labels:
+    app: maas-controller
+    monitoring.opendatahub.io/scrape: "true"
+spec:
+  selector:
+    matchLabels:
+      control-plane: maas-controller
+  podMetricsEndpoints:
+  - port: metrics
+    path: /metrics
+    interval: 30s

@@ -1,0 +1,7 @@
+# Gateway API Helm Chart
+gatewayAPI:
+  # Kubernetes Gateway API CRD version
+  version: "v1.4.0"
+  # CRD channel: "standard" (GA CRDs only) or "experimental" (GA + experimental)
+  # Pulled from: https://github.com/kubernetes-sigs/gateway-api/config/crd/<channel>?ref=<version>
+  channel: "standard"

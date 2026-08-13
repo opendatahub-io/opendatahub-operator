@@ -1,0 +1,118 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: dnshealthcheckprobes.kuadrant.io
+spec:
+  group: kuadrant.io
+  names:
+    kind: DNSHealthCheckProbe
+    listKind: DNSHealthCheckProbeList
+    plural: dnshealthcheckprobes
+    singular: dnshealthcheckprobe
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - description: DNSHealthCheckProbe healthy.
+          jsonPath: .status.healthy
+          name: Healthy
+          type: boolean
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: DNSHealthCheckProbe is the Schema for the dnshealthcheckprobes API
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: DNSHealthCheckProbeSpec defines the desired state of DNSHealthCheckProbe
+              properties:
+                additionalHeadersRef:
+                  description: |-
+                    AdditionalHeadersRef refers to a secret that contains extra headers to send in the probe request, this is primarily useful if an authentication
+                    token is required by the endpoint.
+                  properties:
+                    name:
+                      type: string
+                  required:
+                    - name
+                  type: object
+                address:
+                  description: Address to connect to the host on (IP Address (A Record) or hostname (CNAME)).
+                  type: string
+                allowInsecureCertificate:
+                  description: |-
+                    AllowInsecureCertificate will instruct the health check probe to not fail on a self-signed or otherwise invalid SSL certificate
+                    this is primarily used in development or testing environments and is set by the --insecure-health-checks flag
+                  type: boolean
+                failureThreshold:
+                  description: |-
+                    FailureThreshold is the number of consecutive failures that must be exceeded for a host to be considered unhealthy.
+                    When the number of consecutive failures exceeds this threshold, the health check will be marked as unhealthy.
+                  type: integer
+                  x-kubernetes-validations:
+                    - message: Failure threshold must be greater than 0
+                      rule: self > 0
+                hostname:
+                  description: |-
+                    Hostname is the value sent in the host header, to route the request to the correct service
+                    Represents a root host of the parent DNS Record.
+                  type: string
+                interval:
+                  description: Interval defines how frequently this probe should execute
+                  type: string
+                path:
+                  description: |-
+                    Path is the path to append to the host to reach the expected health check.
+                    Must start with "?" or "/", contain only valid URL characters and end with alphanumeric char or "/". For example "/" or "/healthz" are common
+                  pattern: ^(?:\?|\/)[\w\-.~:\/?#\[\]@!$&'()*+,;=]+(?:[a-zA-Z0-9]|\/){1}$
+                  type: string
+                port:
+                  description: Port to connect to the host on. Must be either 80, 443 or 1024-49151
+                  type: integer
+                  x-kubernetes-validations:
+                    - message: Only ports 80, 443, 1024-49151 are allowed
+                      rule: self in [80, 443] || (self >= 1024 && self <= 49151)
+                protocol:
+                  description: Protocol to use when connecting to the host, valid values are "HTTP" or "HTTPS"
+                  type: string
+                  x-kubernetes-validations:
+                    - message: Only HTTP or HTTPS protocols are allowed
+                      rule: self in ['HTTP','HTTPS']
+              type: object
+            status:
+              description: DNSHealthCheckProbeStatus defines the observed state of DNSHealthCheckProbe
+              properties:
+                consecutiveFailures:
+                  type: integer
+                healthy:
+                  type: boolean
+                observedGeneration:
+                  format: int64
+                  type: integer
+                reason:
+                  type: string
+                status:
+                  type: integer
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

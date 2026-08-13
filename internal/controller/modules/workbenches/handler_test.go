@@ -175,6 +175,74 @@ func TestGetName(t *testing.T) {
 	g.Expect(h.GetName()).Should(Equal(componentApi.WorkbenchesComponentName))
 }
 
+func TestWriteLegacyStatusFields_MirrorsFromDSCSpec(t *testing.T) {
+	g := NewWithT(t)
+	h := NewHandler()
+	dsc := &dscv2.DataScienceCluster{
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				Workbenches: componentApi.DSCWorkbenches{
+					WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
+						WorkbenchNamespace: "rhods-notebooks",
+					},
+				},
+			},
+		},
+	}
+
+	err := h.WriteLegacyStatusFields(context.Background(), nil, dsc, true)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(dsc.Status.Components.Workbenches.WorkbenchNamespace).Should(Equal("rhods-notebooks"))
+}
+
+func TestWriteLegacyStatusFields_ClearsWhenDisabled(t *testing.T) {
+	g := NewWithT(t)
+	h := NewHandler()
+	dsc := &dscv2.DataScienceCluster{
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				Workbenches: componentApi.DSCWorkbenches{
+					WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
+						WorkbenchNamespace: "rhods-notebooks",
+					},
+				},
+			},
+		},
+	}
+
+	err := h.WriteLegacyStatusFields(context.Background(), nil, dsc, true)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	err = h.WriteLegacyStatusFields(context.Background(), nil, dsc, false)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(dsc.Status.Components.Workbenches.WorkbenchNamespace).Should(BeEmpty())
+}
+
+func TestWriteLegacyStatusFields_ClearsWhenSpecEmpty(t *testing.T) {
+	g := NewWithT(t)
+	h := NewHandler()
+	dsc := &dscv2.DataScienceCluster{
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				Workbenches: componentApi.DSCWorkbenches{
+					WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
+						WorkbenchNamespace: "rhods-notebooks",
+					},
+				},
+			},
+		},
+	}
+
+	err := h.WriteLegacyStatusFields(context.Background(), nil, dsc, true)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(dsc.Status.Components.Workbenches.WorkbenchNamespace).Should(Equal("rhods-notebooks"))
+
+	dsc.Spec.Components.Workbenches.WorkbenchNamespace = ""
+	err = h.WriteLegacyStatusFields(context.Background(), nil, dsc, true)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(dsc.Status.Components.Workbenches.WorkbenchNamespace).Should(BeEmpty())
+}
+
 func TestBuildModuleCRMatchesBundledCRDSchema(t *testing.T) {
 	t.Parallel()
 

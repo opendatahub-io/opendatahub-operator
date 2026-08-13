@@ -1,0 +1,79 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: limitador-operator-controller-manager-clusterrole
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - persistentvolumeclaims
+      - secrets
+      - services
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - limitador.kuadrant.io
+    resources:
+      - limitadors
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - limitador.kuadrant.io
+    resources:
+      - limitadors/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - limitador.kuadrant.io
+    resources:
+      - limitadors/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - policy
+    resources:
+      - poddisruptionbudgets
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch

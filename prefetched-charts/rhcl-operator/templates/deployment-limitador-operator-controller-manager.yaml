@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    control-plane: controller-manager
+  name: limitador-operator-controller-manager
+  namespace: {{ .Values.operatorNamespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+  template:
+    metadata:
+      labels:
+        app: limitador-operator
+        control-plane: controller-manager
+      namespace: {{ .Values.operatorNamespace }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - args:
+            - --leader-elect
+          command:
+            - /manager
+          env:
+            - name: RELATED_IMAGE_LIMITADOR
+              value: registry.redhat.io/rhcl-1/limitador-rhel9@sha256:43bc4021bb30c7ef305e01c11e22ca5584c7e2c192b4db0a5646f04f715ee3b0
+          image: registry.redhat.io/rhcl-1/limitador-rhel9-operator@sha256:9a3ccb54bc904521277b87e1d178d8134cc6ef744eb4ec5b64177355fd5a9e66
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          name: manager
+          ports:
+            - containerPort: 8080
+              name: metrics
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 200m
+              memory: 300Mi
+            requests:
+              cpu: 200m
+              memory: 200Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: limitador-operator-controller-manager
+      terminationGracePeriodSeconds: 10

@@ -1,0 +1,31 @@
+apiVersion: batch.llm-d.ai/v1alpha1
+kind: LLMBatchGateway
+metadata:
+  name: batch-gateway-sync
+spec:
+  secretRef:
+    name: batch-gateway-secrets
+  dbBackend: postgresql
+  fileStorage:
+    s3:
+      bucket: llm-d-batch-gateway
+      region: us-east-1
+      endpoint: https://s3.example.com
+  apiServer:
+    replicas: 1
+  processor:
+    replicas: 1
+    dispatchMode: sync
+    globalInferenceGateway:
+      url: http://inference-gateway.default.svc:8000
+      requestTimeout: 5m
+    # Or use per-model gateways instead of globalInferenceGateway block
+    # modelGateways:
+    #   llama-3:
+    #     url: http://llama-gateway.default.svc:8000
+    #     requestTimeout: 5m
+    #   whisper-large:
+    #     url: http://whisper-gateway.default.svc:8000
+    #     requestTimeout: 10m
+  gc:
+    interval: 30m

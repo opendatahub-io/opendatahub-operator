@@ -6,6 +6,7 @@ import (
 	"path"
 	"testing"
 
+	fwapi "github.com/opendatahub-io/odh-platform-utilities/framework/api"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,6 +22,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -285,7 +287,7 @@ func TestCheckPreConditions_WrongInstanceType(t *testing.T) {
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	wrongInstance := &componentApi.Dashboard{
+	wrongInstance := &scheme.TestPlatformObject{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-dashboard",
 		},
@@ -345,7 +347,7 @@ func TestArgoWorkflowsControllersOptions(t *testing.T) {
 		},
 		{
 			name: "error when instance is not DataSciencePipelines",
-			instance: &componentApi.Dashboard{
+			instance: &scheme.TestPlatformObject{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-dashboard",
 				},
@@ -376,7 +378,7 @@ func TestArgoWorkflowsControllersOptions(t *testing.T) {
 				Client:            cli,
 				Instance:          tt.instance,
 				Conditions:        conditions.NewManager(tt.instance, "Ready"),
-				Release:           common.Release{Name: cluster.OpenDataHub},
+				Release:           fwapi.Release{Name: cluster.OpenDataHub},
 				ManifestsBasePath: tmpDir,
 			}
 

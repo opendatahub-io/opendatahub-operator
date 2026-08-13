@@ -1,0 +1,47 @@
+apiVersion: mcp.x-k8s.io/v1alpha1
+kind: MCPServer
+metadata:
+  name: mcpserver-with-runtime
+  namespace: default
+spec:
+  source:
+    type: ContainerImage
+    containerImage:
+      ref: quay.io/containers/kubernetes_mcp_server:latest
+  config:
+    port: 8080
+  runtime:
+    replicas: 1
+
+    # Resource limits and requests
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "256Mi"
+
+    # Health check configuration
+    health:
+      # HTTP-based liveness probe
+      # Kubernetes uses liveness probes to know when to restart a container
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        initialDelaySeconds: 10
+        periodSeconds: 30
+        timeoutSeconds: 5
+        failureThreshold: 3
+
+      # HTTP-based readiness probe
+      # Kubernetes uses readiness probes to know when a container is ready to accept traffic
+      readinessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        timeoutSeconds: 3
+        failureThreshold: 2

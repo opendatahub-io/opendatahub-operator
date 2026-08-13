@@ -31,9 +31,11 @@ and configure these applications.
     - [Build Image](#build-image)
     - [Deployment](#deployment)
       - [Deployment Methods Comparison](#deployment-methods-comparison)
+    - [Image Overrides](#image-overrides)
   - [Cloud Manager (CCM)](#cloud-manager-ccm)
     - [Supported Providers](#supported-providers)
     - [CCM Deployment](#ccm-deployment)
+    - [CCM Configuration](#ccm-configuration)
   - [RHAII Mode](#rhaii-mode)
     - [Prerequisites](#prerequisites-1)
     - [Supported Providers](#supported-providers-1)
@@ -243,40 +245,36 @@ spec:
 
 #### Download manifests
 
-The [get_all_manifests.sh](/get_all_manifests.sh) script facilitates the process of fetching manifests from remote git repositories. It is configured to work with a predefined map of components and their corresponding manifest locations.
+The `manifest-tools download` command (in `cmd/manifest-tools/`) fetches manifests from remote git repositories. It reads `manifests-config.yaml` for component definitions and their manifest locations.
 
-#### Structure of `COMPONENT_MANIFESTS`
+#### Structure of `manifests-config.yaml`
 
-Each component is associated with its manifest location in the `COMPONENT_MANIFESTS` map. The key is the component's name, and the value is its location, formatted as `<repo-org>:<repo-name>:<branch-name>:<source-folder>:<target-folder>`
+Each component is defined under the `components` section with per-platform (odh/rhoai) entries containing `repo`, `ref`, and `sourcePath` fields.
 
 #### Workflow
 
-1. The script clones the remote repository `<repo-org>/<repo-name>` from the specified `<branch-name>`.
-2. It then copies the content from the relative path `<source-folder>` to the local `opt/manifests/<target-folder>` folder.
+1. The tool shallow-clones each component’s repository at the specified `ref` (supports `branch@sha` tracking format).
+2. It copies the content from `sourcePath` to the local `opt/manifests/<component>/` folder.
 
 #### Local Storage
 
-The script utilizes a local, empty folder named `opt/manifests` to host all required manifests, sourced directly from each component’s source repository.
+The tool uses `opt/manifests` and `opt/charts` folders to host all required manifests, sourced from each component’s repository.
 
 #### Adding New Components
 
-To include a new component in the list of manifest repositories, simply extend the `COMPONENT_MANIFESTS` map with a new entry, as shown below:
-
-```shell
-declare -A COMPONENT_MANIFESTS=(
-  // existing components ...
-  ["new-component"]="<repo-org>:<repo-name>:<branch-name>:<source-folder>:<target-folder>"
-)
-```
+To include a new component, add a new entry in the `components` section of `manifests-config.yaml`.
 
 #### Customizing Manifests Source
-You have the flexibility to change the source of the manifests. Invoke the `get_all_manifests.sh` script with specific flags, as illustrated below:
+
+You can override a component’s source using the `--component` flag:
 
 ```shell
-./get_all_manifests.sh --odh-dashboard="maistra:odh-dashboard:test-manifests:manifests:odh-dashboard"
+make get-manifests
+# or with overrides:
+go run -C ./cmd/manifest-tools main.go download --component dashboard=maistra:odh-dashboard:test-manifests:manifests
 ```
 
-If the flag name matches components key defined in `COMPONENT_MANIFESTS` it will overwrite its location, otherwise the command will fail.
+If the component key does not exist in `manifests-config.yaml`, the command will fail.
 
 ##### for local development
 
@@ -357,6 +355,29 @@ e.g `make image-build USE_LOCAL=true"`
   ```commandline
   make undeploy
   ```
+
+- `make deploy` auto-applies digest-pinned image overrides from `manifests-config.yaml` to `config/manager/manager.yaml`. To skip: `SKIP_IMAGE_OVERRIDES=1 make deploy`.
+
+#### Image Overrides
+
+Component operator images can be pinned by digest for reproducible testing. Image digests are configured in `manifests-config.yaml` under the `imageOverrides` section, sourced from the ODH-Build-Config CSV.
+
+> **Note:** For OLM deployments, image overrides are applied *after* `operator-sdk run bundle` creates the Subscription. This is safe because the DSC starts with all components set to `Removed`, so no component images are pulled before the overrides are applied.
+
+```shell
+# Resolve digests (run after updating manifest SHAs)
+make resolve-image-digests
+
+# For make deploy (auto-applied, skip with SKIP_IMAGE_OVERRIDES=1)
+make deploy IMG=...
+
+# For OLM deploy (manual)
+operator-sdk run bundle ...
+make apply-image-overrides-olm
+
+# For E2E with OLM overrides (auto-applied, skip with SKIP_IMAGE_OVERRIDES=1)
+make e2e-test
+```
 
 **Deploying operator using OLM**
 
@@ -932,6 +953,7 @@ Evn vars can be set to configure e2e tests:
 | E2E_TEST_CIRCUIT_BREAKER_THRESHOLD       | Consecutive infrastructure failures before health-checking for infrastructure problems.                                                                                                                                    | `3`                           |
 | E2E_TEST_TAG                             | Tag to run tests for. Options: `All`, `Smoke`, `Tier1`.                                                                                                                                                                    | `All`                         |
 | E2E_TEST_FLAGS                           | Alternatively the above configurations can be passed to e2e-tests as flags using this env var (see flags table below)                                                                                                      |                               |
+| SKIP_IMAGE_OVERRIDES                     | Skip auto-applying digest-pinned image overrides during `make deploy` and `make e2e-test`. Set to any value to disable.                                                                                                    | *(unset)*                     |
 
 Alternatively the above configurations can be passed to e2e-tests as flags by setting up `E2E_TEST_FLAGS` variable. Following table lists all the available flags:
 
@@ -1084,7 +1106,6 @@ Quick reference: "I changed code in directory X — which E2E test(s) should I r
 | Webhook Directory | Test Command |
 |---|---|
 | `webhook/serving/` | `E2E_TEST_COMPONENT=kserve` |
-| `webhook/notebook/` | `E2E_TEST_COMPONENT=workbenches` |
 | `webhook/kueue/` | `E2E_TEST_COMPONENT=workbenches,kueue` |
 | `webhook/dashboard/` | `E2E_TEST_COMPONENT=dashboard` |
 | `webhook/monitoring/` | `E2E_TEST_SERVICE=monitoring` |

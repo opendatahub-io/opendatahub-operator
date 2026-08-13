@@ -22,7 +22,7 @@ const (
 	crName     = componentApi.AIGatewayInstanceName
 
 	// manifestDir is the directory (relative to ManifestsBasePath, e.g.
-	// /opt/manifests/aigateway) where get_all_manifests.sh places the
+	// /opt/manifests/aigateway) where make get-manifests places the
 	// ai-gateway-operator repo's get the full config which has its own manifests + sub-modulars'.
 	manifestDir = "aigateway"
 

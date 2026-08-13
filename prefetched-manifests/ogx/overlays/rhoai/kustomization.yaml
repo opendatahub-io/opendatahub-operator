@@ -1,0 +1,47 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../default
+
+patches:
+  # Rename ConfigMap to odh-ogx-config so the ODH operator's
+  # injectPlatformConfig action can merge platformVersion into it.
+  # Also set platform-name for RHOAI so the module reconciler picks
+  # the correct root-operator overlay (overlays/rhoai).
+  - target:
+      kind: ConfigMap
+      name: opendatahub-ogx-config
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: odh-ogx-config
+      - op: replace
+        path: /data/platform-name
+        value: "Red Hat OpenShift AI"
+  # Update Deployment volume ref to match renamed ConfigMap.
+  - target:
+      kind: Deployment
+      name: opendatahub-ogx-operator
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/volumes/1/configMap/name
+        value: odh-ogx-config
+
+configMapGenerator:
+  - name: params
+    envs:
+      - params.env
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: params
+      fieldPath: data.RELATED_IMAGE_ODH_OGX_MODULE_OPERATOR_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: opendatahub-ogx-operator
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].image
+          - spec.template.spec.initContainers.[name=copy-manifests].image

@@ -78,9 +78,9 @@ func TestMonitoredCRDs(t *testing.T) {
 			setupCRDs:      nil,
 			expectedStatus: metav1.ConditionFalse,
 			expectedMsgContains: []string{
-				gvk.CertManagerCertificate.Kind,
-				gvk.CertManagerIssuer.Kind,
-				gvk.CertManagerClusterIssuer.Kind,
+				gvk.CertManagerCertificateCRDName,
+				gvk.CertManagerIssuerCRDName,
+				gvk.CertManagerClusterIssuerCRDName,
 			},
 		},
 		{
@@ -101,8 +101,8 @@ func TestMonitoredCRDs(t *testing.T) {
 				g.Expect(err).NotTo(HaveOccurred())
 			},
 			expectedStatus:         metav1.ConditionFalse,
-			expectedMsgContains:    []string{gvk.CertManagerIssuer.Kind, gvk.CertManagerClusterIssuer.Kind},
-			expectedMsgNotContains: []string{gvk.CertManagerCertificate.Kind},
+			expectedMsgContains:    []string{gvk.CertManagerIssuerCRDName, gvk.CertManagerClusterIssuerCRDName},
+			expectedMsgNotContains: []string{gvk.CertManagerCertificateCRDName},
 		},
 	}
 
@@ -120,19 +120,19 @@ func TestMonitoredCRDs(t *testing.T) {
 				tt.setupCRDs(t, g, ctx, envTest)
 			}
 
-			gvks := monitoredCRDs()
-			g.Expect(gvks).To(HaveLen(3))
-			g.Expect(gvks).To(ContainElements(
-				gvk.CertManagerCertificate,
-				gvk.CertManagerIssuer,
-				gvk.CertManagerClusterIssuer,
+			crdNames := monitoredCRDs()
+			g.Expect(crdNames).To(HaveLen(3))
+			g.Expect(crdNames).To(ContainElements(
+				"certificates.cert-manager.io",
+				"issuers.cert-manager.io",
+				"clusterissuers.cert-manager.io",
 			))
 
 			instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
 			condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 			rr := &types.ReconciliationRequest{Client: envTest.Client(), Instance: instance, Conditions: condManager}
 
-			pcs := []precondition.PreCondition{precondition.MonitorCRDs(gvks)}
+			pcs := []precondition.PreCondition{precondition.MonitorCRDs(crdNames)}
 			precondition.RunAll(ctx, rr, pcs)
 
 			got := condManager.GetCondition(status.ConditionDependenciesAvailable)

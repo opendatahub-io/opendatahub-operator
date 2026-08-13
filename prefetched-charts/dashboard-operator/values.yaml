@@ -1,0 +1,92 @@
+# Default values for the Dashboard module controller bootstrap chart.
+# The ODH Operator renders this chart and injects namespace, image tags, and
+# RELATED_IMAGE_* values at install time.
+#
+# NOTE: Image tags below use mutable branch references (e.g. ":main") for
+# development convenience. In production, the ODH Operator overrides these
+# with immutable digest references injected by Konflux.
+
+nameOverride: ""
+fullnameOverride: ""
+namePrefix: odh-
+
+namespace: opendatahub
+
+commonLabels:
+  app.kubernetes.io/part-of: odh-dashboard
+  platform.opendatahub.io/part-of: dashboard
+  components.platform.opendatahub.io/managed-by: opendatahub-operator
+
+image:
+  repository: quay.io/opendatahub/odh-dashboard-operator
+  tag: main
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+manager:
+  replicas: 1
+  leaderElection: true
+  manifestsBasePath: /opt/manifests/dashboard
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 10m
+      memory: 192Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  podLabels: {}
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  podSecurityContext:
+    runAsNonRoot: true
+
+serviceAccount:
+  create: true
+  name: dashboard-operator
+  automountServiceAccountToken: false
+
+rbac:
+  create: true
+
+webhook:
+  enabled: false
+  port: 9443
+  caBundle: ""
+  certManager:
+    enabled: false
+    issuerRef: {}
+
+# Downstream application images resolved by the module controller when rendering
+# embedded dashboard manifests. Keys match RELATED_IMAGE_* env var names.
+# Empty by default so that digest-pinned defaults in manifests/*/params.env are
+# used as the fallback. The ODH Operator overrides these with Konflux digest
+# references at install time; only non-empty values are injected as pod env vars.
+relatedImages:
+  RELATED_IMAGE_ODH_DASHBOARD_IMAGE: ""
+  RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE: ""
+  RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE: ""
+  RELATED_IMAGE_ODH_MOD_ARCH_MLFLOW_IMAGE: ""
+  RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE: ""
+  RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE: ""
+  RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE: ""
+  RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE: ""
+  RELATED_IMAGE_ODH_MOD_ARCH_AUTOML_IMAGE: ""
+  RELATED_IMAGE_ODH_MOD_ARCH_AUTORAG_IMAGE: ""
+  RELATED_IMAGE_ODH_MOD_ARCH_AGENT_OPS_IMAGE: ""
+  RELATED_IMAGE_ODH_AUTOML_IMAGE: ""
+  RELATED_IMAGE_ODH_AUTORAG_IMAGE: ""
+  RELATED_IMAGE_ODH_CORE_BFF_IMAGE: ""
+
+config:
+  name: odh-dashboard-config
+  data:
+    distribution.name: Standalone
+    distribution.version: "0.0.0"
+    controller.zap.level: info

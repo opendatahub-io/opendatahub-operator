@@ -11,15 +11,13 @@
 
 rhai_helm_components:
   - kserve
+  - aigateway
 
 # Example:
 # - image: RELATED_IMAGE_ODH_ML_PIPELINES_RUNTIME_GENERIC_IMAGE
 #   jira: https://issues.redhat.com/browse/RHOAIENG-XXXXX
 #   reason: Deprecated image, removal tracked in Jira
 known_issues:
-- image: RELATED_IMAGE_ODH_LLM_D_KV_CACHE_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-60938
-  reason: Unused image, will be dropped here as part of migration to module for kserve
 - image: RELATED_IMAGE_ODH_ML_PIPELINES_RUNTIME_GENERIC_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
   reason: Removed with InstrutLab pipeline removal since RHOAI 3.0
@@ -29,16 +27,19 @@ known_issues:
 - image: RELATED_IMAGE_DSP_TOOLBOX_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
   reason: Removed with InstrutLab pipeline removal since RHOAI 3.0
-- image: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHAISTRAT-130
-  reason: TrustyAI-Service descoped from RHOAI 3.5, delivering in 3.6-EA1
 
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
   reason: ppc64le/s390x only, not applicable to ODH
+- image: RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-78350
+  reason: it must be offboarded in rhoai 3.6, already offboarded in ODH-Build-Config
 
 rhoai_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE
   reason: ODH-only image, not applicable to RHOAI
 - image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_2_IMAGE
   reason: ODH-only image, not applicable to RHOAI
+- image: RELATED_IMAGE_ODH_TRAINER_OPERATOR_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-62940
+  reason: Trainer module operator image, not yet in RHOAI-Build-Config, delivering in RHOAI 3.6 EA1

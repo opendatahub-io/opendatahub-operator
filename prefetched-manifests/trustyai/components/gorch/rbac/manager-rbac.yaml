@@ -1,0 +1,152 @@
+# do not edit: generated via hack/extract-component-rbac.sh
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gorch-manager-role
+rules:
+- apiGroups:
+  - trustyai.opendatahub.io
+  resources:
+  - guardrailsorchestrators
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - trustyai.opendatahub.io
+  resources:
+  - guardrailsorchestrators/status
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - trustyai.opendatahub.io
+  resources:
+  - guardrailsorchestrators/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - servingruntimes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - inferenceservices
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - list
+  - watch
+  - get
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - apps
+  resources:
+  - deployments/status
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - apps
+  resources:
+  - deployments/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - delete
+- apiGroups:
+  - route.openshift.io
+  resources:
+  - routes
+  verbs:
+  - list
+  - watch
+  - get
+  - create
+  - update
+  - patch
+  - delete

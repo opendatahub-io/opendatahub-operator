@@ -1,0 +1,28 @@
+# Sample DataSciencePipelinesApplication with managed pipelines.
+#
+# When spec.apiServer.managedPipelines is set, the API server pod runs an
+# init container (init-managed-pipelines) that compiles bundled pipelines into
+# a shared volume; the API server then exposes them like other sample pipelines.
+#
+# Omitting managedPipelines.pipelines sets ALL_PIPELINES=true for the init image.
+# To pin a subset, set pipelines: [ { name: <pipeline-name> }, ... ].
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: sample
+spec:
+  dspVersion: v2
+  apiServer:
+    enableSamplePipeline: true
+    cABundle:
+      configMapKey: ca.crt
+      configMapName: kube-root-ca.crt
+    managedPipelines:
+      image: quay.io/opendatahub/pipelines-components:latest
+  objectStorage:
+    # Need to enable this for artifact download links to work
+    # i.e. for when requesting /apis/v2beta1/artifacts/{id}?share_url=true
+    enableExternalRoute: true
+    minio:
+      deploy: true
+      image: 'quay.io/opendatahub/minio:RELEASE.2019-08-14T20-37-41Z-license-compliance'

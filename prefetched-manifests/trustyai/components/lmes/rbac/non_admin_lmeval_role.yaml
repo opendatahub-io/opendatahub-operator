@@ -1,0 +1,30 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: lmeval-user-role
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: lmeval-user-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: trustyai-service-operator
+    app.kubernetes.io/part-of: trustyai-service-operator
+    app.kubernetes.io/managed-by: kustomize
+rules:
+- apiGroups:
+  - trustyai.opendatahub.io
+  resources:
+  - lmevaljobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - trustyai.opendatahub.io
+  resources:
+  - lmevaljobs/status
+  verbs:
+  - get

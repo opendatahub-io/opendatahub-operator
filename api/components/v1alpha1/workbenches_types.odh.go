@@ -21,7 +21,8 @@ package v1alpha1
 type WorkbenchesCommonSpec struct {
 	// workbenches spec exposed only to internal api
 
-	// Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "opendatahub"
+	// Legacy JupyterHub-era notebooks namespace. Immutable after creation; defaults to "opendatahub".
+	// Notebook-controller operands are deployed into DSCI ApplicationsNamespace, not this field.
 	// +kubebuilder:default="opendatahub"
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="WorkbenchNamespace is immutable"
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"

@@ -1,0 +1,18 @@
+---
+# ClusterRole for EvalHub providers API access.
+# The kube-rbac-proxy auth config performs SAR checks against
+# "trustyai.opendatahub.io/providers" for the providers endpoint.
+# This role is pre-created at operator installation time and bound to
+# EvalHub ServiceAccounts via RoleBindings created by the operator.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: evalhub-providers-access
+  labels:
+    app.kubernetes.io/name: trustyai-service-operator
+    app.kubernetes.io/component: evalhub
+rules:
+  - apiGroups: ["trustyai.opendatahub.io"]
+    resources:
+      - providers
+    verbs: ["get", "list"]

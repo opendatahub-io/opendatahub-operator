@@ -15,10 +15,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func newUnstructuredWithReleases(releases []interface{}) *unstructured.Unstructured {
+func newUnstructuredWithReleases(releases []any) *unstructured.Unstructured {
 	u := &unstructured.Unstructured{}
-	u.Object = map[string]interface{}{
-		"status": map[string]interface{}{
+	u.Object = map[string]any{
+		"status": map[string]any{
 			"releases": releases,
 		},
 	}
@@ -29,8 +29,8 @@ func TestExtractReleases_Empty(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	u := &unstructured.Unstructured{Object: map[string]interface{}{
-		"status": map[string]interface{}{},
+	u := &unstructured.Unstructured{Object: map[string]any{
+		"status": map[string]any{},
 	}}
 
 	g.Expect(extractReleases(u)).Should(BeEmpty())
@@ -40,8 +40,8 @@ func TestExtractReleases_SingleEntry(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	u := newUnstructuredWithReleases([]interface{}{
-		map[string]interface{}{
+	u := newUnstructuredWithReleases([]any{
+		map[string]any{
 			"name":    "platform",
 			"version": "3.5.0",
 			"repoUrl": "https://github.com/example",
@@ -59,12 +59,12 @@ func TestExtractReleases_MultipleEntries(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	u := newUnstructuredWithReleases([]interface{}{
-		map[string]interface{}{
+	u := newUnstructuredWithReleases([]any{
+		map[string]any{
 			"name":    "platform",
 			"version": "3.5.0",
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name":    "serving",
 			"version": "0.14.1",
 			"repoUrl": "https://github.com/kserve",
@@ -82,11 +82,11 @@ func TestExtractReleases_SkipsEmptyName(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	u := newUnstructuredWithReleases([]interface{}{
-		map[string]interface{}{
+	u := newUnstructuredWithReleases([]any{
+		map[string]any{
 			"version": "1.0.0",
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name":    "valid",
 			"version": "2.0.0",
 		},
@@ -101,9 +101,9 @@ func TestExtractReleases_SkipsMalformedEntries(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	u := newUnstructuredWithReleases([]interface{}{
+	u := newUnstructuredWithReleases([]any{
 		"not-a-map",
-		map[string]interface{}{
+		map[string]any{
 			"name":    "valid",
 			"version": "1.0.0",
 		},
@@ -118,8 +118,8 @@ func TestExtractReleases_MissingOptionalFields(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	u := newUnstructuredWithReleases([]interface{}{
-		map[string]interface{}{
+	u := newUnstructuredWithReleases([]any{
+		map[string]any{
 			"name": "minimal",
 		},
 	})

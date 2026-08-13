@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- aggregate_dspa_role_edit.yaml
+- aggregate_dspa_role_view.yaml
+- leader_election_role_binding.yaml
+- leader_election_role.yaml
+- role_binding.yaml
+- role.yaml
+- service_account.yaml
+- argo_role.yaml
+- argo_role_binding.yaml

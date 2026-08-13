@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/mock"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/cacher"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/resourcecacher"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -49,7 +49,7 @@ func newTestCacher() *testCacher {
 		rr:  &types.ReconciliationRequest{},
 	}
 	c.cacher = newCacher(c.hash)
-	c.rr.Instance = &componentApi.Dashboard{}
+	c.rr.Instance = &scheme.TestPlatformObject{}
 	c.doubleRes = append(c.doubleRes, c.r[0], c.r[0])
 
 	return c

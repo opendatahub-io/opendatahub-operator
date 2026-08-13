@@ -94,3 +94,6 @@ config/cloudmanager/*/manager/kustomization.yaml
 cmd/component-codegen/component-codegen
 /cloudmanager
 .venv/
+
+# Ignore claude worktrees
+/.claude/worktrees/

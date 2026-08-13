@@ -9,12 +9,8 @@ import (
 //go:embed kueue/monitoring
 //go:embed sparkoperator/monitoring
 //go:embed trainingoperator/monitoring
-//go:embed trainer/monitoring
 //go:embed trustyai/monitoring
 //go:embed datasciencepipelines/monitoring
-//go:embed kserve/monitoring
-//go:embed ogx/monitoring
-//go:embed modelcontroller/monitoring
 //go:embed modelregistry/monitoring
 //go:embed ray/monitoring
 var ComponentRulesFS embed.FS

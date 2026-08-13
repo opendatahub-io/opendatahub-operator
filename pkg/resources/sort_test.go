@@ -15,7 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -23,6 +22,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -237,8 +237,8 @@ func createRealCertManagerScenario(namespace string) ([]unstructured.Unstructure
 	clusterIssuer := &unstructured.Unstructured{}
 	clusterIssuer.SetGroupVersionKind(gvk.CertManagerClusterIssuer)
 	clusterIssuer.SetName("rhoai-ca-issuer")
-	err := unstructured.SetNestedMap(clusterIssuer.Object, map[string]interface{}{
-		"selfSigned": map[string]interface{}{},
+	err := unstructured.SetNestedMap(clusterIssuer.Object, map[string]any{
+		"selfSigned": map[string]any{},
 	}, "spec")
 	if err != nil {
 		return nil, err
@@ -249,18 +249,18 @@ func createRealCertManagerScenario(namespace string) ([]unstructured.Unstructure
 	certificate.SetGroupVersionKind(gvk.CertManagerCertificate)
 	certificate.SetName("rhoai-serving-cert")
 	certificate.SetNamespace(namespace)
-	err = unstructured.SetNestedMap(certificate.Object, map[string]interface{}{
+	err = unstructured.SetNestedMap(certificate.Object, map[string]any{
 		"secretName": "rhoai-serving-tls",
-		"issuerRef": map[string]interface{}{
+		"issuerRef": map[string]any{
 			"name":  "rhoai-ca-issuer",
 			"kind":  "ClusterIssuer",
 			"group": "cert-manager.io",
 		},
-		"dnsNames": []interface{}{
+		"dnsNames": []any{
 			"rhoai-serving.example.com",
 			"*.rhoai-serving.example.com",
 		},
-		"subject": map[string]interface{}{
+		"subject": map[string]any{
 			"commonName": "RHOAI Serving Certificate",
 		},
 	}, "spec")
@@ -330,7 +330,7 @@ func createRealCertManagerScenario(namespace string) ([]unstructured.Unstructure
 
 // Helper function.
 func int32Ptr(i int32) *int32 {
-	return &i
+	return new(i)
 }
 
 // TestCertManagerDependencyOrderingIntegration verifies that cert-manager resources
@@ -373,7 +373,7 @@ func TestCertManagerDependencyOrderingIntegration(t *testing.T) {
 
 		rr := controllerTypes.ReconciliationRequest{
 			Client:   envTest.Client(),
-			Instance: &componentApi.Dashboard{ObjectMeta: metav1.ObjectMeta{Generation: 1}},
+			Instance: &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Generation: 1}},
 			Release: common.Release{
 				Name: cluster.OpenDataHub,
 				Version: version.OperatorVersion{Version: semver.Version{

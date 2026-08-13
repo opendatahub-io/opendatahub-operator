@@ -1,0 +1,16 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{.WebhookName}}
+  labels:
+    app: {{.WebhookName}}
+    component: data-science-pipelines
+rules:
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - pipelines.kubeflow.org
+    resources:
+      - pipelines

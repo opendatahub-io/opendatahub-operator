@@ -1,0 +1,51 @@
+apiVersion: batch.llm-d.ai/v1alpha1
+kind: LLMBatchGateway
+metadata:
+  name: batch-gateway-dev
+spec:
+  secretRef:
+    name: batch-gateway-secrets
+  dbBackend: postgresql
+  fileStorage:
+    s3:
+      bucket: llm-d-batch-gateway
+      region: us-east-1
+      endpoint: http://minio.default.svc.cluster.local:9000
+      accessKeyId: minioadmin
+      usePathStyle: true
+      autoCreateBucket: true
+  apiServer:
+    replicas: 1
+    imagePullPolicy: IfNotPresent
+  gc:
+    interval: 30m
+    imagePullPolicy: IfNotPresent
+  processor:
+    replicas: 1
+    imagePullPolicy: IfNotPresent
+    dispatchMode: async
+    modelGateways:
+      sim-model:
+        inferencePoolName: sim-pool
+    asyncConfig:
+      replicas: 1
+      concurrency: 8
+      drainTimeout: 2m
+      resultPollTimeout: 30s
+      redis:
+        requestPathURL: /v1/completions
+        pollIntervalMs: 1000
+        batchSize: 10
+        queuesConfig:
+        - name: "llm-d-async:requests:sim-pool"     # format: llm-d-async:requests:<inferencePoolName> (from processor.modelGateways[].inferencePoolName)
+          requestPathURL: /v1/completions
+          igwBaseURL: http://vllm-sim.default.svc:8000
+          workerPoolID: sim-workers
+      workerPools:
+      - name: sim-workers
+        workers: 4
+        gateType: local-max-concurrency
+        gateParams:
+          limit: "2"
+
+

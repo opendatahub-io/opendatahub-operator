@@ -1,0 +1,28 @@
+# This rule is not used by the ogx-module itself.
+# It is provided to allow users to manage OGX module resources.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: components-ogx-editor-role
+  labels:
+    app.kubernetes.io/name: opendatahub-ogx-operator
+rules:
+  - apiGroups:
+      - components.platform.opendatahub.io
+    resources:
+      - ogxs
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - components.platform.opendatahub.io
+    resources:
+      - ogxs/status
+    verbs:
+      - get

@@ -1,0 +1,252 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: externalmodels.inference.opendatahub.io
+spec:
+  group: inference.opendatahub.io
+  names:
+    kind: ExternalModel
+    listKind: ExternalModelList
+    plural: externalmodels
+    singular: externalmodel
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          ExternalModel defines a client-facing model that maps to one or more
+          external providers. The model name clients use in requests is determined
+          by spec.modelName (if set) or metadata.name (default).
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ExternalModelSpec defines the desired state of ExternalModel.
+            properties:
+              externalProviderRefs:
+                description: |-
+                  ExternalProviderRefs maps this model to one or more external providers.
+                  Each entry specifies the provider specific details.
+                items:
+                  description: ExternalProviderRef binds this model to a specific
+                    provider with translation config.
+                  properties:
+                    apiFormat:
+                      description: |-
+                        APIFormat determines how requests/responses are translated for this provider.
+                        Supported values:
+                          - "openai-chat": OpenAI Chat Completions API (/v1/chat/completions)
+                          - "messages": Anthropic Messages API (/v1/messages)
+                      maxLength: 63
+                      minLength: 1
+                      type: string
+                    auth:
+                      description: |-
+                        Auth overrides the ExternalProvider authentication for this model-provider binding.
+                        If not set, the ExternalProvider auth is used.
+                      properties:
+                        secretRef:
+                          description: |-
+                            SecretRef references a Kubernetes Secret containing the provider API key.
+                            The Secret must be in the same namespace as the ExternalProvider
+                            and must contain a data key "api-key" with the credential value.
+                          properties:
+                            name:
+                              maxLength: 253
+                              minLength: 1
+                              pattern: ^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type:
+                          description: |-
+                            Type identifies the auth type for this provider.
+                            e.g. "apikey" (header based), "sigv4", etc.
+                          enum:
+                          - apikey
+                          - simple
+                          - sigv4
+                          - oauth2
+                          type: string
+                      required:
+                      - secretRef
+                      - type
+                      type: object
+                    config:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Config holds model-specific configuration as key-value pairs.
+                        Overrides the ExternalProvider config for this model-provider binding.
+                      type: object
+                    path:
+                      description: |-
+                        Path sets the outgoing request `:path` pseudo-header for this model-provider binding.
+                        Must be a valid absolute path (e.g. "/v1/chat/completions" or
+                        "/maas-default-gateway/v1/chat/completions").
+                        Supports {key} placeholders resolved from the merged Config map.
+                      maxLength: 512
+                      minLength: 1
+                      pattern: ^/.*
+                      type: string
+                    ref:
+                      description: Ref identifies the ExternalProvider CR (must be
+                        in the same namespace).
+                      properties:
+                        name:
+                          maxLength: 253
+                          minLength: 1
+                          pattern: ^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    targetModel:
+                      description: |-
+                        TargetModel is the provider-specific model identifier.
+                        e.g. "gpt-4o", "anthropic.claude-3-opus", "claude-sonnet-4-5-20241022".
+                      maxLength: 253
+                      minLength: 1
+                      type: string
+                    weight:
+                      default: 1
+                      description: |-
+                        Weight determines the relative traffic proportion for this provider binding.
+                        Higher weight means more traffic. Used for weighted random selection across
+                        multiple provider refs. A weight of 0 disables the ref (no traffic routed
+                        to it). Defaults to 1 if not set.
+                      maximum: 100
+                      minimum: 0
+                      type: integer
+                  required:
+                  - apiFormat
+                  - path
+                  - ref
+                  - targetModel
+                  type: object
+                maxItems: 64
+                minItems: 1
+                type: array
+              modelName:
+                description: |-
+                  ModelName is the client-facing model name used in inference request bodies.
+                  Clients send this value in the "model" field of chat completion requests.
+                  Defaults to metadata.name if not set. Use this field when the desired
+                  model name contains characters not allowed in Kubernetes resource names
+                  (dots, colons, slashes, uppercase).
+                maxLength: 253
+                type: string
+            required:
+            - externalProviderRefs
+            type: object
+          status:
+            description: ExternalModelStatus defines the observed state of ExternalModel.
+            properties:
+              conditions:
+                description: Conditions represent the latest available observations
+                  of the model's state.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              httpRouteName:
+                description: |-
+                  HTTPRouteName is the name of the HTTPRoute created by the controller
+                  for this ExternalModel. Consumers (e.g., maas-controller) can read this
+                  to attach policies without assuming naming conventions.
+                type: string
+              phase:
+                description: |-
+                  Phase represents the current reconciliation phase.
+                  Ready: all networking resources created successfully.
+                  Failed: reconciliation error (e.g., missing ExternalProvider, missing Secret).
+                  This reflects controller reconciliation state, not runtime request health.
+                enum:
+                - Pending
+                - Ready
+                - Failed
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

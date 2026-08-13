@@ -1,0 +1,7 @@
+# This patch configures the metrics endpoint address via environment variable.
+# The operator reads this through viper with the ODH_MODULE_OPERATOR_ prefix.
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: ODH_MODULE_OPERATOR_METRICS_BIND_ADDRESS
+    value: ":8443"

@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kuberay-operator
+  namespace: system
+spec:
+  template:
+    spec:
+      containers:
+      - name: kuberay-operator
+        env:
+        # Gateway API configuration for HTTPRoute placement
+        # APPLICATION_NAMESPACE determines where HTTPRoutes are created (platform namespace)
+        # Reuses the existing 'namespace' parameter from params.env
+        - name: APPLICATION_NAMESPACE
+          value: $(namespace)
+        # POD_NAMESPACE provides fallback namespace detection
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        # kube-rbac-proxy sidecar image for authentication controller.
+        # Value comes from params.env (odh-kube-rbac-proxy-image), overridden at deploy
+        # time by the ODH/RHOAI operator via imageParamMap
+        # (RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE). Read at startup by init() in
+        # authentication_controller.go.
+        - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
+          value: $(odh-kube-rbac-proxy-image)

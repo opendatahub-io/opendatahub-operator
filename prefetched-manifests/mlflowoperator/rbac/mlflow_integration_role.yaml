@@ -1,0 +1,45 @@
+---
+# Standalone role for service accounts of components that integrate with MLflow.
+# Grants data-plane access (experiments, datasets, registered models) without
+# delete, and allows discovering and invoking AI Gateway endpoints without
+# editing them.
+# Bind with a RoleBinding (not ClusterRoleBinding) to scope access to the
+# target namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mlflow-integration
+rules:
+  # Pseudo-resources used by the MLflow Kubernetes authorization plugin for
+  # SelfSubjectAccessReview checks; not actual CRDs.
+  - apiGroups:
+      - mlflow.kubeflow.org
+    resources:
+      - datasets
+      - experiments
+      - registeredmodels
+    verbs:
+      - get
+      - list
+      - create
+      - update
+  - apiGroups:
+      - mlflow.kubeflow.org
+    resources:
+      - gatewayendpoints
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - mlflow.kubeflow.org
+    resources:
+      - mcpservers
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - mlflow.kubeflow.org
+    resources:
+      - gatewayendpoints/use
+    verbs:
+      - create

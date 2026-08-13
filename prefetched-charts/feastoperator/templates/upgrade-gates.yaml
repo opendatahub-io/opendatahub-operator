@@ -1,0 +1,12 @@
+{{- if .Values.upgradeGates }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: feastoperator-upgrade-gates
+  labels:
+    platform.opendatahub.io/upgrade-gate: "true"
+data:
+  {{- range $key, $val := .Values.upgradeGates }}
+  {{ $key }}: {{ $val | quote }}
+  {{- end }}
+{{- end }}

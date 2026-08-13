@@ -150,7 +150,7 @@ func TestMirrorSubmoduleConditions_ConditionFound_True(t *testing.T) {
 	rr, mgr := newTestRR()
 
 	moduleStatus := &ModuleStatus{
-		Conditions: []metav1.Condition{
+		Conditions: []common.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue, Reason: "AllGood"},
 			{Type: "ModelsAsServiceReady", Status: metav1.ConditionTrue, Reason: "Deployed", Message: "MaaS is healthy"},
 		},
@@ -160,15 +160,13 @@ func TestMirrorSubmoduleConditions_ConditionFound_True(t *testing.T) {
 		{SourceConditionType: "ModelsAsServiceReady", DSCConditionType: "ModelsAsServiceReady"},
 	}
 
-	var notReady []string
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules)
 
 	cond := mgr.GetCondition("ModelsAsServiceReady")
 	g.Expect(cond).ShouldNot(BeNil())
 	g.Expect(cond.Status).Should(Equal(metav1.ConditionTrue))
 	g.Expect(cond.Reason).Should(Equal("Deployed"))
 	g.Expect(cond.Message).Should(Equal("MaaS is healthy"))
-	g.Expect(notReady).Should(BeEmpty())
 }
 
 func TestMirrorSubmoduleConditions_ConditionFound_False(t *testing.T) {
@@ -178,7 +176,7 @@ func TestMirrorSubmoduleConditions_ConditionFound_False(t *testing.T) {
 	rr, mgr := newTestRR()
 
 	moduleStatus := &ModuleStatus{
-		Conditions: []metav1.Condition{
+		Conditions: []common.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue, Reason: "AllGood"},
 			{Type: "BatchGatewayReady", Status: metav1.ConditionFalse, Reason: "Deploying", Message: "waiting for pods"},
 		},
@@ -188,13 +186,50 @@ func TestMirrorSubmoduleConditions_ConditionFound_False(t *testing.T) {
 		{SourceConditionType: "BatchGatewayReady", DSCConditionType: "BatchGatewayReady"},
 	}
 
-	var notReady []string
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules)
 
 	cond := mgr.GetCondition("BatchGatewayReady")
 	g.Expect(cond).ShouldNot(BeNil())
 	g.Expect(cond.Status).Should(Equal(metav1.ConditionFalse))
-	g.Expect(notReady).Should(ConsistOf("BatchGatewayReady"))
+}
+
+// A submodule condition reported by the module CR with Info severity has its
+// severity carried through to the mirrored DSC condition, so the DSC labels it
+// informational. Non-gating behaviour is verified at the aggregation level in
+// TestComputeModulesStatusInfoDependencyKeepsModulesReady.
+func TestMirrorSubmoduleConditions_InfoSeverityFalse_PreservesSeverity(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	rr, mgr := newTestRR()
+
+	moduleStatus := &ModuleStatus{
+		Conditions: []common.Condition{
+			{Type: "Ready", Status: metav1.ConditionTrue, Reason: "AllGood"},
+			{
+				Type:     "KserveLLMInferenceServiceDependencies",
+				Status:   metav1.ConditionFalse,
+				Reason:   "PreConditionFailed",
+				Message:  "Red Hat Connectivity Link not installed; cert-manager operator not installed",
+				Severity: common.ConditionSeverityInfo,
+			},
+		},
+	}
+
+	submodules := []SubmoduleCondition{
+		{
+			SourceConditionType: "KserveLLMInferenceServiceDependencies",
+			DSCConditionType:    "KserveLLMInferenceServiceDependencies",
+		},
+	}
+
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules)
+
+	cond := mgr.GetCondition("KserveLLMInferenceServiceDependencies")
+	g.Expect(cond).ShouldNot(BeNil())
+	g.Expect(cond.Status).Should(Equal(metav1.ConditionFalse))
+	// Severity is carried through so the DSC condition is labeled informational.
+	g.Expect(cond.Severity).Should(Equal(common.ConditionSeverityInfo))
 }
 
 func TestMirrorSubmoduleConditions_ConditionAbsent(t *testing.T) {
@@ -204,7 +239,7 @@ func TestMirrorSubmoduleConditions_ConditionAbsent(t *testing.T) {
 	rr, mgr := newTestRR()
 
 	moduleStatus := &ModuleStatus{
-		Conditions: []metav1.Condition{
+		Conditions: []common.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue, Reason: "AllGood"},
 		},
 	}
@@ -213,15 +248,13 @@ func TestMirrorSubmoduleConditions_ConditionAbsent(t *testing.T) {
 		{SourceConditionType: "ModelsAsServiceReady", DSCConditionType: "ModelsAsServiceReady"},
 	}
 
-	var notReady []string
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules)
 
 	cond := mgr.GetCondition("ModelsAsServiceReady")
 	g.Expect(cond).ShouldNot(BeNil())
 	g.Expect(cond.Status).Should(Equal(metav1.ConditionFalse))
 	g.Expect(cond.Reason).Should(Equal(status.AwaitingReadinessReason))
 	g.Expect(cond.Message).Should(ContainSubstring("enabled (Managed)"))
-	g.Expect(notReady).Should(ConsistOf("ModelsAsServiceReady"))
 }
 
 func TestMirrorSubmoduleConditions_MultipleSubmodules(t *testing.T) {
@@ -231,7 +264,7 @@ func TestMirrorSubmoduleConditions_MultipleSubmodules(t *testing.T) {
 	rr, mgr := newTestRR()
 
 	moduleStatus := &ModuleStatus{
-		Conditions: []metav1.Condition{
+		Conditions: []common.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue, Reason: "AllGood"},
 			{Type: "ModelsAsServiceReady", Status: metav1.ConditionTrue, Reason: "Ready"},
 			{Type: "BatchGatewayReady", Status: metav1.ConditionFalse, Reason: "Pending", Message: "waiting"},
@@ -243,8 +276,7 @@ func TestMirrorSubmoduleConditions_MultipleSubmodules(t *testing.T) {
 		{SourceConditionType: "BatchGatewayReady", DSCConditionType: "BatchGatewayReady"},
 	}
 
-	var notReady []string
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules)
 
 	maasCond := mgr.GetCondition("ModelsAsServiceReady")
 	g.Expect(maasCond).ShouldNot(BeNil())
@@ -253,8 +285,6 @@ func TestMirrorSubmoduleConditions_MultipleSubmodules(t *testing.T) {
 	batchCond := mgr.GetCondition("BatchGatewayReady")
 	g.Expect(batchCond).ShouldNot(BeNil())
 	g.Expect(batchCond.Status).Should(Equal(metav1.ConditionFalse))
-
-	g.Expect(notReady).Should(ConsistOf("BatchGatewayReady"))
 }
 
 func TestMirrorSubmoduleConditions_EmptySubmodules(t *testing.T) {
@@ -264,16 +294,14 @@ func TestMirrorSubmoduleConditions_EmptySubmodules(t *testing.T) {
 	rr, mgr := newTestRR()
 
 	moduleStatus := &ModuleStatus{
-		Conditions: []metav1.Condition{
+		Conditions: []common.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue},
 		},
 	}
 
-	var notReady []string
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, nil, &notReady)
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, nil)
 
 	g.Expect(mgr.GetCondition("ModelsAsServiceReady")).Should(BeNil())
-	g.Expect(notReady).Should(BeEmpty())
 }
 
 func TestMirrorSubmoduleConditions_DifferentSourceAndDSCType(t *testing.T) {
@@ -283,7 +311,7 @@ func TestMirrorSubmoduleConditions_DifferentSourceAndDSCType(t *testing.T) {
 	rr, mgr := newTestRR()
 
 	moduleStatus := &ModuleStatus{
-		Conditions: []metav1.Condition{
+		Conditions: []common.Condition{
 			{Type: "InternalMaaSStatus", Status: metav1.ConditionTrue, Reason: "OK", Message: "all good"},
 		},
 	}
@@ -292,8 +320,7 @@ func TestMirrorSubmoduleConditions_DifferentSourceAndDSCType(t *testing.T) {
 		{SourceConditionType: "InternalMaaSStatus", DSCConditionType: "ModelsAsServiceReady"},
 	}
 
-	var notReady []string
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules)
 
 	cond := mgr.GetCondition("ModelsAsServiceReady")
 	g.Expect(cond).ShouldNot(BeNil())
@@ -311,7 +338,7 @@ func TestMirrorSubmoduleConditions_DisabledSubmodule_ShowsRemoved(t *testing.T) 
 	rr, mgr := newTestRR()
 
 	moduleStatus := &ModuleStatus{
-		Conditions: []metav1.Condition{
+		Conditions: []common.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue, Reason: "AllGood"},
 			{Type: "ModelsAsServiceReady", Status: metav1.ConditionTrue, Reason: "Ready"},
 		},
@@ -326,15 +353,13 @@ func TestMirrorSubmoduleConditions_DisabledSubmodule_ShowsRemoved(t *testing.T) 
 		},
 	}
 
-	var notReady []string
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules)
 
 	cond := mgr.GetCondition("ModelsAsServiceReady")
 	g.Expect(cond).ShouldNot(BeNil())
 	g.Expect(cond.Status).Should(Equal(metav1.ConditionFalse))
 	g.Expect(cond.Reason).Should(Equal(status.RemovedReason))
 	g.Expect(cond.Message).Should(ContainSubstring("Removed"))
-	g.Expect(notReady).Should(BeEmpty(), "disabled submodule should not count as not-ready")
 }
 
 func TestMirrorSubmoduleConditions_NilIsEnabled_AssumedEnabled(t *testing.T) {
@@ -344,7 +369,7 @@ func TestMirrorSubmoduleConditions_NilIsEnabled_AssumedEnabled(t *testing.T) {
 	rr, mgr := newTestRR()
 
 	moduleStatus := &ModuleStatus{
-		Conditions: []metav1.Condition{
+		Conditions: []common.Condition{
 			{Type: "FooReady", Status: metav1.ConditionTrue, Reason: "OK"},
 		},
 	}
@@ -357,13 +382,11 @@ func TestMirrorSubmoduleConditions_NilIsEnabled_AssumedEnabled(t *testing.T) {
 		},
 	}
 
-	var notReady []string
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules)
 
 	cond := mgr.GetCondition("FooReady")
 	g.Expect(cond).ShouldNot(BeNil())
 	g.Expect(cond.Status).Should(Equal(metav1.ConditionTrue))
-	g.Expect(notReady).Should(BeEmpty())
 }
 
 func TestWriteSubmoduleComponentStatus_SetsManaged(t *testing.T) {

@@ -1,0 +1,7 @@
+# Remove the Namespace resource from the output.
+# The opendatahub namespace is managed by the ODH operator, not by us.
+$patch: delete
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spark-operator

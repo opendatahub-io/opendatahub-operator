@@ -1,0 +1,7 @@
+# do not edit: generated via hack/generate-component-kustomization.sh
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - rbac/manager-rbac.yaml
+  - rbac/manager-rolebinding.yaml

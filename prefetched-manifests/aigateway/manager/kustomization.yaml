@@ -1,0 +1,9 @@
+resources:
+- manager.yaml
+- configmap.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+images:
+- name: controller
+  newName: quay.io/opendatahub/odh-ai-gateway-operator
+  newTag: odh-stable

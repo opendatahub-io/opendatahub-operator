@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- trustyai_v1alpha1_nemoguardrail.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples

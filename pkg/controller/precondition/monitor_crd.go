@@ -7,37 +7,41 @@ import (
 	"slices"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	apihelpers "k8s.io/apiextensions-apiserver/pkg/apihelpers"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-func MonitorCRD(gvk schema.GroupVersionKind, opts ...Option) PreCondition {
-	return MonitorCRDs([]schema.GroupVersionKind{gvk}, opts...)
+func MonitorCRD(crdName string, opts ...Option) PreCondition {
+	return MonitorCRDs([]string{crdName}, opts...)
 }
 
-// MonitorCRDs creates a PreCondition that checks for the presence of multiple CRDs.
-// All CRDs are checked and absent ones are reported together in a single failure message.
-// The first API error encountered is returned immediately.
-func MonitorCRDs(gvks []schema.GroupVersionKind, opts ...Option) PreCondition {
-	monitoredGVKs := slices.Clone(gvks)
+// MonitorCRDs creates a PreCondition that checks for the presence of multiple CRDs
+// by fetching the CRD objects directly, bypassing the RESTMapper discovery endpoint.
+// This avoids a race where the K8s DiscoveryController lags behind the
+// EstablishingController, causing the RESTMapper to report a CRD as absent
+// even though it is Established.
+func MonitorCRDs(crdNames []string, opts ...Option) PreCondition {
+	names := slices.Clone(crdNames)
 
 	return newPreCondition(func(ctx context.Context, rr *types.ReconciliationRequest) (CheckResult, error) {
-		if len(monitoredGVKs) == 0 {
-			return CheckResult{}, errors.New("MonitorCRDs called with empty GVK list")
+		if len(names) == 0 {
+			return CheckResult{}, errors.New("MonitorCRDs called with empty CRD name list")
 		}
 
 		var missing []string
 
-		for _, gvk := range monitoredGVKs {
-			has, err := cluster.HasCRD(ctx, rr.Client, gvk)
+		for _, name := range names {
+			has, err := hasCRDByName(ctx, rr.Client, name)
 			if err != nil {
-				return CheckResult{}, fmt.Errorf("%s: failed to check CRD presence: %w", gvk.Kind, err)
+				return CheckResult{}, fmt.Errorf("%s: failed to check CRD presence: %w", name, err)
 			}
 
 			if !has {
-				missing = append(missing, gvk.Kind+": CRD not found")
+				missing = append(missing, name+": CRD not found")
 			}
 		}
 
@@ -47,4 +51,17 @@ func MonitorCRDs(gvks []schema.GroupVersionKind, opts ...Option) PreCondition {
 
 		return CheckResult{Pass: true}, nil
 	}, opts...)
+}
+
+func hasCRDByName(ctx context.Context, cli client.Client, crdName string) (bool, error) {
+	crd, err := cluster.GetCRD(ctx, cli, crdName)
+	if err != nil {
+		return false, client.IgnoreNotFound(err)
+	}
+
+	if apihelpers.IsCRDConditionTrue(&crd, apiextensionsv1.Terminating) {
+		return false, nil
+	}
+
+	return true, nil
 }

@@ -1,0 +1,6 @@
+apiVersion: components.platform.opendatahub.io/v1alpha1
+kind: AIHub
+metadata:
+  name: default
+spec:
+  applicationNamespace: opendatahub

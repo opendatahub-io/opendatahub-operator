@@ -1,0 +1,103 @@
+# Generated from kubebuilder template:
+# https://github.com/kubernetes-sigs/kubebuilder/blob/v4.11.1/pkg/plugins/common/kustomize/v2/scaffolds/internal/templates/config/manager/config.go
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    control-plane: controller-manager
+    app.kubernetes.io/name: mcp-lifecycle-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+  labels:
+    control-plane: controller-manager
+    app.kubernetes.io/name: mcp-lifecycle-operator
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+      app.kubernetes.io/name: mcp-lifecycle-operator
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: controller-manager
+        app.kubernetes.io/name: mcp-lifecycle-operator
+    spec:
+      # TODO(user): Uncomment the following code to configure the nodeAffinity expression
+      # according to the platforms which are supported by your solution.
+      # It is considered best practice to support multiple architectures. You can
+      # build your manager image using the makefile target docker-buildx.
+      # affinity:
+      #   nodeAffinity:
+      #     requiredDuringSchedulingIgnoredDuringExecution:
+      #       nodeSelectorTerms:
+      #         - matchExpressions:
+      #           - key: kubernetes.io/arch
+      #             operator: In
+      #             values:
+      #               - amd64
+      #               - arm64
+      #               - ppc64le
+      #               - s390x
+      #           - key: kubernetes.io/os
+      #             operator: In
+      #             values:
+      #               - linux
+      containers:
+      - command:
+        - /manager
+        args:
+          - --leader-elect
+          - --health-probe-bind-address=:8081
+          # Uncomment to enable development-style logging (human-readable, debug level):
+          # - --zap-devel
+        image: controller:latest
+        name: manager
+        ports: []
+        env:
+        - name: GOMEMLIMIT
+          value: "460MiB"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - "ALL"
+          seccompProfile:
+            type: RuntimeDefault
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        # TODO(user): Configure the resources accordingly based on the project requirements.
+        # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 10m
+            memory: 128Mi
+        volumeMounts: []
+      volumes: []
+      serviceAccountName: controller-manager
+      terminationGracePeriodSeconds: 10

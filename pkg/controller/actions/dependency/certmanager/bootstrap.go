@@ -49,9 +49,9 @@ type monitoredCRD struct {
 }
 
 var monitoredCRDList = []monitoredCRD{
-	{gvk: gvk.CertManagerCertificate, resourceName: "certificates.cert-manager.io"},
-	{gvk: gvk.CertManagerIssuer, resourceName: "issuers.cert-manager.io"},
-	{gvk: gvk.CertManagerClusterIssuer, resourceName: "clusterissuers.cert-manager.io"},
+	{gvk: gvk.CertManagerCertificate, resourceName: gvk.CertManagerCertificateCRDName},
+	{gvk: gvk.CertManagerIssuer, resourceName: gvk.CertManagerIssuerCRDName},
+	{gvk: gvk.CertManagerClusterIssuer, resourceName: gvk.CertManagerClusterIssuerCRDName},
 }
 
 // DefaultIssuerRefKind is the default issuer reference kind used by downstream components.
@@ -293,13 +293,13 @@ func createCABackedIssuer(config BootstrapConfig) (*unstructured.Unstructured, e
 	return u, nil
 }
 
-func monitoredCRDs() []schema.GroupVersionKind {
-	gvks := make([]schema.GroupVersionKind, len(monitoredCRDList))
+func monitoredCRDs() []string {
+	names := make([]string, len(monitoredCRDList))
 	for i := range monitoredCRDList {
-		gvks[i] = monitoredCRDList[i].gvk
+		names[i] = monitoredCRDList[i].resourceName
 	}
 
-	return gvks
+	return names
 }
 
 func crdPredicate() predicate.Predicate {
@@ -367,7 +367,9 @@ func Bootstrap[T common.PlatformObject](instanceName string, config BootstrapCon
 				reconciler.WithPredicates(resourcespredicates.CreatedOrUpdatedOrDeletedNamed("cluster")),
 				reconciler.Dynamic(reconciler.CrdExists(gvk.CertManagerV1Alpha1)),
 			).
-			WithPreCondition(precondition.MonitorCRDs(monitoredCRDs())).
+			WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
+				precondition.MonitorCRDs(monitoredCRDs()),
+			})).
 			WithActionE(NewBootstrapAction(config)).
 			WithConditions(status.ConditionDependenciesAvailable).
 			WithFinalizer(cleanup.NewFinalizer(BootstrapCleanupTarget()))

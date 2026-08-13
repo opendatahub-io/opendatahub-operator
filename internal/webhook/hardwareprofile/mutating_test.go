@@ -31,7 +31,6 @@ import (
 const (
 	testNamespace           = "test-ns"
 	hwpNamespace            = "hwp-ns"
-	testNotebook            = "test-notebook"
 	testInferenceService    = "test-isvc"
 	testLLMInferenceService = "test-llmisvc"
 	testHardwareProfile     = "test-hardware-profile"
@@ -62,27 +61,6 @@ func createWebhookInjector(cli client.Client, sch *runtime.Scheme) *hardwareprof
 
 // Helper functions for test simplification.
 
-// setContainerResources sets container resources for notebook workloads.
-func setContainerResources(notebook *unstructured.Unstructured, resourceType, resourceKey, value string) {
-	containers, _, err := unstructured.NestedSlice(notebook.Object, "spec", "template", "spec", "containers")
-	if err != nil {
-		return
-	}
-	if len(containers) == 0 {
-		return
-	}
-	containerMap, ok := containers[0].(map[string]any)
-	if !ok {
-		return
-	}
-	containerMap["resources"] = map[string]any{
-		resourceType: map[string]any{
-			resourceKey: value,
-		},
-	}
-	_ = unstructured.SetNestedSlice(notebook.Object, containers, "spec", "template", "spec", "containers")
-}
-
 func hasResourcePatches(patches []jsonpatch.JsonPatchOperation) bool {
 	for _, patch := range patches {
 		if strings.Contains(patch.Path, "/resources") {
@@ -106,17 +84,17 @@ func TestHardwareProfile_AllowsRequests(t *testing.T) {
 		{
 			name:      "requests without hardware profile annotation",
 			operation: admissionv1.Create,
-			notebook:  envtestutil.NewNotebook(testNotebook, testNamespace),
+			notebook:  envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace),
 		},
 		{
 			name:      "unsupported operations (DELETE)",
 			operation: admissionv1.Delete,
-			notebook:  envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)),
+			notebook:  envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)),
 		},
 		{
 			name:      "empty hardware profile annotation value",
 			operation: admissionv1.Create,
-			notebook:  envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithAnnotation(hardwareprofile.HardwareProfileNameAnnotation, "")),
+			notebook:  envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithAnnotation(hardwareprofile.HardwareProfileNameAnnotation, "")),
 		},
 	}
 
@@ -130,11 +108,11 @@ func TestHardwareProfile_AllowsRequests(t *testing.T) {
 				t,
 				tc.operation,
 				tc.notebook,
-				gvk.Notebook,
+				gvk.LLMInferenceServiceV1Alpha1,
 				metav1.GroupVersionResource{
-					Group:    gvk.Notebook.Group,
-					Version:  gvk.Notebook.Version,
-					Resource: "notebooks",
+					Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
+					Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
+					Resource: "llminferenceservices",
 				},
 			)
 
@@ -160,12 +138,12 @@ func TestHardwareProfile_DeniesWhenDecoderNotInitialized(t *testing.T) {
 	req := envtestutil.NewAdmissionRequest(
 		t,
 		admissionv1.Create,
-		envtestutil.NewNotebook(testNotebook, testNamespace),
-		gvk.Notebook,
+		envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace),
+		gvk.LLMInferenceServiceV1Alpha1,
 		metav1.GroupVersionResource{
-			Group:    gvk.Notebook.Group,
-			Version:  gvk.Notebook.Version,
-			Resource: "notebooks",
+			Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
+			Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
+			Resource: "llminferenceservices",
 		},
 	)
 
@@ -189,12 +167,12 @@ func TestHardwareProfile_DeniesWhenProfileNotFound(t *testing.T) {
 	req := envtestutil.NewAdmissionRequest(
 		t,
 		admissionv1.Create,
-		envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile("nonexistent")),
-		gvk.Notebook,
+		envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile("nonexistent")),
+		gvk.LLMInferenceServiceV1Alpha1,
 		metav1.GroupVersionResource{
-			Group:    gvk.Notebook.Group,
-			Version:  gvk.Notebook.Version,
-			Resource: "notebooks",
+			Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
+			Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
+			Resource: "llminferenceservices",
 		},
 	)
 
@@ -220,12 +198,12 @@ func TestHardwareProfile_AppliesKueueConfiguration(t *testing.T) {
 	req := envtestutil.NewAdmissionRequest(
 		t,
 		admissionv1.Create,
-		envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)),
-		gvk.Notebook,
+		envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)),
+		gvk.LLMInferenceServiceV1Alpha1,
 		metav1.GroupVersionResource{
-			Group:    gvk.Notebook.Group,
-			Version:  gvk.Notebook.Version,
-			Resource: "notebooks",
+			Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
+			Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
+			Resource: "llminferenceservices",
 		},
 	)
 
@@ -255,12 +233,12 @@ func TestHardwareProfile_SetsNamespaceAnnotation(t *testing.T) {
 	req := envtestutil.NewAdmissionRequest(
 		t,
 		admissionv1.Create,
-		envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)),
-		gvk.Notebook,
+		envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)),
+		gvk.LLMInferenceServiceV1Alpha1,
 		metav1.GroupVersionResource{
-			Group:    gvk.Notebook.Group,
-			Version:  gvk.Notebook.Version,
-			Resource: "notebooks",
+			Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
+			Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
+			Resource: "llminferenceservices",
 		},
 	)
 
@@ -288,12 +266,12 @@ func TestHardwareProfile_HandlesUpdateOperations(t *testing.T) {
 	req := envtestutil.NewAdmissionRequest(
 		t,
 		admissionv1.Update,
-		envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)),
-		gvk.Notebook,
+		envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)),
+		gvk.LLMInferenceServiceV1Alpha1,
 		metav1.GroupVersionResource{
-			Group:    gvk.Notebook.Group,
-			Version:  gvk.Notebook.Version,
-			Resource: "notebooks",
+			Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
+			Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
+			Resource: "llminferenceservices",
 		},
 	)
 
@@ -326,7 +304,7 @@ func TestHardwareProfile_ErrorPaths(t *testing.T) {
 				Name:   "test",
 				// Decoder is nil
 			},
-			workload:      envtestutil.NewNotebook(testNotebook, testNamespace),
+			workload:      envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace),
 			expectAllowed: false,
 			expectMessage: "webhook decoder not initialized",
 		},
@@ -347,8 +325,8 @@ func TestHardwareProfile_ErrorPaths(t *testing.T) {
 			injector: createWebhookInjector(fake.NewClientBuilder().WithScheme(sch).Build(), sch),
 			workload: func() client.Object {
 				notebook := &unstructured.Unstructured{}
-				notebook.SetGroupVersionKind(gvk.Notebook)
-				notebook.SetName(testNotebook)
+				notebook.SetGroupVersionKind(gvk.LLMInferenceServiceV1Alpha1)
+				notebook.SetName(testLLMInferenceService)
 				// No namespace set
 				notebook.SetAnnotations(map[string]string{
 					hardwareprofile.HardwareProfileNameAnnotation: testHardwareProfile,
@@ -361,7 +339,7 @@ func TestHardwareProfile_ErrorPaths(t *testing.T) {
 		{
 			name:          "hardware profile not found",
 			injector:      createWebhookInjector(fake.NewClientBuilder().WithScheme(sch).Build(), sch),
-			workload:      envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile("non-existent")),
+			workload:      envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile("non-existent")),
 			expectAllowed: false,
 			expectMessage: "hardware profile 'non-existent' not found",
 		},
@@ -381,9 +359,9 @@ func TestHardwareProfile_ErrorPaths(t *testing.T) {
 				gvkToUse = schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}
 				gvrToUse = metav1.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 			} else {
-				// Default to Notebook case
-				gvkToUse = gvk.Notebook
-				gvrToUse = metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"}
+				// Default to LLMInferenceService case
+				gvkToUse = gvk.LLMInferenceServiceV1Alpha1
+				gvrToUse = metav1.GroupVersionResource{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Resource: "llminferenceservices"}
 			}
 
 			req := envtestutil.NewAdmissionRequest(
@@ -454,37 +432,30 @@ func TestHardwareProfile_ConvertIntOrStringToQuantity(t *testing.T) {
 
 			// Create a minimal notebook without any existing containers/resources
 			notebook := &unstructured.Unstructured{}
-			notebook.SetGroupVersionKind(gvk.Notebook)
-			notebook.SetName(testNotebook)
+			notebook.SetGroupVersionKind(gvk.LLMInferenceServiceV1Alpha1)
+			notebook.SetName(testLLMInferenceService)
 			notebook.SetNamespace(testNamespace)
 			notebook.SetAnnotations(map[string]string{
 				hardwareprofile.HardwareProfileNameAnnotation: testHardwareProfile,
 			})
 			// Set minimal spec structure without containers so resources will be injected
-			err := unstructured.SetNestedMap(notebook.Object, map[string]any{
-				"template": map[string]any{
-					"spec": map[string]any{
-						"containers": []any{
-							map[string]any{
-								"name":  "notebook",
-								"image": "notebook:latest",
-								// No resources defined - will trigger injection
-							},
-						},
-					},
+			err := unstructured.SetNestedSlice(notebook.Object, []any{
+				map[string]any{
+					"name":  "main",
+					"image": "llm:latest",
 				},
-			}, "spec")
+			}, "spec", "template", "containers")
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			req := envtestutil.NewAdmissionRequest(
 				t,
 				admissionv1.Create,
 				notebook,
-				gvk.Notebook,
+				gvk.LLMInferenceServiceV1Alpha1,
 				metav1.GroupVersionResource{
-					Group:    gvk.Notebook.Group,
-					Version:  gvk.Notebook.Version,
-					Resource: "notebooks",
+					Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
+					Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
+					Resource: "llminferenceservices",
 				},
 			)
 
@@ -539,30 +510,26 @@ func TestHardwareProfile_UnsupportedWorkloadKind(t *testing.T) {
 	// Test with a supported kind but with malformed container structure
 	// This tests the upgrade-safe behavior: malformed workloads are admitted with warnings
 	notebookUnstructured := &unstructured.Unstructured{}
-	notebookUnstructured.SetGroupVersionKind(gvk.Notebook)
-	notebookUnstructured.SetName(testNotebook)
+	notebookUnstructured.SetGroupVersionKind(gvk.LLMInferenceServiceV1Alpha1)
+	notebookUnstructured.SetName(testLLMInferenceService)
 	notebookUnstructured.SetNamespace(testNamespace)
 	notebookUnstructured.SetAnnotations(map[string]string{
 		hardwareprofile.HardwareProfileNameAnnotation: testHardwareProfile,
 	})
 
 	// Set malformed spec that will cause container validation to fail
-	err := unstructured.SetNestedMap(notebookUnstructured.Object, map[string]any{
-		"template": map[string]any{
-			"spec": "invalid-spec-should-be-map", // This will cause a validation error
-		},
-	}, "spec")
+	err := unstructured.SetNestedField(notebookUnstructured.Object, "invalid-template-should-be-map", "spec", "template")
 	g.Expect(err).ShouldNot(HaveOccurred()) // SetNestedMap should succeed
 
 	req := envtestutil.NewAdmissionRequest(
 		t,
 		admissionv1.Create,
 		notebookUnstructured,
-		gvk.Notebook,
+		gvk.LLMInferenceServiceV1Alpha1,
 		metav1.GroupVersionResource{
-			Group:    gvk.Notebook.Group,
-			Version:  gvk.Notebook.Version,
-			Resource: "notebooks",
+			Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
+			Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
+			Resource: "llminferenceservices",
 		},
 	)
 
@@ -573,478 +540,6 @@ func TestHardwareProfile_UnsupportedWorkloadKind(t *testing.T) {
 	g.Expect(resp.Warnings).ShouldNot(BeEmpty(), "Should have warning about validation error")
 	g.Expect(resp.Warnings[0]).Should(ContainSubstring("was not applied due to validation error"))
 }
-
-// test base on different workload types:
-// - Notebook
-
-// TestHardwareProfile_SchedulingConfiguration_Notebook tests that hardware profiles with different
-// scheduling configurations are applied correctly to Notebook workloads.
-func TestHardwareProfile_SchedulingConfiguration_Notebook(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-	sch, ctx := setupTestEnvironment(t)
-
-	testCases := []struct {
-		name          string
-		hwpOptions    []envtestutil.ObjectOption
-		setupWorkload func() *unstructured.Unstructured
-		expectPatches bool
-	}{
-		{
-			name: "applies node scheduling to clean workload",
-			hwpOptions: []envtestutil.ObjectOption{
-				envtestutil.WithCPUIdentifier("2", "2"),
-				envtestutil.WithNodeScheduling(
-					map[string]string{"node-type": "gpu-node"},
-					[]corev1.Toleration{{
-						Key:      "nvidia.com/gpu",
-						Operator: corev1.TolerationOpEqual,
-						Value:    "true",
-						Effect:   corev1.TaintEffectNoSchedule,
-					}},
-				),
-			},
-			setupWorkload: func() *unstructured.Unstructured {
-				workload, ok := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
-				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
-				return workload
-			},
-			expectPatches: true,
-		},
-		{
-			name: "applies kueue scheduling to clean workload",
-			hwpOptions: []envtestutil.ObjectOption{
-				envtestutil.WithMemoryIdentifier("4Gi", "4Gi"),
-				envtestutil.WithKueueScheduling(testQueue, "high-priority"),
-			},
-			setupWorkload: func() *unstructured.Unstructured {
-				workload, ok := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
-				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
-				return workload
-			},
-			expectPatches: true,
-		},
-		{
-			name: "applies kueue scheduling even when resources exist",
-			hwpOptions: []envtestutil.ObjectOption{
-				envtestutil.WithCPUIdentifier("4", "4"),
-				envtestutil.WithKueueScheduling(testQueue),
-			},
-			setupWorkload: func() *unstructured.Unstructured {
-				workload, ok := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
-				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
-				// Add existing CPU requests (this should prevent resource injection but allow scheduling)
-				setContainerResources(workload, "requests", "cpu", "2")
-				return workload
-			},
-			expectPatches: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace, tc.hwpOptions...)
-			cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
-			injector := createWebhookInjector(cli, sch)
-
-			workload := tc.setupWorkload()
-
-			req := envtestutil.NewAdmissionRequest(
-				t,
-				admissionv1.Create,
-				workload,
-				gvk.Notebook,
-				metav1.GroupVersionResource{
-					Group:    gvk.Notebook.Group,
-					Version:  gvk.Notebook.Version,
-					Resource: "notebooks",
-				},
-			)
-
-			resp := injector.Handle(ctx, req)
-			g.Expect(resp.Allowed).Should(BeTrue())
-			g.Expect(resp.Patches).Should(Not(BeEmpty()))
-		})
-	}
-}
-
-// TestHardwareProfile_ResourceInjection_Notebook tests that hardware profiles with resource requirements are applied correctly to Notebook workloads.
-func TestHardwareProfile_ResourceInjection_Notebook(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-	sch, ctx := setupTestEnvironment(t)
-
-	// Create hardware profile with CPU and memory identifiers (including limits)
-	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
-		envtestutil.WithCPUIdentifier("0", "4", "8"),         // min: 0, default: 4, max: 8
-		envtestutil.WithMemoryIdentifier("0", "8Gi", "16Gi"), // min: 0, default: 8Gi, max: 16Gi
-	)
-
-	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
-	injector := createWebhookInjector(cli, sch)
-
-	testCases := []struct {
-		name                string
-		setupWorkload       func() *unstructured.Unstructured
-		expectResourcePatch bool
-	}{
-		{
-			name: "applies resources when none exist",
-			setupWorkload: func() *unstructured.Unstructured {
-				workload := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
-				workloadUnstructured, ok := workload.(*unstructured.Unstructured)
-				if !ok {
-					return nil
-				}
-				return workloadUnstructured
-			},
-			expectResourcePatch: true,
-		},
-		{
-			name: "preserves existing resources",
-			setupWorkload: func() *unstructured.Unstructured {
-				workload, ok := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
-				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
-
-				// Set existing resources that should be preserved
-				containers, _, _ := unstructured.NestedSlice(workload.Object, "spec", "template", "spec", "containers")
-				containerMap, ok := containers[0].(map[string]any)
-				g.Expect(ok).Should(BeTrue(), "container should be a map")
-				containerMap["resources"] = map[string]any{
-					"requests": map[string]any{
-						"cpu":    "2",
-						"memory": "4Gi",
-					},
-					"limits": map[string]any{
-						"cpu":    "4",
-						"memory": "8Gi",
-					},
-				}
-				_ = unstructured.SetNestedSlice(workload.Object, containers, "spec", "template", "spec", "containers")
-				return workload
-			},
-			expectResourcePatch: false,
-		},
-		{
-			name: "applies only missing resources when single container has partial resources",
-			setupWorkload: func() *unstructured.Unstructured {
-				workload, ok := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
-				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
-
-				// Set only CPU request, memory should be applied from HWP
-				containers, _, _ := unstructured.NestedSlice(workload.Object, "spec", "template", "spec", "containers")
-				containerMap, ok := containers[0].(map[string]any)
-				g.Expect(ok).Should(BeTrue(), "container should be a map")
-				containerMap["resources"] = map[string]any{
-					"requests": map[string]any{
-						"cpu": "1",
-					},
-				}
-				_ = unstructured.SetNestedSlice(workload.Object, containers, "spec", "template", "spec", "containers")
-				return workload
-			},
-			expectResourcePatch: true,
-		},
-		{
-			name: "applies resources only to main container when multiple containers exist",
-			setupWorkload: func() *unstructured.Unstructured {
-				workload, ok := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
-				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
-
-				// For Notebooks with multiple containers, only the container matching the Notebook name gets resources
-				containers := []any{
-					map[string]any{
-						"name":  testNotebook, // Name matches Notebook - this is the main container
-						"image": "notebook:latest",
-						"resources": map[string]any{
-							"requests": map[string]any{
-								"cpu": "1",
-								// Missing memory - should get HWP memory
-							},
-						},
-					},
-					map[string]any{
-						"name":  "oauth-proxy", // Sidecar - should NOT get HWP resources
-						"image": "oauth-proxy:latest",
-						"resources": map[string]any{
-							"requests": map[string]any{
-								"memory": "64Mi",
-								"cpu":    "10m",
-							},
-						},
-					},
-				}
-				_ = unstructured.SetNestedSlice(workload.Object, containers, "spec", "template", "spec", "containers")
-				return workload
-			},
-			expectResourcePatch: true,
-		},
-		{
-			name: "multiple containers but none match Notebook name; admits with warning",
-			setupWorkload: func() *unstructured.Unstructured {
-				workload, ok := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
-				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
-
-				// No container name matches the Notebook name -> admits with warning, no identifier injection
-				containers := []any{
-					map[string]any{
-						"name":      "container-a",
-						"image":     "notebook:latest",
-						"resources": map[string]any{},
-					},
-					map[string]any{
-						"name":      "container-b",
-						"image":     "oauth-proxy:latest",
-						"resources": map[string]any{},
-					},
-				}
-				_ = unstructured.SetNestedSlice(workload.Object, containers, "spec", "template", "spec", "containers")
-				return workload
-			},
-			expectResourcePatch: false,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			workload := tc.setupWorkload()
-
-			req := envtestutil.NewAdmissionRequest(
-				t,
-				admissionv1.Create,
-				workload,
-				gvk.Notebook,
-				metav1.GroupVersionResource{
-					Group:    gvk.Notebook.Group,
-					Version:  gvk.Notebook.Version,
-					Resource: "notebooks",
-				},
-			)
-
-			resp := injector.Handle(ctx, req)
-			g.Expect(resp.Allowed).Should(BeTrue(), "All requests should be admitted")
-			g.Expect(hasResourcePatches(resp.Patches)).Should(Equal(tc.expectResourcePatch))
-
-			// When no matching container is found, expect a warning
-			if tc.name == "multiple containers but none match Notebook name; admits with warning" {
-				g.Expect(resp.Warnings).ShouldNot(BeEmpty(), "Should have warning when no matching container found")
-				g.Expect(resp.Warnings[0]).Should(ContainSubstring("was not applied"))
-				g.Expect(resp.Warnings[0]).Should(ContainSubstring(testNotebook), "Warning should mention expected container name")
-				g.Expect(resp.Warnings[0]).Should(ContainSubstring("All hardware profile settings"), "Warning should indicate all settings skipped")
-			}
-
-			// RHOAIENG-49069: when multiple containers exist, no resource patch must target the sidecar (containers/1).
-			if tc.name == "applies resources only to main container when multiple containers exist" {
-				for _, patch := range resp.Patches {
-					path := patch.Path
-					if strings.Contains(path, "/resources") {
-						g.Expect(path).Should(Not(ContainSubstring("containers/1")),
-							"Sidecar (containers/1) must NOT receive HWP resource patch; path was %s", path)
-					}
-				}
-			}
-		})
-	}
-}
-
-// TestHardwareProfile_Notebook_MainContainerOnly_NoResourcePatchForSidecar is a regression test for RHOAIENG-49069.
-// It ensures the webhook applies HWP resources only to the main container (name == Notebook name), not to sidecars.
-func TestHardwareProfile_Notebook_MainContainerOnly_NoResourcePatchForSidecar(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-	sch, ctx := setupTestEnvironment(t)
-
-	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
-		envtestutil.WithCPUIdentifier("1", "2", "4"),
-		envtestutil.WithMemoryIdentifier("1Gi", "2Gi", "4Gi"),
-		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "1", "1"), // no maxCount -> request = limit
-	)
-	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
-	injector := createWebhookInjector(cli, sch)
-
-	containers := []any{
-		map[string]any{
-			"name":      testNotebook,
-			"image":     "notebook:latest",
-			"resources": map[string]any{},
-		},
-		map[string]any{
-			"name":  "sidecar",
-			"image": "busybox:latest",
-			"resources": map[string]any{
-				"requests": map[string]any{"cpu": "10m", "memory": "32Mi"},
-			},
-		},
-	}
-	workload, _ := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
-	_ = unstructured.SetNestedSlice(workload.Object, containers, "spec", "template", "spec", "containers")
-
-	req := envtestutil.NewAdmissionRequest(t, admissionv1.Create, workload, gvk.Notebook,
-		metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"})
-
-	resp := injector.Handle(ctx, req)
-	g.Expect(resp.Allowed).Should(BeTrue())
-	g.Expect(resp.Patches).Should(Not(BeEmpty()))
-
-	// No patch must target the sidecar's resources (containers/1).
-	for _, patch := range resp.Patches {
-		if strings.Contains(patch.Path, "/resources") {
-			g.Expect(patch.Path).Should(Not(ContainSubstring("containers/1")),
-				"RHOAIENG-49069: sidecar must not get HWP resources; path=%s", patch.Path)
-		}
-	}
-
-	// At least one resource patch should target the main container (containers/0).
-	mainContainerGotResources := false
-	for _, patch := range resp.Patches {
-		if strings.Contains(patch.Path, "containers/0") && strings.Contains(patch.Path, "/resources") {
-			mainContainerGotResources = true
-			break
-		}
-	}
-	// If the implementation uses a single replace of the full "containers" array, path might be /spec/template/spec/containers.
-	if !mainContainerGotResources {
-		for _, patch := range resp.Patches {
-			if strings.HasSuffix(patch.Path, "/containers") && patch.Value != nil {
-				if arr, ok := patch.Value.([]any); ok && len(arr) >= 2 {
-					c0, _ := arr[0].(map[string]any)
-					c1, _ := arr[1].(map[string]any)
-					if c0 != nil {
-						if res, _ := c0["resources"].(map[string]any); res != nil {
-							if req, _ := res["requests"].(map[string]any); req != nil && req["nvidia.com/gpu"] != nil {
-								mainContainerGotResources = true
-							}
-						}
-					}
-					g.Expect(c1).Should(Not(BeNil()))
-					if c1 != nil {
-						if res, _ := c1["resources"].(map[string]any); res != nil {
-							if req, _ := res["requests"].(map[string]any); req != nil {
-								g.Expect(req).Should(Not(HaveKey("nvidia.com/gpu")), "Sidecar must not have GPU in requests")
-							}
-						}
-					}
-					break
-				}
-			}
-		}
-	}
-	g.Expect(mainContainerGotResources).Should(BeTrue(), "Main container (containers/0) should receive HWP resource patch")
-}
-
-// TestHardwareProfile_SupportsCrossNamespaceAccess_Notebook tests that hardware profiles can be accessed from different namespaces for Notebook workloads.
-func TestHardwareProfile_SupportsCrossNamespaceAccess_Notebook(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-	sch, ctx := setupTestEnvironment(t)
-
-	// Create hardware profile in different namespace
-	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, hwpNamespace,
-		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "1", "1"),
-	)
-
-	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
-	injector := createWebhookInjector(cli, sch)
-
-	workload := envtestutil.NewNotebook(testNotebook, testNamespace,
-		envtestutil.WithHardwareProfile(testHardwareProfile),
-		envtestutil.WithHardwareProfileNamespace(hwpNamespace),
-	)
-
-	req := envtestutil.NewAdmissionRequest(
-		t,
-		admissionv1.Create,
-		workload,
-		gvk.Notebook,
-		metav1.GroupVersionResource{
-			Group:    gvk.Notebook.Group,
-			Version:  gvk.Notebook.Version,
-			Resource: "notebooks",
-		},
-	)
-
-	resp := injector.Handle(ctx, req)
-	g.Expect(resp.Allowed).Should(BeTrue())
-	g.Expect(resp.Patches).Should(Not(BeEmpty()))
-}
-
-// TestHardwareProfile_ResourceLimits_Notebook tests that hardware profiles properly apply limits:
-// - All resources (standard and extended) get limits equal to DefaultCount (same as requests).
-// - This ensures Guaranteed QoS class regardless of workload creation path.
-func TestHardwareProfile_ResourceLimits_Notebook(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-	sch, ctx := setupTestEnvironment(t)
-
-	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
-		envtestutil.WithCPUIdentifier("1", "2", "4"),                   // min: 1, default: 2, max: 4
-		envtestutil.WithMemoryIdentifier("1Gi", "2Gi", "4Gi"),          // min: 1Gi, default: 2Gi, max: 4Gi
-		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "1", "1", "1"), // min: 1, default: 1, max: 1
-	)
-
-	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
-	injector := createWebhookInjector(cli, sch)
-
-	workload := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
-	workloadUnstructured, ok := workload.(*unstructured.Unstructured)
-	g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
-
-	req := envtestutil.NewAdmissionRequest(
-		t,
-		admissionv1.Create,
-		workloadUnstructured,
-		gvk.Notebook,
-		metav1.GroupVersionResource{
-			Group:    gvk.Notebook.Group,
-			Version:  gvk.Notebook.Version,
-			Resource: "notebooks",
-		},
-	)
-
-	resp := injector.Handle(ctx, req)
-	g.Expect(resp.Allowed).Should(BeTrue())
-	g.Expect(resp.Patches).Should(Not(BeEmpty()))
-
-	hasResourcesPatch := false
-	for _, patch := range resp.Patches {
-		if strings.Contains(patch.Path, "/resources") {
-			hasResourcesPatch = true
-
-			if resourcesMap, ok := patch.Value.(map[string]any); ok {
-				requests, hasRequests := resourcesMap["requests"].(map[string]any)
-				limits, hasLimits := resourcesMap["limits"].(map[string]any)
-
-				g.Expect(hasRequests).Should(BeTrue(), "Resources patch should contain requests")
-				g.Expect(hasLimits).Should(BeTrue(), "Resources patch should contain limits")
-
-				// Verify requests are set to DefaultCount
-				g.Expect(requests).Should(HaveKey("cpu"))
-				g.Expect(requests).Should(HaveKey("memory"))
-				g.Expect(requests).Should(HaveKey("nvidia.com/gpu"))
-				g.Expect(requests["cpu"]).Should(Equal("2"), "CPU request should be DefaultCount")
-				g.Expect(requests["memory"]).Should(Equal("2Gi"), "Memory request should be DefaultCount")
-				g.Expect(requests["nvidia.com/gpu"]).Should(Equal("1"), "GPU request should be DefaultCount")
-
-				// Verify limits are also set to DefaultCount (not MaxCount) for Guaranteed QoS
-				g.Expect(limits).Should(HaveKey("cpu"))
-				g.Expect(limits).Should(HaveKey("memory"))
-				g.Expect(limits).Should(HaveKey("nvidia.com/gpu"))
-				g.Expect(limits["cpu"]).Should(Equal("2"), "CPU limit should be DefaultCount for Guaranteed QoS")
-				g.Expect(limits["memory"]).Should(Equal("2Gi"), "Memory limit should be DefaultCount for Guaranteed QoS")
-				g.Expect(limits["nvidia.com/gpu"]).Should(Equal("1"), "GPU limit should equal request")
-			}
-			break
-		}
-	}
-
-	g.Expect(hasResourcesPatch).Should(BeTrue(), "Should have resources patch")
-}
-
-// - InferenceService
 
 // TestHardwareProfile_ResourceInjection_InferenceService tests that hardware profiles with resource requirements are applied correctly to InferenceService workloads.
 func TestHardwareProfile_ResourceInjection_InferenceService(t *testing.T) {
@@ -1783,106 +1278,6 @@ func TestHardwareProfile_ResourceLimits_LLMInferenceService(t *testing.T) {
 	g.Expect(hasResourcesPatch).Should(BeTrue(), "Should have resources patch")
 }
 
-// TestHardwareProfile_MixedResourceLimits_Notebook tests comprehensive limits behavior:
-// - All resources (standard and extended) get limits equal to DefaultCount (same as requests).
-// - MaxCount is only a UI-side validation ceiling and does not flow into pod resource specs.
-func TestHardwareProfile_MixedResourceLimits_Notebook(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-	sch, ctx := setupTestEnvironment(t)
-
-	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
-		envtestutil.WithCPUIdentifier("1", "4", "8"),                   // standard resource WITH MaxCount
-		envtestutil.WithMemoryIdentifier("2Gi", "8Gi", "16Gi"),         // standard resource WITH MaxCount
-		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "2", "2", "4"), // extended resource
-		envtestutil.WithResourceIdentifiers(infrav1.HardwareIdentifier{
-			DisplayName:  "Intel QAT",
-			Identifier:   "intel.com/qat",
-			MinCount:     intstr.FromString("1"),
-			DefaultCount: intstr.FromString("1"),
-			ResourceType: "Accelerator",
-		}),
-		envtestutil.WithResourceIdentifiers(infrav1.HardwareIdentifier{
-			DisplayName:  "Ephemeral Storage",
-			Identifier:   "ephemeral-storage",
-			MinCount:     intstr.FromString("1Gi"),
-			DefaultCount: intstr.FromString("10Gi"),
-		}),
-	)
-
-	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
-	injector := createWebhookInjector(cli, sch)
-
-	workload := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
-	workloadUnstructured, ok := workload.(*unstructured.Unstructured)
-	g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
-
-	req := envtestutil.NewAdmissionRequest(
-		t,
-		admissionv1.Create,
-		workloadUnstructured,
-		gvk.Notebook,
-		metav1.GroupVersionResource{
-			Group:    gvk.Notebook.Group,
-			Version:  gvk.Notebook.Version,
-			Resource: "notebooks",
-		},
-	)
-
-	resp := injector.Handle(ctx, req)
-	g.Expect(resp.Allowed).Should(BeTrue())
-	g.Expect(resp.Patches).Should(Not(BeEmpty()))
-
-	hasResourcesPatch := false
-	for _, patch := range resp.Patches {
-		if strings.Contains(patch.Path, "/resources") {
-			hasResourcesPatch = true
-
-			if resourcesMap, ok := patch.Value.(map[string]any); ok {
-				requests, hasRequests := resourcesMap["requests"].(map[string]any)
-				limits, hasLimits := resourcesMap["limits"].(map[string]any)
-
-				g.Expect(hasRequests).Should(BeTrue(), "Resources patch should contain requests")
-				g.Expect(hasLimits).Should(BeTrue(), "Resources patch should contain limits")
-
-				// ========== Verify Requests (all should be DefaultCount) ==========
-				g.Expect(requests["cpu"]).Should(Equal("4"), "CPU request = DefaultCount")
-				g.Expect(requests["memory"]).Should(Equal("8Gi"), "Memory request = DefaultCount")
-				g.Expect(requests["nvidia.com/gpu"]).Should(Equal("2"), "GPU request = DefaultCount")
-				g.Expect(requests["intel.com/qat"]).Should(Equal("1"), "QAT request = DefaultCount")
-				g.Expect(requests["ephemeral-storage"]).Should(Equal("10Gi"), "Ephemeral storage request = DefaultCount")
-
-				// ========== Verify Limits (all should equal DefaultCount for Guaranteed QoS) ==========
-
-				// Standard resources get limits = DefaultCount (MaxCount is UI-only)
-				g.Expect(limits).Should(HaveKey("cpu"), "CPU should have limits")
-				g.Expect(limits["cpu"]).Should(Equal("4"), "CPU limit should equal DefaultCount (4), not MaxCount")
-				g.Expect(limits).Should(HaveKey("memory"), "Memory should have limits")
-				g.Expect(limits["memory"]).Should(Equal("8Gi"), "Memory limit should equal DefaultCount (8Gi), not MaxCount")
-
-				g.Expect(limits).Should(HaveKey("ephemeral-storage"),
-					"Ephemeral-storage should have limits for Guaranteed QoS")
-				g.Expect(limits["ephemeral-storage"]).Should(Equal("10Gi"),
-					"Ephemeral-storage limit should equal DefaultCount (10Gi)")
-
-				// Extended resources get limits = requests
-				g.Expect(limits).Should(HaveKey("nvidia.com/gpu"),
-					"GPU (extended resource) should have limits")
-				g.Expect(limits["nvidia.com/gpu"]).Should(Equal("2"),
-					"GPU limit should equal request (2)")
-
-				g.Expect(limits).Should(HaveKey("intel.com/qat"),
-					"QAT (extended resource) should have limits")
-				g.Expect(limits["intel.com/qat"]).Should(Equal("1"),
-					"QAT limit should equal request (1)")
-			}
-			break
-		}
-	}
-
-	g.Expect(hasResourcesPatch).Should(BeTrue(), "Should have resources patch")
-}
-
 // TestHardwareProfile_ProfileChangeClearsScheduling tests that changing the hardware profile
 // clears existing scheduling configuration (tolerations, nodeSelector, Kueue label) before
 // applying new settings.
@@ -1907,7 +1302,7 @@ func TestHardwareProfile_ProfileChangeClearsScheduling(t *testing.T) {
 
 	// Create a notebook that was originally assigned to hwp-with-tolerations
 	// and had its tolerations/nodeSelector set
-	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile("hwp-with-tolerations"))
+	oldNotebook := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile("hwp-with-tolerations"))
 	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
@@ -1918,11 +1313,11 @@ func TestHardwareProfile_ProfileChangeClearsScheduling(t *testing.T) {
 			"operator": "Exists",
 			"effect":   "NoSchedule",
 		},
-	}, "spec", "template", "spec", "tolerations")
-	_ = unstructured.SetNestedStringMap(oldNotebookUnstructured.Object, map[string]string{"gpu": "true"}, "spec", "template", "spec", "nodeSelector")
+	}, "spec", "template", "tolerations")
+	_ = unstructured.SetNestedStringMap(oldNotebookUnstructured.Object, map[string]string{"gpu": "true"}, "spec", "template", "nodeSelector")
 
 	// Now create the new notebook with hwp-empty annotation (simulating profile switch)
-	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile("hwp-empty"))
+	newNotebook := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile("hwp-empty"))
 	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
@@ -1933,8 +1328,8 @@ func TestHardwareProfile_ProfileChangeClearsScheduling(t *testing.T) {
 			"operator": "Exists",
 			"effect":   "NoSchedule",
 		},
-	}, "spec", "template", "spec", "tolerations")
-	_ = unstructured.SetNestedStringMap(newNotebookUnstructured.Object, map[string]string{"gpu": "true"}, "spec", "template", "spec", "nodeSelector")
+	}, "spec", "template", "tolerations")
+	_ = unstructured.SetNestedStringMap(newNotebookUnstructured.Object, map[string]string{"gpu": "true"}, "spec", "template", "nodeSelector")
 
 	// Marshal objects for admission request
 	newObjBytes, err := json.Marshal(newNotebookUnstructured)
@@ -1946,8 +1341,8 @@ func TestHardwareProfile_ProfileChangeClearsScheduling(t *testing.T) {
 	req := admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
 			UID:       "test-uid",
-			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
-			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Kind:      metav1.GroupVersionKind{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Kind: gvk.LLMInferenceServiceV1Alpha1.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Resource: "llminferenceservices"},
 			Namespace: testNamespace,
 			Operation: admissionv1.Update,
 			Object:    runtime.RawExtension{Raw: newObjBytes},
@@ -1994,7 +1389,7 @@ func TestHardwareProfile_SameProfileMergesTolerations(t *testing.T) {
 	injector := createWebhookInjector(cli, sch)
 
 	// Create the "old" notebook with the same HWP and both HWP toleration + manual toleration
-	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	oldNotebook := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
 	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
@@ -2010,10 +1405,10 @@ func TestHardwareProfile_SameProfileMergesTolerations(t *testing.T) {
 			"value":    "true",
 			"effect":   "NoSchedule",
 		},
-	}, "spec", "template", "spec", "tolerations")
+	}, "spec", "template", "tolerations")
 
 	// Create the "new" notebook with same HWP (no profile change)
-	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	newNotebook := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
 	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
@@ -2030,7 +1425,7 @@ func TestHardwareProfile_SameProfileMergesTolerations(t *testing.T) {
 			"value":    "true",
 			"effect":   "NoSchedule",
 		},
-	}, "spec", "template", "spec", "tolerations")
+	}, "spec", "template", "tolerations")
 
 	// Marshal objects for admission request
 	newObjBytes, err := json.Marshal(newNotebookUnstructured)
@@ -2042,8 +1437,8 @@ func TestHardwareProfile_SameProfileMergesTolerations(t *testing.T) {
 	req := admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
 			UID:       "test-uid",
-			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
-			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Kind:      metav1.GroupVersionKind{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Kind: gvk.LLMInferenceServiceV1Alpha1.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Resource: "llminferenceservices"},
 			Namespace: testNamespace,
 			Operation: admissionv1.Update,
 			Object:    runtime.RawExtension{Raw: newObjBytes},
@@ -2226,7 +1621,7 @@ func TestHardwareProfile_HWPRemovalPreservesUserTolerations(t *testing.T) {
 	injector := createWebhookInjector(cli, sch)
 
 	// Create "old" notebook WITH HWP annotation and both HWP + user tolerations
-	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	oldNotebook := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
 	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
@@ -2244,11 +1639,11 @@ func TestHardwareProfile_HWPRemovalPreservesUserTolerations(t *testing.T) {
 			"value":    "nvidia", // User-added (should be preserved)
 			"effect":   "NoSchedule",
 		},
-	}, "spec", "template", "spec", "tolerations")
-	_ = unstructured.SetNestedStringMap(oldNotebookUnstructured.Object, map[string]string{"hwp-node": "true"}, "spec", "template", "spec", "nodeSelector")
+	}, "spec", "template", "tolerations")
+	_ = unstructured.SetNestedStringMap(oldNotebookUnstructured.Object, map[string]string{"hwp-node": "true"}, "spec", "template", "nodeSelector")
 
 	// Create "new" notebook WITHOUT HWP annotation (simulating HWP removal)
-	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace) // No HWP annotation
+	newNotebook := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace) // No HWP annotation
 	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
@@ -2266,8 +1661,8 @@ func TestHardwareProfile_HWPRemovalPreservesUserTolerations(t *testing.T) {
 			"value":    "nvidia",
 			"effect":   "NoSchedule",
 		},
-	}, "spec", "template", "spec", "tolerations")
-	_ = unstructured.SetNestedStringMap(newNotebookUnstructured.Object, map[string]string{"hwp-node": "true"}, "spec", "template", "spec", "nodeSelector")
+	}, "spec", "template", "tolerations")
+	_ = unstructured.SetNestedStringMap(newNotebookUnstructured.Object, map[string]string{"hwp-node": "true"}, "spec", "template", "nodeSelector")
 
 	// Marshal objects for admission request
 	newObjBytes, err := json.Marshal(newNotebookUnstructured)
@@ -2279,8 +1674,8 @@ func TestHardwareProfile_HWPRemovalPreservesUserTolerations(t *testing.T) {
 	req := admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
 			UID:       "test-uid",
-			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
-			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Kind:      metav1.GroupVersionKind{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Kind: gvk.LLMInferenceServiceV1Alpha1.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Resource: "llminferenceservices"},
 			Namespace: testNamespace,
 			Operation: admissionv1.Update,
 			Object:    runtime.RawExtension{Raw: newObjBytes},
@@ -2358,7 +1753,7 @@ func TestHardwareProfile_HWPRemovalWithTolerationSeconds(t *testing.T) {
 	injector := createWebhookInjector(cli, sch)
 
 	// Create "old" notebook with HWP annotation and both HWP + user tolerations
-	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	oldNotebook := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
 	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
@@ -2376,10 +1771,10 @@ func TestHardwareProfile_HWPRemovalWithTolerationSeconds(t *testing.T) {
 			"effect":            "NoExecute",
 			"tolerationSeconds": int64(600), // User-added (different seconds)
 		},
-	}, "spec", "template", "spec", "tolerations")
+	}, "spec", "template", "tolerations")
 
 	// Create "new" notebook WITHOUT HWP annotation
-	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace)
+	newNotebook := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace)
 	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
@@ -2397,7 +1792,7 @@ func TestHardwareProfile_HWPRemovalWithTolerationSeconds(t *testing.T) {
 			"effect":            "NoExecute",
 			"tolerationSeconds": int64(600),
 		},
-	}, "spec", "template", "spec", "tolerations")
+	}, "spec", "template", "tolerations")
 
 	// Marshal objects
 	newObjBytes, err := json.Marshal(newNotebookUnstructured)
@@ -2409,8 +1804,8 @@ func TestHardwareProfile_HWPRemovalWithTolerationSeconds(t *testing.T) {
 	req := admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
 			UID:       "test-uid",
-			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
-			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Kind:      metav1.GroupVersionKind{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Kind: gvk.LLMInferenceServiceV1Alpha1.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Resource: "llminferenceservices"},
 			Namespace: testNamespace,
 			Operation: admissionv1.Update,
 			Object:    runtime.RawExtension{Raw: newObjBytes},
@@ -2490,17 +1885,17 @@ func TestHardwareProfile_NodeSelectorOverrideWarning(t *testing.T) {
 	injector := createWebhookInjector(cli, sch)
 
 	// Create "old" notebook with HWP annotation and HWP-applied nodeSelector
-	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	oldNotebook := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
 	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
 	// Set nodeSelector as if it was applied by HWP
 	_ = unstructured.SetNestedStringMap(oldNotebookUnstructured.Object,
 		map[string]string{"kubernetes.io/os": "linux", "gpu-type": "nvidia"},
-		"spec", "template", "spec", "nodeSelector")
+		"spec", "template", "nodeSelector")
 
 	// Create "new" notebook where user modified one of the HWP-managed nodeSelector values
-	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	newNotebook := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
 	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
@@ -2511,7 +1906,7 @@ func TestHardwareProfile_NodeSelectorOverrideWarning(t *testing.T) {
 			"gpu-type":         "nvidia",   // HWP value unchanged
 			"my-custom-key":    "my-value", // User-added (should be preserved)
 		},
-		"spec", "template", "spec", "nodeSelector")
+		"spec", "template", "nodeSelector")
 
 	// Marshal objects
 	newObjBytes, err := json.Marshal(newNotebookUnstructured)
@@ -2523,8 +1918,8 @@ func TestHardwareProfile_NodeSelectorOverrideWarning(t *testing.T) {
 	req := admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
 			UID:       "test-uid",
-			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
-			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Kind:      metav1.GroupVersionKind{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Kind: gvk.LLMInferenceServiceV1Alpha1.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Resource: "llminferenceservices"},
 			Namespace: testNamespace,
 			Operation: admissionv1.Update,
 			Object:    runtime.RawExtension{Raw: newObjBytes},
@@ -2576,16 +1971,16 @@ func TestHardwareProfile_NoWarningWhenNodeSelectorUnchanged(t *testing.T) {
 	injector := createWebhookInjector(cli, sch)
 
 	// Create "old" notebook with HWP annotation and HWP-applied nodeSelector
-	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	oldNotebook := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
 	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
 	_ = unstructured.SetNestedStringMap(oldNotebookUnstructured.Object,
 		map[string]string{"kubernetes.io/os": "linux"},
-		"spec", "template", "spec", "nodeSelector")
+		"spec", "template", "nodeSelector")
 
 	// Create "new" notebook with same nodeSelector (user added a custom key but didn't change HWP ones)
-	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	newNotebook := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
 	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
@@ -2595,7 +1990,7 @@ func TestHardwareProfile_NoWarningWhenNodeSelectorUnchanged(t *testing.T) {
 			"kubernetes.io/os": "linux",    // HWP value unchanged
 			"my-custom-key":    "my-value", // User-added
 		},
-		"spec", "template", "spec", "nodeSelector")
+		"spec", "template", "nodeSelector")
 
 	// Marshal objects
 	newObjBytes, err := json.Marshal(newNotebookUnstructured)
@@ -2607,8 +2002,8 @@ func TestHardwareProfile_NoWarningWhenNodeSelectorUnchanged(t *testing.T) {
 	req := admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
 			UID:       "test-uid",
-			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
-			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Kind:      metav1.GroupVersionKind{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Kind: gvk.LLMInferenceServiceV1Alpha1.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Resource: "llminferenceservices"},
 			Namespace: testNamespace,
 			Operation: admissionv1.Update,
 			Object:    runtime.RawExtension{Raw: newObjBytes},
@@ -2640,7 +2035,7 @@ func TestHardwareProfile_KueueLabelOverrideWarning(t *testing.T) {
 	injector := createWebhookInjector(cli, sch)
 
 	// Create "old" notebook with HWP annotation and HWP-applied Kueue label
-	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	oldNotebook := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
 	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
@@ -2650,7 +2045,7 @@ func TestHardwareProfile_KueueLabelOverrideWarning(t *testing.T) {
 	})
 
 	// Create "new" notebook where user modified the Kueue label to a different value
-	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	newNotebook := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
 	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
@@ -2669,8 +2064,8 @@ func TestHardwareProfile_KueueLabelOverrideWarning(t *testing.T) {
 	req := admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
 			UID:       "test-uid",
-			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
-			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Kind:      metav1.GroupVersionKind{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Kind: gvk.LLMInferenceServiceV1Alpha1.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Resource: "llminferenceservices"},
 			Namespace: testNamespace,
 			Operation: admissionv1.Update,
 			Object:    runtime.RawExtension{Raw: newObjBytes},
@@ -2713,7 +2108,7 @@ func TestHardwareProfile_NoKueueWarningWhenLabelUnchanged(t *testing.T) {
 	injector := createWebhookInjector(cli, sch)
 
 	// Create "old" notebook with HWP annotation and HWP-applied Kueue label
-	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	oldNotebook := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
 	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
@@ -2722,7 +2117,7 @@ func TestHardwareProfile_NoKueueWarningWhenLabelUnchanged(t *testing.T) {
 	})
 
 	// Create "new" notebook with same Kueue label (user added other labels but didn't change Kueue)
-	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	newNotebook := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
 	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
@@ -2742,8 +2137,8 @@ func TestHardwareProfile_NoKueueWarningWhenLabelUnchanged(t *testing.T) {
 	req := admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
 			UID:       "test-uid",
-			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
-			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Kind:      metav1.GroupVersionKind{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Kind: gvk.LLMInferenceServiceV1Alpha1.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.LLMInferenceServiceV1Alpha1.Group, Version: gvk.LLMInferenceServiceV1Alpha1.Version, Resource: "llminferenceservices"},
 			Namespace: testNamespace,
 			Operation: admissionv1.Update,
 			Object:    runtime.RawExtension{Raw: newObjBytes},

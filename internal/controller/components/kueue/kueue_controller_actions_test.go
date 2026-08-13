@@ -30,6 +30,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -455,7 +456,7 @@ func TestManageDefaultKueueResourcesAction_NotKueueInstance(t *testing.T) {
 	g := NewWithT(t)
 
 	rr := &types.ReconciliationRequest{
-		Instance: &componentApi.Dashboard{}, // Wrong type
+		Instance: &scheme.TestPlatformObject{}, // Wrong type
 	}
 
 	err := manageDefaultKueueResourcesAction(t.Context(), rr)

@@ -10,7 +10,6 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
@@ -20,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -144,7 +144,7 @@ func TestRenderResourcesAction(t *testing.T) {
 	for i := 1; i < 3; i++ {
 		rr := types.ReconciliationRequest{
 			Client:    cl,
-			Instance:  &componentApi.Dashboard{},
+			Instance:  &scheme.TestPlatformObject{},
 			Release:   common.Release{Name: cluster.OpenDataHub},
 			Manifests: []types.ManifestInfo{{Path: id}},
 		}
@@ -235,7 +235,7 @@ func TestRenderResourcesWithCacheAction(t *testing.T) {
 	render.RenderedResourcesTotal.Reset()
 
 	for i := range 3 {
-		d := componentApi.Dashboard{}
+		d := scheme.TestPlatformObject{}
 
 		if i >= 1 {
 			d.Generation = 1

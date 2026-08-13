@@ -1,0 +1,168 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: evalhub-provider-guidellm
+  labels:
+    trustyai.opendatahub.io/evalhub-provider-type: system
+    trustyai.opendatahub.io/evalhub-provider-name: guidellm
+data:
+  guidellm.yaml: |
+    id: guidellm
+    name: GuideLLM
+    title: GuideLLM
+    description: Performance benchmarking framework for LLM inference servers
+    runtime:
+      k8s:
+        image: $(evalhub-provider-guidellm-image)
+        entrypoint:
+          - python
+          - main.py
+        cpu_request: 100m
+        memory_request: 128Mi
+        cpu_limit: 1000m
+        memory_limit: 2Gi
+      local:
+        # used for local mode tests (FVT)
+        command: python tests/features/test_data/runtime/main.py
+    benchmarks:
+      # Execution profiles - comprehensive performance testing
+      - id: sweep
+        name: Auto-discover optimal load
+        description: |-
+          Automatically sweeps from low to high concurrency to find the best throughput-latency tradeoff.
+        category: performance
+        metrics:
+          - requests_per_second
+          - prompt_tokens_per_second
+          - output_tokens_per_second
+          - mean_ttft_ms
+          - mean_itl_ms
+        tags:
+          - performance
+          - throughput
+          - latency
+          - guidellm
+          - auto
+        primary_score:
+          metric: output_tokens_per_second
+          lower_is_better: false
+        pass_criteria:
+          threshold: 10.0
+      - id: throughput
+        name: Maximum throughput discovery
+        description: |-
+          Finds the server's maximum requests-per-second by gradually increasing load until saturation.
+        category: performance
+        metrics:
+          - requests_per_second
+          - prompt_tokens_per_second
+          - output_tokens_per_second
+          - mean_ttft_ms
+          - mean_itl_ms
+        tags:
+          - performance
+          - throughput
+          - guidellm
+          - saturation
+        primary_score:
+          metric: output_tokens_per_second
+          lower_is_better: false
+        pass_criteria:
+          threshold: 10.0
+      - id: concurrent
+        name: Fixed concurrency stress test
+        description: Measures latency and throughput under a fixed number of simultaneous requests.
+        category: performance
+        metrics:
+          - requests_per_second
+          - prompt_tokens_per_second
+          - output_tokens_per_second
+          - mean_ttft_ms
+          - mean_itl_ms
+        tags:
+          - performance
+          - concurrency
+          - guidellm
+        primary_score:
+          metric: output_tokens_per_second
+          lower_is_better: false
+        pass_criteria:
+          threshold: 10.0
+      - id: constant
+        name: Steady-state load test
+        description: Measures performance under a sustained, constant request rate over time.
+        category: performance
+        metrics:
+          - requests_per_second
+          - prompt_tokens_per_second
+          - output_tokens_per_second
+          - mean_ttft_ms
+          - mean_itl_ms
+        tags:
+          - performance
+          - constant_rate
+          - guidellm
+        primary_score:
+          metric: output_tokens_per_second
+          lower_is_better: false
+        pass_criteria:
+          threshold: 10.0
+      - id: poisson
+        name: Realistic traffic simulation
+        description: Simulates real-world traffic patterns using Poisson-distributed request arrivals.
+        category: performance
+        metrics:
+          - requests_per_second
+          - prompt_tokens_per_second
+          - output_tokens_per_second
+          - mean_ttft_ms
+          - mean_itl_ms
+        tags:
+          - performance
+          - poisson
+          - realistic
+          - guidellm
+        primary_score:
+          metric: output_tokens_per_second
+          lower_is_better: false
+        pass_criteria:
+          threshold: 10.0
+      # Pre-configured benchmark suites
+      - id: quick_perf_test
+        name: Quick performance snapshot
+        description: Fast sweep-based evaluation with limited samples for rapid performance assessment.
+        category: performance
+        metrics:
+          - requests_per_second
+          - mean_ttft_ms
+          - mean_itl_ms
+        tags:
+          - performance
+          - quick
+          - guidellm
+          - suite
+        primary_score:
+          metric: requests_per_second
+          lower_is_better: false
+        pass_criteria:
+          threshold: 1.0
+      - id: comprehensive_perf_test
+        name: Full performance characterization
+        description: End-to-end evaluation across all load profiles for complete performance understanding.
+        category: performance
+        metrics:
+          - requests_per_second
+          - prompt_tokens_per_second
+          - output_tokens_per_second
+          - mean_ttft_ms
+          - mean_itl_ms
+        tags:
+          - performance
+          - comprehensive
+          - guidellm
+          - suite
+        primary_score:
+          metric: output_tokens_per_second
+          lower_is_better: false
+        pass_criteria:
+          threshold: 10.0

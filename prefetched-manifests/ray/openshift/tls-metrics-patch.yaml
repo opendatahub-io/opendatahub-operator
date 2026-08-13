@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kuberay-operator
+spec:
+  template:
+    spec:
+      containers:
+      - name: kuberay-operator
+        args:
+        - --metrics-cert-path=/etc/metrics-certs
+        ports:
+        - name: https
+          containerPort: 8443
+          protocol: TCP
+        - name: health
+          containerPort: 8082
+          protocol: TCP
+        - $patch: delete
+          name: http
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: health
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: health
+        volumeMounts:
+        - name: metrics-certs
+          mountPath: /etc/metrics-certs
+          readOnly: true
+      volumes:
+      - name: metrics-certs
+        secret:
+          secretName: kuberay-operator-metrics-tls
+          optional: true

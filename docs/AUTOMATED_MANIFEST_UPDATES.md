@@ -4,7 +4,7 @@ This document describes the automated systems for updating OpenDataHub component
 
 ## Overview
 
-The `get_all_manifests.sh` script contains references to various OpenDataHub component repositories.
+The `manifests-config.yaml` file contains references to various OpenDataHub component repositories.
 Since our e2e tests rely on these references, they need to be kept up to date but pointing to a branch instead of a specific commit SHA could lead to breakages in e2e tests, and block PRs to being merged.
 
 These references can become outdated as components receive updates, so we provide an automated solution to keep these references current.
@@ -25,7 +25,7 @@ It will be executed by a Github Action workflow.
 - ✅ Fetches latest commit SHAs for tracked branches
 - ✅ Batch updates (all changes in single PR)
 - ✅ Automatic branch cleanup after PR merge
-- ✅ Works directly with get_all_manifests.sh format
+- ✅ Works directly with manifests-config.yaml format
 
 ## Configuration Details
 
@@ -36,7 +36,7 @@ The automation only processes components that use the branch@sha tracking format
 - **Components with branch@sha format** (e.g., `main@a1b2c3d4`) - Automatically updated to latest commit SHA
 - **Components without @ format** (plain branches, tags) - Skipped
 
-Examples from `get_all_manifests.sh`:
+Examples from `manifests-config.yaml`:
 
 - ✅ `"main@1d777fe9b25240f0bd02de90b012c514309c6e63"` - Will be updated
 - ❌ `"release-v0.15"` - Will be skipped  

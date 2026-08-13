@@ -16,3 +16,4 @@ patches:
 - path: manager_auth_proxy_patch.yaml
 - path: manager_webhook_patch.yaml
 - path: manager_remove_scc_annotation_patch.yaml
+- path: metrics_service_patch.yaml

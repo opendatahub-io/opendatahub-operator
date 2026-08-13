@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cert-manager-operator-controller-manager-rolebinding
+  namespace: {{ .Values.operatorNamespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cert-manager-operator-controller-manager-role
+subjects:
+  - kind: ServiceAccount
+    name: cert-manager-operator-controller-manager
+    namespace: {{ .Values.operatorNamespace }}

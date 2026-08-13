@@ -1,0 +1,119 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: evalhub-provider-deepeval
+  labels:
+    trustyai.opendatahub.io/evalhub-provider-type: system
+    trustyai.opendatahub.io/evalhub-provider-name: deepeval
+data:
+  deepeval.yaml: |
+    id: deepeval
+    name: DeepEval
+    title: DeepEval
+    description: LLM-as-judge evaluation framework with metrics for faithfulness, relevancy, hallucination, correctness, and summarization
+    runtime:
+      k8s:
+        image: $(evalhub-provider-deepeval-image)
+        image_pull_policy: always
+        entrypoint:
+          - python
+          - main.py
+        cpu_request: 100m
+        memory_request: 256Mi
+        cpu_limit: 500m
+        memory_limit: 1Gi
+      local: null
+
+    benchmarks:
+      - id: deepeval-faithfulness
+        name: Faithfulness
+        description: >
+          Tests if LLM output is faithful to the provided context. Measures whether
+          claims in the output are supported by the retrieval context.
+        category: rag-evaluation
+        metrics:
+          - faithfulness_score
+          - claims_count
+          - supported_claims_count
+        tags:
+          - deepeval
+          - rag
+          - faithfulness
+        primary_score:
+          metric: faithfulness_score
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.5
+
+      - id: deepeval-relevancy
+        name: Answer Relevancy
+        description: >
+          Tests if LLM output is relevant to the input query. Evaluates whether the
+          generated answer addresses the user's question.
+        category: rag-evaluation
+        metrics:
+          - relevancy_score
+        tags:
+          - deepeval
+          - rag
+          - relevancy
+        primary_score:
+          metric: relevancy_score
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.5
+
+      - id: deepeval-hallucination
+        name: Hallucination
+        description: >
+          Tests for hallucinated content in LLM output. Detects statements that are
+          not grounded in the provided context.
+        category: safety
+        metrics:
+          - hallucination_score
+          - hallucination_detected
+        tags:
+          - deepeval
+          - safety
+          - hallucination
+        primary_score:
+          metric: hallucination_score
+          lower_is_better: true
+        pass_criteria:
+          threshold: 0.3
+
+      - id: deepeval-correctness
+        name: Correctness
+        description: >
+          Tests factual correctness of LLM answers against expected output.
+          Compares generated answers to ground-truth references.
+        category: accuracy
+        metrics:
+          - correctness_score
+        tags:
+          - deepeval
+          - accuracy
+          - correctness
+        primary_score:
+          metric: correctness_score
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.5
+
+      - id: deepeval-summarization
+        name: Summarization
+        description: >
+          Tests summarization quality of LLM output. Evaluates alignment with
+          the source text and coverage of key information.
+        category: nlp
+        metrics:
+          - summarization_score
+        tags:
+          - deepeval
+          - nlp
+          - summarization
+        primary_score:
+          metric: summarization_score
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.5

@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: evalhub-collection-leaderboard-v2
+  labels:
+    trustyai.opendatahub.io/evalhub-collection-type: system
+    trustyai.opendatahub.io/evalhub-collection-name: leaderboard-v2
+data:
+  leaderboard-v2.yaml: |
+    id: leaderboard-v2
+    name: Open LLM Leaderboard v2
+    category: general
+    description: Comprehensive evaluation suite for general-purpose language models.
+    tags:
+      - leaderboard
+    pass_criteria:
+      threshold: 38.0
+    benchmarks:
+      - id: leaderboard_ifeval
+        provider_id: lm_evaluation_harness
+        weight: 1
+        primary_score:
+          metric: inst_level_strict_acc
+          lower_is_better: false
+        pass_criteria:
+          threshold: 80.0
+      - id: leaderboard_bbh
+        provider_id: lm_evaluation_harness
+        weight: 1
+        primary_score:
+          metric: acc_norm
+          lower_is_better: false
+        pass_criteria:
+          threshold: 68.0
+      - id: leaderboard_gpqa
+        provider_id: lm_evaluation_harness
+        weight: 1
+        primary_score:
+          metric: acc_norm
+          lower_is_better: false
+        pass_criteria:
+          threshold: 40.0
+      - id: leaderboard_mmlu_pro
+        provider_id: lm_evaluation_harness
+        weight: 1
+        primary_score:
+          metric: acc_norm
+          lower_is_better: false
+        pass_criteria:
+          threshold: 60.0
+      - id: leaderboard_musr
+        provider_id: lm_evaluation_harness
+        weight: 1
+        primary_score:
+          metric: acc_norm
+          lower_is_better: false
+        pass_criteria:
+          threshold: 38.0
+      - id: leaderboard_math_hard
+        provider_id: lm_evaluation_harness
+        weight: 1
+        primary_score:
+          metric: exact_match
+          lower_is_better: false
+        pass_criteria:
+          threshold: 55.0

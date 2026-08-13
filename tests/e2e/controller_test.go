@@ -142,7 +142,6 @@ var (
 			{
 				componentApi.DashboardComponentName:            dashboardTestSuite,
 				componentApi.RayComponentName:                  rayTestSuite,
-				componentApi.ModelRegistryComponentName:        modelRegistryTestSuite,
 				componentApi.TrainingOperatorComponentName:     trainingOperatorTestSuite,
 				componentApi.TrainerComponentName:              trainerTestSuite,
 				componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
@@ -157,16 +156,14 @@ var (
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
 				componentApi.KueueComponentName: kueueTestSuite,
+				// ModelRegistry and Kserve are coupled, so must not run with Kserve tests in parallel
+				componentApi.ModelRegistryComponentName: modelRegistryTestSuite,
 			},
 			{
-				// TrustyAI tests depends on KServe, so must not run with Kserve or ModelsAsService tests in parallel
+				// TrustyAI tests depends on KServe, so must not run with Kserve tests in parallel
 				componentApi.TrustyAIComponentName: trustyAITestSuite,
 				// MLflowOperator tests should not run in parallel with Workbenches tests, as Workbenches tests integration with MLflowOperator
 				componentApi.MLflowOperatorComponentName: mlflowOperatorTestSuite,
-			},
-			{
-				// ModelsAsService tests depends on KServe, so must not run with Kserve or TrustyAI tests in parallel
-				componentApi.ModelsAsServiceComponentName: modelsAsServiceTestSuite,
 			},
 			{
 				// run external operator degraded monitoring tests isolated from other component tests
@@ -577,7 +574,7 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("operator-namespace", viper.GetEnvPrefix()+"_OPERATOR_NAMESPACE"))
 	pflag.String("applications-namespace", "opendatahub", "Namespace where the odh applications are deployed")
 	checkEnvVarBindingError(viper.BindEnv("applications-namespace", viper.GetEnvPrefix()+"_APPLICATIONS_NAMESPACE"))
-	pflag.String("workbenches-namespace", "opendatahub", "Namespace where the workbenches are deployed")
+	pflag.String("workbenches-namespace", "opendatahub", "Legacy DSC workbenchNamespace value (operands deploy into applications-namespace)")
 	checkEnvVarBindingError(viper.BindEnv("workbenches-namespace", viper.GetEnvPrefix()+"_WORKBENCHES_NAMESPACE"))
 	pflag.String("dsc-monitoring-namespace", "opendatahub", "Namespace where the odh monitoring is deployed")
 	checkEnvVarBindingError(viper.BindEnv("dsc-monitoring-namespace", viper.GetEnvPrefix()+"_DSC_MONITORING_NAMESPACE"))

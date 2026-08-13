@@ -1,0 +1,579 @@
+---
+# Source: cert-manager-operator/templates/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager-operator
+---
+# Source: cert-manager-operator/templates/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
+
+---
+# Source: cert-manager-operator/templates/serviceaccount-cert-manager-operator-controller-manager.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cert-manager-operator-controller-manager
+  namespace: cert-manager-operator
+imagePullSecrets:
+  - name: rhai-pull-secret
+
+---
+# Source: cert-manager-operator/templates/serviceaccount-cert-manager.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cert-manager
+  namespace: cert-manager
+imagePullSecrets:
+  - name: rhai-pull-secret
+---
+# Source: cert-manager-operator/templates/serviceaccount-cert-manager.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cert-manager-cainjector
+  namespace: cert-manager
+imagePullSecrets:
+  - name: rhai-pull-secret
+---
+# Source: cert-manager-operator/templates/serviceaccount-cert-manager.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cert-manager-webhook
+  namespace: cert-manager
+imagePullSecrets:
+  - name: rhai-pull-secret
+
+---
+# Source: cert-manager-operator/templates/clusterrole-cert-manager-operator-controller-manager-clusterro.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cert-manager-operator-controller-manager-clusterrole
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - events
+      - namespaces
+      - pods
+      - secrets
+      - serviceaccounts
+      - services
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - serviceaccounts/token
+    verbs:
+      - create
+  - apiGroups:
+      - acme.cert-manager.io
+    resources:
+      - challenges
+      - challenges/finalizers
+      - challenges/status
+      - orders
+      - orders/finalizers
+      - orders/status
+    verbs:
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - admissionregistration.k8s.io
+    resources:
+      - mutatingwebhookconfigurations
+      - validatingwebhookconfigurations
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - apiregistration.k8s.io
+    resources:
+      - apiservices
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - replicasets
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - cert-manager.io
+    resources:
+      - certificaterequests
+      - certificaterequests/finalizers
+      - certificaterequests/status
+      - certificates
+      - certificates/finalizers
+      - certificates/status
+      - clusterissuers
+      - clusterissuers/status
+      - issuers
+      - issuers/status
+    verbs:
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - cert-manager.io
+    resourceNames:
+      - clusterissuers.cert-manager.io/*
+      - issuers.cert-manager.io/*
+    resources:
+      - signers
+    verbs:
+      - approve
+  - apiGroups:
+      - certificates.k8s.io
+    resources:
+      - certificatesigningrequests
+      - certificatesigningrequests/status
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - certificates.k8s.io
+    resources:
+      - signers
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - sign
+      - update
+      - watch
+  - apiGroups:
+      - config.openshift.io
+    resources:
+      - certmanagers
+      - clusteroperators
+      - clusteroperators/status
+      - infrastructures
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - gateway.networking.k8s.io
+    resources:
+      - gateways
+      - gateways/finalizers
+      - httproutes
+      - httproutes/finalizers
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingresses
+      - ingresses/finalizers
+      - networkpolicies
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - operator.openshift.io
+    resources:
+      - certmanagers
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - operator.openshift.io
+    resources:
+      - certmanagers/finalizers
+      - istiocsrs/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - operator.openshift.io
+    resources:
+      - certmanagers/status
+      - istiocsrs/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - operator.openshift.io
+    resources:
+      - istiocsrs
+    verbs:
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterrolebindings
+      - clusterroles
+      - rolebindings
+      - roles
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - route.openshift.io
+    resources:
+      - routes
+      - routes/custom-host
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - authentication.k8s.io
+    resources:
+      - tokenreviews
+    verbs:
+      - create
+  - apiGroups:
+      - authorization.k8s.io
+    resources:
+      - subjectaccessreviews
+    verbs:
+      - create
+
+---
+# Source: cert-manager-operator/templates/clusterrole-cert-manager-operator-metrics-reader.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/created-by: cert-manager-operator
+    app.kubernetes.io/instance: metrics-reader
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/part-of: cert-manager-operator
+  name: cert-manager-operator-metrics-reader
+rules:
+  - nonResourceURLs:
+      - /metrics
+    verbs:
+      - get
+
+---
+# Source: cert-manager-operator/templates/clusterrolebinding-cert-manager-operator-controller-manager-clusterro.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cert-manager-operator-controller-manager-clusterrolebinding
+  namespace: cert-manager-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cert-manager-operator-controller-manager-clusterrole
+subjects:
+  - kind: ServiceAccount
+    name: cert-manager-operator-controller-manager
+    namespace: cert-manager-operator
+
+---
+# Source: cert-manager-operator/templates/role-cert-manager-operator-controller-manager-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cert-manager-operator-controller-manager-role
+  namespace: cert-manager-operator
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+
+---
+# Source: cert-manager-operator/templates/rolebinding-cert-manager-operator-controller-manager-rolebindi.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cert-manager-operator-controller-manager-rolebinding
+  namespace: cert-manager-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cert-manager-operator-controller-manager-role
+subjects:
+  - kind: ServiceAccount
+    name: cert-manager-operator-controller-manager
+    namespace: cert-manager-operator
+
+---
+# Source: cert-manager-operator/templates/service-cert-manager-operator-controller-manager-metrics-s.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/created-by: cert-manager-operator
+    app.kubernetes.io/instance: controller-manager-metrics-service
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: service
+    app.kubernetes.io/part-of: cert-manager-operator
+    control-plane: controller-manager
+  name: cert-manager-operator-controller-manager-metrics-service
+  namespace: cert-manager-operator
+spec:
+  ports:
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: https
+  selector:
+    control-plane: controller-manager
+
+---
+# Source: cert-manager-operator/templates/deployment-cert-manager-operator-controller-manager.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: manager
+    app.kubernetes.io/created-by: cert-manager-operator
+    app.kubernetes.io/instance: controller-manager
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: deployment
+    app.kubernetes.io/part-of: cert-manager-operator
+  name: cert-manager-operator-controller-manager
+  namespace: cert-manager-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: cert-manager-operator
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: cert-manager-operator
+      labels:
+        name: cert-manager-operator
+      namespace: cert-manager-operator
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                      - amd64
+                      - arm64
+                      - ppc64le
+                      - s390x
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+      containers:
+        - args:
+            - start
+            - --v=$(OPERATOR_LOG_LEVEL)
+            - --trusted-ca-configmap=$(TRUSTED_CA_CONFIGMAP_NAME)
+            - --cloud-credentials-secret=$(CLOUD_CREDENTIALS_SECRET_NAME)
+            - --unsupported-addon-features=$(UNSUPPORTED_ADDON_FEATURES)
+          command:
+            - /usr/bin/cert-manager-operator
+          env:
+            - name: WATCH_NAMESPACE
+              value: ""
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: cert-manager-operator
+            - name: RELATED_IMAGE_CERT_MANAGER_WEBHOOK
+              value: registry.redhat.io/cert-manager/jetstack-cert-manager-rhel9@sha256:903ce74138b1ffc735846a7c5fcdf62bbe82ca29568a6b38caec2656f6637671
+            - name: RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR
+              value: registry.redhat.io/cert-manager/jetstack-cert-manager-rhel9@sha256:903ce74138b1ffc735846a7c5fcdf62bbe82ca29568a6b38caec2656f6637671
+            - name: RELATED_IMAGE_CERT_MANAGER_CONTROLLER
+              value: registry.redhat.io/cert-manager/jetstack-cert-manager-rhel9@sha256:903ce74138b1ffc735846a7c5fcdf62bbe82ca29568a6b38caec2656f6637671
+            - name: RELATED_IMAGE_CERT_MANAGER_ACMESOLVER
+              value: registry.redhat.io/cert-manager/jetstack-cert-manager-acmesolver-rhel9@sha256:38899dcd99bcd1c8c8d2c67cd19d5b1756434028ed2f1b926a282723bd63183e
+            - name: RELATED_IMAGE_CERT_MANAGER_ISTIOCSR
+              value: registry.redhat.io/cert-manager/cert-manager-istio-csr-rhel9@sha256:fb89adfcc4bcdaf21bed27dbc90586fb2b32180259b9f9d6fcf84a38e401fe03
+            - name: OPERAND_IMAGE_VERSION
+              value: 1.18.4
+            - name: ISTIOCSR_OPERAND_IMAGE_VERSION
+              value: 0.14.2
+            - name: OPERATOR_IMAGE_VERSION
+              value: 1.18.1
+            - name: OPERATOR_LOG_LEVEL
+              value: "2"
+            - name: TRUSTED_CA_CONFIGMAP_NAME
+            - name: CLOUD_CREDENTIALS_SECRET_NAME
+            - name: UNSUPPORTED_ADDON_FEATURES
+          image: registry.redhat.io/cert-manager/cert-manager-operator-rhel9@sha256:99526f5a179816df1f7f51df0517136b247d815b7bdce0a5d0eb7cdaf4b5ce7a
+          imagePullPolicy: IfNotPresent
+          name: cert-manager-operator
+          ports:
+            - containerPort: 8443
+              name: https
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: cert-manager-operator-controller-manager
+      terminationGracePeriodSeconds: 10
+      volumes:
+        - emptyDir: {}
+          name: tmp
+
+---
+# Source: cert-manager-operator/templates/certmanager.yaml
+apiVersion: operator.openshift.io/v1alpha1
+kind: CertManager
+metadata:
+  name: cluster
+spec:
+  managementState: Managed

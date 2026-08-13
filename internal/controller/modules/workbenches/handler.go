@@ -12,6 +12,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -96,8 +97,10 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 }
 
 // BuildModuleCR projects platform configuration onto the Workbenches module CR.
-// DSC-level managementState is projected into the module CR spec; orchestrator-only
-// fields (gatewayDomain, platform, mlflowEnabled) are derived from PlatformContext.
+// DSC-level managementState and legacy workbenchNamespace are projected into the
+// module CR spec for API parity; notebook-controller operands deploy into
+// APPLICATIONS_NAMESPACE (injected separately). Orchestrator-only fields
+// (gatewayDomain, platform, mlflowEnabled) are derived from PlatformContext.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
@@ -140,6 +143,51 @@ func (h *handler) BuildModuleCR(
 	u.SetName(h.Config.CRName)
 
 	return u, nil
+}
+
+// WriteLegacyStatusFields mirrors workbenchNamespace from the DSC spec into
+// dsc.status.components.workbenches so odh-dashboard getWorkbenchNamespace() can
+// resolve the legacy notebooks namespace without falling back to the applications
+// namespace.
+//
+// TODO: Remove once dashboard reads workbenchNamespace directly from the Workbenches
+// CR (workbenches-operator status) instead of DSC status.
+func (h *handler) WriteLegacyStatusFields(
+	_ context.Context,
+	_ client.Client,
+	dsc *dscv2.DataScienceCluster,
+	enabled bool,
+) error {
+	if dsc == nil {
+		return nil
+	}
+
+	if !enabled {
+		writeDSCWorkbenchNamespace(dsc, false, "")
+		return nil
+	}
+
+	writeDSCWorkbenchNamespace(dsc, true, dsc.Spec.Components.Workbenches.WorkbenchNamespace)
+	return nil
+}
+
+func writeDSCWorkbenchNamespace(dsc *dscv2.DataScienceCluster, enabled bool, workbenchNamespace string) {
+	if dsc == nil {
+		return
+	}
+
+	if !enabled || workbenchNamespace == "" {
+		if dsc.Status.Components.Workbenches.WorkbenchesCommonStatus != nil {
+			dsc.Status.Components.Workbenches.WorkbenchNamespace = ""
+		}
+		return
+	}
+
+	if dsc.Status.Components.Workbenches.WorkbenchesCommonStatus == nil {
+		dsc.Status.Components.Workbenches.WorkbenchesCommonStatus = &componentApi.WorkbenchesCommonStatus{}
+	}
+
+	dsc.Status.Components.Workbenches.WorkbenchNamespace = workbenchNamespace
 }
 
 // workbenchesPlatformType maps the platform release name to the module CR platform enum.

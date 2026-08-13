@@ -1,0 +1,18 @@
+---
+# ClusterRole for EvalHub event emission (RHAI-277).
+# Currently bound to the operator SA; will be rebound to the EvalHub server
+# SA via a runtime RoleBinding when RHAI-277 lands.
+# Grants create/patch on core events so the EvalHub server can emit Kubernetes
+# Events against backing Job resources on evaluation lifecycle transitions.
+# Split from evalhub-jobs-writer for least-privilege.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: evalhub-events
+  labels:
+    app.kubernetes.io/name: trustyai-service-operator
+    app.kubernetes.io/component: evalhub
+rules:
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]

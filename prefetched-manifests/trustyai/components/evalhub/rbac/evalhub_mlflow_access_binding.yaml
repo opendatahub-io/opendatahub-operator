@@ -1,0 +1,19 @@
+---
+# ClusterRoleBinding granting the operator SA the evalhub-mlflow-access permissions.
+# The operator needs to hold these permissions itself in order to create
+# namespace-scoped RoleBindings that reference this ClusterRole (RBAC escalation prevention).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: evalhub
+    app.kubernetes.io/name: trustyai-service-operator
+  name: evalhub-mlflow-access-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: evalhub-mlflow-access
+subjects:
+- kind: ServiceAccount
+  name: controller-manager
+  namespace: system
