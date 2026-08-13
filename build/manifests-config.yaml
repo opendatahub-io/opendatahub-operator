@@ -303,7 +303,7 @@ additional_meta:
     git.commit: a5bd87a4b7e9e3da9291125b3d6fee5c3f078a92
   odh-rhoai-mcp:
     git.url: https://github.com/red-hat-data-services/rhoai-mcp
-    git.commit: a6cb938e6d436b698936f823a16255e47fc6fdc2
+    git.commit: 2dd11661d5157d07ac6545fec22f04f31e53c0e6
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
     git.commit: 54247008f84e172e41dc1efb89d5929061a00ba5
