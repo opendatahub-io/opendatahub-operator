@@ -39,6 +39,8 @@ map:
   odh-trainer-operator:
     src: config/manifests
     dest: trainer
+    git.url: https://github.com/red-hat-data-services/trainer-operator
+    git.commit: 4dfb4d58ecab3822b49486226ddc3b78ea723ca0
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
@@ -308,9 +310,9 @@ additional_meta:
   odh-ta-lmes-job:
     git.url: https://github.com/red-hat-data-services/lm-evaluation-harness
     git.commit: a52f73494e214c7172894610522b01e6183cce71
-  odh-trainer-operator:
-    git.url: https://github.com/red-hat-data-services/trainer-operator
-    git.commit: 4dfb4d58ecab3822b49486226ddc3b78ea723ca0
+  odh-trainer:
+    git.url: https://github.com/red-hat-data-services/trainer
+    git.commit: efa7e0adf0f8707b1eb44ba414d3b01c3c12bf32
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
     git.commit: 0d3c373b2928da93e0cb56fea93fd769456f4c9b
