@@ -40,7 +40,7 @@ map:
     src: config/manifests
     dest: trainer
     git.url: https://github.com/red-hat-data-services/trainer-operator
-    git.commit: 4dfb4d58ecab3822b49486226ddc3b78ea723ca0
+    git.commit: 701c3c2ea916e0c78ade18ecc0812f6e4aae888b
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
@@ -147,7 +147,7 @@ additional_meta:
     git.commit: 4158454a9f942c222df0b67190ea674ce55475f8
   odh-kube-rbac-proxy:
     git.url: https://github.com/red-hat-data-services/kube-rbac-proxy
-    git.commit: f9470fa0a4472e73d1fcd43cff11106be5405b17
+    git.commit: a93f1697dedee7869ab8a7b8f6d89aea74608d66
   odh-latency-predictor-prediction:
     git.url: https://github.com/red-hat-data-services/llm-d-latency-predictor
     git.commit: fbe2b3ea32a7973bbb9dcc2678e0fcc6a865bf9b
@@ -183,7 +183,7 @@ additional_meta:
     git.commit: 0078933bf42d400aa4d1cbde6af99ba59691aa3e
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
-    git.commit: 6ed7c18b34e6719c0599e8557164a092e4f04568
+    git.commit: fb3bc4e82dc5e8ba103a85927d98bc081cb21e78
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
     git.commit: 1cccfac973b98eea1cafe03565da6a47ea08c449
@@ -303,7 +303,7 @@ additional_meta:
     git.commit: a5bd87a4b7e9e3da9291125b3d6fee5c3f078a92
   odh-rhoai-mcp:
     git.url: https://github.com/red-hat-data-services/rhoai-mcp
-    git.commit: 2dd11661d5157d07ac6545fec22f04f31e53c0e6
+    git.commit: d18e342221343cc5efa98f22445b9f614fcc87d1
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
     git.commit: 54247008f84e172e41dc1efb89d5929061a00ba5
