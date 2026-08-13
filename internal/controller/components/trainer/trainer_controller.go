@@ -81,6 +81,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		})).
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
+		WithAction(setKustomizedParams).
 		WithAction(checkJobSetCRD).
 		WithAction(releases.NewAction()).
 		WithAction(kustomize.NewAction()).

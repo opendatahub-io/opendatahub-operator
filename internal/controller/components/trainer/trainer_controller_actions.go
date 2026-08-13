@@ -18,6 +18,7 @@ package trainer
 
 import (
 	"context"
+	"fmt"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -29,6 +30,7 @@ import (
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) (precondition.CheckResult, error) {
@@ -71,5 +73,25 @@ func checkJobSetCRD(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
 	rr.Manifests = append(rr.Manifests, manifestPath(rr.ManifestsBasePath))
+	return nil
+}
+
+// setKustomizedParams injects runtime values into params.env before kustomize renders the
+// manifests. operator-namespace drives the ServiceMonitor TLS serverName, which must match
+// the namespace the operator is actually deployed into (opendatahub on ODH,
+// redhat-ods-applications on RHOAI).
+func setKustomizedParams(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if len(rr.Manifests) == 0 {
+		return fmt.Errorf("no manifests initialized before setKustomizedParams")
+	}
+
+	extraParams := map[string]string{
+		"operator-namespace": cluster.GetApplicationNamespace(),
+	}
+
+	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, extraParams); err != nil {
+		return fmt.Errorf("failed to update params.env with operator namespace: %w", err)
+	}
+
 	return nil
 }

@@ -2,7 +2,11 @@
 package trainer
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
@@ -12,6 +16,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -184,6 +189,77 @@ func TestCheckPreConditions_Success(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(result.Pass).To(BeTrue())
 	g.Expect(result.Message).To(BeEmpty())
+}
+
+func readParamsEnv(t *testing.T, path string) map[string]string {
+	t.Helper()
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open params.env: %v", err)
+	}
+	defer f.Close()
+
+	m := map[string]string{}
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		k, v, ok := strings.Cut(scanner.Text(), "=")
+		if ok {
+			m[k] = v
+		}
+	}
+	return m
+}
+
+func TestSetKustomizedParams(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	dir := t.TempDir()
+	paramsFile := filepath.Join(dir, "params.env")
+
+	initial := "operator-namespace=opendatahub\nodh-kubeflow-trainer-controller-image=quay.io/example:latest\n"
+	g.Expect(os.WriteFile(paramsFile, []byte(initial), 0600)).To(Succeed())
+
+	cli, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	trainer := componentApi.Trainer{}
+	rr := types.ReconciliationRequest{
+		Client:          cli,
+		Instance:        &trainer,
+		Conditions:      conditions.NewManager(&trainer, status.ConditionTypeReady),
+		ManifestsBasePath: dir,
+		Manifests: []types.ManifestInfo{
+			{Path: dir, ContextDir: "", SourcePath: ""},
+		},
+	}
+
+	err = setKustomizedParams(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	params := readParamsEnv(t, paramsFile)
+	g.Expect(params["operator-namespace"]).To(Equal(cluster.GetApplicationNamespace()))
+	// unrelated keys must be preserved
+	g.Expect(params["odh-kubeflow-trainer-controller-image"]).To(Equal("quay.io/example:latest"))
+}
+
+func TestSetKustomizedParams_NoManifests(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	cli, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	trainer := componentApi.Trainer{}
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &trainer,
+		Conditions: conditions.NewManager(&trainer, status.ConditionTypeReady),
+	}
+
+	err = setKustomizedParams(ctx, &rr)
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("no manifests initialized"))
 }
 
 func TestJobSetConditionFilter(t *testing.T) {
