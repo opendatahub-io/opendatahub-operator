@@ -1,0 +1,10 @@
+apiVersion: components.platform.opendatahub.io/v1alpha1
+kind: Trainer
+metadata:
+  labels:
+    app.kubernetes.io/name: trainer-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: default-trainer
+spec:
+  managementState: Managed
+  appNamespace: opendatahub

@@ -1,0 +1,7 @@
+resources:
+- service_account.yaml
+- role.yaml
+- role_binding.yaml
+- metrics_reader_role.yaml
+- trainer_admin_role.yaml
+- trainer_viewer_role.yaml
