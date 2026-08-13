@@ -165,7 +165,6 @@ if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
     --tag="$E2E_TEST_TAG" \
     "$@" || test_exit=$?
 
-  filter_gate_skips_if_present
   exit "$test_exit"
 else
   echo "Using gotestsum (standard JUnit XML, no enrichment)"
