@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 85f7a5727da0a215e8660ac83349acbcd6029493
+    git.commit: 9220555ef2fc1882a7b3835b7cf9e902ef6a9cac
   odh-training-operator:
     src: manifests
     dest: trainingoperator
@@ -71,7 +71,7 @@ map:
     dest: feastoperator
     type: chart
     git.url: https://github.com/red-hat-data-services/feast-module-operator
-    git.commit: bb49b4977b3f402568d9d67d63ba27033a7b855a
+    git.commit: 804bef32fad14cb6a33fe4a6b3dbf8f41cb3aee7
   odh-ogx-module-operator:
     src: ogx-module/config
     dest: ogx
