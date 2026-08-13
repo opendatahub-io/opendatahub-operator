@@ -92,7 +92,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-mlflow-operator-rhel9@sha256:fb0a3ffec3a4734ac8671ec242be595699c69819e98705cd2e496cecabbb359b"
 - name: RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE
-  value: "quay.io/rhoai/odh-mlmd-grpc-server-rhel9@sha256:7a95b67a2575edb91c6a7531aee5c6a5d9c283bc1a0ee74d20a6731f6d77fc06"
+  value: "quay.io/rhoai/odh-mlmd-grpc-server-rhel9@sha256:baf7b3391be13ffed1b2012863f36898a35f36accacabfaa415a6a2b3c21f6ee"
 - name: RELATED_IMAGE_ODH_MLSERVER_CUDA_IMAGE
   value: "quay.io/rhoai/odh-mlserver-cuda-rhel9@sha256:81f1c8603b1248f4c2be062ab922daae5da9bdabd79734488e43e6ac56909107"
 - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
@@ -205,6 +205,8 @@ relatedImages:
   value: "quay.io/rhoai/odh-workbenches-operator-rhel9@sha256:68210f1a9d6d701b2cf2ce6fbf3cc549371cece74f31277e9de6da46316721e1"
 - name: RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE
   value: "quay.io/rhoai/odh-workbench-codeserver-datascience-cpu-py312-rhel9@sha256:08d35c508b610038b9bac75afd0e9606466f3fbd2864e9b00292a6a38b72876e"
+- name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_BASELINE_CPU_PY312_IMAGE
+  value: "quay.io/rhoai/odh-workbench-jupyter-baseline-cpu-py312-rhel9@sha256:5d03389de61313cabe30890c416242c3d710fa64f890db1770e444588333add1"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_DATASCIENCE_CPU_PY312_IMAGE
   value: "quay.io/rhoai/odh-workbench-jupyter-datascience-cpu-py312-rhel9@sha256:19ff43ce7e117125fbd349ce0c48efa6abf9ecca61e92788d590032f2fc33c4f"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_CPU_PY312_IMAGE
