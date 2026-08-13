@@ -40,6 +40,7 @@ func sparkOperatorTestSuite(t *testing.T) {
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate platform release", componentCtx.ValidatePlatformRelease},
 		{"Validate SparkPi workload execution", componentCtx.ValidateSparkPiWorkload},
 		{"Validate ScheduledSparkApplication workload execution", componentCtx.ValidateScheduledSparkPiWorkload},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},

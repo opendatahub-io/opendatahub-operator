@@ -41,6 +41,7 @@ func trustyAITestSuite(t *testing.T) {
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate platform release", componentCtx.ValidatePlatformRelease},
 		{"Validate MCP guardrails mode", componentCtx.ValidateMCPGuardrailsMode},
 		{"Validate pre check", componentCtx.ValidateTrustyAIPreCheck},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},

@@ -105,10 +105,11 @@ func kueueTestSuite(t *testing.T) {
 	}
 
 	// Define core test cases
-	testCases := make([]TestCase, 0, 6)
+	testCases := make([]TestCase, 0, 7)
 	testCases = append(testCases,
 		TestCase{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWithoutOcpKueueOperator},
 		TestCase{"Validate component removed to unmanaged transition", componentCtx.ValidateKueueRemovedToUnmanagedTransition},
+		TestCase{"Validate platform release", componentCtx.ValidatePlatformRelease},
 		TestCase{"Validate component unmanaged to removed transition", componentCtx.ValidateKueueUnmanagedToRemovedTransition},
 		TestCase{"Validate autoCreateQueues disabled skips queue creation", componentCtx.ValidateKueueAutoCreateQueuesDisabled},
 	)
