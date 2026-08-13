@@ -14,6 +14,7 @@ require (
 	github.com/opendatahub-io/odh-platform-utilities/framework v0.0.0-20260810103007-dd94df3e806f
 	github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth v0.0.0
 	github.com/opendatahub-io/opendatahub-operator/pkg/failureclassifier v0.0.0-00010101000000-000000000000
+	github.com/opendatahub-io/opendatahub-operator/pkg/scoperules v0.0.0
 	github.com/openshift/api v0.0.0-20260610192510-1b2a074e0bd6
 	github.com/openshift/controller-runtime-common v0.0.0-20260428152732-64ee174f5e2e
 	github.com/openshift/library-go v0.0.0-20260213153706-03f1709971c5
@@ -166,5 +167,7 @@ require (
 replace github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth => ./pkg/clusterhealth
 
 replace github.com/opendatahub-io/opendatahub-operator/pkg/failureclassifier => ./pkg/failureclassifier
+
+replace github.com/opendatahub-io/opendatahub-operator/pkg/scoperules => ./pkg/scoperules
 
 exclude github.com/openshift/api v3.9.0+incompatible
