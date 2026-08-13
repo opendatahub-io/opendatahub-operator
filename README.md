@@ -946,6 +946,7 @@ Evn vars can be set to configure e2e tests:
 | E2E_TEST_COMPONENT                       | A space separated configuration to control which component should be tested, by default all component specific test are executed                                                                                           | `all components`              |
 | E2E_TEST_SERVICES                        | Enable testing of individual services specified by --test-service flag                                                                                                                                                     | `true`                        |
 | E2E_TEST_SERVICE                         | A space separated configuration to control which services should be tested, by default all service specific test are executed                                                                                              | `all services`                |
+| E2E_AUTO_RESOLVE                         | When `true`, `make e2e-test` derives `E2E_TEST_COMPONENT`/`E2E_TEST_SERVICE` automatically from the PR's changed files (see [Path-based test scoping](docs/e2e-testing.md#path-based-test-scoping)), instead of running the full suite. The resolver always runs and logs its decision regardless of this flag, so its accuracy can be checked in job logs before enabling it. | `false`                       |
 | E2E_TEST_OPERATOR_V2TOV3UPGRADE          | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                                                                        | `true`                        |
 | E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES     | To configure the cleaning-up of the previous resources in the cluster. This flag is quite useful to test custom scenarios, as well as running the tests after upgrade, to keep the previous DSC and test it.               | `true`                        |
 | E2E_TEST_BACKUP_AND_RESTORE_DSCI_AND_DSC | To back up DSCI/DSC at the beginning of the whole test suite and restore them at the end. Useful for testing custom scenarios, including removal of DSCI/DSC during the tests while keeping cluster in the original shape. | `false`                       |
@@ -1096,17 +1097,17 @@ Quick reference: "I changed code in directory X — which E2E test(s) should I r
 
 | Component | Dependencies | E2E Command |
 |---|---|---|
-| kueue | workbenches | `make e2e-test -e E2E_TEST_COMPONENT=workbenches,kueue` |
-| modelcontroller | kserve, modelregistry | `make e2e-test -e E2E_TEST_COMPONENT=kserve,modelregistry,modelcontroller` |
-| modelsasservice | kserve | `make e2e-test -e E2E_TEST_COMPONENT=kserve,modelsasservice` |
-| trustyai | kserve | `make e2e-test -e E2E_TEST_COMPONENT=kserve,trustyai` |
+| kueue | workbenches | `make e2e-test -e E2E_TEST_COMPONENT="workbenches kueue"` |
+| modelcontroller | kserve, modelregistry | `make e2e-test -e E2E_TEST_COMPONENT="kserve modelregistry modelcontroller"` |
+| modelsasservice | kserve | `make e2e-test -e E2E_TEST_COMPONENT="kserve modelsasservice"` |
+| trustyai | kserve | `make e2e-test -e E2E_TEST_COMPONENT="kserve trustyai"` |
 
 **Webhook directory mapping** — webhook dirs don't always match their component:
 
 | Webhook Directory | Test Command |
 |---|---|
 | `webhook/serving/` | `E2E_TEST_COMPONENT=kserve` |
-| `webhook/kueue/` | `E2E_TEST_COMPONENT=workbenches,kueue` |
+| `webhook/kueue/` | `E2E_TEST_COMPONENT="workbenches kueue"` |
 | `webhook/dashboard/` | `E2E_TEST_COMPONENT=dashboard` |
 | `webhook/monitoring/` | `E2E_TEST_SERVICE=monitoring` |
 | `webhook/datasciencecluster/`, `webhook/dscinitialization/` | `make e2e-test` (full suite) |
