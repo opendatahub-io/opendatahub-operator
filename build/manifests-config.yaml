@@ -87,7 +87,7 @@ additional_meta:
     git.commit: b4983e79c288ee231ef0e254a4e944dd27ea3b4d
   odh-cli:
     git.url: https://github.com/red-hat-data-services/odh-cli
-    git.commit: c6ace9ec4d0518e2c13b599693f680d16a6bef81
+    git.commit: a68304e1e77ea49ff53787580272b036925ba24d
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 96151c9a7ccddf456a8b9638bf4005ce359bd988
@@ -297,10 +297,10 @@ additional_meta:
     git.commit: 24a8efcf4977c830ab23aa13deaa2aa499a20840
   odh-rhaii-cluster-validator:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: a5bd87a4b7e9e3da9291125b3d6fee5c3f078a92
+    git.commit: df7070a32c8fccc325508be4abf4412b0c19ae34
   odh-rhaii-validator-tools:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: a5bd87a4b7e9e3da9291125b3d6fee5c3f078a92
+    git.commit: df7070a32c8fccc325508be4abf4412b0c19ae34
   odh-rhoai-mcp:
     git.url: https://github.com/red-hat-data-services/rhoai-mcp
     git.commit: d18e342221343cc5efa98f22445b9f614fcc87d1
