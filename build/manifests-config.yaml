@@ -50,7 +50,7 @@ map:
     src: config
     dest: sparkoperator
     git.url: https://github.com/red-hat-data-services/spark-operator
-    git.commit: c7bcee49db3355f59929b0c86142477dd0b46076
+    git.commit: 89cc127087aac3e89163d62957383f0e78ea3812
   odh-ai-gateway-operator:
     src: config
     dest: aigateway
@@ -309,7 +309,7 @@ additional_meta:
     git.commit: 54247008f84e172e41dc1efb89d5929061a00ba5
   odh-ta-lmes-job:
     git.url: https://github.com/red-hat-data-services/lm-evaluation-harness
-    git.commit: 22a7339845af19d85090dba366a97e2fb695477e
+    git.commit: a52f73494e214c7172894610522b01e6183cce71
   odh-trainer-operator:
     git.url: https://github.com/red-hat-data-services/trainer-operator
     git.commit: 4dfb4d58ecab3822b49486226ddc3b78ea723ca0
@@ -330,7 +330,7 @@ additional_meta:
     git.commit: d78252e5b06f04fd2d7df730913811371a224cb4
   odh-vllm-cpu:
     git.url: https://github.com/red-hat-data-services/vllm-cpu
-    git.commit: cf5fffb5fb31ba50084a9d1301fb1661692ecec6
+    git.commit: 591a159bb441390728714d6baa401a24bc835393
   odh-workbench-codeserver-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 2b67d0e369af710e745b087565470d8e4919c418
@@ -339,7 +339,7 @@ additional_meta:
     git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
   odh-workbench-jupyter-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 3c7d41d64b763665d52617dd0080c016ca1e5d9f
+    git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
   odh-workbench-jupyter-minimal-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
