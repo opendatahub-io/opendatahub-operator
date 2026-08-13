@@ -156,7 +156,7 @@ additional_meta:
     git.commit: fbe2b3ea32a7973bbb9dcc2678e0fcc6a865bf9b
   odh-llm-d-async:
     git.url: https://github.com/red-hat-data-services/llm-d-async
-    git.commit: 25a5ec03435484d62ca8c92c2212c5c6c1917915
+    git.commit: 754c84962433e248c5e38719acca00ef35c356d2
   odh-llm-d-batch-gateway-apiserver:
     git.url: https://github.com/red-hat-data-services/batch-gateway
     git.commit: 55dfdd6e3ff49ced0e7eb9f7b46afbf7724c0337
