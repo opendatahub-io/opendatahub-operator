@@ -13,6 +13,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 const (
@@ -50,7 +51,7 @@ func ensureDashboardNamespacedRBAC(ctx context.Context, rr *odhtype.Reconciliati
 	}
 	if notebooksNS != "" {
 		logger.V(1).Info("ensuring Dashboard RBAC in notebooks namespace", "namespace", notebooksNS)
-		if err := addDashboardNamespacedRBAC(rr, saName, appNamespace, notebooksNS, "notebooks", dashboardNotebooksRBACRules()); err != nil {
+		if err := addDashboardNamespacedRBAC(ctx, rr, saName, appNamespace, notebooksNS, "notebooks", dashboardNotebooksRBACRules()); err != nil {
 			return fmt.Errorf("failed to add notebooks RBAC resources: %w", err)
 		}
 	}
@@ -61,7 +62,7 @@ func ensureDashboardNamespacedRBAC(ctx context.Context, rr *odhtype.Reconciliati
 	}
 	if modelRegistryNS != "" {
 		logger.V(1).Info("ensuring Dashboard RBAC in model-registry namespace", "namespace", modelRegistryNS)
-		if err := addDashboardNamespacedRBAC(rr, saName, appNamespace, modelRegistryNS, "model-registries", dashboardModelRegistryRBACRules()); err != nil {
+		if err := addDashboardNamespacedRBAC(ctx, rr, saName, appNamespace, modelRegistryNS, "model-registries", dashboardModelRegistryRBACRules()); err != nil {
 			return fmt.Errorf("failed to add model-registry RBAC resources: %w", err)
 		}
 	}
@@ -133,7 +134,7 @@ func resolveDashboardModelRegistryNamespace(ctx context.Context, rr *odhtype.Rec
 	return ns, nil
 }
 
-func addDashboardNamespacedRBAC(rr *odhtype.ReconciliationRequest, saName, saNamespace, targetNamespace, roleSuffix string, rules []rbacv1.PolicyRule) error {
+func addDashboardNamespacedRBAC(ctx context.Context, rr *odhtype.ReconciliationRequest, saName, saNamespace, targetNamespace, roleSuffix string, rules []rbacv1.PolicyRule) error {
 	roleName := saName + "-" + roleSuffix
 
 	role := &rbacv1.Role{
@@ -163,7 +164,18 @@ func addDashboardNamespacedRBAC(rr *odhtype.ReconciliationRequest, saName, saNam
 		},
 	}
 
-	return rr.AddResources(role, rb)
+	// Apply directly via SSA instead of rr.AddResources: the deploy action looks
+	// up resources via the informer cache, which does not cover cross-namespace
+	// targets like rhods-notebooks or the model-registry namespace. SSA writes
+	// go directly to the API server and bypass the cache restriction.
+	fieldOwner := client.FieldOwner("odh-operator-dashboard-rbac")
+	if err := resources.Apply(ctx, rr.Client, role, client.ForceOwnership, fieldOwner); err != nil {
+		return fmt.Errorf("failed to apply Role %s/%s: %w", targetNamespace, roleName, err)
+	}
+	if err := resources.Apply(ctx, rr.Client, rb, client.ForceOwnership, fieldOwner); err != nil {
+		return fmt.Errorf("failed to apply RoleBinding %s/%s: %w", targetNamespace, roleName, err)
+	}
+	return nil
 }
 
 func dashboardNotebooksRBACRules() []rbacv1.PolicyRule {

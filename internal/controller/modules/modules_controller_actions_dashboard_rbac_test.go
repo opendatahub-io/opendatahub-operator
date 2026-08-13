@@ -10,19 +10,20 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 )
 
 const testModelRegistryNS = "rhoai-model-registries"
 
-func newDashboardRBACTestRR(t *testing.T, platform common.Platform, dsc *dscv2.DataScienceCluster, objects ...client.Object) *types.ReconciliationRequest {
+func newDashboardRBACTestRR(t *testing.T, platform common.Platform, dsc *dscv2.DataScienceCluster, objects ...client.Object) *odhtypes.ReconciliationRequest {
 	t.Helper()
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(objects...))
@@ -34,10 +35,42 @@ func newDashboardRBACTestRR(t *testing.T, platform common.Platform, dsc *dscv2.D
 		dsc = &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"}}
 	}
 
-	return &types.ReconciliationRequest{
+	return &odhtypes.ReconciliationRequest{
 		Client:   cli,
 		Instance: dsc,
 		Release:  common.Release{Name: platform},
+	}
+}
+
+// getRoleAndBinding asserts that a Role and RoleBinding both exist in the fake
+// client for the given name and namespace, failing the test if either is missing.
+func getRoleAndBinding(t *testing.T, rr *odhtypes.ReconciliationRequest, name, namespace string) {
+	t.Helper()
+
+	role := &rbacv1.Role{}
+	if err := rr.Client.Get(context.Background(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, role); err != nil {
+		t.Errorf("expected Role %s/%s to exist: %v", namespace, name, err)
+	}
+
+	rb := &rbacv1.RoleBinding{}
+	if err := rr.Client.Get(context.Background(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, rb); err != nil {
+		t.Errorf("expected RoleBinding %s/%s to exist: %v", namespace, name, err)
+	}
+}
+
+// assertRoleAndBindingAbsent checks that neither a Role nor RoleBinding exists
+// for the given name and namespace.
+func assertRoleAndBindingAbsent(t *testing.T, rr *odhtypes.ReconciliationRequest, name, namespace string) {
+	t.Helper()
+
+	role := &rbacv1.Role{}
+	if err := rr.Client.Get(context.Background(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, role); err == nil {
+		t.Errorf("expected Role %s/%s to be absent, but it exists", namespace, name)
+	}
+
+	rb := &rbacv1.RoleBinding{}
+	if err := rr.Client.Get(context.Background(), k8stypes.NamespacedName{Name: name, Namespace: namespace}, rb); err == nil {
+		t.Errorf("expected RoleBinding %s/%s to be absent, but it exists", namespace, name)
 	}
 }
 
@@ -105,39 +138,8 @@ func TestEnsureDashboardNamespacedRBAC_BothNamespacesExist(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(rr.Resources) != 4 {
-		t.Fatalf("expected 4 resources (2 Roles + 2 RoleBindings), got %d", len(rr.Resources))
-	}
-
-	hasRole := func(name, namespace string) bool {
-		for _, res := range rr.Resources {
-			if res.GetKind() == dashboardRoleKind && res.GetName() == name && res.GetNamespace() == namespace {
-				return true
-			}
-		}
-		return false
-	}
-	hasRoleBinding := func(name, namespace string) bool {
-		for _, res := range rr.Resources {
-			if res.GetKind() == "RoleBinding" && res.GetName() == name && res.GetNamespace() == namespace {
-				return true
-			}
-		}
-		return false
-	}
-
-	if !hasRole("rhods-dashboard-notebooks", cluster.DefaultNotebooksNamespaceRHOAI) {
-		t.Error("missing notebooks Role")
-	}
-	if !hasRoleBinding("rhods-dashboard-notebooks", cluster.DefaultNotebooksNamespaceRHOAI) {
-		t.Error("missing notebooks RoleBinding")
-	}
-	if !hasRole("rhods-dashboard-model-registries", testModelRegistryNS) {
-		t.Error("missing model-registry Role")
-	}
-	if !hasRoleBinding("rhods-dashboard-model-registries", testModelRegistryNS) {
-		t.Error("missing model-registry RoleBinding")
-	}
+	getRoleAndBinding(t, rr, "rhods-dashboard-notebooks", cluster.DefaultNotebooksNamespaceRHOAI)
+	getRoleAndBinding(t, rr, "rhods-dashboard-model-registries", testModelRegistryNS)
 }
 
 func TestEnsureDashboardNamespacedRBAC_DashboardDisabled(t *testing.T) {
@@ -150,9 +152,8 @@ func TestEnsureDashboardNamespacedRBAC_DashboardDisabled(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(rr.Resources) != 0 {
-		t.Fatalf("expected 0 resources when dashboard disabled, got %d", len(rr.Resources))
-	}
+	assertRoleAndBindingAbsent(t, rr, "rhods-dashboard-notebooks", cluster.DefaultNotebooksNamespaceRHOAI)
+	assertRoleAndBindingAbsent(t, rr, "rhods-dashboard-model-registries", testModelRegistryNS)
 }
 
 func TestEnsureDashboardNamespacedRBAC_NotebooksMissing(t *testing.T) {
@@ -175,9 +176,10 @@ func TestEnsureDashboardNamespacedRBAC_NotebooksMissing(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(rr.Resources) != 2 {
-		t.Fatalf("expected 2 resources (model-registry only), got %d", len(rr.Resources))
-	}
+	// notebooks namespace doesn't exist — no RBAC there
+	assertRoleAndBindingAbsent(t, rr, "rhods-dashboard-notebooks", cluster.DefaultNotebooksNamespaceRHOAI)
+	// model-registry namespace exists — RBAC should be created
+	getRoleAndBinding(t, rr, "rhods-dashboard-model-registries", testModelRegistryNS)
 }
 
 func TestEnsureDashboardNamespacedRBAC_ModelRegistryMissing(t *testing.T) {
@@ -192,9 +194,10 @@ func TestEnsureDashboardNamespacedRBAC_ModelRegistryMissing(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(rr.Resources) != 2 {
-		t.Fatalf("expected 2 resources (notebooks only), got %d", len(rr.Resources))
-	}
+	// notebooks namespace exists — RBAC should be created
+	getRoleAndBinding(t, rr, "rhods-dashboard-notebooks", cluster.DefaultNotebooksNamespaceRHOAI)
+	// no ModelRegistry CR — no model-registry RBAC
+	assertRoleAndBindingAbsent(t, rr, "rhods-dashboard-model-registries", testModelRegistryNS)
 }
 
 func TestEnsureDashboardNamespacedRBAC_WorkbenchesDisabled(t *testing.T) {
@@ -207,9 +210,7 @@ func TestEnsureDashboardNamespacedRBAC_WorkbenchesDisabled(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(rr.Resources) != 0 {
-		t.Fatalf("expected 0 resources when workbenches disabled, got %d", len(rr.Resources))
-	}
+	assertRoleAndBindingAbsent(t, rr, "rhods-dashboard-notebooks", cluster.DefaultNotebooksNamespaceRHOAI)
 }
 
 func TestEnsureDashboardNamespacedRBAC_ODHSAName(t *testing.T) {
@@ -224,15 +225,8 @@ func TestEnsureDashboardNamespacedRBAC_ODHSAName(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(rr.Resources) != 2 {
-		t.Fatalf("expected 2 resources, got %d", len(rr.Resources))
-	}
-
-	for _, res := range rr.Resources {
-		if res.GetKind() == dashboardRoleKind && res.GetName() != "odh-dashboard-notebooks" {
-			t.Errorf("expected ODH SA name in role, got %q", res.GetName())
-		}
-	}
+	// "odh-dashboard-notebooks" is the expected name: SA prefix is "odh-dashboard", suffix is "notebooks"
+	getRoleAndBinding(t, rr, "odh-dashboard-notebooks", cluster.DefaultNotebooksNamespaceODH)
 }
 
 func TestDashboardModelRegistryRBACRules_ContainsCreateVerb(t *testing.T) {
@@ -264,27 +258,24 @@ func TestEnsureDashboardNamespacedRBAC_RoleBindingSubject(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	for _, res := range rr.Resources {
-		if res.GetKind() != "RoleBinding" {
-			continue
-		}
+	rb := &rbacv1.RoleBinding{}
+	if err := rr.Client.Get(context.Background(), k8stypes.NamespacedName{
+		Name:      "rhods-dashboard-notebooks",
+		Namespace: cluster.DefaultNotebooksNamespaceRHOAI,
+	}, rb); err != nil {
+		t.Fatalf("expected RoleBinding to exist: %v", err)
+	}
 
-		subjects, ok, _ := unstructured.NestedSlice(res.Object, "subjects")
-		if !ok || len(subjects) != 1 {
-			t.Fatalf("expected exactly 1 subject in RoleBinding, got %d", len(subjects))
-		}
+	if len(rb.Subjects) != 1 {
+		t.Fatalf("expected exactly 1 subject in RoleBinding, got %d", len(rb.Subjects))
+	}
 
-		subj, ok := subjects[0].(map[string]interface{})
-		if !ok {
-			t.Fatal("subject is not a map")
-		}
-
-		if subj["kind"] != string(rbacv1.ServiceAccountKind) {
-			t.Errorf("expected ServiceAccount kind, got %v", subj["kind"])
-		}
-		if subj["name"] != dashboardSANameRHOAI {
-			t.Errorf("expected SA name %q, got %v", dashboardSANameRHOAI, subj["name"])
-		}
+	subj := rb.Subjects[0]
+	if subj.Kind != rbacv1.ServiceAccountKind {
+		t.Errorf("expected ServiceAccount kind, got %q", subj.Kind)
+	}
+	if subj.Name != dashboardSANameRHOAI {
+		t.Errorf("expected SA name %q, got %q", dashboardSANameRHOAI, subj.Name)
 	}
 }
 
@@ -314,13 +305,7 @@ func TestEnsureDashboardNamespacedRBAC_CustomWorkbenchNamespace(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(rr.Resources) != 2 {
-		t.Fatalf("expected 2 resources (notebooks only), got %d", len(rr.Resources))
-	}
-
-	for _, res := range rr.Resources {
-		if res.GetNamespace() != customNS {
-			t.Errorf("expected namespace %q, got %q", customNS, res.GetNamespace())
-		}
-	}
+	// RBAC should land in the custom namespace, not the default one
+	getRoleAndBinding(t, rr, "rhods-dashboard-notebooks", customNS)
+	assertRoleAndBindingAbsent(t, rr, "rhods-dashboard-notebooks", cluster.DefaultNotebooksNamespaceRHOAI)
 }
