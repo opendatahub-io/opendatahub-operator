@@ -305,7 +305,7 @@ additional_meta:
     git.commit: 8fc980b2a7c22ce23b55cff5e282f703fcd48371
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
-    git.commit: fc1d9c297068ce3e45b889b6227a97b2d480785d
+    git.commit: 3db6ebb0b637c409bc21d800a548b49428f8cf4a
   odh-ta-lmes-job:
     git.url: https://github.com/red-hat-data-services/lm-evaluation-harness
     git.commit: baaf65efb0660e0b07d80bfa7459502661e59ac2
