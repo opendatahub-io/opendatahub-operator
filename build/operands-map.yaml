@@ -8,7 +8,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_AUTORAG_IMAGE
   value: "quay.io/rhoai/odh-autorag-rhel9@sha256:f176a109d4e6d73ebd71d4674b2681788fcd879db89c8600fba4be0817c0d1e0"
 - name: RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE
-  value: "quay.io/rhoai/odh-built-in-detector-rhel9@sha256:773444479e11d81422ff5dba75b5da3bea98b4cb273af3d59fd05772a9e23e3a"
+  value: "quay.io/rhoai/odh-built-in-detector-rhel9@sha256:746d6ee1dcc4216020d2f26c199074670d32b838680358d0e1a7664442d76e0a"
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
   value: "quay.io/rhoai/odh-cli-rhel9@sha256:bbcdc288384b12658772e4edc68eb1a75e80cc0965f365834cf268e0be347b34"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
@@ -56,7 +56,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE
   value: "quay.io/rhoai/odh-kserve-storage-initializer-rhel9@sha256:0c14e5c65c86c1df8045e58cc8f465ee19f5e4daaf740f24a9619215820502ef"
 - name: RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kuberay-operator-controller-rhel9@sha256:0cdc6d5475ee6c8602a876b3888e49251be9cc60da91b19265463b2603dd0f9d"
+  value: "quay.io/rhoai/odh-kuberay-operator-controller-rhel9@sha256:99faeb2b309235c4d14754af927300280442f30cbe94431e415b38a3a8fe4a6d"
 - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
   value: "quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:9b3c12230ba31b9c1962467ed46c1aa2eec8984bfe1ffc1fdb2225f6f4a6e325"
 - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
@@ -94,7 +94,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE
   value: "quay.io/rhoai/odh-mlmd-grpc-server-rhel9@sha256:3c016711e312fc9da937604c2f818df92982971cb55d00e23626fc7f4840c884"
 - name: RELATED_IMAGE_ODH_MLSERVER_CUDA_IMAGE
-  value: "quay.io/rhoai/odh-mlserver-cuda-rhel9@sha256:f4b2dcb5323c2b45c320159ffa8b4841ae11a545484b5514a6292bc669630dc6"
+  value: "quay.io/rhoai/odh-mlserver-cuda-rhel9@sha256:05c6dc2ce7b5bffff4b97127da06bfdfd17f61c95bd64e0926d35052adba19fd"
 - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
   value: "quay.io/rhoai/odh-mlserver-rhel9@sha256:535b656ba87a9653022918d8b814db219ce7a044a63e1686798c48b23fbeaa86"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_V2_IMAGE

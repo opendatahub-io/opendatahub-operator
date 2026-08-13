@@ -19,7 +19,7 @@ map:
     src: ray-operator/config
     dest: ray
     git.url: https://github.com/red-hat-data-services/kuberay
-    git.commit: 12a78e3a54f1926f8de28675b22d69382a9264d5
+    git.commit: 8f1ff72870e60a47fe1dda8c9588a501cb46c474
   odh-trustyai-service-operator:
     src: config
     dest: trustyai
@@ -89,7 +89,7 @@ additional_meta:
     git.commit: 3ec206ded7ca832f774f6af431a06071bfd08096
   odh-built-in-detector:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
-    git.commit: 10f9f7d9b78f124ef19cb9dd5ce9c8e528e51c62
+    git.commit: 3d9eda68280a5f43964d407028af04c531234062
   odh-cli:
     git.url: https://github.com/red-hat-data-services/odh-cli
     git.commit: b13e8303b278b37b2c8403de16e87cca1b9d9d20
