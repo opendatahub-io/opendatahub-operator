@@ -40,7 +40,7 @@ map:
     src: config
     dest: trainer
     git.url: https://github.com/red-hat-data-services/trainer-operator
-    git.commit: 701c3c2ea916e0c78ade18ecc0812f6e4aae888b
+    git.commit: a59824b02d789e18c3bc4e9fd13515918503b636
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
@@ -60,7 +60,7 @@ map:
     src: config
     dest: mcplifecycleoperator
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-module-operator
-    git.commit: dab8a270ea83cbcd568c0b53bab6c0179413ec14
+    git.commit: 937284261f25731ae75362e484c05199744835de
   odh-feast-module-operator:
     src: config/chart
     dest: feastoperator
@@ -171,10 +171,10 @@ additional_meta:
     git.commit: 55dfdd6e3ff49ced0e7eb9f7b46afbf7724c0337
   odh-llm-d-router-disagg-sidecar:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: deb6db74b9a099a208c76df37328f9db37878b7a
+    git.commit: deeefe1208034d125d451f95d998028c772403cb
   odh-llm-d-router-endpoint-picker:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: deb6db74b9a099a208c76df37328f9db37878b7a
+    git.commit: deeefe1208034d125d451f95d998028c772403cb
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
     git.commit: 0078933bf42d400aa4d1cbde6af99ba59691aa3e
@@ -183,7 +183,7 @@ additional_meta:
     git.commit: 0078933bf42d400aa4d1cbde6af99ba59691aa3e
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
-    git.commit: fb3bc4e82dc5e8ba103a85927d98bc081cb21e78
+    git.commit: fece4d1693807824c7582c7b1af69fe85985cb6d
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
     git.commit: 1cccfac973b98eea1cafe03565da6a47ea08c449
@@ -261,7 +261,7 @@ additional_meta:
     git.commit: 1d544740c7a5aad666135d2ac379c42aafbfca1f
   odh-observability:
     git.url: https://github.com/red-hat-data-services/odh-observability
-    git.commit: 83e198e073428f245afed276eeb7e631a6a6279e
+    git.commit: bebe4f4ef9c9031ebd6b97f3c285449e6bfe9f2d
   odh-ogx-core:
     git.url: https://github.com/red-hat-data-services/ogx-distribution
     git.commit: 7e87a799ef40c2baff9511e8e58d63c3147aa7eb
