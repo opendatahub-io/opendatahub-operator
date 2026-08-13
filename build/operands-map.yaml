@@ -98,15 +98,15 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
   value: "quay.io/rhoai/odh-mlserver-rhel9@sha256:535b656ba87a9653022918d8b814db219ce7a044a63e1686798c48b23fbeaa86"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_V2_IMAGE
-  value: "quay.io/rhoai/odh-ml-pipelines-api-server-v2-rhel9@sha256:f981dd4accba4e6fd54f8c95fa78bf8872edb6f07ea2ce72197835348cc43498"
+  value: "quay.io/rhoai/odh-ml-pipelines-api-server-v2-rhel9@sha256:511b731091ca0d0722bb972b77205daaa79cc69ba99e4d70039bdfc32afe967c"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_DRIVER_IMAGE
-  value: "quay.io/rhoai/odh-ml-pipelines-driver-rhel9@sha256:b27d338da4de21b0abf82030ed87e32adc5e376e6920393157046d9590ca128f"
+  value: "quay.io/rhoai/odh-ml-pipelines-driver-rhel9@sha256:bc23d5925fbff1415b4ffe79945671de4c9a773c69ada0d9ed30c792f8d27caa"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_LAUNCHER_IMAGE
-  value: "quay.io/rhoai/odh-ml-pipelines-launcher-rhel9@sha256:4550925913689f89a3587301504cc8e6593e527caab9e4a483c287b4b844217f"
+  value: "quay.io/rhoai/odh-ml-pipelines-launcher-rhel9@sha256:f1ff0be915c5a2e2915dc4655396d09524f5fc18e71d29e916cd8cda79a1071f"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_PERSISTENCEAGENT_V2_IMAGE
-  value: "quay.io/rhoai/odh-ml-pipelines-persistenceagent-v2-rhel9@sha256:38e593606f9a86aff18406f28ae2434b388fe25f91ab09282442ba6eb840d7f9"
+  value: "quay.io/rhoai/odh-ml-pipelines-persistenceagent-v2-rhel9@sha256:60fef091be15b0a99d11d1909a28c23c1dc58ee8f437c04d578dbdd31a6df887"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_SCHEDULEDWORKFLOW_V2_IMAGE
-  value: "quay.io/rhoai/odh-ml-pipelines-scheduledworkflow-v2-rhel9@sha256:54829a23136129feaa1c246f1b58941e0b7a63f1171240a12371133f95d38c26"
+  value: "quay.io/rhoai/odh-ml-pipelines-scheduledworkflow-v2-rhel9@sha256:868a2e2dd09c3a28893e22c8a9919d0b3be5dc3370373a40db0deaca6a66609b"
 - name: RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-model-controller-rhel9@sha256:fdc29cc5076f0cf5e88028163d89c35e23a8e0b96ef8d2d086425f49d59dd689"
 - name: RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE
