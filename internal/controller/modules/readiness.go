@@ -51,10 +51,16 @@ func WithPlatformModules(pm *configv1alpha1.PlatformModules) ReadinessCheckerOpt
 	}
 }
 
-// IsReady returns true if the named module's CR has Ready=True,
-// a non-stale observedGeneration, and a release version matching
-// the current platform version. Returns an error if the name is
-// not found in this registry.
+// IsReady returns true if the named module is considered ready for DAG
+// advancement. When platformVersion is set, the platform release version
+// in the module CR status is the sole readiness signal:
+//   - empty rv (first deploy, never tracked) → ready, nothing to gate on
+//   - rv matches platformVersion → already reconciled at this version
+//   - rv mismatches → upgrade in progress, block until re-reconciled
+//
+// This mirrors the component readiness checker behavior: transient
+// runtime failures do not block DAG advancement; only version mismatches
+// (upgrade ordering) do.
 func (m *ModuleReadinessChecker) IsReady(ctx context.Context, name string) (bool, error) {
 	handler := m.registry.Lookup(name)
 	if handler == nil {
@@ -78,12 +84,9 @@ func (m *ModuleReadinessChecker) IsReady(ctx context.Context, name string) (bool
 		return false, nil
 	}
 
-	// Version handshake: if the module reports a release version, it must
-	// match the platform version. If the module has not populated the
-	// field (empty), skip the check and rely on health conditions alone.
-	if m.platformVersion != "" && moduleStatus.ReleaseVersion != "" &&
-		moduleStatus.ReleaseVersion != m.platformVersion {
-		return false, nil
+	if m.platformVersion != "" {
+		rv := moduleStatus.ReleaseVersion
+		return rv == "" || rv == m.platformVersion, nil
 	}
 
 	for _, c := range moduleStatus.Conditions {

@@ -58,7 +58,7 @@ var dagBatches = []componentBatch{
 			{name: componentApi.DataSciencePipelinesComponentName, gvk: gvk.DataSciencePipelines},
 			{name: componentApi.ModelRegistryComponentName, gvk: gvk.ModelRegistry},
 			{name: componentApi.RayComponentName, gvk: gvk.Ray},
-			{name: componentApi.TrainerComponentName, gvk: gvk.Trainer},
+			{name: componentApi.TrainerComponentName, gvk: gvk.Trainer, internal: true},
 			{name: componentApi.TrainingOperatorComponentName, gvk: gvk.TrainingOperator},
 			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches, internal: true},
 			{name: componentApi.MCPLifecycleOperatorComponentName, gvk: gvk.MCPLifecycleOperator, internal: true},
@@ -99,11 +99,13 @@ var dagBatches = []componentBatch{
 //   - aigateway:            RHOAIENG-81918
 //   - dashboard:            RHOAIENG-81919
 //   - mcplifecycleoperator: RHOAIENG-81920
+//   - trainer
 //   - workbenches:          RHOAIENG-81892
 var dscComponentFieldsWithBrokenVersionHandshake = []string{
 	"aigateway",
 	"dashboard",
 	"mcplifecycleoperator",
+	"trainer",
 	"workbenches",
 }
 
@@ -123,7 +125,7 @@ var dscComponentFields = []string{
 	"ogx",
 	// "mcplifecycleoperator",
 	"mlflowoperator",
-	"trainer",
+	// "trainer",
 	"sparkoperator",
 }
 
@@ -194,14 +196,21 @@ func dagOrderingTestSuite(t *testing.T) {
 	t.Log("Restoring operator to original version for Phase 3")
 	ctx.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
 
-	t.Log("Waiting for convergence at original version")
+	t.Log("Waiting for DSC to fully reconcile at original version")
 	ctx.EnsureResourceExists(
-		WithMinimalObject(gvk.Platform, ctx.PlatformNamespacedName),
-		WithCondition(jq.Match(
-			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
-			status.ConditionTypeProvisioningProgress, metav1.ConditionTrue,
+		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			jq.Match(`.status.observedGeneration == .metadata.generation`),
+			jq.Match(
+				`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+				status.ConditionTypeComponentsReady, metav1.ConditionTrue,
+			),
+			jq.Match(
+				`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+				status.ConditionTypeModulesReady, metav1.ConditionTrue,
+			),
 		)),
-		WithEventuallyTimeout(15*time.Minute),
+		WithEventuallyTimeout(5*time.Minute),
 		WithEventuallyPollingInterval(15*time.Second),
 	)
 
@@ -447,6 +456,16 @@ func (tc *DAGOrderingTestCtx) ValidateComponentStability(t *testing.T) {
 	tc.EnsureResourceGone(
 		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: tc.GetInstanceName(gvk.Kserve)}),
 		WithEventuallyTimeout(5*time.Minute),
+		WithEventuallyPollingInterval(10*time.Second),
+	)
+
+	t.Log("Waiting for DSC to reflect KServe removal")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(
+			`any(.status.conditions[]; .type == "KserveReady" and .status == "False" and .reason == "Removed")`,
+		)),
+		WithEventuallyTimeout(2*time.Minute),
 		WithEventuallyPollingInterval(10*time.Second),
 	)
 
@@ -998,7 +1017,14 @@ func (tc *DAGOrderingTestCtx) findFirstCRName(t *testing.T, gvk schema.GroupVers
 
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(gvk.GroupVersion().WithKind(gvk.Kind + "List"))
-	require.NoError(t, tc.Client().List(tc.Context(), list), "failed to list %s CRs", gvk.Kind)
+
+	if err := tc.Client().List(tc.Context(), list); err != nil {
+		if meta.IsNoMatchError(err) {
+			t.Logf("CRD for %s not found, skipping", gvk.Kind)
+			return ""
+		}
+		require.NoError(t, err, "failed to list %s CRs", gvk.Kind)
+	}
 
 	if len(list.Items) == 0 {
 		return ""

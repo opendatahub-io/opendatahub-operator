@@ -90,14 +90,14 @@ func TestReadinessChecker_NotReadyVersionMismatch(t *testing.T) {
 	g.Expect(ready).Should(BeFalse(), "module reporting old version should not be ready")
 }
 
-func TestReadinessChecker_EmptyVersionSkipsCheck(t *testing.T) {
+func TestReadinessChecker_EmptyVersionTreatedAsReady(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
 	reg := &modules.Registry{}
 	reg.Add(newStatusMock("mod-c", &modules.ModuleStatus{
 		Conditions: []common.Condition{
-			{Type: "Ready", Status: metav1.ConditionTrue},
+			{Type: "Ready", Status: metav1.ConditionFalse},
 		},
 		ObservedGeneration: 1,
 		Generation:         1,
@@ -107,7 +107,7 @@ func TestReadinessChecker_EmptyVersionSkipsCheck(t *testing.T) {
 	checker := modules.NewReadinessChecker(reg, nil, "2.20.0")
 	ready, err := checker.IsReady(context.Background(), "mod-c")
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(ready).Should(BeTrue(), "module without version field should fall through to Ready check")
+	g.Expect(ready).Should(BeTrue(), "empty release version (first deploy) should not block DAG")
 }
 
 func TestReadinessChecker_StaleGenerationNotReady(t *testing.T) {
@@ -130,7 +130,7 @@ func TestReadinessChecker_StaleGenerationNotReady(t *testing.T) {
 	g.Expect(ready).Should(BeFalse(), "stale observedGeneration should mean not ready")
 }
 
-func TestReadinessChecker_ReadyFalseNotReady(t *testing.T) {
+func TestReadinessChecker_MatchingVersionReadyDespiteTransientFailure(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
@@ -147,7 +147,7 @@ func TestReadinessChecker_ReadyFalseNotReady(t *testing.T) {
 	checker := modules.NewReadinessChecker(reg, nil, "2.20.0")
 	ready, err := checker.IsReady(context.Background(), "mod-e")
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(ready).Should(BeFalse())
+	g.Expect(ready).Should(BeTrue(), "matching version means already reconciled; transient failures should not block DAG")
 }
 
 func TestReadinessChecker_NoPlatformVersionSkipsCheck(t *testing.T) {

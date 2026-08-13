@@ -398,11 +398,11 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-feast-module-operator"
-      digest: "sha256:ee9b0308b15c142a0abc7aff8ee3a3479cf4e3da0565b5c6c326534075f61ca1"
+      digest: "sha256:2009fdaae670b64e3ec3f7744d7b9d6d738814fe3f33af16c5de98817a24db6e"
     rhoai:
       shaFrom: odh
       base: "quay.io/opendatahub/odh-feast-module-operator"
-      digest: "sha256:ee9b0308b15c142a0abc7aff8ee3a3479cf4e3da0565b5c6c326534075f61ca1"
+      digest: "sha256:2009fdaae670b64e3ec3f7744d7b9d6d738814fe3f33af16c5de98817a24db6e"
   RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_IMAGE:
     component: mcplifecycleoperator
     source: "csv"

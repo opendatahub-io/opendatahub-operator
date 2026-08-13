@@ -139,10 +139,10 @@ func TestGetRelatedImages(t *testing.T) {
 	images := h.GetRelatedImages()
 
 	want := map[string]bool{
-		"RELATED_IMAGE_ODH_TRAINER_IMAGE":               false,
-		"RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE":  false,
-		"RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE":  false,
-		"RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE":   false,
+		"RELATED_IMAGE_ODH_TRAINER_IMAGE":             false,
+		"RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE": false,
+		"RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE": false,
+		"RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE":  false,
 	}
 
 	for _, img := range images {
