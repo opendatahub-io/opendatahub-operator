@@ -110,7 +110,7 @@ additional_meta:
     git.commit: dd95a5a1164018ccfc74aeab492d549bac0bbf3d
   odh-feast-operator:
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: 624be0d8f46c4dea8744d328ab1989e5c31a1208
+    git.commit: 16e017e63f6025cc6d8e50a742c35b87d3970148
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: 4ab22d2fefd2d6252b568968ae31ae9d0d5e639d
@@ -308,7 +308,7 @@ additional_meta:
     git.commit: 3db6ebb0b637c409bc21d800a548b49428f8cf4a
   odh-ta-lmes-job:
     git.url: https://github.com/red-hat-data-services/lm-evaluation-harness
-    git.commit: baaf65efb0660e0b07d80bfa7459502661e59ac2
+    git.commit: 954cdbbd6ab0c27ad4e6e4e57514c769073c58d6
   odh-th-torch-cpu-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 230da64fdb07245518703e8d2808c4596df9fc5a
