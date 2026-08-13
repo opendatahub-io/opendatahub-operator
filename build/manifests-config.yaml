@@ -37,7 +37,7 @@ map:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 19cf774170987f2c86d33990952f17f438faa8ed
   odh-trainer-operator:
-    src: config/manifests
+    src: config
     dest: trainer
     git.url: https://github.com/red-hat-data-services/trainer-operator
     git.commit: 701c3c2ea916e0c78ade18ecc0812f6e4aae888b
