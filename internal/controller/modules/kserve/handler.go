@@ -204,23 +204,26 @@ const llmISvcConfigFinalizer = "serving.kserve.io/llmisvcconfig-finalizer"
 // controller is torn down as part of cleanup — if finalizers are not removed
 // first, the namespace gets stuck in Terminating state.
 func (h *handler) DeleteOperatorResources(ctx context.Context, cli client.Client, platform *modules.PlatformContext) error {
-	if err := stripLLMISvcConfigFinalizers(ctx, cli, platform); err != nil {
+	ns := ""
+	if platform != nil {
+		ns = platform.ApplicationsNamespace
+	}
+
+	if err := StripLLMISvcConfigFinalizers(ctx, cli, ns); err != nil {
 		return fmt.Errorf("stripping LLMInferenceServiceConfig finalizers: %w", err)
 	}
 
 	return h.BaseHandler.DeleteOperatorResources(ctx, cli, platform)
 }
 
-// stripLLMISvcConfigFinalizers lists all LLMInferenceServiceConfig resources
-// in the applications namespace and removes the llmisvcconfig-finalizer from
-// each one. This mirrors the E2E cleanup logic in tests/e2e/cleanup_test.go.
-func stripLLMISvcConfigFinalizers(ctx context.Context, cli client.Client, platform *modules.PlatformContext) error {
+// StripLLMISvcConfigFinalizers lists all LLMInferenceServiceConfig resources
+// in the given namespace and removes the llmisvcconfig-finalizer from each one.
+// If namespace is empty, it searches across all namespaces. This is called both
+// during module cleanup (DeleteOperatorResources) and during full operator
+// uninstall (OperatorUninstall) to ensure finalizers are stripped regardless of
+// module controller lifecycle timing.
+func StripLLMISvcConfigFinalizers(ctx context.Context, cli client.Client, namespace string) error {
 	log := logf.FromContext(ctx)
-
-	ns := ""
-	if platform != nil {
-		ns = platform.ApplicationsNamespace
-	}
 
 	configGVKs := []schema.GroupVersionKind{
 		gvk.LLMInferenceServiceConfigV1Alpha1,
@@ -232,8 +235,8 @@ func stripLLMISvcConfigFinalizers(ctx context.Context, cli client.Client, platfo
 		list.SetGroupVersionKind(configGVK.GroupVersion().WithKind(configGVK.Kind + "List"))
 
 		var listOpts []client.ListOption
-		if ns != "" {
-			listOpts = append(listOpts, client.InNamespace(ns))
+		if namespace != "" {
+			listOpts = append(listOpts, client.InNamespace(namespace))
 		}
 
 		if err := cli.List(ctx, list, listOpts...); err != nil {

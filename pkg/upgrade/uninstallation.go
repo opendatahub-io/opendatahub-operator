@@ -16,6 +16,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -52,6 +53,16 @@ func OperatorUninstall(ctx context.Context, cli client.Client, platform common.P
 	for _, namespace := range generatedNamespaces.Items {
 		if namespace.Status.Phase == corev1.NamespaceTerminating {
 			return fmt.Errorf("waiting for namespace %v to be deleted", namespace.Name)
+		}
+	}
+
+	// Strip LLMInferenceServiceConfig finalizers before deleting namespaces.
+	// The kserve module operator sets finalizers on these resources, but its
+	// controller pod may be terminated during namespace deletion before it can
+	// remove them — leaving the namespace stuck in Terminating state.
+	for i := range generatedNamespaces.Items {
+		if err := kserve.StripLLMISvcConfigFinalizers(ctx, cli, generatedNamespaces.Items[i].Name); err != nil {
+			log.Error(err, "failed to strip LLMInferenceServiceConfig finalizers", "namespace", generatedNamespaces.Items[i].Name)
 		}
 	}
 
