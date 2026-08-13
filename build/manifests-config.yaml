@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: c2b0922db1d6b7b389cc75d6b6288f750684675a
+    git.commit: 19cf774170987f2c86d33990952f17f438faa8ed
   odh-trainer-operator:
     src: config/manifests
     dest: trainer
@@ -93,7 +93,7 @@ additional_meta:
     git.commit: 96151c9a7ccddf456a8b9638bf4005ce359bd988
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: c2b0922db1d6b7b389cc75d6b6288f750684675a
+    git.commit: 19cf774170987f2c86d33990952f17f438faa8ed
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: dbe8891f4ed27ede56716acaec517a022143415c
