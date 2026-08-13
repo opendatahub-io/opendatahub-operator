@@ -18,6 +18,7 @@ package trainer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -82,7 +83,7 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { /
 // redhat-ods-applications on RHOAI).
 func setKustomizedParams(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if len(rr.Manifests) == 0 {
-		return fmt.Errorf("no manifests initialized before setKustomizedParams")
+		return errors.New("no manifests initialized before setKustomizedParams")
 	}
 
 	extraParams := map[string]string{

@@ -225,13 +225,10 @@ func TestSetKustomizedParams(t *testing.T) {
 
 	trainer := componentApi.Trainer{}
 	rr := types.ReconciliationRequest{
-		Client:          cli,
-		Instance:        &trainer,
-		Conditions:      conditions.NewManager(&trainer, status.ConditionTypeReady),
-		ManifestsBasePath: dir,
-		Manifests: []types.ManifestInfo{
-			{Path: dir, ContextDir: "", SourcePath: ""},
-		},
+		Client:     cli,
+		Instance:   &trainer,
+		Conditions: conditions.NewManager(&trainer, status.ConditionTypeReady),
+		Manifests:  []types.ManifestInfo{{Path: dir}},
 	}
 
 	err = setKustomizedParams(ctx, &rr)
