@@ -78,10 +78,10 @@ additional_meta:
     git.commit: b40eac098821cfae6a79b5d61f8ce3f6cd4f64c0
   odh-automl:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: ff3f112645ae66560e885b31f472c839c84856a3
+    git.commit: 86d4897f62464b22992518461c1110196b9654ab
   odh-autorag:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: ff3f112645ae66560e885b31f472c839c84856a3
+    git.commit: 86d4897f62464b22992518461c1110196b9654ab
   odh-built-in-detector:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: e21c7e9ced3075d363a0b6f612667844f6e8c3b1
@@ -288,7 +288,7 @@ additional_meta:
     git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
   odh-pipeline-runtime-pytorch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 2226af749a26f94cb9ff45cc44a82a33c1ac0b89
+    git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
   odh-pipeline-runtime-tensorflow-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
@@ -327,7 +327,7 @@ additional_meta:
     git.commit: ed7ac0cee1470730414169357de26e25ecc256ae
   odh-trustyai-vllm-orchestrator-gateway:
     git.url: https://github.com/red-hat-data-services/vllm-orchestrator-gateway
-    git.commit: f5538df20bb88a2cdc3323e9adc977d455a3255c
+    git.commit: d78252e5b06f04fd2d7df730913811371a224cb4
   odh-vllm-cpu:
     git.url: https://github.com/red-hat-data-services/vllm-cpu
     git.commit: cf5fffb5fb31ba50084a9d1301fb1661692ecec6
@@ -336,7 +336,7 @@ additional_meta:
     git.commit: 2b67d0e369af710e745b087565470d8e4919c418
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 3c7d41d64b763665d52617dd0080c016ca1e5d9f
+    git.commit: 7fbc559360e68152ed43ea9b7704a1034bcc43d8
   odh-workbench-jupyter-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 3c7d41d64b763665d52617dd0080c016ca1e5d9f
