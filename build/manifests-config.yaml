@@ -95,10 +95,10 @@ additional_meta:
     git.commit: b13e8303b278b37b2c8403de16e87cca1b9d9d20
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 85f7a5727da0a215e8660ac83349acbcd6029493
+    git.commit: 9220555ef2fc1882a7b3835b7cf9e902ef6a9cac
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 1b1a0b3cd4b56a7b34c23e6bb95979445e156757
+    git.commit: 9220555ef2fc1882a7b3835b7cf9e902ef6a9cac
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: 34deffe04ec6b7949f4aed3257df66fefc0260de
@@ -110,10 +110,10 @@ additional_meta:
     git.commit: dd95a5a1164018ccfc74aeab492d549bac0bbf3d
   odh-feast-operator:
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: c1996f38ec285c8c11b7237c5ede4239b836bd83
+    git.commit: 09251e112bea33557b70b9aaf50c29a79a97dc47
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: 4ab22d2fefd2d6252b568968ae31ae9d0d5e639d
+    git.commit: 16e017e63f6025cc6d8e50a742c35b87d3970148
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
     git.commit: d69e4c8d621e90959b1e1afb0a962e60fc713cf6

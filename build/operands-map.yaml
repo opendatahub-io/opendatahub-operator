@@ -12,9 +12,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
   value: "quay.io/rhoai/odh-cli-rhel9@sha256:bbcdc288384b12658772e4edc68eb1a75e80cc0965f365834cf268e0be347b34"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
-  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:1d54a054e02d70fa66d8212702f704cdc082e9855aae5c9d4687d86181aef91f"
+  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:f26e4532c6a9cb8310525a33e1c8ac4bab7064da92426974e8eb857f9c69c49f"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:4f95ad52f374ae7f0ca9e9d062a069e1739ed8a5892945c13df3bb3f66f2fb75"
+  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:6fcb7882f6f10b25733e81559ed1811c7f4b1e47329188569a3b074983927abb"
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:f54eecb38b00e6dfdfe61ccbe46a56aac3ef1eba7c6c34cfb4d81ad19587a1d5"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE
@@ -28,9 +28,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-feast-module-operator-rhel9@sha256:6106e281b6bed8d8c689700dc13cb2afcd010fd482f9db528206b1c7ba615aa2"
 - name: RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-feast-operator-rhel9@sha256:6a10f91a9169e3e78a4afea86700c84fcd032c0e909a86260ed90e4c3fa1cc4b"
+  value: "quay.io/rhoai/odh-feast-operator-rhel9@sha256:74a9313fa49b7e4ac52b7f4f14ed986d035db8deeb4087ae6b87e99064a482af"
 - name: RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE
-  value: "quay.io/rhoai/odh-feature-server-rhel9@sha256:ba259c6ef085d1cdb4f087d7b25f1c21004ee17ce3a4c4704947327fb2bd571e"
+  value: "quay.io/rhoai/odh-feature-server-rhel9@sha256:5d870aaa2ecb22178511b03347e53d4c442772607f407194aa3076d03a8de1f5"
 - name: RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE
   value: "quay.io/rhoai/odh-fms-guardrails-orchestrator-rhel9@sha256:26b5495c22edf1c12421d5d8b2035a828283ff48a0bde019edb7a8c8fdb30c10"
 - name: RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE
