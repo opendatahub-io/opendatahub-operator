@@ -78,10 +78,10 @@ additional_meta:
     git.commit: b40eac098821cfae6a79b5d61f8ce3f6cd4f64c0
   odh-automl:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 6d92be076b720b4468ca31ffe28208c044bc86f0
+    git.commit: 0a4a76ff20098714985eacb8b2a46e4e45c10ddb
   odh-autorag:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 6d92be076b720b4468ca31ffe28208c044bc86f0
+    git.commit: 0a4a76ff20098714985eacb8b2a46e4e45c10ddb
   odh-built-in-detector:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: b4983e79c288ee231ef0e254a4e944dd27ea3b4d
@@ -318,7 +318,7 @@ additional_meta:
     git.commit: 0d3c373b2928da93e0cb56fea93fd769456f4c9b
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
-    git.commit: ecbe3bc4d71ca2f6a32d2f695f188c04b15592e8
+    git.commit: f02e1d30752bd084764eae57243d040f323da7eb
   odh-trustyai-service:
     git.url: https://github.com/red-hat-data-services/trustyai-explainability
     git.commit: 7fa02f5de175a9b8611e7528341d36468f6cfaf9
