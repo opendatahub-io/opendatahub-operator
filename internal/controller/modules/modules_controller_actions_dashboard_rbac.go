@@ -36,11 +36,23 @@ const (
 	dashboardManagedRBACLabelValue = "true"
 )
 
+// dashboardRBACTarget pairs a namespace with the role suffix to apply there.
+type dashboardRBACTarget struct {
+	namespace string
+	suffix    string
+}
+
 func ensureDashboardNamespacedRBAC(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	// Resolve active namespaces first (empty when dashboard is disabled).
-	activeNamespaces, saName, err := resolveDashboardActiveState(ctx, rr)
+	// Resolve active targets first (empty when dashboard is disabled).
+	targets, saName, err := resolveDashboardActiveState(ctx, rr)
 	if err != nil {
 		return err
+	}
+
+	// Build the set of active namespaces for stale cleanup.
+	activeNamespaces := make(map[string]struct{}, len(targets))
+	for _, t := range targets {
+		activeNamespaces[t.namespace] = struct{}{}
 	}
 
 	// Always clean up stale Roles/RoleBindings before creating new ones.
@@ -51,24 +63,24 @@ func ensureDashboardNamespacedRBAC(ctx context.Context, rr *odhtype.Reconciliati
 
 	logger := logf.FromContext(ctx)
 	appNamespace := cluster.GetApplicationNamespace()
-	for ns, suffix := range activeNamespaces {
-		logger.V(1).Info("ensuring Dashboard RBAC", "namespace", ns, "suffix", suffix)
-		rules := dashboardRBACRulesForSuffix(suffix)
-		if err := addDashboardNamespacedRBAC(ctx, rr, saName, appNamespace, ns, suffix, rules); err != nil {
-			return fmt.Errorf("failed to add RBAC for namespace %s: %w", ns, err)
+	for _, t := range targets {
+		logger.V(1).Info("ensuring Dashboard RBAC", "namespace", t.namespace, "suffix", t.suffix)
+		rules := dashboardRBACRulesForSuffix(t.suffix)
+		if err := addDashboardNamespacedRBAC(ctx, rr, saName, appNamespace, t.namespace, t.suffix, rules); err != nil {
+			return fmt.Errorf("failed to add RBAC for namespace %s: %w", t.namespace, err)
 		}
 	}
 
 	return nil
 }
 
-// resolveDashboardActiveState returns the set of namespace→roleSuffix pairs that
-// should have RBAC, and the SA name to use. Returns an empty map when dashboard is disabled.
-func resolveDashboardActiveState(ctx context.Context, rr *odhtype.ReconciliationRequest) (map[string]string, string, error) {
-	active := make(map[string]string)
-
+// resolveDashboardActiveState returns the list of namespace/suffix targets that
+// should have RBAC, and the SA name to use. Returns an empty slice when dashboard is disabled.
+// Using a slice (not a map) preserves both entries when notebooks and model-registry resolve
+// to the same namespace.
+func resolveDashboardActiveState(ctx context.Context, rr *odhtype.ReconciliationRequest) ([]dashboardRBACTarget, string, error) {
 	if !DefaultRegistry().IsEnabled(componentApi.DashboardComponentName) {
-		return active, "", nil
+		return nil, "", nil
 	}
 
 	saName := dashboardSANameODH
@@ -76,12 +88,14 @@ func resolveDashboardActiveState(ctx context.Context, rr *odhtype.Reconciliation
 		saName = dashboardSANameRHOAI
 	}
 
+	var targets []dashboardRBACTarget
+
 	notebooksNS, err := resolveDashboardNotebooksNamespace(ctx, rr)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to resolve notebooks namespace: %w", err)
 	}
 	if notebooksNS != "" {
-		active[notebooksNS] = "notebooks"
+		targets = append(targets, dashboardRBACTarget{namespace: notebooksNS, suffix: "notebooks"})
 	}
 
 	modelRegistryNS, err := resolveDashboardModelRegistryNamespace(ctx, rr)
@@ -89,16 +103,16 @@ func resolveDashboardActiveState(ctx context.Context, rr *odhtype.Reconciliation
 		return nil, "", fmt.Errorf("failed to resolve model-registry namespace: %w", err)
 	}
 	if modelRegistryNS != "" {
-		active[modelRegistryNS] = "model-registries"
+		targets = append(targets, dashboardRBACTarget{namespace: modelRegistryNS, suffix: "model-registries"})
 	}
 
-	return active, saName, nil
+	return targets, saName, nil
 }
 
 // cleanupStaleDashboardRBAC deletes labeled Roles/RoleBindings in namespaces that are
 // no longer in the active set. Runs unconditionally so that disabling the dashboard or
 // changing target namespaces always revokes access promptly.
-func cleanupStaleDashboardRBAC(ctx context.Context, rr *odhtype.ReconciliationRequest, activeNamespaces map[string]string) error {
+func cleanupStaleDashboardRBAC(ctx context.Context, rr *odhtype.ReconciliationRequest, activeNamespaces map[string]struct{}) error {
 	logger := logf.FromContext(ctx)
 	labelSelector := client.MatchingLabels{dashboardManagedRBACLabel: dashboardManagedRBACLabelValue}
 

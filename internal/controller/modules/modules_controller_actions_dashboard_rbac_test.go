@@ -403,18 +403,19 @@ func TestEnsureDashboardNamespacedRBAC_Idempotent(t *testing.T) {
 }
 
 // TestEnsureDashboardNamespacedRBAC_NotebooksRBACRules verifies the notebooks rules
-// grant exactly the expected resources and verbs.
+// grant exactly the expected resources and verbs (no extras allowed — guards least-privilege).
 func TestEnsureDashboardNamespacedRBAC_NotebooksRBACRules(t *testing.T) {
 	rules := dashboardNotebooksRBACRules()
 
 	type expected struct {
 		resource string
 		verbs    []string
+		apiGroup string
 	}
 	wants := []expected{
-		{rbacResourcePVCs, []string{rbacVerbCreate, rbacVerbGet}},
-		{rbacResourceCMs, []string{rbacVerbCreate, rbacVerbGet, rbacVerbUpdate}},
-		{rbacResourceSecrets, []string{rbacVerbCreate, rbacVerbGet, rbacVerbUpdate}},
+		{rbacResourcePVCs, []string{rbacVerbCreate, rbacVerbGet}, ""},
+		{rbacResourceCMs, []string{rbacVerbCreate, rbacVerbGet, rbacVerbUpdate}, ""},
+		{rbacResourceSecrets, []string{rbacVerbCreate, rbacVerbGet, rbacVerbUpdate}, ""},
 	}
 
 	if len(rules) != len(wants) {
@@ -424,10 +425,16 @@ func TestEnsureDashboardNamespacedRBAC_NotebooksRBACRules(t *testing.T) {
 		if len(rules[i].Resources) != 1 || rules[i].Resources[0] != w.resource {
 			t.Errorf("rule %d: expected resource %q, got %v", i, w.resource, rules[i].Resources)
 		}
-		for _, v := range w.verbs {
-			if !slices.Contains(rules[i].Verbs, v) {
-				t.Errorf("rule %d (%s): missing verb %q", i, w.resource, v)
-			}
+		if len(rules[i].APIGroups) != 1 || rules[i].APIGroups[0] != w.apiGroup {
+			t.Errorf("rule %d (%s): expected APIGroups [%q], got %v", i, w.resource, w.apiGroup, rules[i].APIGroups)
+		}
+		// Exact verb match: missing verbs and extra verbs both fail.
+		gotVerbs := slices.Clone(rules[i].Verbs)
+		slices.Sort(gotVerbs)
+		wantVerbs := slices.Clone(w.verbs)
+		slices.Sort(wantVerbs)
+		if !slices.Equal(gotVerbs, wantVerbs) {
+			t.Errorf("rule %d (%s): expected verbs %v, got %v", i, w.resource, wantVerbs, gotVerbs)
 		}
 	}
 }
@@ -485,6 +492,48 @@ func TestEnsureDashboardNamespacedRBAC_NamespaceChangeCleansUpOld(t *testing.T) 
 	// Old namespace objects must be gone, new namespace should have RBAC
 	assertRoleAndBindingAbsent(t, rr, "rhods-dashboard-notebooks", oldNS)
 	getRoleAndBinding(t, rr, "rhods-dashboard-notebooks", newNS)
+}
+
+// TestEnsureDashboardNamespacedRBAC_SharedNamespace verifies that when notebooks and
+// model-registry resolve to the same namespace, both Role/RoleBinding pairs are created
+// (not one overwriting the other).
+func TestEnsureDashboardNamespacedRBAC_SharedNamespace(t *testing.T) {
+	enableDashboardInRegistry(t)
+	enableWorkbenchesInRegistry(t)
+
+	sharedNS := "shared-namespace"
+	sharedNSObj := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: sharedNS}}
+	mr := &componentApi.ModelRegistry{
+		ObjectMeta: metav1.ObjectMeta{Name: componentApi.ModelRegistryInstanceName},
+		Spec: componentApi.ModelRegistrySpec{
+			ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
+				RegistriesNamespace: sharedNS,
+			},
+		},
+	}
+
+	dsc := &dscv2.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				Workbenches: componentApi.DSCWorkbenches{
+					WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
+						WorkbenchNamespace: sharedNS,
+					},
+				},
+			},
+		},
+	}
+
+	rr := newDashboardRBACTestRR(t, cluster.SelfManagedRhoai, dsc, sharedNSObj, mr)
+
+	if err := ensureDashboardNamespacedRBAC(context.Background(), rr); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Both roles must exist in the shared namespace.
+	getRoleAndBinding(t, rr, "rhods-dashboard-notebooks", sharedNS)
+	getRoleAndBinding(t, rr, "rhods-dashboard-model-registries", sharedNS)
 }
 
 // TestEnsureDashboardNamespacedRBAC_ModelRegistryRemovedCleansUp verifies that
