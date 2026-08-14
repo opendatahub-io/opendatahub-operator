@@ -335,7 +335,7 @@ additional_meta:
     git.commit: 3a0f9de6e3fd3517a92f52e0564144f55cf8ad71
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
-    git.commit: fe2dd42299dea42a07a90c8d8177682c4320897d
+    git.commit: 242254f32e2b9c3fd555258e8a25c3b0271056e0
   odh-trustyai-service:
     git.url: https://github.com/red-hat-data-services/trustyai-explainability
     git.commit: 79d080c1d761721cd882c0266680d927f122e8b7
