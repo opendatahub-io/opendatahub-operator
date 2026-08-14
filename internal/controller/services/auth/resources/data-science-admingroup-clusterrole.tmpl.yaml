@@ -41,6 +41,18 @@ rules:
       - patch
       - delete
   - apiGroups:
+      - feast.dev
+    resources:
+      - featurestores
+    verbs:
+      - watch
+      - update
+      - get
+      - list
+      - create
+      - patch
+      - delete
+  - apiGroups:
       - storage.k8s.io
     resources:
       - storageclasses
