@@ -102,6 +102,14 @@ func Load(path string) (*ManifestsConfig, error) {
 		return nil, fmt.Errorf("reading config: %w", err)
 	}
 
+	return Parse(data)
+}
+
+// Parse unmarshals data as a ManifestsConfig. Split out from Load so a
+// caller that already has the content in memory (e.g. read via `git show`
+// instead of a plain file read) doesn't have to duplicate the unmarshal
+// step.
+func Parse(data []byte) (*ManifestsConfig, error) {
 	var cfg ManifestsConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parsing config: %w", err)
