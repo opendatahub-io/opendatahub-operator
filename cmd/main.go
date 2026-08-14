@@ -156,7 +156,6 @@ var (
 		componentApi.DataSciencePipelinesComponentName: dag.RL(20),
 		componentApi.ModelRegistryComponentName:        dag.RL(20),
 		componentApi.RayComponentName:                  dag.RL(20),
-		componentApi.TrainerComponentName:              dag.RL(20),
 		componentApi.TrainingOperatorComponentName:     dag.RL(20),
 
 		componentApi.KueueComponentName: dag.RL(31),
@@ -779,7 +778,8 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 			case k8serr.IsServiceUnavailable(err),
 				k8serr.IsTimeout(err),
 				k8serr.IsServerTimeout(err),
-				k8serr.IsTooManyRequests(err):
+				k8serr.IsTooManyRequests(err),
+				k8serr.IsInternalError(err):
 				setupLog.Info("Transient error fetching TLS adherence policy, watcher will retry", "error", err)
 			default:
 				setupLog.Error(err, "unable to read TLS adherence policy, refusing to start with unknown adherence posture")

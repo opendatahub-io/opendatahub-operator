@@ -23,7 +23,7 @@ map:
     dest: feastoperator
     type: chart
   odh-trainer-operator:
-    src: config/manifests
+    src: config
     dest: trainer
   odh-mlflow-operator:
     src: config
