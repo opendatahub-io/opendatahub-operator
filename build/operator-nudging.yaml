@@ -78,7 +78,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_LLM_D_ROUTER_DISAGG_SIDECAR_IMAGE
   value: quay.io/rhoai/odh-llm-d-router-disagg-sidecar-rhel9@sha256:3e9164e8d6a567cd4d6d04dbd1a998b8b35264d5ca6325ee53b1668bb448cc7c
 - name: RELATED_IMAGE_ODH_LLM_D_ROUTER_ENDPOINT_PICKER_IMAGE
-  value: quay.io/rhoai/odh-llm-d-router-endpoint-picker-rhel9@sha256:059f865d1439920b6ba7bc2260882dd9798e24ca41e42b417501214f9f0be35e
+  value: quay.io/rhoai/odh-llm-d-router-endpoint-picker-rhel9@sha256:53d4f6c11cb0b206456deb01fc7b5c6a13f2fa3826299c7cd0eda4235d7e8612
 - name: RELATED_IMAGE_ODH_MAAS_API_IMAGE
   value: quay.io/rhoai/odh-maas-api-rhel9@sha256:c5e31c353e601f8ce6d24baf4532d5da1dd4cda4ca9115b2b2859efaa28fc756
 - name: RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE
