@@ -1,4 +1,4 @@
-package upgrade
+package upgrade_test
 
 import (
 	"testing"
@@ -10,6 +10,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	odhgvk "github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
 	. "github.com/onsi/gomega"
@@ -58,7 +59,7 @@ func TestRemoveModuleCRFinalizers_StripsExistingFinalizers(t *testing.T) {
 	)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	removeModuleCRFinalizers(ctx, cli)
+	upgrade.RemoveModuleCRFinalizersForTest(ctx, cli)
 
 	result := &unstructured.Unstructured{}
 	result.SetGroupVersionKind(odhgvk.Dashboard)
@@ -101,7 +102,7 @@ func TestRemoveModuleCRFinalizers_NoopWithoutFinalizers(t *testing.T) {
 	)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	removeModuleCRFinalizers(ctx, cli)
+	upgrade.RemoveModuleCRFinalizersForTest(ctx, cli)
 
 	result := &unstructured.Unstructured{}
 	result.SetGroupVersionKind(odhgvk.Dashboard)
@@ -129,7 +130,7 @@ func TestRemoveModuleCRFinalizers_HandlesAbsentCRs(t *testing.T) {
 	)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	g.Expect(func() { removeModuleCRFinalizers(ctx, cli) }).ShouldNot(Panic(),
+	g.Expect(func() { upgrade.RemoveModuleCRFinalizersForTest(ctx, cli) }).ShouldNot(Panic(),
 		"should handle missing CRs without panicking")
 }
 
@@ -160,7 +161,7 @@ func TestRemoveModuleCRFinalizers_CRDeletionTimestamp(t *testing.T) {
 	)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	removeModuleCRFinalizers(ctx, cli)
+	upgrade.RemoveModuleCRFinalizersForTest(ctx, cli)
 
 	result := &unstructured.Unstructured{}
 	result.SetGroupVersionKind(odhgvk.FeastOperator)
