@@ -113,7 +113,7 @@ additional_meta:
     git.commit: 09251e112bea33557b70b9aaf50c29a79a97dc47
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: 16e017e63f6025cc6d8e50a742c35b87d3970148
+    git.commit: 09251e112bea33557b70b9aaf50c29a79a97dc47
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
     git.commit: d69e4c8d621e90959b1e1afb0a962e60fc713cf6
@@ -134,7 +134,7 @@ additional_meta:
     git.commit: 92fd68a008d411f36e7aa7cb6b9fd54e692eac7b
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 92fd68a008d411f36e7aa7cb6b9fd54e692eac7b
+    git.commit: ca3e8fe24112777a3250eb67a5100e5d60704929
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 92fd68a008d411f36e7aa7cb6b9fd54e692eac7b

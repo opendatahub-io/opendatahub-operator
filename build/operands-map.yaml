@@ -30,7 +30,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-feast-operator-rhel9@sha256:74a9313fa49b7e4ac52b7f4f14ed986d035db8deeb4087ae6b87e99064a482af"
 - name: RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE
-  value: "quay.io/rhoai/odh-feature-server-rhel9@sha256:5d870aaa2ecb22178511b03347e53d4c442772607f407194aa3076d03a8de1f5"
+  value: "quay.io/rhoai/odh-feature-server-rhel9@sha256:39c0d1d41bdfc39d5ad79a075d262b4c6ccb07da5e22b50c6af5d6187a20ac1d"
 - name: RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE
   value: "quay.io/rhoai/odh-fms-guardrails-orchestrator-rhel9@sha256:26b5495c22edf1c12421d5d8b2035a828283ff48a0bde019edb7a8c8fdb30c10"
 - name: RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE
@@ -44,7 +44,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:8720798d8b8aefe954841d3322e5c4817cb0d59287e807bb44a6ee372fbb361e"
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:e6efed8a1a89ea9c03370ac5f249c262c514d27e87638e08f9c2ebee50fc28f2"
+  value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:82c0842ddebf0f011d3885e7f3c9eaff98858d2c35e3aad4baa8892ddc447905"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
   value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:a4897b2aaf3a9447d430989c8e621d1ff296e5b638a25e6d51a83bb4afecd0bf"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
