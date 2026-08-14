@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -14,6 +15,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -332,18 +334,23 @@ func (tc *ComponentTestCtx) ValidateComponentReleases(t *testing.T) {
 }
 
 // ValidatePlatformRelease ensures that the component CR status.releases
-// contains a "platform" entry with a non-empty version.
+// contains a "platform" entry matching the current operator version.
 func (tc *ComponentTestCtx) ValidatePlatformRelease(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Smoke)
 
-	tc.EnsureResourceExists(
+	expectedVersion := cluster.GetRelease().Version.String()
+
+	tc.EnsureResourcesExist(
 		WithMinimalObject(tc.GVK, tc.NamespacedName),
 		WithCondition(
-			jq.Match(`.status.releases[] | select(.name == "%s") | .version != ""`, common.PlatformReleaseName),
+			And(
+				HaveLen(1),
+				HaveEach(jq.Match(`.status.releases[] | select(.name == "%s") | .version == "%s"`, common.PlatformReleaseName, expectedVersion)),
+			),
 		),
-		WithCustomErrorMsg("Component CR should have a platform release entry with non-empty version"),
+		WithCustomErrorMsg(fmt.Sprintf("Component CR platform release version should be %s", expectedVersion)),
 	)
 }
 
