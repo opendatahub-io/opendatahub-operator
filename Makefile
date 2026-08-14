@@ -269,7 +269,7 @@ endif
 	@$(call fetch-external-crds,github.com/openshift/api,oauth/v1)
 	@# Copy IngressController CRD for gateway LoadBalancer mode (envtest integration tests)
 	@rm -f $(CONFIG_DIR)/crd/external/0000_50_ingress-operator_00-ingresscontroller.crd.yaml
-	@cp $(shell go env GOPATH)/pkg/mod/github.com/openshift/api@$(call go-mod-version,github.com/openshift/api)/operator/v1/zz_generated.crd-manifests/0000_50_ingress_00_ingresscontrollers.crd.yaml $(CONFIG_DIR)/crd/external/0000_50_ingress-operator_00-ingresscontroller.crd.yaml
+	@cp $(shell go env GOPATH)/pkg/mod/github.com/openshift/api@$(call go-mod-version,github.com/openshift/api)/operator/v1/zz_generated.crd-manifests/0000_50_ingress_00_ingresscontrollers-Default.crd.yaml $(CONFIG_DIR)/crd/external/0000_50_ingress-operator_00-ingresscontroller.crd.yaml
 	@# Copy Gateway API CRDs from Go module cache
 	@# rm -f first to handle CI environments where cached files may have restrictive permissions
 	@rm -f $(CONFIG_DIR)/crd/external/gateway.networking.k8s.io_*.yaml
@@ -407,7 +407,7 @@ build: manifests generate fmt vet ## Build manager binary.
 	go build -o bin/manager cmd/main.go
 
 RUN_ARGS = --log-mode=devel --pprof-bind-address=127.0.0.1:6060
-GO_RUN_MAIN = OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) DEFAULT_MANIFESTS_PATH=$(DEFAULT_MANIFESTS_PATH) go run $(GO_RUN_ARGS) ./cmd/main.go $(RUN_ARGS)
+GO_RUN_MAIN = OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) DEFAULT_MANIFESTS_PATH=$(DEFAULT_MANIFESTS_PATH) DEFAULT_CHARTS_PATH=$(DEFAULT_CHARTS_PATH) go run $(GO_RUN_ARGS) ./cmd/main.go $(RUN_ARGS)
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
 	$(GO_RUN_MAIN)
