@@ -1,0 +1,36 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: aihub-manager-role
+rules:
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - aihubs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - aihubs/status
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - aihubs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+# WI-5 will add operand/child-operator management permissions here.

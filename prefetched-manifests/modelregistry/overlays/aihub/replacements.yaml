@@ -1,0 +1,11 @@
+# replacements from configmap using params.env for use in opendatahub-operator
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.IMAGES_MODELREGISTRY_OPERATOR
+  targets:
+    - select:
+        kind: Deployment
+        name: aihub-controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].image
