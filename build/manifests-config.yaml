@@ -114,7 +114,7 @@ additional_meta:
     git.commit: 3aef0f649db4b64f43b6988f1486da43b9ccf375
   odh-guardrails-detector-huggingface-runtime:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
-    git.commit: e21c7e9ced3075d363a0b6f612667844f6e8c3b1
+    git.commit: b4983e79c288ee231ef0e254a4e944dd27ea3b4d
   odh-kf-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
     git.commit: 1d544740c7a5aad666135d2ac379c42aafbfca1f
