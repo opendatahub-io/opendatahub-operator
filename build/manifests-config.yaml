@@ -56,6 +56,9 @@ map:
   odh-ogx-module-operator:
     src: ogx-module/config
     dest: ogx
+  odh-ray-module-operator:
+    src: config/manager
+    dest: ray-module-operator
   odh-data-connect-hub-controller:
     src: dc-controller/config
     dest: data-connect-hub
