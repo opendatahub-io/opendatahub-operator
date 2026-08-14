@@ -40,7 +40,7 @@ map:
     src: config
     dest: trainer
     git.url: https://github.com/red-hat-data-services/trainer-operator
-    git.commit: a59824b02d789e18c3bc4e9fd13515918503b636
+    git.commit: 2de777a013d1ff86096560a43740ed1248a586b0
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
@@ -312,7 +312,7 @@ additional_meta:
     git.commit: a52f73494e214c7172894610522b01e6183cce71
   odh-trainer:
     git.url: https://github.com/red-hat-data-services/trainer
-    git.commit: efa7e0adf0f8707b1eb44ba414d3b01c3c12bf32
+    git.commit: 0da654501989378da8000963f31a756aa5b7ddcb
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
     git.commit: 0d3c373b2928da93e0cb56fea93fd769456f4c9b
