@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 934e1aab3ddfe3f6466132024fef3d65c0c3aaf1
+    git.commit: c641b67b5109142e5d6dc6eda70356f8f57e0008
   odh-trainer-operator:
     src: config
     dest: trainer
