@@ -80,9 +80,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_LLM_D_ROUTER_ENDPOINT_PICKER_IMAGE
   value: "quay.io/rhoai/odh-llm-d-router-endpoint-picker-rhel9@sha256:b4a5c8d6650a4ea3c7ae47b8ba16e9c52484d2f758f588447e4f96d6ec751e41"
 - name: RELATED_IMAGE_ODH_MAAS_API_IMAGE
-  value: "quay.io/rhoai/odh-maas-api-rhel9@sha256:c73403cb16ad833d2d71df52cfda662801683dc85da3d736d17671a32ca73c9b"
+  value: "quay.io/rhoai/odh-maas-api-rhel9@sha256:6c214a424e2acf47955b5fcb88253a766c326922ff5a57da7725670c5e08beaf"
 - name: RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-maas-controller-rhel9@sha256:80c4e932f61bb2561bc6c846883178170a27596447b56a48478366746988224b"
+  value: "quay.io/rhoai/odh-maas-controller-rhel9@sha256:25ea691bda11bea72f9e50ed962de665e3473b78b40e75dc71abcdd90a0891be"
 - name: RELATED_IMAGE_ODH_MCP_LIFECYCLE_MODULE_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-mcp-lifecycle-module-operator-rhel9@sha256:49377e77e4b81fe262042369af9a724c2062a76621ac81c7bb3ca6f7e23fc4d7"
 - name: RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_IMAGE
