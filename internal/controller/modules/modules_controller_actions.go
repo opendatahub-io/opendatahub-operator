@@ -658,7 +658,7 @@ func ComputeModulesStatusDetailed(ctx context.Context, rr *odhtype.Reconciliatio
 			if r.moduleStatus != nil {
 				mirrorSubmoduleConditions(rr, dscCtx, r.moduleStatus, r.submodules)
 			} else {
-				setSubmodulesFallback(rr, dscCtx, r.submodules, !r.ready,
+				setSubmodulesFallback(rr, dscCtx, r.submodules, !r.enabled,
 					r.condition.Reason, r.condition.Message)
 			}
 		}

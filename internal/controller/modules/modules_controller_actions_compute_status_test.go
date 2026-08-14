@@ -6,6 +6,7 @@ import (
 	"errors"
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -83,6 +84,9 @@ func setupStatusTest(t *testing.T, handlers ...*statusTestHandler) (*odhtype.Rec
 	condTypes := make([]string, 0, len(handlers)+1)
 	for _, h := range handlers {
 		condTypes = append(condTypes, h.GetGVK().Kind+status.ReadySuffix)
+		for _, sm := range h.GetSubmoduleConditions() {
+			condTypes = append(condTypes, sm.DSCConditionType)
+		}
 	}
 	condTypes = append(condTypes, status.ConditionTypeModulesReady)
 
@@ -347,4 +351,79 @@ func TestComputeModulesStatusAggregate_Degraded(t *testing.T) {
 	modulesReady := rr.Conditions.GetCondition(status.ConditionTypeModulesReady)
 	g.Expect(modulesReady.Status).Should(Equal(metav1.ConditionFalse))
 	g.Expect(modulesReady.Reason).Should(Equal(status.ConditionTypeDegraded))
+}
+
+func TestComputeModulesStatusDetailed_StatusError_SubmodulesNotMarkedRemoved(t *testing.T) {
+	g := NewWithT(t)
+
+	h1 := newStatusTestHandler("gw", "AIGateway", true, nil)
+	h1.statusErr = errors.New("CR not found")
+	h1.Config.SubmoduleConditions = []SubmoduleCondition{
+		{
+			SourceConditionType: "BatchGatewayReady",
+			DSCConditionType:    "BatchGatewayReady",
+			StatusFieldName:     "BatchGateway",
+			IsEnabled:           func(_ *DSCContext) bool { return true },
+		},
+		{
+			SourceConditionType: "ModelsAsAServiceReady",
+			DSCConditionType:    "ModelsAsAServiceReady",
+			StatusFieldName:     "ModelsAsAService",
+			IsEnabled:           func(_ *DSCContext) bool { return false },
+		},
+	}
+
+	rr, cleanup := setupStatusTest(t, h1)
+	defer cleanup()
+
+	err := ComputeModulesStatusDetailed(t.Context(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	dsc, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	g.Expect(ok).Should(BeTrue())
+
+	batchCond := rr.Conditions.GetCondition("BatchGatewayReady")
+	g.Expect(batchCond).ShouldNot(BeNil())
+	g.Expect(batchCond.Reason).Should(Equal(status.NotReadyReason),
+		"enabled submodule should inherit parent's NotReady reason, not Removed")
+	g.Expect(dsc.Status.Components.BatchGateway.ManagementState).Should(Equal(operatorv1.Managed))
+
+	maasCond := rr.Conditions.GetCondition("ModelsAsAServiceReady")
+	g.Expect(maasCond).ShouldNot(BeNil())
+	g.Expect(maasCond.Reason).Should(Equal(status.RemovedReason),
+		"disabled submodule should be Removed regardless of parent status")
+	g.Expect(dsc.Status.Components.ModelsAsAService.ManagementState).Should(Equal(operatorv1.Removed))
+}
+
+func TestComputeModulesStatusDetailed_StaleStatus_SubmodulesNotMarkedRemoved(t *testing.T) {
+	g := NewWithT(t)
+
+	h1 := newStatusTestHandler("gw", "AIGateway", true, &ModuleStatus{
+		Conditions:         []common.Condition{{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"}},
+		ObservedGeneration: 1,
+		Generation:         2,
+	})
+	h1.Config.SubmoduleConditions = []SubmoduleCondition{
+		{
+			SourceConditionType: "BatchGatewayReady",
+			DSCConditionType:    "BatchGatewayReady",
+			StatusFieldName:     "BatchGateway",
+			IsEnabled:           func(_ *DSCContext) bool { return true },
+		},
+	}
+
+	rr, cleanup := setupStatusTest(t, h1)
+	defer cleanup()
+
+	err := ComputeModulesStatusDetailed(t.Context(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	dsc, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	g.Expect(ok).Should(BeTrue())
+
+	batchCond := rr.Conditions.GetCondition("BatchGatewayReady")
+	g.Expect(batchCond).ShouldNot(BeNil())
+	g.Expect(batchCond.Reason).Should(Equal(status.NotReadyReason),
+		"enabled submodule should inherit parent's stale reason, not Removed")
+	g.Expect(dsc.Status.Components.BatchGateway.ManagementState).Should(Equal(operatorv1.Managed))
 }

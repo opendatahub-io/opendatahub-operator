@@ -14,8 +14,8 @@ import (
 
 // ModuleReadinessChecker implements dag.ReadinessChecker for
 // out-of-tree modules. It looks up the handler by name, fetches
-// the module's status, and checks the Ready condition, generation
-// staleness, and platform version handshake.
+// the module's status, and checks the Ready condition and
+// platform version handshake.
 type ModuleReadinessChecker struct {
 	registry        *Registry
 	client          client.Client
@@ -78,10 +78,6 @@ func (m *ModuleReadinessChecker) IsReady(ctx context.Context, name string) (bool
 	moduleStatus, err := handler.GetModuleStatus(ctx, m.client)
 	if err != nil {
 		return false, err
-	}
-
-	if moduleStatus.ObservedGeneration < moduleStatus.Generation {
-		return false, nil
 	}
 
 	if m.platformVersion != "" {

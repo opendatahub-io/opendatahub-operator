@@ -110,7 +110,7 @@ func TestReadinessChecker_EmptyVersionTreatedAsReady(t *testing.T) {
 	g.Expect(ready).Should(BeTrue(), "empty release version (first deploy) should not block DAG")
 }
 
-func TestReadinessChecker_StaleGenerationNotReady(t *testing.T) {
+func TestReadinessChecker_StaleGenerationReadyWhenVersionMatches(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
@@ -127,7 +127,7 @@ func TestReadinessChecker_StaleGenerationNotReady(t *testing.T) {
 	checker := modules.NewReadinessChecker(reg, nil, "2.20.0")
 	ready, err := checker.IsReady(context.Background(), "mod-d")
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(ready).Should(BeFalse(), "stale observedGeneration should mean not ready")
+	g.Expect(ready).Should(BeTrue(), "stale generation should not block when version matches — DAG gates upgrades, not runtime spec lag")
 }
 
 func TestReadinessChecker_MatchingVersionReadyDespiteTransientFailure(t *testing.T) {
