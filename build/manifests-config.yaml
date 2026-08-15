@@ -50,7 +50,7 @@ map:
     src: config
     dest: sparkoperator
     git.url: https://github.com/red-hat-data-services/spark-operator
-    git.commit: 3763da82605fecedc834e5421c69dc9aa0200503
+    git.commit: 261e600180b2ddc5730f027838ddc373e446eb4d
   odh-ai-gateway-operator:
     src: config
     dest: aigateway
