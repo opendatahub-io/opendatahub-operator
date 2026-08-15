@@ -97,7 +97,11 @@ func (tc *KueueTestCtx) ensureKueueOperatorsInstalled(t *testing.T) {
 func kueueTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Kueue{})
+	ct, err := NewComponentTestCtx(t, &componentApi.Kueue{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.KueueInstanceName,
+		},
+	})
 	require.NoError(t, err)
 
 	componentCtx := KueueTestCtx{
@@ -128,7 +132,11 @@ func kueueDegradedMonitoringTestSuite(t *testing.T) {
 	t.Helper()
 	t.Skip("Skipping: flaky due to namespace stuck in Terminating state. See RHOAIENG-46773 and RHOAIENG-46774.")
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Kueue{})
+	ct, err := NewComponentTestCtx(t, &componentApi.Kueue{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.KueueInstanceName,
+		},
+	})
 	require.NoError(t, err)
 
 	componentCtx := KueueTestCtx{

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 )
@@ -15,7 +16,11 @@ type TrainingOperatorTestCtx struct {
 func trainingOperatorTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.TrainingOperator{})
+	ct, err := NewComponentTestCtx(t, &componentApi.TrainingOperator{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.TrainingOperatorInstanceName,
+		},
+	})
 	require.NoError(t, err)
 
 	componentCtx := TrainingOperatorTestCtx{

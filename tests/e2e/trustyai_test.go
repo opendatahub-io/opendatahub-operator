@@ -28,7 +28,11 @@ type TrustyAITestCtx struct {
 func trustyAITestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.TrustyAI{})
+	ct, err := NewComponentTestCtx(t, &componentApi.TrustyAI{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.TrustyAIInstanceName,
+		},
+	})
 	require.NoError(t, err)
 
 	componentCtx := TrustyAITestCtx{

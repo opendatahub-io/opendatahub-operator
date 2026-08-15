@@ -6,6 +6,7 @@ import (
 
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -27,7 +28,11 @@ type SparkOperatorTestCtx struct {
 func sparkOperatorTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.SparkOperator{})
+	ct, err := NewComponentTestCtx(t, &componentApi.SparkOperator{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.SparkOperatorInstanceName,
+		},
+	})
 	require.NoError(t, err)
 
 	componentCtx := SparkOperatorTestCtx{
