@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -120,13 +121,20 @@ func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
 				resources.CreatedOrUpdatedOrDeletedLabeled(gates.UpgradeGateLabel, "true"),
 			))).
-		// Namespace events re-trigger reconciliation so that ensureDashboardNamespacedRBAC
+		// Namespace CREATE events re-trigger reconciliation so that ensureDashboardNamespacedRBAC
 		// can create the notebooks/model-registry Role and RoleBinding when the target
-		// namespace appears after initial reconcile.
+		// namespace appears after initial reconcile. UPDATE and DELETE are not needed:
+		// deletions cascade automatically, and label/annotation changes don't affect RBAC provisioning.
 		Watches(
 			&corev1.Namespace{},
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
 				return cluster.WatchDataScienceClusters(ctx, mgr.GetClient())
+			}),
+			reconciler.WithPredicates(predicate.Funcs{
+				CreateFunc:  func(_ event.CreateEvent) bool { return true },
+				UpdateFunc:  func(_ event.UpdateEvent) bool { return false },
+				DeleteFunc:  func(_ event.DeleteEvent) bool { return false },
+				GenericFunc: func(_ event.GenericEvent) bool { return false },
 			}))
 
 	b = addModuleCRWatches(b)

@@ -554,3 +554,43 @@ func TestEnsureDashboardNamespacedRBAC_ModelRegistryRemovedCleansUp(t *testing.T
 
 	assertRoleAndBindingAbsent(t, rr, "rhods-dashboard-model-registries", mrNS)
 }
+
+// TestEnsureDashboardNamespacedRBAC_SharedNamespaceModelRegistryRemoved verifies that
+// when notebooks and model-registry share a namespace and ModelRegistry is then removed,
+// only the model-registry Role/RoleBinding is deleted (notebooks RBAC survives).
+// This is the exact scenario from the CodeRabbit finding: namespace-based cleanup would
+// skip deletion because the namespace is still active for the notebooks target.
+func TestEnsureDashboardNamespacedRBAC_SharedNamespaceModelRegistryRemoved(t *testing.T) {
+	enableDashboardInRegistry(t)
+	enableWorkbenchesInRegistry(t)
+
+	sharedNS := "shared-namespace"
+	sharedNSObj := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: sharedNS}}
+
+	// Pre-seed stale model-registry objects in the shared namespace.
+	staleRole, staleRB := makeStaleRBACObjects(sharedNS, "rhods-dashboard-model-registries")
+
+	dsc := &dscv2.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				Workbenches: componentApi.DSCWorkbenches{
+					WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
+						WorkbenchNamespace: sharedNS,
+					},
+				},
+			},
+		},
+	}
+
+	// No ModelRegistry CR — it was removed.
+	rr := newDashboardRBACTestRR(t, cluster.SelfManagedRhoai, dsc, sharedNSObj, staleRole, staleRB)
+
+	if err := ensureDashboardNamespacedRBAC(context.Background(), rr); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Notebooks RBAC must be created; model-registry stale objects must be gone.
+	getRoleAndBinding(t, rr, "rhods-dashboard-notebooks", sharedNS)
+	assertRoleAndBindingAbsent(t, rr, "rhods-dashboard-model-registries", sharedNS)
+}

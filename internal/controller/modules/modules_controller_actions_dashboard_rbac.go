@@ -49,15 +49,18 @@ func ensureDashboardNamespacedRBAC(ctx context.Context, rr *odhtype.Reconciliati
 		return err
 	}
 
-	// Build the set of active namespaces for stale cleanup.
-	activeNamespaces := make(map[string]struct{}, len(targets))
+	// Build the set of active (namespace, name) pairs for stale cleanup.
+	// Keying by namespace alone would skip cleanup when two targets share a
+	// namespace and one of them is removed (e.g. ModelRegistry deleted while
+	// Workbenches still active in the same namespace).
+	activeKeys := make(map[string]struct{}, len(targets))
 	for _, t := range targets {
-		activeNamespaces[t.namespace] = struct{}{}
+		activeKeys[t.namespace+"/"+saName+"-"+t.suffix] = struct{}{}
 	}
 
 	// Always clean up stale Roles/RoleBindings before creating new ones.
 	// This handles: dashboard disabled, namespace changes, ModelRegistry removal.
-	if err := cleanupStaleDashboardRBAC(ctx, rr, activeNamespaces); err != nil {
+	if err := cleanupStaleDashboardRBAC(ctx, rr, activeKeys); err != nil {
 		return err
 	}
 
@@ -109,10 +112,12 @@ func resolveDashboardActiveState(ctx context.Context, rr *odhtype.Reconciliation
 	return targets, saName, nil
 }
 
-// cleanupStaleDashboardRBAC deletes labeled Roles/RoleBindings in namespaces that are
-// no longer in the active set. Runs unconditionally so that disabling the dashboard or
-// changing target namespaces always revokes access promptly.
-func cleanupStaleDashboardRBAC(ctx context.Context, rr *odhtype.ReconciliationRequest, activeNamespaces map[string]struct{}) error {
+// cleanupStaleDashboardRBAC deletes labeled Roles/RoleBindings whose namespace/name
+// key is no longer in the active set. Runs unconditionally so that disabling the
+// dashboard, changing namespaces, or removing a component always revokes access promptly.
+// activeKeys is keyed as "namespace/roleName" so that removing one target from a shared
+// namespace doesn't skip cleanup of the other target's objects.
+func cleanupStaleDashboardRBAC(ctx context.Context, rr *odhtype.ReconciliationRequest, activeKeys map[string]struct{}) error {
 	logger := logf.FromContext(ctx)
 	labelSelector := client.MatchingLabels{dashboardManagedRBACLabel: dashboardManagedRBACLabelValue}
 
@@ -122,7 +127,7 @@ func cleanupStaleDashboardRBAC(ctx context.Context, rr *odhtype.ReconciliationRe
 	}
 	for i := range roleList.Items {
 		role := &roleList.Items[i]
-		if _, active := activeNamespaces[role.Namespace]; active {
+		if _, active := activeKeys[role.Namespace+"/"+role.Name]; active {
 			continue
 		}
 		logger.Info("deleting stale dashboard Role", "namespace", role.Namespace, "name", role.Name)
@@ -137,7 +142,7 @@ func cleanupStaleDashboardRBAC(ctx context.Context, rr *odhtype.ReconciliationRe
 	}
 	for i := range rbList.Items {
 		rb := &rbList.Items[i]
-		if _, active := activeNamespaces[rb.Namespace]; active {
+		if _, active := activeKeys[rb.Namespace+"/"+rb.Name]; active {
 			continue
 		}
 		logger.Info("deleting stale dashboard RoleBinding", "namespace", rb.Namespace, "name", rb.Name)
