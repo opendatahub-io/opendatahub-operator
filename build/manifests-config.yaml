@@ -177,7 +177,7 @@ additional_meta:
     git.commit: d197f1632540c891e0f9c19791a68e1ccab11e1a
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: 0078933bf42d400aa4d1cbde6af99ba59691aa3e
+    git.commit: 9c95e3a4a76ec252fc6d0d7ba4f6606b3ccc80ee
   odh-maas-controller:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
     git.commit: 0078933bf42d400aa4d1cbde6af99ba59691aa3e
