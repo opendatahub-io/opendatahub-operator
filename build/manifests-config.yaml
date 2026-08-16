@@ -63,3 +63,6 @@ map:
   odh-praxis-ai-grid-operator:
     src: charts/grid-operator/templates
     dest: grid-operator
+  odh-trustyai-module-operator:
+    src: config/default
+    dest: trustyai-module-operator
