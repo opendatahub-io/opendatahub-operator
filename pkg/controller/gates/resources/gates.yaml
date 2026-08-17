@@ -22,6 +22,7 @@ metadata:
 data:
   ack-3.5.1-aigateway: "Acknowledge upgrade of aigateway from version 2.x to 3.5.1"
   ack-3.5.1-dashboard: "Acknowledge upgrade of dashboard from version 2.x to 3.5.1"
+  ack-3.5.1-codeflare: "Acknowledge upgrade of codeflare from version 2.x to 3.5.1"
   ack-3.5.1-datasciencepipelines: "Acknowledge upgrade of datasciencepipelines from version 2.x to 3.5.1"
   ack-3.5.1-feastoperator: "Acknowledge upgrade of feastoperator from version 2.x to 3.5.1"
   ack-3.5.1-kserve: "Acknowledge upgrade of kserve from version 2.x to 3.5.1"
