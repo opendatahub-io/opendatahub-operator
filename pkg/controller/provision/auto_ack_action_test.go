@@ -311,6 +311,10 @@ func TestAutoAck_UnmanagedCodeFlareStillChecked(t *testing.T) {
 	assertUnmanagedProblematicComponent(t, componentApi.CodeFlareComponentName, "CodeFlare upgrade", true)
 }
 
+func TestAutoAck_UnmanagedKueueStillChecked(t *testing.T) {
+	assertUnmanagedProblematicComponent(t, componentApi.KueueComponentName, "Kueue upgrade", true)
+}
+
 func assertUnmanagedProblematicComponent(t *testing.T, component string, message string, shouldBlock bool) {
 	t.Helper()
 

@@ -88,7 +88,7 @@ func (o *TestPlatformObject) GetConditions() []common.Condition { return o.Statu
 // SetConditions implements common.ConditionsAccessor.
 func (o *TestPlatformObject) SetConditions(c []common.Condition) { o.Status.SetConditions(c) }
 
-func (o *TestPlatformObject) DeepCopyObject() runtime.Object { //nolint:ireturn
+func (o *TestPlatformObject) DeepCopyObject() runtime.Object { //nolint:ireturn,nolintlint // runtime.Object return is required by interface
 	if o == nil {
 		return nil
 	}
@@ -108,7 +108,7 @@ type TestPlatformObjectList struct {
 	Items []TestPlatformObject `json:"items"`
 }
 
-func (l *TestPlatformObjectList) DeepCopyObject() runtime.Object { //nolint:ireturn
+func (l *TestPlatformObjectList) DeepCopyObject() runtime.Object { //nolint:ireturn,nolintlint // runtime.Object return is required by interface
 	if l == nil {
 		return nil
 	}

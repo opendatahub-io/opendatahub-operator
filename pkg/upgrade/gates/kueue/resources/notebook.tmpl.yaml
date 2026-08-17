@@ -1,0 +1,9 @@
+apiVersion: kubeflow.org/v1
+kind: Notebook
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+{{- if .QueueName }}
+  labels:
+    kueue.x-k8s.io/queue-name: {{ .QueueName }}
+{{- end }}
