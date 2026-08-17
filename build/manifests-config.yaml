@@ -132,7 +132,7 @@ additional_meta:
     git.commit: da0e07f0d03c7f0c9c7fa0232d5c51d068e64452
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: da0e07f0d03c7f0c9c7fa0232d5c51d068e64452
+    git.commit: d4f8f85d8c8085f2c44de88aabc72c406aa8c644
   odh-kserve-localmodel-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: d4f8f85d8c8085f2c44de88aabc72c406aa8c644
