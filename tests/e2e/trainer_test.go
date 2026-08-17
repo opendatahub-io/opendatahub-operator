@@ -48,7 +48,11 @@ func trainerTestSuite(t *testing.T) {
 func trainerDegradedMonitoringTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Trainer{})
+	ct, err := NewComponentTestCtx(t, &componentApi.Trainer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.TrainerInstanceName,
+		},
+	})
 	require.NoError(t, err)
 
 	componentCtx := TrainerTestCtx{

@@ -28,7 +28,11 @@ type TrustyAITestCtx struct {
 func trustyAITestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.TrustyAI{})
+	ct, err := NewComponentTestCtx(t, &componentApi.TrustyAI{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.TrustyAIInstanceName,
+		},
+	})
 	require.NoError(t, err)
 
 	componentCtx := TrustyAITestCtx{
@@ -41,6 +45,7 @@ func trustyAITestSuite(t *testing.T) {
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate platform release", componentCtx.ValidatePlatformRelease},
 		{"Validate MCP guardrails mode", componentCtx.ValidateMCPGuardrailsMode},
 		{"Validate pre check", componentCtx.ValidateTrustyAIPreCheck},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
