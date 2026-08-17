@@ -39,7 +39,6 @@ declare -A RHAI_COMPONENT_PATHS=(
     ["ray"]="ray/openshift"
     ["sparkoperator"]="sparkoperator/overlays/rhoai"
     ["trainer"]="trainer/rhoai"
-    ["trainingoperator"]="trainingoperator/rhoai"
     ["trustyai"]="trustyai/overlays/rhoai trustyai/overlays/mcp-guardrails"
 )
 
