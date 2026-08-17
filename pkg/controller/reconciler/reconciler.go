@@ -62,11 +62,19 @@ func getChartsBasePath(mgr manager.Manager) string {
 
 type ReconcilerOpt func(*Reconciler)
 
+type PostStatusFn func(context.Context, *types.ReconciliationRequest, bool) error
+
 func WithConditionsManagerFactory(happy string, dependents ...string) ReconcilerOpt {
 	return func(reconciler *Reconciler) {
 		reconciler.conditionsManagerFactory = func(accessor common.ConditionsAccessor) *conditions.Manager {
 			return conditions.NewManager(accessor, happy, dependents...)
 		}
+	}
+}
+
+func withPostStatusFn(fn PostStatusFn) ReconcilerOpt {
+	return func(reconciler *Reconciler) {
+		reconciler.postStatusFns = append(reconciler.postStatusFns, fn)
 	}
 }
 
@@ -127,6 +135,7 @@ type Reconciler struct {
 	excludeFromDynamicOwnership map[schema.GroupVersionKind]struct{}
 	skipConditionCleanup        bool
 	skipStatusConditionsFn      func() bool
+	postStatusFns               []PostStatusFn
 }
 
 // NewReconciler creates a new reconciler for the given type.
@@ -461,6 +470,12 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 	if rr.Conditions.IsHappy() {
 		is.Phase = status.PhaseReady
 		is.ObservedGeneration = rr.Instance.GetGeneration()
+	}
+
+	for i := range r.postStatusFns {
+		if err := r.postStatusFns[i](ctx, &rr, rr.Conditions.IsHappy()); err != nil {
+			return 0, fmt.Errorf("failed to run post-status hook: %w", err)
+		}
 	}
 
 	if r.skipStatusConditionsFn != nil && r.skipStatusConditionsFn() {
