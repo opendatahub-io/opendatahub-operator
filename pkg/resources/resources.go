@@ -183,6 +183,9 @@ func HasLabel(obj client.Object, k string, values ...string) bool {
 	if !found {
 		return false
 	}
+	if len(values) == 0 {
+		return true
+	}
 
 	return slices.Contains(values, val)
 }
@@ -246,8 +249,33 @@ func HasAnnotation(obj client.Object, k string, values ...string) bool {
 	if !found {
 		return false
 	}
+	if len(values) == 0 {
+		return true
+	}
 
 	return slices.Contains(values, val)
+}
+
+func HasFinalizer(obj client.Object, values ...string) bool {
+	if obj == nil {
+		return false
+	}
+
+	target := obj.GetFinalizers()
+	if len(target) == 0 {
+		return false
+	}
+	if len(values) == 0 {
+		return true
+	}
+
+	for _, value := range values {
+		if slices.Contains(target, value) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func SetAnnotations(obj client.Object, values map[string]string) {

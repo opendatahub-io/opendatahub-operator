@@ -1,0 +1,17 @@
+apiVersion: {{ .APIVersion }}
+kind: RayCluster
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+{{- with index . "Finalizers" }}
+  finalizers:
+{{- range . }}
+  - {{ . }}
+{{- end }}
+{{- end }}
+{{- with index . "Annotations" }}
+  annotations:
+{{- range $key, $value := . }}
+    {{ $key }}: "{{ $value }}"
+{{- end }}
+{{- end }}
