@@ -202,6 +202,42 @@ func TestBuildModuleCR_ComponentsDefaultToRemovedWhenEmpty(t *testing.T) {
 	g.Expect(pipComp["managementState"]).Should(Equal("Removed"))
 }
 
+func TestBuildModuleCR_ObservabilitySetWhenMonitoringNamespaceConfigured(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	platform := newPlatformCtx(operatorv1.Managed)
+	platform.MonitoringNamespace = "redhat-ods-monitoring"
+
+	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+
+	obs, ok := spec["observability"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.observability missing")
+	g.Expect(obs["enabled"]).Should(BeTrue())
+
+	svc, ok := obs["persesService"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.observability.persesService missing")
+	g.Expect(svc["name"]).Should(Equal("data-science-perses"))
+	g.Expect(svc["namespace"]).Should(Equal("redhat-ods-monitoring"))
+	g.Expect(svc["port"]).Should(Equal(int64(8080)))
+}
+
+func TestBuildModuleCR_ObservabilityOmittedWhenMonitoringNamespaceEmpty(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	platform := newPlatformCtx(operatorv1.Managed)
+
+	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).ShouldNot(HaveKey("observability"))
+}
+
 func TestBuildModuleCR_NilPlatformContextReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
