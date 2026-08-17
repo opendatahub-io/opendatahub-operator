@@ -23,9 +23,7 @@ import (
 
 const (
 	TrainingOperatorComponentName = "trainingoperator"
-	// value should match whats set in the XValidation below
-	TrainingOperatorInstanceName = "default-" + TrainingOperatorComponentName
-	TrainingOperatorKind         = "TrainingOperator"
+	TrainingOperatorKind          = "TrainingOperator"
 )
 
 // Check that the component implements common.PlatformObject.
@@ -99,7 +97,11 @@ func (c *TrainingOperator) SetReleaseStatus(releases []common.ComponentRelease) 
 	c.Status.Releases = releases
 }
 
-// DSCTrainingOperator contains all the configuration exposed in DSC instance for TrainingOperator component
+// +kubebuilder:validation:XValidation:rule="!has(self.managementState) || self.managementState != 'Managed' || (has(oldSelf.managementState) && oldSelf.managementState == 'Managed')",message="TrainingOperator v1 is obsolete in RHOAI 3.6. Set managementState to Removed, then delete the TrainingOperator CR to clean up. Use Trainer v2 instead."
+//nolint:lll
+
+// DSCTrainingOperator contains all the configuration exposed in DSC instance for TrainingOperator component.
+// The XValidation rule lives here (not on the v2-only Components struct) so it applies to v1 too.
 type DSCTrainingOperator struct {
 	common.ManagementSpec `json:",inline"`
 	// configuration fields common across components

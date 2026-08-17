@@ -132,7 +132,7 @@ Get detailed status of a specific ODH component: CR conditions, pod statuses, an
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `component` | string | yes | | Component name: `kserve`, `dashboard`, `workbenches`, `ray`, `trustyai`, `modelregistry`, `datasciencepipelines`, `trainingoperator`, `feastoperator`, `trainer`, `kueue`, `mlflowoperator`, `sparkoperator`, etc. |
+| `component` | string | yes | | Component name: `kserve`, `dashboard`, `workbenches`, `ray`, `trustyai`, `modelregistry`, `datasciencepipelines`, `feastoperator`, `trainer`, `kueue`, `mlflowoperator`, `sparkoperator`, etc. |
 | `applications_namespace` | string | no | auto-discover (DSCI → env → `opendatahub`) | Applications namespace |
 
 ```jsonc

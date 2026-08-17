@@ -156,6 +156,47 @@ func TestDataScienceClusterV1_Integration(t *testing.T) {
 				g.Expect(err.Error()).To(ContainSubstring("RegistriesNamespace"))
 			},
 		},
+		{
+			// Regression test: guard was originally v2-only and bypassable via the v1 API.
+			name: "CEL: TrainingOperator (KFTO v1) re-enablement blocked on update via v1 API",
+			setup: func(ns string) []client.Object {
+				return nil
+			},
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				dsc := envtestutil.NewDSCV1("dsc-kfto-cel-v1")
+				g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed(), "should allow creation with TrainingOperator left unset/Removed")
+
+				key := types.NamespacedName{Name: "dsc-kfto-cel-v1", Namespace: ns}
+				fetched := &dscv1.DataScienceCluster{}
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+
+				fetched.Spec.Components.TrainingOperator.ManagementState = operatorv1.Managed
+				err := k8sClient.Update(ctx, fetched)
+				g.Expect(err).To(HaveOccurred(), "CEL should reject re-enabling the deprecated TrainingOperator v1 via the v1 API too")
+				g.Expect(err.Error()).To(ContainSubstring("obsolete"))
+			},
+		},
+		{
+			name: "CEL: TrainingOperator (KFTO v1) Managed on create via v1 API persists across unrelated updates",
+			setup: func(ns string) []client.Object {
+				return nil
+			},
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				dsc := envtestutil.NewDSCV1("dsc-kfto-cel-v1-managed", envtestutil.WithTrainingOperatorManagedV1())
+				g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed(), "CEL transition rule should not apply on create (no oldSelf)")
+
+				key := types.NamespacedName{Name: "dsc-kfto-cel-v1-managed", Namespace: ns}
+				fetched := &dscv1.DataScienceCluster{}
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+
+				fetched.Spec.Components.Dashboard.ManagementState = operatorv1.Managed
+				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed(), "CEL should allow keeping TrainingOperator Managed while changing an unrelated field")
+
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+				fetched.Spec.Components.TrainingOperator.ManagementState = operatorv1.Removed
+				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed(), "CEL should allow moving an already-Managed TrainingOperator back to Removed")
+			},
+		},
 	}
 
 	for _, tc := range testCases {

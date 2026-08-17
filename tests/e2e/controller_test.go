@@ -142,7 +142,6 @@ var (
 			{
 				componentApi.DashboardComponentName:            dashboardTestSuite,
 				componentApi.RayComponentName:                  rayTestSuite,
-				componentApi.TrainingOperatorComponentName:     trainingOperatorTestSuite,
 				componentApi.TrainerComponentName:              trainerTestSuite,
 				componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
 				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,

@@ -97,7 +97,6 @@ The following components are **automatically integrated** by the ODH operator ba
 |-----------|-------------------|---------|------------------|
 | **KServe** | [opendatahub-io/kserve](https://github.com/opendatahub-io/kserve) | Model serving platform | Optional |
 | **Ray** | [opendatahub-io/kuberay](https://github.com/opendatahub-io/kuberay) | Distributed computing framework | Optional |
-| **Training Operator** | [opendatahub-io/training-operator](https://github.com/opendatahub-io/training-operator) | ML training job management | Optional |
 | **Trainer** | [opendatahub-io/trainer](https://github.com/opendatahub-io/trainer) | ML training job management | Optional |
 | **Feast Operator** | [opendatahub-io/feast](https://github.com/opendatahub-io/feast) | Feature store for ML | Optional |
 | **Model Registry Operator** | [opendatahub-io/model-registry](https://github.com/opendatahub-io/model-registry-operator) | Model versioning and registry | Optional |
@@ -715,8 +714,6 @@ spec:
     modelregistry:
       managementState: Managed
     ray:
-      managementState: Managed
-    trainingoperator:
       managementState: Managed
     trainer:
       managementState: Managed
