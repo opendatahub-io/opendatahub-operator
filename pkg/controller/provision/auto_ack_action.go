@@ -117,6 +117,8 @@ func requiresCheckWhenUnmanaged(component string) bool {
 		return true
 	case componentApi.CodeFlareComponentName:
 		return true
+	case componentApi.KueueComponentName:
+		return true
 	default:
 		return false
 	}

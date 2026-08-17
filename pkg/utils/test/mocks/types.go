@@ -65,7 +65,7 @@ func (m *MockController) GetClient() client.Client {
 	return m.Called().Get(0).(client.Client)
 }
 
-func (m *MockController) GetAPIReader() client.Reader { //nolint:ireturn // controller interface requires reader
+func (m *MockController) GetAPIReader() client.Reader { //nolint:ireturn,nolintlint // interface-mandated return type
 	return m.Called().Get(0).(client.Reader)
 }
 
