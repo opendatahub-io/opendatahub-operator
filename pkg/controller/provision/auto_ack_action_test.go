@@ -300,6 +300,64 @@ func TestAutoAck_NilManagedMap_AllComponentsAutoAcked(t *testing.T) {
 		"nil managed map (xKS) means all components are treated as unmanaged and auto-acked")
 }
 
+func TestAutoAck_UnmanagedProblematicComponentStillChecked(t *testing.T) {
+	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
+		WithObjects(
+			gateCM(map[string]string{
+				"ack-3.0.0-modelmeshserving": "ModelMeshServing upgrade",
+			}),
+			acksCM(map[string]string{
+				"ack-3.0.0-modelmeshserving": "Acknowledge upgrade of modelmeshserving from version 2.x to 3.0.0",
+			}),
+		).Build()
+
+	provision.RegisterUpgradeCheck(componentApi.ModelMeshServingComponentName,
+		func(context.Context, client.Reader, string, string) error {
+			return errors.New("legacy ModelMesh resources present")
+		},
+	)
+
+	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
+		context.Background(), cli, cli, testNS, testApps, "3.0.0", map[string]bool{})
+
+	require.NoError(t, err)
+
+	cm := &corev1.ConfigMap{}
+	require.NoError(t, cli.Get(context.Background(),
+		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
+	assert.NotEqual(t, "true", cm.Data["ack-3.0.0-modelmeshserving"],
+		"problematic unmanaged component should still run its gate check")
+}
+
+func TestAutoAck_UnmanagedProblematicComponentAutoAckedWhenCheckPasses(t *testing.T) {
+	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
+		WithObjects(
+			gateCM(map[string]string{
+				"ack-3.0.0-modelmeshserving": "ModelMeshServing upgrade",
+			}),
+			acksCM(map[string]string{
+				"ack-3.0.0-modelmeshserving": "Acknowledge upgrade of modelmeshserving from version 2.x to 3.0.0",
+			}),
+		).Build()
+
+	provision.RegisterUpgradeCheck(componentApi.ModelMeshServingComponentName,
+		func(context.Context, client.Reader, string, string) error {
+			return nil
+		},
+	)
+
+	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
+		context.Background(), cli, cli, testNS, testApps, "3.0.0", map[string]bool{})
+
+	require.NoError(t, err)
+
+	cm := &corev1.ConfigMap{}
+	require.NoError(t, cli.Get(context.Background(),
+		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
+	assert.Equal(t, "true", cm.Data["ack-3.0.0-modelmeshserving"],
+		"problematic unmanaged component should still auto-ack when its gate check passes")
+}
+
 func TestAutoAck_UnmanagedCodeFlareStillChecked(t *testing.T) {
 	t.Parallel()
 
