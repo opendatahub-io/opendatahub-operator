@@ -106,25 +106,25 @@ func updateDeprecatedTrainingOperatorStatus(rr *types.ReconciliationRequest) err
 	dsc.Status.Components.TrainingOperator.ManagementState = ms
 	dsc.Status.Components.TrainingOperator.TrainingOperatorCommonStatus = nil
 
-	condType := componentApi.TrainingOperatorKind + status.ReadySuffix
-
-	if ms == operatorv1.Managed {
-		rr.Conditions.MarkFalse(
-			condType,
-			conditions.WithReason("Obsolete"),
-			conditions.WithMessage(
-				"Training Operator v1 is obsolete in RHOAI 3.6. "+
-					"Set managementState to Removed, then delete the TrainingOperator CR to clean up. "+
-					"Use Trainer v2 instead."),
-		)
-	} else {
-		rr.Conditions.MarkFalse(
-			condType,
-			conditions.WithReason(string(ms)),
-			conditions.WithMessage("Component ManagementState is set to %s", string(ms)),
-			conditions.WithSeverity(common.ConditionSeverityInfo),
-		)
+	// Set TrainingOperatorReady on the DSC accessor directly. Using
+	// rr.Conditions.MarkFalse would run RecomputeHappiness and can overwrite
+	// ComponentsReady because TrainingOperatorReady is not a registered
+	// dependent of the DSC condition manager.
+	cond := common.Condition{
+		Type:   componentApi.TrainingOperatorKind + status.ReadySuffix,
+		Status: metav1.ConditionFalse,
 	}
+	if ms == operatorv1.Managed {
+		cond.Reason = "Obsolete"
+		cond.Message = "Training Operator v1 is obsolete in RHOAI 3.6. " +
+			"Set managementState to Removed, then delete the TrainingOperator CR to clean up. " +
+			"Use Trainer v2 instead."
+	} else {
+		cond.Reason = string(ms)
+		cond.Message = fmt.Sprintf("Component ManagementState is set to %s", string(ms))
+		cond.Severity = common.ConditionSeverityInfo
+	}
+	conditions.SetStatusCondition(dsc, cond)
 
 	return nil
 }
