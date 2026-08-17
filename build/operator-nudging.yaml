@@ -60,7 +60,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
   value: quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:be4abce6a2432df4e0465935f7ea286d47aa465820078b9c0dfbf06a523b156a
 - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
-  value: quay.io/rhoai/odh-kube-rbac-proxy-rhel9@sha256:e773f588e71722db78d806bf95a2e9100bb5d76a26987f0ccfc2c5bd980b5448
+  value: quay.io/rhoai/odh-kube-rbac-proxy-rhel9@sha256:977bbb03602db91aa4f72ec397c9af38c02450b52cb43e7053f1ef7e9c17ef70
 - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_PREDICTION_IMAGE
   value: quay.io/rhoai/odh-latency-predictor-prediction-rhel9@sha256:f597ef4e8a7cd375ef256647d2ac7b7eac9e2fd505128b65f7a85b79190379e5
 - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TRAINING_IMAGE
