@@ -171,7 +171,7 @@ additional_meta:
     git.commit: 71edc181dd0cb315b8907f00988eefdfc5e1a225
   odh-llm-d-router-disagg-sidecar:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: d197f1632540c891e0f9c19791a68e1ccab11e1a
+    git.commit: fe37b48b6c137982ee360085b7783915a2c37944
   odh-llm-d-router-endpoint-picker:
     git.url: https://github.com/red-hat-data-services/llm-d-router
     git.commit: d197f1632540c891e0f9c19791a68e1ccab11e1a
@@ -261,7 +261,7 @@ additional_meta:
     git.commit: 47392b774691a00896f5378f5643fbb367d65251
   odh-observability:
     git.url: https://github.com/red-hat-data-services/odh-observability
-    git.commit: 3419932c07beb6c4cb98ed479833bab6867d305f
+    git.commit: f3c2f1ed0d6ffb38b3d526424fcf91704023cdae
   odh-ogx-core:
     git.url: https://github.com/red-hat-data-services/ogx-distribution
     git.commit: 7e87a799ef40c2baff9511e8e58d63c3147aa7eb

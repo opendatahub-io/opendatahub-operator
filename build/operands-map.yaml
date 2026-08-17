@@ -76,7 +76,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE
   value: "quay.io/rhoai/odh-llm-d-batch-gateway-processor-rhel9@sha256:128b36104134e806de56cb595b47c250f0ddaea315cb0f23d57cb3644892cfa4"
 - name: RELATED_IMAGE_ODH_LLM_D_ROUTER_DISAGG_SIDECAR_IMAGE
-  value: "quay.io/rhoai/odh-llm-d-router-disagg-sidecar-rhel9@sha256:44250d3f39ad186f8e54e347870834a88eeda4c9cc7e915bd211cbf1160f5be1"
+  value: "quay.io/rhoai/odh-llm-d-router-disagg-sidecar-rhel9@sha256:614fe2be5219d8c78f8fd92815b9f8f16d8e4a5187baf1be142ef65730c08915"
 - name: RELATED_IMAGE_ODH_LLM_D_ROUTER_ENDPOINT_PICKER_IMAGE
   value: "quay.io/rhoai/odh-llm-d-router-endpoint-picker-rhel9@sha256:53d4f6c11cb0b206456deb01fc7b5c6a13f2fa3826299c7cd0eda4235d7e8612"
 - name: RELATED_IMAGE_ODH_MAAS_API_IMAGE
@@ -142,7 +142,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-notebook-controller-rhel9@sha256:16f142506c640b2f42ed7028362eeac05798be37466c2fb6d2957f6b3e07abb0"
 - name: RELATED_IMAGE_ODH_OBSERVABILITY_IMAGE
-  value: "quay.io/rhoai/odh-observability-rhel9@sha256:58cc5528395978571d8aa7e6f1c943302dad622566d9e40fa6ff047f265f82fc"
+  value: "quay.io/rhoai/odh-observability-rhel9@sha256:47f3c8251a6c9052148def79749e42e08e7649dd99193a4bb26ff9121369d538"
 - name: RELATED_IMAGE_ODH_OGX_CORE_IMAGE
   value: "quay.io/rhoai/odh-ogx-core-rhel9@sha256:fb1eeca39758733e151ad142751e9a2d49cbae72764d7b4f952bc926c73ee786"
 - name: RELATED_IMAGE_ODH_OGX_K8S_OPERATOR_IMAGE
