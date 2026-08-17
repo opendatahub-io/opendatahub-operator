@@ -51,15 +51,6 @@ components:
       repo: red-hat-data-services/model-registry-operator
       ref: rhoai-3.5@744514611b1e4d935df680cba3f3ba503efed7fa
       sourcePath: config
-  trainingoperator:
-    odh:
-      repo: opendatahub-io/training-operator
-      ref: stable@f6c57e481ca17a27bca4d4324240fcd245770287
-      sourcePath: manifests
-    rhoai:
-      repo: red-hat-data-services/training-operator
-      ref: rhoai-3.5@1deeb64a1f7afe739a2160c31a73d83446b2e0e6
-      sourcePath: manifests
   datasciencepipelines:
     odh:
       repo: opendatahub-io/data-science-pipelines-operator
@@ -277,17 +268,6 @@ imageOverrides:
       shaFrom: odh
       base: "quay.io/opendatahub/model-registry-operator"
       digest: "sha256:5a3799665e87143bd2d7b254c7cf56da278eb12f6db8e33d7da5e2b3717ce19f"
-  RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE:
-    component: trainingoperator
-    paramsEnvKey: odh-training-operator-controller-image
-    tagTemplate: "{SHA}"
-    odh:
-      base: "quay.io/opendatahub/training-operator"
-      digest: "sha256:f885c0e2cea17a6ef678b1c22ba3ae3e3baf4b4adfcdd7292c4a28b2111f1bcb"
-    rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/training-operator"
-      digest: "sha256:f885c0e2cea17a6ef678b1c22ba3ae3e3baf4b4adfcdd7292c4a28b2111f1bcb"
   RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE:
     component: datasciencepipelines
     paramsEnvKey: IMAGES_DSPO
