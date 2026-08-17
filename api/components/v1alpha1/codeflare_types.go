@@ -22,7 +22,9 @@ import (
 
 const (
 	// This component is removed in 3.0
-	CodeFlareKind = "CodeFlare"
+	CodeFlareComponentName = "codeflare"
+	CodeFlareInstanceName  = "default-" + CodeFlareComponentName
+	CodeFlareKind          = "CodeFlare"
 )
 
 // CodeFlareCommonStatus defines the shared observed state of CodeFlare

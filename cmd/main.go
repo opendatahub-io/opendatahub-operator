@@ -116,6 +116,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	codeflaregates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/codeflare"
 	kservegates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/kserve"
 	modelmeshservinggates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/modelmeshserving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
@@ -520,6 +521,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// Wrap the manager to return the wrapped client from GetClient()
 	mgr := manager.New(ctrlMgr, manager.WithManifestsBasePath(oconfig.ManifestsBasePath), manager.WithChartsBasePath(oconfig.ChartsBasePath))
 
+	provision.RegisterUpgradeCheck(componentApi.CodeFlareComponentName, codeflaregates.Check)
 	provision.RegisterUpgradeCheck(componentApi.KserveComponentName, kservegates.Check)
 	provision.RegisterUpgradeCheck(componentApi.ModelMeshServingComponentName, modelmeshservinggates.Check)
 

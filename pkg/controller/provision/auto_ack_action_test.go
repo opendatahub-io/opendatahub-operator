@@ -3,7 +3,6 @@ package provision_test
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -301,89 +300,52 @@ func TestAutoAck_NilManagedMap_AllComponentsAutoAcked(t *testing.T) {
 }
 
 func TestAutoAck_UnmanagedProblematicComponentStillChecked(t *testing.T) {
-	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
-		WithObjects(
-			gateCM(map[string]string{
-				"ack-3.0.0-modelmeshserving": "ModelMeshServing upgrade",
-			}),
-			acksCM(map[string]string{
-				"ack-3.0.0-modelmeshserving": "Acknowledge upgrade of modelmeshserving from version 2.x to 3.0.0",
-			}),
-		).Build()
-
-	provision.RegisterUpgradeCheck(componentApi.ModelMeshServingComponentName,
-		func(context.Context, client.Reader, string, string) error {
-			return errors.New("legacy ModelMesh resources present")
-		},
-	)
-
-	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		context.Background(), cli, cli, testNS, testApps, "3.0.0", map[string]bool{})
-
-	require.NoError(t, err)
-
-	cm := &corev1.ConfigMap{}
-	require.NoError(t, cli.Get(context.Background(),
-		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
-	assert.NotEqual(t, "true", cm.Data["ack-3.0.0-modelmeshserving"],
-		"problematic unmanaged component should still run its gate check")
+	assertUnmanagedProblematicComponent(t, componentApi.ModelMeshServingComponentName, "ModelMeshServing upgrade", true)
 }
 
 func TestAutoAck_UnmanagedProblematicComponentAutoAckedWhenCheckPasses(t *testing.T) {
+	assertUnmanagedProblematicComponent(t, componentApi.ModelMeshServingComponentName, "ModelMeshServing upgrade", false)
+}
+
+func TestAutoAck_UnmanagedCodeFlareStillChecked(t *testing.T) {
+	assertUnmanagedProblematicComponent(t, componentApi.CodeFlareComponentName, "CodeFlare upgrade", true)
+}
+
+func assertUnmanagedProblematicComponent(t *testing.T, component string, message string, shouldBlock bool) {
+	t.Helper()
+
+	key := "ack-3.0.0-" + component
+
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
-			gateCM(map[string]string{
-				"ack-3.0.0-modelmeshserving": "ModelMeshServing upgrade",
-			}),
 			acksCM(map[string]string{
-				"ack-3.0.0-modelmeshserving": "Acknowledge upgrade of modelmeshserving from version 2.x to 3.0.0",
+				key: "Acknowledge upgrade of " + component + " from version 2.x to 3.0.0",
 			}),
 		).Build()
 
-	provision.RegisterUpgradeCheck(componentApi.ModelMeshServingComponentName,
+	provision.RegisterUpgradeCheck(component,
 		func(context.Context, client.Reader, string, string) error {
+			if shouldBlock {
+				return errors.New("legacy resources present")
+			}
 			return nil
 		},
 	)
 
 	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
 		context.Background(), cli, cli, testNS, testApps, "3.0.0", map[string]bool{})
-
 	require.NoError(t, err)
 
 	cm := &corev1.ConfigMap{}
 	require.NoError(t, cli.Get(context.Background(),
 		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
-	assert.Equal(t, "true", cm.Data["ack-3.0.0-modelmeshserving"],
+
+	if shouldBlock {
+		assert.NotEqual(t, "true", cm.Data[key],
+			"problematic unmanaged component should still run its gate check")
+		return
+	}
+
+	assert.Equal(t, "true", cm.Data[key],
 		"problematic unmanaged component should still auto-ack when its gate check passes")
-}
-
-func TestAutoAck_UnmanagedCodeFlareStillChecked(t *testing.T) {
-	t.Parallel()
-
-	codeFlareComponentName := strings.ToLower(componentApi.CodeFlareKind)
-
-	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
-		WithObjects(
-			acksCM(map[string]string{
-				"ack-3.0.0-codeflare": "Acknowledge upgrade of codeflare from version 2.x to 3.0.0",
-			}),
-		).Build()
-
-	provision.RegisterUpgradeCheck(codeFlareComponentName,
-		func(context.Context, client.Reader, string, string) error {
-			return errors.New("legacy CodeFlare resources present")
-		},
-	)
-
-	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		context.Background(), cli, cli, testNS, testApps, "3.0.0", map[string]bool{})
-
-	require.NoError(t, err)
-
-	cm := &corev1.ConfigMap{}
-	require.NoError(t, cli.Get(context.Background(),
-		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
-	assert.NotEqual(t, "true", cm.Data["ack-3.0.0-codeflare"],
-		"problematic unmanaged codeflare component should still run its gate check")
 }

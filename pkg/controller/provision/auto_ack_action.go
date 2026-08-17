@@ -115,7 +115,7 @@ func requiresCheckWhenUnmanaged(component string) bool {
 	switch component {
 	case componentApi.ModelMeshServingComponentName:
 		return true
-	case strings.ToLower(componentApi.CodeFlareKind):
+	case componentApi.CodeFlareComponentName:
 		return true
 	default:
 		return false

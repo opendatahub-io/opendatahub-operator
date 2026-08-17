@@ -811,6 +811,12 @@ var (
 		Kind:    "RayCluster",
 	}
 
+	AppWrapper = schema.GroupVersionKind{
+		Group:   "workload.codeflare.dev",
+		Version: "v1beta2",
+		Kind:    "AppWrapper",
+	}
+
 	TempoMonolithic = schema.GroupVersionKind{
 		Group:   "tempo.grafana.com",
 		Version: "v1alpha1",
