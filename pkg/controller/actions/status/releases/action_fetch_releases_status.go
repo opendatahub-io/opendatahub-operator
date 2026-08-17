@@ -81,7 +81,7 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 
 	for _, r := range *obj.GetReleaseStatus() {
 		if r.Name == platformReleaseName {
-			result = append(result, r)
+			result = append([]common.ComponentRelease{r}, result...)
 
 			break
 		}

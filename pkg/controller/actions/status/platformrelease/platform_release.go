@@ -38,12 +38,16 @@ func setPlatformRelease(wr common.WithReleases, version string) {
 		if r.Name == common.PlatformReleaseName {
 			(*releases)[i].Version = version
 
+			if i != 0 {
+				entry := (*releases)[i]
+				*releases = append([]common.ComponentRelease{entry}, append((*releases)[:i], (*releases)[i+1:]...)...)
+			}
 			return
 		}
 	}
 
-	*releases = append(*releases, common.ComponentRelease{
+	*releases = append([]common.ComponentRelease{{
 		Name:    common.PlatformReleaseName,
 		Version: version,
-	})
+	}}, *releases...)
 }

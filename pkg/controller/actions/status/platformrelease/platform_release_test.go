@@ -37,11 +37,9 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		err := fn(ctx, &rr, true)
 
 		g.Expect(err).NotTo(HaveOccurred())
-
-		releases := instance.GetReleaseStatus()
-		g.Expect(*releases).To(HaveLen(1))
-		g.Expect((*releases)[0].Name).To(Equal(common.PlatformReleaseName))
-		g.Expect((*releases)[0].Version).To(Equal("2.5.0"))
+		g.Expect(instance.GetReleaseStatus()).To(HaveValue(ConsistOf(
+			common.ComponentRelease{Name: common.PlatformReleaseName, Version: "2.5.0"},
+		)))
 	})
 
 	t.Run("should not stamp when not happy", func(t *testing.T) {
@@ -55,9 +53,7 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		err := fn(ctx, &rr, false)
 
 		g.Expect(err).NotTo(HaveOccurred())
-
-		releases := instance.GetReleaseStatus()
-		g.Expect(*releases).To(BeEmpty())
+		g.Expect(instance.GetReleaseStatus()).To(HaveValue(BeEmpty()))
 	})
 
 	t.Run("should not stamp when deploy is skipped", func(t *testing.T) {
@@ -71,12 +67,10 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		err := fn(ctx, &rr, true)
 
 		g.Expect(err).NotTo(HaveOccurred())
-
-		releases := instance.GetReleaseStatus()
-		g.Expect(*releases).To(BeEmpty())
+		g.Expect(instance.GetReleaseStatus()).To(HaveValue(BeEmpty()))
 	})
 
-	t.Run("should update existing platform release entry", func(t *testing.T) {
+	t.Run("should update existing platform release entry and move it to first position", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
@@ -92,14 +86,13 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		err := fn(ctx, &rr, true)
 
 		g.Expect(err).NotTo(HaveOccurred())
-
-		releases := instance.GetReleaseStatus()
-		g.Expect(*releases).To(HaveLen(2))
-		g.Expect((*releases)[0]).To(Equal(common.ComponentRelease{Name: "ray", Version: "1.0.0"}))
-		g.Expect((*releases)[1]).To(Equal(common.ComponentRelease{Name: common.PlatformReleaseName, Version: "2.5.0"}))
+		g.Expect(instance.GetReleaseStatus()).To(HaveValue(HaveExactElements(
+			common.ComponentRelease{Name: common.PlatformReleaseName, Version: "2.5.0"},
+			common.ComponentRelease{Name: "ray", Version: "1.0.0"},
+		)))
 	})
 
-	t.Run("should append platform release when other releases exist", func(t *testing.T) {
+	t.Run("should prepend platform release when other releases exist", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
@@ -114,9 +107,9 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		err := fn(ctx, &rr, true)
 
 		g.Expect(err).NotTo(HaveOccurred())
-
-		releases := instance.GetReleaseStatus()
-		g.Expect(*releases).To(HaveLen(2))
-		g.Expect((*releases)[1]).To(Equal(common.ComponentRelease{Name: common.PlatformReleaseName, Version: "2.5.0"}))
+		g.Expect(instance.GetReleaseStatus()).To(HaveValue(HaveExactElements(
+			common.ComponentRelease{Name: common.PlatformReleaseName, Version: "2.5.0"},
+			common.ComponentRelease{Name: "ray", Version: "1.0.0"},
+		)))
 	})
 }

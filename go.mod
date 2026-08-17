@@ -170,4 +170,6 @@ replace github.com/opendatahub-io/opendatahub-operator/pkg/failureclassifier => 
 
 replace github.com/opendatahub-io/opendatahub-operator/pkg/scoperules => ./pkg/scoperules
 
+replace github.com/opendatahub-io/odh-platform-utilities => github.com/opendatahub-io/odh-platform-utilities v0.3.1-0.20260814093333-e3907ad3edae
+
 exclude github.com/openshift/api v3.9.0+incompatible

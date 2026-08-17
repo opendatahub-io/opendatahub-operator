@@ -15,6 +15,30 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const kfpMetadataYAML = `
+releases:
+  - name: Kubeflow Pipelines
+    version: 2.2.0
+    repoUrl: https://github.com/kubeflow/kfp-tekton
+`
+
+const multiReleaseMetadataYAML = `
+releases:
+  - name: Kubeflow Pipelines
+    version: 2.2.0
+    repoUrl: https://github.com/kubeflow/kfp-tekton
+  - name: Another Component
+    version: 1.3.1
+    repoUrl: https://example.com/repo
+`
+
+const invalidMetadataYAML = `
+releases:
+  - name: Kubeflow Pipelines
+    versionNumber: 2.2.0
+    repoUrl: https://github.com/kubeflow/kfp-tekton
+`
+
 func TestFetchReleasesStatusAction(t *testing.T) {
 	t.Helper()
 
@@ -36,15 +60,7 @@ func TestFetchReleasesStatusAction(t *testing.T) {
 		{
 			name:             "should successfully render releases from valid YAML",
 			metadataFilePath: filepath.Join(tempDir, "valid_file.yaml"),
-			metadataContent: `
-releases:
-  - name: Kubeflow Pipelines
-    version: 2.2.0
-    repoUrl: https://github.com/kubeflow/kfp-tekton
-  - name: Another Component
-    version: 1.3.1
-    repoUrl: https://example.com/repo
-`,
+			metadataContent:  multiReleaseMetadataYAML,
 			expectedReleases: 2,
 			expectedError:    false,
 		},
@@ -58,12 +74,7 @@ releases:
 		{
 			name:             "should fail if YAML is invalid and return empty releases",
 			metadataFilePath: filepath.Join(tempDir, "invalid_file.yaml"),
-			metadataContent: `
-releases:
-  - name: Kubeflow Pipelines
-    versionNumber: 2.2.0
-    repoUrl: https://github.com/kubeflow/kfp-tekton
-`,
+			metadataContent:  invalidMetadataYAML,
 			expectedReleases: 0,
 			expectedError:    false,
 		},
@@ -77,16 +88,11 @@ releases:
 		{
 			name:             "should not re-render releases if cached",
 			metadataFilePath: filepath.Join(tempDir, "cached_file.yaml"),
-			metadataContent: `
-releases:
-  - name: Kubeflow Pipelines
-    version: 2.2.0
-    repoUrl: https://github.com/kubeflow/kfp-tekton
-`,
+			metadataContent:  kfpMetadataYAML,
 			expectedReleases: 1,
 			expectedError:    false,
 			providedStatus: []common.ComponentRelease{
-				{ // Simulating cached status
+				{
 					Name:    "Kubeflow Pipelines",
 					Version: "0.0.0",
 					RepoURL: "https://github.com/kubeflow/kfp-tekton",
@@ -159,6 +165,84 @@ releases:
 
 			// Validate the expected release count after action
 			g.Expect(*finalReleases).To(HaveLen(tt.expectedReleases))
+		})
+	}
+}
+
+func TestFetchReleasesStatusAction_PlatformRelease(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	tests := []struct {
+		name             string
+		existingReleases []common.ComponentRelease
+		expectedReleases []common.ComponentRelease
+	}{
+		{
+			name: "should carry forward existing platform release as first entry",
+			existingReleases: []common.ComponentRelease{
+				{Name: common.PlatformReleaseName, Version: "2.4.0"},
+				{Name: "Kubeflow Pipelines", Version: "2.0.0"},
+			},
+			expectedReleases: []common.ComponentRelease{
+				{
+					Name:    common.PlatformReleaseName,
+					Version: "2.4.0",
+				},
+				{
+					Name:    "Kubeflow Pipelines",
+					Version: "2.2.0",
+					RepoURL: "https://github.com/kubeflow/kfp-tekton",
+				},
+				{
+					Name:    "Another Component",
+					Version: "1.3.1",
+					RepoURL: "https://example.com/repo",
+				},
+			},
+		},
+		{
+			name:             "should not inject platform release when none exists",
+			existingReleases: nil,
+			expectedReleases: []common.ComponentRelease{
+				{
+					Name:    "Kubeflow Pipelines",
+					Version: "2.2.0",
+					RepoURL: "https://github.com/kubeflow/kfp-tekton",
+				},
+				{
+					Name:    "Another Component",
+					Version: "1.3.1",
+					RepoURL: "https://example.com/repo",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			metadataPath := filepath.Join(tempDir, "component_metadata.yaml")
+
+			err := os.WriteFile(metadataPath, []byte(multiReleaseMetadataYAML), 0600)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			instance := &componentApi.DataSciencePipelines{
+				ObjectMeta: metav1.ObjectMeta{Name: "default-dsp"},
+			}
+			if tt.existingReleases != nil {
+				instance.SetReleaseStatus(tt.existingReleases)
+			}
+
+			rr := types.ReconciliationRequest{Instance: instance}
+
+			action := releases.NewAction(
+				releases.WithMetadataFilePath(func(_ *types.ReconciliationRequest) string { return metadataPath }),
+			)
+
+			err = action(ctx, &rr)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(*instance.GetReleaseStatus()).To(Equal(tt.expectedReleases))
 		})
 	}
 }

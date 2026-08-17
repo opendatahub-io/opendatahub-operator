@@ -44,6 +44,7 @@ func commonActions() []actions.Fn {
 	return []actions.Fn{
 		cleanupDisabledModules,
 		provisionModules,
+		ensureDashboardNamespacedRBAC,
 		helmrender.NewAction(),
 		kustomizerender.NewAction(),
 		provision.ExtractUpgradeGates,
@@ -114,7 +115,15 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 			reconciler.WithPredicates(predicate.Or(
 				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
 				resources.CreatedOrUpdatedOrDeletedLabeled(gates.UpgradeGateLabel, "true"),
-			)))
+			))).
+		// Namespace events re-trigger reconciliation so that ensureDashboardNamespacedRBAC
+		// can create the notebooks/model-registry Role and RoleBinding when the target
+		// namespace appears after initial reconcile.
+		Watches(
+			&corev1.Namespace{},
+			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
+				return cluster.WatchDataScienceClusters(ctx, mgr.GetClient())
+			}))
 
 	b = addModuleCRWatches(b)
 	b = addModuleCRDWatches(b, func(ctx context.Context, _ client.Object) []reconcile.Request {
