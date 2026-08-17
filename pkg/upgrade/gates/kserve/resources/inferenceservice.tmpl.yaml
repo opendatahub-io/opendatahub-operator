@@ -1,0 +1,15 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+{{- if .DeploymentMode }}
+  annotations:
+    serving.kserve.io/deploymentMode: {{ .DeploymentMode }}
+{{- end }}
+{{- if .RuntimeName }}
+spec:
+  predictor:
+    model:
+      runtime: {{ .RuntimeName }}
+{{- end }}

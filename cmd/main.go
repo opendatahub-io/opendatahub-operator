@@ -116,6 +116,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	kservegates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
@@ -517,6 +518,8 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 	// Wrap the manager to return the wrapped client from GetClient()
 	mgr := manager.New(ctrlMgr, manager.WithManifestsBasePath(oconfig.ManifestsBasePath), manager.WithChartsBasePath(oconfig.ChartsBasePath))
+
+	provision.RegisterUpgradeCheck(componentApi.KserveComponentName, kservegates.Check)
 
 	// Register all webhooks using the helper
 	if err := webhook.RegisterAllWebhooks(mgr); err != nil {
