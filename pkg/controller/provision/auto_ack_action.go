@@ -113,6 +113,8 @@ func AutoAcknowledgeUpgradeGatesInNamespace(
 
 func requiresCheckWhenUnmanaged(component string) bool {
 	switch component {
+	case componentApi.ModelMeshServingComponentName:
+		return true
 	case strings.ToLower(componentApi.CodeFlareKind):
 		return true
 	default:
