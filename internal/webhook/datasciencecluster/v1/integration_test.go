@@ -157,9 +157,7 @@ func TestDataScienceClusterV1_Integration(t *testing.T) {
 			},
 		},
 		{
-			// Regression test: the TrainingOperator re-enablement guard was originally defined only on the
-			// v2 DSC Components struct, so it could be bypassed by updating through the v1 API. The rule now
-			// lives on the shared componentApi.DSCTrainingOperator type and is embedded into both schemas.
+			// Regression test: guard was originally v2-only and bypassable via the v1 API.
 			name: "CEL: TrainingOperator (KFTO v1) re-enablement blocked on update via v1 API",
 			setup: func(ns string) []client.Object {
 				return nil

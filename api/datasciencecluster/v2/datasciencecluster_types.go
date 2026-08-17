@@ -29,9 +29,8 @@ type DataScienceClusterSpec struct {
 	Components Components `json:"components,omitempty"`
 }
 
-// Note: the TrainingOperator re-enablement guard is defined as an XValidation rule on
-// componentApi.DSCTrainingOperator (api/components/v1alpha1/trainingoperator_types.go) rather than here,
-// so that it applies to both the v1 and v2 DataScienceCluster CRD schemas.
+// Note: the TrainingOperator re-enablement guard is an XValidation rule on
+// componentApi.DSCTrainingOperator, not here, so it applies to v1 too.
 type Components struct {
 	// Dashboard component configuration.
 	Dashboard componentApi.DSCDashboard `json:"dashboard,omitempty"`

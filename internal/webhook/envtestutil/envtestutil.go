@@ -544,16 +544,14 @@ func WithTrainerManaged() func(*dscv2.DataScienceCluster) {
 	}
 }
 
-// WithTrainingOperatorManaged returns an option function that sets the deprecated
-// TrainingOperator (KFTO v1) component to Managed.
+// WithTrainingOperatorManaged returns an option function that sets TrainingOperator (KFTO v1) to Managed.
 func WithTrainingOperatorManaged() func(*dscv2.DataScienceCluster) {
 	return func(dsc *dscv2.DataScienceCluster) {
 		dsc.Spec.Components.TrainingOperator.ManagementState = operatorv1.Managed
 	}
 }
 
-// WithTrainingOperatorManagedV1 returns an option function that sets the deprecated
-// TrainingOperator (KFTO v1) component to Managed on a v1 DataScienceCluster object.
+// WithTrainingOperatorManagedV1 is WithTrainingOperatorManaged for a v1 DataScienceCluster object.
 func WithTrainingOperatorManagedV1() func(*dscv1.DataScienceCluster) {
 	return func(dsc *dscv1.DataScienceCluster) {
 		dsc.Spec.Components.TrainingOperator.ManagementState = operatorv1.Managed
