@@ -57,6 +57,11 @@ const (
 	ConditionReasonError = "Error"
 )
 
+// PlatformReleaseName is the well-known release entry name used by the
+// version handshake between the platform operator and component/module
+// controllers.
+const PlatformReleaseName = "platform"
+
 // +kubebuilder:object:generate=true
 type Condition struct {
 	// type of condition in CamelCase or in foo.example.com/CamelCase.
@@ -66,7 +71,6 @@ type Condition struct {
 	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`
 	// +kubebuilder:validation:MaxLength=316
 	Type string `json:"type"`
-
 	// status of the condition, one of True, False, Unknown.
 	// +required
 	// +kubebuilder:validation:Required
