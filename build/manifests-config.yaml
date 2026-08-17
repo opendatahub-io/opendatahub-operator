@@ -50,7 +50,7 @@ map:
     src: config
     dest: sparkoperator
     git.url: https://github.com/red-hat-data-services/spark-operator
-    git.commit: 1c253076659bf3dc341ff9ccf502d23690850259
+    git.commit: 93ab44906ac6224e3abd66891d590a7ab2366b1d
   odh-ai-gateway-operator:
     src: config
     dest: aigateway
@@ -123,7 +123,7 @@ additional_meta:
     git.commit: fb1d682399a9abf5c25a3d3e043d1a439ad1c3fd
   odh-kserve-autogluon-server:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: d4f8f85d8c8085f2c44de88aabc72c406aa8c644
+    git.commit: fb1d682399a9abf5c25a3d3e043d1a439ad1c3fd
   odh-kserve-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: fb1d682399a9abf5c25a3d3e043d1a439ad1c3fd

@@ -40,7 +40,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE
   value: "quay.io/rhoai/odh-kserve-agent-rhel9@sha256:a16d2329404d875a52a9297da6d8888dff06134ba0e150abde5ae220d57e8744"
 - name: RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:1ea17d742308149ebc677b040b771aaf4a169a105d6d7819ddf6b7dd95acf913"
+  value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:af09f5d363556453e37aee12bf22e0abc241c0593ba17d1309e4db9183bf0ee1"
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:9898ac7b45c89083f513cea31cd1c65b6ce006d3c65df042ce4959d01cee8b95"
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
@@ -174,7 +174,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_RHOAI_MCP_IMAGE
   value: "quay.io/rhoai/odh-rhoai-mcp-rhel9@sha256:bfb34a069cbeff4968e3995280581c0384e08222093fb523e0669ea1f6498acf"
 - name: RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-spark-operator-rhel9@sha256:a0f073341ef06fcca5e492b10d14f1d97746e42138d0eab813ba152219149067"
+  value: "quay.io/rhoai/odh-spark-operator-rhel9@sha256:374e91e0b823201b3aad669c0be65c31f892d767681699dc7f1d9ddf2a51ecef"
 - name: RELATED_IMAGE_ODH_SPARK_OPERATOR_MODULE_IMAGE
   value: "quay.io/rhoai/odh-spark-operator-module-rhel9@sha256:d67b085ff5ad83a7a47c3408b7b0eaa4051d6c03c092abac926be4a1ef55a64d"
 - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
