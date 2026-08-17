@@ -112,6 +112,7 @@ const platformFinalizer = "platform.opendatahub.io/finalizer"
 // Reconciler provides generic reconciliation functionality for ODH objects.
 type Reconciler struct {
 	Client          client.Client
+	APIReader       client.Reader
 	discoveryClient discovery.DiscoveryInterface
 	dynamicClient   dynamic.Interface
 
@@ -151,6 +152,7 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 
 	cc := Reconciler{
 		Client:            mgr.GetClient(),
+		APIReader:         mgr.GetAPIReader(),
 		Scheme:            mgr.GetScheme(),
 		Log:               ctrl.Log.WithName("controllers").WithName(name),
 		Recorder:          mgr.GetEventRecorder(name),
@@ -194,6 +196,10 @@ func (r *Reconciler) GetLogger() logr.Logger {
 
 func (r *Reconciler) GetClient() client.Client {
 	return r.Client
+}
+
+func (r *Reconciler) GetAPIReader() client.Reader { //nolint:ireturn // controller interface requires reader
+	return r.APIReader
 }
 
 func (r *Reconciler) GetDiscoveryClient() discovery.DiscoveryInterface {

@@ -2,6 +2,8 @@ package provision_test
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 )
@@ -91,7 +94,7 @@ func TestAutoAck_NoAcksConfigMap(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).Build()
 
 	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		context.Background(), cli, testNS, testApps, "3.0.0", nil)
+		context.Background(), cli, cli, testNS, testApps, "3.0.0", nil)
 
 	require.NoError(t, err)
 }
@@ -107,7 +110,7 @@ func TestAutoAck_AllAlreadyAcked(t *testing.T) {
 		).Build()
 
 	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		context.Background(), cli, testNS, testApps, "3.0.0",
+		context.Background(), cli, cli, testNS, testApps, "3.0.0",
 		allManaged("dashboard"))
 
 	require.NoError(t, err)
@@ -130,7 +133,7 @@ func TestAutoAck_HealthyComponentAutoAcked(t *testing.T) {
 		).Build()
 
 	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		context.Background(), cli, testNS, testApps, "3.0.0",
+		context.Background(), cli, cli, testNS, testApps, "3.0.0",
 		allManaged("dashboard"))
 
 	require.NoError(t, err)
@@ -153,7 +156,7 @@ func TestAutoAck_UnhealthyComponentLeftUnacked(t *testing.T) {
 		).Build()
 
 	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		context.Background(), cli, testNS, testApps, "3.0.0",
+		context.Background(), cli, cli, testNS, testApps, "3.0.0",
 		allManaged("kserve"))
 
 	require.NoError(t, err)
@@ -180,7 +183,7 @@ func TestAutoAck_PartialAck(t *testing.T) {
 		).Build()
 
 	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		context.Background(), cli, testNS, testApps, "3.0.0",
+		context.Background(), cli, cli, testNS, testApps, "3.0.0",
 		allManaged("dashboard", "kserve", "ray"))
 
 	require.NoError(t, err)
@@ -207,7 +210,7 @@ func TestAutoAck_IgnoresOtherVersionKeys(t *testing.T) {
 		).Build()
 
 	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		context.Background(), cli, testNS, testApps, "3.0.0",
+		context.Background(), cli, cli, testNS, testApps, "3.0.0",
 		allManaged("dashboard"))
 
 	require.NoError(t, err)
@@ -232,7 +235,7 @@ func TestAutoAck_NoDeployments_ComponentConsideredHealthy(t *testing.T) {
 		).Build()
 
 	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		context.Background(), cli, testNS, testApps, "3.0.0",
+		context.Background(), cli, cli, testNS, testApps, "3.0.0",
 		allManaged("trustyai"))
 
 	require.NoError(t, err)
@@ -260,7 +263,7 @@ func TestAutoAck_UnmanagedComponentAutoAckedWithoutHealthCheck(t *testing.T) {
 	managed := allManaged("dashboard")
 
 	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		context.Background(), cli, testNS, testApps, "3.0.0", managed)
+		context.Background(), cli, cli, testNS, testApps, "3.0.0", managed)
 
 	require.NoError(t, err)
 
@@ -286,7 +289,7 @@ func TestAutoAck_NilManagedMap_AllComponentsAutoAcked(t *testing.T) {
 		).Build()
 
 	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		context.Background(), cli, testNS, testApps, "3.0.0", nil)
+		context.Background(), cli, cli, testNS, testApps, "3.0.0", nil)
 
 	require.NoError(t, err)
 
@@ -295,4 +298,34 @@ func TestAutoAck_NilManagedMap_AllComponentsAutoAcked(t *testing.T) {
 		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
 	assert.Equal(t, "true", cm.Data["ack-3.0.0-kserve"],
 		"nil managed map (xKS) means all components are treated as unmanaged and auto-acked")
+}
+
+func TestAutoAck_UnmanagedCodeFlareStillChecked(t *testing.T) {
+	t.Parallel()
+
+	codeFlareComponentName := strings.ToLower(componentApi.CodeFlareKind)
+
+	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
+		WithObjects(
+			acksCM(map[string]string{
+				"ack-3.0.0-codeflare": "Acknowledge upgrade of codeflare from version 2.x to 3.0.0",
+			}),
+		).Build()
+
+	provision.RegisterUpgradeCheck(codeFlareComponentName,
+		func(context.Context, client.Reader, string, string) error {
+			return errors.New("legacy CodeFlare resources present")
+		},
+	)
+
+	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
+		context.Background(), cli, cli, testNS, testApps, "3.0.0", map[string]bool{})
+
+	require.NoError(t, err)
+
+	cm := &corev1.ConfigMap{}
+	require.NoError(t, cli.Get(context.Background(),
+		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
+	assert.NotEqual(t, "true", cm.Data["ack-3.0.0-codeflare"],
+		"problematic unmanaged codeflare component should still run its gate check")
 }

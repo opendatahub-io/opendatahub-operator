@@ -2,7 +2,6 @@ package provision
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -12,17 +11,12 @@ import (
 
 // UpgradeCheckFunc validates whether a component is ready to be auto-acknowledged
 // during an upgrade. Returns nil when the component is healthy.
-type UpgradeCheckFunc func(ctx context.Context, cli client.Client, component, namespace string) error
+type UpgradeCheckFunc func(ctx context.Context, reader client.Reader, component, namespace string) error
 
 var (
 	upgradeChecksMu sync.RWMutex
 
-	// TODO(RHOAIENG-82327): replace with real migration checks.
-	upgradeChecks = map[string]UpgradeCheckFunc{
-		"kserve": func(_ context.Context, _ client.Client, _, _ string) error {
-			return errors.New("kserve upgrade check not yet implemented")
-		},
-	}
+	upgradeChecks = map[string]UpgradeCheckFunc{}
 )
 
 // RegisterUpgradeCheck registers a component-specific upgrade check.
@@ -48,11 +42,12 @@ func GetUpgradeCheck(component string) UpgradeCheckFunc {
 // component label (app.opendatahub.io/<component>: "true") have their
 // desired replicas ready. Components with no matching Deployments are
 // considered healthy (not yet deployed).
-func DefaultUpgradeCheck(ctx context.Context, cli client.Client, component, namespace string) error {
+func DefaultUpgradeCheck(ctx context.Context, reader client.Reader, component, namespace string) error {
 	label := client.MatchingLabels{"app.opendatahub.io/" + component: "true"}
 
 	var deps appsv1.DeploymentList
-	if err := cli.List(ctx, &deps, client.InNamespace(namespace), label); err != nil {
+	err := reader.List(ctx, &deps, client.InNamespace(namespace), label)
+	if err != nil {
 		return fmt.Errorf("listing deployments for %s: %w", component, err)
 	}
 

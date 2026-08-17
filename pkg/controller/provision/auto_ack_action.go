@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
@@ -32,8 +33,13 @@ func AutoAcknowledgeUpgradeGates(ctx context.Context, rr *odhtype.Reconciliation
 
 	appsNS := cluster.GetApplicationNamespace()
 	managed := resolveManagedComponents(rr.Instance)
+	reader := client.Reader(rr.Client)
+	if rr.Controller != nil && rr.Controller.GetAPIReader() != nil {
+		reader = rr.Controller.GetAPIReader()
+	}
 
-	return AutoAcknowledgeUpgradeGatesInNamespace(ctx, rr.Client, ns, appsNS, rr.Release.Version.String(), managed)
+	return AutoAcknowledgeUpgradeGatesInNamespace(
+		ctx, rr.Client, reader, ns, appsNS, rr.Release.Version.String(), managed)
 }
 
 // managedComponents maps component names to true
@@ -41,10 +47,14 @@ func AutoAcknowledgeUpgradeGates(ctx context.Context, rr *odhtype.Reconciliation
 // all components require a health check.
 func AutoAcknowledgeUpgradeGatesInNamespace(
 	ctx context.Context, cli client.Client,
+	reader client.Reader,
 	operatorNS, appsNS, version string,
 	managedComponents map[string]bool,
 ) error {
 	log := logf.FromContext(ctx)
+	if reader == nil {
+		reader = cli
+	}
 
 	acksCM := &corev1.ConfigMap{}
 	if err := cli.Get(ctx, client.ObjectKey{
@@ -68,7 +78,7 @@ func AutoAcknowledgeUpgradeGatesInNamespace(
 
 	dirty := false
 	for key, component := range unacked {
-		if managedComponents == nil || !managedComponents[component] {
+		if !requiresCheckWhenUnmanaged(component) && (managedComponents == nil || !managedComponents[component]) {
 			acksCM.Data[key] = "true"
 			dirty = true
 
@@ -80,7 +90,7 @@ func AutoAcknowledgeUpgradeGatesInNamespace(
 
 		checkFn := GetUpgradeCheck(component)
 
-		if err := checkFn(ctx, cli, component, appsNS); err != nil {
+		if err := checkFn(ctx, reader, component, appsNS); err != nil {
 			log.V(1).Info("component not ready for auto-ack",
 				"component", component, "reason", err)
 			continue
@@ -99,6 +109,15 @@ func AutoAcknowledgeUpgradeGatesInNamespace(
 	}
 
 	return nil
+}
+
+func requiresCheckWhenUnmanaged(component string) bool {
+	switch component {
+	case strings.ToLower(componentApi.CodeFlareKind):
+		return true
+	default:
+		return false
+	}
 }
 
 // collectUnackedComponents returns a map of gate-key → component-name

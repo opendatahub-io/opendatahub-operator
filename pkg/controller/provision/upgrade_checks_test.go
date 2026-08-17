@@ -120,7 +120,7 @@ func TestRegisterUpgradeCheck_CustomOverridesDefault(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	provision.RegisterUpgradeCheck("test-custom-component", func(ctx context.Context, cli client.Client, component, namespace string) error {
+	provision.RegisterUpgradeCheck("test-custom-component", func(ctx context.Context, reader client.Reader, component, namespace string) error {
 		called = true
 		return nil
 	})
