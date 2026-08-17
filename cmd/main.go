@@ -154,7 +154,6 @@ var (
 		componentApi.DataSciencePipelinesComponentName: dag.RL(20),
 		componentApi.ModelRegistryComponentName:        dag.RL(20),
 		componentApi.RayComponentName:                  dag.RL(20),
-		componentApi.TrainerComponentName:              dag.RL(20),
 
 		componentApi.KueueComponentName: dag.RL(31),
 
