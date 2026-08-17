@@ -72,6 +72,9 @@ map:
     dest: ogx
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
     git.commit: 38a7fdee5237134bb7f8f1c898e85a893bff39c5
+  odh-spark-operator-module:
+    src: spark-operator-module/config
+    dest: sparkoperator
 additional_meta:
   odh-ai-gateway-payload-processing:
     git.url: https://github.com/red-hat-data-services/ai-gateway-payload-processing
