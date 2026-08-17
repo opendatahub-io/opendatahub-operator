@@ -26,11 +26,11 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_EVAL_HUB_IMAGE
   value: "quay.io/rhoai/odh-eval-hub-rhel9@sha256:590cd4df72b2e42d62f959ec7b8eac8fdc3044972d4a899445b6ac31683a5081"
 - name: RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-feast-module-operator-rhel9@sha256:6106e281b6bed8d8c689700dc13cb2afcd010fd482f9db528206b1c7ba615aa2"
+  value: "quay.io/rhoai/odh-feast-module-operator-rhel9@sha256:a4ec238ea2bc27e352cb2387ee06870da0b5181b8a2e0336c03a8ed9984e3e75"
 - name: RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-feast-operator-rhel9@sha256:74a9313fa49b7e4ac52b7f4f14ed986d035db8deeb4087ae6b87e99064a482af"
 - name: RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE
-  value: "quay.io/rhoai/odh-feature-server-rhel9@sha256:39c0d1d41bdfc39d5ad79a075d262b4c6ccb07da5e22b50c6af5d6187a20ac1d"
+  value: "quay.io/rhoai/odh-feature-server-rhel9@sha256:b878d827b09fb1dd24ee30eefd289988d0fa3c67b6ae4a81177c7f7b27b61f01"
 - name: RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE
   value: "quay.io/rhoai/odh-fms-guardrails-orchestrator-rhel9@sha256:26b5495c22edf1c12421d5d8b2035a828283ff48a0bde019edb7a8c8fdb30c10"
 - name: RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE
