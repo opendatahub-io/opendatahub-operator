@@ -168,11 +168,11 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_ROCM_PY312_IMAGE
   value: "quay.io/rhoai/odh-pipeline-runtime-tensorflow-rocm-py312-rhel9@sha256:a32c46fce0850de3f3afe1e8edbaa8cbaf03234a8460295ae0d82c8d8d655e8e"
 - name: RELATED_IMAGE_ODH_RHAII_CLUSTER_VALIDATOR_IMAGE
-  value: "quay.io/rhoai/odh-rhaii-cluster-validator-rhel9@sha256:b4ff278501649ee9054b21512772941b07449b7d89832d7959c2f6328060644a"
+  value: "quay.io/rhoai/odh-rhaii-cluster-validator-rhel9@sha256:3b4c7e4f1b77fcb8036fe278843374b59f28d25716f5d429f69d0c5d80bf4ddb"
 - name: RELATED_IMAGE_ODH_RHAII_VALIDATOR_TOOLS_IMAGE
-  value: "quay.io/rhoai/odh-rhaii-validator-tools-rhel9@sha256:bbf4953f463b9cdb94f669a7b319dec1c679e3c04dbc9a2dd4b4f39c9de4eee3"
+  value: "quay.io/rhoai/odh-rhaii-validator-tools-rhel9@sha256:5e49ec8690f7ae1eb85396b0529d379f7de562bed5ec403cbb5388317f491cdd"
 - name: RELATED_IMAGE_ODH_RHOAI_MCP_IMAGE
-  value: "quay.io/rhoai/odh-rhoai-mcp-rhel9@sha256:f9cb200fa559b7afbcc196b878156272c6c3ca53f2c43cecb436e90d6ca24f16"
+  value: "quay.io/rhoai/odh-rhoai-mcp-rhel9@sha256:bfb34a069cbeff4968e3995280581c0384e08222093fb523e0669ea1f6498acf"
 - name: RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-spark-operator-rhel9@sha256:f229e2b2de11002f50133eea1df093436e1dfe4db236b800ce92c9c0738b78f1"
 - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
