@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -18,7 +19,11 @@ type ModelRegistryTestCtx struct {
 func modelRegistryTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.ModelRegistry{})
+	ct, err := NewComponentTestCtx(t, &componentApi.ModelRegistry{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.ModelRegistryInstanceName,
+		},
+	})
 	require.NoError(t, err)
 
 	componentCtx := ModelRegistryTestCtx{
@@ -33,6 +38,7 @@ func modelRegistryTestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate platform release", componentCtx.ValidatePlatformRelease},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}

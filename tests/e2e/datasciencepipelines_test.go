@@ -5,6 +5,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -22,7 +23,11 @@ type DataSciencePipelinesTestCtx struct {
 func dataSciencePipelinesTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.DataSciencePipelines{})
+	ct, err := NewComponentTestCtx(t, &componentApi.DataSciencePipelines{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.DataSciencePipelinesInstanceName,
+		},
+	})
 	require.NoError(t, err)
 
 	componentCtx := DataSciencePipelinesTestCtx{
@@ -36,6 +41,7 @@ func dataSciencePipelinesTestSuite(t *testing.T) {
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate platform release", componentCtx.ValidatePlatformRelease},
 		{"Validate argoWorkflowsControllers options", componentCtx.ValidateArgoWorkflowsControllersOptions},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},

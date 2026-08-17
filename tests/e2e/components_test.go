@@ -331,6 +331,22 @@ func (tc *ComponentTestCtx) ValidateComponentReleases(t *testing.T) {
 	)
 }
 
+// ValidatePlatformRelease ensures that the component CR status.releases
+// contains a "platform" entry with a non-empty version.
+func (tc *ComponentTestCtx) ValidatePlatformRelease(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.GVK, tc.NamespacedName),
+		WithCondition(
+			jq.Match(`.status.releases[] | select(.name == "%s") | .version != ""`, common.PlatformReleaseName),
+		),
+		WithCustomErrorMsg("Component CR should have a platform release entry with non-empty version"),
+	)
+}
+
 // EnsureParentComponentEnabled ensures that the parent component is enabled and ready before enabling a subcomponent.
 func (tc *ComponentTestCtx) EnsureParentComponentEnabled(t *testing.T) {
 	t.Helper()

@@ -1,7 +1,6 @@
 package provision_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/blang/semver/v4"
@@ -26,6 +25,8 @@ type condRecorder struct {
 	conditions []common.Condition
 }
 
+const testGateVersion = "3.5.1"
+
 func (c *condRecorder) SetCondition(cond common.Condition) {
 	c.conditions = append(c.conditions, cond)
 }
@@ -36,20 +37,47 @@ func newScheme() *runtime.Scheme {
 	return s
 }
 
-func release(ver string) common.Release {
-	sv, _ := semver.Parse(ver)
+func release() common.Release {
+	sv, _ := semver.Parse(testGateVersion)
 	return common.Release{
 		Version: ofaversion.OperatorVersion{Version: sv},
 	}
 }
 
+func ackedInTreeGates(t *testing.T) map[string]string {
+	t.Helper()
+
+	entries, err := gates.LoadInTreeGates(testGateVersion)
+	require.NoError(t, err)
+
+	result := make(map[string]string, len(entries))
+	for key := range entries {
+		result[key] = "true"
+	}
+
+	return result
+}
+
+func mergeGateData(base map[string]string, extra map[string]string) map[string]string {
+	result := make(map[string]string, len(base)+len(extra))
+	for key, value := range base {
+		result[key] = value
+	}
+	for key, value := range extra {
+		result[key] = value
+	}
+	return result
+}
+
 func TestCheckUpgradeGates_NoGates(t *testing.T) {
 	t.Parallel()
 
-	cli := fake.NewClientBuilder().WithScheme(newScheme()).Build()
+	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(
+		acksCM(ackedInTreeGates(t)),
+	).Build()
 	conds := &condRecorder{}
 
-	err := provision.CheckUpgradeGatesInNamespace(context.Background(), cli, "test-ns", release("2.0.0"), conds, nil)
+	err := provision.CheckUpgradeGatesInNamespace(t.Context(), cli, "test-ns", release(), conds, nil)
 
 	require.NoError(t, err)
 	assert.Empty(t, conds.conditions)
@@ -60,9 +88,9 @@ func TestCheckUpgradeGates_AllGatesAcked(t *testing.T) {
 
 	acksCM := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: gates.AcksConfigMap, Namespace: "test-ns"},
-		Data: map[string]string{
-			"ack-2.0.0-breaking-change": "true",
-		},
+		Data: mergeGateData(ackedInTreeGates(t), map[string]string{
+			"ack-3.5.1-breaking-change": "true",
+		}),
 	}
 
 	source := &corev1.ConfigMap{
@@ -72,14 +100,14 @@ func TestCheckUpgradeGates_AllGatesAcked(t *testing.T) {
 			Labels:    map[string]string{gates.UpgradeGateLabel: "true"},
 		},
 		Data: map[string]string{
-			"ack-2.0.0-breaking-change": "Review the migration guide before proceeding",
+			"ack-3.5.1-breaking-change": "Review the migration guide before proceeding",
 		},
 	}
 
 	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(acksCM, source).Build()
 	conds := &condRecorder{}
 
-	err := provision.CheckUpgradeGatesInNamespace(context.Background(), cli, "test-ns", release("2.0.0"), conds, nil)
+	err := provision.CheckUpgradeGatesInNamespace(t.Context(), cli, "test-ns", release(), conds, nil)
 
 	require.NoError(t, err)
 	assert.Empty(t, conds.conditions)
@@ -95,34 +123,37 @@ func TestCheckUpgradeGates_UnackedGatesBlockProvisioning(t *testing.T) {
 			Labels:    map[string]string{gates.UpgradeGateLabel: "true"},
 		},
 		Data: map[string]string{
-			"ack-2.0.0-kserve-api-change": "KServe API changed; review migration guide",
-			"ack-2.0.0-model-registry":    "Model Registry schema updated",
+			"ack-3.5.1-kserve-api-change": "KServe API changed; review migration guide",
+			"ack-3.5.1-model-registry":    "Model Registry schema updated",
 		},
 	}
 
-	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(source).Build()
+	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(
+		acksCM(ackedInTreeGates(t)),
+		source,
+	).Build()
 	conds := &condRecorder{}
 
-	err := provision.CheckUpgradeGatesInNamespace(context.Background(), cli, "test-ns", release("2.0.0"), conds, nil)
+	err := provision.CheckUpgradeGatesInNamespace(t.Context(), cli, "test-ns", release(), conds, nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "2 unacknowledged upgrade gate(s)")
-	assert.Contains(t, err.Error(), "2.0.0")
+	assert.Contains(t, err.Error(), testGateVersion)
 
 	require.Len(t, conds.conditions, 1)
 	cond := conds.conditions[0]
 	assert.Equal(t, status.ConditionTypeProvisioningProgress, cond.Type)
 	assert.Equal(t, metav1.ConditionFalse, cond.Status)
 	assert.Equal(t, status.AdminAckRequiredReason, cond.Reason)
-	assert.Contains(t, cond.Message, "ack-2.0.0-kserve-api-change")
-	assert.Contains(t, cond.Message, "ack-2.0.0-model-registry")
+	assert.Contains(t, cond.Message, "ack-3.5.1-kserve-api-change")
+	assert.Contains(t, cond.Message, "ack-3.5.1-model-registry")
 
 	acksCM := &corev1.ConfigMap{}
-	require.NoError(t, cli.Get(context.Background(), client.ObjectKey{
+	require.NoError(t, cli.Get(t.Context(), client.ObjectKey{
 		Name: gates.AcksConfigMap, Namespace: "test-ns",
 	}, acksCM))
-	assert.Equal(t, "KServe API changed; review migration guide", acksCM.Data["ack-2.0.0-kserve-api-change"])
-	assert.Equal(t, "Model Registry schema updated", acksCM.Data["ack-2.0.0-model-registry"])
+	assert.Equal(t, "KServe API changed; review migration guide", acksCM.Data["ack-3.5.1-kserve-api-change"])
+	assert.Equal(t, "Model Registry schema updated", acksCM.Data["ack-3.5.1-model-registry"])
 }
 
 func TestCheckUpgradeGates_IgnoresOtherVersions(t *testing.T) {
@@ -139,10 +170,13 @@ func TestCheckUpgradeGates_IgnoresOtherVersions(t *testing.T) {
 		},
 	}
 
-	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(source).Build()
+	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(
+		acksCM(ackedInTreeGates(t)),
+		source,
+	).Build()
 	conds := &condRecorder{}
 
-	err := provision.CheckUpgradeGatesInNamespace(context.Background(), cli, "test-ns", release("3.0.0"), conds, nil)
+	err := provision.CheckUpgradeGatesInNamespace(t.Context(), cli, "test-ns", release(), conds, nil)
 
 	require.NoError(t, err)
 	assert.Empty(t, conds.conditions)
@@ -158,23 +192,26 @@ func TestCheckUpgradeGates_WritesDescriptionsToAcks(t *testing.T) {
 			Labels:    map[string]string{gates.UpgradeGateLabel: "true"},
 		},
 		Data: map[string]string{
-			"ack-2.0.0-discovered-gate": "Discovered gate message",
+			"ack-3.5.1-discovered-gate": "Discovered gate message",
 		},
 	}
 
-	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(source).Build()
+	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(
+		acksCM(ackedInTreeGates(t)),
+		source,
+	).Build()
 	conds := &condRecorder{}
 
-	err := provision.CheckUpgradeGatesInNamespace(context.Background(), cli, "test-ns", release("2.0.0"), conds, nil)
+	err := provision.CheckUpgradeGatesInNamespace(t.Context(), cli, "test-ns", release(), conds, nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "1 unacknowledged upgrade gate(s)")
 
 	acksCM := &corev1.ConfigMap{}
-	require.NoError(t, cli.Get(context.Background(), client.ObjectKey{
+	require.NoError(t, cli.Get(t.Context(), client.ObjectKey{
 		Name: gates.AcksConfigMap, Namespace: "test-ns",
 	}, acksCM))
-	assert.Equal(t, "Discovered gate message", acksCM.Data["ack-2.0.0-discovered-gate"])
+	assert.Equal(t, "Discovered gate message", acksCM.Data["ack-3.5.1-discovered-gate"])
 }
 
 func TestCheckUpgradeGates_MergesChartGates(t *testing.T) {
@@ -187,28 +224,31 @@ func TestCheckUpgradeGates_MergesChartGates(t *testing.T) {
 			Labels:    map[string]string{gates.UpgradeGateLabel: "true"},
 		},
 		Data: map[string]string{
-			"ack-2.0.0-cluster-gate": "From cluster",
+			"ack-3.5.1-cluster-gate": "From cluster",
 		},
 	}
 
 	chartGates := map[string]string{
-		"ack-2.0.0-chart-gate": "From chart",
+		"ack-3.5.1-chart-gate": "From chart",
 	}
 
-	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(clusterGateCM).Build()
+	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(
+		acksCM(ackedInTreeGates(t)),
+		clusterGateCM,
+	).Build()
 	conds := &condRecorder{}
 
-	err := provision.CheckUpgradeGatesInNamespace(context.Background(), cli, "test-ns", release("2.0.0"), conds, chartGates)
+	err := provision.CheckUpgradeGatesInNamespace(t.Context(), cli, "test-ns", release(), conds, chartGates)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "2 unacknowledged upgrade gate(s)")
 
 	acksCM := &corev1.ConfigMap{}
-	require.NoError(t, cli.Get(context.Background(), client.ObjectKey{
+	require.NoError(t, cli.Get(t.Context(), client.ObjectKey{
 		Name: gates.AcksConfigMap, Namespace: "test-ns",
 	}, acksCM))
-	assert.Equal(t, "From cluster", acksCM.Data["ack-2.0.0-cluster-gate"])
-	assert.Equal(t, "From chart", acksCM.Data["ack-2.0.0-chart-gate"])
+	assert.Equal(t, "From cluster", acksCM.Data["ack-3.5.1-cluster-gate"])
+	assert.Equal(t, "From chart", acksCM.Data["ack-3.5.1-chart-gate"])
 }
 
 func TestExtractUpgradeGates_StashesOnGateEntries(t *testing.T) {
@@ -260,7 +300,7 @@ func TestExtractUpgradeGates_StashesOnGateEntries(t *testing.T) {
 		Resources: []unstructured.Unstructured{gateCM, regularCM, deployment},
 	}
 
-	err := provision.ExtractUpgradeGates(context.Background(), rr)
+	err := provision.ExtractUpgradeGates(t.Context(), rr)
 	require.NoError(t, err)
 
 	assert.Len(t, rr.Resources, 2, "gate CM should be removed, 2 resources remain")
@@ -289,7 +329,7 @@ func TestExtractUpgradeGates_NoGateCMs(t *testing.T) {
 		Resources: []unstructured.Unstructured{regular},
 	}
 
-	err := provision.ExtractUpgradeGates(context.Background(), rr)
+	err := provision.ExtractUpgradeGates(t.Context(), rr)
 	require.NoError(t, err)
 
 	assert.Len(t, rr.Resources, 1, "no resources should be removed")

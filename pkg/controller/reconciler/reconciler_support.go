@@ -125,6 +125,7 @@ type ReconcilerBuilder[T common.PlatformObject] struct {
 	dynamicOwnershipGVKPreds map[schema.GroupVersionKind][]predicate.Predicate
 	skipConditionCleanup     bool
 	skipStatusConditionsFn   func() bool
+	postStatusFns            []PostStatusFn
 }
 
 func ReconcilerFor[T common.PlatformObject](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
@@ -194,6 +195,11 @@ func (b *ReconcilerBuilder[T]) WithoutStatusConditionsIf(pred func() bool) *Reco
 
 func (b *ReconcilerBuilder[T]) WithAction(value actions.Fn) *ReconcilerBuilder[T] {
 	b.actions = append(b.actions, value)
+	return b
+}
+
+func (b *ReconcilerBuilder[T]) WithPostStatusFn(fn PostStatusFn) *ReconcilerBuilder[T] {
+	b.postStatusFns = append(b.postStatusFns, fn)
 	return b
 }
 
@@ -437,6 +443,9 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 	}
 	if b.skipStatusConditionsFn != nil {
 		opts = append(opts, withSkipStatusConditions(b.skipStatusConditionsFn))
+	}
+	for i := range b.postStatusFns {
+		opts = append(opts, withPostStatusFn(b.postStatusFns[i]))
 	}
 
 	r, err := NewReconciler(b.mgr, name, obj, opts...)

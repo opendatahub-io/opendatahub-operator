@@ -34,6 +34,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/sanitycheck"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/platformrelease"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
@@ -65,6 +66,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
 		WatchesGVK(gvk.CodeFlare, reconciler.Dynamic(reconciler.CrdExists(gvk.CodeFlare))).
+		WithPostStatusFn(platformrelease.NewPostStatusFn()).
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(provision.ComponentUpgradeGateAction).
 		WithAction(sanitycheck.NewAction(sanitycheck.WithUnwantedResource(gvk.CodeFlare, status.CodeFlarePresentMessage))).
