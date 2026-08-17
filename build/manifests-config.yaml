@@ -40,7 +40,7 @@ map:
     src: config
     dest: trainer
     git.url: https://github.com/red-hat-data-services/trainer-operator
-    git.commit: 86ed5ead1ef010be5ed06c7ce44059e5ae47bdff
+    git.commit: cd3c85b82359cc948f25c549c68b8a7794832335
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
@@ -87,7 +87,7 @@ additional_meta:
     git.commit: b4983e79c288ee231ef0e254a4e944dd27ea3b4d
   odh-cli:
     git.url: https://github.com/red-hat-data-services/odh-cli
-    git.commit: a68304e1e77ea49ff53787580272b036925ba24d
+    git.commit: 100de08502bd551e4846f3e5634ffb1da99cb441
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 96151c9a7ccddf456a8b9638bf4005ce359bd988
@@ -171,10 +171,10 @@ additional_meta:
     git.commit: 71edc181dd0cb315b8907f00988eefdfc5e1a225
   odh-llm-d-router-disagg-sidecar:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: fe37b48b6c137982ee360085b7783915a2c37944
+    git.commit: 91f35655f2de8a7fed0dcde3d4896ccca0cb81af
   odh-llm-d-router-endpoint-picker:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: fe37b48b6c137982ee360085b7783915a2c37944
+    git.commit: 91f35655f2de8a7fed0dcde3d4896ccca0cb81af
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
     git.commit: 0c8fe2ad9bab67a8dc10a54cad4b90a1c39a6cd5
@@ -297,10 +297,10 @@ additional_meta:
     git.commit: 24a8efcf4977c830ab23aa13deaa2aa499a20840
   odh-rhaii-cluster-validator:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: 55c195027b1f7b78c51d5bf7551e6503c2e3c71d
+    git.commit: 510ce2e0a9275686a7ea1b2c19178ff1abb4452f
   odh-rhaii-validator-tools:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: 55c195027b1f7b78c51d5bf7551e6503c2e3c71d
+    git.commit: 510ce2e0a9275686a7ea1b2c19178ff1abb4452f
   odh-rhoai-mcp:
     git.url: https://github.com/red-hat-data-services/rhoai-mcp
     git.commit: e1d91f6f5ce0ed0fcbe9ffc099841864c78667e6
