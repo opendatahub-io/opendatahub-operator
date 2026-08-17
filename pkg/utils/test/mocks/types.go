@@ -65,6 +65,10 @@ func (m *MockController) GetClient() client.Client {
 	return m.Called().Get(0).(client.Client)
 }
 
+func (m *MockController) GetAPIReader() client.Reader { //nolint:ireturn // controller interface requires reader
+	return m.Called().Get(0).(client.Reader)
+}
+
 func (m *MockController) GetDiscoveryClient() discovery.DiscoveryInterface {
 	return m.Called().Get(0).(discovery.DiscoveryInterface)
 }
@@ -100,6 +104,7 @@ func NewMockController(f func(m *MockController)) *MockController {
 	// Set default expectations for commonly used methods if not already set by the callback.
 	// This allows tests to override with specific expectations before these defaults.
 	m.On("Owns", mock.Anything).Return(false).Maybe()
+	m.On("GetAPIReader").Return((client.Reader)(nil)).Maybe()
 	m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false).Maybe()
 	m.On("IsDynamicOwnershipEnabled").Return(false).Maybe()
 	m.On("AddDynamicOwnedType", mock.Anything).Return().Maybe()

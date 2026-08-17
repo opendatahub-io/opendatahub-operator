@@ -80,6 +80,9 @@ type Controller interface {
 	// GetClient returns a controller-runtime client used to interact with the Kubernetes API.
 	GetClient() client.Client
 
+	// GetAPIReader returns a non-cached controller-runtime reader for live API reads.
+	GetAPIReader() client.Reader
+
 	// GetDiscoveryClient returns a client-go discovery client used to discover API resources on the cluster.
 	GetDiscoveryClient() discovery.DiscoveryInterface
 
