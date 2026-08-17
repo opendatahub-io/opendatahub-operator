@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: f0dde52fb028f371bbc2c40c97871017ca0b2319
+    git.commit: 9ea7f6ba2f2747cb49f594aa0ab61def362b2c72
   odh-trainer-operator:
     src: config
     dest: trainer
@@ -93,7 +93,7 @@ additional_meta:
     git.commit: 96151c9a7ccddf456a8b9638bf4005ce359bd988
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: f0dde52fb028f371bbc2c40c97871017ca0b2319
+    git.commit: 9ea7f6ba2f2747cb49f594aa0ab61def362b2c72
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: bcd954bc86f5d774a0fa0548143c72d2c3ef6c86
@@ -189,7 +189,7 @@ additional_meta:
     git.commit: 1cccfac973b98eea1cafe03565da6a47ea08c449
   odh-mlmd-grpc-server:
     git.url: https://github.com/red-hat-data-services/ml-metadata
-    git.commit: 47aa15e93fae9a605bbe705a7b3a0d3cc267e792
+    git.commit: 084edaaa4ac4985294ca3baf4d9b3c987e07886c
   odh-mlserver-cuda:
     git.url: https://github.com/red-hat-data-services/MLServer
     git.commit: 15b2b869a8496e780d47566b78993f03fd468a60
