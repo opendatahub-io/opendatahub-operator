@@ -54,6 +54,11 @@ const (
 	ConditionReasonError = fwapi.ConditionReasonError
 )
 
+// PlatformReleaseName is the well-known release entry name used by the
+// version handshake between the platform operator and component/module
+// controllers.
+const PlatformReleaseName = "platform"
+
 type Condition = fwapi.Condition
 
 type Status = fwapi.Status

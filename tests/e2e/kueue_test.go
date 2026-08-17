@@ -97,7 +97,11 @@ func (tc *KueueTestCtx) ensureKueueOperatorsInstalled(t *testing.T) {
 func kueueTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Kueue{})
+	ct, err := NewComponentTestCtx(t, &componentApi.Kueue{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.KueueInstanceName,
+		},
+	})
 	require.NoError(t, err)
 
 	componentCtx := KueueTestCtx{
@@ -105,10 +109,11 @@ func kueueTestSuite(t *testing.T) {
 	}
 
 	// Define core test cases
-	testCases := make([]TestCase, 0, 6)
+	testCases := make([]TestCase, 0, 7)
 	testCases = append(testCases,
 		TestCase{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWithoutOcpKueueOperator},
 		TestCase{"Validate component removed to unmanaged transition", componentCtx.ValidateKueueRemovedToUnmanagedTransition},
+		TestCase{"Validate platform release", componentCtx.ValidatePlatformRelease},
 		TestCase{"Validate component unmanaged to removed transition", componentCtx.ValidateKueueUnmanagedToRemovedTransition},
 		TestCase{"Validate autoCreateQueues disabled skips queue creation", componentCtx.ValidateKueueAutoCreateQueuesDisabled},
 	)
@@ -127,7 +132,11 @@ func kueueDegradedMonitoringTestSuite(t *testing.T) {
 	t.Helper()
 	t.Skip("Skipping: flaky due to namespace stuck in Terminating state. See RHOAIENG-46773 and RHOAIENG-46774.")
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Kueue{})
+	ct, err := NewComponentTestCtx(t, &componentApi.Kueue{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.KueueInstanceName,
+		},
+	})
 	require.NoError(t, err)
 
 	componentCtx := KueueTestCtx{
