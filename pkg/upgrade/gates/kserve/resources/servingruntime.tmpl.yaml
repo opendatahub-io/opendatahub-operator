@@ -1,0 +1,9 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+{{- if .MultiModel }}
+spec:
+  multiModel: true
+{{- end }}

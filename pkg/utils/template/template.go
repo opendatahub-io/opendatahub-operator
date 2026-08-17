@@ -1,10 +1,14 @@
 package template
 
 import (
+	"bytes"
 	"html/template"
+	"io/fs"
+	"path"
 	"strings"
 	gt "text/template"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 )
 
@@ -45,4 +49,24 @@ func TextTemplateFuncMap() gt.FuncMap {
 			return string(b), err
 		},
 	}
+}
+
+// RenderObject renders a YAML template from fs into an unstructured object.
+func RenderObject(templateFS fs.FS, templatePath string, data any) (*unstructured.Unstructured, error) {
+	parsed, err := gt.New("fixture").Option("missingkey=error").Funcs(TextTemplateFuncMap()).ParseFS(templateFS, templatePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var rendered bytes.Buffer
+	if err := parsed.ExecuteTemplate(&rendered, path.Base(templatePath), data); err != nil {
+		return nil, err
+	}
+
+	obj := &unstructured.Unstructured{}
+	if err := yaml.Unmarshal(rendered.Bytes(), obj); err != nil {
+		return nil, err
+	}
+
+	return obj, nil
 }
