@@ -84,8 +84,8 @@ components:
       ref: main@23f1eb18e5d0e655ab41066171ad0b23a78db76b
       sourcePath: config
     rhoai:
-      repo: opendatahub-io/trainer-operator
-      ref: main@23f1eb18e5d0e655ab41066171ad0b23a78db76b
+      repo: red-hat-data-services/trainer-operator
+      ref: main@e75e5493eab2bb29157d725a92dce39de2e6df09
       sourcePath: config
   mlflowoperator:
     odh:
