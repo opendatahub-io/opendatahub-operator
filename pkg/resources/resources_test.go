@@ -47,6 +47,7 @@ func TestHasAnnotationAndLabels(t *testing.T) {
 		{"metadata exists and value matches", map[string]string{"key1": "val1"}, "key1", []string{"val1"}, true},
 		{"metadata exists and value doesn't match", map[string]string{"key1": "val2"}, "key1", []string{"val1"}, false},
 		{"metadata exists and value in list", map[string]string{"key1": "val2"}, "key1", []string{"val1", "val2"}, true},
+		{"metadata exists and key present", map[string]string{"key1": "val2"}, "key1", nil, true},
 		{"metadata exists and key doesn't match", map[string]string{"key2": "val1"}, "key1", []string{"val1"}, false},
 		{"multiple values and no match", map[string]string{"key1": "val3"}, "key1", []string{"val1", "val2"}, false},
 	}
@@ -78,6 +79,34 @@ func TestHasAnnotationAndLabels(t *testing.T) {
 
 				g.Expect(result).To(Equal(tt.expected))
 			})
+		})
+	}
+}
+
+func TestHasFinalizer(t *testing.T) {
+	tests := []struct {
+		name       string
+		finalizers []string
+		values     []string
+		expected   bool
+	}{
+		{"nil object", nil, []string{"finalizer.one"}, false},
+		{"no finalizers", []string{}, []string{"finalizer.one"}, false},
+		{"finalizer matches", []string{"finalizer.one"}, []string{"finalizer.one"}, true},
+		{"finalizer does not match", []string{"finalizer.two"}, []string{"finalizer.one"}, false},
+		{"finalizer present check", []string{"finalizer.one"}, nil, true},
+		{"multiple values includes match", []string{"finalizer.two"}, []string{"finalizer.one", "finalizer.two"}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			obj := unstructured.Unstructured{}
+			obj.SetFinalizers(tt.finalizers)
+
+			result := resources.HasFinalizer(&obj, tt.values...)
+			g.Expect(result).To(Equal(tt.expected))
 		})
 	}
 }

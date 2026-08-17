@@ -119,6 +119,7 @@ import (
 	codeflaregates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/codeflare"
 	kservegates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/kserve"
 	modelmeshservinggates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/modelmeshserving"
+	raygates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
@@ -524,6 +525,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	provision.RegisterUpgradeCheck(componentApi.CodeFlareComponentName, codeflaregates.Check)
 	provision.RegisterUpgradeCheck(componentApi.KserveComponentName, kservegates.Check)
 	provision.RegisterUpgradeCheck(componentApi.ModelMeshServingComponentName, modelmeshservinggates.Check)
+	provision.RegisterUpgradeCheck(componentApi.RayComponentName, raygates.Check)
 
 	// Register all webhooks using the helper
 	if err := webhook.RegisterAllWebhooks(mgr); err != nil {
