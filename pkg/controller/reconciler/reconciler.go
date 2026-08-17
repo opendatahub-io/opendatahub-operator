@@ -18,7 +18,10 @@ type ReconcilerOpt = fwreconciler.ReconcilerOpt
 
 type PreApplyFn = fwreconciler.PreApplyFn
 
+type PostStatusFn = fwreconciler.PostStatusFn
+
 var (
+	WithPostStatusFn              = fwreconciler.WithPostStatusFn
 	WithConditionsManagerFactory  = fwreconciler.WithConditionsManagerFactory
 	WithRelease                   = fwreconciler.WithRelease
 	WithFinalizerName             = fwreconciler.WithFinalizerName
