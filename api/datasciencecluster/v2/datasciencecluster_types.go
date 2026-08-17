@@ -29,7 +29,9 @@ type DataScienceClusterSpec struct {
 	Components Components `json:"components,omitempty"`
 }
 
-// +kubebuilder:validation:XValidation:rule="!has(self.trainingoperator) || !has(self.trainingoperator.managementState) || self.trainingoperator.managementState != 'Managed' || (has(oldSelf.trainingoperator) && has(oldSelf.trainingoperator.managementState) && oldSelf.trainingoperator.managementState == 'Managed')",message="TrainingOperator v1 is obsolete in RHOAI 3.6. Set managementState to Removed, then delete the TrainingOperator CR to clean up. Use Trainer v2 instead."
+// Note: the TrainingOperator re-enablement guard is defined as an XValidation rule on
+// componentApi.DSCTrainingOperator (api/components/v1alpha1/trainingoperator_types.go) rather than here,
+// so that it applies to both the v1 and v2 DataScienceCluster CRD schemas.
 type Components struct {
 	// Dashboard component configuration.
 	Dashboard componentApi.DSCDashboard `json:"dashboard,omitempty"`

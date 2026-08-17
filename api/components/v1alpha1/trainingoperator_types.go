@@ -99,7 +99,12 @@ func (c *TrainingOperator) SetReleaseStatus(releases []common.ComponentRelease) 
 	c.Status.Releases = releases
 }
 
-// DSCTrainingOperator contains all the configuration exposed in DSC instance for TrainingOperator component
+// +kubebuilder:validation:XValidation:rule="!has(self.managementState) || self.managementState != 'Managed' || (has(oldSelf.managementState) && oldSelf.managementState == 'Managed')",message="TrainingOperator v1 is obsolete in RHOAI 3.6. Set managementState to Removed, then delete the TrainingOperator CR to clean up. Use Trainer v2 instead."
+//nolint:lll
+
+// DSCTrainingOperator contains all the configuration exposed in DSC instance for TrainingOperator component.
+// The XValidation rule above lives on this shared type (rather than on the v2-only DSC Components struct) so
+// it is embedded into both the v1 and v2 DataScienceCluster CRD schemas and can't be bypassed via the v1 API.
 type DSCTrainingOperator struct {
 	common.ManagementSpec `json:",inline"`
 	// configuration fields common across components

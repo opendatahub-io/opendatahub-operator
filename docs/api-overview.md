@@ -631,7 +631,9 @@ _Appears in:_
 
 
 
-DSCTrainingOperator contains all the configuration exposed in DSC instance for TrainingOperator component
+DSCTrainingOperator contains all the configuration exposed in DSC instance for TrainingOperator component.
+The XValidation rule above lives on this shared type (rather than on the v2-only DSC Components struct) so
+it is embedded into both the v1 and v2 DataScienceCluster CRD schemas and can't be bypassed via the v1 API.
 
 
 
@@ -2046,7 +2048,9 @@ Package v2 contains API Schema definitions for the datasciencecluster v2 API gro
 
 
 
-
+Note: the TrainingOperator re-enablement guard is defined as an XValidation rule on
+componentApi.DSCTrainingOperator (api/components/v1alpha1/trainingoperator_types.go) rather than here,
+so that it applies to both the v1 and v2 DataScienceCluster CRD schemas.
 
 
 
