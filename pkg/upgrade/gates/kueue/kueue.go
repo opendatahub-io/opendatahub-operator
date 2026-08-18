@@ -17,7 +17,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-const kueueCRName = "cluster"
+const (
+	kueueCRName                   = "cluster"
+	kueueOperatorSubscriptionName = "kueue-operator"
+)
 
 var workloadFamilies = []struct {
 	name  string
@@ -32,47 +35,83 @@ var workloadFamilies = []struct {
 }
 
 func Check(ctx context.Context, reader client.Reader, _, _ string) error {
-	active, err := hasManagedOrUnmanagedKueue(ctx, reader)
+	state, err := getKueueManagementState(ctx, reader)
 	if err != nil {
 		return err
 	}
-	if !active {
+
+	blocking := &UpgradeBlockedError{}
+
+	switch state {
+	case "":
+		return nil
+	case string(operatorv1.Managed):
+		blocking.ManagedStateUnsupported = true
+		return blocking
+	case string(operatorv1.Unmanaged):
+		installed, err := hasKueueOperatorSubscription(ctx, reader)
+		if err != nil {
+			return err
+		}
+		blocking.MissingKueueOperatorSubscription = !installed
+	default:
 		return nil
 	}
 
-	blocking := &UpgradeBlockedError{}
 	blocking.WorkloadsWithoutKueueNamespaceLabel, err = collectWorkloadsWithoutKueueNamespaceLabel(ctx, reader)
 	if err != nil {
 		return err
 	}
-	if blocking.WorkloadsWithoutKueueNamespaceLabel == 0 {
+	if !blocking.MissingKueueOperatorSubscription &&
+		blocking.WorkloadsWithoutKueueNamespaceLabel == 0 {
 		return nil
 	}
 
 	return blocking
 }
 
-func hasManagedOrUnmanagedKueue(ctx context.Context, reader client.Reader) (bool, error) {
+func getKueueManagementState(ctx context.Context, reader client.Reader) (string, error) {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk.KueueConfigV1)
 
 	err := reader.Get(ctx, client.ObjectKey{Name: kueueCRName}, obj)
 	switch {
 	case k8serr.IsNotFound(err), meta.IsNoMatchError(err):
-		return false, nil
+		return "", nil
 	case err != nil:
-		return false, fmt.Errorf("getting Kueue CR: %w", err)
+		return "", fmt.Errorf("getting Kueue CR: %w", err)
 	}
 
 	state, found, err := unstructured.NestedString(obj.Object, "spec", "managementState")
 	if err != nil {
-		return false, fmt.Errorf("reading Kueue managementState: %w", err)
+		return "", fmt.Errorf("reading Kueue managementState: %w", err)
 	}
 	if !found {
-		return false, nil
+		return "", nil
 	}
 
-	return state == string(operatorv1.Managed) || state == string(operatorv1.Unmanaged), nil
+	return state, nil
+}
+
+func hasKueueOperatorSubscription(ctx context.Context, reader client.Reader) (bool, error) {
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk.Subscription)
+
+	err := reader.List(ctx, list)
+	switch {
+	case meta.IsNoMatchError(err):
+		return false, nil
+	case err != nil:
+		return false, fmt.Errorf("listing Subscriptions: %w", err)
+	}
+
+	for i := range list.Items {
+		if list.Items[i].GetName() == kueueOperatorSubscriptionName {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func collectWorkloadsWithoutKueueNamespaceLabel(ctx context.Context, reader client.Reader) (int, error) {

@@ -107,9 +107,10 @@ Current examples include:
 ### `kueue`
 
 - checks the runtime internal `kueue.openshift.io/v1` `Kueue` CR
-- only runs validation when the internal CR is `Managed` or `Unmanaged`
+- blocks immediately when `managementState=Managed`
+- requires the `kueue-operator` OLM subscription when `managementState=Unmanaged`
 - validates that kueue-labeled workloads do not live in namespaces missing
-  `kueue.openshift.io/managed=true`
+  `kueue.openshift.io/managed=true` once the `Unmanaged` operator prerequisite is met
 
 ## Test Conventions
 
