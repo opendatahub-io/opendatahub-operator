@@ -10,7 +10,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE
   value: "quay.io/rhoai/odh-built-in-detector-rhel9@sha256:8a65197e12e30d819e68ef74d1f315b65fb7270af22384f5b528e00500e7f4dc"
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
-  value: "quay.io/rhoai/odh-cli-rhel9@sha256:af453cfb7497b95f6cdf62cc81656d6b512fa8ec3b7fbcd061783ad97bc01d1b"
+  value: "quay.io/rhoai/odh-cli-rhel9@sha256:14c7308c6bf9d6c0ad1dd7ca06fd8df2d318c51df8c032d14109ec57c82dd012"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
   value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:33413581c50de5e787c956ee1a30c586f8c50266fa675f68361030b109c15b02"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
@@ -26,7 +26,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_EVAL_HUB_IMAGE
   value: "quay.io/rhoai/odh-eval-hub-rhel9@sha256:71b5c7286540578e1da291770cfa7120119db8714cebba7c2d8f25a79421f870"
 - name: RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-feast-module-operator-rhel9@sha256:846a3b3d96dc66a2d06b71f4bdd6f876b8437cfa7103008a09c573569416a3f7"
+  value: "quay.io/rhoai/odh-feast-module-operator-rhel9@sha256:c0365192d070cf79bc8547501d86a896898d0bb4bc5b866001f057a70a42536a"
 - name: RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-feast-operator-rhel9@sha256:4a1967b81a6f6475046c55bf9b820ad7e14b684bcdae77bd375bba5bd03add54"
 - name: RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE
@@ -118,7 +118,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE
   value: "quay.io/rhoai/odh-model-registry-job-async-upload-rhel9@sha256:99b144066a06fb727d61ef185814db7bfb2e6673bffa5de083310a2897a5b705"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-model-registry-operator-rhel9@sha256:43d6bc6bf40d1f3e7d87126280b48f7e36a9ca85c790f919e0b6b5a5201ff751"
+  value: "quay.io/rhoai/odh-model-registry-operator-rhel9@sha256:acdb84429e00b93f7392558b5fd88d4d121ec795c005ebd95718dedc77f5561d"
 - name: RELATED_IMAGE_ODH_MODEL_SERVING_API_IMAGE
   value: "quay.io/rhoai/odh-model-serving-api-rhel9@sha256:ad586d78e6759ea0869f902cecfbdec20b0a4881b197f5264c056447ae05fdd1"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_AGENT_OPS_IMAGE
@@ -154,7 +154,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE
   value: "quay.io/rhoai/odh-openvino-model-server-rhel9@sha256:0086e5198e9f67af0cdeffa12d0a1a19b89ed34ed2d19be37f68cce2da5a8209"
 - name: RELATED_IMAGE_ODH_PIPELINES_COMPONENTS_IMAGE
-  value: "quay.io/rhoai/odh-pipelines-components-rhel9@sha256:fd724dbad5eea54f2010bcc5b508f45872955aed0325a73da0236a8a55cd6872"
+  value: "quay.io/rhoai/odh-pipelines-components-rhel9@sha256:aaa58284bcde8e6c41f3f0aa2b85d39d7085d238e7a171bfe677e404c1d3fffd"
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_DATASCIENCE_CPU_PY312_IMAGE
   value: "quay.io/rhoai/odh-pipeline-runtime-datascience-cpu-py312-rhel9@sha256:a67faae41a7ba53f17088a2daff253f695897d0b40ca6a1c45565b9eb73f9f4b"
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_MINIMAL_CPU_PY312_IMAGE
@@ -170,9 +170,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_ROCM_PY312_IMAGE
   value: "quay.io/rhoai/odh-pipeline-runtime-tensorflow-rocm-py312-rhel9@sha256:a32c46fce0850de3f3afe1e8edbaa8cbaf03234a8460295ae0d82c8d8d655e8e"
 - name: RELATED_IMAGE_ODH_RHAII_CLUSTER_VALIDATOR_IMAGE
-  value: "quay.io/rhoai/odh-rhaii-cluster-validator-rhel9@sha256:5f76b7e420542dee41020d8779140397d062591a857687f7c73293f1355ae0c0"
+  value: "quay.io/rhoai/odh-rhaii-cluster-validator-rhel9@sha256:afa6ba39e7f232c5b108b16adeb9ccf0f29ba54c84b42dabc979922ab3f176e3"
 - name: RELATED_IMAGE_ODH_RHAII_VALIDATOR_TOOLS_IMAGE
-  value: "quay.io/rhoai/odh-rhaii-validator-tools-rhel9@sha256:7103f77d6037d294e3782886efa083f4ecba7e02ab041bad0fb69c82e66895f3"
+  value: "quay.io/rhoai/odh-rhaii-validator-tools-rhel9@sha256:0eed978fd704a6f66883dc87699f4b9b47dce538e8103b7b02f18883439befef"
 - name: RELATED_IMAGE_ODH_RHOAI_MCP_IMAGE
   value: "quay.io/rhoai/odh-rhoai-mcp-rhel9@sha256:bfb34a069cbeff4968e3995280581c0384e08222093fb523e0669ea1f6498acf"
 - name: RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE

@@ -29,7 +29,7 @@ map:
     src: config
     dest: modelregistry
     git.url: https://github.com/red-hat-data-services/model-registry-operator
-    git.commit: 507a6616e8f7fc808ec6e18183bd34ed28e192f0
+    git.commit: dbbe9ab5ac830dd0b5401fc4e21411b5672a7aa9
   odh-dashboard-operator:
     src: dashboard-operator/charts/dashboard
     dest: dashboard-operator
@@ -66,7 +66,7 @@ map:
     dest: feastoperator
     type: chart
     git.url: https://github.com/red-hat-data-services/feast-module-operator
-    git.commit: ffe88a2d60134b8aff01c9cb2edc535653d1446f
+    git.commit: 036018d73aa2ef0c14eccd01d7b39300e96c139d
   odh-ogx-module-operator:
     src: ogx-module/config
     dest: ogx
@@ -87,7 +87,7 @@ additional_meta:
     git.commit: b4983e79c288ee231ef0e254a4e944dd27ea3b4d
   odh-cli:
     git.url: https://github.com/red-hat-data-services/odh-cli
-    git.commit: 77155eb0d07119eb75be28aaf541a7ecc70e4827
+    git.commit: 816d632083afcd93bf6b1749353aa8e99740c471
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: caba2f40e8499a00e31686e878d76a9ca2bf609e
@@ -276,7 +276,7 @@ additional_meta:
     git.commit: 1d306ab479e2236544468688a04379307ef1aad5
   odh-pipelines-components:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 9207ca1cb4152a23f8678dc5ab2964cf4081d321
+    git.commit: a678c2092e4854d5cd54114b7da7a7987a46c578
   odh-pipeline-runtime-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 24a8efcf4977c830ab23aa13deaa2aa499a20840
@@ -300,10 +300,10 @@ additional_meta:
     git.commit: 24a8efcf4977c830ab23aa13deaa2aa499a20840
   odh-rhaii-cluster-validator:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: f0854a89f234b8bfdb32ac9494759c9f106b3a26
+    git.commit: 029176b13fe80db4b3d7b72d168a6b20b6d47c9b
   odh-rhaii-validator-tools:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: f0854a89f234b8bfdb32ac9494759c9f106b3a26
+    git.commit: 029176b13fe80db4b3d7b72d168a6b20b6d47c9b
   odh-rhoai-mcp:
     git.url: https://github.com/red-hat-data-services/rhoai-mcp
     git.commit: e1d91f6f5ce0ed0fcbe9ffc099841864c78667e6
