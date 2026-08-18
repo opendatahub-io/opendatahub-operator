@@ -185,6 +185,10 @@ func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error 
 		return err
 	}
 
+	if err := updateDeprecatedTrainingOperatorStatus(rr); err != nil {
+		return err
+	}
+
 	if cr.HasEntries() {
 		if err := modules.ComputeModulesStatus(ctx, rr); err != nil {
 			return err

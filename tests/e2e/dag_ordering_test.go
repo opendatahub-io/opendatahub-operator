@@ -50,7 +50,7 @@ var dagBatches = []componentBatch{
 			{name: componentApi.ModelRegistryComponentName, gvk: gvk.ModelRegistry},
 			{name: componentApi.RayComponentName, gvk: gvk.Ray},
 			{name: componentApi.TrainerComponentName, gvk: gvk.Trainer},
-			{name: componentApi.TrainingOperatorComponentName, gvk: gvk.TrainingOperator},
+
 			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches, internal: true},
 		},
 	},
@@ -95,7 +95,7 @@ var dscComponentFields = []string{
 	"kserve",
 	"ray",
 	"modelregistry",
-	"trainingoperator",
+
 	"trustyai",
 	"feastoperator",
 	"ogx",
