@@ -49,7 +49,7 @@ func Check(ctx context.Context, reader client.Reader, _, _ string) error {
 		blocking.ManagedStateUnsupported = true
 		return blocking
 	case string(operatorv1.Unmanaged):
-		installed, err := hasKueueOperatorSubscription(ctx, reader)
+		installed, err := cluster.SubscriptionExists(ctx, reader, kueueOperatorSubscriptionName)
 		if err != nil {
 			return err
 		}
@@ -91,27 +91,6 @@ func getKueueManagementState(ctx context.Context, reader client.Reader) (string,
 	}
 
 	return state, nil
-}
-
-func hasKueueOperatorSubscription(ctx context.Context, reader client.Reader) (bool, error) {
-	list := &unstructured.UnstructuredList{}
-	list.SetGroupVersionKind(gvk.Subscription)
-
-	err := reader.List(ctx, list)
-	switch {
-	case meta.IsNoMatchError(err):
-		return false, nil
-	case err != nil:
-		return false, fmt.Errorf("listing Subscriptions: %w", err)
-	}
-
-	for i := range list.Items {
-		if list.Items[i].GetName() == kueueOperatorSubscriptionName {
-			return true, nil
-		}
-	}
-
-	return false, nil
 }
 
 func collectWorkloadsWithoutKueueNamespaceLabel(ctx context.Context, reader client.Reader) (int, error) {
