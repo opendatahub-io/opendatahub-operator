@@ -8,72 +8,240 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+
+	. "github.com/onsi/gomega"
 )
 
 const (
 	sparkVersion = "4.0.1"
 	sparkImage   = "quay.io/opendatahub/data-processing:Spark-v" + sparkVersion
-)
 
-type SparkOperatorTestCtx struct {
-	*ComponentTestCtx
-}
+	sparkOperatorModuleControllerDeployment = "spark-operator-module-controller-manager"
+	sparkOperatorModuleServiceAccount       = "spark-operator-module-controller-manager"
+	sparkOperatorModuleClusterRoleBinding   = "spark-operator-module-manager-rolebinding"
+	sparkOperatorCRDName                    = "sparkapplications.sparkoperator.k8s.io"
+)
 
 func sparkOperatorTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.SparkOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: componentApi.SparkOperatorInstanceName,
-		},
-	})
+	tc, err := NewTestContext(t)
 	require.NoError(t, err)
 
-	componentCtx := SparkOperatorTestCtx{
-		ComponentTestCtx: ct,
+	moduleGVK := schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.SparkOperatorKind,
+	}
+	moduleCRNN := types.NamespacedName{Name: componentApi.SparkOperatorInstanceName}
+	controllerNN := types.NamespacedName{
+		Namespace: tc.AppsNamespace,
+		Name:      sparkOperatorModuleControllerDeployment,
 	}
 
-	// Define test cases.
 	testCases := []TestCase{
-		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
-		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
-		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
-		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate platform release", componentCtx.ValidatePlatformRelease},
-		{"Validate SparkPi workload execution", componentCtx.ValidateSparkPiWorkload},
-		{"Validate ScheduledSparkApplication workload execution", componentCtx.ValidateScheduledSparkPiWorkload},
-		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
-		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+		{"Validate component enabled", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Smoke, Tier1)
+
+			if !tc.IsXKS() {
+				tc.EventuallyResourcePatched(
+					WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+					WithMutateFunc(testf.Transform(`.spec.components.sparkoperator.managementState = "Removed"`)),
+					WithCondition(jq.Match(`.spec.components.sparkoperator.managementState == "Removed"`)),
+				)
+				tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
+			}
+
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.Transform(`.spec.components.sparkoperator.managementState = "Managed"`)),
+				WithCondition(jq.Match(`.spec.components.sparkoperator.managementState == "Managed"`)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+				)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Deployment, controllerNN),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeModulesReady, metav1.ConditionTrue)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.SparkOperatorKind, metav1.ConditionTrue)),
+				WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to True", componentApi.SparkOperatorKind),
+			)
+		}},
+		{"Validate module operator bootstrap resources", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{
+					Namespace: tc.AppsNamespace,
+					Name:      sparkOperatorModuleServiceAccount,
+				}),
+				WithCustomErrorMsg("ServiceAccount %s should exist in %s", sparkOperatorModuleServiceAccount, tc.AppsNamespace),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+					Name: sparkOperatorModuleClusterRoleBinding,
+				}),
+				WithCustomErrorMsg("ClusterRoleBinding %s should exist", sparkOperatorModuleClusterRoleBinding),
+			)
+		}},
+		{"Validate env var injection", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Deployment, controllerNN),
+				WithCondition(jq.Match(
+					`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "APPLICATIONS_NAMESPACE") | .value == "%s"`,
+					tc.AppsNamespace,
+				)),
+				WithCustomErrorMsg("Module operator Deployment should have APPLICATIONS_NAMESPACE=%s injected", tc.AppsNamespace),
+			)
+		}},
+		{"Validate releases mirrored to DSC", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.releases | length > 0`)),
+				WithCustomErrorMsg("SparkOperator module CR should have releases in status"),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.components.sparkoperator.releases | length > 0`)),
+				WithCustomErrorMsg("DSC status.components.sparkoperator.releases should be mirrored from module CR"),
+			)
+		}},
+		{"Validate SparkPi workload execution", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			validateSparkPiWorkload(t, tc)
+		}},
+		{"Validate ScheduledSparkApplication workload execution", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			validateScheduledSparkPiWorkload(t, tc)
+		}},
+		{"Validate module CR deletion recovery", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.Transform(`.spec.components.sparkoperator.managementState = "Managed"`)),
+				WithCondition(jq.Match(`.spec.components.sparkoperator.managementState == "Managed"`)),
+			)
+
+			tc.EnsureResourceDeletedThenRecreated(WithMinimalObject(moduleGVK, moduleCRNN))
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.SparkOperatorKind, metav1.ConditionTrue)),
+				WithCustomErrorMsg("DSC SparkOperatorReady should recover to True after module CR recreation"),
+			)
+		}},
+		{"Validate module operator Deployment deletion recovery", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.Transform(`.spec.components.sparkoperator.managementState = "Managed"`)),
+				WithCondition(jq.Match(`.spec.components.sparkoperator.managementState == "Managed"`)),
+			)
+
+			tc.EnsureResourceDeletedThenRecreated(WithMinimalObject(gvk.Deployment, controllerNN))
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Deployment, controllerNN),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+				WithCustomErrorMsg("Module operator Deployment should be recreated and reach Available after deletion"),
+			)
+		}},
+		{"Validate component disabled", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Smoke, Tier1)
+
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.Transform(`.spec.components.sparkoperator.managementState = "Removed"`)),
+				WithCondition(jq.Match(`.spec.components.sparkoperator.managementState == "Removed"`)),
+			)
+
+			tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
+			tc.EnsureResourceGone(WithMinimalObject(gvk.Deployment, controllerNN))
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.SparkOperatorKind, metav1.ConditionFalse),
+					jq.Match(`.status.conditions[] | select(.type == "%sReady") | .reason == "%s"`, componentApi.SparkOperatorKind, status.RemovedReason),
+				)),
+				WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to False/Removed", componentApi.SparkOperatorKind),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{
+					Name: sparkOperatorCRDName,
+				}),
+				WithCustomErrorMsg("SparkApplication CRD should NOT be deleted on disable — user workload data depends on it"),
+			)
+		}},
 	}
 
-	// Run the test suite.
 	RunTestCases(t, testCases)
 }
 
-// ValidateSparkPiWorkload validates that a SparkApplication can run successfully.
-func (tc *SparkOperatorTestCtx) ValidateSparkPiWorkload(t *testing.T) {
+func validateSparkPiWorkload(t *testing.T, tc *TestContext) {
 	t.Helper()
 
-	// Use a unique name to avoid conflicts with previous test runs
 	sparkAppName := "spark-pi-" + xid.New().String()
-	// Run in the applications namespace where spark-operator-spark SA exists
 	namespace := tc.AppsNamespace
 
 	t.Logf("Creating SparkApplication %s in namespace %s", sparkAppName, namespace)
-	sparkApp := tc.createSparkPiApplication(sparkAppName, namespace)
+	sparkApp := createSparkPiApplication(sparkAppName, namespace)
 
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(sparkApp),
 		WithCustomErrorMsg("Failed to create SparkApplication %s", sparkAppName),
 	)
 
-	// Cleanup SparkApplication after test
 	defer func() {
 		t.Logf("Cleaning up SparkApplication %s", sparkAppName)
 		tc.DeleteResource(
@@ -97,15 +265,14 @@ func (tc *SparkOperatorTestCtx) ValidateSparkPiWorkload(t *testing.T) {
 	t.Logf("SparkApplication %s completed successfully", sparkAppName)
 }
 
-// ValidateScheduledSparkPiWorkload validates that a ScheduledSparkApplication can run successfully.
-func (tc *SparkOperatorTestCtx) ValidateScheduledSparkPiWorkload(t *testing.T) {
+func validateScheduledSparkPiWorkload(t *testing.T, tc *TestContext) {
 	t.Helper()
 
 	scheduledSparkAppName := "scheduled-spark-pi-" + xid.New().String()
 	namespace := tc.AppsNamespace
 
 	t.Logf("Creating ScheduledSparkApplication %s in namespace %s", scheduledSparkAppName, namespace)
-	scheduledSparkApp := tc.createScheduledSparkPiApplication(scheduledSparkAppName, namespace)
+	scheduledSparkApp := createScheduledSparkPiApplication(scheduledSparkAppName, namespace)
 
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(scheduledSparkApp),
@@ -173,8 +340,7 @@ func (tc *SparkOperatorTestCtx) ValidateScheduledSparkPiWorkload(t *testing.T) {
 	t.Logf("ScheduledSparkApplication %s successfully scheduled and executed SparkApplication %s", scheduledSparkAppName, lastRunName)
 }
 
-// createSparkPiApplication creates a SparkApplication CR for spark-pi test.
-func (tc *SparkOperatorTestCtx) createSparkPiApplication(name, namespace string) *unstructured.Unstructured {
+func createSparkPiApplication(name, namespace string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]any{
 			"apiVersion": "sparkoperator.k8s.io/v1beta2",
@@ -247,7 +413,7 @@ func sparkPiSpec() map[string]any {
 	}
 }
 
-func (tc *SparkOperatorTestCtx) createScheduledSparkPiApplication(name, namespace string) *unstructured.Unstructured {
+func createScheduledSparkPiApplication(name, namespace string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]any{
 			"apiVersion": "sparkoperator.k8s.io/v1beta2",

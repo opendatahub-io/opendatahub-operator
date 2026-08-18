@@ -43,3 +43,8 @@ package modules
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=ogxs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=ogxs/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=ogxs/finalizers,verbs=update
+
+// SparkOperator module
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=sparkoperators,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=sparkoperators/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=sparkoperators/finalizers,verbs=update

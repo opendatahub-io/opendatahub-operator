@@ -43,3 +43,6 @@ rhoai_exceptions:
 - image: RELATED_IMAGE_ODH_TRAINER_OPERATOR_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-62940
   reason: Trainer module operator image, not yet in RHOAI-Build-Config, delivering in RHOAI 3.6 EA1
+- image: RELATED_IMAGE_ODH_SPARK_OPERATOR_MODULE_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-69125
+  reason: Spark Operator module image, not yet in RHOAI-Build-Config, delivering in RHOAI 3.6 EA1
