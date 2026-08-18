@@ -83,6 +83,10 @@ type PlatformModules struct {
 	// Dashboard controls the Dashboard module operator lifecycle.
 	// +optional
 	Dashboard common.ManagementSpec `json:"dashboard,omitempty"`
+
+	// SparkOperator controls the Spark Operator module lifecycle.
+	// +optional
+	SparkOperator common.ManagementSpec `json:"sparkoperator,omitempty"`
 }
 
 // PlatformStatus defines the observed state of Platform.
@@ -162,6 +166,9 @@ func (m *PlatformModules) EnabledModules() []string {
 	}
 	if m.Dashboard.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "dashboard")
+	}
+	if m.SparkOperator.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "sparkoperator")
 	}
 	return enabled
 }

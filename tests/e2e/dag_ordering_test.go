@@ -78,7 +78,7 @@ var dagBatches = []componentBatch{
 			{name: componentApi.FeastOperatorComponentName, gvk: gvk.FeastOperator, internal: true},
 			{name: componentApi.MLflowOperatorComponentName, gvk: gvk.MLflowOperator, internal: true},
 			{name: componentApi.OGXComponentName, gvk: gvk.OGX, internal: true},
-			{name: componentApi.SparkOperatorComponentName, gvk: gvk.SparkOperator},
+			{name: componentApi.SparkOperatorComponentName, gvk: gvk.SparkOperator, internal: true},
 			{name: componentApi.AIGatewayComponentName, gvk: gvk.AIGateway, internal: true},
 		},
 	},
