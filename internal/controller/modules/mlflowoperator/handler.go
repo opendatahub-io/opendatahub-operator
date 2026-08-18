@@ -69,42 +69,44 @@ func NewHandler() *handler {
 	}
 }
 
-func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
-	if platform == nil {
-		return false
+func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
+		return
 	}
-	if platform.DSC != nil {
-		return platform.DSC.Spec.Components.MLflowOperator.ManagementState == operatorv1.Managed
+	ms := dscCtx.DSC.Spec.Components.MLflowOperator.ManagementState
+	if ms == "" {
+		ms = operatorv1.Removed
 	}
-	if platform.Platform != nil {
-		return platform.Platform.Spec.Modules.MLflowOperator.ManagementState == operatorv1.Managed
-	}
-	return false
+	pm.MLflowOperator.ManagementState = ms
+}
+
+func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+	return modules != nil && modules.MLflowOperator.ManagementState == operatorv1.Managed
 }
 
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
-	platform *modules.PlatformContext,
+	dscCtx *modules.DSCContext,
+	cfg *modules.ModuleCRConfig,
 ) (*unstructured.Unstructured, error) {
-	if platform == nil {
-		return nil, errors.New("platform context is nil, cannot build MLflowOperator CR")
+	if dscCtx == nil || dscCtx.DSC == nil {
+		return nil, errors.New("DSC is nil, cannot build MLflowOperator CR")
 	}
 
-	managementState, err := projectedManagementState(platform)
-	if err != nil {
-		return nil, err
-	}
+	managementState := components.NormalizeManagementState(dscCtx.DSC.Spec.Components.MLflowOperator.ManagementState)
 
 	// APPLICATIONS_NAMESPACE is injected directly into the operator Deployment so
 	// the mlflow-operator process, cache, and namespaced RBAC all agree on one
 	// startup-scoped target namespace.
 	spec := map[string]any{
-		"gatewayName":  defaultGatewayName,
-		"sectionTitle": sectionTitle(platform.Release.Name),
+		"gatewayName": defaultGatewayName,
 	}
-	if platform.GatewayDomain != "" {
-		spec["gateway"] = map[string]any{"domain": platform.GatewayDomain}
+	if cfg != nil {
+		spec["sectionTitle"] = sectionTitle(cfg.Release.Name)
+		if cfg.GatewayDomain != "" {
+			spec["gateway"] = map[string]any{"domain": cfg.GatewayDomain}
+		}
 	}
 
 	u := &unstructured.Unstructured{
@@ -126,24 +128,4 @@ func sectionTitle(platformName common.Platform) string {
 		return title
 	}
 	return "MLflow"
-}
-
-func projectedManagementState(platform *modules.PlatformContext) (operatorv1.ManagementState, error) {
-	if platform == nil {
-		return "", errors.New("platform context is nil, cannot project MLflowOperator management state")
-	}
-	if platform.DSC != nil {
-		return components.NormalizeManagementState(platform.DSC.Spec.Components.MLflowOperator.ManagementState), nil
-	}
-	if platform.Platform != nil {
-		return normalizePlatformManagementState(platform.Platform), nil
-	}
-	return "", errors.New("neither DSC nor Platform CR exists, cannot build MLflowOperator CR")
-}
-
-func normalizePlatformManagementState(platform *configv1alpha1.Platform) operatorv1.ManagementState {
-	if platform == nil {
-		return operatorv1.Removed
-	}
-	return components.NormalizeManagementState(platform.Spec.Modules.MLflowOperator.ManagementState)
 }

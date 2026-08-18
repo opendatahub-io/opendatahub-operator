@@ -11,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 
@@ -36,11 +37,11 @@ func newMockHandler(name string, enabled bool) *mockHandler {
 	}
 }
 
-func (m *mockHandler) IsEnabled(_ *modules.PlatformContext) bool {
+func (m *mockHandler) IsEnabled(_ *configv1alpha1.PlatformModules) bool {
 	return m.enabled
 }
 
-func (m *mockHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *modules.PlatformContext) (*unstructured.Unstructured, error) {
+func (m *mockHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *modules.DSCContext, _ *modules.ModuleCRConfig) (*unstructured.Unstructured, error) {
 	return nil, nil
 }
 
@@ -140,14 +141,14 @@ func TestRegistryIsModuleEnabled(t *testing.T) {
 	reg.Add(enabledHandler)
 	reg.Add(disabledHandler)
 
-	platform := &modules.PlatformContext{}
+	pm := &configv1alpha1.PlatformModules{}
 
-	g.Expect(reg.IsModuleEnabled("enabled-mod", platform)).Should(BeTrue())
-	g.Expect(reg.IsModuleEnabled("disabled-mod", platform)).Should(BeFalse())
-	g.Expect(reg.IsModuleEnabled("nonexistent", platform)).Should(BeFalse())
+	g.Expect(reg.IsModuleEnabled("enabled-mod", pm)).Should(BeTrue())
+	g.Expect(reg.IsModuleEnabled("disabled-mod", pm)).Should(BeFalse())
+	g.Expect(reg.IsModuleEnabled("nonexistent", pm)).Should(BeFalse())
 
 	reg.Disable("enabled-mod")
-	g.Expect(reg.IsModuleEnabled("enabled-mod", platform)).Should(BeFalse())
+	g.Expect(reg.IsModuleEnabled("enabled-mod", pm)).Should(BeFalse())
 }
 
 func TestBaseHandlerDefaultsHelmOnly(t *testing.T) {
@@ -169,8 +170,8 @@ func TestBaseHandlerDefaultsHelmOnly(t *testing.T) {
 	g.Expect(h.GetName()).Should(Equal("helm-mod"))
 	g.Expect(h.GetGVK()).Should(Equal(schema.GroupVersionKind{Group: "test.io", Version: "v1", Kind: "Mock"}))
 
-	platform := &modules.PlatformContext{ApplicationsNamespace: "test-ns"}
-	manifests := h.GetOperatorManifests(platform)
+	platformCtx := &modules.PlatformContext{ApplicationsNamespace: "test-ns"}
+	manifests := h.GetOperatorManifests(platformCtx)
 	g.Expect(manifests.HelmCharts).Should(HaveLen(1))
 	g.Expect(manifests.HelmCharts[0].ReleaseName).Should(Equal("mymodule-operator"))
 	g.Expect(manifests.Manifests).Should(BeEmpty())
