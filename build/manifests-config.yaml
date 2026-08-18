@@ -25,7 +25,7 @@ map:
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
-  odh-spark-operator:
+  odh-spark-operator-module:
     src: spark-operator-module/config
     dest: sparkoperator
   odh-kserve-module-operator:
