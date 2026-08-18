@@ -82,7 +82,7 @@ func TestRegister_UnmanagedKueueWithMissingNamespaceLabelBlocks(t *testing.T) {
 
 	cli, err := newKueueClient(
 		renderKueue(t, "Unmanaged"),
-		renderSubscription("openshift-kueue-operator", ""),
+		renderSubscription("openshift-kueue-operator"),
 		renderNamespace("workloads", nil),
 		renderNotebook(t, "workloads"),
 	)
@@ -104,7 +104,7 @@ func TestRegister_UnmanagedKueueWithManagedNamespacePasses(t *testing.T) {
 
 	cli, err := newKueueClient(
 		renderKueue(t, "Unmanaged"),
-		renderSubscription("openshift-kueue-operator", ""),
+		renderSubscription("openshift-kueue-operator"),
 		renderNamespace("workloads", map[string]string{cluster.KueueManagedLabelKey: "true"}),
 		renderNotebook(t, "workloads"),
 	)
@@ -179,16 +179,11 @@ func renderNamespace(name string, labels map[string]string) *corev1.Namespace {
 	}
 }
 
-func renderSubscription(namespace string, installedCSV string) *unstructured.Unstructured {
+func renderSubscription(namespace string) *unstructured.Unstructured {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk.Subscription)
 	obj.SetName("kueue-operator")
 	obj.SetNamespace(namespace)
-	if installedCSV != "" {
-		obj.Object["status"] = map[string]any{
-			"installedCSV": installedCSV,
-		}
-	}
 
 	return obj
 }
