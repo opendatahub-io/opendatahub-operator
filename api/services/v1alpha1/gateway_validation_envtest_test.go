@@ -90,6 +90,24 @@ func TestGatewayIssuerURLValidationEnvtest(t *testing.T) {
 		g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
 	})
 
+	t.Run("query string in issuer URL is rejected", func(t *testing.T) {
+		g := NewWithT(t)
+		gw := validGatewayWithIssuerURL("https://keycloak.example.com/realms/myorg?foo=bar")
+		err := k8sClient.Create(ctx, gw)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
+		g.Expect(err.Error()).To(ContainSubstring("issuerURL"))
+	})
+
+	t.Run("fragment in issuer URL is rejected", func(t *testing.T) {
+		g := NewWithT(t)
+		gw := validGatewayWithIssuerURL("https://keycloak.example.com/realms/myorg#section")
+		err := k8sClient.Create(ctx, gw)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
+		g.Expect(err.Error()).To(ContainSubstring("issuerURL"))
+	})
+
 	t.Run("valid HTTPS issuer URL is accepted", func(t *testing.T) {
 		g := NewWithT(t)
 		gw := validGatewayWithIssuerURL("https://keycloak.example.com/realms/myorg")

@@ -10,7 +10,7 @@ import (
 // issuerURLPattern is the regex from the kubebuilder validation annotation on OIDCConfig.IssuerURL.
 // Duplicated here so the unit test is an independent oracle — if someone accidentally relaxes
 // the CRD pattern, this test still passes; the envtest admission test catches the drift.
-const issuerURLPattern = `^https://(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)*[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?::(?:6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}|6[0-4][0-9]{3}|[1-5][0-9]{4}|[1-9][0-9]{0,3}))?(?:/.*)?$`
+const issuerURLPattern = `^https://(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)*[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?::(?:6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}|6[0-4][0-9]{3}|[1-5][0-9]{4}|[1-9][0-9]{0,3}))?(?:/[^?#]*)?$`
 
 func TestIssuerURLPatternRejectsNonHTTPS(t *testing.T) {
 	g := NewWithT(t)
@@ -74,6 +74,12 @@ func TestIssuerURLPatternRejectsSpecialCharacters(t *testing.T) {
 		{name: "port above valid range", url: "https://example.com:65536"},
 		{name: "port far above valid range", url: "https://example.com:99999999"},
 		{name: "port zero", url: "https://example.com:0"},
+		{name: "query string in path", url: "https://example.com/realm?foo=bar"},
+		{name: "query string after trailing slash", url: "https://example.com/?foo=bar"},
+		{name: "bare query string", url: "https://example.com?foo=bar"},
+		{name: "fragment in path", url: "https://example.com/realm#section"},
+		{name: "bare fragment", url: "https://example.com#section"},
+		{name: "query and fragment in path", url: "https://example.com/realm?foo=bar#section"},
 	}
 
 	for _, tc := range cases {
