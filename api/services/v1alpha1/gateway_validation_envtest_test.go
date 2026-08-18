@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -120,6 +121,31 @@ func TestGatewayIssuerURLValidationEnvtest(t *testing.T) {
 		gw := validGatewayWithIssuerURL("https://auth.example.com:8443/realms/test")
 		g.Expect(k8sClient.Create(ctx, gw)).To(Succeed())
 		g.Expect(k8sClient.Delete(ctx, gw)).To(Succeed())
+	})
+
+	// MaxLength boundary: the marker caps IssuerURL at 2048 characters.
+	// Both URLs are otherwise valid HTTPS URLs (padded in the path with an
+	// allowed character) so length is the only thing under test.
+	t.Run("valid HTTPS issuer URL at max length (2048) is accepted", func(t *testing.T) {
+		g := NewWithT(t)
+		const base = "https://example.com/"
+		url := base + strings.Repeat("a", 2048-len(base))
+		g.Expect(url).To(HaveLen(2048))
+		gw := validGatewayWithIssuerURL(url)
+		g.Expect(k8sClient.Create(ctx, gw)).To(Succeed())
+		g.Expect(k8sClient.Delete(ctx, gw)).To(Succeed())
+	})
+
+	t.Run("valid HTTPS issuer URL over max length (2049) is rejected", func(t *testing.T) {
+		g := NewWithT(t)
+		const base = "https://example.com/"
+		url := base + strings.Repeat("a", 2049-len(base))
+		g.Expect(url).To(HaveLen(2049))
+		gw := validGatewayWithIssuerURL(url)
+		err := k8sClient.Create(ctx, gw)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
+		g.Expect(err.Error()).To(ContainSubstring("issuerURL"))
 	})
 }
 
