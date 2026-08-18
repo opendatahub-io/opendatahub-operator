@@ -3,6 +3,15 @@
 This directory contains component-specific upgrade gate checks used by the
 operator to decide whether an upgrade ack can be auto-acknowledged.
 
+## Jira Tracking
+
+- The main tracking item for this work is `RHOAIENG-82327` ("Implement one-time
+  upgrade gate for 2.x -> 3.5").
+- Keep repo-local planning notes for that epic in `pkg/upgrade/gates/TASKS.md`.
+- `TASKS.md` is a read-only mirror of relevant Jira status/comments for local
+  implementation tracking. Do not treat it as the source of truth for Jira, and
+  do not edit Jira unless explicitly asked.
+
 ## What These Gates Are For
 
 - Gates are evaluated by the running 3.x operator.
