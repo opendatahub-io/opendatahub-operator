@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 )
@@ -179,12 +180,12 @@ func (r *Registry) ForAll(f func(handler ModuleHandler, registryEnabled bool) er
 
 // IsModuleEnabled checks if a module with the given name is enabled in the
 // registry and also enabled based on platform configuration.
-func (r *Registry) IsModuleEnabled(moduleName string, platform *PlatformContext) bool {
+func (r *Registry) IsModuleEnabled(moduleName string, modules *configv1alpha1.PlatformModules) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	e, ok := r.entries[moduleName]
-	return ok && e.enabled && e.handler.IsEnabled(platform)
+	return ok && e.enabled && e.handler.IsEnabled(modules)
 }
 
 // ResolvedBatches returns modules grouped by runlevel and topologically
@@ -261,12 +262,12 @@ func (r *Registry) HasEntries() bool {
 // AnyEnabled returns true if at least one registered module is enabled
 // in the given PlatformContext. Returns false when all modules are
 // Removed or no modules are registered.
-func (r *Registry) AnyEnabled(platform *PlatformContext) bool {
+func (r *Registry) AnyEnabled(modules *configv1alpha1.PlatformModules) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	for _, e := range r.entries {
-		if e.enabled && e.handler.IsEnabled(platform) {
+		if e.enabled && e.handler.IsEnabled(modules) {
 			return true
 		}
 	}
@@ -307,8 +308,8 @@ func ForAll(f func(handler ModuleHandler, registryEnabled bool) error) error {
 	return r.ForAll(f)
 }
 
-func IsModuleEnabled(moduleName string, platform *PlatformContext) bool {
-	return r.IsModuleEnabled(moduleName, platform)
+func IsModuleEnabled(moduleName string, modules *configv1alpha1.PlatformModules) bool {
+	return r.IsModuleEnabled(moduleName, modules)
 }
 
 func DefaultRegistry() *Registry {

@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 
 	. "github.com/onsi/gomega"
@@ -22,11 +23,11 @@ type statusMockHandler struct {
 	err     error
 }
 
-func (m *statusMockHandler) IsEnabled(_ *modules.PlatformContext) bool {
+func (m *statusMockHandler) IsEnabled(_ *configv1alpha1.PlatformModules) bool {
 	return m.enabled
 }
 
-func (m *statusMockHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *modules.PlatformContext) (*unstructured.Unstructured, error) {
+func (m *statusMockHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *modules.DSCContext, _ *modules.ModuleCRConfig) (*unstructured.Unstructured, error) {
 	return nil, nil
 }
 
@@ -89,14 +90,14 @@ func TestReadinessChecker_NotReadyVersionMismatch(t *testing.T) {
 	g.Expect(ready).Should(BeFalse(), "module reporting old version should not be ready")
 }
 
-func TestReadinessChecker_EmptyVersionSkipsCheck(t *testing.T) {
+func TestReadinessChecker_EmptyVersionTreatedAsReady(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
 	reg := &modules.Registry{}
 	reg.Add(newStatusMock("mod-c", &modules.ModuleStatus{
 		Conditions: []common.Condition{
-			{Type: "Ready", Status: metav1.ConditionTrue},
+			{Type: "Ready", Status: metav1.ConditionFalse},
 		},
 		ObservedGeneration: 1,
 		Generation:         1,
@@ -106,10 +107,10 @@ func TestReadinessChecker_EmptyVersionSkipsCheck(t *testing.T) {
 	checker := modules.NewReadinessChecker(reg, nil, "2.20.0")
 	ready, err := checker.IsReady(context.Background(), "mod-c")
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(ready).Should(BeTrue(), "module without version field should fall through to Ready check")
+	g.Expect(ready).Should(BeTrue(), "empty release version (first deploy) should not block DAG")
 }
 
-func TestReadinessChecker_StaleGenerationNotReady(t *testing.T) {
+func TestReadinessChecker_StaleGenerationReadyWhenVersionMatches(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
@@ -126,10 +127,10 @@ func TestReadinessChecker_StaleGenerationNotReady(t *testing.T) {
 	checker := modules.NewReadinessChecker(reg, nil, "2.20.0")
 	ready, err := checker.IsReady(context.Background(), "mod-d")
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(ready).Should(BeFalse(), "stale observedGeneration should mean not ready")
+	g.Expect(ready).Should(BeTrue(), "stale generation should not block when version matches — DAG gates upgrades, not runtime spec lag")
 }
 
-func TestReadinessChecker_ReadyFalseNotReady(t *testing.T) {
+func TestReadinessChecker_MatchingVersionReadyDespiteTransientFailure(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
@@ -146,7 +147,7 @@ func TestReadinessChecker_ReadyFalseNotReady(t *testing.T) {
 	checker := modules.NewReadinessChecker(reg, nil, "2.20.0")
 	ready, err := checker.IsReady(context.Background(), "mod-e")
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(ready).Should(BeFalse())
+	g.Expect(ready).Should(BeTrue(), "matching version means already reconciled; transient failures should not block DAG")
 }
 
 func TestReadinessChecker_NoPlatformVersionSkipsCheck(t *testing.T) {

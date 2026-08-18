@@ -18,6 +18,7 @@ var (
 	WithManagedByFalseMatcher = fwdo.WithManagedByFalseMatcher
 	WithGVKPredicates         = fwdo.WithGVKPredicates
 	WithPreRegistered         = fwdo.WithPreRegistered
+	WithDefaultPredicates     = fwdo.WithDefaultPredicates
 	NewAction                 = fwdo.NewAction
 )
 
