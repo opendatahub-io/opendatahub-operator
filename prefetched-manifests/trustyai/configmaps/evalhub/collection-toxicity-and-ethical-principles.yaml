@@ -30,7 +30,7 @@ data:
         provider_id: lm_evaluation_harness
         weight: 3 # High weight — safety-critical benchmark
         primary_score:
-          metric: toxicity_score
+          metric: acc
           lower_is_better: false
         pass_criteria:
           threshold: 0.85

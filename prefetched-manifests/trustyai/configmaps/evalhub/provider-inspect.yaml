@@ -348,7 +348,7 @@ data:
       # Task: inspect_evals/<name> | Uses --model flag (single model, no roles)
       # -----------------------------------------------------------------------
 
-      # Safety & alignment
+      # Safety and alignment
       - id: inspect/agentharm
         name: AgentHarm
         description: Evaluates whether AI agents can be induced to perform harmful actions across real-world tool-use scenarios.
