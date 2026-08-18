@@ -15,9 +15,6 @@ map:
     src: dashboard-operator/charts/dashboard
     dest: dashboard-operator
     type: chart
-  odh-training-operator:
-    src: manifests
-    dest: trainingoperator
   odh-feast-module-operator:
     src: config/chart
     dest: feastoperator
@@ -56,6 +53,9 @@ map:
   odh-ogx-module-operator:
     src: ogx-module/config
     dest: ogx
+  odh-ray-module-operator:
+    src: config/manager
+    dest: ray-module-operator
   odh-data-connect-hub-controller:
     src: dc-controller/config
     dest: data-connect-hub

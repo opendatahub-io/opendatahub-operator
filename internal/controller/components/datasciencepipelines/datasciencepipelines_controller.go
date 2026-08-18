@@ -32,6 +32,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/platformrelease"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
@@ -63,6 +64,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
 		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{precondition.Custom(checkPreConditions, precondition.WithStopReconciliation())})).
+		WithPostStatusFn(platformrelease.NewPostStatusFn()).
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
 		WithAction(argoWorkflowsControllersOptions).
