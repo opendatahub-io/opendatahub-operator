@@ -17,11 +17,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-const (
-	kueueCRName                   = "cluster"
-	kueueOperatorSubscriptionName = "kueue-operator"
-)
-
 var workloadFamilies = []struct {
 	name  string
 	kinds []schema.GroupVersionKind
@@ -35,62 +30,32 @@ var workloadFamilies = []struct {
 }
 
 func Check(ctx context.Context, reader client.Reader, _, _ string) error {
-	state, err := getKueueManagementState(ctx, reader)
+	state, err := ManagementState(ctx, reader)
 	if err != nil {
 		return err
 	}
-
-	blocking := &UpgradeBlockedError{}
 
 	switch state {
 	case "":
 		return nil
-	case string(operatorv1.Managed):
-		blocking.ManagedStateUnsupported = true
-		return blocking
-	case string(operatorv1.Unmanaged):
-		installed, err := cluster.SubscriptionExists(ctx, reader, kueueOperatorSubscriptionName)
-		if err != nil {
-			return err
-		}
-		blocking.MissingKueueOperatorSubscription = !installed
+	case string(operatorv1.Managed), string(operatorv1.Unmanaged):
+		// Keep component-scoped validation focused on workload state.
+	case string(operatorv1.Removed):
+		return nil
 	default:
 		return nil
 	}
 
+	blocking := &UpgradeBlockedError{}
 	blocking.WorkloadsWithoutKueueNamespaceLabel, err = collectWorkloadsWithoutKueueNamespaceLabel(ctx, reader)
 	if err != nil {
 		return err
 	}
-	if !blocking.MissingKueueOperatorSubscription &&
-		blocking.WorkloadsWithoutKueueNamespaceLabel == 0 {
+	if blocking.WorkloadsWithoutKueueNamespaceLabel == 0 {
 		return nil
 	}
 
 	return blocking
-}
-
-func getKueueManagementState(ctx context.Context, reader client.Reader) (string, error) {
-	obj := &unstructured.Unstructured{}
-	obj.SetGroupVersionKind(gvk.KueueConfigV1)
-
-	err := reader.Get(ctx, client.ObjectKey{Name: kueueCRName}, obj)
-	switch {
-	case k8serr.IsNotFound(err), meta.IsNoMatchError(err):
-		return "", nil
-	case err != nil:
-		return "", fmt.Errorf("getting Kueue CR: %w", err)
-	}
-
-	state, found, err := unstructured.NestedString(obj.Object, "spec", "managementState")
-	if err != nil {
-		return "", fmt.Errorf("reading Kueue managementState: %w", err)
-	}
-	if !found {
-		return "", nil
-	}
-
-	return state, nil
 }
 
 func collectWorkloadsWithoutKueueNamespaceLabel(ctx context.Context, reader client.Reader) (int, error) {

@@ -50,14 +50,10 @@ func TestRegister_ManagedKueueBlocks(t *testing.T) {
 	provision.RegisterUpgradeCheck(componentApi.KueueComponentName, kueuegate.Check)
 
 	err = provision.GetUpgradeCheck(componentApi.KueueComponentName)(ctx, cli, componentApi.KueueComponentName, "")
-	g.Expect(err).To(HaveOccurred())
-
-	var blockingErr *kueuegate.UpgradeBlockedError
-	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
-	g.Expect(blockingErr.ManagedStateUnsupported).To(BeTrue())
+	g.Expect(err).ToNot(HaveOccurred())
 }
 
-func TestRegister_UnmanagedKueueWithoutOperatorBlocks(t *testing.T) {
+func TestRegister_UnmanagedKueueWithoutOperatorPasses(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
@@ -69,11 +65,7 @@ func TestRegister_UnmanagedKueueWithoutOperatorBlocks(t *testing.T) {
 	provision.RegisterUpgradeCheck(componentApi.KueueComponentName, kueuegate.Check)
 
 	err = provision.GetUpgradeCheck(componentApi.KueueComponentName)(ctx, cli, componentApi.KueueComponentName, "")
-	g.Expect(err).To(HaveOccurred())
-
-	var blockingErr *kueuegate.UpgradeBlockedError
-	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
-	g.Expect(blockingErr.MissingKueueOperatorSubscription).To(BeTrue())
+	g.Expect(err).ToNot(HaveOccurred())
 }
 
 func TestRegister_UnmanagedKueueWithMissingNamespaceLabelBlocks(t *testing.T) {
@@ -137,7 +129,7 @@ func newKueueClient(objects ...client.Object) (client.Client, error) {
 	return fakeclient.New(
 		fakeclient.WithObjects(objects...),
 		fakeclient.WithGVKs(
-			fakeclient.GVKMapping{GVK: gvk.KueueConfigV1, Scope: meta.RESTScopeRoot},
+			fakeclient.GVKMapping{GVK: gvk.Kueue, Scope: meta.RESTScopeRoot},
 			fakeclient.GVKMapping{GVK: gvk.Notebook, Scope: meta.RESTScopeNamespace},
 			fakeclient.GVKMapping{GVK: gvk.Subscription, Scope: meta.RESTScopeNamespace},
 		),
