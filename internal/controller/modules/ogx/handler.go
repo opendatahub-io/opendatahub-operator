@@ -12,6 +12,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -61,51 +62,43 @@ func NewHandler() *handler {
 	}
 }
 
-func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
-	if platform == nil {
-		return false
+func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
+		return
 	}
-	if platform.DSC != nil {
-		return platform.DSC.Spec.Components.OGX.ManagementState == operatorv1.Managed
+	ms := dscCtx.DSC.Spec.Components.OGX.ManagementState
+	if ms == "" {
+		ms = operatorv1.Removed
 	}
-	if platform.Platform != nil {
-		return platform.Platform.Spec.Modules.OGX.ManagementState == operatorv1.Managed
-	}
-	return false
+	pm.OGX.ManagementState = ms
+}
+
+func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+	return modules != nil && modules.OGX.ManagementState == operatorv1.Managed
 }
 
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
-	platform *modules.PlatformContext,
+	dscCtx *modules.DSCContext,
+	_ *modules.ModuleCRConfig,
 ) (*unstructured.Unstructured, error) {
-	if platform == nil {
-		return nil, errors.New("platform context is nil, cannot build OGX CR")
+	if dscCtx == nil || dscCtx.DSC == nil {
+		return nil, errors.New("DSC is nil, cannot build OGX CR")
 	}
 
-	if platform.DSC != nil &&
-		platform.DSC.Spec.Components.LlamaStackOperator.ManagementState == operatorv1.Managed {
+	if dscCtx.DSC.Spec.Components.LlamaStackOperator.ManagementState == operatorv1.Managed {
 		return nil, fmt.Errorf(
 			"LlamaStackOperator is set to %s; it has been deprecated, set it to %s before enabling OGX",
 			operatorv1.Managed, operatorv1.Removed,
 		)
 	}
 
-	var spec map[string]any
-
-	switch {
-	case platform.DSC != nil:
-		var err error
-		spec, err = runtime.DefaultUnstructuredConverter.ToUnstructured(
-			&platform.DSC.Spec.Components.OGX.OGXCommonSpec,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert OGXCommonSpec to unstructured: %w", err)
-		}
-	case platform.Platform != nil:
-		return nil, nil
-	default:
-		return nil, errors.New("neither DSC CR nor Platform CR exists, cannot build OGX CR")
+	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(
+		&dscCtx.DSC.Spec.Components.OGX.OGXCommonSpec,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert OGXCommonSpec to unstructured: %w", err)
 	}
 
 	u := &unstructured.Unstructured{

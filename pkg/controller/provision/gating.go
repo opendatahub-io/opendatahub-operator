@@ -22,14 +22,6 @@ type ConditionWriter interface {
 	SetCondition(cond common.Condition)
 }
 
-// NoOpConditionWriter is a ConditionWriter that discards all writes.
-// Use when a caller needs DAG gating logic but should not own the
-// ProvisioningProgress condition (e.g. the modules controller, which
-// defers condition ownership to the DSC controller).
-type NoOpConditionWriter struct{}
-
-func (NoOpConditionWriter) SetCondition(common.Condition) {}
-
 // BatchProcessor is called for each batch that passes readiness gating.
 type BatchProcessor func(batch []UnifiedNode) error
 
@@ -47,6 +39,7 @@ func WalkBatches(
 	checker dag.ReadinessChecker,
 	tracker *dag.StuckTracker,
 	instanceID string,
+	version string,
 	conditions ConditionWriter,
 	processBatch BatchProcessor,
 ) (time.Duration, error) {
@@ -151,6 +144,8 @@ func WalkBatches(
 				}
 			}
 		}
+
+		GetRunlevelTracker().MarkCleared(version, batch[0].GetRunlevel().Order)
 
 		if err := processBatch(batch); err != nil {
 			return 0, err
