@@ -9,8 +9,8 @@ operator to decide whether an upgrade ack can be auto-acknowledged.
   upgrade gate for 2.x -> 3.5").
 - Keep repo-local planning notes for that epic in `pkg/upgrade/gates/TASKS.md`.
 - `TASKS.md` is a read-only mirror of relevant Jira status/comments for local
-  implementation tracking. Do not treat it as the source of truth for Jira, and
-  do not edit Jira unless explicitly asked.
+  implementation tracking. Jira is the source of truth. Agents must never
+  create, edit, transition, or comment on Jira issues from this workflow.
 - When a tracked gate change materially changes implementation scope or status,
   update `TASKS.md` in the same change.
 
@@ -26,6 +26,7 @@ operator to decide whether an upgrade ack can be auto-acknowledged.
 Good examples:
 
 - legacy `CodeFlare` CRs or `AppWrapper` CRs still present
+- `DataSciencePipelinesApplication` CRD still storing removed API versions
 - `RayCluster` workloads still carrying the CodeFlare OAuth finalizer
 - KServe workloads using removed/deprecated deployment modes
 - Kueue-labeled workloads living outside Kueue-managed namespaces
@@ -53,11 +54,17 @@ provision.RegisterUpgradeCheck(componentApi.<ComponentName>, <gatepkg>.Check)
 
 - Do not add a package-local `Register()` helper unless there is a strong reason.
 
+Upgrade gates are ensured for the target gate version, then auto-acknowledged
+only after the registered component check passes. A failing check leaves the
+gate unacknowledged and blocks the upgrade path.
+
 ## Reader / API Access
 
 - Prefer `client.Reader` for gate checks.
 - These checks are meant to look at live cluster state, so avoid cache-coupled
   behavior when possible.
+- In controller code, prefer the controller's API reader when available; tests
+  may use the client-backed reader supplied by the test environment.
 - Use the standard error branch pattern:
   - found
   - `IsNotFound` / `IsNoMatchError`
@@ -98,6 +105,11 @@ Current examples include:
 - blocks on the legacy internal `CodeFlare` CR
 - also blocks on leftover `AppWrapper` CRs
 
+### `datasciencepipelines`
+
+- checks the `DataSciencePipelinesApplication` CRD directly
+- blocks when `status.storedVersions` still contains `v1alpha1`
+
 ### `ray`
 
 - blocks on `RayCluster` objects with `ray.openshift.ai/oauth-finalizer`
@@ -111,6 +123,11 @@ Current examples include:
 - requires the `kueue-operator` OLM subscription when `managementState=Unmanaged`
 - validates that kueue-labeled workloads do not live in namespaces missing
   `kueue.openshift.io/managed=true` once the `Unmanaged` operator prerequisite is met
+
+Most checks inspect cluster-scoped or cross-namespace resources and therefore
+intentionally ignore the `namespace` argument. Treat the argument as meaningful
+only when the check explicitly lists namespaced resources; do not narrow a
+cluster-wide check to the application namespace by accident.
 
 ## Test Conventions
 
@@ -159,16 +176,20 @@ Current examples include:
 
 - `pkg/controller/provision/gates_action.go` currently hardcodes the in-tree
   gate lookup version via `gateVersion = "3.5.1"`.
-- Tests around `CheckUpgradeGatesInNamespace(...)` must respect that behavior.
+- `pkg/controller/provision/auto_ack_action.go` also hardcodes the auto-ack
+  version as `"3.5.1"`; changes to the target gate version must update both
+  paths consistently.
+- Tests around `CheckUpgradeGatesInNamespace(...)` and
+  `AutoAcknowledgeUpgradeGatesInNamespace(...)` must respect that behavior.
 - `rr.Release` is the **current running operator release**, not the previous
   deployed release.
 - `cluster.GetDeployedRelease()` reads previous deployed state from:
   - `DSCI.Status.Release` first
   - `DSC.Status.Release` second
 
-## E2E Strategy Notes
+## Example E2E Strategy
 
-For true migration coverage, the most reliable E2E is still:
+For true migration coverage, an illustrative reliable E2E flow is:
 
 1. install/run 2.25.x
 2. create legacy/blocking state
