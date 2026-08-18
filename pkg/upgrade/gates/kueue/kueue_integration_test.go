@@ -7,7 +7,6 @@ import (
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -100,7 +99,11 @@ func (tc *kueueGateTestCtx) assertMissingNamespaceLabelBlocks(
 	g.Expect(tc.cli.Create(t.Context(), obj)).ToNot(HaveOccurred())
 	defer deleteObject(g, tc.cli, obj)
 
-	subscription := renderSubscription(namespace+"-operator", "")
+	subscriptionNamespace := namespace + "-operator"
+	operatorNamespace := renderNamespace(subscriptionNamespace, nil)
+	g.Expect(tc.cli.Create(t.Context(), operatorNamespace)).ToNot(HaveOccurred())
+
+	subscription := renderSubscription(subscriptionNamespace)
 	g.Expect(tc.cli.Create(t.Context(), subscription)).ToNot(HaveOccurred())
 	defer deleteObject(g, tc.cli, subscription)
 
@@ -126,7 +129,10 @@ func (tc *kueueGateTestCtx) testUnmanagedKueueWithManagedNamespacePasses(t *test
 	g.Expect(tc.cli.Create(t.Context(), obj)).ToNot(HaveOccurred())
 	defer deleteObject(g, tc.cli, obj)
 
-	subscription := renderSubscription("openshift-kueue-operator", "")
+	operatorNamespace := renderNamespace("openshift-kueue-operator", nil)
+	g.Expect(tc.cli.Create(t.Context(), operatorNamespace)).ToNot(HaveOccurred())
+
+	subscription := renderSubscription(operatorNamespace.Name)
 	g.Expect(tc.cli.Create(t.Context(), subscription)).ToNot(HaveOccurred())
 	defer deleteObject(g, tc.cli, subscription)
 
@@ -222,18 +228,4 @@ func deleteObject(g *WithT, cli client.Client, obj client.Object) {
 	}).WithTimeout(envt.DefaultMaxWait).WithPolling(envt.DefaultPollInterval).Should(
 		MatchError(k8serr.IsNotFound, "IsNotFound"),
 	)
-}
-
-func renderSubscription(namespace string, installedCSV string) *unstructured.Unstructured {
-	obj := &unstructured.Unstructured{}
-	obj.SetGroupVersionKind(gvk.Subscription)
-	obj.SetName("kueue-operator")
-	obj.SetNamespace(namespace)
-	if installedCSV != "" {
-		obj.Object["status"] = map[string]any{
-			"installedCSV": installedCSV,
-		}
-	}
-
-	return obj
 }
