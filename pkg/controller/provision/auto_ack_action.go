@@ -33,7 +33,7 @@ func AutoAcknowledgeUpgradeGates(ctx context.Context, rr *odhtype.Reconciliation
 	appsNS := cluster.GetApplicationNamespace()
 	managed := resolveManagedComponents(rr.Instance)
 
-	return AutoAcknowledgeUpgradeGatesInNamespace(ctx, rr.Client, ns, appsNS, "3.5.1", managed)
+	return AutoAcknowledgeUpgradeGatesInNamespace(ctx, rr.Client, ns, appsNS, rr.Release.Version.String(), managed)
 }
 
 // managedComponents maps component names to true

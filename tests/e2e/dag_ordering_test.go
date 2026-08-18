@@ -469,14 +469,14 @@ func (tc *DAGOrderingTestCtx) ValidateInTreeGates(t *testing.T) {
 
 	operatorVersion := tc.getDeployedVersion(t)
 
-	intreeGates, err := gates.LoadInTreeGates(operatorVersion)
+	intreeGates, err := gates.LoadInTreeGates()
 	require.NoError(t, err, "Failed to load in-tree gates")
 
 	if len(intreeGates) == 0 {
-		t.Skipf("No in-tree gates for version %s, skipping", operatorVersion)
+		t.Skip("No in-tree gates embedded, skipping")
 	}
 
-	t.Logf("Found %d in-tree gate(s) for version %s", len(intreeGates), operatorVersion)
+	t.Logf("Found %d in-tree gate(s) (operator version %s)", len(intreeGates), operatorVersion)
 
 	// Suite-level setup (or prior test) leaves all components Removed.
 

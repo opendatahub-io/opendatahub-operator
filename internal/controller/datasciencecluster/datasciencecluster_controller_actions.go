@@ -20,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
@@ -196,12 +197,26 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 var componentStuckTracker = dag.NewStuckTracker()
 
 func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
-	instance.Status.Release = rr.Release
+	ns, err := cluster.GetOperatorNamespace()
+	if err != nil {
+		return err
+	}
+	cleared, err := gates.AllGatesAcknowledged(ctx, rr.Client, ns)
+	if err != nil {
+		return fmt.Errorf("failed to check upgrade gates: %w", err)
+	}
+	if !cleared {
+		log.Info("deferring DSC version stamp until upgrade gates are acknowledged")
+	} else {
+		instance.Status.Release = rr.Release
+	}
 
 	if err := computeComponentsStatus(ctx, rr, cr.DefaultRegistry()); err != nil {
 		return err

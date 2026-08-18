@@ -29,17 +29,6 @@ func autoAckScheme() *runtime.Scheme {
 	return s
 }
 
-func gateCM(data map[string]string) *corev1.ConfigMap {
-	return &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      gates.GateConfigMap,
-			Namespace: testNS,
-			Labels:    map[string]string{gates.UpgradeGateLabel: "true"},
-		},
-		Data: data,
-	}
-}
-
 func acksCM(data map[string]string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -88,7 +77,6 @@ func unreadyDeployment(name, component string) *appsv1.Deployment {
 	}
 }
 
-// allManaged is a helper that marks all given components as Managed.
 func allManaged(names ...string) map[string]bool {
 	m := make(map[string]bool, len(names))
 	for _, n := range names {
@@ -97,24 +85,10 @@ func allManaged(names ...string) map[string]bool {
 	return m
 }
 
-func TestAutoAck_NoGateConfigMap(t *testing.T) {
-	t.Parallel()
-
-	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).Build()
-
-	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		context.Background(), cli, testNS, testApps, "3.0.0", nil)
-
-	require.NoError(t, err)
-}
-
 func TestAutoAck_NoAcksConfigMap(t *testing.T) {
 	t.Parallel()
 
-	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
-		WithObjects(gateCM(map[string]string{
-			"ack-3.0.0-dashboard": "Dashboard upgrade",
-		})).Build()
+	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).Build()
 
 	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
 		context.Background(), cli, testNS, testApps, "3.0.0", nil)
@@ -127,9 +101,6 @@ func TestAutoAck_AllAlreadyAcked(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
-			gateCM(map[string]string{
-				"ack-3.0.0-dashboard": "Dashboard upgrade",
-			}),
 			acksCM(map[string]string{
 				"ack-3.0.0-dashboard": "true",
 			}),
@@ -152,9 +123,6 @@ func TestAutoAck_HealthyComponentAutoAcked(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
-			gateCM(map[string]string{
-				"ack-3.0.0-dashboard": "Dashboard upgrade",
-			}),
 			acksCM(map[string]string{
 				"ack-3.0.0-dashboard": "Acknowledge upgrade of dashboard from version 2.x to 3.0.0",
 			}),
@@ -178,9 +146,6 @@ func TestAutoAck_UnhealthyComponentLeftUnacked(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
-			gateCM(map[string]string{
-				"ack-3.0.0-kserve": "KServe upgrade",
-			}),
 			acksCM(map[string]string{
 				"ack-3.0.0-kserve": "Acknowledge upgrade of kserve from version 2.x to 3.0.0",
 			}),
@@ -205,11 +170,6 @@ func TestAutoAck_PartialAck(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
-			gateCM(map[string]string{
-				"ack-3.0.0-dashboard": "Dashboard upgrade",
-				"ack-3.0.0-kserve":    "KServe upgrade",
-				"ack-3.0.0-ray":       "Ray upgrade",
-			}),
 			acksCM(map[string]string{
 				"ack-3.0.0-dashboard": "true",
 				"ack-3.0.0-kserve":    "Acknowledge upgrade of kserve from version 2.x to 3.0.0",
@@ -239,9 +199,6 @@ func TestAutoAck_IgnoresOtherVersionKeys(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
-			gateCM(map[string]string{
-				"ack-3.0.0-dashboard": "Dashboard upgrade",
-			}),
 			acksCM(map[string]string{
 				"ack-3.0.0-dashboard": "Acknowledge upgrade of dashboard",
 				"ack-2.0.0-dashboard": "Old version gate",
@@ -269,9 +226,6 @@ func TestAutoAck_NoDeployments_ComponentConsideredHealthy(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
-			gateCM(map[string]string{
-				"ack-3.0.0-trustyai": "TrustyAI upgrade",
-			}),
 			acksCM(map[string]string{
 				"ack-3.0.0-trustyai": "Acknowledge upgrade of trustyai",
 			}),
@@ -295,10 +249,6 @@ func TestAutoAck_UnmanagedComponentAutoAckedWithoutHealthCheck(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
-			gateCM(map[string]string{
-				"ack-3.0.0-dashboard": "Dashboard upgrade",
-				"ack-3.0.0-trustyai":  "TrustyAI upgrade",
-			}),
 			acksCM(map[string]string{
 				"ack-3.0.0-dashboard": "Acknowledge upgrade of dashboard",
 				"ack-3.0.0-trustyai":  "Acknowledge upgrade of trustyai",
@@ -329,9 +279,6 @@ func TestAutoAck_NilManagedMap_AllComponentsAutoAcked(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
-			gateCM(map[string]string{
-				"ack-3.0.0-kserve": "KServe upgrade",
-			}),
 			acksCM(map[string]string{
 				"ack-3.0.0-kserve": "Acknowledge upgrade of kserve",
 			}),

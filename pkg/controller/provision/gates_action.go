@@ -18,11 +18,6 @@ import (
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-// TODO(RHOAIENG-82327): during an OLM upgrade the new operator binary
-// inherits the old CSV's version. Hardcode the target gate version so
-// in-tree gates are evaluated correctly regardless of what OLM reports.
-const gateVersion = "3.5.1"
-
 // ExtractUpgradeGates scans rr.Resources for ConfigMaps carrying the
 // upgrade-gate label, collects their data entries into rr.GateEntries,
 // and removes the gate CMs from rr.Resources so they are not deployed
@@ -76,12 +71,34 @@ func ExtractUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest)
 }
 
 // ComponentUpgradeGateAction is an actions.Fn suitable for component
-// controller action chains. It blocks reconciliation when any upgrade
-// gate remains unacknowledged. Gate entries are loaded from the
-// embedded in-tree gates file, so they are available immediately
-// without waiting for the informer cache to sync cluster ConfigMaps.
+// controller action chains. It blocks reconciliation when the
+// odh-upgrade-acks ConfigMap has unacknowledged entries, or when the
+// ConfigMap does not yet exist (the modules controller has not yet
+// completed its gate evaluation). This is a lightweight read-only
+// check — it never creates or modifies the ConfigMap.
 func ComponentUpgradeGateAction(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	return CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, nil)
+	ns, err := cluster.GetOperatorNamespace()
+	if err != nil {
+		return nil //nolint:nilerr // operator NS not initialized (e.g. tests); skip gracefully
+	}
+
+	cleared, err := gates.AllGatesAcknowledged(ctx, rr.Client, ns)
+	if err != nil {
+		return fmt.Errorf("failed to check upgrade gates: %w", err)
+	}
+
+	if !cleared {
+		rr.Conditions.SetCondition(common.Condition{
+			Type:    status.ConditionTypeProvisioningProgress,
+			Status:  metav1.ConditionFalse,
+			Reason:  status.AdminAckRequiredReason,
+			Message: "Waiting for upgrade gates to be acknowledged",
+		})
+
+		return odherrors.NewStopError("waiting for upgrade gates to be acknowledged")
+	}
+
+	return nil
 }
 
 // CheckUpgradeGates evaluates admin-acknowledgment gates for the current
@@ -99,7 +116,9 @@ func CheckUpgradeGates(ctx context.Context, cli client.Client, release common.Re
 }
 
 // CheckUpgradeGatesInNamespace is the namespace-explicit variant of
-// CheckUpgradeGates.
+// CheckUpgradeGates. Gates only apply when upgrading from a 2.x
+// release; same-major upgrades (3.x → 3.y) and fresh installs are
+// allowed through without blocking.
 func CheckUpgradeGatesInNamespace(
 	ctx context.Context, cli client.Client, namespace string,
 	release common.Release, conditions ConditionWriter,
@@ -109,15 +128,31 @@ func CheckUpgradeGatesInNamespace(
 
 	gc := gates.NewGateChecker(cli, namespace)
 
-	// TODO(RHOAIENG-82327): OLM sets the release version from the
-	// installed CSV, so during an upgrade the new binary still reports
-	// the OLD version. Use the hardcoded gate version for the in-tree
-	// lookup and EnsureGates so the 3.5.1 gates are always evaluated.
-	version := gateVersion
+	deployed, err := cluster.GetDeployedRelease(ctx, cli)
+	if err != nil {
+		return fmt.Errorf("cannot determine deployed release for upgrade gate check: %w", err)
+	}
+
+	if deployed.Version.Major != 2 {
+		// Not a 2.x upgrade — create empty ConfigMap to signal
+		// "gate evaluation complete, no gates needed" so component
+		// controllers waiting on the ConfigMap can proceed.
+		if _, err := gc.EnsureGates(ctx, nil); err != nil {
+			return fmt.Errorf("failed to create empty upgrade gates ConfigMap: %w", err)
+		}
+		return nil
+	}
+
+	version := release.Version.String()
+	versionPrefix := "ack-" + version + "-"
 
 	allGates := make(map[string]string)
 
-	intreeGates, err := gates.LoadInTreeGates(version)
+	// In-tree gates are embedded in the binary and always apply for 2.x
+	// upgrades — no version filtering. This ensures they are evaluated
+	// even when OLM's two-step CSV rollout causes getRelease() to
+	// temporarily report the old version.
+	intreeGates, err := gates.LoadInTreeGates()
 	if err != nil {
 		return fmt.Errorf("failed to load in-tree gates: %w", err)
 	}
@@ -125,19 +160,25 @@ func CheckUpgradeGatesInNamespace(
 		allGates[k] = v
 	}
 
+	// Cluster-labeled and chart-extracted gates are version-filtered
+	// to avoid stale entries from previous upgrades blocking a new one.
 	clusterGates, err := gc.DiscoverGates(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to discover cluster gates: %w", err)
 	}
 	for k, v := range clusterGates {
-		allGates[k] = v
+		if strings.HasPrefix(k, versionPrefix) {
+			allGates[k] = v
+		}
 	}
 
 	for k, v := range chartGates {
-		allGates[k] = v
+		if strings.HasPrefix(k, versionPrefix) {
+			allGates[k] = v
+		}
 	}
 
-	unacked, err := gc.EnsureGates(ctx, allGates, version)
+	unacked, err := gc.EnsureGates(ctx, allGates)
 	if err != nil {
 		return fmt.Errorf("failed to ensure upgrade gates: %w", err)
 	}
