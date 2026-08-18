@@ -342,7 +342,7 @@ additional_meta:
     git.commit: 24a8efcf4977c830ab23aa13deaa2aa499a20840
   odh-workbench-jupyter-baseline-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 1d7056bf00bc4ec9904ad56d28d3ab49c2659aa4
+    git.commit: f45f26740a64070b0224d00417029bdc5e2a75ba
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 24a8efcf4977c830ab23aa13deaa2aa499a20840
