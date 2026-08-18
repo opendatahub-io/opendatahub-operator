@@ -93,7 +93,7 @@ additional_meta:
     git.commit: caba2f40e8499a00e31686e878d76a9ca2bf609e
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 15a1798090b1cec9a437b26112a833e68ccd9bfe
+    git.commit: caba2f40e8499a00e31686e878d76a9ca2bf609e
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: fb3cc91655910eefdedfad510b24e550de507864
@@ -255,7 +255,7 @@ additional_meta:
     git.commit: caba2f40e8499a00e31686e878d76a9ca2bf609e
   odh-mod-arch-notebooks:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 15a1798090b1cec9a437b26112a833e68ccd9bfe
+    git.commit: caba2f40e8499a00e31686e878d76a9ca2bf609e
   odh-must-gather:
     git.url: https://github.com/red-hat-data-services/must-gather
     git.commit: ee03de221640741607fbec9877920449954a5039
