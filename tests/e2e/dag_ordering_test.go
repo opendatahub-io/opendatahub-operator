@@ -129,10 +129,9 @@ var dscComponentFields = []string{
 
 // extensionGVKs lists in-tree component CRs at RL 31+ whose controllers
 // write PlatformReady via RunlevelGateAction. Fully-modularized components
-// (Kserve, FeastOperator, MLflowOperator) are excluded — they have no
-// in-tree controller to write PlatformReady.
+// (Kserve, FeastOperator, MLflowOperator, SparkOperator) are excluded — they
+// have no in-tree controller to write PlatformReady.
 var extensionGVKs = []schema.GroupVersionKind{
-	gvk.SparkOperator,
 	gvk.TrustyAI,
 }
 
