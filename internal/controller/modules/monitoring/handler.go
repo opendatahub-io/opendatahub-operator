@@ -35,6 +35,8 @@ func NewHandler() *handler {
 				ChartDir:          "odh-observability",
 				NamespaceValueKey: "operatorNamespace",
 				GVK:               gvk.Monitoring,
+				DeploymentName:    "odh-observability",
+				ControllerImage:   "RELATED_IMAGE_ODH_OBSERVABILITY_IMAGE",
 				RelatedImages: []string{
 					"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 					"RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE",
