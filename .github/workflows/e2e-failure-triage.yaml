@@ -95,7 +95,7 @@ jobs:
         env:
           PROW_URL: ${{ steps.extract-pr.outputs.prow_url }}
           E2E_TRIAGE_JIRA_EMAIL: ${{ secrets.E2E_TRIAGE_JIRA_EMAIL }}
-          E2E_TRIAGE_JIRA_API_TOKEN: ${{ secrets.E2E_TRIAGE_JIRA_API_TOKEN }}
+          E2E_TRIAGE_JIRA_API_TOKEN: ${{ secrets.E2E_TRIAGE_API_TOKEN }}
           GITHUB_ACTION_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           python .github/scripts/e2e-failure-triage/triage.py \
@@ -110,4 +110,4 @@ jobs:
           file-path: ${{ runner.temp }}/pr-comment.md
           pr-number: ${{ steps.extract-pr.outputs.pr_number }}
           comment-tag: e2e-failure-triage
-          mode: upsert
+          mode: recreate
