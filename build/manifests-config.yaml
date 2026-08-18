@@ -182,10 +182,10 @@ additional_meta:
     git.commit: b7c57aedd5b085058f4192c8a7d4f61c2f753908
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: 234d83a62f3ffdbc36281bcdc235189c2244ccb5
+    git.commit: 406fb6f5570017baf75ed5cb44538b34e6b4ee9c
   odh-maas-controller:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: 234d83a62f3ffdbc36281bcdc235189c2244ccb5
+    git.commit: 406fb6f5570017baf75ed5cb44538b34e6b4ee9c
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
     git.commit: d53b12e6dff1394ecede686a5647f4608185245d
