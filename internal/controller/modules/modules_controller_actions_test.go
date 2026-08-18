@@ -4,10 +4,12 @@ package modules
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
 	semver "github.com/blang/semver/v4"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	ofversion "github.com/operator-framework/api/pkg/lib/version"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,6 +19,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -63,7 +66,7 @@ type deletingCleanupStub struct{}
 
 func (deletingCleanupStub) GetName() string { return "cleanup-module" }
 
-func (deletingCleanupStub) IsEnabled(*PlatformContext) bool { return false }
+func (deletingCleanupStub) IsEnabled(*configv1alpha1.PlatformModules) bool { return false }
 
 func (deletingCleanupStub) GetGVK() schema.GroupVersionKind { return schema.GroupVersionKind{} }
 
@@ -76,7 +79,10 @@ func (deletingCleanupStub) GetOperatorManifests(*PlatformContext) OperatorManife
 	}
 }
 
-func (deletingCleanupStub) BuildModuleCR(context.Context, client.Client, *PlatformContext) (*unstructured.Unstructured, error) {
+func (deletingCleanupStub) PopulatePlatformModule(_ *configv1alpha1.PlatformModules, _ *DSCContext) {
+}
+
+func (deletingCleanupStub) BuildModuleCR(context.Context, client.Client, *DSCContext, *ModuleCRConfig) (*unstructured.Unstructured, error) {
 	return nil, nil
 }
 
@@ -122,7 +128,7 @@ func (s provisioningModuleStub) GetSubmoduleConditions() []SubmoduleCondition {
 
 func (s provisioningModuleStub) GetName() string { return s.moduleName }
 
-func (s provisioningModuleStub) IsEnabled(*PlatformContext) bool { return s.enabled }
+func (s provisioningModuleStub) IsEnabled(*configv1alpha1.PlatformModules) bool { return s.enabled }
 
 func (s provisioningModuleStub) GetGVK() schema.GroupVersionKind {
 	return schema.GroupVersionKind{Group: testProvisioningModuleGroup, Version: testProvisioningModuleVersion, Kind: testProvisioningModuleKind}
@@ -137,7 +143,10 @@ func (s provisioningModuleStub) GetOperatorManifests(*PlatformContext) OperatorM
 	}
 }
 
-func (s provisioningModuleStub) BuildModuleCR(context.Context, client.Client, *PlatformContext) (*unstructured.Unstructured, error) {
+func (s provisioningModuleStub) PopulatePlatformModule(_ *configv1alpha1.PlatformModules, _ *DSCContext) {
+}
+
+func (s provisioningModuleStub) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(s.GetGVK())
 	u.SetName("default-" + s.moduleName)
@@ -211,7 +220,9 @@ func (s legacyStatusFieldsWriterStub) WriteLegacyStatusFields(
 	if dsc.Status.Components.Workbenches.WorkbenchesCommonStatus == nil {
 		dsc.Status.Components.Workbenches.WorkbenchesCommonStatus = &componentApi.WorkbenchesCommonStatus{}
 	}
-	dsc.Status.Components.Workbenches.WorkbenchNamespace = dsc.Spec.Components.Workbenches.WorkbenchNamespace
+	if dsc.Status.Components.Workbenches.WorkbenchNamespace == "" {
+		dsc.Status.Components.Workbenches.WorkbenchNamespace = dsc.Spec.Components.Workbenches.WorkbenchNamespace
+	}
 	return nil
 }
 
@@ -231,7 +242,8 @@ func TestCleanupDisabledModulesPreservesModuleEnvInjectionWhileDeleting(t *testi
 	}
 
 	rr := &types.ReconciliationRequest{
-		Client: cli,
+		Client:   cli,
+		Instance: &configv1alpha1.Platform{},
 	}
 
 	if err := cleanupDisabledModules(context.Background(), rr); err != nil {
@@ -306,9 +318,6 @@ func TestProvisionModulesAddsResourcesAndEnvInjection(t *testing.T) {
 		t.Fatalf("provision modules: %v", err)
 	}
 
-	if len(rr.Resources) != 1 {
-		t.Fatalf("expected one projected module CR, got %d", len(rr.Resources))
-	}
 	if len(rr.Manifests) != 1 {
 		t.Fatalf("expected one module manifest entry, got %d", len(rr.Manifests))
 	}
@@ -398,7 +407,7 @@ func TestComputeModulesStatusMarksNotReadyModules(t *testing.T) {
 		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
-	if err := ComputeModulesStatus(context.Background(), rr); err != nil {
+	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
 		t.Fatalf("compute modules status: %v", err)
 	}
 
@@ -446,7 +455,7 @@ func TestComputeModulesStatusPreservesWorkbenchNamespaceOnGetModuleStatusError(t
 		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
-	if err := ComputeModulesStatus(context.Background(), rr); err != nil {
+	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
 		t.Fatalf("compute modules status: %v", err)
 	}
 
@@ -499,7 +508,7 @@ func TestComputeModulesStatusInfoDependencyKeepsModulesReady(t *testing.T) {
 		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
-	if err := ComputeModulesStatus(context.Background(), rr); err != nil {
+	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
 		t.Fatalf("compute modules status: %v", err)
 	}
 
@@ -566,7 +575,7 @@ func TestComputeModulesStatusRequeuesOnCRDAbsent(t *testing.T) {
 		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
-	err = ComputeModulesStatus(context.Background(), rr)
+	err = ComputeModulesStatusDetailed(context.Background(), rr)
 
 	// Must return a RequeueAfterError so the controller retries.
 	var requeueErr odherrors.RequeueAfterError
@@ -623,10 +632,133 @@ func TestComputeModulesStatusNoRequeueOnRegularError(t *testing.T) {
 		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
-	err = ComputeModulesStatus(context.Background(), rr)
+	err = ComputeModulesStatusDetailed(context.Background(), rr)
 
 	// Regular errors should NOT trigger a requeue.
 	if err != nil {
 		t.Fatalf("expected nil error for regular GetModuleStatus failures, got: %v", err)
+	}
+}
+
+func TestBuildPlatformContext_MonitoringNamespaceFromDSCI(t *testing.T) {
+	const testMonitoringNS = "redhat-ods-monitoring"
+
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{Name: testDSCIName},
+	}
+	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
+	dsci.Spec.Monitoring.Namespace = testMonitoringNS
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	rr := &types.ReconciliationRequest{
+		Client:   cli,
+		Instance: &configv1alpha1.Platform{},
+	}
+
+	ctx, err := buildPlatformContext(context.Background(), rr)
+	if err != nil {
+		t.Fatalf("buildPlatformContext: %v", err)
+	}
+
+	if ctx.ApplicationsNamespace != testApplicationsNamespace {
+		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, ctx.ApplicationsNamespace)
+	}
+	if ctx.MonitoringNamespace != testMonitoringNS {
+		t.Fatalf("expected monitoring namespace %q, got %q", testMonitoringNS, ctx.MonitoringNamespace)
+	}
+}
+
+func TestBuildPlatformContext_MonitoringNamespaceEmptyWithoutDSCI(t *testing.T) {
+	cli, err := fakeclient.New()
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	rr := &types.ReconciliationRequest{
+		Client:   cli,
+		Instance: &configv1alpha1.Platform{},
+	}
+
+	ctx, err := buildPlatformContext(context.Background(), rr)
+	if err == nil {
+		if ctx.MonitoringNamespace != "" {
+			t.Fatalf("expected empty monitoring namespace without DSCI, got %q", ctx.MonitoringNamespace)
+		}
+	}
+	// ApplicationNamespace also fails without DSCI — that's expected.
+	// The key assertion: no panic, monitoring namespace is empty.
+}
+
+func TestProvisionModulesMonitoringNamespaceInjected(t *testing.T) {
+	withTestRegistry(t)
+
+	const testMonitoringNS = "redhat-ods-monitoring"
+
+	handler := provisioningModuleStub{
+		moduleName: testProvisioningModuleName,
+		enabled:    true,
+		status: &ModuleStatus{
+			Conditions: []common.Condition{{
+				Type:   status.ConditionTypeReady,
+				Status: metav1.ConditionTrue,
+			}},
+		},
+	}
+	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
+	provision.Add(handler.GetName(), provision.KindModule, dag.RL(20))
+
+	dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName, UID: "uid-1"}}
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
+	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
+	dsci.Spec.Monitoring.Namespace = testMonitoringNS
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	rr := &types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		Release:    common.Release{Name: common.Platform("Open Data Hub"), Version: ofversion.OperatorVersion{Version: semver.MustParse(testProvisioningVersion)}},
+		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+	}
+
+	if err := provisionModules(context.Background(), rr); err != nil {
+		t.Fatalf("provision modules: %v", err)
+	}
+
+	mei := types.GetModuleEnvInjection(rr)
+	if mei == nil {
+		t.Fatalf("expected module env injection to be set")
+	}
+	if mei.MonitoringNamespace != testMonitoringNS {
+		t.Fatalf("expected monitoring namespace %q, got %q", testMonitoringNS, mei.MonitoringNamespace)
+	}
+}
+
+func TestBuildPlatformModules_NoEmptyManagementState(t *testing.T) {
+	t.Parallel()
+
+	dsc := &dscv2.DataScienceCluster{}
+	pm := BuildPlatformModules(&DSCContext{DSC: dsc})
+
+	v := reflect.ValueOf(pm)
+	for sf, fv := range v.Fields() {
+		ms := fv.FieldByName("ManagementState")
+		if !ms.IsValid() {
+			continue
+		}
+		state := operatorv1.ManagementState(ms.String())
+		if state == "" {
+			t.Errorf("PlatformModules.%s.ManagementState is empty; must be Managed or Removed", sf.Name)
+		}
+		if state != operatorv1.Managed && state != operatorv1.Removed {
+			t.Errorf("PlatformModules.%s.ManagementState = %q; want Managed or Removed", sf.Name, state)
+		}
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -31,6 +32,7 @@ func (f *fakeHandler) NewComponentReconciler(_ context.Context, _ ctrl.Manager) 
 func (f *fakeHandler) UpdateDSCStatus(_ context.Context, _ *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	return metav1.ConditionTrue, nil
 }
+func (f *fakeHandler) GroupVersionKind() schema.GroupVersionKind  { return schema.GroupVersionKind{} }
 func (f *fakeHandler) IsEnabled(_ *dscv2.DataScienceCluster) bool { return true }
 
 func TestResolvedBatches_RunlevelGrouping(t *testing.T) {

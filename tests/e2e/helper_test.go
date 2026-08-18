@@ -90,7 +90,7 @@ const (
 
 	dsciInstanceName     = "default-dsci" // Instance name for the DSCInitialization
 	dscInstanceName      = "default-dsc"  // Instance name for the DataScienceCluster
-	platformInstanceName = "default"      // Instance name for the Platform CR (xKS mode)
+	platformInstanceName = "default"      // Instance name for the Platform CR
 
 	// Standard error messages format.
 	resourceNotNilErrorMsg       = "Expected a non-nil resource object but got nil."
