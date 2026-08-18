@@ -37,6 +37,7 @@ Legend:
 | `RHOAIENG-82374` | AIGateway | Resolved | `🚫 Not needed` | `-` |
 | `RHOAIENG-82380` | MCPLifecycleOperator | New | `🚫 Not needed` | `-` |
 | `-` | `dependencies-cert-manager` | `-` | `✅ Implemented locally` | `-` |
+| `-` | `dependencies-servicemeshoperatorv2` | `-` | `✅ Implemented locally` | `-` |
 
 ## Task Entries
 
