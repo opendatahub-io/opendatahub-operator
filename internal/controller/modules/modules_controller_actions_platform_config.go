@@ -60,6 +60,14 @@ func PlatformConfigName(moduleName string) string {
 // platform-managed keys are merged into it. Platform-managed keys are
 // enforced via SSA on every reconcile — external modifications are
 // reverted.
+//
+// TODO(dag): module operators which mount the ConfigMap as volume will only
+// read platformVersion on startup.
+// When the platform version changes (upgrade), module operator
+// pods must be restarted for the version handshake to complete. The
+// platform controller should annotate module Deployments with a configmap
+// hash (e.g. pod template annotation) so that a version change triggers
+// an automatic rollout restart.
 func injectPlatformConfig(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
@@ -83,7 +91,7 @@ func injectPlatformConfig(ctx context.Context, rr *odhtype.ReconciliationRequest
 	existingCMs := indexConfigMapsByName(rr.Resources)
 
 	return reg.ForEach(func(handler ModuleHandler) error {
-		if !handler.IsEnabled(platformCtx) {
+		if !handler.IsEnabled(platformCtx.Modules) {
 			return nil
 		}
 

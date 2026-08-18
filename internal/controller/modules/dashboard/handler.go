@@ -11,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
@@ -54,41 +55,50 @@ func NewHandler() *handler {
 	}
 }
 
-// IsEnabled checks whether the dashboard module should be deployed based on
-// DSC.Spec.Components.Dashboard.ManagementState.
-func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
-	if platform == nil || platform.DSC == nil {
-		return false
+func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
+		return
 	}
-	return platform.DSC.Spec.Components.Dashboard.ManagementState == operatorv1.Managed
+	ms := dscCtx.DSC.Spec.Components.Dashboard.ManagementState
+	if ms == "" {
+		ms = operatorv1.Removed
+	}
+	pm.Dashboard.ManagementState = ms
+}
+
+// IsEnabled checks whether the dashboard module should be deployed based on
+// PlatformModules.Dashboard.ManagementState.
+func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+	return modules != nil && modules.Dashboard.ManagementState == operatorv1.Managed
 }
 
 // BuildModuleCR projects user-facing DSC dashboard configuration and platform
-// fields from PlatformContext onto the module CR.
+// fields from DSCContext and ModuleCRConfig onto the module CR.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
-	platform *modules.PlatformContext,
+	dscCtx *modules.DSCContext,
+	cfg *modules.ModuleCRConfig,
 ) (*unstructured.Unstructured, error) {
-	if platform == nil {
-		return nil, errors.New("platform context is nil, cannot build dashboard CR")
+	if dscCtx == nil {
+		return nil, errors.New("DSC context is nil, cannot build dashboard CR")
 	}
-	if platform.DSC == nil {
+	if dscCtx.DSC == nil {
 		return nil, errors.New("DSC is nil, cannot build dashboard CR")
 	}
 
-	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&platform.DSC.Spec.Components.Dashboard)
+	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dscCtx.DSC.Spec.Components.Dashboard)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert DSCDashboard to unstructured: %w", err)
 	}
 
 	spec["deploymentMode"] = "Standalone"
 
-	spec["components"] = buildComponentsMap(platform)
+	spec["components"] = buildComponentsMap(dscCtx)
 
-	if platform.GatewayDomain != "" {
+	if cfg != nil && cfg.GatewayDomain != "" {
 		spec["gateway"] = map[string]any{
-			"domain": platform.GatewayDomain,
+			"domain": cfg.GatewayDomain,
 		}
 	}
 
@@ -105,8 +115,8 @@ func (h *handler) BuildModuleCR(
 
 // buildComponentsMap projects the management state of DSC components
 // referenced by dashboard-operator modules onto the Dashboard CR.
-func buildComponentsMap(platform *modules.PlatformContext) map[string]any {
-	c := &platform.DSC.Spec.Components
+func buildComponentsMap(dscCtx *modules.DSCContext) map[string]any {
+	c := &dscCtx.DSC.Spec.Components
 
 	refs := []struct {
 		name  string

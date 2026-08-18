@@ -11,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
@@ -46,39 +47,41 @@ func NewHandler() *handler {
 	}
 }
 
-func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
-	if platform == nil {
-		return false
+func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
+		return
 	}
-	if platform.DSC != nil {
-		return platform.DSC.Spec.Components.Trainer.ManagementState == operatorv1.Managed
+	ms := dscCtx.DSC.Spec.Components.Trainer.ManagementState
+	if ms == "" {
+		ms = operatorv1.Removed
 	}
-	if platform.Platform != nil {
-		return platform.Platform.Spec.Modules.Trainer.ManagementState == operatorv1.Managed
-	}
-	return false
+	pm.Trainer.ManagementState = ms
+}
+
+func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+	return modules != nil && modules.Trainer.ManagementState == operatorv1.Managed
 }
 
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
-	platform *modules.PlatformContext,
+	dscCtx *modules.DSCContext,
+	cfg *modules.ModuleCRConfig,
 ) (*unstructured.Unstructured, error) {
-	if platform == nil {
-		return nil, errors.New("platform context is nil, cannot build Trainer CR")
-	}
-	if platform.DSC == nil {
-		return nil, errors.New("DSC is not available, cannot build Trainer CR")
+	if dscCtx == nil || dscCtx.DSC == nil {
+		return nil, errors.New("DSC is nil, cannot build Trainer CR")
 	}
 
 	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(
-		&platform.DSC.Spec.Components.Trainer.TrainerCommonSpec,
+		&dscCtx.DSC.Spec.Components.Trainer.TrainerCommonSpec,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert TrainerCommonSpec to unstructured: %w", err)
 	}
 
-	spec["appNamespace"] = platform.ApplicationsNamespace
+	if cfg != nil {
+		spec["appNamespace"] = cfg.ApplicationsNamespace
+	}
 
 	u := &unstructured.Unstructured{
 		Object: map[string]any{

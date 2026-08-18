@@ -5,7 +5,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 )
 
 type Controller = fwtypes.Controller
@@ -32,7 +31,6 @@ var (
 // Extension keys for ODH-specific data on ReconciliationRequest.Extensions.
 const (
 	ExtKeyModuleEnvInjection = "odh.io/module-env-injection"
-	ExtKeyDSCI               = "odh.io/dsci"
 )
 
 // OperatorCR identifies the custom resource created by the operator that
@@ -101,21 +99,4 @@ func GetModuleEnvInjection(rr *ReconciliationRequest) *ModuleEnvInjection {
 	}
 	mei, _ := rr.Extensions[ExtKeyModuleEnvInjection].(*ModuleEnvInjection)
 	return mei
-}
-
-// SetDSCI stores DSCInitialization in the reconciliation request.
-func SetDSCI(rr *ReconciliationRequest, dsci *dsciv2.DSCInitialization) {
-	if rr.Extensions == nil {
-		rr.Extensions = make(map[string]any)
-	}
-	rr.Extensions[ExtKeyDSCI] = dsci
-}
-
-// GetDSCI retrieves DSCInitialization from the reconciliation request.
-func GetDSCI(rr *ReconciliationRequest) *dsciv2.DSCInitialization {
-	if rr.Extensions == nil {
-		return nil
-	}
-	dsci, _ := rr.Extensions[ExtKeyDSCI].(*dsciv2.DSCInitialization)
-	return dsci
 }

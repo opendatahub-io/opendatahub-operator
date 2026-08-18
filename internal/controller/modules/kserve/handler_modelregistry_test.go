@@ -14,10 +14,10 @@ import (
 func TestBuildModuleCR_ModelRegistryStateManaged(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
-	platform.DSC.Spec.Components.ModelRegistry.ManagementState = operatorv1.Managed
+	dscCtx := newDSCCtx(operatorv1.Managed)
+	dscCtx.DSC.Spec.Components.ModelRegistry.ManagementState = operatorv1.Managed
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -31,10 +31,10 @@ func TestBuildModuleCR_ModelRegistryStateManaged(t *testing.T) {
 func TestBuildModuleCR_ModelRegistryStateRemoved(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
-	platform.DSC.Spec.Components.ModelRegistry.ManagementState = operatorv1.Removed
+	dscCtx := newDSCCtx(operatorv1.Managed)
+	dscCtx.DSC.Spec.Components.ModelRegistry.ManagementState = operatorv1.Removed
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -48,10 +48,10 @@ func TestBuildModuleCR_ModelRegistryStateRemoved(t *testing.T) {
 func TestBuildModuleCR_ModelRegistryStateDefaultsToRemoved(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
+	dscCtx := newDSCCtx(operatorv1.Managed)
 	// ModelRegistry management state not set (empty string)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)

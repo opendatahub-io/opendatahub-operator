@@ -58,7 +58,7 @@ func IsModuleEnabled(name string) bool {
 // Default true — DAG ordering disabled by default to prevent GC deletion of
 // higher-runlevel component CRs when lower-runlevel components are transiently non-ready.
 func RegisterDAGOrderingFlags() error {
-	pflag.Bool("disable-dag-ordering", true,
+	pflag.Bool("disable-dag-ordering", false,
 		"Disable DAG runlevel ordering enforcement; all components deploy unconditionally")
 	if err := viper.BindEnv("disable-dag-ordering", "ODH_DISABLE_DAG_ORDERING"); err != nil {
 		return fmt.Errorf("failed to bind disable-dag-ordering: %w", err)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
@@ -16,11 +17,16 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func newPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformContext {
-	return &modules.PlatformContext{
-		ApplicationsNamespace: "opendatahub",
-		ChartsBasePath:        "/opt/charts",
-		GatewayDomain:         "dashboard.example.com",
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
+	return &configv1alpha1.PlatformModules{
+		Dashboard: common.ManagementSpec{
+			ManagementState: mgmtState,
+		},
+	}
+}
+
+func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
+	return &modules.DSCContext{
 		DSC: &dscv2.DataScienceCluster{
 			Spec: dscv2.DataScienceClusterSpec{
 				Components: dscv2.Components{
@@ -55,6 +61,12 @@ func newPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformConte
 	}
 }
 
+func newModuleCRConfig(gatewayDomain string) *modules.ModuleCRConfig {
+	return &modules.ModuleCRConfig{
+		GatewayDomain: gatewayDomain,
+	}
+}
+
 func TestGetName(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
@@ -79,29 +91,28 @@ func TestDashboardInstanceName_MatchesOperatorCEL(t *testing.T) {
 func TestIsEnabled_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformCtx(operatorv1.Managed))).Should(BeTrue())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Managed))).Should(BeTrue())
 }
 
 func TestIsEnabled_Removed(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformCtx(operatorv1.Removed))).Should(BeFalse())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Removed))).Should(BeFalse())
 }
 
 func TestIsEnabled_Empty(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformCtx(""))).Should(BeFalse())
+	g.Expect(h.IsEnabled(newPlatformModules(""))).Should(BeFalse())
 }
 
-func TestIsEnabled_NilDSC(t *testing.T) {
+func TestIsEnabled_EmptyModules(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	ctx := &modules.PlatformContext{ApplicationsNamespace: "opendatahub"}
-	g.Expect(h.IsEnabled(ctx)).Should(BeFalse())
+	g.Expect(h.IsEnabled(&configv1alpha1.PlatformModules{})).Should(BeFalse())
 }
 
-func TestIsEnabled_NilPlatformContext(t *testing.T) {
+func TestIsEnabled_NilModules(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
@@ -110,9 +121,9 @@ func TestIsEnabled_NilPlatformContext(t *testing.T) {
 func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
+	dscCtx := newDSCCtx(operatorv1.Managed)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig("dashboard.example.com"))
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u.GetName()).Should(Equal(componentApi.DashboardInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(componentApi.DashboardKind))
@@ -152,10 +163,9 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 func TestBuildModuleCR_OmitsGatewayWhenDomainEmpty(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
-	platform.GatewayDomain = ""
+	dscCtx := newDSCCtx(operatorv1.Managed)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig(""))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -166,9 +176,9 @@ func TestBuildModuleCR_OmitsGatewayWhenDomainEmpty(t *testing.T) {
 func TestBuildModuleCR_EmptyManagementStateOmitted(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	platform := newPlatformCtx("")
+	dscCtx := newDSCCtx("")
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -180,11 +190,11 @@ func TestBuildModuleCR_EmptyManagementStateOmitted(t *testing.T) {
 func TestBuildModuleCR_ComponentsDefaultToRemovedWhenEmpty(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
-	platform.DSC.Spec.Components.ModelRegistry.ManagementState = ""
-	platform.DSC.Spec.Components.AIPipelines.ManagementState = ""
+	dscCtx := newDSCCtx(operatorv1.Managed)
+	dscCtx.DSC.Spec.Components.ModelRegistry.ManagementState = ""
+	dscCtx.DSC.Spec.Components.AIPipelines.ManagementState = ""
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -202,26 +212,29 @@ func TestBuildModuleCR_ComponentsDefaultToRemovedWhenEmpty(t *testing.T) {
 	g.Expect(pipComp["managementState"]).Should(Equal("Removed"))
 }
 
-func TestBuildModuleCR_NilPlatformContextReturnsError(t *testing.T) {
+func TestBuildModuleCR_NilDSCContextReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	_, err := h.BuildModuleCR(context.Background(), nil, nil)
+	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
 	g.Expect(err).Should(HaveOccurred())
 }
 
 func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	platform := &modules.PlatformContext{ApplicationsNamespace: "opendatahub"}
 
-	_, err := h.BuildModuleCR(context.Background(), nil, platform)
+	_, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{}, nil)
 	g.Expect(err).Should(HaveOccurred())
 }
 
 func TestGetOperatorManifests(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
+	platform := &modules.PlatformContext{
+		ApplicationsNamespace: "opendatahub",
+		ChartsBasePath:        "/opt/charts",
+		GatewayDomain:         "dashboard.example.com",
+	}
 
 	manifests := h.GetOperatorManifests(platform)
 	g.Expect(manifests.HelmCharts).Should(HaveLen(1))

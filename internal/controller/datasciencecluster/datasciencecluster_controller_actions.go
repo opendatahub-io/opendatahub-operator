@@ -2,43 +2,36 @@ package datasciencecluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
-
-// persistAPI is implemented by component CRs that expose an alternative object
-// for the deploy action to persist (e.g. when the "public" CR wraps an inner
-// object that should actually be applied to the cluster).
-type persistAPI interface {
-	APIPersistObject() client.Object
-}
 
 func isNilInterface(v any) bool {
 	return v == nil || (reflect.ValueOf(v).Kind() == reflect.Pointer && reflect.ValueOf(v).IsNil())
 }
 
 func checkPreConditions(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	// This case should not happen, since there is a webhook that blocks the creation
-	// of more than one instance of the DataScienceCluster, however one can create a
-	// DataScienceCluster instance while the operator is stopped, hence this extra check
-
 	if _, err := cluster.GetDSCI(ctx, rr.Client); err != nil {
 		return fmt.Errorf("failed to get a valid DataScienceCluster instance, %w", err)
 	}
@@ -50,112 +43,195 @@ func checkPreConditions(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 	return nil
 }
 
-func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+func watchDataScienceClusters(ctx context.Context, cli client.Client) []reconcile.Request {
+	return cluster.WatchDataScienceClusters(ctx, cli)
+}
+
+func syncPlatformCR(_ context.Context, rr *odhtype.ReconciliationRequest) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
-	componentsEnabled := cr.DefaultRegistry().AnyComponentEnabled(instance)
-
-	modulesEnabled := false
-	if modules.DefaultRegistry().HasEntries() {
-		platformCtx := &modules.PlatformContext{DSC: instance}
-		modulesEnabled = modules.DefaultRegistry().AnyEnabled(platformCtx)
+	platform := &configv1alpha1.Platform{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: configv1alpha1.GroupVersion.String(),
+			Kind:       configv1alpha1.PlatformKind,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: configv1alpha1.PlatformInstanceName,
+		},
+		Spec: configv1alpha1.PlatformSpec{
+			Modules: modules.BuildPlatformModules(&modules.DSCContext{DSC: instance}),
+		},
 	}
 
-	if !componentsEnabled && !modulesEnabled {
+	return rr.AddResources(platform)
+}
+
+func cleanupDisabledComponents(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
+	}
+
+	log := logf.FromContext(ctx)
+	componentReg := cr.DefaultRegistry()
+
+	reverseBatches, err := provision.DefaultRegistry().ReverseBatches()
+	if err != nil {
+		return fmt.Errorf("DAG reverse resolution failed during component cleanup: %w", err)
+	}
+
+	var errs []error
+
+	for _, batch := range reverseBatches {
+		for _, entry := range provision.ComponentsInBatch(batch) {
+			handler := componentReg.Lookup(entry.GetName())
+			if handler == nil {
+				continue
+			}
+			if handler.IsEnabled(instance) {
+				continue
+			}
+			if err := deleteComponentCR(ctx, rr.Client, handler, instance); err != nil {
+				log.Error(err, "failed to delete component CR", "component", handler.GetName())
+				errs = append(errs, err)
+			}
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+func deleteComponentCR(ctx context.Context, cli client.Client, handler cr.ComponentHandler, owner client.Object) error {
+	componentGVK := handler.GroupVersionKind()
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(componentGVK)
+
+	if err := cli.List(ctx, list); err != nil {
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+			return nil
+		}
+		return err
+	}
+
+	var errs []error
+	for i := range list.Items {
+		if !isOwnedBy(&list.Items[i], owner) {
+			continue
+		}
+		if err := client.IgnoreNotFound(cli.Delete(ctx, &list.Items[i])); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+func isOwnedBy(obj, owner metav1.Object) bool {
+	uid := owner.GetUID()
+	for _, ref := range obj.GetOwnerReferences() {
+		if ref.UID == uid {
+			return true
+		}
+	}
+	return false
+}
+
+func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
+	}
+
+	moduleReg := modules.DefaultRegistry()
+	if !moduleReg.HasEntries() {
 		return nil
 	}
 
-	return provision.CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, nil)
+	pm := modules.BuildPlatformModules(&modules.DSCContext{DSC: instance})
+	enabledModules := make(map[string]bool)
+	for _, name := range pm.EnabledModules() {
+		enabledModules[name] = true
+	}
+
+	log := logf.FromContext(ctx)
+	reverseBatches, err := provision.DefaultRegistry().ReverseBatches()
+	if err != nil {
+		log.Error(err, "DAG reverse resolution failed, falling back to alphabetical module CR cleanup")
+		return moduleReg.ForAll(func(handler modules.ModuleHandler, _ bool) error {
+			if !enabledModules[handler.GetName()] {
+				if delErr := handler.DeleteModuleCR(ctx, rr.Client); delErr != nil {
+					log.Error(delErr, "DeleteModuleCR failed", "module", handler.GetName())
+					return delErr
+				}
+			}
+			return nil
+		})
+	}
+
+	var errs []error
+	for _, batch := range reverseBatches {
+		for _, entry := range provision.ModulesInBatch(batch) {
+			handler := moduleReg.Lookup(entry.GetName())
+			if handler == nil {
+				continue
+			}
+			if enabledModules[handler.GetName()] {
+				continue
+			}
+			if err := handler.DeleteModuleCR(ctx, rr.Client); err != nil {
+				log.Error(err, "DeleteModuleCR failed", "module", handler.GetName())
+				errs = append(errs, err)
+			}
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
-func watchDataScienceClusters(ctx context.Context, cli client.Client) []reconcile.Request {
-	return cluster.WatchDataScienceClusters(ctx, cli)
-}
-
-// provisionComponents iterates over the unified DAG batches (which
-// contain both components and modules) but only provisions entries of
-// KindComponent. Readiness gating uses a CompositeChecker that spans
-// both component and module registries, so a module that hasn't reached
-// Ready blocks advancement to the next runlevel just like a component
-// would.
 func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
-	checker := provision.NewCompositeChecker(
-		cr.NewReadinessChecker(cr.DefaultRegistry(), rr.Client, instance),
-		modules.NewReadinessChecker(modules.DefaultRegistry(), rr.Client, rr.Release.Version.String(),
-			modules.WithPlatformContext(&modules.PlatformContext{DSC: instance})),
-	)
-
+	rr.Generated = true
 	log := logf.FromContext(ctx)
 	componentReg := cr.DefaultRegistry()
-
 	var failedComponents []string
 
-	requeueAfter, walkErr := provision.WalkBatches(ctx, checker, componentStuckTracker, string(instance.GetUID()), rr.Conditions,
-		func(batch []provision.UnifiedNode) error {
-			provision.GetRunlevelTracker().MarkCleared(rr.Release.Version.String(), batch[0].GetRunlevel().Order)
-
-			for _, entry := range provision.ComponentsInBatch(batch) {
-				handler := componentReg.Lookup(entry.GetName())
-				if handler == nil {
-					continue
-				}
-				if !handler.IsEnabled(instance) {
-					continue
-				}
-
-				name := entry.GetName()
-
-				ci, err := handler.NewCRObject(ctx, rr.Client, instance)
-				if err != nil {
-					log.Error(err, "NewCRObject failed", "component", name)
-					failedComponents = append(failedComponents, name)
-
-					continue
-				}
-				if isNilInterface(ci) {
-					continue
-				}
-				obj, ok := ci.(client.Object)
-				if !ok {
-					log.Error(nil, "component CR does not implement client.Object",
-						"component", name, "type", fmt.Sprintf("%T", ci))
-					failedComponents = append(failedComponents, name)
-
-					continue
-				}
-				if p, ok := ci.(persistAPI); ok {
-					if inner := p.APIPersistObject(); !isNilInterface(inner) {
-						obj = inner
-					}
-				}
-				if err := rr.AddResources(obj); err != nil {
-					log.Error(err, "AddResources failed", "component", name)
-					failedComponents = append(failedComponents, name)
-
-					continue
-				}
-			}
+	if err := componentReg.ForEach(func(handler cr.ComponentHandler) error {
+		name := handler.GetName()
+		if !handler.IsEnabled(instance) {
+			provision.Disable(name)
 			return nil
-		},
-	)
-
-	if walkErr != nil {
-		return walkErr
+		}
+		provision.Enable(name)
+		ci, err := handler.NewCRObject(ctx, rr.Client, instance)
+		if err != nil {
+			log.Error(err, "NewCRObject failed", "component", name)
+			failedComponents = append(failedComponents, name)
+			return nil
+		}
+		if isNilInterface(ci) {
+			return nil
+		}
+		obj, ok := ci.(client.Object)
+		if !ok {
+			log.Error(nil, "component CR does not implement client.Object", "component", name, "type", fmt.Sprintf("%T", ci))
+			failedComponents = append(failedComponents, name)
+			return nil
+		}
+		if err := rr.AddResources(obj); err != nil {
+			log.Error(err, "AddResources failed", "component", name)
+			failedComponents = append(failedComponents, name)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
-
-	if requeueAfter > 0 {
-		return odherrors.NewRequeueAfterError(requeueAfter)
-	}
-
-	rr.Generated = true
 
 	if len(failedComponents) > 0 {
 		rr.Conditions.SetCondition(common.Condition{
@@ -164,14 +240,57 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 			Reason:  status.ProvisioningFailedReason,
 			Message: fmt.Sprintf("Provisioning failed for: %s", strings.Join(failedComponents, ", ")),
 		})
-
 		return fmt.Errorf("provisioning failed for components: %s", strings.Join(failedComponents, ", "))
 	}
 
 	return nil
 }
 
-var componentStuckTracker = dag.NewStuckTracker()
+func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
+	}
+
+	moduleReg := modules.DefaultRegistry()
+	if !moduleReg.HasEntries() {
+		return nil
+	}
+
+	dscCtx := &modules.DSCContext{DSC: instance}
+	pm := modules.BuildPlatformModules(dscCtx)
+	enabledModules := make(map[string]bool)
+	for _, name := range pm.EnabledModules() {
+		enabledModules[name] = true
+	}
+
+	appNS, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to resolve application namespace: %w", err)
+	}
+
+	gatewayDomain, _ := resources.GetGatewayDomain(ctx, rr.Client)
+	crCfg := &modules.ModuleCRConfig{
+		ApplicationsNamespace: appNS,
+		GatewayDomain:         gatewayDomain,
+		Release:               rr.Release,
+	}
+
+	return moduleReg.ForAll(func(handler modules.ModuleHandler, _ bool) error {
+		name := handler.GetName()
+		if !enabledModules[name] {
+			return nil
+		}
+		moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, dscCtx, crCfg)
+		if err != nil {
+			return fmt.Errorf("BuildModuleCR failed for module %s: %w", name, err)
+		}
+		if moduleCR != nil {
+			rr.Resources = append(rr.Resources, *moduleCR)
+		}
+		return nil
+	})
+}
 
 func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
@@ -180,20 +299,11 @@ func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error 
 	}
 
 	instance.Status.Release = rr.Release
-
 	if err := computeComponentsStatus(ctx, rr, cr.DefaultRegistry()); err != nil {
 		return err
 	}
-
 	if err := updateDeprecatedTrainingOperatorStatus(rr); err != nil {
 		return err
 	}
-
-	if cr.HasEntries() {
-		if err := modules.ComputeModulesStatus(ctx, rr); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return modules.ComputeModulesStatusDetailed(ctx, rr)
 }

@@ -12,27 +12,17 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
 
 	. "github.com/onsi/gomega"
 )
 
-func newFeastPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformContext {
-	return &modules.PlatformContext{
-		ApplicationsNamespace: "opendatahub",
-		DSC: &dscv2.DataScienceCluster{
-			Spec: dscv2.DataScienceClusterSpec{
-				Components: dscv2.Components{
-					FeastOperator: componentApi.DSCFeastOperator{
-						ManagementSpec: common.ManagementSpec{
-							ManagementState: mgmtState,
-						},
-					},
-				},
-			},
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
+	return &configv1alpha1.PlatformModules{
+		FeastOperator: common.ManagementSpec{
+			ManagementState: mgmtState,
 		},
 	}
 }
@@ -47,41 +37,39 @@ func newTestScheme() *runtime.Scheme {
 func TestIsEnabled_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := feastoperator.NewHandler()
-	g.Expect(h.IsEnabled(newFeastPlatformCtx(operatorv1.Managed))).Should(BeTrue())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Managed))).Should(BeTrue())
 }
 
 func TestIsEnabled_Removed(t *testing.T) {
 	g := NewWithT(t)
 	h := feastoperator.NewHandler()
-	g.Expect(h.IsEnabled(newFeastPlatformCtx(operatorv1.Removed))).Should(BeFalse())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Removed))).Should(BeFalse())
 }
 
-func TestIsEnabled_NilPlatformContext(t *testing.T) {
+func TestIsEnabled_NilModules(t *testing.T) {
 	g := NewWithT(t)
 	h := feastoperator.NewHandler()
 	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
 }
 
-func TestIsEnabled_NilDSC(t *testing.T) {
+func TestIsEnabled_EmptyModules(t *testing.T) {
 	g := NewWithT(t)
 	h := feastoperator.NewHandler()
-	ctx := &modules.PlatformContext{}
-	g.Expect(h.IsEnabled(ctx)).Should(BeFalse())
+	g.Expect(h.IsEnabled(&configv1alpha1.PlatformModules{})).Should(BeFalse())
 }
 
-func TestBuildModuleCR_NilPlatformReturnsError(t *testing.T) {
+func TestBuildModuleCR_NilClientReturnsError_BothNil(t *testing.T) {
 	g := NewWithT(t)
 	h := feastoperator.NewHandler()
-	_, err := h.BuildModuleCR(context.Background(), nil, nil)
+	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
 	g.Expect(err).Should(HaveOccurred())
 }
 
 func TestBuildModuleCR_NilClientReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := feastoperator.NewHandler()
-	platform := newFeastPlatformCtx(operatorv1.Managed)
 
-	_, err := h.BuildModuleCR(context.Background(), nil, platform)
+	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
 	g.Expect(err).Should(HaveOccurred())
 	g.Expect(err.Error()).Should(ContainSubstring("kubernetes client is nil"))
 }
@@ -89,11 +77,10 @@ func TestBuildModuleCR_NilClientReturnsError(t *testing.T) {
 func TestBuildModuleCR_NonOIDCCluster(t *testing.T) {
 	g := NewWithT(t)
 	h := feastoperator.NewHandler()
-	platform := newFeastPlatformCtx(operatorv1.Managed)
 
 	cli := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
 
-	u, err := h.BuildModuleCR(context.Background(), cli, platform)
+	u, err := h.BuildModuleCR(context.Background(), cli, nil, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u.GetName()).Should(Equal(componentApi.FeastOperatorInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(componentApi.FeastOperatorKind))
@@ -103,7 +90,6 @@ func TestBuildModuleCR_NonOIDCCluster(t *testing.T) {
 func TestBuildModuleCR_OIDCIssuerProjected(t *testing.T) {
 	g := NewWithT(t)
 	h := feastoperator.NewHandler()
-	platform := newFeastPlatformCtx(operatorv1.Managed)
 
 	cli := fake.NewClientBuilder().
 		WithScheme(newTestScheme()).
@@ -123,7 +109,7 @@ func TestBuildModuleCR_OIDCIssuerProjected(t *testing.T) {
 		).
 		Build()
 
-	u, err := h.BuildModuleCR(context.Background(), cli, platform)
+	u, err := h.BuildModuleCR(context.Background(), cli, nil, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, _ := unstructuredNestedMap(u.Object, "spec")
@@ -135,7 +121,6 @@ func TestBuildModuleCR_OIDCIssuerProjected(t *testing.T) {
 func TestBuildModuleCR_InvalidIssuerReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := feastoperator.NewHandler()
-	platform := newFeastPlatformCtx(operatorv1.Managed)
 
 	cli := fake.NewClientBuilder().
 		WithScheme(newTestScheme()).
@@ -155,7 +140,7 @@ func TestBuildModuleCR_InvalidIssuerReturnsError(t *testing.T) {
 		).
 		Build()
 
-	_, err := h.BuildModuleCR(context.Background(), cli, platform)
+	_, err := h.BuildModuleCR(context.Background(), cli, nil, nil)
 	g.Expect(err).Should(HaveOccurred())
 	g.Expect(err.Error()).Should(ContainSubstring("https"))
 }

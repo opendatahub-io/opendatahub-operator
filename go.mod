@@ -11,6 +11,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.42.1
 	github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a
+	github.com/opendatahub-io/odh-platform-utilities/framework v0.0.0-20260810103007-dd94df3e806f
 	github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth v0.0.0
 	github.com/opendatahub-io/opendatahub-operator/pkg/failureclassifier v0.0.0-00010101000000-000000000000
 	github.com/opendatahub-io/opendatahub-operator/pkg/scoperules v0.0.0
@@ -117,7 +118,6 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/opendatahub-io/odh-platform-utilities/framework v0.0.0-20260810103007-dd94df3e806f
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect

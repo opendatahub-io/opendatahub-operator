@@ -34,20 +34,20 @@ func TestIsEnabled(t *testing.T) {
 	handler := NewHandler()
 
 	if handler.IsEnabled(nil) {
-		t.Fatalf("expected nil platform context to disable module")
+		t.Fatalf("expected nil modules to disable module")
 	}
 
-	platform := &modules.PlatformContext{
-		DSC: &dscv2.DataScienceCluster{
-			Spec: dscv2.DataScienceClusterSpec{},
+	pm := &configv1alpha1.PlatformModules{
+		MLflowOperator: common.ManagementSpec{
+			ManagementState: operatorv1.Removed,
 		},
 	}
-	if handler.IsEnabled(platform) {
+	if handler.IsEnabled(pm) {
 		t.Fatalf("expected Removed MLflowOperator to be disabled")
 	}
 
-	platform.DSC.Spec.Components.MLflowOperator.ManagementState = operatorv1.Managed
-	if !handler.IsEnabled(platform) {
+	pm.MLflowOperator.ManagementState = operatorv1.Managed
+	if !handler.IsEnabled(pm) {
 		t.Fatalf("expected Managed MLflowOperator to enable module")
 	}
 }
@@ -55,23 +55,17 @@ func TestIsEnabled(t *testing.T) {
 func TestIsEnabled_PlatformMode(t *testing.T) {
 	handler := NewHandler()
 
-	platform := &modules.PlatformContext{
-		Platform: &configv1alpha1.Platform{
-			Spec: configv1alpha1.PlatformSpec{
-				Modules: configv1alpha1.PlatformModules{
-					MLflowOperator: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-			},
+	pm := &configv1alpha1.PlatformModules{
+		MLflowOperator: common.ManagementSpec{
+			ManagementState: operatorv1.Removed,
 		},
 	}
-	if handler.IsEnabled(platform) {
+	if handler.IsEnabled(pm) {
 		t.Fatalf("expected Removed MLflowOperator platform mode to disable module")
 	}
 
-	platform.Platform.Spec.Modules.MLflowOperator.ManagementState = operatorv1.Managed
-	if !handler.IsEnabled(platform) {
+	pm.MLflowOperator.ManagementState = operatorv1.Managed
+	if !handler.IsEnabled(pm) {
 		t.Fatalf("expected Managed MLflowOperator platform mode to enable module")
 	}
 }
@@ -109,12 +103,13 @@ func TestBuildModuleCR(t *testing.T) {
 	}
 	dsc.Spec.Components.MLflowOperator.ManagementState = operatorv1.Managed
 
-	moduleCR, err := handler.BuildModuleCR(t.Context(), nil, &modules.PlatformContext{
-		ApplicationsNamespace: mlflowTestAppsNS,
-		GatewayDomain:         mlflowTestGatewayURL,
-		Release:               common.Release{Name: cluster.SelfManagedRhoai},
-		DSC:                   dsc,
-	})
+	moduleCR, err := handler.BuildModuleCR(t.Context(), nil,
+		&modules.DSCContext{DSC: dsc},
+		&modules.ModuleCRConfig{
+			GatewayDomain: mlflowTestGatewayURL,
+			Release:       common.Release{Name: cluster.SelfManagedRhoai},
+		},
+	)
 	if err != nil {
 		t.Fatalf("build module CR: %v", err)
 	}
@@ -146,19 +141,17 @@ func TestBuildModuleCR(t *testing.T) {
 func TestBuildModuleCR_PlatformMode(t *testing.T) {
 	handler := NewHandler()
 
-	moduleCR, err := handler.BuildModuleCR(t.Context(), nil, &modules.PlatformContext{
-		ApplicationsNamespace: mlflowTestAppsNS,
-		Release:               common.Release{Name: cluster.SelfManagedRhoai},
-		Platform: &configv1alpha1.Platform{
-			Spec: configv1alpha1.PlatformSpec{
-				Modules: configv1alpha1.PlatformModules{
-					MLflowOperator: common.ManagementSpec{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-			},
+	dsc := &dscv2.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: mlflowTestDSCName},
+	}
+	dsc.Spec.Components.MLflowOperator.ManagementState = operatorv1.Managed
+
+	moduleCR, err := handler.BuildModuleCR(t.Context(), nil,
+		&modules.DSCContext{DSC: dsc},
+		&modules.ModuleCRConfig{
+			Release: common.Release{Name: cluster.SelfManagedRhoai},
 		},
-	})
+	)
 	if err != nil {
 		t.Fatalf("build module CR in platform mode: %v", err)
 	}
@@ -191,12 +184,13 @@ func TestBuildModuleCRMatchesVendoredCRDSchema(t *testing.T) {
 	}
 	dsc.Spec.Components.MLflowOperator.ManagementState = operatorv1.Managed
 
-	moduleCR, err := handler.BuildModuleCR(t.Context(), nil, &modules.PlatformContext{
-		ApplicationsNamespace: mlflowTestAppsNS,
-		GatewayDomain:         mlflowTestGatewayURL,
-		Release:               common.Release{Name: cluster.SelfManagedRhoai},
-		DSC:                   dsc,
-	})
+	moduleCR, err := handler.BuildModuleCR(t.Context(), nil,
+		&modules.DSCContext{DSC: dsc},
+		&modules.ModuleCRConfig{
+			GatewayDomain: mlflowTestGatewayURL,
+			Release:       common.Release{Name: cluster.SelfManagedRhoai},
+		},
+	)
 	if err != nil {
 		t.Fatalf("build module CR: %v", err)
 	}
@@ -217,19 +211,18 @@ func TestBuildModuleCRMatchesVendoredCRDSchemaPlatformMode(t *testing.T) {
 	t.Parallel()
 
 	handler := NewHandler()
-	moduleCR, err := handler.BuildModuleCR(t.Context(), nil, &modules.PlatformContext{
-		ApplicationsNamespace: mlflowTestAppsNS,
-		Release:               common.Release{Name: cluster.SelfManagedRhoai},
-		Platform: &configv1alpha1.Platform{
-			Spec: configv1alpha1.PlatformSpec{
-				Modules: configv1alpha1.PlatformModules{
-					MLflowOperator: common.ManagementSpec{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-			},
+
+	dsc := &dscv2.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: mlflowTestDSCName},
+	}
+	dsc.Spec.Components.MLflowOperator.ManagementState = operatorv1.Managed
+
+	moduleCR, err := handler.BuildModuleCR(t.Context(), nil,
+		&modules.DSCContext{DSC: dsc},
+		&modules.ModuleCRConfig{
+			Release: common.Release{Name: cluster.SelfManagedRhoai},
 		},
-	})
+	)
 	if err != nil {
 		t.Fatalf("build module CR in platform mode: %v", err)
 	}

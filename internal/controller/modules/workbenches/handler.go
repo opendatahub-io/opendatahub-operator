@@ -12,6 +12,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -80,20 +81,21 @@ func NewHandler() *handler {
 	}
 }
 
-// IsEnabled checks whether the Workbenches module should be deployed.
-// In DSC mode, reads DSC.Spec.Components.Workbenches.ManagementState.
-// In Platform mode (xKS), reads Platform.Spec.Modules.Workbenches.ManagementState.
-func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
-	if platform == nil {
-		return false
+func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
+		return
 	}
-	if platform.DSC != nil {
-		return platform.DSC.Spec.Components.Workbenches.ManagementState == operatorv1.Managed
+	ms := dscCtx.DSC.Spec.Components.Workbenches.ManagementState
+	if ms == "" {
+		ms = operatorv1.Removed
 	}
-	if platform.Platform != nil {
-		return platform.Platform.Spec.Modules.Workbenches.ManagementState == operatorv1.Managed
-	}
-	return false
+	pm.Workbenches.ManagementState = ms
+}
+
+// IsEnabled checks whether the Workbenches module should be deployed based on
+// PlatformModules.Workbenches.ManagementState.
+func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+	return modules != nil && modules.Workbenches.ManagementState == operatorv1.Managed
 }
 
 // BuildModuleCR projects platform configuration onto the Workbenches module CR.
@@ -104,35 +106,26 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
-	platform *modules.PlatformContext,
+	dscCtx *modules.DSCContext,
+	cfg *modules.ModuleCRConfig,
 ) (*unstructured.Unstructured, error) {
-	if platform == nil {
-		return nil, errors.New("platform context is nil, cannot build Workbenches CR")
+	if dscCtx == nil || dscCtx.DSC == nil {
+		return nil, errors.New("DSC is nil, cannot build Workbenches CR")
 	}
 
-	var spec map[string]any
-
-	switch {
-	case platform.DSC != nil:
-		var err error
-		spec, err = runtime.DefaultUnstructuredConverter.ToUnstructured(
-			&platform.DSC.Spec.Components.Workbenches.WorkbenchesCommonSpec,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert WorkbenchesCommonSpec to unstructured: %w", err)
-		}
-		spec["managementState"] = string(platform.DSC.Spec.Components.Workbenches.ManagementState)
-		spec["mlflowEnabled"] = platform.DSC.Spec.Components.MLflowOperator.ManagementState == operatorv1.Managed
-	case platform.Platform != nil:
-		spec = map[string]any{
-			"managementState": string(platform.Platform.Spec.Modules.Workbenches.ManagementState),
-		}
-	default:
-		return nil, errors.New("neither DSC nor Platform is available, cannot build Workbenches CR")
+	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(
+		&dscCtx.DSC.Spec.Components.Workbenches.WorkbenchesCommonSpec,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert WorkbenchesCommonSpec to unstructured: %w", err)
 	}
+	spec["managementState"] = string(dscCtx.DSC.Spec.Components.Workbenches.ManagementState)
+	spec["mlflowEnabled"] = dscCtx.DSC.Spec.Components.MLflowOperator.ManagementState == operatorv1.Managed
 
-	spec["gatewayDomain"] = platform.GatewayDomain
-	spec["platform"] = workbenchesPlatformType(platform.Release.Name)
+	if cfg != nil {
+		spec["gatewayDomain"] = cfg.GatewayDomain
+		spec["platform"] = workbenchesPlatformType(cfg.Release.Name)
+	}
 
 	u := &unstructured.Unstructured{
 		Object: map[string]any{

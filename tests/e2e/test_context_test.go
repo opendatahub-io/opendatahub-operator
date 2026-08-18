@@ -78,7 +78,7 @@ type TestContext struct {
 	// Namespaced name of the DataScienceCluster custom resource used for testing.
 	DataScienceClusterNamespacedName types.NamespacedName
 
-	// Namespaced name of the Platform custom resource used for testing (xKS mode).
+	// Namespaced name of the Platform custom resource used for testing.
 	PlatformNamespacedName types.NamespacedName
 
 	// DefaultResourceOpts are applied as a baseline to every NewResourceOptions call.
@@ -1502,9 +1502,9 @@ func (tc *TestContext) SkipIfXKSCluster(t *testing.T) {
 	}
 }
 
-// EnsurePlatformCR creates the Platform CR if it does not already exist.
-// On xKS clusters there is no DSC controller to create it, so E2E tests
-// must ensure it exists before enabling modules.
+// EnsurePlatformCR creates the Platform CR if it does not exist. On
+// OpenShift the DSC controller creates it via syncPlatformCR; on xKS
+// there is no DSC controller so the E2E test must create it.
 func (tc *TestContext) EnsurePlatformCR(t *testing.T) {
 	t.Helper()
 
