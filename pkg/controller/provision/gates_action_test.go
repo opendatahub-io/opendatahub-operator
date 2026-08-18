@@ -248,6 +248,84 @@ func TestExtractUpgradeGates_StashesOnGateEntries(t *testing.T) {
 	assert.Equal(t, "Module gate", rr.GateEntries["ack-2.0.0-module-gate"])
 }
 
+func TestComponentUpgradeGateCheck_NoCMReturnsStopError(t *testing.T) {
+	t.Parallel()
+
+	cli := fake.NewClientBuilder().WithScheme(newScheme()).Build()
+	conds := &condRecorder{}
+
+	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", conds)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "waiting for upgrade gates to be acknowledged")
+	require.Len(t, conds.conditions, 2)
+	assert.Equal(t, status.ConditionTypeProvisioningProgress, conds.conditions[0].Type)
+	assert.Equal(t, status.AdminAckRequiredReason, conds.conditions[0].Reason)
+	assert.Equal(t, status.ConditionTypeProvisioningSucceeded, conds.conditions[1].Type)
+	assert.Equal(t, status.AdminAckRequiredReason, conds.conditions[1].Reason)
+}
+
+func TestComponentUpgradeGateCheck_AllAckedReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	acksCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: gates.AcksConfigMap, Namespace: "test-ns"},
+		Data: map[string]string{
+			"ack-3.5.1-kserve":   "true",
+			"ack-3.5.1-trustyai": "true",
+		},
+	}
+
+	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(acksCM).Build()
+	conds := &condRecorder{}
+
+	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", conds)
+
+	require.NoError(t, err)
+	assert.Empty(t, conds.conditions)
+}
+
+func TestComponentUpgradeGateCheck_PartialAckReturnsStopError(t *testing.T) {
+	t.Parallel()
+
+	acksCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: gates.AcksConfigMap, Namespace: "test-ns"},
+		Data: map[string]string{
+			"ack-3.5.1-kserve":   "true",
+			"ack-3.5.1-trustyai": "Acknowledge upgrade of trustyai",
+		},
+	}
+
+	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(acksCM).Build()
+	conds := &condRecorder{}
+
+	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", conds)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "waiting for upgrade gates to be acknowledged")
+	require.Len(t, conds.conditions, 2)
+	assert.Equal(t, status.ConditionTypeProvisioningProgress, conds.conditions[0].Type)
+	assert.Equal(t, status.AdminAckRequiredReason, conds.conditions[0].Reason)
+	assert.Equal(t, status.ConditionTypeProvisioningSucceeded, conds.conditions[1].Type)
+	assert.Equal(t, status.AdminAckRequiredReason, conds.conditions[1].Reason)
+}
+
+func TestComponentUpgradeGateCheck_EmptyCMReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	acksCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: gates.AcksConfigMap, Namespace: "test-ns"},
+	}
+
+	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(acksCM).Build()
+	conds := &condRecorder{}
+
+	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", conds)
+
+	require.NoError(t, err)
+	assert.Empty(t, conds.conditions)
+}
+
 func TestExtractUpgradeGates_NoGateCMs(t *testing.T) {
 	t.Parallel()
 

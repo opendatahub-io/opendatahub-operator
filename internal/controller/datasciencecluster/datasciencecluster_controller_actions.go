@@ -91,7 +91,18 @@ func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) e
 		return nil
 	}
 
-	return provision.CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, nil)
+	if err := provision.ComponentUpgradeGateAction(ctx, rr); err != nil {
+		rr.Conditions.SetCondition(common.Condition{
+			Type:    status.ConditionTypeModulesReady,
+			Status:  metav1.ConditionFalse,
+			Reason:  status.AdminAckRequiredReason,
+			Message: "Waiting for upgrade gates to be acknowledged",
+		})
+
+		return err
+	}
+
+	return nil
 }
 
 func watchDataScienceClusters(ctx context.Context, cli client.Client) []reconcile.Request {

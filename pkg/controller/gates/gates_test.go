@@ -251,6 +251,24 @@ func TestDiscoverGates_MultipleLabeledCMs(t *testing.T) {
 	assert.NotContains(t, result, "should-not-appear")
 }
 
+func TestEnsureGatesNil_ThenAllGatesAcknowledged_ReturnsTrue(t *testing.T) {
+	t.Parallel()
+
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
+	gc := gates.NewGateChecker(cli, testNamespace)
+
+	unacked, err := gc.EnsureGates(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Empty(t, unacked)
+
+	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace)
+	require.NoError(t, err)
+	assert.True(t, cleared, "AllGatesAcknowledged must return true after EnsureGates(nil) creates an empty ConfigMap")
+}
+
 func TestAllGatesAcknowledged_NoCMReturnsFalse(t *testing.T) {
 	t.Parallel()
 

@@ -28,6 +28,9 @@ import (
 )
 
 func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	if !flags.IsDSCEnabled() {
+		return nil
+	}
 	return provision.CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, rr.GateEntries)
 }
 
