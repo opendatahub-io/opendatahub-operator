@@ -138,7 +138,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE
   value: quay.io/rhoai/odh-mod-arch-model-registry-rhel9@sha256:sha256:8b040b818f211081c893e5686bdda91314508582c4e976d481a22b7ffdb004c2
 - name: RELATED_IMAGE_ODH_MOD_ARCH_NOTEBOOKS_IMAGE
-  value: quay.io/rhoai/odh-mod-arch-notebooks-rhel9@sha256:fc1a9bdc45b0d10af293c68fcca5a4896ff13f57e4d954bf23125e72a389b330
+  value: quay.io/rhoai/odh-mod-arch-notebooks-rhel9@sha256:7368ddc1c29418bfdbedc35a9ead9dc5edfeff5428185d480f94824d4464b829
 - name: RELATED_IMAGE_ODH_MUST_GATHER_IMAGE
   value: quay.io/rhoai/odh-must-gather-rhel9@sha256:1a024c943d5a2ccecbef027476cc87599aeaf1f472be5e3c0d6843e866cc2b2c
 - name: RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE
