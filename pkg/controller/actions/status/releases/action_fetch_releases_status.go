@@ -17,6 +17,7 @@ import (
 
 const (
 	ComponentMetadataFilename = "component_metadata.yaml"
+	platformReleaseName       = common.PlatformReleaseName
 )
 
 type Action struct {
@@ -79,7 +80,7 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 	result := append([]common.ComponentRelease{}, a.componentReleaseStatus...)
 
 	for _, r := range *obj.GetReleaseStatus() {
-		if r.Name == common.PlatformReleaseName {
+		if r.Name == platformReleaseName {
 			result = append([]common.ComponentRelease{r}, result...)
 
 			break
@@ -128,6 +129,7 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) ([
 			// Return an empty slice of releases instead of an error
 			return nil, nil
 		}
+
 		return nil, fmt.Errorf("error reading metadata file: %w", err)
 	}
 
