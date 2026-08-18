@@ -10,6 +10,7 @@ import (
 	dspgates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/datasciencepipelines"
 	kservegates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/kserve"
 	kueuegates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/kueue"
+	kueueoperatorgates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/kueueoperator"
 	modelmeshservinggates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/modelmeshserving"
 	raygates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/ray"
 	servicemeshoperatorv2gates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/servicemeshoperatorv2"
@@ -17,6 +18,7 @@ import (
 
 const removedGatePrefix = "removed-"
 const dependenciesCertManagerGateKey = "dependencies-cert-manager"
+const dependenciesKueueOperatorGateKey = "dependencies-kueue-operator"
 const dependenciesServiceMeshOperatorV2GateKey = "dependencies-servicemeshoperatorv2"
 
 var registeredChecks = map[string]provision.UpgradeCheckFunc{
@@ -44,6 +46,7 @@ var registeredChecks = map[string]provision.UpgradeCheckFunc{
 
 	// dependencies
 	dependenciesCertManagerGateKey:           certmanagergates.Check,
+	dependenciesKueueOperatorGateKey:         kueueoperatorgates.Check,
 	dependenciesServiceMeshOperatorV2GateKey: servicemeshoperatorv2gates.Check,
 }
 

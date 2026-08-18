@@ -38,8 +38,8 @@ func TestKueueGates(t *testing.T) {
 	tc := &kueueGateTestCtx{cli: te.Client()}
 
 	t.Run("clean cluster passes", tc.testCleanClusterPasses)
-	t.Run("managed Kueue blocks", tc.testManagedKueueBlocks)
-	t.Run("unmanaged Kueue without operator blocks", tc.testUnmanagedKueueWithoutOperatorBlocks)
+	t.Run("managed Kueue passes", tc.testManagedKueuePasses)
+	t.Run("unmanaged Kueue without operator passes", tc.testUnmanagedKueueWithoutOperatorPasses)
 	t.Run("unmanaged Kueue with missing namespace label blocks", tc.testUnmanagedKueueWithMissingNamespaceLabelBlocks)
 	t.Run("unmanaged Kueue with managed namespace passes", tc.testUnmanagedKueueWithManagedNamespacePasses)
 	t.Run("removed Kueue ignores labeled workloads", tc.testRemovedKueueIgnoresLabeledWorkloads)
@@ -52,7 +52,7 @@ func (tc *kueueGateTestCtx) testCleanClusterPasses(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
-func (tc *kueueGateTestCtx) testManagedKueueBlocks(t *testing.T) {
+func (tc *kueueGateTestCtx) testManagedKueuePasses(t *testing.T) {
 	g := NewWithT(t)
 
 	obj := renderKueue(t, "Managed")
@@ -60,14 +60,10 @@ func (tc *kueueGateTestCtx) testManagedKueueBlocks(t *testing.T) {
 	defer deleteObject(g, tc.cli, obj)
 
 	err := kueuegate.Check(t.Context(), tc.cli, componentApi.KueueComponentName, "")
-	g.Expect(err).To(HaveOccurred())
-
-	var blockingErr *kueuegate.UpgradeBlockedError
-	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
-	g.Expect(blockingErr.ManagedStateUnsupported).To(BeTrue())
+	g.Expect(err).ToNot(HaveOccurred())
 }
 
-func (tc *kueueGateTestCtx) testUnmanagedKueueWithoutOperatorBlocks(t *testing.T) {
+func (tc *kueueGateTestCtx) testUnmanagedKueueWithoutOperatorPasses(t *testing.T) {
 	g := NewWithT(t)
 
 	obj := renderKueue(t, "Unmanaged")
@@ -75,11 +71,7 @@ func (tc *kueueGateTestCtx) testUnmanagedKueueWithoutOperatorBlocks(t *testing.T
 	defer deleteObject(g, tc.cli, obj)
 
 	err := kueuegate.Check(t.Context(), tc.cli, componentApi.KueueComponentName, "")
-	g.Expect(err).To(HaveOccurred())
-
-	var blockingErr *kueuegate.UpgradeBlockedError
-	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
-	g.Expect(blockingErr.MissingKueueOperatorSubscription).To(BeTrue())
+	g.Expect(err).ToNot(HaveOccurred())
 }
 
 func (tc *kueueGateTestCtx) testUnmanagedKueueWithMissingNamespaceLabelBlocks(t *testing.T) {
@@ -168,7 +160,7 @@ func (tc *kueueGateTestCtx) testRemovedKueueIgnoresLabeledWorkloads(t *testing.T
 func installKueueGateCRDs(ctx context.Context, te *envt.EnvT) error {
 	if _, err := te.RegisterCRD(
 		ctx,
-		gvk.KueueConfigV1,
+		gvk.Kueue,
 		"kueues",
 		"kueue",
 		apiextensionsv1.ClusterScoped,

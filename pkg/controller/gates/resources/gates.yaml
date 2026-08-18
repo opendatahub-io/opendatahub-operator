@@ -39,4 +39,5 @@ data:
   ack-3.5.1-removed-codeflare: "Acknowledge upgrade of codeflare from version 2.x to 3.5.1"
   ack-3.5.1-removed-modelmeshserving: "Acknowledge upgrade of modelmeshserving from version 2.x to 3.5.1"
   ack-3.5.1-dependencies-cert-manager: "Acknowledge upgrade dependency on cert-manager from version 2.x to 3.5.1"
+  ack-3.5.1-dependencies-kueue-operator: "Acknowledge upgrade dependency on kueue-operator from version 2.x to 3.5.1"
   ack-3.5.1-dependencies-servicemeshoperatorv2: "Acknowledge upgrade dependency on removing Service Mesh Operator v2 from version 2.x to 3.5.1"

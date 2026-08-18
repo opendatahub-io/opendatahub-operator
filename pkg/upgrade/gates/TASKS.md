@@ -37,6 +37,7 @@ Legend:
 | `RHOAIENG-82374` | AIGateway | Resolved | `🚫 Not needed` | `-` |
 | `RHOAIENG-82380` | MCPLifecycleOperator | New | `🚫 Not needed` | `-` |
 | `-` | `dependencies-cert-manager` | `-` | `✅ Implemented locally` | `-` |
+| `-` | `dependencies-kueue-operator` | `-` | `✅ Implemented locally` | `-` |
 | `-` | `dependencies-servicemeshoperatorv2` | `-` | `✅ Implemented locally` | `-` |
 
 ## Task Entries
@@ -63,12 +64,13 @@ Legend:
   - clarify whether `kueue <-> kserve` integration validation belongs under the
     Kueue task or the KServe task
 - Checks implemented in repo:
-  - block when the internal `kueue.openshift.io/v1` `Kueue` CR is still in
-    `Managed` state
-  - require the `kueue-operator` OLM subscription when the internal Kueue CR is
-    in `Unmanaged` state
   - block when kueue-labeled workloads live in namespaces missing
     `kueue.openshift.io/managed=true`
+- Related dependency gate:
+  - `dependencies-kueue-operator` blocks when the internal
+    `kueue.openshift.io/v1` `Kueue` CR is still `Managed`
+  - `dependencies-kueue-operator` requires the `kueue-operator` OLM
+    subscription when the internal Kueue CR is `Unmanaged`
 - Follow-up note:
   - if a future integration-specific `kueue <-> kserve` blocker is needed,
     scope it explicitly rather than folding it into the current workload and
