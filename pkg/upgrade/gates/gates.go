@@ -13,9 +13,10 @@ import (
 	raygates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/ray"
 )
 
+const removedGatePrefix = "removed-"
+
 var registeredChecks = map[string]provision.UpgradeCheckFunc{
 	componentApi.AIGatewayComponentName:            provision.DefaultUpgradeCheck,
-	componentApi.CodeFlareComponentName:            codeflaregates.Check,
 	componentApi.DashboardComponentName:            provision.DefaultUpgradeCheck,
 	componentApi.DataSciencePipelinesComponentName: dspgates.Check,
 	componentApi.FeastOperatorComponentName:        provision.DefaultUpgradeCheck,
@@ -23,7 +24,6 @@ var registeredChecks = map[string]provision.UpgradeCheckFunc{
 	componentApi.KueueComponentName:                kueuegates.Check,
 	componentApi.MCPLifecycleOperatorComponentName: provision.DefaultUpgradeCheck,
 	componentApi.MLflowOperatorComponentName:       provision.DefaultUpgradeCheck,
-	componentApi.ModelMeshServingComponentName:     modelmeshservinggates.Check,
 	componentApi.ModelRegistryComponentName:        provision.DefaultUpgradeCheck,
 	componentApi.OGXComponentName:                  provision.DefaultUpgradeCheck,
 	componentApi.RayComponentName:                  raygates.Check,
@@ -32,6 +32,10 @@ var registeredChecks = map[string]provision.UpgradeCheckFunc{
 	componentApi.TrainingOperatorComponentName:     provision.DefaultUpgradeCheck,
 	componentApi.TrustyAIComponentName:             provision.DefaultUpgradeCheck,
 	componentApi.WorkbenchesComponentName:          provision.DefaultUpgradeCheck,
+
+	// removed components
+	removedGatePrefix + componentApi.CodeFlareComponentName:        codeflaregates.Check,
+	removedGatePrefix + componentApi.ModelMeshServingComponentName: modelmeshservinggates.Check,
 }
 
 // Register registers every in-tree upgrade check used by auto-ack.
