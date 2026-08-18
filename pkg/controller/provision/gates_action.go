@@ -16,6 +16,7 @@ import (
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
 // ExtractUpgradeGates scans rr.Resources for ConfigMaps carrying the
@@ -77,19 +78,35 @@ func ExtractUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest)
 // completed its gate evaluation). This is a lightweight read-only
 // check — it never creates or modifies the ConfigMap.
 func ComponentUpgradeGateAction(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	if !flags.IsDSCEnabled() {
+		return nil
+	}
+
 	ns, err := cluster.GetOperatorNamespace()
 	if err != nil {
 		return nil //nolint:nilerr // operator NS not initialized (e.g. tests); skip gracefully
 	}
 
-	cleared, err := gates.AllGatesAcknowledged(ctx, rr.Client, ns)
+	return ComponentUpgradeGateCheck(ctx, rr.Client, ns, rr.Conditions)
+}
+
+// ComponentUpgradeGateCheck is the namespace-explicit variant of
+// ComponentUpgradeGateAction, suitable for direct testing.
+func ComponentUpgradeGateCheck(ctx context.Context, cli client.Client, namespace string, conditions ConditionWriter) error {
+	cleared, err := gates.AllGatesAcknowledged(ctx, cli, namespace)
 	if err != nil {
 		return fmt.Errorf("failed to check upgrade gates: %w", err)
 	}
 
 	if !cleared {
-		rr.Conditions.SetCondition(common.Condition{
+		conditions.SetCondition(common.Condition{
 			Type:    status.ConditionTypeProvisioningProgress,
+			Status:  metav1.ConditionFalse,
+			Reason:  status.AdminAckRequiredReason,
+			Message: "Waiting for upgrade gates to be acknowledged",
+		})
+		conditions.SetCondition(common.Condition{
+			Type:    status.ConditionTypeProvisioningSucceeded,
 			Status:  metav1.ConditionFalse,
 			Reason:  status.AdminAckRequiredReason,
 			Message: "Waiting for upgrade gates to be acknowledged",

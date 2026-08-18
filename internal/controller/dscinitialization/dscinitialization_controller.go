@@ -380,6 +380,11 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 				rp.CreatedOrUpdatedName("hardwareprofiles.dashboard.opendatahub.io"),
 			)),
 		).
+		Watches(
+			&corev1.ConfigMap{},
+			handler.EnqueueRequestsFromMapFunc(r.watchUpgradeAcksConfigMap),
+			builder.WithPredicates(rp.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap)),
+		).
 		Complete(r)
 }
 
@@ -622,6 +627,19 @@ func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, i
 		return err
 	}
 	return nil
+}
+
+func (r *DSCInitializationReconciler) watchUpgradeAcksConfigMap(ctx context.Context, _ client.Object) []reconcile.Request {
+	log := logf.FromContext(ctx)
+	instanceList := &dsciv2.DSCInitializationList{}
+	if err := r.Client.List(ctx, instanceList); err != nil {
+		log.Error(err, "Failed to list DSCInitialization instances")
+		return nil
+	}
+	if len(instanceList.Items) == 0 {
+		return nil
+	}
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name}}}
 }
 
 // watchHWProfileCRDResource triggers DSCI reconciliation when Dashboard AcceleratorProfile/HWProfile CRDs are created.

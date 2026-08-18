@@ -428,11 +428,13 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 		}
 
 		if provisionErr != nil {
-			rr.Conditions.MarkFalse(
-				status.ConditionTypeProvisioningSucceeded,
-				conditions.WithError(provisionErr),
-				conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
-			)
+			if !errors.As(provisionErr, &odherrors.StopError{}) {
+				rr.Conditions.MarkFalse(
+					status.ConditionTypeProvisioningSucceeded,
+					conditions.WithError(provisionErr),
+					conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+				)
+			}
 		} else {
 			rr.Conditions.MarkTrue(
 				status.ConditionTypeProvisioningSucceeded,
@@ -491,12 +493,20 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 	}
 
 	if provisionErr != nil {
+		reason := "ProvisioningError"
+		action := "Provision"
+
+		if errors.As(provisionErr, &odherrors.StopError{}) {
+			reason = "AdminAckRequired"
+			action = "UpgradeGate"
+		}
+
 		r.Recorder.Eventf(
 			res,
 			nil,
 			corev1.EventTypeWarning,
-			"ProvisioningError",
-			"Provision",
+			reason,
+			action,
 			provisionErr.Error(),
 		)
 
