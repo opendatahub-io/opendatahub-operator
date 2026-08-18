@@ -377,7 +377,6 @@ Currently integrated components are:
 - [Model Controller](https://github.com/opendatahub-io/odh-model-controller)
 - [ModelRegistry](https://github.com/opendatahub-io/model-registry)
 - [Ray](https://github.com/opendatahub-io/kuberay)
-- [Training Operator](https://github.com/opendatahub-io/training-operator)
 - [Trainer](https://github.com/opendatahub-io/trainer)
 - [TrustyAI](https://github.com/opendatahub-io/trustyai-service-operator)
 - [Workbenches](https://github.com/opendatahub-io/notebooks)

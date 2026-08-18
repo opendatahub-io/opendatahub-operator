@@ -631,7 +631,8 @@ _Appears in:_
 
 
 
-DSCTrainingOperator contains all the configuration exposed in DSC instance for TrainingOperator component
+DSCTrainingOperator contains all the configuration exposed in DSC instance for TrainingOperator component.
+The XValidation rule lives here (not on the v2-only Components struct) so it applies to v1 too.
 
 
 
@@ -2048,7 +2049,8 @@ Package v2 contains API Schema definitions for the datasciencecluster v2 API gro
 
 
 
-
+Note: the TrainingOperator re-enablement guard is an XValidation rule on
+componentApi.DSCTrainingOperator, not here, so it applies to v1 too.
 
 
 
@@ -2065,7 +2067,7 @@ _Appears in:_
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |
 | `modelregistry` _[DSCModelRegistry](#dscmodelregistry)_ | ModelRegistry component configuration. |  |  |
-| `trainingoperator` _[DSCTrainingOperator](#dsctrainingoperator)_ | Training Operator component configuration. |  |  |
+| `trainingoperator` _[DSCTrainingOperator](#dsctrainingoperator)_ | Training Operator component configuration.<br />Deprecated: Training Operator v1 is obsolete in RHOAI 3.6. Use Trainer v2 instead.<br />This field is kept for backward compatibility only. |  |  |
 | `feastoperator` _[DSCFeastOperator](#dscfeastoperator)_ | Feast Operator component configuration. |  |  |
 | `llamastackoperator` _[DSCLlamaStackOperator](#dscllamastackoperator)_ | LlamaStack Operator component configuration.<br />Deprecated: Use OGX instead. This field is kept for backward compatibility only. |  |  |
 | `ogx` _[DSCOGX](#dscogx)_ | OGX component configuration. |  |  |
@@ -2097,7 +2099,7 @@ _Appears in:_
 | `ray` _[DSCRayStatus](#dscraystatus)_ | Ray component status. |  |  |
 | `trustyai` _[DSCTrustyAIStatus](#dsctrustyaistatus)_ | TrustyAI component status. |  |  |
 | `modelregistry` _[DSCModelRegistryStatus](#dscmodelregistrystatus)_ | ModelRegistry component status. |  |  |
-| `trainingoperator` _[DSCTrainingOperatorStatus](#dsctrainingoperatorstatus)_ | Training Operator component status. |  |  |
+| `trainingoperator` _[DSCTrainingOperatorStatus](#dsctrainingoperatorstatus)_ | Training Operator component status.<br />Deprecated: Training Operator v1 is obsolete in RHOAI 3.6. Use Trainer v2 instead. |  |  |
 | `feastoperator` _[DSCFeastOperatorStatus](#dscfeastoperatorstatus)_ | Feast Operator component status. |  |  |
 | `llamastackoperator` _[DSCLlamaStackOperatorStatus](#dscllamastackoperatorstatus)_ | LlamaStack Operator component status.<br />Deprecated: Use OGX instead. This field is kept for backward compatibility only. |  |  |
 | `ogx` _[DSCOGXStatus](#dscogxstatus)_ | OGX component status. |  |  |

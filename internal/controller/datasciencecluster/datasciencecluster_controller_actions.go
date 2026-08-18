@@ -32,10 +32,6 @@ func isNilInterface(v any) bool {
 }
 
 func checkPreConditions(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	// This case should not happen, since there is a webhook that blocks the creation
-	// of more than one instance of the DataScienceCluster, however one can create a
-	// DataScienceCluster instance while the operator is stopped, hence this extra check
-
 	if _, err := cluster.GetDSCI(ctx, rr.Client); err != nil {
 		return fmt.Errorf("failed to get a valid DataScienceCluster instance, %w", err)
 	}
@@ -51,10 +47,6 @@ func watchDataScienceClusters(ctx context.Context, cli client.Client) []reconcil
 	return cluster.WatchDataScienceClusters(ctx, cli)
 }
 
-// syncPlatformCR projects module enablement from DSC spec into the
-// Platform CR via SSA. This makes Platform CR the canonical source of
-// module state, allowing the platform controller (module reconciler) to
-// always read Platform CR regardless of cluster type.
 func syncPlatformCR(_ context.Context, rr *odhtype.ReconciliationRequest) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
@@ -77,9 +69,6 @@ func syncPlatformCR(_ context.Context, rr *odhtype.ReconciliationRequest) error 
 	return rr.AddResources(platform)
 }
 
-// cleanupDisabledComponents deletes component CRs for disabled components
-// in reverse batch order. Higher-RL components are cleaned up before
-// lower-RL ones to respect dependency ordering.
 func cleanupDisabledComponents(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
@@ -102,11 +91,9 @@ func cleanupDisabledComponents(ctx context.Context, rr *odhtype.ReconciliationRe
 			if handler == nil {
 				continue
 			}
-
 			if handler.IsEnabled(instance) {
 				continue
 			}
-
 			if err := deleteComponentCR(ctx, rr.Client, handler, instance); err != nil {
 				log.Error(err, "failed to delete component CR", "component", handler.GetName())
 				errs = append(errs, err)
@@ -119,7 +106,6 @@ func cleanupDisabledComponents(ctx context.Context, rr *odhtype.ReconciliationRe
 
 func deleteComponentCR(ctx context.Context, cli client.Client, handler cr.ComponentHandler, owner client.Object) error {
 	componentGVK := handler.GroupVersionKind()
-
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(componentGVK)
 
@@ -127,17 +113,14 @@ func deleteComponentCR(ctx context.Context, cli client.Client, handler cr.Compon
 		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
 			return nil
 		}
-
 		return err
 	}
 
 	var errs []error
-
 	for i := range list.Items {
 		if !isOwnedBy(&list.Items[i], owner) {
 			continue
 		}
-
 		if err := client.IgnoreNotFound(cli.Delete(ctx, &list.Items[i])); err != nil {
 			errs = append(errs, err)
 		}
@@ -156,8 +139,6 @@ func isOwnedBy(obj, owner metav1.Object) bool {
 	return false
 }
 
-// cleanupDisabledModuleCRs deletes module CRs for disabled modules in
-// reverse batch order via the module handler's DeleteModuleCR method.
 func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
@@ -176,37 +157,30 @@ func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationReq
 	}
 
 	log := logf.FromContext(ctx)
-
 	reverseBatches, err := provision.DefaultRegistry().ReverseBatches()
 	if err != nil {
 		log.Error(err, "DAG reverse resolution failed, falling back to alphabetical module CR cleanup")
-
 		return moduleReg.ForAll(func(handler modules.ModuleHandler, _ bool) error {
 			if !enabledModules[handler.GetName()] {
 				if delErr := handler.DeleteModuleCR(ctx, rr.Client); delErr != nil {
 					log.Error(delErr, "DeleteModuleCR failed", "module", handler.GetName())
-
 					return delErr
 				}
 			}
-
 			return nil
 		})
 	}
 
 	var errs []error
-
 	for _, batch := range reverseBatches {
 		for _, entry := range provision.ModulesInBatch(batch) {
 			handler := moduleReg.Lookup(entry.GetName())
 			if handler == nil {
 				continue
 			}
-
 			if enabledModules[handler.GetName()] {
 				continue
 			}
-
 			if err := handler.DeleteModuleCR(ctx, rr.Client); err != nil {
 				log.Error(err, "DeleteModuleCR failed", "module", handler.GetName())
 				errs = append(errs, err)
@@ -217,12 +191,6 @@ func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationReq
 	return errors.Join(errs...)
 }
 
-// provisionComponents iterates over all enabled components and creates
-// their CRs unconditionally (no DAG gating). rr.Resources is always
-// complete, which ensures GC never deletes valid component CRs.
-//
-// Upgrade-time batch ordering is enforced by component controllers
-// themselves via RunlevelGateAction, not by withholding CR creation.
 func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
@@ -230,27 +198,21 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 	}
 
 	rr.Generated = true
-
 	log := logf.FromContext(ctx)
 	componentReg := cr.DefaultRegistry()
-
 	var failedComponents []string
 
 	if err := componentReg.ForEach(func(handler cr.ComponentHandler) error {
 		name := handler.GetName()
-
 		if !handler.IsEnabled(instance) {
 			provision.Disable(name)
 			return nil
 		}
-
 		provision.Enable(name)
-
 		ci, err := handler.NewCRObject(ctx, rr.Client, instance)
 		if err != nil {
 			log.Error(err, "NewCRObject failed", "component", name)
 			failedComponents = append(failedComponents, name)
-
 			return nil
 		}
 		if isNilInterface(ci) {
@@ -258,17 +220,14 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 		}
 		obj, ok := ci.(client.Object)
 		if !ok {
-			log.Error(nil, "component CR does not implement client.Object",
-				"component", name, "type", fmt.Sprintf("%T", ci))
+			log.Error(nil, "component CR does not implement client.Object", "component", name, "type", fmt.Sprintf("%T", ci))
 			failedComponents = append(failedComponents, name)
-
 			return nil
 		}
 		if err := rr.AddResources(obj); err != nil {
 			log.Error(err, "AddResources failed", "component", name)
 			failedComponents = append(failedComponents, name)
 		}
-
 		return nil
 	}); err != nil {
 		return err
@@ -281,15 +240,12 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 			Reason:  status.ProvisioningFailedReason,
 			Message: fmt.Sprintf("Provisioning failed for: %s", strings.Join(failedComponents, ", ")),
 		})
-
 		return fmt.Errorf("provisioning failed for components: %s", strings.Join(failedComponents, ", "))
 	}
 
 	return nil
 }
 
-// provisionModuleCRs creates CRs for enabled modules. Deletion of
-// disabled module CRs is handled by cleanupDisabledModuleCRs.
 func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
@@ -302,7 +258,6 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 	}
 
 	dscCtx := &modules.DSCContext{DSC: instance}
-
 	pm := modules.BuildPlatformModules(dscCtx)
 	enabledModules := make(map[string]bool)
 	for _, name := range pm.EnabledModules() {
@@ -323,11 +278,9 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 
 	return moduleReg.ForAll(func(handler modules.ModuleHandler, _ bool) error {
 		name := handler.GetName()
-
 		if !enabledModules[name] {
 			return nil
 		}
-
 		moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, dscCtx, crCfg)
 		if err != nil {
 			return fmt.Errorf("BuildModuleCR failed for module %s: %w", name, err)
@@ -335,7 +288,6 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		if moduleCR != nil {
 			rr.Resources = append(rr.Resources, *moduleCR)
 		}
-
 		return nil
 	})
 }
@@ -347,10 +299,11 @@ func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error 
 	}
 
 	instance.Status.Release = rr.Release
-
 	if err := computeComponentsStatus(ctx, rr, cr.DefaultRegistry()); err != nil {
 		return err
 	}
-
+	if err := updateDeprecatedTrainingOperatorStatus(rr); err != nil {
+		return err
+	}
 	return modules.ComputeModulesStatusDetailed(ctx, rr)
 }
