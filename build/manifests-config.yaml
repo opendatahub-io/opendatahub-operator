@@ -237,7 +237,7 @@ additional_meta:
     git.commit: f6f44165d720327c70865291e5d6af25f963989c
   odh-mod-arch-autorag:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 1863b50a4bf97e06f880ce838bbf49b0474e18ff
+    git.commit: f6f44165d720327c70865291e5d6af25f963989c
   odh-mod-arch-eval-hub:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: f6f44165d720327c70865291e5d6af25f963989c

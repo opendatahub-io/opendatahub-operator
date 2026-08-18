@@ -126,7 +126,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MOD_ARCH_AUTOML_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-automl-rhel9@sha256:128b0be5852e60c44add4f5b986f9ae9306f8758836b99df2a656cde9098a9ea"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_AUTORAG_IMAGE
-  value: "quay.io/rhoai/odh-mod-arch-autorag-rhel9@sha256:a1864f6a8c4338faeea482caa02859fe57199a05c5742beebb46a639abfd7c01"
+  value: "quay.io/rhoai/odh-mod-arch-autorag-rhel9@sha256:992e557cae9964cc25284492649f9fb88f2c72fccf9495b8fdd283387ef61e4a"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-eval-hub-rhel9@sha256:dcb328dcf4cfd75a17f6dfbeaf97041c994f93770e77e7f91f9d50e72dba4288"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE
