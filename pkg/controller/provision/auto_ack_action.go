@@ -38,8 +38,7 @@ func AutoAcknowledgeUpgradeGates(ctx context.Context, rr *odhtype.Reconciliation
 		reader = rr.Controller.GetAPIReader()
 	}
 
-	return AutoAcknowledgeUpgradeGatesInNamespace(
-		ctx, rr.Client, reader, ns, appsNS, rr.Release.Version.String(), managed)
+	return AutoAcknowledgeUpgradeGatesInNamespace(ctx, rr.Client, reader, ns, appsNS, UpgradeGateVersion, managed)
 }
 
 // managedComponents maps component names to true

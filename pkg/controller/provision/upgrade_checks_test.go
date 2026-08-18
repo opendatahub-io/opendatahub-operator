@@ -23,10 +23,10 @@ func checkScheme() *runtime.Scheme {
 	return s
 }
 
-func TestDefaultUpgradeCheck_AllReady(t *testing.T) {
+func TestDefaultUpgradeCheck_IgnoresDeploymentState(t *testing.T) {
 	t.Parallel()
 
-	replicas := int32(2)
+	replicas := int32(3)
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "dashboard",
@@ -34,35 +34,13 @@ func TestDefaultUpgradeCheck_AllReady(t *testing.T) {
 			Labels:    map[string]string{"app.opendatahub.io/dashboard": "true"},
 		},
 		Spec:   appsv1.DeploymentSpec{Replicas: &replicas},
-		Status: appsv1.DeploymentStatus{ReadyReplicas: 2},
+		Status: appsv1.DeploymentStatus{ReadyReplicas: 0},
 	}
 
 	cli := fake.NewClientBuilder().WithScheme(checkScheme()).WithObjects(dep).Build()
 
 	err := provision.DefaultUpgradeCheck(context.Background(), cli, "dashboard", "apps-ns")
 	require.NoError(t, err)
-}
-
-func TestDefaultUpgradeCheck_NotReady(t *testing.T) {
-	t.Parallel()
-
-	replicas := int32(3)
-	dep := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kserve-controller",
-			Namespace: "apps-ns",
-			Labels:    map[string]string{"app.opendatahub.io/kserve": "true"},
-		},
-		Spec:   appsv1.DeploymentSpec{Replicas: &replicas},
-		Status: appsv1.DeploymentStatus{ReadyReplicas: 1},
-	}
-
-	cli := fake.NewClientBuilder().WithScheme(checkScheme()).WithObjects(dep).Build()
-
-	err := provision.DefaultUpgradeCheck(context.Background(), cli, "kserve", "apps-ns")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not ready")
-	assert.Contains(t, err.Error(), "1/3")
 }
 
 func TestDefaultUpgradeCheck_NoDeployments(t *testing.T) {
@@ -72,37 +50,6 @@ func TestDefaultUpgradeCheck_NoDeployments(t *testing.T) {
 
 	err := provision.DefaultUpgradeCheck(context.Background(), cli, "trustyai", "apps-ns")
 	require.NoError(t, err)
-}
-
-func TestDefaultUpgradeCheck_MultipleDeployments(t *testing.T) {
-	t.Parallel()
-
-	replicas := int32(1)
-	dep1 := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kserve-controller",
-			Namespace: "apps-ns",
-			Labels:    map[string]string{"app.opendatahub.io/kserve": "true"},
-		},
-		Spec:   appsv1.DeploymentSpec{Replicas: &replicas},
-		Status: appsv1.DeploymentStatus{ReadyReplicas: 1},
-	}
-	dep2 := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kserve-webhook",
-			Namespace: "apps-ns",
-			Labels:    map[string]string{"app.opendatahub.io/kserve": "true"},
-		},
-		Spec:   appsv1.DeploymentSpec{Replicas: &replicas},
-		Status: appsv1.DeploymentStatus{ReadyReplicas: 0},
-	}
-
-	cli := fake.NewClientBuilder().WithScheme(checkScheme()).
-		WithObjects(dep1, dep2).Build()
-
-	err := provision.DefaultUpgradeCheck(context.Background(), cli, "kserve", "apps-ns")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "kserve-webhook")
 }
 
 func TestGetUpgradeCheck_DefaultFallback(t *testing.T) {

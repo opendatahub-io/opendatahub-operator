@@ -46,12 +46,13 @@ Poor examples:
 func Check(ctx context.Context, reader client.Reader, component, namespace string) error
 ```
 
-- Register it directly in `cmd/main.go` with:
+- Add it to the shared registration map in `pkg/upgrade/gates/gates.go`:
 
 ```go
-provision.RegisterUpgradeCheck(componentApi.<ComponentName>, <gatepkg>.Check)
+componentApi.<ComponentName>: <gatepkg>.Check,
 ```
 
+- `cmd/main.go` wires these registrations through `upgradegates.Register()`.
 - Do not add a package-local `Register()` helper unless there is a strong reason.
 
 Upgrade gates are ensured for the target gate version, then auto-acknowledged

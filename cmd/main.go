@@ -116,12 +116,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-	codeflaregates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/codeflare"
-	dspgates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/datasciencepipelines"
-	kservegates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/kserve"
-	kueuegates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/kueue"
-	modelmeshservinggates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/modelmeshserving"
-	raygates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/ray"
+	upgradegates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
@@ -524,12 +519,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// Wrap the manager to return the wrapped client from GetClient()
 	mgr := manager.New(ctrlMgr, manager.WithManifestsBasePath(oconfig.ManifestsBasePath), manager.WithChartsBasePath(oconfig.ChartsBasePath))
 
-	provision.RegisterUpgradeCheck(componentApi.CodeFlareComponentName, codeflaregates.Check)
-	provision.RegisterUpgradeCheck(componentApi.DataSciencePipelinesComponentName, dspgates.Check)
-	provision.RegisterUpgradeCheck(componentApi.KserveComponentName, kservegates.Check)
-	provision.RegisterUpgradeCheck(componentApi.KueueComponentName, kueuegates.Check)
-	provision.RegisterUpgradeCheck(componentApi.ModelMeshServingComponentName, modelmeshservinggates.Check)
-	provision.RegisterUpgradeCheck(componentApi.RayComponentName, raygates.Check)
+	upgradegates.Register()
 
 	// Register all webhooks using the helper
 	if err := webhook.RegisterAllWebhooks(mgr); err != nil {
