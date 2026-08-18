@@ -35,12 +35,12 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 78fa7878ff2c6542bfa8dceb3ecbbf4562d99817
+    git.commit: 15a1798090b1cec9a437b26112a833e68ccd9bfe
   odh-trainer-operator:
     src: config
     dest: trainer
     git.url: https://github.com/red-hat-data-services/trainer-operator
-    git.commit: 86c16380d2aedd03336b9df7b1e2b5aef35093ab
+    git.commit: e3ce4730a6ed13497758fc41379ba132b8642b5e
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
@@ -159,10 +159,10 @@ additional_meta:
     git.commit: a2f85aed497c7dcd7001f1240013ff73fe1c9b9f
   odh-llm-d-batch-gateway-apiserver:
     git.url: https://github.com/red-hat-data-services/batch-gateway
-    git.commit: 71edc181dd0cb315b8907f00988eefdfc5e1a225
+    git.commit: 39d444d19d9c285425985869eea446e5b7810d3e
   odh-llm-d-batch-gateway-gc:
     git.url: https://github.com/red-hat-data-services/batch-gateway
-    git.commit: 71edc181dd0cb315b8907f00988eefdfc5e1a225
+    git.commit: 39d444d19d9c285425985869eea446e5b7810d3e
   odh-llm-d-batch-gateway-operator:
     git.url: https://github.com/red-hat-data-services/llm-d-batch-gateway-operator
     git.commit: 32215b132b72d17e9b5edca28ee03d80c183a6a2
@@ -171,10 +171,10 @@ additional_meta:
     git.commit: 71edc181dd0cb315b8907f00988eefdfc5e1a225
   odh-llm-d-router-disagg-sidecar:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: 91f35655f2de8a7fed0dcde3d4896ccca0cb81af
+    git.commit: c43643553eed1d75a15ca57982b41d314bb7433b
   odh-llm-d-router-endpoint-picker:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: 91f35655f2de8a7fed0dcde3d4896ccca0cb81af
+    git.commit: c43643553eed1d75a15ca57982b41d314bb7433b
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
     git.commit: 848c9f0ecb244ead216fdd87b4776c446840ea22
