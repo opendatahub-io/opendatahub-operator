@@ -41,7 +41,7 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["trainer"]="red-hat-data-services:trainer:rhoai-3.5@7280dd4483ff21406ec62c8a5c442511755ce616:manifests"
     ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.5@58139bd2fd4206c0235c3fbdd5fa342ccda5bb91:config"
     ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.5@7b15494e3af5a29e599adde04e7d612759de1122:config"
-    ["aigateway"]="red-hat-data-services:ai-gateway-operator:rhoai-3.5@de4865c978a2424f77e4a84f9cd504ba7badeb0a:config"
+    ["aigateway"]="red-hat-data-services:ai-gateway-operator:rhoai-3.5@dd3aae2ff5c39fa1028eba4e699d9c89ae23305d:config"
     ["mcplifecycleoperator"]="red-hat-data-services:mcp-lifecycle-module-operator:rhoai-3.5@a7501e87d48cbd3d24130fcf33f2eecd5e98c777:config"
 )
 
