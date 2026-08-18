@@ -156,25 +156,25 @@ additional_meta:
     git.commit: fbe2b3ea32a7973bbb9dcc2678e0fcc6a865bf9b
   odh-llm-d-async:
     git.url: https://github.com/red-hat-data-services/llm-d-async
-    git.commit: a2f85aed497c7dcd7001f1240013ff73fe1c9b9f
+    git.commit: 1088561a38192d6faf36f481417c86995663e425
   odh-llm-d-batch-gateway-apiserver:
     git.url: https://github.com/red-hat-data-services/batch-gateway
-    git.commit: 39d444d19d9c285425985869eea446e5b7810d3e
+    git.commit: 958e8020e0ae83bb4ce364dce2fa2b30e65c6d6f
   odh-llm-d-batch-gateway-gc:
     git.url: https://github.com/red-hat-data-services/batch-gateway
-    git.commit: 39d444d19d9c285425985869eea446e5b7810d3e
+    git.commit: 958e8020e0ae83bb4ce364dce2fa2b30e65c6d6f
   odh-llm-d-batch-gateway-operator:
     git.url: https://github.com/red-hat-data-services/llm-d-batch-gateway-operator
     git.commit: 32215b132b72d17e9b5edca28ee03d80c183a6a2
   odh-llm-d-batch-gateway-processor:
     git.url: https://github.com/red-hat-data-services/batch-gateway
-    git.commit: 39d444d19d9c285425985869eea446e5b7810d3e
+    git.commit: 958e8020e0ae83bb4ce364dce2fa2b30e65c6d6f
   odh-llm-d-router-disagg-sidecar:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: c43643553eed1d75a15ca57982b41d314bb7433b
+    git.commit: 82a188828025e62b9f6abc1a0debb382c06ed231
   odh-llm-d-router-endpoint-picker:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: c43643553eed1d75a15ca57982b41d314bb7433b
+    git.commit: 82a188828025e62b9f6abc1a0debb382c06ed231
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
     git.commit: 848c9f0ecb244ead216fdd87b4776c446840ea22
@@ -375,4 +375,4 @@ additional_meta:
     git.commit: 24a8efcf4977c830ab23aa13deaa2aa499a20840
   odh-workload-variant-autoscaler-controller:
     git.url: https://github.com/red-hat-data-services/workload-variant-autoscaler
-    git.commit: 063f94fd0d4458a17c0d8f4b436c667a9081f4fa
+    git.commit: fec57eddc64264559494fb396760942fb3261a84
