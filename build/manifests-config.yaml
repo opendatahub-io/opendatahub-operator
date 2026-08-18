@@ -95,7 +95,7 @@ additional_meta:
     git.commit: 5d468e22beee48ed342bdb3474c2a30086127054
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 8de44f70fa09c3c76a5e224c01d22e00520ea88a
+    git.commit: 1ade72efc4e895eaa9c7edda284d069dfaa73caa
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 1ade72efc4e895eaa9c7edda284d069dfaa73caa
@@ -311,7 +311,7 @@ additional_meta:
     git.commit: b10e2daf730e9156e2d7e14c569a4b645447f5ca
   odh-th-torch-cpu-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 0eb30f005996f365c1e4635205322aa2f47db641
+    git.commit: 9cacd38e8e6e06c707bc3976826d669cd3f61d22
   odh-th-torch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 0eb30f005996f365c1e4635205322aa2f47db641

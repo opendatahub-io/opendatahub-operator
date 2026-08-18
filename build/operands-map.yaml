@@ -12,7 +12,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
   value: "quay.io/rhoai/odh-cli-rhel9@sha256:edc0ebe9ffeac42b9dd4d34ed3d11753b40fc33a2c4824e15aef059a536241b0"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
-  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:9bfd1cd516d971be5341332a4ea5281adfa236e09f2b327fc030804d330d9768"
+  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:04a22593632bd9eade09ef67dfba732b02df4fcd99163492617962bd70f9f6c8"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
   value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:4a87f99329f8476051c75f69100eb294f8102b5408cdfcda8c4e7eb1d077dada"
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
@@ -176,7 +176,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE
   value: "quay.io/rhoai/odh-ta-lmes-job-rhel9@sha256:ebbf8deb41bd0ce2b6a6fa593ffbdfcc10a53a888c1b887b4119cf43aea1b8d6"
 - name: RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE
-  value: "quay.io/rhoai/odh-th-torch-cpu-py312-rhel9@sha256:9669e74f649c21e75b191c61b99d487467d855f0fe5d68c2c9ddcd6ad6b1959b"
+  value: "quay.io/rhoai/odh-th-torch-cpu-py312-rhel9@sha256:1507a4f986742f856c0cd717071169b3499f1b51eed85b3135136565da49b998"
 - name: RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE
   value: "quay.io/rhoai/odh-th-torch-cuda-py312-rhel9@sha256:3cd08d7dfb53a4a3be81bb423f60c4d6c2921fb277f7bc5f4aea58908cf0a98f"
 - name: RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE
