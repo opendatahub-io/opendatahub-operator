@@ -32,6 +32,21 @@ func GetSubscription(ctx context.Context, cli client.Client, namespace string, n
 	return sub, nil
 }
 
+// HasSubscription checks if a Subscription with the given namespace and name exists.
+func HasSubscription(ctx context.Context, cli client.Reader, namespace string, name string) (bool, error) {
+	sub := &v1alpha1.Subscription{}
+	if err := cli.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, sub); err != nil {
+		switch {
+		case errors.IsNotFound(err), meta.IsNoMatchError(err):
+			return false, nil
+		default:
+			return false, err
+		}
+	}
+
+	return true, nil
+}
+
 func SubscriptionExists(ctx context.Context, cli client.Reader, name string) (bool, error) {
 	subscriptionList := &v1alpha1.SubscriptionList{}
 	if err := cli.List(ctx, subscriptionList); err != nil {
