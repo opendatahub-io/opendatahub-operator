@@ -7,6 +7,7 @@ import (
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -38,7 +39,8 @@ func TestKueueGates(t *testing.T) {
 	tc := &kueueGateTestCtx{cli: te.Client()}
 
 	t.Run("clean cluster passes", tc.testCleanClusterPasses)
-	t.Run("managed Kueue with missing namespace label blocks", tc.testManagedKueueWithMissingNamespaceLabelBlocks)
+	t.Run("managed Kueue blocks", tc.testManagedKueueBlocks)
+	t.Run("unmanaged Kueue without operator blocks", tc.testUnmanagedKueueWithoutOperatorBlocks)
 	t.Run("unmanaged Kueue with missing namespace label blocks", tc.testUnmanagedKueueWithMissingNamespaceLabelBlocks)
 	t.Run("unmanaged Kueue with managed namespace passes", tc.testUnmanagedKueueWithManagedNamespacePasses)
 	t.Run("removed Kueue ignores labeled workloads", tc.testRemovedKueueIgnoresLabeledWorkloads)
@@ -51,8 +53,34 @@ func (tc *kueueGateTestCtx) testCleanClusterPasses(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
-func (tc *kueueGateTestCtx) testManagedKueueWithMissingNamespaceLabelBlocks(t *testing.T) {
-	tc.assertMissingNamespaceLabelBlocks(t, "Managed", "workloads-missing-label")
+func (tc *kueueGateTestCtx) testManagedKueueBlocks(t *testing.T) {
+	g := NewWithT(t)
+
+	obj := renderKueue(t, "Managed")
+	g.Expect(tc.cli.Create(t.Context(), obj)).ToNot(HaveOccurred())
+	defer deleteObject(g, tc.cli, obj)
+
+	err := kueuegate.Check(t.Context(), tc.cli, componentApi.KueueComponentName, "")
+	g.Expect(err).To(HaveOccurred())
+
+	var blockingErr *kueuegate.UpgradeBlockedError
+	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
+	g.Expect(blockingErr.ManagedStateUnsupported).To(BeTrue())
+}
+
+func (tc *kueueGateTestCtx) testUnmanagedKueueWithoutOperatorBlocks(t *testing.T) {
+	g := NewWithT(t)
+
+	obj := renderKueue(t, "Unmanaged")
+	g.Expect(tc.cli.Create(t.Context(), obj)).ToNot(HaveOccurred())
+	defer deleteObject(g, tc.cli, obj)
+
+	err := kueuegate.Check(t.Context(), tc.cli, componentApi.KueueComponentName, "")
+	g.Expect(err).To(HaveOccurred())
+
+	var blockingErr *kueuegate.UpgradeBlockedError
+	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
+	g.Expect(blockingErr.MissingKueueOperatorSubscription).To(BeTrue())
 }
 
 func (tc *kueueGateTestCtx) testUnmanagedKueueWithMissingNamespaceLabelBlocks(t *testing.T) {
@@ -71,6 +99,10 @@ func (tc *kueueGateTestCtx) assertMissingNamespaceLabelBlocks(
 	obj := renderKueue(t, managementState)
 	g.Expect(tc.cli.Create(t.Context(), obj)).ToNot(HaveOccurred())
 	defer deleteObject(g, tc.cli, obj)
+
+	subscription := renderSubscription(namespace+"-operator", "")
+	g.Expect(tc.cli.Create(t.Context(), subscription)).ToNot(HaveOccurred())
+	defer deleteObject(g, tc.cli, subscription)
 
 	ns := renderNamespace(namespace, nil)
 	g.Expect(tc.cli.Create(t.Context(), ns)).ToNot(HaveOccurred())
@@ -93,6 +125,10 @@ func (tc *kueueGateTestCtx) testUnmanagedKueueWithManagedNamespacePasses(t *test
 	obj := renderKueue(t, "Unmanaged")
 	g.Expect(tc.cli.Create(t.Context(), obj)).ToNot(HaveOccurred())
 	defer deleteObject(g, tc.cli, obj)
+
+	subscription := renderSubscription("openshift-kueue-operator", "")
+	g.Expect(tc.cli.Create(t.Context(), subscription)).ToNot(HaveOccurred())
+	defer deleteObject(g, tc.cli, subscription)
 
 	ns := renderNamespace("workloads-with-label", map[string]string{cluster.KueueManagedLabelKey: "true"})
 	g.Expect(tc.cli.Create(t.Context(), ns)).ToNot(HaveOccurred())
@@ -130,6 +166,17 @@ func installKueueGateCRDs(ctx context.Context, te *envt.EnvT) error {
 		"kueues",
 		"kueue",
 		apiextensionsv1.ClusterScoped,
+		envt.WithPermissiveSchema(),
+	); err != nil {
+		return err
+	}
+
+	if _, err := te.RegisterCRD(
+		ctx,
+		gvk.Subscription,
+		"subscriptions",
+		"subscription",
+		apiextensionsv1.NamespaceScoped,
 		envt.WithPermissiveSchema(),
 	); err != nil {
 		return err
@@ -175,4 +222,18 @@ func deleteObject(g *WithT, cli client.Client, obj client.Object) {
 	}).WithTimeout(envt.DefaultMaxWait).WithPolling(envt.DefaultPollInterval).Should(
 		MatchError(k8serr.IsNotFound, "IsNotFound"),
 	)
+}
+
+func renderSubscription(namespace string, installedCSV string) *unstructured.Unstructured {
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk.Subscription)
+	obj.SetName("kueue-operator")
+	obj.SetNamespace(namespace)
+	if installedCSV != "" {
+		obj.Object["status"] = map[string]any{
+			"installedCSV": installedCSV,
+		}
+	}
+
+	return obj
 }

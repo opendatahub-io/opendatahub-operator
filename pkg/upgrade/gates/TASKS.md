@@ -61,8 +61,10 @@ Legend:
   - clarify whether `kueue <-> kserve` integration validation belongs under the
     Kueue task or the KServe task
 - Checks implemented in repo:
-  - block when the internal `kueue.openshift.io/v1` `Kueue` CR exists and is
-    `Managed` or `Unmanaged`
+  - block when the internal `kueue.openshift.io/v1` `Kueue` CR is still in
+    `Managed` state
+  - require the `kueue-operator` OLM subscription when the internal Kueue CR is
+    in `Unmanaged` state
   - block when kueue-labeled workloads live in namespaces missing
     `kueue.openshift.io/managed=true`
 - Follow-up note:

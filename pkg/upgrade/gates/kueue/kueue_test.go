@@ -38,12 +38,51 @@ func TestRegister_CleanClusterPasses(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
-func TestRegister_ManagedKueueWithMissingNamespaceLabelBlocks(t *testing.T) {
+func TestRegister_ManagedKueueBlocks(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
 	cli, err := newKueueClient(
 		renderKueue(t, "Managed"),
+	)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	provision.RegisterUpgradeCheck(componentApi.KueueComponentName, kueuegate.Check)
+
+	err = provision.GetUpgradeCheck(componentApi.KueueComponentName)(ctx, cli, componentApi.KueueComponentName, "")
+	g.Expect(err).To(HaveOccurred())
+
+	var blockingErr *kueuegate.UpgradeBlockedError
+	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
+	g.Expect(blockingErr.ManagedStateUnsupported).To(BeTrue())
+}
+
+func TestRegister_UnmanagedKueueWithoutOperatorBlocks(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	cli, err := newKueueClient(
+		renderKueue(t, "Unmanaged"),
+	)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	provision.RegisterUpgradeCheck(componentApi.KueueComponentName, kueuegate.Check)
+
+	err = provision.GetUpgradeCheck(componentApi.KueueComponentName)(ctx, cli, componentApi.KueueComponentName, "")
+	g.Expect(err).To(HaveOccurred())
+
+	var blockingErr *kueuegate.UpgradeBlockedError
+	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
+	g.Expect(blockingErr.MissingKueueOperatorSubscription).To(BeTrue())
+}
+
+func TestRegister_UnmanagedKueueWithMissingNamespaceLabelBlocks(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	cli, err := newKueueClient(
+		renderKueue(t, "Unmanaged"),
+		renderSubscription("openshift-kueue-operator", ""),
 		renderNamespace("workloads", nil),
 		renderNotebook(t, "workloads"),
 	)
@@ -65,7 +104,25 @@ func TestRegister_UnmanagedKueueWithManagedNamespacePasses(t *testing.T) {
 
 	cli, err := newKueueClient(
 		renderKueue(t, "Unmanaged"),
+		renderSubscription("openshift-kueue-operator", ""),
 		renderNamespace("workloads", map[string]string{cluster.KueueManagedLabelKey: "true"}),
+		renderNotebook(t, "workloads"),
+	)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	provision.RegisterUpgradeCheck(componentApi.KueueComponentName, kueuegate.Check)
+
+	err = provision.GetUpgradeCheck(componentApi.KueueComponentName)(ctx, cli, componentApi.KueueComponentName, "")
+	g.Expect(err).ToNot(HaveOccurred())
+}
+
+func TestRegister_RemovedKueueIgnoresLabeledWorkloads(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	cli, err := newKueueClient(
+		renderKueue(t, "Removed"),
+		renderNamespace("workloads", nil),
 		renderNotebook(t, "workloads"),
 	)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -82,6 +139,7 @@ func newKueueClient(objects ...client.Object) (client.Client, error) {
 		fakeclient.WithGVKs(
 			fakeclient.GVKMapping{GVK: gvk.KueueConfigV1, Scope: meta.RESTScopeRoot},
 			fakeclient.GVKMapping{GVK: gvk.Notebook, Scope: meta.RESTScopeNamespace},
+			fakeclient.GVKMapping{GVK: gvk.Subscription, Scope: meta.RESTScopeNamespace},
 		),
 	)
 }
@@ -119,4 +177,18 @@ func renderNamespace(name string, labels map[string]string) *corev1.Namespace {
 			Labels: labels,
 		},
 	}
+}
+
+func renderSubscription(namespace string, installedCSV string) *unstructured.Unstructured {
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk.Subscription)
+	obj.SetName("kueue-operator")
+	obj.SetNamespace(namespace)
+	if installedCSV != "" {
+		obj.Object["status"] = map[string]any{
+			"installedCSV": installedCSV,
+		}
+	}
+
+	return obj
 }
