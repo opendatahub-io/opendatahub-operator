@@ -32,7 +32,7 @@ func GetSubscription(ctx context.Context, cli client.Client, namespace string, n
 	return sub, nil
 }
 
-func SubscriptionExists(ctx context.Context, cli client.Client, name string) (bool, error) {
+func SubscriptionExists(ctx context.Context, cli client.Reader, name string) (bool, error) {
 	subscriptionList := &v1alpha1.SubscriptionList{}
 	if err := cli.List(ctx, subscriptionList); err != nil {
 		if meta.IsNoMatchError(err) {
