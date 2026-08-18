@@ -41,6 +41,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/generation"
+	rp "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -65,7 +66,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(handlers.ToNamed(componentApi.ModelRegistryInstanceName)),
 			reconciler.WithPredicates(generation.New()),
 		).
-		Watches(&corev1.Namespace{}).
+		Watches(&corev1.Namespace{},
+			reconciler.WithPredicates(rp.CreatedOrUpdatedOrDeletedNamed(DefaultModelRegistriesNamespace)),
+		).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
