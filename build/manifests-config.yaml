@@ -46,11 +46,9 @@ map:
     dest: mlflowoperator
     git.url: https://github.com/red-hat-data-services/mlflow-operator
     git.commit: 73259dbd33cc6fb20b156adfe26fea005e618104
-  odh-spark-operator:
-    src: config
+  odh-spark-operator-module:
+    src: spark-operator-module/config
     dest: sparkoperator
-    git.url: https://github.com/red-hat-data-services/spark-operator
-    git.commit: 93ab44906ac6224e3abd66891d590a7ab2366b1d
   odh-ai-gateway-operator:
     src: config
     dest: aigateway
