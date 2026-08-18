@@ -81,7 +81,7 @@ additional_meta:
     git.commit: 0a4a76ff20098714985eacb8b2a46e4e45c10ddb
   odh-autorag:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 0a4a76ff20098714985eacb8b2a46e4e45c10ddb
+    git.commit: 9207ca1cb4152a23f8678dc5ab2964cf4081d321
   odh-built-in-detector:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: b4983e79c288ee231ef0e254a4e944dd27ea3b4d
@@ -189,7 +189,7 @@ additional_meta:
     git.commit: 1cccfac973b98eea1cafe03565da6a47ea08c449
   odh-mlmd-grpc-server:
     git.url: https://github.com/red-hat-data-services/ml-metadata
-    git.commit: 084edaaa4ac4985294ca3baf4d9b3c987e07886c
+    git.commit: c4528b320ce6b467ce436a2c9fe5deea764fb52f
   odh-mlserver-cuda:
     git.url: https://github.com/red-hat-data-services/MLServer
     git.commit: 15b2b869a8496e780d47566b78993f03fd468a60
