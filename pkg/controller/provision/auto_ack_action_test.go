@@ -102,13 +102,36 @@ func allManaged(names ...string) map[string]operatorv1.ManagementState {
 	return m
 }
 
-func TestAutoAck_NoAcksConfigMap(t *testing.T) {
+func runAutoAck(
+	t *testing.T,
+	reader client.Reader,
+	cm *corev1.ConfigMap,
+	componentStates map[string]operatorv1.ManagementState,
+) error {
+	t.Helper()
+
+	return provision.AutoAcknowledgeUpgradeGatesInNamespace(
+		t.Context(), reader, cm, testApps, "3.0.0", componentStates,
+	)
+}
+
+func TestAutoAck_NilConfigMap(t *testing.T) {
 	t.Parallel()
 
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).Build()
 
-	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		t.Context(), cli, cli, testNS, testApps, "3.0.0", nil)
+	err := runAutoAck(t, cli, nil, nil)
+
+	require.NoError(t, err)
+}
+
+func TestAutoAck_EmptyConfigMap(t *testing.T) {
+	t.Parallel()
+
+	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).Build()
+	cm := acksCM(nil)
+
+	err := runAutoAck(t, cli, cm, nil)
 
 	require.NoError(t, err)
 }
@@ -116,60 +139,73 @@ func TestAutoAck_NoAcksConfigMap(t *testing.T) {
 func TestAutoAck_AllAlreadyAcked(t *testing.T) {
 	t.Parallel()
 
+	cm := acksCM(map[string]string{
+		"ack-3.0.0-dashboard": "true",
+	})
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
-			acksCM(map[string]string{
-				"ack-3.0.0-dashboard": "true",
+			gateCM(map[string]string{
+				"ack-3.0.0-dashboard": "Dashboard upgrade",
 			}),
 		).Build()
 
-	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		t.Context(), cli, cli, testNS, testApps, "3.0.0",
-		allManaged("dashboard"))
+	err := runAutoAck(t, cli, cm, allManaged("dashboard"))
 
 	require.NoError(t, err)
-
-	cm := &corev1.ConfigMap{}
-	require.NoError(t, cli.Get(t.Context(),
-		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
 	assert.Equal(t, "true", cm.Data["ack-3.0.0-dashboard"])
 }
 
 func TestAutoAck_HealthyComponentAutoAcked(t *testing.T) {
 	t.Parallel()
 
+	cm := acksCM(map[string]string{
+		"ack-3.0.0-dashboard": "Acknowledge upgrade of dashboard from version 2.x to 3.0.0",
+	})
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
-			acksCM(map[string]string{
-				"ack-3.0.0-dashboard": "Acknowledge upgrade of dashboard from version 2.x to 3.0.0",
+			gateCM(map[string]string{
+				"ack-3.0.0-dashboard": "Dashboard upgrade",
 			}),
 			readyDeployment(testApps, "dashboard", "dashboard"),
 		).Build()
 
-	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		t.Context(), cli, cli, testNS, testApps, "3.0.0",
-		allManaged("dashboard"))
+	err := runAutoAck(t, cli, cm, allManaged("dashboard"))
 
 	require.NoError(t, err)
-
-	cm := &corev1.ConfigMap{}
-	require.NoError(t, cli.Get(t.Context(),
-		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
 	assert.Equal(t, "true", cm.Data["ack-3.0.0-dashboard"])
 }
 
-func TestAutoAck_ManagedComponentRunsRegisteredCheck(t *testing.T) {
+func TestAutoAck_UnhealthyComponentLeftUnacked(t *testing.T) {
 	t.Parallel()
 
+	cm := acksCM(map[string]string{
+		"ack-3.0.0-kserve": "Acknowledge upgrade of kserve from version 2.x to 3.0.0",
+	})
+	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
+		WithObjects(
+			gateCM(map[string]string{
+				"ack-3.0.0-kserve": "KServe upgrade",
+			}),
+			unreadyDeployment("kserve-controller", "kserve"),
+		).Build()
+
+	err := runAutoAck(t, cli, cm, allManaged("kserve"))
+
+	require.NoError(t, err)
+	assert.NotEqual(t, "true", cm.Data["ack-3.0.0-kserve"],
+		"unhealthy component should remain unacked")
+}
+
+func TestAutoAck_ManagedComponentRunsRegisteredCheck(t *testing.T) {
 	component := componentApi.TrainerComponentName
 	key := "ack-3.0.0-" + component
+	cm := acksCM(map[string]string{
+		key: "Acknowledge upgrade of trainer",
+	})
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
 			gateCM(map[string]string{
 				key: "Trainer upgrade",
-			}),
-			acksCM(map[string]string{
-				key: "Acknowledge upgrade of trainer",
 			}),
 		).Build()
 
@@ -179,29 +215,22 @@ func TestAutoAck_ManagedComponentRunsRegisteredCheck(t *testing.T) {
 		},
 	)
 
-	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		t.Context(), cli, cli, testNS, testApps, "3.0.0", allManaged(component))
+	err := runAutoAck(t, cli, cm, allManaged(component))
 	require.NoError(t, err)
-
-	cm := &corev1.ConfigMap{}
-	require.NoError(t, cli.Get(t.Context(),
-		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
 	assert.NotEqual(t, "true", cm.Data[key],
 		"managed components should remain unacked when their registered check fails")
 }
 
 func TestAutoAck_ManagedComponentAutoAcksWhenRegisteredCheckPasses(t *testing.T) {
-	t.Parallel()
-
 	component := componentApi.SparkOperatorComponentName
 	key := "ack-3.0.0-" + component
+	cm := acksCM(map[string]string{
+		key: "Acknowledge upgrade of sparkoperator",
+	})
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
 			gateCM(map[string]string{
 				key: "Spark Operator upgrade",
-			}),
-			acksCM(map[string]string{
-				key: "Acknowledge upgrade of sparkoperator",
 			}),
 		).Build()
 
@@ -211,13 +240,8 @@ func TestAutoAck_ManagedComponentAutoAcksWhenRegisteredCheckPasses(t *testing.T)
 		},
 	)
 
-	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		t.Context(), cli, cli, testNS, testApps, "3.0.0", allManaged(component))
+	err := runAutoAck(t, cli, cm, allManaged(component))
 	require.NoError(t, err)
-
-	cm := &corev1.ConfigMap{}
-	require.NoError(t, cli.Get(t.Context(),
-		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
 	assert.Equal(t, "true", cm.Data[key],
 		"managed components should auto-ack when their registered check passes")
 }
@@ -225,27 +249,25 @@ func TestAutoAck_ManagedComponentAutoAcksWhenRegisteredCheckPasses(t *testing.T)
 func TestAutoAck_PartialAck(t *testing.T) {
 	t.Parallel()
 
+	cm := acksCM(map[string]string{
+		"ack-3.0.0-dashboard": "true",
+		"ack-3.0.0-kserve":    "Acknowledge upgrade of kserve from version 2.x to 3.0.0",
+		"ack-3.0.0-ray":       "Acknowledge upgrade of ray from version 2.x to 3.0.0",
+	})
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
-			acksCM(map[string]string{
-				"ack-3.0.0-dashboard": "true",
-				"ack-3.0.0-kserve":    "Acknowledge upgrade of kserve from version 2.x to 3.0.0",
-				"ack-3.0.0-ray":       "Acknowledge upgrade of ray from version 2.x to 3.0.0",
+			gateCM(map[string]string{
+				"ack-3.0.0-dashboard": "Dashboard upgrade",
+				"ack-3.0.0-kserve":    "KServe upgrade",
+				"ack-3.0.0-ray":       "Ray upgrade",
 			}),
 			readyDeployment(testApps, "ray-operator", "ray"),
 			unreadyDeployment("kserve-controller", "kserve"),
 		).Build()
 
-	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		t.Context(), cli, cli, testNS, testApps, "3.0.0",
-		allManaged("dashboard", "kserve", "ray"))
+	err := runAutoAck(t, cli, cm, allManaged("dashboard", "kserve", "ray"))
 
 	require.NoError(t, err)
-
-	cm := &corev1.ConfigMap{}
-	require.NoError(t, cli.Get(t.Context(),
-		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
-
 	assert.Equal(t, "true", cm.Data["ack-3.0.0-dashboard"], "already acked stays acked")
 	assert.Equal(t, "true", cm.Data["ack-3.0.0-ray"], "healthy component auto-acked")
 	assert.NotEqual(t, "true", cm.Data["ack-3.0.0-kserve"], "unhealthy remains unacked")
@@ -254,25 +276,21 @@ func TestAutoAck_PartialAck(t *testing.T) {
 func TestAutoAck_IgnoresOtherVersionKeys(t *testing.T) {
 	t.Parallel()
 
+	cm := acksCM(map[string]string{
+		"ack-3.0.0-dashboard": "Acknowledge upgrade of dashboard",
+		"ack-2.0.0-dashboard": "Old version gate",
+	})
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
-			acksCM(map[string]string{
-				"ack-3.0.0-dashboard": "Acknowledge upgrade of dashboard",
-				"ack-2.0.0-dashboard": "Old version gate",
+			gateCM(map[string]string{
+				"ack-3.0.0-dashboard": "Dashboard upgrade",
 			}),
 			readyDeployment(testApps, "dashboard", "dashboard"),
 		).Build()
 
-	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		t.Context(), cli, cli, testNS, testApps, "3.0.0",
-		allManaged("dashboard"))
+	err := runAutoAck(t, cli, cm, allManaged("dashboard"))
 
 	require.NoError(t, err)
-
-	cm := &corev1.ConfigMap{}
-	require.NoError(t, cli.Get(t.Context(),
-		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
-
 	assert.Equal(t, "true", cm.Data["ack-3.0.0-dashboard"])
 	assert.Equal(t, "Old version gate", cm.Data["ack-2.0.0-dashboard"],
 		"other version keys should not be touched")
@@ -281,22 +299,19 @@ func TestAutoAck_IgnoresOtherVersionKeys(t *testing.T) {
 func TestAutoAck_NoDeployments_ComponentConsideredHealthy(t *testing.T) {
 	t.Parallel()
 
+	cm := acksCM(map[string]string{
+		"ack-3.0.0-trustyai": "Acknowledge upgrade of trustyai",
+	})
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
-			acksCM(map[string]string{
-				"ack-3.0.0-trustyai": "Acknowledge upgrade of trustyai",
+			gateCM(map[string]string{
+				"ack-3.0.0-trustyai": "TrustyAI upgrade",
 			}),
 		).Build()
 
-	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		t.Context(), cli, cli, testNS, testApps, "3.0.0",
-		allManaged("trustyai"))
+	err := runAutoAck(t, cli, cm, allManaged("trustyai"))
 
 	require.NoError(t, err)
-
-	cm := &corev1.ConfigMap{}
-	require.NoError(t, cli.Get(t.Context(),
-		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
 	assert.Equal(t, "true", cm.Data["ack-3.0.0-trustyai"],
 		"component with no deployments should be auto-acked")
 }
@@ -304,11 +319,15 @@ func TestAutoAck_NoDeployments_ComponentConsideredHealthy(t *testing.T) {
 func TestAutoAck_UnmanagedComponentAutoAckedWithoutHealthCheck(t *testing.T) {
 	t.Parallel()
 
+	cm := acksCM(map[string]string{
+		"ack-3.0.0-dashboard": "Acknowledge upgrade of dashboard",
+		"ack-3.0.0-trustyai":  "Acknowledge upgrade of trustyai",
+	})
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
-			acksCM(map[string]string{
-				"ack-3.0.0-dashboard": "Acknowledge upgrade of dashboard",
-				"ack-3.0.0-trustyai":  "Acknowledge upgrade of trustyai",
+			gateCM(map[string]string{
+				"ack-3.0.0-dashboard": "Dashboard upgrade",
+				"ack-3.0.0-trustyai":  "TrustyAI upgrade",
 			}),
 			unreadyDeployment("dashboard", "dashboard"),
 			unreadyDeployment("trustyai-service", "trustyai"),
@@ -316,15 +335,9 @@ func TestAutoAck_UnmanagedComponentAutoAckedWithoutHealthCheck(t *testing.T) {
 
 	managed := allManaged("dashboard")
 
-	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		t.Context(), cli, cli, testNS, testApps, "3.0.0", managed)
+	err := runAutoAck(t, cli, cm, managed)
 
 	require.NoError(t, err)
-
-	cm := &corev1.ConfigMap{}
-	require.NoError(t, cli.Get(t.Context(),
-		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
-
 	assert.NotEqual(t, "true", cm.Data["ack-3.0.0-dashboard"],
 		"managed component with unready deployments stays unacked")
 	assert.Equal(t, "true", cm.Data["ack-3.0.0-trustyai"],
@@ -332,16 +345,14 @@ func TestAutoAck_UnmanagedComponentAutoAckedWithoutHealthCheck(t *testing.T) {
 }
 
 func TestAutoAck_NilManagedMap_StillRunsRegisteredCheck(t *testing.T) {
-	t.Parallel()
-
 	key := "ack-3.0.0-dashboard-api-change"
+	cm := acksCM(map[string]string{
+		key: "Acknowledge dashboard API change",
+	})
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
 			gateCM(map[string]string{
 				key: "Dashboard API change",
-			}),
-			acksCM(map[string]string{
-				key: "Acknowledge dashboard API change",
 			}),
 		).Build()
 
@@ -351,30 +362,23 @@ func TestAutoAck_NilManagedMap_StillRunsRegisteredCheck(t *testing.T) {
 		},
 	)
 
-	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		t.Context(), cli, cli, testNS, testApps, "3.0.0", nil)
+	err := runAutoAck(t, cli, cm, nil)
 
 	require.NoError(t, err)
-
-	cm := &corev1.ConfigMap{}
-	require.NoError(t, cli.Get(t.Context(),
-		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
 	assert.NotEqual(t, "true", cm.Data[key],
 		"nil component state map should still run registered checks for non-component keys")
 }
 
 func TestAutoAck_UnmanagedComponentBypassesRegisteredCheck(t *testing.T) {
-	t.Parallel()
-
 	component := componentApi.CodeFlareComponentName
 	key := "ack-3.0.0-" + component
+	cm := acksCM(map[string]string{
+		key: "Acknowledge upgrade of " + component + " from version 2.x to 3.0.0",
+	})
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
 			gateCM(map[string]string{
 				key: "CodeFlare upgrade",
-			}),
-			acksCM(map[string]string{
-				key: "Acknowledge upgrade of " + component + " from version 2.x to 3.0.0",
 			}),
 		).Build()
 
@@ -384,32 +388,24 @@ func TestAutoAck_UnmanagedComponentBypassesRegisteredCheck(t *testing.T) {
 		},
 	)
 
-	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		t.Context(), cli, cli, testNS, testApps, "3.0.0", map[string]operatorv1.ManagementState{
-			component: operatorv1.Removed,
-		},
-	)
+	err := runAutoAck(t, cli, cm, map[string]operatorv1.ManagementState{
+		component: operatorv1.Removed,
+	})
 	require.NoError(t, err)
-
-	cm := &corev1.ConfigMap{}
-	require.NoError(t, cli.Get(t.Context(),
-		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
 
 	assert.Equal(t, "true", cm.Data[key],
 		"known unmanaged components should auto-ack without running their registered check")
 }
 
 func TestAutoAck_NonComponentGateStillRunsRegisteredCheck(t *testing.T) {
-	t.Parallel()
-
 	key := "ack-3.0.0-dashboard-api-change"
+	cm := acksCM(map[string]string{
+		key: "Acknowledge dashboard API change",
+	})
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
 		WithObjects(
 			gateCM(map[string]string{
 				key: "Dashboard API change",
-			}),
-			acksCM(map[string]string{
-				key: "Acknowledge dashboard API change",
 			}),
 		).Build()
 
@@ -419,13 +415,8 @@ func TestAutoAck_NonComponentGateStillRunsRegisteredCheck(t *testing.T) {
 		},
 	)
 
-	err := provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		t.Context(), cli, cli, testNS, testApps, "3.0.0", allManaged("dashboard"))
+	err := runAutoAck(t, cli, cm, allManaged("dashboard"))
 	require.NoError(t, err)
-
-	cm := &corev1.ConfigMap{}
-	require.NoError(t, cli.Get(t.Context(),
-		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
 
 	assert.NotEqual(t, "true", cm.Data[key],
 		"gate keys outside the DSC component map should still run their registered check")

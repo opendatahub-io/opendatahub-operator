@@ -25,21 +25,44 @@ import (
 // ConfigMap does not exist or has no unacknowledged entries for the
 // current version (fresh install or same-major upgrade).
 func AutoAcknowledgeUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	ns, err := cluster.GetOperatorNamespace()
-	if err != nil {
+	ns, nsErr := cluster.GetOperatorNamespace()
+	if nsErr != nil {
 		return nil //nolint:nilerr // operator NS not initialized (e.g. tests); skip gracefully
 	}
 
-	appsNS := cluster.GetApplicationNamespace()
-	componentStates := resolveManagedComponents(rr.Instance)
-	reader := client.Reader(rr.Client)
-	if rr.Controller != nil && rr.Controller.GetAPIReader() != nil {
-		reader = rr.Controller.GetAPIReader()
+	// Auto-ack must read the latest gate state from the API server before deciding whether to update it.
+	reader := rr.Controller.GetAPIReader()
+
+	cm := &corev1.ConfigMap{}
+	err := reader.Get(ctx, client.ObjectKey{Name: gates.AcksConfigMap, Namespace: ns}, cm)
+	switch {
+	case k8serr.IsNotFound(err):
+		return nil
+	case err != nil:
+		return fmt.Errorf("failed to get %s ConfigMap: %w", gates.AcksConfigMap, err)
 	}
 
-	return AutoAcknowledgeUpgradeGatesInNamespace(
-		ctx, rr.Client, reader, ns, appsNS, UpgradeGateVersion, componentStates,
-	)
+	original := cm.DeepCopy()
+	if err := AutoAcknowledgeUpgradeGatesInNamespace(
+		ctx,
+		reader,
+		cm,
+		cluster.GetApplicationNamespace(),
+		UpgradeGateVersion,
+		resolveManagedComponents(rr.Instance),
+	); err != nil {
+		return err
+	}
+
+	if reflect.DeepEqual(original.Data, cm.Data) {
+		return nil
+	}
+
+	if err := rr.Client.Update(ctx, cm); err != nil {
+		return fmt.Errorf("failed to patch %s ConfigMap: %w", gates.AcksConfigMap, err)
+	}
+
+	return nil
 }
 
 // componentStates maps known DSC component names to their management state.
@@ -48,34 +71,22 @@ func AutoAcknowledgeUpgradeGates(ctx context.Context, rr *odhtype.Reconciliation
 // through the registered gate check path.
 func AutoAcknowledgeUpgradeGatesInNamespace(
 	ctx context.Context,
-	cli client.Client,
 	reader client.Reader,
-	operatorNS string,
+	cm *corev1.ConfigMap,
 	appsNS string,
 	version string,
 	componentStates map[string]operatorv1.ManagementState,
 ) error {
-	log := logf.FromContext(ctx)
-	if reader == nil {
-		reader = cli
+	if cm == nil {
+		return nil
 	}
 
-	acksCM := &corev1.ConfigMap{}
-	if err := reader.Get(ctx, client.ObjectKey{
-		Name:      gates.AcksConfigMap,
-		Namespace: operatorNS,
-	}, acksCM); err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil
-		}
-		return fmt.Errorf("failed to get %s ConfigMap: %w", gates.AcksConfigMap, err)
-	}
+	log := logf.FromContext(ctx)
 
 	versionPrefix := "ack-" + version + "-"
 	log.Info("running auto-ack upgrade checks", "version", version)
 
-	dirty := false
-	for key, value := range acksCM.Data {
+	for key, value := range cm.Data {
 		if !strings.HasPrefix(key, versionPrefix) || value == "true" {
 			continue
 		}
@@ -86,8 +97,7 @@ func AutoAcknowledgeUpgradeGatesInNamespace(
 		}
 
 		if state, known := componentStates[gateKey]; known && state == operatorv1.Removed {
-			acksCM.Data[key] = "true"
-			dirty = true
+			cm.Data[key] = "true"
 
 			log.Info("auto-acknowledged upgrade gate for removed component",
 				"key", key, "component", gateKey)
@@ -107,16 +117,9 @@ func AutoAcknowledgeUpgradeGatesInNamespace(
 			continue
 		}
 
-		acksCM.Data[key] = "true"
-		dirty = true
+		cm.Data[key] = "true"
 
 		log.Info("auto-acknowledged upgrade gate", "key", key, "component", gateKey)
-	}
-
-	if dirty {
-		if err := cli.Update(ctx, acksCM); err != nil {
-			return fmt.Errorf("failed to patch %s ConfigMap: %w", gates.AcksConfigMap, err)
-		}
 	}
 
 	return nil
