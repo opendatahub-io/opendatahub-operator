@@ -90,10 +90,10 @@ additional_meta:
     git.commit: 77155eb0d07119eb75be28aaf541a7ecc70e4827
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: b9ade8c70c80707282ed78216fab2be27d81da6a
+    git.commit: 78fa7878ff2c6542bfa8dceb3ecbbf4562d99817
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: b9ade8c70c80707282ed78216fab2be27d81da6a
+    git.commit: 78fa7878ff2c6542bfa8dceb3ecbbf4562d99817
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: fb3cc91655910eefdedfad510b24e550de507864
