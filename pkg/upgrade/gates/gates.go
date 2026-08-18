@@ -12,10 +12,12 @@ import (
 	kueuegates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/kueue"
 	modelmeshservinggates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/modelmeshserving"
 	raygates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/ray"
+	servicemeshoperatorv2gates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/servicemeshoperatorv2"
 )
 
 const removedGatePrefix = "removed-"
 const dependenciesCertManagerGateKey = "dependencies-cert-manager"
+const dependenciesServiceMeshOperatorV2GateKey = "dependencies-servicemeshoperatorv2"
 
 var registeredChecks = map[string]provision.UpgradeCheckFunc{
 	// components
@@ -41,7 +43,8 @@ var registeredChecks = map[string]provision.UpgradeCheckFunc{
 	removedGatePrefix + componentApi.ModelMeshServingComponentName: modelmeshservinggates.Check,
 
 	// dependencies
-	dependenciesCertManagerGateKey: certmanagergates.Check,
+	dependenciesCertManagerGateKey:           certmanagergates.Check,
+	dependenciesServiceMeshOperatorV2GateKey: servicemeshoperatorv2gates.Check,
 }
 
 // Register registers every in-tree upgrade check used by auto-ack.
