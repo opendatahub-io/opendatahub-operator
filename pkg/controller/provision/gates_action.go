@@ -19,6 +19,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
+// TODO(RHOAIENG-82327): during an OLM upgrade the new operator binary
+// inherits the old CSV's version. Hardcode the target gate version so
+// in-tree gates are evaluated correctly regardless of what OLM reports.
+const UpgradeGateVersion = "3.5.1"
+
 // ExtractUpgradeGates scans rr.Resources for ConfigMaps carrying the
 // upgrade-gate label, collects their data entries into rr.GateEntries,
 // and removes the gate CMs from rr.Resources so they are not deployed
@@ -160,7 +165,11 @@ func CheckUpgradeGatesInNamespace(
 		return nil
 	}
 
-	version := release.Version.String()
+	// TODO(RHOAIENG-82327): OLM sets the release version from the
+	// installed CSV, so during an upgrade the new binary still reports
+	// the OLD version. Use the hardcoded gate version for the in-tree
+	// lookup and EnsureGates so the 3.5.1 gates are always evaluated.
+	version := UpgradeGateVersion
 	versionPrefix := "ack-" + version + "-"
 
 	allGates := make(map[string]string)

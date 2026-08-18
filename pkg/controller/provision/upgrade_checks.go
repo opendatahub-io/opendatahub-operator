@@ -2,11 +2,10 @@ package provision
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
-	appsv1 "k8s.io/api/apps/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // UpgradeCheckFunc validates whether a component is ready to be auto-acknowledged
@@ -38,34 +37,15 @@ func GetUpgradeCheck(component string) UpgradeCheckFunc {
 	return DefaultUpgradeCheck
 }
 
-// DefaultUpgradeCheck verifies that all Deployments carrying the standard
-// component label (app.opendatahub.io/<component>: "true") have their
-// desired replicas ready. Components with no matching Deployments are
-// considered healthy (not yet deployed).
-func DefaultUpgradeCheck(ctx context.Context, reader client.Reader, component, namespace string) error {
-	label := client.MatchingLabels{"app.opendatahub.io/" + component: "true"}
-
-	var deps appsv1.DeploymentList
-	err := reader.List(ctx, &deps, client.InNamespace(namespace), label)
-	if err != nil {
-		return fmt.Errorf("listing deployments for %s: %w", component, err)
-	}
-
-	if len(deps.Items) == 0 {
-		return nil
-	}
-
-	for i := range deps.Items {
-		d := &deps.Items[i]
-		desired := int32(1)
-		if d.Spec.Replicas != nil {
-			desired = *d.Spec.Replicas
-		}
-		if d.Status.ReadyReplicas < desired {
-			return fmt.Errorf("deployment %s/%s not ready: %d/%d replicas",
-				d.Namespace, d.Name, d.Status.ReadyReplicas, desired)
-		}
-	}
+// DefaultUpgradeCheck is an explicit no-op for components without a
+// component-specific upgrade blocker. Registration still matters so the
+// in-tree gate inventory stays aligned with the runtime auto-ack registry.
+func DefaultUpgradeCheck(ctx context.Context, _ client.Reader, key string, namespace string) error {
+	logf.FromContext(ctx).V(1).Info(
+		"skipping default upgrade check",
+		"key", key,
+		"namespace", namespace,
+	)
 
 	return nil
 }

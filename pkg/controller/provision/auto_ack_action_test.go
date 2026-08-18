@@ -143,7 +143,7 @@ func TestAutoAck_HealthyComponentAutoAcked(t *testing.T) {
 	assert.Equal(t, "true", cm.Data["ack-3.0.0-dashboard"])
 }
 
-func TestAutoAck_UnhealthyComponentLeftUnacked(t *testing.T) {
+func TestAutoAck_DefaultCheckAutoAcksManagedComponent(t *testing.T) {
 	t.Parallel()
 
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
@@ -163,8 +163,8 @@ func TestAutoAck_UnhealthyComponentLeftUnacked(t *testing.T) {
 	cm := &corev1.ConfigMap{}
 	require.NoError(t, cli.Get(context.Background(),
 		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
-	assert.NotEqual(t, "true", cm.Data["ack-3.0.0-kserve"],
-		"unhealthy component should remain unacked")
+	assert.Equal(t, "true", cm.Data["ack-3.0.0-kserve"],
+		"default check should auto-ack managed components")
 }
 
 func TestAutoAck_PartialAck(t *testing.T) {
@@ -193,7 +193,7 @@ func TestAutoAck_PartialAck(t *testing.T) {
 
 	assert.Equal(t, "true", cm.Data["ack-3.0.0-dashboard"], "already acked stays acked")
 	assert.Equal(t, "true", cm.Data["ack-3.0.0-ray"], "healthy component auto-acked")
-	assert.NotEqual(t, "true", cm.Data["ack-3.0.0-kserve"], "unhealthy remains unacked")
+	assert.Equal(t, "true", cm.Data["ack-3.0.0-kserve"], "default check now auto-acks kserve")
 }
 
 func TestAutoAck_IgnoresOtherVersionKeys(t *testing.T) {
@@ -270,8 +270,8 @@ func TestAutoAck_UnmanagedComponentAutoAckedWithoutHealthCheck(t *testing.T) {
 	require.NoError(t, cli.Get(context.Background(),
 		client.ObjectKey{Name: gates.AcksConfigMap, Namespace: testNS}, cm))
 
-	assert.NotEqual(t, "true", cm.Data["ack-3.0.0-dashboard"],
-		"managed component with unready deployments stays unacked")
+	assert.Equal(t, "true", cm.Data["ack-3.0.0-dashboard"],
+		"managed component uses the default no-op check")
 	assert.Equal(t, "true", cm.Data["ack-3.0.0-trustyai"],
 		"unmanaged component should be auto-acked regardless of deployment state")
 }
