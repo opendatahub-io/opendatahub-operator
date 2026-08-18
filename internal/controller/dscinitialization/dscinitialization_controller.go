@@ -49,6 +49,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	rp "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
@@ -161,15 +162,31 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// upgrade case to update release version in status
 	if !instance.Status.Release.Version.Equals(currentOperatorRelease.Version.Version) {
-		message := "Updating DSCInitialization status"
-		instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
-			saved.Status.Release = currentOperatorRelease
-		})
-		if err != nil {
-			log.Error(err, "Failed to update release version for DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
-			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
-				"%s for instance %s: %v", message, instance.Name, err)
-			return reconcile.Result{}, err
+		ns, nsErr := cluster.GetOperatorNamespace()
+		if nsErr != nil {
+			return reconcile.Result{}, nsErr
+		}
+		cleared, gateErr := gates.AllGatesAcknowledged(ctx, r.Client, ns)
+		if gateErr != nil {
+			log.Error(gateErr, "Failed to check upgrade gates")
+			return reconcile.Result{}, gateErr
+		}
+
+		if !cleared {
+			log.Info("deferring version stamp until upgrade gates are acknowledged",
+				"from", instance.Status.Release.Version.String(),
+				"to", currentOperatorRelease.Version.String())
+		} else {
+			message := "Updating DSCInitialization status"
+			instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
+				saved.Status.Release = currentOperatorRelease
+			})
+			if err != nil {
+				log.Error(err, "Failed to update release version for DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+				r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
+					"%s for instance %s: %v", message, instance.Name, err)
+				return reconcile.Result{}, err
+			}
 		}
 	}
 

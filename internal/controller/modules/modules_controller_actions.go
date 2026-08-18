@@ -28,20 +28,6 @@ import (
 )
 
 func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	reg := DefaultRegistry()
-	if !reg.HasEntries() {
-		return nil
-	}
-
-	platformCtx, err := buildPlatformContext(ctx, rr)
-	if err != nil {
-		return err
-	}
-
-	if !reg.AnyEnabled(platformCtx) {
-		return nil
-	}
-
 	return provision.CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, rr.GateEntries)
 }
 
