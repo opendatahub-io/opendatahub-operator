@@ -117,6 +117,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	codeflaregates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/codeflare"
+	dspgates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/datasciencepipelines"
 	kservegates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/kserve"
 	kueuegates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/kueue"
 	modelmeshservinggates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/modelmeshserving"
@@ -524,6 +525,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	mgr := manager.New(ctrlMgr, manager.WithManifestsBasePath(oconfig.ManifestsBasePath), manager.WithChartsBasePath(oconfig.ChartsBasePath))
 
 	provision.RegisterUpgradeCheck(componentApi.CodeFlareComponentName, codeflaregates.Check)
+	provision.RegisterUpgradeCheck(componentApi.DataSciencePipelinesComponentName, dspgates.Check)
 	provision.RegisterUpgradeCheck(componentApi.KserveComponentName, kservegates.Check)
 	provision.RegisterUpgradeCheck(componentApi.KueueComponentName, kueuegates.Check)
 	provision.RegisterUpgradeCheck(componentApi.ModelMeshServingComponentName, modelmeshservinggates.Check)

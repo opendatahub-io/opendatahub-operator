@@ -19,7 +19,7 @@ Legend:
 
 | Jira | Component | Jira status | Task status | Jira comment alignment |
 | --- | --- | --- | --- | --- |
-| `RHOAIENG-82350` | DataSciencePipelines | In Progress | `📝 Todo` | `-` |
+| `RHOAIENG-82350` | DataSciencePipelines | In Progress | `✅ Implemented locally` | `⚠️ Confirm scope` |
 | `RHOAIENG-82351` | Kueue | New | `✅ Implemented locally` | `⚠️ Confirm scope` |
 | `RHOAIENG-82352` | ModelRegistry | New | `📝 Todo` | `-` |
 | `RHOAIENG-82353` | Ray | New | `✅ Implemented locally` | `⚠️ Confirm scope` |
@@ -42,15 +42,15 @@ Legend:
 ### `RHOAIENG-82350` DataSciencePipelines
 
 - Jira status: `In Progress`
-- Task status: `Todo`
+- Task status: `Implemented locally`
+- Jira comment alignment: `Requires confirmation`
 - Jira comments: no actionable comments found beyond the generic spike request.
-- Checks to implement:
-  - define whether DataSciencePipelines has any live `2.25 -> 3.5` blocking
-    state that should prevent auto-ack
-  - if applicable, convert that state into a live cluster check instead of a
-    migration advisory
-  - document any v2-API rewrite expectations only if they correspond to a hard
-    blocker
+- Checks implemented in repo:
+  - block when the `DataSciencePipelinesApplication` CRD still reports
+    `v1alpha1` in `status.storedVersions`
+- Follow-up note:
+  - confirm that the stored-version blocker is the intended Jira scope for this
+    child item and that no separate DSP migration gate is expected
 
 ### `RHOAIENG-82351` Kueue
 
