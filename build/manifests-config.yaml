@@ -60,7 +60,7 @@ map:
     src: config
     dest: mcplifecycleoperator
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-module-operator
-    git.commit: 937284261f25731ae75362e484c05199744835de
+    git.commit: 3ac6b91d600709f8445c34b55b9fda1b86f3d500
   odh-feast-module-operator:
     src: config/chart
     dest: feastoperator
@@ -318,7 +318,7 @@ additional_meta:
     git.commit: a52f73494e214c7172894610522b01e6183cce71
   odh-trainer:
     git.url: https://github.com/red-hat-data-services/trainer
-    git.commit: 16dc117d01890d2804ffb65c3fc1f85f446ed81e
+    git.commit: 5bb1e3a5c7221c67b6685dfff2f1485248aff0a7
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
     git.commit: 0d3c373b2928da93e0cb56fea93fd769456f4c9b
