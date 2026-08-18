@@ -6,5 +6,5 @@ resources:
   - ../manager
   - ../monitoring
   - ../webhook
-  # Gateway policies (gateway-default-auth, gateway-default-deny) are applied
+  # Gateway policies (gateway-default-deny) are applied
   # separately by deploy.sh so they stay in openshift-ingress; see deploy_via_kustomize.

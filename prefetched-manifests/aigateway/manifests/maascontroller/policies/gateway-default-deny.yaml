@@ -7,7 +7,7 @@
 # this deny applies to all other paths, including model inference paths
 # (e.g. /llm/..., /production/..., /v1/chat/completions via body-routing).
 #
-# The PRIMARY default deny is gateway-default-auth.yaml (AuthPolicy), which
+# The PRIMARY default deny is maas-gateway-auth (AuthPolicy), which
 # returns 401/403 for unconfigured models. This TRLP is a defense-in-depth layer:
 # if a request somehow passes auth but has no per-route TRLP, it gets 0 tokens -> 429.
 #

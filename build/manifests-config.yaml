@@ -60,7 +60,7 @@ map:
     src: config
     dest: aigateway
     git.url: https://github.com/red-hat-data-services/ai-gateway-operator
-    git.commit: ec919c51dc3f34f4f1ed8d563990fa763c6d1fac
+    git.commit: dd3aae2ff5c39fa1028eba4e699d9c89ae23305d
   odh-mcp-lifecycle-module-operator:
     src: config
     dest: mcplifecycleoperator

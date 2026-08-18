@@ -41,6 +41,12 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - pods/log
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
   - secrets
   verbs:
   - create
@@ -376,6 +382,15 @@ rules:
   - patch
   - watch
 - apiGroups:
+  - loki.grafana.com
+  resourceNames:
+  - logs
+  resources:
+  - application
+  verbs:
+  - create
+  - get
+- apiGroups:
   - maas.opendatahub.io
   resources:
   - aitenants
@@ -584,6 +599,14 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - security.openshift.io
+  resourceNames:
+  - nonroot-v2
+  resources:
+  - securitycontextconstraints
+  verbs:
+  - use
 - apiGroups:
   - serving.kserve.io
   resources:
