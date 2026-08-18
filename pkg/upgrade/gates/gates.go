@@ -5,6 +5,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
+	certmanagergates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/certmanager"
 	codeflaregates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/codeflare"
 	dspgates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/datasciencepipelines"
 	kservegates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/kserve"
@@ -14,8 +15,10 @@ import (
 )
 
 const removedGatePrefix = "removed-"
+const dependenciesCertManagerGateKey = "dependencies-cert-manager"
 
 var registeredChecks = map[string]provision.UpgradeCheckFunc{
+	// components
 	componentApi.AIGatewayComponentName:            provision.DefaultUpgradeCheck,
 	componentApi.DashboardComponentName:            provision.DefaultUpgradeCheck,
 	componentApi.DataSciencePipelinesComponentName: dspgates.Check,
@@ -33,9 +36,12 @@ var registeredChecks = map[string]provision.UpgradeCheckFunc{
 	componentApi.TrustyAIComponentName:             provision.DefaultUpgradeCheck,
 	componentApi.WorkbenchesComponentName:          provision.DefaultUpgradeCheck,
 
-	// removed components
+	// removed
 	removedGatePrefix + componentApi.CodeFlareComponentName:        codeflaregates.Check,
 	removedGatePrefix + componentApi.ModelMeshServingComponentName: modelmeshservinggates.Check,
+
+	// dependencies
+	dependenciesCertManagerGateKey: certmanagergates.Check,
 }
 
 // Register registers every in-tree upgrade check used by auto-ack.
