@@ -73,22 +73,13 @@ gate unacknowledged and blocks the upgrade path.
 
 ## Unmanaged Components
 
-Some problematic components still need a gate check even when the DSC does not
-mark them as `Managed`.
+Gate keys that resolve to a known DSC component are auto-acknowledged when that
+component resolves to `Removed`.
 
-If a gate must still run for unmanaged components, update:
-
-- `pkg/controller/provision/auto_ack_action.go`
-
-Specifically, add the component to `requiresCheckWhenUnmanaged(...)` only when
-the blocker is derived from runtime/internal resources and DSC management state
-is not authoritative enough to decide whether auto-ack is safe.
-
-Current examples include:
-
-- `modelmeshserving`
-- `codeflare`
-- `kueue`
+Gate keys that do **not** resolve to a DSC component remain in scope and still
+run the registered upgrade check. This allows non-component gate keys to keep
+enforcing custom blockers without being auto-acked just because they are absent
+from the DSC component map.
 
 ## Existing Gate Semantics
 

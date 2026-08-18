@@ -39,7 +39,7 @@ func TestDefaultUpgradeCheck_IgnoresDeploymentState(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(checkScheme()).WithObjects(dep).Build()
 
-	err := provision.DefaultUpgradeCheck(context.Background(), cli, "dashboard", "apps-ns")
+	err := provision.DefaultUpgradeCheck(t.Context(), cli, "dashboard", "apps-ns")
 	require.NoError(t, err)
 }
 
@@ -48,7 +48,7 @@ func TestDefaultUpgradeCheck_NoDeployments(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(checkScheme()).Build()
 
-	err := provision.DefaultUpgradeCheck(context.Background(), cli, "trustyai", "apps-ns")
+	err := provision.DefaultUpgradeCheck(t.Context(), cli, "trustyai", "apps-ns")
 	require.NoError(t, err)
 }
 
@@ -59,7 +59,7 @@ func TestGetUpgradeCheck_DefaultFallback(t *testing.T) {
 	assert.NotNil(t, fn)
 
 	cli := fake.NewClientBuilder().WithScheme(checkScheme()).Build()
-	err := fn(context.Background(), cli, "nonexistent-component", "apps-ns")
+	err := fn(t.Context(), cli, "nonexistent-component", "apps-ns")
 	require.NoError(t, err)
 }
 
@@ -74,7 +74,7 @@ func TestRegisterUpgradeCheck_CustomOverridesDefault(t *testing.T) {
 
 	fn := provision.GetUpgradeCheck("test-custom-component")
 	cli := fake.NewClientBuilder().WithScheme(checkScheme()).Build()
-	err := fn(context.Background(), cli, "test-custom-component", "apps-ns")
+	err := fn(t.Context(), cli, "test-custom-component", "apps-ns")
 
 	require.NoError(t, err)
 	assert.True(t, called, "custom check should have been called")

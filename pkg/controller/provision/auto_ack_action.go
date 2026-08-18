@@ -12,7 +12,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
@@ -32,23 +31,29 @@ func AutoAcknowledgeUpgradeGates(ctx context.Context, rr *odhtype.Reconciliation
 	}
 
 	appsNS := cluster.GetApplicationNamespace()
-	managed := resolveManagedComponents(rr.Instance)
+	componentStates := resolveManagedComponents(rr.Instance)
 	reader := client.Reader(rr.Client)
 	if rr.Controller != nil && rr.Controller.GetAPIReader() != nil {
 		reader = rr.Controller.GetAPIReader()
 	}
 
-	return AutoAcknowledgeUpgradeGatesInNamespace(ctx, rr.Client, reader, ns, appsNS, UpgradeGateVersion, managed)
+	return AutoAcknowledgeUpgradeGatesInNamespace(
+		ctx, rr.Client, reader, ns, appsNS, UpgradeGateVersion, componentStates,
+	)
 }
 
-// managedComponents maps component names to true
-// when they are Managed in the DSC. A nil map means
-// all components require a health check.
+// componentStates maps known DSC component names to their management state.
+// Gate keys that resolve to Removed components are auto-acknowledged.
+// Gate keys that do not match a DSC component remain in scope and still run
+// through the registered gate check path.
 func AutoAcknowledgeUpgradeGatesInNamespace(
-	ctx context.Context, cli client.Client,
+	ctx context.Context,
+	cli client.Client,
 	reader client.Reader,
-	operatorNS, appsNS, version string,
-	managedComponents map[string]bool,
+	operatorNS string,
+	appsNS string,
+	version string,
+	componentStates map[string]operatorv1.ManagementState,
 ) error {
 	log := logf.FromContext(ctx)
 	if reader == nil {
@@ -56,7 +61,7 @@ func AutoAcknowledgeUpgradeGatesInNamespace(
 	}
 
 	acksCM := &corev1.ConfigMap{}
-	if err := cli.Get(ctx, client.ObjectKey{
+	if err := reader.Get(ctx, client.ObjectKey{
 		Name:      gates.AcksConfigMap,
 		Namespace: operatorNS,
 	}, acksCM); err != nil {
@@ -67,38 +72,45 @@ func AutoAcknowledgeUpgradeGatesInNamespace(
 	}
 
 	versionPrefix := "ack-" + version + "-"
-	unacked := collectUnackedComponents(acksCM.Data, versionPrefix)
-
-	if len(unacked) == 0 {
-		return nil
-	}
-
-	log.Info("running auto-ack upgrade checks", "version", version, "unacked", len(unacked))
+	log.Info("running auto-ack upgrade checks", "version", version)
 
 	dirty := false
-	for key, component := range unacked {
-		if !requiresCheckWhenUnmanaged(component) && (managedComponents == nil || !managedComponents[component]) {
+	for key, value := range acksCM.Data {
+		if !strings.HasPrefix(key, versionPrefix) || value == "true" {
+			continue
+		}
+
+		gateKey := strings.TrimPrefix(key, versionPrefix)
+		if gateKey == "" {
+			continue
+		}
+
+		if state, known := componentStates[gateKey]; known && state == operatorv1.Removed {
 			acksCM.Data[key] = "true"
 			dirty = true
 
-			log.Info("auto-acknowledged upgrade gate for unmanaged component",
-				"key", key, "component", component)
+			log.Info("auto-acknowledged upgrade gate for removed component",
+				"key", key, "component", gateKey)
 
 			continue
 		}
 
-		checkFn := GetUpgradeCheck(component)
+		checkFn := GetUpgradeCheck(gateKey)
 
-		if err := checkFn(ctx, reader, component, appsNS); err != nil {
-			log.V(1).Info("component not ready for auto-ack",
-				"component", component, "reason", err)
+		if err := checkFn(ctx, reader, gateKey, appsNS); err != nil {
+			log.V(1).Info("gate not ready for auto-ack",
+				"key", key,
+				"component", gateKey,
+				"reason", err,
+			)
+
 			continue
 		}
 
 		acksCM.Data[key] = "true"
 		dirty = true
 
-		log.Info("auto-acknowledged upgrade gate", "key", key, "component", component)
+		log.Info("auto-acknowledged upgrade gate", "key", key, "component", gateKey)
 	}
 
 	if dirty {
@@ -110,49 +122,16 @@ func AutoAcknowledgeUpgradeGatesInNamespace(
 	return nil
 }
 
-func requiresCheckWhenUnmanaged(component string) bool {
-	switch component {
-	case componentApi.ModelMeshServingComponentName:
-		return true
-	case componentApi.CodeFlareComponentName:
-		return true
-	case componentApi.KueueComponentName:
-		return true
-	default:
-		return false
-	}
-}
-
-// collectUnackedComponents returns a map of gate-key → component-name
-// for entries that match the version prefix and are not yet acknowledged.
-func collectUnackedComponents(data map[string]string, versionPrefix string) map[string]string {
-	result := make(map[string]string)
-	for key, val := range data {
-		if !strings.HasPrefix(key, versionPrefix) {
-			continue
-		}
-		if val == "true" {
-			continue
-		}
-		component := strings.TrimPrefix(key, versionPrefix)
-		if component != "" {
-			result[key] = component
-		}
-	}
-	return result
-}
-
-// resolveManagedComponents extracts a set of component names that have
-// ManagementState == Managed from the DSC spec. Returns nil when the
-// instance is not a DSC (e.g. Platform CR in xKS mode), which means
-// all components will require a health check.
-func resolveManagedComponents(instance client.Object) map[string]bool {
+// resolveManagedComponents extracts DSC component management states keyed by
+// component name. Returns nil when the instance is not a DSC (e.g. Platform CR
+// in xKS mode), which means all gate keys remain in scope for registered checks.
+func resolveManagedComponents(instance client.Object) map[string]operatorv1.ManagementState {
 	dsc, ok := instance.(*dscv2.DataScienceCluster)
 	if !ok || dsc == nil {
 		return nil
 	}
 
-	result := make(map[string]bool)
+	result := make(map[string]operatorv1.ManagementState)
 
 	componentsValue := reflect.ValueOf(dsc.Spec.Components)
 	componentsType := componentsValue.Type()
@@ -171,9 +150,11 @@ func resolveManagedComponents(instance client.Object) map[string]bool {
 			continue
 		}
 
-		if mgmtField.Interface() == operatorv1.Managed {
-			result[name] = true
+		state := operatorv1.Removed
+		if value, ok := mgmtField.Interface().(operatorv1.ManagementState); ok && value != "" {
+			state = value
 		}
+		result[name] = state
 	}
 
 	return result
