@@ -40,11 +40,11 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE
   value: "quay.io/rhoai/odh-kserve-agent-rhel9@sha256:b1984dce3dacc132454d743ce61a72d66329c71895ed48af2694ab21f8767ec7"
 - name: RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:391c698fc7f7a3036b03308ef5765f60816220a7449576842596de34763e5f14"
+  value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:ca51576b05406de1ec0bd4c2bb2044175e30ce2e235e6ed5ce9874c526980d16"
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:e7c741beedebae4406e9e33c2fcc1b12a60dab3e09d49f664fb32c87e5f0f176"
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:784d7776819055ed33e47a7b8b576c32828a925a87c486e6b5dbd4edfaeccf35"
+  value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:949d5e27eb95300da2535f7281812b2829a9c19d9415949942b94bd1628606ca"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
   value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:139ca81a27628866bc3f4217884a7cdfc6fdb1debdc562b2234dad6e7b1e460e"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
@@ -122,7 +122,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MODEL_SERVING_API_IMAGE
   value: "quay.io/rhoai/odh-model-serving-api-rhel9@sha256:ad586d78e6759ea0869f902cecfbdec20b0a4881b197f5264c056447ae05fdd1"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_AGENT_OPS_IMAGE
-  value: "quay.io/rhoai/odh-mod-arch-agent-ops-rhel9@sha256:df2c70646f7c2bf81803d439180b9e81b3e82d4c3ca90c46b5a68a9ce369ea2f"
+  value: "quay.io/rhoai/odh-mod-arch-agent-ops-rhel9@sha256:54567236baed9c337914dcccefb2d544331ffdfd56354a5f6c8f328bef078d3a"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_AUTOML_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-automl-rhel9@sha256:406813c991af795e50d930761788784bb36d7c59b050f2bb3e1c4f926ca92c57"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_AUTORAG_IMAGE
@@ -130,7 +130,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-eval-hub-rhel9@sha256:2ef17ef847d99b59ab5f4b157c94bc05c3c8270cfe124df91630ea07292aad71"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE
-  value: "quay.io/rhoai/odh-mod-arch-gen-ai-rhel9@sha256:59c21b4d44dc645f10ec980caece6d93a3e5da4697772e9e0a6e970b57eb2be2"
+  value: "quay.io/rhoai/odh-mod-arch-gen-ai-rhel9@sha256:7ff841cb7cab0c0533ee298dfbd87ab0c5d2706925a448b5f2d3ec18a3168742"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-maas-rhel9@sha256:95f00b6dec9c0068811f7eef2c29380a635687c3562dd4b6308ff981b73af011"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MLFLOW_IMAGE
