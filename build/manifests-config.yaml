@@ -316,6 +316,15 @@ additional_meta:
   odh-ta-lmes-job:
     git.url: https://github.com/red-hat-data-services/lm-evaluation-harness
     git.commit: a52f73494e214c7172894610522b01e6183cce71
+  odh-th-torch-cpu-py312:
+    git.url: https://github.com/red-hat-data-services/distributed-workloads
+    git.commit: f1f5161cec87f767da6f085975f67c85727acce8
+  odh-th-torch-cuda-py312:
+    git.url: https://github.com/red-hat-data-services/distributed-workloads
+    git.commit: f1f5161cec87f767da6f085975f67c85727acce8
+  odh-th-torch-rocm-py312:
+    git.url: https://github.com/red-hat-data-services/distributed-workloads
+    git.commit: f1f5161cec87f767da6f085975f67c85727acce8
   odh-trainer:
     git.url: https://github.com/red-hat-data-services/trainer
     git.commit: 5bb1e3a5c7221c67b6685dfff2f1485248aff0a7
@@ -342,7 +351,7 @@ additional_meta:
     git.commit: 24a8efcf4977c830ab23aa13deaa2aa499a20840
   odh-workbench-jupyter-baseline-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: f45f26740a64070b0224d00417029bdc5e2a75ba
+    git.commit: 1be550b6e5dd28b651394de814a85d547c715fbc
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 24a8efcf4977c830ab23aa13deaa2aa499a20840
