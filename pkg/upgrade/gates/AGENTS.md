@@ -11,6 +11,8 @@ operator to decide whether an upgrade ack can be auto-acknowledged.
 - `TASKS.md` is a read-only mirror of relevant Jira status/comments for local
   implementation tracking. Do not treat it as the source of truth for Jira, and
   do not edit Jira unless explicitly asked.
+- When a tracked gate change materially changes implementation scope or status,
+  update `TASKS.md` in the same change.
 
 ## What These Gates Are For
 
