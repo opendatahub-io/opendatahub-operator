@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openshift-service-ca.crt
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"

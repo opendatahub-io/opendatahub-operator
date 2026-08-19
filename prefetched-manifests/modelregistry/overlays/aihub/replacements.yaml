@@ -1,8 +1,8 @@
 # replacements from configmap using params.env for use in opendatahub-operator
 - source:
     kind: ConfigMap
-    name: model-registry-operator-parameters
-    fieldPath: data.IMAGES_MODELREGISTRY_OPERATOR
+    name: aihub-controller-parameters
+    fieldPath: data.RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE
   targets:
     - select:
         kind: Deployment
@@ -11,61 +11,97 @@
         - spec.template.spec.containers.[name=manager].image
 - source:
     kind: ConfigMap
-    name: model-registry-operator-parameters
-    fieldPath: data.IMAGES_MODELREGISTRY_OPERATOR
+    name: aihub-controller-parameters
+    fieldPath: data.RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE
   targets:
     - select:
         kind: Deployment
         name: aihub-controller-manager
       fieldPaths:
-        - spec.template.spec.containers.[name=manager].env.[name=MODEL_REGISTRY_OPERATOR_IMAGE].value
+        - spec.template.spec.containers.[name=manager].env.[name=RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE].value
 - source:
     kind: ConfigMap
-    name: model-registry-operator-parameters
-    fieldPath: data.IMAGES_REST_SERVICE
+    name: aihub-controller-parameters
+    fieldPath: data.RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE
   targets:
     - select:
         kind: Deployment
         name: aihub-controller-manager
       fieldPaths:
-        - spec.template.spec.containers.[name=manager].env.[name=REST_IMAGE].value
+        - spec.template.spec.containers.[name=manager].env.[name=RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE].value
 - source:
     kind: ConfigMap
-    name: model-registry-operator-parameters
-    fieldPath: data.IMAGES_POSTGRES
+    name: aihub-controller-parameters
+    fieldPath: data.RELATED_IMAGE_POSTGRESQL_16_IMAGE
   targets:
     - select:
         kind: Deployment
         name: aihub-controller-manager
       fieldPaths:
-        - spec.template.spec.containers.[name=manager].env.[name=POSTGRES_IMAGE].value
+        - spec.template.spec.containers.[name=manager].env.[name=RELATED_IMAGE_POSTGRESQL_16_IMAGE].value
 - source:
     kind: ConfigMap
-    name: model-registry-operator-parameters
-    fieldPath: data.kube-rbac-proxy
+    name: aihub-controller-parameters
+    fieldPath: data.RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
   targets:
     - select:
         kind: Deployment
         name: aihub-controller-manager
       fieldPaths:
-        - spec.template.spec.containers.[name=manager].env.[name=KUBE_RBAC_PROXY_IMAGE].value
+        - spec.template.spec.containers.[name=manager].env.[name=RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE].value
 - source:
     kind: ConfigMap
-    name: model-registry-operator-parameters
-    fieldPath: data.IMAGES_CATALOG_DATA
+    name: aihub-controller-parameters
+    fieldPath: data.RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE
   targets:
     - select:
         kind: Deployment
         name: aihub-controller-manager
       fieldPaths:
-        - spec.template.spec.containers.[name=manager].env.[name=CATALOG_DATA_IMAGE].value
+        - spec.template.spec.containers.[name=manager].env.[name=RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE].value
 - source:
     kind: ConfigMap
-    name: model-registry-operator-parameters
-    fieldPath: data.IMAGES_BENCHMARK_DATA
+    name: aihub-controller-parameters
+    fieldPath: data.RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE
   targets:
     - select:
         kind: Deployment
         name: aihub-controller-manager
       fieldPaths:
-        - spec.template.spec.containers.[name=manager].env.[name=BENCHMARK_DATA_IMAGE].value
+        - spec.template.spec.containers.[name=manager].env.[name=RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE].value
+- source:
+    kind: ConfigMap
+    name: aihub-controller-parameters
+    fieldPath: data.RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE
+  targets:
+    - select:
+        kind: Deployment
+        name: aihub-controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].env.[name=RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE].value
+- source:
+    kind: Service
+    name: aihub-controller-manager-metrics-service
+    fieldPath: metadata.name
+  targets:
+    - select:
+        kind: ServiceMonitor
+        name: aihub-controller-manager-metrics-monitor
+      fieldPaths:
+        - spec.endpoints.0.tlsConfig.serverName
+      options:
+        delimiter: "."
+        index: 0
+- source:
+    kind: Service
+    name: aihub-controller-manager-metrics-service
+    fieldPath: metadata.namespace
+  targets:
+    - select:
+        kind: ServiceMonitor
+        name: aihub-controller-manager-metrics-monitor
+      fieldPaths:
+        - spec.endpoints.0.tlsConfig.serverName
+      options:
+        delimiter: "."
+        index: 1

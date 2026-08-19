@@ -35,23 +35,28 @@ spec:
         args:
         - "aihub"
         - "--leader-elect"
+        - "--metrics-cert-dir=/tmp/k8s-metrics-server/serving-certs"
+        - "--metrics-cert-name=tls.crt"
+        - "--metrics-key-name=tls.key"
         env:
           - name: POD_NAMESPACE
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
-          - name: MODEL_REGISTRY_OPERATOR_IMAGE
+          - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE
             value: quay.io/opendatahub/model-registry-operator:latest
-          - name: REST_IMAGE
+          - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE
             value: quay.io/opendatahub/model-registry:latest
-          - name: POSTGRES_IMAGE
+          - name: RELATED_IMAGE_POSTGRESQL_16_IMAGE
             value: quay.io/sclorg/postgresql-16-c10s:latest
-          - name: KUBE_RBAC_PROXY_IMAGE
+          - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
             value: quay.io/openshift/origin-kube-rbac-proxy:latest
-          - name: CATALOG_DATA_IMAGE
+          - name: RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE
             value: quay.io/opendatahub/odh-model-metadata-collection:latest
-          - name: BENCHMARK_DATA_IMAGE
+          - name: RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE
             value: quay.io/opendatahub/odh-model-metadata-collection:latest
+          - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE
+            value: quay.io/opendatahub/model-registry-job-async-upload:latest
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -91,6 +96,9 @@ spec:
         - name: trusted-ca
           mountPath: /etc/pki/tls/custom
           readOnly: true
+        - name: metrics-certs
+          mountPath: /tmp/k8s-metrics-server/serving-certs
+          readOnly: true
       volumes:
       - name: manifests
         emptyDir:
@@ -101,3 +109,6 @@ spec:
         configMap:
           name: odh-trusted-ca-bundle
           optional: true
+      - name: metrics-certs
+        secret:
+          secretName: aihub-controller-manager-metrics-tls

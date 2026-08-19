@@ -7,12 +7,15 @@ resources:
 - components.platform.opendatahub.io_aihubs.yaml
 - aihub.opendatahub.io_catalogs.yaml
 - manager.yaml
+- metrics_service.yaml
+- monitor.yaml
+- service_ca_configmap.yaml
 - rbac/
 
 configMapGenerator:
 - envs:
     - params.env
-  name: model-registry-operator-parameters
+  name: aihub-controller-parameters
 generatorOptions:
   disableNameSuffixHash: true
 replacements:

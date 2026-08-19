@@ -114,6 +114,15 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - create
+  - get
+  - list
+  - watch
 # --- UNION of the child model-registry operator's ClusterRole/Role rules ---
 #
 # SECURITY NOTE (CWE-269 / CWE-732): This block is intentionally broad. AIHub

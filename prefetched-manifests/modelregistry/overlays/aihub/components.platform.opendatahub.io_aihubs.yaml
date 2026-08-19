@@ -55,6 +55,19 @@ spec:
                 minLength: 1
                 pattern: ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$
                 type: string
+              gateway:
+                description: |-
+                  Gateway carries Data Science Gateway settings projected by the platform.
+                  Optional: absent until the gateway domain is available.
+                properties:
+                  domain:
+                    description: |-
+                      Domain is the Data Science Gateway wildcard domain used to build
+                      per-instance HTTPRoute hostnames.
+                    maxLength: 253
+                    pattern: ^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$
+                    type: string
+                type: object
               instancesNamespace:
                 description: |-
                   InstancesNamespace is the namespace where model registry instances, the catalog
