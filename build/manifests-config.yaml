@@ -50,7 +50,7 @@ map:
     src: spark-operator-module/config
     dest: sparkoperator
     git.url: https://github.com/red-hat-data-services/spark-operator
-    git.commit: d93b099f33217e1d920ec3a792d1c47e1469854d
+    git.commit: 3a5681fe1b5c1b96ec44abf2b09c9197a3e21567
   odh-ai-gateway-operator:
     src: config
     dest: aigateway
@@ -71,7 +71,7 @@ map:
     src: ogx-module/config
     dest: ogx
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
-    git.commit: 38a7fdee5237134bb7f8f1c898e85a893bff39c5
+    git.commit: 19f82998c054333d192855a2eb943452bcd6c8d2
 additional_meta:
   odh-ai-gateway-payload-processing:
     git.url: https://github.com/red-hat-data-services/ai-gateway-payload-processing
@@ -222,7 +222,7 @@ additional_meta:
     git.commit: 1988df2c170a59522dfda1bb4d4d6bf13095691f
   odh-model-registry:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: 19b6a16d514b412f7b117b8416d7ac1e20e9af9d
+    git.commit: ecd8918a06f7f548f027c4dbce2cb5f5a69bd7d5
   odh-model-registry-job-async-upload:
     git.url: https://github.com/red-hat-data-services/model-registry
     git.commit: 19b6a16d514b412f7b117b8416d7ac1e20e9af9d
@@ -270,7 +270,7 @@ additional_meta:
     git.commit: 7e87a799ef40c2baff9511e8e58d63c3147aa7eb
   odh-ogx-k8s-operator:
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
-    git.commit: 38a7fdee5237134bb7f8f1c898e85a893bff39c5
+    git.commit: 19f82998c054333d192855a2eb943452bcd6c8d2
   odh-openvino-model-server:
     git.url: https://github.com/red-hat-data-services/openvino_model_server
     git.commit: 1d306ab479e2236544468688a04379307ef1aad5
