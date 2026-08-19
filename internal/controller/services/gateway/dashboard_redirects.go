@@ -44,6 +44,7 @@ import (
 	"os"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -83,7 +84,7 @@ func createDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRe
 	// to redirect from, so the redirect pods serve no purpose.
 	dashboard := resources.GvkToUnstructured(gvk.Dashboard)
 	if err := rr.Client.Get(ctx, client.ObjectKey{Name: componentApi.DashboardInstanceName}, dashboard); err != nil {
-		if k8serr.IsNotFound(err) {
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
 			l.Info("Dashboard CR not found, cleaning up dashboard redirect resources")
 			return deleteDashboardRedirectResources(ctx, rr)
 		}
@@ -137,13 +138,13 @@ func deleteDashboardRedirectResources(ctx context.Context, rr *odhtypes.Reconcil
 
 		// Check existence via cached Get to avoid unnecessary Delete API calls on every reconcile
 		if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
-			if k8serr.IsNotFound(err) {
+			if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
 				continue
 			}
 			return fmt.Errorf("failed to get dashboard redirect resource %s/%s: %w", obj.GetKind(), r.name, err)
 		}
 		if err := rr.Client.Delete(ctx, obj); err != nil {
-			if k8serr.IsNotFound(err) {
+			if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
 				continue
 			}
 			return fmt.Errorf("failed to delete dashboard redirect resource %s/%s: %w", obj.GetKind(), r.name, err)

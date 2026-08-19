@@ -4,13 +4,17 @@
 package gateway
 
 import (
+	"context"
 	"testing"
 
 	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -100,6 +104,45 @@ func TestCreateDashboardRedirects_SkipsWhenEnvDisabled(t *testing.T) {
 	err = createDashboardRedirects(ctx, rr)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(rr.Templates).To(BeEmpty(), "no redirect templates should be added when DISABLE_DASHBOARD_REDIRECTS=true")
+}
+
+func TestCreateDashboardRedirects_SkipsWhenDashboardCRDNotRegistered(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.GatewayConfigName,
+		},
+	}
+
+	noMatchErr := &meta.NoKindMatchError{
+		GroupKind:        schema.GroupKind{Group: componentApi.GroupVersion.Group, Kind: componentApi.DashboardKind},
+		SearchedVersions: []string{componentApi.GroupVersion.Version},
+	}
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(gatewayConfig),
+		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if obj.GetObjectKind().GroupVersionKind() == gvk.Dashboard {
+					return noMatchErr
+				}
+				return c.Get(ctx, key, obj, opts...)
+			},
+		}),
+	)
+	g.Expect(err).To(Succeed())
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:   cli,
+		Instance: gatewayConfig,
+	}
+
+	err = createDashboardRedirects(ctx, rr)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(rr.Templates).To(BeEmpty(), "no redirect templates should be added when Dashboard CRD is not registered")
 }
 
 func TestCreateDashboardRedirects_DeletesResourcesWhenDashboardRemoved(t *testing.T) {
