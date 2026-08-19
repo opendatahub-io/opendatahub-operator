@@ -94,7 +94,7 @@ components:
       sourcePath: spark-operator-module/config
     rhoai:
       repo: red-hat-data-services/spark-operator
-      ref: rhoai-3.6-ea.1@d93b099f33217e1d920ec3a792d1c47e1469854d
+      ref: rhoai-3.5@7b15494e3af5a29e599adde04e7d612759de1122
       sourcePath: spark-operator-module/config
   aigateway:
     odh:
@@ -1030,10 +1030,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-spark-operator-module"
-      digest: "sha256:f431c0fcd2864854e1a565ea45fe623a8af0d5da0b8a03b1986b3b389826191a"
+      digest: "sha256:0fe9348af8cfa10a2039a16cfc9d215ed58635cd5f98bec1e3ee8c0f0cad6cb2"
     rhoai:
       base: "quay.io/opendatahub/odh-spark-operator-module"
-      digest: "sha256:f431c0fcd2864854e1a565ea45fe623a8af0d5da0b8a03b1986b3b389826191a"
+      digest: "sha256:0fe9348af8cfa10a2039a16cfc9d215ed58635cd5f98bec1e3ee8c0f0cad6cb2"
   RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE:
     source: "csv"
     odh:
