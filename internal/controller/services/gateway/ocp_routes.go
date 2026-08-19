@@ -45,6 +45,15 @@ func createOCPRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		return nil
 	}
 
+	unresolved, err := isGatewayDomainUnresolved(ctx, rr, gatewayConfig)
+	if err != nil {
+		return err
+	}
+	if unresolved {
+		l.V(1).Info("Gateway domain not configured, skipping OCP Route creation")
+		return nil
+	}
+
 	l.V(1).Info("Adding OCP Route templates for Gateway")
 
 	rr.Templates = append(rr.Templates,

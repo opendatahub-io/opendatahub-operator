@@ -73,6 +73,12 @@ const (
 func createDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createDashboardRedirects")
 
+	// On XKS, skip dashboard redirects entirely (no OpenShift Route CRD)
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		l.Info("XKS platform detected, skipping dashboard redirect resources (no Route CRD)")
+		return nil
+	}
+
 	// Check if feature is explicitly disabled via operator environment variable
 	if os.Getenv("DISABLE_DASHBOARD_REDIRECTS") == "true" {
 		l.Info("Dashboard redirects disabled via DISABLE_DASHBOARD_REDIRECTS environment variable")
