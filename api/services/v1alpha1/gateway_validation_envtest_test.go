@@ -20,10 +20,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
-// TestGatewayIssuerURLValidationEnvtest verifies that the kubebuilder Pattern validation on
-// OIDCConfig.IssuerURL is enforced at admission time by a real API server.
-// This complements the pure-regex unit tests in gateway_types_test.go by proving
-// the CRD schema actually wires the pattern into OpenAPI validation.
+// TestGatewayIssuerURLValidationEnvtest verifies that the kubebuilder validation on
+// OIDCConfig.IssuerURL (MinLength/MaxLength + Format=uri + Pattern `^https://\S+$`) is
+// enforced at admission time by a real API server. This is the single source of truth
+// for the field's validation: it exercises the generated CRD schema end-to-end rather
+// than a duplicated copy of the pattern.
+//
+// Scope note: the Pattern only guarantees the https scheme and no whitespace; Format=uri
+// additionally rejects strings that do not parse as a URI (e.g. `{{`, backtick, pipe).
+// It is NOT a comprehensive injection filter — values such as `https://host$(id).com`
+// are valid URIs and are accepted. Downstream consumers must still treat the issuer URL
+// as untrusted input.
 func TestGatewayIssuerURLValidationEnvtest(t *testing.T) {
 	logf.SetLogger(zap.New(zap.WriteTo(os.Stdout), zap.UseDevMode(true)))
 
@@ -50,103 +57,54 @@ func TestGatewayIssuerURLValidationEnvtest(t *testing.T) {
 	k8sClient, err := client.New(cfg, client.Options{Scheme: gatewayTestScheme()})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	t.Run("non-HTTPS issuer URL is rejected", func(t *testing.T) {
-		g := NewWithT(t)
-		gw := validGatewayWithIssuerURL("http://insecure.example.com")
-		err := k8sClient.Create(ctx, gw)
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
-		g.Expect(err.Error()).To(ContainSubstring("issuerURL"))
-	})
+	// MaxLength boundary strings: both are otherwise-valid HTTPS URLs padded in the
+	// path with an allowed character, so length is the only thing under test.
+	const maxLenBase = "https://example.com/"
+	atMaxLength := maxLenBase + strings.Repeat("a", 2048-len(maxLenBase))
+	overMaxLength := maxLenBase + strings.Repeat("a", 2049-len(maxLenBase))
 
-	t.Run("shell injection in issuer hostname is rejected", func(t *testing.T) {
-		g := NewWithT(t)
-		gw := validGatewayWithIssuerURL("https://host;echo pwned.com")
-		err := k8sClient.Create(ctx, gw)
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
-	})
+	rejected := []struct {
+		name string
+		url  string
+	}{
+		{name: "non-HTTPS scheme", url: "http://insecure.example.com"},
+		{name: "uppercase scheme", url: "HTTPS://example.com"},
+		{name: "scheme only (no host)", url: "https://"},
+		{name: "missing double slash", url: "https:example.com"},
+		{name: "whitespace in URL", url: "https://host name.com"},
+		{name: "empty string", url: ""},
+		{name: "not a valid URI (template braces)", url: "https://host{{.Value}}.com"},
+		{name: "over max length (2049)", url: overMaxLength},
+	}
 
-	t.Run("Go template injection in issuer hostname is rejected", func(t *testing.T) {
-		g := NewWithT(t)
-		gw := validGatewayWithIssuerURL("https://host{{.Value}}.com")
-		err := k8sClient.Create(ctx, gw)
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
-	})
+	for _, tc := range rejected {
+		t.Run("rejected: "+tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			gw := validGatewayWithIssuerURL(tc.url)
+			err := k8sClient.Create(ctx, gw)
+			g.Expect(err).To(HaveOccurred())
+			g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
+			g.Expect(err.Error()).To(ContainSubstring("issuerURL"))
+		})
+	}
 
-	t.Run("command substitution in issuer hostname is rejected", func(t *testing.T) {
-		g := NewWithT(t)
-		gw := validGatewayWithIssuerURL("https://host$(id).com")
-		err := k8sClient.Create(ctx, gw)
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
-	})
+	accepted := []struct {
+		name string
+		url  string
+	}{
+		{name: "typical keycloak URL", url: "https://keycloak.example.com/realms/myorg"},
+		{name: "with port", url: "https://auth.example.com:8443/realms/test"},
+		{name: "at max length (2048)", url: atMaxLength},
+	}
 
-	t.Run("empty issuer URL is rejected", func(t *testing.T) {
-		g := NewWithT(t)
-		gw := validGatewayWithIssuerURL("")
-		err := k8sClient.Create(ctx, gw)
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
-	})
-
-	t.Run("query string in issuer URL is rejected", func(t *testing.T) {
-		g := NewWithT(t)
-		gw := validGatewayWithIssuerURL("https://keycloak.example.com/realms/myorg?foo=bar")
-		err := k8sClient.Create(ctx, gw)
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
-		g.Expect(err.Error()).To(ContainSubstring("issuerURL"))
-	})
-
-	t.Run("fragment in issuer URL is rejected", func(t *testing.T) {
-		g := NewWithT(t)
-		gw := validGatewayWithIssuerURL("https://keycloak.example.com/realms/myorg#section")
-		err := k8sClient.Create(ctx, gw)
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
-		g.Expect(err.Error()).To(ContainSubstring("issuerURL"))
-	})
-
-	t.Run("valid HTTPS issuer URL is accepted", func(t *testing.T) {
-		g := NewWithT(t)
-		gw := validGatewayWithIssuerURL("https://keycloak.example.com/realms/myorg")
-		g.Expect(k8sClient.Create(ctx, gw)).To(Succeed())
-		g.Expect(k8sClient.Delete(ctx, gw)).To(Succeed())
-	})
-
-	t.Run("valid HTTPS issuer URL with port is accepted", func(t *testing.T) {
-		g := NewWithT(t)
-		gw := validGatewayWithIssuerURL("https://auth.example.com:8443/realms/test")
-		g.Expect(k8sClient.Create(ctx, gw)).To(Succeed())
-		g.Expect(k8sClient.Delete(ctx, gw)).To(Succeed())
-	})
-
-	// MaxLength boundary: the marker caps IssuerURL at 2048 characters.
-	// Both URLs are otherwise valid HTTPS URLs (padded in the path with an
-	// allowed character) so length is the only thing under test.
-	t.Run("valid HTTPS issuer URL at max length (2048) is accepted", func(t *testing.T) {
-		g := NewWithT(t)
-		const base = "https://example.com/"
-		url := base + strings.Repeat("a", 2048-len(base))
-		g.Expect(url).To(HaveLen(2048))
-		gw := validGatewayWithIssuerURL(url)
-		g.Expect(k8sClient.Create(ctx, gw)).To(Succeed())
-		g.Expect(k8sClient.Delete(ctx, gw)).To(Succeed())
-	})
-
-	t.Run("valid HTTPS issuer URL over max length (2049) is rejected", func(t *testing.T) {
-		g := NewWithT(t)
-		const base = "https://example.com/"
-		url := base + strings.Repeat("a", 2049-len(base))
-		g.Expect(url).To(HaveLen(2049))
-		gw := validGatewayWithIssuerURL(url)
-		err := k8sClient.Create(ctx, gw)
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
-		g.Expect(err.Error()).To(ContainSubstring("issuerURL"))
-	})
+	for _, tc := range accepted {
+		t.Run("accepted: "+tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			gw := validGatewayWithIssuerURL(tc.url)
+			g.Expect(k8sClient.Create(ctx, gw)).To(Succeed())
+			g.Expect(k8sClient.Delete(ctx, gw)).To(Succeed())
+		})
+	}
 }
 
 func gatewayTestScheme() *runtime.Scheme {
