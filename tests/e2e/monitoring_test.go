@@ -428,7 +428,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRCreation(t *testing.T) {
 			And(
 				HaveLen(1),
 				HaveEach(And(
-					jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DSCInitialization.Kind),
+					jq.Match(`any(.metadata.ownerReferences[]; .kind == "%s")`, gvk.DSCInitialization.Kind),
 					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
 					jq.Match(`.spec.namespace == "%s"`, tc.MonitoringNamespace),
 					jq.Match(`.spec.metrics == null`),
@@ -3142,7 +3142,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringPersesNegativeConditions(t *testi
 				status.ConditionTypeReady, metav1.ConditionTrue),
 			// PersesAvailable: MetricsNotConfiguredAndTracesNotConfigured
 			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
-				status.ConditionPersesAvailable, status.MetricsNotConfiguredReason+"And"+status.TracesNotConfiguredReason),
+				status.ConditionPersesAvailable, "MetricsAndTracesNotConfigured"),
 			// PersesTempoDataSourceAvailable: TracesNotConfigured
 			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
 				status.ConditionPersesTempoDataSourceAvailable, status.TracesNotConfiguredReason),
@@ -3157,7 +3157,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringPersesNegativeConditions(t *testi
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithCondition(And(
 			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
-				status.ConditionPersesAvailable, status.MetricsNotConfiguredReason+"And"+status.TracesNotConfiguredReason),
+				status.ConditionPersesAvailable, "MetricsAndTracesNotConfigured"),
 		)),
 	)
 }
@@ -3209,7 +3209,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringOpenTelemetryNegativeConditions(t
 			jq.Match(`[.status.conditions[] | select(.type=="%s" and .status=="%s")] | length==1`,
 				status.ConditionTypeReady, metav1.ConditionTrue),
 			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
-				status.ConditionOpenTelemetryCollectorAvailable, status.MetricsNotConfiguredReason+"And"+status.TracesNotConfiguredReason),
+				status.ConditionOpenTelemetryCollectorAvailable, "MetricsAndTracesNotConfigured"),
 		)),
 	)
 
@@ -3218,7 +3218,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringOpenTelemetryNegativeConditions(t
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithCondition(And(
 			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
-				status.ConditionOpenTelemetryCollectorAvailable, status.MetricsNotConfiguredReason+"And"+status.TracesNotConfiguredReason),
+				status.ConditionOpenTelemetryCollectorAvailable, "MetricsAndTracesNotConfigured"),
 		)),
 	)
 }
