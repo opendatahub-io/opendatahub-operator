@@ -4,7 +4,7 @@ map:
     dest: workbenches
     type: chart
     git.url: https://github.com/red-hat-data-services/workbenches-operator
-    git.commit: 4d90e9a8f91a61926c99ee35d882e8b59036b191
+    git.commit: 1ed984ced614c1a79a8e34c43bf0d48027ff03e8
   odh-kserve-module-operator:
     src: kserve-module/config
     dest: kserve-module-operator
@@ -93,7 +93,7 @@ additional_meta:
     git.commit: 54801b7c9d2045243ce2ab9e3832a667525d0e96
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 7516da4b6a0a56fcec74451c7f384ae3f49bf768
+    git.commit: 54801b7c9d2045243ce2ab9e3832a667525d0e96
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: fb3cc91655910eefdedfad510b24e550de507864
@@ -186,7 +186,7 @@ additional_meta:
     git.commit: c4f063acc087e23fd129fd8f93a656c5b82aadc1
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
-    git.commit: e40435196e0b6b2892fc3b7f0f5ff67810d00595
+    git.commit: e14194ab87e122e51ef4c42af0aef9e4087c0766
   odh-mlmd-grpc-server:
     git.url: https://github.com/red-hat-data-services/ml-metadata
     git.commit: c4528b320ce6b467ce436a2c9fe5deea764fb52f
@@ -255,7 +255,7 @@ additional_meta:
     git.commit: 54801b7c9d2045243ce2ab9e3832a667525d0e96
   odh-mod-arch-notebooks:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 7516da4b6a0a56fcec74451c7f384ae3f49bf768
+    git.commit: 54801b7c9d2045243ce2ab9e3832a667525d0e96
   odh-must-gather:
     git.url: https://github.com/red-hat-data-services/must-gather
     git.commit: ee03de221640741607fbec9877920449954a5039

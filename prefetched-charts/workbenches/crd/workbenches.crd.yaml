@@ -91,17 +91,32 @@ spec:
               workbenchNamespace:
                 description: |-
                   workbenchNamespace is a legacy field retained for JupyterHub-era notebook
-                  namespaces (for example rhods-notebooks on RHOAI). The module operator does
-                  not use this field when deploying notebook-controller operands; those always
-                  target the resolved APPLICATIONS_NAMESPACE (falls back by platform to
-                  opendatahub or redhat-ods-applications when unset/invalid). Immutable after
-                  initial creation.
+                  namespaces (for example rhods-notebooks on RHOAI). Notebook-controller
+                  operands deploy into the resolved APPLICATIONS_NAMESPACE (falls back by
+                  platform to opendatahub or redhat-ods-applications when unset/invalid);
+                  this field names the separate legacy notebooks namespace the operator ensures
+                  for Notebook CR placement. When unset, defaults to opendatahub (ODH) or
+                  rhods-notebooks (SelfManagedRhoai). Immutable after initial creation.
                 maxLength: 63
                 pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                 type: string
                 x-kubernetes-validations:
                 - message: workbenchNamespace is immutable
                   rule: self == oldSelf
+              workbenchesV2:
+                description: |-
+                  workbenchesV2 configures the workbenches-v2 submodule.
+                  When omitted, workbenches-v2 is not deployed (equivalent to managementState: Removed).
+                properties:
+                  managementState:
+                    default: Removed
+                    description: managementState indicates whether the workbenches-v2
+                      submodule should be deployed.
+                    enum:
+                    - Managed
+                    - Removed
+                    type: string
+                type: object
             type: object
           status:
             description: WorkbenchesStatus defines the observed state of Workbenches.

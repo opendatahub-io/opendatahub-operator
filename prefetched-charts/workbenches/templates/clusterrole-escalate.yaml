@@ -27,4 +27,15 @@ rules:
       - odh-notebook-controller-notebooks-edit
       - odh-notebook-controller-notebooks-view
       - odh-notebook-controller-manager-role
+      # workspaces-controller ClusterRoles (workbenches-v2 gateway overlay, no namePrefix)
+      - workspaces-manager-role
+      - kubeflow-workspaces-admin
+      - kubeflow-workspaces-edit
+      - kubeflow-workspaces-view
+      - aggregate-to-kubeflow-workspaces-admin
+      - aggregate-to-kubeflow-workspaces-edit
+      - aggregate-to-kubeflow-workspaces-view
+      - workspaces-admin
+      - workspaces-edit
+      - workspaces-view
 {{- end }}
