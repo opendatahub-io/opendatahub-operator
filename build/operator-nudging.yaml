@@ -190,7 +190,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE
   value: quay.io/rhoai/odh-th-torch-rocm-py312-rhel9@sha256:f8b5bbd5bb591cede282a0fbee2f9a8cf599dc8e26558ab0a22a8d8f3eb83861
 - name: RELATED_IMAGE_ODH_TRAINER_IMAGE
-  value: quay.io/rhoai/odh-trainer-rhel9@sha256:932f960fe912b29eb18865417ab775a602503a19a4afd26011449f7d1b80978f
+  value: quay.io/rhoai/odh-trainer-rhel9@sha256:c2e29fa2458b7bf89d616dc5a0bd79c4c5694c5e7d0317532589e1fa1e848cc2
 - name: RELATED_IMAGE_ODH_TRAINER_OPERATOR_IMAGE
   value: quay.io/rhoai/odh-trainer-operator-rhel9@sha256:e8cc0a705ce10d1e8879e573263b44ce4ed2c095d7209687e892f714c5005726
 - name: RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE
