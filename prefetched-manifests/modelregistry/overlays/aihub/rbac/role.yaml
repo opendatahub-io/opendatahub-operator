@@ -4,6 +4,7 @@ kind: ClusterRole
 metadata:
   name: aihub-manager-role
 rules:
+# --- AIHub's own singleton CR ---
 - apiGroups:
   - components.platform.opendatahub.io
   resources:
@@ -11,6 +12,8 @@ rules:
   verbs:
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - components.platform.opendatahub.io
@@ -18,19 +21,325 @@ rules:
   - aihubs/status
   verbs:
   - get
-  - update
   - patch
+  - update
 - apiGroups:
   - components.platform.opendatahub.io
   resources:
   - aihubs/finalizers
   verbs:
   - update
+# --- Singleton Catalog CR (AIHub creates it if absent) ---
+- apiGroups:
+  - aihub.opendatahub.io
+  resources:
+  - catalogs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - aihub.opendatahub.io
+  resources:
+  - catalogs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - aihub.opendatahub.io
+  resources:
+  - catalogs/finalizers
+  verbs:
+  - update
+# --- Resources AIHub applies directly from the child overlay ---
+# (verbs exceed the child's union because AIHub must create/update these itself)
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - servicemonitors
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - template.openshift.io
+  resources:
+  - templates
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterroles
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+# --- UNION of the child model-registry operator's ClusterRole/Role rules ---
+#
+# SECURITY NOTE (CWE-269 / CWE-732): This block is intentionally broad. AIHub
+# does NOT use these permissions itself at runtime (it never reads a Secret,
+# PVC, Pod, TokenReview, HTTPRoute, Group, etc.). It holds them purely so it
+# can CREATE the child operator's own Role/ClusterRole/bindings WITHOUT the
+# `escalate`/`bind` verbs: Kubernetes' privilege-escalation-prevention rule
+# requires the grantor to already hold, at the same scope, every permission it
+# grants. Because the child operator ships a cluster-scoped ClusterRole, AIHub
+# must mirror that set cluster-wide.
+#
+# Consequence: a compromise of the AIHub controller pod yields the union of
+# these permissions. This is inherent to any operator that manages RBAC and is
+# mitigated at runtime (pod securityContext, least-privilege node access), NOT
+# by narrowing this role — narrowing it below the child's grant set breaks
+# child-operator provisioning.
+#
+# MAINTENANCE: Keep this a MINIMAL SUPERSET of the RBAC rendered by
+# config/overlays/odh. Do not widen it casually. When the child overlay's RBAC
+# changes, update this block to match — no broader. (A CI check to enforce this
+# superset relationship is tracked as a follow-up.)
 - apiGroups:
   - ""
+  resources:
+  - configmaps
+  - persistentvolumeclaims
+  - secrets
+  - serviceaccounts
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  - pods
+  - pods/log
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  - events.k8s.io
   resources:
   - events
   verbs:
   - create
   - patch
-# WI-5 will add operand/child-operator management permissions here.
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - modelregistries
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - config.openshift.io
+  resources:
+  - apiservers
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - referencegrants
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
+  - migration.k8s.io
+  resources:
+  - storageversionmigrations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - modelregistry.opendatahub.io
+  resources:
+  - modelregistries
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - modelregistry.opendatahub.io
+  resources:
+  - modelregistries/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - modelregistry.opendatahub.io
+  resources:
+  - modelregistries/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - rolebindings
+  - roles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - route.openshift.io
+  resources:
+  - routes
+  - routes/custom-host
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - services.platform.opendatahub.io
+  resources:
+  - auths
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - user.openshift.io
+  resources:
+  - groups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get

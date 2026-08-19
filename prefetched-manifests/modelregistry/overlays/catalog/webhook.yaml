@@ -1,0 +1,32 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: catalog-validating-webhook-configuration
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"
+  labels:
+    app.kubernetes.io/name: catalog-validating-webhook-configuration
+    app.kubernetes.io/component: webhook
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: catalog-webhook-service
+      namespace: opendatahub
+      path: /validate-aihub-opendatahub-io-catalog
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: vcatalog.aihub.opendatahub.io
+  timeoutSeconds: 5
+  rules:
+  - apiGroups:
+    - aihub.opendatahub.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - catalogs
+  sideEffects: None

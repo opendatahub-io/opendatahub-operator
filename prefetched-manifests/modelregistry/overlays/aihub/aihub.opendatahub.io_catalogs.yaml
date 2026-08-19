@@ -47,26 +47,19 @@ spec:
                 description: Database configures storage for the catalog database.
                 properties:
                   volume:
-                    description: Volume configures the PVC for the database.
+                    description: Volume configures the emptyDir volume for the database.
                     properties:
                       sizeLimit:
                         anyOf:
                         - type: integer
                         - type: string
-                        description: SizeLimit is the storage size requested for the
-                          database PVC.
+                        description: SizeLimit is the storage size limit for the database's
+                          emptyDir volume.
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                         x-kubernetes-validations:
                         - message: sizeLimit must be greater than zero
                           rule: quantity(self).isGreaterThan(quantity('0'))
-                      storageClassName:
-                        description: |-
-                          StorageClassName is the name of the StorageClass to use for the database PVC.
-                          If not set, the cluster default StorageClass is used.
-                        maxLength: 253
-                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
-                        type: string
                     type: object
                 type: object
               resources:

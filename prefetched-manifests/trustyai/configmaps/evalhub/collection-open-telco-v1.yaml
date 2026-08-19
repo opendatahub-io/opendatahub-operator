@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: evalhub-collection-open-telco-v1
+  labels:
+    trustyai.opendatahub.io/evalhub-collection-type: system
+    trustyai.opendatahub.io/evalhub-collection-name: open-telco-v1
+data:
+  open-telco-v1.yaml: |
+    id: open-telco-v1
+    name: Open-Telco v1
+    category: telecom
+    description: >
+      GSMA Open-Telco suite for evaluating LLMs on telecom-domain tasks. Includes
+      TeleMath (numerical math), TeleQnA (domain MCQ), TeleLogs (5G RCA), and
+      3GPP-TSG (working-group classification). TeleYAML will be added when an
+      Inspect task is available upstream. Set full=true for GSMA/ot-full datasets
+      and num_examples to cap sample count. Jobs that download HuggingFace datasets
+      should supply model.auth.secret_ref with an hf-token key.
+    tags:
+      - telecom
+      - open-telco
+      - math
+      - knowledge
+      - operations
+      - standards
+      - reasoning
+      - inspect
+      - vllm
+    agent:
+      result_interpretation:
+        - "Equal-weight average across four Open-Telco benchmarks"
+        - "(0.50 + 0.70 + 0.25 + 0.45) / 4 = 0.475"
+    pass_criteria:
+      threshold: 0.475
+    benchmarks:
+      - id: inspect/telemath
+        provider_id: inspect
+        weight: 1
+        primary_score:
+          metric: telemath_scorer/accuracy
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.50
+        agent:
+          result_interpretation: "GSMA leaderboard median ≈ 0.42; GPT-5 ≈ 0.79."
+        parameters:
+          full: true
+          num_examples: 50
+
+      - id: inspect/teleqna
+        provider_id: inspect
+        weight: 1
+        primary_score:
+          metric: choice/accuracy
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.70
+        agent:
+          result_interpretation: "GSMA leaderboard median ≈ 0.75; GPT-5 ≈ 0.84."
+        parameters:
+          full: true
+          subject: full
+          num_examples: 50
+
+      - id: inspect/telelogs
+        provider_id: inspect
+        weight: 1
+        primary_score:
+          metric: telelogs_scorer/accuracy
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+        agent:
+          result_interpretation: "GSMA leaderboard median ≈ 0.23; GPT-5 ≈ 0.78."
+        parameters:
+          full: true
+          eval_type: soft
+          num_examples: 50
+
+      - id: inspect/3gpp-tsg
+        provider_id: inspect
+        weight: 1
+        primary_score:
+          metric: pattern/accuracy
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.45
+        agent:
+          result_interpretation: "GSMA leaderboard median ≈ 0.43; GPT-5 ≈ 0.58."
+        parameters:
+          full: true
+          num_examples: 50

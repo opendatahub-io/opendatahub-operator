@@ -2,26 +2,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: aihub-controller-manager
+  name: catalog-controller-manager
   labels:
-    app.kubernetes.io/name: aihub-controller-manager
+    app.kubernetes.io/name: catalog-controller-manager
     app.kubernetes.io/component: controller
-    control-plane: aihub-controller-manager
+    control-plane: catalog-controller-manager
 spec:
   replicas: 1
   selector:
     matchLabels:
-      control-plane: aihub-controller-manager
+      control-plane: catalog-controller-manager
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: aihub-controller-manager
+        app.kubernetes.io/name: catalog-controller-manager
         app.kubernetes.io/component: controller
-        control-plane: aihub-controller-manager
+        control-plane: catalog-controller-manager
       annotations:
         kubectl.kubernetes.io/default-container: manager
     spec:
-      serviceAccountName: aihub-controller-manager
+      serviceAccountName: catalog-controller-manager
       securityContext:
         runAsNonRoot: true
         seccompProfile:
@@ -33,25 +33,41 @@ spec:
         command:
           - /manager
         args:
-        - "aihub"
+        - "catalog"
         - "--leader-elect"
         env:
           - name: POD_NAMESPACE
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
-          - name: MODEL_REGISTRY_OPERATOR_IMAGE
-            value: quay.io/opendatahub/model-registry-operator:latest
-          - name: REST_IMAGE
-            value: quay.io/opendatahub/model-registry:latest
-          - name: POSTGRES_IMAGE
-            value: quay.io/sclorg/postgresql-16-c10s:latest
           - name: KUBE_RBAC_PROXY_IMAGE
             value: quay.io/openshift/origin-kube-rbac-proxy:latest
+          - name: POSTGRES_IMAGE
+            value: quay.io/sclorg/postgresql-16-c10s:latest
           - name: CATALOG_DATA_IMAGE
             value: quay.io/opendatahub/odh-model-metadata-collection:latest
           - name: BENCHMARK_DATA_IMAGE
             value: quay.io/opendatahub/odh-model-metadata-collection:latest
+          - name: REGISTRIES_NAMESPACE
+            value: ""
+          - name: ENABLE_WEBHOOKS
+            value: "true"
+          - name: DEFAULT_DOMAIN
+            value: ""
+          - name: SKIP_MODEL_CATALOG_DB_CREATION
+            value: ""
+          - name: GATEWAY_DOMAIN
+            value: ""
+          - name: GATEWAY_NAME
+            value: ""
+          - name: GATEWAY_NAMESPACE
+            value: ""
+          - name: HTTPROUTE_NAMESPACE
+            value: ""
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -84,17 +100,19 @@ spec:
             cpu: 100m
             memory: 256Mi
         volumeMounts:
-        - name: manifests
-          mountPath: /opt/manifests
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
         - name: tmp
           mountPath: /tmp
         - name: trusted-ca
           mountPath: /etc/pki/tls/custom
           readOnly: true
       volumes:
-      - name: manifests
-        emptyDir:
-          sizeLimit: 256Mi
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: catalog-webhook-service
       - name: tmp
         emptyDir: {}
       - name: trusted-ca

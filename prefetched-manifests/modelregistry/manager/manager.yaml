@@ -93,8 +93,6 @@ spec:
             value: ""
           - name: DEFAULT_DOMAIN
             value: ""
-          - name: ENABLE_MODEL_CATALOG
-            value: ""
           - name: SKIP_MODEL_CATALOG_DB_CREATION
             value: ""
           - name: GATEWAY_DOMAIN

@@ -92,16 +92,6 @@
 - source:
     kind: ConfigMap
     name: model-registry-operator-parameters
-    fieldPath: data.ENABLE_MODEL_CATALOG
-  targets:
-    - select:
-        kind: Deployment
-        name: controller-manager
-      fieldPaths:
-        - spec.template.spec.containers.[name=manager].env.[name=ENABLE_MODEL_CATALOG].value
-- source:
-    kind: ConfigMap
-    name: model-registry-operator-parameters
     fieldPath: data.SKIP_MODEL_CATALOG_DB_CREATION
   targets:
     - select:
@@ -157,7 +147,7 @@
   targets:
     - select:
         kind: ServiceMonitor
-        name: controller-manager-metrics-monitor
+        name: model-registry-operator-controller-manager-metrics-monitor
       fieldPaths:
         - spec.endpoints.0.tlsConfig.serverName
       options:
@@ -170,7 +160,7 @@
   targets:
     - select:
         kind: ServiceMonitor
-        name: controller-manager-metrics-monitor
+        name: model-registry-operator-controller-manager-metrics-monitor
       fieldPaths:
         - spec.endpoints.0.tlsConfig.serverName
       options:

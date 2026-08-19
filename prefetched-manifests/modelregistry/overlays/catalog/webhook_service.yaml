@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: catalog-webhook-service
+  labels:
+    app.kubernetes.io/name: catalog-webhook-service
+    app.kubernetes.io/component: webhook
+    control-plane: catalog-controller-manager
+  name: catalog-webhook-service
+spec:
+  ports:
+    - port: 443
+      protocol: TCP
+      targetPort: 9443
+  selector:
+    control-plane: catalog-controller-manager

@@ -13,6 +13,7 @@ resources:
   - collection-leaderboard-v2.yaml
   - collection-long-context-v1.yaml
   - collection-model-validation.yaml
+  - collection-open-telco-v1.yaml
   - collection-reasoning-v1.yaml
   - collection-safety-and-fairness-v1.yaml
   - collection-standard-llm-evals-v1.yaml

@@ -12,7 +12,7 @@ patches:
   - path: servicemonitor_patch.yaml
     target:
       kind: ServiceMonitor
-      name: controller-manager-metrics-monitor
+      name: model-registry-operator-controller-manager-metrics-monitor
 
 replacements:
   - source:
@@ -22,7 +22,7 @@ replacements:
     targets:
       - select:
           kind: ServiceMonitor
-          name: controller-manager-metrics-monitor
+          name: model-registry-operator-controller-manager-metrics-monitor
         fieldPaths:
           - spec.endpoints.0.tlsConfig.serverName
         options:
@@ -35,7 +35,7 @@ replacements:
     targets:
       - select:
           kind: ServiceMonitor
-          name: controller-manager-metrics-monitor
+          name: model-registry-operator-controller-manager-metrics-monitor
         fieldPaths:
           - spec.endpoints.0.tlsConfig.serverName
         options:

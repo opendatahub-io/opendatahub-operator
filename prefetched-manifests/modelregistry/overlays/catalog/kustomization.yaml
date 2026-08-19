@@ -4,15 +4,16 @@ kind: Kustomization
 namespace: opendatahub
 
 resources:
-- components.platform.opendatahub.io_aihubs.yaml
 - aihub.opendatahub.io_catalogs.yaml
 - manager.yaml
 - rbac/
+- webhook.yaml
+- webhook_service.yaml
 
 configMapGenerator:
 - envs:
     - params.env
-  name: model-registry-operator-parameters
+  name: catalog-operator-parameters
 generatorOptions:
   disableNameSuffixHash: true
 replacements:
