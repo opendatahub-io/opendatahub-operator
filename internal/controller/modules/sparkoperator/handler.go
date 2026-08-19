@@ -1,4 +1,4 @@
-package trainer
+package sparkoperator
 
 import (
 	"context"
@@ -17,9 +17,23 @@ import (
 )
 
 const (
-	moduleName = componentApi.TrainerComponentName
-	crName     = componentApi.TrainerInstanceName
+	moduleName = componentApi.SparkOperatorComponentName
+	crName     = componentApi.SparkOperatorInstanceName
+
+	deploymentName = "spark-operator-module-controller-manager"
+
+	controllerImage = "RELATED_IMAGE_ODH_SPARK_OPERATOR_MODULE_IMAGE"
+
+	// Module manifests are under spark-operator-module/config/default (see get_all_manifests.sh).
+	// The legacy in-tree component used config/overlays/odh and config/overlays/rhoai for
+	// platform-specific patches (e.g. NetworkPolicy). The module repo currently ships a single
+	// default overlay; confirm RHOAI/ODH parity with the spark-operator-module maintainers.
+	moduleSourcePath = "default"
 )
+
+var relatedImages = []string{
+	"RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE",
+}
 
 type handler struct {
 	modules.BaseHandler
@@ -31,19 +45,12 @@ func NewHandler() *handler {
 			Config: modules.ModuleConfig{
 				Name:            moduleName,
 				CRName:          crName,
-				GVK:             gvk.Trainer,
-				ManifestDir:     "trainer",
-				ContextDir:      "default",
-				ControllerImage: "RELATED_IMAGE_ODH_TRAINER_OPERATOR_IMAGE",
-				DeploymentName:  "trainer-operator-controller-manager",
-				RelatedImages: []string{
-					"RELATED_IMAGE_ODH_TRAINER_IMAGE",
-					"RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE",
-					"RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE",
-					"RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE",
-					"RELATED_IMAGE_RHAII_MODEL_OPT_CUDA_IMAGE",
-					"RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE",
-				},
+				ManifestDir:     "sparkoperator",
+				SourcePath:      moduleSourcePath,
+				ControllerImage: controllerImage,
+				RelatedImages:   relatedImages,
+				DeploymentName:  deploymentName,
+				GVK:             gvk.SparkOperator,
 			},
 		},
 	}
@@ -53,36 +60,32 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
-	ms := dscCtx.DSC.Spec.Components.Trainer.ManagementState
+	ms := dscCtx.DSC.Spec.Components.SparkOperator.ManagementState
 	if ms == "" {
 		ms = operatorv1.Removed
 	}
-	pm.Trainer.ManagementState = ms
+	pm.SparkOperator.ManagementState = ms
 }
 
 func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
-	return modules != nil && modules.Trainer.ManagementState == operatorv1.Managed
+	return modules != nil && modules.SparkOperator.ManagementState == operatorv1.Managed
 }
 
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
 	dscCtx *modules.DSCContext,
-	cfg *modules.ModuleCRConfig,
+	_ *modules.ModuleCRConfig,
 ) (*unstructured.Unstructured, error) {
 	if dscCtx == nil || dscCtx.DSC == nil {
-		return nil, errors.New("DSC is nil, cannot build Trainer CR")
+		return nil, errors.New("DSC is nil, cannot build SparkOperator CR")
 	}
 
 	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(
-		&dscCtx.DSC.Spec.Components.Trainer.TrainerCommonSpec,
+		&dscCtx.DSC.Spec.Components.SparkOperator.SparkOperatorCommonSpec,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert TrainerCommonSpec to unstructured: %w", err)
-	}
-
-	if cfg != nil {
-		spec["appNamespace"] = cfg.ApplicationsNamespace
+		return nil, fmt.Errorf("failed to convert SparkOperatorCommonSpec to unstructured: %w", err)
 	}
 
 	u := &unstructured.Unstructured{
