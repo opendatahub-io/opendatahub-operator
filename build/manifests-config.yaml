@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: a59362b7ed8c0e8dd036702256bf860894d22e94
+    git.commit: 7516da4b6a0a56fcec74451c7f384ae3f49bf768
   odh-trainer-operator:
     src: config
     dest: trainer
@@ -90,10 +90,10 @@ additional_meta:
     git.commit: 6d1977e32ef27a5b6f29a684c4ec4332af9d594e
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 4b41144400a9d0727c7b47cbbf8725714a04cb1c
+    git.commit: 7516da4b6a0a56fcec74451c7f384ae3f49bf768
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 4b41144400a9d0727c7b47cbbf8725714a04cb1c
+    git.commit: a59362b7ed8c0e8dd036702256bf860894d22e94
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: fb3cc91655910eefdedfad510b24e550de507864
@@ -225,7 +225,7 @@ additional_meta:
     git.commit: 19b6a16d514b412f7b117b8416d7ac1e20e9af9d
   odh-model-registry-job-async-upload:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: e35d53f8fe4f9743e0394510f6a32d5284f10088
+    git.commit: 19b6a16d514b412f7b117b8416d7ac1e20e9af9d
   odh-model-serving-api:
     git.url: https://github.com/red-hat-data-services/odh-model-controller
     git.commit: fd93b719a999d4ac64deb5702142f04877d39d65
@@ -237,10 +237,10 @@ additional_meta:
     git.commit: a59362b7ed8c0e8dd036702256bf860894d22e94
   odh-mod-arch-autorag:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 3fd603f285d5d482bd132beb1461fdc2bf097223
+    git.commit: a59362b7ed8c0e8dd036702256bf860894d22e94
   odh-mod-arch-eval-hub:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 4b41144400a9d0727c7b47cbbf8725714a04cb1c
+    git.commit: 7516da4b6a0a56fcec74451c7f384ae3f49bf768
   odh-mod-arch-gen-ai:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 3fd603f285d5d482bd132beb1461fdc2bf097223
@@ -255,7 +255,7 @@ additional_meta:
     git.commit: 3fd603f285d5d482bd132beb1461fdc2bf097223
   odh-mod-arch-notebooks:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 4b41144400a9d0727c7b47cbbf8725714a04cb1c
+    git.commit: a59362b7ed8c0e8dd036702256bf860894d22e94
   odh-must-gather:
     git.url: https://github.com/red-hat-data-services/must-gather
     git.commit: ee03de221640741607fbec9877920449954a5039
