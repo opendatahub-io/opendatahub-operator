@@ -344,7 +344,7 @@ func SetupTestEnvForMain(authMode string, clusterDomain string) *TestEnvContext 
 				filepath.Join(rootPath, "config", "crd", "bases"),
 				filepath.Join(rootPath, "config", "crd", "external"),
 			},
-			CRDs:               append(getIstioCRDs(), getDashboardCRD()),
+			CRDs:               getEnvtestCRDs(),
 			ErrorIfPathMissing: true,
 			CleanUpAfterUse:    false,
 		},
@@ -382,12 +382,15 @@ func SetupTestEnvForMain(authMode string, clusterDomain string) *TestEnvContext 
 
 	platformType := env.GetOrDefault("ODH_PLATFORM_TYPE", "OpenDataHub")
 
-	// Initialize cluster config so cluster.GetOperatorNamespace() works (e.g. for GC action).
-	// Ignore Init error: operator namespace is set above; other steps may fail in envtest (e.g. no ClusterVersion).
-	_ = cluster.Init(ctx, k8sClient, operatorconfig.OperatorSettings{
+	// Initialize cluster config so cluster.GetOperatorNamespace() and OpenShift detection work.
+	if err := cluster.Init(ctx, k8sClient, operatorconfig.OperatorSettings{
 		OperatorNamespace: gateway.GatewayNamespace,
 		PlatformType:      platformType,
-	})
+	}); err != nil {
+		cancel()
+		testEnv.Stop() //nolint:errcheck
+		panic(fmt.Sprintf("Failed to initialize cluster config: %v", err))
+	}
 
 	// Manager with production-like cache. Do not add GatewayConfig to DisableFor (controller must receive watch events on spec updates).
 	skipNameValidation := true
@@ -457,6 +460,24 @@ func setupClusterPrerequisitesForMain(ctx context.Context, cli client.Client, au
 	}
 	if err := cli.Create(ctx, ingress); err != nil {
 		panic(fmt.Sprintf("Failed to create Ingress: %v", err))
+	}
+
+	// ClusterVersion enables OpenShift auto-detection in getClusterInfo (envtest has no real OCP API server).
+	clusterVersion := &configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cluster.OpenShiftVersionObj,
+		},
+	}
+	if err := cli.Create(ctx, clusterVersion); err != nil {
+		panic(fmt.Sprintf("Failed to create ClusterVersion: %v", err))
+	}
+	clusterVersion.Status = configv1.ClusterVersionStatus{
+		History: []configv1.UpdateHistory{
+			{Version: "4.16.0"},
+		},
+	}
+	if err := cli.Status().Update(ctx, clusterVersion); err != nil {
+		panic(fmt.Sprintf("Failed to update ClusterVersion status: %v", err))
 	}
 
 	auth := &configv1.Authentication{
@@ -547,6 +568,46 @@ func ensureLoadBalancerPrerequisites(ctx context.Context, cli client.Client) {
 	}
 	if err := cli.Create(ctx, secret); err != nil && !k8serr.IsAlreadyExists(err) {
 		panic(fmt.Sprintf("Failed to create router-certs-default secret: %v", err))
+	}
+}
+
+func getEnvtestCRDs() []*apiextensionsv1.CustomResourceDefinition {
+	return append(getIstioCRDs(), getDashboardCRD(), getClusterVersionCRD())
+}
+
+// getClusterVersionCRD returns a minimal ClusterVersion CRD for envtest registration.
+// Enables OpenShift cluster auto-detection via getOCPVersion in cluster.Init.
+func getClusterVersionCRD() *apiextensionsv1.CustomResourceDefinition {
+	preserveUnknown := true
+
+	return &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "clusterversions." + gvk.ClusterVersion.Group,
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: gvk.ClusterVersion.Group,
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Kind:     gvk.ClusterVersion.Kind,
+				ListKind: gvk.ClusterVersion.Kind + "List",
+				Plural:   "clusterversions",
+				Singular: "clusterversion",
+			},
+			Scope: apiextensionsv1.ClusterScoped,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    gvk.ClusterVersion.Version,
+				Served:  true,
+				Storage: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+						Type:                   "object",
+						XPreserveUnknownFields: &preserveUnknown,
+					},
+				},
+				Subresources: &apiextensionsv1.CustomResourceSubresources{
+					Status: &apiextensionsv1.CustomResourceSubresourceStatus{},
+				},
+			}},
+		},
 	}
 }
 
@@ -1649,8 +1710,12 @@ func RunNginxDashboardRedirectSkippedWithoutDashboardTest(t *testing.T, setup Te
 
 	appNs := cluster.GetApplicationNamespace()
 
-	// Ensure Dashboard CR does not exist
+	// Shared envtest: a prior test (e.g. redirect creation) may leave the Dashboard CR.
 	dashboard := resources.GvkToUnstructured(gvk.Dashboard)
+	dashboard.SetName(componentApi.DashboardInstanceName)
+	g.Expect(client.IgnoreNotFound(setup.TC.K8sClient.Delete(setup.TC.Ctx, dashboard))).To(Succeed())
+
+	// Ensure Dashboard CR does not exist
 	err := setup.TC.K8sClient.Get(setup.TC.Ctx, client.ObjectKey{Name: componentApi.DashboardInstanceName}, dashboard)
 	g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "Dashboard CR should not exist for this test")
 
