@@ -1842,6 +1842,7 @@ _Appears in:_
 | `ogx` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | OGX controls the OGX module operator lifecycle. |  |  |
 | `feastoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | FeastOperator controls the Feast module operator lifecycle. |  |  |
 | `dashboard` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Dashboard controls the Dashboard module operator lifecycle. |  |  |
+| `sparkoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | SparkOperator controls the Spark Operator module lifecycle. |  |  |
 
 
 #### PlatformSpec
