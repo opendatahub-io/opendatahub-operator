@@ -19,23 +19,23 @@ Legend:
 
 | Jira | Component | Jira status | Task status | Jira comment alignment |
 | --- | --- | --- | --- | --- |
-| `RHOAIENG-82350` | DataSciencePipelines | In Progress | `✅ Implemented locally` | `⚠️ Confirm scope` |
-| `RHOAIENG-82351` | Kueue | New | `✅ Implemented locally` | `⚠️ Confirm scope` |
-| `RHOAIENG-82352` | ModelRegistry | New | `📝 Todo` | `-` |
+| `RHOAIENG-82350` | DataSciencePipelines | Review | `✅ Implemented locally` | `⚠️ Confirm scope` |
+| `RHOAIENG-82351` | Kueue | In Progress | `✅ Implemented locally` | `⚠️ Confirm scope` |
+| `RHOAIENG-82352` | ModelRegistry | In Progress | `📝 Todo` | `-` |
 | `RHOAIENG-82353` | Ray | New | `✅ Implemented locally` | `⚠️ Confirm scope` |
 | `RHOAIENG-82354` | SparkOperator | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82355` | Trainer | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82356` | TrainingOperator | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82357` | TrustyAI | In Progress | `📝 Todo` | `-` |
 | `RHOAIENG-82359` | Dashboard | In Progress | `📝 Todo` | `-` |
-| `RHOAIENG-82360` | KServe | New | `✅ Implemented locally` | `⚠️ Confirm scope` |
+| `RHOAIENG-82360` | KServe | In Progress | `✅ Implemented locally` | `⚠️ Confirm scope` |
 | `RHOAIENG-82361` | Workbenches | New | `📝 Todo` | `-` |
-| `RHOAIENG-82370` | FeastOperator | New | `📝 Todo` | `-` |
-| `RHOAIENG-82371` | LlamaStackOperator | New | `📝 Todo` | `-` |
-| `RHOAIENG-82372` | OGX | New | `📝 Todo` | `-` |
+| `RHOAIENG-82370` | FeastOperator | Resolved | `🚫 Not needed` | `-` |
+| `RHOAIENG-82371` | LlamaStackOperator | Closed | `🚫 Not needed` | `-` |
+| `RHOAIENG-82372` | OGX | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82373` | MLflowOperator | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82374` | AIGateway | Resolved | `🚫 Not needed` | `-` |
-| `RHOAIENG-82380` | MCPLifecycleOperator | New | `🚫 Not needed` | `-` |
+| `RHOAIENG-82380` | MCPLifecycleOperator | Closed | `🚫 Not needed` | `-` |
 | `-` | `dependencies-cert-manager` | `-` | `✅ Implemented locally` | `-` |
 | `-` | `dependencies-kueue-operator` | `-` | `✅ Implemented locally` | `-` |
 | `-` | `dependencies-servicemeshoperatorv2` | `-` | `✅ Implemented locally` | `-` |
@@ -178,8 +178,8 @@ Legend:
 
 ### `RHOAIENG-82370` FeastOperator
 
-- Jira status: `New`
-- Task status: `Todo`
+- Jira status: `Resolved`
+- Task status: `Not needed`
 - Jira comments: no actionable comments found beyond the generic spike request.
 - Checks to implement:
   - determine whether FeastOperator has any cluster-visible `2.x` state that
@@ -187,8 +187,8 @@ Legend:
 
 ### `RHOAIENG-82371` LlamaStackOperator
 
-- Jira status: `New`
-- Task status: `Todo`
+- Jira status: `Closed`
+- Task status: `Not needed`
 - Jira comments: no actionable comments found beyond the generic spike request.
 - Checks to implement:
   - determine whether there is any real `2.x` upgrade surface for this
@@ -196,8 +196,8 @@ Legend:
 
 ### `RHOAIENG-82372` OGX
 
-- Jira status: `New`
-- Task status: `Todo`
+- Jira status: `Closed`
+- Task status: `Not needed`
 - Jira comments: no actionable comments found beyond the generic spike request.
 - Checks to implement:
   - determine whether OGX exposes any live upgrade-blocking state that is still
