@@ -12,11 +12,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	clientfake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	testscheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
@@ -325,6 +328,86 @@ func TestUpdate(t *testing.T) {
 
 		v := wt.Update(gvk.ConfigMap, key, transformer).Consistently().WithTimeout(1 * time.Second).Should(Succeed())
 		g.Expect(v).Should(matchMetadataAndData)
+	})
+}
+
+func TestUpdateStatus(t *testing.T) {
+	g := NewWithT(t)
+
+	s, err := testscheme.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	setup := func(t *testing.T) (*testf.WithT, client.Client, client.ObjectKey, types.GomegaMatcher, testf.TransformFn) {
+		t.Helper()
+
+		gatewayConfig := &serviceApi.GatewayConfig{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: serviceApi.GroupVersion.String(),
+				Kind:       serviceApi.GatewayConfigKind,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: serviceApi.GatewayConfigName,
+			},
+		}
+
+		cl := clientfake.NewClientBuilder().
+			WithScheme(s).
+			WithStatusSubresource(&serviceApi.GatewayConfig{}).
+			WithObjects(gatewayConfig).
+			Build()
+
+		tc, err := testf.NewTestContext(testf.WithClient(cl))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		return tc.NewWithT(t),
+			cl,
+			client.ObjectKeyFromObject(gatewayConfig),
+			jq.Match(`.status.domain == "apps.example.com"`),
+			testf.Transform(`.status.domain = "apps.example.com"`)
+	}
+
+	t.Run("Get", func(t *testing.T) {
+		wt, cl, key, matcher, transformer := setup(t)
+
+		v, err := wt.UpdateStatus(gvk.GatewayConfig, key, transformer).Get()
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(v).Should(matcher)
+
+		fetched := &serviceApi.GatewayConfig{}
+		g.Expect(cl.Get(t.Context(), key, fetched)).Should(Succeed())
+
+		value, err := resources.ToUnstructured(fetched)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(value).Should(matcher)
+	})
+
+	t.Run("Eventually", func(t *testing.T) {
+		wt, cl, key, matcher, transformer := setup(t)
+
+		v := wt.UpdateStatus(gvk.GatewayConfig, key, transformer).Eventually().Should(matcher)
+		g.Expect(v).Should(matcher)
+
+		fetched := &serviceApi.GatewayConfig{}
+		g.Expect(cl.Get(t.Context(), key, fetched)).Should(Succeed())
+
+		value, err := resources.ToUnstructured(fetched)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(value).Should(matcher)
+	})
+
+	t.Run("Eventually Succeed", func(t *testing.T) {
+		wt, cl, key, matcher, transformer := setup(t)
+
+		v := wt.UpdateStatus(gvk.GatewayConfig, key, transformer).Eventually().Should(Succeed())
+		g.Expect(v).Should(matcher)
+
+		fetched := &serviceApi.GatewayConfig{}
+		g.Expect(cl.Get(t.Context(), key, fetched)).Should(Succeed())
+
+		value, err := resources.ToUnstructured(fetched)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(value).Should(matcher)
 	})
 }
 

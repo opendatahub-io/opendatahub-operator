@@ -365,6 +365,60 @@ func (t *WithT) Update(
 	}
 }
 
+// UpdateStatus performs a status subresource update on the specified Kubernetes resource,
+// applying a function to mutate the object before issuing Status().Update.
+//
+// Parameters:
+//   - gvk (schema.GroupVersionKind): The GroupVersionKind of the resource to update.
+//   - nn (types.NamespacedName): The namespace and name of the resource to update.
+//   - fn (func): A function that modifies the resource before the status update.
+//   - option (...client.SubResourceUpdateOption): Optional client options for the status update operation.
+//
+// Returns:
+//   - *EventuallyValue[*unstructured.Unstructured]: The eventually available resource wrapped in an EventuallyValue,
+//     which can be used with Gomega assertions to test the updated resource.
+func (t *WithT) UpdateStatus(
+	gvk schema.GroupVersionKind,
+	nn types.NamespacedName,
+	fn func(obj *unstructured.Unstructured) error,
+	option ...client.SubResourceUpdateOption,
+) *EventuallyValue[*unstructured.Unstructured] {
+	return &EventuallyValue[*unstructured.Unstructured]{
+		ctx: t.Context(),
+		g:   t.WithT,
+		f: func(ctx context.Context) (*unstructured.Unstructured, error) {
+			u := resources.GvkToUnstructured(gvk)
+
+			err := t.Client().Get(ctx, nn, u)
+			switch {
+			case k8serr.IsNotFound(err):
+				return nil, nil
+			case err != nil:
+				return nil, StopErr(err, "failed to get resource for status update: %s, nn: %s", gvk, nn.String())
+			}
+
+			in, err := resources.ToUnstructured(u)
+			if err != nil {
+				return nil, StopErr(err, "failed to convert to unstructured")
+			}
+
+			if err := fn(in); err != nil {
+				return nil, StopErr(err, "failed to apply function")
+			}
+
+			err = t.Client().Status().Update(ctx, in, option...)
+			switch {
+			case k8serr.IsForbidden(err):
+				return nil, StopErr(err, "failed to update status for resource: %s, nn: %s", gvk, nn.String())
+			case err != nil:
+				return nil, err
+			default:
+				return in, nil
+			}
+		},
+	}
+}
+
 // Patch performs a patch operation on an existing Kubernetes resource, applying a function to mutate the resource
 // before patching. Unlike CreateOrPatch, this will fail if the resource doesn't exist.
 // The result is wrapped in an EventuallyValue, which can be used in Gomega assertions.
