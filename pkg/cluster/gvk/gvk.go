@@ -403,6 +403,12 @@ var (
 		Kind:    componentApi.FeastOperatorKind,
 	}
 
+	AIHub = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    "AIHub",
+	}
+
 	MLflowOperator = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,

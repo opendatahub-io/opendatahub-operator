@@ -45,7 +45,7 @@ components:
   modelregistry:
     odh:
       repo: opendatahub-io/model-registry-operator
-      ref: main@dd76a58eb188ad1339071d97c0e343399ae41379
+      ref: main@2dd79188485ea91c4b8602958ac866b5a02242af
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/model-registry-operator
