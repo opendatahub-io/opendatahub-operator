@@ -168,6 +168,8 @@ const (
 	TracesNotConfiguredReason   = "TracesNotConfigured"
 	TracesNotConfiguredMessage  = "Traces not configured in DSCI CR"
 
+	MetricsAndTracesNotConfiguredReason = "MetricsAndTracesNotConfigured"
+
 	AlertingNotConfiguredReason  = "AlertingNotConfigured"
 	AlertingNotConfiguredMessage = "Alerting not configured in DSCI CR"
 

@@ -3130,7 +3130,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringPersesNegativeConditions(t *testi
 				status.ConditionTypeReady, metav1.ConditionTrue),
 			// PersesAvailable: MetricsNotConfiguredAndTracesNotConfigured
 			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
-				status.ConditionPersesAvailable, "MetricsAndTracesNotConfigured"),
+				status.ConditionPersesAvailable, status.MetricsAndTracesNotConfiguredReason),
 			// PersesTempoDataSourceAvailable: TracesNotConfigured
 			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
 				status.ConditionPersesTempoDataSourceAvailable, status.TracesNotConfiguredReason),
@@ -3145,7 +3145,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringPersesNegativeConditions(t *testi
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithCondition(And(
 			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
-				status.ConditionPersesAvailable, "MetricsAndTracesNotConfigured"),
+				status.ConditionPersesAvailable, status.MetricsAndTracesNotConfiguredReason),
 		)),
 	)
 }
@@ -3197,7 +3197,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringOpenTelemetryNegativeConditions(t
 			jq.Match(`[.status.conditions[] | select(.type=="%s" and .status=="%s")] | length==1`,
 				status.ConditionTypeReady, metav1.ConditionTrue),
 			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
-				status.ConditionOpenTelemetryCollectorAvailable, "MetricsAndTracesNotConfigured"),
+				status.ConditionOpenTelemetryCollectorAvailable, status.MetricsAndTracesNotConfiguredReason),
 		)),
 	)
 
@@ -3206,7 +3206,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringOpenTelemetryNegativeConditions(t
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithCondition(And(
 			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
-				status.ConditionOpenTelemetryCollectorAvailable, "MetricsAndTracesNotConfigured"),
+				status.ConditionOpenTelemetryCollectorAvailable, status.MetricsAndTracesNotConfiguredReason),
 		)),
 	)
 }
