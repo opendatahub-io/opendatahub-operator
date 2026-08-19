@@ -1,0 +1,30 @@
+# Service for OpenTelemetry Collector internal telemetry with TLS support.
+# This service exposes the collector's own metrics (re-exported via prometheus/monitoring
+# exporter on port 8890) over HTTPS. It is always deployed when the collector exists,
+# regardless of whether user-facing metrics collection is enabled.
+# TLS is provisioned automatically by OpenShift's service-ca operator.
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-science-collector-monitoring
+  namespace: {{.Namespace}}
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: data-science-collector-monitoring-tls
+  labels:
+    app.kubernetes.io/component: opentelemetry-collector
+    app.kubernetes.io/instance: {{.Namespace}}.data-science-collector
+    app.kubernetes.io/managed-by: opentelemetry-operator
+    app.kubernetes.io/name: data-science-collector-monitoring
+    app.kubernetes.io/part-of: opentelemetry
+spec:
+  ports:
+  - name: monitoring
+    port: 8890
+    protocol: TCP
+    targetPort: 8890
+  selector:
+    app.kubernetes.io/component: opentelemetry-collector
+    app.kubernetes.io/instance: {{.Namespace}}.data-science-collector
+    app.kubernetes.io/managed-by: opentelemetry-operator
+    app.kubernetes.io/part-of: opentelemetry
+  type: ClusterIP

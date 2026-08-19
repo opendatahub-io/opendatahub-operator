@@ -202,6 +202,7 @@ func (tc *MonitoringTestCtx) runOpenTelemetryCollectorTests(t *testing.T) {
 		t.Run("Test OpenTelemetry Collector Configurations", tc.ValidateOpenTelemetryCollectorConfigurations)
 		t.Run("Test OpenTelemetry Collector replicas", tc.ValidateMonitoringCRCollectorReplicas)
 		t.Run("Test Metrics TLS is always enabled for Prometheus exporter", tc.ValidateMetricsTLSAlwaysEnabled)
+		t.Run("Test Internal monitoring TLS is always enabled", tc.ValidateInternalMonitoringTLSAlwaysEnabled)
 	})
 }
 
@@ -732,6 +733,88 @@ func (tc *MonitoringTestCtx) ValidateMetricsTLSAlwaysEnabled(t *testing.T) {
 			jq.Match(`.spec.endpoints[0].tlsConfig.serverName == "data-science-collector-prometheus.%s.svc"`, tc.MonitoringNamespace),
 		)),
 		WithCustomErrorMsg("ServiceMonitor should always use HTTPS to scrape Prometheus exporter"),
+	)
+}
+
+// ValidateInternalMonitoringTLSAlwaysEnabled validates that the collector's internal telemetry is always exposed over HTTPS on port 8890, even without metrics configured.
+func (tc *MonitoringTestCtx) ValidateInternalMonitoringTLSAlwaysEnabled(t *testing.T) {
+	t.Helper()
+
+	// Configure only traces (no metrics) to prove the monitoring TLS path is always-on
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withMonitoringTraces(TracesStorageBackendPV, "", TracesStorageSize1Gi, DefaultRetention),
+		withNoMetrics(),
+	)
+
+	tc.ensureOpenTelemetryCollectorReady(t)
+
+	// Validate monitoring TLS Service exists with service-ca annotation
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Service, types.NamespacedName{
+			Name:      "data-science-collector-monitoring",
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.metadata.annotations."service.beta.openshift.io/serving-cert-secret-name" == "data-science-collector-monitoring-tls"`),
+			jq.Match(`.spec.ports[0].name == "monitoring"`),
+			jq.Match(`.spec.ports[0].port == 8890`),
+		)),
+		WithCustomErrorMsg("Monitoring TLS Service should exist with service-ca annotation on port 8890"),
+	)
+
+	// Validate monitoring TLS Secret is created by service-ca
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Secret, types.NamespacedName{
+			Name:      "data-science-collector-monitoring-tls",
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.type == "kubernetes.io/tls"`),
+			jq.Match(`.data."tls.crt" != null`),
+			jq.Match(`.data."tls.key" != null`),
+		)),
+		WithCustomErrorMsg("Monitoring TLS Secret should be created by service-ca with certificate and key"),
+	)
+
+	// Validate OpenTelemetryCollector has prometheus/monitoring exporter with TLS
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
+			Name:      OpenTelemetryCollectorName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.config.exporters."prometheus/monitoring".tls.cert_file == "/etc/otel-collector/monitoring-tls/tls.crt"`),
+			jq.Match(`.spec.config.exporters."prometheus/monitoring".tls.key_file == "/etc/otel-collector/monitoring-tls/tls.key"`),
+			jq.Match(`.spec.config.service.pipelines."metrics/internal".receivers | contains(["prometheus/self"])`),
+			jq.Match(`.spec.config.service.pipelines."metrics/internal".exporters | contains(["prometheus/monitoring"])`),
+			jq.Match(`.spec.volumes[] | select(.name == "monitoring-tls-certs") | .secret.secretName == "data-science-collector-monitoring-tls"`),
+		)),
+		WithCustomErrorMsg("OpenTelemetryCollector should have prometheus/monitoring exporter with TLS and metrics/internal pipeline"),
+	)
+
+	// Validate ServiceMonitor for internal monitoring uses HTTPS
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ServiceMonitor, types.NamespacedName{
+			Name:      "data-science-collector-monitor",
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.endpoints[0].scheme == "https"`),
+			jq.Match(`.spec.endpoints[0].tlsConfig.serverName == "data-science-collector-monitoring.%s.svc"`, tc.MonitoringNamespace),
+			jq.Match(`.spec.endpoints[0].tlsConfig.caFile == "/etc/prometheus/secrets/prometheus-web-tls-ca/service-ca.crt"`),
+			jq.Match(`.spec.endpoints[0].bearerTokenFile == "/var/run/secrets/kubernetes.io/serviceaccount/token"`),
+			jq.Match(`.spec.endpoints[0].port == "monitoring"`),
+		)),
+		WithCustomErrorMsg("Internal monitoring ServiceMonitor should use HTTPS with correct serverName"),
+	)
+
+	// Validate that the user-facing Prometheus exporter Service does NOT exist (metrics not configured)
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Service, types.NamespacedName{
+			Name:      "data-science-collector-prometheus",
+			Namespace: tc.MonitoringNamespace,
+		}),
 	)
 }
 
