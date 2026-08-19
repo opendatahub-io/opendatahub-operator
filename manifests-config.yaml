@@ -91,11 +91,11 @@ components:
     odh:
       repo: opendatahub-io/spark-operator
       ref: main@807b949ffc7e3e681462abdf8aa89d319f8cc957
-      sourcePath: config
+      sourcePath: spark-operator-module/config
     rhoai:
       repo: red-hat-data-services/spark-operator
       ref: rhoai-3.5@7b15494e3af5a29e599adde04e7d612759de1122
-      sourcePath: config
+      sourcePath: spark-operator-module/config
   aigateway:
     odh:
       repo: opendatahub-io/ai-gateway-operator
