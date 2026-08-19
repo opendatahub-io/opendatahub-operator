@@ -143,6 +143,8 @@ func TestGetRelatedImages(t *testing.T) {
 		"RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE": false,
 		"RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE": false,
 		"RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE":  false,
+		"RELATED_IMAGE_RHAII_MODEL_OPT_CUDA_IMAGE":    false,
+		"RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE":         false,
 	}
 
 	for _, img := range images {
