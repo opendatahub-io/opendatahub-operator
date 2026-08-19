@@ -16,7 +16,6 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
@@ -37,14 +36,9 @@ func TestCreateDashboardRedirects_SkipsWhenDashboardNotDeployed(t *testing.T) {
 	cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig))
 	g.Expect(err).To(Succeed())
 
-	rr := &odhtypes.ReconciliationRequest{
-		Client:   cli,
-		Instance: gatewayConfig,
-	}
-
-	err = createDashboardRedirects(ctx, rr)
+	templates, err := createDashboardRedirects(ctx, cli, gatewayConfig)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(rr.Templates).To(BeEmpty(), "no redirect templates should be added when Dashboard CR does not exist")
+	g.Expect(templates).To(BeEmpty(), "no redirect templates should be added when Dashboard CR does not exist")
 }
 
 func TestCreateDashboardRedirects_CreatesWhenDashboardExists(t *testing.T) {
@@ -64,14 +58,9 @@ func TestCreateDashboardRedirects_CreatesWhenDashboardExists(t *testing.T) {
 	cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig, dashboard))
 	g.Expect(err).To(Succeed())
 
-	rr := &odhtypes.ReconciliationRequest{
-		Client:   cli,
-		Instance: gatewayConfig,
-	}
-
-	err = createDashboardRedirects(ctx, rr)
+	templates, err := createDashboardRedirects(ctx, cli, gatewayConfig)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(rr.Templates).ToNot(BeEmpty(), "redirect templates should be added when Dashboard CR exists")
+	g.Expect(templates).ToNot(BeEmpty(), "redirect templates should be added when Dashboard CR exists")
 }
 
 func TestCreateDashboardRedirects_SkipsWhenEnvDisabled(t *testing.T) {
@@ -92,14 +81,9 @@ func TestCreateDashboardRedirects_SkipsWhenEnvDisabled(t *testing.T) {
 	cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig, dashboard))
 	g.Expect(err).To(Succeed())
 
-	rr := &odhtypes.ReconciliationRequest{
-		Client:   cli,
-		Instance: gatewayConfig,
-	}
-
-	err = createDashboardRedirects(ctx, rr)
+	templates, err := createDashboardRedirects(ctx, cli, gatewayConfig)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(rr.Templates).To(BeEmpty(), "no redirect templates should be added when DISABLE_DASHBOARD_REDIRECTS=true")
+	g.Expect(templates).To(BeEmpty(), "no redirect templates should be added when DISABLE_DASHBOARD_REDIRECTS=true")
 }
 
 func TestCreateDashboardRedirects_DeletesResourcesWhenDashboardRemoved(t *testing.T) {
@@ -160,14 +144,9 @@ func TestCreateDashboardRedirects_DeletesResourcesWhenDashboardRemoved(t *testin
 	))
 	g.Expect(err).To(Succeed())
 
-	rr := &odhtypes.ReconciliationRequest{
-		Client:   cli,
-		Instance: gatewayConfig,
-	}
-
-	err = createDashboardRedirects(ctx, rr)
+	templates, err := createDashboardRedirects(ctx, cli, gatewayConfig)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(rr.Templates).To(BeEmpty(), "no redirect templates should be added when Dashboard CR does not exist")
+	g.Expect(templates).To(BeEmpty(), "no redirect templates should be added when Dashboard CR does not exist")
 
 	// Verify all redirect resources were deleted
 	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(redirectDeployment), &appsv1.Deployment{})).
