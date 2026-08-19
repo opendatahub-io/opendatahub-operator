@@ -169,14 +169,15 @@ componentCharts:
       repo: red-hat-data-services/feast-module-operator
       ref: rhoai-3.6-ea.1@7f958fb69bd2f9aca9d8e966ece399627fde7f03
       sourcePath: config/chart
+  # TODO: update refs after latest PRs are merged into odh-observability main
   odh-observability:
     odh:
-      repo: cgoodfred/odh-observability
-      ref: test/combined-all-prs@8ada8bd660420f1250b16cb6c6f72022e6cd5f49
+      repo: opendatahub-io/odh-observability
+      ref: main@a168cc819313a171f1e2e693f989807ed17081ba
       sourcePath: charts/odh-observability
     rhoai:
-      repo: cgoodfred/odh-observability
-      ref: test/combined-all-prs@8ada8bd660420f1250b16cb6c6f72022e6cd5f49
+      repo: red-hat-data-services/odh-observability
+      ref: main@214c2231557550c2dd79dddd0783f1ce10d18b27
       sourcePath: charts/odh-observability
 # Image overrides — pinned operator image digests, keyed by RELATED_IMAGE_* env var name.
 # Local directories symlinked into opt/manifests/ during development.
