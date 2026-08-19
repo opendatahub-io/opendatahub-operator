@@ -167,7 +167,8 @@ components:
 services:
   auth: {}
   gateway: {}
-  monitoring: {}
+  monitoring:
+    aliases: [odh-observability]
 
   certconfigmapgenerator:
     covered: false
