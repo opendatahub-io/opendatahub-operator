@@ -193,6 +193,7 @@ const (
 	AuthProxyFailedOAuthClientMessage        = "Failed to create OAuth client"
 	AuthProxyFailedCallbackRouteMessage      = "Failed to create auth callback route"
 	AuthProxyFailedGenerateSecretMessage     = "Failed to generate client secret"
+	GatewayDomainRequiredMessage             = "spec.domain is required on non-OpenShift clusters"
 	AuthProxyOIDCModeWithoutConfigMessage    = "Cluster is in OIDC mode but GatewayConfig has no OIDC configuration"
 	AuthProxyOIDCClientIDEmptyMessage        = "OIDC clientID cannot be empty"
 	AuthProxyOIDCIssuerURLEmptyMessage       = "OIDC issuerURL cannot be empty"

@@ -699,6 +699,7 @@ func createSecretCacheConfig(platform common.Platform) (map[string]cache.Config,
 	}
 
 	namespaceConfigs["openshift-ingress"] = cache.Config{}
+	namespaceConfigs["rh-ai-gateway"] = cache.Config{} // for gateway secrets on XKS (vanilla K8s)
 
 	return namespaceConfigs, nil
 }
@@ -710,7 +711,8 @@ func createODHGeneralCacheConfig(platform common.Platform) (map[string]cache.Con
 	}
 
 	namespaceConfigs["openshift-operators"] = cache.Config{} // for dependent operators installed namespace
-	namespaceConfigs["openshift-ingress"] = cache.Config{}   // for gateway auth proxy resources
+	namespaceConfigs["openshift-ingress"] = cache.Config{}   // for gateway auth proxy resources on OpenShift
+	namespaceConfigs["rh-ai-gateway"] = cache.Config{}       // for gateway resources on XKS (vanilla K8s)
 	namespaceConfigs["models-as-a-service"] = cache.Config{} // for maas admin rolebinding
 	namespaceConfigs["kuadrant-system"] = cache.Config{}     // for kuadrant admin rolebinding
 

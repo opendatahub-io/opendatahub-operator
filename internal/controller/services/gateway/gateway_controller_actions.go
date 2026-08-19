@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -55,9 +56,12 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		}
 	}
 
-	hostname, err := GetFQDN(ctx, rr.Client, gatewayConfig)
+	hostname, stop, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
 	if err != nil {
-		return fmt.Errorf("failed to resolve domain: %w", err)
+		return err
+	}
+	if stop {
+		return nil
 	}
 
 	// Handle ingress mode changes by deleting Gateway if configuration doesn't match.
@@ -89,8 +93,8 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 	}
 
 	l.V(1).Info("Successfully created Gateway infrastructure",
-		"gateway", DefaultGatewayName,
-		"namespace", GatewayNamespace,
+		"gateway", GetDefaultGatewayName(),
+		"namespace", GetGatewayNamespace(),
 		"domain", hostname,
 		"certificateType", getCertificateType(gatewayConfig))
 
@@ -108,9 +112,28 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 
 	l.V(1).Info("creating auth proxy for gateway", "gateway", gatewayConfig.Name)
 
-	authMode, err := cluster.GetClusterAuthenticationMode(ctx, rr.Client)
+	_, stop, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
 	if err != nil {
-		return fmt.Errorf("failed to detect cluster authentication mode: %w", err)
+		return err
+	}
+	if stop {
+		return nil
+	}
+
+	var authMode cluster.AuthenticationMode
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		// On XKS (vanilla K8s), no OpenShift Authentication CR exists.
+		// Auth mode is determined by GatewayConfig spec: OIDC if configured, else None.
+		if gatewayConfig.Spec.OIDC != nil {
+			authMode = cluster.AuthModeOIDC
+		} else {
+			authMode = cluster.AuthModeNone
+		}
+	} else {
+		authMode, err = cluster.GetClusterAuthenticationMode(ctx, rr.Client)
+		if err != nil {
+			return fmt.Errorf("failed to detect cluster authentication mode: %w", err)
+		}
 	}
 	l.V(1).Info("detected cluster authentication mode", "mode", authMode)
 
@@ -185,6 +208,19 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		}
 		l.V(1).Info("OAuth client created successfully")
 	}
+
+	// On XKS, generate a self-signed TLS cert for kube-auth-proxy (OCP uses serving-cert annotation instead)
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		kapServiceDNS := fmt.Sprintf("%s.%s.svc.cluster.local", KubeAuthProxyName, GetGatewayNamespace())
+		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, KubeAuthProxyTLSName, kapServiceDNS, GetGatewayNamespace(),
+			cluster.WithLabels(labels.PlatformPartOf, ServiceName),
+			cluster.OwnedBy(gatewayConfig, rr.Client.Scheme()),
+		); err != nil {
+			return fmt.Errorf("failed to create kube-auth-proxy TLS certificate: %w", err)
+		}
+		l.V(1).Info("Created self-signed TLS cert for kube-auth-proxy", "secret", KubeAuthProxyTLSName)
+	}
+
 	rr.Templates = append(rr.Templates, kubeAuthProxyDeploymentTemplates)
 	// Add other KubeAuthProxy templates to the reconciliation request
 	kubeAuthProxyCommonTemplates := []odhtypes.TemplateInfo{
@@ -234,6 +270,15 @@ func createEnvoyFilter(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 	}
 	l.V(1).Info("Creating EnvoyFilter for gateway", "gateway", gatewayConfig.Name)
 
+	unresolved, err := isGatewayDomainUnresolved(ctx, rr, gatewayConfig)
+	if err != nil {
+		return err
+	}
+	if unresolved {
+		l.V(1).Info("Gateway domain not configured, skipping EnvoyFilter creation")
+		return nil
+	}
+
 	rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{
 		FS:   gatewayResources,
 		Path: envoyFilterTemplate,
@@ -263,6 +308,15 @@ func createNetworkPolicy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return nil
 	}
 
+	unresolved, err := isGatewayDomainUnresolved(ctx, rr, gatewayConfig)
+	if err != nil {
+		return err
+	}
+	if unresolved {
+		l.V(1).Info("Gateway domain not configured, skipping NetworkPolicy creation")
+		return nil
+	}
+
 	l.V(1).Info("Creating NetworkPolicy for kube-auth-proxy", "ingress", ingressEnabled)
 
 	rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{
@@ -280,9 +334,12 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	// Get domain for redirect URL, if not set in spec then fall back to cluster domain
-	hostname, err := GetFQDN(ctx, rr.Client, gatewayConfig)
+	hostname, stop, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve domain: %w", err)
+		return nil, err
+	}
+	if stop {
+		return map[string]any{}, nil
 	}
 
 	// Calculate auth config hash for triggering pod restarts on secret changes
@@ -290,7 +347,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	authSecret := &corev1.Secret{}
 	if err := rr.Client.Get(ctx, types.NamespacedName{
 		Name:      KubeAuthProxySecretsName,
-		Namespace: GatewayNamespace,
+		Namespace: GetGatewayNamespace(),
 	}, authSecret); err != nil {
 		// secret doesn't exist yet, use empty hash
 		if !k8serr.IsNotFound(err) {
@@ -308,10 +365,11 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
 
 	templateData := map[string]any{
-		"GatewayNamespace":         GatewayNamespace,
-		"GatewayName":              DefaultGatewayName,
+		"IsOpenShift":              cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes,
+		"GatewayNamespace":         GetGatewayNamespace(),
+		"GatewayName":              GetDefaultGatewayName(),
 		"GatewayHostname":          hostname,
-		"GatewayServiceName":       GatewayServiceFullName,
+		"GatewayServiceName":       GetGatewayServiceFullName(),
 		"KubeAuthProxyServiceName": KubeAuthProxyName,
 		"KubeAuthProxySecretsName": KubeAuthProxySecretsName,
 		"KubeAuthProxyTLSName":     KubeAuthProxyTLSName,
@@ -337,7 +395,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"PartOfLabelKey":           labels.K8SCommon.PartOf,
 		"PartOfLabelValue":         PartOfLabelValue,
 		"IstioRevisionLabel":       IstioRevisionLabel,
-		"IstioRevisionValue":       IstioRevisionValue,
+		"IstioRevisionValue":       GetIstioRevisionValue(),
 		"PartOfGatewayConfig":      PartOfGatewayConfig,
 		"GatewayNameLabelKey":      labels.GatewayAPI.GatewayName,
 		"LegacySubdomain":          legacyInfo.LegacySubdomain,
@@ -422,14 +480,19 @@ func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationReq
 	// The reconciler framework persists status as part of normal reconciliation.
 	domain, err := GetGatewayDomain(ctx, rr.Client)
 	if err != nil {
+		if errors.Is(err, ErrDomainRequired) {
+			// Condition already set by resolveGatewayHostname; preserve it and stop.
+			gatewayConfig.Status.Domain = ""
+			return nil
+		}
 		return fmt.Errorf("failed to calculate gateway domain: %w", err)
 	}
 	gatewayConfig.Status.Domain = domain
 
 	gateway := &gwapiv1.Gateway{}
 	err = rr.Client.Get(ctx, types.NamespacedName{
-		Name:      DefaultGatewayName,
-		Namespace: GatewayNamespace,
+		Name:      GetDefaultGatewayName(),
+		Namespace: GetGatewayNamespace(),
 	}, gateway)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {

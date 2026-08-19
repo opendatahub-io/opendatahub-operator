@@ -12,8 +12,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
 	. "github.com/onsi/gomega"
 )
@@ -571,6 +576,64 @@ func TestHPATemplateConstant(t *testing.T) {
 	g := NewWithT(t)
 
 	g.Expect(kubeAuthProxyHPATemplate).To(Equal("resources/kube-auth-proxy-hpa.tmpl.yaml"), "HPA template path should be correct")
+}
+
+func TestGetFQDNRequiresDomainOnXKS(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+	ctx := t.Context()
+	client := setupTestClient().Build()
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+	}
+
+	_, err := GetFQDN(ctx, client, gatewayConfig)
+	g.Expect(err).To(MatchError(ErrDomainRequired))
+}
+
+func TestResolveGatewayHostnameMissingDomainOnXKS(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+	ctx := t.Context()
+	client := setupTestClient().Build()
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+	}
+	accessor := &gatewayConfigConditionsAccessor{}
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     client,
+		Instance:   gatewayConfig,
+		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+	}
+
+	hostname, stop, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(stop).To(BeTrue())
+	g.Expect(hostname).To(BeEmpty())
+
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	g.Expect(ready).NotTo(BeNil())
+	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(ready.Reason).To(Equal(status.NotReadyReason))
+	g.Expect(ready.Message).To(Equal(status.GatewayDomainRequiredMessage))
+}
+
+type gatewayConfigConditionsAccessor struct {
+	conditions []common.Condition
+}
+
+func (a *gatewayConfigConditionsAccessor) GetConditions() []common.Condition {
+	return a.conditions
+}
+
+func (a *gatewayConfigConditionsAccessor) SetConditions(c []common.Condition) {
+	a.conditions = c
 }
 
 // authProxyTemplateData is the minimum map needed to render the kube-auth-proxy
