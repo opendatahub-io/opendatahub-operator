@@ -150,7 +150,9 @@ type OIDCConfig struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=2048
 	// +kubebuilder:validation:Format=uri
-	// +kubebuilder:validation:Pattern=`^https://\S+$`
+	// Require an https URL with a non-empty authority and no query or fragment
+	// (an OIDC issuer identifier must not contain query/fragment components).
+	// +kubebuilder:validation:Pattern=`^https://[^/?#\s][^?#\s]*$`
 	IssuerURL string `json:"issuerURL"`
 
 	// OIDC client ID

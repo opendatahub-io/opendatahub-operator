@@ -21,12 +21,13 @@ import (
 )
 
 // TestGatewayIssuerURLValidationEnvtest verifies that the kubebuilder validation on
-// OIDCConfig.IssuerURL (MinLength/MaxLength + Format=uri + Pattern `^https://\S+$`) is
-// enforced at admission time by a real API server. This is the single source of truth
-// for the field's validation: it exercises the generated CRD schema end-to-end rather
-// than a duplicated copy of the pattern.
+// OIDCConfig.IssuerURL (MinLength/MaxLength + Format=uri + Pattern
+// `^https://[^/?#\s][^?#\s]*$`) is enforced at admission time by a real API server.
+// This is the single source of truth for the field's validation: it exercises the
+// generated CRD schema end-to-end rather than a duplicated copy of the pattern.
 //
-// Scope note: the Pattern only guarantees the https scheme and no whitespace; Format=uri
+// Scope note: the Pattern guarantees the https scheme, a non-empty authority, no
+// whitespace, and no query/fragment (an OIDC issuer identifier has none); Format=uri
 // additionally rejects strings that do not parse as a URI (e.g. `{{`, backtick, pipe).
 // It is NOT a comprehensive injection filter — values such as `https://host$(id).com`
 // are valid URIs and are accepted. Downstream consumers must still treat the issuer URL
@@ -70,10 +71,13 @@ func TestGatewayIssuerURLValidationEnvtest(t *testing.T) {
 		{name: "non-HTTPS scheme", url: "http://insecure.example.com"},
 		{name: "uppercase scheme", url: "HTTPS://example.com"},
 		{name: "scheme only (no host)", url: "https://"},
+		{name: "empty authority (leading slash)", url: "https:///realm"},
 		{name: "missing double slash", url: "https:example.com"},
 		{name: "whitespace in URL", url: "https://host name.com"},
 		{name: "empty string", url: ""},
 		{name: "not a valid URI (template braces)", url: "https://host{{.Value}}.com"},
+		{name: "query string", url: "https://keycloak.example.com/realms/myorg?foo=bar"},
+		{name: "fragment", url: "https://keycloak.example.com/realms/myorg#section"},
 		{name: "over max length (2049)", url: overMaxLength},
 	}
 
@@ -82,6 +86,11 @@ func TestGatewayIssuerURLValidationEnvtest(t *testing.T) {
 			g := NewWithT(t)
 			gw := validGatewayWithIssuerURL(tc.url)
 			err := k8sClient.Create(ctx, gw)
+			// GatewayConfig is a cluster-scoped singleton; if a case is wrongly
+			// accepted, clean it up so it can't cascade AlreadyExists into later cases.
+			if err == nil {
+				_ = k8sClient.Delete(ctx, gw)
+			}
 			g.Expect(err).To(HaveOccurred())
 			g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
 			g.Expect(err.Error()).To(ContainSubstring("issuerURL"))
