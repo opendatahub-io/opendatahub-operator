@@ -309,7 +309,7 @@ additional_meta:
     git.commit: e1d91f6f5ce0ed0fcbe9ffc099841864c78667e6
   odh-spark-operator:
     git.url: https://github.com/red-hat-data-services/spark-operator
-    git.commit: d63aa0d479fff9fccaf9d4cdefaeb2b04d2e0055
+    git.commit: d93b099f33217e1d920ec3a792d1c47e1469854d
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
     git.commit: 657a2c567e2a46150985fe68c03af262705ad5b7
