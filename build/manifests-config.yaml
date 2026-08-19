@@ -81,7 +81,7 @@ additional_meta:
     git.commit: 9207ca1cb4152a23f8678dc5ab2964cf4081d321
   odh-autorag:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 9207ca1cb4152a23f8678dc5ab2964cf4081d321
+    git.commit: 2bdca22e53210427c5daa5a244ced56029c8293a
   odh-built-in-detector:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: b4983e79c288ee231ef0e254a4e944dd27ea3b4d
@@ -105,7 +105,7 @@ additional_meta:
     git.commit: b741657f9e8f25d9d2c75d4c7f83a0314eac01d1
   odh-feast-operator:
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: 423b41672da7d3990d3127c8e342cbb8f3545be0
+    git.commit: f1b0e1b531b5ced14b9ba414b1f9f61036584176
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: 4507893b047ab297e3912147760b14cf2d4a942f
