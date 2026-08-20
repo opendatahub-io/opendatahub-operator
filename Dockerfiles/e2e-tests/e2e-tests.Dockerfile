@@ -52,6 +52,7 @@ WORKDIR /e2e
 COPY --from=builder /workspace/e2e-tests .
 COPY --from=builder /workspace/test-retry /go/bin/test-retry
 COPY tests/e2e/scripts/run_e2e_tests.sh /e2e/run_e2e_tests.sh
+COPY tests/e2e/scripts/e2e-scope-rules.yaml /e2e/scripts/e2e-scope-rules.yaml
 
 RUN chmod +x ./e2e-tests /e2e/run_e2e_tests.sh /go/bin/test-retry
 
