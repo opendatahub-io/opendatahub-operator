@@ -29,67 +29,108 @@ var workloadFamilies = []struct {
 	{name: "PyTorchJobs", kinds: []schema.GroupVersionKind{gvk.PyTorchJob}},
 }
 
+type queuedWorkload struct {
+	Namespace string
+}
+
 func Check(ctx context.Context, reader client.Reader, _, _ string) error {
-	state, err := ManagementState(ctx, reader)
+	state, err := validateManagementState(ctx, reader)
 	if err != nil {
 		return err
 	}
+
+	blocking := &UpgradeBlockedError{}
 
 	switch state {
 	case "":
 		return nil
-	case string(operatorv1.Managed), string(operatorv1.Unmanaged):
-		// Keep component-scoped validation focused on workload state.
 	case string(operatorv1.Removed):
-		return nil
+		workloads, err := collectQueuedWorkloads(ctx, reader)
+		if err != nil {
+			return err
+		}
+
+		blocking.QueuedWorkloadsWithRemovedKueue = validateRemovedWorkloads(workloads)
+	case string(operatorv1.Managed), string(operatorv1.Unmanaged):
+		workloads, err := collectQueuedWorkloads(ctx, reader)
+		if err != nil {
+			return err
+		}
+		blocking.WorkloadsWithoutKueueNamespaceLabel, err = validateNamespaceLabels(ctx, reader, workloads)
+		if err != nil {
+			return err
+		}
 	default:
 		return nil
 	}
 
-	blocking := &UpgradeBlockedError{}
-	blocking.WorkloadsWithoutKueueNamespaceLabel, err = collectWorkloadsWithoutKueueNamespaceLabel(ctx, reader)
-	if err != nil {
-		return err
-	}
-	if blocking.WorkloadsWithoutKueueNamespaceLabel == 0 {
+	if blocking.QueuedWorkloadsWithRemovedKueue == 0 &&
+		blocking.WorkloadsWithoutKueueNamespaceLabel == 0 {
 		return nil
 	}
 
 	return blocking
 }
 
-func collectWorkloadsWithoutKueueNamespaceLabel(ctx context.Context, reader client.Reader) (int, error) {
+func validateManagementState(ctx context.Context, reader client.Reader) (string, error) {
+	return ManagementState(ctx, reader)
+}
+
+func validateRemovedWorkloads(workloads []queuedWorkload) int {
+	return len(workloads)
+}
+
+func validateNamespaceLabels(ctx context.Context, reader client.Reader, workloads []queuedWorkload) (int, error) {
+	return collectWorkloadsWithoutKueueNamespaceLabel(ctx, reader, workloads)
+}
+
+func collectWorkloadsWithoutKueueNamespaceLabel(
+	ctx context.Context,
+	reader client.Reader,
+	workloads []queuedWorkload,
+) (int, error) {
 	namespaceManaged := make(map[string]bool)
 	blocking := 0
 
-	for _, family := range workloadFamilies {
-		list, err := listFirstSupportedFamily(ctx, reader, family.name, family.kinds)
-		if err != nil {
-			return 0, err
+	for _, workload := range workloads {
+		ns := workload.Namespace
+		managed, ok := namespaceManaged[ns]
+		if !ok {
+			var err error
+			managed, err = isNamespaceManagedByKueue(ctx, reader, ns)
+			if err != nil {
+				return 0, err
+			}
+			namespaceManaged[ns] = managed
 		}
 
-		for i := range list.Items {
-			if !resources.HasLabel(&list.Items[i], cluster.KueueQueueNameLabel) {
-				continue
-			}
-
-			ns := list.Items[i].GetNamespace()
-			managed, ok := namespaceManaged[ns]
-			if !ok {
-				managed, err = isNamespaceManagedByKueue(ctx, reader, ns)
-				if err != nil {
-					return 0, err
-				}
-				namespaceManaged[ns] = managed
-			}
-
-			if !managed {
-				blocking++
-			}
+		if !managed {
+			blocking++
 		}
 	}
 
 	return blocking, nil
+}
+
+func collectQueuedWorkloads(ctx context.Context, reader client.Reader) ([]queuedWorkload, error) {
+	workloads := make([]queuedWorkload, 0)
+
+	for _, family := range workloadFamilies {
+		list, err := listFirstSupportedFamily(ctx, reader, family.name, family.kinds)
+		if err != nil {
+			return nil, err
+		}
+
+		for i := range list.Items {
+			if resources.HasLabel(&list.Items[i], cluster.KueueQueueNameLabel) {
+				workloads = append(workloads, queuedWorkload{
+					Namespace: list.Items[i].GetNamespace(),
+				})
+			}
+		}
+	}
+
+	return workloads, nil
 }
 
 func listFirstSupportedFamily(

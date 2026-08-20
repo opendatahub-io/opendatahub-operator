@@ -108,7 +108,7 @@ func TestRegister_UnmanagedKueueWithManagedNamespacePasses(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
-func TestRegister_RemovedKueueIgnoresLabeledWorkloads(t *testing.T) {
+func TestRegister_RemovedKueueWithQueuedWorkloadsBlocks(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
@@ -116,6 +116,26 @@ func TestRegister_RemovedKueueIgnoresLabeledWorkloads(t *testing.T) {
 		renderKueue(t, "Removed"),
 		renderNamespace("workloads", nil),
 		renderNotebook(t, "workloads"),
+	)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	provision.RegisterUpgradeCheck(componentApi.KueueComponentName, kueuegate.Check)
+
+	err = provision.GetUpgradeCheck(componentApi.KueueComponentName)(ctx, cli, componentApi.KueueComponentName, "")
+	g.Expect(err).To(HaveOccurred())
+
+	var blockingErr *kueuegate.UpgradeBlockedError
+	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
+	g.Expect(blockingErr.QueuedWorkloadsWithRemovedKueue).To(Equal(1))
+	g.Expect(blockingErr.WorkloadsWithoutKueueNamespaceLabel).To(Equal(0))
+}
+
+func TestRegister_RemovedKueueWithoutQueuedWorkloadsPasses(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	cli, err := newKueueClient(
+		renderKueue(t, "Removed"),
 	)
 	g.Expect(err).ToNot(HaveOccurred())
 

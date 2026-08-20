@@ -21,7 +21,7 @@ Legend:
 | Jira | Component | Jira status | Task status | Jira comment alignment |
 | --- | --- | --- | --- | --- |
 | `RHOAIENG-82350` | DataSciencePipelines | Review | `✅ Implemented locally` | `Live Jira RBAC blocker now implemented locally` |
-| `RHOAIENG-82351` | Kueue | Resolved | `⚠️ Follow-up needed` | `Repo still allows Removed+queued workloads` |
+| `RHOAIENG-82351` | Kueue | Resolved | `✅ Implemented locally` | `Removed+queued workload blocker now implemented locally` |
 | `RHOAIENG-82352` | ModelRegistry | Closed | `🚫 Not needed` | `Live Jira says no domain-specific checks` |
 | `RHOAIENG-82353` | Ray | Resolved | `✅ Implemented locally` | `Aligned with latest Jira comments` |
 | `RHOAIENG-82354` | SparkOperator | Closed | `🚫 Not needed` | `-` |
@@ -65,8 +65,8 @@ Legend:
 ### `RHOAIENG-82351` Kueue
 
 - Jira status: `Resolved`
-- Task status: `Follow-up needed`
-- Jira comment alignment: `Discrepancy found`
+- Task status: `Implemented locally`
+- Jira comment alignment: `Aligned with latest Jira comments`
 - Jira comments:
   - clarify whether `kueue <-> kserve` integration validation belongs under the
     Kueue task or the KServe task
@@ -85,11 +85,8 @@ Legend:
   - if a future integration-specific `kueue <-> kserve` blocker is needed,
     scope it explicitly rather than folding it into the current workload and
     namespace-label validation by accident
-  - repo discrepancy: current `pkg/upgrade/gates/kueue/` logic returns success
-    when management state is `Removed`, and tests currently encode that
-    `Removed` behavior as non-blocking
-  - resume here by changing the `Removed` semantics only when queued workloads
-    are present, then update the corresponding tests
+  - repo now also blocks when queued workloads exist while Kueue is `Removed`,
+    matching the latest Jira clarification
 
 ### `RHOAIENG-82352` ModelRegistry
 

@@ -42,7 +42,8 @@ func TestKueueGates(t *testing.T) {
 	t.Run("unmanaged Kueue without operator passes", tc.testUnmanagedKueueWithoutOperatorPasses)
 	t.Run("unmanaged Kueue with missing namespace label blocks", tc.testUnmanagedKueueWithMissingNamespaceLabelBlocks)
 	t.Run("unmanaged Kueue with managed namespace passes", tc.testUnmanagedKueueWithManagedNamespacePasses)
-	t.Run("removed Kueue ignores labeled workloads", tc.testRemovedKueueIgnoresLabeledWorkloads)
+	t.Run("removed Kueue with queued workloads blocks", tc.testRemovedKueueWithQueuedWorkloadsBlocks)
+	t.Run("removed Kueue without queued workloads passes", tc.testRemovedKueueWithoutQueuedWorkloadsPasses)
 }
 
 func (tc *kueueGateTestCtx) testCleanClusterPasses(t *testing.T) {
@@ -139,7 +140,7 @@ func (tc *kueueGateTestCtx) testUnmanagedKueueWithManagedNamespacePasses(t *test
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
-func (tc *kueueGateTestCtx) testRemovedKueueIgnoresLabeledWorkloads(t *testing.T) {
+func (tc *kueueGateTestCtx) testRemovedKueueWithQueuedWorkloadsBlocks(t *testing.T) {
 	g := NewWithT(t)
 
 	obj := renderKueue(t, "Removed")
@@ -152,6 +153,22 @@ func (tc *kueueGateTestCtx) testRemovedKueueIgnoresLabeledWorkloads(t *testing.T
 	notebook := renderNotebook(t, ns.Name)
 	g.Expect(tc.cli.Create(t.Context(), notebook)).ToNot(HaveOccurred())
 	defer deleteObject(g, tc.cli, notebook)
+
+	err := kueuegate.Check(t.Context(), tc.cli, componentApi.KueueComponentName, "")
+	g.Expect(err).To(HaveOccurred())
+
+	var blockingErr *kueuegate.UpgradeBlockedError
+	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
+	g.Expect(blockingErr.QueuedWorkloadsWithRemovedKueue).To(Equal(1))
+	g.Expect(blockingErr.WorkloadsWithoutKueueNamespaceLabel).To(Equal(0))
+}
+
+func (tc *kueueGateTestCtx) testRemovedKueueWithoutQueuedWorkloadsPasses(t *testing.T) {
+	g := NewWithT(t)
+
+	obj := renderKueue(t, "Removed")
+	g.Expect(tc.cli.Create(t.Context(), obj)).ToNot(HaveOccurred())
+	defer deleteObject(g, tc.cli, obj)
 
 	err := kueuegate.Check(t.Context(), tc.cli, componentApi.KueueComponentName, "")
 	g.Expect(err).ToNot(HaveOccurred())
