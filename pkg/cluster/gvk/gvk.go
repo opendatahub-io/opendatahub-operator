@@ -67,6 +67,9 @@ const (
 
 	// KServe CRDs.
 	InferenceServicesCRDName = "inferenceservices.serving.kserve.io"
+
+	// Components CRDs.
+	DashboardComponentCRDName = "dashboards.components.platform.opendatahub.io"
 )
 
 var (
