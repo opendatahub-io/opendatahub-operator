@@ -11,6 +11,7 @@ linters:
     - gochecknoglobals
     - gocognit
     - godox
+    - gomodguard
     - gomoddirectives
     - mnd
     - nestif
