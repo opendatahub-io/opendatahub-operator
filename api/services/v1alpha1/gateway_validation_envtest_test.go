@@ -92,7 +92,7 @@ func TestGatewayIssuerURLValidationEnvtest(t *testing.T) {
 			// GatewayConfig is a cluster-scoped singleton; if a case is wrongly
 			// accepted, clean it up so it can't cascade AlreadyExists into later cases.
 			if err == nil {
-				_ = k8sClient.Delete(ctx, gw)
+				g.Expect(k8sClient.Delete(ctx, gw)).To(Succeed())
 			}
 			g.Expect(err).To(HaveOccurred())
 			g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
