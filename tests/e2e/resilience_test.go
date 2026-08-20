@@ -168,10 +168,11 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// OGX is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// Trainer is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// SparkOperator is excluded because it is a module (reports SparkOperatorReady via ModulesReady, not ComponentsReady)
+	// FeastOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// TrainingOperator is excluded because it is deprecated/removed (no handler, no deployment)
 	// ModelRegistry is excluded because it is a module (reports ModelRegistryReady via ModulesReady, not ComponentsReady)
 	//nolint:mnd // explicit count of excluded components
-	excludedComponents := 14
+	excludedComponents := 15
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+
