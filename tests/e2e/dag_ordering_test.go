@@ -261,6 +261,7 @@ func (tc *DAGOrderingTestCtx) ValidateXKSRunlevelGating(t *testing.T) {
 		tc.DeleteResource(
 			WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: tc.GetInstanceName(gvk.Kserve)}),
 			WithForegroundDeletion(),
+			WithIgnoreNotFound(true),
 			WithWaitForDeletion(true),
 		)
 		tc.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Removed)
