@@ -4,7 +4,7 @@ This file tracks the local follow-up for Jira epic `RHOAIENG-82327`
 ("Implement one-time upgrade gate for 2.x -> 3.5").
 
 It is a read-only snapshot of the relevant Jira child work items and comments as
-reviewed on 2026-08-18. Do not edit Jira from here.
+reviewed on 2026-08-20. Do not edit Jira from here.
 
 `Task status` is repo-local and reflects the current state of this repository,
 not the live Jira workflow.
@@ -13,23 +13,24 @@ Legend:
 - `✅` implemented locally
 - `📝` todo
 - `🚫` not needed
+- `⚠️` follow-up needed / discrepancy remains
 - `⚠️` requires confirmation against Jira comments or scope
 
 ## Status Table
 
 | Jira | Component | Jira status | Task status | Jira comment alignment |
 | --- | --- | --- | --- | --- |
-| `RHOAIENG-82350` | DataSciencePipelines | Review | `✅ Implemented locally` | `⚠️ Confirm scope` |
-| `RHOAIENG-82351` | Kueue | In Progress | `✅ Implemented locally` | `⚠️ Confirm scope` |
-| `RHOAIENG-82352` | ModelRegistry | In Progress | `📝 Todo` | `-` |
-| `RHOAIENG-82353` | Ray | New | `✅ Implemented locally` | `⚠️ Confirm scope` |
+| `RHOAIENG-82350` | DataSciencePipelines | Review | `⚠️ Follow-up needed` | `Live Jira adds missing RBAC blocker` |
+| `RHOAIENG-82351` | Kueue | Resolved | `⚠️ Follow-up needed` | `Repo still allows Removed+queued workloads` |
+| `RHOAIENG-82352` | ModelRegistry | Closed | `🚫 Not needed` | `Live Jira says no domain-specific checks` |
+| `RHOAIENG-82353` | Ray | Resolved | `✅ Implemented locally` | `Aligned with latest Jira comments` |
 | `RHOAIENG-82354` | SparkOperator | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82355` | Trainer | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82356` | TrainingOperator | Closed | `🚫 Not needed` | `-` |
-| `RHOAIENG-82357` | TrustyAI | In Progress | `📝 Todo` | `-` |
-| `RHOAIENG-82359` | Dashboard | In Progress | `📝 Todo` | `-` |
-| `RHOAIENG-82360` | KServe | In Progress | `✅ Implemented locally` | `⚠️ Confirm scope` |
-| `RHOAIENG-82361` | Workbenches | New | `📝 Todo` | `-` |
+| `RHOAIENG-82357` | TrustyAI | Resolved | `⚠️ Follow-up needed` | `Only spike doc link visible in Jira comments` |
+| `RHOAIENG-82359` | Dashboard | In Progress | `⚠️ Follow-up needed` | `Comment scope looks broader than operator gates` |
+| `RHOAIENG-82360` | KServe | Resolved | `✅ Implemented locally` | `Aligned with latest Jira comments` |
+| `RHOAIENG-82361` | Workbenches | Backlog | `⚠️ Follow-up needed` | `No text summary yet; Jira comment is image-based` |
 | `RHOAIENG-82370` | FeastOperator | Resolved | `🚫 Not needed` | `-` |
 | `RHOAIENG-82371` | LlamaStackOperator | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82372` | OGX | Closed | `🚫 Not needed` | `-` |
@@ -44,25 +45,34 @@ Legend:
 
 ### `RHOAIENG-82350` DataSciencePipelines
 
-- Jira status: `In Progress`
-- Task status: `Implemented locally`
-- Jira comment alignment: `Requires confirmation`
-- Jira comments: no actionable comments found beyond the generic spike request.
+- Jira status: `Review`
+- Task status: `Follow-up needed`
+- Jira comment alignment: `Discrepancy found`
+- Jira comments:
+  - latest live Jira comment adds a second blocking requirement beyond CRD
+    stored versions: scan custom Roles that still grant the old Route-based API
+    access but do not grant `datasciencepipelinesapplications/api`
 - Checks implemented in repo:
   - block when the `DataSciencePipelinesApplication` CRD still reports
     `v1alpha1` in `status.storedVersions`
-- Follow-up note:
-  - confirm that the stored-version blocker is the intended Jira scope for this
-    child item and that no separate DSP migration gate is expected
+- Discrepancy to resolve later:
+  - repo currently only implements the CRD stored-version blocker
+  - no gate exists yet for the custom RBAC / API-subresource migration check
+- Resume note:
+  - if this stays in scope for operator-side upgrade gates, implement the RBAC
+    blocker first; otherwise record explicitly why it remains odh-cli-only
 
 ### `RHOAIENG-82351` Kueue
 
-- Jira status: `New`
-- Task status: `Implemented locally`
-- Jira comment alignment: `Requires confirmation`
+- Jira status: `Resolved`
+- Task status: `Follow-up needed`
+- Jira comment alignment: `Discrepancy found`
 - Jira comments:
   - clarify whether `kueue <-> kserve` integration validation belongs under the
     Kueue task or the KServe task
+  - latest live Jira follow-up says queued workloads require Kueue to be
+    `Unmanaged`, not `Removed`; if queued workloads exist, `Removed` should also
+    fail the gate
 - Checks implemented in repo:
   - block when kueue-labeled workloads live in namespaces missing
     `kueue.openshift.io/managed=true`
@@ -75,23 +85,32 @@ Legend:
   - if a future integration-specific `kueue <-> kserve` blocker is needed,
     scope it explicitly rather than folding it into the current workload and
     namespace-label validation by accident
+  - repo discrepancy: current `pkg/upgrade/gates/kueue/` logic returns success
+    when management state is `Removed`, and tests currently encode that
+    `Removed` behavior as non-blocking
+  - resume here by changing the `Removed` semantics only when queued workloads
+    are present, then update the corresponding tests
 
 ### `RHOAIENG-82352` ModelRegistry
 
-- Jira status: `New`
-- Task status: `Todo`
-- Jira comments: no actionable comments found beyond the generic spike request.
-- Checks to implement:
-  - determine whether ModelRegistry has any persisted `2.25` state that becomes
-    a hard blocker during `3.5` reconciliation
-  - only add a gate if that state can be detected from live cluster resources
+- Jira status: `Closed`
+- Task status: `Not needed`
+- Jira comments:
+  - live Jira comment says the team decided there are no domain-specific upgrade
+    validation checks for ModelRegistry
+- Local interpretation:
+  - keep this as a documented no-op unless a later Jira reopen introduces a
+    concrete live-cluster blocker
 
 ### `RHOAIENG-82353` Ray
 
-- Jira status: `New`
+- Jira status: `Resolved`
 - Task status: `Implemented locally`
-- Jira comment alignment: `Requires confirmation`
-- Jira comments: no actionable comments found beyond the generic spike request.
+- Jira comment alignment: `Aligned`
+- Jira comments:
+  - latest live Jira thread confirms AppWrappers are advisory/non-blocking
+  - Kueue management-state blocking is tracked under `RHOAIENG-82351`, not this
+    Ray gate
 - Checks implemented in repo:
   - block when `RayCluster` objects still carry the
     `ray.openshift.ai/oauth-finalizer`
@@ -128,32 +147,46 @@ Legend:
 
 ### `RHOAIENG-82357` TrustyAI
 
-- Jira status: `In Progress`
-- Task status: `Todo`
-- Jira comments: no actionable comments found beyond the generic spike request.
-- Checks to implement:
-  - determine whether TrustyAI has any upgrade-blocking runtime state that
-    remains visible to the `3.5` operator
-  - avoid adding advisory-only or operator-absent checks
+- Jira status: `Resolved`
+- Task status: `Follow-up needed`
+- Jira comments:
+  - live Jira comments only expose a link to an external spike document; the
+    visible Jira text does not say whether the result is "no gate needed" or
+    "gate still pending elsewhere"
+- Discrepancy to resolve later:
+  - repo has no `trustyai` gate package, but the Jira issue is already resolved
+- Resume note:
+  - read the linked spike doc or get a short text summary from the component
+    owner before changing this to either `Not needed` or `Implemented locally`
 
 ### `RHOAIENG-82359` Dashboard
 
 - Jira status: `In Progress`
-- Task status: `Todo`
+- Task status: `Follow-up needed`
 - Jira comments:
-  - prior investigation of the same upgrade path may help with testing, but no
-    concrete validation checks were specified
-- Checks to implement:
-  - identify any live Dashboard-owned resources that should hard-block
-    auto-acknowledgement during `2.25 -> 3.5`
-  - keep testing notes separate from actual blocking conditions
+  - latest live Jira comment contains a broad dashboard upgrade analysis with
+    proposed checks for CRD conversion webhooks, CRD storedVersions, finalizer
+    orphaning, oauth-proxy transition, route topology, resource capacity, and
+    `OdhDashboardConfig`
+- Discrepancy to resolve later:
+  - many of those proposals appear to target odh-cli lint or manual
+    delete/recreate upgrade paths rather than live operator-side upgrade gates
+  - no dashboard-specific gate package exists in this repo yet
+- Resume note:
+  - triage the Jira list into:
+    - valid operator-side live blockers
+    - odh-cli/manual-upgrade checks that should stay out of this repo
+  - do not start implementing dashboard gates until that scope split is made
 
 ### `RHOAIENG-82360` KServe
 
-- Jira status: `New`
+- Jira status: `Resolved`
 - Task status: `Implemented locally`
-- Jira comment alignment: `Requires confirmation`
-- Jira comments: no actionable comments found beyond the generic spike request.
+- Jira comment alignment: `Aligned`
+- Jira comments:
+  - latest live Jira comments say the existing KServe checks are sufficient
+  - Kueue-related follow-up was reviewed and does not currently require extra
+    KServe-side gate logic
 - Checks implemented in repo:
   - block on `InferenceService` objects using
     `serving.kserve.io/deploymentMode=Serverless`
@@ -168,13 +201,19 @@ Legend:
 
 ### `RHOAIENG-82361` Workbenches
 
-- Jira status: `New`
-- Task status: `Todo`
-- Jira comments: no actionable comments found beyond the generic spike request.
-- Checks to implement:
-  - determine whether Workbenches have any live `2.25` workload state that
-    needs to block `3.5` upgrade auto-ack
-  - prefer a direct workload/resource check over a synthetic migration checklist
+- Jira status: `Backlog`
+- Task status: `Follow-up needed`
+- Jira comments:
+  - live Jira comments show schedule movement and an attached image-based
+    evaluation, but there is no text summary in Jira comments that can be used
+    as an implementation spec here
+- Discrepancy to resolve later:
+  - repo has no workbenches-specific upgrade gate package
+  - current Jira text is not enough to tell whether a real operator-side gate is
+    needed
+- Resume note:
+  - ask for the image contents to be summarized in text or capture the exact
+    proposed blockers before implementing anything in this repo
 
 ### `RHOAIENG-82370` FeastOperator
 
