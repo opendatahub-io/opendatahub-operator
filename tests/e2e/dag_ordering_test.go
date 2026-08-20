@@ -443,10 +443,13 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 			if !comp.internal {
 				continue
 			}
-			instanceName := tc.findFirstCRName(t, comp.resolvedGVK())
-			if instanceName == "" {
-				t.Logf("No %s CRs found, skipping readiness check", comp.resolvedGVK().Kind)
-				continue
+			instanceName := tc.resolvedCRName(comp)
+			if comp.crName == "" {
+				instanceName = tc.findFirstCRName(t, comp.resolvedGVK())
+				if instanceName == "" {
+					t.Logf("No %s CRs found, skipping readiness check", comp.resolvedGVK().Kind)
+					continue
+				}
 			}
 
 			tc.EnsureResourceExists(
