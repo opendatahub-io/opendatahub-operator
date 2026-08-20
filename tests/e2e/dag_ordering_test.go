@@ -42,16 +42,8 @@ type componentBatch struct {
 }
 
 type componentEntry struct {
-	name string
-	gvk  schema.GroupVersionKind
-	// crGVK is the GVK of the actual CR this component provisions, when it
-	// differs from gvk (e.g. a module that projects into a shared CR:
-	// ModelRegistry → AIHub). Zero value means the CR GVK equals gvk.
-	crGVK schema.GroupVersionKind
-	// crName is the actual CR name when it is not the conventional
-	// "default-<kind>" (e.g. the AIHub singleton is named "default").
-	// Empty means use GetInstanceName(resolvedGVK()).
-	crName   string
+	name     string
+	gvk      schema.GroupVersionKind
 	internal bool // components whose CR may not exist in the test (webhook-blocked, auto-created, etc.)
 }
 
@@ -65,12 +57,10 @@ var dagBatches = []componentBatch{
 			{name: componentApi.DashboardComponentName, gvk: gvk.Dashboard, internal: true},
 			{name: componentApi.DataSciencePipelinesComponentName, gvk: gvk.DataSciencePipelines},
 			// ModelRegistry is an out-of-tree module whose CR is the shared
-			// cluster-scoped AIHub singleton (name "default"), not a per-component
-			// "default-modelregistry" CR. crGVK/crName point the DAG assertions at
-			// the real AIHub CR; internal routes it through the module-readiness
-			// (Ready=True) path like the other modules (mlflow, spark) rather than
-			// the in-tree PlatformReady path.
-			{name: componentApi.ModelRegistryComponentName, gvk: gvk.ModelRegistry, crGVK: gvk.AIHub, crName: "default", internal: true},
+			// cluster-scoped AIHub singleton "default-aihub"; it is referenced
+			// directly via gvk.AIHub and routed through the module-readiness
+			// (Ready=True) path like the other modules (mlflow, spark).
+			{name: componentApi.ModelRegistryComponentName, gvk: gvk.AIHub, internal: true},
 			{name: componentApi.RayComponentName, gvk: gvk.Ray},
 			{name: componentApi.TrainerComponentName, gvk: gvk.Trainer, internal: true},
 			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches, internal: true},
@@ -443,13 +433,10 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 			if !comp.internal {
 				continue
 			}
-			instanceName := tc.resolvedCRName(comp)
-			if comp.crName == "" {
-				instanceName = tc.findFirstCRName(t, comp.resolvedGVK())
-				if instanceName == "" {
-					t.Logf("No %s CRs found, skipping readiness check", comp.resolvedGVK().Kind)
-					continue
-				}
+			instanceName := tc.findFirstCRName(t, comp.resolvedGVK())
+			if instanceName == "" {
+				t.Logf("No %s CRs found, skipping readiness check", comp.resolvedGVK().Kind)
+				continue
 			}
 
 			tc.EnsureResourceExists(
@@ -641,14 +628,14 @@ func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 	t.Log("Verifying enabled CRs are created")
 	// dashboard and kserve are in-tree component CRs ("default-<kind>"); modelregistry
 	// is an out-of-tree module whose CR is the shared cluster-scoped AIHub singleton
-	// named "default".
+	// named "default-aihub".
 	enabledCRs := []struct {
 		gvk  schema.GroupVersionKind
 		name string
 	}{
 		{gvk.Dashboard, tc.GetInstanceName(gvk.Dashboard)},
 		{gvk.Kserve, tc.GetInstanceName(gvk.Kserve)},
-		{gvk.AIHub, "default"},
+		{gvk.AIHub, "default-aihub"},
 	}
 	for _, cr := range enabledCRs {
 		tc.EnsureResourceExists(
@@ -909,17 +896,11 @@ func (tc *DAGOrderingTestCtx) deleteGateSourceCMs(t *testing.T, names ...string)
 
 // resolvedGVK returns the GVK of the actual CR this entry provisions.
 func (c componentEntry) resolvedGVK() schema.GroupVersionKind {
-	if c.crGVK.Empty() {
-		return c.gvk
-	}
-	return c.crGVK
+	return c.gvk
 }
 
 // resolvedCRName returns the name of the actual CR this entry provisions.
 func (tc *DAGOrderingTestCtx) resolvedCRName(c componentEntry) string {
-	if c.crName != "" {
-		return c.crName
-	}
 	return tc.GetInstanceName(c.resolvedGVK())
 }
 

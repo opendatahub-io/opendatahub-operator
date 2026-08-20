@@ -373,12 +373,6 @@ var (
 		Kind:    componentApi.TrustyAIKind,
 	}
 
-	ModelRegistry = schema.GroupVersionKind{
-		Group:   componentApi.GroupVersion.Group,
-		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.ModelRegistryKind,
-	}
-
 	Trainer = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
