@@ -66,19 +66,16 @@ func TestMonitorDependencies(t *testing.T) {
 		{
 			name: "unmanaged dependency is True with Unmanaged reason",
 			dependencies: ccmcommon.Dependencies{
-				CertManager:  ccmcommon.CertManagerDependency{ManagementPolicy: ccmcommon.Unmanaged},
 				GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
 				LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Unmanaged},
 				SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
 			},
 			expectedStatus: map[string]metav1.ConditionStatus{
-				status.ConditionCertManagerReady:  metav1.ConditionTrue,
 				status.ConditionGatewayAPIReady:   metav1.ConditionTrue,
 				status.ConditionLWSReady:          metav1.ConditionTrue,
 				status.ConditionSailOperatorReady: metav1.ConditionTrue,
 			},
 			expectedReasons: map[string]string{
-				status.ConditionCertManagerReady:  status.UnmanagedReason,
 				status.ConditionGatewayAPIReady:   status.UnmanagedReason,
 				status.ConditionLWSReady:          status.UnmanagedReason,
 				status.ConditionSailOperatorReady: status.UnmanagedReason,
@@ -87,50 +84,12 @@ func TestMonitorDependencies(t *testing.T) {
 		{
 			name: "managed GatewayAPI without deployments or CR is True",
 			dependencies: ccmcommon.Dependencies{
-				CertManager:  ccmcommon.CertManagerDependency{ManagementPolicy: ccmcommon.Unmanaged},
 				GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Managed},
 				LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Unmanaged},
 				SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
 			},
 			expectedStatus: map[string]metav1.ConditionStatus{
 				status.ConditionGatewayAPIReady: metav1.ConditionTrue,
-			},
-		},
-		{
-			name: "deployment not ready is False",
-			dependencies: ccmcommon.Dependencies{
-				CertManager:  ccmcommon.CertManagerDependency{ManagementPolicy: ccmcommon.Managed},
-				GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
-				LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Unmanaged},
-				SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
-			},
-			objects: func(_ string) []client.Object {
-				return []client.Object{
-					newDeployment("cert-manager-operator", ccmcommon.DefaultNamespaceCertManagerOperator, 0),
-				}
-			},
-			expectedStatus: map[string]metav1.ConditionStatus{
-				status.ConditionCertManagerReady: metav1.ConditionFalse,
-			},
-			expectedReasons: map[string]string{
-				status.ConditionCertManagerReady: status.ConditionDeploymentsNotAvailableReason,
-			},
-		},
-		{
-			name: "deployment ready is True",
-			dependencies: ccmcommon.Dependencies{
-				CertManager:  ccmcommon.CertManagerDependency{ManagementPolicy: ccmcommon.Managed},
-				GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
-				LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Unmanaged},
-				SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
-			},
-			objects: func(_ string) []client.Object {
-				return []client.Object{
-					newDeployment("cert-manager-operator", ccmcommon.DefaultNamespaceCertManagerOperator, 1),
-				}
-			},
-			expectedStatus: map[string]metav1.ConditionStatus{
-				status.ConditionCertManagerReady: metav1.ConditionTrue,
 			},
 		},
 	}
@@ -312,7 +271,6 @@ func TestSummarizeDependencyStatus(t *testing.T) {
 		{
 			name: "all ready sets DependenciesReady and Ready True",
 			dependencies: ccmcommon.Dependencies{
-				CertManager:  ccmcommon.CertManagerDependency{ManagementPolicy: ccmcommon.Unmanaged},
 				GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
 				LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Unmanaged},
 				SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
@@ -322,37 +280,35 @@ func TestSummarizeDependencyStatus(t *testing.T) {
 		{
 			name: "single dependency not ready lists it in DependenciesReady message",
 			dependencies: ccmcommon.Dependencies{
-				CertManager:  ccmcommon.CertManagerDependency{ManagementPolicy: ccmcommon.Managed},
-				GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
-				LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Unmanaged},
-				SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
-			},
-			objects: func(_ string) []client.Object {
-				return []client.Object{
-					newDeployment("cert-manager-operator", ccmcommon.DefaultNamespaceCertManagerOperator, 0),
-				}
-			},
-			expectedReadyStatus:  metav1.ConditionFalse,
-			expectedReadyReason:  status.NotReadyReason,
-			expectedReadyMessage: "Dependencies not ready: cert-manager-operator",
-		},
-		{
-			name: "multiple dependencies not ready lists all in DependenciesReady message",
-			dependencies: ccmcommon.Dependencies{
-				CertManager:  ccmcommon.CertManagerDependency{ManagementPolicy: ccmcommon.Managed},
 				GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
 				LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Managed},
 				SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
 			},
-			objects: func(ns string) []client.Object {
+			objects: func(_ string) []client.Object {
 				return []client.Object{
-					newDeployment("cert-manager-operator", ccmcommon.DefaultNamespaceCertManagerOperator, 0),
-					newDeployment("lws-operator", ns, 0),
+					newDeployment("lws-operator", ccmcommon.DefaultNamespaceLWSOperator, 0),
 				}
 			},
 			expectedReadyStatus:  metav1.ConditionFalse,
 			expectedReadyReason:  status.NotReadyReason,
-			expectedReadyMessage: "Dependencies not ready: cert-manager-operator, lws-operator",
+			expectedReadyMessage: "Dependencies not ready: lws-operator",
+		},
+		{
+			name: "multiple dependencies not ready lists all in DependenciesReady message",
+			dependencies: ccmcommon.Dependencies{
+				GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
+				LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Managed},
+				SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Managed},
+			},
+			objects: func(_ string) []client.Object {
+				return []client.Object{
+					newDeployment("lws-operator", ccmcommon.DefaultNamespaceLWSOperator, 0),
+					newDeployment("sail-operator", ccmcommon.DefaultNamespaceSailOperator, 0),
+				}
+			},
+			expectedReadyStatus:  metav1.ConditionFalse,
+			expectedReadyReason:  status.NotReadyReason,
+			expectedReadyMessage: "Dependencies not ready: lws-operator, sail-operator",
 		},
 	}
 

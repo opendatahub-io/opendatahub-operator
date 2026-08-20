@@ -51,9 +51,6 @@ func Download(ctx context.Context, opts Options) error {
 	platform := normalizePlatform(opts.Platform)
 
 	manifests := collectEntries(cfg.Components, platform)
-	if len(manifests) == 0 {
-		return fmt.Errorf("no component manifests found for platform %q", platform)
-	}
 
 	if err := applyOverrides(manifests, opts.Overrides); err != nil {
 		return err
@@ -62,6 +59,10 @@ func Download(ctx context.Context, opts Options) error {
 	charts, err := mergeCharts(cfg.CCMCharts, cfg.ComponentCharts, platform)
 	if err != nil {
 		return err
+	}
+
+	if len(manifests) == 0 && len(charts) == 0 {
+		return fmt.Errorf("no components or charts found for platform %q", platform)
 	}
 
 	fmt.Printf("%sDownloading manifests for %s%s%s (%d components, %d charts)%s\n",

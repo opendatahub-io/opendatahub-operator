@@ -6,11 +6,6 @@ import (
 )
 
 var (
-	CertManagerOperatorCR = types.OperatorCR{
-		GVK:  gvk.CertManagerV1Alpha1,
-		Name: "cluster",
-	}
-
 	LWSOperatorCR = types.OperatorCR{
 		GVK:  gvk.LeaderWorkerSetOperatorV1,
 		Name: "cluster",

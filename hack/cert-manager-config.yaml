@@ -1,0 +1,10 @@
+ccmCharts:
+  cert-manager-operator:
+    odh:
+      repo: opendatahub-io/odh-gitops
+      ref: main@2bea136eebe50eb9b734021f2014011962fa1bac
+      sourcePath: charts/dependencies/cert-manager-operator
+    rhoai:
+      repo: red-hat-data-services/odh-gitops
+      ref: rhoai-3.5@679eaa9941cee7516f3b80f56236714219015538
+      sourcePath: charts/dependencies/cert-manager-operator

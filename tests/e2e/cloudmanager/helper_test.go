@@ -6,13 +6,11 @@ import (
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ccmapi "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
-	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -28,29 +26,6 @@ const (
 	customSailOperatorNS = "test-istio-system"
 )
 
-// Hardcoded cert-manager namespaces.
-const (
-	certManagerOperatorNS = "cert-manager-operator"
-	certManagerOperandNS  = "cert-manager"
-)
-
-type deploymentRef struct {
-	Name      string
-	Namespace string
-}
-
-// certManagerOperandDeployments lists the cert-manager operand Deployments created
-// by cert-manager-operator when it processes the CertManager/cluster CR. These are
-// not directly owned by the *Engine CRs (no OwnerRef), so they do not appear in
-// managedDependencyDeployments. They are cleaned up transitively: the CCM finalizer
-// action deletes CertManager/cluster, cert-manager-operator processes its own
-// finalizers, and removes these Deployments before the operator pod is killed.
-var certManagerOperandDeployments = []deploymentRef{
-	{Name: "cert-manager", Namespace: "cert-manager"},
-	{Name: "cert-manager-cainjector", Namespace: "cert-manager"},
-	{Name: "cert-manager-webhook", Namespace: "cert-manager"},
-}
-
 func newCloudManagerCR(deps map[string]any) *unstructured.Unstructured {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(provider.GVK)
@@ -64,9 +39,6 @@ func newCloudManagerCR(deps map[string]any) *unstructured.Unstructured {
 func depsWithCustomNamespaces(policy ccmapi.ManagementPolicy) map[string]any {
 	p := string(policy)
 	return map[string]any{
-		"certManager": map[string]any{
-			"managementPolicy": p,
-		},
 		"lws": map[string]any{
 			"managementPolicy": p,
 			"configuration": map[string]any{
@@ -122,8 +94,6 @@ func getDependencies(wt *testf.WithT, cr *unstructured.Unstructured) ccmapi.Depe
 // identified by the InfrastructurePartOf label. It asserts that every such deployment
 // is located in one of the expected namespaces, failing the test if any deployment is
 // found in an unexpected namespace (e.g., misplaced resources).
-// Note: Only includes operator deployments, not operand deployments (e.g., cert-manager-operator,
-// not the cert-manager controller/webhook which are managed by the operator itself).
 func getManagedDependencyDeployments(wt *testf.WithT, cr *unstructured.Unstructured) []unstructured.Unstructured {
 	deps := getDependencies(wt, cr)
 
@@ -134,10 +104,8 @@ func getManagedDependencyDeployments(wt *testf.WithT, cr *unstructured.Unstructu
 	wt.Expect(sailNS).NotTo(BeEmpty(), "sailOperator namespace should be set by kubebuilder default")
 
 	expectedNamespaces := map[string]bool{
-		certManagerOperandNS:  true,
-		certManagerOperatorNS: true,
-		lwsNS:                 true,
-		sailNS:                true,
+		lwsNS:  true,
+		sailNS: true,
 	}
 
 	// Get all deployments with the InfrastructurePartOf label
@@ -174,11 +142,6 @@ func getManagedDependencyDeploymentByName(wt *testf.WithT, cr *unstructured.Unst
 	return unstructured.Unstructured{} // unreachable after Fail
 }
 
-// getCertManagerOperandNamespace returns the hardcoded cert-manager operand namespace.
-func getCertManagerOperandNamespace() string {
-	return certManagerOperandNS
-}
-
 // getSailOperatorNamespace reads the sail operator namespace from the CR spec using typed methods.
 func getSailOperatorNamespace(wt *testf.WithT, cr *unstructured.Unstructured) string {
 	deps := getDependencies(wt, cr)
@@ -203,32 +166,6 @@ func waitForDeploymentsAvailable(wt *testf.WithT, deployments []unstructured.Uns
 	}
 }
 
-// forceDeleteCertManagerCR removes finalizers from CertManager/cluster and deletes it.
-// The cert-manager-operator may recreate this CR during graceful shutdown (CM-1019),
-// and without the operator running the finalizers can never be processed.
-// Idempotent: returns immediately if the CR does not exist.
-func forceDeleteCertManagerCR(wt *testf.WithT) {
-	wt.THelper()
-
-	cr := ccmcommon.CertManagerOperatorCR
-	nn := types.NamespacedName{Name: cr.Name}
-
-	obj := unstructured.Unstructured{}
-	obj.SetGroupVersionKind(cr.GVK)
-
-	err := wt.Client().Get(wt.Context(), nn, &obj)
-	if k8serr.IsNotFound(err) {
-		return
-	}
-
-	wt.Expect(err).ToNot(HaveOccurred())
-
-	obj.SetFinalizers(nil)
-	wt.Expect(wt.Client().Update(wt.Context(), &obj)).To(Succeed())
-	wt.Delete(cr.GVK, nn).Eventually().Should(Succeed())
-	wt.Get(cr.GVK, nn).Eventually().Should(BeNil())
-}
-
 // getPartOfLabelValue returns the value used for the InfrastructurePartOf label
 // by converting the provider's kind to lowercase.
 func getPartOfLabelValue() string {
@@ -241,35 +178,6 @@ func getAllManagedNamespaces(wt *testf.WithT) []unstructured.Unstructured {
 	return wt.List(gvk.Namespace,
 		client.MatchingLabels{labels.InfrastructurePartOf: getPartOfLabelValue()},
 	).Eventually().Should(Not(BeEmpty()))
-}
-
-// getCertManagerOperandDeployments returns the cert-manager operand deployments
-// from the cert-manager namespace. These are created by the cert-manager operator,
-// not directly by the cloud manager, so they don't have the InfrastructurePartOf label.
-// Expected deployments: cert-manager, cert-manager-webhook, cert-manager-cainjector.
-func getCertManagerOperandDeployments(wt *testf.WithT) []unstructured.Unstructured {
-	allDeployments := wt.List(gvk.Deployment,
-		client.InNamespace(certManagerOperandNS),
-	).Eventually().Should(Not(BeEmpty()))
-
-	// Filter for cert-manager deployments by name prefix
-	var certManagerDeployments []unstructured.Unstructured
-	for _, dep := range allDeployments {
-		name := dep.GetName()
-		if strings.HasPrefix(name, "cert-manager") {
-			certManagerDeployments = append(certManagerDeployments, dep)
-		}
-	}
-
-	return certManagerDeployments
-}
-
-// waitForCertManagerOperandAvailable waits until all cert-manager operand deployments
-// are Available, verifying that cert-manager is running correctly.
-func waitForCertManagerOperandAvailable(wt *testf.WithT) {
-	deployments := getCertManagerOperandDeployments(wt)
-	wt.Expect(deployments).To(HaveLen(3), "expected 3 cert-manager operand deployments (controller, webhook, cainjector)")
-	waitForDeploymentsAvailable(wt, deployments)
 }
 
 // pkiNames holds cert-manager PKI resource names discovered from the cloud manager deployment.

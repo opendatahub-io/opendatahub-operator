@@ -27,7 +27,6 @@ import (
 
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	certmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/cloudmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
@@ -220,10 +219,7 @@ func CreateCR(t *testing.T, wt *testf.WithT, cfg ControllerTestConfig, deps ccmc
 // Targets are derived automatically from production code, so new cleanup
 // targets are picked up without test changes.
 func StripOperatorCRFinalizers(ctx context.Context, cli client.Client) error {
-	targets := append(
-		cloudmanager.FinalizerCleanupTargets(),
-		certmanager.BootstrapCleanupTarget(),
-	)
+	targets := cloudmanager.FinalizerCleanupTargets()
 
 	for _, t := range targets {
 		obj := &unstructured.Unstructured{}
