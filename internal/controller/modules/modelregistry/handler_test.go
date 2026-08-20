@@ -129,7 +129,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	g.Expect(u.GetName()).Should(Equal("default"))
+	g.Expect(u.GetName()).Should(Equal("default-aihub"))
 	g.Expect(u.GroupVersionKind()).Should(Equal(gvk.AIHub))
 
 	spec, ok := u.Object["spec"].(map[string]any)

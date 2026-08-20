@@ -21,7 +21,7 @@ import (
 
 const (
 	moduleName = componentApi.ModelRegistryComponentName
-	crName     = "default"
+	crName     = "default-aihub"
 )
 
 type handler struct {
