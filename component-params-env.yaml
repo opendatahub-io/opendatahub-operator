@@ -69,3 +69,6 @@ rhoai_exceptions:
   reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1
 - image: RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE
   reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1
+- image: RELATED_IMAGE_ODH_MOD_ARCH_NOTEBOOKS_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-58839
+  reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1
