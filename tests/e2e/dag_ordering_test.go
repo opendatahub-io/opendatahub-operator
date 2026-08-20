@@ -42,8 +42,16 @@ type componentBatch struct {
 }
 
 type componentEntry struct {
-	name     string
-	gvk      schema.GroupVersionKind
+	name string
+	gvk  schema.GroupVersionKind
+	// crGVK is the GVK of the actual CR this component provisions, when it
+	// differs from gvk (e.g. a module that projects into a shared CR:
+	// ModelRegistry → AIHub). Zero value means the CR GVK equals gvk.
+	crGVK schema.GroupVersionKind
+	// crName is the actual CR name when it is not the conventional
+	// "default-<kind>" (e.g. the AIHub singleton is named "default").
+	// Empty means use GetInstanceName(resolvedGVK()).
+	crName   string
 	internal bool // components whose CR may not exist in the test (webhook-blocked, auto-created, etc.)
 }
 
@@ -56,7 +64,13 @@ var dagBatches = []componentBatch{
 		components: []componentEntry{
 			{name: componentApi.DashboardComponentName, gvk: gvk.Dashboard, internal: true},
 			{name: componentApi.DataSciencePipelinesComponentName, gvk: gvk.DataSciencePipelines},
-			{name: componentApi.ModelRegistryComponentName, gvk: gvk.ModelRegistry},
+			// ModelRegistry is an out-of-tree module whose CR is the shared
+			// cluster-scoped AIHub singleton (name "default"), not a per-component
+			// "default-modelregistry" CR. crGVK/crName point the DAG assertions at
+			// the real AIHub CR; internal routes it through the module-readiness
+			// (Ready=True) path like the other modules (mlflow, spark) rather than
+			// the in-tree PlatformReady path.
+			{name: componentApi.ModelRegistryComponentName, gvk: gvk.ModelRegistry, crGVK: gvk.AIHub, crName: "default", internal: true},
 			{name: componentApi.RayComponentName, gvk: gvk.Ray},
 			{name: componentApi.TrainerComponentName, gvk: gvk.Trainer, internal: true},
 			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches, internal: true},
@@ -400,7 +414,7 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 				continue
 			}
 			tc.EnsureResourceExists(
-				WithMinimalObject(comp.gvk, types.NamespacedName{Name: tc.GetInstanceName(comp.gvk)}),
+				WithMinimalObject(comp.resolvedGVK(), types.NamespacedName{Name: tc.resolvedCRName(comp)}),
 				WithCondition(jq.Match(
 					`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
 					precondition.PlatformReadyConditionType, metav1.ConditionTrue,
@@ -429,14 +443,14 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 			if !comp.internal {
 				continue
 			}
-			instanceName := tc.findFirstCRName(t, comp.gvk)
+			instanceName := tc.findFirstCRName(t, comp.resolvedGVK())
 			if instanceName == "" {
-				t.Logf("No %s CRs found, skipping readiness check", comp.gvk.Kind)
+				t.Logf("No %s CRs found, skipping readiness check", comp.resolvedGVK().Kind)
 				continue
 			}
 
 			tc.EnsureResourceExists(
-				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
+				WithMinimalObject(comp.resolvedGVK(), types.NamespacedName{Name: instanceName}),
 				WithCondition(jq.Match(
 					`any(.status.conditions[]; .type == "Ready" and .status == "True")`,
 				)),
@@ -465,14 +479,14 @@ func (tc *DAGOrderingTestCtx) ValidatePlatformReady(t *testing.T) {
 				continue
 			}
 
-			instanceName := tc.findFirstCRName(t, comp.gvk)
+			instanceName := tc.findFirstCRName(t, comp.resolvedGVK())
 			if instanceName == "" {
-				t.Logf("No %s CRs found, skipping PlatformReady check", comp.gvk.Kind)
+				t.Logf("No %s CRs found, skipping PlatformReady check", comp.resolvedGVK().Kind)
 				continue
 			}
 
 			tc.EnsureResourceExists(
-				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
+				WithMinimalObject(comp.resolvedGVK(), types.NamespacedName{Name: instanceName}),
 				WithCondition(jq.Match(
 					`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
 					precondition.PlatformReadyConditionType, metav1.ConditionTrue,
@@ -593,9 +607,9 @@ func (tc *DAGOrderingTestCtx) ValidateDAGCleanup(t *testing.T) {
 	t.Log("Verifying all component CRs are cleaned up (no orphans)")
 	for _, batch := range dagBatches {
 		for _, comp := range batch.components {
-			instanceName := tc.GetInstanceName(comp.gvk)
+			instanceName := tc.resolvedCRName(comp)
 			tc.EnsureResourceGone(
-				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
+				WithMinimalObject(comp.resolvedGVK(), types.NamespacedName{Name: instanceName}),
 				WithEventuallyTimeout(5*time.Minute),
 				WithEventuallyPollingInterval(10*time.Second),
 			)
@@ -615,21 +629,30 @@ func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 
 	partialFields := []string{"dashboard", "kserve", "modelregistry"}
 
-	t.Log("Enabling partial set: dashboard (batch 20), kserve (batch 31), modelregistry (batch 20)")
+	t.Log("Enabling partial set: dashboard (batch 20), kserve (batch 31), modelregistry (batch 20, AIHub module)")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(selectComponentsTransform("Managed", partialFields)),
 	)
 
-	t.Log("Verifying enabled component CRs are created")
-	enabledGVKs := []schema.GroupVersionKind{gvk.Dashboard, gvk.Kserve, gvk.ModelRegistry}
-	for _, g := range enabledGVKs {
-		instanceName := tc.GetInstanceName(g)
+	t.Log("Verifying enabled CRs are created")
+	// dashboard and kserve are in-tree component CRs ("default-<kind>"); modelregistry
+	// is an out-of-tree module whose CR is the shared cluster-scoped AIHub singleton
+	// named "default".
+	enabledCRs := []struct {
+		gvk  schema.GroupVersionKind
+		name string
+	}{
+		{gvk.Dashboard, tc.GetInstanceName(gvk.Dashboard)},
+		{gvk.Kserve, tc.GetInstanceName(gvk.Kserve)},
+		{gvk.AIHub, "default"},
+	}
+	for _, cr := range enabledCRs {
 		tc.EnsureResourceExists(
-			WithMinimalObject(g, types.NamespacedName{Name: instanceName}),
+			WithMinimalObject(cr.gvk, types.NamespacedName{Name: cr.name}),
 			WithEventuallyTimeout(5*time.Minute),
 			WithEventuallyPollingInterval(10*time.Second),
-			WithCustomErrorMsg("Enabled component CR %s should exist", g.Kind),
+			WithCustomErrorMsg("Enabled CR %s/%s should exist", cr.gvk.Kind, cr.name),
 		)
 	}
 
@@ -881,6 +904,22 @@ func (tc *DAGOrderingTestCtx) deleteGateSourceCMs(t *testing.T, names ...string)
 	}
 }
 
+// resolvedGVK returns the GVK of the actual CR this entry provisions.
+func (c componentEntry) resolvedGVK() schema.GroupVersionKind {
+	if c.crGVK.Empty() {
+		return c.gvk
+	}
+	return c.crGVK
+}
+
+// resolvedCRName returns the name of the actual CR this entry provisions.
+func (tc *DAGOrderingTestCtx) resolvedCRName(c componentEntry) string {
+	if c.crName != "" {
+		return c.crName
+	}
+	return tc.GetInstanceName(c.resolvedGVK())
+}
+
 // --- helpers ---
 
 func allComponentsManagedTransform() func(*unstructured.Unstructured) error {
@@ -929,9 +968,9 @@ func (tc *DAGOrderingTestCtx) setAllRemoved(t *testing.T) {
 
 	for _, batch := range dagBatches {
 		for _, comp := range batch.components {
-			instanceName := tc.GetInstanceName(comp.gvk)
+			instanceName := tc.resolvedCRName(comp)
 			tc.EnsureResourceGone(
-				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
+				WithMinimalObject(comp.resolvedGVK(), types.NamespacedName{Name: instanceName}),
 				WithEventuallyTimeout(5*time.Minute),
 				WithEventuallyPollingInterval(10*time.Second),
 			)
