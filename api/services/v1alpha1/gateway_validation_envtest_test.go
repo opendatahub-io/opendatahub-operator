@@ -21,12 +21,13 @@ import (
 )
 
 // TestGatewayIssuerURLValidationEnvtest verifies that the kubebuilder validation on
-// OIDCConfig.IssuerURL (MinLength/MaxLength + Format=uri + Pattern
-// `^https://[^/?#\s][^?#\s]*$`) is enforced at admission time by a real API server.
-// This is the single source of truth for the field's validation: it exercises the
-// generated CRD schema end-to-end rather than a duplicated copy of the pattern.
+// OIDCConfig.IssuerURL (MinLength/MaxLength + Format=uri + Pattern `^https://[^?#\s]+$`
+// + an XValidation CEL rule requiring a non-empty host) is
+// enforced at admission time by a real API server. This is the single source of truth
+// for the field's validation: it exercises the generated CRD schema end-to-end rather
+// than a duplicated copy of the pattern.
 //
-// Scope note: the Pattern guarantees the https scheme, a non-empty authority, no
+// Scope note: the validation guarantees the https scheme, a non-empty host, no
 // whitespace, and no query/fragment (an OIDC issuer identifier has none); Format=uri
 // additionally rejects strings that do not parse as a URI (e.g. `{{`, backtick, pipe).
 // It is NOT a comprehensive injection filter — values such as `https://host$(id).com`
@@ -72,6 +73,8 @@ func TestGatewayIssuerURLValidationEnvtest(t *testing.T) {
 		{name: "uppercase scheme", url: "HTTPS://example.com"},
 		{name: "scheme only (no host)", url: "https://"},
 		{name: "empty authority (leading slash)", url: "https:///realm"},
+		{name: "empty host with port", url: "https://:443"},
+		{name: "userinfo with empty host", url: "https://user@/realm"},
 		{name: "missing double slash", url: "https:example.com"},
 		{name: "whitespace in URL", url: "https://host name.com"},
 		{name: "empty string", url: ""},
@@ -103,6 +106,7 @@ func TestGatewayIssuerURLValidationEnvtest(t *testing.T) {
 	}{
 		{name: "typical keycloak URL", url: "https://keycloak.example.com/realms/myorg"},
 		{name: "with port", url: "https://auth.example.com:8443/realms/test"},
+		{name: "userinfo with valid host", url: "https://user@auth.example.com/realm"},
 		{name: "at max length (2048)", url: atMaxLength},
 	}
 
