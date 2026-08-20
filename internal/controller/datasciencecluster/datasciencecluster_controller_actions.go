@@ -95,7 +95,7 @@ func cleanupDisabledComponents(ctx context.Context, rr *odhtype.ReconciliationRe
 				continue
 			}
 			if err := deleteComponentCR(ctx, rr.Client, handler, instance); err != nil {
-				log.Error(err, "failed to delete component CR", "component", handler.GetName())
+				log.Error(err, "failed to delete component CR", "name", instance.Name, "resourceKind", "DataScienceCluster", "component", handler.GetName())
 				errs = append(errs, err)
 			}
 		}
@@ -159,11 +159,11 @@ func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationReq
 	log := logf.FromContext(ctx)
 	reverseBatches, err := provision.DefaultRegistry().ReverseBatches()
 	if err != nil {
-		log.Error(err, "DAG reverse resolution failed, falling back to alphabetical module CR cleanup")
+		log.Error(err, "DAG reverse resolution failed, falling back to alphabetical module CR cleanup", "name", instance.Name, "resourceKind", "DataScienceCluster")
 		return moduleReg.ForAll(func(handler modules.ModuleHandler, _ bool) error {
 			if !enabledModules[handler.GetName()] {
 				if delErr := handler.DeleteModuleCR(ctx, rr.Client); delErr != nil {
-					log.Error(delErr, "DeleteModuleCR failed", "module", handler.GetName())
+					log.Error(delErr, "DeleteModuleCR failed", "name", instance.Name, "resourceKind", "DataScienceCluster", "module", handler.GetName())
 					return delErr
 				}
 			}
@@ -182,7 +182,7 @@ func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationReq
 				continue
 			}
 			if err := handler.DeleteModuleCR(ctx, rr.Client); err != nil {
-				log.Error(err, "DeleteModuleCR failed", "module", handler.GetName())
+				log.Error(err, "DeleteModuleCR failed", "name", instance.Name, "resourceKind", "DataScienceCluster", "module", handler.GetName())
 				errs = append(errs, err)
 			}
 		}
@@ -211,7 +211,7 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 		provision.Enable(name)
 		ci, err := handler.NewCRObject(ctx, rr.Client, instance)
 		if err != nil {
-			log.Error(err, "NewCRObject failed", "component", name)
+			log.Error(err, "NewCRObject failed", "name", instance.Name, "resourceKind", "DataScienceCluster", "component", name)
 			failedComponents = append(failedComponents, name)
 			return nil
 		}
@@ -220,12 +220,12 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 		}
 		obj, ok := ci.(client.Object)
 		if !ok {
-			log.Error(nil, "component CR does not implement client.Object", "component", name, "type", fmt.Sprintf("%T", ci))
+			log.Error(nil, "component CR does not implement client.Object", "name", instance.Name, "resourceKind", "DataScienceCluster", "component", name, "type", fmt.Sprintf("%T", ci))
 			failedComponents = append(failedComponents, name)
 			return nil
 		}
 		if err := rr.AddResources(obj); err != nil {
-			log.Error(err, "AddResources failed", "component", name)
+			log.Error(err, "AddResources failed", "name", instance.Name, "resourceKind", "DataScienceCluster", "component", name)
 			failedComponents = append(failedComponents, name)
 		}
 		return nil
