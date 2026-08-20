@@ -28,8 +28,8 @@ map:
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
-  odh-spark-operator:
-    src: config
+  odh-spark-operator-module:
+    src: spark-operator-module/config
     dest: sparkoperator
   odh-ai-gateway-operator:
     src: config
