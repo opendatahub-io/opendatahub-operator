@@ -66,7 +66,7 @@ map:
     dest: feastoperator
     type: chart
     git.url: https://github.com/red-hat-data-services/feast-module-operator
-    git.commit: 3b124c0d08c23348393d22293d4616fd3d63efff
+    git.commit: abf90c5a2efb4ff1cc973388e27adc69884042f0
   odh-ogx-module-operator:
     src: ogx-module/config
     dest: ogx
