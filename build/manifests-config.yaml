@@ -128,7 +128,7 @@ additional_meta:
     git.commit: 42de0e064043a40de5fb5b8e5fb0d979003612cb
   odh-kserve-autogluon-server:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: ca3e8fe24112777a3250eb67a5100e5d60704929
+    git.commit: 42de0e064043a40de5fb5b8e5fb0d979003612cb
   odh-kserve-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 42de0e064043a40de5fb5b8e5fb0d979003612cb
