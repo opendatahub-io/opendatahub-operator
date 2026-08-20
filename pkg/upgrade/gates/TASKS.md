@@ -190,6 +190,8 @@ Legend:
   - latest live Jira comments say the existing KServe checks are sufficient
   - Kueue-related follow-up was reviewed and does not currently require extra
     KServe-side gate logic
+  - earlier odh-cli summary also mentioned Service Mesh / ModelMesh enablement,
+    hardware-profile migration, and Authorino TLS readiness
 - Checks implemented in repo:
   - block on `InferenceService` objects using
     `serving.kserve.io/deploymentMode=Serverless`
@@ -197,6 +199,12 @@ Legend:
     `serving.kserve.io/deploymentMode=ModelMesh`
   - block on `ServingRuntime` objects with `spec.multiModel=true`
   - block on `InferenceService` objects that reference removed runtimes
+- Notes:
+  - Service Mesh and ModelMesh enablement are handled by other upgrade gates,
+    not this KServe package
+  - hardware-profile handling lives in the upgrade migration flow rather than
+    as a KServe upgrade blocker
+  - latest Jira follow-up did not request any new operator-side KServe gate
 - Related note:
   - the legacy internal `ModelMeshServing` CR is handled by a separate local
     gate implementation even though it is not tracked by a matching Jira child
