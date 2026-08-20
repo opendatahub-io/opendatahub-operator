@@ -12,11 +12,11 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
   value: "quay.io/rhoai/odh-cli-rhel9@sha256:b422e0b8be1e641bfd54c8bf928510ddbc9f4f0a9beed547b3a8f94e43eec5f8"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
-  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:663bf29bc74362a6acb3680be01de4931b9bf7b1c9a5fab03e3153465937346b"
+  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:ccca9378b4439b3c5efa32f8bccfc051c69ea321e54dab89a1dc733cc4a5de4d"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:b86da68e3de5a4646c5ca9822725628661dccec60d430158d00352d2597d7718"
+  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:4ecc9d591a81d1b371d878e428431ca989e874e253d48cdafbc27f6f1c3100bf"
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:d9e445a027dd1394de40ccc656ef5c729ee1c6dade2363da2f43fe73ec905658"
+  value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:ab78a0d87b5aa7652405ec18ca062c875ce7949ac04a6da1a540b56cfc888e52"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE
   value: "quay.io/rhoai/odh-data-science-pipelines-argo-argoexec-rhel9@sha256:9a5cf64947ca0998d7570b1a73f8816a694959afcdc87b6d1511f9ccbf6988b7"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_WORKFLOWCONTROLLER_IMAGE
@@ -124,7 +124,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MOD_ARCH_AGENT_OPS_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-agent-ops-rhel9@sha256:ede8e533e5cb787e161aa81ba9890557dcaafba8c3ff72a11d88bf59a2395154"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_AUTOML_IMAGE
-  value: "quay.io/rhoai/odh-mod-arch-automl-rhel9@sha256:20d2a946ae867aacbbb5a2d4bca0a5a63bb1f0bf50b080fa02f043e644c1eccb"
+  value: "quay.io/rhoai/odh-mod-arch-automl-rhel9@sha256:1be8449e45f49cfc1cac91084f5decf755e3b343701f584639b22a16539137fa"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_AUTORAG_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-autorag-rhel9@sha256:3b328bfd80def5fb253e4fbaa568dc8a80653b9d2dab4f8e6dd9683781be03f9"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE
