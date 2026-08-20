@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -56,6 +57,13 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.ClusterRoleBinding).
 		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
 		OwnsGVK(gvk.DestinationRule, reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
+		Watches(
+			&extv1.CustomResourceDefinition{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(
+				resources.CreatedOrUpdatedOrDeletedNamed(gvk.DashboardComponentCRDName)),
+		).
 		// Watch for certificate secrets (both OpenShift default ingress and provided).
 		Watches(
 			&corev1.Secret{},
@@ -91,7 +99,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(createEnvoyFilter).
 		WithAction(createNetworkPolicy).
 		WithAction(createOCPRoutes).
-		WithAction(createDashboardRedirects).
+		WithAction(createDashboardRedirectsAction).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).
