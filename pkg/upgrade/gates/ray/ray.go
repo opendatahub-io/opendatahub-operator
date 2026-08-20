@@ -15,10 +15,11 @@ import (
 
 const (
 	finalizerCodeFlareOAuth = "ray.openshift.ai/oauth-finalizer"
+	backupTakenAnnotation   = "odh.ray.io/pre-upgrade-backup-taken"
 )
 
 func Check(ctx context.Context, reader client.Reader, _, _ string) error {
-	list, err := listRayClusters(ctx, reader)
+	list, err := validateRayClusters(ctx, reader)
 	if err != nil {
 		return err
 	}
@@ -26,6 +27,9 @@ func Check(ctx context.Context, reader client.Reader, _, _ string) error {
 	blocking := &UpgradeBlockedError{}
 	for i := range list.Items {
 		if !resources.HasFinalizer(&list.Items[i], finalizerCodeFlareOAuth) {
+			continue
+		}
+		if resources.HasAnnotation(&list.Items[i], backupTakenAnnotation) {
 			continue
 		}
 		blocking.CodeFlareManagedRayClusters++
@@ -36,6 +40,10 @@ func Check(ctx context.Context, reader client.Reader, _, _ string) error {
 	}
 
 	return blocking
+}
+
+func validateRayClusters(ctx context.Context, reader client.Reader) (*unstructured.UnstructuredList, error) {
+	return listRayClusters(ctx, reader)
 }
 
 func listRayClusters(ctx context.Context, reader client.Reader) (*unstructured.UnstructuredList, error) {

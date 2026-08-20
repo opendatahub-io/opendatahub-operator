@@ -8,7 +8,7 @@ type UpgradeBlockedError struct {
 
 func (e *UpgradeBlockedError) Error() string {
 	return fmt.Sprintf(
-		"%d CodeFlare-managed RayClusters found",
+		"%d CodeFlare-managed RayClusters still require pre-upgrade backup acknowledgement",
 		e.CodeFlareManagedRayClusters,
 	)
 }

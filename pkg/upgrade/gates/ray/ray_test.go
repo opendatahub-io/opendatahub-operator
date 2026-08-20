@@ -37,7 +37,7 @@ func TestRegister_CleanClusterPasses(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
-func TestRegister_CodeFlareManagedRayClusterBlocks(t *testing.T) {
+func TestRegister_RayClusterWithFinalizerAndMissingBackupBlocks(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
@@ -59,6 +59,27 @@ func TestRegister_CodeFlareManagedRayClusterBlocks(t *testing.T) {
 	var blockingErr *raygate.UpgradeBlockedError
 	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
 	g.Expect(blockingErr.CodeFlareManagedRayClusters).To(Equal(1))
+}
+
+func TestRegister_RayClusterWithFinalizerAndBackupAnnotationPasses(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	obj := renderRayCluster(t, map[string]any{
+		"APIVersion":  "ray.io/v1",
+		"Name":        "migrated-raycluster",
+		"Namespace":   testNamespace,
+		"Finalizers":  []string{"ray.openshift.ai/oauth-finalizer"},
+		"Annotations": map[string]string{"odh.ray.io/pre-upgrade-backup-taken": "true"},
+	})
+
+	cli, err := newRayClient(obj)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	provision.RegisterUpgradeCheck(componentApi.RayComponentName, raygate.Check)
+
+	err = provision.GetUpgradeCheck(componentApi.RayComponentName)(ctx, cli, componentApi.RayComponentName, testNamespace)
+	g.Expect(err).ToNot(HaveOccurred())
 }
 
 func TestRegister_RayClusterWithoutCodeFlareFinalizerPasses(t *testing.T) {
