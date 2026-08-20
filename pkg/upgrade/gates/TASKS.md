@@ -20,16 +20,16 @@ Legend:
 
 | Jira | Component | Jira status | Task status | Jira comment alignment |
 | --- | --- | --- | --- | --- |
-| `RHOAIENG-82350` | DataSciencePipelines | Review | `✅ Implemented locally` | `Live Jira RBAC blocker now implemented locally` |
-| `RHOAIENG-82351` | Kueue | Resolved | `✅ Implemented locally` | `Removed+queued workload blocker now implemented locally` |
+| `RHOAIENG-82350` | DataSciencePipelines | Review | `✅ Done` | `Live Jira RBAC blocker now implemented locally` |
+| `RHOAIENG-82351` | Kueue | Resolved | `✅ Done` | `Removed+queued workload blocker now implemented locally` |
 | `RHOAIENG-82352` | ModelRegistry | Closed | `🚫 Not needed` | `Live Jira says no domain-specific checks` |
-| `RHOAIENG-82353` | Ray | Resolved | `✅ Implemented locally` | `Aligned with latest Jira comments` |
+| `RHOAIENG-82353` | Ray | Resolved | `✅ Done` | `Aligned with latest Jira comments` |
 | `RHOAIENG-82354` | SparkOperator | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82355` | Trainer | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82356` | TrainingOperator | Closed | `🚫 Not needed` | `-` |
-| `RHOAIENG-82357` | TrustyAI | Resolved | `✅ Implemented locally` | `PVC storage blocker implemented; remaining spike items are advisory` |
+| `RHOAIENG-82357` | TrustyAI | Resolved | `✅ Done` | `PVC storage blocker implemented; remaining spike items are advisory` |
 | `RHOAIENG-82359` | Dashboard | In Progress | `⚠️ Follow-up needed` | `Comment scope looks broader than operator gates` |
-| `RHOAIENG-82360` | KServe | Resolved | `✅ Implemented locally` | `Aligned with latest Jira comments` |
+| `RHOAIENG-82360` | KServe | Resolved | `✅ Done` | `Aligned with latest Jira comments` |
 | `RHOAIENG-82361` | Workbenches | Backlog | `⚠️ Follow-up needed` | `No text summary yet; Jira comment is image-based` |
 | `RHOAIENG-82370` | FeastOperator | Resolved | `🚫 Not needed` | `-` |
 | `RHOAIENG-82371` | LlamaStackOperator | Closed | `🚫 Not needed` | `-` |
@@ -37,16 +37,16 @@ Legend:
 | `RHOAIENG-82373` | MLflowOperator | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82374` | AIGateway | Resolved | `🚫 Not needed` | `-` |
 | `RHOAIENG-82380` | MCPLifecycleOperator | Closed | `🚫 Not needed` | `-` |
-| `-` | `dependencies-cert-manager` | `-` | `✅ Implemented locally` | `-` |
-| `-` | `dependencies-kueue-operator` | `-` | `✅ Implemented locally` | `-` |
-| `-` | `dependencies-servicemeshoperatorv2` | `-` | `✅ Implemented locally` | `-` |
+| `-` | `dependencies-cert-manager` | `-` | `✅ Done` | `-` |
+| `-` | `dependencies-kueue-operator` | `-` | `✅ Done` | `-` |
+| `-` | `dependencies-servicemeshoperatorv2` | `-` | `✅ Done` | `-` |
 
 ## Task Entries
 
 ### `RHOAIENG-82350` DataSciencePipelines
 
 - Jira status: `Review`
-- Task status: `Implemented locally`
+- Task status: `Done`
 - Jira comment alignment: `Aligned with latest Jira blocker list`
 - Jira comments:
   - latest live Jira comment adds a second blocking requirement beyond CRD
@@ -65,7 +65,7 @@ Legend:
 ### `RHOAIENG-82351` Kueue
 
 - Jira status: `Resolved`
-- Task status: `Implemented locally`
+- Task status: `Done`
 - Jira comment alignment: `Aligned with latest Jira comments`
 - Jira comments:
   - clarify whether `kueue <-> kserve` integration validation belongs under the
@@ -102,7 +102,7 @@ Legend:
 ### `RHOAIENG-82353` Ray
 
 - Jira status: `Resolved`
-- Task status: `Implemented locally`
+- Task status: `Done`
 - Jira comment alignment: `Aligned`
 - Jira comments:
   - latest live Jira thread confirms AppWrappers are advisory/non-blocking
@@ -147,7 +147,7 @@ Legend:
 ### `RHOAIENG-82357` TrustyAI
 
 - Jira status: `Resolved`
-- Task status: `Implemented locally`
+- Task status: `Done`
 - Jira comments:
   - spike doc says the only blocking TrustyAI lint condition is
     `TrustyAIService.spec.storage.format == "PVC"`
@@ -184,7 +184,7 @@ Legend:
 ### `RHOAIENG-82360` KServe
 
 - Jira status: `Resolved`
-- Task status: `Implemented locally`
+- Task status: `Done`
 - Jira comment alignment: `Aligned`
 - Jira comments:
   - latest live Jira comments say the existing KServe checks are sufficient
