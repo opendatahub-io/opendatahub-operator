@@ -58,9 +58,7 @@ type GatewayAPIConfiguration struct{}
 // +kubebuilder:object:generate=true
 type CertManagerDependency struct {
 	// ManagementPolicy determines whether the operator manages this dependency.
-	// Managed: the operator installs and reconciles the dependency.
-	// Unmanaged: the operator does not manage the dependency; the user is responsible.
-	// +kubebuilder:default=Managed
+	// +kubebuilder:validation:XValidation:rule="self != 'Managed' || self == oldSelf",message="cert-manager managementPolicy cannot be set to Managed"
 	ManagementPolicy ManagementPolicy `json:"managementPolicy,omitempty"`
 
 	// Configuration for the cert-manager operator.
