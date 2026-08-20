@@ -27,7 +27,7 @@ Legend:
 | `RHOAIENG-82354` | SparkOperator | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82355` | Trainer | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82356` | TrainingOperator | Closed | `🚫 Not needed` | `-` |
-| `RHOAIENG-82357` | TrustyAI | Resolved | `⚠️ Follow-up needed` | `Only spike doc link visible in Jira comments` |
+| `RHOAIENG-82357` | TrustyAI | Resolved | `✅ Implemented locally` | `PVC storage blocker implemented; remaining spike items are advisory` |
 | `RHOAIENG-82359` | Dashboard | In Progress | `⚠️ Follow-up needed` | `Comment scope looks broader than operator gates` |
 | `RHOAIENG-82360` | KServe | Resolved | `✅ Implemented locally` | `Aligned with latest Jira comments` |
 | `RHOAIENG-82361` | Workbenches | Backlog | `⚠️ Follow-up needed` | `No text summary yet; Jira comment is image-based` |
@@ -147,16 +147,20 @@ Legend:
 ### `RHOAIENG-82357` TrustyAI
 
 - Jira status: `Resolved`
-- Task status: `Follow-up needed`
+- Task status: `Implemented locally`
 - Jira comments:
-  - live Jira comments only expose a link to an external spike document; the
-    visible Jira text does not say whether the result is "no gate needed" or
-    "gate still pending elsewhere"
-- Discrepancy to resolve later:
-  - repo has no `trustyai` gate package, but the Jira issue is already resolved
-- Resume note:
-  - read the linked spike doc or get a short text summary from the component
-    owner before changing this to either `Not needed` or `Implemented locally`
+  - spike doc says the only blocking TrustyAI lint condition is
+    `TrustyAIService.spec.storage.format == "PVC"`
+  - the other TrustyAI spike items are advisory-only (`impacted workloads`,
+    `DATABASE` storage, scheduled metrics backup)
+- Checks implemented in repo:
+  - block when any `TrustyAIService` uses `spec.storage.format: PVC`
+- Notes:
+  - advisory-only TrustyAI spike items are intentionally not encoded as
+    operator upgrade blockers at this time
+  - the spike's GPU-deadlock blocker was reviewed, but it is currently hard to
+    implement safely here because it depends on exact TrustyAI annotation
+    matching plus cross-component webhook-health detection for KServe
 
 ### `RHOAIENG-82359` Dashboard
 

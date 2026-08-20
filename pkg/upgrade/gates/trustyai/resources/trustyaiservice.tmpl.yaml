@@ -1,0 +1,10 @@
+apiVersion: {{ .APIVersion }}
+kind: TrustyAIService
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+spec:
+  storage:
+    format: "{{ .StorageFormat }}"
+  metrics:
+    schedule: "5s"

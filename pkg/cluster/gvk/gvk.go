@@ -373,6 +373,18 @@ var (
 		Kind:    componentApi.TrustyAIKind,
 	}
 
+	TrustyAIServiceV1 = schema.GroupVersionKind{
+		Group:   "trustyai.opendatahub.io",
+		Version: "v1",
+		Kind:    "TrustyAIService",
+	}
+
+	TrustyAIServiceV1Alpha1 = schema.GroupVersionKind{
+		Group:   "trustyai.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "TrustyAIService",
+	}
+
 	ModelRegistry = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
