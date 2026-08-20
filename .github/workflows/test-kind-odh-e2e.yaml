@@ -11,6 +11,7 @@ on:
       - 'config/rbac/components_kserve_editor_role.yaml'
       - 'config/rbac/components_kserve_viewer_role.yaml'
       - 'tests/e2e/kserve_test.go'
+      - 'tests/e2e/dag_ordering_test.go'
       - 'cmd/cloudmanager/**'
       - 'internal/controller/cloudmanager/**'
       - 'config/cloudmanager/**'
