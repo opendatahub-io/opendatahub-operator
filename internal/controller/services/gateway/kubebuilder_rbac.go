@@ -8,6 +8,7 @@ package gateway
 
 // Dashboard CR (read-only, to check if Dashboard is deployed before creating redirects)
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=dashboards,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=list;watch
 
 // OpenShift APIServer config (TLS security profile for kube-auth-proxy)
 // +kubebuilder:rbac:groups="config.openshift.io",resources=apiservers,verbs=get;list;watch

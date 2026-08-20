@@ -44,11 +44,13 @@ import (
 	"os"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -70,29 +72,48 @@ const (
 // the redirect resources rather than relying on GC. The GC action uses the owner CR's
 // metadata.generation to identify stale resources, but Dashboard removal does not change
 // GatewayConfig's generation, so GC would never clean them up.
-func createDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func createDashboardRedirectsAction(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	gatewayConfig, err := validateGatewayConfig(rr)
+	if err != nil {
+		return err
+	}
+
+	templates, err := createDashboardRedirects(ctx, rr.Client, gatewayConfig)
+	if err != nil {
+		return err
+	}
+
+	rr.Templates = append(rr.Templates, templates...)
+	return nil
+}
+
+func createDashboardRedirects(
+	ctx context.Context,
+	cli client.Client,
+	gatewayConfig *serviceApi.GatewayConfig,
+) ([]odhtypes.TemplateInfo, error) {
 	l := logf.FromContext(ctx).WithName("createDashboardRedirects")
 
 	// Check if feature is explicitly disabled via operator environment variable
 	if os.Getenv("DISABLE_DASHBOARD_REDIRECTS") == "true" {
 		l.Info("Dashboard redirects disabled via DISABLE_DASHBOARD_REDIRECTS environment variable")
-		return deleteDashboardRedirectResources(ctx, rr)
+		return nil, deleteDashboardRedirectResources(ctx, cli)
 	}
 
 	// When the Dashboard component is not deployed there is no dashboard route
 	// to redirect from, so the redirect pods serve no purpose.
 	dashboard := resources.GvkToUnstructured(gvk.Dashboard)
-	if err := rr.Client.Get(ctx, client.ObjectKey{Name: componentApi.DashboardInstanceName}, dashboard); err != nil {
-		if k8serr.IsNotFound(err) {
+	if err := cli.Get(ctx, client.ObjectKey{Name: componentApi.DashboardInstanceName}, dashboard); err != nil {
+		switch {
+		case k8serr.IsNotFound(err):
 			l.Info("Dashboard CR not found, cleaning up dashboard redirect resources")
-			return deleteDashboardRedirectResources(ctx, rr)
+			return nil, deleteDashboardRedirectResources(ctx, cli)
+		case meta.IsNoMatchError(err):
+			l.Info("Dashboard CRD not registered, cleaning up dashboard redirect resources")
+			return nil, deleteDashboardRedirectResources(ctx, cli)
+		default:
+			return nil, fmt.Errorf("failed to check Dashboard CR: %w", err)
 		}
-		return fmt.Errorf("failed to check Dashboard CR: %w", err)
-	}
-
-	gatewayConfig, err := validateGatewayConfig(rr)
-	if err != nil {
-		return err
 	}
 
 	l.Info("Creating dashboard redirect resources",
@@ -102,20 +123,20 @@ func createDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRe
 
 	// Add templates to reconciliation request
 	// Note: Legacy gateway redirect template uses {{- if .LegacyHostname }} to conditionally render
-	rr.Templates = append(rr.Templates,
-		odhtypes.TemplateInfo{FS: gatewayResources, Path: dashboardRedirectConfigMapTemplate},
-		odhtypes.TemplateInfo{FS: gatewayResources, Path: dashboardRedirectDeploymentTemplate},
-		odhtypes.TemplateInfo{FS: gatewayResources, Path: dashboardRedirectServiceTemplate},
-		odhtypes.TemplateInfo{FS: gatewayResources, Path: dashboardRedirectDashboardRouteTemplate},
-		odhtypes.TemplateInfo{FS: gatewayResources, Path: dashboardRedirectLegacyGatewayRouteTemplate},
-	)
+	templates := []odhtypes.TemplateInfo{
+		{FS: gatewayResources, Path: dashboardRedirectConfigMapTemplate},
+		{FS: gatewayResources, Path: dashboardRedirectDeploymentTemplate},
+		{FS: gatewayResources, Path: dashboardRedirectServiceTemplate},
+		{FS: gatewayResources, Path: dashboardRedirectDashboardRouteTemplate},
+		{FS: gatewayResources, Path: dashboardRedirectLegacyGatewayRouteTemplate},
+	}
 
-	return nil
+	return templates, nil
 }
 
 // deleteDashboardRedirectResources explicitly removes redirect resources that were
 // previously created by createDashboardRedirects.
-func deleteDashboardRedirectResources(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func deleteDashboardRedirectResources(ctx context.Context, cli client.Client) error {
 	l := logf.FromContext(ctx).WithName("deleteDashboardRedirectResources")
 	ns := cluster.GetApplicationNamespace()
 
@@ -136,13 +157,13 @@ func deleteDashboardRedirectResources(ctx context.Context, rr *odhtypes.Reconcil
 		obj.SetNamespace(ns)
 
 		// Check existence via cached Get to avoid unnecessary Delete API calls on every reconcile
-		if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
-			if k8serr.IsNotFound(err) {
+		if err := cli.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+			if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
 				continue
 			}
 			return fmt.Errorf("failed to get dashboard redirect resource %s/%s: %w", obj.GetKind(), r.name, err)
 		}
-		if err := rr.Client.Delete(ctx, obj); err != nil {
+		if err := cli.Delete(ctx, obj); err != nil {
 			if k8serr.IsNotFound(err) {
 				continue
 			}
