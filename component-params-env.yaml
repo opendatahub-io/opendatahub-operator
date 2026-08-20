@@ -27,13 +27,28 @@ known_issues:
 - image: RELATED_IMAGE_DSP_TOOLBOX_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
   reason: Removed with InstrutLab pipeline removal since RHOAI 3.0
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: SBOM metadata-config commented out until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_1_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: SBOM metadata-config commented out until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_2_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: SBOM metadata-config commented out until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: Validation failure due to RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE offboarding; not yet in RHOAI-Build-Config or RHAI Helm until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_1_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: Validation failure due to RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE offboarding; not yet in RHOAI-Build-Config or RHAI Helm until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_2_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: Validation failure due to RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE offboarding; not yet in RHOAI-Build-Config or RHAI Helm until vllm-omni-cuda image is published
 
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
   reason: ppc64le/s390x only, not applicable to ODH
-- image: RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-78350
-  reason: it must be offboarded in rhoai 3.6, already offboarded in ODH-Build-Config
 - image: RELATED_IMAGE_RHAII_MODEL_OPT_CUDA_IMAGE
   reason: RHOAI-only image, not applicable to ODH
 - image: RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE
