@@ -14,6 +14,7 @@ import (
 	modelmeshservinggates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/modelmeshserving"
 	raygates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/ray"
 	servicemeshoperatorv2gates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/servicemeshoperatorv2"
+	trustyaigates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/trustyai"
 )
 
 const removedGatePrefix = "removed-"
@@ -37,7 +38,7 @@ var registeredChecks = map[string]provision.UpgradeCheckFunc{
 	componentApi.SparkOperatorComponentName:        provision.DefaultUpgradeCheck,
 	componentApi.TrainerComponentName:              provision.DefaultUpgradeCheck,
 	componentApi.TrainingOperatorComponentName:     provision.DefaultUpgradeCheck,
-	componentApi.TrustyAIComponentName:             provision.DefaultUpgradeCheck,
+	componentApi.TrustyAIComponentName:             trustyaigates.Check,
 	componentApi.WorkbenchesComponentName:          provision.DefaultUpgradeCheck,
 
 	// removed
