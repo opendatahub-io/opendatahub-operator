@@ -1161,7 +1161,7 @@ imageOverrides:
     rhoai:
       base: "quay.io/opendatahub/llama-stack-provider-ragas"
       digest: "sha256:fa46ce6a3dd16b0eb8e06c71f99b761d742599e569ed91f7b727149bc1085520"
-  RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE:
+  RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_PY_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-trustyai-service"
