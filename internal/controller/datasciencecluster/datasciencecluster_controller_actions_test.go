@@ -25,10 +25,11 @@ func TestLogErrorsFormatting(t *testing.T) {
 		enabled:  true,
 		newCRErr: errors.New("test error"),
 	})
+	t.Cleanup(func() { cr.DefaultRegistry().Disable("log-kv-test") })
 
-	var logged string
+	var logged []string
 	logger := funcr.New(func(prefix, args string) {
-		logged = args
+		logged = append(logged, args)
 	}, funcr.Options{})
 	ctx := logf.IntoContext(t.Context(), logger)
 
@@ -40,9 +41,11 @@ func TestLogErrorsFormatting(t *testing.T) {
 	err := provisionComponents(ctx, rr)
 
 	g.Expect(err).To(HaveOccurred())
-	g.Expect(logged).To(ContainSubstring(`"msg"="NewCRObject failed"`))
-	g.Expect(logged).To(ContainSubstring(`"name"="test-dsc"`))
-	g.Expect(logged).To(ContainSubstring(`"resourceKind"="DataScienceCluster"`))
-	g.Expect(logged).To(ContainSubstring(`"component"="log-kv-test"`))
-	g.Expect(logged).NotTo(ContainSubstring(`"namespace"`))
+	g.Expect(logged).To(ContainElement(And(
+		ContainSubstring(`"msg"="NewCRObject failed"`),
+		ContainSubstring(`"name"="test-dsc"`),
+		ContainSubstring(`"resourceKind"="DataScienceCluster"`),
+		ContainSubstring(`"component"="log-kv-test"`),
+		Not(ContainSubstring(`"namespace"`)),
+	)))
 }
