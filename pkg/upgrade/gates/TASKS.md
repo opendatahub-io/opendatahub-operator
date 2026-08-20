@@ -20,7 +20,7 @@ Legend:
 
 | Jira | Component | Jira status | Task status | Jira comment alignment |
 | --- | --- | --- | --- | --- |
-| `RHOAIENG-82350` | DataSciencePipelines | Review | `⚠️ Follow-up needed` | `Live Jira adds missing RBAC blocker` |
+| `RHOAIENG-82350` | DataSciencePipelines | Review | `✅ Implemented locally` | `Live Jira RBAC blocker now implemented locally` |
 | `RHOAIENG-82351` | Kueue | Resolved | `⚠️ Follow-up needed` | `Repo still allows Removed+queued workloads` |
 | `RHOAIENG-82352` | ModelRegistry | Closed | `🚫 Not needed` | `Live Jira says no domain-specific checks` |
 | `RHOAIENG-82353` | Ray | Resolved | `✅ Implemented locally` | `Aligned with latest Jira comments` |
@@ -46,8 +46,8 @@ Legend:
 ### `RHOAIENG-82350` DataSciencePipelines
 
 - Jira status: `Review`
-- Task status: `Follow-up needed`
-- Jira comment alignment: `Discrepancy found`
+- Task status: `Implemented locally`
+- Jira comment alignment: `Aligned with latest Jira blocker list`
 - Jira comments:
   - latest live Jira comment adds a second blocking requirement beyond CRD
     stored versions: scan custom Roles that still grant the old Route-based API
@@ -55,12 +55,12 @@ Legend:
 - Checks implemented in repo:
   - block when the `DataSciencePipelinesApplication` CRD still reports
     `v1alpha1` in `status.storedVersions`
-- Discrepancy to resolve later:
-  - repo currently only implements the CRD stored-version blocker
-  - no gate exists yet for the custom RBAC / API-subresource migration check
-- Resume note:
-  - if this stays in scope for operator-side upgrade gates, implement the RBAC
-    blocker first; otherwise record explicitly why it remains odh-cli-only
+  - block when namespace `Role` objects still grant legacy
+    `route.openshift.io/routes` access without the replacement
+    `datasciencepipelinesapplications/api` permission
+- Follow-up note:
+  - if Jira review narrows this back to odh-cli-only scope later, revisit whether
+    the RBAC blocker should stay in the operator gate set
 
 ### `RHOAIENG-82351` Kueue
 
