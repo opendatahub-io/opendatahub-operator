@@ -4,7 +4,7 @@ map:
     dest: workbenches
     type: chart
     git.url: https://github.com/red-hat-data-services/workbenches-operator
-    git.commit: 1ed984ced614c1a79a8e34c43bf0d48027ff03e8
+    git.commit: 7ac18da784f30f542dc4c599e8dd22cefcc52f0f
   odh-kserve-module-operator:
     src: kserve-module/config
     dest: kserve-module-operator
@@ -334,9 +334,6 @@ additional_meta:
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: 47a2195fa4d1b92515fcb004326ed2160b9e424d
-  odh-trustyai-service:
-    git.url: https://github.com/red-hat-data-services/trustyai-explainability
-    git.commit: 7fa02f5de175a9b8611e7528341d36468f6cfaf9
   odh-trustyai-service-py:
     git.url: https://github.com/red-hat-data-services/trustyai-service
     git.commit: ed7ac0cee1470730414169357de26e25ecc256ae
