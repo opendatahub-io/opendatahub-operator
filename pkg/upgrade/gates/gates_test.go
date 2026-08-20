@@ -17,7 +17,7 @@ func TestRegisteredChecksCoverInTreeGateKeys(t *testing.T) {
 	g := NewWithT(t)
 
 	registeredChecks := upgradegates.Registered()
-	gateEntries, err := controllergates.LoadInTreeGates(provision.UpgradeGateVersion)
+	gateEntries, err := controllergates.LoadInTreeGates()
 	g.Expect(err).ToNot(HaveOccurred())
 
 	versionPrefix := "ack-" + provision.UpgradeGateVersion + "-"
