@@ -189,6 +189,7 @@ rules:
   - spark-operator-scheduledsparkapplication-viewer-role
   - spark-operator-sparkapplication-editor-role
   - spark-operator-sparkapplication-viewer-role
+  - spark-operator-tls-profile
   - spark-operator-webhook
   resources:
   - clusterroles
