@@ -39,7 +39,8 @@ func TestRayGates(t *testing.T) {
 	tc := &rayGateTestCtx{cli: te.Client()}
 
 	t.Run("clean cluster passes", tc.testCleanClusterPasses)
-	t.Run("CodeFlare-managed RayCluster blocks", tc.testCodeFlareManagedRayClusterBlocks)
+	t.Run("RayCluster with finalizer and missing backup blocks", tc.testRayClusterWithFinalizerAndMissingBackupBlocks)
+	t.Run("RayCluster with finalizer and backup annotation passes", tc.testRayClusterWithFinalizerAndBackupAnnotationPasses)
 	t.Run("RayCluster without CodeFlare finalizer passes", tc.testRayClusterWithoutCodeFlareFinalizerPasses)
 }
 
@@ -50,7 +51,7 @@ func (tc *rayGateTestCtx) testCleanClusterPasses(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
-func (tc *rayGateTestCtx) testCodeFlareManagedRayClusterBlocks(t *testing.T) {
+func (tc *rayGateTestCtx) testRayClusterWithFinalizerAndMissingBackupBlocks(t *testing.T) {
 	g := NewWithT(t)
 	namespace := "ray-gate-codeflare-managed"
 
@@ -63,6 +64,30 @@ func (tc *rayGateTestCtx) testCodeFlareManagedRayClusterBlocks(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	tc.assertBlockingCase(t, namespace, obj, 1)
+}
+
+func (tc *rayGateTestCtx) testRayClusterWithFinalizerAndBackupAnnotationPasses(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+	namespace := "ray-gate-migrated"
+
+	g.Expect(tc.cli.Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: namespace},
+	})).ToNot(HaveOccurred())
+
+	obj, err := tp.RenderObject(resourcesFS, "resources/raycluster.tmpl.yaml", map[string]any{
+		"APIVersion":  "ray.io/v1",
+		"Name":        "migrated-raycluster",
+		"Namespace":   namespace,
+		"Finalizers":  []string{"ray.openshift.ai/oauth-finalizer"},
+		"Annotations": map[string]string{"odh.ray.io/pre-upgrade-backup-taken": "true"},
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(tc.cli.Create(ctx, obj)).ToNot(HaveOccurred())
+	cleanupRayCluster(t, g, tc.cli, obj)
+
+	err = raygate.Check(ctx, tc.cli, componentApi.RayComponentName, namespace)
+	g.Expect(err).ToNot(HaveOccurred())
 }
 
 func (tc *rayGateTestCtx) testRayClusterWithoutCodeFlareFinalizerPasses(t *testing.T) {

@@ -110,11 +110,13 @@ Legend:
     Ray gate
 - Checks implemented in repo:
   - block when `RayCluster` objects still carry the
-    `ray.openshift.ai/oauth-finalizer`
+    `ray.openshift.ai/oauth-finalizer` and do not have the
+    `odh.ray.io/pre-upgrade-backup-taken` annotation
 - Notes:
-  - the repo intentionally does not block on the
-    `odh.ray.io/pre-upgrade-backup-taken` annotation because that is an
-    advisory/prep-step marker rather than a live blocking condition
+  - AppWrappers remain advisory/non-blocking and are intentionally not encoded
+    as an operator upgrade gate
+  - Kueue management-state blocking remains tracked under `RHOAIENG-82351`, not
+    the Ray gate
 
 ### `RHOAIENG-82354` SparkOperator
 
