@@ -10,6 +10,7 @@ require (
 	github.com/itchyny/gojq v0.12.16
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.36.3
+	github.com/opendatahub-io/opendatahub-operator/pkg/scoperules v0.0.0-00010101000000-000000000000
 	github.com/openshift/api v0.0.0-20230823114715-5fdd7511b790
 	github.com/operator-framework/api v0.31.0
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.68.0
@@ -17,7 +18,7 @@ require (
 	github.com/rs/xid v1.6.0
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.20.1
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	go.uber.org/zap v1.27.0
 	gomodules.xyz/jsonpatch/v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -103,3 +104,5 @@ require (
 )
 
 exclude github.com/openshift/api v3.9.0+incompatible
+
+replace github.com/opendatahub-io/opendatahub-operator/pkg/scoperules => ./pkg/scoperules
