@@ -261,7 +261,7 @@ additional_meta:
     git.commit: ee03de221640741607fbec9877920449954a5039
   odh-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
-    git.commit: ff063c2a962c1879f31ffc254a8afe86ba559434
+    git.commit: c7d87e8152886e3ff1afde5d56f886699af0fa83
   odh-observability:
     git.url: https://github.com/red-hat-data-services/odh-observability
     git.commit: 1c116fde7aaa0eaac6558f6ed127503fe666658a
