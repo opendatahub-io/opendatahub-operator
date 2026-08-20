@@ -254,11 +254,11 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/model-registry-operator"
-      digest: "sha256:23a92019280150fd83626d5676bb9a3b89c5dd3f5e86fad0f2d45aaa6d07abfc"
+      digest: "sha256:a2662a229dd5392d2472b86b0a25a4f56dfc5cb47776dcf59ab3f6f9045064bb"
     rhoai:
       shaFrom: odh
       base: "quay.io/opendatahub/model-registry-operator"
-      digest: "sha256:23a92019280150fd83626d5676bb9a3b89c5dd3f5e86fad0f2d45aaa6d07abfc"
+      digest: "sha256:a2662a229dd5392d2472b86b0a25a4f56dfc5cb47776dcf59ab3f6f9045064bb"
   RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE:
     component: datasciencepipelines
     paramsEnvKey: IMAGES_DSPO
