@@ -40,7 +40,7 @@ map:
     src: config
     dest: trainer
     git.url: https://github.com/red-hat-data-services/trainer-operator
-    git.commit: c049169b7120a35a3f204f5cf7528c8313c85266
+    git.commit: ced3a587005d53f6b8d639ca8eb90735570e5ac9
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
@@ -93,7 +93,7 @@ additional_meta:
     git.commit: 1047a7e1ef781fbf1b49c57ee2be6aa274acb1d8
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 1047a7e1ef781fbf1b49c57ee2be6aa274acb1d8
+    git.commit: 0bd204479ead25e191f684130f8b610e68a5ddb2
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: fb3cc91655910eefdedfad510b24e550de507864
@@ -156,7 +156,7 @@ additional_meta:
     git.commit: fbe2b3ea32a7973bbb9dcc2678e0fcc6a865bf9b
   odh-llm-d-async:
     git.url: https://github.com/red-hat-data-services/llm-d-async
-    git.commit: c1426193140e104693a2bce7dfe3c46809baa2b0
+    git.commit: 41f9c4f84ce792a328abafe6e9232cacde16f991
   odh-llm-d-batch-gateway-apiserver:
     git.url: https://github.com/red-hat-data-services/batch-gateway
     git.commit: e6b3e923c0e00893f23774c429fbdf55067b94c5
@@ -255,7 +255,7 @@ additional_meta:
     git.commit: 54801b7c9d2045243ce2ab9e3832a667525d0e96
   odh-mod-arch-notebooks:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 1047a7e1ef781fbf1b49c57ee2be6aa274acb1d8
+    git.commit: 0bd204479ead25e191f684130f8b610e68a5ddb2
   odh-must-gather:
     git.url: https://github.com/red-hat-data-services/must-gather
     git.commit: ee03de221640741607fbec9877920449954a5039
@@ -327,7 +327,7 @@ additional_meta:
     git.commit: 5a435261036125a6e2c5f7e9cbb0e6ae408ac8a2
   odh-trainer:
     git.url: https://github.com/red-hat-data-services/trainer
-    git.commit: b3c657098b80af6f6344624577e3912f2248c8e3
+    git.commit: a3ca02fc69bc3c0c45b9d770b8a788cc23ceff8e
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
     git.commit: 0d3c373b2928da93e0cb56fea93fd769456f4c9b
@@ -352,9 +352,6 @@ additional_meta:
   odh-workbench-codeserver-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 24a8efcf4977c830ab23aa13deaa2aa499a20840
-  odh-workbench-jupyter-baseline-cpu-py312:
-    git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: b548185d751660621abc31ce6d6153275483f802
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 24a8efcf4977c830ab23aa13deaa2aa499a20840
