@@ -186,8 +186,8 @@ spec:
         - spec
         type: object
         x-kubernetes-validations:
-        - message: Only the name 'default' is allowed
-          rule: self.metadata.name == 'default'
+        - message: Only the name 'default-aihub' is allowed
+          rule: self.metadata.name == 'default-aihub'
     served: true
     storage: true
     subresources:

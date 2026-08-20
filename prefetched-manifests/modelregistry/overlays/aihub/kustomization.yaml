@@ -9,7 +9,6 @@ resources:
 - manager.yaml
 - metrics_service.yaml
 - monitor.yaml
-- service_ca_configmap.yaml
 - rbac/
 
 configMapGenerator:

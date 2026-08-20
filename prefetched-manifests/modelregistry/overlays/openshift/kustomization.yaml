@@ -6,7 +6,6 @@ resources:
   - ../../prometheus
   - tls_clusterrole.yaml
   - tls_clusterrole_binding.yaml
-  - service_ca_configmap.yaml
 
 patches:
   - path: servicemonitor_patch.yaml
