@@ -12,11 +12,11 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
   value: "quay.io/rhoai/odh-cli-rhel9@sha256:4f49a9088b0b72fa809bc2b754e025e916ce874169b7dd948c80d178bda49bc4"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
-  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:37c75734b096c99a8bc2a4cd010bc44eec63605a2f243ff40aa9cb4afbaab1cc"
+  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:f3b77a8da9704582743ef6c6ff41f8674a502a2f39d3097d9daa4567ff6174ad"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:1c6d766728523e5b6489a3cc2fcd1ed04e587ef617e1bdb87e476e07b4e018c1"
+  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:f47e42e2755dfdcc1f4cbacce84ec132a59dbee4866ce977436a31371422d452"
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:73fa24fd272b8ec637fc2bf9377b76bd555a5a8f04edc2a73091aaa6f067110d"
+  value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:a46d822d27126569eaa1fee06ff36a8bbd8851d4be6c76320c4c94ff81f141da"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE
   value: "quay.io/rhoai/odh-data-science-pipelines-argo-argoexec-rhel9@sha256:9a5cf64947ca0998d7570b1a73f8816a694959afcdc87b6d1511f9ccbf6988b7"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_WORKFLOWCONTROLLER_IMAGE
@@ -132,7 +132,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-gen-ai-rhel9@sha256:2c0cf52936b70ce79f10dbdd631c7a5173458d70170e27747983fba6ca35c987"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE
-  value: "quay.io/rhoai/odh-mod-arch-maas-rhel9@sha256:6c613afde2b629c9b401eaf3c99ac47d7d81394fefa243ed3e805161852fb588"
+  value: "quay.io/rhoai/odh-mod-arch-maas-rhel9@sha256:de8d9a0542ccf6d04ad60a374c81a294cfbd14ff65c8394b3b5a4268d8d69934"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MLFLOW_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-mlflow-rhel9@sha256:9a1f6607b3d3cbd1e35444e1b2ec3c7d10d9d933963a9a11786c5007b2c8e6ae"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE
