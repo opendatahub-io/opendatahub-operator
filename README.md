@@ -640,11 +640,6 @@ spec:
     namespace: opendatahub
     metrics:
       replicas: 2
-      resources:
-        cpulimit: 500m
-        cpurequest: 100m
-        memorylimit: 512Mi
-        memoryrequest: 256Mi
       storage:
         retention: 90d
         size: 5Gi
