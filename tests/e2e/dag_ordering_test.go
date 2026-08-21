@@ -625,24 +625,15 @@ func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 		WithMutateFunc(selectComponentsTransform("Managed", partialFields)),
 	)
 
-	t.Log("Verifying enabled CRs are created")
-	// dashboard and kserve are in-tree component CRs ("default-<kind>"); modelregistry
-	// is an out-of-tree module whose CR is the shared cluster-scoped AIHub singleton
-	// named "default-aihub".
-	enabledCRs := []struct {
-		gvk  schema.GroupVersionKind
-		name string
-	}{
-		{gvk.Dashboard, tc.GetInstanceName(gvk.Dashboard)},
-		{gvk.Kserve, tc.GetInstanceName(gvk.Kserve)},
-		{gvk.AIHub, "default-aihub"},
-	}
-	for _, cr := range enabledCRs {
+	t.Log("Verifying enabled component CRs are created")
+	enabledGVKs := []schema.GroupVersionKind{gvk.Dashboard, gvk.Kserve, gvk.AIHub}
+	for _, g := range enabledGVKs {
+		instanceName := tc.GetInstanceName(g)
 		tc.EnsureResourceExists(
-			WithMinimalObject(cr.gvk, types.NamespacedName{Name: cr.name}),
+			WithMinimalObject(g, types.NamespacedName{Name: instanceName}),
 			WithEventuallyTimeout(5*time.Minute),
 			WithEventuallyPollingInterval(10*time.Second),
-			WithCustomErrorMsg("Enabled CR %s/%s should exist", cr.gvk.Kind, cr.name),
+			WithCustomErrorMsg("Enabled component CR %s should exist", g.Kind),
 		)
 	}
 

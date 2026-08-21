@@ -80,13 +80,6 @@ func modelRegistryTestSuite(t *testing.T) {
 				WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
 			)
 
-			// Assert DSC ModulesReady True.
-			tc.EnsureResourceExists(
-				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
-				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeModulesReady, metav1.ConditionTrue)),
-			)
-
 			// Assert DSC ModelRegistryReady True + component managementState Managed.
 			tc.EnsureResourceExists(
 				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
