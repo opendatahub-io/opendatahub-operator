@@ -90,11 +90,11 @@ components:
   sparkoperator:
     odh:
       repo: opendatahub-io/spark-operator
-      ref: main@807b949ffc7e3e681462abdf8aa89d319f8cc957
+      ref: main@aff4b8e68e108405ae37ea8d8132bd212a81ea37
       sourcePath: spark-operator-module/config
     rhoai:
       repo: red-hat-data-services/spark-operator
-      ref: rhoai-3.6-ea.1@bd9a5b8b6af68efd9fad94353505a5dfa1983658
+      ref: rhoai-3.6-ea.1@0c3c0eebcd5f03a02778ad1c21957949ce03d41f
       sourcePath: spark-operator-module/config
   aigateway:
     odh:
@@ -308,11 +308,11 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/spark-operator"
-      digest: "sha256:4253d48c925a6ab86381eb87faa13a6c91189c7e1a98e02a24a41eb5d1a782ca"
+      digest: "sha256:db1337d94fa93d5fd975aa0454c9fa29d186def001e0a2f546a8278f4fb50f78"
     rhoai:
       shaFrom: odh
       base: "quay.io/opendatahub/spark-operator"
-      digest: "sha256:4253d48c925a6ab86381eb87faa13a6c91189c7e1a98e02a24a41eb5d1a782ca"
+      digest: "sha256:db1337d94fa93d5fd975aa0454c9fa29d186def001e0a2f546a8278f4fb50f78"
   RELATED_IMAGE_ODH_AI_GATEWAY_OPERATOR_IMAGE:
     component: aigateway
     tagTemplate: "{SHA}"
