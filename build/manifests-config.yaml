@@ -255,7 +255,7 @@ additional_meta:
     git.commit: f146ab58c7c71c1e10c4b03988cfe9a8a9428aa3
   odh-mod-arch-notebooks:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 3affc06b9fe32c73342acec6b647771491df56f0
+    git.commit: 40b72e34bafe5acb0ab0691ede9da5b443d6176f
   odh-must-gather:
     git.url: https://github.com/red-hat-data-services/must-gather
     git.commit: ee03de221640741607fbec9877920449954a5039
