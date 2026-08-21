@@ -9,8 +9,10 @@ on:
       - 'internal/**'
       - 'pkg/**'
       - 'cmd/main.go'
+      - 'cmd/manifest-tools/**'
       - 'api/**'
       - 'config/**'
+      - 'manifests-config.yaml'
 
 jobs:
   unit-test:

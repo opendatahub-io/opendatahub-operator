@@ -96,6 +96,51 @@ func ExtractBranch(ref string) string {
 	return ref
 }
 
+var tagPlaceholderPattern = regexp.MustCompile(`\{[^{}]+\}`)
+
+const (
+	// TagSHA and TagShortSHA are the only placeholders ValidateTagTemplate
+	// accepts. Substitution uses the same strings when building a registry tag.
+	TagSHA      = "{SHA}"
+	TagShortSHA = "{SHORT_SHA}"
+)
+
+// ValidateTagTemplate returns an error unless template can be used to build an
+// image tag from a component SHA. It must contain TagSHA and/or TagShortSHA.
+// Every {…} token must be one of those two (case-sensitive). Prefixes and
+// suffixes are allowed. Leftover { or } after those tokens, and whitespace-only
+// values, are rejected.
+func ValidateTagTemplate(template string) error {
+	if strings.TrimSpace(template) == "" {
+		return fmt.Errorf("must contain %s and/or %s", TagSHA, TagShortSHA)
+	}
+
+	placeholders := tagPlaceholderPattern.FindAllString(template, -1)
+	hasKnown := false
+	var unknown []string
+	for _, p := range placeholders {
+		switch p {
+		case TagSHA, TagShortSHA:
+			hasKnown = true
+		default:
+			unknown = append(unknown, p)
+		}
+	}
+	if len(unknown) > 0 {
+		return fmt.Errorf("unknown placeholder %s; only %s and %s are allowed",
+			strings.Join(unknown, ", "), TagSHA, TagShortSHA)
+	}
+	if !hasKnown {
+		return fmt.Errorf("must contain %s and/or %s", TagSHA, TagShortSHA)
+	}
+	remainder := strings.ReplaceAll(template, TagSHA, "")
+	remainder = strings.ReplaceAll(remainder, TagShortSHA, "")
+	if strings.ContainsAny(remainder, "{}") {
+		return fmt.Errorf("malformed placeholder; only %s and %s are allowed", TagSHA, TagShortSHA)
+	}
+	return nil
+}
+
 func Load(path string) (*ManifestsConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -116,6 +161,33 @@ func Parse(data []byte) (*ManifestsConfig, error) {
 	}
 
 	return &cfg, nil
+}
+
+// CheckImageOverride returns an error if the row's name, source, component, or
+// tagTemplate is illegal, or if paramsEnvKey is set without a component. It
+// does not look up params.env on disk.
+func (c *ManifestsConfig) CheckImageOverride(envName string, override ImageOverride) error {
+	if !strings.HasPrefix(envName, "RELATED_IMAGE_") {
+		return fmt.Errorf("imageOverrides.%s: key must start with RELATED_IMAGE_", envName)
+	}
+	if override.Source != "" && override.Source != "csv" {
+		return fmt.Errorf("imageOverrides.%s.source: %q is not %q", envName, override.Source, "csv")
+	}
+	if override.Component != "" && c.FindComponent(override.Component) == nil {
+		return fmt.Errorf("imageOverrides.%s.component: %q is not a key in components, ccmCharts, or componentCharts", envName, override.Component)
+	}
+	if override.TagTemplate != "" {
+		if override.Component == "" {
+			return fmt.Errorf("imageOverrides.%s.tagTemplate: requires component", envName)
+		}
+		if err := ValidateTagTemplate(override.TagTemplate); err != nil {
+			return fmt.Errorf("imageOverrides.%s.tagTemplate: %q: %w", envName, override.TagTemplate, err)
+		}
+	}
+	if override.ParamsEnvKey != "" && override.Component == "" {
+		return fmt.Errorf("imageOverrides.%s.paramsEnvKey: requires component", envName)
+	}
+	return nil
 }
 
 func (c *ManifestsConfig) FindComponent(name string) *Component {
