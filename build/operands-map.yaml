@@ -24,7 +24,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-data-science-pipelines-operator-controller-rhel9@sha256:f5c36e87054387a8f630e5b0ada31fdac2f5e39d547dc2a28b890b9504f23a6e"
 - name: RELATED_IMAGE_ODH_EVAL_HUB_IMAGE
-  value: "quay.io/rhoai/odh-eval-hub-rhel9@sha256:465336b7f73948cffbc23f32e1967287e7694a66c2200631e161dfa3bc5427c6"
+  value: "quay.io/rhoai/odh-eval-hub-rhel9@sha256:ff7ec793a9b5e8c8be64a6a4332e93e7a2f9dfc08a1c7d95019619634bc24f96"
 - name: RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-feast-module-operator-rhel9@sha256:4c05399e328717762c279398fcef4a9dd7f429b2a547ea9f7c38e63df86f6f75"
 - name: RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE
@@ -66,7 +66,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TRAINING_IMAGE
   value: "quay.io/rhoai/odh-latency-predictor-training-rhel9@sha256:646dc601f7df8a0ae9adfec4a25457dc960f188f05029a32bfc74f8f03335972"
 - name: RELATED_IMAGE_ODH_LLM_D_ASYNC_IMAGE
-  value: "quay.io/rhoai/odh-llm-d-async-rhel9@sha256:e6c92bcb103b0ef6de0d5edfe61924de5ec65d0f5d113277ffb43c69835cae46"
+  value: "quay.io/rhoai/odh-llm-d-async-rhel9@sha256:98314e4098d045b248d0ec67fcbaf35113e5422f3c357e79917f4ec16d614202"
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_APISERVER_IMAGE
   value: "quay.io/rhoai/odh-llm-d-batch-gateway-apiserver-rhel9@sha256:90e08798b87c1f1a8d67137033aaa6a155798e66ac971a06d73f773eaafab9ab"
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE
