@@ -56,7 +56,11 @@ var dagBatches = []componentBatch{
 		components: []componentEntry{
 			{name: componentApi.DashboardComponentName, gvk: gvk.Dashboard, internal: true},
 			{name: componentApi.DataSciencePipelinesComponentName, gvk: gvk.DataSciencePipelines},
-			{name: componentApi.ModelRegistryComponentName, gvk: gvk.ModelRegistry},
+			// ModelRegistry is an out-of-tree module whose CR is the shared
+			// cluster-scoped AIHub singleton "default-aihub"; it is referenced
+			// directly via gvk.AIHub and routed through the module-readiness
+			// (Ready=True) path like the other modules (mlflow, spark).
+			{name: componentApi.ModelRegistryComponentName, gvk: gvk.AIHub, internal: true},
 			{name: componentApi.RayComponentName, gvk: gvk.Ray},
 			{name: componentApi.TrainerComponentName, gvk: gvk.Trainer, internal: true},
 			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches, internal: true},
@@ -615,14 +619,14 @@ func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 
 	partialFields := []string{"dashboard", "kserve", "modelregistry"}
 
-	t.Log("Enabling partial set: dashboard (batch 20), kserve (batch 31), modelregistry (batch 20)")
+	t.Log("Enabling partial set: dashboard (batch 20), kserve (batch 31), modelregistry (batch 20, AIHub module)")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(selectComponentsTransform("Managed", partialFields)),
 	)
 
 	t.Log("Verifying enabled component CRs are created")
-	enabledGVKs := []schema.GroupVersionKind{gvk.Dashboard, gvk.Kserve, gvk.ModelRegistry}
+	enabledGVKs := []schema.GroupVersionKind{gvk.Dashboard, gvk.Kserve, gvk.AIHub}
 	for _, g := range enabledGVKs {
 		instanceName := tc.GetInstanceName(g)
 		tc.EnsureResourceExists(
