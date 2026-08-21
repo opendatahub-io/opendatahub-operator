@@ -12,9 +12,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
   value: "quay.io/rhoai/odh-cli-rhel9@sha256:edc0ebe9ffeac42b9dd4d34ed3d11753b40fc33a2c4824e15aef059a536241b0"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
-  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:10d07a94fb51b874253891f0eb11b358ad5821d776074d2ca1be4972ba2d36b8"
+  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:f5cdd5dec8f832da220850445237fb0d655f89cf55cd4858d0a7bf1e6ea29ea2"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:ed2d2c247e179a1b134e5f63cd84b8555b16d914b3c21f06eab91ca5bfb35df9"
+  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:eb7210f1b2290f556b6ae75b4ff236830a708fbc3486462e2525896238aea5c0"
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:54720ed2ae52beca801a431604b9677b852760320fe909faea6d8740dc18fe83"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE
