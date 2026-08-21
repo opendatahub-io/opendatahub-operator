@@ -21,7 +21,7 @@ const (
 
 var (
 	imageParamMap = map[string]string{
-		"trustyaiServiceImage":               "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
+		"trustyaiServiceImage":               "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_PY_IMAGE",
 		"trustyaiOperatorImage":              "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
 		"lmes-driver-image":                  "RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE",
 		"lmes-pod-image":                     "RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE",
