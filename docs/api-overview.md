@@ -3113,7 +3113,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `issuerURL` _string_ | OIDC issuer URL |  | Required: \{\} <br /> |
+| `issuerURL` _string_ | OIDC issuer URL. Must be an https URL with a non-empty host and no query or<br />fragment component (an OIDC issuer identifier has neither). |  | Format: uri <br />MaxLength: 2048 <br />MinLength: 1 <br />Pattern: `^https://[^?#\s]+$` <br />Required: \{\} <br /> |
 | `clientID` _string_ | OIDC client ID |  | Required: \{\} <br /> |
 | `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | Reference to secret containing client secret |  | Required: \{\} <br /> |
 | `secretNamespace` _string_ | Namespace where the client secret is located<br />If not specified, defaults to openshift-ingress |  |  |
