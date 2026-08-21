@@ -410,7 +410,9 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	cacheOptions := cache.Options{
-		Scheme: scheme,
+		Scheme:                      scheme,
+		DefaultNamespaces:           oDHCache,
+		ReaderFailOnMissingInformer: true,
 		ByObject: map[client.Object]cache.ByObject{
 			// Cannot find a label on various secrets, so we need to watch all secrets
 			// this includes, monitoring, dashboard, trustcabundle default cert etc for these NS
@@ -434,6 +436,15 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			&rbacv1.RoleBinding{}: {
 				Namespaces: oDHCache,
 			},
+			&corev1.ServiceAccount{}: {
+				Namespaces: oDHCache,
+			},
+			&corev1.Service{}: {
+				Namespaces: oDHCache,
+			},
+			&corev1.PersistentVolumeClaim{}: {
+				Namespaces: oDHCache,
+			},
 		},
 		DefaultTransform: func(in any) (any, error) {
 			// Nilcheck managed fields to avoid hitting https://github.com/kubernetes/kubernetes/issues/124337
@@ -448,6 +459,9 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// OpenShift-specific cache filters: only register when running on OpenShift
 	if cluster.GetClusterInfo().Type == cluster.ClusterTypeOpenShift {
 		cacheOptions.ByObject[&operatorv1.IngressController{}] = cache.ByObject{
+			Namespaces: map[string]cache.Config{
+				"openshift-ingress-operator": {},
+			},
 			Field: fields.Set{"metadata.name": "default"}.AsSelector(),
 		}
 		cacheOptions.ByObject[&configv1.Authentication{}] = cache.ByObject{
