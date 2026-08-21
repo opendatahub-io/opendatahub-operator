@@ -87,7 +87,7 @@ additional_meta:
     git.commit: b4983e79c288ee231ef0e254a4e944dd27ea3b4d
   odh-cli:
     git.url: https://github.com/red-hat-data-services/odh-cli
-    git.commit: 10d0b8649827f0aff11b412f445813acc6a47952
+    git.commit: 2eae68ba12a8eefd20f8551cc9d1e263063b5043
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 40b72e34bafe5acb0ab0691ede9da5b443d6176f
