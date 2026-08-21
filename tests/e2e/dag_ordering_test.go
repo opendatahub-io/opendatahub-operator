@@ -404,7 +404,7 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 				continue
 			}
 			tc.EnsureResourceExists(
-				WithMinimalObject(comp.resolvedGVK(), types.NamespacedName{Name: tc.resolvedCRName(comp)}),
+				WithMinimalObject(comp.gvk, types.NamespacedName{Name: tc.GetInstanceName(comp.gvk)}),
 				WithCondition(jq.Match(
 					`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
 					precondition.PlatformReadyConditionType, metav1.ConditionTrue,
@@ -433,14 +433,14 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 			if !comp.internal {
 				continue
 			}
-			instanceName := tc.findFirstCRName(t, comp.resolvedGVK())
+			instanceName := tc.findFirstCRName(t, comp.gvk)
 			if instanceName == "" {
-				t.Logf("No %s CRs found, skipping readiness check", comp.resolvedGVK().Kind)
+				t.Logf("No %s CRs found, skipping readiness check", comp.gvk.Kind)
 				continue
 			}
 
 			tc.EnsureResourceExists(
-				WithMinimalObject(comp.resolvedGVK(), types.NamespacedName{Name: instanceName}),
+				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
 				WithCondition(jq.Match(
 					`any(.status.conditions[]; .type == "Ready" and .status == "True")`,
 				)),
@@ -469,14 +469,14 @@ func (tc *DAGOrderingTestCtx) ValidatePlatformReady(t *testing.T) {
 				continue
 			}
 
-			instanceName := tc.findFirstCRName(t, comp.resolvedGVK())
+			instanceName := tc.findFirstCRName(t, comp.gvk)
 			if instanceName == "" {
-				t.Logf("No %s CRs found, skipping PlatformReady check", comp.resolvedGVK().Kind)
+				t.Logf("No %s CRs found, skipping PlatformReady check", comp.gvk.Kind)
 				continue
 			}
 
 			tc.EnsureResourceExists(
-				WithMinimalObject(comp.resolvedGVK(), types.NamespacedName{Name: instanceName}),
+				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
 				WithCondition(jq.Match(
 					`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
 					precondition.PlatformReadyConditionType, metav1.ConditionTrue,
@@ -597,9 +597,9 @@ func (tc *DAGOrderingTestCtx) ValidateDAGCleanup(t *testing.T) {
 	t.Log("Verifying all component CRs are cleaned up (no orphans)")
 	for _, batch := range dagBatches {
 		for _, comp := range batch.components {
-			instanceName := tc.resolvedCRName(comp)
+			instanceName := tc.GetInstanceName(comp.gvk)
 			tc.EnsureResourceGone(
-				WithMinimalObject(comp.resolvedGVK(), types.NamespacedName{Name: instanceName}),
+				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
 				WithEventuallyTimeout(5*time.Minute),
 				WithEventuallyPollingInterval(10*time.Second),
 			)
@@ -894,16 +894,6 @@ func (tc *DAGOrderingTestCtx) deleteGateSourceCMs(t *testing.T, names ...string)
 	}
 }
 
-// resolvedGVK returns the GVK of the actual CR this entry provisions.
-func (c componentEntry) resolvedGVK() schema.GroupVersionKind {
-	return c.gvk
-}
-
-// resolvedCRName returns the name of the actual CR this entry provisions.
-func (tc *DAGOrderingTestCtx) resolvedCRName(c componentEntry) string {
-	return tc.GetInstanceName(c.resolvedGVK())
-}
-
 // --- helpers ---
 
 func allComponentsManagedTransform() func(*unstructured.Unstructured) error {
@@ -952,9 +942,9 @@ func (tc *DAGOrderingTestCtx) setAllRemoved(t *testing.T) {
 
 	for _, batch := range dagBatches {
 		for _, comp := range batch.components {
-			instanceName := tc.resolvedCRName(comp)
+			instanceName := tc.GetInstanceName(comp.gvk)
 			tc.EnsureResourceGone(
-				WithMinimalObject(comp.resolvedGVK(), types.NamespacedName{Name: instanceName}),
+				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
 				WithEventuallyTimeout(5*time.Minute),
 				WithEventuallyPollingInterval(10*time.Second),
 			)

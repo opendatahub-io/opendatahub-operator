@@ -93,6 +93,50 @@ func (h *handler) WriteDSCComponentStatus(dsc *dscv2.DataScienceCluster, enabled
 	}
 }
 
+// WriteLegacyStatusFields mirrors registriesNamespace from the DSC spec into
+// dsc.status.components.modelRegistry so consumers (e.g. odh-dashboard) can
+// resolve the model registries namespace from DSC status.
+//
+// TODO: Remove once consumers read registriesNamespace directly from the AIHub
+// module CR instead of DSC status.
+func (h *handler) WriteLegacyStatusFields(
+	_ context.Context,
+	_ client.Client,
+	dsc *dscv2.DataScienceCluster,
+	enabled bool,
+) error {
+	if dsc == nil {
+		return nil
+	}
+
+	if !enabled {
+		writeDSCRegistriesNamespace(dsc, false, "")
+		return nil
+	}
+
+	writeDSCRegistriesNamespace(dsc, true, dsc.Spec.Components.ModelRegistry.RegistriesNamespace)
+	return nil
+}
+
+func writeDSCRegistriesNamespace(dsc *dscv2.DataScienceCluster, enabled bool, registriesNamespace string) {
+	if dsc == nil {
+		return
+	}
+
+	if !enabled || registriesNamespace == "" {
+		if dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus != nil {
+			dsc.Status.Components.ModelRegistry.RegistriesNamespace = ""
+		}
+		return
+	}
+
+	if dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus == nil {
+		dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus = &componentApi.ModelRegistryCommonStatus{}
+	}
+
+	dsc.Status.Components.ModelRegistry.RegistriesNamespace = registriesNamespace
+}
+
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,

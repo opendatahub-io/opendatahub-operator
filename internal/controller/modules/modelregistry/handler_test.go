@@ -263,3 +263,71 @@ func TestGetName(t *testing.T) {
 	h := modelregistry.NewHandler()
 	g.Expect(h.GetName()).Should(Equal(componentApi.ModelRegistryComponentName))
 }
+
+func TestWriteLegacyStatusFields_MirrorsFromDSCSpec(t *testing.T) {
+	g := NewWithT(t)
+	h := modelregistry.NewHandler()
+	dsc := &dscv2.DataScienceCluster{
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				ModelRegistry: componentApi.DSCModelRegistry{
+					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
+						RegistriesNamespace: "odh-model-registries",
+					},
+				},
+			},
+		},
+	}
+
+	err := h.WriteLegacyStatusFields(context.Background(), nil, dsc, true)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(dsc.Status.Components.ModelRegistry.RegistriesNamespace).Should(Equal("odh-model-registries"))
+}
+
+func TestWriteLegacyStatusFields_ClearsWhenDisabled(t *testing.T) {
+	g := NewWithT(t)
+	h := modelregistry.NewHandler()
+	dsc := &dscv2.DataScienceCluster{
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				ModelRegistry: componentApi.DSCModelRegistry{
+					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
+						RegistriesNamespace: "odh-model-registries",
+					},
+				},
+			},
+		},
+	}
+
+	err := h.WriteLegacyStatusFields(context.Background(), nil, dsc, true)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	err = h.WriteLegacyStatusFields(context.Background(), nil, dsc, false)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(dsc.Status.Components.ModelRegistry.RegistriesNamespace).Should(BeEmpty())
+}
+
+func TestWriteLegacyStatusFields_ClearsWhenSpecEmpty(t *testing.T) {
+	g := NewWithT(t)
+	h := modelregistry.NewHandler()
+	dsc := &dscv2.DataScienceCluster{
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				ModelRegistry: componentApi.DSCModelRegistry{
+					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
+						RegistriesNamespace: "odh-model-registries",
+					},
+				},
+			},
+		},
+	}
+
+	err := h.WriteLegacyStatusFields(context.Background(), nil, dsc, true)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(dsc.Status.Components.ModelRegistry.RegistriesNamespace).Should(Equal("odh-model-registries"))
+
+	dsc.Spec.Components.ModelRegistry.RegistriesNamespace = ""
+	err = h.WriteLegacyStatusFields(context.Background(), nil, dsc, true)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(dsc.Status.Components.ModelRegistry.RegistriesNamespace).Should(BeEmpty())
+}
