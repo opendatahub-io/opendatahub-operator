@@ -15,6 +15,7 @@ import (
 	raygates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/ray"
 	servicemeshoperatorv2gates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/servicemeshoperatorv2"
 	trustyaigates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/trustyai"
+	workbenchesgates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/workbenches"
 )
 
 const removedGatePrefix = "removed-"
@@ -39,7 +40,7 @@ var registeredChecks = map[string]provision.UpgradeCheckFunc{
 	componentApi.TrainerComponentName:              provision.DefaultUpgradeCheck,
 	componentApi.TrainingOperatorComponentName:     provision.DefaultUpgradeCheck,
 	componentApi.TrustyAIComponentName:             trustyaigates.Check,
-	componentApi.WorkbenchesComponentName:          provision.DefaultUpgradeCheck,
+	componentApi.WorkbenchesComponentName:          workbenchesgates.Check,
 
 	// removed
 	removedGatePrefix + componentApi.CodeFlareComponentName:        codeflaregates.Check,
