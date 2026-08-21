@@ -111,7 +111,7 @@ data:
         name: Petri — Full Alignment Audit
         description: >
           Complete Petri audit across all 170+ built-in seeds from all 40 tag categories.
-          Expensive — strongly recommend setting max_samples for development runs.
+          Expensive — strongly recommend setting num_examples for development runs.
           Primary output: 38-dimension scoring profile across all alignment behaviors.
         category: alignment
         metrics: [concerning/mean, eval_awareness/mean, admirable/mean]
@@ -520,6 +520,88 @@ data:
         metrics: [accuracy/accuracy]
         tags: [reasoning, math, inspect-evals]
 
+      # Telecom (GSMA Open-Telco)
+      - id: inspect/telemath
+        name: TeleMath
+        description: >
+          Telecom-domain mathematical problem solving — 500 numerical Q&A pairs covering
+          signal processing, networking, electrical engineering, information theory, and
+          related topics (GSMA Open-Telco / Inspect AI). Set full=true for GSMA/ot-full
+          (500 items); full=false uses GSMA/ot-lite. Cap sample count with num_examples.
+        category: telecom
+        metrics:
+          - telemath_scorer/accuracy
+          - telemath_scorer/stderr
+        primary_score:
+          metric: telemath_scorer/accuracy
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.50
+        tags: [telecom, math, reasoning, open-telco, inspect-ai]
+        agent:
+          result_interpretation: "Accuracy on telecom-domain numerical math; HIGHER is better. GSMA leaderboard (Mar 2026): median ≈ 0.42, GPT-5 ≈ 0.79, top ≈ 0.87."
+
+      - id: inspect/teleqna
+        name: TeleQnA
+        description: >
+          Telecom domain knowledge — multiple-choice questions on standards, research,
+          and technical topics (GSMA Open-Telco / Inspect AI). Set full=true for
+          GSMA/ot-full; full=false uses GSMA/ot-lite. Optional subject filters by
+          TeleQnA subject (default full = all subjects). Cap with num_examples.
+        category: telecom
+        metrics:
+          - choice/accuracy
+          - choice/stderr
+        primary_score:
+          metric: choice/accuracy
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.70
+        tags: [telecom, knowledge, qa, open-telco, inspect-ai]
+        agent:
+          result_interpretation: "Accuracy on telecom domain MCQ; HIGHER is better. GSMA leaderboard (Mar 2026): median ≈ 0.75, GPT-5 ≈ 0.84, top ≈ 0.91."
+
+      - id: inspect/telelogs
+        name: TeleLogs
+        description: >
+          Root-cause analysis on 5G network data — models identify which of several
+          predefined root causes explain throughput degradation (GSMA Open-Telco /
+          Inspect AI). Set full=true for GSMA/ot-full; eval_type soft (default) or hard.
+          Cap with num_examples.
+        category: telecom
+        metrics:
+          - telelogs_scorer/accuracy
+          - telelogs_scorer/stderr
+          - telelogs_scorer/maj_at_k
+        primary_score:
+          metric: telelogs_scorer/accuracy
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.25
+        tags: [telecom, operations, rca, troubleshooting, open-telco, inspect-ai]
+        agent:
+          result_interpretation: "Accuracy on 5G root-cause analysis; HIGHER is better. GSMA leaderboard (Mar 2026): median ≈ 0.23, GPT-5 ≈ 0.78, top ≈ 0.96."
+
+      - id: inspect/3gpp-tsg
+        name: 3GPP-TSG
+        description: >
+          3GPP technical specification group classification — models identify the
+          correct working group for excerpts from official 3GPP documents
+          (GSMA Open-Telco / Inspect AI). Set full=true for GSMA/ot-full; cap with
+          num_examples.
+        category: telecom
+        metrics:
+          - pattern/accuracy
+          - pattern/stderr
+        primary_score:
+          metric: pattern/accuracy
+          lower_is_better: false
+        pass_criteria:
+          threshold: 0.45
+        tags: [telecom, standards, 3gpp, knowledge, open-telco, inspect-ai]
+        agent:
+          result_interpretation: "Accuracy on 3GPP working-group classification; HIGHER is better. GSMA leaderboard (Mar 2026): median ≈ 0.43, GPT-5 ≈ 0.58, top ≈ 0.81."
+
       # Knowledge & reasoning
       - id: inspect/mmlu
         name: MMLU
@@ -884,21 +966,35 @@ data:
         default: 1
         description: Number of tasks to run concurrently.
 
-      - name: max_samples
-        type: integer
+      - name: full
+        type: boolean
         default: null
         description: >
-          Limit samples per task. Strongly recommended for Petri/Bloom development
-          runs to control cost. Full Petri audits (170+ seeds × 30 turns × 3 models)
-          can be expensive.
+          Open-Telco tasks (TeleMath, TeleQnA, …): when true, use GSMA/ot-full; when
+          false, use GSMA/ot-lite. Forwarded as Inspect -T full=….
+
+      - name: subject
+        type: string
+        default: null
+        description: >
+          TeleQnA only. Filter samples by subject metadata. Default in the task is
+          'full' (all subjects). Forwarded as Inspect -T subject=….
+
+      - name: eval_type
+        type: string
+        default: null
+        description: >
+          TeleLogs only. Scoring mode: 'soft' (default) or 'hard'. Forwarded as
+          Inspect -T eval_type=….
 
       - name: task_args
         type: object
         default: {}
         description: >
-          Pass-through task arguments forwarded as '-T key=value' flags.
-          Use for Dish (research preview): {"dish_scaffold": "claude-code"}.
-          See Petri docs for available task args.
+          Escape hatch for Inspect -T flags that are not first-class parameters
+          (e.g. Dish research preview: {"dish_scaffold": "claude-code"}).
+          Do not use for Open-Telco full/subject/eval_type — set those as flat
+          parameters instead.
 
       - name: log_level
         type: string
@@ -908,9 +1004,9 @@ data:
       - name: languages
         type: array
         default: [en]
-        description: ISO 639 language codes for EvalCard metadata.
+        description: ISO 639 language codes (optional, but when set used in evaluation card).
 
       - name: languages_count
         type: integer
         default: 1
-        description: Number of languages in the evaluation dataset.
+        description: Number of languages in the evaluation dataset (optional).

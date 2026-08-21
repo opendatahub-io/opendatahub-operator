@@ -511,6 +511,38 @@ spec:
                     - http
                     type: string
                 type: object
+              mlflow:
+                description: MLFlow optionally configures how EvalHub connects to
+                  the MLflow tracking server.
+                properties:
+                  tls:
+                    description: TLS configures trust for the MLflow tracking server's
+                      TLS certificate.
+                    properties:
+                      caBundle:
+                        description: |-
+                          CABundle optionally references a ConfigMap in the EvalHub instance namespace holding
+                          additional PEM-encoded CA certificate(s) to trust for the MLflow tracking server
+                          connection (for example, the CA that signs the MLflow public Route). It is merged with
+                          the in-cluster service-serving CA and the ODH trusted CA bundle, so EvalHub can reach
+                          MLflow over either its internal Service hostname or its public Route. Optional: when
+                          omitted, only the service-serving CA and the ODH trusted CA bundle are trusted.
+                        properties:
+                          key:
+                            default: ca-bundle.crt
+                            description: Key within the ConfigMap that holds the PEM-encoded
+                              CA certificate(s).
+                            type: string
+                          name:
+                            description: Name of the ConfigMap in the EvalHub instance
+                              namespace.
+                            minLength: 1
+                            type: string
+                        required:
+                        - name
+                        type: object
+                    type: object
+                type: object
               otel:
                 description: |-
                   OpenTelemetry configuration for observability.
