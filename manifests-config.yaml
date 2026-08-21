@@ -170,6 +170,16 @@ componentCharts:
       repo: red-hat-data-services/feast-module-operator
       ref: rhoai-3.5@804bef32fad14cb6a33fe4a6b3dbf8f41cb3aee7
       sourcePath: config/chart
+  # TODO: update refs after latest PRs are merged into odh-observability main
+  odh-observability:
+    odh:
+      repo: opendatahub-io/odh-observability
+      ref: main@a168cc819313a171f1e2e693f989807ed17081ba
+      sourcePath: charts/odh-observability
+    rhoai:
+      repo: red-hat-data-services/odh-observability
+      ref: main@214c2231557550c2dd79dddd0783f1ce10d18b27
+      sourcePath: charts/odh-observability
 # Image overrides — pinned operator image digests, keyed by RELATED_IMAGE_* env var name.
 # Local directories symlinked into opt/manifests/ during development.
 # In container builds, these are COPYed directly in the Dockerfile.
