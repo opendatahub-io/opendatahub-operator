@@ -1,5 +1,0 @@
-apiVersion: workload.codeflare.dev/v1beta2
-kind: AppWrapper
-metadata:
-  name: {{ .Name }}
-  namespace: {{ .Namespace }}

@@ -1,0 +1,15 @@
+apiVersion: operator.authorino.kuadrant.io/v1beta1
+kind: Authorino
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+spec:
+  listener:
+    tls:
+      enabled: {{ .TLSEnabled }}
+      certSecretRef:
+        name: {{ .CertSecretName }}
+status:
+  conditions:
+    - type: Ready
+      status: "{{ .ReadyStatus }}"

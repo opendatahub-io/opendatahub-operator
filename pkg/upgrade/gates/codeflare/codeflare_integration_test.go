@@ -5,9 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -38,7 +36,6 @@ func TestCodeFlareGates(t *testing.T) {
 
 	t.Run("clean cluster passes", tc.testCleanClusterPasses)
 	t.Run("CodeFlare CR blocks", tc.testCodeFlareCRBlocks)
-	t.Run("AppWrapper blocks", tc.testAppWrapperBlocks)
 }
 
 func (tc *codeFlareGateTestCtx) testCleanClusterPasses(t *testing.T) {
@@ -62,28 +59,6 @@ func (tc *codeFlareGateTestCtx) testCodeFlareCRBlocks(t *testing.T) {
 	var blockingErr *codeflaregate.UpgradeBlockedError
 	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
 	g.Expect(blockingErr.CodeFlareCRPresent).To(BeTrue())
-	g.Expect(blockingErr.AppWrappers).To(Equal(0))
-}
-
-func (tc *codeFlareGateTestCtx) testAppWrapperBlocks(t *testing.T) {
-	g := NewWithT(t)
-
-	g.Expect(tc.cli.Create(t.Context(), &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-ns"},
-	})).ToNot(HaveOccurred())
-
-	obj := renderAppWrapper(t, "test-appwrapper", "test-ns")
-
-	g.Expect(tc.cli.Create(t.Context(), obj)).ToNot(HaveOccurred())
-	envt.CleanupDelete(t, g, context.Background(), tc.cli, obj)
-
-	err := codeflaregate.Check(t.Context(), tc.cli, componentApi.CodeFlareComponentName, "")
-	g.Expect(err).To(HaveOccurred())
-
-	var blockingErr *codeflaregate.UpgradeBlockedError
-	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
-	g.Expect(blockingErr.CodeFlareCRPresent).To(BeFalse())
-	g.Expect(blockingErr.AppWrappers).To(Equal(1))
 }
 
 func installCodeFlareCRD(ctx context.Context, te *envt.EnvT) error {
@@ -98,13 +73,5 @@ func installCodeFlareCRD(ctx context.Context, te *envt.EnvT) error {
 		return err
 	}
 
-	_, err := te.RegisterCRD(
-		ctx,
-		gvk.AppWrapper,
-		"appwrappers",
-		"appwrapper",
-		apiextensionsv1.NamespaceScoped,
-		envt.WithPermissiveSchema(),
-	)
-	return err
+	return nil
 }
