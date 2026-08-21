@@ -98,13 +98,13 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 	_, err := b.
 		WithAction(initialize).
 		WithAction(checkPreConditions).
-		WithAction(updateStatus).
 		WithAction(provision.AutoAcknowledgeUpgradeGates).
 		WithAction(checkUpgradeGates).
 		WithAction(provisionComponents).
 		WithAction(deploy.NewAction(
 			deploy.WithCache()),
 		).
+		WithAction(updateStatus).
 		WithAction(gc.NewAction(
 			gc.WithTypePredicate(
 				func(rr *types.ReconciliationRequest, objGVK schema.GroupVersionKind) (bool, error) {

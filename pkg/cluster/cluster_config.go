@@ -97,8 +97,8 @@ func GetRelease() common.Release {
 }
 
 // GetDeployedRelease retrieves the currently deployed release version from the cluster.
-// It first attempts to get the release from the DSCInitialization (DSCI) instance,
-// and if not found, falls back to the DataScienceCluster (DSC) instance.
+// It first attempts to get the release from the DataScienceCluster (DSC) instance,
+// and if not found, falls back to the DSCInitialization (DSCI) instance.
 //
 // This function is useful during upgrades to determine what version is currently deployed
 // before applying any changes.
@@ -111,6 +111,17 @@ func GetRelease() common.Release {
 //   - common.Release: The deployed release information, or an empty Release if not found
 //   - error: An error if the retrieval fails for reasons other than "not found"
 func GetDeployedRelease(ctx context.Context, cli client.Client) (common.Release, error) {
+	dscInstance, err := GetDSC(ctx, cli)
+	switch {
+	case k8serr.IsNotFound(err):
+		break
+	case err != nil:
+		return common.Release{}, err
+	default:
+		return dscInstance.Status.Release, nil
+	}
+
+	// no DSC CR found, try with DSCI CR
 	dsciInstance, err := GetDSCI(ctx, cli)
 	switch {
 	case k8serr.IsNotFound(err):
@@ -119,17 +130,6 @@ func GetDeployedRelease(ctx context.Context, cli client.Client) (common.Release,
 		return common.Release{}, err
 	default:
 		return dsciInstance.Status.Release, nil
-	}
-
-	// no DSCI CR found, try with DSC CR
-	dscInstances, err := GetDSC(ctx, cli)
-	switch {
-	case k8serr.IsNotFound(err):
-		break
-	case err != nil:
-		return common.Release{}, err
-	default:
-		return dscInstances.Status.Release, nil
 	}
 
 	// could be a clean installation or both CRs are deleted already

@@ -5,7 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blang/semver/v4"
 	configv1 "github.com/openshift/api/config/v1"
+	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 )
 
@@ -216,6 +219,99 @@ func TestSetApplicationNamespace(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetDeployedRelease(t *testing.T) {
+	t.Run("prefers dsc release over dsci release", func(t *testing.T) {
+		scheme := runtime.NewScheme()
+		_ = dscv2.AddToScheme(scheme)
+		_ = dsciv2.AddToScheme(scheme)
+
+		dsc := &dscv2.DataScienceCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "default-dsc"},
+			Status: dscv2.DataScienceClusterStatus{
+				Release: common.Release{
+					Name: OpenDataHub,
+					Version: version.OperatorVersion{
+						Version: semver.MustParse("2.25.0"),
+					},
+				},
+			},
+		}
+		dsci := &dsciv2.DSCInitialization{
+			ObjectMeta: metav1.ObjectMeta{Name: "default-dsci"},
+			Status: dsciv2.DSCInitializationStatus{
+				Release: common.Release{
+					Name: OpenDataHub,
+					Version: version.OperatorVersion{
+						Version: semver.MustParse("0.0.0"),
+					},
+				},
+			},
+		}
+
+		fakeClient := fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(dsc, dsci).
+			Build()
+
+		release, err := GetDeployedRelease(context.Background(), fakeClient)
+		if err != nil {
+			t.Fatalf("GetDeployedRelease() error = %v", err)
+		}
+		if got, want := release.Version.String(), "2.25.0"; got != want {
+			t.Fatalf("GetDeployedRelease() version = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("falls back to dsci release when dsc is missing", func(t *testing.T) {
+		scheme := runtime.NewScheme()
+		_ = dscv2.AddToScheme(scheme)
+		_ = dsciv2.AddToScheme(scheme)
+
+		dsci := &dsciv2.DSCInitialization{
+			ObjectMeta: metav1.ObjectMeta{Name: "default-dsci"},
+			Status: dsciv2.DSCInitializationStatus{
+				Release: common.Release{
+					Name: OpenDataHub,
+					Version: version.OperatorVersion{
+						Version: semver.MustParse("2.24.0"),
+					},
+				},
+			},
+		}
+
+		fakeClient := fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(dsci).
+			Build()
+
+		release, err := GetDeployedRelease(context.Background(), fakeClient)
+		if err != nil {
+			t.Fatalf("GetDeployedRelease() error = %v", err)
+		}
+		if got, want := release.Version.String(), "2.24.0"; got != want {
+			t.Fatalf("GetDeployedRelease() version = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("returns empty release when dsc and dsci are missing", func(t *testing.T) {
+		scheme := runtime.NewScheme()
+		_ = dscv2.AddToScheme(scheme)
+		_ = dsciv2.AddToScheme(scheme)
+
+		fakeClient := fake.NewClientBuilder().
+			WithScheme(scheme).
+			Build()
+
+		release, err := GetDeployedRelease(context.Background(), fakeClient)
+		if err != nil {
+			t.Fatalf("GetDeployedRelease() error = %v", err)
+		}
+		if got := release.Version.String(); got != "0.0.0" {
+			t.Fatalf("GetDeployedRelease() version = %q, want %q", got, "0.0.0")
+		}
+	})
 }
 
 func TestSetApplicationNamespace_RHAIOverride(t *testing.T) {
