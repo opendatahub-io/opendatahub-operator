@@ -1,25 +1,14 @@
 package datasciencepipelines
 
-import (
-	"fmt"
-	"strings"
-)
+import "fmt"
 
 type UpgradeBlockedError struct {
-	StoredVersion              string
-	RolesMissingAPISubresource []string
+	StoredVersion string
 }
 
 func (e *UpgradeBlockedError) Error() string {
-	parts := make([]string, 0, 2)
-	if e.StoredVersion != "" {
-		parts = append(parts,
-			fmt.Sprintf("DataSciencePipelinesApplication CRD still stores deprecated version %s", e.StoredVersion))
-	}
-	if len(e.RolesMissingAPISubresource) > 0 {
-		parts = append(parts,
-			fmt.Sprintf("%d Role(s) still grant route access without datasciencepipelinesapplications/api", len(e.RolesMissingAPISubresource)))
-	}
-
-	return strings.Join(parts, "; ")
+	return fmt.Sprintf(
+		"DataSciencePipelinesApplication CRD still stores deprecated version %s",
+		e.StoredVersion,
+	)
 }

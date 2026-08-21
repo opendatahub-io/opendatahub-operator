@@ -47,7 +47,7 @@ Legend:
 
 - Jira status: `Review`
 - Task status: `Done`
-- Jira comment alignment: `Blocking Jira items match repo behavior; odh-cli advisory items remain out of scope`
+- Jira comment alignment: `Repo scope now keeps only the CRD blocker; custom-role migration stays out of the operator gate`
 - Jira comments:
   - latest live Jira comment adds a second blocking requirement beyond CRD
     stored versions: scan custom Roles that still grant the old Route-based API
@@ -55,20 +55,18 @@ Legend:
 - Checks implemented in repo:
   - block when the `DataSciencePipelinesApplication` CRD still reports
     `v1alpha1` in `status.storedVersions`
-  - block when namespace `Role` objects still grant legacy
-    `route.openshift.io/routes` access without the replacement
-    `datasciencepipelinesapplications/api` permission
 - Detailed behavior:
   - the stored-version check is a straight CRD status read; if the DSPA CRD is
     absent, this branch is treated as non-blocking because there is nothing left
     to migrate for this API surface
-  - the RBAC check derives the verb set granted on `route.openshift.io/routes`
-    and only blocks when the same Role does not also cover
-    `datasciencepipelinesapplications/api` with those verbs
-  - the repo check is intentionally broader than operator-managed Roles only; it
-    catches any namespace `Role` whose custom permissions would break the 3.5
-    auth-model transition
 - Left out from Jira / odh-cli:
+  - the custom-role migration check (`route.openshift.io/routes` without
+    `datasciencepipelinesapplications/api`) was removed from the operator gate
+    because a cluster-wide passive Role scan produced false positives on
+    non-DSP roles in otherwise empty clusters
+  - remediation for that gap remains the odh-cli
+    `ai-pipelines.update-dsp-role` migrate action rather than a hard operator
+    blocker
   - odh-cli also carries advisory checks for removed
     `.spec.apiServer.managedPipelines.instructLab` fields and the
     `datasciencepipelines -> aipipelines` DSC rename notice
@@ -76,7 +74,7 @@ Legend:
     represent a live-cluster hard stop for the auto-ack path
 - Notes:
   - the repo implementation is cluster-state based, so it does not need a
-    separate DSC-v2 rename rewrite to find the CRD or the custom Roles
+    separate DSC-v2 rename rewrite to find the CRD
 
 ### `RHOAIENG-82351` Kueue
 
