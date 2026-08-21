@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -16,6 +18,9 @@ const (
 	deploymentModeAnnotation = "serving.kserve.io/deploymentMode"
 	deploymentModeServerless = "Serverless"
 	deploymentModeModelMesh  = "ModelMesh"
+	kuadrantNamespace        = "kuadrant-system"
+	authorinoName            = "authorino"
+	readyConditionType       = "Ready"
 )
 
 var removedRuntimes = map[string]bool{
@@ -41,16 +46,23 @@ func Check(ctx context.Context, reader client.Reader, _, _ string) error {
 		return err
 	}
 
+	authorinoTLSNotReady, err := collectAuthorinoTLSReadinessBlock(ctx, reader)
+	if err != nil {
+		return err
+	}
+
 	blockingErr := &UpgradeBlockedError{
 		ServerlessInferenceServices:     isvcCounts.serverless,
 		ModelMeshInferenceServices:      isvcCounts.modelMesh,
 		MultiModelServingRuntimes:       multiModelSRs,
 		RemovedRuntimeInferenceServices: isvcCounts.removedRuntimes,
+		AuthorinoTLSNotReady:            authorinoTLSNotReady,
 	}
 	if blockingErr.ServerlessInferenceServices == 0 &&
 		blockingErr.ModelMeshInferenceServices == 0 &&
 		blockingErr.MultiModelServingRuntimes == 0 &&
-		blockingErr.RemovedRuntimeInferenceServices == 0 {
+		blockingErr.RemovedRuntimeInferenceServices == 0 &&
+		blockingErr.AuthorinoTLSNotReady == 0 {
 		return nil
 	}
 
@@ -124,4 +136,101 @@ func collectMultiModelServingRuntimeCount(
 	}
 
 	return count, nil
+}
+
+func collectAuthorinoTLSReadinessBlock(ctx context.Context, reader client.Reader) (int, error) {
+	llmInferenceServicesPresent, err := hasLLMInferenceServices(ctx, reader)
+	if err != nil {
+		return 0, err
+	}
+	if !llmInferenceServicesPresent {
+		return 0, nil
+	}
+
+	ready, err := authorinoTLSReady(ctx, reader)
+	if err != nil {
+		return 0, err
+	}
+	if ready {
+		return 0, nil
+	}
+
+	return 1, nil
+}
+
+func hasLLMInferenceServices(ctx context.Context, reader client.Reader) (bool, error) {
+	for _, kind := range []struct {
+		gvk  schema.GroupVersionKind
+		name string
+	}{
+		{gvk: gvk.LLMInferenceServiceV1Alpha2, name: "LLMInferenceServices v1alpha2"},
+		{gvk: gvk.LLMInferenceServiceV1Alpha1, name: "LLMInferenceServices v1alpha1"},
+	} {
+		list := &unstructured.UnstructuredList{}
+		list.SetGroupVersionKind(kind.gvk)
+
+		err := reader.List(ctx, list)
+		switch {
+		case meta.IsNoMatchError(err):
+			continue
+		case err != nil:
+			return false, fmt.Errorf("listing %s: %w", kind.name, err)
+		case len(list.Items) > 0:
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func authorinoTLSReady(ctx context.Context, reader client.Reader) (bool, error) {
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk.Authorinov1beta1)
+
+	err := reader.Get(ctx, client.ObjectKey{Name: authorinoName, Namespace: kuadrantNamespace}, obj)
+	switch {
+	case k8serr.IsNotFound(err), meta.IsNoMatchError(err):
+		return false, nil
+	case err != nil:
+		return false, fmt.Errorf("getting Authorino %s/%s: %w", kuadrantNamespace, authorinoName, err)
+	}
+
+	tlsEnabled, found, err := unstructured.NestedBool(obj.Object, "spec", "listener", "tls", "enabled")
+	if err != nil {
+		return false, fmt.Errorf("reading Authorino TLS enabled: %w", err)
+	}
+	if !found || !tlsEnabled {
+		return false, nil
+	}
+
+	certSecretName, found, err := unstructured.NestedString(obj.Object, "spec", "listener", "tls", "certSecretRef", "name")
+	if err != nil {
+		return false, fmt.Errorf("reading Authorino TLS certSecretRef.name: %w", err)
+	}
+	if !found || certSecretName == "" {
+		return false, nil
+	}
+
+	conditions, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
+	if err != nil {
+		return false, fmt.Errorf("reading Authorino status.conditions: %w", err)
+	}
+	if !found {
+		return false, nil
+	}
+
+	for _, condition := range conditions {
+		conditionMap, ok := condition.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		conditionType, _ := conditionMap["type"].(string)
+		conditionStatus, _ := conditionMap["status"].(string)
+		if conditionType == readyConditionType {
+			return conditionStatus == "True", nil
+		}
+	}
+
+	return false, nil
 }

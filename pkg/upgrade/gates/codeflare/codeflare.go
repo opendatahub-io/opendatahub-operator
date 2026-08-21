@@ -22,13 +22,7 @@ func Check(ctx context.Context, reader client.Reader, _, _ string) error {
 		blocking.CodeFlareCRPresent = true
 	}
 
-	appWrappers, err := countAppWrappers(ctx, reader)
-	if err != nil {
-		return err
-	}
-	blocking.AppWrappers = appWrappers
-
-	if !blocking.CodeFlareCRPresent && blocking.AppWrappers == 0 {
+	if !blocking.CodeFlareCRPresent {
 		return nil
 	}
 
@@ -47,20 +41,5 @@ func hasCodeFlareCR(ctx context.Context, reader client.Reader) (bool, error) {
 		return false, fmt.Errorf("getting CodeFlare CR: %w", err)
 	default:
 		return true, nil
-	}
-}
-
-func countAppWrappers(ctx context.Context, reader client.Reader) (int, error) {
-	list := &unstructured.UnstructuredList{}
-	list.SetGroupVersionKind(gvk.AppWrapper)
-
-	err := reader.List(ctx, list)
-	switch {
-	case meta.IsNoMatchError(err):
-		return 0, nil
-	case err != nil:
-		return 0, fmt.Errorf("listing AppWrappers: %w", err)
-	default:
-		return len(list.Items), nil
 	}
 }

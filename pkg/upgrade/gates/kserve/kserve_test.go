@@ -48,6 +48,9 @@ func newKServeClient(objects ...client.Object) (client.Client, error) {
 		fakeclient.WithGVKs(
 			fakeclient.GVKMapping{GVK: gvk.InferenceServices, Scope: meta.RESTScopeNamespace},
 			fakeclient.GVKMapping{GVK: gvk.ServingRuntime, Scope: meta.RESTScopeNamespace},
+			fakeclient.GVKMapping{GVK: gvk.LLMInferenceServiceV1Alpha2, Scope: meta.RESTScopeNamespace},
+			fakeclient.GVKMapping{GVK: gvk.LLMInferenceServiceV1Alpha1, Scope: meta.RESTScopeNamespace},
+			fakeclient.GVKMapping{GVK: gvk.Authorinov1beta1, Scope: meta.RESTScopeNamespace},
 		),
 	)
 }
@@ -108,4 +111,87 @@ func TestRegister_MultipleBlockingCategoriesAreAggregated(t *testing.T) {
 	g.Expect(blockingErr.ModelMeshInferenceServices).To(Equal(1))
 	g.Expect(blockingErr.MultiModelServingRuntimes).To(Equal(1))
 	g.Expect(blockingErr.RemovedRuntimeInferenceServices).To(Equal(1))
+	g.Expect(blockingErr.AuthorinoTLSNotReady).To(Equal(0))
+}
+
+func TestRegister_LLMInferenceServiceWithoutAuthorinoBlocks(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	llm := renderLLMInferenceService(t)
+
+	cli, err := newKServeClient(llm)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	provision.RegisterUpgradeCheck(componentApi.KserveComponentName, kservegate.Check)
+
+	err = provision.GetUpgradeCheck("kserve")(ctx, cli, "kserve", testNamespace)
+	g.Expect(err).To(HaveOccurred())
+	var blockingErr *kservegate.UpgradeBlockedError
+	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
+	g.Expect(blockingErr.AuthorinoTLSNotReady).To(Equal(1))
+}
+
+func TestRegister_LLMInferenceServiceWithTLSDisabledAuthorinoBlocks(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	llm := renderLLMInferenceService(t)
+	authorino := renderAuthorino(t, false, "authorino-cert", "True")
+
+	cli, err := newKServeClient(llm, authorino)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	provision.RegisterUpgradeCheck(componentApi.KserveComponentName, kservegate.Check)
+
+	err = provision.GetUpgradeCheck("kserve")(ctx, cli, "kserve", testNamespace)
+	g.Expect(err).To(HaveOccurred())
+	var blockingErr *kservegate.UpgradeBlockedError
+	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
+	g.Expect(blockingErr.AuthorinoTLSNotReady).To(Equal(1))
+}
+
+func TestRegister_LLMInferenceServiceWithReadyTLSAuthorinoPasses(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	llm := renderLLMInferenceService(t)
+	authorino := renderAuthorino(t, true, "authorino-cert", "True")
+
+	cli, err := newKServeClient(llm, authorino)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	provision.RegisterUpgradeCheck(componentApi.KserveComponentName, kservegate.Check)
+
+	err = provision.GetUpgradeCheck("kserve")(ctx, cli, "kserve", testNamespace)
+	g.Expect(err).ToNot(HaveOccurred())
+}
+
+func renderLLMInferenceService(t *testing.T) *unstructured.Unstructured {
+	t.Helper()
+	g := NewWithT(t)
+
+	obj, err := tp.RenderObject(resourcesFS, "resources/llminferenceservice.tmpl.yaml", map[string]any{
+		"Name":      "llm-isvc",
+		"Namespace": testNamespace,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	return obj
+}
+
+func renderAuthorino(t *testing.T, tlsEnabled bool, certSecretName string, readyStatus string) *unstructured.Unstructured {
+	t.Helper()
+	g := NewWithT(t)
+
+	obj, err := tp.RenderObject(resourcesFS, "resources/authorino.tmpl.yaml", map[string]any{
+		"Name":           "authorino",
+		"Namespace":      "kuadrant-system",
+		"TLSEnabled":     tlsEnabled,
+		"CertSecretName": certSecretName,
+		"ReadyStatus":    readyStatus,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	return obj
 }

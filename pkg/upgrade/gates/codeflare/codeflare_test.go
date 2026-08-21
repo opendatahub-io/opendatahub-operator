@@ -51,27 +51,6 @@ func TestRegister_CodeFlareCRBlocks(t *testing.T) {
 	var blockingErr *codeflaregate.UpgradeBlockedError
 	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
 	g.Expect(blockingErr.CodeFlareCRPresent).To(BeTrue())
-	g.Expect(blockingErr.AppWrappers).To(Equal(0))
-}
-
-func TestRegister_AppWrapperBlocks(t *testing.T) {
-	g := NewWithT(t)
-	ctx := t.Context()
-
-	obj := renderAppWrapper(t, "test-appwrapper", "test-ns")
-
-	cli, err := newCodeFlareClient(obj)
-	g.Expect(err).ToNot(HaveOccurred())
-
-	provision.RegisterUpgradeCheck(componentApi.CodeFlareComponentName, codeflaregate.Check)
-
-	err = provision.GetUpgradeCheck(componentApi.CodeFlareComponentName)(ctx, cli, componentApi.CodeFlareComponentName, "")
-	g.Expect(err).To(HaveOccurred())
-
-	var blockingErr *codeflaregate.UpgradeBlockedError
-	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
-	g.Expect(blockingErr.CodeFlareCRPresent).To(BeFalse())
-	g.Expect(blockingErr.AppWrappers).To(Equal(1))
 }
 
 func newCodeFlareClient(objects ...client.Object) (client.Client, error) {
@@ -79,7 +58,6 @@ func newCodeFlareClient(objects ...client.Object) (client.Client, error) {
 		fakeclient.WithObjects(objects...),
 		fakeclient.WithGVKs(
 			fakeclient.GVKMapping{GVK: gvk.CodeFlare, Scope: meta.RESTScopeRoot},
-			fakeclient.GVKMapping{GVK: gvk.AppWrapper, Scope: meta.RESTScopeNamespace},
 		),
 	)
 }
@@ -90,19 +68,6 @@ func renderCodeFlare(t *testing.T) *unstructured.Unstructured {
 	g := NewWithT(t)
 	obj, err := tp.RenderObject(resourcesFS, "resources/codeflare.tmpl.yaml", map[string]any{
 		"Name": componentApi.CodeFlareInstanceName,
-	})
-	g.Expect(err).ToNot(HaveOccurred())
-
-	return obj
-}
-
-func renderAppWrapper(t *testing.T, name string, namespace string) *unstructured.Unstructured {
-	t.Helper()
-
-	g := NewWithT(t)
-	obj, err := tp.RenderObject(resourcesFS, "resources/appwrapper.tmpl.yaml", map[string]any{
-		"Name":      name,
-		"Namespace": namespace,
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 

@@ -41,6 +41,7 @@ func TestKserveGates(t *testing.T) {
 	t.Run("ModelMesh InferenceService blocks", tc.testModelMeshInferenceServiceBlocks)
 	t.Run("multi-model ServingRuntime blocks", tc.testMultiModelServingRuntimeBlocks)
 	t.Run("removed runtime InferenceService blocks", tc.testRemovedRuntimeInferenceServiceBlocks)
+	t.Run("llm workload without Authorino blocks", tc.testLLMInferenceServiceWithoutAuthorinoBlocks)
 }
 
 func (tc *kserveGateTestCtx) testCleanClusterPasses(t *testing.T) {
@@ -132,6 +133,21 @@ func (tc *kserveGateTestCtx) testRemovedRuntimeInferenceServiceBlocks(t *testing
 	})
 }
 
+func (tc *kserveGateTestCtx) testLLMInferenceServiceWithoutAuthorinoBlocks(t *testing.T) {
+	namespace := "kserve-gate-llm-no-authorino"
+
+	obj := renderLLMInferenceService(t)
+	obj.SetNamespace(namespace)
+
+	tc.assertBlockingCase(t, namespace, obj, func(g *WithT, blockingErr *kservegate.UpgradeBlockedError) {
+		g.Expect(blockingErr.ServerlessInferenceServices).To(Equal(0))
+		g.Expect(blockingErr.ModelMeshInferenceServices).To(Equal(0))
+		g.Expect(blockingErr.MultiModelServingRuntimes).To(Equal(0))
+		g.Expect(blockingErr.RemovedRuntimeInferenceServices).To(Equal(0))
+		g.Expect(blockingErr.AuthorinoTLSNotReady).To(Equal(1))
+	})
+}
+
 func (tc *kserveGateTestCtx) assertBlockingCase(
 	t *testing.T,
 	namespace string,
@@ -174,6 +190,28 @@ func installKServeGateCRDs(ctx context.Context, te *envt.EnvT) error {
 		gvk.ServingRuntime,
 		"servingruntimes",
 		"servingruntime",
+		apiextensionsv1.NamespaceScoped,
+		envt.WithPermissiveSchema(),
+	); err != nil {
+		return err
+	}
+
+	if _, err := te.RegisterCRD(
+		ctx,
+		gvk.LLMInferenceServiceV1Alpha2,
+		"llminferenceservices",
+		"llminferenceservice",
+		apiextensionsv1.NamespaceScoped,
+		envt.WithPermissiveSchema(),
+	); err != nil {
+		return err
+	}
+
+	if _, err := te.RegisterCRD(
+		ctx,
+		gvk.Authorinov1beta1,
+		"authorinos",
+		"authorino",
 		apiextensionsv1.NamespaceScoped,
 		envt.WithPermissiveSchema(),
 	); err != nil {

@@ -20,26 +20,26 @@ Legend:
 
 | Jira | Component | Jira status | Task status | Jira comment alignment |
 | --- | --- | --- | --- | --- |
-| `RHOAIENG-82350` | DataSciencePipelines | Review | `✅ Done` | `Live Jira RBAC blocker now implemented locally` |
-| `RHOAIENG-82351` | Kueue | Resolved | `✅ Done` | `Removed+queued workload blocker now implemented locally` |
-| `RHOAIENG-82352` | ModelRegistry | Closed | `🚫 Not needed` | `Live Jira says no domain-specific checks` |
-| `RHOAIENG-82353` | Ray | Resolved | `✅ Done` | `Aligned with latest Jira comments` |
+| `RHOAIENG-82350` | DataSciencePipelines | Review | `✅ Done` | `Jira blockers implemented; odh-cli advisory items intentionally left out` |
+| `RHOAIENG-82351` | Kueue | Resolved | `✅ Done` | `Jira blockers implemented; broader odh-cli invariants remain out of scope` |
+| `RHOAIENG-82352` | ModelRegistry | Closed | `🚫 Not needed` | `-` |
+| `RHOAIENG-82353` | Ray | Resolved | `✅ Done` | `Primary Jira blocker implemented; Kueue prerequisite handled separately` |
 | `RHOAIENG-82354` | SparkOperator | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82355` | Trainer | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82356` | TrainingOperator | Closed | `🚫 Not needed` | `-` |
-| `RHOAIENG-82357` | TrustyAI | Resolved | `✅ Done` | `PVC storage blocker implemented; remaining spike items are advisory` |
+| `RHOAIENG-82357` | TrustyAI | Resolved | `✅ Done` | `PVC blocker implemented; migration-only spike actions intentionally left out` |
 | `RHOAIENG-82359` | Dashboard | In Progress | `⚠️ Follow-up needed` | `Comment scope looks broader than operator gates` |
-| `RHOAIENG-82360` | KServe | Resolved | `✅ Done` | `Aligned with latest Jira comments` |
-| `RHOAIENG-82361` | Workbenches | Review | `✅ Done` | `CLI-aligned blocking rules implemented locally` |
+| `RHOAIENG-82360` | KServe | Resolved | `✅ Done` | `Current operator scope now includes the Authorino TLS blocker from odh-cli` |
+| `RHOAIENG-82361` | Workbenches | Review | `✅ Done` | `CLI-aligned blocking rules implemented; advisory and user-action checks left out` |
 | `RHOAIENG-82370` | FeastOperator | Resolved | `🚫 Not needed` | `-` |
 | `RHOAIENG-82371` | LlamaStackOperator | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82372` | OGX | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82373` | MLflowOperator | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82374` | AIGateway | Resolved | `🚫 Not needed` | `-` |
 | `RHOAIENG-82380` | MCPLifecycleOperator | Closed | `🚫 Not needed` | `-` |
-| `-` | `dependencies-cert-manager` | `-` | `✅ Done` | `-` |
-| `-` | `dependencies-kueue-operator` | `-` | `✅ Done` | `-` |
-| `-` | `dependencies-servicemeshoperatorv2` | `-` | `✅ Done` | `-` |
+| `-` | `dependencies-cert-manager` | `-` | `✅ Done` | `Local-only repo gate; no matching Jira child issue` |
+| `-` | `dependencies-kueue-operator` | `-` | `✅ Done` | `Local-only repo gate; split out from Kueue Jira scope` |
+| `-` | `dependencies-servicemeshoperatorv2` | `-` | `✅ Done` | `Local-only repo gate; no matching Jira child issue` |
 
 ## Task Entries
 
@@ -47,7 +47,7 @@ Legend:
 
 - Jira status: `Review`
 - Task status: `Done`
-- Jira comment alignment: `Aligned with latest Jira blocker list`
+- Jira comment alignment: `Blocking Jira items match repo behavior; odh-cli advisory items remain out of scope`
 - Jira comments:
   - latest live Jira comment adds a second blocking requirement beyond CRD
     stored versions: scan custom Roles that still grant the old Route-based API
@@ -58,15 +58,31 @@ Legend:
   - block when namespace `Role` objects still grant legacy
     `route.openshift.io/routes` access without the replacement
     `datasciencepipelinesapplications/api` permission
-- Follow-up note:
-  - if Jira review narrows this back to odh-cli-only scope later, revisit whether
-    the RBAC blocker should stay in the operator gate set
+- Detailed behavior:
+  - the stored-version check is a straight CRD status read; if the DSPA CRD is
+    absent, this branch is treated as non-blocking because there is nothing left
+    to migrate for this API surface
+  - the RBAC check derives the verb set granted on `route.openshift.io/routes`
+    and only blocks when the same Role does not also cover
+    `datasciencepipelinesapplications/api` with those verbs
+  - the repo check is intentionally broader than operator-managed Roles only; it
+    catches any namespace `Role` whose custom permissions would break the 3.5
+    auth-model transition
+- Left out from Jira / odh-cli:
+  - odh-cli also carries advisory checks for removed
+    `.spec.apiServer.managedPipelines.instructLab` fields and the
+    `datasciencepipelines -> aipipelines` DSC rename notice
+  - those are intentionally not encoded as operator blockers because they do not
+    represent a live-cluster hard stop for the auto-ack path
+- Notes:
+  - the repo implementation is cluster-state based, so it does not need a
+    separate DSC-v2 rename rewrite to find the CRD or the custom Roles
 
 ### `RHOAIENG-82351` Kueue
 
 - Jira status: `Resolved`
 - Task status: `Done`
-- Jira comment alignment: `Aligned with latest Jira comments`
+- Jira comment alignment: `Jira blockers implemented; repo scope is narrower than full odh-cli lint`
 - Jira comments:
   - clarify whether `kueue <-> kserve` integration validation belongs under the
     Kueue task or the KServe task
@@ -74,19 +90,35 @@ Legend:
     `Unmanaged`, not `Removed`; if queued workloads exist, `Removed` should also
     fail the gate
 - Checks implemented in repo:
-  - block when kueue-labeled workloads live in namespaces missing
-    `kueue.openshift.io/managed=true`
+  - block when queued workloads (`kueue.x-k8s.io/queue-name`) live in
+    namespaces missing `kueue.openshift.io/managed=true`
+  - block when queued workloads exist while the internal Kueue CR is `Removed`
+- Detailed behavior:
+  - workload discovery is cross-component: `Notebook`, `InferenceService`,
+    `LLMInferenceService`, `RayCluster`, `RayJob`, and `PyTorchJob` resources
+    are all scanned for the Kueue queue label
+  - the `Removed` case is treated as a hard blocker only when queued workloads
+    still exist; an idle cluster with Kueue already removed is allowed through
+  - the namespace-label branch caches namespace lookups, so repeated queued
+    workloads in the same namespace do not multiply API reads
 - Related dependency gate:
   - `dependencies-kueue-operator` blocks when the internal
     `kueue.openshift.io/v1` `Kueue` CR is still `Managed`
   - `dependencies-kueue-operator` requires the `kueue-operator` OLM
     subscription when the internal Kueue CR is `Unmanaged`
-- Follow-up note:
+- Left out from odh-cli:
+  - odh-cli's `workloads.kueue.data-integrity` lint is broader: it also checks
+    workloads inside Kueue-managed namespaces that are missing the queue label,
+    and ownership-tree consistency for queue labels across descendants
+  - those broader invariants are not mentioned in the Jira blocker text and are
+    intentionally left out of the operator gate for now
+- Notes:
   - if a future integration-specific `kueue <-> kserve` blocker is needed,
     scope it explicitly rather than folding it into the current workload and
     namespace-label validation by accident
-  - repo now also blocks when queued workloads exist while Kueue is `Removed`,
-    matching the latest Jira clarification
+  - the repo scope is split across the main `kueue` gate and the local-only
+    `dependencies-kueue-operator` gate; odh-cli expresses those as separate lint
+    checks as well
 
 ### `RHOAIENG-82352` ModelRegistry
 
@@ -103,7 +135,7 @@ Legend:
 
 - Jira status: `Resolved`
 - Task status: `Done`
-- Jira comment alignment: `Aligned`
+- Jira comment alignment: `Aligned with Jira blocking behavior`
 - Jira comments:
   - latest live Jira thread confirms AppWrappers are advisory/non-blocking
   - Kueue management-state blocking is tracked under `RHOAIENG-82351`, not this
@@ -112,11 +144,20 @@ Legend:
   - block when `RayCluster` objects still carry the
     `ray.openshift.ai/oauth-finalizer` and do not have the
     `odh.ray.io/pre-upgrade-backup-taken` annotation
-- Notes:
-  - AppWrappers remain advisory/non-blocking and are intentionally not encoded
-    as an operator upgrade gate
-  - Kueue management-state blocking remains tracked under `RHOAIENG-82351`, not
-    the Ray gate
+- Detailed behavior:
+  - the gate checks both supported API versions (`v1` first, then `v1alpha1`)
+    and treats `NoMatch` as "resource type not present", not as a failure
+  - a `RayCluster` with the finalizer but with the backup annotation already set
+    is treated as migrated and does not block
+  - a `RayCluster` without the finalizer is ignored by this gate even if other
+    Ray migration concerns exist, because the Jira blocker narrowed the operator
+    scope to the pre-upgrade backup acknowledgement
+- Left out from Jira / odh-cli:
+  - the Ray gate itself does not encode the Kueue `Unmanaged` prerequisite; that
+    behavior is handled under `RHOAIENG-82351`
+- Local-only related gate not covered by this Jira child:
+  - the separate `removed-codeflare` repo gate now blocks only when the
+    internal `CodeFlare` CR still exists
 
 ### `RHOAIENG-82354` SparkOperator
 
@@ -148,6 +189,7 @@ Legend:
 
 - Jira status: `Resolved`
 - Task status: `Done`
+- Jira comment alignment: `Blocking spike item implemented; migration actions intentionally left out`
 - Jira comments:
   - spike doc says the only blocking TrustyAI lint condition is
     `TrustyAIService.spec.storage.format == "PVC"`
@@ -155,12 +197,22 @@ Legend:
     `DATABASE` storage, scheduled metrics backup)
 - Checks implemented in repo:
   - block when any `TrustyAIService` uses `spec.storage.format: PVC`
+- Detailed behavior:
+  - the gate scans both `TrustyAIService` `v1` and `v1alpha1`, preferring the
+    newer API when both CRDs are available
+  - only the literal `PVC` storage format blocks; other storage modes are not
+    treated as operator-side blockers here
+  - malformed or unreadable `spec.storage.format` content fails the gate with an
+    error because the operator cannot safely infer whether backup is required
+- Left out from Jira / odh-cli:
+  - advisory-only spike items (`DATABASE` storage, metrics backup scheduling,
+    impacted workloads) are intentionally not encoded as operator blockers
+  - odh-cli also carries active migration actions for Guardrails patching and
+    GPU deadlock resolution; those are not lint-style passive blockers
 - Notes:
-  - advisory-only TrustyAI spike items are intentionally not encoded as
-    operator upgrade blockers at this time
-  - the spike's GPU-deadlock blocker was reviewed, but it is currently hard to
-    implement safely here because it depends on exact TrustyAI annotation
-    matching plus cross-component webhook-health detection for KServe
+  - the GPU-deadlock flow was reviewed, but it is currently hard to implement
+    safely as an operator gate because it depends on exact TrustyAI/KServe
+    runtime state and would naturally want mutation-style remediation
 
 ### `RHOAIENG-82359` Dashboard
 
@@ -185,7 +237,7 @@ Legend:
 
 - Jira status: `Resolved`
 - Task status: `Done`
-- Jira comment alignment: `Aligned`
+- Jira comment alignment: `Current operator scope now includes the clearly blocking odh-cli Authorino TLS check`
 - Jira comments:
   - latest live Jira comments say the existing KServe checks are sufficient
   - Kueue-related follow-up was reviewed and does not currently require extra
@@ -199,21 +251,41 @@ Legend:
     `serving.kserve.io/deploymentMode=ModelMesh`
   - block on `ServingRuntime` objects with `spec.multiModel=true`
   - block on `InferenceService` objects that reference removed runtimes
+  - block when `LLMInferenceService` workloads exist but `Authorino` is missing,
+    TLS is disabled/misconfigured, or the `Authorino` resource is not `Ready`
+- Detailed behavior:
+  - the `InferenceService` pass counts serverless, modelmesh, and removed
+    runtime references in one read over the resource list, so a single object
+    can contribute to multiple blocking categories
+  - removed runtime detection is based on the predictor model runtime name and
+    currently blocks `ovms`, `caikit-standalone-serving-template`, and
+    `caikit-tgis-serving-template`
+  - the `ServingRuntime` branch only blocks explicit `spec.multiModel=true`;
+    missing or false values are treated as compatible
+  - the Authorino branch only activates when `LLMInferenceService` objects are
+    present; otherwise it stays out of the way for non-llm-d clusters
+- Left out from Jira / odh-cli:
+  - odh-cli also carries `dependencies.shared-ossm.shared-usage` and
+    `dependencies.shared-serverless.shared-usage` checks, plus migration-style
+    hardware-profile handling
+  - those are not encoded in the repo's `kserve` gate because the final Jira
+    follow-up accepted the narrower operator-side scope and the remaining items
+    are shared-usage or migration concerns rather than direct KServe workload
+    blockers
+- Local-only related gate not covered by this Jira child:
+  - the separate `removed-modelmeshserving` repo gate blocks when the legacy
+    internal `ModelMeshServing` CR still exists
 - Notes:
-  - Service Mesh and ModelMesh enablement are handled by other upgrade gates,
-    not this KServe package
-  - hardware-profile handling lives in the upgrade migration flow rather than
-    as a KServe upgrade blocker
-  - latest Jira follow-up did not request any new operator-side KServe gate
-- Related note:
-  - the legacy internal `ModelMeshServing` CR is handled by a separate local
-    gate implementation even though it is not tracked by a matching Jira child
-    issue in this list
+  - Service Mesh dependency handling also has a repo-local gate
+    (`dependencies-servicemeshoperatorv2`) for the legacy OLM subscription
+  - latest Jira follow-up did not request any new KServe-side gate beyond the
+    currently implemented workload blockers
 
 ### `RHOAIENG-82361` Workbenches
 
 - Jira status: `Review`
 - Task status: `Done`
+- Jira comment alignment: `Blocking image-reviewed checks implemented; advisory and user-action items remain out of scope`
 - Jira comments:
   - the attached image evaluation marks these as operator-gate candidates:
     `hardware-profile-integrity`, `connection-integrity`,
@@ -228,15 +300,75 @@ Legend:
     exist on the cluster
   - block when a Dashboard-managed `Notebook` has exactly one workload
     container and its name does not match the `Notebook` CR name
+- Detailed behavior:
+  - HardwareProfile integrity uses the explicit
+    `opendatahub.io/hardware-profile-namespace` when present; otherwise it
+    checks only the Notebook namespace for the blocking integrity rule
+  - connection integrity parses comma-separated Secret references, supports both
+    `name` and `namespace/name`, and flags the Notebook once any referenced
+    Secret is missing
+  - container-name mismatch is only evaluated for Dashboard-managed Notebooks
+    (accelerator or size-selection annotations) and only when exactly one
+    workload container remains after filtering legacy `oauth-proxy` sidecars
+- Left out from Jira / odh-cli:
+  - `hardwareprofile-migration` stays advisory/migration-only
+  - `accelerator-migration` is informational only
+  - `non-stopped-workloads` and `impacted-workloads` require explicit user
+    action, so they are not a good fit for a passive operator blocker
+  - `workloads.kueue.data-integrity` is intentionally left under the shared
+    `kueue` gate rather than duplicated here
 - Notes:
-  - `hardwareprofile-migration` in odh-cli is an advisory legacy-annotation
-    check, so it is intentionally left to migration/advisory handling rather
-    than a new pre-upgrade blocker here
-  - `workloads.kueue.data-integrity` likely belongs under the existing `kueue`
-    gate semantics rather than a separate Workbenches-specific gate
   - the `container-name-mismatch` blocker follows odh-cli semantics:
     Dashboard-managed Notebooks only, ignore legacy `oauth-proxy` sidecars,
     and only evaluate the single-workload-container shape
+  - the `connection-integrity` blocker accepts either `namespace/name` or
+    same-namespace Secret references, matching odh-cli parsing behavior
+  - the `hardware-profile-integrity` blocker defaults to the Notebook namespace
+    unless `opendatahub.io/hardware-profile-namespace` is explicitly set,
+    matching odh-cli's blocking check rather than the broader migration search
+
+### Local-only repo gates
+
+- `dependencies-cert-manager`
+  - blocks when the `openshift-cert-manager-operator` `Subscription` is missing
+    from namespace `cert-manager-operator`
+  - no matching Jira child issue exists in this list; this is a repo-local
+    dependency prerequisite
+- `dependencies-cert-manager` detail:
+  - this is a strict presence check on the expected OLM subscription and does
+    not currently inspect CSV health or channel/version skew
+- `dependencies-kueue-operator`
+  - blocks when the internal Kueue CR is still `Managed`
+  - blocks when the internal Kueue CR is `Unmanaged` but the `kueue-operator`
+    `Subscription` is missing
+  - this is split out locally rather than tracked by a dedicated Jira child
+- `dependencies-kueue-operator` detail:
+  - the gate is intentionally state-aware: it does nothing when no internal
+    Kueue CR exists, treats `Managed` as unsupported for the upgrade path, and
+    only requires the subscription in the `Unmanaged` handoff case
+- `dependencies-servicemeshoperatorv2`
+  - blocks when a `servicemeshoperatorv2` `Subscription` still exists on
+    blocking channels (`stable`, `v2.x`)
+  - no matching Jira child issue exists in this list; this is a repo-local
+    dependency cleanup gate
+- `dependencies-servicemeshoperatorv2` detail:
+  - the gate keys off subscription name plus channel, so unrelated subscriptions
+    or non-blocking channels do not trip it
+- `removed-codeflare`
+  - blocks when the internal `CodeFlare` CR still exists
+  - this does not map cleanly to `RHOAIENG-82353`, but it no longer conflicts
+    with the Ray Jira/odh-cli AppWrapper advisory
+- `removed-codeflare` detail:
+  - this is intentionally narrower than the previous implementation: the gate no
+    longer scans `AppWrapper` CRs and now treats only the internal `CodeFlare`
+    CR itself as blocking migration residue
+- `removed-modelmeshserving`
+  - blocks when the legacy internal `ModelMeshServing` CR still exists
+  - this is related to KServe / ModelMesh cleanup but is not tracked by a
+    matching Jira child issue in this file
+- `removed-modelmeshserving` detail:
+  - the check is a single object existence probe against the known cluster-scoped
+    internal CR name; it does not inspect descendant ModelMesh resources
 
 ### `RHOAIENG-82370` FeastOperator
 
