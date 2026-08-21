@@ -54,37 +54,40 @@ func TestNewCRObject(t *testing.T) {
 		jq.Match(`.kind == "%s"`, componentApi.ModelRegistryKind),
 		jq.Match(`.apiVersion == "%s"`, componentApi.GroupVersion),
 		jq.Match(`.metadata.annotations["%s"] == "%s"`, annotations.ManagementStateAnnotation, operatorv1.Managed),
+		jq.Match(`.spec.gateway.domain == "%s"`, gatewayConfig.Status.Domain),
 	)))
 }
 
-func TestNewCRObject_ReturnsError_WhenGatewayDomainMissing(t *testing.T) {
+func TestNewCRObject_ToleratesMissingGatewayDomain(t *testing.T) {
 	handler := &componentHandler{}
-	g := NewWithT(t)
 	dsc := createDSCWithModelRegistry(operatorv1.Managed)
 
-	t.Run("returns error when GatewayConfig does not exist", func(t *testing.T) {
+	t.Run("returns CR when GatewayConfig does not exist", func(t *testing.T) {
+		g := NewWithT(t)
 		cl, err := fakeclient.New()
 		g.Expect(err).To(Succeed())
 
 		cr, err := handler.NewCRObject(context.Background(), cl, dsc)
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(cr).To(BeNil())
-		g.Expect(err.Error()).To(ContainSubstring("gateway domain is missing for ModelRegistry"))
-		g.Expect(err.Error()).To(ContainSubstring("GatewayConfig"))
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(cr).ToNot(BeNil())
+		mr, ok := cr.(*componentApi.ModelRegistry)
+		g.Expect(ok).To(BeTrue())
+		g.Expect(mr.Spec.Gateway).To(BeNil())
 	})
 
-	t.Run("returns error when GatewayConfig exists but Status.Domain is empty", func(t *testing.T) {
+	t.Run("returns CR when GatewayConfig exists but Status.Domain is empty", func(t *testing.T) {
+		g := NewWithT(t)
 		gatewayConfig := &serviceApi.GatewayConfig{}
 		gatewayConfig.SetName(serviceApi.GatewayConfigName)
-		// Status.Domain left empty
 		cl, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig))
 		g.Expect(err).To(Succeed())
 
 		cr, err := handler.NewCRObject(context.Background(), cl, dsc)
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(cr).To(BeNil())
-		g.Expect(err.Error()).To(ContainSubstring("gateway domain is missing for ModelRegistry"))
-		g.Expect(err.Error()).To(ContainSubstring("GatewayConfig"))
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(cr).ToNot(BeNil())
+		mr, ok := cr.(*componentApi.ModelRegistry)
+		g.Expect(ok).To(BeTrue())
+		g.Expect(mr.Spec.Gateway).To(BeNil())
 	})
 }
 

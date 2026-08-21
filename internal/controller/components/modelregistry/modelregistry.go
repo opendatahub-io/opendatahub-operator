@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -48,14 +49,7 @@ func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSe
 }
 
 func (s *componentHandler) NewCRObject(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
-	commonSpec := dsc.Spec.Components.ModelRegistry.ModelRegistryCommonSpec
-	gatewayDomain, err := resources.GetGatewayDomain(ctx, cli)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"gateway domain is missing for ModelRegistry; the Data Science Gateway may not be ready yet—check that "+
-				"GatewayConfig exists and its status reports a domain: %w", err)
-	}
-	return &componentApi.ModelRegistry{
+	cr := componentApi.ModelRegistry{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.ModelRegistryKind,
 			APIVersion: componentApi.GroupVersion.String(),
@@ -67,10 +61,32 @@ func (s *componentHandler) NewCRObject(ctx context.Context, cli client.Client, d
 			},
 		},
 		Spec: componentApi.ModelRegistrySpec{
-			ModelRegistryCommonSpec: commonSpec,
-			Gateway:                 &common.GatewaySpec{Domain: gatewayDomain},
+			ModelRegistryCommonSpec: dsc.Spec.Components.ModelRegistry.ModelRegistryCommonSpec,
 		},
-	}, nil
+	}
+
+	gatewayDomain, err := resources.GetGatewayDomain(ctx, cli)
+	switch err {
+	case nil:
+		cr.Spec.Gateway = &common.GatewaySpec{Domain: gatewayDomain}
+	default:
+		// Intentionally do not fail CR creation when the gateway domain is unavailable.
+		// The DSC controller is allowed to create the ModelRegistry CR first, and the
+		// missing gateway projection is validated later by the API/server-side schema
+		// or by the component controller on a subsequent reconcile.
+		//
+		// In fact NewCRObject should never fail and the durable fix belongs to the
+		// framework's error handling, not in this component:
+		//
+		//   https://github.com/opendatahub-io/odh-platform-utilities/framework
+		//
+		logf.FromContext(ctx).Info(
+			"GatewayConfig domain not available yet",
+			"error", err,
+		)
+	}
+
+	return &cr, nil
 }
 
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
