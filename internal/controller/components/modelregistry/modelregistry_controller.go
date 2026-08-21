@@ -65,7 +65,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(handlers.ToNamed(componentApi.ModelRegistryInstanceName)),
 			reconciler.WithPredicates(generation.New()),
 		).
-		Watches(&corev1.Namespace{}).
+		Watches(&corev1.Namespace{},
+			reconciler.WithPredicates(
+				component.ForLabelAllEvents(labels.ODH.Component(LegacyComponentName), labels.True)),
+		).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
