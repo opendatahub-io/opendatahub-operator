@@ -87,7 +87,7 @@ additional_meta:
     git.commit: b4983e79c288ee231ef0e254a4e944dd27ea3b4d
   odh-cli:
     git.url: https://github.com/red-hat-data-services/odh-cli
-    git.commit: cd95ea5712c186e831dd7118ce2fc56d6c96ab30
+    git.commit: 10d0b8649827f0aff11b412f445813acc6a47952
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 3affc06b9fe32c73342acec6b647771491df56f0
@@ -108,7 +108,7 @@ additional_meta:
     git.commit: 9a3358c14a371a5789de1ec129de865d62dfd354
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: dcf498fd23572e20b41533bb09ecc8b93c206b6b
+    git.commit: cd3ca229c07c09fdcc0451aa8c9a9c50cfb4a494
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
     git.commit: 3aef0f649db4b64f43b6988f1486da43b9ccf375
