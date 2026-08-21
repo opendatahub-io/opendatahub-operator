@@ -27,4 +27,3 @@ spec:
     app.kubernetes.io/managed-by: opentelemetry-operator
     app.kubernetes.io/part-of: opentelemetry
   type: ClusterIP
-

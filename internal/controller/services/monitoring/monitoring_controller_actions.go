@@ -31,6 +31,7 @@ const (
 	OpenTelemetryCollectorTemplate                   = "resources/opentelemetry-collector.tmpl.yaml"
 	CollectorServiceMonitorsTemplate                 = "resources/collector-servicemonitors.tmpl.yaml"
 	CollectorPrometheusServiceTemplate               = "resources/collector-prometheus-service.tmpl.yaml"
+	CollectorMonitorServiceTemplate                  = "resources/collector-monitor-service.tmpl.yaml"
 	CollectorRBACTemplate                            = "resources/collector-rbac.tmpl.yaml"
 	CollectorMLflowRBACTemplate                      = "resources/collector-mlflow-rbac.tmpl.yaml"
 	CollectorTempoRBACTemplate                       = "resources/collector-tempo-rbac.tmpl.yaml"
@@ -304,6 +305,11 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 		{
 			FS:   resourcesFS,
 			Path: CollectorServiceMonitorsTemplate,
+		},
+		// Service for internal telemetry re-exported on :8890 with TLS (always-on)
+		{
+			FS:   resourcesFS,
+			Path: CollectorMonitorServiceTemplate,
 		},
 	}
 

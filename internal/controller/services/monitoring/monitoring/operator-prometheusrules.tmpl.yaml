@@ -39,13 +39,13 @@ spec:
 
         - alert: CollectorTelemetryScrapeTargetDown
           expr: |
-            absent(up{job="data-science-collector-collector-monitoring"}) or up{job="data-science-collector-collector-monitoring"} == 0
+            absent(up{job="data-science-collector-monitoring"}) or up{job="data-science-collector-monitoring"} == 0
           for: 10m
           labels:
             severity: warning
           annotations:
             summary: "OpenTelemetry Collector telemetry scrape target is down"
-            description: "The data-science-collector-collector-monitoring target has been down for more than 10 minutes. Collector health metrics are not being collected."
+            description: "The data-science-collector-monitoring target has been down for more than 10 minutes. Collector health metrics are not being collected."
             triage: "https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/troubleshooting.md#collector-telemetry--prometheus-exporter-scrape-target-down"
 
         - alert: CollectorPrometheusExporterScrapeTargetDown

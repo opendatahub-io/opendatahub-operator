@@ -26,12 +26,20 @@ spec:
     requests:
       cpu: {{.CollectorCPURequest}}
       memory: {{.CollectorMemoryRequest}}
-  {{- if .Metrics }}
   volumeMounts:
+  - name: monitoring-tls-certs
+    mountPath: /etc/otel-collector/monitoring-tls
+    readOnly: true
+  {{- if .Metrics }}
   - name: tls-certs
     mountPath: /etc/otel-collector/tls
     readOnly: true
+  {{- end }}
   volumes:
+  - name: monitoring-tls-certs
+    secret:
+      secretName: data-science-collector-monitoring-tls
+  {{- if .Metrics }}
   - name: tls-certs
     secret:
       secretName: data-science-collector-tls
@@ -41,6 +49,13 @@ spec:
       bearertokenauth:
         filename: "/var/run/secrets/kubernetes.io/serviceaccount/token"
     receivers:
+      prometheus/self:
+        config:
+          scrape_configs:
+            - job_name: 'otel-collector-internal'
+              scrape_interval: 30s
+              static_configs:
+              - targets: ['127.0.0.1:8888']
       {{- if .Metrics }}
       prometheus:
         config:
@@ -163,6 +178,11 @@ spec:
       resourcedetection:
         detectors: [openshift]
     exporters:
+      prometheus/monitoring:
+        endpoint: 0.0.0.0:8890
+        tls:
+          cert_file: "/etc/otel-collector/monitoring-tls/tls.crt"
+          key_file: "/etc/otel-collector/monitoring-tls/tls.key"
       {{- if .Metrics }}
       prometheus:
         endpoint: 0.0.0.0:8889
@@ -204,21 +224,22 @@ spec:
             - pull:
                 exporter:
                   prometheus:
-                    host: '0.0.0.0'
+                    host: '127.0.0.1'
                     port: 8888
       extensions: [bearertokenauth]
-      {{- if or .Traces .Metrics }}
       pipelines:
+        metrics/internal:
+          receivers: [prometheus/self]
+          exporters: [prometheus/monitoring]
       {{- if .Traces }}
         traces:
           receivers: [otlp]
           processors: [memory_limiter, k8sattributes, resourcedetection, batch]
           exporters: [otlp/tempo{{- if .TracesExporterNames }}{{- range .TracesExporterNames }}, {{ . }}{{- end }}{{- end }}]
-      {{ end }}
-      {{ if .Metrics }}
+      {{- end }}
+      {{- if .Metrics }}
         metrics:
           receivers: [prometheus, otlp]
           processors: [memory_limiter, k8sattributes, resourcedetection, batch]
           exporters: [prometheus{{- if .MetricsExporterNames }}{{- range .MetricsExporterNames }}, {{ . }}{{- end }}{{- end }}]
-      {{- end }}
       {{- end }}
