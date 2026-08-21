@@ -108,7 +108,7 @@ additional_meta:
     git.commit: b0087eec2647cc69b55b53280902ef4ea081ac09
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: 4507893b047ab297e3912147760b14cf2d4a942f
+    git.commit: dcf498fd23572e20b41533bb09ecc8b93c206b6b
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
     git.commit: 3aef0f649db4b64f43b6988f1486da43b9ccf375
@@ -192,10 +192,10 @@ additional_meta:
     git.commit: c4528b320ce6b467ce436a2c9fe5deea764fb52f
   odh-mlserver-cuda:
     git.url: https://github.com/red-hat-data-services/MLServer
-    git.commit: 15b2b869a8496e780d47566b78993f03fd468a60
+    git.commit: 8e101e9a3200277486976d5abe272ddd3882364a
   odh-mlserver:
     git.url: https://github.com/red-hat-data-services/MLServer
-    git.commit: 15b2b869a8496e780d47566b78993f03fd468a60
+    git.commit: 8e101e9a3200277486976d5abe272ddd3882364a
   odh-ml-pipelines-api-server-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
     git.commit: f56e5736cc11c1219ed88f58fbd6522edc9e898a
