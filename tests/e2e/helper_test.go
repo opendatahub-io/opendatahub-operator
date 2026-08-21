@@ -248,6 +248,9 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 					},
 					WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
 						WorkbenchNamespace: workbenchesNamespace,
+						WorkbenchesV2: componentApi.WorkbenchesV2Spec{
+							ManagementState: operatorv1.Removed,
+						},
 					},
 				},
 				AIPipelines: componentApi.DSCDataSciencePipelines{
