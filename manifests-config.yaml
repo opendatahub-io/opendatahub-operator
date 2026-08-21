@@ -155,7 +155,7 @@ componentCharts:
   workbenches:
     odh:
       repo: opendatahub-io/workbenches-operator
-      ref: main@cd4d45fef9223d8ef59ff1dd4a5b31f1f228a5bd
+      ref: main@0026cccf63a1e5accb689e2b13b6ec2e78f826eb
       sourcePath: charts/operator
     rhoai:
       repo: red-hat-data-services/workbenches-operator
@@ -358,11 +358,11 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-workbenches-operator"
-      digest: "sha256:69eaff29d4b5d179262daca00128c67cbc36ed4f1ae3e2d76657bece07c4a25b"
+      digest: "sha256:99a9348044eff76fc326d19687cdfc35e108d52a018f2ad02f3ac73ce15f9411"
     rhoai:
       shaFrom: odh
       base: "quay.io/opendatahub/odh-workbenches-operator"
-      digest: "sha256:69eaff29d4b5d179262daca00128c67cbc36ed4f1ae3e2d76657bece07c4a25b"
+      digest: "sha256:99a9348044eff76fc326d19687cdfc35e108d52a018f2ad02f3ac73ce15f9411"
   RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE:
     component: feastoperator
     tagTemplate: "{SHA}"

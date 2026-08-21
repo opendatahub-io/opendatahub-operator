@@ -45,6 +45,9 @@ func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
 						},
 						WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
 							WorkbenchNamespace: "my-workbenches",
+							WorkbenchesV2: componentApi.WorkbenchesV2Spec{
+								ManagementState: operatorv1.Removed,
+							},
 						},
 					},
 					MLflowOperator: componentApi.DSCMLflowOperator{
@@ -123,6 +126,40 @@ func TestBuildModuleCR_ProjectsMLflowEnabled(t *testing.T) {
 	g.Expect(spec["mlflowEnabled"]).Should(BeTrue())
 }
 
+func TestBuildModuleCR_ProjectsWorkbenchesV2Submodule(t *testing.T) {
+	g := NewWithT(t)
+	h := NewHandler()
+
+	u, err := h.BuildModuleCR(context.Background(), nil, newDSCCtx(operatorv1.Managed), newModuleCRConfig())
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec is not a map")
+
+	_, hasV1 := spec["notebooksV1"]
+	g.Expect(hasV1).Should(BeFalse(), "notebooksV1 must not be projected")
+
+	nbV2, ok := spec["workbenchesV2"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "workbenchesV2 is not a map")
+	g.Expect(nbV2["managementState"]).Should(Equal("Removed"))
+}
+
+func TestSubmoduleIsEnabled_WorkbenchesV2(t *testing.T) {
+	g := NewWithT(t)
+	h := NewHandler()
+	subs := h.GetSubmoduleConditions()
+	g.Expect(subs).Should(HaveLen(1))
+
+	v2Enabled := subs[0].IsEnabled
+	g.Expect(v2Enabled(newDSCCtx(operatorv1.Managed))).Should(BeFalse(),
+		"workbenchesV2 defaults to Removed in test fixture")
+	g.Expect(v2Enabled(nil)).Should(BeFalse())
+
+	managedCtx := newDSCCtx(operatorv1.Managed)
+	managedCtx.DSC.Spec.Components.Workbenches.WorkbenchesV2.ManagementState = operatorv1.Managed
+	g.Expect(v2Enabled(managedCtx)).Should(BeTrue())
+}
+
 func TestBuildModuleCR_PlatformMode(t *testing.T) {
 	g := NewWithT(t)
 	h := NewHandler()
@@ -157,6 +194,7 @@ func TestImageHandling(t *testing.T) {
 
 	g.Expect(h.GetControllerImage()).Should(Equal("RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE"))
 	g.Expect(h.GetRelatedImages()).Should(ContainElement("RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE"))
+	g.Expect(h.GetRelatedImages()).Should(ContainElement("RELATED_IMAGE_ODH_WORKBENCHES_CONTROLLER_IMAGE"))
 	g.Expect(h.GetRelatedImages()).ShouldNot(ContainElement("RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE"))
 }
 

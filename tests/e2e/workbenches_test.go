@@ -20,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -45,8 +46,10 @@ func workbenchesTestSuite(t *testing.T) {
 		{"Validate module releases", componentCtx.ValidateModuleReleases},
 		{"Validate ImageStreams available", componentCtx.ValidateImageStreamsAvailable},
 		{"Validate MLflow integration", componentCtx.ValidateMLflowIntegration},
+		{"Validate WorkbenchesV2 default Removed", componentCtx.ValidateWorkbenchesV2DefaultRemoved},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+		{"Validate WorkbenchesV2 when parent disabled", componentCtx.ValidateWorkbenchesV2ParentDisabled},
 	}
 
 	RunTestCases(t, testCases)
@@ -255,6 +258,100 @@ func (tc *WorkbenchesTestCtx) ValidateComponentDisabled(t *testing.T) {
 			),
 		),
 		WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to False/Removed", componentApi.WorkbenchesKind),
+	)
+}
+
+// ValidateWorkbenchesV2DefaultRemoved checks that the default workbenchesV2: Removed
+// fixture is projected into the module CR and mirrored as a Removed DSC condition.
+func (tc *WorkbenchesTestCtx) ValidateWorkbenchesV2DefaultRemoved(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Workbenches, types.NamespacedName{Name: componentApi.WorkbenchesInstanceName}),
+		WithCondition(jq.Match(`.spec.workbenchesV2.managementState == "Removed"`)),
+		WithCustomErrorMsg("Workbenches module CR should project workbenchesV2.managementState=Removed"),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(
+			And(
+				jq.Match(`.status.conditions[] | select(.type == "WorkbenchesV2Ready") | .status == "False"`),
+				jq.Match(`.status.conditions[] | select(.type == "WorkbenchesV2Ready") | .reason == "%s"`, status.RemovedReason),
+				jq.Match(`.status.components.workbenchesV2.managementState == "Removed"`),
+			),
+		),
+		WithCustomErrorMsg("DSC WorkbenchesV2Ready should be False/Removed when workbenchesV2 is Removed"),
+	)
+}
+
+// ValidateWorkbenchesV2ParentDisabled checks that disabling the parent Workbenches
+// module forces WorkbenchesV2 to Removed on the DSC, even when the submodule was Managed.
+func (tc *WorkbenchesTestCtx) ValidateWorkbenchesV2ParentDisabled(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	// ValidateComponentDisabled leaves workbenches Removed; re-enable to exercise the
+	// Managed -> Removed transition when the parent module is disabled.
+	tc.UpdateComponentState(operatorv1.Managed)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Workbenches, types.NamespacedName{Name: componentApi.WorkbenchesInstanceName}),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.AppsNamespace,
+			Name:      workbenchesModule.ControllerDeploymentName,
+		}),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+	)
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.workbenches.workbenchesV2.managementState = "Managed"`)),
+		WithCondition(jq.Match(`.spec.components.workbenches.workbenchesV2.managementState == "Managed"`)),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Workbenches, types.NamespacedName{Name: componentApi.WorkbenchesInstanceName}),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(jq.Match(`.spec.workbenchesV2.managementState == "Managed"`)),
+		WithCustomErrorMsg("Workbenches module CR should project workbenchesV2.managementState=Managed"),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(jq.Match(`.status.components.workbenchesV2.managementState == "Managed"`)),
+		WithCustomErrorMsg("DSC status.components.workbenchesV2 should be Managed before parent is disabled"),
+	)
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.workbenches.managementState = "Removed"`)),
+		WithCondition(jq.Match(`.spec.components.workbenches.managementState == "Removed"`)),
+	)
+
+	// Cleanup must complete before ComputeModulesStatus updates submodule conditions.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(
+			And(
+				jq.Match(`.status.conditions[] | select(.type == "WorkbenchesV2Ready") | .status == "False"`),
+				jq.Match(`.status.conditions[] | select(.type == "WorkbenchesV2Ready") | .reason == "%s"`, status.RemovedReason),
+				jq.Match(`.status.components.workbenchesV2.managementState == "Removed"`),
+			),
+		),
+		WithCustomErrorMsg("WorkbenchesV2Ready should show Removed when parent workbenches is disabled"),
 	)
 }
 

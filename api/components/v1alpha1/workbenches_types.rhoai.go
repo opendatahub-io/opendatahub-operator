@@ -28,4 +28,7 @@ type WorkbenchesCommonSpec struct {
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
 	WorkbenchNamespace string `json:"workbenchNamespace,omitempty"`
+
+	// WorkbenchesV2 controls the workbenches-v2 sub-component.
+	WorkbenchesV2 WorkbenchesV2Spec `json:"workbenchesV2,omitempty"`
 }
