@@ -6,8 +6,10 @@ metadata:
   labels:
     app: {{.KubeAuthProxyServiceName}}
     {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
+  {{- if .IsOpenShift}}
   annotations:
     service.beta.openshift.io/serving-cert-secret-name: {{.KubeAuthProxyTLSName}}
+  {{- end}}
 spec:
   selector:
     app: {{.KubeAuthProxyServiceName}}

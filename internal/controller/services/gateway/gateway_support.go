@@ -23,6 +23,7 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -35,12 +36,16 @@ const (
 
 const (
 	// Gateway infrastructure constants.
-	GatewayNamespace        = "openshift-ingress"                  // Namespace where Gateway resources are deployed
-	GatewayClassName        = "data-science-gateway-class"         // GatewayClass name for gateway resources
-	GatewayControllerName   = "openshift.io/gateway-controller/v1" // OpenShift Gateway API controller name
-	DefaultGatewayName      = "data-science-gateway"               // Default gateway resource name
-	DefaultGatewaySubdomain = "rh-ai"                              // Default subdomain for gateway URLs
-	LegacyGatewaySubdomain  = "data-science-gateway"               // Legacy subdomain to redirect from
+	GatewayNamespace         = "openshift-ingress"                  // Namespace where Gateway resources are deployed on OpenShift
+	XKSGatewayNamespace      = "rh-ai-gateway"                      // Namespace for gateway resources on XKS (vanilla K8s)
+	GatewayClassName         = "data-science-gateway-class"         // GatewayClass name for gateway resources
+	GatewayControllerName    = "openshift.io/gateway-controller/v1" // OpenShift Gateway API controller name
+	XKSGatewayControllerName = "istio.io/gateway-controller"        // XKS (standard Istio) Gateway API controller name
+	DefaultGatewayName       = "data-science-gateway"               // Default gateway resource name on OpenShift
+	XKSDefaultGatewayName    = "rh-ai-gateway"                      // Default gateway resource name on XKS
+	DefaultGatewaySubdomain  = "rh-ai"                              // Default subdomain for gateway URLs
+	LegacyGatewaySubdomain   = "data-science-gateway"               // Legacy subdomain to redirect from
+	XKSIstioRevisionValue    = "default"                            // Istio revision label value on XKS
 
 	// Authentication constants.
 	LegacyAuthClientID       = "odh"          // Legacy OauthClient name from RHOAI 3.3.
@@ -107,6 +112,55 @@ const (
 	ocpRouteTemplate                        = "resources/gateway-ocp-route.tmpl.yaml"
 )
 
+// GetGatewayNamespace returns the namespace where gateway resources are deployed.
+// On OpenShift: "openshift-ingress" (fixed by the platform).
+// On XKS (vanilla K8s): "rh-ai-gateway".
+func GetGatewayNamespace() string {
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		return XKSGatewayNamespace
+	}
+	return GatewayNamespace
+}
+
+// GetDefaultGatewayName returns the default gateway CR name.
+// On OpenShift: "data-science-gateway".
+// On XKS: "rh-ai-gateway".
+func GetDefaultGatewayName() string {
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		return XKSDefaultGatewayName
+	}
+	return DefaultGatewayName
+}
+
+// GetGatewayControllerName returns the GatewayClass controller name.
+// On OpenShift: "openshift.io/gateway-controller/v1".
+// On XKS: "istio.io/gateway-controller" (standard Istio controller).
+func GetGatewayControllerName() gwapiv1.GatewayController {
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		return XKSGatewayControllerName
+	}
+	return GatewayControllerName
+}
+
+// GetIstioRevisionValue returns the Istio revision label value.
+// On OpenShift: "openshift-gateway" (managed by OpenShift Service Mesh).
+// On XKS: "default" (standard Istio installation via odh-gitops sail chart).
+func GetIstioRevisionValue() string {
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		return XKSIstioRevisionValue
+	}
+	return IstioRevisionValue
+}
+
+// GetGatewayServiceFullName returns the auto-created Gateway service name.
+// Format: <gateway-name>-<gatewayclass-name>.
+func GetGatewayServiceFullName() string {
+	return GetDefaultGatewayName() + "-" + GatewayClassName
+}
+
+// ErrDomainRequired is returned by GetFQDN when spec.domain is not set on non-OpenShift clusters.
+var ErrDomainRequired = errors.New("spec.domain is required on non-OpenShift clusters")
+
 // GetFQDN returns the fully qualified domain name for the gateway based on the GatewayConfig.
 // It constructs the FQDN by combining the subdomain (or default) with either the user-specified
 // domain or the cluster domain.
@@ -125,6 +179,11 @@ func GetFQDN(ctx context.Context, cli client.Client, gatewayConfig *serviceApi.G
 		}
 	}
 
+	// On XKS, domain must be explicitly set in GatewayConfig (no OpenShift Ingress CR to auto-detect)
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		return "", ErrDomainRequired
+	}
+
 	clusterDomain, err := cluster.GetDomain(ctx, cli)
 	if err != nil {
 		return "", fmt.Errorf("failed to get cluster domain: %w", err)
@@ -133,14 +192,51 @@ func GetFQDN(ctx context.Context, cli client.Client, gatewayConfig *serviceApi.G
 	return fmt.Sprintf("%s.%s", subdomain, clusterDomain), nil
 }
 
+// resolveGatewayHostname returns the gateway FQDN. When spec.domain is required but not set
+// on XKS, it sets GatewayConfigReady=False and returns stop=true so callers can return nil
+// without error (matching the missing-OIDC configuration pattern).
+func resolveGatewayHostname(
+	ctx context.Context,
+	rr *odhtypes.ReconciliationRequest,
+	gatewayConfig *serviceApi.GatewayConfig,
+) (string, bool, error) {
+	hostname, err := GetFQDN(ctx, rr.Client, gatewayConfig)
+	if err == nil {
+		return hostname, false, nil
+	}
+	if errors.Is(err, ErrDomainRequired) {
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.NotReadyReason),
+			conditions.WithMessage(status.GatewayDomainRequiredMessage),
+		)
+		// Return nil (not error) because this is a permanent user configuration error.
+		// Returning an error would cause infinite reconciliation for something only the
+		// user can fix. Users must check GatewayConfig status conditions to see this error.
+		return "", true, nil
+	}
+	return "", false, fmt.Errorf("failed to resolve domain: %w", err)
+}
+
+// isGatewayDomainUnresolved reports whether gateway hostname resolution should stop
+// downstream reconciliation actions without error.
+func isGatewayDomainUnresolved(
+	ctx context.Context,
+	rr *odhtypes.ReconciliationRequest,
+	gatewayConfig *serviceApi.GatewayConfig,
+) (bool, error) {
+	_, stop, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
+	return stop, err
+}
+
 // GetGatewayDomain reads the domain directly from the Gateway CR's listener hostname.
 // Falls back to GatewayConfig if Gateway CR doesn't exist yet.
 func GetGatewayDomain(ctx context.Context, cli client.Client) (string, error) {
 	// Try to get the Gateway CR first
 	gateway := &gwapiv1.Gateway{}
 	err := cli.Get(ctx, client.ObjectKey{
-		Name:      DefaultGatewayName,
-		Namespace: GatewayNamespace,
+		Name:      GetDefaultGatewayName(),
+		Namespace: GetGatewayNamespace(),
 	}, gateway)
 	if err == nil {
 		if len(gateway.Spec.Listeners) > 0 && gateway.Spec.Listeners[0].Hostname != nil {
@@ -189,7 +285,11 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 	}
 
 	if certConfig.Type == "" {
-		certConfig.Type = infrav1.OpenshiftDefaultIngress
+		if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+			certConfig.Type = infrav1.SelfSigned
+		} else {
+			certConfig.Type = infrav1.OpenshiftDefaultIngress
+		}
 	}
 
 	secretName := certConfig.SecretName
@@ -199,7 +299,7 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 
 	switch certConfig.Type {
 	case infrav1.OpenshiftDefaultIngress:
-		if err := cluster.PropagateDefaultIngressCertificate(ctx, rr.Client, secretName, GatewayNamespace,
+		if err := cluster.PropagateDefaultIngressCertificate(ctx, rr.Client, secretName, GetGatewayNamespace(),
 			cluster.WithLabels( // add label easy to know it is from us.
 				labels.PlatformPartOf, ServiceName,
 			),
@@ -210,7 +310,7 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 		return secretName, nil
 	case infrav1.SelfSigned:
 		// domain parameter already contains the full FQDN (subdomain.baseDomain) from GetFQDN
-		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, secretName, domain, GatewayNamespace,
+		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, secretName, domain, GetGatewayNamespace(),
 			cluster.WithLabels( // add label easy to know it is from us.
 				labels.PlatformPartOf, ServiceName,
 			),
@@ -232,7 +332,7 @@ func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
 			Name: GatewayClassName,
 		},
 		Spec: gwapiv1.GatewayClassSpec{
-			ControllerName: GatewayControllerName,
+			ControllerName: GetGatewayControllerName(),
 		},
 	}
 
@@ -252,7 +352,7 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 					Key:      "kubernetes.io/metadata.name",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
-						GatewayNamespace,
+						GetGatewayNamespace(),
 						cluster.GetApplicationNamespace(),
 					},
 				},
@@ -308,10 +408,10 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 
 	gateway := &gwapiv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      DefaultGatewayName,
-			Namespace: GatewayNamespace,
+			Name:      GetDefaultGatewayName(),
+			Namespace: GetGatewayNamespace(),
 			Labels: map[string]string{
-				IstioRevisionLabel: IstioRevisionValue,
+				IstioRevisionLabel: GetIstioRevisionValue(),
 			},
 		},
 		Spec: gwapiv1.GatewaySpec{
@@ -342,7 +442,7 @@ spec:
 	infraConfigMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      GatewayInfraConfigMapName,
-			Namespace: GatewayNamespace,
+			Namespace: GetGatewayNamespace(),
 			Labels: map[string]string{
 				labels.PlatformPartOf: PartOfGatewayConfig,
 			},
@@ -372,14 +472,14 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, 
 	authSecret := &corev1.Secret{}
 	if err := rr.Client.Get(ctx, types.NamespacedName{
 		Name:      KubeAuthProxySecretsName,
-		Namespace: GatewayNamespace,
+		Namespace: GetGatewayNamespace(),
 	}, authSecret); err != nil {
-		return fmt.Errorf("failed to get auth proxy secret %s/%s: %w", GatewayNamespace, KubeAuthProxySecretsName, err)
+		return fmt.Errorf("failed to get auth proxy secret %s/%s: %w", GetGatewayNamespace(), KubeAuthProxySecretsName, err)
 	}
 
 	clientSecretBytes, exists := authSecret.Data["OAUTH2_PROXY_CLIENT_SECRET"]
 	if !exists {
-		return fmt.Errorf("OAUTH2_PROXY_CLIENT_SECRET not found in secret %s/%s", GatewayNamespace, KubeAuthProxySecretsName)
+		return fmt.Errorf("OAUTH2_PROXY_CLIENT_SECRET not found in secret %s/%s", GetGatewayNamespace(), KubeAuthProxySecretsName)
 	}
 	clientSecret := string(clientSecretBytes)
 
@@ -410,7 +510,7 @@ func createSecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clien
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      KubeAuthProxySecretsName,
-			Namespace: GatewayNamespace,
+			Namespace: GetGatewayNamespace(),
 		},
 		Type: corev1.SecretTypeOpaque,
 	}
@@ -575,12 +675,12 @@ func getAuthProxySecretValues(
 	existingSecret := &corev1.Secret{}
 	secretErr := rr.Client.Get(ctx, types.NamespacedName{
 		Name:      KubeAuthProxySecretsName,
-		Namespace: GatewayNamespace,
+		Namespace: GetGatewayNamespace(),
 	}, existingSecret)
 
 	// Fast exit on NotFound errors
 	if secretErr != nil && !k8serr.IsNotFound(secretErr) {
-		return "", "", "", fmt.Errorf("failed to check existing secret %s/%s: %w", GatewayNamespace, KubeAuthProxySecretsName, secretErr)
+		return "", "", "", fmt.Errorf("failed to check existing secret %s/%s: %w", GetGatewayNamespace(), KubeAuthProxySecretsName, secretErr)
 	}
 
 	// If secret exists, validate and reuse its values
@@ -610,7 +710,7 @@ func getAuthProxySecretValues(
 		// Determine which namespace to use for the secret
 		secretNamespace := oidcConfig.SecretNamespace
 		if secretNamespace == "" {
-			secretNamespace = GatewayNamespace // Default to openshift-ingress if not specified
+			secretNamespace = GetGatewayNamespace() // Default to gateway namespace if not specified
 		}
 
 		externalSecret := &corev1.Secret{}
@@ -663,12 +763,18 @@ func detectAndSetIngressMode(ctx context.Context, rr *odhtypes.ReconciliationReq
 
 	svc := &corev1.Service{}
 	err := rr.Client.Get(ctx, client.ObjectKey{
-		Name:      GatewayServiceFullName,
-		Namespace: GatewayNamespace,
+		Name:      GetGatewayServiceFullName(),
+		Namespace: GetGatewayNamespace(),
 	}, svc)
 
 	if k8serr.IsNotFound(err) {
-		gatewayConfig.Spec.IngressMode = serviceApi.IngressModeOcpRoute
+		// On XKS, default to LoadBalancer (no OpenShift Routes).
+		// On OpenShift, default to OcpRoute.
+		if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+			gatewayConfig.Spec.IngressMode = serviceApi.IngressModeLoadBalancer
+		} else {
+			gatewayConfig.Spec.IngressMode = serviceApi.IngressModeOcpRoute
+		}
 		return nil
 	}
 	if err != nil {
@@ -700,8 +806,8 @@ func reconcileGatewayForModeChange(ctx context.Context, rr *odhtypes.Reconciliat
 
 	gateway := &gwapiv1.Gateway{}
 	err := rr.Client.Get(ctx, client.ObjectKey{
-		Name:      DefaultGatewayName,
-		Namespace: GatewayNamespace,
+		Name:      GetDefaultGatewayName(),
+		Namespace: GetGatewayNamespace(),
 	}, gateway)
 
 	if k8serr.IsNotFound(err) {

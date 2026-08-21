@@ -65,8 +65,8 @@ func computeKustomizeVariable(rr *odhtypes.ReconciliationRequest) (map[string]st
 
 	return map[string]string{
 		"GATEWAY_DOMAIN":      domain,
-		"GATEWAY_NAME":        gateway.DefaultGatewayName,
-		"GATEWAY_NAMESPACE":   gateway.GatewayNamespace,
+		"GATEWAY_NAME":        gateway.GetDefaultGatewayName(),
+		"GATEWAY_NAMESPACE":   gateway.GetGatewayNamespace(),
 		"HTTPROUTE_NAMESPACE": cluster.GetApplicationNamespace(),
 	}, nil
 }
