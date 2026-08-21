@@ -3,11 +3,10 @@
 # Top: repo definitions (components, ccmCharts, componentCharts).
 #   Per-platform sub-keys (odh / rhoai) with repo, ref, sourcePath.
 #
-# Bottom: imageOverrides — pinned operator image digests, keyed by component name.
-#   env:          RELATED_IMAGE_* env var name
+# Bottom: imageOverrides — pinned operator image digests, keyed by RELATED_IMAGE_* env var name.
 #   paramsEnvKey: key in params.env
 #   base:         full image URI without tag
-#   tagTemplate: "{SHA}"
+#   tagTemplate:  must contain {SHA} and/or {SHORT_SHA}; prefixes and suffixes are allowed (quote the value)
 #   odh.digest / rhoai.digest: pinned image digest (sha256:...)
 #   odh.pinned / rhoai.pinned: true to prevent resolve-image-digests from updating (add comment with reason)
 #   rhoai.shaFrom: resolve SHA from a different platform's manifest (e.g. "odh")
@@ -180,12 +179,11 @@ platformManifests:
   segment: config/segment
 #   component:    which component's SHA to use for tagTemplate (matches key in components/ccmCharts/componentCharts)
 #   paramsEnvKey: (optional) params.env key for Go runtime
-#   tagTemplate:  (optional) tag template for skopeo fallback (must be quoted when containing {SHORT_SHA})
+#   tagTemplate:  (optional) must contain {SHA} and/or {SHORT_SHA}; prefixes and suffixes are allowed (quote the value)
 #   odh/rhoai:    per-platform base image, digest, and optional shaFrom
 imageOverrides:
   RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE:
     component: kserve-module-operator
-    paramsEnvKey: kserve-controller
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/kserve-controller"
@@ -196,7 +194,6 @@ imageOverrides:
       digest: "sha256:15ae54a475759e654380905f2f877df52503af77cacdc487aa777031d4d02582"
   RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE:
     component: kserve-module-operator
-    paramsEnvKey: kserve-llmisvc-controller
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-kserve-llmisvc-controller"
@@ -207,7 +204,6 @@ imageOverrides:
       digest: "sha256:5204f3ec7cbf842ae82b24cdef9015e73afcd460fe04ef8a54cbe4bc17ec7854"
   RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE:
     component: kserve-module-operator
-    paramsEnvKey: kserve-localmodel-controller
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-kserve-localmodel-controller"
@@ -272,7 +268,6 @@ imageOverrides:
       digest: "sha256:4db7f864ed11d3ea5585b56cb7d7473bf80d8a1dcfc47de343a7a182c805ecdc"
   RELATED_IMAGE_ODH_OGX_K8S_OPERATOR_IMAGE:
     component: ogx
-    paramsEnvKey: RELATED_IMAGE_ODH_OGX_OPERATOR
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-ogx-k8s-operator"
