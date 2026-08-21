@@ -34,6 +34,32 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 		return nil, err
 	}
 
+	envNames := make([]string, 0, len(cfg.ImageOverrides))
+	for envName := range cfg.ImageOverrides {
+		envNames = append(envNames, envName)
+	}
+	sort.Strings(envNames)
+
+	// Look up params.env before any digest work or CSV download so a missing
+	// key fails without rewriting the file or hitting the network.
+	slog.Info("Checking imageOverrides",
+		slog.String("file", opts.ConfigFile),
+		slog.String("manifestsDir", opts.ManifestsDir),
+		slog.Int("count", len(envNames)))
+	paramsEnvValue := make(map[string]string, len(envNames))
+	for _, envName := range envNames {
+		override := cfg.ImageOverrides[envName]
+		if err := cfg.CheckImageOverride(envName, override); err != nil {
+			return nil, err
+		}
+		val, err := paramsEnvKeyLookup(opts, override, envName)
+		if err != nil {
+			return nil, err
+		}
+		paramsEnvValue[envName] = val
+	}
+	slog.Info("imageOverrides check passed", slog.Int("count", len(envNames)))
+
 	nodeDoc, err := config.LoadNode(opts.ConfigFile)
 	if err != nil {
 		return nil, err
@@ -65,12 +91,6 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 	}
 	var shaFromDeferred []shaFromEntry
 
-	envNames := make([]string, 0, len(cfg.ImageOverrides))
-	for envName := range cfg.ImageOverrides {
-		envNames = append(envNames, envName)
-	}
-	sort.Strings(envNames)
-
 	for _, envName := range envNames {
 		override := cfg.ImageOverrides[envName]
 		for _, platform := range []string{"odh", "rhoai"} {
@@ -99,10 +119,12 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 
 			comp := cfg.FindComponent(override.Component)
 			if comp == nil {
+				slog.Info("No component, skipping digest lookup", slog.String("env", envName), slog.String("platform", platform))
 				continue
 			}
 			pr := comp.PlatformRepo(platform)
 			if pr == nil {
+				slog.Info("No platform repo, skipping", slog.String("env", envName), slog.String("platform", platform), slog.String("component", override.Component))
 				continue
 			}
 
@@ -114,6 +136,8 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 
 			// Defer shaFrom entries to second pass so source digests are resolved first
 			if pi != nil && pi.SHAFrom != "" {
+				slog.Info("Deferring shaFrom until source digest is resolved",
+					slog.String("env", envName), slog.String("platform", platform), slog.String("shaFrom", pi.SHAFrom))
 				shaFromDeferred = append(shaFromDeferred, shaFromEntry{envName, platform, pi.SHAFrom})
 				continue
 			}
@@ -130,8 +154,8 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 				if len(shortSHA) > 7 {
 					shortSHA = shortSHA[:7]
 				}
-				resolvedTag := strings.ReplaceAll(override.TagTemplate, "{SHA}", sha)
-				resolvedTag = strings.ReplaceAll(resolvedTag, "{SHORT_SHA}", shortSHA)
+				resolvedTag := strings.ReplaceAll(override.TagTemplate, config.TagSHA, sha)
+				resolvedTag = strings.ReplaceAll(resolvedTag, config.TagShortSHA, shortSHA)
 				imageRef := effectiveBase + ":" + resolvedTag
 
 				digest, err := ResolveDigestViaRegistry(ctx, imageRef)
@@ -157,46 +181,43 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 				slog.Info("Registry lookup failed, falling through", slog.String("env", envName), slog.String("platform", platform), slog.String("imageRef", imageRef))
 			}
 
-			// Priority 2: params.env
-			if override.ParamsEnvKey != "" && override.Component != "" {
-				componentDir := fmt.Sprintf("%s/%s", opts.ManifestsDir, override.Component)
-				if imageRef, err := FindParamsEnvKey(componentDir, override.ParamsEnvKey); err == nil && imageRef != "" {
-					if strings.Contains(imageRef, "@sha256:") {
-						pBase, pDigest := SplitImageRef(imageRef)
-						if config.DigestPattern.MatchString(pDigest) {
-							if err := nodeDoc.SetImageOverrideField(envName, platform, "base", pBase); err != nil {
-								slog.Warn("Failed to set base field", slog.String("error", err.Error()))
-							}
-							if err := nodeDoc.SetImageOverrideField(envName, platform, "digest", pDigest); err != nil {
-								slog.Warn("Failed to set digest field", slog.String("error", err.Error()))
-							}
-							results = append(results, Result{envName, platform, pBase, pDigest, "params.env"})
-							if resolved[envName] == nil {
-								resolved[envName] = map[string]resolvedImage{}
-							}
-							resolved[envName][platform] = resolvedImage{pBase, pDigest}
-							slog.Info("Resolved via params.env", slog.String("env", envName), slog.String("platform", platform), slog.String("base", pBase), slog.String("digest", pDigest))
-							continue
-						}
-					}
-					// Tagged image → registry lookup
-					digest, err := ResolveDigestViaRegistry(ctx, imageRef)
-					if err == nil && config.DigestPattern.MatchString(digest) {
-						pBase, _, _ := strings.Cut(imageRef, ":")
+			// Priority 2: params.env (value cached during the check above)
+			if imageRef := paramsEnvValue[envName]; imageRef != "" {
+				if strings.Contains(imageRef, "@sha256:") {
+					pBase, pDigest := SplitImageRef(imageRef)
+					if config.DigestPattern.MatchString(pDigest) {
 						if err := nodeDoc.SetImageOverrideField(envName, platform, "base", pBase); err != nil {
 							slog.Warn("Failed to set base field", slog.String("error", err.Error()))
 						}
-						if err := nodeDoc.SetImageOverrideField(envName, platform, "digest", digest); err != nil {
+						if err := nodeDoc.SetImageOverrideField(envName, platform, "digest", pDigest); err != nil {
 							slog.Warn("Failed to set digest field", slog.String("error", err.Error()))
 						}
-						results = append(results, Result{envName, platform, pBase, digest, "params.env+registry"})
+						results = append(results, Result{envName, platform, pBase, pDigest, "params.env"})
 						if resolved[envName] == nil {
 							resolved[envName] = map[string]resolvedImage{}
 						}
-						resolved[envName][platform] = resolvedImage{pBase, digest}
-						slog.Info("Resolved via params.env+registry", slog.String("env", envName), slog.String("platform", platform), slog.String("base", pBase), slog.String("digest", digest))
+						resolved[envName][platform] = resolvedImage{pBase, pDigest}
+						slog.Info("Resolved via params.env", slog.String("env", envName), slog.String("platform", platform), slog.String("base", pBase), slog.String("digest", pDigest))
 						continue
 					}
+				}
+				// Tagged image → registry lookup
+				digest, err := ResolveDigestViaRegistry(ctx, imageRef)
+				if err == nil && config.DigestPattern.MatchString(digest) {
+					pBase := imageBaseWithoutTag(imageRef)
+					if err := nodeDoc.SetImageOverrideField(envName, platform, "base", pBase); err != nil {
+						slog.Warn("Failed to set base field", slog.String("error", err.Error()))
+					}
+					if err := nodeDoc.SetImageOverrideField(envName, platform, "digest", digest); err != nil {
+						slog.Warn("Failed to set digest field", slog.String("error", err.Error()))
+					}
+					results = append(results, Result{envName, platform, pBase, digest, "params.env+registry"})
+					if resolved[envName] == nil {
+						resolved[envName] = map[string]resolvedImage{}
+					}
+					resolved[envName][platform] = resolvedImage{pBase, digest}
+					slog.Info("Resolved via params.env+registry", slog.String("env", envName), slog.String("platform", platform), slog.String("base", pBase), slog.String("digest", digest))
+					continue
 				}
 			}
 
@@ -365,28 +386,63 @@ func SplitImageRef(ref string) (base, digest string) {
 	return ref[:idx], ref[idx+1:]
 }
 
-// FindParamsEnvKey searches for params.env files recursively under dir
-// and returns the value for the given key from the first file that contains it.
-func FindParamsEnvKey(dir, key string) (string, error) {
-	var result string
-	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+// imageBaseWithoutTag returns the image name without a tag. The tag is the
+// colon suffix after the last slash, so a registry host:port is kept.
+func imageBaseWithoutTag(ref string) string {
+	if i := strings.LastIndex(ref, "@"); i >= 0 {
+		ref = ref[:i]
+	}
+	slash := strings.LastIndex(ref, "/")
+	colon := strings.LastIndex(ref, ":")
+	if colon > slash {
+		return ref[:colon]
+	}
+	return ref
+}
+
+func lookupParamsEnvKey(dir, key string) (value string, found bool, err error) {
+	err = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || d.Name() != "params.env" {
 			return err
 		}
-		val, err := ReadParamsEnvKey(path, key)
-		if err == nil {
-			result = val
+		val, lookupErr := ReadParamsEnvKey(path, key)
+		if lookupErr == nil {
+			value = val
+			found = true
 			return filepath.SkipAll
 		}
 		return nil
 	})
-	if result != "" {
-		return result, nil
+	if found {
+		return value, true, nil
 	}
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
-	return "", fmt.Errorf("key %q not found in any params.env under %s", key, dir)
+	return "", false, nil
+}
+
+func paramsEnvKeyLookup(opts Options, override config.ImageOverride, envName string) (string, error) {
+	if override.ParamsEnvKey == "" {
+		return "", nil
+	}
+	if opts.ManifestsDir == "" {
+		return "", fmt.Errorf("imageOverrides.%s.paramsEnvKey: manifests directory is required to look up %q", envName, override.ParamsEnvKey)
+	}
+	componentDir := filepath.Join(opts.ManifestsDir, override.Component)
+	val, found, err := lookupParamsEnvKey(componentDir, override.ParamsEnvKey)
+	if err != nil {
+		return "", fmt.Errorf("imageOverrides.%s.paramsEnvKey: looking up %q under %s: %w", envName, override.ParamsEnvKey, componentDir, err)
+	}
+	if !found {
+		return "", fmt.Errorf("imageOverrides.%s.paramsEnvKey: %q not found in any params.env under %s", envName, override.ParamsEnvKey, componentDir)
+	}
+	slog.Info("Found paramsEnvKey",
+		slog.String("env", envName),
+		slog.String("component", override.Component),
+		slog.String("paramsEnvKey", override.ParamsEnvKey),
+		slog.String("dir", componentDir))
+	return val, nil
 }
 
 func matchesRegistry(imageBase string, registries []string) bool {
