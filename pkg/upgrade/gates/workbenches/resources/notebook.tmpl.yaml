@@ -1,0 +1,11 @@
+apiVersion: kubeflow.org/v1
+kind: Notebook
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+{{- with index . "Annotations" }}
+  annotations:
+{{- range $key, $value := . }}
+    {{ $key }}: "{{ $value }}"
+{{- end }}
+{{- end }}

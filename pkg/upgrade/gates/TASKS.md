@@ -30,7 +30,7 @@ Legend:
 | `RHOAIENG-82357` | TrustyAI | Resolved | `✅ Done` | `PVC storage blocker implemented; remaining spike items are advisory` |
 | `RHOAIENG-82359` | Dashboard | In Progress | `⚠️ Follow-up needed` | `Comment scope looks broader than operator gates` |
 | `RHOAIENG-82360` | KServe | Resolved | `✅ Done` | `Aligned with latest Jira comments` |
-| `RHOAIENG-82361` | Workbenches | Backlog | `⚠️ Follow-up needed` | `No text summary yet; Jira comment is image-based` |
+| `RHOAIENG-82361` | Workbenches | Review | `✅ Done` | `CLI-aligned blocking rules implemented locally` |
 | `RHOAIENG-82370` | FeastOperator | Resolved | `🚫 Not needed` | `-` |
 | `RHOAIENG-82371` | LlamaStackOperator | Closed | `🚫 Not needed` | `-` |
 | `RHOAIENG-82372` | OGX | Closed | `🚫 Not needed` | `-` |
@@ -212,19 +212,31 @@ Legend:
 
 ### `RHOAIENG-82361` Workbenches
 
-- Jira status: `Backlog`
-- Task status: `Follow-up needed`
+- Jira status: `Review`
+- Task status: `Done`
 - Jira comments:
-  - live Jira comments show schedule movement and an attached image-based
-    evaluation, but there is no text summary in Jira comments that can be used
-    as an implementation spec here
-- Discrepancy to resolve later:
-  - repo has no workbenches-specific upgrade gate package
-  - current Jira text is not enough to tell whether a real operator-side gate is
-    needed
-- Resume note:
-  - ask for the image contents to be summarized in text or capture the exact
-    proposed blockers before implementing anything in this repo
+  - the attached image evaluation marks these as operator-gate candidates:
+    `hardware-profile-integrity`, `connection-integrity`,
+    `hardwareprofile-migration`, `container-name-mismatch`, and
+    `workloads.kueue.data-integrity`
+  - the same image marks `accelerator-migration` as informational and
+    `non-stopped-workloads` / `impacted-workloads` as not suitable for
+    operator-side blocking because they require pre-upgrade user action
+- Checks implemented in repo:
+  - block when a `Notebook` already references a missing `HardwareProfile`
+  - block when a `Notebook` references connection `Secret` objects that do not
+    exist on the cluster
+  - block when a Dashboard-managed `Notebook` has exactly one workload
+    container and its name does not match the `Notebook` CR name
+- Notes:
+  - `hardwareprofile-migration` in odh-cli is an advisory legacy-annotation
+    check, so it is intentionally left to migration/advisory handling rather
+    than a new pre-upgrade blocker here
+  - `workloads.kueue.data-integrity` likely belongs under the existing `kueue`
+    gate semantics rather than a separate Workbenches-specific gate
+  - the `container-name-mismatch` blocker follows odh-cli semantics:
+    Dashboard-managed Notebooks only, ignore legacy `oauth-proxy` sidecars,
+    and only evaluate the single-workload-container shape
 
 ### `RHOAIENG-82370` FeastOperator
 

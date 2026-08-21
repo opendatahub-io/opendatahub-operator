@@ -1,0 +1,6 @@
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+spec: {}
