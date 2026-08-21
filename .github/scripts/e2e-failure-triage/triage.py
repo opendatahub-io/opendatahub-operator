@@ -852,6 +852,23 @@ def print_summary(result: TriageResult) -> None:
 SECTION_START_MARKER = "<!-- e2e-triage-section:{suite} -->"
 SECTION_END_MARKER = "<!-- /e2e-triage-section:{suite} -->"
 
+# The thollander/actions-comment-pull-request action appends its own tracking
+# marker (e.g. `<!-- thollander/actions-comment-pull-request "e2e-failure-triage" -->`)
+# to the comment body on every run. Since we carry forward the previous
+# comment's raw text when merging suite sections, that marker would otherwise
+# accumulate one extra line per run. The action re-appends a fresh marker
+# itself whenever it (re)creates the comment, so it's safe to strip any
+# existing occurrences before merging.
+THOLLANDER_MARKER_PATTERN = re.compile(
+    r'[ \t]*<!-- thollander/actions-comment-pull-request "[^"]*" -->[ \t]*\n?'
+)
+
+
+def strip_thollander_markers(text: str) -> str:
+    """Remove stale thollander/actions-comment-pull-request tracking markers."""
+    stripped = THOLLANDER_MARKER_PATTERN.sub("", text)
+    return re.sub(r"\n{3,}", "\n\n", stripped).rstrip("\n")
+
 
 def _generate_section(
     result: TriageResult,
@@ -989,7 +1006,7 @@ def main() -> None:
     action_run_url = args.action_run_url or None
     existing_comment = None
     if args.existing_comment and Path(args.existing_comment).exists():
-        existing_comment = Path(args.existing_comment).read_text()
+        existing_comment = strip_thollander_markers(Path(args.existing_comment).read_text())
 
     if not result.component_failures:
         comment_body = generate_pr_comment(result, None, action_run_url, existing_comment)
