@@ -45,7 +45,7 @@ components:
   modelregistry:
     odh:
       repo: opendatahub-io/model-registry-operator
-      ref: main@dd76a58eb188ad1339071d97c0e343399ae41379
+      ref: main@08f64eb25dacb51bc2a054174b3df10694978e71
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/model-registry-operator
@@ -155,7 +155,7 @@ componentCharts:
   workbenches:
     odh:
       repo: opendatahub-io/workbenches-operator
-      ref: main@cd4d45fef9223d8ef59ff1dd4a5b31f1f228a5bd
+      ref: main@0026cccf63a1e5accb689e2b13b6ec2e78f826eb
       sourcePath: charts/operator
     rhoai:
       repo: red-hat-data-services/workbenches-operator
@@ -254,11 +254,11 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/model-registry-operator"
-      digest: "sha256:23a92019280150fd83626d5676bb9a3b89c5dd3f5e86fad0f2d45aaa6d07abfc"
+      digest: "sha256:ad284c2b96c575a3da6dba0b21fbaecdba412f308eec2017c274651c68c3ce1b"
     rhoai:
       shaFrom: odh
       base: "quay.io/opendatahub/model-registry-operator"
-      digest: "sha256:23a92019280150fd83626d5676bb9a3b89c5dd3f5e86fad0f2d45aaa6d07abfc"
+      digest: "sha256:ad284c2b96c575a3da6dba0b21fbaecdba412f308eec2017c274651c68c3ce1b"
   RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE:
     component: datasciencepipelines
     paramsEnvKey: IMAGES_DSPO
@@ -358,11 +358,11 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-workbenches-operator"
-      digest: "sha256:69eaff29d4b5d179262daca00128c67cbc36ed4f1ae3e2d76657bece07c4a25b"
+      digest: "sha256:99a9348044eff76fc326d19687cdfc35e108d52a018f2ad02f3ac73ce15f9411"
     rhoai:
       shaFrom: odh
       base: "quay.io/opendatahub/odh-workbenches-operator"
-      digest: "sha256:69eaff29d4b5d179262daca00128c67cbc36ed4f1ae3e2d76657bece07c4a25b"
+      digest: "sha256:99a9348044eff76fc326d19687cdfc35e108d52a018f2ad02f3ac73ce15f9411"
   RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE:
     component: feastoperator
     tagTemplate: "{SHA}"
