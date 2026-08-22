@@ -92,8 +92,6 @@ func (h *handler) BuildModuleCR(
 		return nil, fmt.Errorf("failed to convert DSCDashboard to unstructured: %w", err)
 	}
 
-	spec["deploymentMode"] = "Standalone"
-
 	spec["components"] = buildComponentsMap(dscCtx)
 
 	if cfg != nil && cfg.GatewayDomain != "" {
