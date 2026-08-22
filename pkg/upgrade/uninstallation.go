@@ -7,16 +7,21 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odhgvk "github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -103,9 +108,73 @@ func removeDSCI(ctx context.Context, cli client.Client) error {
 	return nil
 }
 
+type moduleCR struct {
+	gvk  schema.GroupVersionKind
+	name string
+}
+
+// knownModuleCRs lists all module CRs whose lifecycle is managed by the
+// modules controller. Their finalizers are set by external module operators
+// (separate Deployments) that may be garbage-collected before they can
+// process the finalizers during uninstall.
+var knownModuleCRs = []moduleCR{
+	{gvk: odhgvk.Dashboard, name: componentApi.DashboardInstanceName},
+	{gvk: odhgvk.Workbenches, name: componentApi.WorkbenchesInstanceName},
+	{gvk: odhgvk.Kserve, name: componentApi.KserveInstanceName},
+	{gvk: odhgvk.MLflowOperator, name: componentApi.MLflowOperatorInstanceName},
+	{gvk: odhgvk.FeastOperator, name: componentApi.FeastOperatorInstanceName},
+	{gvk: odhgvk.OGX, name: componentApi.OGXInstanceName},
+	{gvk: odhgvk.AIGateway, name: componentApi.AIGatewayInstanceName},
+	{gvk: odhgvk.MCPLifecycleOperator, name: componentApi.MCPLifecycleOperatorInstanceName},
+	{gvk: odhgvk.Trainer, name: componentApi.TrainerInstanceName},
+}
+
+// removeModuleCRFinalizers strips finalizers from all known module CRs.
+// During uninstall with foregroundDeletion, module operator Deployments
+// (which are also owned by the DSC) may be garbage-collected before they
+// can process the finalizers on their module CRs. This causes the DSC
+// deletion to hang indefinitely. Removing the finalizers pre-emptively
+// allows the garbage collector to delete the module CRs cleanly.
+func removeModuleCRFinalizers(ctx context.Context, cli client.Client) {
+	log := logf.FromContext(ctx)
+
+	for _, cr := range knownModuleCRs {
+		obj := &unstructured.Unstructured{}
+		obj.SetGroupVersionKind(cr.gvk)
+
+		if err := cli.Get(ctx, client.ObjectKey{Name: cr.name}, obj); err != nil {
+			if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+				continue
+			}
+			log.V(1).Info("Skipping finalizer removal, unable to get module CR",
+				"kind", cr.gvk.Kind, "name", cr.name, "error", err)
+			continue
+		}
+
+		if len(obj.GetFinalizers()) == 0 {
+			continue
+		}
+
+		log.Info("Removing finalizers from module CR to unblock uninstall",
+			"kind", cr.gvk.Kind, "name", cr.name, "finalizers", obj.GetFinalizers())
+
+		patch := client.MergeFrom(obj.DeepCopy())
+		obj.SetFinalizers(nil)
+		if err := cli.Patch(ctx, obj, patch); err != nil {
+			if k8serr.IsNotFound(err) {
+				continue
+			}
+			log.Error(err, "Failed to remove finalizers from module CR",
+				"kind", cr.gvk.Kind, "name", cr.name)
+		}
+	}
+}
+
 func removeDSC(ctx context.Context, cli client.Client) error {
 	log := logf.FromContext(ctx)
 	instance := &dscv2.DataScienceCluster{}
+
+	removeModuleCRFinalizers(ctx, cli)
 
 	if err := cli.DeleteAllOf(ctx, instance, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
 		return fmt.Errorf("failure deleting DSC: %w", err)
