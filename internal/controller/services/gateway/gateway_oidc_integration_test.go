@@ -376,6 +376,11 @@ func TestOIDCSpecMutationCookieConfig(t *testing.T) {
 	RunSpecMutationCookieConfigTest(t, GetOIDCTestSetup(), SpecMutationCookieConfig())
 }
 
+// TestOIDCSpecMutationTokenReviewConfig validates token review spec mutation in OIDC mode.
+func TestOIDCSpecMutationTokenReviewConfig(t *testing.T) {
+	RunSpecMutationTokenReviewConfigTest(t, GetOIDCTestSetup(), SpecMutationTokenReviewConfig())
+}
+
 // TestOIDCSpecMutationIssuerURLChange validates that GatewayConfig IssuerURL and deployment oidc-issuer-url update when issuer URL changes.
 func TestOIDCSpecMutationIssuerURLChange(t *testing.T) {
 	tc := OIDCTestEnv
