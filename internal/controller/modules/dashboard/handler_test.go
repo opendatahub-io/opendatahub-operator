@@ -11,6 +11,8 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 
@@ -287,4 +289,83 @@ func TestGetRelatedImages(t *testing.T) {
 		"RELATED_IMAGE_ODH_CORE_BFF_IMAGE",
 		"RELATED_IMAGE_POSTGRESQL_16_IMAGE",
 	))
+}
+
+func newPlatformCtxWithDSCI(mgmtState, monitoringState operatorv1.ManagementState, monitoringNS string) *modules.PlatformContext {
+	ctx := newPlatformCtx(mgmtState)
+	ctx.MonitoringNamespace = monitoringNS
+	ctx.DSCI = &dsciv2.DSCInitialization{
+		Spec: dsciv2.DSCInitializationSpec{
+			Monitoring: serviceApi.DSCIMonitoring{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: monitoringState,
+				},
+				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+					Namespace: monitoringNS,
+				},
+			},
+		},
+	}
+	return ctx
+}
+
+func TestBuildModuleCR_ProjectsObservabilityWhenMonitoringManaged(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	platform := newPlatformCtxWithDSCI(operatorv1.Managed, operatorv1.Managed, "redhat-ods-monitoring")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+
+	obs, ok := spec["observability"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.observability should be present")
+	g.Expect(obs["enabled"]).Should(BeTrue())
+
+	ps, ok := obs["persesService"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.observability.persesService should be present")
+	g.Expect(ps["name"]).Should(Equal("data-science-perses"))
+	g.Expect(ps["namespace"]).Should(Equal("redhat-ods-monitoring"))
+	g.Expect(ps["port"]).Should(Equal(int64(8080)))
+}
+
+func TestBuildModuleCR_OmitsObservabilityWhenDSCIIsNil(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	platform := newPlatformCtx(operatorv1.Managed)
+
+	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).ShouldNot(HaveKey("observability"))
+}
+
+func TestBuildModuleCR_OmitsObservabilityWhenMonitoringRemoved(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	platform := newPlatformCtxWithDSCI(operatorv1.Managed, operatorv1.Removed, "redhat-ods-monitoring")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).ShouldNot(HaveKey("observability"))
+}
+
+func TestBuildModuleCR_OmitsObservabilityWhenMonitoringNamespaceEmpty(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	platform := newPlatformCtxWithDSCI(operatorv1.Managed, operatorv1.Managed, "")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).ShouldNot(HaveKey("observability"))
 }
