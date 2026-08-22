@@ -24,6 +24,7 @@ execution more efficient and reliable.`,
 
 	// Add subcommands
 	rootCmd.AddCommand(NewE2ECommand(cfg))
+	rootCmd.AddCommand(NewFilterGateSkipsCommand())
 
 	return rootCmd
 }
