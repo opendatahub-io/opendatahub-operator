@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -12,7 +11,9 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
@@ -20,6 +21,14 @@ const (
 	moduleName = componentApi.DashboardComponentName
 	// crName must match dashboard-operator CRD CEL (default-dashboard); see odh-dashboard#8093.
 	crName = componentApi.DashboardInstanceName
+
+	// deploymentModeStandalone signals the dashboard-operator that the platform operator
+	// manages its lifecycle. Must match the dashboard-operator's expected deploymentMode values.
+	deploymentModeStandalone = "Standalone"
+
+	// dashboardAIPipelinesName is the key used in the Dashboard CR components map for
+	// AI Pipelines. Keep in sync with dashboard-operator's component name for DSP.
+	dashboardAIPipelinesName = "aipipelines"
 )
 
 type handler struct {
@@ -74,27 +83,35 @@ func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
 
 // BuildModuleCR projects user-facing DSC dashboard configuration and platform
 // fields from DSCContext and ModuleCRConfig onto the module CR.
+// When dscCtx or dscCtx.DSC is nil (e.g. Dashboard module created directly
+// without a DSC, as on XKS), the CR is built with defaults only — no DSC
+// component state, no namespace projection.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
 	dscCtx *modules.DSCContext,
 	cfg *modules.ModuleCRConfig,
 ) (*unstructured.Unstructured, error) {
-	if dscCtx == nil {
-		return nil, errors.New("DSC context is nil, cannot build dashboard CR")
-	}
-	if dscCtx.DSC == nil {
-		return nil, errors.New("DSC is nil, cannot build dashboard CR")
+	var spec map[string]any
+
+	if dscCtx != nil && dscCtx.DSC != nil {
+		var err error
+		spec, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&dscCtx.DSC.Spec.Components.Dashboard)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert DSCDashboard to unstructured: %w", err)
+		}
+		spec["components"] = buildComponentsMap(dscCtx)
+		if ns := resolveNotebooksNamespace(dscCtx, cfg); ns != "" {
+			spec["notebooksNamespace"] = ns
+		}
+		if ns := resolveModelRegistryNamespace(dscCtx); ns != "" {
+			spec["modelRegistryNamespace"] = ns
+		}
+	} else {
+		spec = map[string]any{}
 	}
 
-	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dscCtx.DSC.Spec.Components.Dashboard)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert DSCDashboard to unstructured: %w", err)
-	}
-
-	spec["deploymentMode"] = "Standalone"
-
-	spec["components"] = buildComponentsMap(dscCtx)
+	spec["deploymentMode"] = deploymentModeStandalone
 
 	if cfg != nil && cfg.GatewayDomain != "" {
 		spec["gateway"] = map[string]any{
@@ -122,23 +139,52 @@ func buildComponentsMap(dscCtx *modules.DSCContext) map[string]any {
 		name  string
 		state operatorv1.ManagementState
 	}{
-		{"modelregistry", c.ModelRegistry.ManagementState},
-		{"mlflowoperator", c.MLflowOperator.ManagementState},
-		{"trustyai", c.TrustyAI.ManagementState},
-		{"aipipelines", c.AIPipelines.ManagementState},
+		{componentApi.ModelRegistryComponentName, c.ModelRegistry.ManagementState},
+		{componentApi.MLflowOperatorComponentName, c.MLflowOperator.ManagementState},
+		{componentApi.TrustyAIComponentName, c.TrustyAI.ManagementState},
+		{dashboardAIPipelinesName, c.AIPipelines.ManagementState},
 	}
 
 	result := make(map[string]any, len(refs))
 	for _, ref := range refs {
-		state := string(ref.state)
-		if state == "" {
-			state = string(operatorv1.Removed)
-		}
-
 		result[ref.name] = map[string]any{
-			"managementState": state,
+			"managementState": string(components.NormalizeManagementState(ref.state)),
 		}
 	}
 
 	return result
+}
+
+// resolveNotebooksNamespace returns the notebooks namespace to project into the Dashboard CR.
+// Returns empty string if workbenches is not Managed, so the dashboard-operator skips
+// cross-namespace RBAC for notebooks when the component is absent.
+func resolveNotebooksNamespace(dscCtx *modules.DSCContext, cfg *modules.ModuleCRConfig) string {
+	if dscCtx == nil || dscCtx.DSC == nil {
+		return ""
+	}
+	if dscCtx.DSC.Spec.Components.Workbenches.ManagementState != operatorv1.Managed {
+		return ""
+	}
+	if ns := dscCtx.DSC.Spec.Components.Workbenches.WorkbenchNamespace; ns != "" {
+		return ns
+	}
+	if cfg != nil {
+		switch cfg.Release.Name {
+		case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+			return cluster.DefaultNotebooksNamespaceRHOAI
+		}
+	}
+	return cluster.DefaultNotebooksNamespaceODH
+}
+
+// resolveModelRegistryNamespace returns the model-registry namespace to project into the
+// Dashboard CR. Returns empty string if ModelRegistry is not Managed.
+func resolveModelRegistryNamespace(dscCtx *modules.DSCContext) string {
+	if dscCtx == nil || dscCtx.DSC == nil {
+		return ""
+	}
+	if dscCtx.DSC.Spec.Components.ModelRegistry.ManagementState != operatorv1.Managed {
+		return ""
+	}
+	return dscCtx.DSC.Spec.Components.ModelRegistry.RegistriesNamespace
 }
