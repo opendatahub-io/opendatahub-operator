@@ -1315,6 +1315,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringServiceDisabled(t *testing.T) {
 	}{
 		{gvk: gvk.Monitoring, name: MonitoringCRName},
 		{gvk: gvk.MonitoringStack, name: MonitoringStackName, forceWithFinalizer: true},
+		{gvk: gvk.ThanosQuerier, name: ThanosQuerierName, forceWithFinalizer: true},
 		{gvk: gvk.TempoStack, name: TempoStackName, forceWithFinalizer: true},
 		{gvk: gvk.TempoMonolithic, name: TempoMonolithicName, forceWithFinalizer: true},
 		{gvk: gvk.OpenTelemetryCollector, name: OpenTelemetryCollectorName},
@@ -1645,6 +1646,17 @@ func (tc *MonitoringTestCtx) cleanupGroup(t *testing.T, secretName string) {
 			WithWaitForDeletion(true),
 		)
 	}
+
+	// Clean up ThanosQuerier if it exists
+	tc.DeleteResource(
+		WithMinimalObject(gvk.ThanosQuerier, types.NamespacedName{
+			Name:      ThanosQuerierName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithWaitForDeletion(true),
+		WithRemoveFinalizersOnDelete(true),
+		WithIgnoreNotFound(true),
+	)
 
 	// Clean up TempoMonolithic if it exists
 	tc.DeleteResource(
