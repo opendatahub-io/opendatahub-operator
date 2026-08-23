@@ -192,10 +192,10 @@ additional_meta:
     git.commit: c4528b320ce6b467ce436a2c9fe5deea764fb52f
   odh-mlserver-cuda:
     git.url: https://github.com/red-hat-data-services/MLServer
-    git.commit: 8e101e9a3200277486976d5abe272ddd3882364a
+    git.commit: 99b3691d397af49381d8cb35bab1d08c29e50903
   odh-mlserver:
     git.url: https://github.com/red-hat-data-services/MLServer
-    git.commit: 8e101e9a3200277486976d5abe272ddd3882364a
+    git.commit: 99b3691d397af49381d8cb35bab1d08c29e50903
   odh-ml-pipelines-api-server-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
     git.commit: e8beda40dc27bcea02f8f83be61ef499bb140df1
