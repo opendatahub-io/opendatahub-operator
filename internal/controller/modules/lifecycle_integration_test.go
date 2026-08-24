@@ -13,6 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -42,9 +43,12 @@ type lifecycleModuleStub struct {
 	deleteOperatorCalls int
 }
 
-func (s *lifecycleModuleStub) GetName() string                 { return s.name }
-func (s *lifecycleModuleStub) IsEnabled(*PlatformContext) bool { return s.enabled }
-func (s *lifecycleModuleStub) GetGVK() schema.GroupVersionKind { return s.gvk }
+func (s *lifecycleModuleStub) GetName() string                                { return s.name }
+func (s *lifecycleModuleStub) IsEnabled(*configv1alpha1.PlatformModules) bool { return s.enabled }
+func (s *lifecycleModuleStub) GetGVK() schema.GroupVersionKind                { return s.gvk }
+
+func (s *lifecycleModuleStub) PopulatePlatformModule(_ *configv1alpha1.PlatformModules, _ *DSCContext) {
+}
 
 func (s *lifecycleModuleStub) GetOperatorManifests(*PlatformContext) OperatorManifests {
 	return OperatorManifests{
@@ -52,7 +56,7 @@ func (s *lifecycleModuleStub) GetOperatorManifests(*PlatformContext) OperatorMan
 	}
 }
 
-func (s *lifecycleModuleStub) BuildModuleCR(_ context.Context, _ client.Client, _ *PlatformContext) (*unstructured.Unstructured, error) {
+func (s *lifecycleModuleStub) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(s.gvk)
 	u.SetName("default-" + s.name)
@@ -116,9 +120,9 @@ func lifecycleRR(t *testing.T) (*types.ReconciliationRequest, *dscv2.DataScience
 
 // TestLifecycle_ProvisionThenDisableThenCleanup verifies the full module
 // lifecycle state machine:
-//  1. Enabled module → provisionModules adds its resources and manifests
-//  2. Module disabled, CR still alive → cleanupDisabledModules deletes CR,
-//     keeps operator manifests alive for finalizer processing
+//  1. Enabled module → provisionModules adds operator manifests
+//  2. Module disabled, CR still alive → cleanupDisabledModules keeps operator
+//     manifests alive (CR deletion is owned by DSC/DSCI controllers)
 //  3. Module disabled, CR absent → cleanupDisabledModules removes operator resources
 func TestLifecycle_ProvisionThenDisableThenCleanup(t *testing.T) {
 	withTestRegistry(t)
@@ -153,19 +157,18 @@ func TestLifecycle_ProvisionThenDisableThenCleanup(t *testing.T) {
 	provision.Add(moduleA.name, provision.KindModule, dag.RL(20))
 	provision.Add(moduleB.name, provision.KindModule, dag.RL(30))
 
-	// Phase 1: Both enabled — provision should add resources for both.
+	// Phase 1: Both enabled — provision should add manifests for both.
 	rr, dsc := lifecycleRR(t)
 	if err := provisionModules(context.Background(), rr); err != nil {
 		t.Fatalf("phase 1 provision: %v", err)
-	}
-	if len(rr.Resources) != 2 {
-		t.Fatalf("phase 1: expected 2 module CRs, got %d", len(rr.Resources))
 	}
 	if len(rr.Manifests) != 2 {
 		t.Fatalf("phase 1: expected 2 manifest entries, got %d", len(rr.Manifests))
 	}
 
-	// Phase 2: Disable module-b, CR is still alive → cleanup deletes CR, keeps operator.
+	// Phase 2: Disable module-b, CR is still alive → cleanup keeps operator
+	// manifests alive (CR deletion is handled by DSC/DSCI controllers, not
+	// the platform controller's cleanup action).
 	moduleB.enabled = false
 	moduleB.crState = CRStateAlive
 
@@ -173,11 +176,11 @@ func TestLifecycle_ProvisionThenDisableThenCleanup(t *testing.T) {
 	if err := cleanupDisabledModules(context.Background(), rr2); err != nil {
 		t.Fatalf("phase 2 cleanup: %v", err)
 	}
-	if moduleB.deleteCRCalls != 1 {
-		t.Fatalf("phase 2: expected 1 DeleteModuleCR call for module-b, got %d", moduleB.deleteCRCalls)
+	if moduleB.deleteCRCalls != 0 {
+		t.Fatalf("phase 2: cleanup should NOT delete module CR (owned by DSC controller), got %d calls", moduleB.deleteCRCalls)
 	}
 	if moduleB.deleteOperatorCalls != 0 {
-		t.Fatalf("phase 2: should NOT delete operator resources while CR is still being finalized")
+		t.Fatalf("phase 2: should NOT delete operator resources while CR is still alive")
 	}
 	if len(rr2.Manifests) != 1 {
 		t.Fatalf("phase 2: expected 1 manifest entry (operator kept alive), got %d", len(rr2.Manifests))
@@ -202,15 +205,15 @@ func TestLifecycle_ProvisionThenDisableThenCleanup(t *testing.T) {
 	if err := provisionModules(context.Background(), rr4); err != nil {
 		t.Fatalf("phase 4 re-provision: %v", err)
 	}
-	if len(rr4.Resources) != 1 {
-		t.Fatalf("phase 4: expected 1 module CR (only module-a), got %d", len(rr4.Resources))
+	if len(rr4.Manifests) != 1 {
+		t.Fatalf("phase 4: expected 1 manifest entry (only module-a), got %d", len(rr4.Manifests))
 	}
 
 	// Verify status computation reflects the final state.
 	rr5, _ := lifecycleRR(t)
 	rr5.Instance = dsc
 	rr5.Conditions = conditions.NewManager(dsc, status.ConditionTypeModulesReady)
-	if err := ComputeModulesStatus(context.Background(), rr5); err != nil {
+	if err := ComputeModulesStatusDetailed(context.Background(), rr5); err != nil {
 		t.Fatalf("status computation: %v", err)
 	}
 	modulesReady := conditions.FindStatusCondition(dsc.GetStatus(), status.ConditionTypeModulesReady)
@@ -298,7 +301,7 @@ func TestLifecycle_MultiModuleStatusAggregation(t *testing.T) {
 	rr, dsc := lifecycleRR(t)
 	rr.Conditions = conditions.NewManager(dsc, status.ConditionTypeModulesReady)
 
-	if err := ComputeModulesStatus(context.Background(), rr); err != nil {
+	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
 		t.Fatalf("compute status: %v", err)
 	}
 
@@ -344,7 +347,7 @@ func TestLifecycle_AllDisabledReportsNoManagedModules(t *testing.T) {
 	rr, dsc := lifecycleRR(t)
 	rr.Conditions = conditions.NewManager(dsc, status.ConditionTypeModulesReady)
 
-	if err := ComputeModulesStatus(context.Background(), rr); err != nil {
+	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
 		t.Fatalf("compute status: %v", err)
 	}
 
@@ -383,7 +386,7 @@ func TestLifecycle_StaleModuleStatusMarksNotReady(t *testing.T) {
 	rr, dsc := lifecycleRR(t)
 	rr.Conditions = conditions.NewManager(dsc, status.ConditionTypeModulesReady)
 
-	if err := ComputeModulesStatus(context.Background(), rr); err != nil {
+	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
 		t.Fatalf("compute status: %v", err)
 	}
 
