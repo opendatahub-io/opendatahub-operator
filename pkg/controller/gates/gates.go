@@ -96,13 +96,11 @@ func (gc *GateChecker) EnsureGates(ctx context.Context, gateEntries map[string]s
 
 	dirty := false
 	for k, v := range gateEntries {
-		if cm.Data[k] == "true" {
+		if _, exists := cm.Data[k]; exists {
 			continue
 		}
-		if cm.Data[k] != v {
-			cm.Data[k] = v
-			dirty = true
-		}
+		cm.Data[k] = v
+		dirty = true
 	}
 
 	if dirty {

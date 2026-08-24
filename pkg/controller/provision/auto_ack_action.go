@@ -114,6 +114,8 @@ func AutoAcknowledgeUpgradeGatesInNamespace(
 				"reason", err,
 			)
 
+			cm.Data[key] = err.Error()
+
 			continue
 		}
 

@@ -182,6 +182,43 @@ func TestEnsureGates_LeavesStaleAcks(t *testing.T) {
 	assert.Equal(t, "New gate", cm.Data["ack-2.0.0-new-gate"])
 }
 
+func TestEnsureGates_PreservesErrorMessageValues(t *testing.T) {
+	t.Parallel()
+
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	existing := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: gates.AcksConfigMap, Namespace: testNamespace},
+		Data: map[string]string{
+			"ack-2.0.0-ray":      "1 CodeFlare-managed RayClusters still require pre-upgrade backup",
+			"ack-2.0.0-trustyai": "2 TrustyAIService instances using PVC storage require backup",
+			"ack-2.0.0-kserve":   "true",
+		},
+	}
+
+	cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existing).Build()
+	gc := gates.NewGateChecker(cli, testNamespace)
+
+	unacked, err := gc.EnsureGates(context.Background(), map[string]string{
+		"ack-2.0.0-ray":      "Acknowledge upgrade of ray",
+		"ack-2.0.0-trustyai": "Acknowledge upgrade of trustyai",
+		"ack-2.0.0-kserve":   "Acknowledge upgrade of kserve",
+	})
+
+	require.NoError(t, err)
+	require.Len(t, unacked, 2)
+
+	cm := &corev1.ConfigMap{}
+	require.NoError(t, cli.Get(context.Background(), acksObjectKey(), cm))
+	assert.Equal(t, "1 CodeFlare-managed RayClusters still require pre-upgrade backup", cm.Data["ack-2.0.0-ray"],
+		"error message must not be overwritten by gate description")
+	assert.Equal(t, "2 TrustyAIService instances using PVC storage require backup", cm.Data["ack-2.0.0-trustyai"],
+		"error message must not be overwritten by gate description")
+	assert.Equal(t, "true", cm.Data["ack-2.0.0-kserve"],
+		"acked entry must remain acknowledged")
+}
+
 func TestLoadInTreeGates_ReturnsAllEntries(t *testing.T) {
 	t.Parallel()
 
