@@ -107,11 +107,9 @@ rules:
   - ""
   resources:
   - namespaces
-  - secrets
   verbs:
   - get
   - list
-  - patch
   - update
   - watch
 - apiGroups:
@@ -130,7 +128,6 @@ rules:
   - ""
   resources:
   - pods
-  - pods/exec
   verbs:
   - create
   - delete
@@ -141,7 +138,14 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - pods/exec
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
   - pods/log
+  - secrets
   verbs:
   - get
 - apiGroups:
@@ -274,6 +278,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - mlflow.opendatahub.io
+  resources:
+  - mlflows
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - monitoring.coreos.com
   resources:
   - servicemonitors
@@ -310,17 +322,6 @@ rules:
   - get
   - list
   - patch
-  - update
-  - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - subjectaccessreviews
-  verbs:
-  - create
-  - delete
-  - get
-  - list
   - update
   - watch
 - apiGroups:

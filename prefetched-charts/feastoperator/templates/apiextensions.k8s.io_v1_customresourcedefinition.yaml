@@ -22,10 +22,6 @@ spec:
       jsonPath: .status.conditions[?(@.type=="Ready")].reason
       name: Reason
       type: string
-    - description: Module Version
-      jsonPath: .status.release.version
-      name: Version
-      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -132,14 +128,6 @@ spec:
                 type: integer
               phase:
                 type: string
-              release:
-                description: Release reports the operator version and platform.
-                properties:
-                  name:
-                    type: string
-                  version:
-                    type: string
-                type: object
               releases:
                 items:
                   description: ComponentRelease represents the detailed status of
