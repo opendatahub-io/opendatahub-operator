@@ -21,7 +21,7 @@ import (
 
 type noopRecorder struct{}
 
-func (noopRecorder) Eventf(_ runtime.Object, _ runtime.Object, _, _, _, _ string, _ ...interface{}) {}
+func (noopRecorder) Eventf(_ runtime.Object, _ runtime.Object, _, _, _, _ string, _ ...any) {}
 
 func TestLogErrorsStructuredFields(t *testing.T) {
 	t.Parallel()
@@ -57,6 +57,8 @@ func TestLogErrorsStructuredFields(t *testing.T) {
 		ContainSubstring(`"msg"="Failed to retrieve DSCInitialization resource."`),
 		ContainSubstring(`"resourceKind"="DSCInitialization"`),
 		ContainSubstring(`"name"=""`),
-		Not(ContainSubstring(`"Request.Name"`)),
 	)))
+	for i, entry := range logged {
+		g.Expect(entry).NotTo(ContainSubstring(`"Request.Name"`), "logged entry %d contains legacy key", i)
+	}
 }
