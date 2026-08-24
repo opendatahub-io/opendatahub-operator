@@ -118,9 +118,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE
   value: "quay.io/rhoai/odh-model-registry-job-async-upload-rhel9@sha256:e35eaebae35cb402df686171dbbd530b471a862cae4f72c0c278e887e7c7a894"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-model-registry-operator-rhel9@sha256:2327945ed82a81bd3b6bf056095d32d7c3fa2db7be2358f1e5413013147c5b08"
+  value: "quay.io/rhoai/odh-model-registry-operator-rhel9@sha256:f8be0b7739ab095daa61570512639c5777999aa270c07c147300d07e39b8e5bf"
 - name: RELATED_IMAGE_ODH_MODEL_SERVING_API_IMAGE
-  value: "quay.io/rhoai/odh-model-serving-api-rhel9@sha256:5d5c368584d7df0b6c5cf7eccdc1ffffacf1bb4b39e7b0a7ab4e6fa1553631dc"
+  value: "quay.io/rhoai/odh-model-serving-api-rhel9@sha256:2c3ff10c57da9fe02c11ffecf9ef2a54b797c50bdc720f9547c9c8574dc9799c"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_AGENT_OPS_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-agent-ops-rhel9@sha256:0e5ffb00bed6b5563f407fc668c6c08875751d175f5442ffaf5440dfa27068c3"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_AUTOML_IMAGE
