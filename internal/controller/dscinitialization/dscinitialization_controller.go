@@ -89,7 +89,7 @@ type DSCInitializationCondition struct {
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,maintidx,gocyclo
 	log := logf.FromContext(ctx).WithName("DSCInitialization")
-	log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
+	log.Info("Reconciling DSCInitialization.", "name", req.Name, "resourceKind", "DSCInitialization")
 
 	currentOperatorRelease := cluster.GetRelease()
 	// Set platform
