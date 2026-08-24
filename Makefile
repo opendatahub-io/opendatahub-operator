@@ -664,6 +664,7 @@ unit-test-operator: envtest ginkgo # directly use ginkgo since the framework is 
     	${GINKGO} -r \
         		--procs=8 \
         		--compilers=2 \
+        		--tags=integration \
         		--timeout=35m \
         		--poll-progress-after=30s \
         		--poll-progress-interval=5s \

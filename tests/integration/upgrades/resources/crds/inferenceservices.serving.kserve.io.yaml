@@ -1,0 +1,26 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: inferenceservices.serving.kserve.io
+spec:
+  group: serving.kserve.io
+  scope: Namespaced
+  names:
+    kind: InferenceService
+    listKind: InferenceServiceList
+    plural: inferenceservices
+    singular: inferenceservice
+  versions:
+    - name: v1beta1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true

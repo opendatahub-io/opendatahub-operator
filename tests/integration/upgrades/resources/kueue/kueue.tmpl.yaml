@@ -1,0 +1,6 @@
+apiVersion: components.platform.opendatahub.io/v1alpha1
+kind: Kueue
+metadata:
+  name: default-kueue
+spec:
+  managementState: {{ .ManagementState }}

@@ -1,0 +1,9 @@
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+{{- if .QueueName }}
+  labels:
+    kueue.x-k8s.io/queue-name: {{ .QueueName }}
+{{- end }}

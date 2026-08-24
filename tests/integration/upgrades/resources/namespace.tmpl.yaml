@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Name }}
+{{- if .Labels }}
+  labels:
+{{- range $key, $value := .Labels }}
+    {{ $key }}: {{ printf "%q" $value }}
+{{- end }}
+{{- end }}

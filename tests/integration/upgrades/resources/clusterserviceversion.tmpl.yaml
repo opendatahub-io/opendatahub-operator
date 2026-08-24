@@ -1,0 +1,12 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+spec:
+  version: "{{ .Version }}"
+  customresourcedefinitions:
+    owned:
+      - kind: DataScienceCluster
+        name: datascienceclusters.datasciencecluster.opendatahub.io
+        version: v2
