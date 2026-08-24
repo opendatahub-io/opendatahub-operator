@@ -236,8 +236,8 @@ func TestAutoAck_PartialAck(t *testing.T) {
 
 	cm := acksCM(map[string]string{
 		"ack-3.0.0-dashboard": "true",
-		blockedKey:             "Acknowledge upgrade from version 2.x to 3.0.0",
-		passKey:                "Acknowledge upgrade from version 2.x to 3.0.0",
+		blockedKey:            "Acknowledge upgrade from version 2.x to 3.0.0",
+		passKey:               "Acknowledge upgrade from version 2.x to 3.0.0",
 	})
 	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).Build()
 
