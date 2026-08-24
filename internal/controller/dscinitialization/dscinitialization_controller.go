@@ -100,7 +100,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	case k8serr.IsNotFound(err):
 		return ctrl.Result{}, nil
 	case err != nil:
-		log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
+		log.Error(err, "Failed to retrieve DSCInitialization resource.", "name", req.Name, "resourceKind", "DSCInitialization")
 
 		ref := &corev1.ObjectReference{Name: req.Name, Namespace: req.Namespace}
 		ref.SetGroupVersionKind(gvk.DSCInitialization)
@@ -115,7 +115,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		level := instance.Spec.DevFlags.LogLevel
 		log.V(1).Info("Setting log level", "level", level)
 		if err := logger.SetLevel(level); err != nil {
-			log.Error(err, "Failed to set log level", "level", level)
+			log.Error(err, "Failed to set log level", "level", level, "name", instance.Name, "resourceKind", "DSCInitialization")
 		}
 	}
 
@@ -146,7 +146,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return nil
 		})
 		if err != nil {
-			log.Error(err, "Failed to remove finalizer when deleting DSCInitialization instance")
+			log.Error(err, "Failed to remove finalizer", "name", instance.Name, "resourceKind", "DSCInitialization")
 			return ctrl.Result{}, err
 		}
 
@@ -163,7 +163,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			saved.Status.Release = currentOperatorRelease
 		})
 		if err != nil {
-			log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+			log.Error(err, "Failed to add conditions to status of resource.", "resourceKind", "DSCInitialization", "namespace", req.Namespace, "name", req.Name)
 			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
 				"%s for instance %s: %v", message, instance.Name, err)
 
@@ -178,7 +178,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			saved.Status.Release = currentOperatorRelease
 		})
 		if err != nil {
-			log.Error(err, "Failed to update release version for DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+			log.Error(err, "Failed to update release version for resource.", "resourceKind", "DSCInitialization", "namespace", req.Namespace, "name", req.Name)
 			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
 				"%s for instance %s: %v", message, instance.Name, err)
 			return reconcile.Result{}, err
@@ -191,7 +191,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			status.SetProgressingCondition(&saved.Status.Conditions, status.ReconcileFailed, err.Error())
 			saved.Status.Phase = status.PhaseError
 		}); err != nil {
-			log.Error(err, "Failed to update DSCInitialization conditions", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+			log.Error(err, "Failed to update conditions", "resourceKind", "DSCInitialization", "namespace", req.Namespace, "name", req.Name)
 
 			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
 				"%s for instance %s", err.Error(), instance.Name)
@@ -207,7 +207,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if platform == cluster.ManagedRhoai {
 		osdConfigsPath := filepath.Join(r.OperatorSettings.ManifestsBasePath, "osd-configs")
 		if err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, instance.Spec.ApplicationsNamespace, "osd", true); err != nil {
-			log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
+			log.Error(err, "Failed to apply osd specific configs from manifests", "path", osdConfigsPath, "name", instance.Name, "resourceKind", "DSCInitialization")
 			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
 				"Failed to apply %s: %v", osdConfigsPath, err)
 
@@ -279,7 +279,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		saved.Status.Phase = status.PhaseReady
 	})
 	if err != nil {
-		log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")
+		log.Error(err, "failed to update status after reconciliation", "name", instance.Name, "resourceKind", "DSCInitialization")
 		r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
 			"Failed to update DSCInitialization status: %v", err)
 	}
@@ -411,7 +411,7 @@ func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a c
 	instanceList := &serviceApi.AuthList{}
 	if err := r.Client.List(ctx, instanceList); err != nil {
 		// do not handle if cannot get list
-		log.Error(err, "Failed to get AuthList")
+		log.Error(err, "Failed to get AuthList", "resourceKind", "DSCInitialization")
 		return nil
 	}
 	if len(instanceList.Items) == 0 {
@@ -428,7 +428,7 @@ func (r *DSCInitializationReconciler) watchGatewayConfigResource(ctx context.Con
 	instanceList := &serviceApi.GatewayConfigList{}
 	if err := r.Client.List(ctx, instanceList); err != nil {
 		// do not handle if cannot get list
-		log.Error(err, "Failed to get GatewayConfigList")
+		log.Error(err, "Failed to get GatewayConfigList", "resourceKind", "DSCInitialization")
 		return nil
 	}
 	if len(instanceList.Items) == 0 {
