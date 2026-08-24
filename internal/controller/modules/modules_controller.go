@@ -125,10 +125,15 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		b = b.WithAction(a)
 	}
 
-	_, err := b.WithConditions(
-		status.ConditionTypeModulesReady,
-		status.ConditionTypeProvisioningProgress,
-	).Build(ctx)
+	// Hold the Platform CR until every module CR is gone so module-operator
+	// Deployments (owned by Platform) stay up to process their CR finalizers.
+	// This is the uninstall/cascade path; per-module disable uses
+	// cleanupDisabledModules on the apply path instead.
+	_, err := b.WithFinalizer(waitForModuleCRDeletion).
+		WithConditions(
+			status.ConditionTypeModulesReady,
+			status.ConditionTypeProvisioningProgress,
+		).Build(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create platform controller: %w", err)
 	}
