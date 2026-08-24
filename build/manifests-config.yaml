@@ -197,7 +197,7 @@ additional_meta:
     git.commit: fa191c1d90fa14e426b2525f7e39ebd5219dc4c2
   odh-mlserver-cuda:
     git.url: https://github.com/red-hat-data-services/MLServer
-    git.commit: 377e75793b5371439a0322e30b9ad065692dd6f2
+    git.commit: 5c5309cf8410b0b026689b67be415bcba23fc7bb
   odh-mlserver:
     git.url: https://github.com/red-hat-data-services/MLServer
     git.commit: 5c5309cf8410b0b026689b67be415bcba23fc7bb
