@@ -30,7 +30,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	ifeq ($(VERSION), )
-		VERSION = 3.5.0
+		VERSION = 3.6.0-ea.1
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
 	OPERATOR_NAMESPACE ?= opendatahub-operator-system
@@ -62,7 +62,7 @@ else
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	# NOTE: see also the git branches for RHOAI in manifests-config.yaml. This variable does NOT affect those
 	ifeq ($(VERSION), )
-		VERSION = 3.5.0
+		VERSION = 3.6.0-ea.1
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to redhat-ods-operator)
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
@@ -391,7 +391,7 @@ endif
 api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs, render managementstate with marker
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md && \
-	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)|g" ./docs/api-overview.md && \
+	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api@$(call go-mod-version,github.com/openshift/api)/operator/v1#ManagementState)|g" ./docs/api-overview.md && \
 	$(SED_COMMAND) -i "s|](#managementspec)|](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)|g" ./docs/api-overview.md
 	$(CRD_REF_DOCS) --source-path ./api/cloudmanager/ --output-path ./docs/cloudmanager-api-overview.md --renderer markdown --config ./crd-ref-docs.cloudmanager.config.yaml
 

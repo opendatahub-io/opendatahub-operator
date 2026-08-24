@@ -4,69 +4,69 @@ lockfileVendor: redhat
 arches:
 - arch: aarch64
   packages:
-  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/aarch64/baseos/os/Packages/t/tar-1.34-7.el9.aarch64.rpm
+  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/aarch64/baseos/os/Packages/t/tar-1.34-11.el9.aarch64.rpm
     repoid: ubi-9-for-aarch64-baseos-rpms
-    size: 900197
-    checksum: sha256:44552dea889d350403c3074a33d7cb274b3f57553e47db998745df13f931b458
+    size: 904777
+    checksum: sha256:62f985a87e048caa3ef883966d6176448398abc42df00ebff07e7311ff5f425d
     name: tar
-    evr: 2:1.34-7.el9
-    sourcerpm: tar-1.34-7.el9.src.rpm
+    evr: 2:1.34-11.el9
+    sourcerpm: tar-1.34-11.el9.src.rpm
   source:
-  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/aarch64/baseos/source/SRPMS/Packages/t/tar-1.34-7.el9.src.rpm
+  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/aarch64/baseos/source/SRPMS/Packages/t/tar-1.34-11.el9.src.rpm
     repoid: ubi-9-for-aarch64-baseos-source-rpms
-    size: 2261512
-    checksum: sha256:d002c400d29e7305fe8a982ab6b9f49ee7a8780e4574b86fc0c5b3d5510ecb22
+    size: 2294162
+    checksum: sha256:13204f7499944b3fe773cbdf0b9bb2de31eaa9a4c69f31830fb9e54506bcb9b6
     name: tar
-    evr: 2:1.34-7.el9
+    evr: 2:1.34-11.el9
   module_metadata: []
 - arch: ppc64le
   packages:
-  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/ppc64le/baseos/os/Packages/t/tar-1.34-7.el9.ppc64le.rpm
+  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/ppc64le/baseos/os/Packages/t/tar-1.34-11.el9.ppc64le.rpm
     repoid: ubi-9-for-ppc64le-baseos-rpms
-    size: 937724
-    checksum: sha256:f2cc206dfacc9981fad6cf33600ad28bcd1c573f16d8c18523dc9df52ca90660
+    size: 945887
+    checksum: sha256:cb2fe4ca6c89e1a9fff648629cc7b9b7f33a7853a8ae74c10baa1d5b731d2447
     name: tar
-    evr: 2:1.34-7.el9
-    sourcerpm: tar-1.34-7.el9.src.rpm
+    evr: 2:1.34-11.el9
+    sourcerpm: tar-1.34-11.el9.src.rpm
   source:
-  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/ppc64le/baseos/source/SRPMS/Packages/t/tar-1.34-7.el9.src.rpm
+  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/ppc64le/baseos/source/SRPMS/Packages/t/tar-1.34-11.el9.src.rpm
     repoid: ubi-9-for-ppc64le-baseos-source-rpms
-    size: 2261512
-    checksum: sha256:d002c400d29e7305fe8a982ab6b9f49ee7a8780e4574b86fc0c5b3d5510ecb22
+    size: 2294162
+    checksum: sha256:13204f7499944b3fe773cbdf0b9bb2de31eaa9a4c69f31830fb9e54506bcb9b6
     name: tar
-    evr: 2:1.34-7.el9
+    evr: 2:1.34-11.el9
   module_metadata: []
 - arch: s390x
   packages:
-  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/s390x/baseos/os/Packages/t/tar-1.34-7.el9.s390x.rpm
+  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/s390x/baseos/os/Packages/t/tar-1.34-11.el9.s390x.rpm
     repoid: ubi-9-for-s390x-baseos-rpms
-    size: 902370
-    checksum: sha256:fa8758bac6a56830de66ad1ab623c87768065bcc6f8242faa42ac4198260d456
+    size: 907745
+    checksum: sha256:2eee88e1c470b033bd44432f4ed5b1a41ffc7132ebe51f8ce12fa9268314e841
     name: tar
-    evr: 2:1.34-7.el9
-    sourcerpm: tar-1.34-7.el9.src.rpm
+    evr: 2:1.34-11.el9
+    sourcerpm: tar-1.34-11.el9.src.rpm
   source:
-  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/s390x/baseos/source/SRPMS/Packages/t/tar-1.34-7.el9.src.rpm
+  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/s390x/baseos/source/SRPMS/Packages/t/tar-1.34-11.el9.src.rpm
     repoid: ubi-9-for-s390x-baseos-source-rpms
-    size: 2261512
-    checksum: sha256:d002c400d29e7305fe8a982ab6b9f49ee7a8780e4574b86fc0c5b3d5510ecb22
+    size: 2294162
+    checksum: sha256:13204f7499944b3fe773cbdf0b9bb2de31eaa9a4c69f31830fb9e54506bcb9b6
     name: tar
-    evr: 2:1.34-7.el9
+    evr: 2:1.34-11.el9
   module_metadata: []
 - arch: x86_64
   packages:
-  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/x86_64/baseos/os/Packages/t/tar-1.34-7.el9.x86_64.rpm
+  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/x86_64/baseos/os/Packages/t/tar-1.34-11.el9.x86_64.rpm
     repoid: ubi-9-for-x86_64-baseos-rpms
-    size: 910235
-    checksum: sha256:17f2e592a2c04c050b690afeb9042e02521a0b5ee3288dad837463f4acf542c3
+    size: 913256
+    checksum: sha256:58b622ab7bc225731a2473e677f16c9eb51b1ed218a86a7aa039a6fed665f245
     name: tar
-    evr: 2:1.34-7.el9
-    sourcerpm: tar-1.34-7.el9.src.rpm
+    evr: 2:1.34-11.el9
+    sourcerpm: tar-1.34-11.el9.src.rpm
   source:
-  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/x86_64/baseos/source/SRPMS/Packages/t/tar-1.34-7.el9.src.rpm
+  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/x86_64/baseos/source/SRPMS/Packages/t/tar-1.34-11.el9.src.rpm
     repoid: ubi-9-for-x86_64-baseos-source-rpms
-    size: 2261512
-    checksum: sha256:d002c400d29e7305fe8a982ab6b9f49ee7a8780e4574b86fc0c5b3d5510ecb22
+    size: 2294162
+    checksum: sha256:13204f7499944b3fe773cbdf0b9bb2de31eaa9a4c69f31830fb9e54506bcb9b6
     name: tar
-    evr: 2:1.34-7.el9
+    evr: 2:1.34-11.el9
   module_metadata: []
