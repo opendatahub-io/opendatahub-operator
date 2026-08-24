@@ -169,11 +169,10 @@ componentCharts:
       repo: red-hat-data-services/feast-module-operator
       ref: rhoai-3.6-ea.1@7f958fb69bd2f9aca9d8e966ece399627fde7f03
       sourcePath: config/chart
-  # TODO: update refs after latest PRs are merged into odh-observability main
   odh-observability:
     odh:
       repo: opendatahub-io/odh-observability
-      ref: main@a168cc819313a171f1e2e693f989807ed17081ba
+      ref: main@3b2281805eed4c524477c3f83cf42946afe42046
       sourcePath: charts/odh-observability
     rhoai:
       repo: red-hat-data-services/odh-observability
@@ -896,10 +895,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-observability"
-      digest: "sha256:5f4a7f8dee884f320ef4c2f48960398c693101537e657c667f2e71614bc3ceea"
+      digest: "sha256:3223ab2300c86787ff1db22131a8eaa83489fbe57bd3e6e42e5846992ed2cac2"
     rhoai:
-      base: "quay.io/opendatahub/odh-observability"
-      digest: "sha256:5f4a7f8dee884f320ef4c2f48960398c693101537e657c667f2e71614bc3ceea"
+      base: "quay.io/rhoai/odh-observability-rhel9"
+      digest: "sha256:cfcc8f754cfb505ea320983d5d5250c5913fdf01a4f00e44a3d73682d430b5d7"
   RELATED_IMAGE_ODH_OGX_CORE_IMAGE:
     source: "csv"
     odh:
