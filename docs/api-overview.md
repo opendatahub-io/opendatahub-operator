@@ -19,11 +19,7 @@ Package v1 contains API Schema definitions for the components v1 API group
 ### Resource Types
 - [DataSciencePipelines](#datasciencepipelines)
 - [Kueue](#kueue)
-- [ModelRegistry](#modelregistry)
 - [Ray](#ray)
-- [SparkOperator](#sparkoperator)
-- [Trainer](#trainer)
-- [TrainingOperator](#trainingoperator)
 - [TrustyAI](#trustyai)
 
 
@@ -1149,27 +1145,6 @@ _Appears in:_
 | `nodeSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#labelselector-v1-meta)_ | NodeSelector is a label selector that identifies nodes for model caching<br />using pre-existing node labels (e.g., nvidia.com/gpu).<br />The operator will label matching nodes with kserve/localmodel=worker.<br />Mutually exclusive with NodeNames. |  | Optional: \{\} <br /> |
 
 
-#### ModelRegistry
-
-
-
-ModelRegistry is the Schema for the modelregistries API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `ModelRegistry` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[ModelRegistrySpec](#modelregistryspec)_ |  |  |  |
-| `status` _[ModelRegistryStatus](#modelregistrystatus)_ |  |  |  |
-
-
 #### ModelRegistryCommonSpec
 
 
@@ -1180,7 +1155,6 @@ ModelRegistryCommonSpec spec defines the shared desired state of ModelRegistry (
 
 _Appears in:_
 - [DSCModelRegistry](#dscmodelregistry)
-- [ModelRegistrySpec](#modelregistryspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1197,40 +1171,6 @@ ModelRegistryCommonStatus defines the shared observed state of ModelRegistry
 
 _Appears in:_
 - [DSCModelRegistryStatus](#dscmodelregistrystatus)
-- [ModelRegistryStatus](#modelregistrystatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `registriesNamespace` _string_ |  |  |  |
-
-
-#### ModelRegistrySpec
-
-
-
-ModelRegistrySpec defines the desired state of ModelRegistry (ModelRegistry CR only).
-
-
-
-_Appears in:_
-- [ModelRegistry](#modelregistry)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
-| `gateway` _[GatewaySpec](#gatewayspec)_ | Gateway configuration for model registry ingress (synced from GatewayConfig by the DSC controller when creating the ModelRegistry CR). |  |  |
-
-
-#### ModelRegistryStatus
-
-
-
-ModelRegistryStatus defines the observed state of ModelRegistry
-
-
-
-_Appears in:_
-- [ModelRegistry](#modelregistry)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1407,27 +1347,6 @@ _Appears in:_
 
 
 
-#### SparkOperator
-
-
-
-SparkOperator is the Schema for the sparkoperators API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `SparkOperator` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[SparkOperatorSpec](#sparkoperatorspec)_ |  |  |  |
-| `status` _[SparkOperatorStatus](#sparkoperatorstatus)_ |  |  |  |
-
-
 #### SparkOperatorCommonSpec
 
 
@@ -1438,7 +1357,6 @@ SparkOperator is the Schema for the sparkoperators API
 
 _Appears in:_
 - [DSCSparkOperator](#dscsparkoperator)
-- [SparkOperatorSpec](#sparkoperatorspec)
 
 
 
@@ -1452,55 +1370,7 @@ SparkOperatorCommonStatus defines the shared observed state
 
 _Appears in:_
 - [DSCSparkOperatorStatus](#dscsparkoperatorstatus)
-- [SparkOperatorStatus](#sparkoperatorstatus)
 
-
-
-#### SparkOperatorSpec
-
-
-
-SparkOperatorSpec defines the desired state of SparkOperator
-
-
-
-_Appears in:_
-- [SparkOperator](#sparkoperator)
-
-
-
-#### SparkOperatorStatus
-
-
-
-SparkOperatorStatus defines the observed state
-
-
-
-_Appears in:_
-- [SparkOperator](#sparkoperator)
-
-
-
-#### Trainer
-
-
-
-Trainer is the Schema for the trainers API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `Trainer` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[TrainerSpec](#trainerspec)_ |  |  |  |
-| `status` _[TrainerStatus](#trainerstatus)_ |  |  |  |
 
 
 #### TrainerCommonSpec
@@ -1513,7 +1383,6 @@ Trainer is the Schema for the trainers API
 
 _Appears in:_
 - [DSCTrainer](#dsctrainer)
-- [TrainerSpec](#trainerspec)
 
 
 
@@ -1527,55 +1396,7 @@ TrainerCommonStatus defines the shared observed state of Trainer
 
 _Appears in:_
 - [DSCTrainerStatus](#dsctrainerstatus)
-- [TrainerStatus](#trainerstatus)
 
-
-
-#### TrainerSpec
-
-
-
-TrainerSpec defines the desired state of Trainer
-
-
-
-_Appears in:_
-- [Trainer](#trainer)
-
-
-
-#### TrainerStatus
-
-
-
-TrainerStatus defines the observed state of Trainer
-
-
-
-_Appears in:_
-- [Trainer](#trainer)
-
-
-
-#### TrainingOperator
-
-
-
-TrainingOperator is the Schema for the trainingoperators API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `TrainingOperator` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[TrainingOperatorSpec](#trainingoperatorspec)_ |  |  |  |
-| `status` _[TrainingOperatorStatus](#trainingoperatorstatus)_ |  |  |  |
 
 
 #### TrainingOperatorCommonSpec
@@ -1588,7 +1409,6 @@ TrainingOperator is the Schema for the trainingoperators API
 
 _Appears in:_
 - [DSCTrainingOperator](#dsctrainingoperator)
-- [TrainingOperatorSpec](#trainingoperatorspec)
 
 
 
@@ -1602,33 +1422,6 @@ TrainingOperatorCommonStatus defines the shared observed state of TrainingOperat
 
 _Appears in:_
 - [DSCTrainingOperatorStatus](#dsctrainingoperatorstatus)
-- [TrainingOperatorStatus](#trainingoperatorstatus)
-
-
-
-#### TrainingOperatorSpec
-
-
-
-TrainingOperatorSpec defines the desired state of TrainingOperator
-
-
-
-_Appears in:_
-- [TrainingOperator](#trainingoperator)
-
-
-
-#### TrainingOperatorStatus
-
-
-
-TrainingOperatorStatus defines the observed state of TrainingOperator
-
-
-
-_Appears in:_
-- [TrainingOperator](#trainingoperator)
 
 
 
