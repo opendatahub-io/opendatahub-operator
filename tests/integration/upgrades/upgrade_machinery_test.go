@@ -160,3 +160,45 @@ func TestUpgradeGatesMultipleUnacked(t *testing.T) {
 		HaveReleaseVersion(targetVersion),
 	)
 }
+
+// TestUpgradeGatesSelfHeal exercises the auto-ack driver's re-evaluation
+// behavior: AutoAcknowledgeUpgradeGatesInNamespace re-runs each unacknowledged
+// gate's registered check on every reconcile, not just once at startup. When
+// the admin resolves the underlying blocker in the cluster — as opposed to
+// hand-editing the odh-upgrade-acks ConfigMap — the gate is expected to clear
+// on its own on a later reconcile.
+//
+// cert-manager is used only as a convenient, already-fixtured vehicle for a
+// checkFn; the behavior under test is the re-evaluation loop itself, not the
+// cert-manager gate. Creating the cert-manager namespace triggers the modules
+// controller's unconditional Namespace watch, so the re-reconcile is prompt
+// rather than dependent on error-backoff timing.
+func TestUpgradeGatesSelfHeal(t *testing.T) {
+	const certManagerGate = "dependencies-cert-manager"
+
+	h := setupUpgradeGateTest(t)
+
+	h.tf.Get(gvk.ConfigMap, upgradeAcksKey).Eventually().Should(
+		BeGatedOnlyBy(certManagerGate),
+	)
+	h.tf.Get(gvk.DataScienceCluster, defaultDSCKey).Eventually().Should(
+		HaveReleaseVersion(deployedVersion),
+	)
+
+	// Fix the underlying blocker directly, without touching the acks
+	// ConfigMap: install the cert-manager operator subscription.
+	for _, fx := range certManagerPresentFixtures() {
+		h.applyFixture(t, fx.path, fx.data)
+	}
+
+	// The gate clears on its own on a later reconcile, and the upgrade
+	// advances — proving the check re-runs rather than being cached from
+	// the initial evaluation.
+	h.tf.Get(gvk.ConfigMap, upgradeAcksKey).Eventually().Should(And(
+		BeAcknowledgedBy(certManagerGate),
+		HaveUnacknowledgedGateCount(0)),
+	)
+	h.tf.Get(gvk.DataScienceCluster, defaultDSCKey).Eventually().Should(
+		HaveReleaseVersion(targetVersion),
+	)
+}

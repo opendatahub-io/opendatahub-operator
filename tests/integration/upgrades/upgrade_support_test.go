@@ -37,6 +37,16 @@ type upgradeGateTestCtx struct {
 
 type upgradeGateHarness struct {
 	tf *testf.WithT
+	tc *upgradeGateTestCtx
+}
+
+// applyFixture creates an additional fixture against a running harness,
+// e.g. to mutate cluster state mid-test and observe the gate driver
+// converge on a later reconcile.
+func (h *upgradeGateHarness) applyFixture(t *testing.T, templatePath string, data map[string]any) {
+	t.Helper()
+
+	h.tc.applyFixture(t, templatePath, data)
 }
 
 //nolint:gochecknoglobals // Shared immutable object keys keep test assertions concise.
@@ -130,6 +140,7 @@ func setupUpgradeGateTestWithReleases(
 
 	return &upgradeGateHarness{
 		tf: testCtx.NewWithT(t),
+		tc: tc,
 	}
 }
 
