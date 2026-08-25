@@ -167,17 +167,17 @@ cluster-wide check to the application namespace by accident.
 ## Versioning Gotchas
 
 - `pkg/controller/provision/gates_action.go` currently hardcodes the in-tree
-  gate lookup version via `gateVersion = "3.5.1"`.
-- `pkg/controller/provision/auto_ack_action.go` also hardcodes the auto-ack
-  version as `"3.5.1"`; changes to the target gate version must update both
-  paths consistently.
+  gate lookup version via the exported `UpgradeGateVersion = "3.5.1"` constant.
+- `pkg/controller/provision/auto_ack_action.go` reuses that same
+  `UpgradeGateVersion` constant for the auto-ack version, so changing the target
+  gate version is a single-source edit.
 - Tests around `CheckUpgradeGatesInNamespace(...)` and
   `AutoAcknowledgeUpgradeGatesInNamespace(...)` must respect that behavior.
 - `rr.Release` is the **current running operator release**, not the previous
   deployed release.
 - `cluster.GetDeployedRelease()` reads previous deployed state from:
-  - `DSCI.Status.Release` first
-  - `DSC.Status.Release` second
+  - `DSC.Status.Release` first
+  - `DSCI.Status.Release` second (only when the DSC CR is absent)
 
 ## Example E2E Strategy
 
