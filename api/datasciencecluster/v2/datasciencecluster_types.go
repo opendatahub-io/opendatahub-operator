@@ -17,6 +17,10 @@ limitations under the License.
 package v2
 
 import (
+	"reflect"
+	"sort"
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -87,6 +91,33 @@ type Components struct {
 
 	// MCPLifecycleOperator component configuration.
 	MCPLifecycleOperator componentApi.DSCMCPLifecycleOperator `json:"mcplifecycleoperator,omitempty"`
+}
+
+// componentJSONName returns the DSC component key from a struct field json tag.
+func componentJSONName(field reflect.StructField) (string, bool) {
+	tag := field.Tag.Get("json")
+	if tag == "" || tag == "-" {
+		return "", false
+	}
+	name, _, _ := strings.Cut(tag, ",")
+	if name == "" {
+		return "", false
+	}
+	return name, true
+}
+
+// ComponentNames returns spec.components keys declared on the DSC, derived
+// from Components struct json tags.
+func (Components) ComponentNames() []string {
+	t := reflect.TypeOf(Components{})
+	names := make([]string, 0, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		if name, ok := componentJSONName(t.Field(i)); ok {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.
