@@ -102,7 +102,7 @@ additional_meta:
     git.commit: fb3cc91655910eefdedfad510b24e550de507864
   odh-eval-hub:
     git.url: https://github.com/red-hat-data-services/eval-hub
-    git.commit: ecf48d6e36597d422d014f18246250f1c25c9a3d
+    git.commit: 1856a3f3ef4e7b3116d7e6cf83b26e452f2b7144
   odh-feast-operator:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: 9a3358c14a371a5789de1ec129de865d62dfd354
@@ -348,7 +348,7 @@ additional_meta:
     git.commit: 0404922bbd6c27857468435df6cb7391c6f9fadb
   odh-workbench-codeserver-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 4f71fb551a3d68f05c49fefb9b53f06214d62005
+    git.commit: 9c34bd4fe61455f54186734aa60d6a6893bef939
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 24a8efcf4977c830ab23aa13deaa2aa499a20840
