@@ -321,6 +321,7 @@ func TestGetClusterInfo_XKSPlatformType(t *testing.T) {
 func TestApplicationNamespaceFallback(t *testing.T) {
 	testCases := []struct {
 		name              string
+		clusterType       string
 		rhaiNamespace     string
 		dsciNamespace     string
 		expectedNamespace string
@@ -328,32 +329,49 @@ func TestApplicationNamespaceFallback(t *testing.T) {
 	}{
 		{
 			name:              "returns RHAI namespace when explicitly set, regardless of DSCI",
+			clusterType:       ClusterTypeOpenShift,
 			rhaiNamespace:     "my-rhai-ns",
 			dsciNamespace:     "",
 			expectedNamespace: "my-rhai-ns",
 		},
 		{
 			name:              "returns RHAI namespace even when DSCI also exists",
+			clusterType:       ClusterTypeOpenShift,
 			rhaiNamespace:     "my-rhai-ns",
 			dsciNamespace:     "dsci-app-ns",
 			expectedNamespace: "my-rhai-ns",
 		},
 		{
 			name:              "returns DSCI namespace when RHAI not set and DSCI exists",
+			clusterType:       ClusterTypeOpenShift,
 			rhaiNamespace:     "",
 			dsciNamespace:     "dsci-app-ns",
 			expectedNamespace: "dsci-app-ns",
 		},
 		{
-			name:          "propagates error when RHAI not set and DSCI missing",
+			name:          "propagates error when RHAI not set and DSCI missing on OpenShift",
+			clusterType:   ClusterTypeOpenShift,
 			rhaiNamespace: "",
 			dsciNamespace: "",
 			expectError:   true,
+		},
+		{
+			name:              "returns cached namespace on Kubernetes without DSCI",
+			clusterType:       ClusterTypeKubernetes,
+			rhaiNamespace:     "",
+			dsciNamespace:     "",
+			expectedNamespace: "opendatahub",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			prevClusterInfo := GetClusterInfo()
+			SetClusterInfo(ClusterInfo{Type: tc.clusterType})
+			defer func() {
+				SetClusterInfo(prevClusterInfo)
+			}()
+
 			scheme := runtime.NewScheme()
 			_ = corev1.AddToScheme(scheme)
 			_ = dsciv2.AddToScheme(scheme)

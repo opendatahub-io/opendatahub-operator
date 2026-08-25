@@ -38,11 +38,6 @@ func NewAction(opts ...ActionOpts) actions.Fn {
 	defaults := make([]ActionOpts, 0, 2+len(opts))
 	defaults = append(defaults,
 		fwtmpl.WithNamespaceFn(func(ctx context.Context, rr *types.ReconciliationRequest) (string, error) {
-			// On XKS (vanilla K8s), DSCI does not exist — use the cached application namespace.
-			// On OpenShift, read from DSCI for consistency.
-			if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
-				return cluster.GetApplicationNamespace(), nil
-			}
 			return cluster.ApplicationNamespace(ctx, rr.Client)
 		}),
 		fwtmpl.WithFuncMap(templateutils.TextTemplateFuncMap()),

@@ -97,7 +97,7 @@ func createDashboardRedirects(
 	// On XKS, skip dashboard redirects entirely (no OpenShift Route CRD)
 	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
 		l.Info("XKS platform detected, skipping dashboard redirect resources (no Route CRD)")
-		return nil
+		return nil, nil
 	}
 
 	// Check if feature is explicitly disabled via operator environment variable
