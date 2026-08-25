@@ -29,6 +29,7 @@ type cleanupMockHandler struct {
 
 	crState            CRState
 	crStateErr         error
+	useRealCRState     bool
 	deletedCR          bool
 	crDeleteErr        error
 	deletedOperatorRes bool
@@ -44,7 +45,10 @@ func (m *cleanupMockHandler) BuildModuleCR(_ context.Context, _ client.Client, _
 	return nil, nil
 }
 
-func (m *cleanupMockHandler) GetModuleCRState(_ context.Context, _ client.Client) (CRState, error) {
+func (m *cleanupMockHandler) GetModuleCRState(ctx context.Context, cli client.Client) (CRState, error) {
+	if m.useRealCRState {
+		return m.BaseHandler.GetModuleCRState(ctx, cli)
+	}
 	return m.crState, m.crStateErr
 }
 
@@ -175,6 +179,20 @@ func TestWaitForModuleCRDeletion_NoModules(t *testing.T) {
 
 	err := waitForModuleCRDeletion(t.Context(), &odhtype.ReconciliationRequest{})
 	g.Expect(err).ShouldNot(HaveOccurred())
+}
+
+func TestWaitForModuleCRDeletion_MissingCRD_Succeeds(t *testing.T) {
+	g := NewWithT(t)
+
+	handler := newCleanupMock("crd-missing-mod", CRStateAbsent)
+	// Fake client has no TestModule GVK, so GetModuleCRState sees NoKindMatchError.
+	handler.useRealCRState = true
+	rr, cleanup := setupCleanupTest(t, handler)
+	defer cleanup()
+
+	err := waitForModuleCRDeletion(t.Context(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(handler.deletedCR).Should(BeFalse())
 }
 
 func TestWaitForModuleCRDeletion_CRAbsent_Succeeds(t *testing.T) {
