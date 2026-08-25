@@ -3,8 +3,10 @@ package v1
 type CertType string
 
 const (
-	SelfSigned              CertType = "SelfSigned"
-	Provided                CertType = "Provided"
+	SelfSigned CertType = "SelfSigned"
+	Provided   CertType = "Provided"
+	// OpenshiftDefaultIngress uses the cluster's default OpenShift ingress certificate.
+	// This value is OpenShift-only; Kubernetes (XKS) clusters must use SelfSigned or Provided.
 	OpenshiftDefaultIngress CertType = "OpenshiftDefaultIngress"
 )
 

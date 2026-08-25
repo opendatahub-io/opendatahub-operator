@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -70,4 +71,45 @@ func TestXKSReconcileWithoutDomainStopsCleanly(t *testing.T) {
 	gatewayClass := &gwapiv1.GatewayClass{}
 	err = cli.Get(ctx, types.NamespacedName{Name: GatewayClassName}, gatewayClass)
 	g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "GatewayClass should not be created without domain")
+}
+
+func TestXKSReconcileRejectsOpenShiftOnlyValues(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+	ctx := t.Context()
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain:      "apps.example.com",
+			IngressMode: serviceApi.IngressModeOcpRoute,
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
+		},
+	}
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	accessor := &gatewayConfigConditionsAccessor{}
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     cli,
+		Instance:   gatewayConfig,
+		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+	}
+
+	g.Expect(createGatewayInfrastructure(ctx, rr)).To(Succeed())
+	g.Expect(createKubeAuthProxyInfrastructure(ctx, rr)).To(Succeed())
+	g.Expect(createEnvoyFilter(ctx, rr)).To(Succeed())
+	g.Expect(createNetworkPolicy(ctx, rr)).To(Succeed())
+	g.Expect(syncGatewayConfigStatus(ctx, rr)).To(Succeed())
+
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	g.Expect(ready).NotTo(BeNil())
+	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(ready.Reason).To(Equal(status.NotReadyReason))
+	g.Expect(ready.Message).To(ContainSubstring(status.GatewayUnsupportedCertTypeOnKubernetesMessage))
+	g.Expect(ready.Message).To(ContainSubstring(status.GatewayUnsupportedIngressModeOnKubernetesMessage))
+	g.Expect(rr.Resources).To(BeEmpty(), "no gateway resources should be queued for unsupported XKS spec")
 }

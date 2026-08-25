@@ -636,6 +636,95 @@ func (a *gatewayConfigConditionsAccessor) SetConditions(c []common.Condition) {
 	a.conditions = c
 }
 
+func TestKubernetesGatewayConfigErrors(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	g.Expect(kubernetesGatewayConfigErrors(nil)).To(BeEmpty())
+	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{})).To(BeEmpty())
+	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			IngressMode: serviceApi.IngressModeLoadBalancer,
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.SelfSigned},
+		},
+	})).To(BeEmpty())
+
+	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
+		},
+	})).To(ConsistOf(status.GatewayUnsupportedCertTypeOnKubernetesMessage))
+
+	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{IngressMode: serviceApi.IngressModeOcpRoute},
+	})).To(ConsistOf(status.GatewayUnsupportedIngressModeOnKubernetesMessage))
+
+	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			IngressMode: serviceApi.IngressModeOcpRoute,
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
+		},
+	})).To(ConsistOf(
+		status.GatewayUnsupportedCertTypeOnKubernetesMessage,
+		status.GatewayUnsupportedIngressModeOnKubernetesMessage,
+	))
+}
+
+func TestRejectUnsupportedKubernetesGatewaySpec(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec: serviceApi.GatewayConfigSpec{
+			IngressMode: serviceApi.IngressModeOcpRoute,
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
+		},
+	}
+	accessor := &gatewayConfigConditionsAccessor{}
+	rr := &odhtypes.ReconciliationRequest{
+		Instance:   gatewayConfig,
+		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+	}
+
+	g.Expect(rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig)).To(BeTrue())
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	g.Expect(ready).NotTo(BeNil())
+	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(ready.Reason).To(Equal(status.NotReadyReason))
+	g.Expect(ready.Message).To(ContainSubstring(status.GatewayUnsupportedCertTypeOnKubernetesMessage))
+	g.Expect(ready.Message).To(ContainSubstring(status.GatewayUnsupportedIngressModeOnKubernetesMessage))
+}
+
+func TestRejectUnsupportedKubernetesGatewaySpecIgnoredOnOpenShift(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec: serviceApi.GatewayConfigSpec{
+			IngressMode: serviceApi.IngressModeOcpRoute,
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
+		},
+	}
+	accessor := &gatewayConfigConditionsAccessor{}
+	rr := &odhtypes.ReconciliationRequest{
+		Instance:   gatewayConfig,
+		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+	}
+
+	g.Expect(rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig)).To(BeFalse())
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	if ready != nil {
+		g.Expect(ready.Status).NotTo(Equal(metav1.ConditionFalse))
+		g.Expect(ready.Message).To(BeEmpty())
+	}
+}
+
 // authProxyTemplateData is the minimum map needed to render the kube-auth-proxy
 // deployment templates. TokenReview keys are always present (nil = omit the flag).
 func authProxyTemplateData() map[string]any {

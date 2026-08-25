@@ -542,6 +542,41 @@ func validateGatewayConfig(rr *odhtypes.ReconciliationRequest) (*serviceApi.Gate
 	return gatewayConfig, nil
 }
 
+// kubernetesGatewayConfigErrors returns user-facing messages for OpenShift-only
+// GatewayConfig values that are invalid on vanilla Kubernetes (XKS).
+func kubernetesGatewayConfigErrors(gatewayConfig *serviceApi.GatewayConfig) []string {
+	if gatewayConfig == nil {
+		return nil
+	}
+	var msgs []string
+	if gatewayConfig.Spec.Certificate != nil && gatewayConfig.Spec.Certificate.Type == infrav1.OpenshiftDefaultIngress {
+		msgs = append(msgs, status.GatewayUnsupportedCertTypeOnKubernetesMessage)
+	}
+	if gatewayConfig.Spec.IngressMode == serviceApi.IngressModeOcpRoute {
+		msgs = append(msgs, status.GatewayUnsupportedIngressModeOnKubernetesMessage)
+	}
+	return msgs
+}
+
+// rejectUnsupportedKubernetesGatewaySpec sets Ready=False when GatewayConfig uses
+// OpenShift-only certificate.type or ingressMode on a Kubernetes cluster.
+// Returns true when reconciliation should stop (permanent user configuration error).
+func rejectUnsupportedKubernetesGatewaySpec(rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) bool {
+	if cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes {
+		return false
+	}
+	msgs := kubernetesGatewayConfigErrors(gatewayConfig)
+	if len(msgs) == 0 {
+		return false
+	}
+	rr.Conditions.MarkFalse(
+		ReadyConditionType,
+		conditions.WithReason(status.NotReadyReason),
+		conditions.WithMessage("%s", strings.Join(msgs, "; ")),
+	)
+	return true
+}
+
 // getGatewayAuthProxyTimeout returns the auth timeout using:
 // Deprecated AuthTimeout field > AuthProxyTimeout field > default (5s).
 func getGatewayAuthProxyTimeout(gatewayConfig *serviceApi.GatewayConfig) string {
