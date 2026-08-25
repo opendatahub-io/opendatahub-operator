@@ -50,6 +50,10 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 	}
 	l.V(1).Info("Creating Gateway infrastructure", "gateway", gatewayConfig.Name)
 
+	if rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig) {
+		return nil
+	}
+
 	if gatewayConfig.Spec.IngressMode == "" {
 		if err := detectAndSetIngressMode(ctx, rr, gatewayConfig); err != nil {
 			return fmt.Errorf("failed to detect ingress mode: %w", err)
@@ -111,6 +115,10 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	}
 
 	l.V(1).Info("creating auth proxy for gateway", "gateway", gatewayConfig.Name)
+
+	if rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig) {
+		return nil
+	}
 
 	_, stop, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
 	if err != nil {
@@ -270,6 +278,10 @@ func createEnvoyFilter(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 	}
 	l.V(1).Info("Creating EnvoyFilter for gateway", "gateway", gatewayConfig.Name)
 
+	if rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig) {
+		return nil
+	}
+
 	unresolved, err := isGatewayDomainUnresolved(ctx, rr, gatewayConfig)
 	if err != nil {
 		return err
@@ -293,6 +305,10 @@ func createNetworkPolicy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	gatewayConfig, err := validateGatewayConfig(rr)
 	if err != nil {
 		return err
+	}
+
+	if rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig) {
+		return nil
 	}
 
 	// Ingress is enabled by default (when NetworkPolicy is nil or Ingress is nil)
@@ -331,6 +347,10 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	gatewayConfig, err := validateGatewayConfig(rr)
 	if err != nil {
 		return nil, err
+	}
+
+	if rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig) {
+		return map[string]any{}, nil
 	}
 
 	// Get domain for redirect URL, if not set in spec then fall back to cluster domain
@@ -474,6 +494,10 @@ func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationReq
 	gatewayConfig, err := validateGatewayConfig(rr)
 	if err != nil {
 		return err
+	}
+
+	if rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig) {
+		return nil
 	}
 
 	// Calculate and set domain in status (single source of truth for components).

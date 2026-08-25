@@ -102,7 +102,8 @@ type GatewayConfigSpec struct {
 
 	// ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider
 	// Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.
-	// Secret must exist in the openshift-ingress namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate.
+	// Secret must exist in the namespace where gateway workloads run (openshift-ingress on OpenShift, rh-ai-gateway on XKS)
+	// and contain a 'ca.crt' key with the PEM-encoded CA certificate.
 	// +optional
 	ProviderCASecretName string `json:"providerCASecretName,omitempty"`
 
@@ -170,8 +171,9 @@ type OIDCConfig struct {
 	// +kubebuilder:validation:Required
 	ClientSecretRef corev1.SecretKeySelector `json:"clientSecretRef"`
 
-	// Namespace where the client secret is located
-	// If not specified, defaults to openshift-ingress
+	// Namespace where the client secret is located.
+	// If unset, defaults to the gateway namespace returned by GetGatewayNamespace()
+	// (openshift-ingress on OpenShift, rh-ai-gateway on XKS).
 	// +optional
 	SecretNamespace string `json:"secretNamespace,omitempty"`
 }
