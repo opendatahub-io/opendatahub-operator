@@ -29,6 +29,9 @@ type cleanupMockHandler struct {
 
 	crState            CRState
 	crStateErr         error
+	useRealCRState     bool
+	deletedCR          bool
+	crDeleteErr        error
 	deletedOperatorRes bool
 	operatorDeleteErr  error
 	operatorManifests  OperatorManifests
@@ -42,12 +45,20 @@ func (m *cleanupMockHandler) BuildModuleCR(_ context.Context, _ client.Client, _
 	return nil, nil
 }
 
-func (m *cleanupMockHandler) GetModuleCRState(_ context.Context, _ client.Client) (CRState, error) {
+func (m *cleanupMockHandler) GetModuleCRState(ctx context.Context, cli client.Client) (CRState, error) {
+	if m.useRealCRState {
+		return m.BaseHandler.GetModuleCRState(ctx, cli)
+	}
 	return m.crState, m.crStateErr
 }
 
 func (m *cleanupMockHandler) GetOperatorManifests(_ *PlatformContext) OperatorManifests {
 	return m.operatorManifests
+}
+
+func (m *cleanupMockHandler) DeleteModuleCR(_ context.Context, _ client.Client) error {
+	m.deletedCR = true
+	return m.crDeleteErr
 }
 
 func (m *cleanupMockHandler) DeleteOperatorResources(_ context.Context, _ client.Client, _ *PlatformContext) error {
@@ -157,4 +168,103 @@ func TestCleanupDisabledModules_CRDeleting_NoPerModuleCondition(t *testing.T) {
 
 	cond := rr.Conditions.GetCondition("TestModuleReady")
 	g.Expect(cond).Should(BeNil(), "cleanup should not set per-module conditions on Platform")
+}
+
+func TestWaitForModuleCRDeletion_NoModules(t *testing.T) {
+	g := NewWithT(t)
+
+	oldR := r
+	r = &Registry{}
+	defer func() { r = oldR }()
+
+	err := waitForModuleCRDeletion(t.Context(), &odhtype.ReconciliationRequest{})
+	g.Expect(err).ShouldNot(HaveOccurred())
+}
+
+func TestWaitForModuleCRDeletion_MissingCRD_Succeeds(t *testing.T) {
+	g := NewWithT(t)
+
+	handler := newCleanupMock("crd-missing-mod", CRStateAbsent)
+	// Fake client has no TestModule GVK, so GetModuleCRState sees NoKindMatchError.
+	handler.useRealCRState = true
+	rr, cleanup := setupCleanupTest(t, handler)
+	defer cleanup()
+
+	err := waitForModuleCRDeletion(t.Context(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(handler.deletedCR).Should(BeFalse())
+}
+
+func TestWaitForModuleCRDeletion_CRAbsent_Succeeds(t *testing.T) {
+	g := NewWithT(t)
+
+	handler := newCleanupMock("test-mod", CRStateAbsent)
+	rr, cleanup := setupCleanupTest(t, handler)
+	defer cleanup()
+
+	err := waitForModuleCRDeletion(t.Context(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(handler.deletedCR).Should(BeFalse())
+}
+
+func TestWaitForModuleCRDeletion_CRAlive_DeletesAndWaits(t *testing.T) {
+	g := NewWithT(t)
+
+	handler := newCleanupMock("test-mod", CRStateAlive)
+	rr, cleanup := setupCleanupTest(t, handler)
+	defer cleanup()
+
+	err := waitForModuleCRDeletion(t.Context(), rr)
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err.Error()).Should(ContainSubstring("waiting for module CRs to be deleted"))
+	g.Expect(err.Error()).Should(ContainSubstring("test-mod"))
+	g.Expect(handler.deletedCR).Should(BeTrue())
+}
+
+func TestWaitForModuleCRDeletion_CRDeleting_WaitsWithoutDelete(t *testing.T) {
+	g := NewWithT(t)
+
+	handler := newCleanupMock("test-mod", CRStateDeleting)
+	rr, cleanup := setupCleanupTest(t, handler)
+	defer cleanup()
+
+	err := waitForModuleCRDeletion(t.Context(), rr)
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err.Error()).Should(ContainSubstring("waiting for module CRs to be deleted"))
+	g.Expect(err.Error()).Should(ContainSubstring("test-mod"))
+	g.Expect(handler.deletedCR).Should(BeFalse())
+}
+
+func TestWaitForModuleCRDeletion_StateError_IsReturned(t *testing.T) {
+	g := NewWithT(t)
+
+	handler := newCleanupMock("test-mod", CRStateAlive)
+	handler.crStateErr = context.DeadlineExceeded
+	rr, cleanup := setupCleanupTest(t, handler)
+	defer cleanup()
+
+	err := waitForModuleCRDeletion(t.Context(), rr)
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err.Error()).Should(ContainSubstring("getting module CR state for test-mod"))
+	g.Expect(handler.deletedCR).Should(BeFalse())
+}
+
+func TestWaitForModuleCRDeletion_MultipleModules_ListsPending(t *testing.T) {
+	g := NewWithT(t)
+
+	absent := newCleanupMock("absent-mod", CRStateAbsent)
+	deleting := newCleanupMock("deleting-mod", CRStateDeleting)
+
+	oldR := r
+	r = &Registry{}
+	r.Add(absent)
+	r.Add(deleting)
+	defer func() { r = oldR }()
+
+	err := waitForModuleCRDeletion(t.Context(), &odhtype.ReconciliationRequest{})
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err.Error()).Should(ContainSubstring("deleting-mod"))
+	g.Expect(err.Error()).ShouldNot(ContainSubstring("absent-mod"))
+	g.Expect(absent.deletedCR).Should(BeFalse())
+	g.Expect(deleting.deletedCR).Should(BeFalse())
 }
