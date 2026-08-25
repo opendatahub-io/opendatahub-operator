@@ -168,6 +168,10 @@ services:
   auth: {}
   gateway: {}
   monitoring:
+    # The handler lives in internal/controller/modules/monitoring/, but
+    # monitoring is still a service (DSCI spec, Services TestGroup). The
+    # Helm chart and manifests-config.yaml componentCharts key are
+    # odh-observability; the registered name is "monitoring".
     aliases: [odh-observability]
 
   certconfigmapgenerator:

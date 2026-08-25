@@ -48,12 +48,16 @@ func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) e
 // modulesFromInstance derives PlatformModules from whichever CR is the
 // reconcile instance — Platform CR (platform controller) or DSC (DSC
 // controller).
-func modulesFromInstance(rr *odhtype.ReconciliationRequest) (*configv1alpha1.PlatformModules, error) {
+func modulesFromInstance(ctx context.Context, cli client.Client, rr *odhtype.ReconciliationRequest) (*configv1alpha1.PlatformModules, error) {
 	if p, ok := rr.Instance.(*configv1alpha1.Platform); ok {
 		return &p.Spec.Modules, nil
 	}
 	if dsc, ok := rr.Instance.(*dscv2.DataScienceCluster); ok {
-		pm := BuildPlatformModules(&DSCContext{DSC: dsc})
+		dsci, err := cluster.GetDSCI(ctx, cli)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get DSCI for module context: %w", err)
+		}
+		pm := BuildPlatformModules(&DSCContext{DSC: dsc, DSCI: dsci})
 		return &pm, nil
 	}
 	return nil, fmt.Errorf("cannot derive PlatformModules from instance type %T", rr.Instance)
@@ -96,8 +100,8 @@ func normalizePlatformModules(pm *configv1alpha1.PlatformModules) {
 // Safety: this mutates the package-level registry. It is safe because the
 // controller uses the default MaxConcurrentReconciles=1, so only one
 // reconcile is in-flight at a time.
-func enableModulesFromPlatform(_ context.Context, rr *odhtype.ReconciliationRequest) error {
-	modules, err := modulesFromInstance(rr)
+func enableModulesFromPlatform(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	modules, err := modulesFromInstance(ctx, rr.Client, rr)
 	if err != nil {
 		return err
 	}
@@ -120,7 +124,7 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 		logf.FromContext(ctx).V(1).Info("monitoring namespace not available, skipping MONITORING_NAMESPACE injection", "error", err)
 	}
 
-	modules, err := modulesFromInstance(rr)
+	modules, err := modulesFromInstance(ctx, rr.Client, rr)
 	if err != nil {
 		return nil, err
 	}
@@ -683,7 +687,11 @@ func ComputeModulesStatusDetailed(ctx context.Context, rr *odhtype.Reconciliatio
 	if !ok {
 		return fmt.Errorf("ComputeModulesStatusDetailed requires DataScienceCluster instance, got %T", rr.Instance)
 	}
-	dscCtx := &DSCContext{DSC: dsc}
+	dsci, err := cluster.GetDSCI(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to get DSCI for module context: %w", err)
+	}
+	dscCtx := &DSCContext{DSC: dsc, DSCI: dsci}
 	pm := BuildPlatformModules(dscCtx)
 
 	eval, err := evaluateModulesStatus(ctx, rr, func(h ModuleHandler) bool {

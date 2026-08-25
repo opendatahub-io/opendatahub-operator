@@ -47,10 +47,23 @@ func watchDataScienceClusters(ctx context.Context, cli client.Client) []reconcil
 	return cluster.WatchDataScienceClusters(ctx, cli)
 }
 
-func syncPlatformCR(_ context.Context, rr *odhtype.ReconciliationRequest) error {
+func buildDSCContext(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) (*modules.DSCContext, error) {
+	dsci, err := cluster.GetDSCI(ctx, cli)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DSCI for module context: %w", err)
+	}
+	return &modules.DSCContext{DSC: dsc, DSCI: dsci}, nil
+}
+
+func syncPlatformCR(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
+	}
+
+	dscCtx, err := buildDSCContext(ctx, rr.Client, instance)
+	if err != nil {
+		return err
 	}
 
 	platform := &configv1alpha1.Platform{
@@ -62,7 +75,7 @@ func syncPlatformCR(_ context.Context, rr *odhtype.ReconciliationRequest) error 
 			Name: configv1alpha1.PlatformInstanceName,
 		},
 		Spec: configv1alpha1.PlatformSpec{
-			Modules: modules.BuildPlatformModules(&modules.DSCContext{DSC: instance}),
+			Modules: modules.BuildPlatformModules(dscCtx),
 		},
 	}
 
@@ -150,7 +163,12 @@ func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationReq
 		return nil
 	}
 
-	pm := modules.BuildPlatformModules(&modules.DSCContext{DSC: instance})
+	dscCtx, err := buildDSCContext(ctx, rr.Client, instance)
+	if err != nil {
+		return err
+	}
+
+	pm := modules.BuildPlatformModules(dscCtx)
 	enabledModules := make(map[string]bool)
 	for _, name := range pm.EnabledModules() {
 		enabledModules[name] = true
@@ -257,7 +275,11 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		return nil
 	}
 
-	dscCtx := &modules.DSCContext{DSC: instance}
+	dscCtx, err := buildDSCContext(ctx, rr.Client, instance)
+	if err != nil {
+		return err
+	}
+
 	pm := modules.BuildPlatformModules(dscCtx)
 	enabledModules := make(map[string]bool)
 	for _, name := range pm.EnabledModules() {

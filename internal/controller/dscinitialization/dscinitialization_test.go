@@ -7,7 +7,6 @@ import (
 	userv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -117,11 +116,16 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 
-			// Wait for DSCI to be ready and Monitoring CR to be created
-			monitoringCR := &serviceApi.Monitoring{}
-			Eventually(func() error {
-				return k8sClient.Get(ctx, client.ObjectKey{Name: "default-monitoring"}, monitoringCR)
-			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			foundDsci := &dsciv2.DSCInitialization{}
+			Eventually(dscInitializationIsReady(foundDsci)).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(BeTrue())
+
+			// Monitoring CR is owned by the module system, not the DSCI controller.
+			monitoringCR := createMonitoringCR()
+			Expect(k8sClient.Create(ctx, monitoringCR)).Should(Succeed())
 
 			// when - Simulate Monitoring CR getting some conditions
 			monitoringCR.Status.Conditions = []common.Condition{
@@ -150,7 +154,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(k8sClient.Status().Update(ctx, monitoringCR)).Should(Succeed())
 
 			// then - DSCI should have only relevant conditions mirrored
-			foundDsci := &dsciv2.DSCInitialization{}
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: workingNamespace}, foundDsci)).To(Succeed())
 				// Should contain relevant ones
@@ -182,11 +185,15 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 
-			// Wait for DSCI to be ready and Monitoring CR to be created
-			monitoringCR := &serviceApi.Monitoring{}
-			Eventually(func() error {
-				return k8sClient.Get(ctx, client.ObjectKey{Name: "default-monitoring"}, monitoringCR)
-			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			foundDsci := &dsciv2.DSCInitialization{}
+			Eventually(dscInitializationIsReady(foundDsci)).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(BeTrue())
+
+			monitoringCR := createMonitoringCR()
+			Expect(k8sClient.Create(ctx, monitoringCR)).Should(Succeed())
 
 			// when - Simulate Monitoring CR Getting Ready=False
 			monitoringCR.Status.Conditions = []common.Condition{
@@ -201,7 +208,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(k8sClient.Status().Update(ctx, monitoringCR)).Should(Succeed())
 
 			// then - DSCI should have Ready=False mirrored from Monitoring AND MonitoringReady=True
-			foundDsci := &dsciv2.DSCInitialization{}
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: workingNamespace}, foundDsci)).To(Succeed())
 				g.Expect(foundDsci.Status.Conditions).To(ContainElements(
@@ -225,22 +231,37 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 
-			monitoringCR := &serviceApi.Monitoring{}
-			Eventually(func() error {
-				return k8sClient.Get(ctx, client.ObjectKey{Name: "default-monitoring"}, monitoringCR)
+			foundDsci := &dsciv2.DSCInitialization{}
+			Eventually(dscInitializationIsReady(foundDsci)).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(BeTrue())
+
+			monitoringCR := createMonitoringCR()
+			Expect(k8sClient.Create(ctx, monitoringCR)).Should(Succeed())
+
+			monitoringCR.Status.Conditions = []common.Condition{
+				{
+					Type:               "Ready",
+					Status:             metav1.ConditionTrue,
+					Reason:             "Ready",
+					Message:            "Monitoring stack is ready",
+					LastTransitionTime: metav1.Now(),
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, monitoringCR)).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: applicationName}, foundDsci)).To(Succeed())
+				g.Expect(foundDsci.Status.Conditions).To(ContainElement(SatisfyAll(
+					HaveField("Type", "MonitoringReady"),
+					HaveField("Status", metav1.ConditionTrue),
+				)))
 			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 
-			// when - Monitoring is set to Removed in DSCI, which should delete the Monitoring CR
-			foundDsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: applicationName}}
-			patch := client.MergeFrom(foundDsci.DeepCopy())
-			foundDsci.Spec.Monitoring.ManagementState = operatorv1.Removed
-			Expect(k8sClient.Patch(ctx, foundDsci, patch)).To(Succeed())
-
-			// then - Monitoring CR should be gone
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, client.ObjectKey{Name: "default-monitoring"}, monitoringCR)
-				return k8serr.IsNotFound(err) && err != nil
-			}).WithTimeout(timeout).WithPolling(interval).Should(BeTrue())
+			// when - Monitoring CR is removed by the module system
+			Expect(k8sClient.Delete(ctx, monitoringCR)).To(Succeed())
 
 			// then - DSCI status should reflect it's removed
 			Eventually(func(g Gomega) {
@@ -456,6 +477,7 @@ func cleanupResources(ctx context.Context) {
 	defaultNamespace := client.InNamespace(workingNamespace)
 	appNamespace := client.InNamespace(applicationNamespace)
 	Expect(k8sClient.DeleteAllOf(ctx, &dsciv2.DSCInitialization{}, defaultNamespace)).To(Succeed())
+	Expect(k8sClient.DeleteAllOf(ctx, &serviceApi.Monitoring{})).To(Succeed())
 
 	Expect(k8sClient.DeleteAllOf(ctx, &networkingv1.NetworkPolicy{}, appNamespace)).To(Succeed())
 	Expect(k8sClient.DeleteAllOf(ctx, &corev1.ConfigMap{}, appNamespace)).To(Succeed())
@@ -496,6 +518,23 @@ func objectExists(name string, namespace string, obj client.Object) func(ctx con
 		err := k8sClient.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, obj)
 
 		return err == nil
+	}
+}
+
+func createMonitoringCR() *serviceApi.Monitoring {
+	return &serviceApi.Monitoring{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       serviceApi.MonitoringKind,
+			APIVersion: serviceApi.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.MonitoringInstanceName,
+		},
+		Spec: serviceApi.MonitoringSpec{
+			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+				Namespace: monitoringNamespace,
+			},
+		},
 	}
 }
 

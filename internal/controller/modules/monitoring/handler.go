@@ -13,6 +13,7 @@ import (
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
@@ -63,10 +64,12 @@ func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
 }
 
 // BuildModuleCR constructs the Monitoring CR from DSCI spec with
-// conditional field projection matching the monitoring domain rules.
+// conditional field projection matching the monitoring domain rules:
+// collector replica defaulting, TLS nulling when disabled, and
+// metrics/traces omitted when storage/config is unset.
 func (h *handler) BuildModuleCR(
-	_ context.Context,
-	_ client.Client,
+	ctx context.Context,
+	cli client.Client,
 	dscCtx *modules.DSCContext,
 	_ *modules.ModuleCRConfig,
 ) (*unstructured.Unstructured, error) {
@@ -74,14 +77,43 @@ func (h *handler) BuildModuleCR(
 		return nil, errors.New("DSCI is nil, cannot build monitoring CR")
 	}
 
-	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dscCtx.DSCI.Spec.Monitoring.MonitoringCommonSpec)
+	spec := dscCtx.DSCI.Spec.Monitoring.MonitoringCommonSpec.DeepCopy()
+
+	metricsEnabled := spec.Metrics != nil && spec.Metrics.Storage != nil
+	tracesEnabled := spec.Traces != nil
+
+	if !metricsEnabled {
+		spec.Metrics = nil
+	}
+
+	if tracesEnabled {
+		if spec.Traces.TLS != nil && !spec.Traces.TLS.Enabled {
+			spec.Traces.TLS = nil
+		}
+	} else {
+		spec.Traces = nil
+	}
+
+	if metricsEnabled || tracesEnabled {
+		if spec.CollectorReplicas == 0 {
+			if cli != nil && cluster.IsSingleNodeCluster(ctx, cli) {
+				spec.CollectorReplicas = 1
+			} else {
+				spec.CollectorReplicas = 2
+			}
+		}
+	} else {
+		spec.CollectorReplicas = 0
+	}
+
+	unstructuredSpec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(spec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert MonitoringSpec to unstructured: %w", err)
 	}
 
 	u := &unstructured.Unstructured{
 		Object: map[string]any{
-			"spec": spec,
+			"spec": unstructuredSpec,
 		},
 	}
 	u.SetGroupVersionKind(h.Config.GVK)
