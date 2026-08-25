@@ -45,6 +45,24 @@ known_issues:
 - image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_2_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
   reason: Validation failure due to RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE offboarding; not yet in RHOAI-Build-Config or RHAI Helm until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_IMAGE
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: Not yet in RHOAI-Build-Config or RHAI Helm until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_1_IMAGE
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: Not yet in RHOAI-Build-Config or RHAI Helm until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_2_IMAGE
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: Not yet in RHOAI-Build-Config or RHAI Helm until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_IMAGE_UPSTREAM_VERSION
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: SBOM metadata-config not yet configured until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_1_IMAGE_UPSTREAM_VERSION
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: SBOM metadata-config not yet configured until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_2_IMAGE_UPSTREAM_VERSION
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: SBOM metadata-config not yet configured until AIPCC vllm-cpu-pz image is published
 
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
@@ -52,6 +70,8 @@ odh_exceptions:
 - image: RELATED_IMAGE_RHAII_MODEL_OPT_CUDA_IMAGE
   reason: RHOAI-only image, not applicable to ODH
 - image: RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE
+  reason: RHOAI-only image, not applicable to ODH
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_IMAGE
   reason: RHOAI-only image, not applicable to ODH
 
 rhoai_exceptions:
