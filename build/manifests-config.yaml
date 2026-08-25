@@ -59,3 +59,6 @@ map:
   odh-data-connect-hub-controller:
     src: dc-controller/config
     dest: data-connect-hub
+  odh-modelexpress-operator:
+    src: config/manifests
+    dest: modelexpress-operator
