@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-logr/logr/funcr"
 	fwapi "github.com/opendatahub-io/odh-platform-utilities/framework/api"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/assert"
@@ -20,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
@@ -1815,6 +1817,43 @@ func TestDCGMRenameRulesInMetricRelabelConfigs(t *testing.T) {
 
 	assert.NotContains(t, relabelSection, "__name__",
 		"relabel_configs must not reference __name__ (unavailable at target-discovery stage)")
+}
+
+func TestLogErrorsFromAddMonitoringCapability(t *testing.T) {
+	g := NewWithT(t)
+
+	monitoring := &serviceApi.Monitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-monitoring",
+			Namespace: "test-ns",
+		},
+		Spec: serviceApi.MonitoringSpec{
+			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+				Metrics: &serviceApi.Metrics{},
+			},
+		},
+	}
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     fake.NewClientBuilder().Build(),
+		Instance:   monitoring,
+		Conditions: conditions.NewManager(monitoring, status.ConditionMonitoringAvailable),
+	}
+
+	var logged []string
+	logger := funcr.New(func(_, args string) {
+		logged = append(logged, args)
+	}, funcr.Options{})
+	ctx := logf.IntoContext(context.Background(), logger)
+
+	err := addMonitoringCapability(ctx, rr)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(logged).To(ContainElement(And(
+		ContainSubstring(`"msg"="Monitoring preconditions failed"`),
+		ContainSubstring(`"name"="test-monitoring"`),
+		ContainSubstring(`"namespace"="test-ns"`),
+		ContainSubstring(`"resourceKind"="Monitoring"`),
+	)))
 }
 
 func extractSection(content, startMarker, endMarker string) string {

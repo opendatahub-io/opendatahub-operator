@@ -428,7 +428,7 @@ func addMonitoringCapability(ctx context.Context, rr *odhtypes.ReconciliationReq
 	rr.Conditions.MarkUnknown(status.ConditionMonitoringAvailable)
 
 	if err := checkMonitoringPreconditions(ctx, rr); err != nil {
-		log.Error(err, "Monitoring preconditions failed")
+		log.Error(err, "Monitoring preconditions failed", "name", rr.Instance.GetName(), "namespace", rr.Instance.GetNamespace(), "resourceKind", "Monitoring")
 
 		rr.Conditions.MarkFalse(
 			status.ConditionMonitoringAvailable,
