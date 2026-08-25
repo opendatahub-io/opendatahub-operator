@@ -571,7 +571,7 @@ CLEANFILES += rhoai-bundle odh-bundle
 .PHONY: bundle-all
 bundle-all:
 	$(MAKE) bundle
-	$(MAKE) bundle ODH_PLATFORM_TYPE=rhoai
+	$(MAKE) bundle ODH_PLATFORM_TYPE=rhoai OPERATOR_PACKAGE=rhods-operator BUNDLE_DIR=rhoai-bundle
 
 # The bundle image is multi-stage to preserve the ability to build without invoking make
 # We use build args to ensure the variables are passed to the underlying internal make invocation

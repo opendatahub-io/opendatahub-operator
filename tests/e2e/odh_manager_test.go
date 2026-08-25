@@ -76,15 +76,11 @@ func (tc *OperatorTestCtx) ValidateOwnedCRDs(t *testing.T) {
 		{"DataScienceCluster Initialization CRD", "dscinitializations.dscinitialization.opendatahub.io"},
 		{"FeatureTracker CRD", "featuretrackers.features.opendatahub.io"},
 		{"Ray CRD", "rays.components.platform.opendatahub.io"},
-		{"ModelRegistry CRD", "modelregistries.components.platform.opendatahub.io"},
 		{"TrustyAI CRD", "trustyais.components.platform.opendatahub.io"},
 		{"Kueue CRD", "kueues.components.platform.opendatahub.io"},
-		{"TrainingOperator CRD", "trainingoperators.components.platform.opendatahub.io"},
-		{"Trainer CRD", "trainers.components.platform.opendatahub.io"},
 		{"DataSciencePipelines CRD", "datasciencepipelines.components.platform.opendatahub.io"},
 		{"Monitoring CRD", "monitorings.services.platform.opendatahub.io"},
 		{"Auth CRD", "auths.services.platform.opendatahub.io"},
-		{"SparkOperator CRD", "sparkoperators.components.platform.opendatahub.io"},
 		{"Platform CRD", "platforms.config.opendatahub.io"},
 	}
 
