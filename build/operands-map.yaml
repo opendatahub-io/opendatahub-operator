@@ -12,7 +12,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
   value: "quay.io/rhoai/odh-cli-rhel9@sha256:ad4d14a1de5008ba7119dfe2f9b0f291aa9bfa169c4603507ef1b4439ed4dd62"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
-  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:36f9b748ab2b9ec1ae2014398226e263a9aa05aba1c5356a473f206c5d03f861"
+  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:1c3cd7f668a3638d2185213c6293824a0d9b1d8870dedcf6b2ad4c675f79de34"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
   value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:d22c116d44fb6fe9cd632d680aeeb361758fbe166880a1cbd3c20267c76b4002"
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
@@ -138,7 +138,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-model-registry-rhel9@sha256:45f7184f5282331be6fc7bc93e55fa183b69d3a3c11de89d81fd58752d722d5d"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_NOTEBOOKS_IMAGE
-  value: "quay.io/rhoai/odh-mod-arch-notebooks-rhel9@sha256:d3575ad1d1f7fb5e02a5b69a49acebed44abeb2e6588d0b020e557276e035dbc"
+  value: "quay.io/rhoai/odh-mod-arch-notebooks-rhel9@sha256:3fdfd0188f28ae3b8a40f661f2be78f208fdf03c1b416af6243a8b6f5783cf68"
 - name: RELATED_IMAGE_ODH_MUST_GATHER_IMAGE
   value: "quay.io/rhoai/odh-must-gather-rhel9@sha256:1a024c943d5a2ccecbef027476cc87599aeaf1f472be5e3c0d6843e866cc2b2c"
 - name: RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE
