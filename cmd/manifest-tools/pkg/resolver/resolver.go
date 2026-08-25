@@ -3,6 +3,7 @@ package resolver
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -432,6 +433,14 @@ func paramsEnvKeyLookup(opts Options, override config.ImageOverride, envName str
 	componentDir := filepath.Join(opts.ManifestsDir, override.Component)
 	val, found, err := lookupParamsEnvKey(componentDir, override.ParamsEnvKey)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			slog.Warn("Component manifests not downloaded, skipping paramsEnvKey check",
+				slog.String("env", envName),
+				slog.String("component", override.Component),
+				slog.String("paramsEnvKey", override.ParamsEnvKey),
+				slog.String("dir", componentDir))
+			return "", nil
+		}
 		return "", fmt.Errorf("imageOverrides.%s.paramsEnvKey: looking up %q under %s: %w", envName, override.ParamsEnvKey, componentDir, err)
 	}
 	if !found {
