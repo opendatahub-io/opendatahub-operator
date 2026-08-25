@@ -336,7 +336,7 @@ additional_meta:
     git.commit: 47a2195fa4d1b92515fcb004326ed2160b9e424d
   odh-trustyai-service-py:
     git.url: https://github.com/red-hat-data-services/trustyai-service
-    git.commit: ed7ac0cee1470730414169357de26e25ecc256ae
+    git.commit: 5b7d49fea26359bc45d412b66794a485f28b8ebd
   odh-trustyai-vllm-orchestrator-gateway:
     git.url: https://github.com/red-hat-data-services/vllm-orchestrator-gateway
     git.commit: d78252e5b06f04fd2d7df730913811371a224cb4
