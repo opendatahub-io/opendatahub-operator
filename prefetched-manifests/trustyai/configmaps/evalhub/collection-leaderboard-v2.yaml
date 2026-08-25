@@ -44,7 +44,7 @@ data:
         provider_id: lm_evaluation_harness
         weight: 1
         primary_score:
-          metric: acc_norm
+          metric: acc
           lower_is_better: false
         pass_criteria:
           threshold: 60.0

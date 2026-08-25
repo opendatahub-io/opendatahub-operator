@@ -38,7 +38,7 @@ spec:
           env:
             - name: GOMEMLIMIT
               value: "630MiB"
-            - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE
+            - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_PY_IMAGE
               value: $(trustyaiServiceImage)
             - name: RELATED_IMAGE_ODH_EVAL_HUB_IMAGE
               value: $(evalHubImage)
