@@ -278,7 +278,6 @@ imageOverrides:
       digest: "sha256:f7c6b2e020f200929ffe66646f1db66639f1db64f60381e2a9c1cc4509f1d528"
   RELATED_IMAGE_ODH_TRAINER_IMAGE:
     component: trainer
-    paramsEnvKey: odh-kubeflow-trainer-controller-image
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/trainer"
@@ -299,7 +298,6 @@ imageOverrides:
       digest: "sha256:0965acdfbd70daa7e6d4dd9d74a744eb282d9644fdd1ef74736e2d19ea9e13a3"
   RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE:
     component: sparkoperator
-    paramsEnvKey: SPARK_OPERATOR_CONTROLLER_IMAGE
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/spark-operator"
