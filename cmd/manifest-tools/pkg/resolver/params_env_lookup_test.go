@@ -63,31 +63,86 @@ func TestLookupParamsEnvKey(t *testing.T) {
 
 func TestParamsEnvKeyLookup(t *testing.T) {
 	root := t.TempDir()
-	dir := filepath.Join(root, "ray", "base")
+	dir := filepath.Join(root, "component-with-params", "base")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	const present = "quay.io/opendatahub/kuberay-operator@sha256:abc"
-	if err := os.WriteFile(filepath.Join(dir, "params.env"), []byte("odh-kuberay-operator-controller-image="+present+"\nempty-key=\n"), 0644); err != nil {
+	const present = "quay.io/opendatahub/test-operator@sha256:abc"
+	if err := os.WriteFile(filepath.Join(dir, "params.env"), []byte("test-image-key="+present+"\nempty-key=\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	noParamsDir := filepath.Join(root, "component-without-params", "default")
+	if err := os.MkdirAll(noParamsDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 
 	tests := []struct {
 		name         string
+		manifestsDir string
+		component    string
 		paramsEnvKey string
 		want         string
+		wantErr      bool
 	}{
-		{name: "present", paramsEnvKey: "odh-kuberay-operator-controller-image", want: present},
-		{name: "empty value", paramsEnvKey: "empty-key"},
+		{
+			name:         "present",
+			manifestsDir: root,
+			component:    "component-with-params",
+			paramsEnvKey: "test-image-key",
+			want:         present,
+		},
+		{
+			name:         "empty value",
+			manifestsDir: root,
+			component:    "component-with-params",
+			paramsEnvKey: "empty-key",
+		},
+		{
+			name:         "missing key in params.env",
+			manifestsDir: root,
+			component:    "component-with-params",
+			paramsEnvKey: "nonexistent-key",
+			wantErr:      true,
+		},
+		{
+			name:         "component directory has no params.env file",
+			manifestsDir: root,
+			component:    "component-without-params",
+			paramsEnvKey: "SOME_IMAGE_KEY",
+			wantErr:      true,
+		},
+		{
+			name:         "missing component directory",
+			manifestsDir: root,
+			component:    "nonexistent-component",
+			paramsEnvKey: "some-key",
+			wantErr:      true,
+		},
+		{
+			name:         "empty ManifestsDir",
+			manifestsDir: "",
+			component:    "component-with-params",
+			paramsEnvKey: "test-image-key",
+			wantErr:      true,
+		},
+		{
+			name:         "empty paramsEnvKey skips lookup",
+			manifestsDir: root,
+			component:    "component-with-params",
+			paramsEnvKey: "",
+			want:         "",
+			wantErr:      false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := paramsEnvKeyLookup(Options{ManifestsDir: root}, config.ImageOverride{
-				Component:    "ray",
+			got, err := paramsEnvKeyLookup(Options{ManifestsDir: tt.manifestsDir}, config.ImageOverride{
+				Component:    tt.component,
 				ParamsEnvKey: tt.paramsEnvKey,
-			}, "RELATED_IMAGE_ODH_RAY_IMAGE")
-			if err != nil {
-				t.Fatal(err)
+			}, "RELATED_IMAGE_TEST_IMAGE")
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("paramsEnvKeyLookup() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if got != tt.want {
 				t.Errorf("got %q, want %q", got, tt.want)
