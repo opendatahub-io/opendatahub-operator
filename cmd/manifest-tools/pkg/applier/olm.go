@@ -8,6 +8,8 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -67,21 +69,27 @@ func ApplyOLM(opts Options) error {
 
 	subName, err := findSubscription(ctx, dynClient, opts.Namespace, opts.OperatorPackage)
 	if err != nil {
-		slog.Info("OLM not available, skipping OLM image overrides", slog.String("error", err.Error()))
-		return nil
+		if isOLMAPIUnavailable(err) {
+			slog.Info("OLM Subscriptions API not available, skipping OLM image overrides",
+				slog.String("namespace", opts.Namespace))
+			return nil
+		}
+		return fmt.Errorf("listing subscriptions in namespace %s: %w", opts.Namespace, err)
 	}
 
 	if subName == "" {
-		slog.Info("No Subscription found, skipping OLM image overrides",
-			slog.String("package", opts.OperatorPackage), slog.String("namespace", opts.Namespace))
-		return nil
+		return fmt.Errorf("no Subscription for package %q found in namespace %s", opts.OperatorPackage, opts.Namespace)
 	}
 
-	return applyToSubscription(ctx, dynClient, clientset, opts.Namespace, subName, envVars)
+	return applyToSubscription(ctx, dynClient, clientset, opts.Namespace, subName, opts.OperatorPackage, envVars, 120*time.Second)
+}
+
+func isOLMAPIUnavailable(err error) bool {
+	return meta.IsNoMatchError(err) || apierrors.IsNotFound(err)
 }
 
 func applyToSubscription(ctx context.Context, dynClient dynamic.Interface, clientset kubernetes.Interface,
-	namespace, subName string, envVars []envVar) error {
+	namespace, subName, operatorPackage string, envVars []envVar, rolloutTimeout time.Duration) error {
 
 	slog.Info("Found Subscription", slog.String("name", subName), slog.String("namespace", namespace))
 
@@ -136,16 +144,17 @@ func applyToSubscription(ctx context.Context, dynClient dynamic.Interface, clien
 		return fmt.Errorf("patching subscription: %w", err)
 	}
 
-	deployName, err := findDeployment(ctx, clientset, namespace)
-	if err != nil || deployName == "" {
-		slog.Warn("Could not find controller-manager deployment for rollout wait, Subscription patch was successful",
-			slog.String("namespace", namespace))
-		return nil
+	deployName, err := findDeployment(ctx, clientset, namespace, operatorPackage)
+	if err != nil {
+		return fmt.Errorf("finding operator deployment in namespace %s: %w", namespace, err)
+	}
+	if deployName == "" {
+		return fmt.Errorf("no operator deployment found in namespace %s after patching Subscription", namespace)
 	}
 
 	slog.Info("Waiting for Deployment rollout...")
-	if err := waitForRollout(ctx, clientset, namespace, deployName, 120*time.Second); err != nil {
-		slog.Warn("Rollout wait failed, Subscription patch was successful", slog.String("error", err.Error()))
+	if err := waitForRollout(ctx, clientset, namespace, deployName, rolloutTimeout); err != nil {
+		return fmt.Errorf("waiting for deployment %s rollout in namespace %s: %w", deployName, namespace, err)
 	}
 
 	slog.Info("Image overrides applied via Subscription")
@@ -176,19 +185,25 @@ func findSubscription(ctx context.Context, client dynamic.Interface, namespace, 
 	}
 }
 
-func findDeployment(ctx context.Context, client kubernetes.Interface, namespace string) (string, error) {
-	deployments, err := client.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: "control-plane=controller-manager",
-	})
-	if err != nil {
-		return "", fmt.Errorf("listing deployments: %w", err)
+func findDeployment(ctx context.Context, client kubernetes.Interface, namespace, operatorPackage string) (string, error) {
+	selectors := []string{"control-plane=controller-manager"}
+	if operatorPackage != "" {
+		selectors = append(selectors, fmt.Sprintf("name=%s", operatorPackage))
 	}
 
-	if len(deployments.Items) == 0 {
-		return "", nil
+	for _, selector := range selectors {
+		deployments, err := client.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: selector,
+		})
+		if err != nil {
+			return "", fmt.Errorf("listing deployments with selector %q: %w", selector, err)
+		}
+		if len(deployments.Items) > 0 {
+			return deployments.Items[0].Name, nil
+		}
 	}
 
-	return deployments.Items[0].Name, nil
+	return "", nil
 }
 
 func waitForRollout(ctx context.Context, client kubernetes.Interface, namespace, deployName string, timeout time.Duration) error {

@@ -141,6 +141,17 @@ func ValidateTagTemplate(template string) error {
 	return nil
 }
 
+func NormalizePlatform(platform string) (string, error) {
+	switch platform {
+	case "OpenDataHub":
+		return "odh", nil
+	case "odh", "rhoai":
+		return platform, nil
+	default:
+		return "", fmt.Errorf("unknown platform %q: must be OpenDataHub, odh, or rhoai", platform)
+	}
+}
+
 func Load(path string) (*ManifestsConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
