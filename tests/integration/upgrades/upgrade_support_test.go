@@ -14,15 +14,12 @@ import (
 
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	upgradegates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates"
 	tp "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
@@ -42,72 +39,40 @@ type upgradeGateHarness struct {
 	tf *testf.WithT
 }
 
+//nolint:gochecknoglobals // Shared immutable object keys keep test assertions concise.
+var (
+	upgradeAcksKey = types.NamespacedName{Name: gates.AcksConfigMap, Namespace: operatorNamespace}
+	defaultDSCKey  = types.NamespacedName{Name: "default-dsc"}
+)
+
 func fixture(path string, data map[string]any) fixtureSpec {
 	return fixtureSpec{path: path, data: data}
 }
 
-func (h *upgradeGateHarness) assertDSCVersion(t *testing.T, version string) {
-	t.Helper()
-
-	h.tf.Get(
-		gvk.DataScienceCluster,
-		types.NamespacedName{Name: "default-dsc"},
-	).Eventually().Should(
-		jq.Match(`.status.release.version == "%s"`, version),
-	)
-}
-
-func (h *upgradeGateHarness) assertBlockingCondition(t *testing.T) {
-	t.Helper()
-
-	h.tf.Get(
-		gvk.DataScienceCluster,
-		types.NamespacedName{Name: "default-dsc"},
-	).Eventually().Should(WithTransform(
-		jq.Extract(`.status.conditions`),
-		And(
-			Not(BeEmpty()),
-			jq.Match(
-				`[.[] | select(.type == "%s" and .status == "False" and .reason == "%s")] | length > 0`,
-				status.ConditionTypeProvisioningProgress,
-				status.AdminAckRequiredReason,
-			),
-		),
-	))
-}
-
-func (h *upgradeGateHarness) assertAllDependencyGatesAcknowledged(t *testing.T) {
-	t.Helper()
-
-	h.tf.Get(
-		gvk.ConfigMap,
-		types.NamespacedName{Name: gates.AcksConfigMap, Namespace: operatorNamespace},
-	).Eventually().Should(And(
-		jq.Match(`.data["%s"] == "true"`, ackKey("dependencies-cert-manager")),
-		jq.Match(`.data["%s"] == "true"`, ackKey("dependencies-kueue-operator")),
-		jq.Match(`.data["%s"] == "true"`, ackKey("dependencies-servicemeshoperatorv2")),
-		jq.Match(`[.data | to_entries[] | select(.value != "true")] | length == 0`),
-	))
-}
-
-func (h *upgradeGateHarness) assertSingleBlockedGate(t *testing.T, gateKey string) {
-	t.Helper()
-
-	h.tf.Get(
-		gvk.ConfigMap,
-		types.NamespacedName{Name: gates.AcksConfigMap, Namespace: operatorNamespace},
-	).Eventually().Should(And(
-		jq.Match(`.data["%s"] != "true"`, ackKey(gateKey)),
-		jq.Match(`[.data | to_entries[] | select(.value != "true")] | length == 1`),
-	))
-}
-
 func setupUpgradeGateTest(t *testing.T, extraFixtures ...fixtureSpec) *upgradeGateHarness {
+	t.Helper()
+
 	return setupUpgradeGateTestWithManagedComponents(t, nil, extraFixtures...)
 }
 
 func setupUpgradeGateTestWithManagedComponents(
 	t *testing.T,
+	managedComponents []string,
+	extraFixtures ...fixtureSpec,
+) *upgradeGateHarness {
+	t.Helper()
+
+	return setupUpgradeGateTestWithReleases(t, deployedVersion, managedComponents, extraFixtures...)
+}
+
+// setupUpgradeGateTestWithReleases is the deployed-release-explicit variant.
+// deployedVer stamps the DSC/DSCI status.release used by
+// cluster.GetDeployedRelease to decide whether gating applies (only 2.x
+// upgrades gate). Pass an empty string to simulate a fresh install with no
+// deployed release.
+func setupUpgradeGateTestWithReleases(
+	t *testing.T,
+	deployedVer string,
 	managedComponents []string,
 	extraFixtures ...fixtureSpec,
 ) *upgradeGateHarness {
@@ -135,7 +100,7 @@ func setupUpgradeGateTestWithManagedComponents(
 	})
 
 	tc := &upgradeGateTestCtx{cli: te.Client()}
-	for _, fixture := range append(baseUpgradeFixtures(managedComponents), extraFixtures...) {
+	for _, fixture := range append(baseUpgradeFixtures(deployedVer, managedComponents), extraFixtures...) {
 		tc.applyFixture(t, fixture.path, fixture.data)
 	}
 
@@ -168,7 +133,7 @@ func setupUpgradeGateTestWithManagedComponents(
 	}
 }
 
-func baseUpgradeFixtures(managedComponents []string) []fixtureSpec {
+func baseUpgradeFixtures(deployedVer string, managedComponents []string) []fixtureSpec {
 	return []fixtureSpec{
 		fixture("resources/namespace.tmpl.yaml", map[string]any{
 			"Name":   operatorNamespace,
@@ -177,12 +142,12 @@ func baseUpgradeFixtures(managedComponents []string) []fixtureSpec {
 		fixture("resources/dscinitialization.tmpl.yaml", map[string]any{
 			"Name":     "default-dsci",
 			"Platform": "OpenDataHub",
-			"Version":  deployedVersion,
+			"Version":  deployedVer,
 		}),
 		fixture("resources/datasciencecluster.tmpl.yaml", map[string]any{
 			"Name":              "default-dsc",
 			"Platform":          "OpenDataHub",
-			"Version":           deployedVersion,
+			"Version":           deployedVer,
 			"ManagedComponents": managedComponents,
 		}),
 		fixture("resources/clusterserviceversion.tmpl.yaml", map[string]any{

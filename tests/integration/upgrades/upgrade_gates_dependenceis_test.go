@@ -6,12 +6,10 @@ import (
 	"embed"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
 )
@@ -22,45 +20,58 @@ const (
 	deployedVersion   = "2.25.1"
 )
 
-//go:embed resources/*.tmpl.yaml resources/kueue/*.tmpl.yaml
+//go:embed resources/*.tmpl.yaml resources/kueue/*.tmpl.yaml resources/ray/*.tmpl.yaml
 var resourcesFS embed.FS
 
 func TestUpgradeGatesForCertManagerDependency(t *testing.T) {
 	t.Run("keeps_dsc_version_when_missing_until_manually_acked", func(t *testing.T) {
 		h := setupUpgradeGateTest(t)
-		acksKey := types.NamespacedName{Name: gates.AcksConfigMap, Namespace: operatorNamespace}
-		certManagerAckKey := ackKey("dependencies-cert-manager")
+		const certManagerGate = "dependencies-cert-manager"
 
-		h.tf.Get(
-			gvk.ConfigMap,
-			acksKey,
-		).Eventually().Should(And(
-			jq.Match(`(.data | keys | length) > 0`),
-			jq.Match(`[.data | keys[] | select(startswith("ack-%s-"))] | length > 0`, targetVersion),
-			jq.Match(`.data["%s"] != "true"`, certManagerAckKey),
-			jq.Match(`[.data | to_entries[] | select(.value != "true")] | length == 1`),
-		))
-
-		h.assertDSCVersion(t, deployedVersion)
-		h.assertBlockingCondition(t)
+		h.tf.Get(gvk.ConfigMap, upgradeAcksKey).Eventually().Should(
+			BeGatedOnlyBy(certManagerGate),
+		)
+		h.tf.Get(gvk.DataScienceCluster, defaultDSCKey).Eventually().Should(And(
+			HaveReleaseVersion(deployedVersion),
+			HaveStatusCondition(
+				status.ConditionTypeProvisioningProgress,
+				metav1.ConditionFalse,
+				status.AdminAckRequiredReason)),
+		)
 
 		h.tf.Update(
 			gvk.ConfigMap,
-			acksKey,
-			func(obj *unstructured.Unstructured) error {
-				return unstructured.SetNestedField(obj.Object, "true", "data", certManagerAckKey)
-			},
-		).Eventually().Should(Succeed())
+			upgradeAcksKey,
+			AcknowledgeGate(certManagerGate),
+		).Eventually().Should(
+			Succeed(),
+		)
 
-		h.assertAllDependencyGatesAcknowledged(t)
-		h.assertDSCVersion(t, targetVersion)
+		h.tf.Get(gvk.ConfigMap, upgradeAcksKey).Eventually().Should(And(
+			BeAcknowledgedBy(
+				"dependencies-cert-manager",
+				"dependencies-kueue-operator",
+				"dependencies-servicemeshoperatorv2"),
+			HaveUnacknowledgedGateCount(0)),
+		)
+		h.tf.Get(gvk.DataScienceCluster, defaultDSCKey).Eventually().Should(
+			HaveReleaseVersion(targetVersion),
+		)
 	})
 
 	t.Run("advances_dsc_version_when_present", func(t *testing.T) {
 		h := setupUpgradeGateTest(t, certManagerPresentFixtures()...)
 
-		h.assertAllDependencyGatesAcknowledged(t)
-		h.assertDSCVersion(t, targetVersion)
+		h.tf.Get(gvk.ConfigMap, upgradeAcksKey).Eventually().Should(And(
+			BeAcknowledgedBy(
+				"dependencies-cert-manager",
+				"dependencies-kueue-operator",
+				"dependencies-servicemeshoperatorv2"),
+			HaveUnacknowledgedGateCount(0)),
+		)
+		h.tf.Get(gvk.DataScienceCluster, defaultDSCKey).Eventually().Should(
+			HaveReleaseVersion(targetVersion),
+		)
 	})
 }
 
@@ -83,7 +94,11 @@ func TestUpgradeGatesForServiceMeshOperatorV2Dependency(t *testing.T) {
 			)...,
 		)
 
-		h.assertSingleBlockedGate(t, "dependencies-servicemeshoperatorv2")
-		h.assertDSCVersion(t, deployedVersion)
+		h.tf.Get(gvk.ConfigMap, upgradeAcksKey).Eventually().Should(
+			BeGatedOnlyBy("dependencies-servicemeshoperatorv2"),
+		)
+		h.tf.Get(gvk.DataScienceCluster, defaultDSCKey).Eventually().Should(
+			HaveReleaseVersion(deployedVersion),
+		)
 	})
 }

@@ -5,12 +5,11 @@ package upgrades_test
 import (
 	"testing"
 
-	"k8s.io/apimachinery/pkg/types"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
 )
@@ -27,8 +26,12 @@ func TestUpgradeGatesForKueueOperatorDependency(t *testing.T) {
 			)...,
 		)
 
-		h.assertSingleBlockedGate(t, "dependencies-kueue-operator")
-		h.assertDSCVersion(t, deployedVersion)
+		h.tf.Get(gvk.ConfigMap, upgradeAcksKey).Eventually().Should(
+			BeGatedOnlyBy("dependencies-kueue-operator"),
+		)
+		h.tf.Get(gvk.DataScienceCluster, defaultDSCKey).Eventually().Should(
+			HaveReleaseVersion(deployedVersion),
+		)
 	})
 
 	t.Run("blocks_when_subscription_missing", func(t *testing.T) {
@@ -42,8 +45,12 @@ func TestUpgradeGatesForKueueOperatorDependency(t *testing.T) {
 			)...,
 		)
 
-		h.assertSingleBlockedGate(t, "dependencies-kueue-operator")
-		h.assertDSCVersion(t, deployedVersion)
+		h.tf.Get(gvk.ConfigMap, upgradeAcksKey).Eventually().Should(
+			BeGatedOnlyBy("dependencies-kueue-operator"),
+		)
+		h.tf.Get(gvk.DataScienceCluster, defaultDSCKey).Eventually().Should(
+			HaveReleaseVersion(deployedVersion),
+		)
 	})
 }
 
@@ -84,8 +91,6 @@ func TestUpgradeGatesForKueueComponent(t *testing.T) {
 			objectName:   "queued-pytorchjob",
 		},
 	} {
-		workload := workload
-
 		t.Run(workload.name, func(t *testing.T) {
 			t.Run("blocks_when_unmanaged_workloads_namespace_is_missing_label", func(t *testing.T) {
 				namespace := "workloads-" + workload.name + "-missing-label"
@@ -100,9 +105,16 @@ func TestUpgradeGatesForKueueComponent(t *testing.T) {
 					}),
 				)
 
-				h.assertSingleBlockedGate(t, "kueue")
-				h.assertDSCVersion(t, deployedVersion)
-				h.assertBlockingCondition(t)
+				h.tf.Get(gvk.ConfigMap, upgradeAcksKey).Eventually().Should(
+					BeGatedOnlyBy("kueue"),
+				)
+				h.tf.Get(gvk.DataScienceCluster, defaultDSCKey).Eventually().Should(And(
+					HaveReleaseVersion(deployedVersion),
+					HaveStatusCondition(
+						status.ConditionTypeProvisioningProgress,
+						metav1.ConditionFalse,
+						status.AdminAckRequiredReason)),
+				)
 			})
 
 			t.Run("advances_when_unmanaged_workloads_namespace_is_kueue_managed", func(t *testing.T) {
@@ -118,15 +130,13 @@ func TestUpgradeGatesForKueueComponent(t *testing.T) {
 					}),
 				)
 
-				h.tf.Get(
-					gvk.ConfigMap,
-					types.NamespacedName{Name: gates.AcksConfigMap, Namespace: operatorNamespace},
-				).Eventually().Should(And(
-					jq.Match(`.data["%s"] == "true"`, ackKey("kueue")),
-					jq.Match(`[.data | to_entries[] | select(.value != "true")] | length == 0`),
-				))
-
-				h.assertDSCVersion(t, targetVersion)
+				h.tf.Get(gvk.ConfigMap, upgradeAcksKey).Eventually().Should(And(
+					BeAcknowledgedBy("kueue"),
+					HaveUnacknowledgedGateCount(0)),
+				)
+				h.tf.Get(gvk.DataScienceCluster, defaultDSCKey).Eventually().Should(
+					HaveReleaseVersion(targetVersion),
+				)
 			})
 		})
 	}

@@ -10,7 +10,9 @@ spec:
       managementState: Managed
 {{- end }}
 {{- end }}
+{{- if .Version }}
 status:
   release:
     name: {{ .Platform }}
     version: "{{ .Version }}"
+{{- end }}

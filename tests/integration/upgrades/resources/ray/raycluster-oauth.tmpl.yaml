@@ -1,0 +1,7 @@
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+  finalizers:
+    - ray.openshift.ai/oauth-finalizer

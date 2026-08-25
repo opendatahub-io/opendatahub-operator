@@ -2,7 +2,9 @@ apiVersion: dscinitialization.opendatahub.io/v2
 kind: DSCInitialization
 metadata:
   name: {{ .Name }}
+{{- if .Version }}
 status:
   release:
     name: {{ .Platform }}
     version: "{{ .Version }}"
+{{- end }}
