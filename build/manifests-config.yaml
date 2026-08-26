@@ -29,7 +29,7 @@ map:
     src: config
     dest: modelregistry
     git.url: https://github.com/red-hat-data-services/model-registry-operator
-    git.commit: edc809b988a2415dc1214ac220fb280ed85859eb
+    git.commit: 43b281fc7bdb157ca01728d3c53cb3afa029af32
   odh-dashboard-operator:
     src: dashboard-operator/charts/dashboard
     dest: dashboard-operator
