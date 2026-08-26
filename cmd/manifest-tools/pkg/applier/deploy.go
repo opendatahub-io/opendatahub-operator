@@ -242,10 +242,9 @@ func loadOverridesFromConfig(configFile, platform string) ([]envVar, error) {
 		return nil, err
 	}
 
-	if platform == "OpenDataHub" {
-		platform = "odh"
-	} else if platform != "odh" && platform != "rhoai" {
-		platform = "rhoai"
+	platform, err = config.NormalizePlatform(platform)
+	if err != nil {
+		return nil, err
 	}
 
 	var vars []envVar
@@ -255,13 +254,18 @@ func loadOverridesFromConfig(configFile, platform string) ([]envVar, error) {
 		}
 
 		pi := override.PlatformImage(platform)
-		if pi == nil || pi.Digest == "" || pi.Base == "" {
+		if pi == nil {
+			slog.Info("No platform image defined, skipping", slog.String("env", envName), slog.String("platform", platform))
 			continue
 		}
-
+		if pi.Base == "" {
+			return nil, fmt.Errorf("imageOverrides.%s.%s.base: required", envName, platform)
+		}
+		if pi.Digest == "" {
+			return nil, fmt.Errorf("imageOverrides.%s.%s.digest: required", envName, platform)
+		}
 		if !config.DigestPattern.MatchString(pi.Digest) {
-			slog.Warn("Invalid digest, skipping", slog.String("env", envName), slog.String("digest", pi.Digest))
-			continue
+			return nil, fmt.Errorf("imageOverrides.%s.%s.digest: invalid digest %q", envName, platform, pi.Digest)
 		}
 
 		vars = append(vars, envVar{
