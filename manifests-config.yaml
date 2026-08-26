@@ -164,11 +164,11 @@ componentCharts:
   feastoperator:
     odh:
       repo: opendatahub-io/feast-module-operator
-      ref: main@dcd8099577492bf1869c7ea1122420c71b31c780
+      ref: main@1da508a8d2d294a54173d9b1f73eba4aaf4a735e
       sourcePath: config/chart
     rhoai:
       repo: red-hat-data-services/feast-module-operator
-      ref: rhoai-3.6-ea.1@3b124c0d08c23348393d22293d4616fd3d63efff
+      ref: rhoai-3.6-ea.1@7f958fb69bd2f9aca9d8e966ece399627fde7f03
       sourcePath: config/chart
 # Image overrides — pinned operator image digests, keyed by RELATED_IMAGE_* env var name.
 # Local directories symlinked into opt/manifests/ during development.
