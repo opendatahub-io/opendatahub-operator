@@ -145,11 +145,11 @@ componentCharts:
   dashboard-operator:
     odh:
       repo: opendatahub-io/odh-dashboard
-      ref: main@eeca83257791c51cae6bab076c1b2860d4ee9c4b
+      ref: main@591f1fc7486a1ad2f7f9a857e134473957dae06a
       sourcePath: dashboard-operator/charts/dashboard
     rhoai:
       repo: red-hat-data-services/odh-dashboard
-      ref: rhoai-3.6-ea.1@2a40c034acea2aa4e32a4cbfbee8c46456cd130c
+      ref: rhoai-3.6-ea.1@0c280d2c9206510dbc5189f0c8e96cf3a1aff4b0
       sourcePath: dashboard-operator/charts/dashboard
   workbenches:
     odh:
@@ -331,21 +331,21 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-dashboard-operator"
-      digest: "sha256:991a44e1a051872d472dddeed56f54441faffd25d430564814873fc6618c8920"
+      digest: "sha256:329cf5781e876989ebfb37bc631ad1c6d57865308f8c07b7ad77f0181cf58646"
     rhoai:
       shaFrom: odh
       base: "quay.io/opendatahub/odh-dashboard-operator"
-      digest: "sha256:991a44e1a051872d472dddeed56f54441faffd25d430564814873fc6618c8920"
+      digest: "sha256:329cf5781e876989ebfb37bc631ad1c6d57865308f8c07b7ad77f0181cf58646"
   RELATED_IMAGE_ODH_DASHBOARD_IMAGE:
     component: dashboard-operator
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-dashboard"
-      digest: "sha256:48acb010c10e2e48af0209b749fd3a434a8fcb9ffd46769fd5fef327fd59b05c"
+      digest: "sha256:558cb8337f521031f11debc1e094973b80be45736f9c481b8f35a74a83de1253"
     rhoai:
       shaFrom: odh
       base: "quay.io/opendatahub/odh-dashboard"
-      digest: "sha256:48acb010c10e2e48af0209b749fd3a434a8fcb9ffd46769fd5fef327fd59b05c"
+      digest: "sha256:558cb8337f521031f11debc1e094973b80be45736f9c481b8f35a74a83de1253"
   RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE:
     component: workbenches
     tagTemplate: "{SHA}"
