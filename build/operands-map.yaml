@@ -12,11 +12,11 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
   value: "quay.io/rhoai/odh-cli-rhel9@sha256:ad4d14a1de5008ba7119dfe2f9b0f291aa9bfa169c4603507ef1b4439ed4dd62"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
-  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:1c3cd7f668a3638d2185213c6293824a0d9b1d8870dedcf6b2ad4c675f79de34"
+  value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:be8fd559e6d83584fa1524238c3ac8e1e0d22ffde863cfbb8a279943d3c66961"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:d22c116d44fb6fe9cd632d680aeeb361758fbe166880a1cbd3c20267c76b4002"
+  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:7cf8e1747f6f8169e6edc98f87917c6a021239aede50204484c496bb44fd9d9d"
 - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:7cf1b4373e6ce49170bc9483cae284d02f177c39c85a8a385ab42b5a99054b8c"
+  value: "quay.io/rhoai/odh-dashboard-operator-rhel9@sha256:d031c7aa269ace9bb758a3a1efa5e612f7db1d95f2bdf212e627980baa47e884"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE
   value: "quay.io/rhoai/odh-data-science-pipelines-argo-argoexec-rhel9@sha256:9a5cf64947ca0998d7570b1a73f8816a694959afcdc87b6d1511f9ccbf6988b7"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_WORKFLOWCONTROLLER_IMAGE
@@ -138,7 +138,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-model-registry-rhel9@sha256:45f7184f5282331be6fc7bc93e55fa183b69d3a3c11de89d81fd58752d722d5d"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_NOTEBOOKS_IMAGE
-  value: "quay.io/rhoai/odh-mod-arch-notebooks-rhel9@sha256:3fdfd0188f28ae3b8a40f661f2be78f208fdf03c1b416af6243a8b6f5783cf68"
+  value: "quay.io/rhoai/odh-mod-arch-notebooks-rhel9@sha256:7a2e7d2f378effa232506027270cf39362068fbb52e3ab166ffc645cad9a2084"
 - name: RELATED_IMAGE_ODH_MUST_GATHER_IMAGE
   value: "quay.io/rhoai/odh-must-gather-rhel9@sha256:1a024c943d5a2ccecbef027476cc87599aeaf1f472be5e3c0d6843e866cc2b2c"
 - name: RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE

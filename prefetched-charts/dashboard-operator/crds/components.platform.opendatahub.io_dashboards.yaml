@@ -113,6 +113,15 @@ spec:
                 - Managed
                 - Removed
                 type: string
+              modelRegistryNamespace:
+                description: |-
+                  ModelRegistryNamespace is the namespace where the Model Registry runs.
+                  When set, the dashboard-operator creates a Role and RoleBinding in this
+                  namespace granting the dashboard SA access to model registry resources.
+                  Absent means model registry RBAC is skipped.
+                maxLength: 63
+                pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
+                type: string
               modules:
                 additionalProperties:
                   description: |-
@@ -132,6 +141,16 @@ spec:
                   Modules contains per-module override configuration. Map keys are
                   module names as defined in the controller's internal module registry.
                 type: object
+              notebooksNamespace:
+                description: |-
+                  NotebooksNamespace is the namespace where Workbenches (notebooks) run.
+                  When set, the dashboard-operator creates a Role and RoleBinding in this
+                  namespace granting the dashboard SA access to notebook-related resources.
+                  Absent means notebooks RBAC is skipped (component not enabled or standalone
+                  deployment where notebooks are not used).
+                maxLength: 63
+                pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
+                type: string
               observability:
                 description: Observability configures the observability stack integration.
                 properties:
