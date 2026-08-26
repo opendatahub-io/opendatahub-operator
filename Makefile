@@ -89,6 +89,8 @@ else
 	CCM_LOCAL_OVERLAY=rhoai
 endif
 
+MANAGER_FILE ?= $(CONFIG_DIR)/manager/manager.yaml
+
 IMAGE_BUILDER ?= podman
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
 DEFAULT_CHARTS_PATH ?= opt/charts
@@ -370,7 +372,7 @@ update-refs-rhoai-branch: ## Update all RHOAI refs to a new branch (requires GIT
 
 .PHONY: apply-image-overrides
 apply-image-overrides: ## Apply image overrides to manager.yaml (for make deploy)
-	go run -C ./cmd/manifest-tools main.go apply-deploy --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --manager-file $(CURDIR)/config/manager/manager.yaml
+	go run -C ./cmd/manifest-tools main.go apply-deploy --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --manager-file $(CURDIR)/$(MANAGER_FILE)
 
 .PHONY: apply-image-overrides-olm
 apply-image-overrides-olm: ## Apply image overrides to OLM Subscription (for operator-sdk run bundle)
