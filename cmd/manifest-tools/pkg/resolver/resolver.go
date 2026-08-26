@@ -18,6 +18,8 @@ type Options struct {
 	ConfigFile          string
 	ManifestsDir        string
 	CSVImportRegistries []string
+	// FetchCSVImages overrides the real HTTP fetch; used in tests only.
+	FetchCSVImages func(ctx context.Context) (map[string]CSVImage, error)
 }
 
 type Result struct {
@@ -69,7 +71,11 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 	var unresolved []Result
 	var csvStale []string
 
-	csvImages, err := FetchCSVRelatedImages(ctx)
+	fetchCSV := opts.FetchCSVImages
+	if fetchCSV == nil {
+		fetchCSV = FetchCSVRelatedImages
+	}
+	csvImages, err := fetchCSV(ctx)
 	if err != nil {
 		slog.Warn("Failed to fetch CSV related images, csv fallback disabled", slog.String("error", err.Error()))
 	} else {
@@ -119,7 +125,13 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 
 			comp := cfg.FindComponent(override.Component)
 			if comp == nil {
-				slog.Info("No component, skipping digest lookup", slog.String("env", envName), slog.String("platform", platform))
+				if override.Component == "" {
+					slog.Warn("No component specified for image override", slog.String("env", envName))
+				} else {
+					slog.Warn("Unknown component, cannot resolve image",
+						slog.String("env", envName), slog.String("component", override.Component))
+				}
+				unresolved = append(unresolved, Result{envName, platform, "", "", "unknown-component"})
 				continue
 			}
 			pr := comp.PlatformRepo(platform)
@@ -221,10 +233,8 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 				}
 			}
 
-			slog.Warn("No source found via commit-sha or params.env", slog.String("env", envName), slog.String("platform", platform))
-
-			// Priority 3: ODH-Build-Config CSV
-			if csvImages != nil {
+			// Priority 3: CSV fallback (only if no cloned commit SHA)
+			if sha == "" && csvImages != nil {
 				if img, ok := csvImages[envName]; ok && config.DigestPattern.MatchString(img.Digest) {
 					if err := nodeDoc.SetImageOverrideField(envName, platform, "base", img.Base); err != nil {
 						slog.Warn("Failed to set base field", slog.String("error", err.Error()))
@@ -311,6 +321,11 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 			continue
 		}
 		slog.Info("Removed stale CSV entry", slog.String("env", envName))
+	}
+
+	if len(unresolved) > 0 {
+		printSummary(results, unresolved)
+		return results, fmt.Errorf("%d image(s) could not be resolved for their cloned commits; check logs above", len(unresolved))
 	}
 
 	if err := nodeDoc.Save(opts.ConfigFile); err != nil {
