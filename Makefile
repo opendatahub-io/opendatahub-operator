@@ -286,7 +286,6 @@ endif
 	@cp "$(CONFIG_DIR)/crd/bases/config.opendatahub.io_platforms.yaml" config/rhaii/crd/bases/
 	@rm -f config/rhaii/crd/bases/services.platform.opendatahub.io_gatewayconfigs.yaml
 	@$(call add-crd-to-kustomization,config/rhaii/crd/bases)
-	@$(MAKE) generate-xks-gateway-crd-from-base
 MANIFEST_GENERATED_FILES = config/crd/bases config/rhoai/crd/bases config/rhaii/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
 
 .PHONY: generate-xks-gateway-crd-from-base
@@ -297,13 +296,14 @@ generate-xks-gateway-crd-from-base: yq ## Patch the kubebuilder GatewayConfig CR
 	./hack/generate-xks-gateway-crd.sh "$(YQ)" "$(CONFIG_DIR)/crd/bases/services.platform.opendatahub.io_gatewayconfigs.yaml" "config/crd/xks/services.platform.opendatahub.io_gatewayconfigs.yaml"
 
 .PHONY: generate-xks-gateway-crd
-generate-xks-gateway-crd: manifests ## Generate the XKS-tailored GatewayConfig CRD for odh-gitops (runs make manifests first).
+generate-xks-gateway-crd: manifests generate-xks-gateway-crd-from-base ## Generate the XKS-tailored GatewayConfig CRD for odh-gitops.
 
 .PHONY: manifests-all
 manifests-all:
 	$(MAKE) manifests
 	$(MAKE) manifests ODH_PLATFORM_TYPE=rhoai
 	$(MAKE) manifests-ccm
+	$(MAKE) generate-xks-gateway-crd-from-base
 
 .PHONY: clean-manifests
 clean-manifests: ## Remove generated manifest files (CRDs, RBAC, webhooks) for all variants.

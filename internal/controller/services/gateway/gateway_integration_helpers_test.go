@@ -1719,7 +1719,16 @@ func RunNginxDashboardRedirectSkippedWithoutDashboardTest(t *testing.T, setup Te
 	err := setup.TC.K8sClient.Get(setup.TC.Ctx, client.ObjectKey{Name: componentApi.DashboardInstanceName}, dashboard)
 	g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "Dashboard CR should not exist for this test")
 
-	// Verify redirect resources are not created
+	// Verify redirect resources are cleaned up after Dashboard CR removal.
+	g.Eventually(func() bool {
+		cm := &corev1.ConfigMap{}
+		err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+			Name: gateway.DashboardRedirectConfigName, Namespace: appNs,
+		}, cm)
+		return k8serr.IsNotFound(err)
+	}, TestTimeout, TestInterval).Should(BeTrue(),
+		"dashboard-redirect ConfigMap should be deleted when Dashboard CR is absent")
+
 	g.Consistently(func() bool {
 		cm := &corev1.ConfigMap{}
 		err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
@@ -1727,7 +1736,7 @@ func RunNginxDashboardRedirectSkippedWithoutDashboardTest(t *testing.T, setup Te
 		}, cm)
 		return k8serr.IsNotFound(err)
 	}, 5*time.Second, TestInterval).Should(BeTrue(),
-		"dashboard-redirect ConfigMap should not be created when Dashboard CR is absent")
+		"dashboard-redirect ConfigMap should not be recreated when Dashboard CR is absent")
 }
 
 // RunNginxDashboardRedirectCreationTest validates that nginx-based dashboard redirect resources exist in the application namespace:
