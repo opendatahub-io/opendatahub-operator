@@ -102,7 +102,7 @@ additional_meta:
     git.commit: fb3cc91655910eefdedfad510b24e550de507864
   odh-eval-hub:
     git.url: https://github.com/red-hat-data-services/eval-hub
-    git.commit: 4d47917087dd1177f46a9ef82c07c0175f5b9a8c
+    git.commit: 7593b57de57cd6ff8bc06d7171b7f11810498558
   odh-feast-operator:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: 9a3358c14a371a5789de1ec129de865d62dfd354
@@ -264,7 +264,7 @@ additional_meta:
     git.commit: c7d87e8152886e3ff1afde5d56f886699af0fa83
   odh-observability:
     git.url: https://github.com/red-hat-data-services/odh-observability
-    git.commit: 1c116fde7aaa0eaac6558f6ed127503fe666658a
+    git.commit: 0c1e7d232b6038090cb9b8bb9635a6090cce37ac
   odh-ogx-core:
     git.url: https://github.com/red-hat-data-services/ogx-distribution
     git.commit: 7e87a799ef40c2baff9511e8e58d63c3147aa7eb
