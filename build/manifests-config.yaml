@@ -102,7 +102,7 @@ additional_meta:
     git.commit: fb3cc91655910eefdedfad510b24e550de507864
   odh-eval-hub:
     git.url: https://github.com/red-hat-data-services/eval-hub
-    git.commit: a8a8d3b9dc34205aab21257e9ed79d56e80c30f5
+    git.commit: 4d47917087dd1177f46a9ef82c07c0175f5b9a8c
   odh-feast-operator:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: 9a3358c14a371a5789de1ec129de865d62dfd354
