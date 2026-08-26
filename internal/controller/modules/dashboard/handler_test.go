@@ -213,34 +213,20 @@ func TestBuildModuleCR_ComponentsDefaultToRemovedWhenEmpty(t *testing.T) {
 	g.Expect(pipComp["managementState"]).Should(Equal("Removed"))
 }
 
-func TestBuildModuleCR_NilDSCContextReturnsMinimalCR(t *testing.T) {
+func TestBuildModuleCR_NilDSCContextReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 	// nil dscCtx is valid for DSC-less deployments (e.g. XKS direct CR creation).
-	u, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(u).ShouldNot(BeNil())
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue())
-	g.Expect(spec["deploymentMode"]).Should(Equal("Standalone"))
-	g.Expect(spec).ShouldNot(HaveKey("notebooksNamespace"))
-	g.Expect(spec).ShouldNot(HaveKey("modelRegistryNamespace"))
-	g.Expect(spec).ShouldNot(HaveKey("components"))
+	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
+	g.Expect(err.Error()).Should(ContainSubstring("DSC is nil, cannot build Dashboard CR"))
 }
 
-func TestBuildModuleCR_NilDSCReturnsMinimalCR(t *testing.T) {
+func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 	// DSCContext with nil DSC is valid for DSC-less deployments.
-	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{}, nil)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(u).ShouldNot(BeNil())
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue())
-	g.Expect(spec["deploymentMode"]).Should(Equal("Standalone"))
-	g.Expect(spec).ShouldNot(HaveKey("notebooksNamespace"))
-	g.Expect(spec).ShouldNot(HaveKey("modelRegistryNamespace"))
-	g.Expect(spec).ShouldNot(HaveKey("components"))
+	_, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{}, nil)
+	g.Expect(err.Error()).Should(ContainSubstring("DSC is nil, cannot build Dashboard CR"))
 }
 
 func TestGetOperatorManifests(t *testing.T) {

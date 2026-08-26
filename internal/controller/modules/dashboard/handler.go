@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -83,32 +84,27 @@ func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
 
 // BuildModuleCR projects user-facing DSC dashboard configuration and platform
 // fields from DSCContext and ModuleCRConfig onto the module CR.
-// When dscCtx or dscCtx.DSC is nil (e.g. Dashboard module created directly
-// without a DSC, as on XKS), the CR is built with defaults only — no DSC
-// component state, no namespace projection.
+// When dscCtx or dscCtx.DSC is nil, returns an error.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
 	dscCtx *modules.DSCContext,
 	cfg *modules.ModuleCRConfig,
 ) (*unstructured.Unstructured, error) {
-	var spec map[string]any
+	if dscCtx == nil || dscCtx.DSC == nil {
+		return nil, errors.New("DSC is nil, cannot build Dashboard CR")
+	}
 
-	if dscCtx != nil && dscCtx.DSC != nil {
-		var err error
-		spec, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&dscCtx.DSC.Spec.Components.Dashboard)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert DSCDashboard to unstructured: %w", err)
-		}
-		spec["components"] = buildComponentsMap(dscCtx)
-		if ns := resolveNotebooksNamespace(dscCtx, cfg); ns != "" {
-			spec["notebooksNamespace"] = ns
-		}
-		if ns := resolveModelRegistryNamespace(dscCtx); ns != "" {
-			spec["modelRegistryNamespace"] = ns
-		}
-	} else {
-		spec = map[string]any{}
+	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dscCtx.DSC.Spec.Components.Dashboard)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert DSCDashboard to unstructured: %w", err)
+	}
+	spec["components"] = buildComponentsMap(dscCtx)
+	if ns := resolveNotebooksNamespace(dscCtx, cfg); ns != "" {
+		spec["notebooksNamespace"] = ns
+	}
+	if ns := resolveModelRegistryNamespace(dscCtx); ns != "" {
+		spec["modelRegistryNamespace"] = ns
 	}
 
 	spec["deploymentMode"] = deploymentModeStandalone
