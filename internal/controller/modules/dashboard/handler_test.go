@@ -13,6 +13,7 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 
 	. "github.com/onsi/gomega"
 )
@@ -215,16 +216,17 @@ func TestBuildModuleCR_ComponentsDefaultToRemovedWhenEmpty(t *testing.T) {
 func TestBuildModuleCR_NilDSCContextReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
+	// nil dscCtx is valid for DSC-less deployments (e.g. XKS direct CR creation).
 	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
-	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err.Error()).Should(ContainSubstring("DSC is nil, cannot build Dashboard CR"))
 }
 
 func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-
+	// DSCContext with nil DSC is valid for DSC-less deployments.
 	_, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{}, nil)
-	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err.Error()).Should(ContainSubstring("DSC is nil, cannot build Dashboard CR"))
 }
 
 func TestGetOperatorManifests(t *testing.T) {
@@ -256,6 +258,165 @@ func TestGetOperatorManifests(t *testing.T) {
 	for k, v := range relatedImages {
 		g.Expect(v).Should(Equal(""), "relatedImages[%s] should be empty string, got %v", k, v)
 	}
+}
+
+func newDSCCtxWithNamespaces(
+	mgmtState operatorv1.ManagementState,
+	workbenchMgmt operatorv1.ManagementState,
+	workbenchNamespace string,
+	mrMgmt operatorv1.ManagementState,
+	registriesNamespace string,
+) *modules.DSCContext {
+	ctx := newDSCCtx(mgmtState)
+	ctx.DSC.Spec.Components.Workbenches = componentApi.DSCWorkbenches{
+		ManagementSpec: common.ManagementSpec{ManagementState: workbenchMgmt},
+		WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
+			WorkbenchNamespace: workbenchNamespace,
+		},
+	}
+	ctx.DSC.Spec.Components.ModelRegistry = componentApi.DSCModelRegistry{
+		ManagementSpec: common.ManagementSpec{ManagementState: mrMgmt},
+		ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
+			RegistriesNamespace: registriesNamespace,
+		},
+	}
+	return ctx
+}
+
+func newModuleCRConfigWithRelease(releaseName common.Platform) *modules.ModuleCRConfig {
+	return &modules.ModuleCRConfig{
+		Release: common.Release{Name: releaseName},
+	}
+}
+
+func TestBuildModuleCR_ProjectsNotebooksNamespace_RHOAI(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "", operatorv1.Removed, "")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec["notebooksNamespace"]).Should(Equal(cluster.DefaultNotebooksNamespaceRHOAI))
+	g.Expect(spec).ShouldNot(HaveKey("modelRegistryNamespace"))
+}
+
+func TestBuildModuleCR_ProjectsNotebooksNamespace_ODH(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "", operatorv1.Removed, "")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.OpenDataHub))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec["notebooksNamespace"]).Should(Equal(cluster.DefaultNotebooksNamespaceODH))
+}
+
+func TestBuildModuleCR_ProjectsCustomNotebooksNamespace(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "custom-notebooks", operatorv1.Removed, "")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec["notebooksNamespace"]).Should(Equal("custom-notebooks"))
+}
+
+func TestBuildModuleCR_OmitsNotebooksNamespaceWhenWorkbenchesNotManaged(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Removed, "", operatorv1.Removed, "")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec).ShouldNot(HaveKey("notebooksNamespace"))
+}
+
+func TestBuildModuleCR_ProjectsModelRegistryNamespace(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Removed, "", operatorv1.Managed, "rhoai-model-registries")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec["modelRegistryNamespace"]).Should(Equal("rhoai-model-registries"))
+	g.Expect(spec).ShouldNot(HaveKey("notebooksNamespace"))
+}
+
+func TestBuildModuleCR_OmitsModelRegistryNamespaceWhenNotManaged(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Removed, "", operatorv1.Removed, "rhoai-model-registries")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec).ShouldNot(HaveKey("modelRegistryNamespace"))
+}
+
+func TestBuildModuleCR_OmitsModelRegistryNamespaceWhenEmpty(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Removed, "", operatorv1.Managed, "")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec).ShouldNot(HaveKey("modelRegistryNamespace"),
+		"empty RegistriesNamespace with Managed ModelRegistry should not project a namespace field")
+}
+
+func TestBuildModuleCR_ProjectsNotebooksNamespace_ManagedRhoai(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "", operatorv1.Removed, "")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.ManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec["notebooksNamespace"]).Should(Equal(cluster.DefaultNotebooksNamespaceRHOAI),
+		"ManagedRhoai should use the same RHOAI default notebook namespace as SelfManagedRhoai")
+}
+
+func TestBuildModuleCR_ProjectsBothNamespaces(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(
+		operatorv1.Managed,
+		operatorv1.Managed, "rhods-notebooks",
+		operatorv1.Managed, "rhoai-model-registries",
+	)
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec["notebooksNamespace"]).Should(Equal("rhods-notebooks"))
+	g.Expect(spec["modelRegistryNamespace"]).Should(Equal("rhoai-model-registries"))
+}
+
+func TestBuildModuleCR_NilCfgWithWorkbenchesManaged_DefaultsToODH(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "", operatorv1.Removed, "")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec["notebooksNamespace"]).Should(Equal(cluster.DefaultNotebooksNamespaceODH),
+		"nil cfg means no release info — should fall back to ODH default")
 }
 
 func TestGetControllerImage(t *testing.T) {
