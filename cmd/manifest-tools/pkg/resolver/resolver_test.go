@@ -1,6 +1,7 @@
 package resolver_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -51,62 +52,6 @@ func TestReadParamsEnvKey_FileNotFound(t *testing.T) {
 	}
 }
 
-func TestFindParamsEnvKey(t *testing.T) {
-	dir := t.TempDir()
-
-	// Create nested structure: component/base/params.env
-	baseDir := filepath.Join(dir, "base")
-	if err := os.MkdirAll(baseDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(baseDir, "params.env"), []byte("MY_KEY=my-value\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create another nested: component/overlays/odh/params.env
-	overlayDir := filepath.Join(dir, "overlays", "odh")
-	if err := os.MkdirAll(overlayDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(overlayDir, "params.env"), []byte("OVERLAY_KEY=overlay-value\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("finds key in subdirectory", func(t *testing.T) {
-		got, err := resolver.FindParamsEnvKey(dir, "MY_KEY")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got != "my-value" {
-			t.Errorf("got %q, want %q", got, "my-value")
-		}
-	})
-
-	t.Run("finds key in deeper subdirectory", func(t *testing.T) {
-		got, err := resolver.FindParamsEnvKey(dir, "OVERLAY_KEY")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got != "overlay-value" {
-			t.Errorf("got %q, want %q", got, "overlay-value")
-		}
-	})
-
-	t.Run("returns error for missing key", func(t *testing.T) {
-		_, err := resolver.FindParamsEnvKey(dir, "NONEXISTENT")
-		if err == nil {
-			t.Error("expected error for missing key")
-		}
-	})
-
-	t.Run("returns error for missing directory", func(t *testing.T) {
-		_, err := resolver.FindParamsEnvKey("/nonexistent/dir", "KEY")
-		if err == nil {
-			t.Error("expected error for missing directory")
-		}
-	})
-}
-
 func TestSplitImageRef_EdgeCases(t *testing.T) {
 	tests := []struct {
 		ref        string
@@ -124,5 +69,75 @@ func TestSplitImageRef_EdgeCases(t *testing.T) {
 		if base != tt.wantBase || digest != tt.wantDigest {
 			t.Errorf("SplitImageRef(%q) = (%q, %q), want (%q, %q)", tt.ref, base, digest, tt.wantBase, tt.wantDigest)
 		}
+	}
+}
+
+func TestResolve_UnknownComponent_ReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	configFile := filepath.Join(dir, "manifests-config.yaml")
+	manifestsDir := filepath.Join(dir, "manifests")
+	os.MkdirAll(manifestsDir, 0755)
+
+	// Config with imageOverrides entry pointing to non-existent component
+	content := `components: {}
+imageOverrides:
+  RELATED_IMAGE_TEST:
+    component: "nonexistent-component"
+    odh:
+      base: "quay.io/test/image"
+      tagTemplate: "v{SHA}"
+`
+	if err := os.WriteFile(configFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := resolver.Resolve(t.Context(), resolver.Options{
+		ConfigFile:   configFile,
+		ManifestsDir: manifestsDir,
+		FetchCSVImages: func(context.Context) (map[string]resolver.CSVImage, error) {
+			return map[string]resolver.CSVImage{}, nil
+		},
+	})
+	if err == nil {
+		t.Error("expected error for unknown component, got nil")
+	}
+}
+
+func TestResolve_ClonedCommitImageNotFound_ReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	configFile := filepath.Join(dir, "manifests-config.yaml")
+	manifestsDir := filepath.Join(dir, "manifests")
+	os.MkdirAll(manifestsDir, 0755)
+
+	content := `components:
+  test-component:
+    odh:
+      repo: "test-org/test-repo"
+      ref: "main@abc123def456"
+      sourcePath: "config"
+imageOverrides:
+  RELATED_IMAGE_TEST:
+    component: "test-component"
+    odh:
+      base: "quay.io/test/image"
+      tagTemplate: "v{SHA}"
+`
+	if err := os.WriteFile(configFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	fakeFetch := func(_ context.Context) (map[string]resolver.CSVImage, error) {
+		return map[string]resolver.CSVImage{
+			"RELATED_IMAGE_TEST": {Base: "quay.io/bundle/image", Digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"},
+		}, nil
+	}
+
+	_, err := resolver.Resolve(t.Context(), resolver.Options{
+		ConfigFile:     configFile,
+		ManifestsDir:   manifestsDir,
+		FetchCSVImages: fakeFetch,
+	})
+	if err == nil {
+		t.Error("expected error for unresolved cloned commit image, got nil — CSV fallback must not apply to non-csv images")
 	}
 }

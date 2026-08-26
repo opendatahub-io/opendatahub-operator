@@ -56,7 +56,11 @@ var dagBatches = []componentBatch{
 		components: []componentEntry{
 			{name: componentApi.DashboardComponentName, gvk: gvk.Dashboard, internal: true},
 			{name: componentApi.DataSciencePipelinesComponentName, gvk: gvk.DataSciencePipelines},
-			{name: componentApi.ModelRegistryComponentName, gvk: gvk.ModelRegistry},
+			// ModelRegistry is an out-of-tree module whose CR is the shared
+			// cluster-scoped AIHub singleton "default-aihub"; it is referenced
+			// directly via gvk.AIHub and routed through the module-readiness
+			// (Ready=True) path like the other modules (mlflow, spark).
+			{name: componentApi.ModelRegistryComponentName, gvk: gvk.AIHub, internal: true},
 			{name: componentApi.RayComponentName, gvk: gvk.Ray},
 			{name: componentApi.TrainerComponentName, gvk: gvk.Trainer, internal: true},
 			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches, internal: true},
@@ -78,7 +82,7 @@ var dagBatches = []componentBatch{
 			{name: componentApi.FeastOperatorComponentName, gvk: gvk.FeastOperator, internal: true},
 			{name: componentApi.MLflowOperatorComponentName, gvk: gvk.MLflowOperator, internal: true},
 			{name: componentApi.OGXComponentName, gvk: gvk.OGX, internal: true},
-			{name: componentApi.SparkOperatorComponentName, gvk: gvk.SparkOperator},
+			{name: componentApi.SparkOperatorComponentName, gvk: gvk.SparkOperator, internal: true},
 			{name: componentApi.AIGatewayComponentName, gvk: gvk.AIGateway, internal: true},
 		},
 	},
@@ -129,34 +133,61 @@ var dscComponentFields = []string{
 
 // extensionGVKs lists in-tree component CRs at RL 31+ whose controllers
 // write PlatformReady via RunlevelGateAction. Fully-modularized components
-// (Kserve, FeastOperator, MLflowOperator) are excluded — they have no
-// in-tree controller to write PlatformReady.
+// (Kserve, FeastOperator, MLflowOperator, SparkOperator) are excluded — they
+// have no in-tree controller to write PlatformReady.
 var extensionGVKs = []schema.GroupVersionKind{
-	gvk.SparkOperator,
 	gvk.TrustyAI,
 }
 
 const dagQuotaName = "dag-test-restrictive-quota"
 
+// dagOrderingTestSuite runs the DAG runlevel gating test suite. OpenShift
+// and xKS clusters enable components through different resources (the
+// DataScienceCluster on OpenShift, the Platform CR directly on xKS, which
+// has no DataScienceCluster), so each cluster type runs its own set of
+// scenarios below.
 func dagOrderingTestSuite(t *testing.T) {
 	t.Helper()
 
 	tc, err := NewTestContext(t)
 	require.NoError(t, err, "Failed to initialize test context")
 
-	tc.SkipIfXKSCluster(t)
-
 	ctx := DAGOrderingTestCtx{TestContext: tc}
 
+	if tc.IsXKS() {
+		ctx.runXKSTestCases(t)
+		return
+	}
+
+	ctx.runOpenShiftTestCases(t)
+}
+
+// runXKSTestCases exercises DAG runlevel gating on xKS clusters, which
+// have no DataScienceCluster. Component enablement and runlevel gating
+// both go through the Platform CR on this platform.
+func (tc *DAGOrderingTestCtx) runXKSTestCases(t *testing.T) {
+	t.Helper()
+
+	RunTestCases(t, []TestCase{
+		{"Validate Kserve DAG gating unblocks via Platform CR", tc.ValidateXKSRunlevelGating},
+	})
+}
+
+// runOpenShiftTestCases exercises DAG runlevel gating on OpenShift
+// clusters, where component enablement goes through the
+// DataScienceCluster (DSC).
+func (tc *DAGOrderingTestCtx) runOpenShiftTestCases(t *testing.T) {
+	t.Helper()
+
 	t.Log("Ensuring clean slate: setting all components to Removed")
-	ctx.setAllRemoved(t)
-	ctx.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
+	tc.setAllRemoved(t)
+	tc.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
 
 	t.Cleanup(func() {
 		t.Log("Cleanup: setting all components to Removed, deleting quota, and restoring operator env vars")
-		ctx.setAllRemoved(t)
-		ctx.deleteDAGQuota()
-		ctx.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
+		tc.setAllRemoved(t)
+		tc.deleteDAGQuota()
+		tc.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
 	})
 
 	// Tests are ordered to minimise expensive enable/disable cycles.
@@ -178,25 +209,25 @@ func dagOrderingTestSuite(t *testing.T) {
 
 	// Phase 1: gate tests
 	RunTestCases(t, []TestCase{
-		{"Validate in-tree gates block and unblock provisioning", ctx.ValidateInTreeGates},
-		{"Validate admin ack gates block and unblock provisioning", ctx.ValidateAdminAckGates},
+		{"Validate in-tree gates block and unblock provisioning", tc.ValidateInTreeGates},
+		{"Validate admin ack gates block and unblock provisioning", tc.ValidateAdminAckGates},
 	})
 
 	// Phase 2: deploy + gating with version upgrade
 	RunTestCases(t, []TestCase{
-		{"Validate partial enablement", ctx.ValidatePartialEnablement},
-		{"Validate runlevel gating and convergence", ctx.ValidateRunlevelGatingAndConvergence},
+		{"Validate partial enablement", tc.ValidatePartialEnablement},
+		{"Validate runlevel gating and convergence", tc.ValidateRunlevelGatingAndConvergence},
 	})
 
 	// Restore operator to original version after Phase 2 upgrade.
 	// Components have platform release = 99.0.0. Restoring triggers
 	// another gating cycle (version mismatch) until components reconcile.
 	t.Log("Restoring operator to original version for Phase 3")
-	ctx.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
+	tc.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
 
 	t.Log("Waiting for DSC to fully reconcile at original version")
-	ctx.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithCondition(And(
 			jq.Match(`.status.observedGeneration == .metadata.generation`),
 			jq.Match(
@@ -214,10 +245,59 @@ func dagOrderingTestSuite(t *testing.T) {
 
 	// Phase 3: steady-state tests
 	RunTestCases(t, []TestCase{
-		{"Validate PlatformReady condition on component CRs", ctx.ValidatePlatformReady},
-		{"Validate component stability across enable/disable cycles (RHOAIENG-73142)", ctx.ValidateComponentStability},
-		{"Validate DAG cleanup", ctx.ValidateDAGCleanup},
+		{"Validate PlatformReady condition on component CRs", tc.ValidatePlatformReady},
+		{"Validate component stability across enable/disable cycles (RHOAIENG-73142)", tc.ValidateComponentStability},
+		{"Validate DAG cleanup", tc.ValidateDAGCleanup},
 	})
+}
+
+// ValidateXKSRunlevelGating exercises DAG runlevel gating on xKS
+// clusters, which have no DataScienceCluster. It enables the Kserve
+// module (runlevel 31) through the Platform CR and asserts Kserve
+// reaches Ready=True, proving the DAG walk that clears runlevels runs
+// against the Platform CR on this platform.
+func (tc *DAGOrderingTestCtx) ValidateXKSRunlevelGating(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier2, Tier3)
+
+	t.Cleanup(func() {
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: tc.GetInstanceName(gvk.Kserve)}),
+			WithForegroundDeletion(),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+		tc.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Removed)
+	})
+
+	t.Log("Enabling Kserve module via Platform CR")
+	tc.SetModuleStateInPlatformCR(t, "kserve", operatorv1.Managed)
+
+	t.Log("Creating Kserve CR for the module operator to reconcile")
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(tc.CreateComponent(gvk.Kserve)),
+	)
+
+	t.Log("Waiting for Kserve module CR to reach Ready=True")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: tc.GetInstanceName(gvk.Kserve)}),
+		WithCondition(jq.Match(`any(.status.conditions[]; .type == "Ready" and .status == "True")`)),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyPollingInterval(15*time.Second),
+		WithCustomErrorMsg("Kserve should reach Ready=True on xKS after the Platform controller processes runlevel 31"),
+	)
+
+	t.Log("Verifying Platform CR ProvisioningProgress=True")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
+		WithCondition(jq.Match(
+			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+			status.ConditionTypeProvisioningProgress, metav1.ConditionTrue,
+		)),
+		WithEventuallyTimeout(2*time.Minute),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
 }
 
 // ValidateRunlevelGatingAndConvergence proves that the DAG readiness
@@ -539,14 +619,14 @@ func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 
 	partialFields := []string{"dashboard", "kserve", "modelregistry"}
 
-	t.Log("Enabling partial set: dashboard (batch 20), kserve (batch 31), modelregistry (batch 20)")
+	t.Log("Enabling partial set: dashboard (batch 20), kserve (batch 31), modelregistry (batch 20, AIHub module)")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(selectComponentsTransform("Managed", partialFields)),
 	)
 
 	t.Log("Verifying enabled component CRs are created")
-	enabledGVKs := []schema.GroupVersionKind{gvk.Dashboard, gvk.Kserve, gvk.ModelRegistry}
+	enabledGVKs := []schema.GroupVersionKind{gvk.Dashboard, gvk.Kserve, gvk.AIHub}
 	for _, g := range enabledGVKs {
 		instanceName := tc.GetInstanceName(g)
 		tc.EnsureResourceExists(

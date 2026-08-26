@@ -261,7 +261,7 @@ func TestUpdateDeprecatedTrainingOperatorStatus(t *testing.T) {
 
 	t.Run("wrong instance type returns an error", func(t *testing.T) {
 		g := NewWithT(t)
-		rr := &types.ReconciliationRequest{Instance: &componentApi.TrainingOperator{}}
+		rr := &types.ReconciliationRequest{Instance: &componentApi.Kueue{}}
 		g.Expect(updateDeprecatedTrainingOperatorStatus(rr)).ShouldNot(Succeed())
 	})
 }

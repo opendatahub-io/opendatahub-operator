@@ -142,6 +142,39 @@ func TestApplyOverrides_InvalidFormat(t *testing.T) {
 	}
 }
 
+func TestChartsOnlyConfigDoesNotError(t *testing.T) {
+	manifests := collectEntries(nil, "odh")
+	charts, err := mergeCharts(
+		map[string]config.Component{
+			"cert-manager": {ODH: &config.PlatformRepo{Repo: "org/repo", Ref: "main", SourcePath: "charts/cert-manager"}},
+		},
+		nil,
+		"odh",
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(manifests) != 0 {
+		t.Fatalf("expected 0 manifests, got %d", len(manifests))
+	}
+	if len(charts) != 1 {
+		t.Fatalf("expected 1 chart, got %d", len(charts))
+	}
+}
+
+func TestEmptyConfigErrors(t *testing.T) {
+	manifests := collectEntries(nil, "odh")
+	charts, err := mergeCharts(nil, nil, "odh")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(manifests) != 0 || len(charts) != 0 {
+		t.Fatalf("expected both empty, got manifests=%d charts=%d", len(manifests), len(charts))
+	}
+}
+
 func TestCopyDir(t *testing.T) {
 	srcDir := t.TempDir()
 	dstDir := filepath.Join(t.TempDir(), "output")

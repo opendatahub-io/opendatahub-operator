@@ -217,6 +217,59 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 	return nil
 }
 
+// waitForModuleCRDeletion is the Platform CR finalizer. While it runs, the
+// Platform object stays in etcd, so module-operator Deployments owned by
+// Platform are not garbage-collected. Module operators can then process
+// their CR finalizers — the module contract — during DSC cascade deletion
+// (the documented addon uninstall path).
+//
+// A regular error is returned while CRs remain so the reconciler requeues.
+// Do not wrap the wait in a StopError: the framework treats StopError in a
+// finalizer as success and will not requeue.
+func waitForModuleCRDeletion(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	reg := DefaultRegistry()
+	if !reg.HasEntries() {
+		return nil
+	}
+
+	log := logf.FromContext(ctx)
+	var pending []string
+
+	err := reg.ForAll(func(handler ModuleHandler, _ bool) error {
+		name := handler.GetName()
+
+		state, stateErr := handler.GetModuleCRState(ctx, rr.Client)
+		if stateErr != nil {
+			return fmt.Errorf("getting module CR state for %s: %w", name, stateErr)
+		}
+
+		switch state {
+		case CRStateAbsent:
+			return nil
+		case CRStateAlive:
+			log.Info("deleting module CR so its operator can process finalizers", "module", name)
+			if delErr := handler.DeleteModuleCR(ctx, rr.Client); delErr != nil {
+				return fmt.Errorf("deleting module CR %s: %w", name, delErr)
+			}
+			pending = append(pending, name)
+		case CRStateDeleting:
+			log.Info("waiting for module operator to process finalizers", "module", name)
+			pending = append(pending, name)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if len(pending) > 0 {
+		return fmt.Errorf("waiting for module CRs to be deleted: %s", strings.Join(pending, ", "))
+	}
+
+	return nil
+}
+
 // provisionModules iterates over the unified DAG batches (which contain
 // both components and modules) but only provisions entries of KindModule.
 // Readiness gating uses a CompositeChecker that spans both registries, so

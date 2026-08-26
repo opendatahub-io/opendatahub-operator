@@ -84,10 +84,8 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/sparkoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
@@ -98,7 +96,9 @@ import (
 	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
+	modelregistryModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/modelregistry"
 	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
+	sparkoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/sparkoperator"
 	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
@@ -137,9 +137,7 @@ var (
 	existingComponents = map[string]cr.ComponentHandler{
 		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
 		componentApi.KueueComponentName:                kueue.NewHandler(),
-		componentApi.ModelRegistryComponentName:        modelregistry.NewHandler(),
 		componentApi.RayComponentName:                  ray.NewHandler(),
-		componentApi.SparkOperatorComponentName:        sparkoperator.NewHandler(),
 		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
 	}
 
@@ -152,12 +150,9 @@ var (
 	// 33 — components that require KServe to be Ready.
 	componentRunlevels = map[string]dag.Runlevel{
 		componentApi.DataSciencePipelinesComponentName: dag.RL(20),
-		componentApi.ModelRegistryComponentName:        dag.RL(20),
 		componentApi.RayComponentName:                  dag.RL(20),
 
 		componentApi.KueueComponentName: dag.RL(31),
-
-		componentApi.SparkOperatorComponentName: dag.RL(32),
 
 		componentApi.TrustyAIComponentName: dag.RL(33),
 	}
@@ -176,11 +171,13 @@ var (
 		componentApi.AIGatewayComponentName:            aigatewayModule.NewHandler(),
 		componentApi.MCPLifecycleOperatorComponentName: mcplifecycleoperatorModule.NewHandler(),
 		componentApi.MLflowOperatorComponentName:       mlflowOperatorModule.NewHandler(),
+		componentApi.ModelRegistryComponentName:        modelregistryModule.NewHandler(),
 		componentApi.KserveComponentName:               kserveModule.NewHandler(),
 		componentApi.OGXComponentName:                  ogxModule.NewHandler(),
 		componentApi.TrainerComponentName:              trainerModule.NewHandler(),
 		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
 		componentApi.FeastOperatorComponentName:        feastModule.NewHandler(),
+		componentApi.SparkOperatorComponentName:        sparkoperatorModule.NewHandler(),
 	}
 
 	moduleRunlevels = map[string]dag.Runlevel{
@@ -189,10 +186,12 @@ var (
 		componentApi.FeastOperatorComponentName:        dag.RL(32),
 		componentApi.MCPLifecycleOperatorComponentName: dag.RL(20),
 		componentApi.MLflowOperatorComponentName:       dag.RL(32),
+		componentApi.ModelRegistryComponentName:        dag.RL(20),
 		componentApi.KserveComponentName:               dag.RL(31),
 		componentApi.OGXComponentName:                  dag.RL(32),
 		componentApi.TrainerComponentName:              dag.RL(20),
 		componentApi.WorkbenchesComponentName:          dag.RL(20),
+		componentApi.SparkOperatorComponentName:        dag.RL(32),
 	}
 )
 

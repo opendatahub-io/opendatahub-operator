@@ -42,7 +42,7 @@ func writeManagerFile(t *testing.T) string {
 
 func TestApplyDeploy_UpdateExisting(t *testing.T) {
 	managerPath := writeManagerFile(t)
-	cfgPath := writeTestConfig(t)
+	cfgPath := writeValidTestConfig(t)
 
 	err := ApplyDeploy(DeployOptions{
 		ConfigFile:  cfgPath,
@@ -94,7 +94,7 @@ spec:
 	if err := os.WriteFile(managerPath, []byte(managerYAML), 0644); err != nil {
 		t.Fatal(err)
 	}
-	cfgPath := writeTestConfig(t)
+	cfgPath := writeValidTestConfig(t)
 
 	err := ApplyDeploy(DeployOptions{
 		ConfigFile:  cfgPath,
@@ -125,7 +125,7 @@ func TestApplyDeploy_NoDeployment(t *testing.T) {
 	if err := os.WriteFile(managerPath, []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	cfgPath := writeTestConfig(t)
+	cfgPath := writeValidTestConfig(t)
 
 	err := ApplyDeploy(DeployOptions{
 		ConfigFile:  cfgPath,

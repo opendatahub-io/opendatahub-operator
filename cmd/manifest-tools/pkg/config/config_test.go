@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/manifest-tools/pkg/config"
@@ -277,5 +278,107 @@ func TestNodeDocSetAndSave(t *testing.T) {
 	dsp := cfg.ImageOverrides["RELATED_IMAGE_ODH_DSP_IMAGE"]
 	if dsp.ODH.Digest != "sha256:newdigest1234567890abcdef1234567890abcdef1234567890abcdef12345678" {
 		t.Errorf("unexpected digest after save: %s", dsp.ODH.Digest)
+	}
+}
+
+func TestValidateTagTemplate(t *testing.T) {
+	tests := []struct {
+		name    string
+		tmpl    string
+		wantErr string
+	}{
+		{name: "SHA", tmpl: "{SHA}"},
+		{name: "SHORT_SHA", tmpl: "{SHORT_SHA}"},
+		{name: "prefix", tmpl: "v{SHA}"},
+		{name: "suffix", tmpl: "{SHORT_SHA}-rc"},
+		{name: "both", tmpl: "v{SHORT_SHA}-{SHA}"},
+		{name: "unknown", tmpl: "{FOO}", wantErr: "unknown placeholder"},
+		{name: "unknown beside known", tmpl: "{SHA}-{FOO}", wantErr: "unknown placeholder"},
+		{name: "lowercase", tmpl: "{sha}", wantErr: "unknown placeholder"},
+		{name: "no braces", tmpl: "SHA", wantErr: "must contain"},
+		{name: "empty", tmpl: "", wantErr: "must contain"},
+		{name: "whitespace", tmpl: "   ", wantErr: "must contain"},
+		{name: "extra close", tmpl: "{SHA}}", wantErr: "malformed placeholder"},
+		{name: "extra open", tmpl: "{{SHA}", wantErr: "malformed placeholder"},
+		{name: "empty braces", tmpl: "{SHA}{}", wantErr: "malformed placeholder"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := config.ValidateTagTemplate(tt.tmpl)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("ValidateTagTemplate(%q) unexpected error: %v", tt.tmpl, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("ValidateTagTemplate(%q) wanted error containing %q", tt.tmpl, tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("ValidateTagTemplate(%q) error %q, want substring %q", tt.tmpl, err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestCheckImageOverride(t *testing.T) {
+	const catalog = `components:
+  ray:
+    odh:
+      repo: opendatahub-io/kuberay
+      ref: dev@abc
+      sourcePath: config
+`
+	tests := []struct {
+		name       string
+		overrides  string
+		wantSubstr string
+	}{
+		{
+			name:       "prefix",
+			overrides:  "  NOT_A_RELATED_IMAGE:\n    component: ray\n",
+			wantSubstr: "RELATED_IMAGE_",
+		},
+		{
+			name:       "source",
+			overrides:  "  RELATED_IMAGE_ODH_RAY_IMAGE:\n    source: csvv\n    component: ray\n",
+			wantSubstr: "csvv",
+		},
+		{
+			name:       "unknown component",
+			overrides:  "  RELATED_IMAGE_ODH_RAY_IMAGE:\n    component: does-not-exist\n",
+			wantSubstr: "does-not-exist",
+		},
+		{
+			name:       "tagTemplate",
+			overrides:  "  RELATED_IMAGE_ODH_RAY_IMAGE:\n    component: ray\n    tagTemplate: \"{FOO}\"\n",
+			wantSubstr: "{FOO}",
+		},
+		{
+			name:       "paramsEnvKey requires component",
+			overrides:  "  RELATED_IMAGE_ODH_RAY_IMAGE:\n    paramsEnvKey: IMAGES_DSPO\n",
+			wantSubstr: "requires component",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := config.Parse([]byte(catalog + "imageOverrides:\n" + tt.overrides))
+			if err != nil {
+				t.Fatalf("Parse: %v", err)
+			}
+			var checkErr error
+			for envName, override := range cfg.ImageOverrides {
+				checkErr = cfg.CheckImageOverride(envName, override)
+				if checkErr != nil {
+					break
+				}
+			}
+			if checkErr == nil {
+				t.Fatal("expected CheckImageOverride to fail")
+			}
+			if !strings.Contains(checkErr.Error(), tt.wantSubstr) {
+				t.Errorf("error %q, want substring %q", checkErr.Error(), tt.wantSubstr)
+			}
+		})
 	}
 }
