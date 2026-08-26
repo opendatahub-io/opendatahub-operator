@@ -180,7 +180,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_SPARK_OPERATOR_MODULE_IMAGE
   value: "quay.io/rhoai/odh-spark-operator-module-rhel9@sha256:82a8b702af8e535d8e6b01f563043d8926aacf7ef277cd3ca6bb9875430c9637"
 - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
-  value: "quay.io/rhoai/odh-ta-lmes-driver-rhel9@sha256:1bd04a31b26b7d11b3f78586d06da65e63ef1f8078ef602a678632bebba52069"
+  value: "quay.io/rhoai/odh-ta-lmes-driver-rhel9@sha256:30c496dac4ef9d7e48effeb23173db0a2626d418e0809a2ee0b7d5117f78d888"
 - name: RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE
   value: "quay.io/rhoai/odh-ta-lmes-job-rhel9@sha256:f2d38296473ad2e48016b96ef685015438da98a1cce5770c26afa31def89abfa"
 - name: RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE
@@ -198,7 +198,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE
   value: "quay.io/rhoai/odh-trustyai-nemo-guardrails-server-rhel9@sha256:09e31007de1b3f77d0f845653a8bdcc828dbee1a4bf0ad76fbdf20227b0c5712"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-trustyai-service-operator-rhel9@sha256:e3c634bfff72f689b8b54963b33dbee4c4a374fdb6cd73a1057f6c0c3e77ddc5"
+  value: "quay.io/rhoai/odh-trustyai-service-operator-rhel9@sha256:d84e9d8b5ca27183cbac0b273c07fde745a78c40f917f1f6a341cbe403d8c5f4"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_PY_IMAGE
   value: "quay.io/rhoai/odh-trustyai-service-py-rhel9@sha256:faa2ffae64d9b0e5ee1a7f5b23d99bc630cf39195832ae7ffc753d6749d91d40"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
