@@ -421,6 +421,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	return templateData, nil
 }
 
+//nolint:unparam // signature required by WithAction; always returns nil to let the action chain continue.
 func addMonitoringCapability(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
@@ -428,7 +429,7 @@ func addMonitoringCapability(ctx context.Context, rr *odhtypes.ReconciliationReq
 	rr.Conditions.MarkUnknown(status.ConditionMonitoringAvailable)
 
 	if err := checkMonitoringPreconditions(ctx, rr); err != nil {
-		log.Error(err, "Monitoring preconditions failed")
+		log.Info("Some monitoring preconditions not met, individual actions will handle gracefully", "error", err.Error())
 
 		rr.Conditions.MarkFalse(
 			status.ConditionMonitoringAvailable,
@@ -436,7 +437,11 @@ func addMonitoringCapability(ctx context.Context, rr *odhtypes.ReconciliationReq
 			cond.WithMessage("Monitoring preconditions failed: %s", err.Error()),
 		)
 
-		return err
+		// Do not return the error — let subsequent actions check their own
+		// prerequisites and deploy what they can. Each action (deployPerses,
+		// deployOpenTelemetryCollector, etc.) already handles missing
+		// dependencies gracefully by setting conditions and returning nil.
+		return nil
 	}
 
 	rr.Conditions.MarkTrue(status.ConditionMonitoringAvailable)
