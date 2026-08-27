@@ -1,0 +1,61 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: gate-serverless-isvc
+  namespace: gate-scenarios
+  labels:
+    kueue.x-k8s.io/queue-name: default
+  annotations:
+    serving.kserve.io/deploymentMode: Serverless
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: sklearn
+      storageUri: s3://gate-fixtures/model
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: gate-modelmesh-isvc
+  namespace: gate-scenarios
+  annotations:
+    serving.kserve.io/deploymentMode: ModelMesh
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: sklearn
+      storageUri: s3://gate-fixtures/model
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: gate-removed-runtime-isvc
+  namespace: gate-scenarios
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: sklearn
+      runtime: ovms
+      storageUri: s3://gate-fixtures/model
+---
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: gate-multimodel-runtime
+  namespace: gate-scenarios
+spec:
+  multiModel: true
+  containers:
+  - name: kserve-container
+    image: quay.io/opendatahub/odh-model-controller:latest
+---
+apiVersion: serving.kserve.io/v1alpha1
+kind: LLMInferenceService
+metadata:
+  name: gate-llm-isvc
+  namespace: gate-scenarios
+spec: {}
+

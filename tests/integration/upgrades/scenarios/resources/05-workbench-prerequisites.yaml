@@ -1,0 +1,16 @@
+apiVersion: infrastructure.opendatahub.io/v1alpha1
+kind: HardwareProfile
+metadata:
+  name: missing-hardware-profile
+  namespace: gate-scenarios
+spec: {}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: missing-connection-secret
+  namespace: gate-scenarios
+type: Opaque
+stringData:
+  placeholder: true
+

@@ -1,0 +1,16 @@
+apiVersion: kubeflow.org/v1
+kind: Notebook
+metadata:
+  name: gate-broken-notebook
+  namespace: gate-scenarios
+  annotations:
+    opendatahub.io/hardware-profile-name: missing-hardware-profile
+    opendatahub.io/connections: gate-scenarios/missing-connection-secret
+    opendatahub.io/accelerator-name: gpu
+spec:
+  template:
+    spec:
+      containers:
+      - name: notebook
+        image: quay.io/jupyter/base-notebook:latest
+

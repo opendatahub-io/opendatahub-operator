@@ -1,0 +1,48 @@
+# Reference snapshot of the 2.25 CRC baseline. Apply only when rebuilding the
+# disposable baseline; status.release is required for upgrade-gate evaluation.
+apiVersion: datasciencecluster.opendatahub.io/v1
+kind: DataScienceCluster
+metadata:
+  name: default-dsc
+spec:
+  components:
+    dashboard:
+      managementState: Removed
+    aipipelines:
+      managementState: Managed
+    feastoperator:
+      managementState: Removed
+    kserve:
+      managementState: Managed
+      modelsAsService:
+        managementState: Removed
+      nim:
+        managementState: Managed
+        airGapped: false
+      rawDeploymentServiceConfig: Headless
+    kueue:
+      managementState: Managed
+      defaultClusterQueueName: default
+      defaultLocalQueueName: default
+    llamastackoperator:
+      managementState: Removed
+    modelregistry:
+      managementState: Removed
+      registriesNamespace: rhoai-model-registries
+    ray:
+      managementState: Managed
+    trainingoperator:
+      managementState: Managed
+    trustyai:
+      managementState: Managed
+      eval:
+        lmeval:
+          permitCodeExecution: deny
+          permitOnline: deny
+    workbenches:
+      managementState: Managed
+      workbenchNamespace: rhods-notebooks
+status:
+  release:
+    name: OpenShift AI Self-Managed
+    version: "2.25.8"

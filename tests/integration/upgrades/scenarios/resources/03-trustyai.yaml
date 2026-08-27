@@ -1,0 +1,11 @@
+apiVersion: trustyai.opendatahub.io/v1
+kind: TrustyAIService
+metadata:
+  name: gate-pvc-trustyai
+  namespace: gate-scenarios
+spec:
+  storage:
+    format: PVC
+  metrics:
+    schedule: 5s
+

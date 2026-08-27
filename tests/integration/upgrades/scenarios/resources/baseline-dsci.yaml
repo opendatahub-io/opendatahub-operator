@@ -1,0 +1,26 @@
+# Reference snapshot of the 2.25 CRC baseline. Apply only when rebuilding the
+# disposable baseline; status.release is required for upgrade-gate evaluation.
+apiVersion: dscinitialization.opendatahub.io/v1
+kind: DSCInitialization
+metadata:
+  name: default-dsci
+spec:
+  applicationsNamespace: redhat-ods-applications
+  monitoring:
+    managementState: Removed
+    namespace: redhat-ods-monitoring
+  serviceMesh:
+    managementState: Managed
+    controlPlane:
+      metricsCollection: Istio
+      name: data-science-smcp
+      namespace: istio-system
+    auth:
+      audiences:
+      - https://kubernetes.default.svc
+  trustedCABundle:
+    managementState: Removed
+status:
+  release:
+    name: OpenShift AI Self-Managed
+    version: "2.25.8"
