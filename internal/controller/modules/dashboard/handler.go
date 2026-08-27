@@ -56,6 +56,20 @@ func NewHandler() *handler {
 				GVK:             gvk.Dashboard, // components.platform.opendatahub.io/v1alpha1/Dashboard
 				ControllerImage: "RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE",
 				RelatedImages:   relatedImages(),
+				SubmoduleConditions: []modules.SubmoduleCondition{
+					{
+						// Aligned with dashboard-operator's MaasConsumerPortalAvailable condition.
+						SourceConditionType: "MaasConsumerPortalAvailable",
+						DSCConditionType:    "MaasConsumerPortalAvailable",
+						StatusFieldName:     "MaasConsumerPortal",
+						IsEnabled: func(dscCtx *modules.DSCContext) bool {
+							if dscCtx == nil || dscCtx.DSC == nil {
+								return false
+							}
+							return dscCtx.DSC.Spec.Components.Dashboard.MaasConsumerPortal.ManagementState == operatorv1.Managed
+						},
+					},
+				},
 			},
 		},
 	}
@@ -65,9 +79,15 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
-	ms := dscCtx.DSC.Spec.Components.Dashboard.ManagementState
-	if ms == "" {
-		ms = operatorv1.Removed
+	dashboard := dscCtx.DSC.Spec.Components.Dashboard
+	// The dashboard-operator Deployment ships both the core Dashboard and the
+	// MaaS Consumer Portal submodule, so it must stay up while either workload
+	// is Managed. PlatformModules.Dashboard has no portal field, so the compound
+	// OR is computed here; IsEnabled() reads the already-OR'd state.
+	ms := operatorv1.Removed
+	if dashboard.ManagementState == operatorv1.Managed ||
+		dashboard.MaasConsumerPortal.ManagementState == operatorv1.Managed {
+		ms = operatorv1.Managed
 	}
 	pm.Dashboard.ManagementState = ms
 }

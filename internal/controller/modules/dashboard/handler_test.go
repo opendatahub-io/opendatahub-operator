@@ -418,6 +418,106 @@ func TestBuildModuleCR_NilCfgWithWorkbenchesManaged_DefaultsToODH(t *testing.T) 
 		"nil cfg means no release info — should fall back to ODH default")
 }
 
+// populatedState runs PopulatePlatformModule for the given core Dashboard and
+// portal management states and returns the resulting PlatformModules state.
+func populatedState(coreState, portalState operatorv1.ManagementState) operatorv1.ManagementState {
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtx(coreState)
+	dscCtx.DSC.Spec.Components.Dashboard.MaasConsumerPortal.ManagementState = portalState
+	pm := &configv1alpha1.PlatformModules{}
+	h.PopulatePlatformModule(pm, dscCtx)
+	return pm.Dashboard.ManagementState
+}
+
+func TestPopulatePlatformModule_Both(t *testing.T) {
+	g := NewWithT(t)
+	g.Expect(populatedState(operatorv1.Managed, operatorv1.Managed)).Should(Equal(operatorv1.Managed))
+}
+
+func TestPopulatePlatformModule_DashboardOnly(t *testing.T) {
+	g := NewWithT(t)
+	g.Expect(populatedState(operatorv1.Managed, operatorv1.Removed)).Should(Equal(operatorv1.Managed))
+}
+
+func TestPopulatePlatformModule_PortalOnly(t *testing.T) {
+	g := NewWithT(t)
+	// Core Dashboard Removed but portal Managed: the dashboard-operator Deployment
+	// must stay up (compound OR).
+	g.Expect(populatedState(operatorv1.Removed, operatorv1.Managed)).Should(Equal(operatorv1.Managed))
+}
+
+func TestPopulatePlatformModule_Neither(t *testing.T) {
+	g := NewWithT(t)
+	g.Expect(populatedState(operatorv1.Removed, operatorv1.Removed)).Should(Equal(operatorv1.Removed))
+}
+
+func TestPopulatePlatformModule_EmptyStatesRemoved(t *testing.T) {
+	g := NewWithT(t)
+	// Absent (empty) on both sides defaults to Removed.
+	g.Expect(populatedState("", "")).Should(Equal(operatorv1.Removed))
+}
+
+func TestBuildModuleCR_ProjectsMaasConsumerPortal_Managed(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtx(operatorv1.Managed)
+	dscCtx.DSC.Spec.Components.Dashboard.MaasConsumerPortal.ManagementState = operatorv1.Managed
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig("dashboard.example.com"))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec is not a map")
+
+	portal, ok := spec["maasConsumerPortal"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.maasConsumerPortal missing")
+	g.Expect(portal["managementState"]).Should(Equal("Managed"), "portal managementState passes through verbatim")
+
+	// No bool-style consumerPortal projection (this is a direct passthrough, not a translation).
+	g.Expect(spec).ShouldNot(HaveKey("consumerPortal"))
+}
+
+func TestBuildModuleCR_ProjectsMaasConsumerPortal_Removed(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtx(operatorv1.Managed)
+	dscCtx.DSC.Spec.Components.Dashboard.MaasConsumerPortal.ManagementState = operatorv1.Removed
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec is not a map")
+
+	portal, ok := spec["maasConsumerPortal"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.maasConsumerPortal missing")
+	g.Expect(portal["managementState"]).Should(Equal("Removed"), "portal managementState passes through verbatim")
+
+	g.Expect(spec).ShouldNot(HaveKey("consumerPortal"))
+}
+
+func TestGetSubmoduleConditions_MaasConsumerPortal(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+
+	subs := h.GetSubmoduleConditions()
+	g.Expect(subs).Should(HaveLen(1))
+
+	sm := subs[0]
+	g.Expect(sm.SourceConditionType).Should(Equal("MaasConsumerPortalAvailable"))
+	g.Expect(sm.DSCConditionType).Should(Equal("MaasConsumerPortalAvailable"))
+	g.Expect(sm.StatusFieldName).Should(Equal("MaasConsumerPortal"))
+	g.Expect(sm.IsEnabled).ShouldNot(BeNil())
+
+	enabledCtx := newDSCCtx(operatorv1.Removed)
+	enabledCtx.DSC.Spec.Components.Dashboard.MaasConsumerPortal.ManagementState = operatorv1.Managed
+	g.Expect(sm.IsEnabled(enabledCtx)).Should(BeTrue())
+
+	disabledCtx := newDSCCtx(operatorv1.Managed)
+	disabledCtx.DSC.Spec.Components.Dashboard.MaasConsumerPortal.ManagementState = operatorv1.Removed
+	g.Expect(sm.IsEnabled(disabledCtx)).Should(BeFalse())
+}
+
 func TestGetControllerImage(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()

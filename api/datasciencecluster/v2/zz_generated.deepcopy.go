@@ -61,6 +61,7 @@ func (in *Components) DeepCopy() *Components {
 func (in *ComponentsStatus) DeepCopyInto(out *ComponentsStatus) {
 	*out = *in
 	in.Dashboard.DeepCopyInto(&out.Dashboard)
+	out.MaasConsumerPortal = in.MaasConsumerPortal
 	in.Workbenches.DeepCopyInto(&out.Workbenches)
 	out.WorkbenchesV2 = in.WorkbenchesV2
 	in.AIPipelines.DeepCopyInto(&out.AIPipelines)
