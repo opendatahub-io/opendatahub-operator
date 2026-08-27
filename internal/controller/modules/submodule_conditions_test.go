@@ -13,6 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -42,8 +43,8 @@ func newTestRR() (*odhtype.ReconciliationRequest, *conditions.Manager) {
 	}, mgr
 }
 
-func newTestPlatformCtx() *PlatformContext {
-	return &PlatformContext{
+func newTestDSCCtx() *DSCContext {
+	return &DSCContext{
 		DSC: &dscv2.DataScienceCluster{},
 	}
 }
@@ -97,8 +98,8 @@ type submoduleTestHandler struct {
 	BaseHandler
 }
 
-func (h *submoduleTestHandler) IsEnabled(_ *PlatformContext) bool { return true }
-func (h *submoduleTestHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *PlatformContext) (*unstructured.Unstructured, error) {
+func (h *submoduleTestHandler) IsEnabled(_ *configv1alpha1.PlatformModules) bool { return true }
+func (h *submoduleTestHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
 	return nil, nil
 }
 func (h *submoduleTestHandler) GetModuleStatus(_ context.Context, _ client.Client) (*ModuleStatus, error) {
@@ -160,7 +161,7 @@ func TestMirrorSubmoduleConditions_ConditionFound_True(t *testing.T) {
 		{SourceConditionType: "ModelsAsServiceReady", DSCConditionType: "ModelsAsServiceReady"},
 	}
 
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules)
+	mirrorSubmoduleConditions(rr, newTestDSCCtx(), moduleStatus, submodules)
 
 	cond := mgr.GetCondition("ModelsAsServiceReady")
 	g.Expect(cond).ShouldNot(BeNil())
@@ -186,7 +187,7 @@ func TestMirrorSubmoduleConditions_ConditionFound_False(t *testing.T) {
 		{SourceConditionType: "BatchGatewayReady", DSCConditionType: "BatchGatewayReady"},
 	}
 
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules)
+	mirrorSubmoduleConditions(rr, newTestDSCCtx(), moduleStatus, submodules)
 
 	cond := mgr.GetCondition("BatchGatewayReady")
 	g.Expect(cond).ShouldNot(BeNil())
@@ -223,7 +224,7 @@ func TestMirrorSubmoduleConditions_InfoSeverityFalse_PreservesSeverity(t *testin
 		},
 	}
 
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules)
+	mirrorSubmoduleConditions(rr, newTestDSCCtx(), moduleStatus, submodules)
 
 	cond := mgr.GetCondition("KserveLLMInferenceServiceDependencies")
 	g.Expect(cond).ShouldNot(BeNil())
@@ -248,7 +249,7 @@ func TestMirrorSubmoduleConditions_ConditionAbsent(t *testing.T) {
 		{SourceConditionType: "ModelsAsServiceReady", DSCConditionType: "ModelsAsServiceReady"},
 	}
 
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules)
+	mirrorSubmoduleConditions(rr, newTestDSCCtx(), moduleStatus, submodules)
 
 	cond := mgr.GetCondition("ModelsAsServiceReady")
 	g.Expect(cond).ShouldNot(BeNil())
@@ -276,7 +277,7 @@ func TestMirrorSubmoduleConditions_MultipleSubmodules(t *testing.T) {
 		{SourceConditionType: "BatchGatewayReady", DSCConditionType: "BatchGatewayReady"},
 	}
 
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules)
+	mirrorSubmoduleConditions(rr, newTestDSCCtx(), moduleStatus, submodules)
 
 	maasCond := mgr.GetCondition("ModelsAsServiceReady")
 	g.Expect(maasCond).ShouldNot(BeNil())
@@ -299,7 +300,7 @@ func TestMirrorSubmoduleConditions_EmptySubmodules(t *testing.T) {
 		},
 	}
 
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, nil)
+	mirrorSubmoduleConditions(rr, newTestDSCCtx(), moduleStatus, nil)
 
 	g.Expect(mgr.GetCondition("ModelsAsServiceReady")).Should(BeNil())
 }
@@ -320,7 +321,7 @@ func TestMirrorSubmoduleConditions_DifferentSourceAndDSCType(t *testing.T) {
 		{SourceConditionType: "InternalMaaSStatus", DSCConditionType: "ModelsAsServiceReady"},
 	}
 
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules)
+	mirrorSubmoduleConditions(rr, newTestDSCCtx(), moduleStatus, submodules)
 
 	cond := mgr.GetCondition("ModelsAsServiceReady")
 	g.Expect(cond).ShouldNot(BeNil())
@@ -349,11 +350,11 @@ func TestMirrorSubmoduleConditions_DisabledSubmodule_ShowsRemoved(t *testing.T) 
 			SourceConditionType: "ModelsAsServiceReady",
 			DSCConditionType:    "ModelsAsServiceReady",
 			StatusFieldName:     "ModelsAsAService",
-			IsEnabled:           func(_ *PlatformContext) bool { return false },
+			IsEnabled:           func(_ *DSCContext) bool { return false },
 		},
 	}
 
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules)
+	mirrorSubmoduleConditions(rr, newTestDSCCtx(), moduleStatus, submodules)
 
 	cond := mgr.GetCondition("ModelsAsServiceReady")
 	g.Expect(cond).ShouldNot(BeNil())
@@ -382,7 +383,7 @@ func TestMirrorSubmoduleConditions_NilIsEnabled_AssumedEnabled(t *testing.T) {
 		},
 	}
 
-	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules)
+	mirrorSubmoduleConditions(rr, newTestDSCCtx(), moduleStatus, submodules)
 
 	cond := mgr.GetCondition("FooReady")
 	g.Expect(cond).ShouldNot(BeNil())
@@ -393,7 +394,7 @@ func TestWriteSubmoduleComponentStatus_SetsManaged(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	pCtx := newTestPlatformCtx()
+	pCtx := newTestDSCCtx()
 
 	sm := SubmoduleCondition{
 		SourceConditionType: "ModelsAsServiceReady",
@@ -410,7 +411,7 @@ func TestWriteSubmoduleComponentStatus_SetsRemoved(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	pCtx := newTestPlatformCtx()
+	pCtx := newTestDSCCtx()
 
 	sm := SubmoduleCondition{
 		SourceConditionType: "BatchGatewayReady",
@@ -427,7 +428,7 @@ func TestWriteSubmoduleComponentStatus_EmptyFieldName_NoOp(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	pCtx := newTestPlatformCtx()
+	pCtx := newTestDSCCtx()
 
 	sm := SubmoduleCondition{
 		SourceConditionType: "FooReady",
@@ -443,7 +444,7 @@ func TestWriteSubmoduleComponentStatus_EmptyFieldName_NoOp(t *testing.T) {
 func TestWriteSubmoduleComponentStatus_NilDSC_NoOp(t *testing.T) {
 	t.Parallel()
 
-	pCtx := &PlatformContext{DSC: nil}
+	pCtx := &DSCContext{DSC: nil}
 	sm := SubmoduleCondition{
 		StatusFieldName: "ModelsAsAService",
 	}
@@ -483,10 +484,11 @@ func TestWriteSubmoduleComponentStatus_FieldResolution(t *testing.T) {
 	knownSubmoduleFields := []string{
 		"ModelsAsAService",
 		"BatchGateway",
+		"WorkbenchesV2",
 	}
 
 	for _, fieldName := range knownSubmoduleFields {
-		pCtx := newTestPlatformCtx()
+		pCtx := newTestDSCCtx()
 		sm := SubmoduleCondition{StatusFieldName: fieldName}
 		writeSubmoduleComponentStatus(pCtx, sm, true)
 
@@ -504,20 +506,20 @@ func TestSetSubmodulesFallback_ParentDisabled(t *testing.T) {
 	g := NewWithT(t)
 
 	rr, mgr := newTestRR()
-	pCtx := newTestPlatformCtx()
+	pCtx := newTestDSCCtx()
 
 	submodules := []SubmoduleCondition{
 		{
 			SourceConditionType: "ModelsAsServiceReady",
 			DSCConditionType:    "ModelsAsServiceReady",
 			StatusFieldName:     "ModelsAsAService",
-			IsEnabled:           func(_ *PlatformContext) bool { return true },
+			IsEnabled:           func(_ *DSCContext) bool { return true },
 		},
 		{
 			SourceConditionType: "BatchGatewayReady",
 			DSCConditionType:    "BatchGatewayReady",
 			StatusFieldName:     "BatchGateway",
-			IsEnabled:           func(_ *PlatformContext) bool { return true },
+			IsEnabled:           func(_ *DSCContext) bool { return true },
 		},
 	}
 
@@ -541,20 +543,20 @@ func TestSetSubmodulesFallback_ParentNotReady(t *testing.T) {
 	g := NewWithT(t)
 
 	rr, mgr := newTestRR()
-	pCtx := newTestPlatformCtx()
+	pCtx := newTestDSCCtx()
 
 	submodules := []SubmoduleCondition{
 		{
 			SourceConditionType: "ModelsAsServiceReady",
 			DSCConditionType:    "ModelsAsServiceReady",
 			StatusFieldName:     "ModelsAsAService",
-			IsEnabled:           func(_ *PlatformContext) bool { return true },
+			IsEnabled:           func(_ *DSCContext) bool { return true },
 		},
 		{
 			SourceConditionType: "BatchGatewayReady",
 			DSCConditionType:    "BatchGatewayReady",
 			StatusFieldName:     "BatchGateway",
-			IsEnabled:           func(_ *PlatformContext) bool { return false },
+			IsEnabled:           func(_ *DSCContext) bool { return false },
 		},
 	}
 

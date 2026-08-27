@@ -26,13 +26,16 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func newPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformContext {
-	return &modules.PlatformContext{
-		ApplicationsNamespace: "opendatahub",
-		GatewayDomain:         "apps.example.com",
-		Release: common.Release{
-			Name: cluster.OpenDataHub,
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
+	return &configv1alpha1.PlatformModules{
+		Workbenches: common.ManagementSpec{
+			ManagementState: mgmtState,
 		},
+	}
+}
+
+func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
+	return &modules.DSCContext{
 		DSC: &dscv2.DataScienceCluster{
 			Spec: dscv2.DataScienceClusterSpec{
 				Components: dscv2.Components{
@@ -42,6 +45,9 @@ func newPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformConte
 						},
 						WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
 							WorkbenchNamespace: "my-workbenches",
+							WorkbenchesV2: componentApi.WorkbenchesV2Spec{
+								ManagementState: operatorv1.Removed,
+							},
 						},
 					},
 					MLflowOperator: componentApi.DSCMLflowOperator{
@@ -55,21 +61,11 @@ func newPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformConte
 	}
 }
 
-func newPlatformModePlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformContext {
-	return &modules.PlatformContext{
-		ApplicationsNamespace: "opendatahub",
-		GatewayDomain:         "apps.example.com",
+func newModuleCRConfig() *modules.ModuleCRConfig {
+	return &modules.ModuleCRConfig{
+		GatewayDomain: "apps.example.com",
 		Release: common.Release{
 			Name: cluster.OpenDataHub,
-		},
-		Platform: &configv1alpha1.Platform{
-			Spec: configv1alpha1.PlatformSpec{
-				Modules: configv1alpha1.PlatformModules{
-					Workbenches: common.ManagementSpec{
-						ManagementState: mgmtState,
-					},
-				},
-			},
 		},
 	}
 }
@@ -77,16 +73,16 @@ func newPlatformModePlatformCtx(mgmtState operatorv1.ManagementState) *modules.P
 func TestIsEnabled_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := NewHandler()
-	g.Expect(h.IsEnabled(newPlatformCtx(operatorv1.Managed))).Should(BeTrue())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Managed))).Should(BeTrue())
 }
 
 func TestIsEnabled_Removed(t *testing.T) {
 	g := NewWithT(t)
 	h := NewHandler()
-	g.Expect(h.IsEnabled(newPlatformCtx(operatorv1.Removed))).Should(BeFalse())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Removed))).Should(BeFalse())
 }
 
-func TestIsEnabled_NilPlatformContext(t *testing.T) {
+func TestIsEnabled_NilModules(t *testing.T) {
 	g := NewWithT(t)
 	h := NewHandler()
 	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
@@ -95,15 +91,14 @@ func TestIsEnabled_NilPlatformContext(t *testing.T) {
 func TestIsEnabled_PlatformMode_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := NewHandler()
-	g.Expect(h.IsEnabled(newPlatformModePlatformCtx(operatorv1.Managed))).Should(BeTrue())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Managed))).Should(BeTrue())
 }
 
 func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g := NewWithT(t)
 	h := NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, newDSCCtx(operatorv1.Managed), newModuleCRConfig())
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u.GetName()).Should(Equal(componentApi.WorkbenchesInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(componentApi.WorkbenchesKind))
@@ -120,10 +115,10 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 func TestBuildModuleCR_ProjectsMLflowEnabled(t *testing.T) {
 	g := NewWithT(t)
 	h := NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
-	platform.DSC.Spec.Components.MLflowOperator.ManagementState = operatorv1.Managed
+	dscCtx := newDSCCtx(operatorv1.Managed)
+	dscCtx.DSC.Spec.Components.MLflowOperator.ManagementState = operatorv1.Managed
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig())
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -131,12 +126,45 @@ func TestBuildModuleCR_ProjectsMLflowEnabled(t *testing.T) {
 	g.Expect(spec["mlflowEnabled"]).Should(BeTrue())
 }
 
+func TestBuildModuleCR_ProjectsWorkbenchesV2Submodule(t *testing.T) {
+	g := NewWithT(t)
+	h := NewHandler()
+
+	u, err := h.BuildModuleCR(context.Background(), nil, newDSCCtx(operatorv1.Managed), newModuleCRConfig())
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec is not a map")
+
+	_, hasV1 := spec["notebooksV1"]
+	g.Expect(hasV1).Should(BeFalse(), "notebooksV1 must not be projected")
+
+	nbV2, ok := spec["workbenchesV2"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "workbenchesV2 is not a map")
+	g.Expect(nbV2["managementState"]).Should(Equal("Removed"))
+}
+
+func TestSubmoduleIsEnabled_WorkbenchesV2(t *testing.T) {
+	g := NewWithT(t)
+	h := NewHandler()
+	subs := h.GetSubmoduleConditions()
+	g.Expect(subs).Should(HaveLen(1))
+
+	v2Enabled := subs[0].IsEnabled
+	g.Expect(v2Enabled(newDSCCtx(operatorv1.Managed))).Should(BeFalse(),
+		"workbenchesV2 defaults to Removed in test fixture")
+	g.Expect(v2Enabled(nil)).Should(BeFalse())
+
+	managedCtx := newDSCCtx(operatorv1.Managed)
+	managedCtx.DSC.Spec.Components.Workbenches.WorkbenchesV2.ManagementState = operatorv1.Managed
+	g.Expect(v2Enabled(managedCtx)).Should(BeTrue())
+}
+
 func TestBuildModuleCR_PlatformMode(t *testing.T) {
 	g := NewWithT(t)
 	h := NewHandler()
-	platform := newPlatformModePlatformCtx(operatorv1.Managed)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, newDSCCtx(operatorv1.Managed), newModuleCRConfig())
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u.GetName()).Should(Equal(componentApi.WorkbenchesInstanceName))
 
@@ -150,7 +178,7 @@ func TestBuildModuleCR_PlatformMode(t *testing.T) {
 func TestBuildModuleCR_NilPlatformContextReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := NewHandler()
-	_, err := h.BuildModuleCR(context.Background(), nil, nil)
+	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
 	g.Expect(err).Should(HaveOccurred())
 }
 
@@ -166,6 +194,7 @@ func TestImageHandling(t *testing.T) {
 
 	g.Expect(h.GetControllerImage()).Should(Equal("RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE"))
 	g.Expect(h.GetRelatedImages()).Should(ContainElement("RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE"))
+	g.Expect(h.GetRelatedImages()).Should(ContainElement("RELATED_IMAGE_ODH_WORKBENCHES_CONTROLLER_IMAGE"))
 	g.Expect(h.GetRelatedImages()).ShouldNot(ContainElement("RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE"))
 }
 
@@ -247,7 +276,7 @@ func TestBuildModuleCRMatchesBundledCRDSchema(t *testing.T) {
 	t.Parallel()
 
 	h := NewHandler()
-	moduleCR, err := h.BuildModuleCR(context.Background(), nil, newPlatformCtx(operatorv1.Managed))
+	moduleCR, err := h.BuildModuleCR(context.Background(), nil, newDSCCtx(operatorv1.Managed), newModuleCRConfig())
 	if err != nil {
 		t.Fatalf("build module CR: %v", err)
 	}
@@ -259,7 +288,7 @@ func TestBuildModuleCRMatchesBundledCRDSchemaPlatformMode(t *testing.T) {
 	t.Parallel()
 
 	h := NewHandler()
-	moduleCR, err := h.BuildModuleCR(context.Background(), nil, newPlatformModePlatformCtx(operatorv1.Managed))
+	moduleCR, err := h.BuildModuleCR(context.Background(), nil, newDSCCtx(operatorv1.Managed), newModuleCRConfig())
 	if err != nil {
 		t.Fatalf("build module CR in platform mode: %v", err)
 	}

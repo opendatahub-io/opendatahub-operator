@@ -166,8 +166,6 @@ spec:
       managementState: Managed
     workbenches:
       managementState: Managed
-    trainingoperator:
-      managementState: Managed
     trustyai:
       managementState: Managed
     sparkoperator:

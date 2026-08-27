@@ -143,10 +143,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// To handle upstream/downstream i trimmed prefix(odh) from few controller names
 	componentToControllerMap := map[string]string{
 		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
-		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
 		componentApi.RayComponentName:                  "kuberay-operator",
-		componentApi.SparkOperatorComponentName:        "spark-operator-controller",
-		componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
 		// componentApi.TrustyAIComponentName:             "trustyai-service-operator-controller-manager",
 	}
 
@@ -170,7 +167,12 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// Workbenches is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// OGX is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// Trainer is excluded because it is a module so it does not report DSC ComponentsReady condition
-	excludedComponents := 12 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, Dashboard, MCPLifecycleOperator, MLflowOperator, Kserve, Workbenches, feastoperator, OGX, Trainer
+	// SparkOperator is excluded because it is a module (reports SparkOperatorReady via ModulesReady, not ComponentsReady)
+	// FeastOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
+	// TrainingOperator is excluded because it is deprecated/removed (no handler, no deployment)
+	// ModelRegistry is excluded because it is a module (reports ModelRegistryReady via ModulesReady, not ComponentsReady)
+	//nolint:mnd // explicit count of excluded components
+	excludedComponents := 15
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+

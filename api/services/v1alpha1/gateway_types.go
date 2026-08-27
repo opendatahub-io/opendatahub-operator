@@ -145,8 +145,14 @@ type IngressPolicyConfig struct {
 
 // OIDCConfig defines OIDC provider configuration
 type OIDCConfig struct {
-	// OIDC issuer URL
+	// OIDC issuer URL. Must be an https URL with a non-empty host and no query or
+	// fragment component (an OIDC issuer identifier has neither).
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=2048
+	// +kubebuilder:validation:Format=uri
+	// +kubebuilder:validation:Pattern=`^https://[^?#\s]+$`
+	// +kubebuilder:validation:XValidation:rule="url(self).getHostname() != ''",message="issuerURL must have a non-empty host"
 	IssuerURL string `json:"issuerURL"`
 
 	// OIDC client ID

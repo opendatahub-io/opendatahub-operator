@@ -61,6 +61,14 @@ func resetDefaultRegistry(t *testing.T, entries map[string]dag.Runlevel) {
 	}
 }
 
+// simulateUpgrade seeds the RunlevelTracker with an old version so
+// DAG gating is active (gating only applies during upgrades).
+func simulateUpgrade(t *testing.T) {
+	t.Helper()
+	provision.GetRunlevelTracker().MarkCleared("0.0.0-old", 99)
+	t.Cleanup(func() { provision.GetRunlevelTracker().Reset() })
+}
+
 func TestWalkBatches_AllReady_NoGating(t *testing.T) {
 	resetDefaultRegistry(t, map[string]dag.Runlevel{
 		"alpha": dag.RL(20),
@@ -72,7 +80,7 @@ func TestWalkBatches_AllReady_NoGating(t *testing.T) {
 	conds := &conditionRecorder{}
 	var processed []string
 
-	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", conds, func(batch []provision.UnifiedNode) error {
+	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", "1.0.0", conds, func(batch []provision.UnifiedNode) error {
 		for _, n := range batch {
 			processed = append(processed, n.GetName())
 		}
@@ -87,6 +95,7 @@ func TestWalkBatches_AllReady_NoGating(t *testing.T) {
 }
 
 func TestWalkBatches_GatingBlocks(t *testing.T) {
+	simulateUpgrade(t)
 	resetDefaultRegistry(t, map[string]dag.Runlevel{
 		"alpha": dag.RL(20),
 		"beta":  dag.RL(31),
@@ -97,7 +106,7 @@ func TestWalkBatches_GatingBlocks(t *testing.T) {
 	conds := &conditionRecorder{}
 	var processed []string
 
-	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", conds, func(batch []provision.UnifiedNode) error {
+	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", "1.0.0", conds, func(batch []provision.UnifiedNode) error {
 		for _, n := range batch {
 			processed = append(processed, n.GetName())
 		}
@@ -111,6 +120,7 @@ func TestWalkBatches_GatingBlocks(t *testing.T) {
 }
 
 func TestWalkBatches_GatingBlocks_RequeueDurationMatchesRemainingTimeout(t *testing.T) {
+	simulateUpgrade(t)
 	resetDefaultRegistry(t, map[string]dag.Runlevel{
 		"alpha": dag.RL(20),
 		"beta":  dag.RL(31),
@@ -124,7 +134,7 @@ func TestWalkBatches_GatingBlocks_RequeueDurationMatchesRemainingTimeout(t *test
 	tracker := dag.NewStuckTracker()
 	conds := &conditionRecorder{}
 
-	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", conds, func(batch []provision.UnifiedNode) error {
+	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", "1.0.0", conds, func(batch []provision.UnifiedNode) error {
 		return nil
 	})
 
@@ -135,6 +145,7 @@ func TestWalkBatches_GatingBlocks_RequeueDurationMatchesRemainingTimeout(t *test
 }
 
 func TestWalkBatches_TimeoutAdvancesPastStuckRunlevel(t *testing.T) {
+	simulateUpgrade(t)
 	resetDefaultRegistry(t, map[string]dag.Runlevel{
 		"alpha": dag.RL(20),
 		"beta":  dag.RL(31),
@@ -151,7 +162,7 @@ func TestWalkBatches_TimeoutAdvancesPastStuckRunlevel(t *testing.T) {
 	time.Sleep(2 * time.Millisecond)
 
 	var processed []string
-	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", conds, func(batch []provision.UnifiedNode) error {
+	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", "1.0.0", conds, func(batch []provision.UnifiedNode) error {
 		for _, n := range batch {
 			processed = append(processed, n.GetName())
 		}
@@ -167,6 +178,7 @@ func TestWalkBatches_TimeoutAdvancesPastStuckRunlevel(t *testing.T) {
 }
 
 func TestWalkBatches_TimeoutPropagates_NoReGating(t *testing.T) {
+	simulateUpgrade(t)
 	resetDefaultRegistry(t, map[string]dag.Runlevel{
 		"dashboard": dag.RL(20),
 		"kserve":    dag.RL(31),
@@ -188,7 +200,7 @@ func TestWalkBatches_TimeoutPropagates_NoReGating(t *testing.T) {
 	time.Sleep(2 * time.Millisecond)
 
 	var processed []string
-	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", conds, func(batch []provision.UnifiedNode) error {
+	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", "1.0.0", conds, func(batch []provision.UnifiedNode) error {
 		for _, n := range batch {
 			processed = append(processed, n.GetName())
 		}
@@ -202,6 +214,7 @@ func TestWalkBatches_TimeoutPropagates_NoReGating(t *testing.T) {
 }
 
 func TestWalkBatches_TimeoutDoesNotForgiveNewStuckEntry(t *testing.T) {
+	simulateUpgrade(t)
 	resetDefaultRegistry(t, map[string]dag.Runlevel{
 		"alpha":   dag.RL(20),
 		"bravo":   dag.RL(31),
@@ -223,7 +236,7 @@ func TestWalkBatches_TimeoutDoesNotForgiveNewStuckEntry(t *testing.T) {
 	time.Sleep(2 * time.Millisecond)
 
 	var processed []string
-	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", conds, func(batch []provision.UnifiedNode) error {
+	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", "1.0.0", conds, func(batch []provision.UnifiedNode) error {
 		for _, n := range batch {
 			processed = append(processed, n.GetName())
 		}
@@ -253,7 +266,7 @@ func TestWalkBatches_DAGOrderingDisabled_BypassesGating(t *testing.T) {
 	conds := &conditionRecorder{}
 	var processed []string
 
-	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", conds, func(batch []provision.UnifiedNode) error {
+	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", "1.0.0", conds, func(batch []provision.UnifiedNode) error {
 		for _, n := range batch {
 			processed = append(processed, n.GetName())
 		}
@@ -279,7 +292,9 @@ func TestWalkBatches_DAGOrderingEnabled_StillGates(t *testing.T) {
 	conds := &conditionRecorder{}
 	var processed []string
 
-	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", conds, func(batch []provision.UnifiedNode) error {
+	simulateUpgrade(t)
+
+	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", "1.0.0", conds, func(batch []provision.UnifiedNode) error {
 		for _, n := range batch {
 			processed = append(processed, n.GetName())
 		}
@@ -301,7 +316,7 @@ func TestWalkBatches_ProcessBatchErrorHaltsWalk(t *testing.T) {
 	tracker := dag.NewStuckTracker()
 	conds := &conditionRecorder{}
 
-	_, err := provision.WalkBatches(context.Background(), checker, tracker, "test", conds, func(batch []provision.UnifiedNode) error {
+	_, err := provision.WalkBatches(context.Background(), checker, tracker, "test", "1.0.0", conds, func(batch []provision.UnifiedNode) error {
 		return errors.New("reconcile failed")
 	})
 

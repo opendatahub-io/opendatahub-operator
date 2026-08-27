@@ -130,7 +130,6 @@ components:
   ray: {}
   sparkoperator: {}
   trainer: {}
-  trainingoperator: {}
 
   trustyai: {}
   # (no deps of its own — kserve depends on trustyai, not the reverse)

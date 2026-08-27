@@ -67,6 +67,9 @@ const (
 
 	// KServe CRDs.
 	InferenceServicesCRDName = "inferenceservices.serving.kserve.io"
+
+	// Components CRDs.
+	DashboardComponentCRDName = "dashboards.components.platform.opendatahub.io"
 )
 
 var (
@@ -370,18 +373,6 @@ var (
 		Kind:    componentApi.TrustyAIKind,
 	}
 
-	ModelRegistry = schema.GroupVersionKind{
-		Group:   componentApi.GroupVersion.Group,
-		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.ModelRegistryKind,
-	}
-
-	TrainingOperator = schema.GroupVersionKind{
-		Group:   componentApi.GroupVersion.Group,
-		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.TrainingOperatorKind,
-	}
-
 	Trainer = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
@@ -404,6 +395,12 @@ var (
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
 		Kind:    componentApi.FeastOperatorKind,
+	}
+
+	AIHub = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    "AIHub",
 	}
 
 	MLflowOperator = schema.GroupVersionKind{

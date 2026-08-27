@@ -27,13 +27,52 @@ known_issues:
 - image: RELATED_IMAGE_DSP_TOOLBOX_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
   reason: Removed with InstrutLab pipeline removal since RHOAI 3.0
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: SBOM metadata-config commented out until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_1_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: SBOM metadata-config commented out until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_2_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: SBOM metadata-config commented out until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: Validation failure due to RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE offboarding; not yet in RHOAI-Build-Config or RHAI Helm until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_1_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: Validation failure due to RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE offboarding; not yet in RHOAI-Build-Config or RHAI Helm until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_2_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: Validation failure due to RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE offboarding; not yet in RHOAI-Build-Config or RHAI Helm until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_IMAGE
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: Not yet in RHOAI-Build-Config or RHAI Helm until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_1_IMAGE
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: Not yet in RHOAI-Build-Config or RHAI Helm until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_2_IMAGE
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: Not yet in RHOAI-Build-Config or RHAI Helm until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_IMAGE_UPSTREAM_VERSION
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: SBOM metadata-config not yet configured until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_1_IMAGE_UPSTREAM_VERSION
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: SBOM metadata-config not yet configured until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_2_IMAGE_UPSTREAM_VERSION
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: SBOM metadata-config not yet configured until AIPCC vllm-cpu-pz image is published
 
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
   reason: ppc64le/s390x only, not applicable to ODH
-- image: RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-78350
-  reason: it must be offboarded in rhoai 3.6, already offboarded in ODH-Build-Config
+- image: RELATED_IMAGE_RHAII_MODEL_OPT_CUDA_IMAGE
+  reason: RHOAI-only image, not applicable to ODH
+- image: RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE
+  reason: RHOAI-only image, not applicable to ODH
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_IMAGE
+  reason: RHOAI-only image, not applicable to ODH
 
 rhoai_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE
@@ -43,3 +82,15 @@ rhoai_exceptions:
 - image: RELATED_IMAGE_ODH_TRAINER_OPERATOR_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-62940
   reason: Trainer module operator image, not yet in RHOAI-Build-Config, delivering in RHOAI 3.6 EA1
+- image: RELATED_IMAGE_ODH_SPARK_OPERATOR_MODULE_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-69125
+  reason: Spark Operator module image, not yet in RHOAI-Build-Config, delivering in RHOAI 3.6 EA1
+- image: RELATED_IMAGE_RHAII_MODEL_OPT_CUDA_IMAGE
+  reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1
+- image: RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE
+  reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1
+- image: RELATED_IMAGE_ODH_MOD_ARCH_NOTEBOOKS_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-58839
+  reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1
+- image: RELATED_IMAGE_ODH_WORKBENCHES_CONTROLLER_IMAGE
+  reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1

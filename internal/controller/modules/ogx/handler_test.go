@@ -17,9 +17,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func newDSCPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformContext {
-	return &modules.PlatformContext{
-		ApplicationsNamespace: "opendatahub",
+func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
+	return &modules.DSCContext{
 		DSC: &dscv2.DataScienceCluster{
 			Spec: dscv2.DataScienceClusterSpec{
 				Components: dscv2.Components{
@@ -34,53 +33,45 @@ func newDSCPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformCo
 	}
 }
 
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
+	return &configv1alpha1.PlatformModules{
+		OGX: common.ManagementSpec{
+			ManagementState: mgmtState,
+		},
+	}
+}
+
 func TestIsEnabled_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := ogxModule.NewHandler()
-	g.Expect(h.IsEnabled(newDSCPlatformCtx(operatorv1.Managed))).Should(BeTrue())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Managed))).Should(BeTrue())
 }
 
 func TestIsEnabled_Removed(t *testing.T) {
 	g := NewWithT(t)
 	h := ogxModule.NewHandler()
-	g.Expect(h.IsEnabled(newDSCPlatformCtx(operatorv1.Removed))).Should(BeFalse())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Removed))).Should(BeFalse())
 }
 
 func TestIsEnabled_Empty(t *testing.T) {
 	g := NewWithT(t)
 	h := ogxModule.NewHandler()
-	g.Expect(h.IsEnabled(newDSCPlatformCtx(""))).Should(BeFalse())
+	g.Expect(h.IsEnabled(newPlatformModules(""))).Should(BeFalse())
 }
 
-func TestIsEnabled_NilDSC_NilPlatform(t *testing.T) {
+func TestIsEnabled_EmptyModules(t *testing.T) {
 	g := NewWithT(t)
 	h := ogxModule.NewHandler()
-	ctx := &modules.PlatformContext{ApplicationsNamespace: "opendatahub"}
-	g.Expect(h.IsEnabled(ctx)).Should(BeFalse())
-}
-
-func newPlatformModePlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformContext {
-	return &modules.PlatformContext{
-		ApplicationsNamespace: "opendatahub",
-		Platform: &configv1alpha1.Platform{
-			Spec: configv1alpha1.PlatformSpec{
-				Modules: configv1alpha1.PlatformModules{
-					OGX: common.ManagementSpec{
-						ManagementState: mgmtState,
-					},
-				},
-			},
-		},
-	}
+	g.Expect(h.IsEnabled(&configv1alpha1.PlatformModules{})).Should(BeFalse())
 }
 
 func TestIsEnabled_PlatformMode_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := ogxModule.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformModePlatformCtx(operatorv1.Managed))).Should(BeTrue())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Managed))).Should(BeTrue())
 }
 
-func TestIsEnabled_NilPlatformContext(t *testing.T) {
+func TestIsEnabled_NilModules(t *testing.T) {
 	g := NewWithT(t)
 	h := ogxModule.NewHandler()
 	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
@@ -89,9 +80,9 @@ func TestIsEnabled_NilPlatformContext(t *testing.T) {
 func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g := NewWithT(t)
 	h := ogxModule.NewHandler()
-	platform := newDSCPlatformCtx(operatorv1.Managed)
+	dscCtx := newDSCCtx(operatorv1.Managed)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u.GetName()).Should(Equal(componentApi.OGXInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(componentApi.OGXKind))
@@ -105,10 +96,10 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 func TestBuildModuleCR_LlamaStackOperatorConflict(t *testing.T) {
 	g := NewWithT(t)
 	h := ogxModule.NewHandler()
-	platform := newDSCPlatformCtx(operatorv1.Managed)
-	platform.DSC.Spec.Components.LlamaStackOperator.ManagementState = operatorv1.Managed
+	dscCtx := newDSCCtx(operatorv1.Managed)
+	dscCtx.DSC.Spec.Components.LlamaStackOperator.ManagementState = operatorv1.Managed
 
-	_, err := h.BuildModuleCR(context.Background(), nil, platform)
+	_, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).Should(HaveOccurred())
 	g.Expect(err.Error()).Should(ContainSubstring("LlamaStackOperator"))
 }
@@ -116,10 +107,10 @@ func TestBuildModuleCR_LlamaStackOperatorConflict(t *testing.T) {
 func TestBuildModuleCR_LlamaStackOperatorRemoved(t *testing.T) {
 	g := NewWithT(t)
 	h := ogxModule.NewHandler()
-	platform := newDSCPlatformCtx(operatorv1.Managed)
-	platform.DSC.Spec.Components.LlamaStackOperator.ManagementState = operatorv1.Removed
+	dscCtx := newDSCCtx(operatorv1.Managed)
+	dscCtx.DSC.Spec.Components.LlamaStackOperator.ManagementState = operatorv1.Removed
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u).ShouldNot(BeNil())
 }
@@ -127,27 +118,16 @@ func TestBuildModuleCR_LlamaStackOperatorRemoved(t *testing.T) {
 func TestBuildModuleCR_NilPlatformContextReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := ogxModule.NewHandler()
-	_, err := h.BuildModuleCR(context.Background(), nil, nil)
+	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
 	g.Expect(err).Should(HaveOccurred())
 }
 
-func TestBuildModuleCR_NilDSCNilPlatformReturnsError(t *testing.T) {
+func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := ogxModule.NewHandler()
-	platform := &modules.PlatformContext{ApplicationsNamespace: "opendatahub"}
 
-	_, err := h.BuildModuleCR(context.Background(), nil, platform)
+	_, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{}, nil)
 	g.Expect(err).Should(HaveOccurred())
-}
-
-func TestBuildModuleCR_PlatformMode_ReturnsNil(t *testing.T) {
-	g := NewWithT(t)
-	h := ogxModule.NewHandler()
-	platform := newPlatformModePlatformCtx(operatorv1.Managed)
-
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(u).Should(BeNil(), "Platform mode should return nil CR")
 }
 
 func TestGetName(t *testing.T) {

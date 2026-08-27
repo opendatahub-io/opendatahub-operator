@@ -97,7 +97,6 @@ The following components are **automatically integrated** by the ODH operator ba
 |-----------|-------------------|---------|------------------|
 | **KServe** | [opendatahub-io/kserve](https://github.com/opendatahub-io/kserve) | Model serving platform | Optional |
 | **Ray** | [opendatahub-io/kuberay](https://github.com/opendatahub-io/kuberay) | Distributed computing framework | Optional |
-| **Training Operator** | [opendatahub-io/training-operator](https://github.com/opendatahub-io/training-operator) | ML training job management | Optional |
 | **Trainer** | [opendatahub-io/trainer](https://github.com/opendatahub-io/trainer) | ML training job management | Optional |
 | **Feast Operator** | [opendatahub-io/feast](https://github.com/opendatahub-io/feast) | Feature store for ML | Optional |
 | **Model Registry Operator** | [opendatahub-io/model-registry](https://github.com/opendatahub-io/model-registry-operator) | Model versioning and registry | Optional |
@@ -356,7 +355,7 @@ e.g `make image-build USE_LOCAL=true"`
   make undeploy
   ```
 
-- `make deploy` auto-applies digest-pinned image overrides from `manifests-config.yaml` to `config/manager/manager.yaml`. To skip: `SKIP_IMAGE_OVERRIDES=1 make deploy`.
+- `make deploy` auto-applies digest-pinned image overrides from `manifests-config.yaml` to `config/manager/manager.yaml` (or `config/rhoai/manager/manager.yaml` when `ODH_PLATFORM_TYPE=rhoai`). To skip: `SKIP_IMAGE_OVERRIDES=1 make deploy`.
 
 #### Image Overrides
 
@@ -641,11 +640,6 @@ spec:
     namespace: opendatahub
     metrics:
       replicas: 2
-      resources:
-        cpulimit: 500m
-        cpurequest: 100m
-        memorylimit: 512Mi
-        memoryrequest: 256Mi
       storage:
         retention: 90d
         size: 5Gi
@@ -715,8 +709,6 @@ spec:
     modelregistry:
       managementState: Managed
     ray:
-      managementState: Managed
-    trainingoperator:
       managementState: Managed
     trainer:
       managementState: Managed

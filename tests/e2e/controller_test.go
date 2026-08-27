@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"flag"
 	"fmt"
+	"log"
 	"maps"
 	"os"
 	"slices"
@@ -24,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -142,7 +143,6 @@ var (
 			{
 				componentApi.DashboardComponentName:            dashboardTestSuite,
 				componentApi.RayComponentName:                  rayTestSuite,
-				componentApi.TrainingOperatorComponentName:     trainingOperatorTestSuite,
 				componentApi.TrainerComponentName:              trainerTestSuite,
 				componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
 				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
@@ -396,7 +396,8 @@ func TestOdhOperator(t *testing.T) {
 
 	registerSchemes()
 
-	log.SetLogger(zap.New(zap.UseDevMode(true)))
+	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(os.Stdout)))
+	log.SetOutput(os.Stdout) // Used for cluster diagnostics output
 
 	if deadline, ok := t.Deadline(); ok {
 		remaining := time.Until(deadline)
@@ -607,7 +608,7 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-operator-v2tov3upgrade", viper.GetEnvPrefix()+"_OPERATOR_V2TOV3UPGRADE"))
 	pflag.Bool("test-webhook", true, "run webhook tests")
 	checkEnvVarBindingError(viper.BindEnv("test-webhook", viper.GetEnvPrefix()+"_WEBHOOK"))
-	pflag.Bool("test-dag-ordering", false, "run DAG upgrade ordering tests")
+	pflag.Bool("test-dag-ordering", true, "run DAG upgrade ordering tests")
 	checkEnvVarBindingError(viper.BindEnv("test-dag-ordering", viper.GetEnvPrefix()+"_DAG_ORDERING"))
 
 	pflag.Bool("circuit-breaker", true, "enable circuit breaker to halt tests on infrastructure failures")

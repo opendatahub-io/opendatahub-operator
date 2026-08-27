@@ -24,14 +24,14 @@ spec:
         managementState: "Removed"
     kueue:
       managementState: "Removed"
-    trainingoperator:
-      managementState: "Removed"
     trainer:
       managementState: "Managed"
     ray:
       managementState: "Managed"
     workbenches:
       managementState: "Managed"
+      workbenchesV2:
+        managementState: "Removed"
     trustyai:
       managementState: "Managed"
     modelregistry:

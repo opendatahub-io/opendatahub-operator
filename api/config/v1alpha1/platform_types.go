@@ -75,6 +75,21 @@ type PlatformModules struct {
 	// OGX controls the OGX module operator lifecycle.
 	// +optional
 	OGX common.ManagementSpec `json:"ogx,omitempty"`
+
+	// FeastOperator controls the Feast module operator lifecycle.
+	// +optional
+	FeastOperator common.ManagementSpec `json:"feastoperator,omitempty"`
+
+	// Dashboard controls the Dashboard module operator lifecycle.
+	// +optional
+	Dashboard common.ManagementSpec `json:"dashboard,omitempty"`
+
+	// SparkOperator controls the Spark Operator module lifecycle.
+	// +optional
+	SparkOperator common.ManagementSpec `json:"sparkoperator,omitempty"`
+	// ModelRegistry controls the model-registry (AIHub) module operator lifecycle.
+	// +optional
+	ModelRegistry common.ManagementSpec `json:"modelregistry,omitempty"`
 }
 
 // PlatformStatus defines the observed state of Platform.
@@ -148,6 +163,18 @@ func (m *PlatformModules) EnabledModules() []string {
 	}
 	if m.OGX.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "ogx")
+	}
+	if m.FeastOperator.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "feastoperator")
+	}
+	if m.Dashboard.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "dashboard")
+	}
+	if m.SparkOperator.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "sparkoperator")
+	}
+	if m.ModelRegistry.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "modelregistry")
 	}
 	return enabled
 }

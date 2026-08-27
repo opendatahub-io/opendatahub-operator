@@ -42,9 +42,9 @@ The pre-defined runlevels are:
 
 | Expression     | Purpose                                    |
 |----------------|--------------------------------------------|
-| `dag.RL(20)`   | Core AI/ML components (dashboard, pipelines, workbenches, ray, etc.) |
+| `dag.RL(20)`   | Core AI/ML components and early platform modules (dashboard, workbenches, mcplifecycleoperator, pipelines, ray, etc.) |
 | `dag.RL(31)`   | Extension foundations (KServe, Kueue)      |
-| `dag.RL(32)`   | Independent extensions (Feast, MLflow, OGX, Spark) |
+| `dag.RL(32)`   | Independent extensions and most out-of-tree modules (Feast, MLflow, OGX, SparkOperator, AIGateway) |
 | `dag.RL(33)`   | KServe-dependent extensions (ModelController, ModelsAsService, TrustyAI) |
 | `dag.RL(99)`   | Fallback for unassigned entries (provisioned last) |
 
@@ -146,9 +146,17 @@ Ask yourself:
   Use a low runlevel like `dag.RL(10)` or `dag.RL(20)`.
 - Is it a core AI/ML capability with no dependencies on extension components?
   Use `dag.RL(20)`.
+- Is it an out-of-tree module? **Default to `dag.RL(32)`** unless it is a core
+  platform module that must provision with batch 20 (today: dashboard,
+  workbenches, mcplifecycleoperator). Most current modules — AIGateway, Feast,
+  MLflow, OGX, SparkOperator — are at RL(32) to stay off the critical path.
 - Is it an extension that others depend on? Use `dag.RL(31)`.
-- Is it an independent extension? Use `dag.RL(32)`.
+- Is it an independent extension with no downstream dependents? Use `dag.RL(32)`.
 - Does it depend on another extension like KServe? Use `dag.RL(33)`.
+
+**Blast radius:** entries at RL(20) or RL(31) block all higher runlevels until
+ready (or until the runlevel timeout). Prefer RL(32) for independent modules
+unless there is a concrete ordering requirement for an earlier batch.
 
 Pick whatever integer fits your position in the sequence. Use adjacent
 numbers (31, 32, 33) for fine-grained ordering within a range.
@@ -175,7 +183,10 @@ Add an entry to the `moduleRunlevels` map:
 
 ```go
 moduleRunlevels = map[string]dag.Runlevel{
-    "my-module": dag.RL(25),
+    // Default for independent modules: RL(32) (AIGateway, Feast, MLflow, OGX, SparkOperator).
+    // Use RL(20) only for core platform modules that must provision in batch 20
+    // (dashboard, workbenches, mcplifecycleoperator).
+    "my-module": dag.RL(32),
 }
 ```
 
@@ -191,35 +202,39 @@ in later runlevels will be blocked.
 
 ## Current component ordering
 
-The current assignments produce the following provisioning sequence:
+The current assignments produce the following provisioning sequence.
+Components and modules share one DAG; within a batch, entries are sorted
+alphabetically for determinism.
 
 ```text
 Batch 1 — RL(20):
   dashboard, datasciencepipelines, modelregistry, ray,
-  trainer, trainingoperator, workbenches
+  trainer, workbenches, mcplifecycleoperator (module)
 
 Batch 2 — RL(31):
   kserve, kueue
 
 Batch 3 — RL(32):
-  feastoperator, mlflowoperator, ogx, sparkoperator
+  feastoperator, mlflowoperator, ogx, sparkoperator (module), aigateway (module)
 
 Batch 4 — RL(33):
   modelcontroller, modelsasservice, trustyai
 ```
-
-Within each batch, entries are sorted alphabetically for determinism.
 
 ## Decision guide
 
 | Scenario | Runlevel |
 |----------|----------|
 | Independent core component | `dag.RL(20)` |
-| Extension that others depend on | `dag.RL(31)` |
-| Extension, independent | `dag.RL(32)` |
+| Independent out-of-tree module (**default**) | `dag.RL(32)` |
+| Core platform module that must provision in batch 20 (dashboard, workbenches, mcplifecycleoperator) | `dag.RL(20)` |
+| Extension foundation that others depend on (e.g. KServe) | `dag.RL(31)` |
 | Extension that needs KServe ready first | `dag.RL(33)` |
-| Module needing core components ready | `dag.RL(25)` |
+| Module needing core components ready before extensions | `dag.RL(25)` |
 | Infrastructure service | `dag.RL(0)` |
+
+Current module assignments: RL(20) — dashboard, workbenches, mcplifecycleoperator;
+RL(31) — kserve; RL(32) — aigateway, feastoperator, mlflowoperator, ogx, sparkoperator.
 
 ## Key files
 

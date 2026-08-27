@@ -1,91 +1,96 @@
-package trainer_test
+//nolint:testpackage // Verifies handler internals such as defaults and projected fields.
+package trainer
 
 import (
-	"context"
 	"testing"
 
-	"github.com/blang/semver/v4"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"github.com/operator-framework/api/pkg/lib/version"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
-func newPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformContext {
-	return &modules.PlatformContext{
-		ApplicationsNamespace: "opendatahub",
-		Release: common.Release{
-			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{
-				Version: semver.Version{Major: 2, Minor: 20, Patch: 0},
-			},
-		},
-		DSC: &dscv2.DataScienceCluster{
-			Spec: dscv2.DataScienceClusterSpec{
-				Components: dscv2.Components{
-					Trainer: componentApi.DSCTrainer{
-						ManagementSpec: common.ManagementSpec{
-							ManagementState: mgmtState,
-						},
-					},
-				},
-			},
-		},
-		DSCI: &dsciv2.DSCInitialization{
-			Spec: dsciv2.DSCInitializationSpec{
-				ApplicationsNamespace: "opendatahub",
-			},
-		},
+const testAppsNS = "opendatahub"
+
+func newDSCContext(mgmtState operatorv1.ManagementState) *modules.DSCContext {
+	dsc := &dscv2.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
+	}
+	dsc.Spec.Components.Trainer.ManagementState = mgmtState
+
+	return &modules.DSCContext{DSC: dsc}
+}
+
+func newModuleCRConfig() *modules.ModuleCRConfig {
+	return &modules.ModuleCRConfig{
+		ApplicationsNamespace: testAppsNS,
 	}
 }
 
 func TestIsEnabled_Managed(t *testing.T) {
-	h := trainer.NewHandler()
-	if !h.IsEnabled(newPlatformCtx(operatorv1.Managed)) {
+	h := NewHandler()
+	pm := &configv1alpha1.PlatformModules{
+		Trainer: common.ManagementSpec{ManagementState: operatorv1.Managed},
+	}
+	if !h.IsEnabled(pm) {
 		t.Error("expected trainer to be enabled when ManagementState is Managed")
 	}
 }
 
 func TestIsEnabled_Removed(t *testing.T) {
-	h := trainer.NewHandler()
-	if h.IsEnabled(newPlatformCtx(operatorv1.Removed)) {
+	h := NewHandler()
+	pm := &configv1alpha1.PlatformModules{
+		Trainer: common.ManagementSpec{ManagementState: operatorv1.Removed},
+	}
+	if h.IsEnabled(pm) {
 		t.Error("expected trainer to be disabled when ManagementState is Removed")
 	}
 }
 
 func TestIsEnabled_Empty(t *testing.T) {
-	h := trainer.NewHandler()
-	if h.IsEnabled(newPlatformCtx("")) {
+	h := NewHandler()
+	pm := &configv1alpha1.PlatformModules{
+		Trainer: common.ManagementSpec{ManagementState: ""},
+	}
+	if h.IsEnabled(pm) {
 		t.Error("expected trainer to be disabled when ManagementState is empty")
 	}
 }
 
-func TestIsEnabled_NilDSC(t *testing.T) {
-	h := trainer.NewHandler()
-	ctx := &modules.PlatformContext{DSCI: &dsciv2.DSCInitialization{}}
-	if h.IsEnabled(ctx) {
-		t.Error("expected trainer to be disabled when DSC is nil")
+func TestIsEnabled_Nil(t *testing.T) {
+	h := NewHandler()
+	if h.IsEnabled(nil) {
+		t.Error("expected trainer to be disabled when modules is nil")
 	}
 }
 
-func TestIsEnabled_NilPlatform(t *testing.T) {
-	h := trainer.NewHandler()
-	if h.IsEnabled(nil) {
-		t.Error("expected trainer to be disabled when platform is nil")
+func TestPopulatePlatformModule(t *testing.T) {
+	h := NewHandler()
+
+	pm := &configv1alpha1.PlatformModules{}
+	h.PopulatePlatformModule(pm, newDSCContext(operatorv1.Managed))
+
+	if pm.Trainer.ManagementState != operatorv1.Managed {
+		t.Fatalf("expected Managed, got %s", pm.Trainer.ManagementState)
 	}
+}
+
+func TestPopulatePlatformModule_NilSafe(t *testing.T) {
+	h := NewHandler()
+
+	h.PopulatePlatformModule(nil, nil)
+	h.PopulatePlatformModule(&configv1alpha1.PlatformModules{}, nil)
+	h.PopulatePlatformModule(&configv1alpha1.PlatformModules{}, &modules.DSCContext{})
 }
 
 func TestBuildModuleCR_BasicProjection(t *testing.T) {
-	h := trainer.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
+	h := NewHandler()
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(t.Context(), nil, newDSCContext(operatorv1.Managed), newModuleCRConfig())
 	if err != nil {
 		t.Fatalf("BuildModuleCR returned error: %v", err)
 	}
@@ -106,32 +111,31 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 		t.Error("managementState is a DSC-level field and must not be projected into the module CR")
 	}
 
-	if ns, ok := spec["appNamespace"].(string); !ok || ns != "opendatahub" {
-		t.Errorf("appNamespace: want %q, got %v", "opendatahub", spec["appNamespace"])
+	if ns, ok := spec["appNamespace"].(string); !ok || ns != testAppsNS {
+		t.Errorf("appNamespace: want %q, got %v", testAppsNS, spec["appNamespace"])
 	}
 }
 
-func TestBuildModuleCR_NilPlatformReturnsError(t *testing.T) {
-	h := trainer.NewHandler()
+func TestBuildModuleCR_NilDSCContextReturnsError(t *testing.T) {
+	h := NewHandler()
 
-	_, err := h.BuildModuleCR(context.Background(), nil, nil)
+	_, err := h.BuildModuleCR(t.Context(), nil, nil, newModuleCRConfig())
 	if err == nil {
-		t.Error("expected error when platform is nil")
+		t.Error("expected error when DSCContext is nil")
 	}
 }
 
 func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
-	h := trainer.NewHandler()
-	platform := &modules.PlatformContext{DSCI: &dsciv2.DSCInitialization{}}
+	h := NewHandler()
 
-	_, err := h.BuildModuleCR(context.Background(), nil, platform)
+	_, err := h.BuildModuleCR(t.Context(), nil, &modules.DSCContext{}, newModuleCRConfig())
 	if err == nil {
 		t.Error("expected error when DSC is nil")
 	}
 }
 
 func TestGetRelatedImages(t *testing.T) {
-	h := trainer.NewHandler()
+	h := NewHandler()
 	images := h.GetRelatedImages()
 
 	want := map[string]bool{
@@ -139,6 +143,8 @@ func TestGetRelatedImages(t *testing.T) {
 		"RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE": false,
 		"RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE": false,
 		"RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE":  false,
+		"RELATED_IMAGE_RHAII_MODEL_OPT_CUDA_IMAGE":    false,
+		"RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE":         false,
 	}
 
 	for _, img := range images {
@@ -155,17 +161,26 @@ func TestGetRelatedImages(t *testing.T) {
 	}
 }
 
-// TestDSCToModuleCRFlow verifies the complete handler flow: DSC -> handler -> Module CR.
+func TestGetName(t *testing.T) {
+	h := NewHandler()
+	if got := h.GetName(); got != componentApi.TrainerComponentName {
+		t.Errorf("GetName: want %q, got %q", componentApi.TrainerComponentName, got)
+	}
+}
+
 func TestDSCToModuleCRFlow(t *testing.T) {
 	t.Run("DSC with trainer=Managed creates correct Module CR", func(t *testing.T) {
-		platform := newPlatformCtx(operatorv1.Managed)
-		h := trainer.NewHandler()
+		h := NewHandler()
+		dscCtx := newDSCContext(operatorv1.Managed)
 
-		if !h.IsEnabled(platform) {
+		pm := &configv1alpha1.PlatformModules{}
+		h.PopulatePlatformModule(pm, dscCtx)
+
+		if !h.IsEnabled(pm) {
 			t.Fatal("IsEnabled should return true when managementState=Managed")
 		}
 
-		moduleCR, err := h.BuildModuleCR(context.TODO(), nil, platform)
+		moduleCR, err := h.BuildModuleCR(t.Context(), nil, dscCtx, newModuleCRConfig())
 		if err != nil {
 			t.Fatalf("BuildModuleCR failed: %v", err)
 		}
@@ -188,11 +203,4 @@ func TestDSCToModuleCRFlow(t *testing.T) {
 			t.Error("managementState is a DSC-level field and must not be projected into the module CR")
 		}
 	})
-}
-
-func TestGetName(t *testing.T) {
-	h := trainer.NewHandler()
-	if got := h.GetName(); got != componentApi.TrainerComponentName {
-		t.Errorf("GetName: want %q, got %q", componentApi.TrainerComponentName, got)
-	}
 }

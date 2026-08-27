@@ -30,7 +30,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	ifeq ($(VERSION), )
-		VERSION = 3.5.0
+		VERSION = 3.6.0-ea.1
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
 	OPERATOR_NAMESPACE ?= opendatahub-operator-system
@@ -62,7 +62,7 @@ else
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	# NOTE: see also the git branches for RHOAI in manifests-config.yaml. This variable does NOT affect those
 	ifeq ($(VERSION), )
-		VERSION = 3.5.0
+		VERSION = 3.6.0-ea.1
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to redhat-ods-operator)
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
@@ -88,6 +88,8 @@ else
 	CCM_DEPLOY_OVERLAY=rhoai
 	CCM_LOCAL_OVERLAY=rhoai
 endif
+
+MANAGER_FILE ?= $(CONFIG_DIR)/manager/manager.yaml
 
 IMAGE_BUILDER ?= podman
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
@@ -370,7 +372,7 @@ update-refs-rhoai-branch: ## Update all RHOAI refs to a new branch (requires GIT
 
 .PHONY: apply-image-overrides
 apply-image-overrides: ## Apply image overrides to manager.yaml (for make deploy)
-	go run -C ./cmd/manifest-tools main.go apply-deploy --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --manager-file $(CURDIR)/config/manager/manager.yaml
+	go run -C ./cmd/manifest-tools main.go apply-deploy --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --manager-file $(CURDIR)/$(MANAGER_FILE)
 
 .PHONY: apply-image-overrides-olm
 apply-image-overrides-olm: ## Apply image overrides to OLM Subscription (for operator-sdk run bundle)
@@ -391,7 +393,7 @@ endif
 api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs, render managementstate with marker
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md && \
-	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)|g" ./docs/api-overview.md && \
+	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api@$(call go-mod-version,github.com/openshift/api)/operator/v1#ManagementState)|g" ./docs/api-overview.md && \
 	$(SED_COMMAND) -i "s|](#managementspec)|](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)|g" ./docs/api-overview.md
 	$(CRD_REF_DOCS) --source-path ./api/cloudmanager/ --output-path ./docs/cloudmanager-api-overview.md --renderer markdown --config ./crd-ref-docs.cloudmanager.config.yaml
 
@@ -437,7 +439,7 @@ image-kind-load:
 	rm -rf image.tar
 
 .PHONY: e2e-test-ccm
-e2e-test-ccm: ## Run cloud manager e2e tests (requires CLOUD_MANAGER_PROVIDER, e.g. azure)
+e2e-test-ccm: install-cert-manager ## Run cloud manager e2e tests (requires CLOUD_MANAGER_PROVIDER, e.g. azure)
 	go test -v -count=1 -timeout=30m ./tests/e2e/cloudmanager/
 
 ##@ Deployment
@@ -472,10 +474,16 @@ deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/con
 	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: deploy-rhaii
+ifndef SKIP_IMAGE_OVERRIDES
+deploy-rhaii: apply-image-overrides
+endif
 deploy-rhaii: prepare ## Deploy controller in rhaii mode (only KServe) to the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build $(RHAII_DEFAULT_CONFIG_DIR) | $(SED_COMMAND) 's/REPLACE_RHAI_VERSION/$(VERSION)/g' | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: deploy-rhaii-local
+ifndef SKIP_IMAGE_OVERRIDES
+deploy-rhaii-local: apply-image-overrides
+endif
 deploy-rhaii-local: prepare ## Deploy controller in rhaii mode (only KServe, local image pull policy) to the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build $(RHAII_LOCAL_CONFIG_DIR) | $(SED_COMMAND) 's/REPLACE_RHAI_VERSION/$(VERSION)/g' | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
@@ -571,7 +579,7 @@ CLEANFILES += rhoai-bundle odh-bundle
 .PHONY: bundle-all
 bundle-all:
 	$(MAKE) bundle
-	$(MAKE) bundle ODH_PLATFORM_TYPE=rhoai
+	$(MAKE) bundle ODH_PLATFORM_TYPE=rhoai OPERATOR_PACKAGE=rhods-operator BUNDLE_DIR=rhoai-bundle
 
 # The bundle image is multi-stage to preserve the ability to build without invoking make
 # We use build args to ensure the variables are passed to the underlying internal make invocation
@@ -857,7 +865,7 @@ e2e-setup-cluster:
 		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=true
 
 .PHONY: e2e-test-xks
-e2e-test-xks: ## Run e2e tests on external Kubernetes (KinD, AKS, CoreWeave, etc.)
+e2e-test-xks: ## Run e2e tests on external Kubernetes (KinD, AKS, CoreWeave, etc.). Image overrides are applied at deploy (see deploy-rhaii-local).
 	@$(MAKE) e2e-test \
 		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false \
 		-e E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT=false \
@@ -968,6 +976,35 @@ kind-setup-pull-secrets: ## Setup pull secrets for operator dependencies in the 
 	done
 	@echo "Pull secrets configured."
 
+.PHONY: install-cert-manager
+install-cert-manager: helm ## Install cert-manager operator (fetched from odh-gitops)
+	@if [ "$(SKIP_CERT_MANAGER_INSTALL)" = "true" ]; then \
+		echo "SKIP_CERT_MANAGER_INSTALL is set, skipping cert-manager installation"; \
+		exit 0; \
+	fi
+	@if kubectl get crd certificates.cert-manager.io >/dev/null 2>&1; then \
+		echo "cert-manager CRDs already present, skipping installation"; \
+		exit 0; \
+	fi
+	@tmpdir=$$(mktemp -d); \
+	trap "rm -rf $$tmpdir" EXIT; \
+	go run -C ./cmd/manifest-tools main.go download \
+		--config $(CURDIR)/hack/cert-manager-config.yaml \
+		--charts-dir $$tmpdir; \
+	$(HELM) upgrade --install cert-manager-operator $$tmpdir/cert-manager-operator --create-namespace --take-ownership; \
+	kubectl rollout status deployment/cert-manager-operator-controller-manager -n cert-manager-operator --timeout=120s; \
+	for dep in cert-manager cert-manager-webhook cert-manager-cainjector; do \
+		echo "Waiting for deployment/$$dep in cert-manager namespace..."; \
+		end=$$(( $$(date +%s) + 300 )); \
+		while ! kubectl rollout status deployment/$$dep -n cert-manager --timeout=10s 2>/dev/null; do \
+			if [ $$(date +%s) -ge $$end ]; then \
+				echo "Timed out waiting for deployment/$$dep"; \
+				exit 1; \
+			fi; \
+			sleep 5; \
+		done; \
+	done
+
 CCM_INSTALL_TARGETS := $(addprefix install-ccm-,$(CCM_PROVIDERS))
 .PHONY: $(CCM_INSTALL_TARGETS)
 $(CCM_INSTALL_TARGETS): install-ccm-%: manifests-ccm-% kustomize ## Install CRDs only (e.g., install-ccm-azure)
@@ -988,7 +1025,7 @@ $(CCM_DEPLOY_TARGETS): deploy-ccm-%: manifests-ccm-% kustomize ## Deploy CCM to 
 
 CCM_DEPLOY_LOCAL_TARGETS := $(addprefix deploy-ccm-local-,$(CCM_PROVIDERS))
 .PHONY: $(CCM_DEPLOY_LOCAL_TARGETS)
-$(CCM_DEPLOY_LOCAL_TARGETS): deploy-ccm-local-%: manifests-ccm-% kustomize ## Deploy CCM to cluster (e.g., deploy-ccm-azure)
+$(CCM_DEPLOY_LOCAL_TARGETS): deploy-ccm-local-%: manifests-ccm-% kustomize install-cert-manager ## Deploy CCM to cluster (e.g., deploy-ccm-azure)
 	cd $(call ccm-config-dir,$*)/manager && \
 		cp -f kustomization.yaml.in kustomization.yaml && \
 		$(KUSTOMIZE) edit set image REPLACE_IMAGE=$(IMG)

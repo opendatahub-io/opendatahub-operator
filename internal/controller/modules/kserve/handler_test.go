@@ -16,9 +16,16 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func newPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformContext {
-	return &modules.PlatformContext{
-		ApplicationsNamespace: "opendatahub",
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
+	return &configv1alpha1.PlatformModules{
+		Kserve: common.ManagementSpec{
+			ManagementState: mgmtState,
+		},
+	}
+}
+
+func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
+	return &modules.DSCContext{
 		DSC: &dscv2.DataScienceCluster{
 			Spec: dscv2.DataScienceClusterSpec{
 				Components: dscv2.Components{
@@ -33,91 +40,75 @@ func newPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformConte
 	}
 }
 
-func newPlatformModePlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformContext {
-	return &modules.PlatformContext{
-		ApplicationsNamespace: "opendatahub",
-		Platform: &configv1alpha1.Platform{
-			Spec: configv1alpha1.PlatformSpec{
-				Modules: configv1alpha1.PlatformModules{
-					Kserve: common.ManagementSpec{
-						ManagementState: mgmtState,
-					},
-				},
-			},
-		},
-	}
-}
-
 func TestIsEnabled_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformCtx(operatorv1.Managed))).Should(BeTrue())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Managed))).Should(BeTrue())
 }
 
 func TestIsEnabled_Removed(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformCtx(operatorv1.Removed))).Should(BeFalse())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Removed))).Should(BeFalse())
 }
 
 func TestIsEnabled_Empty(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformCtx(""))).Should(BeFalse())
+	g.Expect(h.IsEnabled(newPlatformModules(""))).Should(BeFalse())
 }
 
-func TestIsEnabled_NilDSC_NilPlatform(t *testing.T) {
-	g := NewWithT(t)
-	h := kserve.NewHandler()
-	ctx := &modules.PlatformContext{}
-	g.Expect(h.IsEnabled(ctx)).Should(BeFalse())
-}
-
-func TestIsEnabled_NilPlatformContext(t *testing.T) {
+func TestIsEnabled_NilModules(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
 	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
 }
 
+func TestIsEnabled_EmptyModules(t *testing.T) {
+	g := NewWithT(t)
+	h := kserve.NewHandler()
+	g.Expect(h.IsEnabled(&configv1alpha1.PlatformModules{})).Should(BeFalse())
+}
+
 func TestIsEnabled_PlatformMode_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformModePlatformCtx(operatorv1.Managed))).Should(BeTrue())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Managed))).Should(BeTrue())
 }
 
 func TestIsEnabled_PlatformMode_Removed(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformModePlatformCtx(operatorv1.Removed))).Should(BeFalse())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Removed))).Should(BeFalse())
 }
 
 func TestIsEnabled_PlatformMode_Empty(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformModePlatformCtx(""))).Should(BeFalse())
+	g.Expect(h.IsEnabled(newPlatformModules(""))).Should(BeFalse())
 }
 
-func TestBuildModuleCR_NilPlatformContextReturnsError(t *testing.T) {
+func TestBuildModuleCR_NilDSCContextReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	_, err := h.BuildModuleCR(context.Background(), nil, nil)
+	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
 	g.Expect(err).Should(HaveOccurred())
 }
 
-func TestBuildModuleCR_NilDSCNilPlatformReturnsError(t *testing.T) {
+func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	platform := &modules.PlatformContext{}
+	dscCtx := &modules.DSCContext{}
 
-	_, err := h.BuildModuleCR(context.Background(), nil, platform)
+	_, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).Should(HaveOccurred())
 }
 
 func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
-	platform.DSC.Spec.Components.Kserve.KserveCommonSpec = componentApi.KserveCommonSpec{
+	dscCtx := newDSCCtx(operatorv1.Managed)
+	dscCtx.DSC.Spec.Components.Kserve.KserveCommonSpec = componentApi.KserveCommonSpec{
 		RawDeploymentServiceConfig: componentApi.KserveRawHeaded,
 		NIM: componentApi.NimSpec{
 			ManagementState: operatorv1.Managed,
@@ -128,7 +119,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 		},
 	}
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u.GetName()).Should(Equal(componentApi.KserveInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(componentApi.KserveKind))
@@ -152,23 +143,13 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g.Expect(mr["managementState"]).Should(Equal("Removed"))
 }
 
-func TestBuildModuleCR_PlatformMode_ReturnsNil(t *testing.T) {
-	g := NewWithT(t)
-	h := kserve.NewHandler()
-	platform := newPlatformModePlatformCtx(operatorv1.Managed)
-
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(u).Should(BeNil(), "xKS module CR is externally managed, BuildModuleCR must return nil")
-}
-
 func TestBuildModuleCR_HeadedRawServiceConfig(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
-	platform.DSC.Spec.Components.Kserve.RawDeploymentServiceConfig = componentApi.KserveRawHeaded
+	dscCtx := newDSCCtx(operatorv1.Managed)
+	dscCtx.DSC.Spec.Components.Kserve.RawDeploymentServiceConfig = componentApi.KserveRawHeaded
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -186,6 +167,7 @@ func TestGetRelatedImages(t *testing.T) {
 		"RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
 		"RELATED_IMAGE_ODH_WORKLOAD_VARIANT_AUTOSCALER_CONTROLLER_IMAGE",
 		"RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE",
+		"RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_IMAGE",
 	))
 	g.Expect(images).ShouldNot(ContainElement(h.GetControllerImage()))
 }

@@ -34,6 +34,7 @@ const (
 	CollectorMonitorServiceTemplate                  = "resources/collector-monitor-service.tmpl.yaml"
 	CollectorRBACTemplate                            = "resources/collector-rbac.tmpl.yaml"
 	CollectorMLflowRBACTemplate                      = "resources/collector-mlflow-rbac.tmpl.yaml"
+	CollectorTempoRBACTemplate                       = "resources/collector-tempo-rbac.tmpl.yaml"
 	PrometheusRouteTemplate                          = "resources/data-science-prometheus-route.tmpl.yaml"
 	InstrumentationTemplate                          = "resources/instrumentation.tmpl.yaml"
 	PrometheusNamespaceProxyTemplate                 = "resources/data-science-prometheus-namespace-proxy.tmpl.yaml"
@@ -320,12 +321,18 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 		})
 	}
 
-	// Collector RBAC for MLflow trace ingestion (only when tracing is enabled)
+	// Collector RBAC for trace ingestion (only when tracing is enabled)
 	if monitoring.Spec.Traces != nil {
-		template = append(template, odhtypes.TemplateInfo{
-			FS:   resourcesFS,
-			Path: CollectorMLflowRBACTemplate,
-		})
+		template = append(template,
+			odhtypes.TemplateInfo{
+				FS:   resourcesFS,
+				Path: CollectorMLflowRBACTemplate,
+			},
+			odhtypes.TemplateInfo{
+				FS:   resourcesFS,
+				Path: CollectorTempoRBACTemplate,
+			},
+		)
 	}
 
 	rr.Templates = append(rr.Templates, template...)

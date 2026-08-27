@@ -31,7 +31,6 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -90,7 +89,7 @@ const (
 
 	dsciInstanceName     = "default-dsci" // Instance name for the DSCInitialization
 	dscInstanceName      = "default-dsc"  // Instance name for the DataScienceCluster
-	platformInstanceName = "default"      // Instance name for the Platform CR (xKS mode)
+	platformInstanceName = "default"      // Instance name for the Platform CR
 
 	// Standard error messages format.
 	resourceNotNilErrorMsg       = "Expected a non-nil resource object but got nil."
@@ -248,6 +247,9 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 					},
 					WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
 						WorkbenchNamespace: workbenchesNamespace,
+						WorkbenchesV2: componentApi.WorkbenchesV2Spec{
+							ManagementState: operatorv1.Removed,
+						},
 					},
 				},
 				AIPipelines: componentApi.DSCDataSciencePipelines{
@@ -280,7 +282,7 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 						ManagementState: operatorv1.Removed,
 					},
 					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
-						RegistriesNamespace: modelregistryctrl.DefaultModelRegistriesNamespace,
+						RegistriesNamespace: componentApi.DefaultModelRegistriesNamespace,
 					},
 				},
 				TrainingOperator: componentApi.DSCTrainingOperator{
@@ -395,7 +397,7 @@ func CreateDSCv1(name string, workbenchesNamespace string) *dscv1.DataScienceClu
 						ManagementState: operatorv1.Removed,
 					},
 					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
-						RegistriesNamespace: modelregistryctrl.DefaultModelRegistriesNamespace,
+						RegistriesNamespace: componentApi.DefaultModelRegistriesNamespace,
 					},
 				},
 				TrainingOperator: componentApi.DSCTrainingOperator{

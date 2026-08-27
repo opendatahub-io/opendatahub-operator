@@ -47,7 +47,11 @@ func ApplyDeploy(opts DeployOptions) error {
 
 	root := docs[deployIdx].Content[0]
 
-	envNode, err := findManagerEnvNode(root)
+	platform, err := config.NormalizePlatform(opts.Platform)
+	if err != nil {
+		return err
+	}
+	envNode, err := findManagerEnvNode(root, platform)
 	if err != nil {
 		return fmt.Errorf("finding env node: %w", err)
 	}
@@ -119,7 +123,7 @@ func findScalarValue(mapping *yaml.Node, key string) string {
 	return ""
 }
 
-func findManagerEnvNode(root *yaml.Node) (*yaml.Node, error) {
+func findManagerEnvNode(root *yaml.Node, platform string) (*yaml.Node, error) {
 	spec := findMapNode(root, "spec")
 	if spec == nil {
 		return nil, fmt.Errorf("spec not found")
@@ -137,9 +141,18 @@ func findManagerEnvNode(root *yaml.Node) (*yaml.Node, error) {
 		return nil, fmt.Errorf("spec.template.spec.containers not found")
 	}
 
+	var containerName string
+	switch platform {
+	case "odh":
+		containerName = "manager"
+	case "rhoai":
+		containerName = "rhods-operator"
+	default:
+		return nil, fmt.Errorf("unknown platform: %s", platform)
+	}
 	for _, container := range containers.Content {
 		name := findScalarValue(container, "name")
-		if name == "manager" {
+		if name == containerName {
 			env := findSequenceNode(container, "env")
 			if env == nil {
 				env = &yaml.Node{Kind: yaml.SequenceNode}
@@ -152,7 +165,7 @@ func findManagerEnvNode(root *yaml.Node) (*yaml.Node, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("container 'manager' not found")
+	return nil, fmt.Errorf("container '%s' not found", containerName)
 }
 
 func findMapNode(mapping *yaml.Node, key string) *yaml.Node {
@@ -242,10 +255,9 @@ func loadOverridesFromConfig(configFile, platform string) ([]envVar, error) {
 		return nil, err
 	}
 
-	if platform == "OpenDataHub" {
-		platform = "odh"
-	} else if platform != "odh" && platform != "rhoai" {
-		platform = "rhoai"
+	platform, err = config.NormalizePlatform(platform)
+	if err != nil {
+		return nil, err
 	}
 
 	var vars []envVar
@@ -255,13 +267,18 @@ func loadOverridesFromConfig(configFile, platform string) ([]envVar, error) {
 		}
 
 		pi := override.PlatformImage(platform)
-		if pi == nil || pi.Digest == "" || pi.Base == "" {
+		if pi == nil {
+			slog.Info("No platform image defined, skipping", slog.String("env", envName), slog.String("platform", platform))
 			continue
 		}
-
+		if pi.Base == "" {
+			return nil, fmt.Errorf("imageOverrides.%s.%s.base: required", envName, platform)
+		}
+		if pi.Digest == "" {
+			return nil, fmt.Errorf("imageOverrides.%s.%s.digest: required", envName, platform)
+		}
 		if !config.DigestPattern.MatchString(pi.Digest) {
-			slog.Warn("Invalid digest, skipping", slog.String("env", envName), slog.String("digest", pi.Digest))
-			continue
+			return nil, fmt.Errorf("imageOverrides.%s.%s.digest: invalid digest %q", envName, platform, pi.Digest)
 		}
 
 		vars = append(vars, envVar{
