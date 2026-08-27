@@ -304,11 +304,28 @@ RHAI_HELM_URL="${RHOAI_BASE_URL}/helm/rhai-on-xks-chart/values.yaml"
 rhai_temp=$(mktemp "${WORKDIR}/fetched.XXXXXX.yaml")
 if curl -sfL --max-filesize 10485760 --connect-timeout 10 --max-time 30 \
         "$RHAI_HELM_URL" -o "$rhai_temp" 2>/dev/null; then
-    $YQ -r '.rhaiOperator.relatedImages[].name' "$rhai_temp" 2>/dev/null | sort -u > "$RHAI_HELM_CONFIG"
-    rhai_count=$(wc -l < "$RHAI_HELM_CONFIG" | tr -d ' ')
-    echo "  Found ${rhai_count} RELATED_IMAGE_* names in RHAI Helm chart"
+    if ! $YQ -r '.rhaiOperator.relatedImages[].name' "$rhai_temp" 2>/dev/null | sort -u > "$RHAI_HELM_CONFIG"; then
+        if [ -s "$RHAI_HELM_COMPONENTS" ]; then
+            rhai_comps=$(tr '\n' ',' < "$RHAI_HELM_COMPONENTS" | sed 's/,$//')
+            echo "ERROR: Failed to parse RHAI Helm chart values.yaml — required for rhai_helm_components: ${rhai_comps}"
+            rm -f "$rhai_temp"
+            exit 1
+        else
+            echo "  WARNING: Failed to parse RHAI Helm chart values.yaml (no rhai_helm_components configured)"
+        fi
+    else
+        rhai_count=$(wc -l < "$RHAI_HELM_CONFIG" | tr -d ' ')
+        echo "  Found ${rhai_count} RELATED_IMAGE_* names in RHAI Helm chart"
+    fi
 else
-    echo "  WARNING: Failed to fetch RHAI Helm chart values.yaml"
+    if [ -s "$RHAI_HELM_COMPONENTS" ]; then
+        rhai_comps=$(tr '\n' ',' < "$RHAI_HELM_COMPONENTS" | sed 's/,$//')
+        echo "ERROR: Failed to fetch RHAI Helm chart values.yaml — required for rhai_helm_components: ${rhai_comps}"
+        rm -f "$rhai_temp"
+        exit 1
+    else
+        echo "  WARNING: Failed to fetch RHAI Helm chart values.yaml (no rhai_helm_components configured)"
+    fi
 fi
 rm -f "$rhai_temp"
 
@@ -493,7 +510,9 @@ while IFS= read -r related_image; do
         is_error=true
     fi
     if ! $in_params_env && $in_odh && $in_rhoai; then
-        if $needs_rhai_helm && [ -s "$RHAI_HELM_CONFIG" ] && ! $in_rhai; then
+        if [ -n "$has_map_entry" ]; then
+            is_error=true
+        elif $needs_rhai_helm && [ -s "$RHAI_HELM_CONFIG" ] && ! $in_rhai; then
             : # still error - missing from RHAI Helm
         else
             is_error=false
@@ -530,6 +549,50 @@ while IFS= read -r related_image; do
         printf "    Build configs: ${bc_status}\n"
         echo ""
     } >> "$target_file"
+done < "$WORKDIR/unique-images.txt"
+
+# --- Step 7: Verify all Go RELATED_IMAGE_* names have an imageOverrides entry ---
+
+MANIFESTS_CONFIG_FILE="${MANIFESTS_CONFIG_FILE:-manifests-config.yaml}"
+IMAGE_OVERRIDES_EXCEPTIONS_FILE="$WORKDIR/image-overrides-exceptions.txt"
+IMAGE_OVERRIDES_EXCEPTIONS_MATCHED="$WORKDIR/image-overrides-exceptions-matched.txt"
+touch "$IMAGE_OVERRIDES_EXCEPTIONS_FILE" "$IMAGE_OVERRIDES_EXCEPTIONS_MATCHED"
+$YQ -r '(.image_overrides_exceptions // [])[] | .image + "|" + .reason' "$CONFIG_FILE" \
+    > "$IMAGE_OVERRIDES_EXCEPTIONS_FILE"
+
+IMAGE_OVERRIDES_KEYS="$WORKDIR/image-overrides-keys.txt"
+if ! $YQ -r '.imageOverrides | keys | .[]' "$MANIFESTS_CONFIG_FILE" 2>/dev/null | sort -u > "$IMAGE_OVERRIDES_KEYS"; then
+    echo "ERROR: Failed to read imageOverrides from ${MANIFESTS_CONFIG_FILE}"
+    exit 1
+fi
+
+echo ""
+echo "Checking Go RELATED_IMAGE_* names against imageOverrides in ${MANIFESTS_CONFIG_FILE}..."
+
+while IFS= read -r related_image; do
+    # Already excluded as SBOM metadata
+    if grep -qxF -e "$related_image" -- "$SBOM_METADATA_FILE" 2>/dev/null; then
+        continue
+    fi
+    # In imageOverrides — all good
+    if grep -qxF "$related_image" "$IMAGE_OVERRIDES_KEYS" 2>/dev/null; then
+        continue
+    fi
+    # Explicit exception
+    if grep -q "^${related_image}|" "$IMAGE_OVERRIDES_EXCEPTIONS_FILE"; then
+        grep "^${related_image}|" "$IMAGE_OVERRIDES_EXCEPTIONS_FILE" | head -1 \
+            >> "$IMAGE_OVERRIDES_EXCEPTIONS_MATCHED"
+        continue
+    fi
+    # Neither — emit error
+    src=$(grep "^${related_image}|" "$ALL_ENTRIES" | head -1 | cut -d'|' -f4)
+    {
+        printf "  ${RED}%s${RESET}\n" "$related_image"
+        [ -n "$src" ] && echo "    Source: ${src}"
+        echo "    Not found in imageOverrides in ${MANIFESTS_CONFIG_FILE}"
+        echo "    Add an imageOverrides entry or list in image_overrides_exceptions in ${CONFIG_FILE}"
+        echo ""
+    } >> "$ERRORS_FILE"
 done < "$WORKDIR/unique-images.txt"
 
 # --- Print results: errors first, then warnings ---
@@ -685,6 +748,29 @@ if [ -s "$RHOAI_EXCEPTIONS_FILE" ]; then
 
     if [ "$stale_re_count" -gt 0 ]; then
         WARNINGS=$((WARNINGS + stale_re_count))
+    fi
+fi
+
+# Detect stale image_overrides_exceptions (configured but no longer triggered)
+if [ -s "$IMAGE_OVERRIDES_EXCEPTIONS_FILE" ]; then
+    matched_ioe_images="$WORKDIR/matched-ioe-images.txt"
+    cut -d'|' -f1 "$IMAGE_OVERRIDES_EXCEPTIONS_MATCHED" | sort -u > "$matched_ioe_images" 2>/dev/null || true
+
+    stale_ioe_count=0
+    while IFS='|' read -r ioe_image ioe_reason; do
+        if ! grep -qxF "$ioe_image" "$matched_ioe_images" 2>/dev/null; then
+            if [ "$stale_ioe_count" -eq 0 ]; then
+                echo ""
+                printf "  ${YELLOW}${BOLD}Stale image_overrides_exceptions (no longer triggered, please remove from ${CONFIG_FILE}):${RESET}\n"
+            fi
+            printf "    ${YELLOW}%s${RESET} - %s\n" "$ioe_image" "$ioe_reason"
+            stale_ioe_count=$((stale_ioe_count + 1))
+        fi
+    done < "$IMAGE_OVERRIDES_EXCEPTIONS_FILE"
+    rm -f "$matched_ioe_images"
+
+    if [ "$stale_ioe_count" -gt 0 ]; then
+        WARNINGS=$((WARNINGS + stale_ioe_count))
     fi
 fi
 

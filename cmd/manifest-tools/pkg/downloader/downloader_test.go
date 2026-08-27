@@ -37,22 +37,37 @@ func TestCollectEntries(t *testing.T) {
 			RHOAI: &config.PlatformRepo{Repo: "org/repo-a-rhoai", Ref: "rhoai-3.5@def5678", SourcePath: "config"},
 		},
 		"comp-b": {
-			ODH: &config.PlatformRepo{Repo: "org/repo-b", Ref: "dev@1234567", SourcePath: "src"},
+			ODH:   &config.PlatformRepo{Repo: "org/repo-b", Ref: "dev@1234567", SourcePath: "src"},
+			RHOAI: &config.PlatformRepo{Repo: "org/repo-b-rhoai", Ref: "rhoai-3.5@abc9999", SourcePath: "src"},
 		},
-		"comp-c": {
-			RHOAI: &config.PlatformRepo{Repo: "org/repo-c", Ref: "main@aaa1111", SourcePath: "config"},
-		},
-		"comp-empty": {},
 	}
 
-	odh := collectEntries(components, "odh")
+	odh, err := collectEntries(components, "odh")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(odh) != 2 {
 		t.Fatalf("expected 2 ODH entries, got %d", len(odh))
 	}
 
-	rhoai := collectEntries(components, "rhoai")
+	rhoai, err := collectEntries(components, "rhoai")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(rhoai) != 2 {
 		t.Fatalf("expected 2 RHOAI entries, got %d", len(rhoai))
+	}
+}
+
+func TestCollectEntries_MissingPlatformErrors(t *testing.T) {
+	components := map[string]config.Component{
+		"comp-odh-only": {
+			ODH: &config.PlatformRepo{Repo: "org/repo", Ref: "main", SourcePath: "config"},
+		},
+	}
+	_, err := collectEntries(components, "rhoai")
+	if err == nil {
+		t.Fatal("expected error for component missing rhoai platform repo")
 	}
 }
 
@@ -143,7 +158,10 @@ func TestApplyOverrides_InvalidFormat(t *testing.T) {
 }
 
 func TestChartsOnlyConfigDoesNotError(t *testing.T) {
-	manifests := collectEntries(nil, "odh")
+	manifests, err := collectEntries(nil, "odh")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	charts, err := mergeCharts(
 		map[string]config.Component{
 			"cert-manager": {ODH: &config.PlatformRepo{Repo: "org/repo", Ref: "main", SourcePath: "charts/cert-manager"}},
@@ -164,7 +182,10 @@ func TestChartsOnlyConfigDoesNotError(t *testing.T) {
 }
 
 func TestEmptyConfigErrors(t *testing.T) {
-	manifests := collectEntries(nil, "odh")
+	manifests, err := collectEntries(nil, "odh")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	charts, err := mergeCharts(nil, nil, "odh")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
