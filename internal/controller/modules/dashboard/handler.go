@@ -23,10 +23,6 @@ const (
 	// crName must match dashboard-operator CRD CEL (default-dashboard); see odh-dashboard#8093.
 	crName = componentApi.DashboardInstanceName
 
-	// deploymentModeStandalone signals the dashboard-operator that the platform operator
-	// manages its lifecycle. Must match the dashboard-operator's expected deploymentMode values.
-	deploymentModeStandalone = "Standalone"
-
 	// dashboardAIPipelinesName is the key used in the Dashboard CR components map for
 	// AI Pipelines. Keep in sync with dashboard-operator's component name for DSP.
 	dashboardAIPipelinesName = "aipipelines"
@@ -106,8 +102,6 @@ func (h *handler) BuildModuleCR(
 	if ns := resolveModelRegistryNamespace(dscCtx); ns != "" {
 		spec["modelRegistryNamespace"] = ns
 	}
-
-	spec["deploymentMode"] = deploymentModeStandalone
 
 	if cfg != nil && cfg.GatewayDomain != "" {
 		spec["gateway"] = map[string]any{

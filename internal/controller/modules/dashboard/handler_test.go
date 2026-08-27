@@ -134,7 +134,6 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
 	g.Expect(spec["managementState"]).Should(Equal("Managed"))
-	g.Expect(spec["deploymentMode"]).Should(Equal("Standalone"))
 
 	gateway, ok := spec["gateway"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.gateway missing")
