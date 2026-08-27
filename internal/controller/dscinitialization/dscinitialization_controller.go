@@ -40,10 +40,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -76,7 +78,7 @@ type DSCInitializationCondition struct {
 }
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
-func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,maintidx
+func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,maintidx,gocyclo
 	log := logf.FromContext(ctx).WithName("DSCInitialization")
 	log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
 
@@ -247,6 +249,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// Create default HWProfile CR
 	if err = r.ManageDefaultAndCustomHWProfileCR(ctx, instance, platform); err != nil {
 		log.Info("failed to manage default and custom HardwareProfile CR")
+		return ctrl.Result{}, err
+	}
+
+	// Create/Update Platform CR and service module CRs
+	if err = r.reconcileServiceModules(ctx, instance); err != nil {
+		log.Error(err, "failed to reconcile service modules")
 		return ctrl.Result{}, err
 	}
 
@@ -534,4 +542,78 @@ func (r *DSCInitializationReconciler) watchHWProfileCRDResource(ctx context.Cont
 	}
 
 	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name}}}
+}
+
+// reconcileServiceModules creates/updates Platform CR and directly provisions
+// service module CRs (like Monitoring) that are owned by DSCI.
+func (r *DSCInitializationReconciler) reconcileServiceModules(ctx context.Context, instance *dsciv2.DSCInitialization) error {
+	log := logf.FromContext(ctx)
+
+	// Build DSCContext for module handlers
+	dscCtx := &modules.DSCContext{
+		DSCI: instance,
+		DSC:  nil, // Service modules don't need DSC
+	}
+
+	// 1. Create/Update Platform CR with module enablement
+	// This enables module operator deployment via Platform controller
+	platform := &configv1alpha1.Platform{}
+	platform.SetName(configv1alpha1.PlatformInstanceName)
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, platform, func() error {
+		// Populate module enablement from DSCI via module handlers
+		_ = modules.DefaultRegistry().ForAll(func(handler modules.ModuleHandler, _ bool) error {
+			handler.PopulatePlatformModule(&platform.Spec.Modules, dscCtx)
+			return nil
+		})
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create or update Platform CR: %w", err)
+	}
+
+	// 2. Manage service module CRs directly (owned by DSCI)
+	// Service modules are configured via DSCI spec, not DSC
+	return modules.DefaultRegistry().ForAll(func(handler modules.ModuleHandler, _ bool) error {
+		// Check if this is a service module (services.platform.opendatahub.io)
+		gvk := handler.GetGVK()
+		if gvk.Group != "services.platform.opendatahub.io" {
+			// Not a service module - skip (component modules managed by DSC)
+			return nil
+		}
+
+		// Check if service module is enabled
+		if !handler.IsEnabled(&platform.Spec.Modules) {
+			// Service module is disabled - delete its CR
+			log.V(1).Info("deleting disabled service module CR", "module", handler.GetName())
+			if err := handler.DeleteModuleCR(ctx, r.Client); err != nil {
+				log.Error(err, "failed to delete service module CR", "module", handler.GetName())
+				return err
+			}
+			return nil
+		}
+
+		// Service module is enabled - create/update its CR
+		moduleCR, err := handler.BuildModuleCR(ctx, r.Client, dscCtx, nil)
+		if err != nil {
+			return fmt.Errorf("BuildModuleCR failed for module %s: %w", handler.GetName(), err)
+		}
+
+		if moduleCR == nil {
+			return nil
+		}
+
+		// Set DSCI as owner
+		if err := controllerutil.SetControllerReference(instance, moduleCR, r.Scheme); err != nil {
+			return fmt.Errorf("failed to set owner reference for module %s: %w", handler.GetName(), err)
+		}
+
+		// Apply the module CR using Server-Side Apply (Patch with Apply type)
+		if err := r.Client.Patch(ctx, moduleCR, client.Apply, client.ForceOwnership, client.FieldOwner(fieldManager)); err != nil { //nolint:staticcheck
+			return fmt.Errorf("failed to apply module CR %s: %w", handler.GetName(), err)
+		}
+
+		log.V(1).Info("provisioned service module CR", "module", handler.GetName())
+		return nil
+	})
 }
