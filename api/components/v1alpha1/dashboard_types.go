@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	operatorv1 "github.com/openshift/api/operator/v1"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 )
 
@@ -31,6 +33,20 @@ const (
 type DashboardCommonSpec struct {
 	// dashboard spec exposed to DSC api
 	// dashboard spec exposed only to internal api
+
+	// MaasConsumerPortal controls the MaaS Consumer Portal submodule, shipped in
+	// the dashboard-operator. It is managed independently of the core Dashboard:
+	// the dashboard-operator Deployment stays up while either the core Dashboard
+	// or the portal is Managed. This field round-trips through DashboardCommonSpec
+	// and is projected verbatim onto the Dashboard CR as spec.maasConsumerPortal.
+	MaasConsumerPortal MaasConsumerPortalSpec `json:"maasConsumerPortal,omitempty"`
+}
+
+// MaasConsumerPortalSpec configures the MaaS Consumer Portal submodule lifecycle.
+type MaasConsumerPortalSpec struct {
+	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:default=Removed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
 // DashboardCommonStatus defines the shared observed state of Dashboard
@@ -50,4 +66,10 @@ type DSCDashboard struct {
 type DSCDashboardStatus struct {
 	common.ManagementSpec  `json:",inline"`
 	*DashboardCommonStatus `json:",inline"`
+}
+
+// DSCMaasConsumerPortalStatus contains the observed state of the MaaS Consumer
+// Portal submodule (submodule of Dashboard) exposed in the DSC instance.
+type DSCMaasConsumerPortalStatus struct {
+	common.ManagementSpec `json:",inline"`
 }

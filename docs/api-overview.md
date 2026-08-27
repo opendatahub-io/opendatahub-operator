@@ -156,6 +156,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20260610192510-1b2a074e0bd6/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `maasConsumerPortal` _[MaasConsumerPortalSpec](#maasconsumerportalspec)_ | MaasConsumerPortal controls the MaaS Consumer Portal submodule, shipped in<br />the dashboard-operator. It is managed independently of the core Dashboard:<br />the dashboard-operator Deployment stays up while either the core Dashboard<br />or the portal is Managed. This field round-trips through DashboardCommonSpec<br />and is projected verbatim onto the Dashboard CR as spec.maasConsumerPortal. |  |  |
 
 
 #### DSCDashboardStatus
@@ -412,6 +413,23 @@ _Appears in:_
 
 
 DSCMLflowOperatorStatus contains the observed state of the MLflowOperator exposed in the DSC instance
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20260610192510-1b2a074e0bd6/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCMaasConsumerPortalStatus
+
+
+
+DSCMaasConsumerPortalStatus contains the observed state of the MaaS Consumer
+Portal submodule (submodule of Dashboard) exposed in the DSC instance.
 
 
 
@@ -757,6 +775,9 @@ DashboardCommonSpec spec defines the shared desired state of Dashboard (used in 
 _Appears in:_
 - [DSCDashboard](#dscdashboard)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `maasConsumerPortal` _[MaasConsumerPortalSpec](#maasconsumerportalspec)_ | MaasConsumerPortal controls the MaaS Consumer Portal submodule, shipped in<br />the dashboard-operator. It is managed independently of the core Dashboard:<br />the dashboard-operator Deployment stays up while either the core Dashboard<br />or the portal is Managed. This field round-trips through DashboardCommonSpec<br />and is projected verbatim onto the Dashboard CR as spec.maasConsumerPortal. |  |  |
 
 
 #### DashboardCommonStatus
@@ -1123,6 +1144,23 @@ MLflowOperatorCommonStatus defines the shared observed state of MLflowOperator
 _Appears in:_
 - [DSCMLflowOperatorStatus](#dscmlflowoperatorstatus)
 
+
+
+#### MaasConsumerPortalSpec
+
+
+
+MaasConsumerPortalSpec configures the MaaS Consumer Portal submodule lifecycle.
+
+
+
+_Appears in:_
+- [DSCDashboard](#dscdashboard)
+- [DashboardCommonSpec](#dashboardcommonspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20260610192510-1b2a074e0bd6/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Removed] <br /> |
 
 
 #### ModelCacheSpec
@@ -1922,6 +1960,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboardStatus](#dscdashboardstatus)_ | Dashboard component status. |  |  |
+| `maasConsumerPortal` _[DSCMaasConsumerPortalStatus](#dscmaasconsumerportalstatus)_ | MaasConsumerPortal submodule status (submodule of Dashboard). |  |  |
 | `workbenches` _[DSCWorkbenchesStatus](#dscworkbenchesstatus)_ | Workbenches component status. |  |  |
 | `workbenchesV2` _[DSCWorkbenchesV2Status](#dscworkbenchesv2status)_ | WorkbenchesV2 submodule status (submodule of Workbenches). |  |  |
 | `aipipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | AIPipelines component status. |  |  |
