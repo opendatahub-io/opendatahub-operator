@@ -45,6 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
@@ -138,6 +139,7 @@ var _ = BeforeSuite(func() {
 	utilruntime.Must(monitoringv1.AddToScheme(testScheme))
 	utilruntime.Must(templatev1.Install(testScheme))
 	utilruntime.Must(configv1.Install(testScheme))
+	utilruntime.Must(configv1alpha1.AddToScheme(testScheme))
 	utilruntime.Must(serviceApi.AddToScheme(testScheme))
 	utilruntime.Must(infrav1.AddToScheme(testScheme))
 	// +kubebuilder:scaffold:scheme
