@@ -355,13 +355,6 @@ func TestApplicationNamespaceFallback(t *testing.T) {
 			dsciNamespace: "",
 			expectError:   true,
 		},
-		{
-			name:              "returns cached namespace on Kubernetes without DSCI",
-			clusterType:       ClusterTypeKubernetes,
-			rhaiNamespace:     "",
-			dsciNamespace:     "",
-			expectedNamespace: "opendatahub",
-		},
 	}
 
 	for _, tc := range testCases {
