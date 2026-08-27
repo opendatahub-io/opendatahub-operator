@@ -35,6 +35,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
+// this is a comment so it looks like a change was made.
+
 // commonActions returns the shared action chain for both DSC and Platform modes.
 //
 // provisionModules and render run before the gate check so that gate
