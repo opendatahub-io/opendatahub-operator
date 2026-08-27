@@ -179,7 +179,10 @@ var (
 		componentApi.SparkOperatorComponentName:        sparkoperatorModule.NewHandler(),
 	}
 
-	serviceModuleNames = map[string]bool{
+	// dsciConfiguredModules lists modules whose user-facing configuration
+	// lives in the DSCI spec. The DSCI controller creates their module CRs.
+	// All other modules default to DSC-configured.
+	dsciConfiguredModules = map[string]bool{
 		serviceApi.MonitoringServiceName: true,
 	}
 
@@ -281,8 +284,8 @@ func registerModules() {
 		}
 
 		opts := []mr.RegistrationOption{mr.WithRunlevel(rl)}
-		if serviceModuleNames[name] {
-			opts = append(opts, mr.AsServiceModule())
+		if dsciConfiguredModules[name] {
+			opts = append(opts, mr.WithConfigSource(mr.ConfigFromDSCI))
 		}
 
 		mr.Add(handler, opts...)

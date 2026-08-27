@@ -392,57 +392,44 @@ func TestLookup(t *testing.T) {
 	g.Expect(reg.Lookup("nonexistent")).Should(BeNil())
 }
 
-func TestForAllComponentsFiltersServiceModules(t *testing.T) {
+func TestForConfigSourceFiltersBySource(t *testing.T) {
 	g := NewWithT(t)
 	reg := &modules.Registry{}
 
-	reg.Add(newMockHandler("comp-a", true))
-	reg.Add(newMockHandler("svc-a", true), modules.AsServiceModule())
-	reg.Add(newMockHandler("comp-b", true))
+	reg.Add(newMockHandler("dsc-mod", true))
+	reg.Add(newMockHandler("dsci-mod", true), modules.WithConfigSource(modules.ConfigFromDSCI))
+	reg.Add(newMockHandler("dsc-mod-2", true))
 
-	var visited []string
-	err := reg.ForAllComponents(func(h modules.ModuleHandler, _ bool) error {
-		visited = append(visited, h.GetName())
+	var dscVisited, dsciVisited []string
+	_ = reg.ForConfigSource(modules.ConfigFromDSC, func(h modules.ModuleHandler, _ bool) error {
+		dscVisited = append(dscVisited, h.GetName())
+		return nil
+	})
+	_ = reg.ForConfigSource(modules.ConfigFromDSCI, func(h modules.ModuleHandler, _ bool) error {
+		dsciVisited = append(dsciVisited, h.GetName())
 		return nil
 	})
 
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(visited).Should(ConsistOf("comp-a", "comp-b"))
+	g.Expect(dscVisited).Should(ConsistOf("dsc-mod", "dsc-mod-2"))
+	g.Expect(dsciVisited).Should(ConsistOf("dsci-mod"))
 }
 
-func TestForAllServicesFiltersComponentModules(t *testing.T) {
+func TestRegisteredModuleDefaultsToDSCConfigured(t *testing.T) {
 	g := NewWithT(t)
 	reg := &modules.Registry{}
 
-	reg.Add(newMockHandler("comp-a", true))
-	reg.Add(newMockHandler("svc-a", true), modules.AsServiceModule())
+	reg.Add(newMockHandler("default-source", true))
 
-	var visited []string
-	err := reg.ForAllServices(func(h modules.ModuleHandler, _ bool) error {
-		visited = append(visited, h.GetName())
+	var dscVisited, dsciVisited []string
+	_ = reg.ForConfigSource(modules.ConfigFromDSC, func(h modules.ModuleHandler, _ bool) error {
+		dscVisited = append(dscVisited, h.GetName())
+		return nil
+	})
+	_ = reg.ForConfigSource(modules.ConfigFromDSCI, func(h modules.ModuleHandler, _ bool) error {
+		dsciVisited = append(dsciVisited, h.GetName())
 		return nil
 	})
 
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(visited).Should(ConsistOf("svc-a"))
-}
-
-func TestRegisteredModuleDefaultsToComponent(t *testing.T) {
-	g := NewWithT(t)
-	reg := &modules.Registry{}
-
-	reg.Add(newMockHandler("default-kind", true))
-
-	var compVisited, svcVisited []string
-	_ = reg.ForAllComponents(func(h modules.ModuleHandler, _ bool) error {
-		compVisited = append(compVisited, h.GetName())
-		return nil
-	})
-	_ = reg.ForAllServices(func(h modules.ModuleHandler, _ bool) error {
-		svcVisited = append(svcVisited, h.GetName())
-		return nil
-	})
-
-	g.Expect(compVisited).Should(ConsistOf("default-kind"))
-	g.Expect(svcVisited).Should(BeEmpty())
+	g.Expect(dscVisited).Should(ConsistOf("default-source"))
+	g.Expect(dsciVisited).Should(BeEmpty())
 }

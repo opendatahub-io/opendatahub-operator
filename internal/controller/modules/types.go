@@ -290,6 +290,19 @@ type PlatformContext struct {
 	ManifestsBasePath string
 }
 
+// ConfigSource identifies where a module's user-facing configuration lives.
+// This determines which controller creates the module CR.
+type ConfigSource int
+
+const (
+	// ConfigFromDSC means the module is configured via the DSC spec.
+	// The DSC controller creates/manages its module CR.
+	ConfigFromDSC ConfigSource = iota
+	// ConfigFromDSCI means the module is configured via the DSCI spec.
+	// The DSCI controller creates/manages its module CR.
+	ConfigFromDSCI
+)
+
 // RegistrationOption configures optional orchestration metadata when adding
 // a module to the registry.
 type RegistrationOption func(*registryEntry)
@@ -305,12 +318,12 @@ func WithRunlevel(level dag.Runlevel) RegistrationOption {
 	}
 }
 
-// AsServiceModule marks a registered module as a service module.
-// Service modules are provisioned by the DSCI controller; modules
-// without this option default to component modules, provisioned by
-// the DSC controller.
-func AsServiceModule() RegistrationOption {
+// WithConfigSource sets where this module's user-facing configuration
+// lives. Modules configured from DSC have their CRs created by the DSC
+// controller; modules configured from DSCI have their CRs created by
+// the DSCI controller. Default is ConfigFromDSC.
+func WithConfigSource(source ConfigSource) RegistrationOption {
 	return func(e *registryEntry) {
-		e.service = true
+		e.configSource = source
 	}
 }

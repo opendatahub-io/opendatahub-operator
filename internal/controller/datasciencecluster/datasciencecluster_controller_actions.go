@@ -298,7 +298,7 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		Release:               rr.Release,
 	}
 
-	return moduleReg.ForAllComponents(func(handler modules.ModuleHandler, _ bool) error {
+	return moduleReg.ForConfigSource(modules.ConfigFromDSC, func(handler modules.ModuleHandler, _ bool) error {
 		name := handler.GetName()
 		if !enabledModules[name] {
 			return nil

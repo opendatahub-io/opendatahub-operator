@@ -252,9 +252,9 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, err
 	}
 
-	// Create/Update Platform CR and service module CRs
-	if err = r.reconcileServiceModules(ctx, instance); err != nil {
-		log.Error(err, "failed to reconcile service modules")
+	// Create/Update Platform CR and DSCI-configured module CRs
+	if err = r.reconcileDSCIModules(ctx, instance); err != nil {
+		log.Error(err, "failed to reconcile DSCI-configured modules")
 		return ctrl.Result{}, err
 	}
 
@@ -544,25 +544,21 @@ func (r *DSCInitializationReconciler) watchHWProfileCRDResource(ctx context.Cont
 	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name}}}
 }
 
-// reconcileServiceModules creates/updates Platform CR and directly provisions
-// service module CRs (like Monitoring) that are owned by DSCI.
-func (r *DSCInitializationReconciler) reconcileServiceModules(ctx context.Context, instance *dsciv2.DSCInitialization) error {
+// reconcileDSCIModules creates/updates the Platform CR and provisions
+// module CRs whose configuration comes from the DSCI spec (e.g. Monitoring).
+func (r *DSCInitializationReconciler) reconcileDSCIModules(ctx context.Context, instance *dsciv2.DSCInitialization) error {
 	log := logf.FromContext(ctx)
 
-	// Build DSCContext for module handlers
 	dscCtx := &modules.DSCContext{
 		DSCI: instance,
-		DSC:  nil, // Service modules don't need DSC
 	}
 
 	// 1. Create/Update Platform CR with module enablement
-	// This enables module operator deployment via Platform controller
 	platform := &configv1alpha1.Platform{}
 	platform.SetName(configv1alpha1.PlatformInstanceName)
 
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, platform, func() error {
-		// Populate module enablement from DSCI via module handlers
-		_ = modules.DefaultRegistry().ForAll(func(handler modules.ModuleHandler, _ bool) error {
+		modules.DefaultRegistry().ForAll(func(handler modules.ModuleHandler, _ bool) error { //nolint:errcheck
 			handler.PopulatePlatformModule(&platform.Spec.Modules, dscCtx)
 			return nil
 		})
@@ -572,21 +568,13 @@ func (r *DSCInitializationReconciler) reconcileServiceModules(ctx context.Contex
 		return fmt.Errorf("failed to create or update Platform CR: %w", err)
 	}
 
-	// 2. Manage service module CRs directly (owned by DSCI)
-	// Service modules are configured via DSCI spec, not DSC
-	return modules.DefaultRegistry().ForAllServices(func(handler modules.ModuleHandler, _ bool) error {
-		// Check if service module is enabled
+	// 2. Manage DSCI-configured module CRs
+	return modules.ForConfigSource(modules.ConfigFromDSCI, func(handler modules.ModuleHandler, _ bool) error {
 		if !handler.IsEnabled(&platform.Spec.Modules) {
-			// Service module is disabled - delete its CR
-			log.V(1).Info("deleting disabled service module CR", "module", handler.GetName())
-			if err := handler.DeleteModuleCR(ctx, r.Client); err != nil {
-				log.Error(err, "failed to delete service module CR", "module", handler.GetName())
-				return err
-			}
-			return nil
+			log.V(1).Info("deleting disabled module CR", "module", handler.GetName())
+			return handler.DeleteModuleCR(ctx, r.Client)
 		}
 
-		// Service module is enabled - create/update its CR
 		moduleCR, err := handler.BuildModuleCR(ctx, r.Client, dscCtx, nil)
 		if err != nil {
 			return fmt.Errorf("BuildModuleCR failed for module %s: %w", handler.GetName(), err)
@@ -596,7 +584,6 @@ func (r *DSCInitializationReconciler) reconcileServiceModules(ctx context.Contex
 			return nil
 		}
 
-		// Set DSCI as owner
 		if err := controllerutil.SetControllerReference(instance, moduleCR, r.Scheme); err != nil {
 			return fmt.Errorf("failed to set owner reference for module %s: %w", handler.GetName(), err)
 		}
@@ -605,7 +592,7 @@ func (r *DSCInitializationReconciler) reconcileServiceModules(ctx context.Contex
 			return fmt.Errorf("failed to apply module CR %s: %w", handler.GetName(), err)
 		}
 
-		log.V(1).Info("provisioned service module CR", "module", handler.GetName())
+		log.V(1).Info("provisioned DSCI-configured module CR", "module", handler.GetName())
 		return nil
 	})
 }
