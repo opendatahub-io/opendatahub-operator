@@ -6,13 +6,14 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
-const csvURL = "https://raw.githubusercontent.com/opendatahub-io/ODH-Build-Config/main/bundle/manifests/rhods-operator.clusterserviceversion.yaml"
+const defaultCSVURL = "https://raw.githubusercontent.com/red-hat-data-services/RHOAI-Build-Config/rhoai-2.25/bundle/manifests/rhods-operator.clusterserviceversion.yaml"
 
 type CSVImage struct {
 	Base   string
@@ -20,10 +21,15 @@ type CSVImage struct {
 }
 
 func FetchCSVRelatedImages(ctx context.Context) (map[string]CSVImage, error) {
+	url := os.Getenv("CSV_URL")
+	if url == "" {
+		url = defaultCSVURL
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, csvURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
@@ -91,6 +97,8 @@ func ParseCSVRelatedImages(data []byte) (map[string]CSVImage, error) {
 					slog.Debug("CSV entry skipped (no digest)", slog.String("env", env.Name))
 					continue
 				}
+				// Map registry.redhat.io/rhoai to quay.io/rhoai for CI pull secret compatibility
+				base = strings.Replace(base, "registry.redhat.io/rhoai", "quay.io/rhoai", 1)
 				images[env.Name] = CSVImage{Base: base, Digest: digest}
 			}
 		}

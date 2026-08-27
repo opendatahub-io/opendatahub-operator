@@ -19,6 +19,12 @@ IMG ?= $(IMAGE_TAG_BASE):$(IMG_TAG)
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
+ODH_PLATFORM_TYPE ?= OpenDataHub
+ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
+	OPERATOR_PACKAGE ?= opendatahub-operator
+else
+	OPERATOR_PACKAGE ?= rhods-operator
+endif
 IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= redhat-ods-operator
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
@@ -192,8 +198,8 @@ lint-fix: golangci-lint ## Run golangci-lint against code.
 
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
-	./get_all_manifests.sh
-CLEANFILES += opt/manifests/*
+	go run -C ./cmd/manifest-tools main.go download --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --manifests-dir $(CURDIR)/opt/manifests --charts-dir $(CURDIR)/opt/charts
+CLEANFILES += opt/manifests/* opt/charts/*
 
 # Default to standard sed command
 SED_COMMAND = sed
@@ -272,6 +278,9 @@ uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/c
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
+ifndef SKIP_IMAGE_OVERRIDES
+deploy: apply-image-overrides
+endif
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
@@ -425,7 +434,7 @@ $(ENVTEST): $(LOCALBIN)
 test: unit-test e2e-test
 
 .PHONY: unit-test
-unit-test: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
+unit-test: envtest ginkgo unit-test-manifest-tools # directly use ginkgo since the framework is not compatible with go test parallel
 	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
     	${GINKGO} -r \
         		--procs=8 \
@@ -459,6 +468,9 @@ check-prometheus-alert-unit-tests: $(PROMETHEUS_ALERT_RULES)
 CLEANFILES += $(PROMETHEUS_ALERT_RULES)
 
 .PHONY: e2e-test
+ifndef SKIP_IMAGE_OVERRIDES
+e2e-test: apply-image-overrides-olm
+endif
 e2e-test:
 ifndef E2E_TEST_OPERATOR_NAMESPACE
 export E2E_TEST_OPERATOR_NAMESPACE = $(OPERATOR_NAMESPACE)
@@ -485,5 +497,33 @@ rm -f $(1) || true ;\
 GOBIN=$(LOCALBIN) go install $${package} ;\
 mv $(1) $(1)-$(3) ;\
 } ;\
-ln -sf $(1)-$(3) $(1)
+	ln -sf $(1)-$(3) $(1)
 endef
+
+.PHONY: resolve-image-digests
+resolve-image-digests: ## Resolve image digests from Build-Config and update manifests-config.yaml
+	go run -C ./cmd/manifest-tools main.go resolve-digests --config $(CURDIR)/manifests-config.yaml --manifests-dir $(CURDIR)/opt/manifests --csv-import-registries "quay.io/,registry.redhat.io/"
+
+.PHONY: update-refs-shas
+update-refs-shas: ## Update branch@sha refs to latest commit SHAs from GitHub (requires GITHUB_TOKEN)
+	go run -C ./cmd/manifest-tools main.go update-refs shas --config $(CURDIR)/manifests-config.yaml
+
+.PHONY: update-refs-tags
+update-refs-tags: ## Parse tracker issue and update ODH component refs (requires TRACKER_URL)
+	go run -C ./cmd/manifest-tools main.go update-refs tags --tracker-url $(TRACKER_URL) --config $(CURDIR)/manifests-config.yaml
+
+.PHONY: update-refs-rhoai-branch
+update-refs-rhoai-branch: ## Update all RHOAI refs to a new branch (requires GITHUB_TOKEN, NEW_RHOAI_BRANCH)
+	go run -C ./cmd/manifest-tools main.go update-refs rhoai-branch --branch $(NEW_RHOAI_BRANCH) --config $(CURDIR)/manifests-config.yaml
+
+.PHONY: apply-image-overrides
+apply-image-overrides: ## Apply image overrides to manager.yaml (for make deploy)
+	go run -C ./cmd/manifest-tools main.go apply-deploy --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --manager-file $(CURDIR)/config/manager/manager.yaml
+
+.PHONY: apply-image-overrides-olm
+apply-image-overrides-olm: ## Apply image overrides to OLM Subscription (for operator-sdk run bundle)
+	go run -C ./cmd/manifest-tools main.go apply-olm --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --namespace $(OPERATOR_NAMESPACE) --package $(OPERATOR_PACKAGE)
+
+.PHONY: unit-test-manifest-tools
+unit-test-manifest-tools: ## cmd/manifest-tools is a separate Go module (own go.mod), so go test ./... from root never reaches it
+	go -C cmd/manifest-tools test ./...

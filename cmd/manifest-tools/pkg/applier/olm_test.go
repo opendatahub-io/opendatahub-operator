@@ -179,6 +179,19 @@ func TestFindSubscription_WrongPackage(t *testing.T) {
 	}
 }
 
+func TestFindSubscription_Fallback(t *testing.T) {
+	sub := newFakeSubscription("rhods-sub", "test-ns", "rhods-operator")
+	client := newFakeDynClient(sub)
+
+	name, err := findSubscription(context.Background(), client, "test-ns", "opendatahub-operator")
+	if err != nil {
+		t.Fatalf("findSubscription failed: %v", err)
+	}
+	if name != "rhods-sub" {
+		t.Errorf("expected rhods-sub, got %s", name)
+	}
+}
+
 func TestFindSubscription_Multiple(t *testing.T) {
 	sub1 := newFakeSubscription("sub-1", "test-ns", "opendatahub-operator")
 	sub2 := newFakeSubscription("sub-2", "test-ns", "opendatahub-operator")
