@@ -37,8 +37,7 @@ const (
 type IngressMode string
 
 const (
-	// IngressModeOcpRoute uses ClusterIP service with standard OpenShift Routes.
-	// This is the default for new deployments and works without additional infrastructure.
+	// IngressModeOcpRoute uses ClusterIP service with OpenShift Routes (OpenShift only).
 	IngressModeOcpRoute IngressMode = "OcpRoute"
 	// IngressModeLoadBalancer uses a LoadBalancer service type.
 	// This requires a load balancer provider (cloud or MetalLB).
@@ -51,7 +50,7 @@ var _ common.PlatformObject = (*GatewayConfig)(nil)
 // GatewayConfigSpec defines the desired state of GatewayConfig
 type GatewayConfigSpec struct {
 	// IngressMode specifies how the Gateway is exposed externally.
-	// "OcpRoute" uses ClusterIP with standard OpenShift Routes (default for new deployments).
+	// "OcpRoute" uses ClusterIP with OpenShift Routes (OpenShift only).
 	// "LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB).
 	// +optional
 	IngressMode IngressMode `json:"ingressMode,omitempty"`
@@ -66,7 +65,8 @@ type GatewayConfigSpec struct {
 
 	// Domain specifies the host name for intercepting incoming requests.
 	// Most likely, you will want to use a wildcard name, like *.example.com.
-	// If not set, the domain of the OpenShift Ingress is used.
+	// If not set, the cluster's default ingress domain is used (when available).
+	// On Kubernetes clusters without a discoverable ingress domain, this field is required.
 	// If you choose to generate a certificate, this is the domain used for the certificate request.
 	// Example: *.example.com, example.com, apps.example.com
 	// +optional
@@ -100,10 +100,9 @@ type GatewayConfigSpec struct {
 	// +optional
 	NetworkPolicy *NetworkPolicyConfig `json:"networkPolicy,omitempty"`
 
-	// ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider
+	// ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider.
 	// Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.
-	// Secret must exist in the namespace where gateway workloads run (openshift-ingress on OpenShift, rh-ai-gateway on XKS)
-	// and contain a 'ca.crt' key with the PEM-encoded CA certificate.
+	// Secret must exist in the gateway namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate.
 	// +optional
 	ProviderCASecretName string `json:"providerCASecretName,omitempty"`
 
@@ -172,8 +171,7 @@ type OIDCConfig struct {
 	ClientSecretRef corev1.SecretKeySelector `json:"clientSecretRef"`
 
 	// Namespace where the client secret is located.
-	// If unset, defaults to the gateway namespace returned by GetGatewayNamespace()
-	// (openshift-ingress on OpenShift, rh-ai-gateway on XKS).
+	// If unset, defaults to the gateway namespace.
 	// +optional
 	SecretNamespace string `json:"secretNamespace,omitempty"`
 }

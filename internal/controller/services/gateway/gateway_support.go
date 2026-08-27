@@ -193,16 +193,16 @@ func GetFQDN(ctx context.Context, cli client.Client, gatewayConfig *serviceApi.G
 }
 
 // resolveGatewayHostname returns the gateway FQDN. When spec.domain is required but not set
-// on XKS, it sets GatewayConfigReady=False and returns stop=true so callers can return nil
-// without error (matching the missing-OIDC configuration pattern).
+// on XKS, it sets GatewayConfigReady=False and returns ErrDomainRequired so callers can
+// return nil without propagating an error (matching the missing-OIDC configuration pattern).
 func resolveGatewayHostname(
 	ctx context.Context,
 	rr *odhtypes.ReconciliationRequest,
 	gatewayConfig *serviceApi.GatewayConfig,
-) (string, bool, error) {
+) (string, error) {
 	hostname, err := GetFQDN(ctx, rr.Client, gatewayConfig)
 	if err == nil {
-		return hostname, false, nil
+		return hostname, nil
 	}
 	if errors.Is(err, ErrDomainRequired) {
 		rr.Conditions.MarkFalse(
@@ -210,12 +210,9 @@ func resolveGatewayHostname(
 			conditions.WithReason(status.NotReadyReason),
 			conditions.WithMessage(status.GatewayDomainRequiredMessage),
 		)
-		// Return nil (not error) because this is a permanent user configuration error.
-		// Returning an error would cause infinite reconciliation for something only the
-		// user can fix. Users must check GatewayConfig status conditions to see this error.
-		return "", true, nil
+		return "", ErrDomainRequired
 	}
-	return "", false, fmt.Errorf("failed to resolve domain: %w", err)
+	return "", fmt.Errorf("failed to resolve domain: %w", err)
 }
 
 // isGatewayDomainUnresolved reports whether gateway hostname resolution should stop
@@ -225,8 +222,11 @@ func isGatewayDomainUnresolved(
 	rr *odhtypes.ReconciliationRequest,
 	gatewayConfig *serviceApi.GatewayConfig,
 ) (bool, error) {
-	_, stop, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
-	return stop, err
+	_, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
+	if errors.Is(err, ErrDomainRequired) {
+		return true, nil
+	}
+	return err != nil, err
 }
 
 // GetGatewayDomain reads the domain directly from the Gateway CR's listener hostname.

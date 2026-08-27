@@ -280,30 +280,18 @@ endif
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/config.openshift.io_ingresses.yaml
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/config.openshift.io_authentications.yaml
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/oauth.openshift.io_oauthclients.yaml
-	@# Copy rhaii XKS CRDs to shared overlay and generate kustomization.
-	@# GatewayConfig is not copied here: XKS uses a tailored CRD (config/crd/xks) shipped by odh-gitops xks-gateway.
+	@# Copy rhaii CRDs to shared overlay and generate kustomization.
 	@mkdir -p config/rhaii/crd/bases
 	@cp "$(CONFIG_DIR)/crd/bases/config.opendatahub.io_platforms.yaml" config/rhaii/crd/bases/
-	@rm -f config/rhaii/crd/bases/services.platform.opendatahub.io_gatewayconfigs.yaml
+	@cp "$(CONFIG_DIR)/crd/bases/services.platform.opendatahub.io_gatewayconfigs.yaml" config/rhaii/crd/bases/
 	@$(call add-crd-to-kustomization,config/rhaii/crd/bases)
 MANIFEST_GENERATED_FILES = config/crd/bases config/rhoai/crd/bases config/rhaii/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
-
-.PHONY: generate-xks-gateway-crd-from-base
-generate-xks-gateway-crd-from-base: yq ## Patch the kubebuilder GatewayConfig CRD into the XKS variant (no OCP-only enums).
-	@# Consumed by odh-gitops: charts/dependencies/xks-gateway/scripts/sync-gatewayconfig-crd.sh
-	@# Source: $(CONFIG_DIR)/crd/bases/services.platform.opendatahub.io_gatewayconfigs.yaml
-	@# Output: config/crd/xks/services.platform.opendatahub.io_gatewayconfigs.yaml
-	./hack/generate-xks-gateway-crd.sh "$(YQ)" "$(CONFIG_DIR)/crd/bases/services.platform.opendatahub.io_gatewayconfigs.yaml" "config/crd/xks/services.platform.opendatahub.io_gatewayconfigs.yaml"
-
-.PHONY: generate-xks-gateway-crd
-generate-xks-gateway-crd: manifests generate-xks-gateway-crd-from-base ## Generate the XKS-tailored GatewayConfig CRD for odh-gitops.
 
 .PHONY: manifests-all
 manifests-all:
 	$(MAKE) manifests
 	$(MAKE) manifests ODH_PLATFORM_TYPE=rhoai
 	$(MAKE) manifests-ccm
-	$(MAKE) generate-xks-gateway-crd-from-base
 
 .PHONY: clean-manifests
 clean-manifests: ## Remove generated manifest files (CRDs, RBAC, webhooks) for all variants.
