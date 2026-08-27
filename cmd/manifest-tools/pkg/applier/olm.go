@@ -166,6 +166,20 @@ func findSubscription(ctx context.Context, client dynamic.Interface, namespace, 
 		}
 	}
 
+	if len(matches) == 0 && packageName != "" {
+		// Fallback: check alternate package name (rhods-operator <-> opendatahub-operator)
+		altPackage := "rhods-operator"
+		if packageName == "rhods-operator" {
+			altPackage = "opendatahub-operator"
+		}
+		for _, item := range list.Items {
+			specName, _, _ := unstructured.NestedString(item.Object, "spec", "name")
+			if specName == altPackage {
+				matches = append(matches, item.GetName())
+			}
+		}
+	}
+
 	switch len(matches) {
 	case 0:
 		return "", nil
@@ -184,11 +198,18 @@ func findDeployment(ctx context.Context, client kubernetes.Interface, namespace 
 		return "", fmt.Errorf("listing deployments: %w", err)
 	}
 
-	if len(deployments.Items) == 0 {
-		return "", nil
+	if len(deployments.Items) > 0 {
+		return deployments.Items[0].Name, nil
 	}
 
-	return deployments.Items[0].Name, nil
+	// Fallback to known operator deployment names
+	for _, name := range []string{"rhods-operator", "opendatahub-operator", "opendatahub-operator-controller-manager"} {
+		if d, err := client.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{}); err == nil {
+			return d.Name, nil
+		}
+	}
+
+	return "", nil
 }
 
 func waitForRollout(ctx context.Context, client kubernetes.Interface, namespace, deployName string, timeout time.Duration) error {
