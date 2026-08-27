@@ -612,9 +612,8 @@ func TestResolveGatewayHostnameMissingDomainOnXKS(t *testing.T) {
 		Conditions: conditions.NewManager(accessor, ReadyConditionType),
 	}
 
-	hostname, stop, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(stop).To(BeTrue())
+	hostname, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
+	g.Expect(err).To(MatchError(ErrDomainRequired))
 	g.Expect(hostname).To(BeEmpty())
 
 	ready := rr.Conditions.GetCondition(ReadyConditionType)

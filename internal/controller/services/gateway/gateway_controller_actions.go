@@ -60,12 +60,12 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		}
 	}
 
-	hostname, stop, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
+	hostname, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
 	if err != nil {
+		if errors.Is(err, ErrDomainRequired) {
+			return nil
+		}
 		return err
-	}
-	if stop {
-		return nil
 	}
 
 	// Handle ingress mode changes by deleting Gateway if configuration doesn't match.
@@ -120,12 +120,12 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return nil
 	}
 
-	_, stop, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
+	_, err = resolveGatewayHostname(ctx, rr, gatewayConfig)
 	if err != nil {
+		if errors.Is(err, ErrDomainRequired) {
+			return nil
+		}
 		return err
-	}
-	if stop {
-		return nil
 	}
 
 	var authMode cluster.AuthenticationMode
@@ -354,12 +354,12 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	// Get domain for redirect URL, if not set in spec then fall back to cluster domain
-	hostname, stop, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
+	hostname, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
 	if err != nil {
+		if errors.Is(err, ErrDomainRequired) {
+			return map[string]any{}, nil
+		}
 		return nil, err
-	}
-	if stop {
-		return map[string]any{}, nil
 	}
 
 	// Calculate auth config hash for triggering pod restarts on secret changes
