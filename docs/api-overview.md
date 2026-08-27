@@ -2590,7 +2590,6 @@ Package v1 contains API Schema definitions for the services v1 API group
 ### Resource Types
 - [Auth](#auth)
 - [GatewayConfig](#gatewayconfig)
-- [Monitoring](#monitoring)
 
 
 
@@ -2605,7 +2604,6 @@ Alerting configuration for Prometheus
 _Appears in:_
 - [DSCIMonitoring](#dscimonitoring)
 - [MonitoringCommonSpec](#monitoringcommonspec)
-- [MonitoringSpec](#monitoringspec)
 
 
 
@@ -2809,7 +2807,6 @@ Metrics defines the desired state of metrics for the monitoring service
 _Appears in:_
 - [DSCIMonitoring](#dscimonitoring)
 - [MonitoringCommonSpec](#monitoringcommonspec)
-- [MonitoringSpec](#monitoringspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -2835,27 +2832,6 @@ _Appears in:_
 | `retention` _string_ | Retention specifies how long metrics data should be retained (e.g., "1d", "2w") |  |  |
 
 
-#### Monitoring
-
-
-
-Monitoring is the Schema for the monitorings API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `Monitoring` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[MonitoringSpec](#monitoringspec)_ |  |  |  |
-| `status` _[MonitoringStatus](#monitoringstatus)_ |  |  |  |
-
-
 #### MonitoringCommonSpec
 
 
@@ -2866,7 +2842,6 @@ MonitoringCommonSpec spec defines the shared desired state of Monitoring
 
 _Appears in:_
 - [DSCIMonitoring](#dscimonitoring)
-- [MonitoringSpec](#monitoringspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -2875,42 +2850,6 @@ _Appears in:_
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  |  |
-
-
-#### MonitoringSpec
-
-
-
-MonitoringSpec defines the desired state of Monitoring
-
-
-
-_Appears in:_
-- [Monitoring](#monitoring)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
-| `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
-| `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
-| `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
-| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  |  |
-
-
-#### MonitoringStatus
-
-
-
-MonitoringStatus defines the observed state of Monitoring
-
-
-
-_Appears in:_
-- [Monitoring](#monitoring)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `url` _string_ |  |  |  |
 
 
 #### NetworkPolicyConfig
@@ -2979,7 +2918,6 @@ Traces enables and defines the configuration for traces collection
 _Appears in:_
 - [DSCIMonitoring](#dscimonitoring)
 - [MonitoringCommonSpec](#monitoringcommonspec)
-- [MonitoringSpec](#monitoringspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
