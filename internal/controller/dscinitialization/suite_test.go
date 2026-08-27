@@ -34,6 +34,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -52,6 +53,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
+	webhookenvtestutil "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
@@ -149,6 +151,16 @@ var _ = BeforeSuite(func() {
 	Expect(cli).NotTo(BeNil())
 
 	k8sClient = cli
+
+	By("installing test-only Monitoring CRD")
+	monitoringCRD := webhookenvtestutil.MockMonitoringCRD()
+	err = k8sClient.Create(gCtx, monitoringCRD)
+	if err != nil && !k8serr.IsAlreadyExists(err) {
+		Expect(err).NotTo(HaveOccurred())
+	}
+	Expect(envtest.WaitForCRDs(cfg, []*apiextensionsv1.CustomResourceDefinition{monitoringCRD}, envtest.CRDInstallOptions{
+		MaxTime: timeout,
+	})).To(Succeed())
 
 	webhookInstallOptions := &testEnv.WebhookInstallOptions
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{

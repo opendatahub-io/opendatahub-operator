@@ -257,7 +257,7 @@ func TestManagePermissionsInvalidInstance(t *testing.T) {
 	// Test with wrong instance type
 	rr := &odhtypes.ReconciliationRequest{
 		Client:    fakeClient,
-		Instance:  &serviceApi.Monitoring{}, // Wrong type
+		Instance:  &serviceApi.GatewayConfig{}, // Wrong type
 		Resources: []unstructured.Unstructured{},
 	}
 

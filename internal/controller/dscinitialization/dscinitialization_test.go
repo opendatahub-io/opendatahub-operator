@@ -9,13 +9,16 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -128,29 +131,11 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(k8sClient.Create(ctx, monitoringCR)).Should(Succeed())
 
 			// when - Simulate Monitoring CR getting some conditions
-			monitoringCR.Status.Conditions = []common.Condition{
-				{
-					Type:               "MonitoringStackAvailable",
-					Status:             metav1.ConditionTrue,
-					Reason:             "Ready",
-					Message:            "Monitoring stack is ready",
-					LastTransitionTime: metav1.Now(),
-				},
-				{
-					Type:               "ThanosQuerierAvailable",
-					Status:             metav1.ConditionFalse,
-					Reason:             "Degraded",
-					Message:            "Thanos querier is failing",
-					LastTransitionTime: metav1.Now(),
-				},
-				{
-					Type:               "UnrelatedCondition",
-					Status:             metav1.ConditionFalse,
-					Reason:             "Failing",
-					Message:            "This should not be mirrored",
-					LastTransitionTime: metav1.Now(),
-				},
-			}
+			Expect(setMonitoringConditions(monitoringCR,
+				condition("MonitoringStackAvailable", metav1.ConditionTrue, "Ready", "Monitoring stack is ready"),
+				condition("ThanosQuerierAvailable", metav1.ConditionFalse, "Degraded", "Thanos querier is failing"),
+				condition("UnrelatedCondition", metav1.ConditionFalse, "Failing", "This should not be mirrored"),
+			)).To(Succeed())
 			Expect(k8sClient.Status().Update(ctx, monitoringCR)).Should(Succeed())
 
 			// then - DSCI should have only relevant conditions mirrored
@@ -196,15 +181,9 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(k8sClient.Create(ctx, monitoringCR)).Should(Succeed())
 
 			// when - Simulate Monitoring CR Getting Ready=False
-			monitoringCR.Status.Conditions = []common.Condition{
-				{
-					Type:               "Ready",
-					Status:             metav1.ConditionFalse,
-					Reason:             "NotReady",
-					Message:            "Monitoring stack is not ready",
-					LastTransitionTime: metav1.Now(),
-				},
-			}
+			Expect(setMonitoringConditions(monitoringCR,
+				condition("Ready", metav1.ConditionFalse, "NotReady", "Monitoring stack is not ready"),
+			)).To(Succeed())
 			Expect(k8sClient.Status().Update(ctx, monitoringCR)).Should(Succeed())
 
 			// then - DSCI should have Ready=False mirrored from Monitoring AND MonitoringReady=True
@@ -241,15 +220,9 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			monitoringCR := createMonitoringCR()
 			Expect(k8sClient.Create(ctx, monitoringCR)).Should(Succeed())
 
-			monitoringCR.Status.Conditions = []common.Condition{
-				{
-					Type:               "Ready",
-					Status:             metav1.ConditionTrue,
-					Reason:             "Ready",
-					Message:            "Monitoring stack is ready",
-					LastTransitionTime: metav1.Now(),
-				},
-			}
+			Expect(setMonitoringConditions(monitoringCR,
+				condition("Ready", metav1.ConditionTrue, "Ready", "Monitoring stack is ready"),
+			)).To(Succeed())
 			Expect(k8sClient.Status().Update(ctx, monitoringCR)).Should(Succeed())
 
 			Eventually(func(g Gomega) {
@@ -477,7 +450,7 @@ func cleanupResources(ctx context.Context) {
 	defaultNamespace := client.InNamespace(workingNamespace)
 	appNamespace := client.InNamespace(applicationNamespace)
 	Expect(k8sClient.DeleteAllOf(ctx, &dsciv2.DSCInitialization{}, defaultNamespace)).To(Succeed())
-	Expect(k8sClient.DeleteAllOf(ctx, &serviceApi.Monitoring{})).To(Succeed())
+	Expect(k8sClient.DeleteAllOf(ctx, resources.GvkToUnstructured(gvk.Monitoring))).To(Succeed())
 
 	Expect(k8sClient.DeleteAllOf(ctx, &networkingv1.NetworkPolicy{}, appNamespace)).To(Succeed())
 	Expect(k8sClient.DeleteAllOf(ctx, &corev1.ConfigMap{}, appNamespace)).To(Succeed())
@@ -521,21 +494,28 @@ func objectExists(name string, namespace string, obj client.Object) func(ctx con
 	}
 }
 
-func createMonitoringCR() *serviceApi.Monitoring {
-	return &serviceApi.Monitoring{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       serviceApi.MonitoringKind,
-			APIVersion: serviceApi.GroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: serviceApi.MonitoringInstanceName,
-		},
-		Spec: serviceApi.MonitoringSpec{
-			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
-				Namespace: monitoringNamespace,
-			},
-		},
+func createMonitoringCR() *unstructured.Unstructured {
+	u := resources.GvkToUnstructured(gvk.Monitoring)
+	u.SetName(serviceApi.MonitoringInstanceName)
+	return u
+}
+
+func condition(condType string, status metav1.ConditionStatus, reason, message string) map[string]any {
+	return map[string]any{
+		"type":               condType,
+		"status":             string(status),
+		"reason":             reason,
+		"message":            message,
+		"lastTransitionTime": metav1.Now().UTC().Format("2006-01-02T15:04:05Z"),
 	}
+}
+
+func setMonitoringConditions(obj *unstructured.Unstructured, conditions ...map[string]any) error {
+	raw := make([]any, 0, len(conditions))
+	for _, c := range conditions {
+		raw = append(raw, c)
+	}
+	return unstructured.SetNestedSlice(obj.Object, raw, "status", "conditions")
 }
 
 func createDSCI(enableMonitoring operatorv1.ManagementState, enableTrustedCABundle operatorv1.ManagementState, monitoringNS string) *dsciv2.DSCInitialization {

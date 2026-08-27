@@ -21,11 +21,14 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -34,11 +37,13 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
@@ -68,6 +73,11 @@ type DSCInitializationReconciler struct {
 	Scheme           *runtime.Scheme
 	Recorder         events.EventRecorder
 	OperatorSettings operatorconfig.OperatorSettings
+
+	ctrl                 controller.Controller
+	mgr                  ctrl.Manager
+	monitoringWatchMu    sync.Mutex
+	monitoringWatchAdded bool
 }
 
 type DSCInitializationCondition struct {
@@ -282,7 +292,7 @@ func getObject(gvk schema.GroupVersionKind) client.Object {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	c, err := ctrl.NewControllerManagedBy(mgr).
 		// add predicates prevents meaningless reconciliations from being triggered
 		// not use WithEventFilter() because it conflict with secret and configmap predicate
 		For(
@@ -345,19 +355,53 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			getObject(gvk.GatewayConfig),
 			handler.EnqueueRequestsFromMapFunc(r.watchGatewayConfigResource),
 		).
-		Watches(
-			getObject(gvk.Monitoring),
-			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringResource),
-		).
 		Watches( // TODO: this might not be needed after v3.3.
 			getObject(gvk.CustomResourceDefinition),
-			handler.EnqueueRequestsFromMapFunc(r.watchHWProfileCRDResource),
+			handler.EnqueueRequestsFromMapFunc(r.watchOptionalCRDResource),
 			builder.WithPredicates(predicate.Or(
 				rp.CreatedOrUpdatedName("acceleratorprofiles.dashboard.opendatahub.io"),
 				rp.CreatedOrUpdatedName("hardwareprofiles.dashboard.opendatahub.io"),
+				rp.CreatedOrUpdatedName(serviceApi.MonitoringCRDName),
 			)),
 		).
-		Complete(r)
+		Build(r)
+	if err != nil {
+		return err
+	}
+
+	r.ctrl = c
+	r.mgr = mgr
+	r.ensureMonitoringWatch()
+	return nil
+}
+
+// ensureMonitoringWatch registers a watch on Monitoring CRs once the CRD
+// exists. The CRD is installed by the odh-observability chart, not this
+// operator, so the watch cannot be static at manager setup.
+func (r *DSCInitializationReconciler) ensureMonitoringWatch() {
+	if r.ctrl == nil || r.mgr == nil {
+		return
+	}
+
+	r.monitoringWatchMu.Lock()
+	defer r.monitoringWatchMu.Unlock()
+	if r.monitoringWatchAdded {
+		return
+	}
+
+	if _, err := r.mgr.GetRESTMapper().RESTMapping(gvk.Monitoring.GroupKind(), gvk.Monitoring.Version); err != nil {
+		return
+	}
+
+	if err := r.ctrl.Watch(source.Kind(
+		r.mgr.GetCache(),
+		getObject(gvk.Monitoring),
+		handler.EnqueueRequestsFromMapFunc(r.watchMonitoringResource),
+	)); err != nil {
+		logf.Log.Error(err, "failed to watch Monitoring CR")
+		return
+	}
+	r.monitoringWatchAdded = true
 }
 
 func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a client.Object) []reconcile.Request {
@@ -396,18 +440,6 @@ func (r *DSCInitializationReconciler) watchGatewayConfigResource(ctx context.Con
 
 func (r *DSCInitializationReconciler) watchMonitoringResource(ctx context.Context, _ client.Object) []reconcile.Request {
 	log := logf.FromContext(ctx)
-	instanceList := &serviceApi.MonitoringList{}
-	if err := r.Client.List(ctx, instanceList); err != nil {
-		log.Error(err, "failed to get MonitoringList")
-		return nil
-	}
-	if len(instanceList.Items) == 0 {
-		log.Info("Found no Monitoring instance in cluster, reconciling to update DSCI status")
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: serviceApi.MonitoringInstanceName}}}
-	}
-
-	// Monitoring CR exists — trigger DSCI reconciliation so it can
-	// propagate the latest Monitoring status into its own conditions.
 	dsciList := &dsciv2.DSCInitializationList{}
 	if err := r.Client.List(ctx, dsciList); err != nil {
 		log.Error(err, "Failed to get DSCInitializationList")
@@ -422,17 +454,24 @@ func (r *DSCInitializationReconciler) watchMonitoringResource(ctx context.Contex
 }
 
 func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Context) []DSCInitializationCondition {
-	monitoring := &serviceApi.Monitoring{}
-	err := r.Client.Get(ctx, client.ObjectKey{Name: serviceApi.MonitoringInstanceName}, monitoring)
+	monitoring := &unstructured.Unstructured{}
+	monitoring.SetGroupVersionKind(gvk.Monitoring)
+	monitoring.SetName(serviceApi.MonitoringInstanceName)
+	err := r.Client.Get(ctx, client.ObjectKeyFromObject(monitoring), monitoring)
 	if err != nil {
-		if k8serr.IsNotFound(err) {
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
 			return []DSCInitializationCondition{{status.ConditionMonitoringReady, status.RemovedReason, "Monitoring is not enabled", metav1.ConditionFalse}}
 		}
 		return []DSCInitializationCondition{{status.ConditionMonitoringReady, status.NotReadyReason,
 			fmt.Sprintf("Failed to retrieve Monitoring CR status: %v", err), metav1.ConditionUnknown}}
 	}
 
-	monitoringConditions := monitoring.GetConditions()
+	monitoringConditions, err := modules.ParseConditions(monitoring)
+	if err != nil {
+		return []DSCInitializationCondition{{status.ConditionMonitoringReady, status.NotReadyReason,
+			fmt.Sprintf("Failed to parse Monitoring CR status: %v", err), metav1.ConditionUnknown}}
+	}
+
 	conditions := make([]DSCInitializationCondition, 0, len(monitoringConditions)+1)
 
 	for _, c := range monitoringConditions {
@@ -520,13 +559,23 @@ func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, i
 	return nil
 }
 
+// watchOptionalCRDResource triggers DSCI reconciliation when optional CRDs
+// appear. Monitoring CRDs come from the odh-observability chart; Dashboard
+// AcceleratorProfile/HWProfile CRDs come from the dashboard module (VAP/VAPB).
+func (r *DSCInitializationReconciler) watchOptionalCRDResource(ctx context.Context, a client.Object) []reconcile.Request {
+	if a.GetName() == serviceApi.MonitoringCRDName {
+		r.ensureMonitoringWatch()
+	}
+	return r.watchHWProfileCRDResource(ctx, a)
+}
+
 // watchHWProfileCRDResource triggers DSCI reconciliation when Dashboard AcceleratorProfile/HWProfile CRDs are created.
 // This ensures VAP/VAPB resources can be created when Dashboard CRDs become available.
 // TODO: this is a temporary solution to ensure VAP/VAPB resources are created when Dashboard CRDs become available, it should be removed in v3.3.
 func (r *DSCInitializationReconciler) watchHWProfileCRDResource(ctx context.Context, a client.Object) []reconcile.Request {
 	log := logf.FromContext(ctx)
 
-	log.V(1).Info("Dashboard CRD change detected, triggering DSCI reconciliation for VAP/VAPB resources", "CRD", a.GetName())
+	log.V(1).Info("optional CRD change detected, triggering DSCI reconciliation", "CRD", a.GetName())
 
 	instanceList := &dsciv2.DSCInitializationList{}
 	if err := r.Client.List(ctx, instanceList); err != nil {
@@ -589,8 +638,13 @@ func (r *DSCInitializationReconciler) reconcileDSCIModules(ctx context.Context, 
 		}
 
 		if err := resources.Apply(ctx, r.Client, moduleCR, client.FieldOwner(fieldManager), client.ForceOwnership); err != nil {
+			if meta.IsNoMatchError(err) {
+				return fmt.Errorf("module CRD not installed yet for %s: %w", handler.GetName(), err)
+			}
 			return fmt.Errorf("failed to apply module CR %s: %w", handler.GetName(), err)
 		}
+
+		r.ensureMonitoringWatch()
 
 		log.V(1).Info("provisioned DSCI-configured module CR", "module", handler.GetName())
 		return nil
