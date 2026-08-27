@@ -251,6 +251,7 @@ extract_module_images() {
     done
 }
 
+mkdir -p "$WORKDIR/modules"
 if [ -d "$MODULES_DIR" ]; then
     for mod_dir in "$MODULES_DIR"/*/; do
         mod_name=$(basename "$mod_dir")
@@ -258,8 +259,12 @@ if [ -d "$MODULES_DIR" ]; then
         # Skip non-handler directories
         [ ! -f "$mod_dir/handler.go" ] && continue
 
-        extract_module_images "$mod_dir" | sort -u > "$WORKDIR/components/${mod_name}.txt" || true
-        [ ! -s "$WORKDIR/components/${mod_name}.txt" ] && rm -f "$WORKDIR/components/${mod_name}.txt"
+        if extract_module_images "$mod_dir" | sort -u > "$WORKDIR/modules/${mod_name}.txt"; then
+            [ ! -s "$WORKDIR/modules/${mod_name}.txt" ] && rm -f "$WORKDIR/modules/${mod_name}.txt"
+        else
+            echo "ERROR: Failed to extract RELATED_IMAGE_* references from module: $mod_dir" >&2
+            exit 1
+        fi
     done
 fi
 
@@ -295,6 +300,16 @@ fetch_repo_images "RHOAI-Build-Config (${RHOAI_BUILD_CONFIG_BRANCH})" "$RHOAI_BA
 echo ""
 fetch_repo_images "ODH-Build-Config (${ODH_BUILD_CONFIG_BRANCH})" "$ODH_BASE_URL" "$ODH_BUILD_CONFIG"
 
+validate_rhai_helm_config() {
+    # Fail if RHAI_HELM_COMPONENTS is configured but no images extracted
+    if [ -s "$RHAI_HELM_COMPONENTS" ] && [ ! -s "$RHAI_HELM_CONFIG" ]; then
+        rhai_comps=$(tr '\n' ',' < "$RHAI_HELM_COMPONENTS" | sed 's/,$//')
+        echo "ERROR: RHAI Helm chart has no relatedImages but required for components: ${rhai_comps}"
+        return 1
+    fi
+    return 0
+}
+
 # Fetch RHAI Helm chart relatedImages (kserve images for xKS deployments)
 RHAI_HELM_CONFIG="$WORKDIR/rhai-helm-config.txt"
 touch "$RHAI_HELM_CONFIG"
@@ -305,29 +320,32 @@ rhai_temp=$(mktemp "${WORKDIR}/fetched.XXXXXX.yaml")
 if curl -sfL --max-filesize 10485760 --connect-timeout 10 --max-time 30 \
         "$RHAI_HELM_URL" -o "$rhai_temp" 2>/dev/null; then
     if ! $YQ -r '.rhaiOperator.relatedImages[].name' "$rhai_temp" 2>/dev/null | sort -u > "$RHAI_HELM_CONFIG"; then
+        rm -f "$rhai_temp"
         if [ -s "$RHAI_HELM_COMPONENTS" ]; then
             rhai_comps=$(tr '\n' ',' < "$RHAI_HELM_COMPONENTS" | sed 's/,$//')
             echo "ERROR: Failed to parse RHAI Helm chart values.yaml — required for rhai_helm_components: ${rhai_comps}"
-            rm -f "$rhai_temp"
             exit 1
         else
             echo "  WARNING: Failed to parse RHAI Helm chart values.yaml (no rhai_helm_components configured)"
         fi
     else
+        if ! validate_rhai_helm_config; then
+            rm -f "$rhai_temp"
+            exit 1
+        fi
         rhai_count=$(wc -l < "$RHAI_HELM_CONFIG" | tr -d ' ')
         echo "  Found ${rhai_count} RELATED_IMAGE_* names in RHAI Helm chart"
     fi
 else
+    rm -f "$rhai_temp"
     if [ -s "$RHAI_HELM_COMPONENTS" ]; then
         rhai_comps=$(tr '\n' ',' < "$RHAI_HELM_COMPONENTS" | sed 's/,$//')
         echo "ERROR: Failed to fetch RHAI Helm chart values.yaml — required for rhai_helm_components: ${rhai_comps}"
-        rm -f "$rhai_temp"
         exit 1
     else
         echo "  WARNING: Failed to fetch RHAI Helm chart values.yaml (no rhai_helm_components configured)"
     fi
 fi
-rm -f "$rhai_temp"
 
 # Fetch SBOM metadata configs (version metadata env vars, not container images)
 SBOM_METADATA_FILE="$WORKDIR/sbom-metadata-images.txt"
@@ -381,12 +399,26 @@ for comp_file in "$WORKDIR/components/"*.txt; do
     done < "$comp_file"
 done
 
+# Collect from module handlers (not map entries; used via string slices)
+for mod_file in "$WORKDIR/modules/"*.txt; do
+    [ ! -f "$mod_file" ] && continue
+    mod_name=$(basename "$mod_file" .txt)
+    while IFS='/' read -r _ key related_image source; do
+        echo "${related_image}|${key}|${mod_name}|${source}|false" >> "$ALL_ENTRIES"
+    done < "$mod_file"
+done
+
 # Collect unmapped refs (os.Getenv, function args, etc.)
+# Include both components and modules in mapped-images aggregation
 if compgen -G "$WORKDIR/components/"*.txt > /dev/null 2>&1; then
     cat "$WORKDIR/components/"*.txt | cut -d'/' -f3 | sort -u > "$WORKDIR/mapped-images.txt"
 else
     touch "$WORKDIR/mapped-images.txt"
 fi
+if compgen -G "$WORKDIR/modules/"*.txt > /dev/null 2>&1; then
+    cat "$WORKDIR/modules/"*.txt | cut -d'/' -f3 | sort -u >> "$WORKDIR/mapped-images.txt"
+fi
+sort -u -o "$WORKDIR/mapped-images.txt" "$WORKDIR/mapped-images.txt"
 grep -roh 'RELATED_IMAGE_[A-Z0-9_]\+' internal/ \
     --include='*.go' --exclude='*_test.go' \
     | sort -u > "$WORKDIR/all-refs.txt"

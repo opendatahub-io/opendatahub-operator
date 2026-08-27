@@ -108,7 +108,9 @@ func collectEntries(components map[string]config.Component, platform string) ([]
 	for key, comp := range components {
 		pr := comp.PlatformRepo(platform)
 		if pr == nil || pr.Repo == "" || pr.Ref == "" {
-			return nil, fmt.Errorf("component %q has no git repo configured for platform %q; add a %q entry to manifests-config.yaml", key, platform, platform)
+			fmt.Printf("  %s⚠ warning%s component %q has no git repo configured for platform %q (add a %q entry to manifests-config.yaml)%s\n",
+				colorYellow, colorReset, key, platform, platform, colorReset)
+			continue
 		}
 		entries = append(entries, componentEntry{Key: key, Repo: *pr})
 	}

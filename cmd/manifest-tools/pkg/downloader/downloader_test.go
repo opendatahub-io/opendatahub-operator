@@ -59,15 +59,24 @@ func TestCollectEntries(t *testing.T) {
 	}
 }
 
-func TestCollectEntries_MissingPlatformErrors(t *testing.T) {
+func TestCollectEntries_MissingPlatformSkipped(t *testing.T) {
 	components := map[string]config.Component{
 		"comp-odh-only": {
 			ODH: &config.PlatformRepo{Repo: "org/repo", Ref: "main", SourcePath: "config"},
 		},
+		"comp-rhoai": {
+			RHOAI: &config.PlatformRepo{Repo: "org/repo-rhoai", Ref: "rhoai-3.5", SourcePath: "config"},
+		},
 	}
-	_, err := collectEntries(components, "rhoai")
-	if err == nil {
-		t.Fatal("expected error for component missing rhoai platform repo")
+	entries, err := collectEntries(components, "rhoai")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry for rhoai, got %d", len(entries))
+	}
+	if entries[0].Key != "comp-rhoai" {
+		t.Fatalf("expected comp-rhoai, got %s", entries[0].Key)
 	}
 }
 
