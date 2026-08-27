@@ -139,7 +139,7 @@ func findManagerEnvNode(root *yaml.Node) (*yaml.Node, error) {
 
 	for _, container := range containers.Content {
 		name := findScalarValue(container, "name")
-		if name == "manager" {
+		if name == "manager" || name == "rhods-operator" {
 			env := findSequenceNode(container, "env")
 			if env == nil {
 				env = &yaml.Node{Kind: yaml.SequenceNode}
@@ -152,7 +152,7 @@ func findManagerEnvNode(root *yaml.Node) (*yaml.Node, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("container 'manager' not found")
+	return nil, fmt.Errorf("container 'manager' or 'rhods-operator' not found")
 }
 
 func findMapNode(mapping *yaml.Node, key string) *yaml.Node {
