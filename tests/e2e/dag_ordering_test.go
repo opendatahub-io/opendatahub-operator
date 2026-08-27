@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -42,9 +43,10 @@ type componentBatch struct {
 }
 
 type componentEntry struct {
-	name     string
-	gvk      schema.GroupVersionKind
-	internal bool // components whose CR may not exist in the test (webhook-blocked, auto-created, etc.)
+	name           string
+	gvk            schema.GroupVersionKind
+	internal       bool // components whose CR may not exist in the test (webhook-blocked, auto-created, etc.)
+	dsciConfigured bool // configured via DSCI spec, not DSC — cleanup requires patching DSCI
 }
 
 // dagBatches mirrors the runlevel assignments from cmd/main.go.
@@ -55,6 +57,7 @@ var dagBatches = []componentBatch{
 		runlevel: 20,
 		components: []componentEntry{
 			{name: componentApi.DashboardComponentName, gvk: gvk.Dashboard, internal: true},
+			{name: serviceApi.MonitoringServiceName, gvk: gvk.Monitoring, internal: true, dsciConfigured: true},
 			{name: componentApi.DataSciencePipelinesComponentName, gvk: gvk.DataSciencePipelines},
 			// ModelRegistry is an out-of-tree module whose CR is the shared
 			// cluster-scoped AIHub singleton "default-aihub"; it is referenced
@@ -911,10 +914,23 @@ func selectComponentsTransform(state string, fields []string) func(*unstructured
 	}
 }
 
+// setDSCIMonitoringState patches the DSCI to set monitoring management state.
+func (tc *DAGOrderingTestCtx) setDSCIMonitoringState(t *testing.T, state operatorv1.ManagementState) {
+	t.Helper()
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, string(state), "spec", "monitoring", "managementState")
+		}),
+	)
+}
+
 // setAllRemoved is a reusable helper that sets all components to Removed,
 // waits for Ready=True, and verifies all component CRs are deleted.
 func (tc *DAGOrderingTestCtx) setAllRemoved(t *testing.T) {
 	t.Helper()
+
+	tc.setDSCIMonitoringState(t, operatorv1.Removed)
 
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
