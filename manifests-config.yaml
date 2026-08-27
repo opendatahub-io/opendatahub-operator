@@ -176,7 +176,7 @@ componentCharts:
       sourcePath: charts/odh-observability
     rhoai:
       repo: red-hat-data-services/odh-observability
-      ref: main@214c2231557550c2dd79dddd0783f1ce10d18b27
+      ref: rhoai-3.6-ea.1@0c1e7d232b6038090cb9b8bb9635a6090cce37ac
       sourcePath: charts/odh-observability
 # Image overrides — pinned operator image digests, keyed by RELATED_IMAGE_* env var name.
 # Local directories symlinked into opt/manifests/ during development.
