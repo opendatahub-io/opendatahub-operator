@@ -391,3 +391,58 @@ func TestLookup(t *testing.T) {
 	g.Expect(reg.Lookup("findme")).Should(Equal(h))
 	g.Expect(reg.Lookup("nonexistent")).Should(BeNil())
 }
+
+func TestForAllComponentsFiltersServiceModules(t *testing.T) {
+	g := NewWithT(t)
+	reg := &modules.Registry{}
+
+	reg.Add(newMockHandler("comp-a", true))
+	reg.Add(newMockHandler("svc-a", true), modules.AsServiceModule())
+	reg.Add(newMockHandler("comp-b", true))
+
+	var visited []string
+	err := reg.ForAllComponents(func(h modules.ModuleHandler, _ bool) error {
+		visited = append(visited, h.GetName())
+		return nil
+	})
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(visited).Should(ConsistOf("comp-a", "comp-b"))
+}
+
+func TestForAllServicesFiltersComponentModules(t *testing.T) {
+	g := NewWithT(t)
+	reg := &modules.Registry{}
+
+	reg.Add(newMockHandler("comp-a", true))
+	reg.Add(newMockHandler("svc-a", true), modules.AsServiceModule())
+
+	var visited []string
+	err := reg.ForAllServices(func(h modules.ModuleHandler, _ bool) error {
+		visited = append(visited, h.GetName())
+		return nil
+	})
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(visited).Should(ConsistOf("svc-a"))
+}
+
+func TestRegisteredModuleDefaultsToComponent(t *testing.T) {
+	g := NewWithT(t)
+	reg := &modules.Registry{}
+
+	reg.Add(newMockHandler("default-kind", true))
+
+	var compVisited, svcVisited []string
+	_ = reg.ForAllComponents(func(h modules.ModuleHandler, _ bool) error {
+		compVisited = append(compVisited, h.GetName())
+		return nil
+	})
+	_ = reg.ForAllServices(func(h modules.ModuleHandler, _ bool) error {
+		svcVisited = append(svcVisited, h.GetName())
+		return nil
+	})
+
+	g.Expect(compVisited).Should(ConsistOf("default-kind"))
+	g.Expect(svcVisited).Should(BeEmpty())
+}

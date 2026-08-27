@@ -15,6 +15,7 @@ type registryEntry struct {
 	handler  ModuleHandler
 	enabled  bool
 	runlevel dag.Runlevel
+	service  bool
 }
 
 func (e registryEntry) GetName() string           { return e.handler.GetName() }
@@ -178,6 +179,34 @@ func (r *Registry) ForAll(f func(handler ModuleHandler, registryEnabled bool) er
 	return errs.ErrorOrNil()
 }
 
+func (r *Registry) forAllByService(service bool, f func(handler ModuleHandler, registryEnabled bool) error) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var errs *multierror.Error
+	for _, name := range r.sortedNames() {
+		e := r.entries[name]
+		if e.service != service {
+			continue
+		}
+		errs = multierror.Append(errs, f(e.handler, e.enabled))
+	}
+
+	return errs.ErrorOrNil()
+}
+
+// ForAllComponents iterates over every registered component module regardless
+// of enabled state.
+func (r *Registry) ForAllComponents(f func(handler ModuleHandler, registryEnabled bool) error) error {
+	return r.forAllByService(false, f)
+}
+
+// ForAllServices iterates over every registered service module regardless
+// of enabled state.
+func (r *Registry) ForAllServices(f func(handler ModuleHandler, registryEnabled bool) error) error {
+	return r.forAllByService(true, f)
+}
+
 // IsModuleEnabled checks if a module with the given name is enabled in the
 // registry and also enabled based on platform configuration.
 func (r *Registry) IsModuleEnabled(moduleName string, modules *configv1alpha1.PlatformModules) bool {
@@ -306,6 +335,14 @@ func ForEachEnabled(f func(ModuleHandler)) {
 
 func ForAll(f func(handler ModuleHandler, registryEnabled bool) error) error {
 	return r.ForAll(f)
+}
+
+func ForAllComponents(f func(handler ModuleHandler, registryEnabled bool) error) error {
+	return r.ForAllComponents(f)
+}
+
+func ForAllServices(f func(handler ModuleHandler, registryEnabled bool) error) error {
+	return r.ForAllServices(f)
 }
 
 func IsModuleEnabled(moduleName string, modules *configv1alpha1.PlatformModules) bool {

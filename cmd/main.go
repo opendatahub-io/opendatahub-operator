@@ -179,6 +179,10 @@ var (
 		componentApi.SparkOperatorComponentName:        sparkoperatorModule.NewHandler(),
 	}
 
+	serviceModuleNames = map[string]bool{
+		serviceApi.MonitoringServiceName: true,
+	}
+
 	moduleRunlevels = map[string]dag.Runlevel{
 		serviceApi.MonitoringServiceName:               dag.RL(20),
 		componentApi.DashboardComponentName:            dag.RL(20),
@@ -276,7 +280,12 @@ func registerModules() {
 			rl = r
 		}
 
-		mr.Add(handler, mr.WithRunlevel(rl))
+		opts := []mr.RegistrationOption{mr.WithRunlevel(rl)}
+		if serviceModuleNames[name] {
+			opts = append(opts, mr.AsServiceModule())
+		}
+
+		mr.Add(handler, opts...)
 		provision.Add(name, provision.KindModule, rl)
 
 		if !flags.IsModuleEnabled(name) {

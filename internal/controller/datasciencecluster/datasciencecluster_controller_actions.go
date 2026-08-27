@@ -298,18 +298,9 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		Release:               rr.Release,
 	}
 
-	return moduleReg.ForAll(func(handler modules.ModuleHandler, _ bool) error {
+	return moduleReg.ForAllComponents(func(handler modules.ModuleHandler, _ bool) error {
 		name := handler.GetName()
 		if !enabledModules[name] {
-			return nil
-		}
-
-		// Service modules (like Monitoring) are owned by DSCI controller, not DSC.
-		// Service modules use API group "services.platform.opendatahub.io".
-		// Component modules use API group "components.platform.opendatahub.io".
-		gvk := handler.GetGVK()
-		if gvk.Group == "services.platform.opendatahub.io" {
-			logf.FromContext(ctx).V(1).Info("skipping service module CR creation in DSC controller (owned by DSCI)", "module", name)
 			return nil
 		}
 

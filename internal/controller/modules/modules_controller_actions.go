@@ -48,12 +48,12 @@ func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) e
 // modulesFromInstance derives PlatformModules from whichever CR is the
 // reconcile instance — Platform CR (platform controller) or DSC (DSC
 // controller).
-func modulesFromInstance(ctx context.Context, cli client.Client, rr *odhtype.ReconciliationRequest) (*configv1alpha1.PlatformModules, error) {
+func modulesFromInstance(ctx context.Context, rr *odhtype.ReconciliationRequest) (*configv1alpha1.PlatformModules, error) {
 	if p, ok := rr.Instance.(*configv1alpha1.Platform); ok {
 		return &p.Spec.Modules, nil
 	}
 	if dsc, ok := rr.Instance.(*dscv2.DataScienceCluster); ok {
-		dsci, err := cluster.GetDSCI(ctx, cli)
+		dsci, err := cluster.GetDSCI(ctx, rr.Client)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get DSCI for module context: %w", err)
 		}
@@ -101,7 +101,7 @@ func normalizePlatformModules(pm *configv1alpha1.PlatformModules) {
 // controller uses the default MaxConcurrentReconciles=1, so only one
 // reconcile is in-flight at a time.
 func enableModulesFromPlatform(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	modules, err := modulesFromInstance(ctx, rr.Client, rr)
+	modules, err := modulesFromInstance(ctx, rr)
 	if err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 		logf.FromContext(ctx).V(1).Info("monitoring namespace not available, skipping MONITORING_NAMESPACE injection", "error", err)
 	}
 
-	modules, err := modulesFromInstance(ctx, rr.Client, rr)
+	modules, err := modulesFromInstance(ctx, rr)
 	if err != nil {
 		return nil, err
 	}

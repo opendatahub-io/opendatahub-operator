@@ -304,3 +304,13 @@ func WithRunlevel(level dag.Runlevel) RegistrationOption {
 		e.runlevel = level
 	}
 }
+
+// AsServiceModule marks a registered module as a service module.
+// Service modules are provisioned by the DSCI controller; modules
+// without this option default to component modules, provisioned by
+// the DSC controller.
+func AsServiceModule() RegistrationOption {
+	return func(e *registryEntry) {
+		e.service = true
+	}
+}

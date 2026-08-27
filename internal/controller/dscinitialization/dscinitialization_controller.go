@@ -574,14 +574,7 @@ func (r *DSCInitializationReconciler) reconcileServiceModules(ctx context.Contex
 
 	// 2. Manage service module CRs directly (owned by DSCI)
 	// Service modules are configured via DSCI spec, not DSC
-	return modules.DefaultRegistry().ForAll(func(handler modules.ModuleHandler, _ bool) error {
-		// Check if this is a service module (services.platform.opendatahub.io)
-		gvk := handler.GetGVK()
-		if gvk.Group != "services.platform.opendatahub.io" {
-			// Not a service module - skip (component modules managed by DSC)
-			return nil
-		}
-
+	return modules.DefaultRegistry().ForAllServices(func(handler modules.ModuleHandler, _ bool) error {
 		// Check if service module is enabled
 		if !handler.IsEnabled(&platform.Spec.Modules) {
 			// Service module is disabled - delete its CR
@@ -608,8 +601,7 @@ func (r *DSCInitializationReconciler) reconcileServiceModules(ctx context.Contex
 			return fmt.Errorf("failed to set owner reference for module %s: %w", handler.GetName(), err)
 		}
 
-		// Apply the module CR using Server-Side Apply (Patch with Apply type)
-		if err := r.Client.Patch(ctx, moduleCR, client.Apply, client.ForceOwnership, client.FieldOwner(fieldManager)); err != nil { //nolint:staticcheck
+		if err := resources.Apply(ctx, r.Client, moduleCR, client.FieldOwner(fieldManager), client.ForceOwnership); err != nil {
 			return fmt.Errorf("failed to apply module CR %s: %w", handler.GetName(), err)
 		}
 
