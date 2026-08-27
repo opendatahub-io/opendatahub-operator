@@ -251,6 +251,7 @@ extract_module_images() {
     done
 }
 
+mkdir -p "$WORKDIR/modules"
 if [ -d "$MODULES_DIR" ]; then
     for mod_dir in "$MODULES_DIR"/*/; do
         mod_name=$(basename "$mod_dir")
@@ -258,8 +259,8 @@ if [ -d "$MODULES_DIR" ]; then
         # Skip non-handler directories
         [ ! -f "$mod_dir/handler.go" ] && continue
 
-        extract_module_images "$mod_dir" | sort -u > "$WORKDIR/components/${mod_name}.txt" || true
-        [ ! -s "$WORKDIR/components/${mod_name}.txt" ] && rm -f "$WORKDIR/components/${mod_name}.txt"
+        extract_module_images "$mod_dir" | sort -u > "$WORKDIR/modules/${mod_name}.txt" || true
+        [ ! -s "$WORKDIR/modules/${mod_name}.txt" ] && rm -f "$WORKDIR/modules/${mod_name}.txt"
     done
 fi
 
@@ -381,12 +382,26 @@ for comp_file in "$WORKDIR/components/"*.txt; do
     done < "$comp_file"
 done
 
+# Collect from module handlers (not map entries; used via string slices)
+for mod_file in "$WORKDIR/modules/"*.txt; do
+    [ ! -f "$mod_file" ] && continue
+    mod_name=$(basename "$mod_file" .txt)
+    while IFS='/' read -r _ key related_image source; do
+        echo "${related_image}|${key}|${mod_name}|${source}|false" >> "$ALL_ENTRIES"
+    done < "$mod_file"
+done
+
 # Collect unmapped refs (os.Getenv, function args, etc.)
+# Include both components and modules in mapped-images aggregation
 if compgen -G "$WORKDIR/components/"*.txt > /dev/null 2>&1; then
     cat "$WORKDIR/components/"*.txt | cut -d'/' -f3 | sort -u > "$WORKDIR/mapped-images.txt"
 else
     touch "$WORKDIR/mapped-images.txt"
 fi
+if compgen -G "$WORKDIR/modules/"*.txt > /dev/null 2>&1; then
+    cat "$WORKDIR/modules/"*.txt | cut -d'/' -f3 | sort -u >> "$WORKDIR/mapped-images.txt"
+fi
+sort -u -o "$WORKDIR/mapped-images.txt" "$WORKDIR/mapped-images.txt"
 grep -roh 'RELATED_IMAGE_[A-Z0-9_]\+' internal/ \
     --include='*.go' --exclude='*_test.go' \
     | sort -u > "$WORKDIR/all-refs.txt"
