@@ -172,7 +172,7 @@ componentCharts:
   odh-observability:
     odh:
       repo: opendatahub-io/odh-observability
-      ref: main@3b2281805eed4c524477c3f83cf42946afe42046
+      ref: fix/webhook-config-deploy-ordering@d4b18dd5f6b7c2e28ab7b68b2da6e79524ad5242
       sourcePath: charts/odh-observability
     rhoai:
       repo: red-hat-data-services/odh-observability
