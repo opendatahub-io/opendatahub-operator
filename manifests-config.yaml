@@ -895,7 +895,7 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-observability"
-      digest: "sha256:b1d1f59062e5c5e074b35c5eac13c71431539b18e46c98dfbc90fc7505e3c2cc"
+      digest: "sha256:b956a51e8c500066e378ab851e35737c9630a363a7f1e405c3cf08b90d2b3cce"
     rhoai:
       base: "quay.io/rhoai/odh-observability-rhel9"
       digest: "sha256:cfcc8f754cfb505ea320983d5d5250c5913fdf01a4f00e44a3d73682d430b5d7"
