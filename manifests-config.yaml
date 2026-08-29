@@ -172,7 +172,7 @@ componentCharts:
   odh-observability:
     odh:
       repo: opendatahub-io/odh-observability
-      ref: fix/webhook-config-deploy-ordering@d4b18dd5f6b7c2e28ab7b68b2da6e79524ad5242
+      ref: fix/webhook-config-deploy-ordering@0e795f3b0ec222a3fb9c9ed20c213e7041e53a3e
       sourcePath: charts/odh-observability
     rhoai:
       repo: red-hat-data-services/odh-observability
@@ -895,7 +895,7 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-observability"
-      digest: "sha256:b956a51e8c500066e378ab851e35737c9630a363a7f1e405c3cf08b90d2b3cce"
+      digest: "sha256:b539db797d3ee55547b42b9e8b7941f8820e7a6fecc734f76de45e4b978b7147"
     rhoai:
       base: "quay.io/rhoai/odh-observability-rhel9"
       digest: "sha256:cfcc8f754cfb505ea320983d5d5250c5913fdf01a4f00e44a3d73682d430b5d7"
