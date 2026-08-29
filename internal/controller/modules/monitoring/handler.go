@@ -79,7 +79,7 @@ func (h *handler) BuildModuleCR(
 
 	spec := dscCtx.DSCI.Spec.Monitoring.MonitoringCommonSpec.DeepCopy()
 
-	metricsEnabled := spec.Metrics != nil && spec.Metrics.Storage != nil
+	metricsEnabled := spec.Metrics != nil && (spec.Metrics.Storage != nil || len(spec.Metrics.Exporters) > 0)
 	tracesEnabled := spec.Traces != nil
 
 	if !metricsEnabled {

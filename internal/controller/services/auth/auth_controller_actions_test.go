@@ -19,6 +19,7 @@ import (
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	testscheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -257,7 +258,7 @@ func TestManagePermissionsInvalidInstance(t *testing.T) {
 	// Test with wrong instance type
 	rr := &odhtypes.ReconciliationRequest{
 		Client:    fakeClient,
-		Instance:  &serviceApi.GatewayConfig{}, // Wrong type
+		Instance:  &testscheme.TestPlatformObject{}, // Wrong type
 		Resources: []unstructured.Unstructured{},
 	}
 

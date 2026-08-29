@@ -45,7 +45,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -119,6 +118,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			log.Error(err, "Failed to set log level", "level", level)
 		}
 	}
+
+	r.ensureMonitoringWatch(ctx)
 
 	if instance.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
@@ -355,9 +356,9 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			getObject(gvk.GatewayConfig),
 			handler.EnqueueRequestsFromMapFunc(r.watchGatewayConfigResource),
 		).
-		Watches( // TODO: this might not be needed after v3.3.
+		Watches( // HWP: temporary for VAP/VAPB, should be removed in v3.3.
 			getObject(gvk.CustomResourceDefinition),
-			handler.EnqueueRequestsFromMapFunc(r.watchOptionalCRDResource),
+			handler.EnqueueRequestsFromMapFunc(r.reconcileOnCRDChange),
 			builder.WithPredicates(predicate.Or(
 				rp.CreatedOrUpdatedName("acceleratorprofiles.dashboard.opendatahub.io"),
 				rp.CreatedOrUpdatedName("hardwareprofiles.dashboard.opendatahub.io"),
@@ -371,14 +372,14 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 
 	r.ctrl = c
 	r.mgr = mgr
-	r.ensureMonitoringWatch()
 	return nil
 }
 
 // ensureMonitoringWatch registers a watch on Monitoring CRs once the CRD
 // exists. The CRD is installed by the odh-observability chart, not this
-// operator, so the watch cannot be static at manager setup.
-func (r *DSCInitializationReconciler) ensureMonitoringWatch() {
+// operator, so the watch cannot be static at manager setup. Called at the
+// start of each reconcile; no-ops after the watch is added.
+func (r *DSCInitializationReconciler) ensureMonitoringWatch(ctx context.Context) {
 	if r.ctrl == nil || r.mgr == nil {
 		return
 	}
@@ -389,7 +390,8 @@ func (r *DSCInitializationReconciler) ensureMonitoringWatch() {
 		return
 	}
 
-	if _, err := r.mgr.GetRESTMapper().RESTMapping(gvk.Monitoring.GroupKind(), gvk.Monitoring.Version); err != nil {
+	hasCRD, err := cluster.HasCRD(ctx, r.Client, gvk.Monitoring)
+	if err != nil || !hasCRD {
 		return
 	}
 
@@ -440,17 +442,13 @@ func (r *DSCInitializationReconciler) watchGatewayConfigResource(ctx context.Con
 
 func (r *DSCInitializationReconciler) watchMonitoringResource(ctx context.Context, _ client.Object) []reconcile.Request {
 	log := logf.FromContext(ctx)
-	dsciList := &dsciv2.DSCInitializationList{}
-	if err := r.Client.List(ctx, dsciList); err != nil {
-		log.Error(err, "Failed to get DSCInitializationList")
-		return nil
-	}
-	if len(dsciList.Items) == 0 {
-		log.Info("Found no DSCInitialization instance in cluster")
+	dsci, err := cluster.GetDSCI(ctx, r.Client)
+	if err != nil {
+		log.V(1).Info("no DSCI found, triggering default-dsci reconciliation as fallback")
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
 	}
 
-	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: dsciList.Items[0].Name}}}
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: dsci.Name}}}
 }
 
 func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Context) []DSCInitializationCondition {
@@ -559,42 +557,27 @@ func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, i
 	return nil
 }
 
-// watchOptionalCRDResource triggers DSCI reconciliation when optional CRDs
-// appear. Monitoring CRDs come from the odh-observability chart; Dashboard
+// reconcileOnCRDChange maps optional CRD events to a DSCI reconcile. The
+// Monitoring CRD comes from the odh-observability chart; Dashboard
 // AcceleratorProfile/HWProfile CRDs come from the dashboard module (VAP/VAPB).
-func (r *DSCInitializationReconciler) watchOptionalCRDResource(ctx context.Context, a client.Object) []reconcile.Request {
-	if a.GetName() == serviceApi.MonitoringCRDName {
-		r.ensureMonitoringWatch()
-	}
-	return r.watchHWProfileCRDResource(ctx, a)
-}
-
-// watchHWProfileCRDResource triggers DSCI reconciliation when Dashboard AcceleratorProfile/HWProfile CRDs are created.
-// This ensures VAP/VAPB resources can be created when Dashboard CRDs become available.
-// TODO: this is a temporary solution to ensure VAP/VAPB resources are created when Dashboard CRDs become available, it should be removed in v3.3.
-func (r *DSCInitializationReconciler) watchHWProfileCRDResource(ctx context.Context, a client.Object) []reconcile.Request {
+// TODO: the HWP/AcceleratorProfile portion is temporary for VAP/VAPB and should be removed in v3.3.
+func (r *DSCInitializationReconciler) reconcileOnCRDChange(ctx context.Context, a client.Object) []reconcile.Request {
 	log := logf.FromContext(ctx)
-
 	log.V(1).Info("optional CRD change detected, triggering DSCI reconciliation", "CRD", a.GetName())
 
-	instanceList := &dsciv2.DSCInitializationList{}
-	if err := r.Client.List(ctx, instanceList); err != nil {
-		log.Error(err, "Failed to get DSCInitializationList")
+	dsci, err := cluster.GetDSCI(ctx, r.Client)
+	if err != nil {
+		log.V(1).Info("no DSCI found, triggering default-dsci reconciliation as fallback")
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
 	}
 
-	if len(instanceList.Items) == 0 {
-		// No DSCI found, but trigger anyway for default name in case of race conditions
-		// If no DSCI actually exists, the reconcile request will be ignored
-		log.V(1).Info("No DSCI instances found, triggering default-dsci reconciliation as fallback to create VAP/VAPB")
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
-	}
-
-	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name}}}
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: dsci.Name}}}
 }
 
-// reconcileDSCIModules creates/updates the Platform CR and provisions
-// module CRs whose configuration comes from the DSCI spec (e.g. Monitoring).
+// reconcileDSCIModules creates/updates DSCI-owned fields on the Platform CR
+// and provisions module CRs whose configuration comes from the DSCI spec
+// (e.g. Monitoring). SSA apply only includes ConfigFromDSCI fields so DSC-owned
+// modules are not overwritten.
 func (r *DSCInitializationReconciler) reconcileDSCIModules(ctx context.Context, instance *dsciv2.DSCInitialization) error {
 	log := logf.FromContext(ctx)
 
@@ -602,22 +585,11 @@ func (r *DSCInitializationReconciler) reconcileDSCIModules(ctx context.Context, 
 		DSCI: instance,
 	}
 
-	// 1. Create/Update Platform CR with module enablement
-	platform := &configv1alpha1.Platform{}
-	platform.SetName(configv1alpha1.PlatformInstanceName)
-
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, platform, func() error {
-		modules.DefaultRegistry().ForAll(func(handler modules.ModuleHandler, _ bool) error { //nolint:errcheck
-			handler.PopulatePlatformModule(&platform.Spec.Modules, dscCtx)
-			return nil
-		})
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create or update Platform CR: %w", err)
+	platform := modules.NewPlatformCR(dscCtx, modules.ConfigFromDSCI)
+	if err := resources.Apply(ctx, r.Client, platform, client.FieldOwner(fieldManager), client.ForceOwnership); err != nil {
+		return fmt.Errorf("failed to apply Platform CR: %w", err)
 	}
 
-	// 2. Manage DSCI-configured module CRs
 	return modules.ForConfigSource(modules.ConfigFromDSCI, func(handler modules.ModuleHandler, _ bool) error {
 		if !handler.IsEnabled(&platform.Spec.Modules) {
 			log.V(1).Info("deleting disabled module CR", "module", handler.GetName())
@@ -639,12 +611,11 @@ func (r *DSCInitializationReconciler) reconcileDSCIModules(ctx context.Context, 
 
 		if err := resources.Apply(ctx, r.Client, moduleCR, client.FieldOwner(fieldManager), client.ForceOwnership); err != nil {
 			if meta.IsNoMatchError(err) {
-				return fmt.Errorf("module CRD not installed yet for %s: %w", handler.GetName(), err)
+				log.V(1).Info("module CRD not installed yet, will retry when CRD appears", "module", handler.GetName())
+				return nil
 			}
 			return fmt.Errorf("failed to apply module CR %s: %w", handler.GetName(), err)
 		}
-
-		r.ensureMonitoringWatch()
 
 		log.V(1).Info("provisioned DSCI-configured module CR", "module", handler.GetName())
 		return nil

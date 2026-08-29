@@ -256,6 +256,28 @@ func TestBuildModuleCR_MetricsWithoutStorageNulled(t *testing.T) {
 	g.Expect(spec).ShouldNot(HaveKey("collectorReplicas"))
 }
 
+func TestBuildModuleCR_MetricsWithExportersWithoutStorage(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.Metrics = &serviceApi.Metrics{
+		Exporters: map[string]runtime.RawExtension{
+			"custom": {Raw: []byte(`{"endpoint":"http://example.com"}`)},
+		},
+	}
+
+	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).Should(HaveKey("metrics"))
+	metrics, ok := spec["metrics"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(metrics).Should(HaveKey("exporters"))
+	g.Expect(metrics).ShouldNot(HaveKey("storage"))
+}
+
 func TestBuildModuleCR_CollectorReplicasDefaulting(t *testing.T) {
 	t.Parallel()
 

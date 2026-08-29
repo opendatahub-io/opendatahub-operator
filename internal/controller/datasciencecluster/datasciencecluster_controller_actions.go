@@ -16,7 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
@@ -47,10 +46,15 @@ func watchDataScienceClusters(ctx context.Context, cli client.Client) []reconcil
 	return cluster.WatchDataScienceClusters(ctx, cli)
 }
 
-func buildDSCContext(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) (*modules.DSCContext, error) {
-	dsci, err := cluster.GetDSCI(ctx, cli)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get DSCI for module context: %w", err)
+func buildDSCContext(ctx context.Context, rr *odhtype.ReconciliationRequest, dsc *dscv2.DataScienceCluster) (*modules.DSCContext, error) {
+	dsci := odhtype.GetDSCI(rr)
+	if dsci == nil {
+		var err error
+		dsci, err = cluster.GetDSCI(ctx, rr.Client)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get DSCI for module context: %w", err)
+		}
+		odhtype.SetDSCI(rr, dsci)
 	}
 	return &modules.DSCContext{DSC: dsc, DSCI: dsci}, nil
 }
@@ -61,25 +65,12 @@ func syncPlatformCR(ctx context.Context, rr *odhtype.ReconciliationRequest) erro
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
-	dscCtx, err := buildDSCContext(ctx, rr.Client, instance)
+	dscCtx, err := buildDSCContext(ctx, rr, instance)
 	if err != nil {
 		return err
 	}
 
-	platform := &configv1alpha1.Platform{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: configv1alpha1.GroupVersion.String(),
-			Kind:       configv1alpha1.PlatformKind,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: configv1alpha1.PlatformInstanceName,
-		},
-		Spec: configv1alpha1.PlatformSpec{
-			Modules: modules.BuildPlatformModules(dscCtx),
-		},
-	}
-
-	return rr.AddResources(platform)
+	return rr.AddResources(modules.NewPlatformCR(dscCtx, modules.ConfigFromDSC))
 }
 
 func cleanupDisabledComponents(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
@@ -163,22 +154,28 @@ func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationReq
 		return nil
 	}
 
-	dscCtx, err := buildDSCContext(ctx, rr.Client, instance)
+	dscCtx, err := buildDSCContext(ctx, rr, instance)
 	if err != nil {
 		return err
 	}
 
-	pm := modules.BuildPlatformModules(dscCtx)
+	pm := modules.BuildPlatformModulesForSource(dscCtx, modules.ConfigFromDSC)
 	enabledModules := make(map[string]bool)
 	for _, name := range pm.EnabledModules() {
 		enabledModules[name] = true
 	}
 
+	dscOwned := make(map[string]struct{})
+	_ = moduleReg.ForConfigSource(modules.ConfigFromDSC, func(handler modules.ModuleHandler, _ bool) error {
+		dscOwned[handler.GetName()] = struct{}{}
+		return nil
+	})
+
 	log := logf.FromContext(ctx)
 	reverseBatches, err := provision.DefaultRegistry().ReverseBatches()
 	if err != nil {
 		log.Error(err, "DAG reverse resolution failed, falling back to alphabetical module CR cleanup")
-		return moduleReg.ForAll(func(handler modules.ModuleHandler, _ bool) error {
+		return moduleReg.ForConfigSource(modules.ConfigFromDSC, func(handler modules.ModuleHandler, _ bool) error {
 			if !enabledModules[handler.GetName()] {
 				if delErr := handler.DeleteModuleCR(ctx, rr.Client); delErr != nil {
 					log.Error(delErr, "DeleteModuleCR failed", "module", handler.GetName())
@@ -194,6 +191,9 @@ func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationReq
 		for _, entry := range provision.ModulesInBatch(batch) {
 			handler := moduleReg.Lookup(entry.GetName())
 			if handler == nil {
+				continue
+			}
+			if _, owned := dscOwned[handler.GetName()]; !owned {
 				continue
 			}
 			if enabledModules[handler.GetName()] {
@@ -275,12 +275,12 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		return nil
 	}
 
-	dscCtx, err := buildDSCContext(ctx, rr.Client, instance)
+	dscCtx, err := buildDSCContext(ctx, rr, instance)
 	if err != nil {
 		return err
 	}
 
-	pm := modules.BuildPlatformModules(dscCtx)
+	pm := modules.BuildPlatformModulesForSource(dscCtx, modules.ConfigFromDSC)
 	enabledModules := make(map[string]bool)
 	for _, name := range pm.EnabledModules() {
 		enabledModules[name] = true

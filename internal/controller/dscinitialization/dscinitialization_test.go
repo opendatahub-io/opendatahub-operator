@@ -7,6 +7,8 @@ import (
 	userv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -66,6 +68,18 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundApplicationNamespace.Labels).To(HaveKeyWithValue(labels.SecurityEnforce, "baseline"))
 		})
 
+		It("Should stay Ready when the Monitoring CRD is not installed", func(ctx context.Context) {
+			crd := &apiextensionsv1.CustomResourceDefinition{}
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: serviceApi.MonitoringCRDName}, crd)
+			if err == nil {
+				Skip("Monitoring CRD already present in this envtest")
+			}
+
+			monitoringCR := createMonitoringCR()
+			err = k8sClient.Get(ctx, client.ObjectKey{Name: serviceApi.MonitoringInstanceName}, monitoringCR)
+			Expect(meta.IsNoMatchError(err)).To(BeTrue())
+		})
+
 		// Currently commented out in the DSCI reconcile - setting test to Pending
 		It("Should create default network policy", func(ctx context.Context) {
 			// then
@@ -90,7 +104,10 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		})
 	})
 
-	Context("Monitoring Resource", func() {
+	Context("Monitoring Resource", Ordered, func() {
+		BeforeAll(func(ctx context.Context) {
+			installMonitoringCRD(ctx)
+		})
 		AfterEach(cleanupResources)
 		const monitoringNamespace2 = "test-monitoring-ns2"
 		const applicationName = "default-dsci"
@@ -126,9 +143,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				WithPolling(interval).
 				Should(BeTrue())
 
-			// Monitoring CR is owned by the module system, not the DSCI controller.
-			monitoringCR := createMonitoringCR()
-			Expect(k8sClient.Create(ctx, monitoringCR)).Should(Succeed())
+			monitoringCR := waitForMonitoringCR(ctx)
 
 			// when - Simulate Monitoring CR getting some conditions
 			Expect(setMonitoringConditions(monitoringCR,
@@ -177,8 +192,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				WithPolling(interval).
 				Should(BeTrue())
 
-			monitoringCR := createMonitoringCR()
-			Expect(k8sClient.Create(ctx, monitoringCR)).Should(Succeed())
+			monitoringCR := waitForMonitoringCR(ctx)
 
 			// when - Simulate Monitoring CR Getting Ready=False
 			Expect(setMonitoringConditions(monitoringCR,
@@ -217,8 +231,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				WithPolling(interval).
 				Should(BeTrue())
 
-			monitoringCR := createMonitoringCR()
-			Expect(k8sClient.Create(ctx, monitoringCR)).Should(Succeed())
+			monitoringCR := waitForMonitoringCR(ctx)
 
 			Expect(setMonitoringConditions(monitoringCR,
 				condition("Ready", metav1.ConditionTrue, "Ready", "Monitoring stack is ready"),
@@ -233,8 +246,20 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				)))
 			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 
-			// when - Monitoring CR is removed by the module system
-			Expect(k8sClient.Delete(ctx, monitoringCR)).To(Succeed())
+			// when - DSCI disables monitoring and deletes the Monitoring CR
+			Eventually(func() error {
+				current := &dsciv2.DSCInitialization{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Name: applicationName}, current); err != nil {
+					return err
+				}
+				current.Spec.Monitoring.ManagementState = operatorv1.Removed
+				return k8sClient.Update(ctx, current)
+			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: serviceApi.MonitoringInstanceName}, createMonitoringCR())
+				return k8serr.IsNotFound(err)
+			}).WithTimeout(timeout).WithPolling(interval).Should(BeTrue())
 
 			// then - DSCI status should reflect it's removed
 			Eventually(func(g Gomega) {
@@ -450,7 +475,9 @@ func cleanupResources(ctx context.Context) {
 	defaultNamespace := client.InNamespace(workingNamespace)
 	appNamespace := client.InNamespace(applicationNamespace)
 	Expect(k8sClient.DeleteAllOf(ctx, &dsciv2.DSCInitialization{}, defaultNamespace)).To(Succeed())
-	Expect(k8sClient.DeleteAllOf(ctx, resources.GvkToUnstructured(gvk.Monitoring))).To(Succeed())
+	if err := k8sClient.DeleteAllOf(ctx, resources.GvkToUnstructured(gvk.Monitoring)); err != nil {
+		Expect(meta.IsNoMatchError(err) || k8serr.IsNotFound(err)).To(BeTrue())
+	}
 
 	Expect(k8sClient.DeleteAllOf(ctx, &networkingv1.NetworkPolicy{}, appNamespace)).To(Succeed())
 	Expect(k8sClient.DeleteAllOf(ctx, &corev1.ConfigMap{}, appNamespace)).To(Succeed())
@@ -498,6 +525,15 @@ func createMonitoringCR() *unstructured.Unstructured {
 	u := resources.GvkToUnstructured(gvk.Monitoring)
 	u.SetName(serviceApi.MonitoringInstanceName)
 	return u
+}
+
+func waitForMonitoringCR(ctx context.Context) *unstructured.Unstructured {
+	GinkgoHelper()
+	monitoringCR := createMonitoringCR()
+	Eventually(func() error {
+		return k8sClient.Get(ctx, client.ObjectKey{Name: serviceApi.MonitoringInstanceName}, monitoringCR)
+	}).WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+	return monitoringCR
 }
 
 func condition(condType string, status metav1.ConditionStatus, reason, message string) map[string]any {

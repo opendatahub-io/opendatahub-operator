@@ -242,19 +242,20 @@ type ModuleCRConfig struct {
 	Release common.Release
 }
 
-// DSCContext holds DSC and DSCI references for handler methods called by
-// the DSC controller when projecting module enablement into the Platform CR
-// and constructing module CRs. Parallels PlatformContext (platform controller).
+// DSCContext holds DSC and DSCI references for handler methods that project
+// module enablement into the Platform CR and construct module CRs.
+// Parallels PlatformContext (platform controller).
 //
-// The DSC controller populates both fields. Component-modules read DSC;
-// service-modules (e.g. monitoring) read DSCI. Handlers that depend on a
-// nil field should no-op (for PopulatePlatformModule) or return an error
-// (for BuildModuleCR).
+// The DSC controller populates DSC (and DSCI when status aggregation needs
+// it). The DSCI controller populates DSCI. Component-modules read DSC;
+// DSCI-configured modules (e.g. monitoring) read DSCI. Handlers that depend
+// on a nil field should no-op (for PopulatePlatformModule) or return an
+// error (for BuildModuleCR).
 type DSCContext struct {
-	// DSC is the DataScienceCluster instance.
+	// DSC is the DataScienceCluster instance. Nil when called from the DSCI controller.
 	DSC *dscv2.DataScienceCluster
-	// DSCI is the DSCInitialization instance. Required by service-modules
-	// such as monitoring that derive their management state from DSCI spec.
+	// DSCI is the DSCInitialization instance. Required by DSCI-configured
+	// modules such as monitoring that derive their management state from DSCI spec.
 	DSCI *dsciv2.DSCInitialization
 }
 

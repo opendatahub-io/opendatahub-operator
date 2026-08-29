@@ -45,22 +45,45 @@ func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) e
 	return provision.CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, rr.GateEntries)
 }
 
-// modulesFromInstance derives PlatformModules from whichever CR is the
-// reconcile instance — Platform CR (platform controller) or DSC (DSC
-// controller).
+// modulesFromInstance derives PlatformModules from the reconcile instance.
+// The platform controller's instance is the Platform CR. A DSC instance is
+// also accepted so tests and legacy callers can rebuild modules from DSC+DSCI.
 func modulesFromInstance(ctx context.Context, rr *odhtype.ReconciliationRequest) (*configv1alpha1.PlatformModules, error) {
 	if p, ok := rr.Instance.(*configv1alpha1.Platform); ok {
 		return &p.Spec.Modules, nil
 	}
 	if dsc, ok := rr.Instance.(*dscv2.DataScienceCluster); ok {
-		dsci, err := cluster.GetDSCI(ctx, rr.Client)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get DSCI for module context: %w", err)
+		dsci := odhtype.GetDSCI(rr)
+		if dsci == nil {
+			var err error
+			dsci, err = cluster.GetDSCI(ctx, rr.Client)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get DSCI for module context: %w", err)
+			}
+			odhtype.SetDSCI(rr, dsci)
 		}
 		pm := BuildPlatformModules(&DSCContext{DSC: dsc, DSCI: dsci})
 		return &pm, nil
 	}
 	return nil, fmt.Errorf("cannot derive PlatformModules from instance type %T", rr.Instance)
+}
+
+// NewPlatformCR constructs a Platform CR with module enablement for the given
+// config source. DSC and DSCI each apply only their own fields so SSA merge
+// does not let one controller overwrite the other's modules.
+func NewPlatformCR(dscCtx *DSCContext, source ConfigSource) *configv1alpha1.Platform {
+	return &configv1alpha1.Platform{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: configv1alpha1.GroupVersion.String(),
+			Kind:       configv1alpha1.PlatformKind,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: configv1alpha1.PlatformInstanceName,
+		},
+		Spec: configv1alpha1.PlatformSpec{
+			Modules: BuildPlatformModulesForSource(dscCtx, source),
+		},
+	}
 }
 
 // BuildPlatformModules iterates all module handlers to derive their
@@ -75,6 +98,18 @@ func BuildPlatformModules(dscCtx *DSCContext) configv1alpha1.PlatformModules {
 		return nil
 	})
 	normalizePlatformModules(&pm)
+	return pm
+}
+
+// BuildPlatformModulesForSource populates only handlers whose config source
+// matches. Unmatched module fields are left zero so omitempty SSA apply does
+// not take ownership of another controller's fields.
+func BuildPlatformModulesForSource(dscCtx *DSCContext, source ConfigSource) configv1alpha1.PlatformModules {
+	var pm configv1alpha1.PlatformModules
+	DefaultRegistry().ForConfigSource(source, func(handler ModuleHandler, _ bool) error { //nolint:errcheck
+		handler.PopulatePlatformModule(&pm, dscCtx)
+		return nil
+	})
 	return pm
 }
 
@@ -687,9 +722,14 @@ func ComputeModulesStatusDetailed(ctx context.Context, rr *odhtype.Reconciliatio
 	if !ok {
 		return fmt.Errorf("ComputeModulesStatusDetailed requires DataScienceCluster instance, got %T", rr.Instance)
 	}
-	dsci, err := cluster.GetDSCI(ctx, rr.Client)
-	if err != nil {
-		return fmt.Errorf("failed to get DSCI for module context: %w", err)
+	dsci := odhtype.GetDSCI(rr)
+	if dsci == nil {
+		var err error
+		dsci, err = cluster.GetDSCI(ctx, rr.Client)
+		if err != nil {
+			return fmt.Errorf("failed to get DSCI for module context: %w", err)
+		}
+		odhtype.SetDSCI(rr, dsci)
 	}
 	dscCtx := &DSCContext{DSC: dsc, DSCI: dsci}
 	pm := BuildPlatformModules(dscCtx)

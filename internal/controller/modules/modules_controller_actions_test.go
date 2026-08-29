@@ -769,7 +769,7 @@ func TestBuildPlatformModules_WithDSCI_MonitoringManaged(t *testing.T) {
 
 	DefaultRegistry().Add(&dsciMonitoringHandler{
 		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "monitoring"}},
-	})
+	}, WithConfigSource(ConfigFromDSCI))
 
 	dsci := &dsciv2.DSCInitialization{
 		Spec: dsciv2.DSCInitializationSpec{
@@ -788,6 +788,46 @@ func TestBuildPlatformModules_WithDSCI_MonitoringManaged(t *testing.T) {
 
 	if pm.Monitoring.ManagementState != operatorv1.Managed {
 		t.Fatalf("expected monitoring=Managed when DSCI is provided, got %q", pm.Monitoring.ManagementState)
+	}
+}
+
+func TestBuildPlatformModulesForSource_DoesNotPopulateOtherSource(t *testing.T) {
+	withTestRegistry(t)
+
+	DefaultRegistry().Add(&dsciMonitoringHandler{
+		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "monitoring"}},
+	}, WithConfigSource(ConfigFromDSCI))
+	DefaultRegistry().Add(&dscDashboardHandler{
+		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "dashboard"}},
+	})
+
+	dsc := &dscv2.DataScienceCluster{}
+	dsc.Spec.Components.Dashboard.ManagementState = operatorv1.Managed
+	dsci := &dsciv2.DSCInitialization{
+		Spec: dsciv2.DSCInitializationSpec{
+			Monitoring: serviceApi.DSCIMonitoring{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Managed,
+				},
+			},
+		},
+	}
+	dscCtx := &DSCContext{DSC: dsc, DSCI: dsci}
+
+	dsciModules := BuildPlatformModulesForSource(dscCtx, ConfigFromDSCI)
+	if dsciModules.Monitoring.ManagementState != operatorv1.Managed {
+		t.Fatalf("expected DSCI source to set monitoring=Managed, got %q", dsciModules.Monitoring.ManagementState)
+	}
+	if dsciModules.Dashboard.ManagementState != "" {
+		t.Fatalf("expected DSCI source to leave dashboard unset, got %q", dsciModules.Dashboard.ManagementState)
+	}
+
+	dscModules := BuildPlatformModulesForSource(dscCtx, ConfigFromDSC)
+	if dscModules.Dashboard.ManagementState != operatorv1.Managed {
+		t.Fatalf("expected DSC source to set dashboard=Managed, got %q", dscModules.Dashboard.ManagementState)
+	}
+	if dscModules.Monitoring.ManagementState != "" {
+		t.Fatalf("expected DSC source to leave monitoring unset, got %q", dscModules.Monitoring.ManagementState)
 	}
 }
 
@@ -812,4 +852,27 @@ func (h *dsciMonitoringHandler) PopulatePlatformModule(pm *configv1alpha1.Platfo
 		ms = operatorv1.Removed
 	}
 	pm.Monitoring.ManagementState = ms
+}
+
+type dscDashboardHandler struct {
+	BaseHandler
+}
+
+func (h *dscDashboardHandler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+	return modules != nil && modules.Dashboard.ManagementState == operatorv1.Managed
+}
+
+func (h *dscDashboardHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
+	return nil, nil
+}
+
+func (h *dscDashboardHandler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *DSCContext) {
+	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
+		return
+	}
+	ms := dscCtx.DSC.Spec.Components.Dashboard.ManagementState
+	if ms == "" {
+		ms = operatorv1.Removed
+	}
+	pm.Dashboard.ManagementState = ms
 }

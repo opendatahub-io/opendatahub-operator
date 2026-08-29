@@ -327,7 +327,8 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 
 	// Step 1: Deploy all components at the original version.
 	// This establishes platform release version in component CR status.
-	t.Log("Enabling all components for initial deployment and waiting for initial convergence (ComponentsReady=True and ModulesReady=True on DSC)")
+	t.Log("Enabling all components and monitoring for initial deployment and waiting for initial convergence (ComponentsReady=True and ModulesReady=True on DSC)")
+	tc.setDSCIMonitoringState(t, operatorv1.Managed)
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(allComponentsManagedTransform()),

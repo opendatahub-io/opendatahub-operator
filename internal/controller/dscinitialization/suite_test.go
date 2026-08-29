@@ -53,6 +53,8 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	monitoringmodule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/monitoring"
 	webhookenvtestutil "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
@@ -152,15 +154,8 @@ var _ = BeforeSuite(func() {
 
 	k8sClient = cli
 
-	By("installing test-only Monitoring CRD")
-	monitoringCRD := webhookenvtestutil.MockMonitoringCRD()
-	err = k8sClient.Create(gCtx, monitoringCRD)
-	if err != nil && !k8serr.IsAlreadyExists(err) {
-		Expect(err).NotTo(HaveOccurred())
-	}
-	Expect(envtest.WaitForCRDs(cfg, []*apiextensionsv1.CustomResourceDefinition{monitoringCRD}, envtest.CRDInstallOptions{
-		MaxTime: timeout,
-	})).To(Succeed())
+	By("registering monitoring as a DSCI-configured module")
+	modules.Add(monitoringmodule.NewHandler(), modules.WithConfigSource(modules.ConfigFromDSCI))
 
 	webhookInstallOptions := &testEnv.WebhookInstallOptions
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
@@ -198,3 +193,15 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
+
+func installMonitoringCRD(ctx context.Context) {
+	GinkgoHelper()
+	monitoringCRD := webhookenvtestutil.MockMonitoringCRD()
+	err := k8sClient.Create(ctx, monitoringCRD)
+	if err != nil && !k8serr.IsAlreadyExists(err) {
+		Expect(err).NotTo(HaveOccurred())
+	}
+	Expect(envtest.WaitForCRDs(cfg, []*apiextensionsv1.CustomResourceDefinition{monitoringCRD}, envtest.CRDInstallOptions{
+		MaxTime: timeout,
+	})).To(Succeed())
+}
