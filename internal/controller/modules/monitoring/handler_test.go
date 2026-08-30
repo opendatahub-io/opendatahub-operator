@@ -2,6 +2,7 @@ package monitoring_test
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -379,4 +380,43 @@ func TestGetName(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
 	g.Expect(h.GetName()).Should(Equal(serviceApi.MonitoringServiceName))
+}
+
+func TestGetOperatorManifests_InjectsMonitoringNamespace(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	platform := &modules.PlatformContext{
+		ApplicationsNamespace: "redhat-ods-applications",
+		MonitoringNamespace:   "redhat-ods-monitoring",
+		ChartsBasePath:        "/opt/charts",
+	}
+
+	manifests := h.GetOperatorManifests(platform)
+	g.Expect(manifests.HelmCharts).Should(HaveLen(1))
+	g.Expect(manifests.HelmCharts[0].ReleaseName).Should(Equal("odh-observability"))
+	g.Expect(manifests.HelmCharts[0].Chart).Should(Equal(
+		filepath.Join("/opt/charts", "odh-observability"),
+	))
+
+	vals, err := manifests.HelmCharts[0].Values(context.Background())
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(vals["operatorNamespace"]).Should(Equal("redhat-ods-applications"))
+	g.Expect(vals["monitoringNamespace"]).Should(Equal("redhat-ods-monitoring"))
+}
+
+func TestGetOperatorManifests_OmitsEmptyMonitoringNamespace(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	platform := &modules.PlatformContext{
+		ApplicationsNamespace: "opendatahub",
+		ChartsBasePath:        "/opt/charts",
+	}
+
+	manifests := h.GetOperatorManifests(platform)
+	g.Expect(manifests.HelmCharts).Should(HaveLen(1))
+
+	vals, err := manifests.HelmCharts[0].Values(context.Background())
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(vals["operatorNamespace"]).Should(Equal("opendatahub"))
+	g.Expect(vals).ShouldNot(HaveKey("monitoringNamespace"))
 }

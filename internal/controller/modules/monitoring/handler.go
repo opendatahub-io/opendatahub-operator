@@ -30,14 +30,15 @@ func NewHandler() *handler {
 	return &handler{
 		BaseHandler: modules.BaseHandler{
 			Config: modules.ModuleConfig{
-				Name:              moduleName,
-				CRName:            crName,
-				ReleaseName:       "odh-observability",
-				ChartDir:          "odh-observability",
-				NamespaceValueKey: "operatorNamespace",
-				GVK:               gvk.Monitoring,
-				DeploymentName:    "odh-observability",
-				ControllerImage:   "RELATED_IMAGE_ODH_OBSERVABILITY_IMAGE",
+				Name:                        moduleName,
+				CRName:                      crName,
+				ReleaseName:                 "odh-observability",
+				ChartDir:                    "odh-observability",
+				NamespaceValueKey:           "operatorNamespace",
+				MonitoringNamespaceValueKey: "monitoringNamespace",
+				GVK:                         gvk.Monitoring,
+				DeploymentName:              "odh-observability",
+				ControllerImage:             "RELATED_IMAGE_ODH_OBSERVABILITY_IMAGE",
 				RelatedImages: []string{
 					"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 					"RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE",
