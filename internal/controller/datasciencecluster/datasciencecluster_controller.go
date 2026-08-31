@@ -30,6 +30,7 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
@@ -42,6 +43,11 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 
 	b := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
 		WithDynamicOwnership(
+			// Platform is shared with DSCI. DSC must not take controller
+			// ownership or Kubernetes GC would delete it (and monitoring)
+			// when DSC is removed. Owner refs are set explicitly as
+			// controller=false in syncPlatformCR.
+			reconciler.ExcludeGVKs(gvk.Platform),
 			reconciler.WithDefaultPredicates(componentsPredicate),
 		)
 
@@ -94,6 +100,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 			deploy.WithContinueOnError(),
 			deploy.WithCache(),
 		)).
+		WithFinalizer(disableDSCModulesOnDelete).
 		WithConditions(status.ConditionTypeComponentsReady, status.ConditionTypeModulesReady).
 		Build(ctx)
 

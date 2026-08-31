@@ -831,6 +831,38 @@ func TestBuildPlatformModulesForSource_DoesNotPopulateOtherSource(t *testing.T) 
 	}
 }
 
+func TestNewPlatformCRRemovedForSource_ForcesDSCModulesRemoved(t *testing.T) {
+	withTestRegistry(t)
+
+	DefaultRegistry().Add(&testDSCIConfiguredHandler{
+		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "monitoring"}},
+	}, WithConfigSource(ConfigFromDSCI))
+	DefaultRegistry().Add(&testDSCConfiguredHandler{
+		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "dashboard"}},
+	})
+
+	dsc := &dscv2.DataScienceCluster{}
+	dsc.Spec.Components.Dashboard.ManagementState = operatorv1.Managed
+	dsci := &dsciv2.DSCInitialization{
+		Spec: dsciv2.DSCInitializationSpec{
+			Monitoring: serviceApi.DSCIMonitoring{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Managed,
+				},
+			},
+		},
+	}
+	dscCtx := &DSCContext{DSC: dsc, DSCI: dsci}
+
+	removed := NewPlatformCRRemovedForSource(dscCtx, ConfigFromDSC)
+	if removed.Spec.Modules.Dashboard.ManagementState != operatorv1.Removed {
+		t.Fatalf("expected dashboard=Removed on DSC delete payload, got %q", removed.Spec.Modules.Dashboard.ManagementState)
+	}
+	if removed.Spec.Modules.Monitoring.ManagementState != "" {
+		t.Fatalf("expected monitoring to stay unset so DSCI SSA keeps it, got %q", removed.Spec.Modules.Monitoring.ManagementState)
+	}
+}
+
 // testDSCIConfiguredHandler is a test double for a ConfigFromDSCI module.
 // It writes PlatformModules.Monitoring only because that is the typed SSA
 // field for DSCI-sourced enablement, not because it is the production handler.

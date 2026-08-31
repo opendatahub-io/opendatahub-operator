@@ -78,6 +78,32 @@ func NewPlatformCR(dscCtx *DSCContext, source ConfigSource) *configv1alpha1.Plat
 	}
 }
 
+// NewPlatformCRRemovedForSource builds a Platform CR that SSA-applies Removed
+// for every module owned by source and leaves other sources' fields unset
+// (omitempty). Used by the DSC delete finalizer so ConfigFromDSC operators
+// tear down while DSCI-owned modules (monitoring) stay Managed.
+func NewPlatformCRRemovedForSource(dscCtx *DSCContext, source ConfigSource) *configv1alpha1.Platform {
+	platform := NewPlatformCR(dscCtx, source)
+	forceManagementStateRemoved(&platform.Spec.Modules)
+	return platform
+}
+
+func forceManagementStateRemoved(pm *configv1alpha1.PlatformModules) {
+	v := reflect.ValueOf(pm).Elem()
+	for _, fv := range v.Fields() {
+		if fv.Kind() != reflect.Struct {
+			continue
+		}
+		ms := fv.FieldByName("ManagementState")
+		if !ms.IsValid() || !ms.CanSet() {
+			continue
+		}
+		if ms.String() != "" {
+			ms.SetString(string(operatorv1.Removed))
+		}
+	}
+}
+
 // BuildPlatformModules iterates all module handlers to derive their
 // management state from DSC/DSCI, producing the PlatformModules struct.
 // Empty management states are normalized to Removed so the Platform CR

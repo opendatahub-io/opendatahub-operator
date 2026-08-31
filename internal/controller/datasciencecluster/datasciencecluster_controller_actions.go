@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -25,6 +26,11 @@ import (
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
+
+// dscFieldManager is the SSA field owner used by the DSC deploy action
+// (lowercase Kind). The delete finalizer must use the same manager so it
+// replaces ConfigFromDSC module fields rather than fighting a second owner.
+const dscFieldManager = "datasciencecluster"
 
 func isNilInterface(v any) bool {
 	return v == nil || (reflect.ValueOf(v).Kind() == reflect.Pointer && reflect.ValueOf(v).IsNil())
@@ -56,7 +62,31 @@ func syncPlatformCR(ctx context.Context, rr *odhtype.ReconciliationRequest) erro
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
-	return rr.AddResources(modules.NewPlatformCR(buildDSCContext(instance), modules.ConfigFromDSC))
+	platform := modules.NewPlatformCR(buildDSCContext(instance), modules.ConfigFromDSC)
+	if err := controllerutil.SetOwnerReference(instance, platform, rr.Client.Scheme()); err != nil {
+		return fmt.Errorf("failed to set Platform owner reference: %w", err)
+	}
+
+	return rr.AddResources(platform)
+}
+
+// disableDSCModulesOnDelete is the DSC delete finalizer. It SSA-applies
+// Removed for ConfigFromDSC modules only so the Platform controller can
+// tear those operators down. modules.monitoring is DSCI-owned and is left
+// untouched. The apply action chain does not run during deletion, so this
+// cannot fight syncPlatformCR.
+func disableDSCModulesOnDelete(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
+	}
+
+	platform := modules.NewPlatformCRRemovedForSource(buildDSCContext(instance), modules.ConfigFromDSC)
+	if err := resources.Apply(ctx, rr.Client, platform, client.FieldOwner(dscFieldManager), client.ForceOwnership); err != nil {
+		return fmt.Errorf("failed to mark DSC modules Removed on Platform: %w", err)
+	}
+
+	return nil
 }
 
 func cleanupDisabledComponents(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
