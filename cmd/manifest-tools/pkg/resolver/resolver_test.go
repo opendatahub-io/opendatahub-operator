@@ -103,7 +103,7 @@ imageOverrides:
 	}
 }
 
-func TestResolve_ClonedCommitImageNotFound_ReturnsError(t *testing.T) {
+func TestResolve_ClonedCommitImageNotFound_FallsBackToCSV(t *testing.T) {
 	dir := t.TempDir()
 	configFile := filepath.Join(dir, "manifests-config.yaml")
 	manifestsDir := filepath.Join(dir, "manifests")
@@ -137,7 +137,7 @@ imageOverrides:
 		ManifestsDir:   manifestsDir,
 		FetchCSVImages: fakeFetch,
 	})
-	if err == nil {
-		t.Error("expected error for unresolved cloned commit image, got nil — CSV fallback must not apply to non-csv images")
+	if err != nil {
+		t.Errorf("expected CSV fallback to succeed when SHA image not found, got error: %v", err)
 	}
 }
