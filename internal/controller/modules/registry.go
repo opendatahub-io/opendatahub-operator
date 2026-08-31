@@ -12,9 +12,10 @@ import (
 )
 
 type registryEntry struct {
-	handler  ModuleHandler
-	enabled  bool
-	runlevel dag.Runlevel
+	handler      ModuleHandler
+	enabled      bool
+	runlevel     dag.Runlevel
+	configSource ConfigSource
 }
 
 func (e registryEntry) GetName() string           { return e.handler.GetName() }
@@ -178,6 +179,24 @@ func (r *Registry) ForAll(f func(handler ModuleHandler, registryEnabled bool) er
 	return errs.ErrorOrNil()
 }
 
+// ForConfigSource iterates over modules whose config source matches,
+// regardless of enabled state.
+func (r *Registry) ForConfigSource(source ConfigSource, f func(handler ModuleHandler, registryEnabled bool) error) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var errs *multierror.Error
+	for _, name := range r.sortedNames() {
+		e := r.entries[name]
+		if e.configSource != source {
+			continue
+		}
+		errs = multierror.Append(errs, f(e.handler, e.enabled))
+	}
+
+	return errs.ErrorOrNil()
+}
+
 // IsModuleEnabled checks if a module with the given name is enabled in the
 // registry and also enabled based on platform configuration.
 func (r *Registry) IsModuleEnabled(moduleName string, modules *configv1alpha1.PlatformModules) bool {
@@ -306,6 +325,10 @@ func ForEachEnabled(f func(ModuleHandler)) {
 
 func ForAll(f func(handler ModuleHandler, registryEnabled bool) error) error {
 	return r.ForAll(f)
+}
+
+func ForConfigSource(source ConfigSource, f func(handler ModuleHandler, registryEnabled bool) error) error {
+	return r.ForConfigSource(source, f)
 }
 
 func IsModuleEnabled(moduleName string, modules *configv1alpha1.PlatformModules) bool {

@@ -97,6 +97,7 @@ import (
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
 	modelregistryModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/modelregistry"
+	monitoringModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/monitoring"
 	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
 	sparkoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/sparkoperator"
 	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
@@ -104,7 +105,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/monitoring"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/setup"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
@@ -161,13 +161,12 @@ var (
 		serviceApi.AuthServiceName:         auth.NewHandler(),
 		certconfigmapgenerator.ServiceName: certconfigmapgenerator.NewHandler(),
 		serviceApi.GatewayServiceName:      gateway.NewHandler(),
-		serviceApi.MonitoringServiceName:   monitoring.NewHandler(),
 		setup.ServiceName:                  setup.NewHandler(),
 	}
 
 	existingModules = map[string]mr.ModuleHandler{
-		componentApi.DashboardComponentName: dashboardModule.NewHandler(),
-		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
+		componentApi.DashboardComponentName:            dashboardModule.NewHandler(),
+		serviceApi.MonitoringServiceName:               monitoringModule.NewHandler(),
 		componentApi.AIGatewayComponentName:            aigatewayModule.NewHandler(),
 		componentApi.MCPLifecycleOperatorComponentName: mcplifecycleoperatorModule.NewHandler(),
 		componentApi.MLflowOperatorComponentName:       mlflowOperatorModule.NewHandler(),
@@ -180,7 +179,15 @@ var (
 		componentApi.SparkOperatorComponentName:        sparkoperatorModule.NewHandler(),
 	}
 
+	// dsciConfiguredModules lists modules whose user-facing configuration
+	// lives in the DSCI spec. The DSCI controller creates their module CRs.
+	// All other modules default to DSC-configured.
+	dsciConfiguredModules = map[string]bool{
+		serviceApi.MonitoringServiceName: true,
+	}
+
 	moduleRunlevels = map[string]dag.Runlevel{
+		serviceApi.MonitoringServiceName:               dag.RL(20),
 		componentApi.DashboardComponentName:            dag.RL(20),
 		componentApi.AIGatewayComponentName:            dag.RL(32),
 		componentApi.FeastOperatorComponentName:        dag.RL(32),
@@ -276,7 +283,12 @@ func registerModules() {
 			rl = r
 		}
 
-		mr.Add(handler, mr.WithRunlevel(rl))
+		opts := []mr.RegistrationOption{mr.WithRunlevel(rl)}
+		if dsciConfiguredModules[name] {
+			opts = append(opts, mr.WithConfigSource(mr.ConfigFromDSCI))
+		}
+
+		mr.Add(handler, opts...)
 		provision.Add(name, provision.KindModule, rl)
 
 		if !flags.IsModuleEnabled(name) {

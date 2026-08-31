@@ -100,14 +100,7 @@ func setupStatusTest(t *testing.T, handlers ...*statusTestHandler) (*odhtype.Rec
 		ObjectMeta: metav1.ObjectMeta{Name: "default-dsc"},
 	}
 
-	dsci := &dsciv2.DSCInitialization{
-		ObjectMeta: metav1.ObjectMeta{Name: "default-dsci"},
-		Spec: dsciv2.DSCInitializationSpec{
-			ApplicationsNamespace: "test-ns",
-		},
-	}
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
+	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	cm := conditions.NewManager(dsc, status.ConditionTypeReady, condTypes...)
@@ -189,6 +182,50 @@ func TestComputeModulesStatusDetailed_AllReady(t *testing.T) {
 
 	g.Expect(rr.Conditions.GetCondition(status.ConditionTypeModulesReady)).ShouldNot(BeNil())
 	g.Expect(rr.Conditions.GetCondition(status.ConditionTypeModulesReady).Status).Should(Equal(metav1.ConditionTrue))
+}
+
+func TestComputeModulesStatusDetailed_SkipsDSCIConfiguredModules(t *testing.T) {
+	g := NewWithT(t)
+
+	hDSC := newStatusTestHandler("gw", "AIGateway", true, &ModuleStatus{
+		Conditions:         []common.Condition{{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"}},
+		ObservedGeneration: 1,
+		Generation:         1,
+	})
+	hDSCI := newStatusTestHandler("mon", "Monitoring", true, &ModuleStatus{
+		Conditions:         []common.Condition{{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Ready"}},
+		ObservedGeneration: 1,
+		Generation:         1,
+	})
+
+	oldR := r
+	r = &Registry{}
+	r.Add(hDSC)
+	r.Add(hDSCI, WithConfigSource(ConfigFromDSCI))
+	t.Cleanup(func() { r = oldR })
+
+	dsc := &dscv2.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "default-dsc"},
+	}
+	cli, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	cm := conditions.NewManager(dsc, status.ConditionTypeReady,
+		"AIGatewayReady", status.ConditionTypeModulesReady)
+
+	rr := &odhtype.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		Conditions: cm,
+		Release:    common.Release{Name: cluster.OpenDataHub},
+	}
+
+	err = ComputeModulesStatusDetailed(t.Context(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(rr.Conditions.GetCondition("AIGatewayReady")).ShouldNot(BeNil())
+	g.Expect(rr.Conditions.GetCondition("MonitoringReady")).Should(BeNil(),
+		"DSCI-configured modules must not appear on DSC status")
 }
 
 func TestComputeModulesStatusDetailed_SomeNotReady(t *testing.T) {
