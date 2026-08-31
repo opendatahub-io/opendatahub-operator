@@ -172,11 +172,11 @@ componentCharts:
   odh-observability:
     odh:
       repo: opendatahub-io/odh-observability
-      ref: main@1f51e011dd6a0a5fc979b39e951f2cb401a3ad91
+      ref: main@f2ff54c027fe21c3a36939953e97ab63a613e321
       sourcePath: charts/odh-observability
     rhoai:
       repo: red-hat-data-services/odh-observability
-      ref: rhoai-3.6-ea.1@3033bdc11ab73ec815628faf820fa1abd225bcb1
+      ref: rhoai-3.6-ea.1@3f65ce948fc0d6f9e014f615a2ebfc3608756f12
       sourcePath: charts/odh-observability
 # Image overrides — pinned operator image digests, keyed by RELATED_IMAGE_* env var name.
 # Local directories symlinked into opt/manifests/ during development.
@@ -895,10 +895,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-observability"
-      digest: "sha256:f76ab76acfa1b5a133c7e254675a4b68633ae79fe90c4e384030340f4bc9aa6a"
+      digest: "sha256:9d6ff20e6323e634d8c0ed5d1da4c8b2a8b82d2dd248f2bdba0d59c86abb2cd6"
     rhoai:
       base: "quay.io/rhoai/odh-observability-rhel9"
-      digest: "sha256:cb0a8822eb3b2dbb87a34b2354d987f152981ae715e6f5551f5e9afcbba16572"
+      digest: "sha256:079962c084786bda4659830272465fdc0a08821052e34492b2c6b2d7a38a72c9"
   RELATED_IMAGE_ODH_OGX_CORE_IMAGE:
     source: "csv"
     odh:
