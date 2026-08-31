@@ -42,6 +42,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -163,6 +164,17 @@ func SpecMutationCookieConfig() serviceApi.CookieConfig {
 	return serviceApi.CookieConfig{
 		Expire:  metav1.Duration{Duration: 48 * time.Hour},
 		Refresh: metav1.Duration{Duration: 2 * time.Hour},
+	}
+}
+
+// SpecMutationTokenReviewConfig returns the token review config used in spec-mutation tests.
+func SpecMutationTokenReviewConfig() *serviceApi.TokenReviewConfig {
+	qps := int32(75)
+	burst := int32(150)
+	return &serviceApi.TokenReviewConfig{
+		QPS:      &qps,
+		Burst:    &burst,
+		CacheTTL: &metav1.Duration{Duration: 30 * time.Second},
 	}
 }
 
@@ -1259,6 +1271,71 @@ func RunSpecMutationCookieConfigTest(t *testing.T, setup TestSetup, cookieUpdate
 		}
 		return hasExpire && hasRefresh
 	}, TestTimeout, TestInterval).Should(BeTrue(), "Deployment cookie args not updated after GatewayConfig spec change")
+}
+
+// RunSpecMutationTokenReviewConfigTest updates the TokenReview spec and validates that Deployment args are updated accordingly.
+func RunSpecMutationTokenReviewConfigTest(t *testing.T, setup TestSetup, tokenReviewUpdate *serviceApi.TokenReviewConfig) {
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+
+	// Verify deployment exists and does NOT have token review args initially
+	g.Eventually(func() bool {
+		deployment := &appsv1.Deployment{}
+		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+			Name:      gateway.KubeAuthProxyName,
+			Namespace: gateway.GatewayNamespace,
+		}, deployment); err != nil {
+			return false
+		}
+		for _, arg := range deployment.Spec.Template.Spec.Containers[0].Args {
+			if strings.HasPrefix(arg, "--kube-api-qps=") {
+				return false
+			}
+		}
+		return true
+	}, TestTimeout, TestInterval).Should(BeTrue(), "Deployment should not have --kube-api-qps initially")
+
+	mergedSpec := setup.Spec
+	mergedSpec.TokenReview = tokenReviewUpdate
+	UpdateGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient, mergedSpec)
+
+	g.Eventually(func() bool {
+		gc := &serviceApi.GatewayConfig{}
+		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{Name: serviceApi.GatewayConfigName}, gc); err != nil {
+			return false
+		}
+		return gc.Spec.TokenReview != nil && gc.Spec.TokenReview.QPS != nil
+	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfig spec (TokenReview) was not updated")
+
+	expectedQPSArg := fmt.Sprintf("--kube-api-qps=%d", *tokenReviewUpdate.QPS)
+	expectedBurstArg := fmt.Sprintf("--kube-api-burst=%d", *tokenReviewUpdate.Burst)
+	expectedCacheTTLArg := fmt.Sprintf("--kube-api-cache-ttl=%s", tokenReviewUpdate.CacheTTL.Duration.String())
+
+	g.Eventually(func() bool {
+		deployment := &appsv1.Deployment{}
+		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+			Name:      gateway.KubeAuthProxyName,
+			Namespace: gateway.GatewayNamespace,
+		}, deployment); err != nil {
+			return false
+		}
+		args := deployment.Spec.Template.Spec.Containers[0].Args
+		hasQPS := false
+		hasBurst := false
+		hasCacheTTL := false
+		for _, arg := range args {
+			if arg == expectedQPSArg {
+				hasQPS = true
+			}
+			if arg == expectedBurstArg {
+				hasBurst = true
+			}
+			if arg == expectedCacheTTLArg {
+				hasCacheTTL = true
+			}
+		}
+		return hasQPS && hasBurst && hasCacheTTL
+	}, TestTimeout, TestInterval).Should(BeTrue(), "Deployment token review args not updated after GatewayConfig spec change")
 }
 
 // RunDeploymentWithAllArgsTest validates Deployment replicas, security context, ports, env, volumes, and that provider args contain or omit the given slices.
