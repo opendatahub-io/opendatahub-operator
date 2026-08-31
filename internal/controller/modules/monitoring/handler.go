@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -18,8 +19,9 @@ import (
 )
 
 const (
-	moduleName = serviceApi.MonitoringServiceName
-	crName     = serviceApi.MonitoringInstanceName
+	moduleName                 = serviceApi.MonitoringServiceName
+	crName                     = serviceApi.MonitoringInstanceName
+	monitoringNamespaceHelmKey = "monitoringNamespace"
 )
 
 type handler struct {
@@ -30,15 +32,14 @@ func NewHandler() *handler {
 	return &handler{
 		BaseHandler: modules.BaseHandler{
 			Config: modules.ModuleConfig{
-				Name:                        moduleName,
-				CRName:                      crName,
-				ReleaseName:                 "odh-observability",
-				ChartDir:                    "odh-observability",
-				NamespaceValueKey:           "operatorNamespace",
-				MonitoringNamespaceValueKey: "monitoringNamespace",
-				GVK:                         gvk.Monitoring,
-				DeploymentName:              "odh-observability",
-				ControllerImage:             "RELATED_IMAGE_ODH_OBSERVABILITY_IMAGE",
+				Name:              moduleName,
+				CRName:            crName,
+				ReleaseName:       "odh-observability",
+				ChartDir:          "odh-observability",
+				NamespaceValueKey: "operatorNamespace",
+				GVK:               gvk.Monitoring,
+				DeploymentName:    "odh-observability",
+				ControllerImage:   "RELATED_IMAGE_ODH_OBSERVABILITY_IMAGE",
 				RelatedImages: []string{
 					"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 					"RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE",
@@ -47,6 +48,29 @@ func NewHandler() *handler {
 			},
 		},
 	}
+}
+
+// GetOperatorManifests renders the odh-observability chart. On RHOAI the
+// monitoring operands namespace differs from the applications namespace, so
+// the chart needs monitoringNamespace at render time (Tempo RBAC). That value
+// is observability-only, so it is merged here rather than a generic
+// ModuleConfig field.
+func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) modules.OperatorManifests {
+	result := h.BaseHandler.GetOperatorManifests(platform)
+	if platform == nil || platform.MonitoringNamespace == "" || len(result.HelmCharts) == 0 {
+		return result
+	}
+
+	vals, err := result.HelmCharts[0].Values(context.Background())
+	if err != nil {
+		return result
+	}
+	if vals == nil {
+		vals = map[string]any{}
+	}
+	vals[monitoringNamespaceHelmKey] = platform.MonitoringNamespace
+	result.HelmCharts[0].Values = helm.Values(vals)
+	return result
 }
 
 func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {

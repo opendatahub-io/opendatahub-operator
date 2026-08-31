@@ -72,12 +72,40 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			crd := &apiextensionsv1.CustomResourceDefinition{}
 			err := k8sClient.Get(ctx, client.ObjectKey{Name: serviceApi.MonitoringCRDName}, crd)
 			if err == nil {
-				Skip("Monitoring CRD already present in this envtest")
+				uninstallMonitoringCRD(ctx)
+				DeferCleanup(func(ctx context.Context) {
+					installMonitoringCRD(ctx)
+				})
+			} else {
+				Expect(k8serr.IsNotFound(err)).To(BeTrue())
 			}
 
-			monitoringCR := createMonitoringCR()
-			err = k8sClient.Get(ctx, client.ObjectKey{Name: serviceApi.MonitoringInstanceName}, monitoringCR)
-			Expect(meta.IsNoMatchError(err)).To(BeTrue())
+			foundDsci := &dsciv2.DSCInitialization{}
+			Eventually(func(g Gomega) {
+				current := &dsciv2.DSCInitialization{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: workingNamespace}, current)).To(Succeed())
+				patched := current.DeepCopy()
+				if patched.Labels == nil {
+					patched.Labels = map[string]string{}
+				}
+				patched.Labels["test.opendatahub.io/force-reconcile"] = "crd-absent"
+				g.Expect(k8sClient.Update(ctx, patched)).To(Succeed())
+			}).WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+
+			Eventually(dscInitializationIsReady(foundDsci)).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(BeTrue())
+
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: workingNamespace}, foundDsci)).To(Succeed())
+			Expect(foundDsci.Status.Conditions).To(ContainElement(
+				SatisfyAll(
+					HaveField("Type", "MonitoringReady"),
+					HaveField("Status", metav1.ConditionFalse),
+					HaveField("Reason", "Removed"),
+				),
+			))
 		})
 
 		// Currently commented out in the DSCI reconcile - setting test to Pending

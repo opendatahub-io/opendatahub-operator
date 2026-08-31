@@ -205,3 +205,18 @@ func installMonitoringCRD(ctx context.Context) {
 		MaxTime: timeout,
 	})).To(Succeed())
 }
+
+func uninstallMonitoringCRD(ctx context.Context) {
+	GinkgoHelper()
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	err := k8sClient.Get(ctx, client.ObjectKey{Name: serviceApi.MonitoringCRDName}, crd)
+	if k8serr.IsNotFound(err) {
+		return
+	}
+	Expect(err).NotTo(HaveOccurred())
+	Expect(k8sClient.Delete(ctx, crd)).To(Succeed())
+	Eventually(func() bool {
+		getErr := k8sClient.Get(ctx, client.ObjectKey{Name: serviceApi.MonitoringCRDName}, &apiextensionsv1.CustomResourceDefinition{})
+		return k8serr.IsNotFound(getErr)
+	}).WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(BeTrue())
+}

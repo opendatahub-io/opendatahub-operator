@@ -45,7 +45,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 			reconciler.WithDefaultPredicates(componentsPredicate),
 		)
 
-	_ = modules.ForAll(func(h modules.ModuleHandler, _ bool) error {
+	_ = modules.ForConfigSource(modules.ConfigFromDSC, func(h modules.ModuleHandler, _ bool) error {
 		moduleGVK := h.GetGVK()
 		b = b.WatchesGVK(moduleGVK,
 			reconciler.Dynamic(reconciler.CrdExists(moduleGVK)),

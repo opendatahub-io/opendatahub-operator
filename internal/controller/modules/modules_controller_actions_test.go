@@ -767,7 +767,7 @@ func TestBuildPlatformModules_NoEmptyManagementState(t *testing.T) {
 func TestBuildPlatformModules_WithDSCI_MonitoringManaged(t *testing.T) {
 	withTestRegistry(t)
 
-	DefaultRegistry().Add(&dsciMonitoringHandler{
+	DefaultRegistry().Add(&testDSCIConfiguredHandler{
 		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "monitoring"}},
 	}, WithConfigSource(ConfigFromDSCI))
 
@@ -794,10 +794,10 @@ func TestBuildPlatformModules_WithDSCI_MonitoringManaged(t *testing.T) {
 func TestBuildPlatformModulesForSource_DoesNotPopulateOtherSource(t *testing.T) {
 	withTestRegistry(t)
 
-	DefaultRegistry().Add(&dsciMonitoringHandler{
+	DefaultRegistry().Add(&testDSCIConfiguredHandler{
 		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "monitoring"}},
 	}, WithConfigSource(ConfigFromDSCI))
-	DefaultRegistry().Add(&dscDashboardHandler{
+	DefaultRegistry().Add(&testDSCConfiguredHandler{
 		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "dashboard"}},
 	})
 
@@ -831,19 +831,22 @@ func TestBuildPlatformModulesForSource_DoesNotPopulateOtherSource(t *testing.T) 
 	}
 }
 
-type dsciMonitoringHandler struct {
+// testDSCIConfiguredHandler is a test double for a ConfigFromDSCI module.
+// It writes PlatformModules.Monitoring only because that is the typed SSA
+// field for DSCI-sourced enablement, not because it is the production handler.
+type testDSCIConfiguredHandler struct {
 	BaseHandler
 }
 
-func (h *dsciMonitoringHandler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+func (h *testDSCIConfiguredHandler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
 	return modules != nil && modules.Monitoring.ManagementState == operatorv1.Managed
 }
 
-func (h *dsciMonitoringHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
+func (h *testDSCIConfiguredHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
 	return nil, nil
 }
 
-func (h *dsciMonitoringHandler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *DSCContext) {
+func (h *testDSCIConfiguredHandler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *DSCContext) {
 	if pm == nil || dscCtx == nil || dscCtx.DSCI == nil {
 		return
 	}
@@ -854,19 +857,21 @@ func (h *dsciMonitoringHandler) PopulatePlatformModule(pm *configv1alpha1.Platfo
 	pm.Monitoring.ManagementState = ms
 }
 
-type dscDashboardHandler struct {
+// testDSCConfiguredHandler is a test double for a ConfigFromDSC module.
+// It writes PlatformModules.Dashboard as a stand-in typed SSA field.
+type testDSCConfiguredHandler struct {
 	BaseHandler
 }
 
-func (h *dscDashboardHandler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+func (h *testDSCConfiguredHandler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
 	return modules != nil && modules.Dashboard.ManagementState == operatorv1.Managed
 }
 
-func (h *dscDashboardHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
+func (h *testDSCConfiguredHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
 	return nil, nil
 }
 
-func (h *dscDashboardHandler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *DSCContext) {
+func (h *testDSCConfiguredHandler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *DSCContext) {
 	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}

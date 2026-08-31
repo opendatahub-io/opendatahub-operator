@@ -47,22 +47,14 @@ func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) e
 
 // modulesFromInstance derives PlatformModules from the reconcile instance.
 // The platform controller's instance is the Platform CR. A DSC instance is
-// also accepted so tests and legacy callers can rebuild modules from DSC+DSCI.
-func modulesFromInstance(ctx context.Context, rr *odhtype.ReconciliationRequest) (*configv1alpha1.PlatformModules, error) {
+// also accepted so tests and legacy callers can rebuild ConfigFromDSC modules
+// from the DSC spec without fetching DSCI.
+func modulesFromInstance(_ context.Context, rr *odhtype.ReconciliationRequest) (*configv1alpha1.PlatformModules, error) {
 	if p, ok := rr.Instance.(*configv1alpha1.Platform); ok {
 		return &p.Spec.Modules, nil
 	}
 	if dsc, ok := rr.Instance.(*dscv2.DataScienceCluster); ok {
-		dsci := odhtype.GetDSCI(rr)
-		if dsci == nil {
-			var err error
-			dsci, err = cluster.GetDSCI(ctx, rr.Client)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get DSCI for module context: %w", err)
-			}
-			odhtype.SetDSCI(rr, dsci)
-		}
-		pm := BuildPlatformModules(&DSCContext{DSC: dsc, DSCI: dsci})
+		pm := BuildPlatformModulesForSource(&DSCContext{DSC: dsc}, ConfigFromDSC)
 		return &pm, nil
 	}
 	return nil, fmt.Errorf("cannot derive PlatformModules from instance type %T", rr.Instance)
@@ -514,7 +506,9 @@ type modulesEvaluation struct {
 // evaluateModulesStatus reads module CRs, checks staleness and readiness,
 // and returns structured results without writing any conditions.
 // The isEnabled callback lets each caller decide how to resolve enablement.
-func evaluateModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest, isEnabled func(ModuleHandler) bool) (*modulesEvaluation, error) {
+// When source is non-nil, only handlers registered with that ConfigSource
+// are evaluated (DSC status skips ConfigFromDSCI modules such as monitoring).
+func evaluateModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest, isEnabled func(ModuleHandler) bool, source *ConfigSource) (*modulesEvaluation, error) {
 	log := logf.FromContext(ctx)
 
 	reg := DefaultRegistry()
@@ -524,7 +518,15 @@ func evaluateModulesStatus(ctx context.Context, rr *odhtype.ReconciliationReques
 
 	eval := &modulesEvaluation{}
 
-	err := reg.ForAll(func(handler ModuleHandler, _ bool) error {
+	forEach := reg.ForAll
+	if source != nil {
+		src := *source
+		forEach = func(f func(ModuleHandler, bool) error) error {
+			return reg.ForConfigSource(src, f)
+		}
+	}
+
+	err := forEach(func(handler ModuleHandler, _ bool) error {
 		name := handler.GetName()
 		condType := readyConditionTypeFor(handler)
 		submodules := submoduleConditionsFor(handler)
@@ -714,7 +716,8 @@ func (e *modulesEvaluation) writeAggregateCondition(conditions *conditions.Manag
 
 // ComputeModulesStatusDetailed writes per-module conditions, DSC component
 // status, submodule mirroring, and the aggregate ModulesReady condition.
-// Called by the DSC controller for full module status on the DSC CR.
+// Called by the DSC controller for ConfigFromDSC modules only. DSCI-configured
+// modules (e.g. monitoring) report status on DSCI, matching pre-module behavior.
 func ComputeModulesStatusDetailed(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
@@ -722,21 +725,13 @@ func ComputeModulesStatusDetailed(ctx context.Context, rr *odhtype.Reconciliatio
 	if !ok {
 		return fmt.Errorf("ComputeModulesStatusDetailed requires DataScienceCluster instance, got %T", rr.Instance)
 	}
-	dsci := odhtype.GetDSCI(rr)
-	if dsci == nil {
-		var err error
-		dsci, err = cluster.GetDSCI(ctx, rr.Client)
-		if err != nil {
-			return fmt.Errorf("failed to get DSCI for module context: %w", err)
-		}
-		odhtype.SetDSCI(rr, dsci)
-	}
-	dscCtx := &DSCContext{DSC: dsc, DSCI: dsci}
-	pm := BuildPlatformModules(dscCtx)
+	dscCtx := &DSCContext{DSC: dsc}
+	pm := BuildPlatformModulesForSource(dscCtx, ConfigFromDSC)
 
+	source := ConfigFromDSC
 	eval, err := evaluateModulesStatus(ctx, rr, func(h ModuleHandler) bool {
 		return h.IsEnabled(&pm)
-	})
+	}, &source)
 	if err != nil {
 		return err
 	}
@@ -787,7 +782,7 @@ func computeModulesStatusAggregate(ctx context.Context, rr *odhtype.Reconciliati
 
 	eval, err := evaluateModulesStatus(ctx, rr, func(h ModuleHandler) bool {
 		return h.IsEnabled(&p.Spec.Modules)
-	})
+	}, nil)
 	if err != nil {
 		return err
 	}

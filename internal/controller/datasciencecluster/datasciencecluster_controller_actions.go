@@ -46,17 +46,8 @@ func watchDataScienceClusters(ctx context.Context, cli client.Client) []reconcil
 	return cluster.WatchDataScienceClusters(ctx, cli)
 }
 
-func buildDSCContext(ctx context.Context, rr *odhtype.ReconciliationRequest, dsc *dscv2.DataScienceCluster) (*modules.DSCContext, error) {
-	dsci := odhtype.GetDSCI(rr)
-	if dsci == nil {
-		var err error
-		dsci, err = cluster.GetDSCI(ctx, rr.Client)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get DSCI for module context: %w", err)
-		}
-		odhtype.SetDSCI(rr, dsci)
-	}
-	return &modules.DSCContext{DSC: dsc, DSCI: dsci}, nil
+func buildDSCContext(dsc *dscv2.DataScienceCluster) *modules.DSCContext {
+	return &modules.DSCContext{DSC: dsc}
 }
 
 func syncPlatformCR(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
@@ -65,12 +56,7 @@ func syncPlatformCR(ctx context.Context, rr *odhtype.ReconciliationRequest) erro
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
-	dscCtx, err := buildDSCContext(ctx, rr, instance)
-	if err != nil {
-		return err
-	}
-
-	return rr.AddResources(modules.NewPlatformCR(dscCtx, modules.ConfigFromDSC))
+	return rr.AddResources(modules.NewPlatformCR(buildDSCContext(instance), modules.ConfigFromDSC))
 }
 
 func cleanupDisabledComponents(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
@@ -154,10 +140,7 @@ func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationReq
 		return nil
 	}
 
-	dscCtx, err := buildDSCContext(ctx, rr, instance)
-	if err != nil {
-		return err
-	}
+	dscCtx := buildDSCContext(instance)
 
 	pm := modules.BuildPlatformModulesForSource(dscCtx, modules.ConfigFromDSC)
 	enabledModules := make(map[string]bool)
@@ -275,10 +258,7 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		return nil
 	}
 
-	dscCtx, err := buildDSCContext(ctx, rr, instance)
-	if err != nil {
-		return err
-	}
+	dscCtx := buildDSCContext(instance)
 
 	pm := modules.BuildPlatformModulesForSource(dscCtx, modules.ConfigFromDSC)
 	enabledModules := make(map[string]bool)

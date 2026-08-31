@@ -142,7 +142,10 @@ var extensionGVKs = []schema.GroupVersionKind{
 	gvk.TrustyAI,
 }
 
-const dagQuotaName = "dag-test-restrictive-quota"
+const (
+	dagQuotaName   = "dag-test-restrictive-quota"
+	dagTestVersion = "99.0.0-dag-test"
+)
 
 // dagOrderingTestSuite runs the DAG runlevel gating test suite. OpenShift
 // and xKS clusters enable components through different resources (the
@@ -346,6 +349,7 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 		WithEventuallyTimeout(15*time.Minute),
 		WithEventuallyPollingInterval(15*time.Second),
 	)
+	tc.waitForMonitoringReady(t)
 
 	// Step 2: Apply quota and simulate version upgrade.
 	// Quota blocks new pod creation. Version change triggers readiness
@@ -357,7 +361,7 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 	t.Log("Simulating version upgrade")
 	tc.setOperatorEnvVars(t,
 		corev1.EnvVar{Name: "CI", Value: "true"},
-		corev1.EnvVar{Name: "RHAI_VERSION", Value: "99.0.0-dag-test"},
+		corev1.EnvVar{Name: "RHAI_VERSION", Value: dagTestVersion},
 	)
 
 	// Step 3: Verify gating is active.
@@ -439,6 +443,9 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 			}
 			instanceName := tc.findFirstCRName(t, comp.gvk)
 			if instanceName == "" {
+				if comp.dsciConfigured {
+					t.Fatalf("expected %s CR after enabling via DSCI, found none", comp.gvk.Kind)
+				}
 				t.Logf("No %s CRs found, skipping readiness check", comp.gvk.Kind)
 				continue
 			}
@@ -923,6 +930,35 @@ func (tc *DAGOrderingTestCtx) setDSCIMonitoringState(t *testing.T, state operato
 		WithMutateFunc(func(obj *unstructured.Unstructured) error {
 			return unstructured.SetNestedField(obj.Object, string(state), "spec", "monitoring", "managementState")
 		}),
+	)
+}
+
+// waitForMonitoringReady waits for the Monitoring CR after DSCI enablement.
+// DSC ModulesReady does not include ConfigFromDSCI modules, so the shared
+// DSC wait is not enough before the upgrade starts. After convergence the
+// generic internal-module loop covers Ready=True.
+func (tc *DAGOrderingTestCtx) waitForMonitoringReady(t *testing.T) {
+	t.Helper()
+
+	t.Log("Waiting for Monitoring CR Ready=True")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: serviceApi.MonitoringInstanceName}),
+		WithCondition(jq.Match(`any(.status.conditions[]; .type == "Ready" and .status == "True")`)),
+		WithEventuallyTimeout(15*time.Minute),
+		WithEventuallyPollingInterval(15*time.Second),
+		WithCustomErrorMsg("Monitoring CR %s should exist and have Ready=True", serviceApi.MonitoringInstanceName),
+	)
+
+	t.Log("Waiting for DSCI MonitoringReady=True")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(jq.Match(
+			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+			status.ConditionMonitoringReady, metav1.ConditionTrue,
+		)),
+		WithEventuallyTimeout(5*time.Minute),
+		WithEventuallyPollingInterval(10*time.Second),
+		WithCustomErrorMsg("DSCI should have MonitoringReady=True when monitoring is Managed"),
 	)
 }
 

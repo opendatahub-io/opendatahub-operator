@@ -61,16 +61,17 @@ type ModuleHandler interface {
 
 	// PopulatePlatformModule sets this module's management state on the
 	// PlatformModules struct, derived from DSC/DSCI spec.
-	// Component-modules read from dscCtx.DSC, service-modules from dscCtx.DSCI.
-	// Called by the DSC/DSCI controller to project module enablement into
-	// the Platform CR.
+	// ConfigFromDSC handlers read dscCtx.DSC; ConfigFromDSCI handlers read
+	// dscCtx.DSCI. Called by the DSC/DSCI controller to project module
+	// enablement into the Platform CR.
 	PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *DSCContext)
 
 	// BuildModuleCR constructs the module CR as an unstructured object.
 	// Called by DSC/DSCI controllers (not the platform controller) to create
 	// module CRs with full spec from DSC/DSCI. On xKS users create CRs
 	// manually and this method is not called.
-	// Component-modules read from dscCtx.DSC, service-modules from dscCtx.DSCI.
+	// ConfigFromDSC handlers read dscCtx.DSC; ConfigFromDSCI handlers read
+	// dscCtx.DSCI.
 	// ModuleCRConfig carries platform-level fields (GatewayDomain, Release)
 	// that are not part of DSC/DSCI but needed for CR construction.
 	BuildModuleCR(ctx context.Context, cli client.Client, dscCtx *DSCContext, cfg *ModuleCRConfig) (*unstructured.Unstructured, error)
@@ -246,16 +247,15 @@ type ModuleCRConfig struct {
 // module enablement into the Platform CR and construct module CRs.
 // Parallels PlatformContext (platform controller).
 //
-// The DSC controller populates DSC (and DSCI when status aggregation needs
-// it). The DSCI controller populates DSCI. Component-modules read DSC;
-// DSCI-configured modules (e.g. monitoring) read DSCI. Handlers that depend
-// on a nil field should no-op (for PopulatePlatformModule) or return an
-// error (for BuildModuleCR).
+// The DSC controller populates DSC only. The DSCI controller populates DSCI
+// only. ConfigFromDSC handlers read DSC; ConfigFromDSCI handlers (e.g.
+// monitoring) read DSCI. Handlers that depend on a nil field should no-op
+// (for PopulatePlatformModule) or return an error (for BuildModuleCR).
 type DSCContext struct {
 	// DSC is the DataScienceCluster instance. Nil when called from the DSCI controller.
 	DSC *dscv2.DataScienceCluster
-	// DSCI is the DSCInitialization instance. Required by DSCI-configured
-	// modules such as monitoring that derive their management state from DSCI spec.
+	// DSCI is the DSCInitialization instance. Nil when called from the DSC
+	// controller. Required by DSCI-configured modules such as monitoring.
 	DSCI *dsciv2.DSCInitialization
 }
 

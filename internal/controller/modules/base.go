@@ -62,15 +62,6 @@ type ModuleConfig struct {
 	// chart does not need a namespace override.
 	NamespaceValueKey string
 
-	// MonitoringNamespaceValueKey is the Helm value key used to set the
-	// monitoring operands namespace (e.g. "monitoringNamespace"). When set,
-	// BaseHandler.GetOperatorManifests injects platform.MonitoringNamespace
-	// under this key. Leave empty if the chart does not need it.
-	// Required for charts whose RBAC or operands target DSCI
-	// spec.monitoring.namespace, which differs from the applications
-	// namespace on RHOAI.
-	MonitoringNamespaceValueKey string
-
 	// Kustomize fields -- used when ManifestDir is set.
 
 	// ManifestDir is the directory name relative to rr.ManifestsBasePath
@@ -281,9 +272,6 @@ func (b *BaseHandler) GetOperatorManifests(platform *PlatformContext) OperatorMa
 
 		if b.Config.NamespaceValueKey != "" && platform.ApplicationsNamespace != "" {
 			vals[b.Config.NamespaceValueKey] = platform.ApplicationsNamespace
-		}
-		if b.Config.MonitoringNamespaceValueKey != "" && platform.MonitoringNamespace != "" {
-			vals[b.Config.MonitoringNamespaceValueKey] = platform.MonitoringNamespace
 		}
 
 		result.HelmCharts = []types.HelmChartInfo{{
