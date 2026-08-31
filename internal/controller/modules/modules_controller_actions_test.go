@@ -22,6 +22,7 @@ import (
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -761,4 +762,154 @@ func TestBuildPlatformModules_NoEmptyManagementState(t *testing.T) {
 			t.Errorf("PlatformModules.%s.ManagementState = %q; want Managed or Removed", sf.Name, state)
 		}
 	}
+}
+
+func TestBuildPlatformModules_WithDSCI_MonitoringManaged(t *testing.T) {
+	withTestRegistry(t)
+
+	DefaultRegistry().Add(&testDSCIConfiguredHandler{
+		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "monitoring"}},
+	}, WithConfigSource(ConfigFromDSCI))
+
+	dsci := &dsciv2.DSCInitialization{
+		Spec: dsciv2.DSCInitializationSpec{
+			Monitoring: serviceApi.DSCIMonitoring{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Managed,
+				},
+			},
+		},
+	}
+
+	pm := BuildPlatformModules(&DSCContext{
+		DSC:  &dscv2.DataScienceCluster{},
+		DSCI: dsci,
+	})
+
+	if pm.Monitoring.ManagementState != operatorv1.Managed {
+		t.Fatalf("expected monitoring=Managed when DSCI is provided, got %q", pm.Monitoring.ManagementState)
+	}
+}
+
+func TestBuildPlatformModulesForSource_DoesNotPopulateOtherSource(t *testing.T) {
+	withTestRegistry(t)
+
+	DefaultRegistry().Add(&testDSCIConfiguredHandler{
+		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "monitoring"}},
+	}, WithConfigSource(ConfigFromDSCI))
+	DefaultRegistry().Add(&testDSCConfiguredHandler{
+		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "dashboard"}},
+	})
+
+	dsc := &dscv2.DataScienceCluster{}
+	dsc.Spec.Components.Dashboard.ManagementState = operatorv1.Managed
+	dsci := &dsciv2.DSCInitialization{
+		Spec: dsciv2.DSCInitializationSpec{
+			Monitoring: serviceApi.DSCIMonitoring{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Managed,
+				},
+			},
+		},
+	}
+	dscCtx := &DSCContext{DSC: dsc, DSCI: dsci}
+
+	dsciModules := BuildPlatformModulesForSource(dscCtx, ConfigFromDSCI)
+	if dsciModules.Monitoring.ManagementState != operatorv1.Managed {
+		t.Fatalf("expected DSCI source to set monitoring=Managed, got %q", dsciModules.Monitoring.ManagementState)
+	}
+	if dsciModules.Dashboard.ManagementState != "" {
+		t.Fatalf("expected DSCI source to leave dashboard unset, got %q", dsciModules.Dashboard.ManagementState)
+	}
+
+	dscModules := BuildPlatformModulesForSource(dscCtx, ConfigFromDSC)
+	if dscModules.Dashboard.ManagementState != operatorv1.Managed {
+		t.Fatalf("expected DSC source to set dashboard=Managed, got %q", dscModules.Dashboard.ManagementState)
+	}
+	if dscModules.Monitoring.ManagementState != "" {
+		t.Fatalf("expected DSC source to leave monitoring unset, got %q", dscModules.Monitoring.ManagementState)
+	}
+}
+
+func TestNewPlatformCRRemovedForSource_ForcesDSCModulesRemoved(t *testing.T) {
+	withTestRegistry(t)
+
+	DefaultRegistry().Add(&testDSCIConfiguredHandler{
+		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "monitoring"}},
+	}, WithConfigSource(ConfigFromDSCI))
+	DefaultRegistry().Add(&testDSCConfiguredHandler{
+		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "dashboard"}},
+	})
+
+	dsc := &dscv2.DataScienceCluster{}
+	dsc.Spec.Components.Dashboard.ManagementState = operatorv1.Managed
+	dsci := &dsciv2.DSCInitialization{
+		Spec: dsciv2.DSCInitializationSpec{
+			Monitoring: serviceApi.DSCIMonitoring{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Managed,
+				},
+			},
+		},
+	}
+	dscCtx := &DSCContext{DSC: dsc, DSCI: dsci}
+
+	removed := NewPlatformCRRemovedForSource(dscCtx, ConfigFromDSC)
+	if removed.Spec.Modules.Dashboard.ManagementState != operatorv1.Removed {
+		t.Fatalf("expected dashboard=Removed on DSC delete payload, got %q", removed.Spec.Modules.Dashboard.ManagementState)
+	}
+	if removed.Spec.Modules.Monitoring.ManagementState != "" {
+		t.Fatalf("expected monitoring to stay unset so DSCI SSA keeps it, got %q", removed.Spec.Modules.Monitoring.ManagementState)
+	}
+}
+
+// testDSCIConfiguredHandler is a test double for a ConfigFromDSCI module.
+// It writes PlatformModules.Monitoring only because that is the typed SSA
+// field for DSCI-sourced enablement, not because it is the production handler.
+type testDSCIConfiguredHandler struct {
+	BaseHandler
+}
+
+func (h *testDSCIConfiguredHandler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+	return modules != nil && modules.Monitoring.ManagementState == operatorv1.Managed
+}
+
+func (h *testDSCIConfiguredHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
+	return nil, nil
+}
+
+func (h *testDSCIConfiguredHandler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *DSCContext) {
+	if pm == nil || dscCtx == nil || dscCtx.DSCI == nil {
+		return
+	}
+	ms := dscCtx.DSCI.Spec.Monitoring.ManagementState
+	if ms == "" {
+		ms = operatorv1.Removed
+	}
+	pm.Monitoring.ManagementState = ms
+}
+
+// testDSCConfiguredHandler is a test double for a ConfigFromDSC module.
+// It writes PlatformModules.Dashboard as a stand-in typed SSA field.
+type testDSCConfiguredHandler struct {
+	BaseHandler
+}
+
+func (h *testDSCConfiguredHandler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+	return modules != nil && modules.Dashboard.ManagementState == operatorv1.Managed
+}
+
+func (h *testDSCConfiguredHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
+	return nil, nil
+}
+
+func (h *testDSCConfiguredHandler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *DSCContext) {
+	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
+		return
+	}
+	ms := dscCtx.DSC.Spec.Components.Dashboard.ManagementState
+	if ms == "" {
+		ms = operatorv1.Removed
+	}
+	pm.Dashboard.ManagementState = ms
 }

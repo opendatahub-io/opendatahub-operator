@@ -61,16 +61,17 @@ type ModuleHandler interface {
 
 	// PopulatePlatformModule sets this module's management state on the
 	// PlatformModules struct, derived from DSC/DSCI spec.
-	// Component-modules read from dscCtx.DSC, service-modules from dscCtx.DSCI.
-	// Called by the DSC/DSCI controller to project module enablement into
-	// the Platform CR.
+	// ConfigFromDSC handlers read dscCtx.DSC; ConfigFromDSCI handlers read
+	// dscCtx.DSCI. Called by the DSC/DSCI controller to project module
+	// enablement into the Platform CR.
 	PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *DSCContext)
 
 	// BuildModuleCR constructs the module CR as an unstructured object.
 	// Called by DSC/DSCI controllers (not the platform controller) to create
 	// module CRs with full spec from DSC/DSCI. On xKS users create CRs
 	// manually and this method is not called.
-	// Component-modules read from dscCtx.DSC, service-modules from dscCtx.DSCI.
+	// ConfigFromDSC handlers read dscCtx.DSC; ConfigFromDSCI handlers read
+	// dscCtx.DSCI.
 	// ModuleCRConfig carries platform-level fields (GatewayDomain, Release)
 	// that are not part of DSC/DSCI but needed for CR construction.
 	BuildModuleCR(ctx context.Context, cli client.Client, dscCtx *DSCContext, cfg *ModuleCRConfig) (*unstructured.Unstructured, error)
@@ -242,20 +243,19 @@ type ModuleCRConfig struct {
 	Release common.Release
 }
 
-// DSCContext holds DSC/DSCI references for handler methods called by
-// DSC or DSCI controllers. Parallels PlatformContext (platform controller).
-// Component-modules read DSC, service-modules read DSCI.
+// DSCContext holds DSC and DSCI references for handler methods that project
+// module enablement into the Platform CR and construct module CRs.
+// Parallels PlatformContext (platform controller).
 //
-// Both fields are nullable: the DSC controller populates only DSC,
-// the DSCI controller populates only DSCI. Handlers that depend on
-// a nil field should no-op (for PopulatePlatformModule) or return
-// an error (for BuildModuleCR).
+// The DSC controller populates DSC only. The DSCI controller populates DSCI
+// only. ConfigFromDSC handlers read DSC; ConfigFromDSCI handlers (e.g.
+// monitoring) read DSCI. Handlers that depend on a nil field should no-op
+// (for PopulatePlatformModule) or return an error (for BuildModuleCR).
 type DSCContext struct {
-	// DSC is the DataScienceCluster instance. Nil when called from the
-	// DSCI controller.
+	// DSC is the DataScienceCluster instance. Nil when called from the DSCI controller.
 	DSC *dscv2.DataScienceCluster
-	// DSCI is the DSCInitialization instance. Nil when called from the
-	// DSC controller.
+	// DSCI is the DSCInitialization instance. Nil when called from the DSC
+	// controller. Required by DSCI-configured modules such as monitoring.
 	DSCI *dsciv2.DSCInitialization
 }
 
@@ -291,6 +291,19 @@ type PlatformContext struct {
 	ManifestsBasePath string
 }
 
+// ConfigSource identifies where a module's user-facing configuration lives.
+// This determines which controller creates the module CR.
+type ConfigSource int
+
+const (
+	// ConfigFromDSC means the module is configured via the DSC spec.
+	// The DSC controller creates/manages its module CR.
+	ConfigFromDSC ConfigSource = iota
+	// ConfigFromDSCI means the module is configured via the DSCI spec.
+	// The DSCI controller creates/manages its module CR.
+	ConfigFromDSCI
+)
+
 // RegistrationOption configures optional orchestration metadata when adding
 // a module to the registry.
 type RegistrationOption func(*registryEntry)
@@ -303,5 +316,15 @@ type RegistrationOption func(*registryEntry)
 func WithRunlevel(level dag.Runlevel) RegistrationOption {
 	return func(e *registryEntry) {
 		e.runlevel = level
+	}
+}
+
+// WithConfigSource sets where this module's user-facing configuration
+// lives. Modules configured from DSC have their CRs created by the DSC
+// controller; modules configured from DSCI have their CRs created by
+// the DSCI controller. Default is ConfigFromDSC.
+func WithConfigSource(source ConfigSource) RegistrationOption {
+	return func(e *registryEntry) {
+		e.configSource = source
 	}
 }

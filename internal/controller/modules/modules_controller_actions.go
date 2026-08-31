@@ -45,18 +45,63 @@ func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) e
 	return provision.CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, rr.GateEntries)
 }
 
-// modulesFromInstance derives PlatformModules from whichever CR is the
-// reconcile instance — Platform CR (platform controller) or DSC (DSC
-// controller).
-func modulesFromInstance(rr *odhtype.ReconciliationRequest) (*configv1alpha1.PlatformModules, error) {
+// modulesFromInstance derives PlatformModules from the reconcile instance.
+// The platform controller's instance is the Platform CR. A DSC instance is
+// also accepted so tests and legacy callers can rebuild ConfigFromDSC modules
+// from the DSC spec without fetching DSCI.
+func modulesFromInstance(_ context.Context, rr *odhtype.ReconciliationRequest) (*configv1alpha1.PlatformModules, error) {
 	if p, ok := rr.Instance.(*configv1alpha1.Platform); ok {
 		return &p.Spec.Modules, nil
 	}
 	if dsc, ok := rr.Instance.(*dscv2.DataScienceCluster); ok {
-		pm := BuildPlatformModules(&DSCContext{DSC: dsc})
+		pm := BuildPlatformModulesForSource(&DSCContext{DSC: dsc}, ConfigFromDSC)
 		return &pm, nil
 	}
 	return nil, fmt.Errorf("cannot derive PlatformModules from instance type %T", rr.Instance)
+}
+
+// NewPlatformCR constructs a Platform CR with module enablement for the given
+// config source. DSC and DSCI each apply only their own fields so SSA merge
+// does not let one controller overwrite the other's modules.
+func NewPlatformCR(dscCtx *DSCContext, source ConfigSource) *configv1alpha1.Platform {
+	return &configv1alpha1.Platform{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: configv1alpha1.GroupVersion.String(),
+			Kind:       configv1alpha1.PlatformKind,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: configv1alpha1.PlatformInstanceName,
+		},
+		Spec: configv1alpha1.PlatformSpec{
+			Modules: BuildPlatformModulesForSource(dscCtx, source),
+		},
+	}
+}
+
+// NewPlatformCRRemovedForSource builds a Platform CR that SSA-applies Removed
+// for every module owned by source and leaves other sources' fields unset
+// (omitempty). Used by the DSC delete finalizer so ConfigFromDSC operators
+// tear down while DSCI-owned modules (monitoring) stay Managed.
+func NewPlatformCRRemovedForSource(dscCtx *DSCContext, source ConfigSource) *configv1alpha1.Platform {
+	platform := NewPlatformCR(dscCtx, source)
+	forceManagementStateRemoved(&platform.Spec.Modules)
+	return platform
+}
+
+func forceManagementStateRemoved(pm *configv1alpha1.PlatformModules) {
+	v := reflect.ValueOf(pm).Elem()
+	for _, fv := range v.Fields() {
+		if fv.Kind() != reflect.Struct {
+			continue
+		}
+		ms := fv.FieldByName("ManagementState")
+		if !ms.IsValid() || !ms.CanSet() {
+			continue
+		}
+		if ms.String() != "" {
+			ms.SetString(string(operatorv1.Removed))
+		}
+	}
 }
 
 // BuildPlatformModules iterates all module handlers to derive their
@@ -71,6 +116,18 @@ func BuildPlatformModules(dscCtx *DSCContext) configv1alpha1.PlatformModules {
 		return nil
 	})
 	normalizePlatformModules(&pm)
+	return pm
+}
+
+// BuildPlatformModulesForSource populates only handlers whose config source
+// matches. Unmatched module fields are left zero so omitempty SSA apply does
+// not take ownership of another controller's fields.
+func BuildPlatformModulesForSource(dscCtx *DSCContext, source ConfigSource) configv1alpha1.PlatformModules {
+	var pm configv1alpha1.PlatformModules
+	DefaultRegistry().ForConfigSource(source, func(handler ModuleHandler, _ bool) error { //nolint:errcheck
+		handler.PopulatePlatformModule(&pm, dscCtx)
+		return nil
+	})
 	return pm
 }
 
@@ -96,8 +153,8 @@ func normalizePlatformModules(pm *configv1alpha1.PlatformModules) {
 // Safety: this mutates the package-level registry. It is safe because the
 // controller uses the default MaxConcurrentReconciles=1, so only one
 // reconcile is in-flight at a time.
-func enableModulesFromPlatform(_ context.Context, rr *odhtype.ReconciliationRequest) error {
-	modules, err := modulesFromInstance(rr)
+func enableModulesFromPlatform(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	modules, err := modulesFromInstance(ctx, rr)
 	if err != nil {
 		return err
 	}
@@ -120,7 +177,7 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 		logf.FromContext(ctx).V(1).Info("monitoring namespace not available, skipping MONITORING_NAMESPACE injection", "error", err)
 	}
 
-	modules, err := modulesFromInstance(rr)
+	modules, err := modulesFromInstance(ctx, rr)
 	if err != nil {
 		return nil, err
 	}
@@ -475,7 +532,9 @@ type modulesEvaluation struct {
 // evaluateModulesStatus reads module CRs, checks staleness and readiness,
 // and returns structured results without writing any conditions.
 // The isEnabled callback lets each caller decide how to resolve enablement.
-func evaluateModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest, isEnabled func(ModuleHandler) bool) (*modulesEvaluation, error) {
+// When source is non-nil, only handlers registered with that ConfigSource
+// are evaluated (DSC status skips ConfigFromDSCI modules such as monitoring).
+func evaluateModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest, isEnabled func(ModuleHandler) bool, source *ConfigSource) (*modulesEvaluation, error) {
 	log := logf.FromContext(ctx)
 
 	reg := DefaultRegistry()
@@ -485,7 +544,15 @@ func evaluateModulesStatus(ctx context.Context, rr *odhtype.ReconciliationReques
 
 	eval := &modulesEvaluation{}
 
-	err := reg.ForAll(func(handler ModuleHandler, _ bool) error {
+	forEach := reg.ForAll
+	if source != nil {
+		src := *source
+		forEach = func(f func(ModuleHandler, bool) error) error {
+			return reg.ForConfigSource(src, f)
+		}
+	}
+
+	err := forEach(func(handler ModuleHandler, _ bool) error {
 		name := handler.GetName()
 		condType := readyConditionTypeFor(handler)
 		submodules := submoduleConditionsFor(handler)
@@ -675,7 +742,8 @@ func (e *modulesEvaluation) writeAggregateCondition(conditions *conditions.Manag
 
 // ComputeModulesStatusDetailed writes per-module conditions, DSC component
 // status, submodule mirroring, and the aggregate ModulesReady condition.
-// Called by the DSC controller for full module status on the DSC CR.
+// Called by the DSC controller for ConfigFromDSC modules only. DSCI-configured
+// modules (e.g. monitoring) report status on DSCI, matching pre-module behavior.
 func ComputeModulesStatusDetailed(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
@@ -684,11 +752,12 @@ func ComputeModulesStatusDetailed(ctx context.Context, rr *odhtype.Reconciliatio
 		return fmt.Errorf("ComputeModulesStatusDetailed requires DataScienceCluster instance, got %T", rr.Instance)
 	}
 	dscCtx := &DSCContext{DSC: dsc}
-	pm := BuildPlatformModules(dscCtx)
+	pm := BuildPlatformModulesForSource(dscCtx, ConfigFromDSC)
 
+	source := ConfigFromDSC
 	eval, err := evaluateModulesStatus(ctx, rr, func(h ModuleHandler) bool {
 		return h.IsEnabled(&pm)
-	})
+	}, &source)
 	if err != nil {
 		return err
 	}
@@ -739,7 +808,7 @@ func computeModulesStatusAggregate(ctx context.Context, rr *odhtype.Reconciliati
 
 	eval, err := evaluateModulesStatus(ctx, rr, func(h ModuleHandler) bool {
 		return h.IsEnabled(&p.Spec.Modules)
-	})
+	}, nil)
 	if err != nil {
 		return err
 	}

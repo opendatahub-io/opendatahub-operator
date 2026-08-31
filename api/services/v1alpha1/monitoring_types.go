@@ -26,20 +26,12 @@ import (
 const (
 	MonitoringServiceName = "monitoring"
 	// MonitoringInstanceName the name of the Monitoring instance singleton.
-	// value should match whats set in the XValidation below
+	// The odh-observability module CRD enforces this name via CEL.
 	MonitoringInstanceName = "default-monitoring"
 	MonitoringKind         = "Monitoring"
+	// MonitoringCRDName is the CRD installed by the odh-observability module chart.
+	MonitoringCRDName = "monitorings.services.platform.opendatahub.io"
 )
-
-// Check that the component implements common.PlatformObject.
-var _ common.PlatformObject = (*Monitoring)(nil)
-
-// MonitoringSpec defines the desired state of Monitoring
-type MonitoringSpec struct {
-	// monitoring spec exposed to DSCI api
-	MonitoringCommonSpec `json:",inline"`
-	// monitoring spec exposed only to internal api
-}
 
 // Metrics defines the desired state of metrics for the monitoring service
 // +kubebuilder:validation:XValidation:rule="has(self.storage) || !has(self.replicas) || self.replicas == 0",message="Non-zero replicas require metrics.storage to be configured"
@@ -67,13 +59,6 @@ type MetricsStorage struct {
 	Size resource.Quantity `json:"size,omitempty"`
 	// Retention specifies how long metrics data should be retained (e.g., "1d", "2w")
 	Retention string `json:"retention,omitempty"`
-}
-
-// MonitoringStatus defines the observed state of Monitoring
-type MonitoringStatus struct {
-	common.Status `json:",inline"`
-
-	URL string `json:"url,omitempty"`
 }
 
 // Traces enables and defines the configuration for traces collection
@@ -141,48 +126,6 @@ type TracesStorage struct {
 
 // Alerting configuration for Prometheus
 type Alerting struct {
-}
-
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-monitoring'",message="Monitoring name must be default-monitoring"
-// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
-// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
-// +kubebuilder:printcolumn:name="URL",type=string,JSONPath=`.status.url`,description="URL"
-
-// Monitoring is the Schema for the monitorings API
-type Monitoring struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   MonitoringSpec   `json:"spec,omitempty"`
-	Status MonitoringStatus `json:"status,omitempty"`
-}
-
-//+kubebuilder:object:root=true
-
-// MonitoringList contains a list of Monitoring
-type MonitoringList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Monitoring `json:"items"`
-}
-
-func (m *Monitoring) GetStatus() *common.Status {
-	return &m.Status.Status
-}
-
-func (c *Monitoring) GetConditions() []common.Condition {
-	return c.Status.GetConditions()
-}
-
-func (c *Monitoring) SetConditions(conditions []common.Condition) {
-	c.Status.SetConditions(conditions)
-}
-
-func init() {
-	SchemeBuilder.Register(&Monitoring{}, &MonitoringList{})
 }
 
 type DSCIMonitoring struct {

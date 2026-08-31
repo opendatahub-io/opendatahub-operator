@@ -212,16 +212,16 @@ func AddModuleCRDWatches[T common.PlatformObject](
 // changes that must requeue the user-facing DSC controller.
 //
 // The datasciencecluster controller computes generic module readiness
-// (ModulesReady, AIGatewayReady, etc.) via ComputeModulesStatus. DSC must
-// watch every registered module CR so its status stays current as module
-// CRs transition.
+// (ModulesReady, AIGatewayReady, etc.) via ComputeModulesStatusDetailed for
+// ConfigFromDSC modules only. DSCI-configured modules (e.g. monitoring) report
+// status on DSCI and are watched there.
 func AddDSCCompatibilityProjectorWatches[T common.PlatformObject](b *reconciler.ReconcilerBuilder[T]) *reconciler.ReconcilerBuilder[T] {
 	reg := DefaultRegistry()
 	if !reg.HasEntries() {
 		return b
 	}
 
-	_ = reg.ForAll(func(handler ModuleHandler, _ bool) error {
+	_ = reg.ForConfigSource(ConfigFromDSC, func(handler ModuleHandler, _ bool) error {
 		// Requeue the DSC controller from module CR status changes without
 		// claiming ownership of the module CR type itself. The modules
 		// controller provisions module CRs; the DSC controller only needs the
