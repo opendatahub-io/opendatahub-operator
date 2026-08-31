@@ -13,6 +13,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -109,7 +110,23 @@ func (tc *TrustyAITestCtx) SetKserveState(state operatorv1.ManagementState, shou
 	nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
 
 	// Update the Kserve component state in DataScienceCluster.
-	tc.UpdateComponentStateInDataScienceClusterWithKind(state, gvk.Kserve.Kind)
+	if state == operatorv1.Managed {
+		tc.EventuallyResourceCreatedOrUpdated(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithMutateFunc(testf.Transform(
+				`.spec.components.kserve.managementState = "%s" | .spec.components.kserve.serving.managementState = "%s" | .spec.components.kserve.defaultDeploymentMode = "%s"`,
+				operatorv1.Managed, operatorv1.Removed, componentApi.RawDeployment,
+			)),
+			WithCondition(And(
+				jq.Match(`.spec.components.kserve.managementState == "%s"`, operatorv1.Managed),
+				jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "True"`, gvk.Kserve.Kind),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "True"`, status.ConditionTypeProvisioningSucceeded),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "True"`, status.ConditionTypeComponentsReady),
+			)),
+		)
+	} else {
+		tc.UpdateComponentStateInDataScienceClusterWithKind(state, gvk.Kserve.Kind)
+	}
 
 	// Verify if Kserve should exist or be removed.
 	if shouldExist {
