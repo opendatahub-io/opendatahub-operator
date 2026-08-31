@@ -176,7 +176,7 @@ componentCharts:
       sourcePath: charts/odh-observability
     rhoai:
       repo: red-hat-data-services/odh-observability
-      ref: rhoai-3.6-ea.1@3f65ce948fc0d6f9e014f615a2ebfc3608756f12
+      ref: rhoai-3.6-ea.1@787c2a434b3a7ca82a665d2027a42f1ea2e3aee4
       sourcePath: charts/odh-observability
 # Image overrides — pinned operator image digests, keyed by RELATED_IMAGE_* env var name.
 # Local directories symlinked into opt/manifests/ during development.
@@ -898,7 +898,7 @@ imageOverrides:
       digest: "sha256:9d6ff20e6323e634d8c0ed5d1da4c8b2a8b82d2dd248f2bdba0d59c86abb2cd6"
     rhoai:
       base: "quay.io/rhoai/odh-observability-rhel9"
-      digest: "sha256:079962c084786bda4659830272465fdc0a08821052e34492b2c6b2d7a38a72c9"
+      digest: "sha256:3421ef2b7cf5628fa152895cbcb5e121c279abcbe785ed509652245a8f547110"
   RELATED_IMAGE_ODH_OGX_CORE_IMAGE:
     source: "csv"
     odh:
