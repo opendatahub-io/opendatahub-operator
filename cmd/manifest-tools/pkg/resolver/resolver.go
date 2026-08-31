@@ -233,9 +233,13 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 				}
 			}
 
-			// Priority 3: CSV fallback (only if no cloned commit SHA)
-			if sha == "" && csvImages != nil {
+			// Priority 3: CSV fallback
+			if csvImages != nil {
 				if img, ok := csvImages[envName]; ok && config.DigestPattern.MatchString(img.Digest) {
+					if sha != "" {
+						slog.Warn("Image for commit SHA not found in registry, falling back to CSV",
+							slog.String("env", envName), slog.String("platform", platform))
+					}
 					if err := nodeDoc.SetImageOverrideField(envName, platform, "base", img.Base); err != nil {
 						slog.Warn("Failed to set base field", slog.String("error", err.Error()))
 					}
@@ -325,7 +329,12 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 
 	if len(unresolved) > 0 {
 		printSummary(results, unresolved)
-		return results, fmt.Errorf("%d image(s) could not be resolved for their cloned commits; check logs above", len(unresolved))
+		for _, u := range unresolved {
+			if u.Source == "unknown-component" {
+				return results, fmt.Errorf("unknown component(s) found in imageOverrides; check logs above")
+			}
+		}
+		slog.Warn("Some images could not be resolved, skipping", slog.Int("count", len(unresolved)))
 	}
 
 	if err := nodeDoc.Save(opts.ConfigFile); err != nil {
@@ -384,7 +393,7 @@ func printSummary(results []Result, unresolved []Result) {
 	}
 
 	if len(unresolved) > 0 {
-		fmt.Fprintf(os.Stderr, "\n%s%s▸ unresolved%s %s(%d)%s\n", bold, red, reset, dim, len(unresolved), reset)
+		fmt.Fprintf(os.Stderr, "\n%s%s▸ unresolved (warning: these images were skipped)%s %s(%d)%s\n", bold, red, reset, dim, len(unresolved), reset)
 		for _, r := range unresolved {
 			fmt.Fprintf(os.Stderr, "  %s%-5s%s %s\n", dim, r.Platform, reset, r.EnvName)
 		}
