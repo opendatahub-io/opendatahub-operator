@@ -379,7 +379,12 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 	templateData["EnableK8sTokenValidation"] = enableK8sTokenValidation
 
-	// Add TokenReview settings only when explicitly configured
+	// Always set TokenReview keys so templates can use {{if .TokenReviewQPS}}
+	// without missingkey=error. Nil means "omit the flag" so kube-auth-proxy
+	// uses its own built-in defaults. Real values are filled in only when set.
+	templateData["TokenReviewQPS"] = nil
+	templateData["TokenReviewBurst"] = nil
+	templateData["TokenReviewCacheTTL"] = nil
 	if gatewayConfig.Spec.TokenReview != nil {
 		tr := gatewayConfig.Spec.TokenReview
 		if tr.QPS != nil {

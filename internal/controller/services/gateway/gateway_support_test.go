@@ -4,7 +4,9 @@
 package gateway
 
 import (
+	"bytes"
 	"testing"
+	"text/template"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -569,4 +571,113 @@ func TestHPATemplateConstant(t *testing.T) {
 	g := NewWithT(t)
 
 	g.Expect(kubeAuthProxyHPATemplate).To(Equal("resources/kube-auth-proxy-hpa.tmpl.yaml"), "HPA template path should be correct")
+}
+
+// authProxyTemplateData is the minimum map needed to render the kube-auth-proxy
+// deployment templates. TokenReview keys are always present (nil = omit the flag).
+func authProxyTemplateData() map[string]any {
+	return map[string]any{
+		"KubeAuthProxyServiceName": KubeAuthProxyName,
+		"GatewayNamespace":         GatewayNamespace,
+		"ComponentLabelKey":        "app.kubernetes.io/component",
+		"ComponentLabelValue":      ComponentLabelValue,
+		"AuthConfigHash":           "testhash",
+		"TLSCertsVolumeName":       TLSCertsVolumeName,
+		"KubeAuthProxyTLSName":     KubeAuthProxyTLSName,
+		"ProviderCASecret":         false,
+		"KubeAuthProxyImage":       "example.com/kube-auth-proxy:latest",
+		"KubeAuthProxySecretsName": KubeAuthProxySecretsName,
+		"AuthProxyHTTPPort":        AuthProxyHTTPPort,
+		"GatewayHTTPSPort":         GatewayHTTPSPort,
+		"AuthProxyMetricsPort":     AuthProxyMetricsPort,
+		"TLSCertsMountPath":        TLSCertsMountPath,
+		"EnableK8sTokenValidation": true,
+		"RedirectURL":              "https://" + testHostnameDefault + OAuthCallbackPath,
+		"TLSMinVersion":            "VersionTLS12",
+		"TLSCipherSuite":           "TLS_AES_128_GCM_SHA256",
+		"CookieExpire":             testCookieExpireDefault,
+		"CookieRefresh":            testCookieRefreshDefault,
+		"AuthProxyCookieName":      AuthProxyCookieName,
+		"GatewayHostname":          testHostnameDefault,
+		"InsecureSkipVerify":       false,
+		"OIDCIssuerURL":            "https://example.com/realms/test",
+		"TokenReviewQPS":           nil,
+		"TokenReviewBurst":         nil,
+		"TokenReviewCacheTTL":      nil,
+	}
+}
+
+func renderAuthProxyTemplate(g Gomega, path string, data map[string]any) string {
+	content, err := gatewayResources.ReadFile(path)
+	g.Expect(err).NotTo(HaveOccurred(), path)
+
+	tmpl, err := template.New(path).Option("missingkey=error").Parse(string(content))
+	g.Expect(err).NotTo(HaveOccurred(), path)
+
+	var buf bytes.Buffer
+	g.Expect(tmpl.Execute(&buf, data)).To(Succeed(), "template %s should render", path)
+	return buf.String()
+}
+
+// TestAuthProxyTemplatesErrorWhenTokenReviewKeysMissing documents the e2e bug:
+// {{if .TokenReviewQPS}} looks up the map key. If the key is absent, missingkey=error fails.
+func TestAuthProxyTemplatesErrorWhenTokenReviewKeysMissing(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	data := authProxyTemplateData()
+	delete(data, "TokenReviewQPS")
+	delete(data, "TokenReviewBurst")
+	delete(data, "TokenReviewCacheTTL")
+
+	content, err := gatewayResources.ReadFile(kubeAuthProxyDeploymentOauthTemplate)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	tmpl, err := template.New("oauth").Option("missingkey=error").Parse(string(content))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, data)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("TokenReviewQPS"))
+}
+
+// TestAuthProxyTemplatesRenderWithoutTokenReview locks in the e2e failure from PR #3932:
+// {{if .TokenReviewQPS}} must not fail when TokenReview is unset. Keys must exist as nil
+// so kube-auth-proxy keeps its own defaults (flags are omitted).
+func TestAuthProxyTemplatesRenderWithoutTokenReview(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	data := authProxyTemplateData()
+	for _, path := range []string{
+		kubeAuthProxyDeploymentOauthTemplate,
+		kubeAuthProxyDeploymentOidcTemplate,
+	} {
+		rendered := renderAuthProxyTemplate(g, path, data)
+		g.Expect(rendered).NotTo(ContainSubstring("--kube-api-qps="))
+		g.Expect(rendered).NotTo(ContainSubstring("--kube-api-burst="))
+		g.Expect(rendered).NotTo(ContainSubstring("--kube-api-cache-ttl="))
+	}
+}
+
+// TestAuthProxyTemplatesRenderWithTokenReview checks that configured values become flags.
+func TestAuthProxyTemplatesRenderWithTokenReview(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	data := authProxyTemplateData()
+	data["TokenReviewQPS"] = int32(75)
+	data["TokenReviewBurst"] = int32(150)
+	data["TokenReviewCacheTTL"] = "30s"
+
+	for _, path := range []string{
+		kubeAuthProxyDeploymentOauthTemplate,
+		kubeAuthProxyDeploymentOidcTemplate,
+	} {
+		rendered := renderAuthProxyTemplate(g, path, data)
+		g.Expect(rendered).To(ContainSubstring("--kube-api-qps=75"))
+		g.Expect(rendered).To(ContainSubstring("--kube-api-burst=150"))
+		g.Expect(rendered).To(ContainSubstring("--kube-api-cache-ttl=30s"))
+	}
 }
