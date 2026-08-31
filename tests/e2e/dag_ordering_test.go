@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -95,40 +96,30 @@ var dagBatches = []componentBatch{
 	},
 }
 
-// dscComponentFieldsWithBrokenVersionHandshake lists modules excluded
-// from DAG tests because they don't watch their platform config
-// ConfigMap or don't report the platform release, causing the DAG
-// version handshake to stall. Re-enable once fixed:
-//   - aigateway:            RHOAIENG-81918
-//   - dashboard:            RHOAIENG-81919
-//   - mcplifecycleoperator: RHOAIENG-81920
-//   - trainer
-//   - workbenches:          RHOAIENG-81892
-var dscComponentFieldsWithBrokenVersionHandshake = []string{
-	"aigateway",
-	"dashboard",
-	"mcplifecycleoperator",
-	"trainer",
-	"workbenches",
+// dscComponentFieldsExcludedFromManagedDAGTests lists DSC spec.components keys
+// skipped when enabling all components during DAG tests.
+var dscComponentFieldsExcludedFromManagedDAGTests = []string{
+	"kueue", // validating webhook rejects managementState=Managed
+	"trainingoperator",
+	"llamastackoperator",
 }
 
-// dscComponentFields lists the components enabled during DAG tests.
-// Kueue is excluded: a validating webhook rejects managementState=Managed.
-var dscComponentFields = []string{
-	// "aigateway",
-	// "dashboard",
-	// "workbenches",
-	"aipipelines",
-	"kserve",
-	"ray",
-	"modelregistry",
-	"trustyai",
-	"feastoperator",
-	"ogx",
-	// "mcplifecycleoperator",
-	"mlflowoperator",
-	// "trainer",
-	"sparkoperator",
+func managedDAGTestDSCComponentFields() []string {
+	all := (dscv2.Components{}).ComponentNames()
+	fields := make([]string, 0, len(all))
+	for _, name := range all {
+		if slices.Contains(dscComponentFieldsExcludedFromManagedDAGTests, name) {
+			continue
+		}
+		fields = append(fields, name)
+	}
+	return fields
+}
+
+func allDAGTestDSCComponentFields() []string {
+	all := slices.Clone((dscv2.Components{}).ComponentNames())
+	slices.Sort(all)
+	return slices.Compact(all)
 }
 
 // extensionGVKs lists in-tree component CRs at RL 31+ whose controllers
@@ -888,14 +879,11 @@ func (tc *DAGOrderingTestCtx) deleteGateSourceCMs(t *testing.T, names ...string)
 // --- helpers ---
 
 func allComponentsManagedTransform() func(*unstructured.Unstructured) error {
-	return selectComponentsTransform("Managed", dscComponentFields)
+	return selectComponentsTransform("Managed", managedDAGTestDSCComponentFields())
 }
 
 func allComponentsRemovedTransform() func(*unstructured.Unstructured) error {
-	all := make([]string, 0, len(dscComponentFieldsWithBrokenVersionHandshake)+len(dscComponentFields))
-	all = append(all, dscComponentFieldsWithBrokenVersionHandshake...)
-	all = append(all, dscComponentFields...)
-	return selectComponentsTransform("Removed", all)
+	return selectComponentsTransform("Removed", allDAGTestDSCComponentFields())
 }
 
 func selectComponentsTransform(state string, fields []string) func(*unstructured.Unstructured) error {
