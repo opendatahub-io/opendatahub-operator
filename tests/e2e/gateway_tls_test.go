@@ -109,7 +109,7 @@ func (tc *GatewayTestCtx) eventuallyKubeAuthProxyDeploymentHasTLSArgs(minVersion
 		deployment := &appsv1.Deployment{}
 		g.Expect(tc.Client().Get(tc.Context(), types.NamespacedName{
 			Name:      kubeAuthProxyName,
-			Namespace: gatewayNamespace,
+			Namespace: tc.gatewayNamespace(),
 		}, deployment)).To(Succeed())
 
 		g.Expect(deployment.Spec.Template.Spec.Containers).NotTo(BeEmpty(), "Deployment should have at least one container")
@@ -132,5 +132,5 @@ func (tc *GatewayTestCtx) ValidateKubeAuthProxyTLSArgsMatchAPIServer(t *testing.
 
 	minArg, cipherArg := tc.expectedKubeAuthProxyTLSDeploymentArgs(t)
 	tc.eventuallyKubeAuthProxyDeploymentHasTLSArgs(minArg, cipherArg)
-	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: gatewayNamespace}, 2)
+	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: tc.gatewayNamespace()}, 2)
 }
