@@ -150,7 +150,7 @@ else
   # Run with gotestsum (existing behavior - DEFAULT)
   exec gotestsum --junitfile-project-name odh-operator-e2e \
     --junitfile results/xunit_report.xml --format standard-verbose --raw-command \
-    -- test2json -t -p e2e ./e2e-tests --test.v=test2json --test.parallel=8 \
+    -- test2json -t -p e2e ./e2e-tests --test.run='^TestOdhOperator' --test.v=test2json --test.parallel=8 \
     --deletion-policy="$E2E_TEST_DELETION_POLICY" \
     --clean-up-previous-resources="$E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES" \
     --backup-and-restore-dsci-and-dsc="$E2E_TEST_BACKUP_AND_RESTORE_DSCI_AND_DSC" \
