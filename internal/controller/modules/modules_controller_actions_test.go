@@ -403,6 +403,7 @@ func TestComputeModulesStatusMarksNotReadyModules(t *testing.T) {
 	ready := conditions.FindStatusCondition(dsc.GetStatus(), status.ConditionTypeModulesReady)
 	if ready == nil {
 		t.Fatalf("expected ModulesReady condition to be set")
+		return
 	}
 	if ready.Status != metav1.ConditionFalse || ready.Reason != status.NotReadyReason {
 		t.Fatalf("expected ModulesReady=False/%q, got %#v", status.NotReadyReason, ready)
@@ -505,6 +506,7 @@ func TestComputeModulesStatusInfoDependencyKeepsModulesReady(t *testing.T) {
 	dep := conditions.FindStatusCondition(dsc.GetStatus(), depCond)
 	if dep == nil {
 		t.Fatalf("expected %s condition to be surfaced on the DSC", depCond)
+		return
 	}
 	if dep.Status != metav1.ConditionFalse {
 		t.Fatalf("expected %s=False, got %s", depCond, dep.Status)
@@ -517,6 +519,7 @@ func TestComputeModulesStatusInfoDependencyKeepsModulesReady(t *testing.T) {
 	ready := conditions.FindStatusCondition(dsc.GetStatus(), status.ConditionTypeModulesReady)
 	if ready == nil {
 		t.Fatalf("expected ModulesReady condition to be set")
+		return
 	}
 	if ready.Status != metav1.ConditionTrue {
 		t.Fatalf("expected ModulesReady=True (Info dep is non-gating), got %s: %q", ready.Status, ready.Message)

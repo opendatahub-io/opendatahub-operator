@@ -443,7 +443,13 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 		}
 
 		if provisionErr != nil {
-			if !errors.As(provisionErr, &odherrors.StopError{}) {
+			// Upgrade-gate actions set ProvisioningSucceeded with
+			// AdminAckRequired before returning StopError. Don't
+			// overwrite that with a generic error condition. Other
+			// StopErrors still get the default failure status.
+			skipStatus := errors.As(provisionErr, &odherrors.StopError{}) &&
+				rr.Conditions.WasSet(status.ConditionTypeProvisioningSucceeded)
+			if !skipStatus {
 				rr.Conditions.MarkFalse(
 					status.ConditionTypeProvisioningSucceeded,
 					conditions.WithError(provisionErr),

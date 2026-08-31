@@ -331,6 +331,17 @@ func (r *Manager) Reset() {
 	r.activeTypes = make(map[string]struct{})
 }
 
+// WasSet reports whether the given condition type was set during the
+// current reconciliation cycle (after Reset).
+func (r *Manager) WasSet(t string) bool {
+	if r.activeTypes == nil {
+		return false
+	}
+
+	_, ok := r.activeTypes[t]
+	return ok
+}
+
 // CleanupStaleConditions handles conditions that were not re-set during
 // this reconciliation cycle (not present in activeTypes).
 //

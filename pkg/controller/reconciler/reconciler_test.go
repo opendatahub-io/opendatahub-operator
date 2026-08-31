@@ -132,9 +132,10 @@ func TestConditions(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 
 	tests := []struct {
-		name    string
-		err     error
-		matcher gomegaTypes.GomegaMatcher
+		name               string
+		err                error
+		presetProvisioning *common.Condition
+		matcher            gomegaTypes.GomegaMatcher
 	}{
 		{
 			name: "ready",
@@ -152,6 +153,21 @@ func TestConditions(t *testing.T) {
 			matcher: And(
 				jq.Match(`all(.status.conditions[]?.type; . != "foo")`),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionFalse),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse),
+			),
+		},
+		{
+			name: "stop preserves action-set provisioning condition",
+			err:  odherrors.NewStopError("stop"),
+			presetProvisioning: &common.Condition{
+				Type:    status.ConditionTypeProvisioningSucceeded,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.AdminAckRequiredReason,
+				Message: "Waiting for upgrade gates to be acknowledged",
+			},
+			matcher: And(
+				jq.Match(`all(.status.conditions[]?.type; . != "foo")`),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionTypeProvisioningSucceeded, status.AdminAckRequiredReason),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse),
 			),
 		},
@@ -202,7 +218,11 @@ func TestConditions(t *testing.T) {
 			}
 
 			cc := createReconciler(cli)
-			cc.AddAction(func(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+			cc.AddAction(func(_ context.Context, rr *odhtype.ReconciliationRequest) error {
+				if tt.presetProvisioning != nil {
+					rr.Conditions.SetCondition(*tt.presetProvisioning)
+				}
+
 				return tt.err
 			})
 
