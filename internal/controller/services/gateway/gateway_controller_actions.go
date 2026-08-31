@@ -379,6 +379,25 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 	templateData["EnableK8sTokenValidation"] = enableK8sTokenValidation
 
+	// Always set TokenReview keys so templates can use {{if .TokenReviewQPS}}
+	// without missingkey=error. Nil means "omit the flag" so kube-auth-proxy
+	// uses its own built-in defaults. Real values are filled in only when set.
+	templateData["TokenReviewQPS"] = nil
+	templateData["TokenReviewBurst"] = nil
+	templateData["TokenReviewCacheTTL"] = nil
+	if gatewayConfig.Spec.TokenReview != nil {
+		tr := gatewayConfig.Spec.TokenReview
+		if tr.QPS != nil {
+			templateData["TokenReviewQPS"] = *tr.QPS
+		}
+		if tr.Burst != nil {
+			templateData["TokenReviewBurst"] = *tr.Burst
+		}
+		if tr.CacheTTL != nil {
+			templateData["TokenReviewCacheTTL"] = tr.CacheTTL.Duration.String()
+		}
+	}
+
 	tlsMinVersion, tlsCipherSuites, err := GetKubeAuthProxyTLSFromAPIServer(ctx, rr.Client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve APIServer TLS profile: %w", err)

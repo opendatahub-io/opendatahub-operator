@@ -205,6 +205,11 @@ func TestOAuthSpecMutationCookieConfig(t *testing.T) {
 	RunSpecMutationCookieConfigTest(t, GetOAuthTestSetup(), SpecMutationCookieConfig())
 }
 
+// TestOAuthSpecMutationTokenReviewConfig validates token review spec mutation in OAuth mode.
+func TestOAuthSpecMutationTokenReviewConfig(t *testing.T) {
+	RunSpecMutationTokenReviewConfigTest(t, GetOAuthTestSetup(), SpecMutationTokenReviewConfig())
+}
+
 // TestOAuthSpecMutationSubdomainChange validates that GatewayConfig subdomain and OAuthClient redirect URIs update when subdomain changes.
 func TestOAuthSpecMutationSubdomainChange(t *testing.T) {
 	tc := OAuthTestEnv

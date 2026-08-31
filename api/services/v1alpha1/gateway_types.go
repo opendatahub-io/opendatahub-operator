@@ -121,6 +121,13 @@ type GatewayConfigSpec struct {
 	// +optional
 	// +kubebuilder:default=true
 	EnableK8sTokenValidation *bool `json:"enableK8sTokenValidation,omitempty"`
+
+	// TokenReview configures the rate limiting and caching behavior of Kubernetes TokenReview API calls
+	// used for service account token validation.
+	// If not set, kube-auth-proxy uses built-in defaults (QPS=50, Burst=100, CacheTTL=10s).
+	// These settings only take effect when EnableK8sTokenValidation is true.
+	// +optional
+	TokenReview *TokenReviewConfig `json:"tokenReview,omitempty"`
 }
 
 // NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
@@ -183,6 +190,28 @@ type CookieConfig struct {
 	// +optional
 	// +kubebuilder:default="1h"
 	Refresh metav1.Duration `json:"refresh,omitempty"`
+}
+
+// TokenReviewConfig defines rate limiting and caching settings for TokenReview API calls.
+type TokenReviewConfig struct {
+	// QPS is the maximum queries per second to the Kubernetes API for TokenReview calls.
+	// Higher values allow more concurrent token validation requests.
+	// If not set, kube-auth-proxy uses its built-in default (50).
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	QPS *int32 `json:"qps,omitempty"`
+
+	// Burst is the maximum burst of requests to the Kubernetes API for TokenReview calls.
+	// Should be equal to or greater than QPS.
+	// If not set, kube-auth-proxy uses its built-in default (100).
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	Burst *int32 `json:"burst,omitempty"`
+
+	// CacheTTL is how long validated token results are cached before re-validation (e.g., "10s", "30s").
+	// If not set, kube-auth-proxy uses its built-in default (10s).
+	// +optional
+	CacheTTL *metav1.Duration `json:"cacheTTL,omitempty"`
 }
 
 // GatewayConfigStatus defines the observed state of GatewayConfig
