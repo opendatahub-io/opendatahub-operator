@@ -355,6 +355,20 @@ func TestApplicationNamespaceFallback(t *testing.T) {
 			dsciNamespace: "",
 			expectError:   true,
 		},
+		{
+			name:              "returns RHAI namespace on Kubernetes (XKS) without DSCI",
+			clusterType:       ClusterTypeKubernetes,
+			rhaiNamespace:     "rh-ai-apps",
+			dsciNamespace:     "",
+			expectedNamespace: "rh-ai-apps",
+		},
+		{
+			name:              "returns RHAI namespace on Kubernetes (XKS) even when DSCI exists",
+			clusterType:       ClusterTypeKubernetes,
+			rhaiNamespace:     "rh-ai-apps",
+			dsciNamespace:     "dsci-app-ns",
+			expectedNamespace: "rh-ai-apps",
+		},
 	}
 
 	for _, tc := range testCases {
