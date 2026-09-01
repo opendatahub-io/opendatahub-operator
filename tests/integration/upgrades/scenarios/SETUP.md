@@ -23,6 +23,10 @@ All listed CSVs were `Succeeded` when the fixtures were prepared:
 | Service Mesh operator | `openshift-operators` | `2.6.17`, `stable` |
 | Serverless operator | `openshift-serverless` | `1.37.1`, `stable` |
 
+The Service Mesh v2 Subscription is named `servicemeshoperator` and has
+`spec.name: servicemeshoperator`. The upgrade gate identifies the v2 package
+by that spec field; the shared `stable` channel is not a version discriminator.
+
 The RHOAI 2.25 operator supplied the component operands and CRDs, including
 KServe `v0.14.0`, ModelMesh Serving `v0.12.0`, Kueue `v0.11.6`, KubeRay
 `1.4.0`, CodeFlare `1.15.0`, TrustyAI `v1.37.0`, Kubeflow Pipelines `2.5.0`,
@@ -86,6 +90,7 @@ metadata reconcile if the ConfigMap still contains the old blocker message.
 
 The final run cleared the gates in sequence: KServe and Kueue workload gates
 after removing their fixtures, Kueue dependency after installing its operator,
-CodeFlare and ModelMeshServing after deleting their legacy CRs, Ray and
-TrustyAI after repairing their state, Workbenches after deleting its broken
-Notebook, and DSP after setting the CRD stored version to `v1`.
+Service Mesh after removing its v2 Subscription, CodeFlare and ModelMeshServing
+after deleting their legacy CRs, Ray and TrustyAI after repairing their state,
+Workbenches after deleting its broken Notebook, and DSP after setting the CRD
+stored version to `v1`.

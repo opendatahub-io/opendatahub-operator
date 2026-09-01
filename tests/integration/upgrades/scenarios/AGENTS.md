@@ -70,9 +70,10 @@ kubectl get dsc default-dsc -o yaml | sed -n '/conditions:/,$p'
 
 Expected unacknowledged categories include CodeFlare, ModelMeshServing,
 KServe, Ray, TrustyAI, Workbenches, DSP stored versions, and Kueue. The
-Service Mesh dependency can also block because the baseline Subscription uses
-the `stable` channel. Cert-manager is installed in the documented baseline,
-so its dependency gate should not block.
+Service Mesh dependency also blocks while the baseline Subscription has
+`spec.name: servicemeshoperator`; its `stable` channel is not used to identify
+the v2 package. Cert-manager is installed in the documented baseline, so its
+dependency gate should not block.
 
 ## Operational lessons
 
@@ -88,10 +89,10 @@ so its dependency gate should not block.
   `datasciencepipelinesapplications.datasciencepipelinesapplications.opendatahub.io`.
   Its `status.storedVersions` is a status-subresource field; the supplied JSON
   patch intentionally leaves only `v1`.
-- Kueue's dependency gate reads the generated `default-kueue` CR, but the DSC
-  is its source of truth. Change `spec.components.kueue.managementState` on
-  `default-dsc` first. For the missing-operator case use `Unmanaged` and make
-  sure there is no `kueue-operator` Subscription.
+- Kueue gates read `spec.components.kueue.managementState` directly from
+  `default-dsc`; the generated `default-kueue` CR is not consulted. For the
+  missing-operator case use `Unmanaged` and make sure there is no
+  `kueue-operator` Subscription.
 - Admission webhooks reject deliberately broken objects at creation time.
   KServe InferenceServices need a predictor, ServingRuntimes need a container,
   TrustyAIService needs metrics, RayCluster needs a structural head/worker

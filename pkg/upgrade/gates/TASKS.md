@@ -90,7 +90,7 @@ Legend:
 - Checks implemented in repo:
   - block when queued workloads (`kueue.x-k8s.io/queue-name`) live in
     namespaces missing `kueue.openshift.io/managed=true`
-  - block when queued workloads exist while the internal Kueue CR is `Removed`
+  - block when queued workloads exist while Kueue is `Removed` in the DSC
 - Detailed behavior:
   - workload discovery is cross-component: `Notebook`, `InferenceService`,
     `LLMInferenceService`, `RayCluster`, `RayJob`, and `PyTorchJob` resources
@@ -100,10 +100,10 @@ Legend:
   - the namespace-label branch caches namespace lookups, so repeated queued
     workloads in the same namespace do not multiply API reads
 - Related dependency gate:
-  - `dependencies-kueue-operator` blocks when the internal
-    `kueue.openshift.io/v1` `Kueue` CR is still `Managed`
+  - `dependencies-kueue-operator` blocks when Kueue is still `Managed` in the
+    DSC
   - `dependencies-kueue-operator` requires the `kueue-operator` OLM
-    subscription when the internal Kueue CR is `Unmanaged`
+    subscription when Kueue is `Unmanaged` in the DSC
 - Left out from odh-cli:
   - odh-cli's `workloads.kueue.data-integrity` lint is broader: it also checks
     workloads inside Kueue-managed namespaces that are missing the queue label,
@@ -336,22 +336,22 @@ Legend:
   - this is a strict presence check on the expected OLM subscription and does
     not currently inspect CSV health or channel/version skew
 - `dependencies-kueue-operator`
-  - blocks when the internal Kueue CR is still `Managed`
-  - blocks when the internal Kueue CR is `Unmanaged` but the `kueue-operator`
+  - blocks when Kueue is still `Managed` in the `DataScienceCluster` spec
+  - blocks when Kueue is `Unmanaged` in the `DataScienceCluster` spec but the `kueue-operator`
     `Subscription` is missing
   - this is split out locally rather than tracked by a dedicated Jira child
 - `dependencies-kueue-operator` detail:
-  - the gate is intentionally state-aware: it does nothing when no internal
-    Kueue CR exists, treats `Managed` as unsupported for the upgrade path, and
-    only requires the subscription in the `Unmanaged` handoff case
+  - the gate is intentionally state-aware: it does nothing when no
+    `DataScienceCluster` exists, treats `Managed` as unsupported for the upgrade
+    path, and only requires the subscription in the `Unmanaged` handoff case
 - `dependencies-servicemeshoperatorv2`
-  - blocks when a `servicemeshoperatorv2` `Subscription` still exists on
-    blocking channels (`stable`, `v2.x`)
+  - blocks when a `Subscription` for the `servicemeshoperator` package still
+    exists
   - no matching Jira child issue exists in this list; this is a repo-local
     dependency cleanup gate
 - `dependencies-servicemeshoperatorv2` detail:
-  - the gate keys off subscription name plus channel, so unrelated subscriptions
-    or non-blocking channels do not trip it
+  - the gate keys off `Subscription.spec.name`, so custom Subscription resource
+    names are supported and unrelated OLM packages do not trip it
 - `removed-codeflare`
   - blocks when the internal `CodeFlare` CR still exists
   - this does not map cleanly to `RHOAIENG-82353`, but it no longer conflicts
