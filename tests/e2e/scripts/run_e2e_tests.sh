@@ -199,6 +199,9 @@ else
       echo "Retaining unfiltered JUnit report"
       cp -- "$raw_junit_report" results/xunit_report.xml
     else
+      if [ "$test_status" -ne 0 ]; then
+        exit "$test_status"
+      fi
       exit "$report_status"
     fi
   fi
