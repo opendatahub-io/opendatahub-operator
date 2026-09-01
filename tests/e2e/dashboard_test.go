@@ -81,6 +81,7 @@ func (tc *DashboardTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 				SatisfyAny(
 					jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, tc.GVK.Kind),
 					jq.Match(`.metadata.ownerReferences[0].kind == "Platform"`),
+					jq.Match(`.metadata.ownerReferences[0].kind == "DataScienceCluster"`),
 				),
 			),
 		),
