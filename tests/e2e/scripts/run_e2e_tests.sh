@@ -145,11 +145,19 @@ if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
     --tag="$E2E_TEST_TAG" \
     "$@"
 else
-  echo "Using gotestsum (standard JUnit XML, no enrichment)"
+  echo "Using gotestsum with leaf-oriented JUnit XML"
 
-  # Run with gotestsum (existing behavior - DEFAULT)
-  exec gotestsum --junitfile-project-name odh-operator-e2e \
-    --junitfile results/xunit_report.xml --format standard-verbose --raw-command \
+  # Go reports a failed subtest and every failed parent as separate failures.
+  # Keep the raw artifacts for diagnostics, then exclude parent results from
+  # the JUnit report consumed by the CI failure importer.
+  # Keep raw JUnit content outside *.xml globs so CI ingests only final report.
+  raw_junit_report=results/xunit_report.unfiltered
+  test_events=results/test-events.json
+
+  set +e
+  gotestsum --junitfile-project-name odh-operator-e2e \
+    --junitfile "$raw_junit_report" --jsonfile "$test_events" \
+    --format standard-verbose --raw-command \
     -- test2json -t -p e2e ./e2e-tests --test.run='^TestOdhOperator' --test.v=test2json --test.parallel=8 \
     --deletion-policy="$E2E_TEST_DELETION_POLICY" \
     --clean-up-previous-resources="$E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES" \
@@ -168,4 +176,35 @@ else
     --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
     --tag="$E2E_TEST_TAG" \
     "$@"
+  test_status=$?
+  set -e
+
+  # Ignore only parent results. Their captured output is retained by the
+  # converter as suite-level output. If this leaves no failure/error despite
+  # a failed test process, retain the unfiltered report so parent-only
+  # failures (for example setup, cleanup, or watchdog failures) remain visible.
+  if go-junit-report -parser gojson \
+    -subtest-mode ignore-parent-results \
+    -in "$test_events" \
+    -out results/xunit_report.xml; then
+    if [ "$test_status" -ne 0 ] && \
+      ! grep -Eq '<(failure|error)([[:space:]>])' results/xunit_report.xml; then
+      echo "Warning: no leaf failure found; retaining unfiltered JUnit report" >&2
+      cp -- "$raw_junit_report" results/xunit_report.xml
+    fi
+  else
+    report_status=$?
+    echo "Error: failed to generate leaf-oriented JUnit report" >&2
+    if [ -s "$raw_junit_report" ]; then
+      echo "Retaining unfiltered JUnit report"
+      cp -- "$raw_junit_report" results/xunit_report.xml
+    else
+      if [ "$test_status" -ne 0 ]; then
+        exit "$test_status"
+      fi
+      exit "$report_status"
+    fi
+  fi
+
+  exit "$test_status"
 fi
