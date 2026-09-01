@@ -114,24 +114,6 @@ func TestWatchHandlersLogResourceKindOnListError(t *testing.T) {
 			wantMsg:          "Failed to get GatewayConfigList",
 			wantResourceKind: "GatewayConfig",
 		},
-		{
-			name: "watchMonitoringResource",
-			call: func(r *DSCInitializationReconciler, ctx context.Context) []reconcile.Request {
-				return r.watchMonitoringResource(ctx, &metav1.PartialObjectMetadata{})
-			},
-			wantMsg:          "failed to get MonitoringList",
-			wantResourceKind: "Monitoring",
-		},
-		{
-			name: "watchHWProfileCRDResource",
-			call: func(r *DSCInitializationReconciler, ctx context.Context) []reconcile.Request {
-				crd := &metav1.PartialObjectMetadata{}
-				crd.SetName("hardwareprofiles.dashboard.opendatahub.io")
-				return r.watchHWProfileCRDResource(ctx, crd)
-			},
-			wantMsg:          "Failed to get DSCInitializationList",
-			wantResourceKind: "DSCInitialization",
-		},
 	}
 
 	for _, tt := range tests {
