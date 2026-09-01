@@ -100,7 +100,7 @@ func TestUpgradeGatesAutoAckRemovedComponent(t *testing.T) {
 // once every gate is acknowledged.
 //
 // Two non-component dependency gates are forced to block: cert-manager is absent
-// and a servicemeshoperatorv2 subscription sits on a blocking channel. This is
+// and a servicemeshoperator subscription is installed. This is
 // gate-agnostic machinery — the specific gates are just convenient blockers.
 func TestUpgradeGatesMultipleUnacked(t *testing.T) {
 	const (
@@ -109,18 +109,19 @@ func TestUpgradeGatesMultipleUnacked(t *testing.T) {
 	)
 
 	// cert-manager fixtures are intentionally omitted so its gate blocks; a
-	// servicemeshoperatorv2 subscription on a blocking channel blocks the second.
+	// servicemeshoperator package subscription blocks the second.
 	h := setupUpgradeGateTest(
 		t,
 		fixture("resources/namespace.tmpl.yaml", map[string]any{
-			"Name":   "istio-system",
+			"Name":   "openshift-operators",
 			"Labels": map[string]string{},
 		}),
 		fixture("resources/subscription.tmpl.yaml", map[string]any{
-			"Name":         "servicemeshoperatorv2",
-			"Namespace":    "istio-system",
+			"Name":         "servicemeshoperator",
+			"Namespace":    "openshift-operators",
+			"Package":      "servicemeshoperator",
 			"Channel":      "stable",
-			"InstalledCSV": "servicemeshoperatorv2.v2.6.0",
+			"InstalledCSV": "servicemeshoperator.v2.6.17",
 		}),
 	)
 

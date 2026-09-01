@@ -76,20 +76,21 @@ func TestUpgradeGatesForCertManagerDependency(t *testing.T) {
 }
 
 func TestUpgradeGatesForServiceMeshOperatorV2Dependency(t *testing.T) {
-	t.Run("blocks_when_subscription_exists_on_blocking_channel", func(t *testing.T) {
+	t.Run("blocks_when_legacy_subscription_package_exists", func(t *testing.T) {
 		h := setupUpgradeGateTest(
 			t,
 			append(
 				certManagerPresentFixtures(),
 				fixture("resources/namespace.tmpl.yaml", map[string]any{
-					"Name":   "istio-system",
+					"Name":   "openshift-operators",
 					"Labels": map[string]string{},
 				}),
 				fixture("resources/subscription.tmpl.yaml", map[string]any{
-					"Name":         "servicemeshoperatorv2",
-					"Namespace":    "istio-system",
+					"Name":         "servicemeshoperator",
+					"Namespace":    "openshift-operators",
+					"Package":      "servicemeshoperator",
 					"Channel":      "stable",
-					"InstalledCSV": "servicemeshoperatorv2.v2.6.0",
+					"InstalledCSV": "servicemeshoperator.v2.6.17",
 				}),
 			)...,
 		)

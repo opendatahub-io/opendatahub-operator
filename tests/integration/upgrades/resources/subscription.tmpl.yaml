@@ -3,9 +3,16 @@ kind: Subscription
 metadata:
   name: {{ .Name }}
   namespace: {{ .Namespace }}
-{{- if .Channel }}
+{{- $package := index . "Package" }}
+{{- $channel := index . "Channel" }}
+{{- if or $package $channel }}
 spec:
-  channel: {{ .Channel }}
+{{- if $package }}
+  name: {{ $package }}
+{{- end }}
+{{- if $channel }}
+  channel: {{ $channel }}
+{{- end }}
 {{- end }}
 {{- if .InstalledCSV }}
 status:
