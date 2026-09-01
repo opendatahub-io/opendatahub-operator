@@ -203,6 +203,12 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="build.openshift.io",resources=builds,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups="build.openshift.io",resources=buildconfigs,verbs=list;watch;create;patch;delete;get;update
 
+// Upgrade gate checks need cluster-wide read access to detect blocking workloads and dependencies.
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=inferenceservices;servingruntimes;llminferenceservices,verbs=get;list;watch
+// +kubebuilder:rbac:groups="trustyai.opendatahub.io",resources=trustyaiservices,verbs=get;list;watch
+// +kubebuilder:rbac:groups="operator.authorino.kuadrant.io",resources=authorinos,verbs=get;list;watch
+// +kubebuilder:rbac:groups="kubeflow.org",resources=pytorchjobs,verbs=get;list;watch
+
 // General operator permissions
 // +kubebuilder:rbac:groups=metrics.k8s.io,resources=pods;nodes,verbs=get;list;watch
 // +kubebuilder:rbac:groups="apps",resources=daemonsets,verbs=get;list;watch;create;update;patch;delete
