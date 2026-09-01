@@ -791,6 +791,38 @@ func getAuthProxySecretValues(
 	return clientID, clientSecretValue, cookieSecretGen.Value, nil
 }
 
+// IsGatewayReferencedSecret returns true when the given Secret is referenced by the
+// GatewayConfig singleton — either as the OIDC client secret (spec.oidc.clientSecretRef)
+// or the provider CA secret (spec.providerCASecretName). Used as a watch predicate so
+// that creating or updating these Secrets triggers GatewayConfig re-reconciliation.
+func IsGatewayReferencedSecret(ctx context.Context, cli client.Client, obj client.Object, gatewayNamespace string) bool {
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayConfigName}, gatewayConfig); err != nil {
+		return false
+	}
+
+	secretName := obj.GetName()
+	secretNamespace := obj.GetNamespace()
+
+	if gatewayConfig.Spec.OIDC != nil {
+		oidcSecretNamespace := gatewayConfig.Spec.OIDC.SecretNamespace
+		if oidcSecretNamespace == "" {
+			oidcSecretNamespace = gatewayNamespace
+		}
+		if secretName == gatewayConfig.Spec.OIDC.ClientSecretRef.Name && secretNamespace == oidcSecretNamespace {
+			return true
+		}
+	}
+
+	if gatewayConfig.Spec.ProviderCASecretName != "" {
+		if secretName == gatewayConfig.Spec.ProviderCASecretName && secretNamespace == gatewayNamespace {
+			return true
+		}
+	}
+
+	return false
+}
+
 // detectAndSetIngressMode detects the ingress mode from an existing Gateway Service and updates
 // the GatewayConfig to match. This preserves existing Gateway configuration when ingressMode is unset.
 func detectAndSetIngressMode(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) error {

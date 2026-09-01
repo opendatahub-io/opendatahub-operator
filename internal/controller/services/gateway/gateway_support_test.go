@@ -5,6 +5,7 @@ package gateway
 
 import (
 	"bytes"
+	"context"
 	"testing"
 	"text/template"
 
@@ -830,5 +831,155 @@ func TestAuthProxyTemplatesRenderWithTokenReview(t *testing.T) {
 		g.Expect(rendered).To(ContainSubstring("--kube-api-qps=75"))
 		g.Expect(rendered).To(ContainSubstring("--kube-api-burst=150"))
 		g.Expect(rendered).To(ContainSubstring("--kube-api-cache-ttl=30s"))
+	}
+}
+
+func TestIsGatewayReferencedSecret(t *testing.T) {
+	t.Parallel()
+
+	const (
+		gatewayNS       = "rh-ai-gateway"
+		customNS        = "custom-ns"
+		oidcSecretName  = "oidc-client-secret"
+		caSecretName    = "provider-ca-cert"
+		unrelatedSecret = "other-secret"
+	)
+
+	gatewayConfigWithOIDC := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.GatewayConfigName,
+		},
+		Spec: serviceApi.GatewayConfigSpec{
+			OIDC: &serviceApi.OIDCConfig{
+				IssuerURL: "https://keycloak.example.com/realms/test",
+				ClientID:  "rhai",
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+					Key:                  "clientSecret",
+				},
+			},
+			ProviderCASecretName: caSecretName,
+		},
+	}
+
+	gatewayConfigWithOIDCCustomNS := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.GatewayConfigName,
+		},
+		Spec: serviceApi.GatewayConfigSpec{
+			OIDC: &serviceApi.OIDCConfig{
+				IssuerURL: "https://keycloak.example.com/realms/test",
+				ClientID:  "rhai",
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+					Key:                  "clientSecret",
+				},
+				SecretNamespace: customNS,
+			},
+		},
+	}
+
+	gatewayConfigNoOIDC := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.GatewayConfigName,
+		},
+		Spec: serviceApi.GatewayConfigSpec{},
+	}
+
+	tests := []struct {
+		name             string
+		gatewayConfig    *serviceApi.GatewayConfig
+		secretName       string
+		secretNamespace  string
+		gatewayNamespace string
+		expected         bool
+	}{
+		{
+			name:             "matches OIDC client secret in default gateway namespace",
+			gatewayConfig:    gatewayConfigWithOIDC,
+			secretName:       oidcSecretName,
+			secretNamespace:  gatewayNS,
+			gatewayNamespace: gatewayNS,
+			expected:         true,
+		},
+		{
+			name:             "matches OIDC client secret in custom namespace",
+			gatewayConfig:    gatewayConfigWithOIDCCustomNS,
+			secretName:       oidcSecretName,
+			secretNamespace:  customNS,
+			gatewayNamespace: gatewayNS,
+			expected:         true,
+		},
+		{
+			name:             "OIDC secret in wrong namespace is not matched",
+			gatewayConfig:    gatewayConfigWithOIDC,
+			secretName:       oidcSecretName,
+			secretNamespace:  "wrong-ns",
+			gatewayNamespace: gatewayNS,
+			expected:         false,
+		},
+		{
+			name:             "matches provider CA secret in gateway namespace",
+			gatewayConfig:    gatewayConfigWithOIDC,
+			secretName:       caSecretName,
+			secretNamespace:  gatewayNS,
+			gatewayNamespace: gatewayNS,
+			expected:         true,
+		},
+		{
+			name:             "provider CA secret in wrong namespace is not matched",
+			gatewayConfig:    gatewayConfigWithOIDC,
+			secretName:       caSecretName,
+			secretNamespace:  "wrong-ns",
+			gatewayNamespace: gatewayNS,
+			expected:         false,
+		},
+		{
+			name:             "unrelated secret is not matched",
+			gatewayConfig:    gatewayConfigWithOIDC,
+			secretName:       unrelatedSecret,
+			secretNamespace:  gatewayNS,
+			gatewayNamespace: gatewayNS,
+			expected:         false,
+		},
+		{
+			name:             "no OIDC config — secret is not matched",
+			gatewayConfig:    gatewayConfigNoOIDC,
+			secretName:       oidcSecretName,
+			secretNamespace:  gatewayNS,
+			gatewayNamespace: gatewayNS,
+			expected:         false,
+		},
+		{
+			name:             "no GatewayConfig exists — returns false",
+			gatewayConfig:    nil,
+			secretName:       oidcSecretName,
+			secretNamespace:  gatewayNS,
+			gatewayNamespace: gatewayNS,
+			expected:         false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			builder := setupTestClient()
+			if tc.gatewayConfig != nil {
+				builder = builder.WithObjects(tc.gatewayConfig)
+			}
+			cli := builder.Build()
+
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      tc.secretName,
+					Namespace: tc.secretNamespace,
+				},
+			}
+
+			result := IsGatewayReferencedSecret(context.Background(), cli, secret, tc.gatewayNamespace)
+			g.Expect(result).To(Equal(tc.expected))
+		})
 	}
 }

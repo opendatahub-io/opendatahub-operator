@@ -74,6 +74,18 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 				}),
 			),
 		).
+		// Watch for OIDC client secrets and provider CA secrets referenced by GatewayConfig
+		// so that creating or updating these Secrets triggers re-reconciliation (Helm/GitOps
+		// race condition: Secret may be created after the GatewayConfig CR).
+		Watches(
+			&corev1.Secret{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(
+				resources.GatewayCertificateSecret(func(obj client.Object) bool {
+					return IsGatewayReferencedSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
+				}),
+			),
+		).
 		Watches(
 			&gwapiv1.HTTPRoute{},
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
