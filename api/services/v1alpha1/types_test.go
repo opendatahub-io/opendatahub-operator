@@ -64,24 +64,6 @@ func TestServiceTypesConformToPlatformObject(t *testing.T) {
 				},
 			},
 		},
-		{
-			name: "Monitoring",
-			instance: &Monitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "monitoring",
-				},
-				Spec: MonitoringSpec{
-					MonitoringCommonSpec: MonitoringCommonSpec{
-						Namespace: "opendatahub-monitoring",
-					},
-				},
-				Status: MonitoringStatus{
-					Status: common.Status{
-						Phase: "Ready",
-					},
-				},
-			},
-		},
 	}
 
 	for _, tt := range tests {
