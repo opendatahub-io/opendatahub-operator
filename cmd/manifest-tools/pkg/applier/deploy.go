@@ -30,6 +30,12 @@ func ApplyDeploy(opts DeployOptions) error {
 		return nil
 	}
 
+	// In test/development environments, disable automatic DSCI creation so test suites can manage DSCI lifecycle
+	overrides = append(overrides, envVar{
+		Name:  "DISABLE_DSC_CONFIG",
+		Value: "true",
+	})
+
 	data, err := os.ReadFile(opts.ManagerFile)
 	if err != nil {
 		return fmt.Errorf("reading manager file: %w", err)
