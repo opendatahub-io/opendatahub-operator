@@ -45,6 +45,13 @@ func ApplyOLM(opts Options) error {
 		return nil
 	}
 
+	// In OLM test environments, ensure DISABLE_DSC_CONFIG="true" so that the operator
+	// does not auto-create default-dsci, allowing E2E test suites to test DSCI lifecycle.
+	envVars = append(envVars, envVar{
+		Name:  "DISABLE_DSC_CONFIG",
+		Value: "true",
+	})
+
 	config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		clientcmd.NewDefaultClientConfigLoadingRules(),
 		&clientcmd.ConfigOverrides{},
