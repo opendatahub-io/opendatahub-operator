@@ -75,6 +75,21 @@ func setupUpgradeGateTestWithManagedComponents(
 	return setupUpgradeGateTestWithReleases(t, deployedVersion, managedComponents, extraFixtures...)
 }
 
+func setupUpgradeGateTestWithComponentStates(
+	t *testing.T,
+	componentStates map[string]string,
+	extraFixtures ...fixtureSpec,
+) *upgradeGateHarness {
+	t.Helper()
+
+	return setupUpgradeGateTestWithComponentStatesAndReleases(
+		t,
+		deployedVersion,
+		componentStates,
+		extraFixtures...,
+	)
+}
+
 // setupUpgradeGateTestWithReleases is the deployed-release-explicit variant.
 // deployedVer stamps the DSC/DSCI status.release used by
 // cluster.GetDeployedRelease to decide whether gating applies (only 2.x
@@ -84,6 +99,27 @@ func setupUpgradeGateTestWithReleases(
 	t *testing.T,
 	deployedVer string,
 	managedComponents []string,
+	extraFixtures ...fixtureSpec,
+) *upgradeGateHarness {
+	t.Helper()
+
+	componentStates := make(map[string]string, len(managedComponents))
+	for _, component := range managedComponents {
+		componentStates[component] = "Managed"
+	}
+
+	return setupUpgradeGateTestWithComponentStatesAndReleases(
+		t,
+		deployedVer,
+		componentStates,
+		extraFixtures...,
+	)
+}
+
+func setupUpgradeGateTestWithComponentStatesAndReleases(
+	t *testing.T,
+	deployedVer string,
+	componentStates map[string]string,
 	extraFixtures ...fixtureSpec,
 ) *upgradeGateHarness {
 	t.Helper()
@@ -110,7 +146,7 @@ func setupUpgradeGateTestWithReleases(
 	})
 
 	tc := &upgradeGateTestCtx{cli: te.Client()}
-	for _, fixture := range append(baseUpgradeFixtures(deployedVer, managedComponents), extraFixtures...) {
+	for _, fixture := range append(baseUpgradeFixtures(deployedVer, componentStates), extraFixtures...) {
 		tc.applyFixture(t, fixture.path, fixture.data)
 	}
 
@@ -144,7 +180,7 @@ func setupUpgradeGateTestWithReleases(
 	}
 }
 
-func baseUpgradeFixtures(deployedVer string, managedComponents []string) []fixtureSpec {
+func baseUpgradeFixtures(deployedVer string, componentStates map[string]string) []fixtureSpec {
 	return []fixtureSpec{
 		fixture("resources/namespace.tmpl.yaml", map[string]any{
 			"Name":   operatorNamespace,
@@ -156,10 +192,10 @@ func baseUpgradeFixtures(deployedVer string, managedComponents []string) []fixtu
 			"Version":  deployedVer,
 		}),
 		fixture("resources/datasciencecluster.tmpl.yaml", map[string]any{
-			"Name":              "default-dsc",
-			"Platform":          "OpenDataHub",
-			"Version":           deployedVer,
-			"ManagedComponents": managedComponents,
+			"Name":            "default-dsc",
+			"Platform":        "OpenDataHub",
+			"Version":         deployedVer,
+			"ComponentStates": componentStates,
 		}),
 		fixture("resources/clusterserviceversion.tmpl.yaml", map[string]any{
 			"Name":      "opendatahub-operator.v" + targetVersion,

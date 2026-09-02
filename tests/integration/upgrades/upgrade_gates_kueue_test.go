@@ -16,14 +16,10 @@ import (
 
 func TestUpgradeGatesForKueueOperatorDependency(t *testing.T) {
 	t.Run("blocks_when_managed", func(t *testing.T) {
-		h := setupUpgradeGateTest(
+		h := setupUpgradeGateTestWithComponentStates(
 			t,
-			append(
-				certManagerPresentFixtures(),
-				fixture("resources/kueue/kueue.tmpl.yaml", map[string]any{
-					"ManagementState": "Managed",
-				}),
-			)...,
+			map[string]string{"kueue": "Managed"},
+			certManagerPresentFixtures()...,
 		)
 
 		h.tf.Get(gvk.ConfigMap, upgradeAcksKey).Eventually().Should(
@@ -35,14 +31,10 @@ func TestUpgradeGatesForKueueOperatorDependency(t *testing.T) {
 	})
 
 	t.Run("blocks_when_subscription_missing", func(t *testing.T) {
-		h := setupUpgradeGateTest(
+		h := setupUpgradeGateTestWithComponentStates(
 			t,
-			append(
-				certManagerPresentFixtures(),
-				fixture("resources/kueue/kueue.tmpl.yaml", map[string]any{
-					"ManagementState": "Unmanaged",
-				}),
-			)...,
+			map[string]string{"kueue": "Unmanaged"},
+			certManagerPresentFixtures()...,
 		)
 
 		h.tf.Get(gvk.ConfigMap, upgradeAcksKey).Eventually().Should(
@@ -150,14 +142,11 @@ func setupKueueComponentUpgradeTest(
 ) *upgradeGateHarness {
 	t.Helper()
 
-	return setupUpgradeGateTestWithManagedComponents(
+	return setupUpgradeGateTestWithComponentStates(
 		t,
-		[]string{"kueue"},
+		map[string]string{"kueue": "Unmanaged"},
 		append(
 			certManagerPresentFixtures(),
-			fixture("resources/kueue/kueue.tmpl.yaml", map[string]any{
-				"ManagementState": "Unmanaged",
-			}),
 			fixture("resources/namespace.tmpl.yaml", map[string]any{
 				"Name":   "openshift-kueue-operator",
 				"Labels": map[string]string{},

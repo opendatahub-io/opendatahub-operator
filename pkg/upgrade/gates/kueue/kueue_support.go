@@ -4,34 +4,26 @@ import (
 	"context"
 	"fmt"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 func ManagementState(ctx context.Context, reader client.Reader) (string, error) {
-	obj := &unstructured.Unstructured{}
-	obj.SetGroupVersionKind(gvk.Kueue)
-
-	err := reader.Get(ctx, client.ObjectKey{Name: componentApi.KueueInstanceName}, obj)
+	dsc, err := cluster.GetDSC(ctx, reader)
 	switch {
-	case k8serr.IsNotFound(err), meta.IsNoMatchError(err):
+	case k8serr.IsNotFound(err):
 		return "", nil
 	case err != nil:
-		return "", fmt.Errorf("getting Kueue CR: %w", err)
+		return "", fmt.Errorf("getting DataScienceCluster for Kueue managementState: %w", err)
 	}
 
-	state, found, err := unstructured.NestedString(obj.Object, "spec", "managementState")
-	switch {
-	case err != nil:
-		return "", fmt.Errorf("reading Kueue managementState: %w", err)
-	case !found:
-		return "", nil
-	default:
-		return state, nil
+	state := dsc.Spec.Components.Kueue.ManagementState
+	if state == "" {
+		state = operatorv1.Removed
 	}
+
+	return string(state), nil
 }

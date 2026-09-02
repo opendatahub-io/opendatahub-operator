@@ -2,12 +2,12 @@ apiVersion: datasciencecluster.opendatahub.io/v2
 kind: DataScienceCluster
 metadata:
   name: {{ .Name }}
-{{- if .ManagedComponents }}
+{{- if .ComponentStates }}
 spec:
   components:
-{{- range .ManagedComponents }}
-    {{ . }}:
-      managementState: Managed
+{{- range $component, $state := .ComponentStates }}
+    {{ $component }}:
+      managementState: {{ $state }}
 {{- end }}
 {{- end }}
 {{- if .Version }}

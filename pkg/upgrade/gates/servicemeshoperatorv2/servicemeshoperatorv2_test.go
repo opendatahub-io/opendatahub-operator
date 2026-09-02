@@ -46,14 +46,15 @@ func TestCheck_BlocksWhenLegacySubscriptionExists(t *testing.T) {
 		WithScheme(serviceMeshOperatorV2Scheme(t)).
 		WithObjects(&operatorsv1alpha1.Subscription{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "servicemeshoperatorv2",
+				Name:      "custom-service-mesh-subscription",
 				Namespace: "openshift-operators",
 			},
 			Spec: &operatorsv1alpha1.SubscriptionSpec{
+				Package: "servicemeshoperator",
 				Channel: "stable",
 			},
 			Status: operatorsv1alpha1.SubscriptionStatus{
-				InstalledCSV: "servicemeshoperatorv2.v2.5.0",
+				InstalledCSV: "servicemeshoperator.v2.6.17",
 			},
 		}).
 		Build()
@@ -64,12 +65,12 @@ func TestCheck_BlocksWhenLegacySubscriptionExists(t *testing.T) {
 	var blockingErr *servicemeshoperatorv2gate.UpgradeBlockedError
 	g.Expect(errors.As(err, &blockingErr)).To(BeTrue())
 	g.Expect(blockingErr.SubscriptionNamespace).To(Equal("openshift-operators"))
-	g.Expect(blockingErr.SubscriptionName).To(Equal("servicemeshoperatorv2"))
+	g.Expect(blockingErr.SubscriptionName).To(Equal("custom-service-mesh-subscription"))
 	g.Expect(blockingErr.Channel).To(Equal("stable"))
-	g.Expect(blockingErr.InstalledCSV).To(Equal("servicemeshoperatorv2.v2.5.0"))
+	g.Expect(blockingErr.InstalledCSV).To(Equal("servicemeshoperator.v2.6.17"))
 }
 
-func TestCheck_IgnoresNonBlockingChannels(t *testing.T) {
+func TestCheck_BlocksWhenMatchingPackageHasNoChannel(t *testing.T) {
 	t.Parallel()
 
 	g := NewWithT(t)
@@ -78,11 +79,33 @@ func TestCheck_IgnoresNonBlockingChannels(t *testing.T) {
 		WithScheme(serviceMeshOperatorV2Scheme(t)).
 		WithObjects(&operatorsv1alpha1.Subscription{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "servicemeshoperatorv2",
+				Name:      "servicemeshoperator",
 				Namespace: "openshift-operators",
 			},
 			Spec: &operatorsv1alpha1.SubscriptionSpec{
-				Channel: "stable-v3",
+				Package: "servicemeshoperator",
+			},
+		}).
+		Build()
+
+	err := servicemeshoperatorv2gate.Check(t.Context(), cli, "", "")
+	g.Expect(err).To(HaveOccurred())
+}
+
+func TestCheck_IgnoresMetadataNameWhenPackageDoesNotMatch(t *testing.T) {
+	t.Parallel()
+
+	g := NewWithT(t)
+
+	cli := fake.NewClientBuilder().
+		WithScheme(serviceMeshOperatorV2Scheme(t)).
+		WithObjects(&operatorsv1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "servicemeshoperator",
+				Namespace: "openshift-operators",
+			},
+			Spec: &operatorsv1alpha1.SubscriptionSpec{
+				Package: "servicemeshoperator3",
 			},
 		}).
 		Build()

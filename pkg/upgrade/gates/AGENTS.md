@@ -110,9 +110,9 @@ from the DSC component map.
 
 ### `kueue`
 
-- checks the runtime internal `kueue.openshift.io/v1` `Kueue` CR
-- blocks immediately when `managementState=Managed`
-- requires the `kueue-operator` OLM subscription when `managementState=Unmanaged`
+- reads Kueue management state from the user-facing `DataScienceCluster` CR
+- the separate `dependencies-kueue-operator` gate blocks when `managementState=Managed`
+- the dependency gate requires the `kueue-operator` OLM subscription when `managementState=Unmanaged`
 - validates that kueue-labeled workloads do not live in namespaces missing
   `kueue.openshift.io/managed=true` once the `Unmanaged` operator prerequisite is met
 

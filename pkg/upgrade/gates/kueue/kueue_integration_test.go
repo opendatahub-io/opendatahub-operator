@@ -5,12 +5,15 @@ import (
 	"errors"
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	kueuegate "github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade/gates/kueue"
@@ -56,7 +59,7 @@ func (tc *kueueGateTestCtx) testCleanClusterPasses(t *testing.T) {
 func (tc *kueueGateTestCtx) testManagedKueuePasses(t *testing.T) {
 	g := NewWithT(t)
 
-	obj := renderKueue(t, "Managed")
+	obj := renderIntegrationDSC(operatorv1.Managed)
 	g.Expect(tc.cli.Create(t.Context(), obj)).ToNot(HaveOccurred())
 	defer deleteObject(g, tc.cli, obj)
 
@@ -67,7 +70,7 @@ func (tc *kueueGateTestCtx) testManagedKueuePasses(t *testing.T) {
 func (tc *kueueGateTestCtx) testUnmanagedKueueWithoutOperatorPasses(t *testing.T) {
 	g := NewWithT(t)
 
-	obj := renderKueue(t, "Unmanaged")
+	obj := renderIntegrationDSC(operatorv1.Unmanaged)
 	g.Expect(tc.cli.Create(t.Context(), obj)).ToNot(HaveOccurred())
 	defer deleteObject(g, tc.cli, obj)
 
@@ -88,17 +91,9 @@ func (tc *kueueGateTestCtx) assertMissingNamespaceLabelBlocks(
 
 	g := NewWithT(t)
 
-	obj := renderKueue(t, managementState)
+	obj := renderIntegrationDSC(operatorv1.ManagementState(managementState))
 	g.Expect(tc.cli.Create(t.Context(), obj)).ToNot(HaveOccurred())
 	defer deleteObject(g, tc.cli, obj)
-
-	subscriptionNamespace := namespace + "-operator"
-	operatorNamespace := renderNamespace(subscriptionNamespace, nil)
-	g.Expect(tc.cli.Create(t.Context(), operatorNamespace)).ToNot(HaveOccurred())
-
-	subscription := renderSubscription(subscriptionNamespace)
-	g.Expect(tc.cli.Create(t.Context(), subscription)).ToNot(HaveOccurred())
-	defer deleteObject(g, tc.cli, subscription)
 
 	ns := renderNamespace(namespace, nil)
 	g.Expect(tc.cli.Create(t.Context(), ns)).ToNot(HaveOccurred())
@@ -118,16 +113,9 @@ func (tc *kueueGateTestCtx) assertMissingNamespaceLabelBlocks(
 func (tc *kueueGateTestCtx) testUnmanagedKueueWithManagedNamespacePasses(t *testing.T) {
 	g := NewWithT(t)
 
-	obj := renderKueue(t, "Unmanaged")
+	obj := renderIntegrationDSC(operatorv1.Unmanaged)
 	g.Expect(tc.cli.Create(t.Context(), obj)).ToNot(HaveOccurred())
 	defer deleteObject(g, tc.cli, obj)
-
-	operatorNamespace := renderNamespace("openshift-kueue-operator", nil)
-	g.Expect(tc.cli.Create(t.Context(), operatorNamespace)).ToNot(HaveOccurred())
-
-	subscription := renderSubscription(operatorNamespace.Name)
-	g.Expect(tc.cli.Create(t.Context(), subscription)).ToNot(HaveOccurred())
-	defer deleteObject(g, tc.cli, subscription)
 
 	ns := renderNamespace("workloads-with-label", map[string]string{cluster.KueueManagedLabelKey: "true"})
 	g.Expect(tc.cli.Create(t.Context(), ns)).ToNot(HaveOccurred())
@@ -143,7 +131,7 @@ func (tc *kueueGateTestCtx) testUnmanagedKueueWithManagedNamespacePasses(t *test
 func (tc *kueueGateTestCtx) testRemovedKueueWithQueuedWorkloadsBlocks(t *testing.T) {
 	g := NewWithT(t)
 
-	obj := renderKueue(t, "Removed")
+	obj := renderIntegrationDSC(operatorv1.Removed)
 	g.Expect(tc.cli.Create(t.Context(), obj)).ToNot(HaveOccurred())
 	defer deleteObject(g, tc.cli, obj)
 
@@ -166,7 +154,7 @@ func (tc *kueueGateTestCtx) testRemovedKueueWithQueuedWorkloadsBlocks(t *testing
 func (tc *kueueGateTestCtx) testRemovedKueueWithoutQueuedWorkloadsPasses(t *testing.T) {
 	g := NewWithT(t)
 
-	obj := renderKueue(t, "Removed")
+	obj := renderIntegrationDSC(operatorv1.Removed)
 	g.Expect(tc.cli.Create(t.Context(), obj)).ToNot(HaveOccurred())
 	defer deleteObject(g, tc.cli, obj)
 
@@ -177,21 +165,10 @@ func (tc *kueueGateTestCtx) testRemovedKueueWithoutQueuedWorkloadsPasses(t *test
 func installKueueGateCRDs(ctx context.Context, te *envt.EnvT) error {
 	if _, err := te.RegisterCRD(
 		ctx,
-		gvk.Kueue,
-		"kueues",
-		"kueue",
+		gvk.DataScienceCluster,
+		"datascienceclusters",
+		"datasciencecluster",
 		apiextensionsv1.ClusterScoped,
-		envt.WithPermissiveSchema(),
-	); err != nil {
-		return err
-	}
-
-	if _, err := te.RegisterCRD(
-		ctx,
-		gvk.Subscription,
-		"subscriptions",
-		"subscription",
-		apiextensionsv1.NamespaceScoped,
 		envt.WithPermissiveSchema(),
 	); err != nil {
 		return err
@@ -222,6 +199,15 @@ func installKueueGateCRDs(ctx context.Context, te *envt.EnvT) error {
 	}
 
 	return nil
+}
+
+func renderIntegrationDSC(managementState operatorv1.ManagementState) *dscv2.DataScienceCluster {
+	dsc := &dscv2.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "default-dsc"},
+	}
+	dsc.Spec.Components.Kueue.ManagementState = managementState
+
+	return dsc
 }
 
 func deleteObject(g *WithT, cli client.Client, obj client.Object) {

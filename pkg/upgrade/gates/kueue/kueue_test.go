@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,6 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
@@ -38,12 +40,12 @@ func TestRegister_CleanClusterPasses(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
-func TestRegister_ManagedKueueBlocks(t *testing.T) {
+func TestRegister_ManagedKueuePasses(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
 	cli, err := newKueueClient(
-		renderKueue(t, "Managed"),
+		renderDSC(operatorv1.Managed),
 	)
 	g.Expect(err).ToNot(HaveOccurred())
 
@@ -58,7 +60,7 @@ func TestRegister_UnmanagedKueueWithoutOperatorPasses(t *testing.T) {
 	ctx := t.Context()
 
 	cli, err := newKueueClient(
-		renderKueue(t, "Unmanaged"),
+		renderDSC(operatorv1.Unmanaged),
 	)
 	g.Expect(err).ToNot(HaveOccurred())
 
@@ -73,8 +75,7 @@ func TestRegister_UnmanagedKueueWithMissingNamespaceLabelBlocks(t *testing.T) {
 	ctx := t.Context()
 
 	cli, err := newKueueClient(
-		renderKueue(t, "Unmanaged"),
-		renderSubscription("openshift-kueue-operator"),
+		renderDSC(operatorv1.Unmanaged),
 		renderNamespace("workloads", nil),
 		renderNotebook(t, "workloads"),
 	)
@@ -95,8 +96,7 @@ func TestRegister_UnmanagedKueueWithManagedNamespacePasses(t *testing.T) {
 	ctx := t.Context()
 
 	cli, err := newKueueClient(
-		renderKueue(t, "Unmanaged"),
-		renderSubscription("openshift-kueue-operator"),
+		renderDSC(operatorv1.Unmanaged),
 		renderNamespace("workloads", map[string]string{cluster.KueueManagedLabelKey: "true"}),
 		renderNotebook(t, "workloads"),
 	)
@@ -113,7 +113,7 @@ func TestRegister_RemovedKueueWithQueuedWorkloadsBlocks(t *testing.T) {
 	ctx := t.Context()
 
 	cli, err := newKueueClient(
-		renderKueue(t, "Removed"),
+		renderDSC(operatorv1.Removed),
 		renderNamespace("workloads", nil),
 		renderNotebook(t, "workloads"),
 	)
@@ -135,7 +135,7 @@ func TestRegister_RemovedKueueWithoutQueuedWorkloadsPasses(t *testing.T) {
 	ctx := t.Context()
 
 	cli, err := newKueueClient(
-		renderKueue(t, "Removed"),
+		renderDSC(operatorv1.Removed),
 	)
 	g.Expect(err).ToNot(HaveOccurred())
 
@@ -149,23 +149,18 @@ func newKueueClient(objects ...client.Object) (client.Client, error) {
 	return fakeclient.New(
 		fakeclient.WithObjects(objects...),
 		fakeclient.WithGVKs(
-			fakeclient.GVKMapping{GVK: gvk.Kueue, Scope: meta.RESTScopeRoot},
 			fakeclient.GVKMapping{GVK: gvk.Notebook, Scope: meta.RESTScopeNamespace},
-			fakeclient.GVKMapping{GVK: gvk.Subscription, Scope: meta.RESTScopeNamespace},
 		),
 	)
 }
 
-func renderKueue(t *testing.T, managementState string) *unstructured.Unstructured {
-	t.Helper()
+func renderDSC(managementState operatorv1.ManagementState) *dscv2.DataScienceCluster {
+	dsc := &dscv2.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "default-dsc"},
+	}
+	dsc.Spec.Components.Kueue.ManagementState = managementState
 
-	g := NewWithT(t)
-	obj, err := tp.RenderObject(resourcesFS, "resources/kueue.tmpl.yaml", map[string]any{
-		"ManagementState": managementState,
-	})
-	g.Expect(err).ToNot(HaveOccurred())
-
-	return obj
+	return dsc
 }
 
 func renderNotebook(t *testing.T, namespace string) *unstructured.Unstructured {
@@ -189,13 +184,4 @@ func renderNamespace(name string, labels map[string]string) *corev1.Namespace {
 			Labels: labels,
 		},
 	}
-}
-
-func renderSubscription(namespace string) *unstructured.Unstructured {
-	obj := &unstructured.Unstructured{}
-	obj.SetGroupVersionKind(gvk.Subscription)
-	obj.SetName("kueue-operator")
-	obj.SetNamespace(namespace)
-
-	return obj
 }
