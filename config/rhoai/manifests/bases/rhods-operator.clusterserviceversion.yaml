@@ -49,9 +49,6 @@ metadata:
               "nim": {
                 "managementState": "Managed"
               },
-              "modelsAsService": {
-                "managementState": "Removed"
-              },
               "wva": {
                 "managementState": "Removed"
               }
@@ -80,9 +77,6 @@ metadata:
             },
             "feastoperator": {
               "managementState": "Managed"
-            },
-            "llamastackoperator": {
-              "managementState": "Removed"
             },
             "ogx": {
               "managementState": "Managed"

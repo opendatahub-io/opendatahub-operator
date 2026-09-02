@@ -18,8 +18,6 @@ spec:
       managementState: "Managed"
       nim:
         managementState: "Managed"
-      modelsAsService:
-        managementState: "Removed"
       wva:
         managementState: "Removed"
     kueue:
@@ -39,8 +37,6 @@ spec:
       registriesNamespace: "rhoai-model-registries"
     feastoperator:
       managementState: "Managed"
-    llamastackoperator:
-      managementState: "Removed"
     ogx:
       managementState: "Managed"
     mlflowoperator:

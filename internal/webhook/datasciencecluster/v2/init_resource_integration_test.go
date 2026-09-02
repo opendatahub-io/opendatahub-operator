@@ -20,12 +20,17 @@ import (
 
 const dscSampleRelPath = "config/rhoai/samples/datasciencecluster_v2_datasciencecluster.yaml"
 
-// componentStates extracts the top-level managementState of every component in a
-// DataScienceCluster v2 Components tree. These fields come from common.ManagementSpec,
+// componentStates extracts the top-level managementState of every supported component
+// in a DataScienceCluster v2 Components tree. These fields come from common.ManagementSpec,
 // which -- unlike nested fields such as kserve.nim -- carries NO +kubebuilder:default,
 // so an unset one round-trips as "" (not Managed/Removed). Comparing this map before
 // and after an API-server round-trip proves the shipped default DSC specifies every
-// component explicitly.
+// supported component explicitly.
+//
+// Deprecated components are intentionally excluded: the shipped default must not present
+// them to users (RHOAIENG-89419). llamastackoperator (renamed to ogx) is dropped from the
+// default entirely; kserve.modelsAsService (migrated to aigateway.modelsAsAService) is a
+// nested field and is asserted absent from the sample separately. See TestDefaultDSCFromSampleAdmittedByAPIServer.
 func componentStates(c dscv2.Components) map[string]operatorv1.ManagementState {
 	return map[string]operatorv1.ManagementState{
 		"aigateway":            c.AIGateway.ManagementState,
@@ -39,7 +44,6 @@ func componentStates(c dscv2.Components) map[string]operatorv1.ManagementState {
 		"trustyai":             c.TrustyAI.ManagementState,
 		"modelregistry":        c.ModelRegistry.ManagementState,
 		"feastoperator":        c.FeastOperator.ManagementState,
-		"llamastackoperator":   c.LlamaStackOperator.ManagementState,
 		"ogx":                  c.OGX.ManagementState,
 		"mlflowoperator":       c.MLflowOperator.ManagementState,
 		"sparkoperator":        c.SparkOperator.ManagementState,
@@ -63,7 +67,10 @@ func componentStates(c dscv2.Components) map[string]operatorv1.ManagementState {
 //  2. every top-level component managementState round-trips unchanged and non-empty
 //     (a complete default, since these fields have no schema default);
 //  3. the defaulting webhook is a no-op on the already-complete sample (it neither
-//     overwrites the explicit ModelRegistry.RegistriesNamespace nor changes Kserve.NIM).
+//     overwrites the explicit ModelRegistry.RegistriesNamespace nor changes Kserve.NIM);
+//  4. deprecated components are absent from the shipped default, so users are never
+//     presented with a config they must remediate (RHOAIENG-89419): llamastackoperator
+//     (renamed to ogx) and kserve.modelsAsService (migrated to aigateway.modelsAsAService).
 //
 // A two-path (annotation vs sample) comparison would be redundant: U1 proves the two
 // inputs are identical and API-server defaulting is deterministic, so testing one path
@@ -94,6 +101,17 @@ func TestDefaultDSCFromSampleAdmittedByAPIServer(t *testing.T) {
 
 	dsc := &dscv2.DataScienceCluster{}
 	g.Expect(yaml.Unmarshal(sampleBytes, dsc)).To(Succeed(), "decoding %s into a v2 DataScienceCluster", dscSampleRelPath)
+
+	// (4) Deprecated components must not appear in the shipped default. Checked on the raw
+	// decoded sample (before API-server defaulting), since kserve.modelsAsService carries a
+	// +kubebuilder:default that the server would otherwise re-populate. The sample feeds
+	// alm-examples and -- per U1 -- is textually identical to the initialization-resource
+	// annotation, so this guards both OLM install paths against re-introducing deprecated
+	// items into the default users are presented with (RHOAIENG-89419).
+	g.Expect(dsc.Spec.Components.LlamaStackOperator.ManagementState).To(BeEmpty(),
+		"llamastackoperator is deprecated (renamed to ogx) and must not be set in the shipped default DSC")
+	g.Expect(dsc.Spec.Components.Kserve.ModelsAsService.ManagementState).To(BeEmpty(), //nolint:staticcheck // asserting the deprecated field is intentionally unset
+		"kserve.modelsAsService is deprecated (migrated to aigateway.modelsAsAService) and must not be set in the shipped default DSC")
 
 	// Capture the intended states before create -- controller-runtime's Create writes the
 	// server response (including defaults) back into dsc, so read expectations first.
