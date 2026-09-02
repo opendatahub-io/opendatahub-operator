@@ -42,6 +42,7 @@ import (
 	tlspkg "github.com/openshift/controller-runtime-common/pkg/tls"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	olmv1 "github.com/operator-framework/operator-controller/api/v1"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/spf13/viper"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -223,6 +224,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(ofapiv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(userv1.Install(scheme))
 	utilruntime.Must(ofapiv2.AddToScheme(scheme))
+	utilruntime.Must(olmv1.AddToScheme(scheme))
 	utilruntime.Must(ocappsv1.Install(scheme))
 	utilruntime.Must(buildv1.Install(scheme))
 	utilruntime.Must(imagev1.Install(scheme))
@@ -527,6 +529,8 @@ func main() { //nolint:funlen,maintidx,gocyclo
 					&corev1.Pod{},
 					&userv1.Group{},
 					&ofapiv1alpha1.CatalogSource{},
+					&olmv1.ClusterCatalog{},
+					&olmv1.ClusterExtension{},
 				},
 				// Set it to true so the cache-backed client reads unstructured objects
 				// or lists from the cache instead of a live lookup.
