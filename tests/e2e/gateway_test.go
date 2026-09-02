@@ -144,28 +144,27 @@ func (tc *GatewayTestCtx) ValidateGatewayConfig(t *testing.T) {
 	skipUnless(t, Smoke)
 	t.Log("Validating GatewayConfig resource")
 
-	// Common validation: Ready status and ownership
-	ownerCondition := And(
-		jq.Match(`.metadata.ownerReferences[0].kind == "DSCInitialization"`),
-		jq.Match(`.metadata.ownerReferences[0].name == "%s"`, tc.DSCInitializationNamespacedName.Name),
-	)
-	ownerDesc := fmt.Sprintf("%s DSCInitialization", tc.DSCInitializationNamespacedName.Name)
-	if tc.IsXKS() {
-		ownerCondition = And(
-			jq.Match(`.metadata.ownerReferences[0].kind == "Platform"`),
-			jq.Match(`.metadata.ownerReferences[0].name == "%s"`, tc.PlatformNamespacedName.Name),
-		)
-		ownerDesc = fmt.Sprintf("%s Platform", tc.PlatformNamespacedName.Name)
-	}
+	readyCondition := jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue)
 
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
-		WithCondition(And(
-			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
-			ownerCondition,
-		)),
-		WithCustomErrorMsg("GatewayConfig should be Ready and owned by %s", ownerDesc),
-	)
+	if tc.IsXKS() {
+		// On XKS, GatewayConfig is created by the Helm chart (not the operator),
+		// so it has no ownerReferences. Only assert Ready status.
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+			WithCondition(readyCondition),
+			WithCustomErrorMsg("GatewayConfig should be Ready"),
+		)
+	} else {
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+			WithCondition(And(
+				readyCondition,
+				jq.Match(`.metadata.ownerReferences[0].kind == "DSCInitialization"`),
+				jq.Match(`.metadata.ownerReferences[0].name == "%s"`, tc.DSCInitializationNamespacedName.Name),
+			)),
+			WithCustomErrorMsg("GatewayConfig should be Ready and owned by %s DSCInitialization", tc.DSCInitializationNamespacedName.Name),
+		)
+	}
 
 	t.Log("GatewayConfig validation completed")
 }
