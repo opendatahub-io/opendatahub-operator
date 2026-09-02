@@ -28,7 +28,7 @@ const (
 // relatedImages lists the operand images the TrustyAI module operator needs
 // to create its managed workloads (TAS, LMES, EvalHub, GORCH, NemoGuardrails).
 var relatedImages = []string{
-	"RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
+	"RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_PY_IMAGE",
 	"RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
 	"RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE",
 	"RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE",
