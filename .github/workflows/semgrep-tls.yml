@@ -1,0 +1,144 @@
+name: Semgrep TLS Rules
+on:
+  pull_request:
+    branches: [main, master, dev, odh, incubating, stable, stable-2.x]
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep-tls:
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep@sha256:525beaba156b9bd3f9847d6ec0eb8f308e11f407e0c0b2da641e7c8dd99c97d6 # 1.168.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Restore suppression file from base branch
+        # Prevent PR contributors from weakening suppressions by editing
+        # .github/semgrep-tls-excludes in their branch. Always read the copy
+        # from the PR base (default branch), which is under security-config
+        # control via the sync mechanism.
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          SUPPRESS_FILE=".github/semgrep-tls-excludes"
+          BASE="$BASE_REF"
+          git fetch --depth=1 origin "$BASE" 2>/dev/null || true
+          if git show "origin/$BASE:$SUPPRESS_FILE" > "$SUPPRESS_FILE" 2>/dev/null; then
+            echo "Loaded suppression file from origin/$BASE"
+          else
+            rm -f "$SUPPRESS_FILE"
+            echo "No suppression file on base branch"
+          fi
+
+      - name: Fetch argus-observe-rules
+        run: |
+          git init /tmp/argus-observe-rules
+          git -C /tmp/argus-observe-rules fetch --depth 1 https://github.com/smith-xyz/argus-observe-rules.git d3c4bd04ac12ad43b831a93fddab7f2c865d8139
+          git -C /tmp/argus-observe-rules checkout FETCH_HEAD
+
+      - name: Apply per-repo rule suppressions
+        # Read .github/semgrep-tls-excludes (format: "rule-id:path/to/file.go")
+        # and patch each matching argus rule YAML to add paths.exclude entries.
+        # This scopes each suppression to a specific rule+file pair rather than
+        # excluding the file from all rules via --exclude.
+        # Entries are read from the base branch (restored above).
+        run: |
+          SUPPRESS_FILE=".github/semgrep-tls-excludes"
+          RULES_DIR="/tmp/argus-observe-rules"
+
+          [ -f "$SUPPRESS_FILE" ] || exit 0
+
+          while IFS= read -r line; do
+            [[ "$line" =~ ^[[:space:]]*# ]] && continue
+            [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+            RULE_ID="${line%%:*}"
+            FILE_PATH="${line#*:}"
+            [ -z "$RULE_ID" ] || [ -z "$FILE_PATH" ] || [ "$RULE_ID" = "$FILE_PATH" ] && continue
+
+            # Find the rule file containing this rule ID
+            RULE_FILE=$(grep -rl "id: $RULE_ID" "$RULES_DIR/rules" 2>/dev/null | head -1)
+            if [ -z "$RULE_FILE" ]; then
+              echo "WARNING: rule ID '$RULE_ID' not found in argus-observe-rules, skipping"
+              continue
+            fi
+
+            # Patch the rule YAML: add paths.exclude under the matching rule id.
+            # Uses Python for safe YAML manipulation.
+            python3 - "$RULE_FILE" "$RULE_ID" "$FILE_PATH" <<'PY'
+          import sys, re
+
+          rule_file, rule_id, file_path = sys.argv[1], sys.argv[2], sys.argv[3]
+          text = open(rule_file).read()
+
+          # Find the rule block and inject or extend paths.exclude
+          # Strategy: locate "  - id: <rule_id>" and insert paths block after it
+          # if not already present, or append to existing paths.exclude list.
+          id_pattern = re.compile(
+              r'(  - id: ' + re.escape(rule_id) + r'\n)',
+          )
+          if not id_pattern.search(text):
+              print(f"Rule id {rule_id} not found in {rule_file}", file=sys.stderr)
+              sys.exit(1)
+
+          # Check if paths.exclude already exists in this rule block
+          # We look between this rule's id: line and the next "  - id:" line
+          rule_start = id_pattern.search(text).start()
+          next_rule = re.search(r'\n  - id:', text[rule_start + 1:])
+          rule_end = rule_start + 1 + next_rule.start() if next_rule else len(text)
+          rule_block = text[rule_start:rule_end]
+
+          exclude_entry = f'        - "{file_path}"\n'
+
+          if 'paths:' in rule_block and 'exclude:' in rule_block:
+              # Append to existing exclude list
+              new_block = re.sub(
+                  r'(    paths:\n      exclude:\n)',
+                  r'\1' + exclude_entry,
+                  rule_block,
+                  count=1,
+              )
+          elif 'paths:' in rule_block:
+              # paths: exists but no exclude: — add exclude section
+              new_block = re.sub(
+                  r'(    paths:\n)',
+                  r'\1      exclude:\n' + exclude_entry,
+                  rule_block,
+                  count=1,
+              )
+          else:
+              # No paths: block — insert one after the id: line
+              new_block = re.sub(
+                  r'(  - id: ' + re.escape(rule_id) + r'\n)',
+                  r'\1    paths:\n      exclude:\n' + exclude_entry,
+                  rule_block,
+                  count=1,
+              )
+
+          text = text[:rule_start] + new_block + text[rule_end:]
+          open(rule_file, 'w').write(text)
+          print(f"Patched {rule_file}: excluded {file_path} from {rule_id}")
+          PY
+
+          done < "$SUPPRESS_FILE"
+
+      - name: Semgrep TLS compliance scan
+        run: |
+          rm -f .semgrepignore
+
+          semgrep \
+            --config /tmp/argus-observe-rules/rules/languages/go/crypto/go-crypto-tls-version.yml \
+            --config /tmp/argus-observe-rules/rules/languages/go/crypto/go-crypto-cipher-suites.yml \
+            --config /tmp/argus-observe-rules/rules/languages/go/crypto/go-crypto-tls-cipher-suites.yml \
+            --config /tmp/argus-observe-rules/rules/languages/go/runtime-security/go-tls-version-override.yml \
+            --config /tmp/argus-observe-rules/rules/languages/go/runtime-security/go-tls-bypass.yml \
+            --config /tmp/argus-observe-rules/rules/languages/go/runtime-security/go-http-server-tls-override.yml \
+            --config /tmp/argus-observe-rules/rules/languages/go/runtime-security/go-http-client-tls-override.yml \
+            --config /tmp/argus-observe-rules/rules/languages/go/runtime-security/go-grpc-tls-credential-override.yml \
+            --config /tmp/argus-observe-rules/rules/languages/go/runtime-security/go-kubernetes-client-tls-override.yml \
+            --config /tmp/argus-observe-rules/rules/languages/go/runtime-security/go-certificate-validation-override.yml \
+            --no-git-ignore \
+            --exclude vendor --exclude node_modules --exclude '*_test.go' \
+            --error --severity WARNING --severity ERROR \
+            .
