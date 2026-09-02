@@ -166,13 +166,12 @@ cluster-wide check to the application namespace by accident.
 
 ## Versioning Gotchas
 
-- `pkg/controller/provision/gates_action.go` currently hardcodes the in-tree
-  gate lookup version via the exported `UpgradeGateVersion = "3.5.1"` constant.
-- `pkg/controller/provision/auto_ack_action.go` reuses that same
-  `UpgradeGateVersion` constant for the auto-ack version, so changing the target
-  gate version is a single-source edit.
-- Tests around `CheckUpgradeGatesInNamespace(...)` and
-  `AutoAcknowledgeUpgradeGatesInNamespace(...)` must respect that behavior.
+- Upgrade gate matching always includes the `3.5` minor scope while upgrading
+  from 2.x, even if OLM still exposes only the old CSV.
+- When a DSC-owning CSV in the range `>=3.5.0 <3.6.0` is present, the highest
+  matching version is also used so exact patch gates such as `ack-3.5.2-*` run.
+- `CheckUpgradeGatesInNamespace(...)` and auto-ack must use the same resolved
+  version scopes; otherwise a gate can block without its health check running.
 - `rr.Release` is the **current running operator release**, not the previous
   deployed release.
 - `cluster.GetDeployedRelease()` reads previous deployed state from:

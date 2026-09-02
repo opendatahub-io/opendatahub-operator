@@ -92,7 +92,7 @@ func runAutoAck(
 	t.Helper()
 
 	return provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		t.Context(), reader, cm, testApps, "3.0.0", componentStates,
+		t.Context(), reader, cm, testApps, []string{"3.0.0"}, componentStates,
 	)
 }
 
@@ -258,6 +258,21 @@ func TestAutoAck_PartialAck(t *testing.T) {
 	assert.Equal(t, "true", cm.Data["ack-3.0.0-dashboard"], "already acked stays acked")
 	assert.Equal(t, "true", cm.Data[passKey], "passing check auto-acked")
 	assert.NotEqual(t, "true", cm.Data[blockedKey], "blocked check remains unacked")
+}
+
+func TestAutoAck_MinorScopedGateMatchesPatchRelease(t *testing.T) {
+	t.Parallel()
+
+	cm := acksCM(map[string]string{
+		"ack-3.0-dashboard": "Acknowledge upgrade of dashboard",
+	})
+	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
+		WithObjects(readyDeployment(testApps, "dashboard", "dashboard")).Build()
+
+	err := runAutoAck(t, cli, cm, allManaged("dashboard"))
+
+	require.NoError(t, err)
+	assert.Equal(t, "true", cm.Data["ack-3.0-dashboard"])
 }
 
 func TestAutoAck_IgnoresOtherVersionKeys(t *testing.T) {

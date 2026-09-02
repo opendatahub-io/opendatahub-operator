@@ -51,6 +51,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	rp "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
@@ -166,7 +167,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		if nsErr != nil {
 			return reconcile.Result{}, nsErr
 		}
-		cleared, gateErr := gates.AllGatesAcknowledged(ctx, r.Client, ns)
+		versions, gateErr := provision.ResolveUpgradeGateVersions(ctx, r.Client, ns, instance.Status.Release, currentOperatorRelease)
+		if gateErr != nil {
+			log.Error(gateErr, "Failed to resolve upgrade gate versions")
+			return reconcile.Result{}, gateErr
+		}
+		cleared, gateErr := gates.AllGatesAcknowledged(ctx, r.Client, ns, versions)
 		if gateErr != nil {
 			log.Error(gateErr, "Failed to check upgrade gates")
 			return reconcile.Result{}, gateErr

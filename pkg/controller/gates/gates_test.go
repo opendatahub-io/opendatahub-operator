@@ -219,6 +219,43 @@ func TestEnsureGates_PreservesErrorMessageValues(t *testing.T) {
 		"acked entry must remain acknowledged")
 }
 
+func TestMatchGateKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		key      string
+		version  string
+		gateName string
+		match    bool
+	}{
+		{name: "minor first patch", key: "ack-3.5-kserve", version: "3.5.1", gateName: "kserve", match: true},
+		{name: "minor later patch", key: "ack-3.5-kserve", version: "3.5.2", gateName: "kserve", match: true},
+		{name: "different minor", key: "ack-3.5-kserve", version: "3.6.0", match: false},
+		{name: "exact match", key: "ack-3.5.1-kserve", version: "3.5.1", gateName: "kserve", match: true},
+		{name: "different patch", key: "ack-3.5.1-kserve", version: "3.5.2", match: false},
+		{name: "multi-digit patch", key: "ack-3.5.10-kserve", version: "3.5.10", gateName: "kserve", match: true},
+		{name: "multi-digit patch does not prefix-match", key: "ack-3.5.10-kserve", version: "3.5.1", match: false},
+		{name: "prerelease uses numeric core", key: "ack-3.5.2-kserve", version: "3.5.2-rc.1", gateName: "kserve", match: true},
+		{name: "build metadata uses numeric core", key: "ack-3.5-kserve", version: "3.5.2+build.7", gateName: "kserve", match: true},
+		{name: "missing prefix", key: "3.5-kserve", version: "3.5.1", match: false},
+		{name: "major only", key: "ack-3-kserve", version: "3.5.1", match: false},
+		{name: "empty patch", key: "ack-3.5.-kserve", version: "3.5.1", match: false},
+		{name: "version prefix", key: "ack-v3.5-kserve", version: "3.5.1", match: false},
+		{name: "missing gate name", key: "ack-3.5-", version: "3.5.1", match: false},
+		{name: "invalid current version", key: "ack-3.5-kserve", version: "3.5", match: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			gateName, match := gates.MatchGateKey(tc.key, tc.version)
+			assert.Equal(t, tc.match, match)
+			assert.Equal(t, tc.gateName, gateName)
+		})
+	}
+}
+
 func TestLoadInTreeGates_ReturnsAllEntries(t *testing.T) {
 	t.Parallel()
 
@@ -301,7 +338,7 @@ func TestEnsureGatesNil_ThenAllGatesAcknowledged_ReturnsTrue(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, unacked)
 
-	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace)
+	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, []string{"3.5.1"})
 	require.NoError(t, err)
 	assert.True(t, cleared, "AllGatesAcknowledged must return true after EnsureGates(nil) creates an empty ConfigMap")
 }
@@ -314,7 +351,7 @@ func TestAllGatesAcknowledged_NoCMReturnsFalse(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace)
+	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, []string{"3.5.1"})
 	require.NoError(t, err)
 	assert.False(t, cleared, "missing acks CM means modules controller hasn't evaluated yet")
 }
@@ -331,7 +368,7 @@ func TestAllGatesAcknowledged_EmptyCMReturnsTrue(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm).Build()
 
-	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace)
+	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, []string{"3.5.1"})
 	require.NoError(t, err)
 	assert.True(t, cleared, "empty CM means no gates needed (fresh install)")
 }
@@ -353,7 +390,7 @@ func TestAllGatesAcknowledged_AllAcked(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm).Build()
 
-	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace)
+	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, []string{"3.5.1"})
 	require.NoError(t, err)
 	assert.True(t, cleared)
 }
@@ -374,9 +411,31 @@ func TestAllGatesAcknowledged_PartiallyAcked(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm).Build()
 
-	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace)
+	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, []string{"3.5.1"})
 	require.NoError(t, err)
 	assert.False(t, cleared)
+}
+
+func TestAllGatesAcknowledged_IgnoresNonTargetVersions(t *testing.T) {
+	t.Parallel()
+
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: gates.AcksConfigMap, Namespace: testNamespace},
+		Data: map[string]string{
+			"ack-3.5.1-patch-only": "not acknowledged",
+			"ack-3.5-shared":       "true",
+			"ack-3.6-future":       "not acknowledged",
+		},
+	}
+
+	cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm).Build()
+
+	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, []string{"3.5.2"})
+	require.NoError(t, err)
+	assert.True(t, cleared)
 }
 
 const testNamespace = "test-ns"
