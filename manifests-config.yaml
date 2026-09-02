@@ -26,7 +26,7 @@ components:
   ray:
     odh:
       repo: opendatahub-io/kuberay
-      ref: dev@27b32d3e43203e838af050f37e4ae0453c949c39
+      ref: v1.6.2@560baadd3a5c4268e6c021f6cfe36591a7b2551e
       sourcePath: ray-operator/config
     rhoai:
       repo: red-hat-data-services/kuberay
@@ -35,7 +35,7 @@ components:
   trustyai:
     odh:
       repo: opendatahub-io/trustyai-service-operator
-      ref: incubation@59a7f4586e63bd80196968a3a58252feeb183bb9
+      ref: release/odh-3.6-ea1@ee7b1ace6b4aca90641e3aa424acb3ebca763d5f
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/trustyai-service-operator
@@ -44,7 +44,7 @@ components:
   modelregistry:
     odh:
       repo: opendatahub-io/model-registry-operator
-      ref: main@9ab44fab4b8a7afb7261145317a34dedb7b70355
+      ref: release/v0.3.16@8d422cfa5cc674f2dbd9e3575e6a9c7333af9807
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/model-registry-operator
@@ -53,7 +53,7 @@ components:
   datasciencepipelines:
     odh:
       repo: opendatahub-io/data-science-pipelines-operator
-      ref: main@5e01e73f08558c70f5bcf899c540cf3dc1bd8322
+      ref: v2.18.0@ab88c06494b0e1c58c6e5cfffad24a8d585b9dcd
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/data-science-pipelines-operator
@@ -62,7 +62,7 @@ components:
   ogx:
     odh:
       repo: opendatahub-io/ogx-k8s-operator
-      ref: odh@8ac1aff3f365eebf5012ab867abc8d84b23fb82d
+      ref: odh@5b653720ca412b3a9f203b5533dc6d767e713c7a
       sourcePath: ogx-module/config
     rhoai:
       repo: red-hat-data-services/ogx-k8s-operator
@@ -71,7 +71,7 @@ components:
   trainer:
     odh:
       repo: opendatahub-io/trainer-operator
-      ref: main@3d8702796f44c7df7a01a121bfa3a55a5b457931
+      ref: release/odh-3.6.0-ea1@d5e2b5dea3010dabf2f68a551594406ba3d5db99
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/trainer-operator
@@ -80,7 +80,7 @@ components:
   mlflowoperator:
     odh:
       repo: opendatahub-io/mlflow-operator
-      ref: main@1cfeeacf5e021aad300d54d0fd906cb269e12200
+      ref: 1.1.0@7abf6b5ea11c9d919998df3418fa031858085f41
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/mlflow-operator
@@ -89,7 +89,7 @@ components:
   sparkoperator:
     odh:
       repo: opendatahub-io/spark-operator
-      ref: main@a556584c0fad635bba72868cad2d3580ed9553c7
+      ref: odh-3.6.0-ea.1@a556584c0fad635bba72868cad2d3580ed9553c7
       sourcePath: spark-operator-module/config
     rhoai:
       repo: red-hat-data-services/spark-operator
@@ -154,7 +154,7 @@ componentCharts:
   workbenches:
     odh:
       repo: opendatahub-io/workbenches-operator
-      ref: main@79745e1003ca2edb25960976cb50c3cee9d2765f
+      ref: v1.1.0@34175a60cb80bd44d565a8ea06f9372c7cd1570d
       sourcePath: charts/operator
     rhoai:
       repo: red-hat-data-services/workbenches-operator

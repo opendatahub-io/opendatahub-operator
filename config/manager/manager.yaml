@@ -90,6 +90,10 @@ spec:
             value: /opt/charts
           - name: ODH_PLATFORM_TYPE
             value: OpenDataHub
+          - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
+            value: quay.io/opendatahub/odh-kube-auth-proxy:v3.6.0-ea.1
+          - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
+            value: quay.io/opendatahub/odh-kube-rbac-proxy:v3.6.0-ea.1
         args:
         - --leader-elect
         - --operator-name=opendatahub
