@@ -288,29 +288,49 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 
 // detectSelfManaged detects if it is Self Managed Rhoai or OpenDataHub.
 func detectSelfManaged(ctx context.Context, cli client.Client) (common.Platform, error) {
-	operatorInfo, err := OperatorExists(ctx, cli, "rhods-operator")
+	operatorInfo, err := OperatorExists(ctx, cli, rhoaiOperatorPackage)
 	if operatorInfo != nil {
 		return SelfManagedRhoai, nil
 	}
+	if err != nil {
+		return OpenDataHub, err
+	}
 
-	return OpenDataHub, err
+	ext, err := clusterExtensionForPackage(ctx, cli, rhoaiOperatorPackage, "")
+	if err != nil {
+		return OpenDataHub, err
+	}
+	if ext != nil {
+		return SelfManagedRhoai, nil
+	}
+
+	return OpenDataHub, nil
 }
 
-// detectManagedRhoai checks if catsrc CR add-on exists ManagedRhoai.
+// detectManagedRhoai checks if the managed add-on catalog exists (OLMv0 CatalogSource or OLMv1 ClusterCatalog).
 func detectManagedRhoai(ctx context.Context, cli client.Client) (common.Platform, error) {
 	catalogSource := &ofapiv1alpha1.CatalogSource{}
 	operatorNs, err := GetOperatorNamespace()
 	if err != nil {
 		operatorNs = "redhat-ods-operator"
 	}
-	err = cli.Get(ctx, client.ObjectKey{Name: "addon-managed-odh-catalog", Namespace: operatorNs}, catalogSource)
-	if err != nil {
-		if meta.IsNoMatchError(err) {
-			return OpenDataHub, nil
-		}
-		return OpenDataHub, client.IgnoreNotFound(err)
+	err = cli.Get(ctx, client.ObjectKey{Name: managedAddonCatalogName, Namespace: operatorNs}, catalogSource)
+	if err == nil {
+		return ManagedRhoai, nil
 	}
-	return ManagedRhoai, nil
+	if !meta.IsNoMatchError(err) && !k8serr.IsNotFound(err) {
+		return OpenDataHub, err
+	}
+
+	exists, err := managedAddonCatalogExists(ctx, cli)
+	if err != nil {
+		return OpenDataHub, err
+	}
+	if exists {
+		return ManagedRhoai, nil
+	}
+
+	return OpenDataHub, nil
 }
 
 func getPlatform(ctx context.Context, cli client.Client, platformType string) (common.Platform, error) {
@@ -384,14 +404,31 @@ func getRelease(ctx context.Context, cli client.Client, platformType string) (co
 		return initRelease, err
 	}
 	csv, err := GetClusterServiceVersion(ctx, cli, operatorNamespace)
-	if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
-		// CSV not found or OLM CRDs absent (no OLM installed) — not an error condition
+	if err == nil {
+		initRelease.Version = csv.Spec.Version
 		return initRelease, nil
 	}
+	if !k8serr.IsNotFound(err) && !meta.IsNoMatchError(err) {
+		return initRelease, err
+	}
+
+	packageName := odhOperatorPackage
+	switch platform {
+	case SelfManagedRhoai, ManagedRhoai:
+		packageName = rhoaiOperatorPackage
+	}
+	ext, err := clusterExtensionForPackage(ctx, cli, packageName, operatorNamespace)
 	if err != nil {
 		return initRelease, err
 	}
-	initRelease.Version = csv.Spec.Version
+	if ext != nil {
+		v, err := getInstalledVersionFromClusterExtension(ext)
+		if err != nil {
+			return initRelease, fmt.Errorf("invalid ClusterExtension bundle version: %w", err)
+		}
+		initRelease.Version = version.OperatorVersion{Version: v}
+	}
+
 	return initRelease, nil
 }
 

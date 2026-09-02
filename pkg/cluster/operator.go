@@ -26,6 +26,12 @@ type OperatorInfo struct {
 func GetSubscription(ctx context.Context, cli client.Client, namespace string, name string) (*v1alpha1.Subscription, error) {
 	sub := &v1alpha1.Subscription{}
 	if err := cli.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, sub); err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil, errors.NewNotFound(schema.GroupResource{
+				Group:    v1alpha1.SchemeGroupVersion.Group,
+				Resource: "subscriptions",
+			}, name)
+		}
 		// real error or 'not found' both return here
 		return nil, err
 	}
