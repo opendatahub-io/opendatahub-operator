@@ -26,7 +26,7 @@ components:
   ray:
     odh:
       repo: opendatahub-io/kuberay
-      ref: v1.6.2@560baadd3a5c4268e6c021f6cfe36591a7b2551e
+      ref: dev@27b32d3e43203e838af050f37e4ae0453c949c39
       sourcePath: ray-operator/config
     rhoai:
       repo: red-hat-data-services/kuberay
@@ -71,7 +71,7 @@ components:
   trainer:
     odh:
       repo: opendatahub-io/trainer-operator
-      ref: main@3d8702796f44c7df7a01a121bfa3a55a5b457931
+      ref: main@f3e507a1848132aac3b0e99b5f8e15019b18c069
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/trainer-operator
