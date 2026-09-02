@@ -53,7 +53,7 @@ components:
   datasciencepipelines:
     odh:
       repo: opendatahub-io/data-science-pipelines-operator
-      ref: v2.18.0@ab88c06494b0e1c58c6e5cfffad24a8d585b9dcd
+      ref: main@5e01e73f08558c70f5bcf899c540cf3dc1bd8322
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/data-science-pipelines-operator
@@ -80,7 +80,7 @@ components:
   mlflowoperator:
     odh:
       repo: opendatahub-io/mlflow-operator
-      ref: 1.1.0@7abf6b5ea11c9d919998df3418fa031858085f41
+      ref: main@1cfeeacf5e021aad300d54d0fd906cb269e12200
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/mlflow-operator
