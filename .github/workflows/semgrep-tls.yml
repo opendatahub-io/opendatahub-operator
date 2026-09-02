@@ -22,14 +22,23 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
+          set -euo pipefail
+          # The semgrep container does not own the checkout (runner vs image uid),
+          # so git 2.35+ refuses to run without this.
+          git config --global --add safe.directory "${GITHUB_WORKSPACE:-$PWD}"
           SUPPRESS_FILE=".github/semgrep-tls-excludes"
-          BASE="$BASE_REF"
-          git fetch --depth=1 origin "$BASE" 2>/dev/null || true
-          if git show "origin/$BASE:$SUPPRESS_FILE" > "$SUPPRESS_FILE" 2>/dev/null; then
-            echo "Loaded suppression file from origin/$BASE"
+          BASE="${BASE_REF:?github.base_ref is empty}"
+          # Explicit dest refspec is required: `git fetch origin $BASE` only
+          # updates FETCH_HEAD and does not create origin/$BASE on a shallow
+          # PR checkout, so `git show origin/$BASE:...` would miss a file that
+          # actually exists on the base branch.
+          git fetch --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"
+          if git cat-file -e "origin/${BASE}:${SUPPRESS_FILE}" 2>/dev/null; then
+            git show "origin/${BASE}:${SUPPRESS_FILE}" > "$SUPPRESS_FILE"
+            echo "Loaded suppression file from origin/${BASE}"
           else
             rm -f "$SUPPRESS_FILE"
-            echo "No suppression file on base branch"
+            echo "No suppression file on base branch origin/${BASE}"
           fi
 
       - name: Fetch argus-observe-rules
