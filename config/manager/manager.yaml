@@ -90,6 +90,70 @@ spec:
             value: /opt/charts
           - name: ODH_PLATFORM_TYPE
             value: OpenDataHub
+          # Public quay.io/opendatahub images tagged with the ODH chart/manifest
+          # git SHAs in get_all_manifests.sh. Without these, injectModuleEnv leaves
+          # module operators on :main / :odh-stable, which watch APIs that 3.5 RBAC
+          # does not grant. Images with no matching public SHA tag are omitted.
+          - name: RELATED_IMAGE_ODH_AI_GATEWAY_OPERATOR_IMAGE
+            value: quay.io/opendatahub/odh-ai-gateway-operator@sha256:4cb292351ba8b1555658c9688d3a75b6dbb0614a3078a27830aa27cc8a230c01
+          - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
+            value: quay.io/opendatahub/odh-core-bff@sha256:99fe1ea3e179ac4c74c60fd95add676b3848b80af6affa7691307871a39c2daf
+          - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
+            value: quay.io/opendatahub/odh-dashboard@sha256:b29aa0ad3dc3a10cc6292814f5b5219463043460013d0f7951e38f690c5babd7
+          - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
+            value: quay.io/opendatahub/odh-dashboard-operator@sha256:fa16b209086abbf1fc31f273f4d23999037ad296017c0676f39e67c392dde5c0
+          - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE
+            value: quay.io/opendatahub/data-science-pipelines-operator@sha256:fa979757771c13fb22fbb7be410f08c90fe8f5b664b5e53c7791a828a9f1431a
+          - name: RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE
+            value: quay.io/opendatahub/odh-feast-module-operator@sha256:755adec76a7ce91b4c14ef617e8aa195c294db4789a2511da99cc35e42b0c9dc
+          - name: RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE
+            value: quay.io/opendatahub/kserve-agent@sha256:d43eb33f89d0b9cc2cc54978bac377606b95972957e33af300fe87a72fe30713
+          - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
+            value: quay.io/opendatahub/kserve-controller@sha256:a2d4518db495bce0c4979b878a5cc93c5e19d2ae6a128907b87927cea0e74c16
+          - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
+            value: quay.io/opendatahub/odh-kserve-llmisvc-controller@sha256:52355b56a2c999789de5dd2f892f3ae77efcc3282a8016013a32adbe9abcf27a
+          - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
+            value: quay.io/opendatahub/odh-kserve-localmodelnode-agent@sha256:76c5af8b9cf9217f5f991dc55a4c289caa5a363a229b9a2ae3098b49d74b8224
+          - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
+            value: quay.io/opendatahub/odh-kserve-localmodel-controller@sha256:8dfa389223d818454a7368d466231f1d909818e04fcb2addd439bf48c32779d7
+          - name: RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE
+            value: quay.io/opendatahub/odh-kserve-module-operator@sha256:91af4371b243696267e5ae5f335946ca158cdd5ea0cf74020c3481fc0d26b725
+          - name: RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE
+            value: quay.io/opendatahub/kserve-router@sha256:b90d4381a1e7f769c84454898f7dec80dace621c82215f2e343b71edfeac4c99
+          - name: RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE
+            value: quay.io/opendatahub/kserve-storage-initializer@sha256:cbeff424330ff61e575e581b614ce5e0896756608c9e1ab92cdfde975bba9f5a
+          - name: RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE
+            value: quay.io/opendatahub/kuberay-operator@sha256:906d678baca042eb2d35766bdac361e602a68358453aad9787393249db5e4c74
+          - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_OPERATOR_IMAGE
+            value: quay.io/opendatahub/odh-batch-gateway-operator@sha256:7da8ce8362843aa6e451c627524d945b8c66b4be57269fa534472cb51d4ba69b
+          - name: RELATED_IMAGE_ODH_MCP_LIFECYCLE_MODULE_OPERATOR_IMAGE
+            value: quay.io/opendatahub/odh-mcp-lifecycle-module-operator@sha256:9e4d431a723caab53c1818c6760433c538f32193ccb7402e9fa77ef53b97881c
+          - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
+            value: quay.io/opendatahub/mlflow-operator@sha256:0d71ea8d1c342cf33afeec48e56c74ac1bac5e3832afb29437d4871faec4ee16
+          - name: RELATED_IMAGE_ODH_MOD_ARCH_AGENT_OPS_IMAGE
+            value: quay.io/opendatahub/odh-mod-arch-agent-ops@sha256:22b8f0087ffba67df2a7ffa919f0fcd7afdbf21862d6bc4fb797ac1b8ca14e52
+          - name: RELATED_IMAGE_ODH_MOD_ARCH_AUTOML_IMAGE
+            value: quay.io/opendatahub/odh-mod-arch-automl@sha256:b763b935d1ac53c317ab8efffa4439387c331d9f48f938eef1faa461bbcb8b74
+          - name: RELATED_IMAGE_ODH_MOD_ARCH_AUTORAG_IMAGE
+            value: quay.io/opendatahub/odh-mod-arch-autorag@sha256:a21880827af07bdaed9161a4284cfd0ab62c7a6b5d1f0a25a9aa3338c348b919
+          - name: RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE
+            value: quay.io/opendatahub/odh-mod-arch-eval-hub@sha256:100395dd7b078a63f39b54310d81f31811c868ff6751adffb850091a758b8e73
+          - name: RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE
+            value: quay.io/opendatahub/odh-mod-arch-gen-ai@sha256:4ab322f9b112cf3ab77bc01e9054e4bd13829fcb8e20bec1a7ccadcd17213fe1
+          - name: RELATED_IMAGE_ODH_MOD_ARCH_MLFLOW_IMAGE
+            value: quay.io/opendatahub/odh-mod-arch-mlflow@sha256:a314eea5052bf7491de4f5678fb005c855a77aabad58fa24f645cdb36a047c01
+          - name: RELATED_IMAGE_ODH_OGX_K8S_OPERATOR_IMAGE
+            value: quay.io/opendatahub/odh-ogx-k8s-operator@sha256:6918709f2bdf89eb3a3ff7b4d7e49339104cb6b6a334378a936750166cf17560
+          - name: RELATED_IMAGE_ODH_OGX_MODULE_OPERATOR_IMAGE
+            value: quay.io/opendatahub/odh-ogx-module-operator@sha256:8963716611c3078a8b44c4dd123f8a1d36da5978c3d76049e02fca9c27d9851c
+          - name: RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE
+            value: quay.io/opendatahub/spark-operator@sha256:55a648d6142d00bd84f4daf6449ba4fb4892840455e4987c358aac518dc27a21
+          - name: RELATED_IMAGE_ODH_TRAINER_IMAGE
+            value: quay.io/opendatahub/trainer@sha256:8d278389916c180364eb9f0a78088040ea06221dd77efa3c936137ea4b7fcf0e
+          - name: RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE
+            value: quay.io/opendatahub/training-operator@sha256:b76dc7605a25188610fa6208a4fdde65825c9069fc48c03beee204ce1481ce68
+          - name: RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE
+            value: quay.io/opendatahub/odh-workbenches-operator@sha256:a5919725e14c45fc857e9827343e26b37c0707a69c8edc0fcfff24446f4ffaf2
         args:
         - --leader-elect
         - --operator-name=opendatahub
