@@ -91,12 +91,12 @@ func ComponentUpgradeGateAction(ctx context.Context, rr *odhtype.ReconciliationR
 	if err != nil {
 		return fmt.Errorf("failed to determine deployed release for upgrade gates: %w", err)
 	}
-	versions, err := ResolveUpgradeGateVersions(ctx, rr.Client, ns, deployed, rr.Release)
+	targetVersion, err := ResolveUpgradeGateVersion(ctx, rr.Client, ns, deployed, rr.Release)
 	if err != nil {
-		return fmt.Errorf("failed to resolve upgrade gate versions: %w", err)
+		return fmt.Errorf("failed to resolve upgrade gate version: %w", err)
 	}
 
-	return ComponentUpgradeGateCheck(ctx, rr.Client, ns, versions, rr.Conditions)
+	return ComponentUpgradeGateCheck(ctx, rr.Client, ns, targetVersion, rr.Conditions)
 }
 
 // ComponentUpgradeGateCheck is the namespace-explicit variant of
@@ -105,10 +105,10 @@ func ComponentUpgradeGateCheck(
 	ctx context.Context,
 	cli client.Client,
 	namespace string,
-	versions []string,
+	targetVersion string,
 	conditions ConditionWriter,
 ) error {
-	cleared, err := gates.AllGatesAcknowledged(ctx, cli, namespace, versions)
+	cleared, err := gates.AllGatesAcknowledged(ctx, cli, namespace, targetVersion)
 	if err != nil {
 		return fmt.Errorf("failed to check upgrade gates: %w", err)
 	}
@@ -165,12 +165,12 @@ func CheckUpgradeGatesInNamespace(
 		return fmt.Errorf("cannot determine deployed release for upgrade gate check: %w", err)
 	}
 
-	versions, err := ResolveUpgradeGateVersions(ctx, cli, namespace, deployed, release)
+	targetVersion, err := ResolveUpgradeGateVersion(ctx, cli, namespace, deployed, release)
 	if err != nil {
-		return fmt.Errorf("failed to resolve upgrade gate versions: %w", err)
+		return fmt.Errorf("failed to resolve upgrade gate version: %w", err)
 	}
 
-	if len(versions) == 0 || !isVersionUpgrade(deployed.Version.Version, versions[0]) {
+	if !isVersionUpgrade(deployed.Version.Version, targetVersion) {
 		// Not a version upgrade — create empty ConfigMap to signal
 		// "gate evaluation complete, no gates needed" so component
 		// controllers waiting on the ConfigMap can proceed.
@@ -201,13 +201,13 @@ func CheckUpgradeGatesInNamespace(
 		return fmt.Errorf("failed to discover cluster gates: %w", err)
 	}
 	for k, v := range clusterGates {
-		if _, matches := matchUpgradeGateKey(k, versions); matches {
+		if _, matches := gates.MatchGateKey(k, targetVersion); matches {
 			allGates[k] = v
 		}
 	}
 
 	for k, v := range chartGates {
-		if _, matches := matchUpgradeGateKey(k, versions); matches {
+		if _, matches := gates.MatchGateKey(k, targetVersion); matches {
 			allGates[k] = v
 		}
 	}
@@ -227,7 +227,7 @@ func CheckUpgradeGatesInNamespace(
 	}
 
 	log.Info("provisioning blocked by unacknowledged upgrade gates",
-		"versions", versions,
+		"version", targetVersion,
 		"unacked_gates", keys,
 	)
 
@@ -238,5 +238,5 @@ func CheckUpgradeGatesInNamespace(
 		Message: fmt.Sprintf("Upgrade gates not acknowledged: %s", strings.Join(keys, ", ")),
 	})
 
-	return odherrors.NewStopError("provisioning blocked: %d unacknowledged upgrade gate(s) for versions %s", len(unacked), strings.Join(versions, ", "))
+	return odherrors.NewStopError("provisioning blocked: %d unacknowledged upgrade gate(s) for version %s", len(unacked), targetVersion)
 }

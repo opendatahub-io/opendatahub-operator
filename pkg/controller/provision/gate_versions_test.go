@@ -16,7 +16,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 )
 
-func TestResolveUpgradeGateVersions(t *testing.T) {
+func TestResolveUpgradeGateVersion(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -24,7 +24,7 @@ func TestResolveUpgradeGateVersions(t *testing.T) {
 		deployed string
 		running  string
 		csvs     []*operatorsv1alpha1.ClusterServiceVersion
-		expected []string
+		expected string
 		err      bool
 	}{
 		{
@@ -32,7 +32,7 @@ func TestResolveUpgradeGateVersions(t *testing.T) {
 			deployed: "2.25.10",
 			running:  "3.5.1",
 			csvs:     []*operatorsv1alpha1.ClusterServiceVersion{dscOwningCSV("rhods-operator.2.25.10", "2.25.10")},
-			expected: []string{"3.5.1"},
+			expected: "3.5.1",
 		},
 		{
 			name:     "newer DSC-owning CSV protects against stale running release",
@@ -42,7 +42,7 @@ func TestResolveUpgradeGateVersions(t *testing.T) {
 				dscOwningCSV("rhods-operator.2.25.10", "2.25.10"),
 				dscOwningCSV("rhods-operator.v3.5.2", "3.5.2"),
 			},
-			expected: []string{"3.5.2"},
+			expected: "3.5.2",
 		},
 		{
 			name:     "highest DSC-owning CSV wins when running release is unavailable",
@@ -52,7 +52,7 @@ func TestResolveUpgradeGateVersions(t *testing.T) {
 				dscOwningCSV("rhods-operator.v3.5.3", "3.5.3"),
 				dscOwningCSV("rhods-operator.v3.5.2", "3.5.2"),
 			},
-			expected: []string{"3.5.3"},
+			expected: "3.5.3",
 		},
 		{
 			name:     "non-owning CSVs are ignored",
@@ -62,7 +62,7 @@ func TestResolveUpgradeGateVersions(t *testing.T) {
 				csv("dependency.v3.5.2", "3.5.2", false),
 				dscOwningCSV("rhods-operator.2.25.10", "2.25.10"),
 			},
-			expected: []string{"3.5.1"},
+			expected: "3.5.1",
 		},
 		{
 			name:     "missing target fails closed",
@@ -85,7 +85,7 @@ func TestResolveUpgradeGateVersions(t *testing.T) {
 			}
 			cli := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objects...).Build()
 
-			versions, err := provision.ResolveUpgradeGateVersions(
+			targetVersion, err := provision.ResolveUpgradeGateVersion(
 				t.Context(), cli, testNS,
 				releaseForVersion(tc.deployed),
 				releaseForVersion(tc.running),
@@ -96,7 +96,7 @@ func TestResolveUpgradeGateVersions(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tc.expected, versions)
+			assert.Equal(t, tc.expected, targetVersion)
 		})
 	}
 }

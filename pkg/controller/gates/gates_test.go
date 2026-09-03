@@ -338,7 +338,7 @@ func TestEnsureGatesNil_ThenAllGatesAcknowledged_ReturnsTrue(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, unacked)
 
-	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, []string{"3.5.1"})
+	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, "3.5.1")
 	require.NoError(t, err)
 	assert.True(t, cleared, "AllGatesAcknowledged must return true after EnsureGates(nil) creates an empty ConfigMap")
 }
@@ -351,7 +351,7 @@ func TestAllGatesAcknowledged_NoCMReturnsFalse(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, []string{"3.5.1"})
+	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, "3.5.1")
 	require.NoError(t, err)
 	assert.False(t, cleared, "missing acks CM means modules controller hasn't evaluated yet")
 }
@@ -368,7 +368,7 @@ func TestAllGatesAcknowledged_EmptyCMReturnsTrue(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm).Build()
 
-	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, []string{"3.5.1"})
+	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, "3.5.1")
 	require.NoError(t, err)
 	assert.True(t, cleared, "empty CM means no gates needed (fresh install)")
 }
@@ -390,7 +390,7 @@ func TestAllGatesAcknowledged_AllAcked(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm).Build()
 
-	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, []string{"3.5.1"})
+	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, "3.5.1")
 	require.NoError(t, err)
 	assert.True(t, cleared)
 }
@@ -411,7 +411,7 @@ func TestAllGatesAcknowledged_PartiallyAcked(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm).Build()
 
-	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, []string{"3.5.1"})
+	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, "3.5.1")
 	require.NoError(t, err)
 	assert.False(t, cleared)
 }
@@ -433,7 +433,7 @@ func TestAllGatesAcknowledged_IgnoresNonTargetVersions(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm).Build()
 
-	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, []string{"3.5.2"})
+	cleared, err := gates.AllGatesAcknowledged(context.Background(), cli, testNamespace, "3.5.2")
 	require.NoError(t, err)
 	assert.True(t, cleared)
 }

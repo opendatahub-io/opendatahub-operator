@@ -528,7 +528,7 @@ func TestComponentUpgradeGateCheck_NoCMReturnsStopError(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(newScheme()).Build()
 	conds := &condRecorder{}
 
-	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", []string{"3.5.1"}, conds)
+	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", "3.5.1", conds)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "waiting for upgrade gates to be acknowledged")
@@ -553,7 +553,7 @@ func TestComponentUpgradeGateCheck_AllAckedReturnsNil(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(acksCM).Build()
 	conds := &condRecorder{}
 
-	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", []string{"3.5.1"}, conds)
+	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", "3.5.1", conds)
 
 	require.NoError(t, err)
 	assert.Empty(t, conds.conditions)
@@ -573,7 +573,7 @@ func TestComponentUpgradeGateCheck_PartialAckReturnsStopError(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(acksCM).Build()
 	conds := &condRecorder{}
 
-	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", []string{"3.5.1"}, conds)
+	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", "3.5.1", conds)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "waiting for upgrade gates to be acknowledged")
@@ -594,7 +594,7 @@ func TestComponentUpgradeGateCheck_EmptyCMReturnsNil(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(acksCM).Build()
 	conds := &condRecorder{}
 
-	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", []string{"3.5.1"}, conds)
+	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", "3.5.1", conds)
 
 	require.NoError(t, err)
 	assert.Empty(t, conds.conditions)

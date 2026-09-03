@@ -167,12 +167,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		if nsErr != nil {
 			return reconcile.Result{}, nsErr
 		}
-		versions, gateErr := provision.ResolveUpgradeGateVersions(ctx, r.Client, ns, instance.Status.Release, currentOperatorRelease)
+		targetVersion, gateErr := provision.ResolveUpgradeGateVersion(ctx, r.Client, ns, instance.Status.Release, currentOperatorRelease)
 		if gateErr != nil {
-			log.Error(gateErr, "Failed to resolve upgrade gate versions")
+			log.Error(gateErr, "Failed to resolve upgrade gate version")
 			return reconcile.Result{}, gateErr
 		}
-		cleared, gateErr := gates.AllGatesAcknowledged(ctx, r.Client, ns, versions)
+		cleared, gateErr := gates.AllGatesAcknowledged(ctx, r.Client, ns, targetVersion)
 		if gateErr != nil {
 			log.Error(gateErr, "Failed to check upgrade gates")
 			return reconcile.Result{}, gateErr

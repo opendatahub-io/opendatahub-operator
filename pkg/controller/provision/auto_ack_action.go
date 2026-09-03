@@ -47,11 +47,11 @@ func AutoAcknowledgeUpgradeGates(ctx context.Context, rr *odhtype.Reconciliation
 		return fmt.Errorf("failed to determine deployed release for upgrade gates: %w", err)
 	}
 
-	versions, err := ResolveUpgradeGateVersions(ctx, reader, ns, deployed, rr.Release)
+	targetVersion, err := ResolveUpgradeGateVersion(ctx, reader, ns, deployed, rr.Release)
 	if err != nil {
-		return fmt.Errorf("failed to resolve upgrade gate versions: %w", err)
+		return fmt.Errorf("failed to resolve upgrade gate version: %w", err)
 	}
-	if len(versions) == 0 || !isVersionUpgrade(deployed.Version.Version, versions[0]) {
+	if !isVersionUpgrade(deployed.Version.Version, targetVersion) {
 		return nil
 	}
 
@@ -61,7 +61,7 @@ func AutoAcknowledgeUpgradeGates(ctx context.Context, rr *odhtype.Reconciliation
 		reader,
 		cm,
 		cluster.GetApplicationNamespace(),
-		versions,
+		targetVersion,
 		resolveManagedComponents(rr.Instance),
 	); err != nil {
 		return err
@@ -87,7 +87,7 @@ func AutoAcknowledgeUpgradeGatesInNamespace(
 	reader client.Reader,
 	cm *corev1.ConfigMap,
 	appsNS string,
-	versions []string,
+	targetVersion string,
 	componentStates map[string]operatorv1.ManagementState,
 ) error {
 	if cm == nil {
@@ -96,10 +96,10 @@ func AutoAcknowledgeUpgradeGatesInNamespace(
 
 	log := logf.FromContext(ctx)
 
-	log.Info("running auto-ack upgrade checks", "versions", versions)
+	log.Info("running auto-ack upgrade checks", "version", targetVersion)
 
 	for key, value := range cm.Data {
-		gateKey, matches := matchUpgradeGateKey(key, versions)
+		gateKey, matches := gates.MatchGateKey(key, targetVersion)
 		if !matches || value == "true" {
 			continue
 		}

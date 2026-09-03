@@ -219,11 +219,11 @@ func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error 
 	if err != nil {
 		return err
 	}
-	versions, err := provision.ResolveUpgradeGateVersions(ctx, rr.Client, ns, instance.Status.Release, rr.Release)
+	targetVersion, err := provision.ResolveUpgradeGateVersion(ctx, rr.Client, ns, instance.Status.Release, rr.Release)
 	if err != nil {
-		return fmt.Errorf("failed to resolve upgrade gate versions: %w", err)
+		return fmt.Errorf("failed to resolve upgrade gate version: %w", err)
 	}
-	cleared, err := gates.AllGatesAcknowledged(ctx, rr.Client, ns, versions)
+	cleared, err := gates.AllGatesAcknowledged(ctx, rr.Client, ns, targetVersion)
 	if err != nil {
 		return fmt.Errorf("failed to check upgrade gates: %w", err)
 	}

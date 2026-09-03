@@ -92,7 +92,7 @@ func runAutoAck(
 	t.Helper()
 
 	return provision.AutoAcknowledgeUpgradeGatesInNamespace(
-		t.Context(), reader, cm, testApps, []string{"3.0.0"}, componentStates,
+		t.Context(), reader, cm, testApps, "3.0.0", componentStates,
 	)
 }
 

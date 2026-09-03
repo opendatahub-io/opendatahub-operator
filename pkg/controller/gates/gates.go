@@ -243,12 +243,12 @@ func parseGateTarget(value string) (versionCore, bool) {
 }
 
 // AllGatesAcknowledged returns true when the odh-upgrade-acks
-// ConfigMap exists and every gate entry matching one of the target versions is
-// set to "true". Entries for other versions are ignored. Returns false when
-// the ConfigMap does not exist (the modules controller has not yet evaluated
-// gates) or when an applicable entry remains unacknowledged. An empty or
-// out-of-scope ConfigMap is considered fully acknowledged.
-func AllGatesAcknowledged(ctx context.Context, cli client.Client, namespace string, versions []string) (bool, error) {
+// ConfigMap exists and every gate entry matching the target version is set to
+// "true". Entries for other versions are ignored. Returns false when the
+// ConfigMap does not exist (the modules controller has not yet evaluated gates)
+// or when an applicable entry remains unacknowledged. An empty or out-of-scope
+// ConfigMap is considered fully acknowledged.
+func AllGatesAcknowledged(ctx context.Context, cli client.Client, namespace string, targetVersion string) (bool, error) {
 	cm := &corev1.ConfigMap{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: AcksConfigMap, Namespace: namespace}, cm); err != nil {
 		if k8serr.IsNotFound(err) {
@@ -258,7 +258,7 @@ func AllGatesAcknowledged(ctx context.Context, cli client.Client, namespace stri
 	}
 
 	for key, val := range cm.Data {
-		if !matchesAnyVersion(key, versions) {
+		if _, matches := MatchGateKey(key, targetVersion); !matches {
 			continue
 		}
 		if val != "true" {
@@ -267,15 +267,6 @@ func AllGatesAcknowledged(ctx context.Context, cli client.Client, namespace stri
 	}
 
 	return true, nil
-}
-
-func matchesAnyVersion(key string, versions []string) bool {
-	for _, version := range versions {
-		if _, matches := MatchGateKey(key, version); matches {
-			return true
-		}
-	}
-	return false
 }
 
 // DiscoverGates lists ConfigMaps in the operator namespace that carry

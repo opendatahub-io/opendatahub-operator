@@ -11,37 +11,39 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 )
 
-// ResolveUpgradeGateVersions returns the target release used to match
-// upgrade-gate keys. The release detected for the running operator is the
-// primary source. DSC-owning CSVs provide a fallback and protect against OLM's
-// transient two-CSV transition when the runtime release is stale.
-func ResolveUpgradeGateVersions(
+// ResolveUpgradeGateVersion returns the target release used to match
+// upgrade-gate keys. deployedRelease is the version persisted in the DSC or
+// DSCI status. operatorRelease is the version for the running operator, usually
+// obtained from RHAI_VERSION or the DSC-owning CSV during cluster.Init and
+// propagated through the reconciliation request. DSC-owning CSVs provide a
+// fallback and protect against OLM's transient two-CSV transition when the
+// operator release is stale.
+func ResolveUpgradeGateVersion(
 	ctx context.Context,
 	reader client.Reader,
 	namespace string,
-	deployed common.Release,
-	running common.Release,
-) ([]string, error) {
+	deployedRelease common.Release,
+	operatorRelease common.Release,
+) (string, error) {
 	var target *semver.Version
-	if isAtLeastVersion(running.Version.Version, deployed.Version.Version) {
-		version := running.Version.Version
+	if isAtLeastVersion(operatorRelease.Version.Version, deployedRelease.Version.Version) {
+		version := operatorRelease.Version.Version
 		target = &version
 	}
 
 	csvs := &operatorsv1alpha1.ClusterServiceVersionList{}
 	if err := reader.List(ctx, csvs, client.InNamespace(namespace)); err != nil {
 		if meta.IsNoMatchError(err) {
-			return targetVersion(target)
+			return resolvedTargetVersion(target)
 		}
-		return nil, fmt.Errorf("listing ClusterServiceVersions for upgrade gates: %w", err)
+		return "", fmt.Errorf("listing ClusterServiceVersions for upgrade gates: %w", err)
 	}
 
 	for i := range csvs.Items {
 		csv := &csvs.Items[i]
-		if !ownsDataScienceCluster(csv) || !isUpgradeTarget(csv.Spec.Version.Version, deployed.Version.Version) {
+		if !ownsDataScienceCluster(csv) || !isUpgradeTarget(csv.Spec.Version.Version, deployedRelease.Version.Version) {
 			continue
 		}
 
@@ -52,14 +54,14 @@ func ResolveUpgradeGateVersions(
 		}
 	}
 
-	return targetVersion(target)
+	return resolvedTargetVersion(target)
 }
 
-func targetVersion(target *semver.Version) ([]string, error) {
+func resolvedTargetVersion(target *semver.Version) (string, error) {
 	if target == nil {
-		return nil, errors.New("unable to determine target release for upgrade gates")
+		return "", errors.New("unable to determine target release for upgrade gates")
 	}
-	return []string{target.String()}, nil
+	return target.String(), nil
 }
 
 func isVersionUpgrade(deployed semver.Version, target string) bool {
@@ -102,13 +104,4 @@ func ownsDataScienceCluster(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
 		}
 	}
 	return false
-}
-
-func matchUpgradeGateKey(key string, versions []string) (string, bool) {
-	for _, version := range versions {
-		if gateName, matches := gates.MatchGateKey(key, version); matches {
-			return gateName, true
-		}
-	}
-	return "", false
 }
