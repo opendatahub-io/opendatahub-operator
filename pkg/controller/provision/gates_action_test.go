@@ -6,6 +6,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	ofaversion "github.com/operator-framework/api/pkg/lib/version"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -39,6 +40,7 @@ func newScheme() *runtime.Scheme {
 	_ = corev1.AddToScheme(s)
 	_ = dsciv2.AddToScheme(s)
 	_ = dscv2.AddToScheme(s)
+	_ = operatorsv1alpha1.AddToScheme(s)
 	return s
 }
 
@@ -53,6 +55,12 @@ func dsciWithMajor(major uint64) *dsciv2.DSCInitialization {
 			},
 		},
 	}
+}
+
+func dsciWithVersion(value string) *dsciv2.DSCInitialization {
+	result := dsciWithMajor(0)
+	result.Status.Release.Version.Version = semver.MustParse(value)
+	return result
 }
 
 func release() common.Release {
@@ -105,11 +113,11 @@ func TestCheckUpgradeGates_FreshInstallCreatesEmptyCM(t *testing.T) {
 	assert.Empty(t, cm.Data)
 }
 
-func TestCheckUpgradeGates_SameMajorCreatesEmptyCM(t *testing.T) {
+func TestCheckUpgradeGates_SameVersionCreatesEmptyCM(t *testing.T) {
 	t.Parallel()
 
 	cli := fake.NewClientBuilder().WithScheme(newScheme()).
-		WithObjects(dsciWithMajor(3)).Build()
+		WithObjects(dsciWithVersion(testGateVersion)).Build()
 	conds := &condRecorder{}
 
 	err := provision.CheckUpgradeGatesInNamespace(context.Background(), cli, "test-ns", release(), conds, nil)
@@ -120,8 +128,41 @@ func TestCheckUpgradeGates_SameMajorCreatesEmptyCM(t *testing.T) {
 	cm := &corev1.ConfigMap{}
 	require.NoError(t, cli.Get(context.Background(), client.ObjectKey{
 		Name: gates.AcksConfigMap, Namespace: "test-ns",
-	}, cm), "empty CM must be created on same-major upgrade")
+	}, cm), "empty CM must be created when there is no version upgrade")
 	assert.Empty(t, cm.Data)
+}
+
+func TestCheckUpgradeGates_SameMajorPatchUpgradeEvaluatesGates(t *testing.T) {
+	t.Parallel()
+
+	source := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "gate-source",
+			Namespace: "test-ns",
+			Labels:    map[string]string{gates.UpgradeGateLabel: "true"},
+		},
+		Data: map[string]string{
+			"ack-3.5.2-patch-change": "Patch release requires migration",
+		},
+	}
+	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(
+		dsciWithVersion("3.5.1"),
+		acksCM(ackedInTreeGates(t)),
+		source,
+	).Build()
+	conds := &condRecorder{}
+
+	err := provision.CheckUpgradeGatesInNamespace(
+		context.Background(), cli, "test-ns", releaseForVersion("3.5.2"), conds, nil,
+	)
+
+	require.Error(t, err)
+
+	cm := &corev1.ConfigMap{}
+	require.NoError(t, cli.Get(context.Background(), client.ObjectKey{
+		Name: gates.AcksConfigMap, Namespace: "test-ns",
+	}, cm))
+	assert.Equal(t, "Patch release requires migration", cm.Data["ack-3.5.2-patch-change"])
 }
 
 func TestCheckUpgradeGates_BlocksOnUpgradeFrom2x(t *testing.T) {
@@ -135,7 +176,7 @@ func TestCheckUpgradeGates_BlocksOnUpgradeFrom2x(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unacknowledged upgrade gate(s)")
-	assert.Contains(t, err.Error(), testGateVersion)
+	assert.Contains(t, err.Error(), "3.5.1")
 
 	require.Len(t, conds.conditions, 1)
 	assert.Equal(t, status.AdminAckRequiredReason, conds.conditions[0].Reason)
@@ -163,7 +204,7 @@ func TestCheckUpgradeGates_AllInTreeGatesAcked(t *testing.T) {
 	}
 
 	cli := fake.NewClientBuilder().WithScheme(newScheme()).
-		WithObjects(dsciWithMajor(2), acksCM, source).Build()
+		WithObjects(dsciWithMajor(2), dscOwningGateCSV("rhods-operator.v3.5.1", "3.5.1"), acksCM, source).Build()
 	conds := &condRecorder{}
 
 	err := provision.CheckUpgradeGatesInNamespace(context.Background(), cli, "test-ns", release(), conds, nil)
@@ -189,6 +230,7 @@ func TestCheckUpgradeGates_MergesClusterAndChartGates(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(
 		dsciWithMajor(2),
+		dscOwningGateCSV("rhods-operator.v3.5.1", "3.5.1"),
 		acksCM(ackedInTreeGates(t)),
 		source,
 	).Build()
@@ -214,6 +256,85 @@ func TestCheckUpgradeGates_MergesClusterAndChartGates(t *testing.T) {
 	}, acksCM))
 	assert.Equal(t, "KServe API changed; review migration guide", acksCM.Data["ack-3.5.1-kserve-api-change"])
 	assert.Equal(t, "Model Registry schema updated", acksCM.Data["ack-3.5.1-model-registry"])
+}
+
+func TestCheckUpgradeGates_MinorScopedGateMatchesPatchRelease(t *testing.T) {
+	t.Parallel()
+
+	source := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "gate-source",
+			Namespace: "test-ns",
+			Labels:    map[string]string{gates.UpgradeGateLabel: "true"},
+		},
+		Data: map[string]string{
+			"ack-3.5-minor-scope-test": "Migration applies to every 3.5 patch",
+		},
+	}
+
+	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(
+		dsciWithMajor(2),
+		acksCM(ackedInTreeGates(t)),
+		source,
+	).Build()
+	conds := &condRecorder{}
+
+	err := provision.CheckUpgradeGatesInNamespace(context.Background(), cli, "test-ns", release(), conds, nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "1 unacknowledged upgrade gate(s)")
+	require.Len(t, conds.conditions, 1)
+	assert.Contains(t, conds.conditions[0].Message, "ack-3.5-minor-scope-test")
+
+	acksCM := &corev1.ConfigMap{}
+	require.NoError(t, cli.Get(context.Background(), client.ObjectKey{
+		Name: gates.AcksConfigMap, Namespace: "test-ns",
+	}, acksCM))
+	assert.Equal(t, "Migration applies to every 3.5 patch", acksCM.Data["ack-3.5-minor-scope-test"])
+}
+
+func TestCheckUpgradeGates_ExactGateMatchesDiscoveredTargetCSV(t *testing.T) {
+	t.Parallel()
+
+	source := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "gate-source",
+			Namespace: "test-ns",
+			Labels:    map[string]string{gates.UpgradeGateLabel: "true"},
+		},
+		Data: map[string]string{
+			"ack-3.5.2-exact-scope-test": "Migration applies only to 3.5.2",
+			"ack-3.5.1-other-patch":      "Must not apply",
+		},
+	}
+
+	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(
+		dsciWithMajor(2),
+		acksCM(ackedInTreeGates(t)),
+		dscOwningGateCSV("rhods-operator.2.25.10", "2.25.10"),
+		dscOwningGateCSV("rhods-operator.v3.5.2", "3.5.2"),
+		source,
+	).Build()
+	conds := &condRecorder{}
+
+	err := provision.CheckUpgradeGatesInNamespace(context.Background(), cli, "test-ns", release(), conds, nil)
+
+	require.Error(t, err)
+	assert.Contains(t, conds.conditions[0].Message, "ack-3.5.2-exact-scope-test")
+	assert.NotContains(t, conds.conditions[0].Message, "ack-3.5.1-other-patch")
+}
+
+func dscOwningGateCSV(name string, value string) *operatorsv1alpha1.ClusterServiceVersion {
+	parsed := semver.MustParse(value)
+	return &operatorsv1alpha1.ClusterServiceVersion{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "test-ns"},
+		Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+			Version: ofaversion.OperatorVersion{Version: parsed},
+			CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+				Owned: []operatorsv1alpha1.CRDDescription{{Kind: "DataScienceCluster"}},
+			},
+		},
+	}
 }
 
 func TestCheckUpgradeGates_IgnoresOtherVersions(t *testing.T) {
@@ -259,6 +380,7 @@ func TestCheckUpgradeGates_WritesDescriptionsToAcks(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(
 		dsciWithMajor(2),
+		dscOwningGateCSV("rhods-operator.v3.5.1", "3.5.1"),
 		acksCM(ackedInTreeGates(t)),
 		source,
 	).Build()
@@ -296,6 +418,7 @@ func TestCheckUpgradeGates_MergesChartGates(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(
 		dsciWithMajor(2),
+		dscOwningGateCSV("rhods-operator.v3.5.1", "3.5.1"),
 		acksCM(ackedInTreeGates(t)),
 		clusterGateCM,
 	).Build()
@@ -405,7 +528,7 @@ func TestComponentUpgradeGateCheck_NoCMReturnsStopError(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(newScheme()).Build()
 	conds := &condRecorder{}
 
-	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", conds)
+	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", "3.5.1", conds)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "waiting for upgrade gates to be acknowledged")
@@ -430,7 +553,7 @@ func TestComponentUpgradeGateCheck_AllAckedReturnsNil(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(acksCM).Build()
 	conds := &condRecorder{}
 
-	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", conds)
+	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", "3.5.1", conds)
 
 	require.NoError(t, err)
 	assert.Empty(t, conds.conditions)
@@ -450,7 +573,7 @@ func TestComponentUpgradeGateCheck_PartialAckReturnsStopError(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(acksCM).Build()
 	conds := &condRecorder{}
 
-	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", conds)
+	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", "3.5.1", conds)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "waiting for upgrade gates to be acknowledged")
@@ -471,7 +594,7 @@ func TestComponentUpgradeGateCheck_EmptyCMReturnsNil(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(acksCM).Build()
 	conds := &condRecorder{}
 
-	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", conds)
+	err := provision.ComponentUpgradeGateCheck(context.Background(), cli, "test-ns", "3.5.1", conds)
 
 	require.NoError(t, err)
 	assert.Empty(t, conds.conditions)

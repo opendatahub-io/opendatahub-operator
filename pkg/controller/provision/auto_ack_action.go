@@ -22,8 +22,8 @@ import (
 // upgrade gates for components whose health checks pass. Components
 // that are not Managed in the DSC are auto-acked immediately since
 // they are not expected to be present. It is a no-op when the acks
-// ConfigMap does not exist or has no unacknowledged entries for the
-// current version (fresh install or same-major upgrade).
+// ConfigMap does not exist or there is no newer target version to evaluate
+// (fresh install or a reconciliation at the current version).
 func AutoAcknowledgeUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	ns, nsErr := cluster.GetOperatorNamespace()
 	if nsErr != nil {
@@ -42,13 +42,26 @@ func AutoAcknowledgeUpgradeGates(ctx context.Context, rr *odhtype.Reconciliation
 		return fmt.Errorf("failed to get %s ConfigMap: %w", gates.AcksConfigMap, err)
 	}
 
+	deployed, err := cluster.GetDeployedRelease(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to determine deployed release for upgrade gates: %w", err)
+	}
+
+	targetVersion, err := ResolveUpgradeGateVersion(ctx, reader, ns, deployed, rr.Release)
+	if err != nil {
+		return fmt.Errorf("failed to resolve upgrade gate version: %w", err)
+	}
+	if !isVersionUpgrade(deployed.Version.Version, targetVersion) {
+		return nil
+	}
+
 	original := cm.DeepCopy()
 	if err := AutoAcknowledgeUpgradeGatesInNamespace(
 		ctx,
 		reader,
 		cm,
 		cluster.GetApplicationNamespace(),
-		UpgradeGateVersion,
+		targetVersion,
 		resolveManagedComponents(rr.Instance),
 	); err != nil {
 		return err
@@ -74,7 +87,7 @@ func AutoAcknowledgeUpgradeGatesInNamespace(
 	reader client.Reader,
 	cm *corev1.ConfigMap,
 	appsNS string,
-	version string,
+	targetVersion string,
 	componentStates map[string]operatorv1.ManagementState,
 ) error {
 	if cm == nil {
@@ -83,15 +96,14 @@ func AutoAcknowledgeUpgradeGatesInNamespace(
 
 	log := logf.FromContext(ctx)
 
-	versionPrefix := "ack-" + version + "-"
-	log.Info("running auto-ack upgrade checks", "version", version)
+	log.Info("running auto-ack upgrade checks", "version", targetVersion)
 
 	for key, value := range cm.Data {
-		if !strings.HasPrefix(key, versionPrefix) || value == "true" {
+		gateKey, matches := gates.MatchGateKey(key, targetVersion)
+		if !matches || value == "true" {
 			continue
 		}
 
-		gateKey := strings.TrimPrefix(key, versionPrefix)
 		if gateKey == "" {
 			continue
 		}

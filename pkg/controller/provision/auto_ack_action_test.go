@@ -260,6 +260,21 @@ func TestAutoAck_PartialAck(t *testing.T) {
 	assert.NotEqual(t, "true", cm.Data[blockedKey], "blocked check remains unacked")
 }
 
+func TestAutoAck_MinorScopedGateMatchesPatchRelease(t *testing.T) {
+	t.Parallel()
+
+	cm := acksCM(map[string]string{
+		"ack-3.0-dashboard": "Acknowledge upgrade of dashboard",
+	})
+	cli := fake.NewClientBuilder().WithScheme(autoAckScheme()).
+		WithObjects(readyDeployment(testApps, "dashboard", "dashboard")).Build()
+
+	err := runAutoAck(t, cli, cm, allManaged("dashboard"))
+
+	require.NoError(t, err)
+	assert.Equal(t, "true", cm.Data["ack-3.0-dashboard"])
+}
+
 func TestAutoAck_IgnoresOtherVersionKeys(t *testing.T) {
 	t.Parallel()
 

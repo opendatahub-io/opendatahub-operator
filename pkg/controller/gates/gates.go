@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 
+	"github.com/blang/semver/v4"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -171,12 +173,82 @@ func LoadInTreeGates() (map[string]string, error) {
 	return result, nil
 }
 
+// MatchGateKey reports whether key applies to version and returns the gate
+// name following the version scope. Supported key formats are:
+//
+//   - ack-<major>.<minor>-<gate-name>
+//   - ack-<major>.<minor>.<patch>-<gate-name>
+//
+// Minor-scoped gates apply to every patch in that minor release. Exact gates
+// apply only to the specified patch. Prerelease and build metadata in version
+// do not affect matching.
+func MatchGateKey(key string, version string) (string, bool) {
+	const prefix = "ack-"
+
+	if !strings.HasPrefix(key, prefix) {
+		return "", false
+	}
+
+	current, err := semver.Parse(version)
+	if err != nil {
+		return "", false
+	}
+
+	remainder := strings.TrimPrefix(key, prefix)
+	separator := strings.IndexByte(remainder, '-')
+	if separator <= 0 || separator == len(remainder)-1 {
+		return "", false
+	}
+
+	target, ok := parseGateTarget(remainder[:separator])
+	if !ok || target.major != current.Major || target.minor != current.Minor {
+		return "", false
+	}
+	if target.hasPatch && target.patch != current.Patch {
+		return "", false
+	}
+
+	return remainder[separator+1:], true
+}
+
+type versionCore struct {
+	major    uint64
+	minor    uint64
+	patch    uint64
+	hasPatch bool
+}
+
+func parseGateTarget(value string) (versionCore, bool) {
+	parts := strings.Split(value, ".")
+	if len(parts) != 2 && len(parts) != 3 {
+		return versionCore{}, false
+	}
+
+	result := versionCore{hasPatch: len(parts) == 3}
+	normalized := value
+	if len(parts) == 2 {
+		normalized += ".0"
+	}
+
+	parsed, err := semver.Parse(normalized)
+	if err != nil || len(parsed.Pre) > 0 || len(parsed.Build) > 0 {
+		return versionCore{}, false
+	}
+
+	result.major = parsed.Major
+	result.minor = parsed.Minor
+	result.patch = parsed.Patch
+
+	return result, true
+}
+
 // AllGatesAcknowledged returns true when the odh-upgrade-acks
-// ConfigMap exists and every entry in it is set to "true". Returns
-// false when the ConfigMap does not exist (the modules controller has
-// not yet evaluated gates) or when any entry remains unacknowledged.
-// An empty ConfigMap (no data entries) is considered fully acknowledged.
-func AllGatesAcknowledged(ctx context.Context, cli client.Client, namespace string) (bool, error) {
+// ConfigMap exists and every gate entry matching the target version is set to
+// "true". Entries for other versions are ignored. Returns false when the
+// ConfigMap does not exist (the modules controller has not yet evaluated gates)
+// or when an applicable entry remains unacknowledged. An empty or out-of-scope
+// ConfigMap is considered fully acknowledged.
+func AllGatesAcknowledged(ctx context.Context, cli client.Client, namespace string, targetVersion string) (bool, error) {
 	cm := &corev1.ConfigMap{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: AcksConfigMap, Namespace: namespace}, cm); err != nil {
 		if k8serr.IsNotFound(err) {
@@ -185,7 +257,10 @@ func AllGatesAcknowledged(ctx context.Context, cli client.Client, namespace stri
 		return false, fmt.Errorf("failed to get %s ConfigMap: %w", AcksConfigMap, err)
 	}
 
-	for _, val := range cm.Data {
+	for key, val := range cm.Data {
+		if _, matches := MatchGateKey(key, targetVersion); !matches {
+			continue
+		}
 		if val != "true" {
 			return false, nil
 		}

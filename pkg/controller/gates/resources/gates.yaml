@@ -1,7 +1,11 @@
 # In-tree upgrade gate definitions for components that have not yet
-# migrated to modules. Gate entries use version-scoped keys:
+# migrated to modules. Gate entries use minor- or patch-scoped keys:
 #
-#   ack-<version>-<description>: "Human-readable message"
+#   ack-<major>.<minor>-<description>: "Human-readable message"
+#   ack-<major>.<minor>.<patch>-<description>: "Human-readable message"
+#
+# Minor-scoped entries apply to every patch release in that minor line.
+# Patch-scoped entries apply only to that exact release.
 #
 # The operator merges these entries into the odh-upgrade-acks ConfigMap.
 # Unacknowledged entries appear as descriptive strings; admins acknowledge
@@ -20,24 +24,24 @@ metadata:
   labels:
     platform.opendatahub.io/upgrade-gate: "true"
 data:
-  ack-3.5.1-aigateway: "Acknowledge upgrade of aigateway from version 2.x to 3.5.1"
-  ack-3.5.1-dashboard: "Acknowledge upgrade of dashboard from version 2.x to 3.5.1"
-  ack-3.5.1-datasciencepipelines: "Acknowledge upgrade of datasciencepipelines from version 2.x to 3.5.1"
-  ack-3.5.1-feastoperator: "Acknowledge upgrade of feastoperator from version 2.x to 3.5.1"
-  ack-3.5.1-kserve: "Acknowledge upgrade of kserve from version 2.x to 3.5.1"
-  ack-3.5.1-kueue: "Acknowledge upgrade of kueue from version 2.x to 3.5.1"
-  ack-3.5.1-mcplifecycleoperator: "Acknowledge upgrade of mcplifecycleoperator from version 2.x to 3.5.1"
-  ack-3.5.1-mlflowoperator: "Acknowledge upgrade of mlflowoperator from version 2.x to 3.5.1"
-  ack-3.5.1-modelregistry: "Acknowledge upgrade of modelregistry from version 2.x to 3.5.1"
-  ack-3.5.1-ogx: "Acknowledge upgrade of ogx from version 2.x to 3.5.1"
-  ack-3.5.1-ray: "Acknowledge upgrade of ray from version 2.x to 3.5.1"
-  ack-3.5.1-sparkoperator: "Acknowledge upgrade of sparkoperator from version 2.x to 3.5.1"
-  ack-3.5.1-trainer: "Acknowledge upgrade of trainer from version 2.x to 3.5.1"
-  ack-3.5.1-trainingoperator: "Acknowledge upgrade of trainingoperator from version 2.x to 3.5.1"
-  ack-3.5.1-trustyai: "Acknowledge upgrade of trustyai from version 2.x to 3.5.1"
-  ack-3.5.1-workbenches: "Acknowledge upgrade of workbenches from version 2.x to 3.5.1"
-  ack-3.5.1-removed-codeflare: "Acknowledge upgrade of codeflare from version 2.x to 3.5.1"
-  ack-3.5.1-removed-modelmeshserving: "Acknowledge upgrade of modelmeshserving from version 2.x to 3.5.1"
-  ack-3.5.1-dependencies-cert-manager: "Acknowledge upgrade dependency on cert-manager from version 2.x to 3.5.1"
-  ack-3.5.1-dependencies-kueue-operator: "Acknowledge upgrade dependency on kueue-operator from version 2.x to 3.5.1"
-  ack-3.5.1-dependencies-servicemeshoperatorv2: "Acknowledge upgrade dependency on removing Service Mesh Operator v2 from version 2.x to 3.5.1"
+  ack-3.5-aigateway: "Acknowledge upgrade of aigateway from version 2.x to 3.5.x"
+  ack-3.5-dashboard: "Acknowledge upgrade of dashboard from version 2.x to 3.5.x"
+  ack-3.5-datasciencepipelines: "Acknowledge upgrade of datasciencepipelines from version 2.x to 3.5.x"
+  ack-3.5-feastoperator: "Acknowledge upgrade of feastoperator from version 2.x to 3.5.x"
+  ack-3.5-kserve: "Acknowledge upgrade of kserve from version 2.x to 3.5.x"
+  ack-3.5-kueue: "Acknowledge upgrade of kueue from version 2.x to 3.5.x"
+  ack-3.5-mcplifecycleoperator: "Acknowledge upgrade of mcplifecycleoperator from version 2.x to 3.5.x"
+  ack-3.5-mlflowoperator: "Acknowledge upgrade of mlflowoperator from version 2.x to 3.5.x"
+  ack-3.5-modelregistry: "Acknowledge upgrade of modelregistry from version 2.x to 3.5.x"
+  ack-3.5-ogx: "Acknowledge upgrade of ogx from version 2.x to 3.5.x"
+  ack-3.5-ray: "Acknowledge upgrade of ray from version 2.x to 3.5.x"
+  ack-3.5-sparkoperator: "Acknowledge upgrade of sparkoperator from version 2.x to 3.5.x"
+  ack-3.5-trainer: "Acknowledge upgrade of trainer from version 2.x to 3.5.x"
+  ack-3.5-trainingoperator: "Acknowledge upgrade of trainingoperator from version 2.x to 3.5.x"
+  ack-3.5-trustyai: "Acknowledge upgrade of trustyai from version 2.x to 3.5.x"
+  ack-3.5-workbenches: "Acknowledge upgrade of workbenches from version 2.x to 3.5.x"
+  ack-3.5-removed-codeflare: "Acknowledge upgrade of codeflare from version 2.x to 3.5.x"
+  ack-3.5-removed-modelmeshserving: "Acknowledge upgrade of modelmeshserving from version 2.x to 3.5.x"
+  ack-3.5-dependencies-cert-manager: "Acknowledge upgrade dependency on cert-manager from version 2.x to 3.5.x"
+  ack-3.5-dependencies-kueue-operator: "Acknowledge upgrade dependency on kueue-operator from version 2.x to 3.5.x"
+  ack-3.5-dependencies-servicemeshoperatorv2: "Acknowledge upgrade dependency on removing Service Mesh Operator v2 from version 2.x to 3.5.x"
