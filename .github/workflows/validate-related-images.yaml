@@ -8,6 +8,7 @@ on:
       - 'internal/**'
       - '.github/scripts/validate-related-images.sh'
       - '.github/workflows/validate-related-images.yaml'
+      - 'manifests-config.yaml'
       - 'component-params-env.yaml'
   workflow_dispatch:
 
@@ -42,7 +43,7 @@ jobs:
         run: |
           if git diff "origin/${BASE_REF}...HEAD" -- internal/ | grep -qE '^\+.*RELATED_IMAGE_'; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only "origin/${BASE_REF}...HEAD" | grep -q 'component-params-env.yaml'; then
+          elif git diff --name-only "origin/${BASE_REF}...HEAD" | grep -qE '^(component-params-env.yaml|manifests-config.yaml)$'; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "No RELATED_IMAGE_* changes detected, skipping validation."
