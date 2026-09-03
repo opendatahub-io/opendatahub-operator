@@ -44,7 +44,10 @@ func (tc *DeletionTestCtx) TestDSCDeletion(t *testing.T) {
 	skipUnless(t, Tier3)
 
 	// Delete the DataScienceCluster instance
-	tc.DeleteResource(WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName))
+	tc.DeleteResource(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithWaitForDeletion(true),
+	)
 }
 
 // TestDSCIDeletion deletes the DSCInitialization instance if it exists.
@@ -56,5 +59,8 @@ func (tc *DeletionTestCtx) TestDSCIDeletion(t *testing.T) {
 	skipUnless(t, Tier3)
 
 	// Delete the DSCInitialization instance
-	tc.DeleteResource(WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName))
+	tc.DeleteResource(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithWaitForDeletion(true),
+	)
 }
