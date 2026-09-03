@@ -50,6 +50,7 @@ func TestHardwareProfileSpecStructure(t *testing.T) {
 	spec := HardwareProfileSpec{
 		Identifiers:    ids,
 		SchedulingSpec: queueSpec,
+		DRA:            &DRASpec{ResourceClaimTemplateName: "gpu-claim"},
 	}
 
 	g.Expect(spec.Identifiers).To(HaveLen(2))
@@ -71,6 +72,8 @@ func TestHardwareProfileSpecStructure(t *testing.T) {
 	g.Expect(spec.SchedulingSpec.Kueue).ToNot(BeNil())
 	g.Expect(spec.SchedulingSpec.Kueue.LocalQueueName).To(Equal("workload-queue"))
 	g.Expect(spec.SchedulingSpec.Kueue.PriorityClass).To(Equal("high-priority"))
+	g.Expect(spec.DRA).ToNot(BeNil())
+	g.Expect(spec.DRA.ResourceClaimTemplateName).To(Equal("gpu-claim"))
 }
 
 // TestHardwareProfileNodeScheduling ensures NodeSchedulingSpec can be set and accessed
@@ -140,6 +143,7 @@ func TestHardwareProfileDeepCopy(t *testing.T) {
 		Spec: HardwareProfileSpec{
 			Identifiers:    []HardwareIdentifier{{DisplayName: "CPU", Identifier: "cpu", MinCount: intstr.FromInt32(1), DefaultCount: intstr.FromInt32(1), ResourceType: "CPU"}},
 			SchedulingSpec: &SchedulingSpec{SchedulingType: QueueScheduling, Kueue: &KueueSchedulingSpec{LocalQueueName: "q1"}},
+			DRA:            &DRASpec{ResourceClaimTemplateName: "gpu-claim"},
 		},
 	}
 
@@ -151,11 +155,13 @@ func TestHardwareProfileDeepCopy(t *testing.T) {
 	dupe.Name = "hp-dupe"
 	dupe.Spec.Identifiers[0].DisplayName = "CPU-Changed"
 	dupe.Spec.SchedulingSpec.Kueue.PriorityClass = "pc"
+	dupe.Spec.DRA.ResourceClaimTemplateName = "changed-claim"
 
 	// original remains unchanged
 	g.Expect(orig.Name).To(Equal("hp-original"))
 	g.Expect(orig.Spec.Identifiers[0].DisplayName).To(Equal("CPU"))
 	g.Expect(orig.Spec.SchedulingSpec.Kueue.PriorityClass).To(Equal(""))
+	g.Expect(orig.Spec.DRA.ResourceClaimTemplateName).To(Equal("gpu-claim"))
 }
 
 // TestV1alpha1HardwareProfile
@@ -170,6 +176,7 @@ func TestV1alpha1HardwareProfile(t *testing.T) {
 		Spec: infrav1alpha1.HardwareProfileSpec{
 			Identifiers:    []infrav1alpha1.HardwareIdentifier{{DisplayName: "CPU", Identifier: "cpu", MinCount: intstr.FromInt32(1), DefaultCount: intstr.FromInt32(1), ResourceType: "CPU"}},
 			SchedulingSpec: &infrav1alpha1.SchedulingSpec{SchedulingType: infrav1alpha1.QueueScheduling, Kueue: &infrav1alpha1.KueueSchedulingSpec{LocalQueueName: "q1"}},
+			DRA:            &infrav1alpha1.DRASpec{ResourceClaimTemplateName: "gpu-claim"},
 		},
 	}
 
@@ -181,9 +188,11 @@ func TestV1alpha1HardwareProfile(t *testing.T) {
 	dupe.Name = "hp-dupe"
 	dupe.Spec.Identifiers[0].DisplayName = "CPU-Changed"
 	dupe.Spec.SchedulingSpec.Kueue.PriorityClass = "pc"
+	dupe.Spec.DRA.ResourceClaimTemplateName = "changed-claim"
 
 	// original remains unchanged
 	g.Expect(orig.Name).To(Equal("hp-original"))
 	g.Expect(orig.Spec.Identifiers[0].DisplayName).To(Equal("CPU"))
 	g.Expect(orig.Spec.SchedulingSpec.Kueue.PriorityClass).To(Equal(""))
+	g.Expect(orig.Spec.DRA.ResourceClaimTemplateName).To(Equal("gpu-claim"))
 }
