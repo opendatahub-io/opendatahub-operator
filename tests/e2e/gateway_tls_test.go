@@ -126,7 +126,7 @@ func (tc *GatewayTestCtx) eventuallyKubeAuthProxyDeploymentHasTLSArgs(minVersion
 // ValidateKubeAuthProxyTLSArgsMatchAPIServer verifies kube-auth-proxy TLS flags match the cluster APIServer tlsSecurityProfile.
 func (tc *GatewayTestCtx) ValidateKubeAuthProxyTLSArgsMatchAPIServer(t *testing.T) {
 	t.Helper()
-
+	tc.SkipIfXKSCluster(t)
 	skipUnless(t, Tier1)
 	t.Log("Validating kube-auth-proxy TLS args match cluster APIServer tlsSecurityProfile")
 

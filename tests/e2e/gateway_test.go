@@ -24,7 +24,6 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -466,7 +465,6 @@ func (tc *GatewayTestCtx) ValidateHPA(t *testing.T) {
 func (tc *GatewayTestCtx) ValidateOAuthCallbackRoute(t *testing.T) {
 	t.Helper()
 
-	tc.SkipIfXKSCluster(t)
 	skipUnless(t, Tier1)
 	t.Log("Validating OAuth callback HTTPRoute")
 
@@ -605,19 +603,35 @@ func (tc *GatewayTestCtx) ValidateGatewayReadyStatus(t *testing.T) {
 	skipUnless(t, Smoke)
 	t.Log("Validating Gateway ready status")
 
-	// Core validation: Gateway is Accepted, Programmed, and has routes attached
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
-			Name:      tc.gatewayName(),
-			Namespace: tc.gatewayNamespace(),
-		}),
-		WithCondition(And(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, string(gwapiv1.GatewayConditionAccepted), string(metav1.ConditionTrue)),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, string(gwapiv1.GatewayConditionProgrammed), string(metav1.ConditionTrue)),
-			jq.Match(`.status.listeners[] | select(.name == "https") | .attachedRoutes >= 1`),
-		)),
-		WithCustomErrorMsg("Gateway should be fully operational with healthy listener"),
-	)
+	if tc.IsXKS() {
+		// On KinD/XKS with LoadBalancer ingress mode, Istio won't set Programmed=True
+		// because there is no cloud LB controller to assign an external IP.
+		// Only check Accepted (config is valid) which Istio sets immediately.
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
+				Name:      tc.gatewayName(),
+				Namespace: tc.gatewayNamespace(),
+			}),
+			WithCondition(
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, string(gwapiv1.GatewayConditionAccepted), string(metav1.ConditionTrue)),
+			),
+			WithCustomErrorMsg("Gateway should be accepted by the controller"),
+		)
+	} else {
+		// On OpenShift with a real ingress controller, validate full readiness
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
+				Name:      tc.gatewayName(),
+				Namespace: tc.gatewayNamespace(),
+			}),
+			WithCondition(And(
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, string(gwapiv1.GatewayConditionAccepted), string(metav1.ConditionTrue)),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, string(gwapiv1.GatewayConditionProgrammed), string(metav1.ConditionTrue)),
+				jq.Match(`.status.listeners[] | select(.name == "https") | .attachedRoutes >= 1`),
+			)),
+			WithCustomErrorMsg("Gateway should be fully operational with healthy listener"),
+		)
+	}
 
 	t.Log("Gateway ready status validation completed")
 }
@@ -740,21 +754,27 @@ func (tc *GatewayTestCtx) createHTTPClient() *http.Client {
 	}
 }
 
-// getExpectedGatewayHostname returns the expected gateway hostname based on cluster domain.
+// getExpectedGatewayHostname returns the expected gateway hostname.
+// On OpenShift it auto-detects from the cluster Ingress CR; on XKS it reads
+// GatewayConfig.spec.domain — mirroring the controller's GetFQDN logic.
 // Result is cached to avoid multiple cluster API calls.
 func (tc *GatewayTestCtx) getExpectedGatewayHostname(t *testing.T) string {
 	t.Helper()
 	tc.once.Do(func() {
-		clusterDomain, err := cluster.GetDomain(tc.Context(), tc.Client())
-		if err != nil {
-			// store empty and let caller fail with require if needed
+		gatewayConfig := &serviceApi.GatewayConfig{}
+		if err := tc.Client().Get(tc.Context(), types.NamespacedName{Name: gatewayConfigName}, gatewayConfig); err != nil {
 			tc.cachedGatewayHostname = ""
 			return
 		}
-		tc.cachedGatewayHostname = gatewaySubdomain + "." + clusterDomain
+		hostname, err := gateway.GetFQDN(tc.Context(), tc.Client(), gatewayConfig)
+		if err != nil {
+			tc.cachedGatewayHostname = ""
+			return
+		}
+		tc.cachedGatewayHostname = hostname
 	})
 	if tc.cachedGatewayHostname == "" {
-		require.FailNow(t, "failed to determine cluster domain to compute gateway hostname")
+		require.FailNow(t, "failed to determine gateway hostname (check GatewayConfig domain or cluster Ingress CR)")
 	}
 	t.Logf("Expected gateway hostname: %s", tc.cachedGatewayHostname)
 	return tc.cachedGatewayHostname
@@ -841,7 +861,6 @@ func (tc *GatewayTestCtx) getOIDCConfig(t *testing.T) *serviceApi.OIDCConfig {
 func (tc *GatewayTestCtx) ValidateOIDCProxySecret(t *testing.T) {
 	t.Helper()
 
-	tc.SkipIfXKSCluster(t)
 	skipUnless(t, Tier1)
 	tc.SkipUnlessBYOIDC(t)
 	t.Log("Validating OIDC proxy credentials secret")
@@ -872,7 +891,6 @@ func (tc *GatewayTestCtx) ValidateOIDCProxySecret(t *testing.T) {
 func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
 	t.Helper()
 
-	tc.SkipIfXKSCluster(t)
 	skipUnless(t, Tier1)
 	tc.SkipUnlessBYOIDC(t)
 	t.Log("Validating kube-auth-proxy OIDC deployment and service")
@@ -975,24 +993,35 @@ func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
 		WithCustomErrorMsg("kube-auth-proxy OIDC deployment should exist with correct configuration"),
 	)
 
-	// wait for deployment readiness
-	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: tc.gatewayNamespace()}, 2)
+	// wait for deployment readiness (skipped on XKS/KinD where kube-auth-proxy
+	// may lack an arm64 image; the spec validation above is still performed)
+	if !tc.IsXKS() {
+		tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: tc.gatewayNamespace()}, 2)
+	}
 
-	// kube-auth-proxy service (same as IntegratedOAuth)
+	// kube-auth-proxy service
+	serviceCondition := And(
+		jq.Match(`.spec.selector.app == "%s"`, kubeAuthProxyName),
+		jq.Match(`.spec.ports | length == 2`),
+		jq.Match(`.spec.ports[] | select(.name == "https") | .port == %d`, kubeAuthProxyHTTPSPort),
+		jq.Match(`.spec.ports[] | select(.name == "https") | .targetPort == %d`, kubeAuthProxyHTTPSPort),
+		jq.Match(`.spec.ports[] | select(.name == "metrics") | .port == %d`, kubeAuthProxyMetricsPort),
+	)
+
+	if !tc.IsXKS() {
+		serviceCondition = And(
+			serviceCondition,
+			jq.Match(`.metadata.annotations."service.beta.openshift.io/serving-cert-secret-name" == "%s"`, kubeAuthProxyTLSName),
+		)
+	}
+
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Service, types.NamespacedName{
 			Name:      kubeAuthProxyName,
 			Namespace: tc.gatewayNamespace(),
 		}),
-		WithCondition(And(
-			jq.Match(`.spec.selector.app == "%s"`, kubeAuthProxyName),
-			jq.Match(`.spec.ports | length == 2`),
-			jq.Match(`.spec.ports[] | select(.name == "https") | .port == %d`, kubeAuthProxyHTTPSPort),
-			jq.Match(`.spec.ports[] | select(.name == "https") | .targetPort == %d`, kubeAuthProxyHTTPSPort),
-			jq.Match(`.spec.ports[] | select(.name == "metrics") | .port == %d`, kubeAuthProxyMetricsPort),
-			jq.Match(`.metadata.annotations."service.beta.openshift.io/serving-cert-secret-name" == "%s"`, kubeAuthProxyTLSName),
-		)),
-		WithCustomErrorMsg("kube-auth-proxy service should exist with HTTPS and metrics ports, and service-ca annotation"),
+		WithCondition(serviceCondition),
+		WithCustomErrorMsg("kube-auth-proxy service should exist with HTTPS and metrics ports"),
 	)
 
 	// TLS secret for auth proxy
