@@ -62,6 +62,9 @@ func hardwareProfileUnstructured(name, namespace, apiVersion string) *unstructur
 						},
 					},
 				},
+				"dra": map[string]any{
+					"resourceClaimTemplateName": "gpu-claim",
+				},
 			},
 		},
 	}
@@ -117,6 +120,8 @@ func TestHardwareProfileAPIConversion(t *testing.T) {
 		g.Expect(hv1.Spec.SchedulingSpec.SchedulingType).To(Equal(infrav1.NodeScheduling))
 		g.Expect(hv1.Spec.SchedulingSpec.Node).NotTo(BeNil())
 		g.Expect(hv1.Spec.SchedulingSpec.Node.NodeSelector).To(HaveKeyWithValue("kubernetes.io/arch", "amd64"))
+		g.Expect(hv1.Spec.DRA).NotTo(BeNil())
+		g.Expect(hv1.Spec.DRA.ResourceClaimTemplateName).To(Equal("gpu-claim"))
 
 		g.Expect(k8sClient.Delete(ctx, hv1)).To(Succeed())
 	})
@@ -133,6 +138,8 @@ func TestHardwareProfileAPIConversion(t *testing.T) {
 		g.Expect(ha.Spec.Identifiers).ShouldNot(BeEmpty())
 		g.Expect(ha.Spec.SchedulingSpec).NotTo(BeNil())
 		g.Expect(ha.Spec.SchedulingSpec.SchedulingType).To(Equal(infrav1alpha1.NodeScheduling))
+		g.Expect(ha.Spec.DRA).NotTo(BeNil())
+		g.Expect(ha.Spec.DRA.ResourceClaimTemplateName).To(Equal("gpu-claim"))
 
 		g.Expect(k8sClient.Delete(ctx, ha)).To(Succeed())
 	})

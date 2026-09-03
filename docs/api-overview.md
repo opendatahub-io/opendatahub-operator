@@ -2267,6 +2267,22 @@ _Appears in:_
 
 
 
+#### DRASpec
+
+
+
+DRASpec defines the Dynamic Resource Allocation configuration for a HardwareProfile.
+
+
+
+_Appears in:_
+- [HardwareProfileSpec](#hardwareprofilespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `resourceClaimTemplateName` _string_ | ResourceClaimTemplateName names a pre-existing ResourceClaimTemplate in the workload's<br />namespace. The consuming module validates that the object exists at admission time. |  | MaxLength: 253 <br />MinLength: 1 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$` <br />Required: \{\} <br /> |
+
+
 #### GatewaySpec
 
 
@@ -2341,6 +2357,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `identifiers` _[HardwareIdentifier](#hardwareidentifier) array_ | The array of identifiers |  |  |
 | `scheduling` _[SchedulingSpec](#schedulingspec)_ | SchedulingSpec specifies how workloads using this hardware profile should be scheduled. |  |  |
+| `dra` _[DRASpec](#draspec)_ | DRA references an existing Dynamic Resource Allocation ResourceClaimTemplate that workloads<br />using this hardware profile should attach. The referenced object must already exist in the<br />workload's namespace and is not created, owned, or cleaned up by the operator. |  |  |
 
 
 #### HardwareProfileStatus
@@ -2439,6 +2456,22 @@ Package v1alpha1 contains API Schema definitions for the infrastructure v1alpha1
 
 
 
+#### DRASpec
+
+
+
+DRASpec defines the Dynamic Resource Allocation configuration for a HardwareProfile.
+
+
+
+_Appears in:_
+- [HardwareProfileSpec](#hardwareprofilespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `resourceClaimTemplateName` _string_ | ResourceClaimTemplateName names a pre-existing ResourceClaimTemplate in the workload's<br />namespace. The consuming module validates that the object exists at admission time. |  | MaxLength: 253 <br />MinLength: 1 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$` <br />Required: \{\} <br /> |
+
+
 #### HardwareIdentifier
 
 
@@ -2496,6 +2529,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `identifiers` _[HardwareIdentifier](#hardwareidentifier) array_ | The array of identifiers |  |  |
 | `scheduling` _[SchedulingSpec](#schedulingspec)_ | SchedulingSpec specifies how workloads using this hardware profile should be scheduled. |  |  |
+| `dra` _[DRASpec](#draspec)_ | DRA is mirrored here to preserve the field during conversion to and from v1.<br />It is not consumed by any v1alpha1 code path. |  |  |
 
 
 #### HardwareProfileStatus
