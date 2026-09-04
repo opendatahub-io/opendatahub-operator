@@ -150,3 +150,17 @@ func TestParamsEnvKeyLookup(t *testing.T) {
 		})
 	}
 }
+
+func TestParamsEnvKeyLookup_MissingComponentDir(t *testing.T) {
+	emptyDir := t.TempDir()
+	got, err := paramsEnvKeyLookup(Options{ManifestsDir: emptyDir}, config.ImageOverride{
+		Component:    "ray",
+		ParamsEnvKey: "some-key",
+	}, "RELATED_IMAGE_ODH_RAY_IMAGE")
+	if err != nil {
+		t.Fatalf("expected no error for missing component directory, got: %v", err)
+	}
+	if got != "" {
+		t.Errorf("expected empty value, got %q", got)
+	}
+}
