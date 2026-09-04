@@ -577,8 +577,8 @@ func (r *DSCInitializationReconciler) reconcileOnCRDChange(ctx context.Context, 
 // reconcileDSCIModules creates/updates DSCI-owned fields on the Platform CR
 // and provisions module CRs whose configuration comes from the DSCI spec
 // (e.g. Monitoring). SSA apply only includes ConfigFromDSCI fields so DSC-owned
-// modules are not overwritten. Platform gets a non-controller ownerRef so it
-// survives DSC deletion while DSCI still exists.
+// modules are not overwritten. Platform ownership is merged separately because
+// the Platform is shared with the DSC controller.
 func (r *DSCInitializationReconciler) reconcileDSCIModules(ctx context.Context, instance *dsciv2.DSCInitialization) error {
 	log := logf.FromContext(ctx)
 
@@ -587,11 +587,11 @@ func (r *DSCInitializationReconciler) reconcileDSCIModules(ctx context.Context, 
 	}
 
 	platform := modules.NewPlatformCR(dscCtx, modules.ConfigFromDSCI)
-	if err := controllerutil.SetOwnerReference(instance, platform, r.Scheme); err != nil {
-		return fmt.Errorf("failed to set Platform owner reference: %w", err)
-	}
 	if err := resources.Apply(ctx, r.Client, platform, client.FieldOwner(fieldManager), client.ForceOwnership); err != nil {
 		return fmt.Errorf("failed to apply Platform CR: %w", err)
+	}
+	if err := modules.EnsurePlatformOwnerReference(ctx, r.Client, instance, r.Scheme); err != nil {
+		return fmt.Errorf("failed to update Platform owner reference: %w", err)
 	}
 
 	return modules.ForConfigSource(modules.ConfigFromDSCI, func(handler modules.ModuleHandler, _ bool) error {
