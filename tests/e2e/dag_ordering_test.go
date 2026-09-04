@@ -93,7 +93,7 @@ var dagBatches = []componentBatch{
 		name:     "Batch33",
 		runlevel: 33,
 		components: []componentEntry{
-			{name: componentApi.TrustyAIComponentName, gvk: gvk.TrustyAI},
+			{name: componentApi.TrustyAIComponentName, gvk: gvk.TrustyAI, internal: true},
 		},
 	},
 }
@@ -136,11 +136,9 @@ var dscComponentFields = []string{
 
 // extensionGVKs lists in-tree component CRs at RL 31+ whose controllers
 // write PlatformReady via RunlevelGateAction. Fully-modularized components
-// (Kserve, FeastOperator, MLflowOperator, SparkOperator) are excluded — they
-// have no in-tree controller to write PlatformReady.
-var extensionGVKs = []schema.GroupVersionKind{
-	gvk.TrustyAI,
-}
+// (Kserve, FeastOperator, MLflowOperator, SparkOperator, TrustyAI) are
+// excluded — they have no in-tree controller to write PlatformReady.
+var extensionGVKs = []schema.GroupVersionKind{}
 
 const (
 	dagQuotaName   = "dag-test-restrictive-quota"
