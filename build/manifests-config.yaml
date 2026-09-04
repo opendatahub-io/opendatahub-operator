@@ -63,3 +63,6 @@ map:
   odh-data-connect-hub-controller:
     src: dc-controller/config
     dest: data-connect-hub
+  odh-trustyai-module-operator:
+    src: config/default
+    dest: trustyai-module-operator
