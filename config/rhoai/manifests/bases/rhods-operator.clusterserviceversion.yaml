@@ -32,26 +32,54 @@ metadata:
         },
         "spec": {
           "components": {
+            "aigateway": {
+              "managementState": "Removed",
+              "batchGateway": {
+                "managementState": "Removed"
+              }
+            },
             "dashboard": {
               "managementState": "Managed"
             },
             "aipipelines": {
               "managementState": "Managed"
             },
-            "feastoperator": {
-              "managementState": "Managed"
-            },
             "kserve": {
-              "managementState": "Managed"
-            },
-            "llamastackoperator": {
-              "managementState": "Removed"
-            },
-            "ogx": {
-              "managementState": "Managed"
+              "managementState": "Managed",
+              "nim": {
+                "managementState": "Managed"
+              },
+              "wva": {
+                "managementState": "Removed"
+              }
             },
             "kueue": {
               "managementState": "Removed"
+            },
+            "trainer": {
+              "managementState": "Managed"
+            },
+            "ray": {
+              "managementState": "Managed"
+            },
+            "workbenches": {
+              "managementState": "Managed",
+              "workbenchesV2": {
+                "managementState": "Removed"
+              }
+            },
+            "trustyai": {
+              "managementState": "Managed"
+            },
+            "modelregistry": {
+              "managementState": "Managed",
+              "registriesNamespace": "rhoai-model-registries"
+            },
+            "feastoperator": {
+              "managementState": "Managed"
+            },
+            "ogx": {
+              "managementState": "Managed"
             },
             "mlflowoperator": {
               "managementState": "Managed"
@@ -59,21 +87,8 @@ metadata:
             "sparkoperator": {
               "managementState": "Removed"
             },
-            "modelregistry": {
-              "managementState": "Managed",
-              "registriesNamespace": "rhoai-model-registries"
-            },
-            "ray": {
-              "managementState": "Managed"
-            },
-            "workbenches": {
-              "managementState": "Managed"
-            },
-            "trainer": {
-              "managementState": "Managed"
-            },
-            "trustyai": {
-              "managementState": "Managed"
+            "mcplifecycleoperator": {
+              "managementState": "Removed"
             }
           }
         }
