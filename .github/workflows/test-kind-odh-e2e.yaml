@@ -21,6 +21,10 @@ on:
       - 'pkg/operatorconfig/cloudmanager.go'
       - 'pkg/utils/test/cloudmanager/**'
       - 'config/rhaii/**'
+      - 'internal/controller/services/gateway/**'
+      - 'tests/e2e/gateway_test.go'
+      - 'tests/e2e/gateway_tls_test.go'
+      - 'tests/e2e/gateway_redirect_test.go'
       - 'cmd/manifest-tools/**'
       - 'manifests-config.yaml'
       - '.github/workflows/test-kind-odh-e2e.yaml'
@@ -174,6 +178,14 @@ jobs:
           kubectl logs -n opendatahub-cloudmanager-system \
             -l control-plane=controller-manager \
             --tail=500 || true
+
+      - name: Collect Gateway resources on failure
+        if: failure()
+        run: |
+          kubectl get gatewayconfig -o yaml || true
+          kubectl get gateway -A -o yaml || true
+          kubectl get gatewayclass -o yaml || true
+          kubectl get httproute -A -o yaml || true
 
       - name: Collect ODH Operator logs on failure
         if: failure()
