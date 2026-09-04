@@ -12,6 +12,9 @@ import (
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+
+	. "github.com/onsi/gomega"
 )
 
 const testAppsNS = "opendatahub"
@@ -158,6 +161,39 @@ func TestGetRelatedImages(t *testing.T) {
 		if !found {
 			t.Errorf("missing related image: %q", name)
 		}
+	}
+}
+
+// TestGetOperatorManifests_PlatformOverlay verifies the handler selects the
+// platform-specific Kustomize overlay and resolves it under ManifestsBasePath.
+func TestGetOperatorManifests_PlatformOverlay(t *testing.T) {
+	h := NewHandler()
+
+	cases := []struct {
+		name     string
+		platform common.Platform
+		want     string
+	}{
+		{"xks-default", cluster.XKS, "/base/trainer/default"},
+		{"odh", cluster.OpenDataHub, "/base/trainer/overlays/odh"},
+		{"self-managed-rhoai", cluster.SelfManagedRhoai, "/base/trainer/overlays/rhoai"},
+		{"managed-rhoai", cluster.ManagedRhoai, "/base/trainer/overlays/rhoai"},
+	}
+
+	for _, tcase := range cases {
+		t.Run(tcase.name, func(t *testing.T) {
+			g := NewWithT(t)
+			ctx := &modules.PlatformContext{
+				ApplicationsNamespace: testAppsNS,
+				ManifestsBasePath:     "/base",
+				Release:               common.Release{Name: tcase.platform},
+			}
+
+			m := h.GetOperatorManifests(ctx)
+			g.Expect(m.HelmCharts).Should(BeEmpty())
+			g.Expect(m.Manifests).Should(HaveLen(1))
+			g.Expect(m.Manifests[0].String()).Should(Equal(tcase.want))
+		})
 	}
 }
 

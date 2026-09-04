@@ -10,9 +10,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
@@ -20,6 +22,13 @@ const (
 	moduleName = componentApi.TrainerComponentName
 	crName     = componentApi.TrainerInstanceName
 )
+
+var overlayByPlatform = map[common.Platform]string{
+	cluster.XKS:              "default",
+	cluster.OpenDataHub:      "overlays/odh",
+	cluster.SelfManagedRhoai: "overlays/rhoai",
+	cluster.ManagedRhoai:     "overlays/rhoai",
+}
 
 type handler struct {
 	modules.BaseHandler
@@ -29,13 +38,14 @@ func NewHandler() *handler {
 	return &handler{
 		BaseHandler: modules.BaseHandler{
 			Config: modules.ModuleConfig{
-				Name:            moduleName,
-				CRName:          crName,
-				GVK:             gvk.Trainer,
-				ManifestDir:     "trainer",
-				ContextDir:      "default",
-				ControllerImage: "RELATED_IMAGE_ODH_TRAINER_OPERATOR_IMAGE",
-				DeploymentName:  "trainer-operator-controller-manager",
+				Name:                 moduleName,
+				CRName:               crName,
+				GVK:                  gvk.Trainer,
+				ManifestDir:          "trainer",
+				SourcePath:           overlayByPlatform[cluster.OpenDataHub],
+				SourcePathByPlatform: overlayByPlatform,
+				ControllerImage:      "RELATED_IMAGE_ODH_TRAINER_OPERATOR_IMAGE",
+				DeploymentName:       "trainer-operator-controller-manager",
 				RelatedImages: []string{
 					"RELATED_IMAGE_ODH_TRAINER_IMAGE",
 					"RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE",
