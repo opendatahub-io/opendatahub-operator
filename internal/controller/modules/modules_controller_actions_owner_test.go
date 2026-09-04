@@ -70,7 +70,7 @@ func TestEnsurePlatformOwnerReferenceMergesOwners(t *testing.T) {
 	cli, err := fakeclient.New(fakeclient.WithScheme(s), fakeclient.WithObjects(platform))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	g.Expect(EnsurePlatformOwnerReference(t.Context(), cli, cli, dsc, s)).Should(Succeed())
+	g.Expect(EnsurePlatformOwnerReference(t.Context(), cli, dsc, s)).Should(Succeed())
 
 	updated := &configv1alpha1.Platform{}
 	g.Expect(cli.Get(t.Context(), client.ObjectKey{Name: configv1alpha1.PlatformInstanceName}, updated)).Should(Succeed())
@@ -81,36 +81,18 @@ func TestEnsurePlatformOwnerReferenceMergesOwners(t *testing.T) {
 	))
 }
 
-func TestEnsurePlatformOwnerReferenceUsesFreshReader(t *testing.T) {
+func TestEnsurePlatformOwnerReferencePropagatesGetErrors(t *testing.T) {
 	g := NewWithT(t)
 
 	s, err := scheme.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "default-dsc", UID: types.UID("dsc-uid")}}
-	platform := &configv1alpha1.Platform{ObjectMeta: metav1.ObjectMeta{Name: configv1alpha1.PlatformInstanceName}}
-
-	reader, err := fakeclient.New(fakeclient.WithScheme(s), fakeclient.WithObjects(platform))
+	cli, err := fakeclient.New(fakeclient.WithScheme(s))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	updates := 0
-	writer, err := fakeclient.New(
-		fakeclient.WithScheme(s),
-		fakeclient.WithObjects(platform),
-		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
-			Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
-				return errors.New("writer Get must not be called")
-			},
-			Update: func(ctx context.Context, cli client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
-				updates++
-				return cli.Update(ctx, obj, opts...)
-			},
-		}),
-	)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	g.Expect(EnsurePlatformOwnerReference(t.Context(), writer, reader, dsc, s)).Should(Succeed())
-	g.Expect(updates).Should(Equal(1))
+	err = EnsurePlatformOwnerReference(t.Context(), cli, dsc, s)
+	g.Expect(k8serr.IsNotFound(err)).Should(BeTrue())
 }
 
 func TestEnsurePlatformOwnerReferenceRetriesConflicts(t *testing.T) {
@@ -137,6 +119,6 @@ func TestEnsurePlatformOwnerReferenceRetriesConflicts(t *testing.T) {
 	)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	g.Expect(EnsurePlatformOwnerReference(t.Context(), cli, cli, dsc, s)).Should(Succeed())
+	g.Expect(EnsurePlatformOwnerReference(t.Context(), cli, dsc, s)).Should(Succeed())
 	g.Expect(updates).Should(Equal(2))
 }

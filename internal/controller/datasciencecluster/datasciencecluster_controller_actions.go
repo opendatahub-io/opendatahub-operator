@@ -56,28 +56,22 @@ func buildDSCContext(dsc *dscv2.DataScienceCluster) *modules.DSCContext {
 }
 
 func syncPlatformCR(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	return syncPlatformCRWithReader(rr.Client)(ctx, rr)
-}
-
-func syncPlatformCRWithReader(apiReader client.Reader) func(context.Context, *odhtype.ReconciliationRequest) error {
-	return func(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-		instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
-		if !ok {
-			return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
-		}
-
-		platform := modules.NewPlatformCR(buildDSCContext(instance), modules.ConfigFromDSC)
-		modules.SetPlatformMetadata(platform, instance, rr.Release, dscFieldManager)
-		if err := resources.Apply(ctx, rr.Client, platform, client.FieldOwner(dscFieldManager), client.ForceOwnership); err != nil {
-			return fmt.Errorf("failed to apply Platform CR: %w", err)
-		}
-
-		if err := modules.EnsurePlatformOwnerReference(ctx, rr.Client, apiReader, instance, rr.Client.Scheme()); err != nil {
-			return fmt.Errorf("failed to update Platform owner reference: %w", err)
-		}
-
-		return nil
+	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
+
+	platform := modules.NewPlatformCR(buildDSCContext(instance), modules.ConfigFromDSC)
+	modules.SetPlatformMetadata(platform, instance, rr.Release, dscFieldManager)
+	if err := resources.Apply(ctx, rr.Client, platform, client.FieldOwner(dscFieldManager), client.ForceOwnership); err != nil {
+		return fmt.Errorf("failed to apply Platform CR: %w", err)
+	}
+
+	if err := modules.EnsurePlatformOwnerReference(ctx, rr.Client, instance, rr.Client.Scheme()); err != nil {
+		return fmt.Errorf("failed to update Platform owner reference: %w", err)
+	}
+
+	return nil
 }
 
 // disableDSCModulesOnDelete is the DSC delete finalizer. It SSA-applies

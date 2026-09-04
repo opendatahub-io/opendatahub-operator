@@ -40,9 +40,8 @@ func TestReconcileDSCIModulesPreservesExistingOwner(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	reconciler := &DSCInitializationReconciler{
-		Client:    cli,
-		APIReader: cli,
-		Scheme:    s,
+		Client: cli,
+		Scheme: s,
 	}
 	g.Expect(reconciler.reconcileDSCIModules(t.Context(), dsci)).Should(Succeed())
 
