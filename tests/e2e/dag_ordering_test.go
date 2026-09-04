@@ -606,16 +606,7 @@ func (tc *DAGOrderingTestCtx) ValidateDAGCleanup(t *testing.T) {
 	tc.setAllRemoved(t)
 
 	t.Log("Verifying all component CRs are cleaned up (no orphans)")
-	for _, batch := range dagBatches {
-		for _, comp := range batch.components {
-			instanceName := tc.GetInstanceName(comp.gvk)
-			tc.EnsureResourceGone(
-				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
-				WithEventuallyTimeout(5*time.Minute),
-				WithEventuallyPollingInterval(10*time.Second),
-			)
-		}
-	}
+	tc.ensureAllRemovedComponentsGone(t)
 }
 
 // ValidatePartialEnablement enables a subset of components spanning
@@ -984,8 +975,33 @@ func (tc *DAGOrderingTestCtx) setAllRemoved(t *testing.T) {
 		WithEventuallyPollingInterval(15*time.Second),
 	)
 
+	tc.ensureAllRemovedComponentsGone(t)
+}
+
+// ensureAllRemovedComponentsGone verifies that every componentEntry actually
+// driven to Removed has its CR deleted. Monitoring is removed via the DSCI
+// (setDSCIMonitoringState), not the DSC spec.components fields below, so it
+// is checked explicitly by name. Components absent from both DSC field lists
+// (e.g. Kueue, whose webhook blocks managementState=Managed) are never set
+// to Removed and are skipped rather than asserted gone.
+func (tc *DAGOrderingTestCtx) ensureAllRemovedComponentsGone(t *testing.T) {
+	t.Helper()
+
 	for _, batch := range dagBatches {
 		for _, comp := range batch.components {
+			name := comp.name
+			if name == dataSciencePipelinesComponentName {
+				name = aiPipelinesFieldName
+			}
+
+			removed := name == serviceApi.MonitoringServiceName ||
+				slices.Contains(dscComponentFieldsWithBrokenVersionHandshake, name) ||
+				slices.Contains(dscComponentFields, name)
+			if !removed {
+				t.Logf("Skipping gone-check for %s: not meant to be Removed", comp.name)
+				continue
+			}
+
 			instanceName := tc.GetInstanceName(comp.gvk)
 			tc.EnsureResourceGone(
 				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
