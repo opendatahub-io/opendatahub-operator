@@ -63,6 +63,60 @@ known_issues:
 - image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_2_IMAGE_UPSTREAM_VERSION
   jira: https://issues.redhat.com/browse/RHAI-121
   reason: SBOM metadata-config not yet configured until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_DSP_MARIADB_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_DSP_PROXYV2_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_AUTOML_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_AUTORAG_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_WORKFLOWCONTROLLER_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_EVAL_HUB_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_V2_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_ML_PIPELINES_DRIVER_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_ML_PIPELINES_LAUNCHER_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_ML_PIPELINES_PERSISTENCEAGENT_V2_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_ML_PIPELINES_SCHEDULEDWORKFLOW_V2_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_PIPELINES_COMPONENTS_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_PY_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
+- image: RELATED_IMAGE_ODH_PYTHON_312_IMAGE
+  reason: Component-internal image, not exposed via params.env override (by design)
 
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
@@ -94,3 +148,136 @@ rhoai_exceptions:
   reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1
 - image: RELATED_IMAGE_ODH_WORKBENCHES_CONTROLLER_IMAGE
   reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1
+
+image_overrides_exceptions:
+- image: RELATED_IMAGE_DSP_INSTRUCTLAB_NVIDIA_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
+  reason: Removed with InstructLab pipeline removal since RHOAI 3.0
+- image: RELATED_IMAGE_DSP_TOOLBOX_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
+  reason: Removed with InstructLab pipeline removal since RHOAI 3.0
+- image: RELATED_IMAGE_ODH_ML_PIPELINES_RUNTIME_GENERIC_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
+  reason: Removed with InstructLab pipeline removal since RHOAI 3.0
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: Not yet in imageOverrides until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_1_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: Not yet in imageOverrides until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_2_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: Not yet in imageOverrides until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_IMAGE
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: Not yet in imageOverrides until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_1_IMAGE
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: Not yet in imageOverrides until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_2_IMAGE
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: Not yet in imageOverrides until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
+  reason: ppc64le/s390x only, not applicable to ODH build config
+- image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE
+  reason: ODH-only image, not applicable to RHOAI
+- image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_2_IMAGE
+  reason: ODH-only image, not applicable to RHOAI
+- image: RELATED_IMAGE_RHAII_MODEL_OPT_CUDA_IMAGE
+  reason: RHOAI-only image, not yet on rhoai-3.5 branch
+- image: RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE
+  reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1
+- image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_2_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_FAST_1_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_FAST_2_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_1_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_2_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_CUDA_FAST_1_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_CUDA_FAST_2_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_GAUDI_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_GAUDI_FAST_1_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_GAUDI_FAST_2_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_1_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_2_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_ROCM_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_ROCM_FAST_1_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_ROCM_FAST_2_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_SPYRE_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_SPYRE_FAST_1_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_SPYRE_FAST_2_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_DSP_MARIADB_IMAGE
+  reason: Missing imageOverrides entry in manifests-config.yaml, needs to be added with correct image digest by DSP team
+- image: RELATED_IMAGE_DSP_PROXYV2_IMAGE
+  reason: Missing imageOverrides entry in manifests-config.yaml, needs to be added with correct image digest by DSP team
+- image: RELATED_IMAGE_ODH_PYTHON_312_IMAGE
+  reason: Missing imageOverrides entry in manifests-config.yaml, used in trustyai and aigateway module handlers
+- image: RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE
+  reason: Missing imageOverrides entry in manifests-config.yaml, needs to be added by monitoring team
+- image: RELATED_IMAGE_NGINX_126_IMAGE
+  reason: Used via os.Getenv in gateway_support.go, injected directly without params.env
+- image: RELATED_IMAGE_ODH_UBI_MICRO_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_PERSES_IMAGE
+  reason: Used via module handler in monitoring, injected directly without params.env
+- image: RELATED_IMAGE_POSTGRESQL_16_IMAGE
+  reason: Used via module handler in dashboard and modelregistry, injected directly without params.env
+- image: RELATED_IMAGE_UBI_MINIMAL_IMAGE
+  reason: Used via module handler in aigateway, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_FAST_1_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_FAST_2_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_CUDA_FAST_1_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_CUDA_FAST_2_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_GAUDI_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_GAUDI_FAST_1_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_GAUDI_FAST_2_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_ROCM_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_ROCM_FAST_1_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_ROCM_FAST_2_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_SPYRE_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_SPYRE_FAST_1_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_SPYRE_FAST_2_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
