@@ -458,6 +458,7 @@ func TestOdhOperator(t *testing.T) {
 
 	if tc, err := NewTestContext(t); err == nil && tc.IsXKS() {
 		tc.EnsurePlatformCR(t)
+		tc.EnsureGatewayConfigForXKS(t)
 	}
 
 	if testOpts.dependantOperatorsManagementTest {
