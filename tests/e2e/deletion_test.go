@@ -73,17 +73,25 @@ func (tc *DeletionTestCtx) TestDSCDeletion(t *testing.T) {
 	)
 	dsciUID := string(dsci.GetUID())
 	dscUID := string(dsc.GetUID())
+	platform := tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
+	)
+	platformUID := string(platform.GetUID())
 
 	// Reconcile DSC after DSCI and verify the shared Platform retains both
 	// non-controller owner references.
 	t.Log("Reconcile DSC after DSCI to verify both Platform owners are retained")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "%s"`, operatorv1.Managed)),
+		WithMutateFunc(testf.Transform(
+			`(.metadata.annotations //= {}) | .metadata.annotations."test.opendatahub.io/force-reconcile" = "%d"`,
+			time.Now().UnixNano(),
+		)),
 	)
 	tc.EnsureResourceExistsConsistently(
 		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
 		WithCondition(And(
+			jq.Match(`.metadata.uid == "%s"`, platformUID),
 			jq.Match(`any(.metadata.ownerReferences[]; .kind == "%s" and .name == "%s" and .uid == "%s")`, gvk.DSCInitialization.Kind, tc.DSCInitializationNamespacedName.Name, dsciUID),
 			jq.Match(`any(.metadata.ownerReferences[]; .kind == "%s" and .name == "%s" and .uid == "%s")`, gvk.DataScienceCluster.Kind, tc.DataScienceClusterNamespacedName.Name, dscUID),
 		)),
@@ -106,6 +114,7 @@ func (tc *DeletionTestCtx) TestDSCDeletion(t *testing.T) {
 		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
 		WithCondition(And(
 			jq.Match(`.metadata.deletionTimestamp == null`),
+			jq.Match(`.metadata.uid == "%s"`, platformUID),
 			jq.Match(`any(.status.conditions[]; .type == "Ready" and .status == "True")`),
 			jq.Match(`any(.metadata.ownerReferences[]; .kind == "%s" and .name == "%s" and .uid == "%s")`, gvk.DSCInitialization.Kind, tc.DSCInitializationNamespacedName.Name, dsciUID),
 		)),
