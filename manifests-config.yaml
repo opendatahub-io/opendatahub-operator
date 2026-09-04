@@ -25,13 +25,15 @@ components:
       sourcePath: kserve-module/config
   ray:
     odh:
-      repo: opendatahub-io/kuberay
-      ref: dev@ad38262cb5e22d605e548ea99dcb92ef48b80422
-      sourcePath: ray-operator/config
+      repo: opendatahub-io/ray-module-operator
+      ref: main@b65280c00011cfca937ec4e829b2d29f0eed2505
+      sourcePath: config
+    # Downstream red-hat-data-services/ray-module-operator does not exist yet.
+    # Pin RHOAI to the same upstream commit until that repo is onboarded.
     rhoai:
-      repo: red-hat-data-services/kuberay
-      ref: rhoai-3.6-ea.2@5d9f6bf2dda4e318522ccb6d1a90087788381e9e
-      sourcePath: ray-operator/config
+      repo: opendatahub-io/ray-module-operator
+      ref: main@b65280c00011cfca937ec4e829b2d29f0eed2505
+      sourcePath: config
   trustyai:
     odh:
       repo: opendatahub-io/trustyai-service-operator
