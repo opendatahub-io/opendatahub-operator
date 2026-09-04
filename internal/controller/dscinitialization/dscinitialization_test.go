@@ -92,20 +92,16 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				g.Expect(k8sClient.Update(ctx, patched)).To(Succeed())
 			}).WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 
-			Eventually(dscInitializationIsReady(foundDsci)).
-				WithContext(ctx).
-				WithTimeout(timeout).
-				WithPolling(interval).
-				Should(BeTrue())
-
-			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: workingNamespace}, foundDsci)).To(Succeed())
-			Expect(foundDsci.Status.Conditions).To(ContainElement(
-				SatisfyAll(
-					HaveField("Type", "MonitoringReady"),
-					HaveField("Status", metav1.ConditionFalse),
-					HaveField("Reason", "Removed"),
-				),
-			))
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: workingNamespace}, foundDsci)).To(Succeed())
+				g.Expect(foundDsci.Status.Conditions).To(ContainElement(
+					SatisfyAll(
+						HaveField("Type", "MonitoringReady"),
+						HaveField("Status", metav1.ConditionFalse),
+						HaveField("Reason", "Removed"),
+					),
+				))
+			}).WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 		})
 
 		// Currently commented out in the DSCI reconcile - setting test to Pending
@@ -205,7 +201,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				g.Expect(foundDsci.Status.Conditions).ToNot(ContainElement(
 					HaveField("Type", "UnrelatedCondition"),
 				))
-			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			}).WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 		})
 
 		It("Should set Ready condition to False when Monitoring CR Ready condition is False", func(ctx context.Context) {
