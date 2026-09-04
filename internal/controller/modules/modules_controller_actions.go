@@ -10,7 +10,10 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -76,6 +79,39 @@ func NewPlatformCR(dscCtx *DSCContext, source ConfigSource) *configv1alpha1.Plat
 			Modules: BuildPlatformModulesForSource(dscCtx, source),
 		},
 	}
+}
+
+// EnsurePlatformOwnerReference adds owner to the shared Platform CR without
+// involving server-side apply. OwnerReferences is shared by the DSCI and DSC
+// controllers, so each controller must read the current value, merge its
+// reference, and update only metadata. Conflicts are retried with a fresh read
+// to avoid one controller losing the other controller's reference.
+func EnsurePlatformOwnerReference(ctx context.Context, cli client.Client, owner client.Object, scheme *runtime.Scheme) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		platform := &configv1alpha1.Platform{}
+		if err := cli.Get(ctx, client.ObjectKey{Name: configv1alpha1.PlatformInstanceName}, platform); err != nil {
+			return err
+		}
+
+		// Never attempt to resurrect a Platform that Kubernetes has already
+		// marked for deletion. Its owners may be changing as part of teardown.
+		if !platform.GetDeletionTimestamp().IsZero() {
+			return nil
+		}
+
+		ownerReferences := append([]metav1.OwnerReference(nil), platform.GetOwnerReferences()...)
+		if err := controllerutil.SetOwnerReference(owner, platform, scheme); err != nil {
+			return fmt.Errorf("failed to merge Platform owner reference: %w", err)
+		}
+		if reflect.DeepEqual(ownerReferences, platform.GetOwnerReferences()) {
+			return nil
+		}
+
+		if err := cli.Update(ctx, platform); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 // NewPlatformCRRemovedForSource builds a Platform CR that SSA-applies Removed

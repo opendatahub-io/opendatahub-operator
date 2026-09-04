@@ -12,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -27,9 +26,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-// dscFieldManager is the SSA field owner used by the DSC deploy action
-// (lowercase Kind). The delete finalizer must use the same manager so it
-// replaces ConfigFromDSC module fields rather than fighting a second owner.
+// dscFieldManager is the SSA field owner used by the DSC deploy and delete
+// actions. Platform ownerReferences are merged and updated separately because
+// the Platform is shared with the DSCI controller.
 const dscFieldManager = "datasciencecluster"
 
 func isNilInterface(v any) bool {
@@ -63,11 +62,15 @@ func syncPlatformCR(ctx context.Context, rr *odhtype.ReconciliationRequest) erro
 	}
 
 	platform := modules.NewPlatformCR(buildDSCContext(instance), modules.ConfigFromDSC)
-	if err := controllerutil.SetOwnerReference(instance, platform, rr.Client.Scheme()); err != nil {
-		return fmt.Errorf("failed to set Platform owner reference: %w", err)
+	if err := resources.Apply(ctx, rr.Client, platform, client.FieldOwner(dscFieldManager), client.ForceOwnership); err != nil {
+		return fmt.Errorf("failed to apply Platform CR: %w", err)
 	}
 
-	return rr.AddResources(platform)
+	if err := modules.EnsurePlatformOwnerReference(ctx, rr.Client, instance, rr.Client.Scheme()); err != nil {
+		return fmt.Errorf("failed to update Platform owner reference: %w", err)
+	}
+
+	return nil
 }
 
 // disableDSCModulesOnDelete is the DSC delete finalizer. It SSA-applies
