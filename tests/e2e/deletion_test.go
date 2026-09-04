@@ -65,6 +65,14 @@ func (tc *DeletionTestCtx) TestDSCDeletion(t *testing.T) {
 		)),
 		WithEventuallyTimeout(15*time.Minute),
 	)
+	dsci := tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+	)
+	dsc := tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+	)
+	dsciUID := string(dsci.GetUID())
+	dscUID := string(dsc.GetUID())
 
 	// Reconcile DSC after DSCI and verify the shared Platform retains both
 	// non-controller owner references.
@@ -76,18 +84,31 @@ func (tc *DeletionTestCtx) TestDSCDeletion(t *testing.T) {
 	tc.EnsureResourceExistsConsistently(
 		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
 		WithCondition(And(
-			jq.Match(`any(.metadata.ownerReferences[]; .kind == "%s" and .name == "%s")`, gvk.DSCInitialization.Kind, tc.DSCInitializationNamespacedName.Name),
-			jq.Match(`any(.metadata.ownerReferences[]; .kind == "%s" and .name == "%s")`, gvk.DataScienceCluster.Kind, tc.DataScienceClusterNamespacedName.Name),
+			jq.Match(`any(.metadata.ownerReferences[]; .kind == "%s" and .name == "%s" and .uid == "%s")`, gvk.DSCInitialization.Kind, tc.DSCInitializationNamespacedName.Name, dsciUID),
+			jq.Match(`any(.metadata.ownerReferences[]; .kind == "%s" and .name == "%s" and .uid == "%s")`, gvk.DataScienceCluster.Kind, tc.DataScienceClusterNamespacedName.Name, dscUID),
 		)),
 		WithConsistentlyDuration(30*time.Second),
 		WithConsistentlyPollingInterval(5*time.Second),
 	)
 
 	t.Log("Delete DataScienceCluster and verify Platform/Monitoring remain healthy")
-	tc.DeleteResource(WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName))
+	tc.DeleteResource(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithWaitForDeletion(true),
+	)
+	tc.EnsureResourceExistsConsistently(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(jq.Match(`.metadata.deletionTimestamp == null and .metadata.uid == "%s"`, dsciUID)),
+		WithConsistentlyDuration(30*time.Second),
+		WithConsistentlyPollingInterval(5*time.Second),
+	)
 	tc.EnsureResourceExistsConsistently(
 		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
-		WithCondition(jq.Match(`.metadata.deletionTimestamp == null`)),
+		WithCondition(And(
+			jq.Match(`.metadata.deletionTimestamp == null`),
+			jq.Match(`any(.status.conditions[]; .type == "Ready" and .status == "True")`),
+			jq.Match(`any(.metadata.ownerReferences[]; .kind == "%s" and .name == "%s" and .uid == "%s")`, gvk.DSCInitialization.Kind, tc.DSCInitializationNamespacedName.Name, dsciUID),
+		)),
 		WithConsistentlyDuration(30*time.Second),
 		WithConsistentlyPollingInterval(5*time.Second),
 	)

@@ -69,6 +69,7 @@ const (
 // DSCInitializationReconciler reconciles a DSCInitialization object.
 type DSCInitializationReconciler struct {
 	Client           client.Client
+	APIReader        client.Reader
 	Scheme           *runtime.Scheme
 	Recorder         events.EventRecorder
 	OperatorSettings operatorconfig.OperatorSettings
@@ -372,6 +373,7 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 
 	r.ctrl = c
 	r.mgr = mgr
+	r.APIReader = mgr.GetAPIReader()
 	return nil
 }
 
@@ -590,7 +592,11 @@ func (r *DSCInitializationReconciler) reconcileDSCIModules(ctx context.Context, 
 	if err := resources.Apply(ctx, r.Client, platform, client.FieldOwner(fieldManager), client.ForceOwnership); err != nil {
 		return fmt.Errorf("failed to apply Platform CR: %w", err)
 	}
-	if err := modules.EnsurePlatformOwnerReference(ctx, r.Client, instance, r.Scheme); err != nil {
+	apiReader := r.APIReader
+	if apiReader == nil {
+		apiReader = r.Client
+	}
+	if err := modules.EnsurePlatformOwnerReference(ctx, r.Client, apiReader, instance, r.Scheme); err != nil {
 		return fmt.Errorf("failed to update Platform owner reference: %w", err)
 	}
 

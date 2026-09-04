@@ -110,12 +110,14 @@ func SetPlatformMetadata(platform client.Object, instance client.Object, release
 // EnsurePlatformOwnerReference adds owner to the shared Platform CR without
 // involving server-side apply. OwnerReferences is shared by the DSCI and DSC
 // controllers, so each controller must read the current value, merge its
-// reference, and update only metadata. Conflicts are retried with a fresh read
-// to avoid one controller losing the other controller's reference.
-func EnsurePlatformOwnerReference(ctx context.Context, cli client.Client, owner client.Object, scheme *runtime.Scheme) error {
+// reference, and update only metadata. The reader must be uncached so it sees
+// the Platform immediately after the preceding SSA apply. Conflicts are
+// retried with a fresh read to avoid one controller losing the other
+// controller's reference.
+func EnsurePlatformOwnerReference(ctx context.Context, writer client.Client, reader client.Reader, owner client.Object, scheme *runtime.Scheme) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		platform := &configv1alpha1.Platform{}
-		if err := cli.Get(ctx, client.ObjectKey{Name: configv1alpha1.PlatformInstanceName}, platform); err != nil {
+		if err := reader.Get(ctx, client.ObjectKey{Name: configv1alpha1.PlatformInstanceName}, platform); err != nil {
 			return err
 		}
 
@@ -133,7 +135,7 @@ func EnsurePlatformOwnerReference(ctx context.Context, cli client.Client, owner 
 			return nil
 		}
 
-		if err := cli.Update(ctx, platform); err != nil {
+		if err := writer.Update(ctx, platform); err != nil {
 			return err
 		}
 		return nil
