@@ -62,6 +62,7 @@ func syncPlatformCR(ctx context.Context, rr *odhtype.ReconciliationRequest) erro
 	}
 
 	platform := modules.NewPlatformCR(buildDSCContext(instance), modules.ConfigFromDSC)
+	modules.SetPlatformMetadata(platform, instance, rr.Release, dscFieldManager)
 	if err := resources.Apply(ctx, rr.Client, platform, client.FieldOwner(dscFieldManager), client.ForceOwnership); err != nil {
 		return fmt.Errorf("failed to apply Platform CR: %w", err)
 	}

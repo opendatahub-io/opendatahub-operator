@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +28,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	odhan "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	odhl "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -79,6 +82,29 @@ func NewPlatformCR(dscCtx *DSCContext, source ConfigSource) *configv1alpha1.Plat
 			Modules: BuildPlatformModulesForSource(dscCtx, source),
 		},
 	}
+}
+
+// SetPlatformMetadata restores the standard metadata stamped by the generic
+// deploy action for DSC-owned Platform resources. Owner references are
+// intentionally not handled here because Platform is shared with DSCI.
+func SetPlatformMetadata(platform client.Object, instance client.Object, release common.Release, partOf string) {
+	annotations := platform.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations[odhan.InstanceGeneration] = strconv.FormatInt(instance.GetGeneration(), 10)
+	annotations[odhan.InstanceName] = instance.GetName()
+	annotations[odhan.InstanceUID] = string(instance.GetUID())
+	annotations[odhan.PlatformType] = string(release.Name)
+	annotations[odhan.PlatformVersion] = release.Version.String()
+	platform.SetAnnotations(annotations)
+
+	labels := platform.GetLabels()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[odhl.PlatformPartOf] = odhl.NormalizePartOfValue(partOf)
+	platform.SetLabels(labels)
 }
 
 // EnsurePlatformOwnerReference adds owner to the shared Platform CR without
