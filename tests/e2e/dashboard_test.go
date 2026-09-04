@@ -211,12 +211,60 @@ func (tc *DashboardTestCtx) ValidateVAPBlocksDashboardCRCreation(t *testing.T) {
 	})
 }
 
+// moduleSlugToName maps the app.kubernetes.io/component label value (manifest
+// slug) on a ConfigMap to the module name used in the Dashboard CR's
+// status.moduleStatuses map.
+var moduleSlugToName = map[string]string{
+	"automl":         "automl",
+	"autorag":        "autorag",
+	"eval-hub":       "evalHub",
+	"model-registry": "modelRegistry",
+	"mlflow":         "mlflow",
+	"agent-ops":      "agentOps",
+	"notebooks":      "notebooks",
+	"gen-ai":         "genAi",
+	"maas":           "maas",
+}
+
+// isModuleDeployed checks the Dashboard CR's status.moduleStatuses to determine
+// whether a module identified by its manifest slug is currently deployed. This
+// reflects the fully resolved state including DSC component gates, explicit
+// spec.modules overrides, and inter-module dependencies.
+func (tc *DashboardTestCtx) isModuleDeployed(slug string) bool {
+	moduleName, known := moduleSlugToName[slug]
+	if !known {
+		return true
+	}
+
+	dashboard := tc.FetchResource(
+		WithMinimalObject(gvk.Dashboard, tc.NamespacedName),
+	)
+	if dashboard == nil {
+		return true
+	}
+
+	statuses, found, err := unstructured.NestedMap(dashboard.Object, "status", "moduleStatuses", moduleName)
+	if err != nil || !found {
+		return true
+	}
+
+	phase, _ := statuses["phase"].(string)
+
+	return phase == "Deployed" || phase == "Degraded"
+}
+
 // ValidateAllDeletionRecovery runs the standard set of deletion recovery tests.
 // Before running, it waits for all dashboard-labeled deployments to complete any
 // in-progress rollouts. Earlier tests (Validate_update_operand_resources,
 // Validate_dynamically_watches_operands) can trigger a rhods-dashboard rollout
 // that restarts the dashboard-operator pod; if deletion recovery runs while the
 // operator is mid-restart, it cannot recreate deleted ConfigMaps in time.
+//
+// Dashboard modules gate on DSC component states (e.g. automl requires
+// aipipelines=Managed). Prior tests or parallel suites may change those states.
+// The dashboard-operator does not clean up ConfigMaps for disabled modules, so
+// they still exist on the cluster but will not be recreated after deletion.
+// This override excludes ConfigMaps belonging to disabled modules.
 func (tc *DashboardTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 	t.Helper()
 
@@ -245,11 +293,87 @@ func (tc *DashboardTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 		WithCustomErrorMsg("All dashboard deployments should be fully rolled out before testing deletion recovery"),
 	)
 
-	// Run all the standard recovery tests first
-	tc.ComponentTestCtx.ValidateAllDeletionRecovery(t)
+	tc.validateDashboardDeletionRecovery(t)
 
 	// Add Dashboard-specific recovery test
 	t.Run("Route deletion recovery", func(t *testing.T) {
 		tc.ValidateResourceDeletionRecovery(t, gvk.Route, types.NamespacedName{Namespace: tc.AppsNamespace})
 	})
+}
+
+// validateDashboardDeletionRecovery runs the standard deletion recovery tests
+// with a dashboard-specific ConfigMap handler that excludes disabled modules.
+func (tc *DashboardTestCtx) validateDashboardDeletionRecovery(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke, Tier1)
+
+	savedOpts := tc.DefaultResourceOpts
+	tc.DefaultResourceOpts = []ResourceOpts{
+		WithEventuallyTimeout(tc.TestTimeouts.deletionRecoveryTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	}
+	defer func() { tc.DefaultResourceOpts = savedOpts }()
+
+	testCases := []TestCase{
+		{"ConfigMap deletion recovery", tc.validateConfigMapDeletionRecovery},
+		{"Service deletion recovery", func(t *testing.T) {
+			t.Helper()
+			tc.ValidateResourceDeletionRecovery(t, gvk.Service, types.NamespacedName{Namespace: tc.AppsNamespace})
+		}},
+		{"RBAC deletion recovery", tc.ValidateRBACDeletionRecovery},
+		{"ServiceAccount deletion recovery", tc.ValidateServiceAccountDeletionRecovery},
+		{"Deployment deletion recovery", tc.ValidateDeploymentDeletionRecovery},
+	}
+
+	RunTestCases(t, testCases)
+}
+
+// validateConfigMapDeletionRecovery tests that dashboard ConfigMaps are
+// recreated after deletion. ConfigMaps whose app.kubernetes.io/component label
+// identifies a module that is not currently deployed are skipped — the
+// dashboard-operator does not recreate resources for disabled modules, but it
+// also does not clean up their ConfigMaps, so they may still exist on the
+// cluster as stale resources.
+//
+// Module deployment state is read from the Dashboard CR's status.moduleStatuses
+// immediately before each subtest, which reflects the fully resolved state
+// including DSC component gates, explicit spec.modules overrides, and
+// inter-module dependencies.
+func (tc *DashboardTestCtx) validateConfigMapDeletionRecovery(t *testing.T) {
+	t.Helper()
+
+	nn := types.NamespacedName{Namespace: tc.AppsNamespace}
+	listOptions := &client.ListOptions{
+		LabelSelector: k8slabels.Set{
+			labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+		}.AsSelector(),
+		Namespace: nn.Namespace,
+	}
+
+	existingResources := tc.FetchResources(
+		WithMinimalObject(gvk.ConfigMap, nn),
+		WithListOptions(listOptions),
+	)
+
+	if len(existingResources) == 0 {
+		t.Logf("No ConfigMap resources found for component %s, skipping", tc.GVK.Kind)
+		return
+	}
+
+	for _, resource := range existingResources {
+		t.Run("ConfigMap_"+resource.GetName(), func(t *testing.T) {
+			t.Helper()
+
+			moduleSlug := resource.GetLabels()["app.kubernetes.io/component"]
+			if moduleSlug != "" && !tc.isModuleDeployed(moduleSlug) {
+				t.Skipf("ConfigMap %s belongs to module %q which is not currently deployed", resource.GetName(), moduleSlug)
+				return
+			}
+
+			tc.EnsureResourceDeletedThenRecreated(
+				WithMinimalObject(gvk.ConfigMap, resources.NamespacedNameFromObject(&resource)),
+			)
+		})
+	}
 }
