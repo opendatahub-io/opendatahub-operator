@@ -11,6 +11,7 @@ import (
 	ofapiv1 "github.com/operator-framework/api/pkg/operators/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	olmv1 "github.com/operator-framework/operator-controller/api/v1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -53,6 +54,7 @@ var (
 		oauthv1.AddToScheme,
 		ofapiv1.AddToScheme,
 		ofapiv2.AddToScheme,
+		olmv1.AddToScheme,
 		coordinationv1.AddToScheme,
 		serviceApi.AddToScheme,
 		configv1alpha1.AddToScheme,

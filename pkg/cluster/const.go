@@ -51,4 +51,14 @@ const (
 
 	// KueueLegacyManagedLabelKey is the legacy label key used to indicate a namespace is managed by Kueue.
 	KueueLegacyManagedLabelKey = "kueue-managed"
+
+	// managedAddonCatalogName is the OLM catalog resource name for the managed RHOAI add-on.
+	// OLMv0: CatalogSource in the operator namespace. OLMv1: cluster-scoped ClusterCatalog.
+	managedAddonCatalogName = "addon-managed-odh-catalog"
+
+	// rhoaiOperatorPackage is the OLM package name for Self-Managed RHOAI (OLMv0 Subscription / OLMv1 ClusterExtension).
+	rhoaiOperatorPackage = "rhods-operator"
+
+	// odhOperatorPackage is the OLM package name for upstream Open Data Hub.
+	odhOperatorPackage = "opendatahub-operator"
 )
