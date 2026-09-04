@@ -2,8 +2,10 @@ package modules
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
+	"os"
 	"path/filepath"
 	"reflect"
 	"time"
@@ -430,6 +432,14 @@ func (b *BaseHandler) DeleteOperatorResources(ctx context.Context, cli client.Cl
 	manifests := b.GetOperatorManifests(platform)
 
 	for _, chartInfo := range manifests.HelmCharts {
+		if _, err := os.Stat(chartInfo.Chart); errors.Is(err, os.ErrNotExist) {
+			log.V(1).Info("chart directory does not exist, skipping cleanup",
+				"module", b.Config.Name,
+				"path", chartInfo.Chart)
+
+			continue
+		}
+
 		renderer, err := helm.New([]helm.Source{chartInfo.Source})
 		if err != nil {
 			return fmt.Errorf("creating helm renderer for %s: %w", b.Config.Name, err)
@@ -446,6 +456,14 @@ func (b *BaseHandler) DeleteOperatorResources(ctx context.Context, cli client.Cl
 	}
 
 	for _, manifestInfo := range manifests.Manifests {
+		if _, err := os.Stat(manifestInfo.Path); errors.Is(err, os.ErrNotExist) {
+			log.V(1).Info("manifest directory does not exist, skipping cleanup",
+				"module", b.Config.Name,
+				"path", manifestInfo.Path)
+
+			continue
+		}
+
 		ke := kustomize.NewEngine()
 		ns := ""
 		if platform != nil {
