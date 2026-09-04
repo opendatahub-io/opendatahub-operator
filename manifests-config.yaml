@@ -26,11 +26,13 @@ components:
   ray:
     odh:
       repo: opendatahub-io/ray-module-operator
-      ref: main@6952bc6bd6ce
+      ref: main@eac8543ed8be7e8d49ccbb42f481d19825299c06
       sourcePath: config
+    # Downstream red-hat-data-services/ray-module-operator does not exist yet.
+    # Pin RHOAI to the same upstream commit until that repo is onboarded.
     rhoai:
-      repo: red-hat-data-services/ray-module-operator
-      ref: rhoai-3.6-ea.1@6952bc6bd6ce
+      repo: opendatahub-io/ray-module-operator
+      ref: main@eac8543ed8be7e8d49ccbb42f481d19825299c06
       sourcePath: config
   trustyai:
     odh:
