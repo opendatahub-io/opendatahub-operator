@@ -159,10 +159,10 @@ func TestGetOperatorManifests(t *testing.T) {
 		platform common.Platform
 		want     string
 	}{
-		{"odh", cluster.OpenDataHub, "/base/trustyai-module-operator/default"},
-		{"self-managed-rhoai", cluster.SelfManagedRhoai, "/base/trustyai-module-operator/default"},
-		{"managed-rhoai", cluster.ManagedRhoai, "/base/trustyai-module-operator/default"},
-		{"xks", cluster.XKS, "/base/trustyai-module-operator/default"},
+		{"odh", cluster.OpenDataHub, "/base/trustyai/default"},
+		{"self-managed-rhoai", cluster.SelfManagedRhoai, "/base/trustyai/default"},
+		{"managed-rhoai", cluster.ManagedRhoai, "/base/trustyai/default"},
+		{"xks", cluster.XKS, "/base/trustyai/default"},
 	}
 
 	for _, tcase := range cases {

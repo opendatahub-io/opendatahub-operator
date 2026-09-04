@@ -53,7 +53,7 @@ func NewHandler() *handler {
 				Name:            moduleName,
 				CRName:          crName,
 				GVK:             gvk.TrustyAI,
-				ManifestDir:     "trustyai-module-operator",
+				ManifestDir:     "trustyai",
 				ContextDir:      "default",
 				DeploymentName:  deploymentName,
 				ControllerImage: controllerImage,
