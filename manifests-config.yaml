@@ -36,11 +36,11 @@ components:
     odh:
       repo: opendatahub-io/trustyai-service-operator
       ref: incubation@59a7f4586e63bd80196968a3a58252feeb183bb9
-      sourcePath: config
+      sourcePath: trustyai-operator-module/config
     rhoai:
       repo: red-hat-data-services/trustyai-service-operator
       ref: rhoai-3.6-ea.1@aca8792fd9d00d086d035ce8ff1e4c2a550439ed
-      sourcePath: config
+      sourcePath: trustyai-operator-module/config
   modelregistry:
     odh:
       repo: opendatahub-io/model-registry-operator
