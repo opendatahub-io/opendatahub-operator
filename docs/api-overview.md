@@ -2241,9 +2241,9 @@ _Appears in:_
 
 | Field | Description |
 | --- | --- |
-| `SelfSigned` |  |
+| `SelfSigned` | SelfSigned requests an operator-managed TLS certificate. When cert-manager is available<br />on the cluster the certificate is issued (and auto-renewed) by cert-manager using the<br />resolved issuer (see IssuerRef); otherwise the operator generates a self-signed certificate.<br /> |
 | `Provided` |  |
-| `OpenshiftDefaultIngress` |  |
+| `OpenshiftDefaultIngress` | OpenshiftDefaultIngress uses the cluster's default ingress certificate (OpenShift only).<br /> |
 
 
 #### CertificateSpec
@@ -2262,7 +2262,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `secretName` _string_ | SecretName specifies the name of the Kubernetes Secret resource that contains a<br />TLS certificate secure HTTP communications for the KNative network. |  |  |
-| `type` _[CertType](#certtype)_ | Type specifies if the TLS certificate should be generated automatically, or if the certificate<br />is provided by the user. Allowed values are:<br />* SelfSigned: A certificate is going to be generated using an own private key.<br />* Provided: Pre-existence of the TLS Secret (see SecretName) with a valid certificate is assumed.<br />* OpenshiftDefaultIngress: Default ingress certificate configured for OpenShift | OpenshiftDefaultIngress | Enum: [SelfSigned Provided OpenshiftDefaultIngress] <br /> |
+| `type` _[CertType](#certtype)_ | Type specifies if the TLS certificate should be generated automatically, or if the certificate<br />is provided by the user. Allowed values are:<br />* SelfSigned: A certificate is going to be generated using an own private key.<br />* Provided: Pre-existence of the TLS Secret (see SecretName) with a valid certificate is assumed.<br />* OpenshiftDefaultIngress: Uses the cluster's default ingress certificate (OpenShift only). | OpenshiftDefaultIngress | Enum: [SelfSigned Provided OpenshiftDefaultIngress] <br /> |
+| `issuerRef` _[IssuerRef](#issuerref)_ | IssuerRef optionally overrides the cert-manager issuer used to sign the certificate.<br />It only takes effect when cert-manager is available on the cluster (the SelfSigned type).<br />When cert-manager is not installed, certificate generation falls back to an operator-managed<br />self-signed certificate and this field is ignored. |  |  |
 
 
 
@@ -2354,6 +2355,26 @@ HardwareProfileStatus defines the observed state of HardwareProfile.
 _Appears in:_
 - [HardwareProfile](#hardwareprofile)
 
+
+
+#### IssuerRef
+
+
+
+IssuerRef references the cert-manager issuer used to sign the certificate.
+It is only consulted when cert-manager is available on the cluster; otherwise it is ignored.
+When unset (or with empty fields), the platform default issuer is used — resolved from the
+operator's RHAI_ISSUER_REF_* environment variables (e.g. rhai-ca-issuer on RHOAI).
+
+
+
+_Appears in:_
+- [CertificateSpec](#certificatespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name of the cert-manager issuer. When empty, the platform default issuer name is used. |  | MaxLength: 253 <br /> |
+| `kind` _string_ | Kind of the cert-manager issuer. | ClusterIssuer | Enum: [Issuer ClusterIssuer] <br /> |
 
 
 #### KueueSchedulingSpec
@@ -2731,16 +2752,16 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `ingressMode` _[IngressMode](#ingressmode)_ | IngressMode specifies how the Gateway is exposed externally.<br />"OcpRoute" uses ClusterIP with standard OpenShift Routes (default for new deployments).<br />"LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB). |  | Enum: [OcpRoute LoadBalancer] <br /> |
+| `ingressMode` _[IngressMode](#ingressmode)_ | IngressMode specifies how the Gateway is exposed externally.<br />"OcpRoute" uses ClusterIP with OpenShift Routes (OpenShift only).<br />"LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB). |  | Enum: [OcpRoute LoadBalancer] <br /> |
 | `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (used when cluster is in OIDC authentication mode) |  |  |
 | `certificate` _[CertificateSpec](#certificatespec)_ | Certificate specifies configuration of the TLS certificate securing communication for the gateway. |  |  |
-| `domain` _string_ | Domain specifies the host name for intercepting incoming requests.<br />Most likely, you will want to use a wildcard name, like *.example.com.<br />If not set, the domain of the OpenShift Ingress is used.<br />If you choose to generate a certificate, this is the domain used for the certificate request.<br />Example: *.example.com, example.com, apps.example.com |  | Pattern: `^(\*\.)?([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)*[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br /> |
+| `domain` _string_ | Domain specifies the host name for intercepting incoming requests.<br />Most likely, you will want to use a wildcard name, like *.example.com.<br />If not set, the cluster's default ingress domain is used (when available).<br />On Kubernetes clusters without a discoverable ingress domain, this field is required.<br />If you choose to generate a certificate, this is the domain used for the certificate request.<br />Example: *.example.com, example.com, apps.example.com |  | Pattern: `^(\*\.)?([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)*[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br /> |
 | `subdomain` _string_ | Subdomain configuration for the GatewayConfig<br />Example: my-gateway, custom-gateway |  | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)$` <br /> |
 | `cookie` _[CookieConfig](#cookieconfig)_ | Cookie configuration (applies to both OIDC and OpenShift OAuth) |  |  |
 | `authTimeout` _string_ | AuthTimeout is the duration Envoy waits for auth proxy responses.<br />Requests timeout with 403 if exceeded.<br />Deprecated: Use AuthProxyTimeout instead. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
 | `authProxyTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | AuthProxyTimeout defines the timeout for external authorization service calls (e.g., "5s", "10s")<br />This controls how long Envoy waits for a response from the authentication proxy before timing out 403 response. |  |  |
 | `networkPolicy` _[NetworkPolicyConfig](#networkpolicyconfig)_ | NetworkPolicy configuration for kube-auth-proxy |  |  |
-| `providerCASecretName` _string_ | ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider<br />Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.<br />Secret must exist in the openshift-ingress namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate. |  |  |
+| `providerCASecretName` _string_ | ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider.<br />Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.<br />Secret must exist in the gateway namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate. |  |  |
 | `verifyProviderCertificate` _boolean_ | VerifyProviderCertificate controls TLS certificate verification for the authentication provider.<br />When true (default), certificates are verified against the system trust store and providerCASecretName.<br />When false, certificate verification is disabled (development/testing only).<br />WARNING: Setting this to false disables security and should only be used in non-production environments.<br />For production use with self-signed certificates, use ProviderCASecretName instead. | true |  |
 | `enableK8sTokenValidation` _boolean_ | EnableK8sTokenValidation enables Kubernetes service account token validation via TokenReview API.<br />When enabled, kube-auth-proxy validates bearer tokens as service account tokens alongside OAuth/OIDC authentication.<br />This allows service accounts to authenticate via bearer tokens while human users authenticate via OAuth/OIDC. | true |  |
 | `tokenReview` _[TokenReviewConfig](#tokenreviewconfig)_ | TokenReview configures the rate limiting and caching behavior of Kubernetes TokenReview API calls<br />used for service account token validation.<br />If not set, kube-auth-proxy uses built-in defaults (QPS=50, Burst=100, CacheTTL=10s).<br />These settings only take effect when EnableK8sTokenValidation is true. |  |  |
@@ -2776,7 +2797,7 @@ _Appears in:_
 
 | Field | Description |
 | --- | --- |
-| `OcpRoute` | IngressModeOcpRoute uses ClusterIP service with standard OpenShift Routes.<br />This is the default for new deployments and works without additional infrastructure.<br /> |
+| `OcpRoute` | IngressModeOcpRoute uses ClusterIP service with OpenShift Routes (OpenShift only).<br /> |
 | `LoadBalancer` | IngressModeLoadBalancer uses a LoadBalancer service type.<br />This requires a load balancer provider (cloud or MetalLB).<br /> |
 
 
@@ -2886,7 +2907,7 @@ _Appears in:_
 | `issuerURL` _string_ | OIDC issuer URL. Must be an https URL with a non-empty host and no query or<br />fragment component (an OIDC issuer identifier has neither). |  | Format: uri <br />MaxLength: 2048 <br />MinLength: 1 <br />Pattern: `^https://[^?#\s]+$` <br />Required: \{\} <br /> |
 | `clientID` _string_ | OIDC client ID |  | Required: \{\} <br /> |
 | `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | Reference to secret containing client secret |  | Required: \{\} <br /> |
-| `secretNamespace` _string_ | Namespace where the client secret is located<br />If not specified, defaults to openshift-ingress |  |  |
+| `secretNamespace` _string_ | Namespace where the client secret is located.<br />If unset, defaults to the gateway namespace. |  |  |
 
 
 #### TokenReviewConfig

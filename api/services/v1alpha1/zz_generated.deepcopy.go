@@ -245,7 +245,7 @@ func (in *GatewayConfigSpec) DeepCopyInto(out *GatewayConfigSpec) {
 	if in.Certificate != nil {
 		in, out := &in.Certificate, &out.Certificate
 		*out = new(v1.CertificateSpec)
-		**out = **in
+		(*in).DeepCopyInto(*out)
 	}
 	out.Cookie = in.Cookie
 	out.AuthProxyTimeout = in.AuthProxyTimeout

@@ -188,16 +188,19 @@ const (
 	MaaSPrerequisitesMetMessage = "MaaS gateway annotations and Authorino TLS are correctly configured"
 
 	// Gateway Authentication messages.
-	AuthProxyDeployedMessage                 = "Auth proxy deployed successfully"
-	AuthProxyFailedDeployMessage             = "Failed to deploy auth proxy"
-	AuthProxyFailedOAuthClientMessage        = "Failed to create OAuth client"
-	AuthProxyFailedCallbackRouteMessage      = "Failed to create auth callback route"
-	AuthProxyFailedGenerateSecretMessage     = "Failed to generate client secret"
-	AuthProxyOIDCModeWithoutConfigMessage    = "Cluster is in OIDC mode but GatewayConfig has no OIDC configuration"
-	AuthProxyOIDCClientIDEmptyMessage        = "OIDC clientID cannot be empty"
-	AuthProxyOIDCIssuerURLEmptyMessage       = "OIDC issuerURL cannot be empty"
-	AuthProxyOIDCSecretRefNameEmptyMessage   = "OIDC clientSecretRef.name cannot be empty" //nolint:gosec // This is an error message, not a credential
-	AuthProxyExternalAuthNoDeploymentMessage = "Cluster uses external authentication, no gateway auth proxy deployed"
+	AuthProxyDeployedMessage                         = "Auth proxy deployed successfully"
+	AuthProxyFailedDeployMessage                     = "Failed to deploy auth proxy"
+	AuthProxyFailedOAuthClientMessage                = "Failed to create OAuth client"
+	AuthProxyFailedCallbackRouteMessage              = "Failed to create auth callback route"
+	AuthProxyFailedGenerateSecretMessage             = "Failed to generate client secret"
+	GatewayDomainRequiredMessage                     = "spec.domain is required on non-OpenShift clusters"
+	GatewayUnsupportedCertTypeOnKubernetesMessage    = "certificate.type OpenshiftDefaultIngress is not supported on Kubernetes clusters; use SelfSigned or Provided"
+	GatewayUnsupportedIngressModeOnKubernetesMessage = "ingressMode OcpRoute is not supported on Kubernetes clusters; use LoadBalancer"
+	AuthProxyOIDCModeWithoutConfigMessage            = "Cluster is in OIDC mode but GatewayConfig has no OIDC configuration"
+	AuthProxyOIDCClientIDEmptyMessage                = "OIDC clientID cannot be empty"
+	AuthProxyOIDCIssuerURLEmptyMessage               = "OIDC issuerURL cannot be empty"
+	AuthProxyOIDCSecretRefNameEmptyMessage           = "OIDC clientSecretRef.name cannot be empty" //nolint:gosec // This is an error message, not a credential
+	AuthProxyExternalAuthNoDeploymentMessage         = "Cluster uses external authentication, no gateway auth proxy deployed"
 )
 
 // For v3 upgrade sanity checks.

@@ -184,7 +184,7 @@ func getAuthProxyDeployment(ctx context.Context, cli client.Client) (*appsv1.Dep
 	deployment := &appsv1.Deployment{}
 	err := cli.Get(ctx, types.NamespacedName{
 		Name:      gateway.KubeAuthProxyName,
-		Namespace: gateway.GatewayNamespace,
+		Namespace: gateway.GetGatewayNamespace(),
 	}, deployment)
 	return deployment, err
 }
@@ -344,7 +344,7 @@ func SetupTestEnvForMain(authMode string, clusterDomain string) *TestEnvContext 
 				filepath.Join(rootPath, "config", "crd", "bases"),
 				filepath.Join(rootPath, "config", "crd", "external"),
 			},
-			CRDs:               append(getIstioCRDs(), getDashboardCRD()),
+			CRDs:               getEnvtestCRDs(),
 			ErrorIfPathMissing: true,
 			CleanUpAfterUse:    false,
 		},
@@ -382,12 +382,15 @@ func SetupTestEnvForMain(authMode string, clusterDomain string) *TestEnvContext 
 
 	platformType := env.GetOrDefault("ODH_PLATFORM_TYPE", "OpenDataHub")
 
-	// Initialize cluster config so cluster.GetOperatorNamespace() works (e.g. for GC action).
-	// Ignore Init error: operator namespace is set above; other steps may fail in envtest (e.g. no ClusterVersion).
-	_ = cluster.Init(ctx, k8sClient, operatorconfig.OperatorSettings{
-		OperatorNamespace: gateway.GatewayNamespace,
+	// Initialize cluster config so cluster.GetOperatorNamespace() and OpenShift detection work.
+	if err := cluster.Init(ctx, k8sClient, operatorconfig.OperatorSettings{
+		OperatorNamespace: gateway.GetGatewayNamespace(),
 		PlatformType:      platformType,
-	})
+	}); err != nil {
+		cancel()
+		testEnv.Stop() //nolint:errcheck
+		panic(fmt.Sprintf("Failed to initialize cluster config: %v", err))
+	}
 
 	// Manager with production-like cache. Do not add GatewayConfig to DisableFor (controller must receive watch events on spec updates).
 	skipNameValidation := true
@@ -440,7 +443,7 @@ func SetupTestEnvForMain(authMode string, clusterDomain string) *TestEnvContext 
 func setupClusterPrerequisitesForMain(ctx context.Context, cli client.Client, authMode, clusterDomain string) {
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: gateway.GatewayNamespace,
+			Name: gateway.GetGatewayNamespace(),
 		},
 	}
 	if err := cli.Create(ctx, ns); err != nil {
@@ -457,6 +460,24 @@ func setupClusterPrerequisitesForMain(ctx context.Context, cli client.Client, au
 	}
 	if err := cli.Create(ctx, ingress); err != nil {
 		panic(fmt.Sprintf("Failed to create Ingress: %v", err))
+	}
+
+	// ClusterVersion enables OpenShift auto-detection in getClusterInfo (envtest has no real OCP API server).
+	clusterVersion := &configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cluster.OpenShiftVersionObj,
+		},
+	}
+	if err := cli.Create(ctx, clusterVersion); err != nil {
+		panic(fmt.Sprintf("Failed to create ClusterVersion: %v", err))
+	}
+	clusterVersion.Status = configv1.ClusterVersionStatus{
+		History: []configv1.UpdateHistory{
+			{Version: "4.16.0"},
+		},
+	}
+	if err := cli.Status().Update(ctx, clusterVersion); err != nil {
+		panic(fmt.Sprintf("Failed to update ClusterVersion status: %v", err))
 	}
 
 	auth := &configv1.Authentication{
@@ -547,6 +568,46 @@ func ensureLoadBalancerPrerequisites(ctx context.Context, cli client.Client) {
 	}
 	if err := cli.Create(ctx, secret); err != nil && !k8serr.IsAlreadyExists(err) {
 		panic(fmt.Sprintf("Failed to create router-certs-default secret: %v", err))
+	}
+}
+
+func getEnvtestCRDs() []*apiextensionsv1.CustomResourceDefinition {
+	return append(getIstioCRDs(), getDashboardCRD(), getClusterVersionCRD())
+}
+
+// getClusterVersionCRD returns a minimal ClusterVersion CRD for envtest registration.
+// Enables OpenShift cluster auto-detection via getOCPVersion in cluster.Init.
+func getClusterVersionCRD() *apiextensionsv1.CustomResourceDefinition {
+	preserveUnknown := true
+
+	return &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "clusterversions." + gvk.ClusterVersion.Group,
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: gvk.ClusterVersion.Group,
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Kind:     gvk.ClusterVersion.Kind,
+				ListKind: gvk.ClusterVersion.Kind + "List",
+				Plural:   "clusterversions",
+				Singular: "clusterversion",
+			},
+			Scope: apiextensionsv1.ClusterScoped,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    gvk.ClusterVersion.Version,
+				Served:  true,
+				Storage: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+						Type:                   "object",
+						XPreserveUnknownFields: &preserveUnknown,
+					},
+				},
+				Subresources: &apiextensionsv1.CustomResourceSubresources{
+					Status: &apiextensionsv1.CustomResourceSubresourceStatus{},
+				},
+			}},
+		},
 	}
 }
 
@@ -656,7 +717,7 @@ func getIstioCRDs() []*apiextensionsv1.CustomResourceDefinition {
 func deleteGatewayConfigDependents(t *testing.T, ctx context.Context, cli client.Client) {
 	t.Helper()
 	g := NewWithT(t)
-	ns := gateway.GatewayNamespace
+	ns := gateway.GetGatewayNamespace()
 
 	// Delete Gateway if it exists.
 	gw := &gwapiv1.Gateway{}
@@ -809,14 +870,14 @@ func RunGatewayCreationTest(t *testing.T, setup TestSetup) {
 		gw := &gwapiv1.Gateway{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.DefaultGatewayName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, gw)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
 	gw := &gwapiv1.Gateway{}
 	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 		Name:      gateway.DefaultGatewayName,
-		Namespace: gateway.GatewayNamespace,
+		Namespace: gateway.GetGatewayNamespace(),
 	}, gw)).To(Succeed())
 	assertOwnedByGatewayConfig(g, gw)
 	g.Expect(string(gw.Spec.GatewayClassName)).To(Equal(gateway.GatewayClassName))
@@ -842,14 +903,14 @@ func RunHTTPRouteCreationTest(t *testing.T, setup TestSetup) {
 		route := &gwapiv1.HTTPRoute{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.OAuthCallbackRouteName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, route)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
 	route := &gwapiv1.HTTPRoute{}
 	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 		Name:      gateway.OAuthCallbackRouteName,
-		Namespace: gateway.GatewayNamespace,
+		Namespace: gateway.GetGatewayNamespace(),
 	}, route)).To(Succeed())
 	assertOwnedByGatewayConfig(g, route)
 
@@ -876,14 +937,14 @@ func RunServiceCreationTest(t *testing.T, setup TestSetup) {
 		svc := &corev1.Service{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, svc)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
 	svc := &corev1.Service{}
 	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 		Name:      gateway.KubeAuthProxyName,
-		Namespace: gateway.GatewayNamespace,
+		Namespace: gateway.GetGatewayNamespace(),
 	}, svc)).To(Succeed())
 	assertOwnedByGatewayConfig(g, svc)
 
@@ -925,14 +986,14 @@ func RunAuthProxySecretCreationTest(t *testing.T, setup TestSetup, expectedClien
 		secret := &corev1.Secret{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxySecretsName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, secret)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
 	secret := &corev1.Secret{}
 	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 		Name:      gateway.KubeAuthProxySecretsName,
-		Namespace: gateway.GatewayNamespace,
+		Namespace: gateway.GetGatewayNamespace(),
 	}, secret)).To(Succeed())
 	assertOwnedByGatewayConfig(g, secret)
 
@@ -956,14 +1017,14 @@ func RunHPACreationTest(t *testing.T, setup TestSetup) {
 		hpa := &autoscalingv2.HorizontalPodAutoscaler{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, hpa)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
 	hpa := &autoscalingv2.HorizontalPodAutoscaler{}
 	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 		Name:      gateway.KubeAuthProxyName,
-		Namespace: gateway.GatewayNamespace,
+		Namespace: gateway.GetGatewayNamespace(),
 	}, hpa)).To(Succeed())
 	assertOwnedByGatewayConfig(g, hpa)
 
@@ -1002,7 +1063,7 @@ func RunEnvoyFilterCreationTest(t *testing.T, setup TestSetup) {
 		ef.SetGroupVersionKind(gvk.EnvoyFilter)
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.AuthnFilterName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, ef)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
@@ -1010,7 +1071,7 @@ func RunEnvoyFilterCreationTest(t *testing.T, setup TestSetup) {
 	ef.SetGroupVersionKind(gvk.EnvoyFilter)
 	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 		Name:      gateway.AuthnFilterName,
-		Namespace: gateway.GatewayNamespace,
+		Namespace: gateway.GetGatewayNamespace(),
 	}, ef)).To(Succeed())
 	assertOwnedByGatewayConfig(g, ef)
 
@@ -1040,7 +1101,7 @@ func RunEnvoyFilterExtAuthzConfigurationTest(t *testing.T, setup TestSetup) {
 		ef.SetGroupVersionKind(gvk.EnvoyFilter)
 		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.AuthnFilterName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, ef); err != nil {
 			return ""
 		}
@@ -1100,7 +1161,7 @@ func RunEnvoyFilterExtAuthzConfigurationTest(t *testing.T, setup TestSetup) {
 
 	uri, _, _ := unstructured.NestedString(serverUri, "uri")
 	g.Expect(uri).To(ContainSubstring(gateway.KubeAuthProxyName))
-	g.Expect(uri).To(ContainSubstring(gateway.GatewayNamespace))
+	g.Expect(uri).To(ContainSubstring(gateway.GetGatewayNamespace()))
 	g.Expect(uri).To(ContainSubstring("/oauth2/auth"))
 
 	cluster, _, _ := unstructured.NestedString(serverUri, "cluster")
@@ -1133,7 +1194,7 @@ func RunEnvoyFilterOrderTest(t *testing.T, setup TestSetup) {
 	g.Eventually(func() error {
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.AuthnFilterName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, ef)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
@@ -1182,7 +1243,7 @@ func RunEnvoyFilterLuaTokenForwardingTest(t *testing.T, setup TestSetup) {
 	g.Eventually(func() error {
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.AuthnFilterName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, ef)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
@@ -1226,7 +1287,7 @@ func RunSpecMutationCookieConfigTest(t *testing.T, setup TestSetup, cookieUpdate
 		deployment := &appsv1.Deployment{}
 		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, deployment); err != nil {
 			return false
 		}
@@ -1254,7 +1315,7 @@ func RunSpecMutationCookieConfigTest(t *testing.T, setup TestSetup, cookieUpdate
 		deployment := &appsv1.Deployment{}
 		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, deployment); err != nil {
 			return false
 		}
@@ -1347,14 +1408,14 @@ func RunDeploymentWithAllArgsTest(t *testing.T, setup TestSetup, expectedHostnam
 		deployment := &appsv1.Deployment{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, deployment)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
 	deployment := &appsv1.Deployment{}
 	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 		Name:      gateway.KubeAuthProxyName,
-		Namespace: gateway.GatewayNamespace,
+		Namespace: gateway.GetGatewayNamespace(),
 	}, deployment)).To(Succeed())
 	assertOwnedByGatewayConfig(g, deployment)
 
@@ -1483,14 +1544,14 @@ func RunOCPRouteCreationTest(t *testing.T, setup TestSetup, expectedHostname str
 		route := &routev1.Route{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.DefaultGatewayName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, route)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
 	route := &routev1.Route{}
 	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 		Name:      gateway.DefaultGatewayName,
-		Namespace: gateway.GatewayNamespace,
+		Namespace: gateway.GetGatewayNamespace(),
 	}, route)).To(Succeed())
 	assertOwnedByGatewayConfig(g, route)
 
@@ -1570,7 +1631,7 @@ func RunNetworkPolicyDisabledTest(t *testing.T, setup TestSetup, spec serviceApi
 	g := NewWithT(t)
 
 	var listBefore networkingv1.NetworkPolicyList
-	g.Expect(setup.TC.K8sClient.List(setup.TC.Ctx, &listBefore, client.InNamespace(gateway.GatewayNamespace))).To(Succeed())
+	g.Expect(setup.TC.K8sClient.List(setup.TC.Ctx, &listBefore, client.InNamespace(gateway.GetGatewayNamespace()))).To(Succeed())
 	countBefore := len(listBefore.Items)
 
 	CreateGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient, spec)
@@ -1580,12 +1641,12 @@ func RunNetworkPolicyDisabledTest(t *testing.T, setup TestSetup, spec serviceApi
 		deployment := &appsv1.Deployment{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, deployment)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
 	var listAfter networkingv1.NetworkPolicyList
-	g.Expect(setup.TC.K8sClient.List(setup.TC.Ctx, &listAfter, client.InNamespace(gateway.GatewayNamespace))).To(Succeed())
+	g.Expect(setup.TC.K8sClient.List(setup.TC.Ctx, &listAfter, client.InNamespace(gateway.GetGatewayNamespace()))).To(Succeed())
 	g.Expect(len(listAfter.Items)).To(BeNumerically("<=", countBefore),
 		"NetworkPolicy count must not increase when Ingress.Enabled=false")
 }
@@ -1604,7 +1665,7 @@ func RunLoadBalancerIngressModeTest(t *testing.T, tc *TestEnvContext, spec servi
 		gw := &gwapiv1.Gateway{}
 		if err := tc.K8sClient.Get(tc.Ctx, types.NamespacedName{
 			Name:      gateway.DefaultGatewayName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, gw); err != nil {
 			return err
 		}
@@ -1635,7 +1696,7 @@ func RunLoadBalancerIngressModeTest(t *testing.T, tc *TestEnvContext, spec servi
 		route := &routev1.Route{}
 		err := tc.K8sClient.Get(tc.Ctx, types.NamespacedName{
 			Name:      gateway.DefaultGatewayName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, route)
 		return client.IgnoreNotFound(err) == nil && err != nil
 	}, TestTimeout, TestInterval).Should(BeTrue(), "OCP Route should not exist in LoadBalancer mode (GC removes stale Routes)")
@@ -1649,12 +1710,25 @@ func RunNginxDashboardRedirectSkippedWithoutDashboardTest(t *testing.T, setup Te
 
 	appNs := cluster.GetApplicationNamespace()
 
-	// Ensure Dashboard CR does not exist
+	// Shared envtest: a prior test (e.g. redirect creation) may leave the Dashboard CR.
 	dashboard := resources.GvkToUnstructured(gvk.Dashboard)
+	dashboard.SetName(componentApi.DashboardInstanceName)
+	g.Expect(client.IgnoreNotFound(setup.TC.K8sClient.Delete(setup.TC.Ctx, dashboard))).To(Succeed())
+
+	// Ensure Dashboard CR does not exist
 	err := setup.TC.K8sClient.Get(setup.TC.Ctx, client.ObjectKey{Name: componentApi.DashboardInstanceName}, dashboard)
 	g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "Dashboard CR should not exist for this test")
 
-	// Verify redirect resources are not created
+	// Verify redirect resources are cleaned up after Dashboard CR removal.
+	g.Eventually(func() bool {
+		cm := &corev1.ConfigMap{}
+		err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+			Name: gateway.DashboardRedirectConfigName, Namespace: appNs,
+		}, cm)
+		return k8serr.IsNotFound(err)
+	}, TestTimeout, TestInterval).Should(BeTrue(),
+		"dashboard-redirect ConfigMap should be deleted when Dashboard CR is absent")
+
 	g.Consistently(func() bool {
 		cm := &corev1.ConfigMap{}
 		err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
@@ -1662,7 +1736,7 @@ func RunNginxDashboardRedirectSkippedWithoutDashboardTest(t *testing.T, setup Te
 		}, cm)
 		return k8serr.IsNotFound(err)
 	}, 5*time.Second, TestInterval).Should(BeTrue(),
-		"dashboard-redirect ConfigMap should not be created when Dashboard CR is absent")
+		"dashboard-redirect ConfigMap should not be recreated when Dashboard CR is absent")
 }
 
 // RunNginxDashboardRedirectCreationTest validates that nginx-based dashboard redirect resources exist in the application namespace:
@@ -1785,14 +1859,14 @@ func RunNetworkPolicyCreationTest(t *testing.T, setup TestSetup) {
 		np := &networkingv1.NetworkPolicy{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, np)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
 	np := &networkingv1.NetworkPolicy{}
 	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 		Name:      gateway.KubeAuthProxyName,
-		Namespace: gateway.GatewayNamespace,
+		Namespace: gateway.GetGatewayNamespace(),
 	}, np)).To(Succeed())
 
 	g.Expect(np.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue("app", gateway.KubeAuthProxyName))
@@ -1812,7 +1886,7 @@ func RunGatewayConfigStatusConditionsTest(t *testing.T, setup TestSetup) {
 		deployment := &appsv1.Deployment{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, deployment)
 	}, TestTimeout, TestInterval).Should(Succeed(), "Deployment must exist before checking status conditions")
 
@@ -1849,7 +1923,7 @@ func RunDestinationRuleCreationTest(t *testing.T, setup TestSetup) {
 		dr.SetGroupVersionKind(gvk.DestinationRule)
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.DestinationRuleName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, dr)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
@@ -1857,7 +1931,7 @@ func RunDestinationRuleCreationTest(t *testing.T, setup TestSetup) {
 	dr.SetGroupVersionKind(gvk.DestinationRule)
 	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 		Name:      gateway.DestinationRuleName,
-		Namespace: gateway.GatewayNamespace,
+		Namespace: gateway.GetGatewayNamespace(),
 	}, dr)).To(Succeed())
 	assertOwnedByGatewayConfig(g, dr)
 
@@ -1879,7 +1953,7 @@ func RunGatewayConfigStatusDomainTest(t *testing.T, setup TestSetup, expectedDom
 		deployment := &appsv1.Deployment{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, deployment)
 	}, TestTimeout, TestInterval).Should(Succeed(), "Deployment must exist before checking status domain")
 
