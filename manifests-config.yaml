@@ -25,13 +25,13 @@ components:
       sourcePath: kserve-module/config
   ray:
     odh:
-      repo: opendatahub-io/kuberay
-      ref: dev@27b32d3e43203e838af050f37e4ae0453c949c39
-      sourcePath: ray-operator/config
+      repo: opendatahub-io/ray-module-operator
+      ref: main@6952bc6bd6ce
+      sourcePath: config
     rhoai:
-      repo: red-hat-data-services/kuberay
-      ref: rhoai-3.6-ea.1@a34fda30b405f6c385354b46367de56fcfc23435
-      sourcePath: ray-operator/config
+      repo: red-hat-data-services/ray-module-operator
+      ref: rhoai-3.6-ea.1@6952bc6bd6ce
+      sourcePath: config
   trustyai:
     odh:
       repo: opendatahub-io/trustyai-service-operator

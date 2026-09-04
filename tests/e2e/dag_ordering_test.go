@@ -64,7 +64,7 @@ var dagBatches = []componentBatch{
 			// directly via gvk.AIHub and routed through the module-readiness
 			// (Ready=True) path like the other modules (mlflow, spark).
 			{name: componentApi.ModelRegistryComponentName, gvk: gvk.AIHub, internal: true},
-			{name: componentApi.RayComponentName, gvk: gvk.Ray},
+			{name: componentApi.RayComponentName, gvk: gvk.Ray, internal: true},
 			{name: componentApi.TrainerComponentName, gvk: gvk.Trainer, internal: true},
 			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches, internal: true},
 			{name: componentApi.MCPLifecycleOperatorComponentName, gvk: gvk.MCPLifecycleOperator, internal: true},
@@ -649,7 +649,7 @@ func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 	}
 
 	disabledGVKs := []schema.GroupVersionKind{
-		gvk.Ray, gvk.FeastOperator, gvk.SparkOperator, gvk.TrustyAI,
+		gvk.FeastOperator, gvk.SparkOperator, gvk.TrustyAI,
 	}
 	for _, g := range disabledGVKs {
 		instanceName := tc.GetInstanceName(g)
