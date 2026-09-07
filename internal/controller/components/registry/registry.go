@@ -162,7 +162,12 @@ func (r *Registry) ForEach(f func(ch ComponentHandler) error) error {
 
 	batches, resolveErr := resolveBatches(r)
 	if resolveErr != nil {
+<<<<<<< HEAD
 		ctrl.Log.WithName("component-registry").Error(resolveErr, "DAG resolution failed, falling back to alphabetical order", "controllerKind", "DataScienceCluster")
+=======
+		ctrl.Log.WithName("component-registry").Error(resolveErr, "DAG resolution failed, falling back to alphabetical order",
+			"controllerKind", "component")
+>>>>>>> 34bfa2e41 (feat(modules): convert module controller error logs to structured KV pairs (RHAI-527))
 		for _, name := range r.sortedNames() {
 			e := r.entries[name]
 			if !e.enabled {

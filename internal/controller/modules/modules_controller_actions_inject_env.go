@@ -45,8 +45,8 @@ func injectModuleEnv(ctx context.Context, rr *odhtype.ReconciliationRequest) err
 
 		if err := injectEnvVarsIntoDeployment(log, &rr.Resources[i], odhtype.GetModuleEnvInjection(rr)); err != nil {
 			log.Error(err, "failed to inject env vars into Deployment",
-				"name", rr.Resources[i].GetName(),
-				"namespace", rr.Resources[i].GetNamespace(),
+				"deployment", rr.Resources[i].GetName(),
+				"deploymentNamespace", rr.Resources[i].GetNamespace(),
 			)
 
 			return err
