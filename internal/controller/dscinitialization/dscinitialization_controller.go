@@ -614,7 +614,7 @@ func (r *DSCInitializationReconciler) reconcileDSCIModules(ctx context.Context, 
 		}
 
 		if err := resources.Apply(ctx, r.Client, moduleCR, client.FieldOwner(fieldManager), client.ForceOwnership); err != nil {
-			if meta.IsNoMatchError(err) {
+			if meta.IsNoMatchError(err) || k8serr.IsNotFound(err) {
 				log.V(1).Info("module CRD not installed yet, will retry when CRD appears", "module", handler.GetName())
 				return nil
 			}
