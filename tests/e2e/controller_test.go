@@ -451,6 +451,10 @@ func TestOdhOperator(t *testing.T) {
 	if testOpts.cleanUpPreviousResources {
 		CleanupPreviousTestResources(t)
 	}
+	// Remove any leftover MLflow instances from previous test runs which might have been created by previous components
+	// when running within DevTestOps pipeline. CleanupPreviousTestResources is disabled in that pipeline, so this has
+	// to run separately.
+	cleanupStaleMLflowInstances(t)
 
 	if collector := startMetricsCollectorIfEnabled(); collector != nil {
 		defer collector.Stop()
