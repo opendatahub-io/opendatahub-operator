@@ -13,13 +13,15 @@ type ConditionFilterFunc = monitor.ConditionFilterFunc
 // OperatorConfig is an alias for [monitor.OperatorConfig].
 type OperatorConfig = monitor.OperatorConfig
 
+// RequiredCondition is an alias for [monitor.RequiredCondition].
+type RequiredCondition = monitor.RequiredCondition
+
 // MonitorOperator creates a PreCondition that checks an external operator's health
-// by reading its CR's status conditions and applying the configured Filter.
+// by reading its CR's status conditions, applying the configured Filter and
+// asserting the configured RequiredConditions.
 // See [monitor.OperatorConfig] for configuration details including missing CRD/CR behavior.
 func MonitorOperator(config OperatorConfig, opts ...Option) PreCondition {
 	return newPreCondition(func(ctx context.Context, rr *odhtypes.ReconciliationRequest) (CheckResult, error) {
-		result, err := monitor.CheckOperatorHealth(ctx, rr.Client, config)
-
-		return CheckResult(result), err
+		return monitor.CheckOperatorHealth(ctx, rr.Client, config)
 	}, opts...)
 }

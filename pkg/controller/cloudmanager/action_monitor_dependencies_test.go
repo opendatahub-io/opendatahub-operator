@@ -28,6 +28,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -187,6 +188,7 @@ func TestMonitorDependencies_OperatorCR(t *testing.T) {
 		condStatus       string
 		reason           string
 		message          string
+		conditions       []metav1.Condition
 		expectedStatus   metav1.ConditionStatus
 		expectedReason   string
 		expectedMsgMatch string
@@ -208,6 +210,16 @@ func TestMonitorDependencies_OperatorCR(t *testing.T) {
 			reason:         "Ready",
 			message:        "all good",
 			expectedStatus: metav1.ConditionTrue,
+		},
+		{
+			name: "ambiguous CR status sets condition Unknown",
+			conditions: []metav1.Condition{
+				{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "Broken", LastTransitionTime: metav1.Now()},
+				{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+			},
+			expectedStatus:   metav1.ConditionUnknown,
+			expectedReason:   "DependencyHealthUnknown",
+			expectedMsgMatch: "duplicate condition type",
 		},
 	}
 
@@ -257,7 +269,12 @@ func TestMonitorDependencies_OperatorCR(t *testing.T) {
 			g.Expect(cli.Create(ctx, operatorCR)).NotTo(HaveOccurred())
 			t.Cleanup(func() { _ = cli.Delete(ctx, operatorCR) })
 
-			setCRCondition(g, ctx, cli, operatorCR, tt.condType, tt.condStatus, tt.reason, tt.message)
+			if tt.conditions != nil {
+				g.Expect(testf.SetTypedConditions(operatorCR, tt.conditions)).NotTo(HaveOccurred())
+				g.Expect(cli.Status().Update(ctx, operatorCR)).NotTo(HaveOccurred())
+			} else {
+				setCRCondition(g, ctx, cli, operatorCR, tt.condType, tt.condStatus, tt.reason, tt.message)
+			}
 
 			conditionType := status.ConditionSailOperatorReady
 			instance := &ccmv1alpha1.AzureKubernetesEngine{}

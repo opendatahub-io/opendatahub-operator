@@ -18,7 +18,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-const dependencyDegradedReason = "DependencyDegraded"
+const (
+	dependencyDegradedReason = "DependencyDegraded"
+	dependencyUnknownReason  = "DependencyHealthUnknown"
+)
 
 func defaultDegradedConditionFilter(condType, condStatus string) bool {
 	if condType == "Degraded" && condStatus == string(metav1.ConditionTrue) {
@@ -70,10 +73,19 @@ func monitorDependencies(ctx context.Context, rr *types.ReconciliationRequest, r
 				return fmt.Errorf("operator CR check for %s failed: %w", cfg.ReleaseName, err)
 			}
 
-			if !result.Pass {
-				rr.Conditions.MarkFalse(
+			// An indeterminate result (a missing or Unknown condition, or a status
+			// block we could not parse) is not evidence of failure, so it is reported
+			// as Unknown rather than marking the dependency degraded.
+			if resultStatus := result.ConditionStatus(); resultStatus != metav1.ConditionTrue {
+				reason := dependencyDegradedReason
+				if resultStatus == metav1.ConditionUnknown {
+					reason = dependencyUnknownReason
+				}
+
+				rr.Conditions.Mark(
 					cfg.ConditionType,
-					conditions.WithReason(dependencyDegradedReason),
+					resultStatus,
+					conditions.WithReason(reason),
 					conditions.WithMessage("%s", result.Message),
 				)
 			}

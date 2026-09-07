@@ -18,10 +18,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -30,7 +32,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/monitor"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	resourcespredicates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -42,15 +46,56 @@ import (
 // No automatic renewal is configured; a renewal strategy is tracked as a follow-up.
 const caRootDuration = "876000h"
 
-type monitoredCRD struct {
-	gvk          schema.GroupVersionKind
-	resourceName string
+// requiredAPIList declares the cert-manager APIs the bootstrap action creates.
+// Each entry carries the API version, so the required-API check also confirms
+// that the installed CRD still serves the version we call.
+var requiredAPIList = []monitor.RequiredAPI{
+	{CRDName: gvk.CertManagerCertificateCRDName, GVK: gvk.CertManagerCertificate},
+	{CRDName: gvk.CertManagerIssuerCRDName, GVK: gvk.CertManagerIssuer},
+	{CRDName: gvk.CertManagerClusterIssuerCRDName, GVK: gvk.CertManagerClusterIssuer},
 }
 
-var monitoredCRDList = []monitoredCRD{
-	{gvk: gvk.CertManagerCertificate, resourceName: gvk.CertManagerCertificateCRDName},
-	{gvk: gvk.CertManagerIssuer, resourceName: gvk.CertManagerIssuerCRDName},
-	{gvk: gvk.CertManagerClusterIssuer, resourceName: gvk.CertManagerClusterIssuerCRDName},
+// certManagerOperatorCRName is the singleton name of the OpenShift cert-manager
+// operator's health CR ([gvk.CertManagerV1Alpha1]).
+const certManagerOperatorCRName = "cluster"
+
+const (
+	certManagerControllerAvailableCondition = "cert-manager-controller-deploymentAvailable"
+	certManagerCainjectorAvailableCondition = "cert-manager-cainjector-deploymentAvailable"
+	certManagerWebhookAvailableCondition    = "cert-manager-webhook-deploymentAvailable"
+	certManagerControllerDegradedCondition  = "cert-manager-controller-deploymentDegraded"
+	certManagerCainjectorDegradedCondition  = "cert-manager-cainjector-deploymentDegraded"
+	certManagerWebhookDegradedCondition     = "cert-manager-webhook-deploymentDegraded"
+)
+
+// certManagerRequiredConditions are the per-deployment health conditions emitted
+// by the OpenShift cert-manager operator. A missing condition is Unknown, and any
+// deployment that is not Available or is Degraded fails the dependency check.
+var certManagerRequiredConditions = []monitor.RequiredCondition{
+	{Type: certManagerControllerAvailableCondition, Status: string(metav1.ConditionTrue)},
+	{Type: certManagerCainjectorAvailableCondition, Status: string(metav1.ConditionTrue)},
+	{Type: certManagerWebhookAvailableCondition, Status: string(metav1.ConditionTrue)},
+	{Type: certManagerControllerDegradedCondition, Status: string(metav1.ConditionFalse)},
+	{Type: certManagerCainjectorDegradedCondition, Status: string(metav1.ConditionFalse)},
+	{Type: certManagerWebhookDegradedCondition, Status: string(metav1.ConditionFalse)},
+}
+
+// certManagerConditionFilter catches Degraded=True conditions beyond the three
+// deployment conditions already required above, including static-resource
+// conditions published by the OpenShift operator.
+func certManagerConditionFilter(conditionType, conditionStatus string) bool {
+	if !strings.HasSuffix(conditionType, "Degraded") || conditionStatus != string(metav1.ConditionTrue) {
+		return false
+	}
+
+	switch conditionType {
+	case certManagerControllerDegradedCondition, certManagerCainjectorDegradedCondition, certManagerWebhookDegradedCondition:
+		// These are checked as required positive conditions, avoiding duplicate
+		// failure details for the same condition.
+		return false
+	default:
+		return true
+	}
 }
 
 // DefaultIssuerRefKind is the default issuer reference kind used by downstream components.
@@ -296,33 +341,69 @@ func createCABackedIssuer(config BootstrapConfig) (*unstructured.Unstructured, e
 	return u, nil
 }
 
-// certManagerConditionFilter reports unhealthy state when the CertManager/cluster
-// operator CR is degraded or not available. If the CRD or CR is absent,
-// MonitorOperator treats it as healthy — only CRD presence is required.
-func certManagerConditionFilter(condType, condStatus string) bool {
-	switch condType {
-	case "Degraded":
-		return condStatus == "True"
-	case "Available":
-		return condStatus == "False"
-	default:
-		return false
+// watchedCRDs returns the CRD names whose events must trigger a reconciliation:
+// the three required cert-manager CRDs, plus the optional OpenShift health CRD.
+//
+// The optional one matters because it may be installed after the controller has
+// started. Without an event for it, the dynamic CertManager/cluster watch is
+// never registered and the health check stays skipped indefinitely.
+func watchedCRDs() []string {
+	names := make([]string, 0, len(requiredAPIList)+1)
+	for _, api := range requiredAPIList {
+		names = append(names, api.CRDName)
+	}
+
+	return append(names, gvk.CertManagerOperatorCRDName)
+}
+
+// operatorHealthPreCondition returns the check for the OpenShift cert-manager
+// operator's health CR. The CR is absent on community cert-manager installations,
+// so the check is skipped when its CRD is not registered rather than reported as
+// a failure.
+func operatorHealthPreCondition() precondition.PreCondition {
+	return precondition.MonitorOperator(
+		precondition.OperatorConfig{
+			OperatorGVK:        gvk.CertManagerV1Alpha1,
+			CRName:             certManagerOperatorCRName,
+			Filter:             certManagerConditionFilter,
+			RequireCR:          true,
+			NoMatchAsUnknown:   true,
+			RequiredConditions: certManagerRequiredConditions,
+		},
+		precondition.WithSkipFunc(precondition.SkipIfCRDAbsent(gvk.CertManagerOperatorCRDName)),
+	)
+}
+
+// preConditions returns the dependency checks that gate the bootstrap action.
+func preConditions() []precondition.PreCondition {
+	return []precondition.PreCondition{
+		// The APIs we create must exist, be established, and still serve v1.
+		precondition.MonitorAPIs(requiredAPIList),
+
+		operatorHealthPreCondition(),
 	}
 }
 
-func monitoredCRDs() []string {
-	names := make([]string, len(monitoredCRDList))
-	for i := range monitoredCRDList {
-		names[i] = monitoredCRDList[i].resourceName
+// requeueIfDependenciesIndeterminate retries incomplete evidence when no watched
+// resource emits an event (for example after a transient read error). Definite
+// failures remain event-driven: the watched CRD or health CR will enqueue recovery.
+// RequeueAfterError does not stop later actions, so unrelated resources and the
+// final garbage-collection action can still run.
+func requeueIfDependenciesIndeterminate(_ context.Context, rr *types.ReconciliationRequest) error {
+	condition := rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
+	if condition != nil && condition.Status == metav1.ConditionUnknown {
+		return odherrors.NewRequeueAfterError(30 * time.Second)
 	}
 
-	return names
+	return nil
 }
 
 func crdPredicate() predicate.Predicate {
-	names := make(map[string]struct{}, len(monitoredCRDList))
-	for _, m := range monitoredCRDList {
-		names[m.resourceName] = struct{}{}
+	watched := watchedCRDs()
+	names := make(map[string]struct{}, len(watched))
+
+	for _, name := range watched {
+		names[name] = struct{}{}
 	}
 
 	return predicate.NewPredicateFuncs(func(obj client.Object) bool {
@@ -334,11 +415,14 @@ func crdPredicate() predicate.Predicate {
 // Bootstrap returns a builder configurator that registers all cert-manager bootstrapping
 // concerns onto the builder:
 //
-//   - a cert-manager CRDs watch to trigger reconciliation when cert-manager is installed,
+//   - a cert-manager CRDs watch to trigger reconciliation when cert-manager, or the
+//     optional OpenShift cert-manager operator, is installed,
 //   - explicit watches for the PKI resource instances (ClusterIssuers, Certificate)
 //     so the controller reconciles when they are modified or deleted,
-//   - pre-conditions that monitor the three core cert-manager CRDs,
+//   - pre-conditions that check the three required cert-manager APIs and,
+//     on OpenShift only, the cert-manager operator health CR,
 //   - a bootstrap action to deploy the PKI trust chain,
+//   - a non-blocking retry while dependency evidence is incomplete,
 //   - a condition to set the DependenciesAvailable status.
 //
 // instanceName is the controller's singleton instance name, used to route CRD watch events
@@ -381,18 +465,12 @@ func Bootstrap[T common.PlatformObject](instanceName string, config BootstrapCon
 			).
 			WatchesGVK(gvk.CertManagerV1Alpha1,
 				reconciler.WithEventHandler(handlers.ToNamed(instanceName)),
-				reconciler.WithPredicates(resourcespredicates.CreatedOrUpdatedOrDeletedNamed("cluster")),
+				reconciler.WithPredicates(resourcespredicates.CreatedOrUpdatedOrDeletedNamed(certManagerOperatorCRName)),
 				reconciler.Dynamic(reconciler.CrdExists(gvk.CertManagerV1Alpha1)),
 			).
-			WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
-				precondition.MonitorCRDs(monitoredCRDs()),
-				precondition.MonitorOperator(precondition.OperatorConfig{
-					OperatorGVK: gvk.CertManagerV1Alpha1,
-					CRName:      "cluster",
-					Filter:      certManagerConditionFilter,
-				}),
-			})).
+			WithReconcilerOpts(reconciler.WithPreConditions(preConditions())).
 			WithActionE(NewBootstrapAction(config)).
+			WithAction(requeueIfDependenciesIndeterminate).
 			WithConditions(status.ConditionDependenciesAvailable)
 	}
 }

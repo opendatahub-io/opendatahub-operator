@@ -2,66 +2,76 @@ package precondition
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
-	"strings"
 
-	apihelpers "k8s.io/apiextensions-apiserver/pkg/apihelpers"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/monitor"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
+// RequiredAPI declares an API resource that the operator will create or read.
+// See [monitor.RequiredAPI].
+type RequiredAPI = monitor.RequiredAPI
+
+// MonitorCRD creates a PreCondition that checks a single CRD against the
+// required-API contract. See [MonitorCRDs].
 func MonitorCRD(crdName string, opts ...Option) PreCondition {
 	return MonitorCRDs([]string{crdName}, opts...)
 }
 
-// MonitorCRDs creates a PreCondition that checks for the presence of multiple CRDs
-// by fetching the CRD objects directly, bypassing the RESTMapper discovery endpoint.
-// This avoids a race where the K8s DiscoveryController lags behind the
-// EstablishingController, causing the RESTMapper to report a CRD as absent
-// even though it is Established.
+// MonitorCRDs creates a PreCondition that checks the given CRDs against the
+// required-API contract: each CRD must exist, be Established, and not be
+// Terminating. No API version is declared, so the served-version check is
+// skipped; use [MonitorAPIs] to also assert that a specific version is served.
 func MonitorCRDs(crdNames []string, opts ...Option) PreCondition {
-	names := slices.Clone(crdNames)
+	apis := make([]RequiredAPI, 0, len(crdNames))
+	for _, name := range crdNames {
+		apis = append(apis, RequiredAPI{CRDName: name})
+	}
+
+	return MonitorAPIs(apis, opts...)
+}
+
+// MonitorAPIs creates a PreCondition that checks that every declared API is
+// usable, verifying CRD existence, the Established and Terminating status
+// conditions, and — when the API declares a version — that the CRD serves it.
+//
+// A missing, terminating, or non-serving CRD reports the condition False. A CRD
+// that is not yet Established reports Unknown, because that state may be either
+// transient (still installing) or permanent (the CRD was rejected), and missing
+// information must not be reported as healthy.
+//
+// See [monitor.CheckRequiredAPIs] for the full contract.
+func MonitorAPIs(apis []RequiredAPI, opts ...Option) PreCondition {
+	required := slices.Clone(apis)
 
 	return newPreCondition(func(ctx context.Context, rr *types.ReconciliationRequest) (CheckResult, error) {
-		if len(names) == 0 {
-			return CheckResult{}, errors.New("MonitorCRDs called with empty CRD name list")
-		}
-
-		var missing []string
-
-		for _, name := range names {
-			has, err := hasCRDByName(ctx, rr.Client, name)
-			if err != nil {
-				return CheckResult{}, fmt.Errorf("%s: failed to check CRD presence: %w", name, err)
-			}
-
-			if !has {
-				missing = append(missing, name+": CRD not found")
-			}
-		}
-
-		if len(missing) > 0 {
-			return CheckResult{Pass: false, Message: strings.Join(missing, "; ")}, nil
-		}
-
-		return CheckResult{Pass: true}, nil
+		return monitor.CheckRequiredAPIs(ctx, rr.Client, required)
 	}, opts...)
 }
 
-func hasCRDByName(ctx context.Context, cli client.Client, crdName string) (bool, error) {
-	crd, err := cluster.GetCRD(ctx, cli, crdName)
-	if err != nil {
-		return false, client.IgnoreNotFound(err)
-	}
+// SkipIfCRDAbsent returns a [SkipFunc] that skips the precondition when the named
+// CRD is not registered on the cluster.
+//
+// Use it for optional dependencies whose API only exists on some installations —
+// for example an OpenShift-specific health CRD that community installations do
+// not provide. When the CRD is present, the precondition runs normally.
+//
+// The CRD is read by name rather than through the RESTMapper, so a freshly
+// installed CRD is not reported as absent while the discovery cache catches up.
+func SkipIfCRDAbsent(crdName string) SkipFunc {
+	return func(ctx context.Context, rr *types.ReconciliationRequest) (bool, error) {
+		_, err := cluster.GetCRD(ctx, rr.Client, crdName)
+		switch {
+		case k8serr.IsNotFound(err):
+			return true, nil
+		case err != nil:
+			return false, fmt.Errorf("%s: failed to check CRD presence: %w", crdName, err)
+		}
 
-	if apihelpers.IsCRDConditionTrue(&crd, apiextensionsv1.Terminating) {
 		return false, nil
 	}
-
-	return true, nil
 }

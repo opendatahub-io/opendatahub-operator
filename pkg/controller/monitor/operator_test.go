@@ -8,6 +8,7 @@ import (
 	"github.com/rs/xid"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -282,6 +283,38 @@ func TestCheckOperatorHealth_MissingCRD(t *testing.T) {
 	}
 }
 
+func TestCheckOperatorHealth_NoMatchPolicy(t *testing.T) {
+	g := NewWithT(t)
+	cli, err := fakeclient.New(fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+		Get: func(_ context.Context, _ client.WithWatch, _ client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+			return &meta.NoKindMatchError{GroupKind: testOperatorGVK.GroupKind(), SearchedVersions: []string{testOperatorGVK.Version}}
+		},
+	}))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	for _, tc := range []struct {
+		name           string
+		noMatchUnknown bool
+		want           metav1.ConditionStatus
+	}{
+		{name: "optional API is skipped", want: metav1.ConditionTrue},
+		{name: "known-present API is indeterminate", noMatchUnknown: true, want: metav1.ConditionUnknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			result, err := monitor.CheckOperatorHealth(t.Context(), cli, monitor.OperatorConfig{
+				OperatorGVK:      testOperatorGVK,
+				CRName:           "cluster",
+				RequireCR:        true,
+				NoMatchAsUnknown: tc.noMatchUnknown,
+				Filter:           defaultTestFilter,
+			})
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(result.ConditionStatus()).To(Equal(tc.want))
+		})
+	}
+}
+
 func TestCheckOperatorHealth_FirstCRDiscovery(t *testing.T) {
 	g := NewWithT(t)
 
@@ -389,6 +422,8 @@ func TestCheckOperatorHealth_MalformedConditions(t *testing.T) {
 	g.Expect(cli.Create(ctx, &ns)).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = cli.Delete(ctx, &ns) })
 
+	// A status block we cannot read is missing information, not proof of failure,
+	// so it is reported as Unknown rather than returned as an error.
 	t.Run("conditions field is not a slice", func(t *testing.T) {
 		g := NewWithT(t)
 
@@ -399,18 +434,41 @@ func TestCheckOperatorHealth_MalformedConditions(t *testing.T) {
 		g.Expect(unstructured.SetNestedField(cr.Object, "not-a-slice", "status", "conditions")).NotTo(HaveOccurred())
 		g.Expect(cli.Status().Update(ctx, cr)).NotTo(HaveOccurred())
 
-		_, err := monitor.CheckOperatorHealth(ctx, cli, monitor.OperatorConfig{
+		result, err := monitor.CheckOperatorHealth(ctx, cli, monitor.OperatorConfig{
 			OperatorGVK: testOperatorGVK,
 			CRName:      cr.GetName(),
 			CRNamespace: nsn,
 			Filter:      defaultTestFilter,
 		})
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(err.Error()).To(ContainSubstring("failed to parse conditions"))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(result.ConditionStatus()).To(Equal(metav1.ConditionUnknown))
+		g.Expect(result.Message).To(ContainSubstring("failed to parse status conditions"))
+	})
+
+	t.Run("duplicate condition types are indeterminate", func(t *testing.T) {
+		g := NewWithT(t)
+
+		cr := testf.NewUnstructuredCR(xid.New().String(), nsn, testOperatorGVK)
+		setMultipleOperatorConditions(g, cr, []metav1.Condition{
+			{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "Broken", LastTransitionTime: metav1.Now()},
+			{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+		})
+		g.Expect(testf.CreateAndUpdateStatus(ctx, cli, cr)).NotTo(HaveOccurred())
+		t.Cleanup(func() { _ = cli.Delete(ctx, cr) })
+
+		result, err := monitor.CheckOperatorHealth(ctx, cli, monitor.OperatorConfig{
+			OperatorGVK: testOperatorGVK,
+			CRName:      cr.GetName(),
+			CRNamespace: nsn,
+			Filter:      defaultTestFilter,
+		})
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(result.ConditionStatus()).To(Equal(metav1.ConditionUnknown))
+		g.Expect(result.Message).To(ContainSubstring("duplicate condition type \"Degraded\""))
 	})
 }
 
-func TestCheckOperatorHealth_NilFilter(t *testing.T) {
+func TestCheckOperatorHealth_NoCriteria(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
 
@@ -421,7 +479,189 @@ func TestCheckOperatorHealth_NilFilter(t *testing.T) {
 		OperatorGVK: testOperatorGVK,
 	})
 	g.Expect(err).To(HaveOccurred())
-	g.Expect(err.Error()).To(ContainSubstring("Filter must not be nil"))
+	g.Expect(err.Error()).To(ContainSubstring("at least one of Filter or RequiredConditions must be set"))
+}
+
+func TestCheckOperatorHealth_InvalidRequiredCondition(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name      string
+		condition monitor.RequiredCondition
+	}{
+		{name: "empty type", condition: monitor.RequiredCondition{Status: "True"}},
+		{name: "empty status", condition: monitor.RequiredCondition{Type: "Available"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			cli, err := fakeclient.New()
+			g.Expect(err).NotTo(HaveOccurred())
+
+			_, err = monitor.CheckOperatorHealth(ctx, cli, monitor.OperatorConfig{
+				OperatorGVK:        testOperatorGVK,
+				RequiredConditions: []monitor.RequiredCondition{tt.condition},
+			})
+			g.Expect(err).To(HaveOccurred())
+			g.Expect(err.Error()).To(ContainSubstring("RequiredCondition Type and Status must not be empty"))
+		})
+	}
+}
+
+// TestCheckOperatorHealth_RequiredConditions covers the positive-evidence model:
+// the absence of a negative condition is not health, only the declared condition
+// reporting the declared status is.
+func TestCheckOperatorHealth_RequiredConditions(t *testing.T) {
+	g := NewWithT(t)
+
+	envTest, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = envTest.Stop() })
+
+	ctx := context.Background()
+	cli := envTest.Client()
+
+	crd, err := envTest.RegisterCRD(ctx, testOperatorGVK, "testoperators", "testoperator", apiextensionsv1.NamespaceScoped, envt.WithPermissiveSchema())
+	g.Expect(err).NotTo(HaveOccurred())
+	envt.CleanupDelete(t, g, ctx, cli, crd)
+
+	required := []monitor.RequiredCondition{
+		{Type: "Available", Status: string(metav1.ConditionTrue)},
+		{Type: "Degraded", Status: string(metav1.ConditionFalse)},
+	}
+
+	tests := []struct {
+		name                string
+		conditions          []metav1.Condition
+		createCR            bool
+		expectedStatus      metav1.ConditionStatus
+		expectedMsgContains []string
+	}{
+		{
+			name: "all required conditions met passes",
+			conditions: []metav1.Condition{
+				{Type: "Available", Status: metav1.ConditionTrue, Reason: "AsExpected"},
+				{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected"},
+			},
+			createCR:       true,
+			expectedStatus: metav1.ConditionTrue,
+		},
+		{
+			name: "Available=False fails",
+			conditions: []metav1.Condition{
+				{Type: "Available", Status: metav1.ConditionFalse, Reason: "Unavailable", Message: "no pods"},
+				{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected"},
+			},
+			createCR:            true,
+			expectedStatus:      metav1.ConditionFalse,
+			expectedMsgContains: []string{"Available=False", "no pods", "expected Available=True"},
+		},
+		{
+			name: "Degraded=True fails",
+			conditions: []metav1.Condition{
+				{Type: "Available", Status: metav1.ConditionTrue, Reason: "AsExpected"},
+				{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "Broken", Message: "reconcile failed"},
+			},
+			createCR:            true,
+			expectedStatus:      metav1.ConditionFalse,
+			expectedMsgContains: []string{"Degraded=True", "reconcile failed", "expected Degraded=False"},
+		},
+		{
+			// Never having reported Available is not the same as being available.
+			name: "missing required condition is Unknown",
+			conditions: []metav1.Condition{
+				{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected"},
+			},
+			createCR:            true,
+			expectedStatus:      metav1.ConditionUnknown,
+			expectedMsgContains: []string{"required condition Available not found"},
+		},
+		{
+			name:                "no conditions at all is Unknown",
+			conditions:          nil,
+			createCR:            true,
+			expectedStatus:      metav1.ConditionUnknown,
+			expectedMsgContains: []string{"required condition Available not found", "required condition Degraded not found"},
+		},
+		{
+			name: "required condition reporting Unknown is Unknown",
+			conditions: []metav1.Condition{
+				{Type: "Available", Status: metav1.ConditionUnknown, Reason: "Initializing", Message: "starting up"},
+				{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected"},
+			},
+			createCR:            true,
+			expectedStatus:      metav1.ConditionUnknown,
+			expectedMsgContains: []string{"Available=Unknown", "starting up"},
+		},
+		{
+			name: "malformed required condition status is Unknown",
+			conditions: []metav1.Condition{
+				{Type: "Available", Status: metav1.ConditionStatus("garbled"), Reason: "Broken"},
+				{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected"},
+			},
+			createCR:            true,
+			expectedStatus:      metav1.ConditionUnknown,
+			expectedMsgContains: []string{"Available=garbled"},
+		},
+		{
+			// A definite failure outranks an indeterminate one, but both are reported.
+			name: "failure and indeterminate together report False with both findings",
+			conditions: []metav1.Condition{
+				{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "Broken", Message: "reconcile failed"},
+			},
+			createCR:            true,
+			expectedStatus:      metav1.ConditionFalse,
+			expectedMsgContains: []string{"Degraded=True", "required condition Available not found"},
+		},
+		{
+			name:                "missing CR with RequireCR fails",
+			createCR:            false,
+			expectedStatus:      metav1.ConditionFalse,
+			expectedMsgContains: []string{"operator CR not found"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			nsn := xid.New().String()
+			ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: nsn}}
+			g.Expect(cli.Create(ctx, &ns)).NotTo(HaveOccurred())
+			t.Cleanup(func() { _ = cli.Delete(ctx, &ns) })
+
+			crName := "missing-operator"
+
+			if tt.createCR {
+				cr := testf.NewUnstructuredCR(xid.New().String(), nsn, testOperatorGVK)
+				if len(tt.conditions) > 0 {
+					setMultipleOperatorConditions(g, cr, tt.conditions)
+					g.Expect(testf.CreateAndUpdateStatus(ctx, cli, cr)).NotTo(HaveOccurred())
+				} else {
+					g.Expect(cli.Create(ctx, cr)).NotTo(HaveOccurred())
+				}
+				t.Cleanup(func() { _ = cli.Delete(ctx, cr) })
+
+				crName = cr.GetName()
+			}
+
+			result, err := monitor.CheckOperatorHealth(ctx, cli, monitor.OperatorConfig{
+				OperatorGVK:        testOperatorGVK,
+				CRName:             crName,
+				CRNamespace:        nsn,
+				RequireCR:          true,
+				RequiredConditions: required,
+			})
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(result.ConditionStatus()).To(Equal(tt.expectedStatus))
+
+			for _, s := range tt.expectedMsgContains {
+				g.Expect(result.Message).To(ContainSubstring(s))
+			}
+		})
+	}
 }
 
 func TestCheckOperatorHealth_EmptyGVK(t *testing.T) {
