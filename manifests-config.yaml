@@ -18,7 +18,7 @@ components:
   dashboard:
     odh:
       repo: red-hat-data-services/odh-dashboard
-      ref: rhoai-2.25
+      ref: rhoai-2.25@df3a22f72b6449e929aaf787a832e67c5b2f1d11
       sourcePath: manifests
     rhoai:
       repo: red-hat-data-services/odh-dashboard
@@ -27,7 +27,7 @@ components:
   workbenches/kf-notebook-controller:
     odh:
       repo: red-hat-data-services/kubeflow
-      ref: rhoai-2.25
+      ref: rhoai-2.25@7f044318b92e2b0a7eb198837d91d6938cdaa8a4
       sourcePath: components/notebook-controller/config
     rhoai:
       repo: red-hat-data-services/kubeflow
@@ -36,7 +36,7 @@ components:
   workbenches/odh-notebook-controller:
     odh:
       repo: red-hat-data-services/kubeflow
-      ref: rhoai-2.25
+      ref: rhoai-2.25@7f044318b92e2b0a7eb198837d91d6938cdaa8a4
       sourcePath: components/odh-notebook-controller/config
     rhoai:
       repo: red-hat-data-services/kubeflow
@@ -45,7 +45,7 @@ components:
   workbenches/notebooks:
     odh:
       repo: red-hat-data-services/notebooks
-      ref: rhoai-2.25
+      ref: rhoai-2.25@82cf8adf8905f5b68ecbbb9fa44ffc9eaedffdf9
       sourcePath: manifests
     rhoai:
       repo: red-hat-data-services/notebooks
@@ -54,7 +54,7 @@ components:
   modelmeshserving:
     odh:
       repo: red-hat-data-services/modelmesh-serving
-      ref: rhoai-2.25
+      ref: rhoai-2.25@4060a9939b1066a01ed4a305014bae5748e14f7d
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/modelmesh-serving
@@ -63,7 +63,7 @@ components:
   kserve:
     odh:
       repo: red-hat-data-services/kserve
-      ref: rhoai-2.25
+      ref: rhoai-2.25@a554cec9f0a8e917b961f0487de3f44e555ad9fe
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/kserve
@@ -72,7 +72,7 @@ components:
   kueue:
     odh:
       repo: red-hat-data-services/kueue
-      ref: rhoai-2.25
+      ref: rhoai-2.25@260785c23a3510d447a9883092201973065a9f96
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/kueue
@@ -81,7 +81,7 @@ components:
   codeflare:
     odh:
       repo: red-hat-data-services/codeflare-operator
-      ref: rhoai-2.25
+      ref: rhoai-2.25@c9658a90efd1b0b5ee6b4ef45631293b5c366c1b
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/codeflare-operator
@@ -90,7 +90,7 @@ components:
   ray:
     odh:
       repo: red-hat-data-services/kuberay
-      ref: rhoai-2.25
+      ref: rhoai-2.25@b6c0432ded50511437b1e3b3ebe1188a5dd3aa13
       sourcePath: ray-operator/config
     rhoai:
       repo: red-hat-data-services/kuberay
@@ -99,7 +99,7 @@ components:
   trustyai:
     odh:
       repo: red-hat-data-services/trustyai-service-operator
-      ref: rhoai-2.25
+      ref: rhoai-2.25@1bb1711b8685a42e54e648e7def4983f34823123
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/trustyai-service-operator
@@ -108,7 +108,7 @@ components:
   modelregistry:
     odh:
       repo: red-hat-data-services/model-registry-operator
-      ref: rhoai-2.25
+      ref: rhoai-2.25@5baf9263f69b21e1622997a5614ae939113749f1
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/model-registry-operator
@@ -117,7 +117,7 @@ components:
   trainingoperator:
     odh:
       repo: red-hat-data-services/training-operator
-      ref: rhoai-2.25
+      ref: rhoai-2.25@61d2ca13d9cca400ce3cfd09a34f093b58319d06
       sourcePath: manifests
     rhoai:
       repo: red-hat-data-services/training-operator
@@ -126,7 +126,7 @@ components:
   datasciencepipelines:
     odh:
       repo: red-hat-data-services/data-science-pipelines-operator
-      ref: rhoai-2.25
+      ref: rhoai-2.25@be2298c06fdfe5eb329bff7334e4e025568369b2
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/data-science-pipelines-operator
@@ -135,7 +135,7 @@ components:
   modelcontroller:
     odh:
       repo: red-hat-data-services/odh-model-controller
-      ref: rhoai-2.25
+      ref: rhoai-2.25@212d2ffe4325a9da8f5f04736f26302d00227b13
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/odh-model-controller
@@ -144,7 +144,7 @@ components:
   feastoperator:
     odh:
       repo: red-hat-data-services/feast
-      ref: rhoai-2.25
+      ref: rhoai-2.25@a98c62d98e2a2e4683e7ecf3c66bf1b75fa4d6a6
       sourcePath: infra/feast-operator/config
     rhoai:
       repo: red-hat-data-services/feast
@@ -153,7 +153,7 @@ components:
   llamastackoperator:
     odh:
       repo: red-hat-data-services/llama-stack-k8s-operator
-      ref: rhoai-2.25
+      ref: rhoai-2.25@7d4bb5db1480ef1dc3dd1dec08097b0771c28d77
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/llama-stack-k8s-operator
