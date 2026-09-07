@@ -94,6 +94,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: workingNamespace}, foundDsci)).To(Succeed())
+				g.Expect(foundDsci.Status.Phase).To(Equal(readyPhase))
 				g.Expect(foundDsci.Status.Conditions).To(ContainElement(
 					SatisfyAll(
 						HaveField("Type", "MonitoringReady"),
