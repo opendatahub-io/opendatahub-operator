@@ -609,13 +609,22 @@ func (r *DSCInitializationReconciler) reconcileDSCIModules(ctx context.Context, 
 			return nil
 		}
 
+		hasCRD, err := cluster.HasCRD(ctx, r.Client, handler.GetGVK())
+		if err != nil {
+			return fmt.Errorf("failed to check module CRD %s: %w", handler.GetName(), err)
+		}
+		if !hasCRD {
+			log.V(1).Info("module CRD not installed or terminating, will retry when CRD appears", "module", handler.GetName())
+			return nil
+		}
+
 		if err := controllerutil.SetControllerReference(instance, moduleCR, r.Scheme); err != nil {
 			return fmt.Errorf("failed to set owner reference for module %s: %w", handler.GetName(), err)
 		}
 
 		if err := resources.Apply(ctx, r.Client, moduleCR, client.FieldOwner(fieldManager), client.ForceOwnership); err != nil {
-			if meta.IsNoMatchError(err) {
-				log.V(1).Info("module CRD not installed yet, will retry when CRD appears", "module", handler.GetName())
+			if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+				log.V(1).Info("module CRD became unavailable, will retry when CRD appears", "module", handler.GetName())
 				return nil
 			}
 			return fmt.Errorf("failed to apply module CR %s: %w", handler.GetName(), err)
