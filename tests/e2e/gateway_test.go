@@ -993,11 +993,9 @@ func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
 		WithCustomErrorMsg("kube-auth-proxy OIDC deployment should exist with correct configuration"),
 	)
 
-	// wait for deployment readiness (skipped on XKS/KinD where kube-auth-proxy
-	// may lack an arm64 image; the spec validation above is still performed)
-	if !tc.IsXKS() {
-		tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: tc.gatewayNamespace()}, 2)
-	}
+	// Wait for deployment readiness. On macOS/arm64 KinD this may fail because
+	// odh-kube-auth-proxy is amd64-only (ImagePullBackOff); amd64 CI with Dex succeeds.
+	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: tc.gatewayNamespace()}, 2)
 
 	// kube-auth-proxy service
 	serviceCondition := And(

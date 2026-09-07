@@ -30,6 +30,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
@@ -2066,7 +2067,7 @@ func (tc *TestContext) isBYOIDC(t *testing.T) bool {
 	// Authentication CRD not found (XKS) — check GatewayConfig for OIDC stanza
 	gwc := &unstructured.Unstructured{}
 	gwc.SetGroupVersionKind(gvk.GatewayConfig)
-	if getErr := tc.Client().Get(tc.Context(), types.NamespacedName{Name: "default-gateway"}, gwc); getErr != nil {
+	if getErr := tc.Client().Get(tc.Context(), types.NamespacedName{Name: serviceApi.GatewayConfigName}, gwc); getErr != nil {
 		t.Logf("GatewayConfig not found, assuming non-BYOIDC: %v", getErr)
 		return false
 	}
