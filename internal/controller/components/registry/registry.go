@@ -156,7 +156,8 @@ func (r *Registry) ForEach(f func(ch ComponentHandler) error) error {
 
 	batches, resolveErr := r.resolvedBatchesLocked()
 	if resolveErr != nil {
-		ctrl.Log.WithName("component-registry").Error(resolveErr, "DAG resolution failed, falling back to alphabetical order")
+		ctrl.Log.WithName("component-registry").Error(resolveErr, "DAG resolution failed, falling back to alphabetical order",
+			"controllerKind", "component")
 		for _, name := range r.sortedNames() {
 			e := r.entries[name]
 			if !e.enabled {
