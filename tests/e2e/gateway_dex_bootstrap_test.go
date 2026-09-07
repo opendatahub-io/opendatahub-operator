@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"sort"
 	"testing"
 	"time"
 
@@ -17,10 +18,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+
+	. "github.com/onsi/gomega"
 )
 
 const (
@@ -227,16 +229,175 @@ staticClients:
 func (tc *TestContext) waitForDexDeploymentReady(t *testing.T) {
 	t.Helper()
 
-	// Poll via EnsureResourceExists; EnsureDeploymentReady is point-in-time and races pod rollout.
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Deployment, types.NamespacedName{Name: xksDexName, Namespace: xksDexNamespace}),
-		WithCondition(jq.Match(
-			`.status.readyReplicas == 1 and (.status.conditions[] | select(.type == "Available") | .status) == "True"`,
-		)),
-		WithCustomErrorMsg("Dex deployment %s/%s should be Available with 1 ready replica", xksDexNamespace, xksDexName),
-		WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
-		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
-	)
+	defer func() {
+		if t.Failed() {
+			tc.logDexBootstrapDiagnostics(t)
+		}
+	}()
+
+	nn := types.NamespacedName{Name: xksDexName, Namespace: xksDexNamespace}
+	lastStatusLog := time.Now()
+
+	// Poll deployment readiness; log compact status periodically and full diagnostics on failure.
+	tc.g.Eventually(func(g Gomega) {
+		deployment := &appsv1.Deployment{}
+		g.Expect(tc.Client().Get(tc.Context(), nn, deployment)).To(Succeed(),
+			"DEX-DEBUG: failed to get deployment %s/%s", nn.Namespace, nn.Name)
+
+		if time.Since(lastStatusLog) >= 30*time.Second {
+			tc.logDexDeploymentStatus(t, deployment)
+			for _, cond := range deployment.Status.Conditions {
+				t.Logf("DEX-DEBUG: deployment condition type=%s status=%s reason=%s message=%s",
+					cond.Type, cond.Status, cond.Reason, cond.Message)
+			}
+			lastStatusLog = time.Now()
+		}
+
+		g.Expect(deployment.Status.ReadyReplicas).To(Equal(int32(1)),
+			"DEX-DEBUG: expected 1 ready replica, got %d (available=%d updated=%d unavailable=%d)",
+			deployment.Status.ReadyReplicas, deployment.Status.AvailableReplicas,
+			deployment.Status.UpdatedReplicas, deployment.Status.UnavailableReplicas)
+
+		available := false
+		for _, cond := range deployment.Status.Conditions {
+			if cond.Type == appsv1.DeploymentAvailable && cond.Status == corev1.ConditionTrue {
+				available = true
+				break
+			}
+		}
+		g.Expect(available).To(BeTrue(), "DEX-DEBUG: DeploymentAvailable condition is not True")
+	}).
+		WithTimeout(tc.TestTimeouts.componentReadinessTimeout).
+		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
+		Should(Succeed(), "Dex deployment %s/%s should be Available with 1 ready replica", xksDexNamespace, xksDexName)
+}
+
+func (tc *TestContext) logDexDeploymentStatus(t *testing.T, deployment *appsv1.Deployment) {
+	t.Helper()
+	t.Logf("DEX-DEBUG: deployment %s/%s ready=%d available=%d updated=%d unavailable=%d replicas=%d",
+		deployment.Namespace, deployment.Name,
+		deployment.Status.ReadyReplicas, deployment.Status.AvailableReplicas,
+		deployment.Status.UpdatedReplicas, deployment.Status.UnavailableReplicas, deployment.Status.Replicas)
+}
+
+// logDexBootstrapDiagnostics dumps Dex namespace state to test logs when bootstrap fails.
+func (tc *TestContext) logDexBootstrapDiagnostics(t *testing.T) {
+	t.Helper()
+	t.Log("DEX-DEBUG: collecting Dex bootstrap diagnostics")
+
+	deployment := &appsv1.Deployment{}
+	if err := tc.Client().Get(tc.Context(), types.NamespacedName{Name: xksDexName, Namespace: xksDexNamespace}, deployment); err != nil {
+		t.Logf("DEX-DEBUG: failed to get deployment: %v", err)
+	} else {
+		tc.logDexDeploymentStatus(t, deployment)
+		for _, cond := range deployment.Status.Conditions {
+			t.Logf("DEX-DEBUG: deployment condition type=%s status=%s reason=%s message=%s",
+				cond.Type, cond.Status, cond.Reason, cond.Message)
+		}
+	}
+
+	rsList := &appsv1.ReplicaSetList{}
+	if err := tc.Client().List(tc.Context(), rsList, client.InNamespace(xksDexNamespace), client.MatchingLabels{"app": xksDexName}); err != nil {
+		t.Logf("DEX-DEBUG: failed to list ReplicaSets: %v", err)
+	} else {
+		for _, rs := range rsList.Items {
+			t.Logf("DEX-DEBUG: replicaset %s ready=%d available=%d replicas=%d",
+				rs.Name, rs.Status.ReadyReplicas, rs.Status.AvailableReplicas, rs.Status.Replicas)
+		}
+	}
+
+	podList := &corev1.PodList{}
+	if err := tc.Client().List(tc.Context(), podList, client.InNamespace(xksDexNamespace), client.MatchingLabels{"app": xksDexName}); err != nil {
+		t.Logf("DEX-DEBUG: failed to list pods: %v", err)
+	} else if len(podList.Items) == 0 {
+		t.Logf("DEX-DEBUG: no pods found with label app=%s in namespace %s", xksDexName, xksDexNamespace)
+	} else {
+		for _, pod := range podList.Items {
+			t.Logf("DEX-DEBUG: pod %s phase=%s node=%s podIP=%s",
+				pod.Name, pod.Status.Phase, pod.Spec.NodeName, pod.Status.PodIP)
+			for _, cond := range pod.Status.Conditions {
+				t.Logf("DEX-DEBUG:   pod condition type=%s status=%s reason=%s message=%s",
+					cond.Type, cond.Status, cond.Reason, cond.Message)
+			}
+			for _, cs := range pod.Status.ContainerStatuses {
+				state := "running"
+				detail := ""
+				switch {
+				case cs.State.Waiting != nil:
+					state = "waiting"
+					detail = fmt.Sprintf("reason=%s message=%s", cs.State.Waiting.Reason, cs.State.Waiting.Message)
+				case cs.State.Terminated != nil:
+					state = "terminated"
+					detail = fmt.Sprintf("reason=%s exitCode=%d message=%s",
+						cs.State.Terminated.Reason, cs.State.Terminated.ExitCode, cs.State.Terminated.Message)
+				}
+				t.Logf("DEX-DEBUG:   container %s ready=%v restarts=%d state=%s %s image=%s",
+					cs.Name, cs.Ready, cs.RestartCount, state, detail, cs.Image)
+				tc.logDexContainerLogs(t, pod.Namespace, pod.Name, cs.Name, false)
+				if cs.RestartCount > 0 {
+					tc.logDexContainerLogs(t, pod.Namespace, pod.Name, cs.Name, true)
+				}
+			}
+		}
+	}
+
+	eventList := &corev1.EventList{}
+	if err := tc.Client().List(tc.Context(), eventList, client.InNamespace(xksDexNamespace)); err != nil {
+		t.Logf("DEX-DEBUG: failed to list events: %v", err)
+	} else {
+		events := eventList.Items
+		sort.Slice(events, func(i, j int) bool {
+			return events[i].LastTimestamp.Time.After(events[j].LastTimestamp.Time)
+		})
+		limit := min(len(events), 30)
+		t.Logf("DEX-DEBUG: last %d events in namespace %s:", limit, xksDexNamespace)
+		for _, event := range events[:limit] {
+			t.Logf("DEX-DEBUG:   %s %s/%s reason=%s message=%s",
+				event.Type, event.InvolvedObject.Kind, event.InvolvedObject.Name, event.Reason, event.Message)
+		}
+	}
+
+	cm := &corev1.ConfigMap{}
+	if err := tc.Client().Get(tc.Context(), types.NamespacedName{Name: xksDexConfigName, Namespace: xksDexNamespace}, cm); err != nil {
+		t.Logf("DEX-DEBUG: failed to get configmap %s: %v", xksDexConfigName, err)
+	} else if configYAML, ok := cm.Data["config.yaml"]; ok {
+		t.Logf("DEX-DEBUG: dex config.yaml:\n%s", configYAML)
+	}
+
+	tlsSecret := &corev1.Secret{}
+	if err := tc.Client().Get(tc.Context(), types.NamespacedName{Name: xksDexTLSName, Namespace: xksDexNamespace}, tlsSecret); err != nil {
+		t.Logf("DEX-DEBUG: failed to get TLS secret %s: %v", xksDexTLSName, err)
+	} else {
+		t.Logf("DEX-DEBUG: TLS secret %s type=%s keys=%v", xksDexTLSName, tlsSecret.Type, sortedSecretKeys(tlsSecret.Data))
+	}
+}
+
+func sortedSecretKeys(data map[string][]byte) []string {
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func (tc *TestContext) logDexContainerLogs(t *testing.T, namespace, podName, containerName string, previous bool) {
+	t.Helper()
+	logType := "current"
+	if previous {
+		logType = "previous"
+	}
+	logs, err := retrievePodLogs(namespace, podName, containerName, previous)
+	if err != nil {
+		t.Logf("DEX-DEBUG: failed to fetch %s logs for %s/%s container %s: %v",
+			logType, namespace, podName, containerName, err)
+		return
+	}
+	if logs == "" {
+		t.Logf("DEX-DEBUG: %s logs for %s/%s container %s: (empty)", logType, namespace, podName, containerName)
+		return
+	}
+	t.Logf("DEX-DEBUG: %s logs for %s/%s container %s:\n%s", logType, namespace, podName, containerName, redactSensitiveInfo(logs))
 }
 
 func generateDexTLSAssets(t *testing.T) ([]byte, []byte) {
