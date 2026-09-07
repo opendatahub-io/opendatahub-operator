@@ -244,15 +244,14 @@ imageOverrides:
       digest: "sha256:85211c5ba40e6f3efe397ac8bfcaab33f5170598753dddf4c01fb581d3f7ecc9"
   RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE:
     component: trustyai
-    paramsEnvKey: trustyaiOperatorImage
     tagTemplate: "{SHA}"
     odh:
-      base: "quay.io/trustyai/trustyai-service-operator"
-      digest: "sha256:2b4adaa22f2e85356f7044fc1546d04a12160ca843ac5e19b0cf99dee5c37b9c"
+      base: "quay.io/opendatahub/trustyai-service-operator"
+      digest: "sha256:80208b03fc6448d8c4cf7e5f1f724a0d84a6adb2d32508c0406f8d3dd6306a37"
     rhoai:
       shaFrom: odh
-      base: "quay.io/trustyai/trustyai-service-operator"
-      digest: "sha256:2b4adaa22f2e85356f7044fc1546d04a12160ca843ac5e19b0cf99dee5c37b9c"
+      base: "quay.io/opendatahub/trustyai-service-operator"
+      digest: "sha256:80208b03fc6448d8c4cf7e5f1f724a0d84a6adb2d32508c0406f8d3dd6306a37"
   RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE:
     component: modelregistry
     paramsEnvKey: IMAGES_MODELREGISTRY_OPERATOR
