@@ -6,6 +6,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -99,6 +100,28 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
 	g.Expect(spec).ShouldNot(HaveKey("managementState"),
 		"managementState is a DSC-level field and must not be projected into the component CR")
+}
+
+func TestBuildModuleCR_PermitFieldsConvertedToBool(t *testing.T) {
+	g := NewWithT(t)
+	h := trustyai.NewHandler()
+
+	dscCtx := newDSCContext(operatorv1.Managed)
+	dscCtx.DSC.Spec.Components.TrustyAI.Eval.LMEval.PermitCodeExecution = "allow"
+	dscCtx.DSC.Spec.Components.TrustyAI.Eval.LMEval.PermitOnline = "deny"
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig())
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	permitCodeExecution, found, err := unstructured.NestedBool(u.Object, "spec", "eval", "lmeval", "permitCodeExecution")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+	g.Expect(permitCodeExecution).Should(BeTrue())
+
+	permitOnline, found, err := unstructured.NestedBool(u.Object, "spec", "eval", "lmeval", "permitOnline")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+	g.Expect(permitOnline).Should(BeFalse())
 }
 
 func TestBuildModuleCR_NilDSCContextReturnsError(t *testing.T) {
