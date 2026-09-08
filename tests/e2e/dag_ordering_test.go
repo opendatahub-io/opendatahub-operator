@@ -611,7 +611,9 @@ func (tc *DAGOrderingTestCtx) ValidateDAGCleanup(t *testing.T) {
 
 // ValidatePartialEnablement enables a subset of components spanning
 // multiple batches and verifies that disabled components don't block
-// the DAG.
+// the DAG. It also serves as a regression test for RHOAIENG-93536:
+// flipping modules from Managed back to Removed must not leave
+// orphaned module CRs on the cluster.
 func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 	t.Helper()
 
@@ -652,8 +654,42 @@ func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 		)
 	}
 
-	t.Log("Cleaning up: setting all components to Removed")
-	tc.setAllRemoved(t)
+	// Regression test for RHOAIENG-93536: the Managed→Removed flip exercises
+	// the DSC module CR cleanup path. Previously cleanupDisabledModuleCRsWith
+	// used ReverseBatches() (enabled-only nodes), which could skip modules
+	// whose provision-registry entry was not yet marked enabled by the modules
+	// controller — leaving orphaned Dashboard, Kserve, and AIHub CRs on the
+	// cluster. The fix uses ReverseBatchesAll() to iterate all registered
+	// nodes regardless of enabled state.
+	t.Log("Setting all components to Removed (RHOAIENG-93536 regression)")
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(allComponentsRemovedTransform()),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(
+			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+			status.ConditionTypeReady, metav1.ConditionTrue,
+		)),
+		WithEventuallyTimeout(10*time.Minute),
+		WithEventuallyPollingInterval(15*time.Second),
+	)
+
+	t.Log("Verifying module CRs are not orphaned after Managed→Removed flip (RHOAIENG-93536)")
+	for _, g := range enabledGVKs {
+		instanceName := tc.GetInstanceName(g)
+		tc.EnsureResourceGone(
+			WithMinimalObject(g, types.NamespacedName{Name: instanceName}),
+			WithEventuallyTimeout(5*time.Minute),
+			WithEventuallyPollingInterval(10*time.Second),
+			WithCustomErrorMsg(
+				"Module CR %s orphaned after Managed→Removed flip (RHOAIENG-93536 regression)",
+				g.Kind,
+			),
+		)
+	}
 }
 
 // ValidateInTreeGates verifies that gate entries compiled into the
