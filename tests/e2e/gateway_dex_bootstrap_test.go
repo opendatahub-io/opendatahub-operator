@@ -147,9 +147,10 @@ staticClients:
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:  xksDexName,
-							Image: xksDexImage,
-							Args:  []string{"serve", "/etc/dex/config.yaml"},
+							Name:    xksDexName,
+							Image:   xksDexImage,
+							Command: []string{"/usr/local/bin/dex"},
+							Args:    []string{"serve", "/etc/dex/config.yaml"},
 							Ports: []corev1.ContainerPort{
 								{Name: "https", ContainerPort: xksDexPort},
 								{Name: "telemetry", ContainerPort: xksDexTelemetryPort},
