@@ -187,16 +187,6 @@ jobs:
           kubectl get gatewayclass -o yaml || true
           kubectl get httproute -A -o yaml || true
 
-      - name: Collect Dex bootstrap diagnostics on failure
-        if: failure()
-        run: |
-          kubectl get all -n dex-system -o wide || true
-          kubectl get events -n dex-system --sort-by='.lastTimestamp' || true
-          kubectl describe deployment,pods,replicaset -n dex-system -l app=dex || true
-          kubectl logs -n dex-system -l app=dex --all-containers=true --tail=200 || true
-          kubectl logs -n dex-system -l app=dex --all-containers=true --previous --tail=200 || true
-          kubectl get configmap dex-config -n dex-system -o yaml || true
-
       - name: Collect ODH Operator logs on failure
         if: failure()
         run: |

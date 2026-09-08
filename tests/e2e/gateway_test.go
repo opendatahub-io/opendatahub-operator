@@ -604,8 +604,8 @@ func (tc *GatewayTestCtx) ValidateGatewayReadyStatus(t *testing.T) {
 	t.Log("Validating Gateway ready status")
 
 	if tc.IsXKS() {
-		// On KinD with LoadBalancer ingress mode, Istio won't set Programmed=True
-		// because there is no cloud LB controller to assign an external IP.
+		// On vanilla Kubernetes with LoadBalancer ingress mode, Istio won't set Programmed=True
+		// when no cloud load balancer controller assigns an external IP (e.g. KinD).
 		// Only check Accepted (config is valid) which Istio sets immediately.
 		tc.EnsureResourceExists(
 			WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{

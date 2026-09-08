@@ -117,8 +117,8 @@ func newXKSGatewayConfig() *serviceApi.GatewayConfig {
 	}
 }
 
-// updateXKSGatewayConfigForE2E patches legacy KinD bootstrap values (e.g. dex.kind.local)
-// so kube-auth-proxy can reach the in-cluster Dex issuer.
+// updateXKSGatewayConfigForE2E patches legacy bootstrap values (e.g. dex.kind.local)
+// so kube-auth-proxy can reach the in-cluster Dex issuer on kind e2e tests.
 func (tc *TestContext) updateXKSGatewayConfigForE2E(t *testing.T, gatewayConfig *serviceApi.GatewayConfig) bool {
 	t.Helper()
 
