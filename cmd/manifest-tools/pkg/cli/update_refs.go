@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -126,6 +127,10 @@ func newUpdateRefsRHOAIBranchCommand(root *rootOptions) *cobra.Command {
 func writeGitHubOutput(key, value string) {
 	outputFile := os.Getenv("GITHUB_OUTPUT")
 	if outputFile == "" {
+		return
+	}
+	if strings.ContainsAny(key, "\r\n=") || strings.ContainsAny(value, "\r\n") {
+		slog.Warn("Refusing to write malformed GITHUB_OUTPUT entry", slog.String("key", key))
 		return
 	}
 

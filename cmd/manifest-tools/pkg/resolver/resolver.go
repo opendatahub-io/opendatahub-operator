@@ -284,6 +284,10 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 	}
 
 	// Remove source: csv entries no longer present in CSV
+	if len(csvImages) == 0 && len(csvStale) > 0 {
+		slog.Error("CSV contained no related images; preserving stale CSV overrides")
+		csvStale = nil
+	}
 	for _, envName := range csvStale {
 		if err := nodeDoc.RemoveImageOverride(envName); err != nil {
 			slog.Warn("Failed to remove stale CSV entry", slog.String("env", envName), slog.String("error", err.Error()))
@@ -369,18 +373,26 @@ func SplitImageRef(ref string) (base, digest string) {
 // and returns the value for the given key from the first file that contains it.
 func FindParamsEnvKey(dir, key string) (string, error) {
 	var result string
+	var found bool
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || d.Name() != "params.env" {
+		if err != nil {
+			if d != nil && d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if d.IsDir() || d.Name() != "params.env" {
 			return err
 		}
-		val, err := ReadParamsEnvKey(path, key)
-		if err == nil {
+		val, readErr := ReadParamsEnvKey(path, key)
+		if readErr == nil {
 			result = val
+			found = true
 			return filepath.SkipAll
 		}
 		return nil
 	})
-	if result != "" {
+	if found {
 		return result, nil
 	}
 	if err != nil {

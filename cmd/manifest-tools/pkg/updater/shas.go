@@ -30,6 +30,7 @@ func UpdateSHAs(ctx context.Context, opts SHAsOptions) (bool, error) {
 	sections := allSections(cfg)
 
 	var updated int
+	var failures []string
 
 	for _, sec := range sections {
 		for compName, comp := range sec.components {
@@ -54,7 +55,13 @@ func UpdateSHAs(ctx context.Context, opts SHAsOptions) (bool, error) {
 
 				latestSHA, err := gh.GetLatestCommitSHA(ctx, orgRepo[0], orgRepo[1], branch)
 				if err != nil {
+					failures = append(failures, fmt.Sprintf("%s/%s", compName, platform))
 					slog.Warn("Failed to fetch SHA", slog.String("component", compName), slog.String("error", err.Error()))
+					continue
+				}
+				if !validCommitSHA(latestSHA) {
+					failures = append(failures, fmt.Sprintf("%s/%s", compName, platform))
+					slog.Warn("Rejected malformed SHA", slog.String("component", compName), slog.String("platform", platform))
 					continue
 				}
 
@@ -70,12 +77,16 @@ func UpdateSHAs(ctx context.Context, opts SHAsOptions) (bool, error) {
 					slog.String("new", latestSHA[:min(8, len(latestSHA))]))
 
 				if err := nodeDoc.SetComponentRef(sec.name, compName, platform, newRef); err != nil {
+					failures = append(failures, fmt.Sprintf("%s/%s", compName, platform))
 					slog.Warn("Failed to set ref", slog.String("error", err.Error()))
 					continue
 				}
 				updated++
 			}
 		}
+	}
+	if len(failures) > 0 {
+		return false, fmt.Errorf("failed to update manifest references: %s", strings.Join(failures, ", "))
 	}
 
 	if updated == 0 {

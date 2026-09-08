@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"os"
+	"strings"
+	"time"
 )
 
 type Client struct {
@@ -18,19 +21,25 @@ type IssueComment struct {
 	Body string `json:"body_text"`
 }
 
+const (
+	maxResponseBytes = 10 << 20
+	maxCommentPages  = 50
+)
+
 func NewClient() (*Client, error) {
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
 		return nil, fmt.Errorf("GITHUB_TOKEN environment variable is required")
 	}
 	return &Client{
-		httpClient: http.DefaultClient,
+		httpClient: &http.Client{Timeout: 30 * time.Second},
 		token:      token,
 	}, nil
 }
 
 func (c *Client) GetLatestCommitSHA(ctx context.Context, owner, repo, ref string) (string, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/commits/%s", owner, repo, ref)
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/commits/%s",
+		neturl.PathEscape(owner), neturl.PathEscape(repo), escapeRef(ref))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -52,7 +61,7 @@ func (c *Client) GetLatestCommitSHA(ctx context.Context, owner, repo, ref string
 	var result struct {
 		SHA string `json:"sha"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBytes)).Decode(&result); err != nil {
 		return "", fmt.Errorf("decoding response: %w", err)
 	}
 
@@ -60,7 +69,24 @@ func (c *Client) GetLatestCommitSHA(ctx context.Context, owner, repo, ref string
 }
 
 func (c *Client) GetIssueComments(ctx context.Context, owner, repo string, issueNumber int) ([]IssueComment, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/%d/comments?per_page=100", owner, repo, issueNumber)
+	const perPage = 100
+	var all []IssueComment
+	for page := 1; page <= maxCommentPages; page++ {
+		comments, err := c.fetchCommentPage(ctx, owner, repo, issueNumber, page, perPage)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, comments...)
+		if len(comments) < perPage {
+			return all, nil
+		}
+	}
+	return nil, fmt.Errorf("issue comments exceeded %d pages", maxCommentPages)
+}
+
+func (c *Client) fetchCommentPage(ctx context.Context, owner, repo string, issueNumber, page, perPage int) ([]IssueComment, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/%d/comments?per_page=%d&page=%d",
+		neturl.PathEscape(owner), neturl.PathEscape(repo), issueNumber, perPage, page)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -81,11 +107,18 @@ func (c *Client) GetIssueComments(ctx context.Context, owner, repo string, issue
 	}
 
 	var comments []IssueComment
-	if err := json.NewDecoder(resp.Body).Decode(&comments); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBytes)).Decode(&comments); err != nil {
 		return nil, fmt.Errorf("decoding comments: %w", err)
 	}
-
 	return comments, nil
+}
+
+func escapeRef(ref string) string {
+	parts := strings.Split(ref, "/")
+	for i := range parts {
+		parts[i] = neturl.PathEscape(parts[i])
+	}
+	return strings.Join(parts, "/")
 }
 
 func (c *Client) setHeaders(req *http.Request) {

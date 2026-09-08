@@ -48,7 +48,7 @@ const testConfigWithSHA = `components:
   dashboard:
     odh:
       repo: "opendatahub-io/dashboard"
-      ref: "main@aaa1111222233334444555566667777aaaabbbb"
+      ref: "main@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       sourcePath: "config"
   ray:
     odh:
@@ -64,7 +64,7 @@ func TestUpdateSHAs_UpdatesChanged(t *testing.T) {
 
 	gh := &mockGitHub{
 		shas: map[string]string{
-			"opendatahub-io/dashboard/main": "newsha111222233334444555566667777aaaabbbb",
+			"opendatahub-io/dashboard/main": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
 			"opendatahub-io/kuberay/dev":    "1111222233334444555566667777aaaabbbbcccc",
 		},
 	}
@@ -86,7 +86,7 @@ func TestUpdateSHAs_NoChanges(t *testing.T) {
 
 	gh := &mockGitHub{
 		shas: map[string]string{
-			"opendatahub-io/dashboard/main": "aaa1111222233334444555566667777aaaabbbb",
+			"opendatahub-io/dashboard/main": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			"opendatahub-io/kuberay/dev":    "1111222233334444555566667777aaaabbbbcccc",
 		},
 	}

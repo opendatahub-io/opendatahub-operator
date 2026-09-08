@@ -24,6 +24,15 @@ func TestNewClient_WithToken(t *testing.T) {
 	if c.token != "test-token-123" {
 		t.Errorf("token = %q, want %q", c.token, "test-token-123")
 	}
+	if c.httpClient.Timeout == 0 {
+		t.Fatal("expected HTTP client timeout")
+	}
+}
+
+func TestEscapeRef(t *testing.T) {
+	if got := escapeRef("release/rhoai-2.25"); got != "release/rhoai-2.25" {
+		t.Errorf("escapeRef() = %q", got)
+	}
 }
 
 func TestSetHeaders(t *testing.T) {

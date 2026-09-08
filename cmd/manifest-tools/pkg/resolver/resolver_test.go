@@ -59,7 +59,7 @@ func TestFindParamsEnvKey(t *testing.T) {
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(baseDir, "params.env"), []byte("MY_KEY=my-value\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(baseDir, "params.env"), []byte("MY_KEY=my-value\nEMPTY_KEY=\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -96,6 +96,16 @@ func TestFindParamsEnvKey(t *testing.T) {
 		_, err := resolver.FindParamsEnvKey(dir, "NONEXISTENT")
 		if err == nil {
 			t.Error("expected error for missing key")
+		}
+	})
+
+	t.Run("returns empty value for present key", func(t *testing.T) {
+		got, err := resolver.FindParamsEnvKey(dir, "EMPTY_KEY")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != "" {
+			t.Errorf("got %q, want empty value", got)
 		}
 	})
 

@@ -19,6 +19,9 @@ func UpdateRHOAIBranch(ctx context.Context, opts RHOAIBranchOptions) (bool, erro
 	if opts.NewBranch == "" {
 		return false, fmt.Errorf("new branch name is required")
 	}
+	if err := validateBranchName(opts.NewBranch); err != nil {
+		return false, err
+	}
 
 	cfg, err := config.Load(opts.ConfigFile)
 	if err != nil {
@@ -36,6 +39,7 @@ func UpdateRHOAIBranch(ctx context.Context, opts RHOAIBranchOptions) (bool, erro
 
 	var updated int
 	var missingBranches []string
+	var failures []string
 
 	for _, sec := range sections {
 		for compName, comp := range sec.components {
@@ -61,9 +65,15 @@ func UpdateRHOAIBranch(ctx context.Context, opts RHOAIBranchOptions) (bool, erro
 				slog.Warn("Branch not found", slog.String("repo", pr.Repo), slog.String("branch", opts.NewBranch))
 				continue
 			}
+			if !validCommitSHA(latestSHA) {
+				failures = append(failures, pr.Repo)
+				slog.Warn("Rejected malformed SHA", slog.String("repo", pr.Repo))
+				continue
+			}
 
 			newRef := fmt.Sprintf("%s@%s", opts.NewBranch, latestSHA)
 			if err := nodeDoc.SetComponentRef(sec.name, compName, "rhoai", newRef); err != nil {
+				failures = append(failures, pr.Repo)
 				slog.Warn("Failed to set ref", slog.String("error", err.Error()))
 				continue
 			}
@@ -71,8 +81,9 @@ func UpdateRHOAIBranch(ctx context.Context, opts RHOAIBranchOptions) (bool, erro
 		}
 	}
 
-	if len(missingBranches) > 0 {
-		return false, fmt.Errorf("branch %q not found in: %s", opts.NewBranch, strings.Join(missingBranches, ", "))
+	if len(missingBranches) > 0 || len(failures) > 0 {
+		return false, fmt.Errorf("failed to update RHOAI refs (missing branches: %s; other failures: %s)",
+			strings.Join(missingBranches, ", "), strings.Join(failures, ", "))
 	}
 
 	if updated == 0 {

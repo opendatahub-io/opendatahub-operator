@@ -203,6 +203,35 @@ func TestFindSubscription_Multiple(t *testing.T) {
 	}
 }
 
+func TestMergeEnvVarsPreservesUnchangedFields(t *testing.T) {
+	existing := []any{
+		map[string]any{
+			"name": "OPERATOR_NAMESPACE",
+			"valueFrom": map[string]any{
+				"fieldRef": map[string]any{"fieldPath": "metadata.namespace"},
+			},
+		},
+		map[string]any{"name": "RELATED_IMAGE_DSP", "value": "old"},
+	}
+
+	merged := mergeEnvVars(existing, []envVar{
+		{Name: "RELATED_IMAGE_DSP", Value: "new"},
+		{Name: "DISABLE_DSC_CONFIG", Value: "true"},
+	})
+
+	if len(merged) != 3 {
+		t.Fatalf("expected 3 env vars, got %d", len(merged))
+	}
+	namespace := merged[0].(map[string]any)
+	if namespace["valueFrom"] == nil {
+		t.Fatal("valueFrom was removed from unchanged env var")
+	}
+	image := merged[1].(map[string]any)
+	if image["value"] != "new" {
+		t.Fatalf("image value = %v, want new", image["value"])
+	}
+}
+
 func int32Ptr(i int32) *int32 { return &i }
 
 func TestFindDeployment(t *testing.T) {
