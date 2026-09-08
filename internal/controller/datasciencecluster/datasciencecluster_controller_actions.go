@@ -201,7 +201,7 @@ func cleanupDisabledModuleCRsWith(
 	})
 
 	log := logf.FromContext(ctx)
-	reverseBatches, err := provisionReg.ReverseBatches()
+	reverseBatches, err := provisionReg.ReverseBatchesAll()
 	if err != nil {
 		log.Error(err, "DAG reverse resolution failed, falling back to alphabetical module CR cleanup")
 		return moduleReg.ForConfigSource(modules.ConfigFromDSC, func(handler modules.ModuleHandler, _ bool) error {
