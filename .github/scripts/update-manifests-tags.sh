@@ -5,14 +5,25 @@ set -euo pipefail
 update_tags(){
     local component=$1
     local value=$2
-    yq -i ".components.\"$component\".odh.ref = \"$value\"" manifests-config.yaml
-    yq -i ".components.\"$component\".rhoai.ref = \"$value\"" manifests-config.yaml
+    if ! COMPONENT="$component" yq -e '.components | has(strenv(COMPONENT))' manifests-config.yaml >/dev/null; then
+        echo "  unknown component $component" >&2
+        return 1
+    fi
+    COMPONENT="$component" VALUE="$value" yq -i \
+        '.components[strenv(COMPONENT)].odh.ref = strenv(VALUE) |
+         .components[strenv(COMPONENT)].rhoai.ref = strenv(VALUE)' \
+        manifests-config.yaml
 }
 
 update_org(){
     local component=$1
     local value=$2
-    
+
+    if ! COMPONENT="$component" yq -e '.components | has(strenv(COMPONENT))' manifests-config.yaml >/dev/null; then
+        echo "  unknown component $component" >&2
+        return 1
+    fi
+
     local current_repo_odh
     current_repo_odh=$(yq ".components.\"$component\".odh.repo" manifests-config.yaml)
     if [[ -n "$current_repo_odh" && "$current_repo_odh" != "null" ]]; then
@@ -32,11 +43,12 @@ spec_prefix=component_spec_
 org_prefix=component_org_
 
 echo "Updating component branches/tags in manifests-config.yaml..."
-env | while IFS="=" read varname value; do
-    [[ $varname =~ $spec_prefix ]] || continue
-    component=${varname#${spec_prefix}}
+while IFS= read -r varname; do
+    [[ "$varname" == "$spec_prefix"* ]] || continue
+    value=${!varname}
+    component=${varname#"$spec_prefix"}
     component=${component//_/-}
-    
+
     # Map back to manifests-config.yaml keys
     if [[ "$component" == "odh-notebook-controller" ]]; then
         component="workbenches/odh-notebook-controller"
@@ -48,14 +60,15 @@ env | while IFS="=" read varname value; do
 
     echo "  Updating branch/tag for $component to: $value"
     update_tags "$component" "$value"
-done
+done < <(compgen -v)
 
 echo "Updating component repository organizations in manifests-config.yaml..."
-env | while IFS="=" read varname value; do
-    [[ $varname =~ $org_prefix ]] || continue
-    component=${varname#${org_prefix}}
+while IFS= read -r varname; do
+    [[ "$varname" == "$org_prefix"* ]] || continue
+    value=${!varname}
+    component=${varname#"$org_prefix"}
     component=${component//_/-}
-    
+
     # Map back to manifests-config.yaml keys
     if [[ "$component" == "odh-notebook-controller" ]]; then
         component="workbenches/odh-notebook-controller"
@@ -67,4 +80,4 @@ env | while IFS="=" read varname value; do
 
     echo "  Updating organization for $component to: $value"
     update_org "$component" "$value"
-done
+done < <(compgen -v)

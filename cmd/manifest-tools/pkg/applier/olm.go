@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -34,7 +36,10 @@ type envVar struct {
 	Value string `json:"value"`
 }
 
-func ApplyOLM(opts Options) error {
+func ApplyOLM(parent context.Context, opts Options) error {
+	ctx, cancel := context.WithTimeout(parent, 5*time.Minute)
+	defer cancel()
+
 	envVars, err := loadOverridesFromConfig(opts.ConfigFile, opts.Platform)
 	if err != nil {
 		return err
@@ -70,12 +75,13 @@ func ApplyOLM(opts Options) error {
 		return fmt.Errorf("creating clientset: %w", err)
 	}
 
-	ctx := context.Background()
-
 	subName, err := findSubscription(ctx, dynClient, opts.Namespace, opts.OperatorPackage)
 	if err != nil {
-		slog.Info("OLM not available, skipping OLM image overrides", slog.String("error", err.Error()))
-		return nil
+		if meta.IsNoMatchError(err) || apierrors.IsNotFound(err) {
+			slog.Info("OLM not available, skipping OLM image overrides", slog.String("error", err.Error()))
+			return nil
+		}
+		return fmt.Errorf("finding OLM Subscription: %w", err)
 	}
 
 	if subName == "" {
@@ -104,23 +110,7 @@ func applyToSubscription(ctx context.Context, dynClient dynamic.Interface, clien
 	if !found {
 		existingEnv = []any{}
 	}
-	envMap := make(map[string]int, len(existingEnv))
-	var merged []envVar
-	for i, raw := range existingEnv {
-		if m, ok := raw.(map[string]any); ok {
-			name, _ := m["name"].(string)
-			value, _ := m["value"].(string)
-			merged = append(merged, envVar{Name: name, Value: value})
-			envMap[name] = i
-		}
-	}
-	for _, ev := range envVars {
-		if idx, ok := envMap[ev.Name]; ok {
-			merged[idx] = ev
-		} else {
-			merged = append(merged, ev)
-		}
-	}
+	merged := mergeEnvVars(existingEnv, envVars)
 
 	patch := map[string]any{
 		"spec": map[string]any{
@@ -157,6 +147,37 @@ func applyToSubscription(ctx context.Context, dynClient dynamic.Interface, clien
 
 	slog.Info("Image overrides applied via Subscription")
 	return nil
+}
+
+func mergeEnvVars(existing []any, overrides []envVar) []any {
+	envMap := make(map[string]int, len(existing))
+	merged := append([]any(nil), existing...)
+	for i, raw := range merged {
+		if m, ok := raw.(map[string]any); ok {
+			name, _ := m["name"].(string)
+			if name != "" {
+				envMap[name] = i
+			}
+		}
+	}
+	for _, ev := range overrides {
+		if idx, ok := envMap[ev.Name]; ok {
+			current, ok := merged[idx].(map[string]any)
+			if !ok {
+				continue
+			}
+			updated := make(map[string]any, len(current)+1)
+			for key, value := range current {
+				updated[key] = value
+			}
+			delete(updated, "valueFrom")
+			updated["value"] = ev.Value
+			merged[idx] = updated
+		} else {
+			merged = append(merged, map[string]any{"name": ev.Name, "value": ev.Value})
+		}
+	}
+	return merged
 }
 
 func findSubscription(ctx context.Context, client dynamic.Interface, namespace, packageName string) (string, error) {
@@ -252,7 +273,13 @@ func waitForRollout(ctx context.Context, client kubernetes.Interface, namespace,
 			slog.Int("ready", int(deploy.Status.ReadyReplicas)),
 			slog.Int("replicas", int(replicas)),
 			slog.Int("updated", int(deploy.Status.UpdatedReplicas)))
-		time.Sleep(5 * time.Second)
+		timer := time.NewTimer(5 * time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
 	}
 
 	return fmt.Errorf("timeout waiting for deployment %s rollout", deployName)

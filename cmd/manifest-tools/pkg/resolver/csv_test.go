@@ -120,6 +120,16 @@ spec:
 	}
 }
 
+func TestParseCSVRelatedImages_MissingInstallSpec(t *testing.T) {
+	images, err := resolver.ParseCSVRelatedImages([]byte("apiVersion: operators.coreos.com/v1alpha1\nkind: ClusterServiceVersion\n"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(images) != 0 {
+		t.Fatalf("expected 0 images, got %d", len(images))
+	}
+}
+
 func TestParseCSVRelatedImages_InvalidYAML(t *testing.T) {
 	_, err := resolver.ParseCSVRelatedImages([]byte(`{invalid yaml`))
 	if err == nil {

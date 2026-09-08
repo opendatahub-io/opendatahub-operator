@@ -24,6 +24,14 @@ func TestParseTrackerURL(t *testing.T) {
 			url:     "https://github.com/org/repo/issues/notanumber",
 			wantErr: true,
 		},
+		{
+			url:     "https://evil.example/org/repo/issues/42",
+			wantErr: true,
+		},
+		{
+			url:     "https://github.com/org/repo/issues/0",
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

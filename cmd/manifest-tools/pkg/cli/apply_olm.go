@@ -14,7 +14,7 @@ func newApplyOLMCommand(root *rootOptions) *cobra.Command {
 		Use:   "apply-olm",
 		Short: "Apply image overrides to OLM Subscription from manifests-config.yaml",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return applier.ApplyOLM(applier.Options{
+			return applier.ApplyOLM(cmd.Context(), applier.Options{
 				ConfigFile:      root.configFile,
 				Platform:        root.platform,
 				Namespace:       namespace,

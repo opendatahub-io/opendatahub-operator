@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	urlpkg "net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -102,6 +103,9 @@ func UpdateTags(ctx context.Context, opts TagsOptions) (*TagsResult, error) {
 				}
 
 				branchName := strings.Join(splitArr[idx+1:], "/")
+				if err := validateBranchName(branchName); err != nil {
+					return nil, err
+				}
 				repoOrg := splitArr[3]
 				repoName := splitArr[4]
 
@@ -110,6 +114,9 @@ func UpdateTags(ctx context.Context, opts TagsOptions) (*TagsResult, error) {
 				commitSHA, err := gh.GetLatestCommitSHA(ctx, repoOrg, repoName, branchName)
 				if err != nil {
 					return nil, fmt.Errorf("resolving SHA for %s (%s/%s ref %s): %w", componentName, repoOrg, repoName, branchName, err)
+				}
+				if !validCommitSHA(commitSHA) {
+					return nil, fmt.Errorf("invalid SHA for %s (%s/%s ref %s)", componentName, repoOrg, repoName, branchName)
 				}
 
 				if componentName == "workbenches/notebook-controller" {
@@ -157,6 +164,7 @@ func UpdateTags(ctx context.Context, opts TagsOptions) (*TagsResult, error) {
 	// Apply component updates to ODH entries in manifests-config.yaml
 	odhComponents := collectODHComponents(cfg)
 	var updated int
+	var failures []string
 
 	for _, cu := range componentUpdates {
 		matched := false
@@ -173,6 +181,7 @@ func UpdateTags(ctx context.Context, opts TagsOptions) (*TagsResult, error) {
 
 				slog.Info("Updating", slog.String("component", mc.componentName), slog.String("ref", newRef))
 				if err := nodeDoc.SetComponentRef(mc.section, mc.componentName, "odh", newRef); err != nil {
+					failures = append(failures, mc.componentName)
 					slog.Warn("Failed to set ref", slog.String("error", err.Error()))
 					continue
 				}
@@ -184,6 +193,9 @@ func UpdateTags(ctx context.Context, opts TagsOptions) (*TagsResult, error) {
 		if !matched {
 			slog.Warn("No matching component found", slog.String("key", cu.name))
 		}
+	}
+	if len(failures) > 0 {
+		return nil, fmt.Errorf("failed to update components: %s", strings.Join(failures, ", "))
 	}
 
 	if updated > 0 {
@@ -200,18 +212,20 @@ func UpdateTags(ctx context.Context, opts TagsOptions) (*TagsResult, error) {
 	}, nil
 }
 
-func parseTrackerURL(url string) (owner, repo string, issueNumber int, err error) {
-	parts := strings.Split(url, "/")
-	if len(parts) < 7 {
-		return "", "", 0, fmt.Errorf("invalid tracker URL: %s", url)
+func parseTrackerURL(rawURL string) (owner, repo string, issueNumber int, err error) {
+	parsed, err := urlpkg.Parse(rawURL)
+	if err != nil || parsed.Scheme != "https" || parsed.Host != "github.com" {
+		return "", "", 0, fmt.Errorf("invalid tracker URL: %s", rawURL)
 	}
-	owner = parts[3]
-	repo = parts[4]
-	issueNumber, err = strconv.Atoi(parts[6])
-	if err != nil {
-		return "", "", 0, fmt.Errorf("invalid issue number in URL %s: %w", url, err)
+	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+	if len(parts) != 4 || parts[2] != "issues" || parts[0] == "" || parts[1] == "" {
+		return "", "", 0, fmt.Errorf("invalid tracker URL: %s", rawURL)
 	}
-	return owner, repo, issueNumber, nil
+	issueNumber, err = strconv.Atoi(parts[3])
+	if err != nil || issueNumber <= 0 {
+		return "", "", 0, fmt.Errorf("invalid issue number in URL %s", rawURL)
+	}
+	return parts[0], parts[1], issueNumber, nil
 }
 
 func imageNameToEnvVar(imageName string) string {
