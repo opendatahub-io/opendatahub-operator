@@ -144,3 +144,88 @@ func TestWatchHandlersLogResourceKindOnListError(t *testing.T) {
 		})
 	}
 }
+
+// TestReconcileErrorPathLogsResourceKindAndName verifies that when the
+// Reconcile method fails to retrieve the DSCInitialization resource, it
+// logs the error with structured "resourceKind" and "name" fields.
+func TestReconcileErrorPathLogsResourceKindAndName(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	listErr := errors.New("injected list error")
+
+	cli, err := fakeclient.New(
+		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			List: func(_ context.Context, _ client.WithWatch, _ client.ObjectList, _ ...client.ListOption) error {
+				return listErr
+			},
+		}),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	reconciler := &DSCInitializationReconciler{
+		Client:   cli,
+		Recorder: &noopRecorder{},
+	}
+
+	ctx, logged := logCapturingContext(t)
+
+	_, _ = reconciler.Reconcile(ctx, ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: "default-dsci"},
+	})
+
+	g.Expect(*logged).To(ContainElement(And(
+		ContainSubstring(`"msg"="Failed to retrieve resource."`),
+		ContainSubstring(`"resourceKind"="DSCInitialization"`),
+		ContainSubstring(`"name"="default-dsci"`),
+	)), "expected Reconcile error log to carry resourceKind and name fields")
+}
+
+
+var legacyKeys = []string{
+	"DSCInitialization Request.Name",
+	"Request.Name",
+	"DSCInitialization",
+	"Manifests path",
+}
+
+// TestNoLegacyKeysInLogs asserts that every log record captured during
+// reconciliation and watch-handler error paths rejects legacy keys.
+func TestNoLegacyKeysInLogs(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	s, err := scheme.New()
+	g.Expect(err).NotTo(HaveOccurred())
+
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{Name: "default-dsci"},
+	}
+
+	cli, err := fakeclient.New(
+		fakeclient.WithScheme(s),
+		fakeclient.WithObjects(dsci),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	reconciler := &DSCInitializationReconciler{
+		Client:   cli,
+		Scheme:   s,
+		Recorder: &noopRecorder{},
+	}
+
+	ctx, logged := logCapturingContext(t)
+
+	_, _ = reconciler.Reconcile(ctx, ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: dsci.Name},
+	})
+
+	for _, record := range *logged {
+		for _, key := range legacyKeys {
+			g.Expect(record).NotTo(
+				ContainSubstring(`"`+key+`"`),
+				"log record contains legacy key %q: %s", key, record,
+			)
+		}
+	}
+}

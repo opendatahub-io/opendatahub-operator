@@ -100,7 +100,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	case k8serr.IsNotFound(err):
 		return ctrl.Result{}, nil
 	case err != nil:
-		log.Error(err, "Failed to retrieve DSCInitialization resource.")
+		log.Error(err, "Failed to retrieve resource.", "resourceKind", "DSCInitialization", "name", req.Name)
 
 		ref := &corev1.ObjectReference{Name: req.Name, Namespace: req.Namespace}
 		ref.SetGroupVersionKind(gvk.DSCInitialization)
