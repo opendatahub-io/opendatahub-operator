@@ -94,8 +94,8 @@ type ComponentsStatus struct {
 	// Dashboard component status.
 	Dashboard componentApi.DSCDashboardStatus `json:"dashboard,omitempty"`
 
-	// MaasConsumerPortal submodule status (submodule of Dashboard).
-	MaasConsumerPortal componentApi.DSCMaasConsumerPortalStatus `json:"maasConsumerPortal,omitempty"`
+	// MaaSConsumerPortal submodule status (submodule of Dashboard).
+	MaaSConsumerPortal componentApi.DSCMaaSConsumerPortalStatus `json:"maasConsumerPortal,omitempty"`
 
 	// Workbenches component status.
 	Workbenches componentApi.DSCWorkbenchesStatus `json:"workbenches,omitempty"`

@@ -30,16 +30,17 @@ type DashboardCommonSpec struct {
 	// dashboard spec exposed to DSC api
 	// dashboard spec exposed only to internal api
 
-	// MaasConsumerPortal controls the MaaS Consumer Portal submodule, shipped in
+	// MaaSConsumerPortal controls the MaaS Consumer Portal submodule, shipped in
 	// the dashboard-operator. It is managed independently of the core Dashboard:
 	// the dashboard-operator Deployment stays up while either the core Dashboard
 	// or the portal is Managed. This field round-trips through DashboardCommonSpec
 	// and is projected verbatim onto the Dashboard CR as spec.maasConsumerPortal.
-	MaasConsumerPortal MaasConsumerPortalSpec `json:"maasConsumerPortal,omitempty"`
+	// +kubebuilder:default={managementState: "Removed"}
+	MaaSConsumerPortal MaaSConsumerPortalSpec `json:"maasConsumerPortal,omitempty"`
 }
 
-// MaasConsumerPortalSpec configures the MaaS Consumer Portal submodule lifecycle.
-type MaasConsumerPortalSpec struct {
+// MaaSConsumerPortalSpec configures the MaaS Consumer Portal submodule lifecycle.
+type MaaSConsumerPortalSpec struct {
 	common.ManagementSpec `json:",inline"`
 }
 
@@ -62,8 +63,8 @@ type DSCDashboardStatus struct {
 	*DashboardCommonStatus `json:",inline"`
 }
 
-// DSCMaasConsumerPortalStatus contains the observed state of the MaaS Consumer
+// DSCMaaSConsumerPortalStatus contains the observed state of the MaaS Consumer
 // Portal submodule (submodule of Dashboard) exposed in the DSC instance.
-type DSCMaasConsumerPortalStatus struct {
+type DSCMaaSConsumerPortalStatus struct {
 	common.ManagementSpec `json:",inline"`
 }
