@@ -261,7 +261,10 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 
 	skipUnless(t, Tier1)
 
-	crdTestingName := "rays.components.platform.opendatahub.io"
+	// Ray is a module and reports readiness through ModulesReady. Use an
+	// in-tree component here because this test validates ComponentsReady's
+	// handling of a missing component CRD.
+	crdTestingName := fmt.Sprintf("%s.%s", componentApi.DataSciencePipelinesComponentName, componentApi.GroupVersion.Group)
 	crd := tc.FetchResource(
 		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdTestingName}),
 	)
@@ -273,6 +276,19 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 
 	// Save a backup copy of the CRD
 	crdBackup := resources.StripServerMetadata(crd)
+	crdRestored := false
+	restoreCRD := func() {
+		if crdRestored {
+			return
+		}
+
+		tc.EventuallyResourceCreatedOrUpdated(
+			WithObjectToCreate(crdBackup),
+			WithCustomErrorMsg("Failed to restore CRD from backup"),
+		)
+		crdRestored = true
+	}
+	t.Cleanup(restoreCRD)
 
 	// Delete the CRD
 	tc.DeleteResource(
@@ -285,6 +301,12 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 	// Validate pod health and system health
 	componentKind, _, _ := unstructured.NestedString(crd.Object, "spec", "names", "kind")
 	componentName := strings.ToLower(componentKind)
+	componentReadyCondition := componentKind + "Ready"
+	if componentKind == componentApi.DataSciencePipelinesKind {
+		// DataSciencePipelines is stored as AIPipelines in the v2 DSC API.
+		componentName = aiPipelinesFieldName
+		componentReadyCondition = componentApi.AIPipelinesKind + "Ready"
+	}
 
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -309,7 +331,7 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 			| .status == "%s"`, "ComponentsReady", metav1.ConditionFalse),
 			jq.Match(`.status.conditions[]
 			| select(.type == "%s")
-			| .status == "%s"`, componentKind+"Ready", metav1.ConditionFalse),
+			| .status == "%s"`, componentReadyCondition, metav1.ConditionFalse),
 		)),
 		WithCustomErrorMsg("DSC should be unhealthy due to missing CRD"),
 	)
@@ -322,11 +344,9 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 		WithCondition(jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, operatorv1.Removed)),
 	)
 
-	// Manually restore the CRD from backup
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(crdBackup),
-		WithCustomErrorMsg("Failed to restore CRD from backup"),
-	)
+	// Restore the CRD before validating final system health. The cleanup above
+	// also restores it if an earlier assertion fails.
+	restoreCRD()
 	tc.validateSystemHealth(t)
 }
 

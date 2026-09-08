@@ -130,7 +130,9 @@ func rayTestSuite(t *testing.T) {
 			tc.EnsureResourceExists(
 				WithMinimalObject(moduleGVK, moduleCRNN),
 				WithCondition(And(
-					jq.Match(`.spec.managementState == null`),
+					// The Ray module CRD defaults managementState to Managed when the
+					// platform projects the module CR.
+					jq.Match(`.spec.managementState == "Managed"`),
 					jq.Match(`.spec.applicationsNamespace == "%s"`, tc.AppsNamespace),
 					jq.Match(`.metadata.ownerReferences[0].kind == "DataScienceCluster"`),
 				)),
