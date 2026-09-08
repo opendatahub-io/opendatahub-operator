@@ -240,7 +240,7 @@ func TestWriteDSCComponentStatus_TypeWithoutReleases_NoOp(t *testing.T) {
 	t.Parallel()
 
 	dsc := &dscv2.DataScienceCluster{}
-	newReleaseHandler("Dashboard").WriteDSCComponentStatus(dsc, true, []common.ComponentRelease{
+	newReleaseHandler("BatchGateway").WriteDSCComponentStatus(dsc, true, []common.ComponentRelease{
 		{Name: "platform", Version: "1.0.0"},
 	})
 }

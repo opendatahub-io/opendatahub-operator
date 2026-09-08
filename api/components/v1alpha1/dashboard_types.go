@@ -35,7 +35,8 @@ type DashboardCommonSpec struct {
 
 // DashboardCommonStatus defines the shared observed state of Dashboard
 type DashboardCommonStatus struct {
-	URL string `json:"url,omitempty"`
+	common.ComponentReleaseStatus `json:",inline"`
+	URL                           string `json:"url,omitempty"`
 }
 
 // DSCDashboard contains all the configuration exposed in DSC instance for Dashboard component
