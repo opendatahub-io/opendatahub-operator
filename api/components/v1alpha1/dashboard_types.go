@@ -16,11 +16,7 @@ limitations under the License.
 
 package v1alpha1
 
-import (
-	operatorv1 "github.com/openshift/api/operator/v1"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-)
+import "github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 
 const (
 	DashboardComponentName = "dashboard"
@@ -44,9 +40,7 @@ type DashboardCommonSpec struct {
 
 // MaasConsumerPortalSpec configures the MaaS Consumer Portal submodule lifecycle.
 type MaasConsumerPortalSpec struct {
-	// +kubebuilder:validation:Enum=Managed;Removed
-	// +kubebuilder:default=Removed
-	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+	common.ManagementSpec `json:",inline"`
 }
 
 // DashboardCommonStatus defines the shared observed state of Dashboard

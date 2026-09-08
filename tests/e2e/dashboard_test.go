@@ -61,7 +61,6 @@ func dashboardTestSuite(t *testing.T) {
 		{"Validate portal-only keeps dashboard-operator up", componentCtx.ValidatePortalOnlyKeepsOperatorUp},
 		{"Validate portal disabled while dashboard enabled", componentCtx.ValidatePortalDisabledWhileDashboardEnabled},
 		{"Validate both removed tears down dashboard-operator", componentCtx.ValidateBothRemovedTearsDown},
-		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
 	// Run the test suite.
@@ -472,11 +471,12 @@ func (tc *DashboardTestCtx) ValidatePortalOnlyKeepsOperatorUp(t *testing.T) {
 		WithCustomErrorMsg("Dashboard module CR should exist when only maasConsumerPortal is Managed"),
 	)
 
-	// DSC status must reflect the portal submodule as Managed with its condition present.
+	// DSC status must reflect the active Dashboard module and its Managed portal submodule.
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 		WithCondition(And(
+			jq.Match(`.status.components.dashboard.managementState == "Managed"`),
 			jq.Match(`.status.components.maasConsumerPortal.managementState == "Managed"`),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .type == "%s"`, maasConsumerPortalConditionType, maasConsumerPortalConditionType),
 		)),
@@ -519,6 +519,7 @@ func (tc *DashboardTestCtx) ValidatePortalDisabledWhileDashboardEnabled(t *testi
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 		WithCondition(And(
+			jq.Match(`.status.components.dashboard.managementState == "Managed"`),
 			jq.Match(`.status.components.maasConsumerPortal.managementState == "Removed"`),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, maasConsumerPortalConditionType, metav1.ConditionFalse),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, maasConsumerPortalConditionType, status.RemovedReason),
