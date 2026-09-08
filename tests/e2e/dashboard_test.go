@@ -35,7 +35,7 @@ const (
 
 	// maasConsumerPortalConditionType is the DSC condition mirrored from the
 	// dashboard-operator for the MaaS Consumer Portal submodule.
-	maasConsumerPortalConditionType = "MaasConsumerPortalAvailable"
+	maasConsumerPortalConditionType = "MaaSConsumerPortalAvailable"
 )
 
 func dashboardTestSuite(t *testing.T) {

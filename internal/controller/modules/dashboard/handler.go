@@ -58,15 +58,15 @@ func NewHandler() *handler {
 				RelatedImages:   relatedImages(),
 				SubmoduleConditions: []modules.SubmoduleCondition{
 					{
-						// Aligned with dashboard-operator's MaasConsumerPortalAvailable condition.
-						SourceConditionType: "MaasConsumerPortalAvailable",
-						DSCConditionType:    "MaasConsumerPortalAvailable",
-						StatusFieldName:     "MaasConsumerPortal",
+						// Aligned with dashboard-operator's MaaSConsumerPortalAvailable condition.
+						SourceConditionType: "MaaSConsumerPortalAvailable",
+						DSCConditionType:    "MaaSConsumerPortalAvailable",
+						StatusFieldName:     "MaaSConsumerPortal",
 						IsEnabled: func(dscCtx *modules.DSCContext) bool {
 							if dscCtx == nil || dscCtx.DSC == nil {
 								return false
 							}
-							return dscCtx.DSC.Spec.Components.Dashboard.MaasConsumerPortal.ManagementState == operatorv1.Managed
+							return dscCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState == operatorv1.Managed
 						},
 					},
 				},
@@ -86,7 +86,7 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 	// OR is computed here; IsEnabled() reads the already-OR'd state.
 	ms := operatorv1.Removed
 	if dashboard.ManagementState == operatorv1.Managed ||
-		dashboard.MaasConsumerPortal.ManagementState == operatorv1.Managed {
+		dashboard.MaaSConsumerPortal.ManagementState == operatorv1.Managed {
 		ms = operatorv1.Managed
 	}
 	pm.Dashboard.ManagementState = ms

@@ -423,7 +423,7 @@ func TestBuildModuleCR_NilCfgWithWorkbenchesManaged_DefaultsToODH(t *testing.T) 
 func populatedState(coreState, portalState operatorv1.ManagementState) operatorv1.ManagementState {
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtx(coreState)
-	dscCtx.DSC.Spec.Components.Dashboard.MaasConsumerPortal.ManagementState = portalState
+	dscCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = portalState
 	pm := &configv1alpha1.PlatformModules{}
 	h.PopulatePlatformModule(pm, dscCtx)
 	return pm.Dashboard.ManagementState
@@ -457,11 +457,11 @@ func TestPopulatePlatformModule_EmptyStatesRemoved(t *testing.T) {
 	g.Expect(populatedState("", "")).Should(Equal(operatorv1.Removed))
 }
 
-func TestBuildModuleCR_ProjectsMaasConsumerPortal_Managed(t *testing.T) {
+func TestBuildModuleCR_ProjectsMaaSConsumerPortal_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.Dashboard.MaasConsumerPortal.ManagementState = operatorv1.Managed
+	dscCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = operatorv1.Managed
 
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig("dashboard.example.com"))
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -477,11 +477,11 @@ func TestBuildModuleCR_ProjectsMaasConsumerPortal_Managed(t *testing.T) {
 	g.Expect(spec).ShouldNot(HaveKey("consumerPortal"))
 }
 
-func TestBuildModuleCR_ProjectsMaasConsumerPortal_Removed(t *testing.T) {
+func TestBuildModuleCR_ProjectsMaaSConsumerPortal_Removed(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.Dashboard.MaasConsumerPortal.ManagementState = operatorv1.Removed
+	dscCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = operatorv1.Removed
 
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -496,7 +496,7 @@ func TestBuildModuleCR_ProjectsMaasConsumerPortal_Removed(t *testing.T) {
 	g.Expect(spec).ShouldNot(HaveKey("consumerPortal"))
 }
 
-func TestGetSubmoduleConditions_MaasConsumerPortal(t *testing.T) {
+func TestGetSubmoduleConditions_MaaSConsumerPortal(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 
@@ -504,17 +504,17 @@ func TestGetSubmoduleConditions_MaasConsumerPortal(t *testing.T) {
 	g.Expect(subs).Should(HaveLen(1))
 
 	sm := subs[0]
-	g.Expect(sm.SourceConditionType).Should(Equal("MaasConsumerPortalAvailable"))
-	g.Expect(sm.DSCConditionType).Should(Equal("MaasConsumerPortalAvailable"))
-	g.Expect(sm.StatusFieldName).Should(Equal("MaasConsumerPortal"))
+	g.Expect(sm.SourceConditionType).Should(Equal("MaaSConsumerPortalAvailable"))
+	g.Expect(sm.DSCConditionType).Should(Equal("MaaSConsumerPortalAvailable"))
+	g.Expect(sm.StatusFieldName).Should(Equal("MaaSConsumerPortal"))
 	g.Expect(sm.IsEnabled).ShouldNot(BeNil())
 
 	enabledCtx := newDSCCtx(operatorv1.Removed)
-	enabledCtx.DSC.Spec.Components.Dashboard.MaasConsumerPortal.ManagementState = operatorv1.Managed
+	enabledCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = operatorv1.Managed
 	g.Expect(sm.IsEnabled(enabledCtx)).Should(BeTrue())
 
 	disabledCtx := newDSCCtx(operatorv1.Managed)
-	disabledCtx.DSC.Spec.Components.Dashboard.MaasConsumerPortal.ManagementState = operatorv1.Removed
+	disabledCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = operatorv1.Removed
 	g.Expect(sm.IsEnabled(disabledCtx)).Should(BeFalse())
 }
 
