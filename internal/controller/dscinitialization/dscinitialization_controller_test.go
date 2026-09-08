@@ -181,7 +181,6 @@ func TestReconcileErrorPathLogsResourceKindAndName(t *testing.T) {
 	)), "expected Reconcile error log to carry resourceKind and name fields")
 }
 
-
 var legacyKeys = []string{
 	"DSCInitialization Request.Name",
 	"Request.Name",
