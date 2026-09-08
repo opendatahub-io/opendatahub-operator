@@ -90,15 +90,23 @@ func disableDSCModulesOnDelete(ctx context.Context, rr *odhtype.ReconciliationRe
 }
 
 func cleanupDisabledComponents(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	return cleanupDisabledComponentsWith(ctx, rr, cr.DefaultRegistry(), provision.DefaultRegistry())
+}
+
+func cleanupDisabledComponentsWith(
+	ctx context.Context,
+	rr *odhtype.ReconciliationRequest,
+	componentReg *cr.Registry,
+	provisionReg *provision.UnifiedRegistry,
+) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
 	log := logf.FromContext(ctx)
-	componentReg := cr.DefaultRegistry()
 
-	reverseBatches, err := provision.DefaultRegistry().ReverseBatches()
+	reverseBatches, err := provisionReg.ReverseBatches()
 	if err != nil {
 		return fmt.Errorf("DAG reverse resolution failed during component cleanup: %w", err)
 	}
@@ -160,12 +168,20 @@ func isOwnedBy(obj, owner metav1.Object) bool {
 }
 
 func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	return cleanupDisabledModuleCRsWith(ctx, rr, modules.DefaultRegistry(), provision.DefaultRegistry())
+}
+
+func cleanupDisabledModuleCRsWith(
+	ctx context.Context,
+	rr *odhtype.ReconciliationRequest,
+	moduleReg *modules.Registry,
+	provisionReg *provision.UnifiedRegistry,
+) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
-	moduleReg := modules.DefaultRegistry()
 	if !moduleReg.HasEntries() {
 		return nil
 	}
@@ -185,7 +201,7 @@ func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationReq
 	})
 
 	log := logf.FromContext(ctx)
-	reverseBatches, err := provision.DefaultRegistry().ReverseBatches()
+	reverseBatches, err := provisionReg.ReverseBatches()
 	if err != nil {
 		log.Error(err, "DAG reverse resolution failed, falling back to alphabetical module CR cleanup")
 		return moduleReg.ForConfigSource(modules.ConfigFromDSC, func(handler modules.ModuleHandler, _ bool) error {
@@ -223,6 +239,10 @@ func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationReq
 }
 
 func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	return provisionComponentsWith(ctx, rr, cr.DefaultRegistry())
+}
+
+func provisionComponentsWith(ctx context.Context, rr *odhtype.ReconciliationRequest, componentReg *cr.Registry) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
@@ -230,7 +250,6 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 
 	rr.Generated = true
 	log := logf.FromContext(ctx)
-	componentReg := cr.DefaultRegistry()
 	var failedComponents []string
 
 	if err := componentReg.ForEach(func(handler cr.ComponentHandler) error {
