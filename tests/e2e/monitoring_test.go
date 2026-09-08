@@ -298,6 +298,7 @@ func (tc *MonitoringTestCtx) ValidateCELAllowsValidMonitoringConfigs(t *testing.
 				withManagementState(operatorv1.Managed),
 				withEmptyMetrics(),
 				withNoAlerting(),
+				withNoCollectorReplicas(),
 			),
 			description: "Empty metrics should be allowed without alerting",
 		},
@@ -306,6 +307,7 @@ func (tc *MonitoringTestCtx) ValidateCELAllowsValidMonitoringConfigs(t *testing.
 			transforms: testf.TransformPipeline(
 				withManagementState(operatorv1.Managed),
 				testf.Transform(`.spec.monitoring.metrics = {"replicas": 0}`),
+				withNoCollectorReplicas(),
 			),
 			description: "Zero replicas should be allowed without storage",
 		},
@@ -374,9 +376,6 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Helper()
 
-			// Ensure OpenTelemetry Collector is ready before each test
-			tc.ensureOpenTelemetryCollectorReady(t)
-
 			// Setup configuration
 			tc.updateMonitoringConfig(testCase.transforms...)
 
@@ -385,7 +384,11 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 				WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
 				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
 				WithCustomErrorMsg("Monitoring service should be ready before validating OpenTelemetry Collector"),
+				WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 			)
+
+			// Ensure OpenTelemetry Collector is ready after configuration is applied
+			tc.ensureOpenTelemetryCollectorReady(t)
 
 			// Validate configuration
 			tc.EnsureResourceExists(
@@ -394,6 +397,7 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 					Namespace: tc.MonitoringNamespace,
 				}),
 				WithCondition(testCase.validation),
+				WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 			)
 
 			// Universal cleanup to prevent state contamination between tests
@@ -438,10 +442,10 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRCollectorReplicas(t *testing.T)
 		WithCustomErrorMsg("CollectorReplicas should be updated to %d by DSCInitialization controller", testReplicas),
 	)
 
-	// Cleanup: Reset collectorReplicas to default to prevent test contamination
+	// Cleanup: Remove collectorReplicas to prevent test contamination
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring.collectorReplicas = %d`, defaultReplicas)),
+		WithMutateFunc(withNoCollectorReplicas()),
 	)
 }
 
@@ -783,6 +787,7 @@ func (tc *MonitoringTestCtx) ensureOpenTelemetryCollectorReady(t *testing.T) {
 		// Format of statusReplicas is n/m, we check if at least one is ready
 		WithCondition(jq.Match(`.status.scale.statusReplicas | split("/") | map(tonumber) | min > 0`)),
 		WithCustomErrorMsg("OpenTelemetry Collector should have at least one ready replica"),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 	)
 }
 

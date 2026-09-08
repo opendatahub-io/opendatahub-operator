@@ -110,13 +110,12 @@ func (tc *TestContext) OverrideEventuallyTimeout(timeout, pollInterval time.Dura
 
 	// Override with new values
 	tc.g.SetDefaultEventuallyTimeout(timeout)
-	tc.g.SetDefaultConsistentlyPollingInterval(pollInterval)
+	tc.g.SetDefaultEventuallyPollingInterval(pollInterval)
 
 	// Return a function to reset them back
 	return func() {
-		// Override with new values
 		tc.g.SetDefaultEventuallyTimeout(previousTimeout)
-		tc.g.SetDefaultConsistentlyPollingInterval(previousPollInterval)
+		tc.g.SetDefaultEventuallyPollingInterval(previousPollInterval)
 	}
 }
 
@@ -1453,6 +1452,9 @@ func (tc *TestContext) validateWebhookError(g Gomega, err error, operationType s
 // If the operation fails (e.g., due to validation errors, resource not found, etc.),
 // it logs the failure but does not propagate the error, allowing deletion to proceed.
 func (tc *TestContext) tryRemoveFinalizers(gvk schema.GroupVersionKind, nn types.NamespacedName) {
+	reset := tc.OverrideEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout, tc.TestTimeouts.defaultEventuallyPollInterval)
+	defer reset()
+
 	defer func() {
 		if r := recover(); r != nil {
 			// Intentionally suppress panics from tryRemoveFinalizers to prevent
@@ -1468,7 +1470,6 @@ func (tc *TestContext) tryRemoveFinalizers(gvk schema.GroupVersionKind, nn types
 		WithMutateFunc(testf.Transform(`.metadata.finalizers = []`)),
 		WithIgnoreNotFound(true),
 		WithAcceptableErr(meta.IsNoMatchError, "IsNoMatchError"),
-		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout), // Short timeout for best-effort
 	)
 }
 
