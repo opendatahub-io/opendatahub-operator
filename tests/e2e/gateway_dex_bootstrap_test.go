@@ -41,6 +41,49 @@ func xksDexRedirectURI() string {
 	return fmt.Sprintf("https://%s.%s%s", gateway.DefaultGatewaySubdomain, xksGatewayDomain, gateway.OAuthCallbackPath)
 }
 
+// xksDexConfigYAML returns the Dex server config. Dex v2.41+ requires at least one
+// connector; enablePasswordDB satisfies that without an external IdP.
+func xksDexConfigYAML() string {
+	return fmt.Sprintf(`issuer: %s
+
+storage:
+  type: memory
+
+web:
+  https: 0.0.0.0:%d
+  tlsCert: /etc/dex/tls/tls.crt
+  tlsKey: /etc/dex/tls/tls.key
+
+oauth2:
+  skipApprovalScreen: true
+
+telemetry:
+  http: 0.0.0.0:%d
+
+enablePasswordDB: true
+
+staticClients:
+  - id: %s
+    name: %s
+    secret: %s
+    redirectURIs:
+      - %q
+`, xksGatewayOIDCIssuerURL, xksDexPort, xksDexTelemetryPort, xksGatewayOIDCClientID, xksGatewayOIDCClientID,
+		xksGatewayOIDCClientSecret, xksDexRedirectURI())
+}
+
+func newXKSDexConfigMap() *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      xksDexConfigName,
+			Namespace: xksDexNamespace,
+		},
+		Data: map[string]string{
+			"config.yaml": xksDexConfigYAML(),
+		},
+	}
+}
+
 // ensureDexForXKS deploys a minimal Dex OIDC provider for KinD / vanilla Kubernetes e2e.
 // kube-auth-proxy uses --skip-oidc-discovery=false, so the issuer must be reachable at startup.
 func (tc *TestContext) ensureDexForXKS(t *testing.T) {
@@ -56,7 +99,9 @@ func (tc *TestContext) ensureDexForXKS(t *testing.T) {
 		Namespace: xksDexNamespace,
 	}, dexDeploy)
 	if err == nil {
-		t.Logf("Dex deployment already exists in %s, waiting for readiness", xksDexNamespace)
+		t.Logf("Dex deployment already exists in %s, ensuring config is current", xksDexNamespace)
+		tc.ensureXKSDexConfigMap(t)
+		tc.restartXKSDexDeployment(t)
 		tc.waitForDexDeploymentReady(t)
 		return
 	}
@@ -88,44 +133,7 @@ func (tc *TestContext) ensureDexForXKS(t *testing.T) {
 		WithEventuallyTimeout(tc.TestTimeouts.crCreationTimeout),
 	)
 
-	dexConfig := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      xksDexConfigName,
-			Namespace: xksDexNamespace,
-		},
-		Data: map[string]string{
-			"config.yaml": fmt.Sprintf(`issuer: %s
-
-storage:
-  type: memory
-
-web:
-  https: 0.0.0.0:%d
-  tlsCert: /etc/dex/tls/tls.crt
-  tlsKey: /etc/dex/tls/tls.key
-
-oauth2:
-  skipApprovalScreen: true
-
-telemetry:
-  http: 0.0.0.0:%d
-
-enablePasswordDB: false
-
-staticClients:
-  - id: %s
-    name: %s
-    secret: %s
-    redirectURIs:
-      - %q
-`, xksGatewayOIDCIssuerURL, xksDexPort, xksDexTelemetryPort, xksGatewayOIDCClientID, xksGatewayOIDCClientID,
-				xksGatewayOIDCClientSecret, xksDexRedirectURI()),
-		},
-	}
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(dexConfig),
-		WithEventuallyTimeout(tc.TestTimeouts.crCreationTimeout),
-	)
+	tc.ensureXKSDexConfigMap(t)
 
 	dexDeployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -225,6 +233,34 @@ staticClients:
 
 	tc.waitForDexDeploymentReady(t)
 	t.Log("Dex OIDC provider bootstrap completed")
+}
+
+func (tc *TestContext) ensureXKSDexConfigMap(t *testing.T) {
+	t.Helper()
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(newXKSDexConfigMap()),
+		WithEventuallyTimeout(tc.TestTimeouts.crCreationTimeout),
+	)
+}
+
+func (tc *TestContext) restartXKSDexDeployment(t *testing.T) {
+	t.Helper()
+
+	deployment := &appsv1.Deployment{}
+	nn := types.NamespacedName{Name: xksDexName, Namespace: xksDexNamespace}
+	if err := tc.Client().Get(tc.Context(), nn, deployment); err != nil {
+		t.Fatalf("failed to get Dex deployment for restart: %v", err)
+	}
+
+	if deployment.Spec.Template.Annotations == nil {
+		deployment.Spec.Template.Annotations = map[string]string{}
+	}
+	deployment.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339Nano)
+
+	if err := tc.Client().Update(tc.Context(), deployment); err != nil {
+		t.Fatalf("failed to restart Dex deployment: %v", err)
+	}
 }
 
 func (tc *TestContext) waitForDexDeploymentReady(t *testing.T) {

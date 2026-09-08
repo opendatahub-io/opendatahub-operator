@@ -604,7 +604,7 @@ func (tc *GatewayTestCtx) ValidateGatewayReadyStatus(t *testing.T) {
 	t.Log("Validating Gateway ready status")
 
 	if tc.IsXKS() {
-		// On KinD/XKS with LoadBalancer ingress mode, Istio won't set Programmed=True
+		// On KinD with LoadBalancer ingress mode, Istio won't set Programmed=True
 		// because there is no cloud LB controller to assign an external IP.
 		// Only check Accepted (config is valid) which Istio sets immediately.
 		tc.EnsureResourceExists(
