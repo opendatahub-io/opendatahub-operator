@@ -1,8 +1,11 @@
 package resolver_test
 
 import (
+	"context"
+	"strings"
 	"testing"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/manifest-tools/pkg/config"
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/manifest-tools/pkg/resolver"
 )
 
@@ -124,5 +127,37 @@ func TestParseCSVRelatedImages_InvalidYAML(t *testing.T) {
 	_, err := resolver.ParseCSVRelatedImages([]byte(`{invalid yaml`))
 	if err == nil {
 		t.Error("expected error for invalid YAML")
+	}
+}
+
+func TestNormalizeCSVImages_RHOAIRegistryOnly(t *testing.T) {
+	images := map[string]resolver.CSVImage{
+		"RELATED_IMAGE_RHOAI": {Base: "registry.redhat.io/rhoai/example-rhel9", Digest: "sha256:aaa"},
+		"RELATED_IMAGE_UBI":   {Base: "registry.redhat.io/ubi9/ubi-minimal", Digest: "sha256:bbb"},
+		"RELATED_IMAGE_ODH":   {Base: "quay.io/opendatahub/example", Digest: "sha256:ccc"},
+	}
+
+	rhoai := resolver.NormalizeCSVImages("rhoai", images)
+	if got := rhoai["RELATED_IMAGE_RHOAI"].Base; got != "quay.io/rhoai/example-rhel9" {
+		t.Errorf("normalized RHOAI base = %q", got)
+	}
+	if got := rhoai["RELATED_IMAGE_UBI"].Base; got != "registry.redhat.io/ubi9/ubi-minimal" {
+		t.Errorf("non-RHOAI Red Hat image was rewritten: %q", got)
+	}
+	if got := images["RELATED_IMAGE_RHOAI"].Base; got != "registry.redhat.io/rhoai/example-rhel9" {
+		t.Errorf("input map was mutated: %q", got)
+	}
+	if got := resolver.NormalizeCSVImages("odh", images)["RELATED_IMAGE_RHOAI"].Base; got != "registry.redhat.io/rhoai/example-rhel9" {
+		t.Errorf("ODH image was rewritten: %q", got)
+	}
+}
+
+func TestFetchCSVRelatedImages_RequiresPinnedRef(t *testing.T) {
+	_, err := resolver.FetchCSVRelatedImages(context.Background(), config.BuildConfigRepo{
+		Repo: "opendatahub-io/ODH-Build-Config",
+		Ref:  "main",
+	})
+	if err == nil || !strings.Contains(err.Error(), "pinned") {
+		t.Fatalf("FetchCSVRelatedImages() error = %v, want pinned-ref error", err)
 	}
 }

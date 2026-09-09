@@ -36,7 +36,7 @@ func UpdateSHAs(ctx context.Context, opts SHAsOptions) (SHAsResult, error) {
 	sections := allSections(cfg)
 
 	var updated int
-	var successfulFetches int
+	var successfulComponentFetches int
 	failedSet := map[string]struct{}{}
 
 	for _, sec := range sections {
@@ -66,7 +66,7 @@ func UpdateSHAs(ctx context.Context, opts SHAsOptions) (SHAsResult, error) {
 					failedSet[compName] = struct{}{}
 					continue
 				}
-				successfulFetches++
+				successfulComponentFetches++
 
 				if latestSHA == currentSHA {
 					continue
@@ -88,6 +88,44 @@ func UpdateSHAs(ctx context.Context, opts SHAsOptions) (SHAsResult, error) {
 		}
 	}
 
+	for _, platform := range []string{"odh", "rhoai"} {
+		repo := cfg.BuildConfig.PlatformRepo(platform)
+		if repo == nil || repo.Ref == "" {
+			continue
+		}
+
+		currentSHA := config.ExtractSHA(repo.Ref)
+		branch := config.ExtractBranch(repo.Ref)
+		if currentSHA == "" {
+			continue
+		}
+
+		orgRepo := strings.SplitN(repo.Repo, "/", 2)
+		if len(orgRepo) != 2 {
+			continue
+		}
+
+		name := "buildConfig/" + platform
+		slog.Info("Checking", slog.String("platform", platform), slog.String("component", name), slog.String("branch", branch))
+
+		latestSHA, err := gh.GetLatestCommitSHA(ctx, orgRepo[0], orgRepo[1], branch)
+		if err != nil {
+			slog.Warn("Failed to fetch SHA", slog.String("component", name), slog.String("error", err.Error()))
+			failedSet[name] = struct{}{}
+			continue
+		}
+		if latestSHA == currentSHA {
+			continue
+		}
+
+		newRef := fmt.Sprintf("%s@%s", branch, latestSHA)
+		if err := nodeDoc.SetBuildConfigRef(platform, newRef); err != nil {
+			slog.Warn("Failed to set Build-Config ref", slog.String("platform", platform), slog.String("error", err.Error()))
+			continue
+		}
+		updated++
+	}
+
 	failedComponents := make([]string, 0, len(failedSet))
 	for c := range failedSet {
 		failedComponents = append(failedComponents, c)
@@ -95,7 +133,7 @@ func UpdateSHAs(ctx context.Context, opts SHAsOptions) (SHAsResult, error) {
 	sort.Strings(failedComponents)
 	result := SHAsResult{Updated: updated > 0, FailedComponents: failedComponents}
 
-	if successfulFetches == 0 && len(failedComponents) > 0 {
+	if successfulComponentFetches == 0 && len(failedComponents) > 0 {
 		return result, fmt.Errorf("%d component SHA fetch(es) failed and no SHAs were updated", len(failedComponents))
 	}
 

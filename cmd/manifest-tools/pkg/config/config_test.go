@@ -10,6 +10,13 @@ import (
 )
 
 const testConfig = `
+buildConfig:
+  odh:
+    repo: opendatahub-io/ODH-Build-Config
+    ref: main@1111111111111111111111111111111111111111
+  rhoai:
+    repo: red-hat-data-services/RHOAI-Build-Config
+    ref: rhoai-3.6@2222222222222222222222222222222222222222
 components:
   datasciencepipelines:
     odh:
@@ -89,6 +96,58 @@ func TestLoad(t *testing.T) {
 	}
 	if len(cfg.ImageOverrides) != 2 {
 		t.Errorf("expected 2 imageOverrides, got %d", len(cfg.ImageOverrides))
+	}
+	if cfg.BuildConfig.RHOAI == nil || cfg.BuildConfig.RHOAI.Repo != "red-hat-data-services/RHOAI-Build-Config" {
+		t.Errorf("unexpected RHOAI Build-Config: %#v", cfg.BuildConfig.RHOAI)
+	}
+}
+
+func TestCheckBuildConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     config.BuildConfig
+		wantErr string
+	}{
+		{
+			name: "valid",
+			cfg: config.BuildConfig{
+				ODH:   &config.BuildConfigRepo{Repo: "opendatahub-io/ODH-Build-Config", Ref: "main@1111111111111111111111111111111111111111"},
+				RHOAI: &config.BuildConfigRepo{Repo: "red-hat-data-services/RHOAI-Build-Config", Ref: "rhoai-3.6@2222222222222222222222222222222222222222"},
+			},
+		},
+		{name: "missing platform", cfg: config.BuildConfig{}, wantErr: "buildConfig.odh: required"},
+		{
+			name: "invalid repository",
+			cfg: config.BuildConfig{
+				ODH:   &config.BuildConfigRepo{Repo: "not-a-repository", Ref: "main@1111111111111111111111111111111111111111"},
+				RHOAI: &config.BuildConfigRepo{Repo: "red-hat-data-services/RHOAI-Build-Config", Ref: "rhoai-3.6@2222222222222222222222222222222222222222"},
+			},
+			wantErr: "owner/repository",
+		},
+		{
+			name: "unpinned ref",
+			cfg: config.BuildConfig{
+				ODH:   &config.BuildConfigRepo{Repo: "opendatahub-io/ODH-Build-Config", Ref: "main"},
+				RHOAI: &config.BuildConfigRepo{Repo: "red-hat-data-services/RHOAI-Build-Config", Ref: "rhoai-3.6@2222222222222222222222222222222222222222"},
+			},
+			wantErr: "branch@40-character-sha",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.ManifestsConfig{BuildConfig: tt.cfg}
+			err := cfg.CheckBuildConfig()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("CheckBuildConfig() unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("CheckBuildConfig() error = %v, want substring %q", err, tt.wantErr)
+			}
+		})
 	}
 }
 
@@ -278,6 +337,42 @@ func TestNodeDocSetAndSave(t *testing.T) {
 	dsp := cfg.ImageOverrides["RELATED_IMAGE_ODH_DSP_IMAGE"]
 	if dsp.ODH.Digest != "sha256:newdigest1234567890abcdef1234567890abcdef1234567890abcdef12345678" {
 		t.Errorf("unexpected digest after save: %s", dsp.ODH.Digest)
+	}
+}
+
+func TestNodeDocBuildConfigAndCSVPlatformUpdates(t *testing.T) {
+	path := writeTestConfig(t)
+	doc, err := config.LoadNode(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := doc.SetBuildConfigRef("rhoai", "rhoai-3.7@3333333333333333333333333333333333333333"); err != nil {
+		t.Fatal(err)
+	}
+	if err := doc.UpsertCSVImageOverride("RELATED_IMAGE_NEW", "odh", "quay.io/opendatahub/new", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"); err != nil {
+		t.Fatal(err)
+	}
+	if err := doc.UpsertCSVImageOverride("RELATED_IMAGE_NEW", "rhoai", "quay.io/rhoai/new", "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"); err != nil {
+		t.Fatal(err)
+	}
+	if err := doc.RemoveImageOverridePlatform("RELATED_IMAGE_NEW", "odh"); err != nil {
+		t.Fatal(err)
+	}
+	if err := doc.Save(path); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.BuildConfig.RHOAI.Ref != "rhoai-3.7@3333333333333333333333333333333333333333" {
+		t.Errorf("unexpected Build-Config ref: %s", cfg.BuildConfig.RHOAI.Ref)
+	}
+	image := cfg.ImageOverrides["RELATED_IMAGE_NEW"]
+	if image.Source != "csv" || image.ODH != nil || image.RHOAI == nil {
+		t.Errorf("unexpected upserted image: %#v", image)
 	}
 }
 

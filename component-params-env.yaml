@@ -2,10 +2,9 @@
 #
 # rhai_helm_components: components whose RELATED_IMAGE_* must also be present
 #   in RHOAI-Build-Config helm/rhai-on-xks-chart/values.yaml (rhaiOperator.relatedImages).
-# odh_exceptions: RELATED_IMAGE entries intentionally absent from ODH-Build-Config.
-#   These are permanently excluded from ODH validation (e.g. architecture-specific images).
-# rhoai_exceptions: RELATED_IMAGE entries intentionally absent from RHOAI-Build-Config.
-#   These are permanently excluded from RHOAI validation (e.g. ODH-only images).
+# odh_exceptions / rhoai_exceptions: RELATED_IMAGE entries exempt from platform validation.
+#   When no explicit imageOverrides mapping exists, these also prevent automatic CSV import
+#   for that platform (e.g. architecture-specific or ODH-only images).
 # known_issues: RELATED_IMAGE errors to downgrade to warnings.
 #   Each entry MUST include a Jira link and reason.
 
