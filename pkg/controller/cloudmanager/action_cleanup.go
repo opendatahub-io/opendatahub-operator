@@ -82,8 +82,8 @@ func cleanupExcludedCharts(ctx context.Context, rr *types.ReconciliationRequest,
 
 			l.Error(err, "cleanup get failed, skipping resource",
 				"gvk", objGVK,
-				"ns", obj.GetNamespace(),
-				"name", obj.GetName(),
+				"childNamespace", obj.GetNamespace(),
+				"child", obj.GetName(),
 			)
 			merr = multierror.Append(merr, fmt.Errorf("cleanup get failed for %s/%s: %w", obj.GetNamespace(), obj.GetName(), err))
 
@@ -122,8 +122,8 @@ func cleanupExcludedCharts(ctx context.Context, rr *types.ReconciliationRequest,
 
 			l.Error(err, "cleanup delete failed, skipping resource",
 				"gvk", objGVK,
-				"ns", live.GetNamespace(),
-				"name", live.GetName(),
+				"childNamespace", live.GetNamespace(),
+				"child", live.GetName(),
 			)
 			merr = multierror.Append(merr, fmt.Errorf("cleanup delete failed for %s/%s: %w", live.GetNamespace(), live.GetName(), err))
 		}

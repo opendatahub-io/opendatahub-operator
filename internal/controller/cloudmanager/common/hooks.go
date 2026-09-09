@@ -42,13 +42,13 @@ func AnnotateIstioWebhooksHook() types.HookFn {
 			ctx, rr.Client, istioSidecarInjectorWebhook, &admissionregistrationv1.MutatingWebhookConfiguration{},
 		)
 		if hookErr != nil {
-			logger.Error(hookErr, "Failed to annotate webhook", "name", istioSidecarInjectorWebhook)
+			logger.Error(hookErr, "Failed to annotate webhook", "webhook", istioSidecarInjectorWebhook)
 		}
 
 		if err := ensureSailOperatorIgnoreAnnotation(
 			ctx, rr.Client, istioValidatorWebhook, &admissionregistrationv1.ValidatingWebhookConfiguration{},
 		); err != nil {
-			logger.Error(err, "Failed to annotate webhook", "name", istioValidatorWebhook)
+			logger.Error(err, "Failed to annotate webhook", "webhook", istioValidatorWebhook)
 			if hookErr == nil {
 				hookErr = err
 			}
