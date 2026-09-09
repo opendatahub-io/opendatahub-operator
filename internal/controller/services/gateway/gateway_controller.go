@@ -53,7 +53,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.Deployment).
 		OwnsGVK(gvk.HorizontalPodAutoscaler).
 		OwnsGVK(gvk.HTTPRoute).
-		OwnsGVK(gvk.Route).
+		OwnsGVK(gvk.Route, reconciler.Dynamic(reconciler.ClusterIsOpenShift())).
 		OwnsGVK(gvk.ClusterRoleBinding).
 		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
 		OwnsGVK(gvk.DestinationRule, reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
@@ -70,14 +70,26 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(
 				resources.GatewayCertificateSecret(func(obj client.Object) bool {
-					return cluster.IsGatewayCertificateSecret(ctx, mgr.GetClient(), obj, GatewayNamespace)
+					return cluster.IsGatewayCertificateSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
+				}),
+			),
+		).
+		// Watch for OIDC client secrets and provider CA secrets referenced by GatewayConfig
+		// so that creating or updating these Secrets triggers re-reconciliation (Helm/GitOps
+		// race condition: Secret may be created after the GatewayConfig CR).
+		Watches(
+			&corev1.Secret{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(
+				resources.GatewayCertificateSecret(func(obj client.Object) bool {
+					return IsGatewayReferencedSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
 				}),
 			),
 		).
 		Watches(
 			&gwapiv1.HTTPRoute{},
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
-			reconciler.WithPredicates(resources.HTTPRouteReferencesGateway(DefaultGatewayName, GatewayNamespace)),
+			reconciler.WithPredicates(resources.HTTPRouteReferencesGateway(GetDefaultGatewayName(), GetGatewayNamespace())),
 		).
 		// Reconcile when Dashboard CR is created or deleted so dashboard redirect
 		// resources are deployed or cleaned up accordingly.

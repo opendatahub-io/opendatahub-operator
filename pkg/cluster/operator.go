@@ -32,23 +32,6 @@ func GetSubscription(ctx context.Context, cli client.Client, namespace string, n
 	return sub, nil
 }
 
-func SubscriptionExists(ctx context.Context, cli client.Client, name string) (bool, error) {
-	subscriptionList := &v1alpha1.SubscriptionList{}
-	if err := cli.List(ctx, subscriptionList); err != nil {
-		if meta.IsNoMatchError(err) {
-			return false, nil
-		}
-		return false, err
-	}
-
-	for _, sub := range subscriptionList.Items {
-		if sub.Name == name {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
 // DeleteExistingSubscription deletes given Subscription if it exists
 // Do not error if the Subscription does not exist.
 func DeleteExistingSubscription(ctx context.Context, cli client.Client, operatorNs string, subsName string) error {

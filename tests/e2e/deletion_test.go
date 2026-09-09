@@ -141,5 +141,8 @@ func (tc *DeletionTestCtx) TestDSCIDeletion(t *testing.T) {
 	skipUnless(t, Tier3)
 
 	// Delete the DSCInitialization instance
-	tc.DeleteResource(WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName))
+	tc.DeleteResource(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithWaitForDeletion(true),
+	)
 }

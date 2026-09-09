@@ -5,6 +5,7 @@ package gateway
 
 import (
 	"bytes"
+	"context"
 	"testing"
 	"text/template"
 
@@ -12,8 +13,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
 	. "github.com/onsi/gomega"
 )
@@ -573,6 +579,152 @@ func TestHPATemplateConstant(t *testing.T) {
 	g.Expect(kubeAuthProxyHPATemplate).To(Equal("resources/kube-auth-proxy-hpa.tmpl.yaml"), "HPA template path should be correct")
 }
 
+func TestGetFQDNRequiresDomainOnXKS(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+	ctx := t.Context()
+	client := setupTestClient().Build()
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+	}
+
+	_, err := GetFQDN(ctx, client, gatewayConfig)
+	g.Expect(err).To(MatchError(ErrDomainRequired))
+}
+
+func TestResolveGatewayHostnameMissingDomainOnXKS(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+	ctx := t.Context()
+	client := setupTestClient().Build()
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+	}
+	accessor := &gatewayConfigConditionsAccessor{}
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     client,
+		Instance:   gatewayConfig,
+		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+	}
+
+	hostname, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
+	g.Expect(err).To(MatchError(ErrDomainRequired))
+	g.Expect(hostname).To(BeEmpty())
+
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	g.Expect(ready).NotTo(BeNil())
+	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(ready.Reason).To(Equal(status.NotReadyReason))
+	g.Expect(ready.Message).To(Equal(status.GatewayDomainRequiredMessage))
+}
+
+type gatewayConfigConditionsAccessor struct {
+	conditions []common.Condition
+}
+
+func (a *gatewayConfigConditionsAccessor) GetConditions() []common.Condition {
+	return a.conditions
+}
+
+func (a *gatewayConfigConditionsAccessor) SetConditions(c []common.Condition) {
+	a.conditions = c
+}
+
+func TestKubernetesGatewayConfigErrors(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	g.Expect(kubernetesGatewayConfigErrors(nil)).To(BeEmpty())
+	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{})).To(BeEmpty())
+	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			IngressMode: serviceApi.IngressModeLoadBalancer,
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.SelfSigned},
+		},
+	})).To(BeEmpty())
+
+	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
+		},
+	})).To(ConsistOf(status.GatewayUnsupportedCertTypeOnKubernetesMessage))
+
+	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{IngressMode: serviceApi.IngressModeOcpRoute},
+	})).To(ConsistOf(status.GatewayUnsupportedIngressModeOnKubernetesMessage))
+
+	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			IngressMode: serviceApi.IngressModeOcpRoute,
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
+		},
+	})).To(ConsistOf(
+		status.GatewayUnsupportedCertTypeOnKubernetesMessage,
+		status.GatewayUnsupportedIngressModeOnKubernetesMessage,
+	))
+}
+
+func TestRejectUnsupportedKubernetesGatewaySpec(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec: serviceApi.GatewayConfigSpec{
+			IngressMode: serviceApi.IngressModeOcpRoute,
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
+		},
+	}
+	accessor := &gatewayConfigConditionsAccessor{}
+	rr := &odhtypes.ReconciliationRequest{
+		Instance:   gatewayConfig,
+		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+	}
+
+	g.Expect(rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig)).To(BeTrue())
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	g.Expect(ready).NotTo(BeNil())
+	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(ready.Reason).To(Equal(status.NotReadyReason))
+	g.Expect(ready.Message).To(ContainSubstring(status.GatewayUnsupportedCertTypeOnKubernetesMessage))
+	g.Expect(ready.Message).To(ContainSubstring(status.GatewayUnsupportedIngressModeOnKubernetesMessage))
+}
+
+func TestRejectUnsupportedKubernetesGatewaySpecIgnoredOnOpenShift(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec: serviceApi.GatewayConfigSpec{
+			IngressMode: serviceApi.IngressModeOcpRoute,
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
+		},
+	}
+	accessor := &gatewayConfigConditionsAccessor{}
+	rr := &odhtypes.ReconciliationRequest{
+		Instance:   gatewayConfig,
+		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+	}
+
+	g.Expect(rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig)).To(BeFalse())
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	if ready != nil {
+		g.Expect(ready.Status).NotTo(Equal(metav1.ConditionFalse))
+		g.Expect(ready.Message).To(BeEmpty())
+	}
+}
+
 // authProxyTemplateData is the minimum map needed to render the kube-auth-proxy
 // deployment templates. TokenReview keys are always present (nil = omit the flag).
 func authProxyTemplateData() map[string]any {
@@ -679,5 +831,155 @@ func TestAuthProxyTemplatesRenderWithTokenReview(t *testing.T) {
 		g.Expect(rendered).To(ContainSubstring("--kube-api-qps=75"))
 		g.Expect(rendered).To(ContainSubstring("--kube-api-burst=150"))
 		g.Expect(rendered).To(ContainSubstring("--kube-api-cache-ttl=30s"))
+	}
+}
+
+func TestIsGatewayReferencedSecret(t *testing.T) {
+	t.Parallel()
+
+	const (
+		gatewayNS       = "rh-ai-gateway"
+		customNS        = "custom-ns"
+		oidcSecretName  = "oidc-client-secret"
+		caSecretName    = "provider-ca-cert"
+		unrelatedSecret = "other-secret"
+	)
+
+	gatewayConfigWithOIDC := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.GatewayConfigName,
+		},
+		Spec: serviceApi.GatewayConfigSpec{
+			OIDC: &serviceApi.OIDCConfig{
+				IssuerURL: "https://keycloak.example.com/realms/test",
+				ClientID:  "rhai",
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+					Key:                  "clientSecret",
+				},
+			},
+			ProviderCASecretName: caSecretName,
+		},
+	}
+
+	gatewayConfigWithOIDCCustomNS := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.GatewayConfigName,
+		},
+		Spec: serviceApi.GatewayConfigSpec{
+			OIDC: &serviceApi.OIDCConfig{
+				IssuerURL: "https://keycloak.example.com/realms/test",
+				ClientID:  "rhai",
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+					Key:                  "clientSecret",
+				},
+				SecretNamespace: customNS,
+			},
+		},
+	}
+
+	gatewayConfigNoOIDC := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.GatewayConfigName,
+		},
+		Spec: serviceApi.GatewayConfigSpec{},
+	}
+
+	tests := []struct {
+		name             string
+		gatewayConfig    *serviceApi.GatewayConfig
+		secretName       string
+		secretNamespace  string
+		gatewayNamespace string
+		expected         bool
+	}{
+		{
+			name:             "matches OIDC client secret in default gateway namespace",
+			gatewayConfig:    gatewayConfigWithOIDC,
+			secretName:       oidcSecretName,
+			secretNamespace:  gatewayNS,
+			gatewayNamespace: gatewayNS,
+			expected:         true,
+		},
+		{
+			name:             "matches OIDC client secret in custom namespace",
+			gatewayConfig:    gatewayConfigWithOIDCCustomNS,
+			secretName:       oidcSecretName,
+			secretNamespace:  customNS,
+			gatewayNamespace: gatewayNS,
+			expected:         true,
+		},
+		{
+			name:             "OIDC secret in wrong namespace is not matched",
+			gatewayConfig:    gatewayConfigWithOIDC,
+			secretName:       oidcSecretName,
+			secretNamespace:  "wrong-ns",
+			gatewayNamespace: gatewayNS,
+			expected:         false,
+		},
+		{
+			name:             "matches provider CA secret in gateway namespace",
+			gatewayConfig:    gatewayConfigWithOIDC,
+			secretName:       caSecretName,
+			secretNamespace:  gatewayNS,
+			gatewayNamespace: gatewayNS,
+			expected:         true,
+		},
+		{
+			name:             "provider CA secret in wrong namespace is not matched",
+			gatewayConfig:    gatewayConfigWithOIDC,
+			secretName:       caSecretName,
+			secretNamespace:  "wrong-ns",
+			gatewayNamespace: gatewayNS,
+			expected:         false,
+		},
+		{
+			name:             "unrelated secret is not matched",
+			gatewayConfig:    gatewayConfigWithOIDC,
+			secretName:       unrelatedSecret,
+			secretNamespace:  gatewayNS,
+			gatewayNamespace: gatewayNS,
+			expected:         false,
+		},
+		{
+			name:             "no OIDC config — secret is not matched",
+			gatewayConfig:    gatewayConfigNoOIDC,
+			secretName:       oidcSecretName,
+			secretNamespace:  gatewayNS,
+			gatewayNamespace: gatewayNS,
+			expected:         false,
+		},
+		{
+			name:             "no GatewayConfig exists — returns false",
+			gatewayConfig:    nil,
+			secretName:       oidcSecretName,
+			secretNamespace:  gatewayNS,
+			gatewayNamespace: gatewayNS,
+			expected:         false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			builder := setupTestClient()
+			if tc.gatewayConfig != nil {
+				builder = builder.WithObjects(tc.gatewayConfig)
+			}
+			cli := builder.Build()
+
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      tc.secretName,
+					Namespace: tc.secretNamespace,
+				},
+			}
+
+			result := IsGatewayReferencedSecret(context.Background(), cli, secret, tc.gatewayNamespace)
+			g.Expect(result).To(Equal(tc.expected))
+		})
 	}
 }
