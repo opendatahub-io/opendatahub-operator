@@ -359,7 +359,9 @@ e.g `make image-build USE_LOCAL=true"`
 
 #### Image Overrides
 
-Component operator images can be pinned by digest for reproducible testing. Image digests are configured in `manifests-config.yaml` under the `imageOverrides` section, sourced from the ODH-Build-Config CSV.
+Component operator images can be pinned by digest for reproducible testing. Image digests are configured in `manifests-config.yaml` under the `imageOverrides` section. The top-level `buildConfig` section pins the exact ODH-Build-Config and RHOAI-Build-Config commits used as release image sources. ODH overrides resolve from the ODH CSV (with `params.env` as an ODH-only source); RHOAI overrides resolve independently from the RHOAI CSV.
+
+For e2e clusters, `registry.redhat.io/rhoai/*` CSV references are rewritten to their `quay.io/rhoai/*` mirrors while retaining the production digest. Other `registry.redhat.io` namespaces are not rewritten. `hack/update-rhai-images.sh` remains a local helper for updating downloaded `params.env` files and is not part of the e2e override flow.
 
 > **Note:** For OLM deployments, image overrides are applied *after* `operator-sdk run bundle` creates the Subscription. This is safe because the DSC starts with all components set to `Removed`, so no component images are pulled before the overrides are applied.
 
