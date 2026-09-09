@@ -300,10 +300,12 @@ func Add(ch ComponentHandler, opts ...RegistrationOption) {
 	r.Add(ch, opts...)
 }
 
+// Enable marks the component as enabled, i.e. not disabled via env var at operator startup.
 func Enable(name string) {
 	r.Enable(name)
 }
 
+// Disable marks the component as disabled via env var at operator startup.
 func Disable(name string) {
 	r.Disable(name)
 }

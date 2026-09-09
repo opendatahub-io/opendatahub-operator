@@ -93,29 +93,6 @@ func (r *Registry) IsEnabled(name string) bool {
 	return ok && e.enabled
 }
 
-// EnableFromList enables only the named modules, disabling all others.
-// Names that don't match any registered module are silently ignored.
-func (r *Registry) EnableFromList(names []string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	want := make(map[string]bool, len(names))
-	for _, n := range names {
-		want[n] = true
-	}
-	for name, e := range r.entries {
-		e.enabled = want[name]
-		r.entries[name] = e
-
-		if want[name] {
-			provision.Enable(name)
-		} else {
-			provision.Disable(name)
-		}
-	}
-	r.resolvedCache = nil
-}
-
 // sortedNames returns module names in sorted order for deterministic iteration.
 // Caller must hold at least r.mu.RLock().
 func (r *Registry) sortedNames() []string {
@@ -299,20 +276,18 @@ func Add(handler ModuleHandler, opts ...RegistrationOption) {
 	r.Add(handler, opts...)
 }
 
+// Enable marks the module as enabled, i.e. not disabled via env var at operator startup.
 func Enable(name string) {
 	r.Enable(name)
 }
 
+// Disable marks the module as disabled via env var at operator startup.
 func Disable(name string) {
 	r.Disable(name)
 }
 
 func IsEnabled(name string) bool {
 	return r.IsEnabled(name)
-}
-
-func EnableFromList(names []string) {
-	r.EnableFromList(names)
 }
 
 func ForEach(f func(ModuleHandler) error) error {
