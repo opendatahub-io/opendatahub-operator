@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -26,9 +27,9 @@ const (
 	mlflowValidateEnabledName              = "Validate component enabled"
 	mlflowValidateModuleOperatorDeployName = "Validate module operator deployment"
 	mlflowValidateModuleReleasesName       = "Validate module releases"
-	mlflowValidateDSCReadyName                  = "Validate DSC MLflowOperatorReady condition"
-	mlflowValidateDisabledName                  = "Validate component disabled"
-	mlflowValidateDisabledWithOperandName       = "Validate module disabled with live MLflow operand"
+	mlflowValidateDSCReadyName             = "Validate DSC MLflowOperatorReady condition"
+	mlflowValidateDisabledName             = "Validate component disabled"
+	mlflowValidateDisabledWithOperandName  = "Validate module disabled with live MLflow operand"
 
 	// Matches internal/controller/modules/mlflowoperator/handler.go DeploymentName.
 	mlflowModuleOperatorDeployment = "mlflow-operator-controller-manager"
@@ -123,21 +124,51 @@ func (tc *MLflowOperatorTestCtx) ValidateModuleReleases(t *testing.T) {
 		WithCustomErrorMsg("MLflowOperator CR should publish the %s release with version and repoUrl", mlflowModuleReleaseName),
 	)
 
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
-		WithCondition(And(
-			jq.Match(`.status.components.%s.releases[] | select(.name == "%s") | .version != ""`,
-				componentApi.MLflowOperatorComponentName, mlflowModuleReleaseName),
-			jq.Match(`.status.components.%s.releases[] | select(.name == "%s") | .repoUrl != ""`,
-				componentApi.MLflowOperatorComponentName, mlflowModuleReleaseName),
-		)),
-		WithCustomErrorMsg(
-			"DSC status.components.%s.releases should mirror the %s release from the module CR",
-			componentApi.MLflowOperatorComponentName,
-			mlflowModuleReleaseName,
-		),
-	)
+	g := NewWithT(t)
+	g.Eventually(func(g Gomega) {
+		module := &unstructured.Unstructured{}
+		module.SetGroupVersionKind(tc.GVK)
+		g.Expect(tc.Client().Get(context.Background(), tc.NamespacedName, module)).To(Succeed())
+
+		moduleReleases, found, err := unstructured.NestedSlice(module.Object, "status", "releases")
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(found).To(BeTrue(), "MLflowOperator status.releases should exist")
+		moduleVersion, moduleRepoURL, moduleFound := releaseFieldsByName(moduleReleases, mlflowModuleReleaseName)
+		g.Expect(moduleFound).To(BeTrue(), "MLflowOperator should publish the %s release", mlflowModuleReleaseName)
+		g.Expect(moduleVersion).NotTo(BeEmpty())
+		g.Expect(moduleRepoURL).NotTo(BeEmpty())
+
+		dsc := &unstructured.Unstructured{}
+		dsc.SetGroupVersionKind(gvk.DataScienceCluster)
+		g.Expect(tc.Client().Get(context.Background(), tc.DataScienceClusterNamespacedName, dsc)).To(Succeed())
+
+		dscReleases, found, err := unstructured.NestedSlice(
+			dsc.Object,
+			"status", "components", componentApi.MLflowOperatorComponentName, "releases",
+		)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(found).To(BeTrue(), "DSC status.components.%s.releases should exist", componentApi.MLflowOperatorComponentName)
+		dscVersion, dscRepoURL, dscFound := releaseFieldsByName(dscReleases, mlflowModuleReleaseName)
+		g.Expect(dscFound).To(BeTrue(), "DSC should mirror the %s release", mlflowModuleReleaseName)
+		g.Expect(dscVersion).To(Equal(moduleVersion))
+		g.Expect(dscRepoURL).To(Equal(moduleRepoURL))
+	}).
+		WithTimeout(tc.TestTimeouts.longEventuallyTimeout).
+		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
+		Should(Succeed(), "DSC should mirror MLflowOperator %s release metadata", mlflowModuleReleaseName)
+}
+
+func releaseFieldsByName(releases []any, name string) (string, string, bool) {
+	for _, item := range releases {
+		release, ok := item.(map[string]any)
+		if !ok || release["name"] != name {
+			continue
+		}
+		version, _ := release["version"].(string)
+		repoURL, _ := release["repoUrl"].(string)
+		return version, repoURL, true
+	}
+	return "", "", false
 }
 
 func (tc *MLflowOperatorTestCtx) ValidateDSCMLflowOperatorReady(t *testing.T) {
@@ -275,28 +306,28 @@ func (tc *MLflowOperatorTestCtx) ValidateModuleDisabledWithLiveOperand(t *testin
 
 func createE2EMLflowInstance(name string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "mlflow.opendatahub.io/v1",
 			"kind":       "MLflow",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name": name,
 			},
-			"spec": map[string]interface{}{
+			"spec": map[string]any{
 				"replicas": int64(1),
-				"resources": map[string]interface{}{
-					"requests": map[string]interface{}{
+				"resources": map[string]any{
+					"requests": map[string]any{
 						"cpu":    "100m",
 						"memory": "256Mi",
 					},
-					"limits": map[string]interface{}{
+					"limits": map[string]any{
 						"cpu":    "500m",
 						"memory": "512Mi",
 					},
 				},
-				"storage": map[string]interface{}{
-					"accessModes": []interface{}{"ReadWriteOnce"},
-					"resources": map[string]interface{}{
-						"requests": map[string]interface{}{
+				"storage": map[string]any{
+					"accessModes": []any{"ReadWriteOnce"},
+					"resources": map[string]any{
+						"requests": map[string]any{
 							"storage": "5Gi",
 						},
 					},
