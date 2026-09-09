@@ -457,43 +457,36 @@ func TestPopulatePlatformModule_EmptyStatesRemoved(t *testing.T) {
 	g.Expect(populatedState("", "")).Should(Equal(operatorv1.Removed))
 }
 
-func TestBuildModuleCR_ProjectsMaaSConsumerPortal_Managed(t *testing.T) {
-	g := NewWithT(t)
-	h := dashboard.NewHandler()
-	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = operatorv1.Managed
+func TestBuildModuleCR_ProjectsMaaSConsumerPortal(t *testing.T) {
+	tests := []struct {
+		name            string
+		managementState operatorv1.ManagementState
+	}{
+		{name: "Managed", managementState: operatorv1.Managed},
+		{name: "Removed", managementState: operatorv1.Removed},
+	}
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig("dashboard.example.com"))
-	g.Expect(err).ShouldNot(HaveOccurred())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			h := dashboard.NewHandler()
+			dscCtx := newDSCCtx(operatorv1.Managed)
+			dscCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = tt.managementState
 
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
+			u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig("dashboard.example.com"))
+			g.Expect(err).ShouldNot(HaveOccurred())
 
-	portal, ok := spec["maasConsumerPortal"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec.maasConsumerPortal missing")
-	g.Expect(portal["managementState"]).Should(Equal("Managed"), "portal managementState passes through verbatim")
+			spec, ok := u.Object["spec"].(map[string]any)
+			g.Expect(ok).Should(BeTrue(), "spec is not a map")
 
-	// No bool-style consumerPortal projection (this is a direct passthrough, not a translation).
-	g.Expect(spec).ShouldNot(HaveKey("consumerPortal"))
-}
+			portal, ok := spec["maasConsumerPortal"].(map[string]any)
+			g.Expect(ok).Should(BeTrue(), "spec.maasConsumerPortal missing")
+			g.Expect(portal["managementState"]).Should(Equal(string(tt.managementState)), "portal managementState passes through verbatim")
 
-func TestBuildModuleCR_ProjectsMaaSConsumerPortal_Removed(t *testing.T) {
-	g := NewWithT(t)
-	h := dashboard.NewHandler()
-	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = operatorv1.Removed
-
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-
-	portal, ok := spec["maasConsumerPortal"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec.maasConsumerPortal missing")
-	g.Expect(portal["managementState"]).Should(Equal("Removed"), "portal managementState passes through verbatim")
-
-	g.Expect(spec).ShouldNot(HaveKey("consumerPortal"))
+			// No bool-style consumerPortal projection (this is a direct passthrough, not a translation).
+			g.Expect(spec).ShouldNot(HaveKey("consumerPortal"))
+		})
+	}
 }
 
 func TestGetSubmoduleConditions_MaaSConsumerPortal(t *testing.T) {
