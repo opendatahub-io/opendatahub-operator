@@ -106,7 +106,7 @@ func cleanupDisabledComponentsWith(
 
 	log := logf.FromContext(ctx)
 
-	reverseBatches, err := provisionReg.ReverseBatches()
+	reverseBatches, err := provisionReg.ReverseBatchesAll()
 	if err != nil {
 		return fmt.Errorf("DAG reverse resolution failed during component cleanup: %w", err)
 	}

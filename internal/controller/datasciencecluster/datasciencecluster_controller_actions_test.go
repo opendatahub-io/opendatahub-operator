@@ -163,6 +163,36 @@ func TestCleanupDisabledComponentsLogsDeleteFailure(t *testing.T) {
 	)))
 }
 
+func TestCleanupDisabledComponentsDeletesNeverEnabledComponent(t *testing.T) {
+	g := NewWithT(t)
+	dsc := newDSC()
+
+	const name = "comp-never-enabled"
+
+	listCalled := false
+	compReg := newRegistry(&mockHandler{name: name, enabled: false})
+	provReg := provision.NewRegistry()
+	provReg.Add(name, provision.KindComponent, dag.RL(10))
+	provReg.Disable(name)
+
+	cli := fake.NewClientBuilder().
+		WithInterceptorFuncs(interceptor.Funcs{
+			List: func(_ context.Context, _ client.WithWatch, _ client.ObjectList, _ ...client.ListOption) error {
+				listCalled = true
+				return nil
+			},
+		}).
+		Build()
+
+	ctx, _ := logCapturingContext(t)
+	rr := &types.ReconciliationRequest{Instance: dsc, Client: cli}
+
+	err := cleanupDisabledComponentsWith(ctx, rr, compReg, provReg)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(listCalled).To(BeTrue(), "deleteComponentCR must be called even when the component was never enabled in the provision registry")
+}
+
 func TestCleanupDisabledModuleCRsDeletesNeverEnabledModule(t *testing.T) {
 	g := NewWithT(t)
 	dsc := newDSC()
