@@ -3,12 +3,15 @@ package modules
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/go-logr/logr/funcr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
@@ -138,6 +141,31 @@ func TestCleanupDisabledModules_CRAbsent_DeletesOperatorResources(t *testing.T) 
 	err := cleanupDisabledModules(t.Context(), rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(handler.deletedOperatorRes).Should(BeTrue())
+}
+
+func TestCleanupDisabledModules_DAGResolveFailure_LogsControllerKindAndFallsBack(t *testing.T) {
+	g := NewWithT(t)
+
+	handler := newCleanupMock("test-mod", CRStateAbsent)
+	rr, cleanup := setupCleanupTest(t, handler)
+	defer cleanup()
+
+	oldResolver := reverseBatchesAll
+	reverseBatchesAll = func() ([][]provision.UnifiedNode, error) {
+		return nil, errors.New("boom")
+	}
+	defer func() { reverseBatchesAll = oldResolver }()
+
+	var logOutput string
+	logger := funcr.New(func(prefix, args string) {
+		logOutput += prefix + " " + args
+	}, funcr.Options{})
+
+	err := cleanupDisabledModules(logf.IntoContext(context.Background(), logger), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(handler.deletedOperatorRes).Should(BeTrue())
+	g.Expect(logOutput).Should(ContainSubstring("DAG reverse resolution failed"))
+	g.Expect(logOutput).Should(ContainSubstring(`"controllerKind"="module"`))
 }
 
 func TestCleanupDisabledModules_CRAlive_NoPerModuleCondition(t *testing.T) {
