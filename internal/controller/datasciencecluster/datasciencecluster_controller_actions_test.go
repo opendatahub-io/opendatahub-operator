@@ -166,19 +166,42 @@ func TestCleanupDisabledComponentsLogsDeleteFailure(t *testing.T) {
 func TestCleanupDisabledComponentsDeletesNeverEnabledComponent(t *testing.T) {
 	g := NewWithT(t)
 	dsc := newDSC()
+	dsc.UID = "test-dsc-uid"
 
 	const name = "comp-never-enabled"
+	compGVK := schema.GroupVersionKind{Group: "test.opendatahub.io", Version: "v1", Kind: "TestComponent"}
 
-	listCalled := false
-	compReg := newRegistry(&mockHandler{name: name, enabled: false})
+	deleteCalled := false
+	compReg := newRegistry(&mockHandler{name: name, enabled: false, gvk: compGVK})
 	provReg := provision.NewRegistry()
 	provReg.Add(name, provision.KindComponent, dag.RL(10))
 	provReg.Disable(name)
 
+	ownedCR := unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": compGVK.Group + "/" + compGVK.Version,
+			"kind":       compGVK.Kind,
+			"metadata": map[string]interface{}{
+				"name": "owned-cr",
+				"ownerReferences": []interface{}{
+					map[string]interface{}{
+						"uid": string(dsc.UID),
+					},
+				},
+			},
+		},
+	}
+
 	cli := fake.NewClientBuilder().
 		WithInterceptorFuncs(interceptor.Funcs{
-			List: func(_ context.Context, _ client.WithWatch, _ client.ObjectList, _ ...client.ListOption) error {
-				listCalled = true
+			List: func(_ context.Context, _ client.WithWatch, list client.ObjectList, _ ...client.ListOption) error {
+				if uList, ok := list.(*unstructured.UnstructuredList); ok {
+					uList.Items = []unstructured.Unstructured{ownedCR}
+				}
+				return nil
+			},
+			Delete: func(_ context.Context, _ client.WithWatch, _ client.Object, _ ...client.DeleteOption) error {
+				deleteCalled = true
 				return nil
 			},
 		}).
@@ -190,7 +213,7 @@ func TestCleanupDisabledComponentsDeletesNeverEnabledComponent(t *testing.T) {
 	err := cleanupDisabledComponentsWith(ctx, rr, compReg, provReg)
 
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(listCalled).To(BeTrue(), "deleteComponentCR must be called even when the component was never enabled in the provision registry")
+	g.Expect(deleteCalled).To(BeTrue(), "deleteComponentCR must call Delete for owned CRs even when the component was never enabled in the provision registry")
 }
 
 func TestCleanupDisabledModuleCRsDeletesNeverEnabledModule(t *testing.T) {

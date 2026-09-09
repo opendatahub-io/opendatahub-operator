@@ -30,6 +30,7 @@ import (
 type mockHandler struct {
 	name     string
 	enabled  bool
+	gvk      schema.GroupVersionKind
 	status   metav1.ConditionStatus
 	err      error
 	newCRErr error
@@ -47,7 +48,7 @@ func (m *mockHandler) NewCRObject(_ context.Context, _ client.Client, _ *dscv2.D
 func (m *mockHandler) NewComponentReconciler(_ context.Context, _ ctrl.Manager) error {
 	return nil
 }
-func (m *mockHandler) GroupVersionKind() schema.GroupVersionKind  { return schema.GroupVersionKind{} }
+func (m *mockHandler) GroupVersionKind() schema.GroupVersionKind  { return m.gvk }
 func (m *mockHandler) IsEnabled(_ *dscv2.DataScienceCluster) bool { return m.enabled }
 func (m *mockHandler) UpdateDSCStatus(_ context.Context, _ *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	return m.status, m.err
