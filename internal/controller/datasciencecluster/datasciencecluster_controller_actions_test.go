@@ -40,7 +40,8 @@ func logCapturingContext(t *testing.T) (context.Context, *[]string) {
 type mockModuleHandler struct {
 	modules.BaseHandler
 
-	deleteErr error
+	deleteErr    error
+	deleteCalled bool
 }
 
 func (m *mockModuleHandler) IsEnabled(_ *configv1alpha1.PlatformModules) bool { return false }
@@ -49,6 +50,7 @@ func (m *mockModuleHandler) BuildModuleCR(_ context.Context, _ client.Client, _ 
 	return nil, nil
 }
 func (m *mockModuleHandler) DeleteModuleCR(_ context.Context, _ client.Client) error {
+	m.deleteCalled = true
 	return m.deleteErr
 }
 
@@ -159,6 +161,37 @@ func TestCleanupDisabledComponentsLogsDeleteFailure(t *testing.T) {
 		ContainSubstring(`"msg"="failed to delete component CR"`),
 		ContainSubstring(`"component"="`+name+`"`),
 	)))
+}
+
+func TestCleanupDisabledModuleCRsDeletesNeverEnabledModule(t *testing.T) {
+	g := NewWithT(t)
+	dsc := newDSC()
+
+	const name = "module-never-enabled"
+	mod := &mockModuleHandler{}
+	mod.Config = modules.ModuleConfig{
+		Name:   name,
+		CRName: "default",
+		GVK:    schema.GroupVersionKind{Group: "test.io", Version: "v1", Kind: "MockModule"},
+	}
+
+	modReg := &modules.Registry{}
+	modReg.Add(mod)
+	provReg := provision.NewRegistry()
+	provReg.Add(name, provision.KindModule, dag.RL(20))
+	provReg.Disable(name)
+
+	cli, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ctx, _ := logCapturingContext(t)
+
+	rr := &types.ReconciliationRequest{Instance: dsc, Client: cli}
+
+	err = cleanupDisabledModuleCRsWith(ctx, rr, modReg, provReg)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(mod.deleteCalled).To(BeTrue(), "DeleteModuleCR must be called even when the module was never enabled in the provision registry")
 }
 
 func TestCleanupDisabledModuleCRsLogsDeleteFailure(t *testing.T) {
