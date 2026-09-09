@@ -178,13 +178,13 @@ func TestCleanupDisabledComponentsDeletesNeverEnabledComponent(t *testing.T) {
 	provReg.Disable(name)
 
 	ownedCR := unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": compGVK.Group + "/" + compGVK.Version,
 			"kind":       compGVK.Kind,
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name": "owned-cr",
-				"ownerReferences": []interface{}{
-					map[string]interface{}{
+				"ownerReferences": []any{
+					map[string]any{
 						"uid": string(dsc.UID),
 					},
 				},
