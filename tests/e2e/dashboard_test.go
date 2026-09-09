@@ -136,7 +136,7 @@ func (tc *DashboardTestCtx) ValidateDataRegistryImageEnvVarInjection(t *testing.
 			Name:      "dashboard-operator",
 		}),
 		WithCondition(jq.Match(
-			`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "RELATED_IMAGE_ODH_MOD_ARCH_DATA_REGISTRY_IMAGE") | .value != ""`,
+			`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "RELATED_IMAGE_ODH_MOD_ARCH_DATA_REGISTRY_IMAGE") | .value != null and .value != ""`,
 		)),
 		WithCustomErrorMsg("dashboard-operator Deployment should have a non-empty data registry image reference injected"),
 	)
