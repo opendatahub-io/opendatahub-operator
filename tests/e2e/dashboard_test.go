@@ -36,6 +36,7 @@ const (
 	// maasConsumerPortalConditionType is the DSC condition mirrored from the
 	// dashboard-operator for the MaaS Consumer Portal submodule.
 	maasConsumerPortalConditionType = "MaaSConsumerPortalAvailable"
+	dashboardReadyConditionType     = "DashboardReady"
 )
 
 func dashboardTestSuite(t *testing.T) {
@@ -478,9 +479,14 @@ func (tc *DashboardTestCtx) ValidatePortalOnlyKeepsOperatorUp(t *testing.T) {
 		WithCondition(And(
 			jq.Match(`.status.components.dashboard.managementState == "Managed"`),
 			jq.Match(`.status.components.maasConsumerPortal.managementState == "Managed"`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, dashboardReadyConditionType, metav1.ConditionTrue),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .type == "%s"`, maasConsumerPortalConditionType, maasConsumerPortalConditionType),
 		)),
-		WithCustomErrorMsg("DSC status.components.maasConsumerPortal should be Managed and the %s condition present", maasConsumerPortalConditionType),
+		WithCustomErrorMsg(
+			"DSC Dashboard and MaaS Consumer Portal statuses should be Managed with %s=True and the %s condition present",
+			dashboardReadyConditionType,
+			maasConsumerPortalConditionType,
+		),
 	)
 }
 
@@ -521,6 +527,7 @@ func (tc *DashboardTestCtx) ValidatePortalDisabledWhileDashboardEnabled(t *testi
 		WithCondition(And(
 			jq.Match(`.status.components.dashboard.managementState == "Managed"`),
 			jq.Match(`.status.components.maasConsumerPortal.managementState == "Removed"`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, dashboardReadyConditionType, metav1.ConditionTrue),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, maasConsumerPortalConditionType, metav1.ConditionFalse),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, maasConsumerPortalConditionType, status.RemovedReason),
 		)),
@@ -536,7 +543,6 @@ func (tc *DashboardTestCtx) ValidateBothRemovedTearsDown(t *testing.T) {
 
 	skipUnless(t, Tier1)
 
-	controllerNN := types.NamespacedName{Namespace: tc.AppsNamespace, Name: dashboardControllerDeployment}
 	moduleCRNN := types.NamespacedName{Name: componentApi.DashboardInstanceName}
 
 	defer tc.restoreCoreDashboard(t)
@@ -557,8 +563,15 @@ func (tc *DashboardTestCtx) ValidateBothRemovedTearsDown(t *testing.T) {
 		WithMinimalObject(gvk.Dashboard, moduleCRNN),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 	)
-	tc.EnsureResourceGone(
-		WithMinimalObject(gvk.Deployment, controllerNN),
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(gvk.Dashboard.Kind),
+				}.AsSelector(),
+			},
+		),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 	)
 }
