@@ -1380,3 +1380,6 @@ imageOverrides:
     odh:
       base: "quay.io/opendatahub/odh-mod-arch-data-registry"
       digest: "sha256:da5028df21265242b4c283cffe9dfa0046acd6d2b4a112d04aa0ae429b92f12e"
+    rhoai:
+      base: "quay.io/rhoai/odh-mod-arch-data-registry-rhel9"
+      digest: "sha256:2b2f95ab0649457fd60c7fef6a134f7420ea81a89d76dd1dc0c0992441762450"
