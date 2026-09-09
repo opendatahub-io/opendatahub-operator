@@ -192,6 +192,11 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 	}, nil
 }
 
+// reverseBatchesAll resolves the reverse (cleanup) DAG ordering across all
+// modules. It is a package-level seam so tests can force the resolution
+// failure that triggers the alphabetical fallback path.
+var reverseBatchesAll = provision.ReverseBatchesAll
+
 // cleanupDisabledModules handles operator resource cleanup for disabled modules.
 // CR deletion is handled by DSC/DSCI controllers (they own the module CR lifecycle).
 // This action only manages operator resources:
@@ -249,9 +254,10 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 		return nil
 	}
 
-	reverseBatches, err := provision.ReverseBatchesAll()
+	reverseBatches, err := reverseBatchesAll()
 	if err != nil {
-		logf.FromContext(ctx).Error(err, "DAG reverse resolution failed, falling back to alphabetical cleanup order")
+		logf.FromContext(ctx).Error(err, "DAG reverse resolution failed, falling back to alphabetical cleanup order",
+			"controllerKind", "module")
 		if forAllErr := reg.ForAll(func(handler ModuleHandler, _ bool) error {
 			return cleanupOne(handler)
 		}); forAllErr != nil {
