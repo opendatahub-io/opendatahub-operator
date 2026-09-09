@@ -29,6 +29,8 @@ const (
 
 	// Matches internal/controller/modules/mlflowoperator/handler.go DeploymentName.
 	mlflowModuleOperatorDeployment = "mlflow-operator-controller-manager"
+	// Matches mlflow-operator internal/controller/mlflowoperator_controller.go mlflowReleaseName.
+	mlflowModuleReleaseName = "MLflow"
 )
 
 func mlflowOperatorTestSuite(t *testing.T) {
@@ -100,12 +102,32 @@ func (tc *MLflowOperatorTestCtx) ValidateModuleReleases(t *testing.T) {
 
 	skipUnless(t, Smoke)
 
+	mlflowReleaseChecks := And(
+		jq.Match(`.status.releases[] | select(.name == "%s") | .version != ""`, mlflowModuleReleaseName),
+		jq.Match(`.status.releases[] | select(.name == "%s") | .repoUrl != ""`, mlflowModuleReleaseName),
+	)
+
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, tc.NamespacedName),
-		WithCondition(
-			jq.Match(`[.status.releases[]? | select(.name != "" and .version != "" and .repoUrl != "")] | length > 0`),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(mlflowReleaseChecks),
+		WithCustomErrorMsg("MLflowOperator CR should publish the %s release with version and repoUrl", mlflowModuleReleaseName),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(And(
+			jq.Match(`.status.components.%s.releases[] | select(.name == "%s") | .version != ""`,
+				componentApi.MLflowOperatorComponentName, mlflowModuleReleaseName),
+			jq.Match(`.status.components.%s.releases[] | select(.name == "%s") | .repoUrl != ""`,
+				componentApi.MLflowOperatorComponentName, mlflowModuleReleaseName),
+		)),
+		WithCustomErrorMsg(
+			"DSC status.components.%s.releases should mirror the %s release from the module CR",
+			componentApi.MLflowOperatorComponentName,
+			mlflowModuleReleaseName,
 		),
-		WithCustomErrorMsg("MLflowOperator CR should expose non-empty status.releases entries"),
 	)
 }
 
