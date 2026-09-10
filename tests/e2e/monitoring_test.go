@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
@@ -68,7 +69,7 @@ const (
 	SeaweedFSBucketName        = "tempo-traces"
 	SeaweedFSAccessKey         = "seaweedfs-test-key"
 	SeaweedFSSecretKey         = "seaweedfs-test-secret"
-	SeaweedFSImage             = "chrislusf/seaweedfs:latest"
+	SeaweedFSImage             = "chrislusf/seaweedfs@sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62"
 )
 
 const (
@@ -1704,6 +1705,14 @@ func (tc *MonitoringTestCtx) waitForSeaweedFS(namespace string) {
 // It deploys a temporary pod that connects to the SeaweedFS master and creates the S3 bucket,
 // then waits for completion.
 func (tc *MonitoringTestCtx) createSeaweedFSBucket(namespace, bucketName string) {
+	// Validate bucket name against S3 naming rules to prevent shell injection
+	// via the weed shell command that interpolates bucketName.
+	validBucketName := regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$`)
+	if !validBucketName.MatchString(bucketName) {
+		tc.g.Fail(fmt.Sprintf("invalid S3 bucket name %q: must match ^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", bucketName))
+		return
+	}
+
 	// Clean up any existing bucket creator pod from previous runs
 	tc.DeleteResource(
 		WithMinimalObject(gvk.Pod, types.NamespacedName{
