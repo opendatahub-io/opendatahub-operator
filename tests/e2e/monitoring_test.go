@@ -63,13 +63,14 @@ const (
 	TracesStorageSize1Gi    = "1Gi"
 
 	// SeaweedFS constants for S3 backend testing.
-	SeaweedFSPodName           = "seaweedfs"
-	SeaweedFSServiceName       = "seaweedfs"
-	SeaweedFSBucketCreatorName = "seaweedfs-bucket-creator"
-	SeaweedFSBucketName        = "tempo-traces"
-	SeaweedFSAccessKey         = "seaweedfs-test-key"
-	SeaweedFSSecretKey         = "seaweedfs-test-secret"
-	SeaweedFSImage             = "chrislusf/seaweedfs@sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62"
+	SeaweedFSPodName            = "seaweedfs"
+	SeaweedFSServiceName        = "seaweedfs"
+	SeaweedFSBucketCreatorName  = "seaweedfs-bucket-creator"
+	SeaweedFSBucketName         = "tempo-traces"
+	SeaweedFSAccessKey          = "seaweedfs-test-key"
+	SeaweedFSSecretKey          = "seaweedfs-test-secret"
+	SeaweedFSImage              = "chrislusf/seaweedfs@sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62"
+	SeaweedFSBucketCreatorImage = "curlimages/curl:8.11.1"
 )
 
 const (
@@ -1636,6 +1637,13 @@ func (tc *MonitoringTestCtx) deploySeaweedFS(namespace string) {
 			Labels:    map[string]string{"app": "seaweedfs"},
 		},
 		Spec: corev1.PodSpec{
+			SecurityContext: &corev1.PodSecurityContext{
+				RunAsNonRoot: new(true),
+				RunAsUser:    new(int64(1000)),
+				SeccompProfile: &corev1.SeccompProfile{
+					Type: corev1.SeccompProfileTypeRuntimeDefault,
+				},
+			},
 			Containers: []corev1.Container{
 				{
 					Name:    "seaweedfs",
@@ -1654,6 +1662,12 @@ func (tc *MonitoringTestCtx) deploySeaweedFS(namespace string) {
 						},
 						InitialDelaySeconds: 10,
 						PeriodSeconds:       5,
+					},
+					SecurityContext: &corev1.SecurityContext{
+						AllowPrivilegeEscalation: new(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
 					},
 				},
 			},
@@ -1701,12 +1715,12 @@ func (tc *MonitoringTestCtx) waitForSeaweedFS(namespace string) {
 	)
 }
 
-// createSeaweedFSBucket creates a bucket in SeaweedFS using the weed shell command.
-// It deploys a temporary pod that connects to the SeaweedFS master and creates the S3 bucket,
+// createSeaweedFSBucket creates an S3 bucket in SeaweedFS using the S3 CreateBucket API.
+// It deploys a temporary pod that uses curl to send a PUT request to the SeaweedFS S3 endpoint,
 // then waits for completion.
 func (tc *MonitoringTestCtx) createSeaweedFSBucket(namespace, bucketName string) {
-	// Validate bucket name against S3 naming rules to prevent shell injection
-	// via the weed shell command that interpolates bucketName.
+	// Validate bucket name against S3 naming rules to prevent command injection
+	// via the curl command that interpolates bucketName.
 	validBucketName := regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$`)
 	if !validBucketName.MatchString(bucketName) {
 		tc.g.Fail(fmt.Sprintf("invalid S3 bucket name %q: must match ^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", bucketName))
@@ -1723,7 +1737,7 @@ func (tc *MonitoringTestCtx) createSeaweedFSBucket(namespace, bucketName string)
 		WithWaitForDeletion(true),
 	)
 
-	masterAddr := fmt.Sprintf("%s.%s.svc.cluster.local:%d", SeaweedFSServiceName, namespace, SeaweedFSMasterPort)
+	s3Endpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", SeaweedFSServiceName, namespace, SeaweedFSS3Port)
 	bucketCreatorPod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      SeaweedFSBucketCreatorName,
@@ -1731,16 +1745,29 @@ func (tc *MonitoringTestCtx) createSeaweedFSBucket(namespace, bucketName string)
 		},
 		Spec: corev1.PodSpec{
 			RestartPolicy: corev1.RestartPolicyNever,
+			SecurityContext: &corev1.PodSecurityContext{
+				RunAsNonRoot: new(true),
+				RunAsUser:    new(int64(1000)),
+				SeccompProfile: &corev1.SeccompProfile{
+					Type: corev1.SeccompProfileTypeRuntimeDefault,
+				},
+			},
 			Containers: []corev1.Container{
 				{
 					Name:    "create-bucket",
-					Image:   SeaweedFSImage,
+					Image:   SeaweedFSBucketCreatorImage,
 					Command: []string{"/bin/sh", "-c"},
 					Args: []string{
 						fmt.Sprintf(
-							"until echo 'cluster.check' | weed shell -master=%s >/dev/null 2>&1; do sleep 2; done && echo 's3.bucket.create -name %s' | weed shell -master=%s",
-							masterAddr, bucketName, masterAddr,
+							"until curl -sf %s/ >/dev/null 2>&1; do sleep 2; done && curl -sf -X PUT %s/%s",
+							s3Endpoint, s3Endpoint, bucketName,
 						),
+					},
+					SecurityContext: &corev1.SecurityContext{
+						AllowPrivilegeEscalation: new(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
 					},
 				},
 			},
