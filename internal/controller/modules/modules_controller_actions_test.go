@@ -190,6 +190,10 @@ func (s provisioningModuleStub) GetExtraEnv() map[string]string {
 	return map[string]string{"ENABLE_TEST_MODULE_CONTROLLER": "true"}
 }
 
+func (s provisioningModuleStub) GetPlatformEnv(platform *PlatformContext) map[string]string {
+	return map[string]string{"TEST_PLATFORM_VERSION": platform.Release.Version.String()}
+}
+
 type legacyStatusFieldsWriterStub struct {
 	provisioningModuleStub
 
@@ -331,6 +335,12 @@ func TestProvisionModulesAddsResourcesAndEnvInjection(t *testing.T) {
 	}
 	if mei2.PerModuleImages[0].DeploymentName != testProvisioningDeploymentName {
 		t.Fatalf("expected deployment name to be preserved, got %#v", mei2.PerModuleImages[0])
+	}
+	if got := mei2.PerModuleImages[0].ExtraEnv["ENABLE_TEST_MODULE_CONTROLLER"]; got != "true" {
+		t.Fatalf("expected fixed module env to be preserved, got %q", got)
+	}
+	if got := mei2.PerModuleImages[0].ExtraEnv["TEST_PLATFORM_VERSION"]; got != testProvisioningVersion {
+		t.Fatalf("expected dynamic platform env %q, got %q", testProvisioningVersion, got)
 	}
 }
 

@@ -142,8 +142,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	// To handle upstream/downstream i trimmed prefix(odh) from few controller names
 	componentToControllerMap := map[string]string{
-		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
-		componentApi.RayComponentName:                  "kuberay-operator",
+		componentApi.AIPipelinesComponentName: "data-science-pipelines-operator-controller-manager",
+		componentApi.RayComponentName:         "kuberay-operator",
 		// componentApi.TrustyAIComponentName:             "trustyai-service-operator-controller-manager",
 	}
 

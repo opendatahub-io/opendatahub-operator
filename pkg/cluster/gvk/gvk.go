@@ -337,6 +337,12 @@ var (
 		Kind:    componentApi.DataSciencePipelinesKind,
 	}
 
+	AIPipelines = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.AIPipelinesKind,
+	}
+
 	Kserve = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
