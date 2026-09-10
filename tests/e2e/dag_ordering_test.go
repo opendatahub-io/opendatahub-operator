@@ -58,7 +58,7 @@ var dagBatches = []componentBatch{
 		components: []componentEntry{
 			{name: componentApi.DashboardComponentName, gvk: gvk.Dashboard, internal: true},
 			{name: serviceApi.MonitoringServiceName, gvk: gvk.Monitoring, internal: true, dsciConfigured: true},
-			{name: componentApi.DataSciencePipelinesComponentName, gvk: gvk.DataSciencePipelines},
+			{name: componentApi.AIPipelinesComponentName, gvk: gvk.AIPipelines},
 			// ModelRegistry is an out-of-tree module whose CR is the shared
 			// cluster-scoped AIHub singleton "default-aihub"; it is referenced
 			// directly via gvk.AIHub and routed through the module-readiness

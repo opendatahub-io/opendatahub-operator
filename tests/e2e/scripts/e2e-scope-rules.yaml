@@ -119,7 +119,9 @@ ignored:
 #            the rest resolves normally. Writing e2e coverage for these
 #            names is tracked as separate follow-up work.
 components:
-  datasciencepipelines: {}
+  aipipelines:
+    aliases:
+      - datasciencepipelines
   kueue: {}
 
   modelregistry: {}

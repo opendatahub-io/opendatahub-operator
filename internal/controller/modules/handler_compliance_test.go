@@ -12,6 +12,7 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
+	aipipelinesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aipipelines"
 	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
 	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
@@ -30,6 +31,7 @@ import (
 func allHandlers() []modules.ModuleHandler {
 	return []modules.ModuleHandler{
 		aigatewayModule.NewHandler(),
+		aipipelinesModule.NewHandler(),
 		dashboardModule.NewHandler(),
 		feastModule.NewHandler(),
 		kserveModule.NewHandler(),
@@ -45,6 +47,9 @@ func managedDSCContext() (*modules.DSCContext, *modules.ModuleCRConfig) {
 			DSC: &dscv2.DataScienceCluster{
 				Spec: dscv2.DataScienceClusterSpec{
 					Components: dscv2.Components{
+						AIPipelines: componentApi.DSCDataSciencePipelines{
+							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+						},
 						Dashboard: componentApi.DSCDashboard{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},

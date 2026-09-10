@@ -24,6 +24,8 @@ import (
 
 const (
 	DataSciencePipelinesComponentName = "datasciencepipelines"
+	// AIPipelinesComponentName is the platform module name used by the v2 DSC API.
+	AIPipelinesComponentName = "aipipelines"
 	// value should match whats set in the XValidation below
 	DataSciencePipelinesInstanceName = "default-" + DataSciencePipelinesComponentName
 	DataSciencePipelinesKind         = "DataSciencePipelines"
@@ -107,7 +109,6 @@ func (c *DataSciencePipelines) SetReleaseStatus(releases []common.ComponentRelea
 }
 
 // +kubebuilder:object:root=true
-
 // DataSciencePipelinesList contains a list of DataSciencePipelines
 type DataSciencePipelinesList struct {
 	metav1.TypeMeta `json:",inline"`

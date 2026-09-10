@@ -199,6 +199,13 @@ type ExtraEnvProvider interface {
 	GetExtraEnv() map[string]string
 }
 
+// PlatformEnvProvider allows a module handler to inject env vars whose values
+// depend on the active platform release. It complements ExtraEnvProvider,
+// which is reserved for fixed values such as controller handoff flags.
+type PlatformEnvProvider interface {
+	GetPlatformEnv(platform *PlatformContext) map[string]string
+}
+
 // ModuleStatus holds the parsed status from a module CR. It includes the
 // standard conditions, generation metadata for staleness detection, and
 // the release version for the platform version handshake.
