@@ -66,10 +66,17 @@ const (
 	SeaweedFSAccessKey         = "seaweedfs-test-key"
 	SeaweedFSSecretKey         = "seaweedfs-test-secret"
 	SeaweedFSImage             = "chrislusf/seaweedfs@sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62"
+	FakeGCSPodName             = "fake-gcs-server"
+	FakeGCSServiceName         = "fake-gcs-server"
+	FakeGCSBucketCreatorName   = "fake-gcs-bucket-creator"
+	FakeGCSBucketName          = "tempo-traces"
+	FakeGCSImage               = "fsouza/fake-gcs-server@sha256:797ce226d62f947c009dc40246b30cfb456b8473d8241407f9d6f2c04e4d69ef"
+	FakeGCSClientImage         = "curlimages/curl@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"
 )
 
 const (
 	SeaweedFSS3Port int32 = 8333
+	FakeGCSPort     int32 = 4443
 )
 
 // monitoringOwnerReferencesCondition is a reusable condition for validating owner references.
@@ -795,6 +802,9 @@ func (tc *MonitoringTestCtx) ensureMonitoringCleanSlate(t *testing.T, secretName
 
 	// Clean up SeaweedFS resources from previous S3 runs.
 	tc.cleanupSeaweedFS(tc.MonitoringNamespace)
+
+	// Clean up fake GCS resources from previous GCS runs.
+	tc.cleanupFakeGCS(tc.MonitoringNamespace)
 }
 
 // ensureOpenTelemetryCollectorReady waits for the OpenTelemetry Collector deployment to be ready
@@ -870,6 +880,14 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackend(
 		})
 		tc.waitForSeaweedFS(tc.MonitoringNamespace)
 		tc.createSeaweedFSBucket(tc.MonitoringNamespace, SeaweedFSBucketName)
+	} else if backend == TracesStorageBackendGCS {
+		t.Logf("Deploying fake GCS server in namespace %s for GCS backend testing", tc.MonitoringNamespace)
+		tc.deployFakeGCS(tc.MonitoringNamespace)
+		t.Cleanup(func() {
+			tc.cleanupFakeGCS(tc.MonitoringNamespace)
+		})
+		tc.waitForFakeGCS(tc.MonitoringNamespace)
+		tc.createFakeGCSBucket(tc.MonitoringNamespace, FakeGCSBucketName)
 	}
 
 	// Create the secret before enabling monitoring
@@ -893,6 +911,11 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackend(
 		WithCondition(monitoringCondition),
 		WithCustomErrorMsg(monitoringErrorMsg),
 	)
+
+	if backend == TracesStorageBackendGCS {
+		t.Logf("Configuring TempoStack GCS endpoint for fake GCS server")
+		tc.configureFakeGCSTempoStack(tc.MonitoringNamespace)
+	}
 
 	// Ensure the TempoStack CR is created with specified backend
 	// (status conditions are set by external tempo operator)
@@ -1101,6 +1124,166 @@ func (tc *MonitoringTestCtx) cleanupSeaweedFS(namespace string) {
 		{gvk: gvk.Pod, name: SeaweedFSBucketCreatorName},
 		{gvk: gvk.Pod, name: SeaweedFSPodName},
 		{gvk: gvk.Service, name: SeaweedFSServiceName},
+	} {
+		tc.DeleteResource(
+			WithMinimalObject(resource.gvk, types.NamespacedName{
+				Name:      resource.name,
+				Namespace: namespace,
+			}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	}
+}
+
+// deployFakeGCS deploys a fake GCS JSON API server for GCS backend testing.
+func (tc *MonitoringTestCtx) deployFakeGCS(namespace string) {
+	fakeGCSPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      FakeGCSPodName,
+			Namespace: namespace,
+			Labels:    map[string]string{"app": "fake-gcs-server"},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:    "fake-gcs-server",
+					Image:   FakeGCSImage,
+					Command: []string{"/bin/fake-gcs-server"},
+					Args:    []string{"-data", "/data", "-scheme", "http"},
+					Ports: []corev1.ContainerPort{
+						{ContainerPort: FakeGCSPort, Name: "http"},
+					},
+					ReadinessProbe: &corev1.Probe{
+						ProbeHandler: corev1.ProbeHandler{
+							HTTPGet: &corev1.HTTPGetAction{
+								Path: "/_internal/healthcheck",
+								Port: intstr.FromInt32(FakeGCSPort),
+							},
+						},
+						InitialDelaySeconds: 5,
+						PeriodSeconds:       5,
+					},
+					VolumeMounts: []corev1.VolumeMount{
+						{Name: "data", MountPath: "/data"},
+					},
+				},
+			},
+			Volumes: []corev1.Volume{
+				{
+					Name:         "data",
+					VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+				},
+			},
+		},
+	}
+	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(fakeGCSPod))
+
+	fakeGCSService := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      FakeGCSServiceName,
+			Namespace: namespace,
+			Labels:    map[string]string{"app": "fake-gcs-server"},
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: map[string]string{"app": "fake-gcs-server"},
+			Ports: []corev1.ServicePort{
+				{
+					Port:       FakeGCSPort,
+					TargetPort: intstr.FromInt32(FakeGCSPort),
+					Name:       "http",
+				},
+			},
+		},
+	}
+	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(fakeGCSService))
+}
+
+// waitForFakeGCS waits for the fake GCS server to be running and ready.
+func (tc *MonitoringTestCtx) waitForFakeGCS(namespace string) {
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{
+			Name:      FakeGCSPodName,
+			Namespace: namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.status.phase == "Running"`),
+			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
+		)),
+		WithCustomErrorMsg("fake GCS server should be running and ready"),
+	)
+}
+
+// createFakeGCSBucket creates the bucket required by Tempo's GCS store.
+func (tc *MonitoringTestCtx) createFakeGCSBucket(namespace, bucketName string) {
+	tc.DeleteResource(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{
+			Name:      FakeGCSBucketCreatorName,
+			Namespace: namespace,
+		}),
+		WithIgnoreNotFound(true),
+		WithWaitForDeletion(true),
+	)
+
+	serverURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", FakeGCSServiceName, namespace, FakeGCSPort)
+	bucketCreatorPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      FakeGCSBucketCreatorName,
+			Namespace: namespace,
+		},
+		Spec: corev1.PodSpec{
+			RestartPolicy: corev1.RestartPolicyNever,
+			Containers: []corev1.Container{
+				{
+					Name:    "create-bucket",
+					Image:   FakeGCSClientImage,
+					Command: []string{"/bin/sh", "-c"},
+					Args: []string{fmt.Sprintf(
+						"until curl -fsS %s/_internal/healthcheck >/dev/null; do sleep 2; done && curl -fsS -X POST -H 'Content-Type: application/json' -d '{\"name\":\"%s\"}' '%s/storage/v1/b?project=fake-test-project' >/dev/null",
+						serverURL, bucketName, serverURL,
+					)},
+				},
+			},
+		},
+	}
+	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(bucketCreatorPod))
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{
+			Name:      FakeGCSBucketCreatorName,
+			Namespace: namespace,
+		}),
+		WithCondition(jq.Match(`.status.phase == "Succeeded"`)),
+		WithCustomErrorMsg("fake GCS bucket creator pod should complete successfully"),
+	)
+}
+
+// configureFakeGCSTempoStack points Tempo's GCS client at the in-cluster emulator.
+func (tc *MonitoringTestCtx) configureFakeGCSTempoStack(namespace string) {
+	tempoStack := types.NamespacedName{Name: TempoStackName, Namespace: tc.MonitoringNamespace}
+	tc.EnsureResourceExists(WithMinimalObject(gvk.TempoStack, tempoStack))
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.TempoStack, tempoStack),
+		WithMutateFunc(testf.Transform(
+			`.spec.extraConfig.tempo.storage.trace.gcs = {
+                "bucket_name": "%s",
+				"endpoint": "http://%s.%s.svc.cluster.local:%d/storage/v1/",
+                "insecure": true
+            }`,
+			FakeGCSBucketName, FakeGCSServiceName, namespace, FakeGCSPort,
+		)),
+	)
+}
+
+// cleanupFakeGCS removes fake GCS and bucket-creator resources.
+func (tc *MonitoringTestCtx) cleanupFakeGCS(namespace string) {
+	for _, resource := range []struct {
+		gvk  schema.GroupVersionKind
+		name string
+	}{
+		{gvk: gvk.Pod, name: FakeGCSBucketCreatorName},
+		{gvk: gvk.Pod, name: FakeGCSPodName},
+		{gvk: gvk.Service, name: FakeGCSServiceName},
 	} {
 		tc.DeleteResource(
 			WithMinimalObject(resource.gvk, types.NamespacedName{
