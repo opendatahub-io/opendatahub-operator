@@ -5,8 +5,12 @@ import (
 	"errors"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -14,6 +18,7 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
@@ -25,8 +30,8 @@ const (
 	moduleControllerEnv = "DSPO_ENABLEAIPIPELINESMODULECONTROLLER"
 	platformVersionEnv  = "DSPO_PLATFORMVERSION"
 	controllerImageEnv  = "RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE"
-	odhOverlayPath      = "overlays/odh"
-	rhoaiOverlayPath    = "overlays/rhoai"
+	odhOverlayPath      = "overlays/odh/dspo"
+	rhoaiOverlayPath    = "overlays/rhoai/dspo"
 )
 
 var overlayByPlatform = map[common.Platform]string{
@@ -132,6 +137,69 @@ func (h *handler) GetPlatformEnv(platform *modules.PlatformContext) map[string]s
 	return map[string]string{
 		platformVersionEnv: platform.Release.Version.String(),
 	}
+}
+
+// CleanupLegacyCR removes the in-tree DataSciencePipelines CR after its
+// replacement AIPipelines CR has reached Ready. When AIPipelines is Removed,
+// no handoff is needed and the legacy CR can be removed immediately.
+func (h *handler) CleanupLegacyCR(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) error {
+	if cli == nil || dsc == nil {
+		return nil
+	}
+
+	legacy := &componentApi.DataSciencePipelines{}
+	legacy.SetName(componentApi.DataSciencePipelinesInstanceName)
+	if err := cli.Get(ctx, client.ObjectKeyFromObject(legacy), legacy); err != nil {
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+			return nil
+		}
+		return err
+	}
+
+	if !ownedByDSC(legacy, dsc) {
+		return nil
+	}
+
+	if components.NormalizeManagementState(dsc.Spec.Components.AIPipelines.ManagementState) == operatorv1.Managed {
+		moduleStatus, err := h.GetModuleStatus(ctx, cli)
+		if err != nil {
+			if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+				return nil
+			}
+			return err
+		}
+		if moduleStatus.ObservedGeneration != moduleStatus.Generation || !moduleReady(moduleStatus) {
+			return nil
+		}
+	}
+
+	if err := cli.Delete(ctx, legacy); err != nil && !k8serr.IsNotFound(err) {
+		return err
+	}
+	logf.FromContext(ctx).Info("deleted legacy DataSciencePipelines CR after AIPipelines module handoff",
+		"name", legacy.GetName())
+	return nil
+}
+
+func moduleReady(moduleStatus *modules.ModuleStatus) bool {
+	if moduleStatus == nil {
+		return false
+	}
+	for _, condition := range moduleStatus.Conditions {
+		if condition.Type == status.ConditionTypeReady {
+			return condition.Status == metav1.ConditionTrue
+		}
+	}
+	return false
+}
+
+func ownedByDSC(obj client.Object, dsc *dscv2.DataScienceCluster) bool {
+	for _, owner := range obj.GetOwnerReferences() {
+		if owner.UID == dsc.GetUID() {
+			return true
+		}
+	}
+	return false
 }
 
 // WriteDSCComponentStatus is declared explicitly to document that the AIPipelines

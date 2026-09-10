@@ -119,6 +119,16 @@ type DSCLegacyStatusFieldsWriter interface {
 	WriteLegacyStatusFields(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster, enabled bool) error
 }
 
+// LegacyModuleCRCleaner is an optional interface for modules that replace an
+// in-tree component CR with a different module CR. It lets the DSC controller
+// remove the superseded CR only after the module-specific handoff is safe.
+//
+// Implementations must be idempotent and must not delete a legacy CR owned by
+// a different DataScienceCluster.
+type LegacyModuleCRCleaner interface {
+	CleanupLegacyCR(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) error
+}
+
 // ReadyConditionTyper allows a module handler to declare the condition type
 // string used for per-module status on the DSC (e.g. "AIGatewayReady").
 // All handlers embedding BaseHandler satisfy this interface automatically;

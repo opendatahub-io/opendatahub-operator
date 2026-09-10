@@ -1,12 +1,19 @@
 package aipipelines_test
 
 import (
+	"context"
 	"testing"
 
 	semver "github.com/blang/semver/v4"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	ofversion "github.com/operator-framework/api/pkg/lib/version"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -91,8 +98,13 @@ func TestOperatorManifestsAndPlatformEnv(t *testing.T) {
 	}
 
 	manifests := h.GetOperatorManifests(platform)
-	if len(manifests.Manifests) != 1 || manifests.Manifests[0].SourcePath != "overlays/odh" {
+	if len(manifests.Manifests) != 1 || manifests.Manifests[0].SourcePath != "overlays/odh/dspo" {
 		t.Fatalf("unexpected ODH manifests: %#v", manifests.Manifests)
+	}
+	platform.Release.Name = cluster.SelfManagedRhoai
+	manifests = h.GetOperatorManifests(platform)
+	if len(manifests.Manifests) != 1 || manifests.Manifests[0].SourcePath != "overlays/rhoai/dspo" {
+		t.Fatalf("unexpected RHOAI manifests: %#v", manifests.Manifests)
 	}
 	if got := h.GetExtraEnv()["DSPO_ENABLEAIPIPELINESMODULECONTROLLER"]; got != "true" {
 		t.Fatalf("expected module controller handoff flag, got %q", got)
@@ -100,6 +112,111 @@ func TestOperatorManifestsAndPlatformEnv(t *testing.T) {
 	if got := h.GetPlatformEnv(platform)["DSPO_PLATFORMVERSION"]; got != "3.6.0" {
 		t.Fatalf("expected platform version env, got %q", got)
 	}
+}
+
+func TestCleanupLegacyCRWaitsForReadyReplacement(t *testing.T) {
+	const dscUID = types.UID("dsc-uid")
+
+	tests := []struct {
+		name            string
+		managementState operatorv1.ManagementState
+		module          *unstructured.Unstructured
+		ownerUID        types.UID
+		wantDeleted     bool
+	}{
+		{
+			name:            "managed replacement absent",
+			managementState: operatorv1.Managed,
+			ownerUID:        dscUID,
+		},
+		{
+			name:            "managed replacement not ready",
+			managementState: operatorv1.Managed,
+			module:          newAIPipelinesCR(metav1.ConditionFalse, 2, 2),
+			ownerUID:        dscUID,
+		},
+		{
+			name:            "managed replacement status stale",
+			managementState: operatorv1.Managed,
+			module:          newAIPipelinesCR(metav1.ConditionTrue, 2, 1),
+			ownerUID:        dscUID,
+		},
+		{
+			name:            "managed replacement ready",
+			managementState: operatorv1.Managed,
+			module:          newAIPipelinesCR(metav1.ConditionTrue, 2, 2),
+			ownerUID:        dscUID,
+			wantDeleted:     true,
+		},
+		{
+			name:            "removed does not require replacement",
+			managementState: operatorv1.Removed,
+			ownerUID:        dscUID,
+			wantDeleted:     true,
+		},
+		{
+			name:            "foreign legacy CR is preserved",
+			managementState: operatorv1.Removed,
+			ownerUID:        types.UID("another-dsc"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := aipipelines.NewHandler()
+			dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{UID: dscUID}}
+			dsc.Spec.Components.AIPipelines.ManagementState = tt.managementState
+			legacy := &componentApi.DataSciencePipelines{ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.DataSciencePipelinesInstanceName,
+				OwnerReferences: []metav1.OwnerReference{{
+					UID: tt.ownerUID,
+				}},
+			}}
+
+			objects := []client.Object{legacy}
+			if tt.module != nil {
+				objects = append(objects, tt.module)
+			}
+			cli := fake.NewClientBuilder().WithScheme(aipipelinesTestScheme(t)).WithObjects(objects...).Build()
+
+			if err := h.CleanupLegacyCR(context.Background(), cli, dsc); err != nil {
+				t.Fatalf("cleanup legacy CR: %v", err)
+			}
+
+			err := cli.Get(context.Background(), client.ObjectKey{Name: legacy.Name}, &componentApi.DataSciencePipelines{})
+			if tt.wantDeleted && !k8serr.IsNotFound(err) {
+				t.Fatalf("expected legacy CR to be deleted, got %v", err)
+			}
+			if !tt.wantDeleted && err != nil {
+				t.Fatalf("expected legacy CR to remain: %v", err)
+			}
+		})
+	}
+}
+
+func newAIPipelinesCR(ready metav1.ConditionStatus, generation, observedGeneration int64) *unstructured.Unstructured {
+	u := &unstructured.Unstructured{Object: map[string]any{
+		"status": map[string]any{
+			"observedGeneration": observedGeneration,
+			"conditions": []any{map[string]any{
+				"type":   "Ready",
+				"status": string(ready),
+			}},
+		},
+	}}
+	u.SetGroupVersionKind(aipipelines.NewHandler().GetGVK())
+	u.SetName("default-aipipelines")
+	u.SetGeneration(generation)
+	return u
+}
+
+func aipipelinesTestScheme(t *testing.T) *runtime.Scheme {
+	t.Helper()
+	scheme := runtime.NewScheme()
+	if err := componentApi.AddToScheme(scheme); err != nil {
+		t.Fatalf("add component API to scheme: %v", err)
+	}
+	return scheme
 }
 
 func TestWriteDSCComponentStatus(t *testing.T) {

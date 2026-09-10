@@ -100,6 +100,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 			deploy.WithContinueOnError(),
 			deploy.WithCache(),
 		)).
+		WithAction(cleanupMigratedModuleCRs).
 		WithFinalizer(disableDSCModulesOnDelete).
 		WithConditions(status.ConditionTypeComponentsReady, status.ConditionTypeModulesReady).
 		Build(ctx)
