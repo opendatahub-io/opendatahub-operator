@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
@@ -297,19 +298,26 @@ func provisionComponentsWith(ctx context.Context, rr *odhtype.ReconciliationRequ
 }
 
 func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	return provisionModuleCRsWith(ctx, rr, modules.DefaultRegistry())
+}
+
+func provisionModuleCRsWith(ctx context.Context, rr *odhtype.ReconciliationRequest, moduleReg *modules.Registry) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
-	moduleReg := modules.DefaultRegistry()
 	if !moduleReg.HasEntries() {
 		return nil
 	}
 
 	dscCtx := buildDSCContext(instance)
 
-	pm := modules.BuildPlatformModulesForSource(dscCtx, modules.ConfigFromDSC)
+	var pm configv1alpha1.PlatformModules
+	moduleReg.ForConfigSource(modules.ConfigFromDSC, func(handler modules.ModuleHandler, _ bool) error { //nolint:errcheck
+		handler.PopulatePlatformModule(&pm, dscCtx)
+		return nil
+	})
 	enabledModules := make(map[string]bool)
 	for _, name := range pm.EnabledModules() {
 		enabledModules[name] = true
@@ -327,9 +335,20 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		Release:               rr.Release,
 	}
 
+	log := logf.FromContext(ctx)
+
 	return moduleReg.ForConfigSource(modules.ConfigFromDSC, func(handler modules.ModuleHandler, _ bool) error {
 		name := handler.GetName()
 		if !enabledModules[name] {
+			return nil
+		}
+
+		hasCRD, err := cluster.HasCRD(ctx, rr.Client, handler.GetGVK())
+		if err != nil {
+			return fmt.Errorf("failed to check CRD availability for module %s: %w", name, err)
+		}
+		if !hasCRD {
+			log.V(1).Info("module CRD not installed yet, skipping module CR provisioning", "module", name)
 			return nil
 		}
 
