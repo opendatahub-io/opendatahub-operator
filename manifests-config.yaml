@@ -26,13 +26,13 @@ components:
   ray:
     odh:
       repo: opendatahub-io/ray-module-operator
-      ref: RHOAIENG-64554@06f9745f1ea9a0bbdece3f025ded42784070ff2b
+      ref: RHOAIENG-64554@f32d83e0d19878b8e004a75f323620d372f9e7ca
       sourcePath: config
     # Downstream red-hat-data-services/ray-module-operator does not exist yet.
     # Pin RHOAI to the same upstream commit until that repo is onboarded.
     rhoai:
       repo: opendatahub-io/ray-module-operator
-      ref: RHOAIENG-64554@06f9745f1ea9a0bbdece3f025ded42784070ff2b
+      ref: RHOAIENG-64554@f32d83e0d19878b8e004a75f323620d372f9e7ca
       sourcePath: config
   trustyai:
     odh:
@@ -992,10 +992,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-ray-module-operator"
-      digest: "sha256:9425cc6fab57c0e815b53072f9f1f60718e9858acceebcfb3a72d70ba0314190"
+      digest: "sha256:9860889abd1024bbd587a3ad96786516ca6c9ee34d640c188dd4e9c77216757b"
     rhoai:
       base: "quay.io/opendatahub/odh-ray-module-operator"
-      digest: "sha256:9425cc6fab57c0e815b53072f9f1f60718e9858acceebcfb3a72d70ba0314190"
+      digest: "sha256:9860889abd1024bbd587a3ad96786516ca6c9ee34d640c188dd4e9c77216757b"
   RELATED_IMAGE_ODH_RHAII_CLUSTER_VALIDATOR_IMAGE:
     source: "csv"
     odh:
