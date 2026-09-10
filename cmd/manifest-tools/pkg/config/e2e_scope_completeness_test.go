@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -85,5 +86,30 @@ func TestManifestsConfigNamesAreKnownToE2EScopeRules(t *testing.T) {
 		if !known[override.Component] {
 			t.Errorf("manifests-config.yaml imageOverrides.%s references component %q, which has no matching entry, alias, or ignored-name in %s", envVar, override.Component, e2eScopeRulesRelPath)
 		}
+	}
+}
+
+// TestManifestsConfigImageOverridesAreValid validates that every entry in
+// manifests-config.yaml conforms to CheckImageOverride rules (valid RELATED_IMAGE_
+// prefix, known component, valid tagTemplate syntax, etc.).
+func TestManifestsConfigImageOverridesAreValid(t *testing.T) {
+	root := repoRoot(t)
+
+	manifestsCfg, err := config.Load(filepath.Join(root, manifestsConfigRelPath))
+	require.NoError(t, err, "loading %s", manifestsConfigRelPath)
+
+	envNames := make([]string, 0, len(manifestsCfg.ImageOverrides))
+	for envName := range manifestsCfg.ImageOverrides {
+		envNames = append(envNames, envName)
+	}
+	sort.Strings(envNames)
+
+	for _, envName := range envNames {
+		override := manifestsCfg.ImageOverrides[envName]
+		t.Run(envName, func(t *testing.T) {
+			if err := manifestsCfg.CheckImageOverride(envName, override); err != nil {
+				t.Errorf("manifests-config.yaml imageOverrides.%s invalid: %v", envName, err)
+			}
+		})
 	}
 }

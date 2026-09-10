@@ -403,6 +403,21 @@ func WithServiceMonitor() CRDSetupOption {
 	}
 }
 
+// WithMonitoring enables Monitoring CRD registration in the test environment.
+// The production CRD is installed by the odh-observability chart, not this operator.
+func WithMonitoring() CRDSetupOption {
+	return func(ctx context.Context, t *testing.T, env *envt.EnvT) error {
+		t.Helper()
+
+		crd := MockMonitoringCRD()
+		if err := createAndWaitForCRD(ctx, env, crd); err != nil {
+			return fmt.Errorf("failed to create and wait for Monitoring CRD: %w", err)
+		}
+
+		return nil
+	}
+}
+
 // =============================================================================
 // Object Creation Functions
 // =============================================================================
@@ -1307,6 +1322,41 @@ func MockServiceMonitorCRD() *apiextensionsv1.CustomResourceDefinition {
 				Name:    "v1",
 				Served:  true,
 				Storage: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+						Type:                   "object",
+						XPreserveUnknownFields: &preserveUnknownFields,
+					},
+				},
+			}},
+		},
+	}
+}
+
+// MockMonitoringCRD creates a mock Monitoring CRD for testing.
+// The production CRD is owned by the odh-observability module.
+func MockMonitoringCRD() *apiextensionsv1.CustomResourceDefinition {
+	preserveUnknownFields := true
+
+	return &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.MonitoringCRDName,
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: gvk.Monitoring.Group,
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Plural:   "monitorings",
+				Singular: "monitoring",
+				Kind:     gvk.Monitoring.Kind,
+			},
+			Scope: "Cluster",
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    gvk.Monitoring.Version,
+				Served:  true,
+				Storage: true,
+				Subresources: &apiextensionsv1.CustomResourceSubresources{
+					Status: &apiextensionsv1.CustomResourceSubresourceStatus{},
+				},
 				Schema: &apiextensionsv1.CustomResourceValidation{
 					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 						Type:                   "object",

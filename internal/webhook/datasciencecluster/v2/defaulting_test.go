@@ -5,8 +5,8 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	v2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
 
 	. "github.com/onsi/gomega"
@@ -33,7 +33,7 @@ func TestDefaulterV2_DefaultingLogic(t *testing.T) {
 			name:                "Sets default RegistriesNamespace if empty and Managed",
 			managementState:     new(operatorv1.Managed),
 			registriesNamespace: new(""),
-			expectedNamespace:   modelregistryctrl.DefaultModelRegistriesNamespace,
+			expectedNamespace:   componentApi.DefaultModelRegistriesNamespace,
 		},
 		{
 			name:                "Does not overwrite custom RegistriesNamespace if set",

@@ -46,3 +46,7 @@ Examples from `manifests-config.yaml`:
 
 - **Scheduled runs**: Daily at 6:00 AM UTC
 - **Manual triggers**: Available via GitHub Actions UI
+
+## Checking imageOverrides
+
+`make resolve-image-digests` fails if an `imageOverrides` row has an illegal key (must start with `RELATED_IMAGE_`), or if `component`, `tagTemplate`, `paramsEnvKey`, or `source` is set to a value that does not match its rules, and it does not rewrite `manifests-config.yaml`. PRs that change that YAML or `cmd/manifest-tools` run the unit tests that cover these errors.

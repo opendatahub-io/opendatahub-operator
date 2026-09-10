@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -42,9 +43,10 @@ type componentBatch struct {
 }
 
 type componentEntry struct {
-	name     string
-	gvk      schema.GroupVersionKind
-	internal bool // components whose CR may not exist in the test (webhook-blocked, auto-created, etc.)
+	name           string
+	gvk            schema.GroupVersionKind
+	internal       bool // components whose CR may not exist in the test (webhook-blocked, auto-created, etc.)
+	dsciConfigured bool // configured via DSCI spec, not DSC — cleanup requires patching DSCI
 }
 
 // dagBatches mirrors the runlevel assignments from cmd/main.go.
@@ -55,8 +57,13 @@ var dagBatches = []componentBatch{
 		runlevel: 20,
 		components: []componentEntry{
 			{name: componentApi.DashboardComponentName, gvk: gvk.Dashboard, internal: true},
+			{name: serviceApi.MonitoringServiceName, gvk: gvk.Monitoring, internal: true, dsciConfigured: true},
 			{name: componentApi.DataSciencePipelinesComponentName, gvk: gvk.DataSciencePipelines},
-			{name: componentApi.ModelRegistryComponentName, gvk: gvk.ModelRegistry},
+			// ModelRegistry is an out-of-tree module whose CR is the shared
+			// cluster-scoped AIHub singleton "default-aihub"; it is referenced
+			// directly via gvk.AIHub and routed through the module-readiness
+			// (Ready=True) path like the other modules (mlflow, spark).
+			{name: componentApi.ModelRegistryComponentName, gvk: gvk.AIHub, internal: true},
 			{name: componentApi.RayComponentName, gvk: gvk.Ray},
 			{name: componentApi.TrainerComponentName, gvk: gvk.Trainer, internal: true},
 			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches, internal: true},
@@ -135,7 +142,10 @@ var extensionGVKs = []schema.GroupVersionKind{
 	gvk.TrustyAI,
 }
 
-const dagQuotaName = "dag-test-restrictive-quota"
+const (
+	dagQuotaName   = "dag-test-restrictive-quota"
+	dagTestVersion = "99.0.0-dag-test"
+)
 
 // dagOrderingTestSuite runs the DAG runlevel gating test suite. OpenShift
 // and xKS clusters enable components through different resources (the
@@ -320,7 +330,8 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 
 	// Step 1: Deploy all components at the original version.
 	// This establishes platform release version in component CR status.
-	t.Log("Enabling all components for initial deployment and waiting for initial convergence (ComponentsReady=True and ModulesReady=True on DSC)")
+	t.Log("Enabling all components and monitoring for initial deployment and waiting for initial convergence (ComponentsReady=True and ModulesReady=True on DSC)")
+	tc.setDSCIMonitoringState(t, operatorv1.Managed)
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(allComponentsManagedTransform()),
@@ -338,6 +349,7 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 		WithEventuallyTimeout(15*time.Minute),
 		WithEventuallyPollingInterval(15*time.Second),
 	)
+	tc.waitForMonitoringReady(t)
 
 	// Step 2: Apply quota and simulate version upgrade.
 	// Quota blocks new pod creation. Version change triggers readiness
@@ -349,7 +361,7 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 	t.Log("Simulating version upgrade")
 	tc.setOperatorEnvVars(t,
 		corev1.EnvVar{Name: "CI", Value: "true"},
-		corev1.EnvVar{Name: "RHAI_VERSION", Value: "99.0.0-dag-test"},
+		corev1.EnvVar{Name: "RHAI_VERSION", Value: dagTestVersion},
 	)
 
 	// Step 3: Verify gating is active.
@@ -431,6 +443,9 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 			}
 			instanceName := tc.findFirstCRName(t, comp.gvk)
 			if instanceName == "" {
+				if comp.dsciConfigured {
+					t.Fatalf("expected %s CR after enabling via DSCI, found none", comp.gvk.Kind)
+				}
 				t.Logf("No %s CRs found, skipping readiness check", comp.gvk.Kind)
 				continue
 			}
@@ -591,16 +606,7 @@ func (tc *DAGOrderingTestCtx) ValidateDAGCleanup(t *testing.T) {
 	tc.setAllRemoved(t)
 
 	t.Log("Verifying all component CRs are cleaned up (no orphans)")
-	for _, batch := range dagBatches {
-		for _, comp := range batch.components {
-			instanceName := tc.GetInstanceName(comp.gvk)
-			tc.EnsureResourceGone(
-				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
-				WithEventuallyTimeout(5*time.Minute),
-				WithEventuallyPollingInterval(10*time.Second),
-			)
-		}
-	}
+	tc.ensureAllRemovedComponentsGone(t)
 }
 
 // ValidatePartialEnablement enables a subset of components spanning
@@ -615,14 +621,14 @@ func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 
 	partialFields := []string{"dashboard", "kserve", "modelregistry"}
 
-	t.Log("Enabling partial set: dashboard (batch 20), kserve (batch 31), modelregistry (batch 20)")
+	t.Log("Enabling partial set: dashboard (batch 20), kserve (batch 31), modelregistry (batch 20, AIHub module)")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(selectComponentsTransform("Managed", partialFields)),
 	)
 
 	t.Log("Verifying enabled component CRs are created")
-	enabledGVKs := []schema.GroupVersionKind{gvk.Dashboard, gvk.Kserve, gvk.ModelRegistry}
+	enabledGVKs := []schema.GroupVersionKind{gvk.Dashboard, gvk.Kserve, gvk.AIHub}
 	for _, g := range enabledGVKs {
 		instanceName := tc.GetInstanceName(g)
 		tc.EnsureResourceExists(
@@ -907,10 +913,52 @@ func selectComponentsTransform(state string, fields []string) func(*unstructured
 	}
 }
 
+// setDSCIMonitoringState patches the DSCI to set monitoring management state.
+func (tc *DAGOrderingTestCtx) setDSCIMonitoringState(t *testing.T, state operatorv1.ManagementState) {
+	t.Helper()
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, string(state), "spec", "monitoring", "managementState")
+		}),
+	)
+}
+
+// waitForMonitoringReady waits for the Monitoring CR after DSCI enablement.
+// DSC ModulesReady does not include ConfigFromDSCI modules, so the shared
+// DSC wait is not enough before the upgrade starts. After convergence the
+// generic internal-module loop covers Ready=True.
+func (tc *DAGOrderingTestCtx) waitForMonitoringReady(t *testing.T) {
+	t.Helper()
+
+	t.Log("Waiting for Monitoring CR Ready=True")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: serviceApi.MonitoringInstanceName}),
+		WithCondition(jq.Match(`any(.status.conditions[]; .type == "Ready" and .status == "True")`)),
+		WithEventuallyTimeout(15*time.Minute),
+		WithEventuallyPollingInterval(15*time.Second),
+		WithCustomErrorMsg("Monitoring CR %s should exist and have Ready=True", serviceApi.MonitoringInstanceName),
+	)
+
+	t.Log("Waiting for DSCI MonitoringReady=True")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(jq.Match(
+			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+			status.ConditionMonitoringReady, metav1.ConditionTrue,
+		)),
+		WithEventuallyTimeout(5*time.Minute),
+		WithEventuallyPollingInterval(10*time.Second),
+		WithCustomErrorMsg("DSCI should have MonitoringReady=True when monitoring is Managed"),
+	)
+}
+
 // setAllRemoved is a reusable helper that sets all components to Removed,
 // waits for Ready=True, and verifies all component CRs are deleted.
 func (tc *DAGOrderingTestCtx) setAllRemoved(t *testing.T) {
 	t.Helper()
+
+	tc.setDSCIMonitoringState(t, operatorv1.Removed)
 
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -927,8 +975,33 @@ func (tc *DAGOrderingTestCtx) setAllRemoved(t *testing.T) {
 		WithEventuallyPollingInterval(15*time.Second),
 	)
 
+	tc.ensureAllRemovedComponentsGone(t)
+}
+
+// ensureAllRemovedComponentsGone verifies that every componentEntry actually
+// driven to Removed has its CR deleted. Monitoring is removed via the DSCI
+// (setDSCIMonitoringState), not the DSC spec.components fields below, so it
+// is checked explicitly by name. Components absent from both DSC field lists
+// (e.g. Kueue, whose webhook blocks managementState=Managed) are never set
+// to Removed and are skipped rather than asserted gone.
+func (tc *DAGOrderingTestCtx) ensureAllRemovedComponentsGone(t *testing.T) {
+	t.Helper()
+
 	for _, batch := range dagBatches {
 		for _, comp := range batch.components {
+			name := comp.name
+			if name == dataSciencePipelinesComponentName {
+				name = aiPipelinesFieldName
+			}
+
+			removed := name == serviceApi.MonitoringServiceName ||
+				slices.Contains(dscComponentFieldsWithBrokenVersionHandshake, name) ||
+				slices.Contains(dscComponentFields, name)
+			if !removed {
+				t.Logf("Skipping gone-check for %s: not meant to be Removed", comp.name)
+				continue
+			}
+
 			instanceName := tc.GetInstanceName(comp.gvk)
 			tc.EnsureResourceGone(
 				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),

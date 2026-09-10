@@ -55,12 +55,27 @@ jobs:
         with:
           token: ${{ steps.generate-token.outputs.token }}
           commit-message: "chore: update manifest commit SHAs"
-          labels: "auto-bump-manifests-and-images"
+          labels: "auto-bump-manifests-and-images${{ steps.update-shas.outputs.fetch-failed == 'true' && ',do-not-merge' || '' }}"
           title: "chore: update manifest commit SHAs"
           body: |
             This PR updates the manifest commit SHAs to the latest available commits.
+            ${{ steps.update-shas.outputs.fetch-failed == 'true' && format('
+
+            > [!WARNING]
+            > These components failed to fetch from GitHub and were **not** updated:
+            > `{0}`
+
+            The scheduled workflow run is marked as failed. Please investigate.', steps.update-shas.outputs.failed-components) || '' }}
           branch: sync/upgrade-manifest-shas
           delete-branch: true
+
+      - name: Fail if any SHA fetches failed
+        if: steps.update-shas.outputs.fetch-failed == 'true'
+        env:
+          FAILED_COMPONENTS: ${{ steps.update-shas.outputs.failed-components }}
+        run: |
+          printf '::error::Some component SHA fetches failed: %s\n' "$FAILED_COMPONENTS"
+          exit 1
 
       - name: Output Summary
         if: steps.update-shas.outputs.updates-needed == 'true'

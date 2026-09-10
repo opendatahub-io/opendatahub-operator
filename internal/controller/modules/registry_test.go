@@ -391,3 +391,45 @@ func TestLookup(t *testing.T) {
 	g.Expect(reg.Lookup("findme")).Should(Equal(h))
 	g.Expect(reg.Lookup("nonexistent")).Should(BeNil())
 }
+
+func TestForConfigSourceFiltersBySource(t *testing.T) {
+	g := NewWithT(t)
+	reg := &modules.Registry{}
+
+	reg.Add(newMockHandler("dsc-mod", true))
+	reg.Add(newMockHandler("dsci-mod", true), modules.WithConfigSource(modules.ConfigFromDSCI))
+	reg.Add(newMockHandler("dsc-mod-2", true))
+
+	var dscVisited, dsciVisited []string
+	_ = reg.ForConfigSource(modules.ConfigFromDSC, func(h modules.ModuleHandler, _ bool) error {
+		dscVisited = append(dscVisited, h.GetName())
+		return nil
+	})
+	_ = reg.ForConfigSource(modules.ConfigFromDSCI, func(h modules.ModuleHandler, _ bool) error {
+		dsciVisited = append(dsciVisited, h.GetName())
+		return nil
+	})
+
+	g.Expect(dscVisited).Should(ConsistOf("dsc-mod", "dsc-mod-2"))
+	g.Expect(dsciVisited).Should(ConsistOf("dsci-mod"))
+}
+
+func TestRegisteredModuleDefaultsToDSCConfigured(t *testing.T) {
+	g := NewWithT(t)
+	reg := &modules.Registry{}
+
+	reg.Add(newMockHandler("default-source", true))
+
+	var dscVisited, dsciVisited []string
+	_ = reg.ForConfigSource(modules.ConfigFromDSC, func(h modules.ModuleHandler, _ bool) error {
+		dscVisited = append(dscVisited, h.GetName())
+		return nil
+	})
+	_ = reg.ForConfigSource(modules.ConfigFromDSCI, func(h modules.ModuleHandler, _ bool) error {
+		dsciVisited = append(dsciVisited, h.GetName())
+		return nil
+	})
+
+	g.Expect(dscVisited).Should(ConsistOf("default-source"))
+	g.Expect(dsciVisited).Should(BeEmpty())
+}

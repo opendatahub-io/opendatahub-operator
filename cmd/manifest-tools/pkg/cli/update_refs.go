@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -36,15 +37,20 @@ func newUpdateRefsSHAsCommand(root *rootOptions) *cobra.Command {
 				return err
 			}
 
-			updated, err := updater.UpdateSHAs(cmd.Context(), updater.SHAsOptions{
+			result, err := updater.UpdateSHAs(cmd.Context(), updater.SHAsOptions{
 				ConfigFile: root.configFile,
 				GH:         gh,
 			})
+
+			writeGitHubOutput("updates-needed", fmt.Sprintf("%t", result.Updated))
+			if len(result.FailedComponents) > 0 {
+				writeGitHubOutput("fetch-failed", "true")
+				writeGitHubOutput("failed-components", strings.Join(result.FailedComponents, ", "))
+			}
+
 			if err != nil {
 				return err
 			}
-
-			writeGitHubOutput("updates-needed", fmt.Sprintf("%t", updated))
 			return nil
 		},
 	}

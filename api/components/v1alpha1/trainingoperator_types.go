@@ -18,7 +18,6 @@ package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -26,75 +25,11 @@ const (
 	TrainingOperatorKind          = "TrainingOperator"
 )
 
-// Check that the component implements common.PlatformObject.
-var _ common.PlatformObject = (*TrainingOperator)(nil)
-
-// NOTE: json tags are required. Any new fields you add must have json tags for the fields to be serialized.
-
-// +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-trainingoperator'",message="TrainingOperator name must be default-trainingoperator"
-// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
-// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
-
-// TrainingOperator is the Schema for the trainingoperators API
-type TrainingOperator struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   TrainingOperatorSpec   `json:"spec,omitempty"`
-	Status TrainingOperatorStatus `json:"status,omitempty"`
-}
-
-// TrainingOperatorSpec defines the desired state of TrainingOperator
-type TrainingOperatorSpec struct {
-	TrainingOperatorCommonSpec `json:",inline"`
-}
-
 type TrainingOperatorCommonSpec struct{}
 
 // TrainingOperatorCommonStatus defines the shared observed state of TrainingOperator
 type TrainingOperatorCommonStatus struct {
 	common.ComponentReleaseStatus `json:",inline"`
-}
-
-// TrainingOperatorStatus defines the observed state of TrainingOperator
-type TrainingOperatorStatus struct {
-	common.Status                `json:",inline"`
-	TrainingOperatorCommonStatus `json:",inline"`
-}
-
-// +kubebuilder:object:root=true
-// TrainingOperatorList contains a list of TrainingOperator
-type TrainingOperatorList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []TrainingOperator `json:"items"`
-}
-
-func init() {
-	SchemeBuilder.Register(&TrainingOperator{}, &TrainingOperatorList{})
-}
-
-func (c *TrainingOperator) GetStatus() *common.Status {
-	return &c.Status.Status
-}
-
-func (c *TrainingOperator) GetConditions() []common.Condition {
-	return c.Status.GetConditions()
-}
-
-func (c *TrainingOperator) SetConditions(conditions []common.Condition) {
-	c.Status.SetConditions(conditions)
-}
-
-func (c *TrainingOperator) GetReleaseStatus() *[]common.ComponentRelease {
-	return &c.Status.Releases
-}
-
-func (c *TrainingOperator) SetReleaseStatus(releases []common.ComponentRelease) {
-	c.Status.Releases = releases
 }
 
 // +kubebuilder:validation:XValidation:rule="!has(self.managementState) || self.managementState != 'Managed' || (has(oldSelf.managementState) && oldSelf.managementState == 'Managed')",message="TrainingOperator v1 is obsolete in RHOAI 3.6. Set managementState to Removed, then delete the TrainingOperator CR to clean up. Use Trainer v2 instead."

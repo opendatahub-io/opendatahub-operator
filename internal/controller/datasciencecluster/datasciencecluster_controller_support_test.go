@@ -28,16 +28,21 @@ import (
 
 // mockHandler is a minimal ComponentHandler for testing computeComponentsStatus.
 type mockHandler struct {
-	name    string
-	enabled bool
-	status  metav1.ConditionStatus
-	err     error
+	name     string
+	enabled  bool
+	status   metav1.ConditionStatus
+	err      error
+	newCRErr error
+	newCRObj common.PlatformObject
 }
 
 func (m *mockHandler) Init(_ common.Platform, _ operatorconfig.OperatorSettings) error { return nil }
 func (m *mockHandler) GetName() string                                                 { return m.name }
 func (m *mockHandler) NewCRObject(_ context.Context, _ client.Client, _ *dscv2.DataScienceCluster) (common.PlatformObject, error) {
-	return nil, nil
+	if m.newCRErr != nil {
+		return nil, m.newCRErr
+	}
+	return m.newCRObj, nil
 }
 func (m *mockHandler) NewComponentReconciler(_ context.Context, _ ctrl.Manager) error {
 	return nil
@@ -261,7 +266,7 @@ func TestUpdateDeprecatedTrainingOperatorStatus(t *testing.T) {
 
 	t.Run("wrong instance type returns an error", func(t *testing.T) {
 		g := NewWithT(t)
-		rr := &types.ReconciliationRequest{Instance: &componentApi.TrainingOperator{}}
+		rr := &types.ReconciliationRequest{Instance: &componentApi.Kueue{}}
 		g.Expect(updateDeprecatedTrainingOperatorStatus(rr)).ShouldNot(Succeed())
 	})
 }

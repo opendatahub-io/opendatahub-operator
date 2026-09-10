@@ -48,7 +48,7 @@ spec:
         - name: RHAI_DISABLE_CERTCONFIGMAPGENERATOR_SERVICE
           value: 'true'
         - name: RHAI_DISABLE_GATEWAY_SERVICE
-          value: 'true'
+          value: 'false'
         - name: RHAI_DISABLE_MONITORING_SERVICE
           value: 'true'
         - name: RHAI_DISABLE_SETUPCONTROLLER_SERVICE

@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"flag"
 	"fmt"
+	"log"
 	"maps"
 	"os"
 	"slices"
@@ -24,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -395,7 +396,8 @@ func TestOdhOperator(t *testing.T) {
 
 	registerSchemes()
 
-	log.SetLogger(zap.New(zap.UseDevMode(true)))
+	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(os.Stdout)))
+	log.SetOutput(os.Stdout) // Used for cluster diagnostics output
 
 	if deadline, ok := t.Deadline(); ok {
 		remaining := time.Until(deadline)
@@ -449,6 +451,10 @@ func TestOdhOperator(t *testing.T) {
 	if testOpts.cleanUpPreviousResources {
 		CleanupPreviousTestResources(t)
 	}
+	// Remove any leftover MLflow instances from previous test runs which might have been created by previous components
+	// when running within DevTestOps pipeline. CleanupPreviousTestResources is disabled in that pipeline, so this has
+	// to run separately.
+	cleanupStaleMLflowInstances(t)
 
 	if collector := startMetricsCollectorIfEnabled(); collector != nil {
 		defer collector.Stop()
@@ -456,6 +462,7 @@ func TestOdhOperator(t *testing.T) {
 
 	if tc, err := NewTestContext(t); err == nil && tc.IsXKS() {
 		tc.EnsurePlatformCR(t)
+		tc.EnsureGatewayConfigForXKS(t)
 	}
 
 	if testOpts.dependantOperatorsManagementTest {

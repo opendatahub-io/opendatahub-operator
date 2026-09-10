@@ -34,6 +34,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -45,12 +46,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	monitoringmodule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/monitoring"
+	webhookenvtestutil "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
@@ -138,6 +143,7 @@ var _ = BeforeSuite(func() {
 	utilruntime.Must(monitoringv1.AddToScheme(testScheme))
 	utilruntime.Must(templatev1.Install(testScheme))
 	utilruntime.Must(configv1.Install(testScheme))
+	utilruntime.Must(configv1alpha1.AddToScheme(testScheme))
 	utilruntime.Must(serviceApi.AddToScheme(testScheme))
 	utilruntime.Must(infrav1.AddToScheme(testScheme))
 	// +kubebuilder:scaffold:scheme
@@ -147,6 +153,9 @@ var _ = BeforeSuite(func() {
 	Expect(cli).NotTo(BeNil())
 
 	k8sClient = cli
+
+	By("registering monitoring as a DSCI-configured module")
+	modules.Add(monitoringmodule.NewHandler(), modules.WithConfigSource(modules.ConfigFromDSCI))
 
 	webhookInstallOptions := &testEnv.WebhookInstallOptions
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
@@ -184,3 +193,30 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
+
+func installMonitoringCRD(ctx context.Context) {
+	GinkgoHelper()
+	monitoringCRD := webhookenvtestutil.MockMonitoringCRD()
+	err := k8sClient.Create(ctx, monitoringCRD)
+	if err != nil && !k8serr.IsAlreadyExists(err) {
+		Expect(err).NotTo(HaveOccurred())
+	}
+	Expect(envtest.WaitForCRDs(cfg, []*apiextensionsv1.CustomResourceDefinition{monitoringCRD}, envtest.CRDInstallOptions{
+		MaxTime: timeout,
+	})).To(Succeed())
+}
+
+func uninstallMonitoringCRD(ctx context.Context) {
+	GinkgoHelper()
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	err := k8sClient.Get(ctx, client.ObjectKey{Name: serviceApi.MonitoringCRDName}, crd)
+	if k8serr.IsNotFound(err) {
+		return
+	}
+	Expect(err).NotTo(HaveOccurred())
+	Expect(k8sClient.Delete(ctx, crd)).To(Succeed())
+	Eventually(func() bool {
+		getErr := k8sClient.Get(ctx, client.ObjectKey{Name: serviceApi.MonitoringCRDName}, &apiextensionsv1.CustomResourceDefinition{})
+		return k8serr.IsNotFound(getErr)
+	}).WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(BeTrue())
+}

@@ -107,6 +107,11 @@ func removeDSC(ctx context.Context, cli client.Client) error {
 	log := logf.FromContext(ctx)
 	instance := &dscv2.DataScienceCluster{}
 
+	// Foreground waits for DSC-owned objects, including module CRs whose
+	// finalizers are processed by out-of-tree module operators. Those
+	// operators stay up because the Platform CR finalizer
+	// (waitForModuleCRDeletion) blocks Platform deletion — and therefore
+	// GC of module-operator Deployments — until every module CR is gone.
 	if err := cli.DeleteAllOf(ctx, instance, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
 		return fmt.Errorf("failure deleting DSC: %w", err)
 	}

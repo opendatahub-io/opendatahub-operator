@@ -84,7 +84,6 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
@@ -97,6 +96,8 @@ import (
 	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
+	modelregistryModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/modelregistry"
+	monitoringModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/monitoring"
 	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
 	sparkoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/sparkoperator"
 	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
@@ -104,7 +105,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/monitoring"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/setup"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
@@ -137,7 +137,6 @@ var (
 	existingComponents = map[string]cr.ComponentHandler{
 		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
 		componentApi.KueueComponentName:                kueue.NewHandler(),
-		componentApi.ModelRegistryComponentName:        modelregistry.NewHandler(),
 		componentApi.RayComponentName:                  ray.NewHandler(),
 		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
 	}
@@ -151,7 +150,6 @@ var (
 	// 33 — components that require KServe to be Ready.
 	componentRunlevels = map[string]dag.Runlevel{
 		componentApi.DataSciencePipelinesComponentName: dag.RL(20),
-		componentApi.ModelRegistryComponentName:        dag.RL(20),
 		componentApi.RayComponentName:                  dag.RL(20),
 
 		componentApi.KueueComponentName: dag.RL(31),
@@ -163,16 +161,16 @@ var (
 		serviceApi.AuthServiceName:         auth.NewHandler(),
 		certconfigmapgenerator.ServiceName: certconfigmapgenerator.NewHandler(),
 		serviceApi.GatewayServiceName:      gateway.NewHandler(),
-		serviceApi.MonitoringServiceName:   monitoring.NewHandler(),
 		setup.ServiceName:                  setup.NewHandler(),
 	}
 
 	existingModules = map[string]mr.ModuleHandler{
-		componentApi.DashboardComponentName: dashboardModule.NewHandler(),
-		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
+		componentApi.DashboardComponentName:            dashboardModule.NewHandler(),
+		serviceApi.MonitoringServiceName:               monitoringModule.NewHandler(),
 		componentApi.AIGatewayComponentName:            aigatewayModule.NewHandler(),
 		componentApi.MCPLifecycleOperatorComponentName: mcplifecycleoperatorModule.NewHandler(),
 		componentApi.MLflowOperatorComponentName:       mlflowOperatorModule.NewHandler(),
+		componentApi.ModelRegistryComponentName:        modelregistryModule.NewHandler(),
 		componentApi.KserveComponentName:               kserveModule.NewHandler(),
 		componentApi.OGXComponentName:                  ogxModule.NewHandler(),
 		componentApi.TrainerComponentName:              trainerModule.NewHandler(),
@@ -181,12 +179,21 @@ var (
 		componentApi.SparkOperatorComponentName:        sparkoperatorModule.NewHandler(),
 	}
 
+	// dsciConfiguredModules lists modules whose user-facing configuration
+	// lives in the DSCI spec. The DSCI controller creates their module CRs.
+	// All other modules default to DSC-configured.
+	dsciConfiguredModules = map[string]bool{
+		serviceApi.MonitoringServiceName: true,
+	}
+
 	moduleRunlevels = map[string]dag.Runlevel{
+		serviceApi.MonitoringServiceName:               dag.RL(20),
 		componentApi.DashboardComponentName:            dag.RL(20),
 		componentApi.AIGatewayComponentName:            dag.RL(32),
 		componentApi.FeastOperatorComponentName:        dag.RL(32),
 		componentApi.MCPLifecycleOperatorComponentName: dag.RL(20),
 		componentApi.MLflowOperatorComponentName:       dag.RL(32),
+		componentApi.ModelRegistryComponentName:        dag.RL(20),
 		componentApi.KserveComponentName:               dag.RL(31),
 		componentApi.OGXComponentName:                  dag.RL(32),
 		componentApi.TrainerComponentName:              dag.RL(20),
@@ -276,7 +283,12 @@ func registerModules() {
 			rl = r
 		}
 
-		mr.Add(handler, mr.WithRunlevel(rl))
+		opts := []mr.RegistrationOption{mr.WithRunlevel(rl)}
+		if dsciConfiguredModules[name] {
+			opts = append(opts, mr.WithConfigSource(mr.ConfigFromDSCI))
+		}
+
+		mr.Add(handler, opts...)
 		provision.Add(name, provision.KindModule, rl)
 
 		if !flags.IsModuleEnabled(name) {
@@ -646,7 +658,7 @@ func createSecretCacheConfig(platform common.Platform) (map[string]cache.Config,
 		return nil, err
 	}
 
-	namespaceConfigs["openshift-ingress"] = cache.Config{}
+	namespaceConfigs[gateway.GetGatewayNamespace()] = cache.Config{} // gateway secrets (OCP: openshift-ingress, XKS: rh-ai-gateway)
 
 	return namespaceConfigs, nil
 }
@@ -657,10 +669,10 @@ func createODHGeneralCacheConfig(platform common.Platform) (map[string]cache.Con
 		return nil, err
 	}
 
-	namespaceConfigs["openshift-operators"] = cache.Config{} // for dependent operators installed namespace
-	namespaceConfigs["openshift-ingress"] = cache.Config{}   // for gateway auth proxy resources
-	namespaceConfigs["models-as-a-service"] = cache.Config{} // for maas admin rolebinding
-	namespaceConfigs["kuadrant-system"] = cache.Config{}     // for kuadrant admin rolebinding
+	namespaceConfigs["openshift-operators"] = cache.Config{}         // for dependent operators installed namespace
+	namespaceConfigs[gateway.GetGatewayNamespace()] = cache.Config{} // gateway resources (OCP: openshift-ingress, XKS: rh-ai-gateway)
+	namespaceConfigs["models-as-a-service"] = cache.Config{}         // for maas admin rolebinding
+	namespaceConfigs["kuadrant-system"] = cache.Config{}             // for kuadrant admin rolebinding
 
 	return namespaceConfigs, nil
 }

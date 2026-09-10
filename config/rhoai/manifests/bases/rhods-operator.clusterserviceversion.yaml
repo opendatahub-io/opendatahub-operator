@@ -32,26 +32,54 @@ metadata:
         },
         "spec": {
           "components": {
+            "aigateway": {
+              "managementState": "Removed",
+              "batchGateway": {
+                "managementState": "Removed"
+              }
+            },
             "dashboard": {
               "managementState": "Managed"
             },
             "aipipelines": {
               "managementState": "Managed"
             },
-            "feastoperator": {
-              "managementState": "Managed"
-            },
             "kserve": {
-              "managementState": "Managed"
-            },
-            "llamastackoperator": {
-              "managementState": "Removed"
-            },
-            "ogx": {
-              "managementState": "Managed"
+              "managementState": "Managed",
+              "nim": {
+                "managementState": "Managed"
+              },
+              "wva": {
+                "managementState": "Removed"
+              }
             },
             "kueue": {
               "managementState": "Removed"
+            },
+            "trainer": {
+              "managementState": "Managed"
+            },
+            "ray": {
+              "managementState": "Managed"
+            },
+            "workbenches": {
+              "managementState": "Managed",
+              "workbenchesV2": {
+                "managementState": "Removed"
+              }
+            },
+            "trustyai": {
+              "managementState": "Managed"
+            },
+            "modelregistry": {
+              "managementState": "Managed",
+              "registriesNamespace": "rhoai-model-registries"
+            },
+            "feastoperator": {
+              "managementState": "Managed"
+            },
+            "ogx": {
+              "managementState": "Managed"
             },
             "mlflowoperator": {
               "managementState": "Managed"
@@ -59,21 +87,8 @@ metadata:
             "sparkoperator": {
               "managementState": "Removed"
             },
-            "modelregistry": {
-              "managementState": "Managed",
-              "registriesNamespace": "rhoai-model-registries"
-            },
-            "ray": {
-              "managementState": "Managed"
-            },
-            "workbenches": {
-              "managementState": "Managed"
-            },
-            "trainer": {
-              "managementState": "Managed"
-            },
-            "trustyai": {
-              "managementState": "Managed"
+            "mcplifecycleoperator": {
+              "managementState": "Removed"
             }
           }
         }
@@ -82,10 +97,7 @@ metadata:
     operators.openshift.io/infrastructure-features: '["disconnected"]'
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "datasciencepipelines.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
-      "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
-      "trustyais.components.platform.opendatahub.io",
-      "monitorings.services.platform.opendatahub.io", "trainers.components.platform.opendatahub.io",
-      "sparkoperators.components.platform.opendatahub.io"]'
+      "rays.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io"]'
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
   name: rhods-operator.v2.0.0
@@ -145,30 +157,10 @@ spec:
       kind: Kueue
       name: kueues.components.platform.opendatahub.io
       version: v1alpha1
-    - description: ModelRegistry is the Schema for the modelregistries API
-      displayName: Model Registry
-      kind: ModelRegistry
-      name: modelregistries.components.platform.opendatahub.io
-      version: v1alpha1
-    - description: Monitoring is the Schema for the monitorings API
-      displayName: Monitoring
-      kind: Monitoring
-      name: monitorings.services.platform.opendatahub.io
-      version: v1alpha1
     - description: Ray is the Schema for the rays API
       displayName: Ray
       kind: Ray
       name: rays.components.platform.opendatahub.io
-      version: v1alpha1
-    - description: SparkOperator is the Schema for the sparkoperators API
-      displayName: Spark Operator
-      kind: SparkOperator
-      name: sparkoperators.components.platform.opendatahub.io
-      version: v1alpha1
-    - description: Trainer is the Schema for the trainers API
-      displayName: Trainer
-      kind: Trainer
-      name: trainers.components.platform.opendatahub.io
       version: v1alpha1
     - description: TrustyAI is the Schema for the trustyais API
       displayName: Trusty AI

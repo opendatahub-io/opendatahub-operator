@@ -50,7 +50,10 @@ func Download(ctx context.Context, opts Options) error {
 
 	platform := normalizePlatform(opts.Platform)
 
-	manifests := collectEntries(cfg.Components, platform)
+	manifests, err := collectEntries(cfg.Components, platform)
+	if err != nil {
+		return err
+	}
 
 	if err := applyOverrides(manifests, opts.Overrides); err != nil {
 		return err
@@ -100,16 +103,18 @@ func normalizePlatform(p string) string {
 	return "rhoai"
 }
 
-func collectEntries(components map[string]config.Component, platform string) []componentEntry {
+func collectEntries(components map[string]config.Component, platform string) ([]componentEntry, error) {
 	var entries []componentEntry
 	for key, comp := range components {
 		pr := comp.PlatformRepo(platform)
 		if pr == nil || pr.Repo == "" || pr.Ref == "" {
+			fmt.Printf("  %s⚠ warning%s component %q has no git repo configured for platform %q (add a %q entry to manifests-config.yaml)%s\n",
+				colorYellow, colorReset, key, platform, platform, colorReset)
 			continue
 		}
 		entries = append(entries, componentEntry{Key: key, Repo: *pr})
 	}
-	return entries
+	return entries, nil
 }
 
 func mergeCharts(ccm, component map[string]config.Component, platform string) ([]componentEntry, error) {
@@ -125,7 +130,7 @@ func mergeCharts(ccm, component map[string]config.Component, platform string) ([
 		merged[k] = v
 	}
 
-	return collectEntries(merged, platform), nil
+	return collectEntries(merged, platform)
 }
 
 func applyOverrides(entries []componentEntry, overrides map[string]string) error {

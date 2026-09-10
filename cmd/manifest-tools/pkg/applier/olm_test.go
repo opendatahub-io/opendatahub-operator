@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,7 +17,7 @@ import (
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 )
 
-const testConfigYAML = `
+const validTestConfigYAML = `
 components:
   datasciencepipelines:
     odh:
@@ -32,34 +33,20 @@ imageOverrides:
     rhoai:
       base: quay.io/rhoai/dsp-operator
       digest: "sha256:aabbccdd11223344556677889900aabbccddeeff11223344556677889900aabb"
-  RELATED_IMAGE_NO_DIGEST:
-    component: datasciencepipelines
-    odh:
-      base: quay.io/opendatahub/no-digest
-  RELATED_IMAGE_BAD_DIGEST:
-    component: datasciencepipelines
-    odh:
-      base: quay.io/opendatahub/bad
-      digest: "sha256:short"
-  BAD_PREFIX:
-    component: datasciencepipelines
-    odh:
-      base: quay.io/opendatahub/bad-prefix
-      digest: "sha256:4db7f864ed11d3ea5585b56cb7d7473bf80d8a1dcfc47de343a7a182c805ecdc"
 `
 
-func writeTestConfig(t *testing.T) string {
+func writeValidTestConfig(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
-	if err := os.WriteFile(cfgPath, []byte(testConfigYAML), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(validTestConfigYAML), 0644); err != nil {
 		t.Fatal(err)
 	}
 	return cfgPath
 }
 
 func TestLoadOverridesFromConfig(t *testing.T) {
-	cfgPath := writeTestConfig(t)
+	cfgPath := writeValidTestConfig(t)
 
 	vars, err := loadOverridesFromConfig(cfgPath, "odh")
 	if err != nil {
@@ -79,7 +66,7 @@ func TestLoadOverridesFromConfig(t *testing.T) {
 }
 
 func TestLoadOverridesFromConfig_RHOAI(t *testing.T) {
-	cfgPath := writeTestConfig(t)
+	cfgPath := writeValidTestConfig(t)
 
 	vars, err := loadOverridesFromConfig(cfgPath, "rhoai")
 	if err != nil {
@@ -103,7 +90,7 @@ func TestLoadOverridesFromConfig_MissingFile(t *testing.T) {
 }
 
 func TestLoadOverridesFromConfig_PlatformNormalization(t *testing.T) {
-	cfgPath := writeTestConfig(t)
+	cfgPath := writeValidTestConfig(t)
 
 	vars, err := loadOverridesFromConfig(cfgPath, "OpenDataHub")
 	if err != nil {
@@ -112,6 +99,107 @@ func TestLoadOverridesFromConfig_PlatformNormalization(t *testing.T) {
 
 	if len(vars) != 1 || vars[0].Name != "RELATED_IMAGE_DSP" {
 		t.Errorf("OpenDataHub should normalize to odh, got %d vars", len(vars))
+	}
+}
+
+func TestLoadOverridesFromConfig_MissingDigest(t *testing.T) {
+	cfgYAML := `
+components:
+  datasciencepipelines:
+    odh:
+      repo: opendatahub-io/dsp
+      ref: main@abc123
+      sourcePath: config
+imageOverrides:
+  RELATED_IMAGE_NO_DIGEST:
+    component: datasciencepipelines
+    odh:
+      base: quay.io/opendatahub/no-digest
+`
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte(cfgYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := loadOverridesFromConfig(cfgPath, "odh")
+	if err == nil {
+		t.Fatal("expected error for missing digest")
+	}
+	if !strings.Contains(err.Error(), "RELATED_IMAGE_NO_DIGEST") {
+		t.Errorf("expected RELATED_IMAGE_NO_DIGEST in error, got: %v", err)
+	}
+}
+
+func TestLoadOverridesFromConfig_BadDigest(t *testing.T) {
+	cfgYAML := `
+components:
+  datasciencepipelines:
+    odh:
+      repo: opendatahub-io/dsp
+      ref: main@abc123
+      sourcePath: config
+imageOverrides:
+  RELATED_IMAGE_BAD_DIGEST:
+    component: datasciencepipelines
+    odh:
+      base: quay.io/opendatahub/bad
+      digest: "sha256:short"
+`
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte(cfgYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := loadOverridesFromConfig(cfgPath, "odh")
+	if err == nil {
+		t.Fatal("expected error for invalid digest")
+	}
+	if !strings.Contains(err.Error(), "invalid digest") {
+		t.Errorf("expected invalid digest in error, got: %v", err)
+	}
+}
+
+func TestLoadOverridesFromConfig_UnknownPlatform(t *testing.T) {
+	cfgPath := writeValidTestConfig(t)
+
+	_, err := loadOverridesFromConfig(cfgPath, "unknown")
+	if err == nil {
+		t.Fatal("expected error for unknown platform")
+	}
+	if !strings.Contains(err.Error(), "unknown platform") {
+		t.Errorf("expected unknown platform in error, got: %v", err)
+	}
+}
+
+func TestLoadOverridesFromConfig_MissingPlatformSkips(t *testing.T) {
+	cfgYAML := `
+components:
+  datasciencepipelines:
+    rhoai:
+      repo: opendatahub-io/dsp
+      ref: main@abc123
+      sourcePath: config
+imageOverrides:
+  RELATED_IMAGE_DSP:
+    component: datasciencepipelines
+    rhoai:
+      base: quay.io/rhoai/dsp-operator
+      digest: "sha256:aabbccdd11223344556677889900aabbccddeeff11223344556677889900aabb"
+`
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte(cfgYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	vars, err := loadOverridesFromConfig(cfgPath, "odh")
+	if err != nil {
+		t.Fatalf("expected no error when platform image is not defined, got: %v", err)
+	}
+	if len(vars) != 0 {
+		t.Errorf("expected 0 vars when platform image is not defined, got %d", len(vars))
 	}
 }
 
@@ -205,7 +293,7 @@ func TestFindDeployment(t *testing.T) {
 	}
 	client := fakeclientset.NewClientset(deploy)
 
-	name, err := findDeployment(context.Background(), client, "test-ns")
+	name, err := findDeployment(context.Background(), client, "test-ns", "opendatahub-operator")
 	if err != nil {
 		t.Fatalf("findDeployment failed: %v", err)
 	}
@@ -224,12 +312,34 @@ func TestFindDeployment_NoMatch(t *testing.T) {
 	}
 	client := fakeclientset.NewClientset(deploy)
 
-	name, err := findDeployment(context.Background(), client, "test-ns")
+	name, err := findDeployment(context.Background(), client, "test-ns", "opendatahub-operator")
 	if err != nil {
 		t.Fatalf("findDeployment failed: %v", err)
 	}
 	if name != "" {
 		t.Errorf("expected empty, got %s", name)
+	}
+}
+
+func TestFindDeployment_RHOAI(t *testing.T) {
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rhods-operator",
+			Namespace: "test-ns",
+			Labels:    map[string]string{"name": "rhods-operator"},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32Ptr(1),
+		},
+	}
+	client := fakeclientset.NewClientset(deploy)
+
+	name, err := findDeployment(context.Background(), client, "test-ns", "rhods-operator")
+	if err != nil {
+		t.Fatalf("findDeployment failed: %v", err)
+	}
+	if name != "rhods-operator" {
+		t.Errorf("expected rhods-operator, got %s", name)
 	}
 }
 
@@ -304,5 +414,57 @@ func TestWaitForRollout_ContextCancelled(t *testing.T) {
 	err := waitForRollout(ctx, client, "test-ns", "manager", 60*time.Second)
 	if err == nil {
 		t.Error("expected error on cancelled context")
+	}
+}
+
+func TestApplyToSubscription_NoDeployment(t *testing.T) {
+	ctx := context.Background()
+	namespace := "test-ns"
+	sub := newFakeSubscription("my-sub", namespace, "opendatahub-operator")
+	dynClient := newFakeDynClient(sub)
+	clientset := fakeclientset.NewClientset()
+
+	envVars := []envVar{{Name: "RELATED_IMAGE_DSP", Value: "quay.io/test@sha256:4db7f864ed11d3ea5585b56cb7d7473bf80d8a1dcfc47de343a7a182c805ecdc"}}
+
+	err := applyToSubscription(ctx, dynClient, clientset, namespace, "my-sub", "opendatahub-operator", envVars, 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error when controller-manager deployment is missing")
+	}
+	if !strings.Contains(err.Error(), "no operator deployment found") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestApplyToSubscription_RolloutTimeout(t *testing.T) {
+	ctx := context.Background()
+	namespace := "test-ns"
+	sub := newFakeSubscription("my-sub", namespace, "opendatahub-operator")
+	dynClient := newFakeDynClient(sub)
+
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "manager",
+			Namespace:  namespace,
+			Generation: 2,
+			Labels:     map[string]string{"control-plane": "controller-manager"},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32Ptr(1),
+		},
+		Status: appsv1.DeploymentStatus{
+			ReadyReplicas:      0,
+			ObservedGeneration: 1,
+		},
+	}
+	clientset := fakeclientset.NewClientset(deploy)
+
+	envVars := []envVar{{Name: "RELATED_IMAGE_DSP", Value: "quay.io/test@sha256:4db7f864ed11d3ea5585b56cb7d7473bf80d8a1dcfc47de343a7a182c805ecdc"}}
+
+	err := applyToSubscription(ctx, dynClient, clientset, namespace, "my-sub", "opendatahub-operator", envVars, time.Second)
+	if err == nil {
+		t.Fatal("expected error when rollout does not complete")
+	}
+	if !strings.Contains(err.Error(), "waiting for deployment manager rollout") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }

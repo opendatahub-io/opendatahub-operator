@@ -17,7 +17,7 @@ import (
 var KnownComponents = map[string]string{
 	"dashboard": "Dashboard", "workbenches": "Workbenches",
 	"kserve": "Kserve", "ray": "Ray", "kueue": "Kueue",
-	"modelregistry": "ModelRegistry", "trustyai": "TrustyAI",
+	"modelregistry": "AIHub", "trustyai": "TrustyAI",
 	"datasciencepipelines": "DataSciencePipelines",
 	"feastoperator":        "FeastOperator",
 	"ogx":                  "OGX", "modelmeshserving": "ModelMeshServing",

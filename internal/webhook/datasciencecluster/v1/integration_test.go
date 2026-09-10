@@ -14,7 +14,6 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	v1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v1"
 	v2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
 	dsciv1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v1"
@@ -108,7 +107,7 @@ func TestDataScienceClusterV1_Integration(t *testing.T) {
 						return ""
 					}
 					return fetched.Spec.Components.ModelRegistry.RegistriesNamespace
-				}).Should(Equal(modelregistryctrl.DefaultModelRegistriesNamespace), "should set ModelRegistry.RegistriesNamespace to default when empty and Managed")
+				}).Should(Equal(componentApi.DefaultModelRegistriesNamespace), "should set ModelRegistry.RegistriesNamespace to default when empty and Managed")
 			},
 		},
 		{
@@ -127,7 +126,7 @@ func TestDataScienceClusterV1_Integration(t *testing.T) {
 						return ""
 					}
 					return fetched.Spec.Components.ModelRegistry.RegistriesNamespace
-				}).Should(Equal(modelregistryctrl.DefaultModelRegistriesNamespace), "mutating webhook should default RegistriesNamespace")
+				}).Should(Equal(componentApi.DefaultModelRegistriesNamespace), "mutating webhook should default RegistriesNamespace")
 
 				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
 				fetched.Spec.Components.ModelRegistry.RegistriesNamespace = "other-registry-ns"

@@ -37,8 +37,7 @@ const (
 type IngressMode string
 
 const (
-	// IngressModeOcpRoute uses ClusterIP service with standard OpenShift Routes.
-	// This is the default for new deployments and works without additional infrastructure.
+	// IngressModeOcpRoute uses ClusterIP service with OpenShift Routes (OpenShift only).
 	IngressModeOcpRoute IngressMode = "OcpRoute"
 	// IngressModeLoadBalancer uses a LoadBalancer service type.
 	// This requires a load balancer provider (cloud or MetalLB).
@@ -51,7 +50,7 @@ var _ common.PlatformObject = (*GatewayConfig)(nil)
 // GatewayConfigSpec defines the desired state of GatewayConfig
 type GatewayConfigSpec struct {
 	// IngressMode specifies how the Gateway is exposed externally.
-	// "OcpRoute" uses ClusterIP with standard OpenShift Routes (default for new deployments).
+	// "OcpRoute" uses ClusterIP with OpenShift Routes (OpenShift only).
 	// "LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB).
 	// +optional
 	IngressMode IngressMode `json:"ingressMode,omitempty"`
@@ -66,7 +65,8 @@ type GatewayConfigSpec struct {
 
 	// Domain specifies the host name for intercepting incoming requests.
 	// Most likely, you will want to use a wildcard name, like *.example.com.
-	// If not set, the domain of the OpenShift Ingress is used.
+	// If not set, the cluster's default ingress domain is used (when available).
+	// On Kubernetes clusters without a discoverable ingress domain, this field is required.
 	// If you choose to generate a certificate, this is the domain used for the certificate request.
 	// Example: *.example.com, example.com, apps.example.com
 	// +optional
@@ -100,9 +100,9 @@ type GatewayConfigSpec struct {
 	// +optional
 	NetworkPolicy *NetworkPolicyConfig `json:"networkPolicy,omitempty"`
 
-	// ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider
+	// ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider.
 	// Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.
-	// Secret must exist in the openshift-ingress namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate.
+	// Secret must exist in the gateway namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate.
 	// +optional
 	ProviderCASecretName string `json:"providerCASecretName,omitempty"`
 
@@ -121,6 +121,13 @@ type GatewayConfigSpec struct {
 	// +optional
 	// +kubebuilder:default=true
 	EnableK8sTokenValidation *bool `json:"enableK8sTokenValidation,omitempty"`
+
+	// TokenReview configures the rate limiting and caching behavior of Kubernetes TokenReview API calls
+	// used for service account token validation.
+	// If not set, kube-auth-proxy uses built-in defaults (QPS=50, Burst=100, CacheTTL=10s).
+	// These settings only take effect when EnableK8sTokenValidation is true.
+	// +optional
+	TokenReview *TokenReviewConfig `json:"tokenReview,omitempty"`
 }
 
 // NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
@@ -163,8 +170,8 @@ type OIDCConfig struct {
 	// +kubebuilder:validation:Required
 	ClientSecretRef corev1.SecretKeySelector `json:"clientSecretRef"`
 
-	// Namespace where the client secret is located
-	// If not specified, defaults to openshift-ingress
+	// Namespace where the client secret is located.
+	// If unset, defaults to the gateway namespace.
 	// +optional
 	SecretNamespace string `json:"secretNamespace,omitempty"`
 }
@@ -183,6 +190,28 @@ type CookieConfig struct {
 	// +optional
 	// +kubebuilder:default="1h"
 	Refresh metav1.Duration `json:"refresh,omitempty"`
+}
+
+// TokenReviewConfig defines rate limiting and caching settings for TokenReview API calls.
+type TokenReviewConfig struct {
+	// QPS is the maximum queries per second to the Kubernetes API for TokenReview calls.
+	// Higher values allow more concurrent token validation requests.
+	// If not set, kube-auth-proxy uses its built-in default (50).
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	QPS *int32 `json:"qps,omitempty"`
+
+	// Burst is the maximum burst of requests to the Kubernetes API for TokenReview calls.
+	// Should be equal to or greater than QPS.
+	// If not set, kube-auth-proxy uses its built-in default (100).
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	Burst *int32 `json:"burst,omitempty"`
+
+	// CacheTTL is how long validated token results are cached before re-validation (e.g., "10s", "30s").
+	// If not set, kube-auth-proxy uses its built-in default (10s).
+	// +optional
+	CacheTTL *metav1.Duration `json:"cacheTTL,omitempty"`
 }
 
 // GatewayConfigStatus defines the observed state of GatewayConfig

@@ -43,8 +43,9 @@ RUN apt-get update -y && apt-get upgrade -y && \
     mv kubectl /usr/local/bin/ && \
     apt-get clean all
 
-# install gotestsum and build test2json
-RUN go install gotest.tools/gotestsum@latest \
+# install test reporting tools and build test2json
+RUN go install gotest.tools/gotestsum@v1.13.0 \
+ && go install github.com/jstemmer/go-junit-report/v2@v2.1.0 \
  && go build -o /usr/local/bin/test2json cmd/test2json
 
 WORKDIR /e2e

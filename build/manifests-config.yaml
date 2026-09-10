@@ -19,6 +19,10 @@ map:
     src: config/chart
     dest: feastoperator
     type: chart
+  odh-observability:
+    src: charts/odh-observability
+    dest: odh-observability
+    type: chart
   odh-trainer-operator:
     src: config
     dest: trainer

@@ -4,14 +4,22 @@
 package gateway
 
 import (
+	"bytes"
+	"context"
 	"testing"
+	"text/template"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
 	. "github.com/onsi/gomega"
 )
@@ -569,4 +577,409 @@ func TestHPATemplateConstant(t *testing.T) {
 	g := NewWithT(t)
 
 	g.Expect(kubeAuthProxyHPATemplate).To(Equal("resources/kube-auth-proxy-hpa.tmpl.yaml"), "HPA template path should be correct")
+}
+
+func TestGetFQDNRequiresDomainOnXKS(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+	ctx := t.Context()
+	client := setupTestClient().Build()
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+	}
+
+	_, err := GetFQDN(ctx, client, gatewayConfig)
+	g.Expect(err).To(MatchError(ErrDomainRequired))
+}
+
+func TestResolveGatewayHostnameMissingDomainOnXKS(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+	ctx := t.Context()
+	client := setupTestClient().Build()
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+	}
+	accessor := &gatewayConfigConditionsAccessor{}
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     client,
+		Instance:   gatewayConfig,
+		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+	}
+
+	hostname, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
+	g.Expect(err).To(MatchError(ErrDomainRequired))
+	g.Expect(hostname).To(BeEmpty())
+
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	g.Expect(ready).NotTo(BeNil())
+	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(ready.Reason).To(Equal(status.NotReadyReason))
+	g.Expect(ready.Message).To(Equal(status.GatewayDomainRequiredMessage))
+}
+
+type gatewayConfigConditionsAccessor struct {
+	conditions []common.Condition
+}
+
+func (a *gatewayConfigConditionsAccessor) GetConditions() []common.Condition {
+	return a.conditions
+}
+
+func (a *gatewayConfigConditionsAccessor) SetConditions(c []common.Condition) {
+	a.conditions = c
+}
+
+func TestKubernetesGatewayConfigErrors(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	g.Expect(kubernetesGatewayConfigErrors(nil)).To(BeEmpty())
+	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{})).To(BeEmpty())
+	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			IngressMode: serviceApi.IngressModeLoadBalancer,
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.SelfSigned},
+		},
+	})).To(BeEmpty())
+
+	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
+		},
+	})).To(ConsistOf(status.GatewayUnsupportedCertTypeOnKubernetesMessage))
+
+	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{IngressMode: serviceApi.IngressModeOcpRoute},
+	})).To(ConsistOf(status.GatewayUnsupportedIngressModeOnKubernetesMessage))
+
+	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			IngressMode: serviceApi.IngressModeOcpRoute,
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
+		},
+	})).To(ConsistOf(
+		status.GatewayUnsupportedCertTypeOnKubernetesMessage,
+		status.GatewayUnsupportedIngressModeOnKubernetesMessage,
+	))
+}
+
+func TestRejectUnsupportedKubernetesGatewaySpec(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec: serviceApi.GatewayConfigSpec{
+			IngressMode: serviceApi.IngressModeOcpRoute,
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
+		},
+	}
+	accessor := &gatewayConfigConditionsAccessor{}
+	rr := &odhtypes.ReconciliationRequest{
+		Instance:   gatewayConfig,
+		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+	}
+
+	g.Expect(rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig)).To(BeTrue())
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	g.Expect(ready).NotTo(BeNil())
+	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(ready.Reason).To(Equal(status.NotReadyReason))
+	g.Expect(ready.Message).To(ContainSubstring(status.GatewayUnsupportedCertTypeOnKubernetesMessage))
+	g.Expect(ready.Message).To(ContainSubstring(status.GatewayUnsupportedIngressModeOnKubernetesMessage))
+}
+
+func TestRejectUnsupportedKubernetesGatewaySpecIgnoredOnOpenShift(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec: serviceApi.GatewayConfigSpec{
+			IngressMode: serviceApi.IngressModeOcpRoute,
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
+		},
+	}
+	accessor := &gatewayConfigConditionsAccessor{}
+	rr := &odhtypes.ReconciliationRequest{
+		Instance:   gatewayConfig,
+		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+	}
+
+	g.Expect(rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig)).To(BeFalse())
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	if ready != nil {
+		g.Expect(ready.Status).NotTo(Equal(metav1.ConditionFalse))
+		g.Expect(ready.Message).To(BeEmpty())
+	}
+}
+
+// authProxyTemplateData is the minimum map needed to render the kube-auth-proxy
+// deployment templates. TokenReview keys are always present (nil = omit the flag).
+func authProxyTemplateData() map[string]any {
+	return map[string]any{
+		"KubeAuthProxyServiceName": KubeAuthProxyName,
+		"GatewayNamespace":         GatewayNamespace,
+		"ComponentLabelKey":        "app.kubernetes.io/component",
+		"ComponentLabelValue":      ComponentLabelValue,
+		"AuthConfigHash":           "testhash",
+		"TLSCertsVolumeName":       TLSCertsVolumeName,
+		"KubeAuthProxyTLSName":     KubeAuthProxyTLSName,
+		"ProviderCASecret":         false,
+		"KubeAuthProxyImage":       "example.com/kube-auth-proxy:latest",
+		"KubeAuthProxySecretsName": KubeAuthProxySecretsName,
+		"AuthProxyHTTPPort":        AuthProxyHTTPPort,
+		"GatewayHTTPSPort":         GatewayHTTPSPort,
+		"AuthProxyMetricsPort":     AuthProxyMetricsPort,
+		"TLSCertsMountPath":        TLSCertsMountPath,
+		"EnableK8sTokenValidation": true,
+		"RedirectURL":              "https://" + testHostnameDefault + OAuthCallbackPath,
+		"TLSMinVersion":            "VersionTLS12",
+		"TLSCipherSuite":           "TLS_AES_128_GCM_SHA256",
+		"CookieExpire":             testCookieExpireDefault,
+		"CookieRefresh":            testCookieRefreshDefault,
+		"AuthProxyCookieName":      AuthProxyCookieName,
+		"GatewayHostname":          testHostnameDefault,
+		"InsecureSkipVerify":       false,
+		"OIDCIssuerURL":            "https://example.com/realms/test",
+		"TokenReviewQPS":           nil,
+		"TokenReviewBurst":         nil,
+		"TokenReviewCacheTTL":      nil,
+	}
+}
+
+func renderAuthProxyTemplate(g Gomega, path string, data map[string]any) string {
+	content, err := gatewayResources.ReadFile(path)
+	g.Expect(err).NotTo(HaveOccurred(), path)
+
+	tmpl, err := template.New(path).Option("missingkey=error").Parse(string(content))
+	g.Expect(err).NotTo(HaveOccurred(), path)
+
+	var buf bytes.Buffer
+	g.Expect(tmpl.Execute(&buf, data)).To(Succeed(), "template %s should render", path)
+	return buf.String()
+}
+
+// TestAuthProxyTemplatesErrorWhenTokenReviewKeysMissing documents the e2e bug:
+// {{if .TokenReviewQPS}} looks up the map key. If the key is absent, missingkey=error fails.
+func TestAuthProxyTemplatesErrorWhenTokenReviewKeysMissing(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	data := authProxyTemplateData()
+	delete(data, "TokenReviewQPS")
+	delete(data, "TokenReviewBurst")
+	delete(data, "TokenReviewCacheTTL")
+
+	content, err := gatewayResources.ReadFile(kubeAuthProxyDeploymentOauthTemplate)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	tmpl, err := template.New("oauth").Option("missingkey=error").Parse(string(content))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, data)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("TokenReviewQPS"))
+}
+
+// TestAuthProxyTemplatesRenderWithoutTokenReview locks in the e2e failure from PR #3932:
+// {{if .TokenReviewQPS}} must not fail when TokenReview is unset. Keys must exist as nil
+// so kube-auth-proxy keeps its own defaults (flags are omitted).
+func TestAuthProxyTemplatesRenderWithoutTokenReview(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	data := authProxyTemplateData()
+	for _, path := range []string{
+		kubeAuthProxyDeploymentOauthTemplate,
+		kubeAuthProxyDeploymentOidcTemplate,
+	} {
+		rendered := renderAuthProxyTemplate(g, path, data)
+		g.Expect(rendered).NotTo(ContainSubstring("--kube-api-qps="))
+		g.Expect(rendered).NotTo(ContainSubstring("--kube-api-burst="))
+		g.Expect(rendered).NotTo(ContainSubstring("--kube-api-cache-ttl="))
+	}
+}
+
+// TestAuthProxyTemplatesRenderWithTokenReview checks that configured values become flags.
+func TestAuthProxyTemplatesRenderWithTokenReview(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	data := authProxyTemplateData()
+	data["TokenReviewQPS"] = int32(75)
+	data["TokenReviewBurst"] = int32(150)
+	data["TokenReviewCacheTTL"] = "30s"
+
+	for _, path := range []string{
+		kubeAuthProxyDeploymentOauthTemplate,
+		kubeAuthProxyDeploymentOidcTemplate,
+	} {
+		rendered := renderAuthProxyTemplate(g, path, data)
+		g.Expect(rendered).To(ContainSubstring("--kube-api-qps=75"))
+		g.Expect(rendered).To(ContainSubstring("--kube-api-burst=150"))
+		g.Expect(rendered).To(ContainSubstring("--kube-api-cache-ttl=30s"))
+	}
+}
+
+func TestIsGatewayReferencedSecret(t *testing.T) {
+	t.Parallel()
+
+	const (
+		gatewayNS       = "rh-ai-gateway"
+		customNS        = "custom-ns"
+		oidcSecretName  = "oidc-client-secret"
+		caSecretName    = "provider-ca-cert"
+		unrelatedSecret = "other-secret"
+	)
+
+	gatewayConfigWithOIDC := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.GatewayConfigName,
+		},
+		Spec: serviceApi.GatewayConfigSpec{
+			OIDC: &serviceApi.OIDCConfig{
+				IssuerURL: "https://keycloak.example.com/realms/test",
+				ClientID:  "rhai",
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+					Key:                  "clientSecret",
+				},
+			},
+			ProviderCASecretName: caSecretName,
+		},
+	}
+
+	gatewayConfigWithOIDCCustomNS := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.GatewayConfigName,
+		},
+		Spec: serviceApi.GatewayConfigSpec{
+			OIDC: &serviceApi.OIDCConfig{
+				IssuerURL: "https://keycloak.example.com/realms/test",
+				ClientID:  "rhai",
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+					Key:                  "clientSecret",
+				},
+				SecretNamespace: customNS,
+			},
+		},
+	}
+
+	gatewayConfigNoOIDC := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.GatewayConfigName,
+		},
+		Spec: serviceApi.GatewayConfigSpec{},
+	}
+
+	tests := []struct {
+		name             string
+		gatewayConfig    *serviceApi.GatewayConfig
+		secretName       string
+		secretNamespace  string
+		gatewayNamespace string
+		expected         bool
+	}{
+		{
+			name:             "matches OIDC client secret in default gateway namespace",
+			gatewayConfig:    gatewayConfigWithOIDC,
+			secretName:       oidcSecretName,
+			secretNamespace:  gatewayNS,
+			gatewayNamespace: gatewayNS,
+			expected:         true,
+		},
+		{
+			name:             "matches OIDC client secret in custom namespace",
+			gatewayConfig:    gatewayConfigWithOIDCCustomNS,
+			secretName:       oidcSecretName,
+			secretNamespace:  customNS,
+			gatewayNamespace: gatewayNS,
+			expected:         true,
+		},
+		{
+			name:             "OIDC secret in wrong namespace is not matched",
+			gatewayConfig:    gatewayConfigWithOIDC,
+			secretName:       oidcSecretName,
+			secretNamespace:  "wrong-ns",
+			gatewayNamespace: gatewayNS,
+			expected:         false,
+		},
+		{
+			name:             "matches provider CA secret in gateway namespace",
+			gatewayConfig:    gatewayConfigWithOIDC,
+			secretName:       caSecretName,
+			secretNamespace:  gatewayNS,
+			gatewayNamespace: gatewayNS,
+			expected:         true,
+		},
+		{
+			name:             "provider CA secret in wrong namespace is not matched",
+			gatewayConfig:    gatewayConfigWithOIDC,
+			secretName:       caSecretName,
+			secretNamespace:  "wrong-ns",
+			gatewayNamespace: gatewayNS,
+			expected:         false,
+		},
+		{
+			name:             "unrelated secret is not matched",
+			gatewayConfig:    gatewayConfigWithOIDC,
+			secretName:       unrelatedSecret,
+			secretNamespace:  gatewayNS,
+			gatewayNamespace: gatewayNS,
+			expected:         false,
+		},
+		{
+			name:             "no OIDC config — secret is not matched",
+			gatewayConfig:    gatewayConfigNoOIDC,
+			secretName:       oidcSecretName,
+			secretNamespace:  gatewayNS,
+			gatewayNamespace: gatewayNS,
+			expected:         false,
+		},
+		{
+			name:             "no GatewayConfig exists — returns false",
+			gatewayConfig:    nil,
+			secretName:       oidcSecretName,
+			secretNamespace:  gatewayNS,
+			gatewayNamespace: gatewayNS,
+			expected:         false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			builder := setupTestClient()
+			if tc.gatewayConfig != nil {
+				builder = builder.WithObjects(tc.gatewayConfig)
+			}
+			cli := builder.Build()
+
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      tc.secretName,
+					Namespace: tc.secretNamespace,
+				},
+			}
+
+			result := IsGatewayReferencedSecret(context.Background(), cli, secret, tc.gatewayNamespace)
+			g.Expect(result).To(Equal(tc.expected))
+		})
+	}
 }

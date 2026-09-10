@@ -355,7 +355,7 @@ e.g `make image-build USE_LOCAL=true"`
   make undeploy
   ```
 
-- `make deploy` auto-applies digest-pinned image overrides from `manifests-config.yaml` to `config/manager/manager.yaml`. To skip: `SKIP_IMAGE_OVERRIDES=1 make deploy`.
+- `make deploy` auto-applies digest-pinned image overrides from `manifests-config.yaml` to `config/manager/manager.yaml` (or `config/rhoai/manager/manager.yaml` when `ODH_PLATFORM_TYPE=rhoai`). To skip: `SKIP_IMAGE_OVERRIDES=1 make deploy`.
 
 #### Image Overrides
 

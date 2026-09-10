@@ -12,6 +12,7 @@ import (
 	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
+	monitoringModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/monitoring"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 
 	. "github.com/onsi/gomega"
@@ -42,6 +43,7 @@ func moduleHandlers() []modules.ModuleHandler {
 		aigatewayModule.NewHandler(),
 		dashboardModule.NewHandler(),
 		mcplifecycleoperatorModule.NewHandler(),
+		monitoringModule.NewHandler(),
 		workbenchesModule.NewHandler(),
 		feastModule.NewHandler(),
 	}

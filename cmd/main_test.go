@@ -105,6 +105,9 @@ func loadE2EScopeRules(t *testing.T) *scoperules.Rules {
 // tests/e2e/scripts/e2e-scope-rules.yaml stays in sync with the real
 // component/module registry. Every registered name needs an entry, even
 // an empty one, so the resolver never meets a name it can't classify.
+// Component-modules live under components.<name>; a modularized service
+// (handler in existingModules, e2e coverage in the Services TestGroup)
+// may live under services.<name> instead.
 func TestAllComponentsAndModulesHaveScopeRulesEntry(t *testing.T) {
 	t.Parallel()
 
@@ -115,8 +118,11 @@ func TestAllComponentsAndModulesHaveScopeRulesEntry(t *testing.T) {
 		assert.True(t, ok, "component %q is registered but has no components.%s entry in %s", name, name, e2eScopeRulesPath)
 	}
 	for name := range existingModules {
-		_, ok := rules.Components[name]
-		assert.True(t, ok, "module %q is registered but has no components.%s entry in %s", name, name, e2eScopeRulesPath)
+		_, inComponents := rules.Components[name]
+		_, inServices := rules.Services[name]
+		assert.True(t, inComponents || inServices,
+			"module %q is registered but has no components.%s or services.%s entry in %s",
+			name, name, name, e2eScopeRulesPath)
 	}
 }
 
@@ -175,16 +181,22 @@ func TestScopeRulesComponentsReferenceRegisteredHandlers(t *testing.T) {
 	}
 }
 
-// TestScopeRulesServicesReferenceRegisteredHandlers is the services-side
-// equivalent of TestScopeRulesComponentsReferenceRegisteredHandlers.
+// TestScopeRulesServicesReferenceRegisteredHandlers is the reverse of
+// TestAllServicesHaveScopeRulesEntry: it catches a stale services.<name>
+// entry left behind after a service is deregistered. Modularized services
+// (registered in existingModules rather than existingServices) are also
+// valid here.
 func TestScopeRulesServicesReferenceRegisteredHandlers(t *testing.T) {
 	t.Parallel()
 
 	rules := loadE2EScopeRules(t)
 
 	for name := range rules.Services {
-		_, ok := existingServices[name]
-		assert.True(t, ok, "%s has services.%s but no matching handler in existingServices — stale entry?", e2eScopeRulesPath, name)
+		_, isService := existingServices[name]
+		_, isModule := existingModules[name]
+		assert.True(t, isService || isModule,
+			"%s has services.%s but no matching handler in existingServices or existingModules — stale entry?",
+			e2eScopeRulesPath, name)
 	}
 }
 
@@ -208,7 +220,11 @@ func TestScopeRulesPatternsCaptureRegisteredNames(t *testing.T) {
 		assertNameIsCapturable(t, root, patterns.Components, "internal/controller/components", name, rules.Components[name].Aliases)
 	}
 	for name := range existingModules {
-		assertNameIsCapturable(t, root, patterns.Components, "internal/controller/modules", name, rules.Components[name].Aliases)
+		aliases := rules.Components[name].Aliases
+		if len(aliases) == 0 {
+			aliases = rules.Services[name].Aliases
+		}
+		assertNameIsCapturable(t, root, patterns.Components, "internal/controller/modules", name, aliases)
 	}
 	for name := range existingServices {
 		assertNameIsCapturable(t, root, patterns.Services, "internal/controller/services", name, rules.Services[name].Aliases)

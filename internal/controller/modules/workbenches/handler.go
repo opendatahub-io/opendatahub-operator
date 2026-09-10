@@ -33,6 +33,7 @@ var relatedImages = []string{
 	"RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
 	"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 	"RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
+	"RELATED_IMAGE_ODH_WORKBENCHES_CONTROLLER_IMAGE",
 	"RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE",
 	"RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_DATASCIENCE_CPU_PY312_IMAGE",
 	"RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_CPU_PY312_IMAGE",
@@ -70,6 +71,19 @@ func NewHandler() *handler {
 				GVK:               gvk.Workbenches,
 				ControllerImage:   controllerImage,
 				RelatedImages:     relatedImages,
+				SubmoduleConditions: []modules.SubmoduleCondition{
+					{
+						SourceConditionType: "WorkbenchesV2Ready",
+						DSCConditionType:    "WorkbenchesV2Ready",
+						StatusFieldName:     "WorkbenchesV2",
+						IsEnabled: func(dscCtx *modules.DSCContext) bool {
+							if dscCtx == nil || dscCtx.DSC == nil {
+								return false
+							}
+							return dscCtx.DSC.Spec.Components.Workbenches.WorkbenchesV2.ManagementState == operatorv1.Managed
+						},
+					},
+				},
 				Values: map[string]any{
 					"relatedImages": emptyRelatedImageValues(),
 					"webhooks": map[string]any{

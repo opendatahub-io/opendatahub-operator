@@ -62,6 +62,9 @@ jobs:
           VERSION: ${{ steps.derive-version.outputs.version }}
         run: sed -i "/^else$/,/^endif$/{s/^[[:space:]]*VERSION = .*/\t\tVERSION = $VERSION/;}" Makefile
 
+      - name: Get manifests
+        run: make get-manifests
+
       - name: Resolve image digests
         run: make resolve-image-digests
 

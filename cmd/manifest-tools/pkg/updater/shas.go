@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/manifest-tools/pkg/config"
@@ -14,15 +15,20 @@ type SHAsOptions struct {
 	GH         GitHubClient
 }
 
-func UpdateSHAs(ctx context.Context, opts SHAsOptions) (bool, error) {
+type SHAsResult struct {
+	Updated          bool
+	FailedComponents []string
+}
+
+func UpdateSHAs(ctx context.Context, opts SHAsOptions) (SHAsResult, error) {
 	cfg, err := config.Load(opts.ConfigFile)
 	if err != nil {
-		return false, err
+		return SHAsResult{}, err
 	}
 
 	nodeDoc, err := config.LoadNode(opts.ConfigFile)
 	if err != nil {
-		return false, err
+		return SHAsResult{}, err
 	}
 
 	gh := opts.GH
@@ -30,6 +36,8 @@ func UpdateSHAs(ctx context.Context, opts SHAsOptions) (bool, error) {
 	sections := allSections(cfg)
 
 	var updated int
+	var successfulFetches int
+	failedSet := map[string]struct{}{}
 
 	for _, sec := range sections {
 		for compName, comp := range sec.components {
@@ -55,8 +63,10 @@ func UpdateSHAs(ctx context.Context, opts SHAsOptions) (bool, error) {
 				latestSHA, err := gh.GetLatestCommitSHA(ctx, orgRepo[0], orgRepo[1], branch)
 				if err != nil {
 					slog.Warn("Failed to fetch SHA", slog.String("component", compName), slog.String("error", err.Error()))
+					failedSet[compName] = struct{}{}
 					continue
 				}
+				successfulFetches++
 
 				if latestSHA == currentSHA {
 					continue
@@ -78,15 +88,26 @@ func UpdateSHAs(ctx context.Context, opts SHAsOptions) (bool, error) {
 		}
 	}
 
+	failedComponents := make([]string, 0, len(failedSet))
+	for c := range failedSet {
+		failedComponents = append(failedComponents, c)
+	}
+	sort.Strings(failedComponents)
+	result := SHAsResult{Updated: updated > 0, FailedComponents: failedComponents}
+
+	if successfulFetches == 0 && len(failedComponents) > 0 {
+		return result, fmt.Errorf("%d component SHA fetch(es) failed and no SHAs were updated", len(failedComponents))
+	}
+
 	if updated == 0 {
 		slog.Info("All manifest references are up to date")
-		return false, nil
+		return result, nil
 	}
 
 	if err := nodeDoc.Save(opts.ConfigFile); err != nil {
-		return false, fmt.Errorf("saving config: %w", err)
+		return result, fmt.Errorf("saving config: %w", err)
 	}
 
 	slog.Info("Manifest SHAs updated", slog.Int("count", updated))
-	return true, nil
+	return result, nil
 }

@@ -18,7 +18,6 @@ package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -29,80 +28,12 @@ const (
 	ModelRegistryKind         = "ModelRegistry"
 )
 
-// Check that the component implements common.PlatformObject.
-var _ common.PlatformObject = (*ModelRegistry)(nil)
-
-// ModelRegistrySpec defines the desired state of ModelRegistry (ModelRegistry CR only).
-type ModelRegistrySpec struct {
-	// model registry spec exposed to DSC api
-	ModelRegistryCommonSpec `json:",inline"`
-	// Gateway configuration for model registry ingress (synced from GatewayConfig by the DSC controller when creating the ModelRegistry CR).
-	// +optional
-	Gateway *common.GatewaySpec `json:"gateway,omitempty"`
-}
-
 // ModelRegistryCommonStatus defines the shared observed state of ModelRegistry
 type ModelRegistryCommonStatus struct {
 	RegistriesNamespace           string `json:"registriesNamespace,omitempty"`
 	common.ComponentReleaseStatus `json:",inline"`
 }
 
-// ModelRegistryStatus defines the observed state of ModelRegistry
-type ModelRegistryStatus struct {
-	common.Status             `json:",inline"`
-	ModelRegistryCommonStatus `json:",inline"`
-}
-
-// +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-modelregistry'",message="ModelRegistry name must be default-modelregistry"
-// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
-// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
-
-// ModelRegistry is the Schema for the modelregistries API
-type ModelRegistry struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   ModelRegistrySpec   `json:"spec,omitempty"`
-	Status ModelRegistryStatus `json:"status,omitempty"`
-}
-
-func (c *ModelRegistry) GetStatus() *common.Status {
-	return &c.Status.Status
-}
-
-func (c *ModelRegistry) GetConditions() []common.Condition {
-	return c.Status.GetConditions()
-}
-
-func (c *ModelRegistry) SetConditions(conditions []common.Condition) {
-	c.Status.SetConditions(conditions)
-}
-
-func (c *ModelRegistry) GetReleaseStatus() *[]common.ComponentRelease {
-	return &c.Status.Releases
-}
-
-func (c *ModelRegistry) SetReleaseStatus(releases []common.ComponentRelease) {
-	c.Status.Releases = releases
-}
-
-// +kubebuilder:object:root=true
-
-// ModelRegistryList contains a list of ModelRegistry
-type ModelRegistryList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ModelRegistry `json:"items"`
-}
-
-func init() {
-	SchemeBuilder.Register(&ModelRegistry{}, &ModelRegistryList{})
-}
-
-// +kubebuilder:object:generate=true
 // +kubebuilder:validation:XValidation:rule="(!has(self.managementState) || self.managementState != 'Managed') || (oldSelf.registriesNamespace == '') || (!has(oldSelf.managementState) || oldSelf.managementState != 'Managed') || (self.registriesNamespace == oldSelf.registriesNamespace)",message="RegistriesNamespace is immutable when model registry is Managed"
 //nolint:lll
 

@@ -141,11 +141,7 @@ type TrainerTestCtx struct {
 func trainerDegradedMonitoringTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Trainer{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: componentApi.TrainerInstanceName,
-		},
-	})
+	ct, err := NewModuleTestCtx(t, gvk.Trainer, componentApi.TrainerInstanceName)
 	require.NoError(t, err)
 
 	componentCtx := TrainerTestCtx{

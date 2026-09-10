@@ -116,3 +116,12 @@ spec:
             - "--provider=openshift"
             - "--ssl-insecure-skip-verify={{.InsecureSkipVerify}}"
             - "--scope=user:full"
+            {{- if .TokenReviewQPS }}
+            - "--kube-api-qps={{.TokenReviewQPS}}"
+            {{- end }}
+            {{- if .TokenReviewBurst }}
+            - "--kube-api-burst={{.TokenReviewBurst}}"
+            {{- end }}
+            {{- if .TokenReviewCacheTTL }}
+            - "--kube-api-cache-ttl={{.TokenReviewCacheTTL}}"
+            {{- end }}

@@ -97,6 +97,9 @@ type ComponentsStatus struct {
 	// Workbenches component status.
 	Workbenches componentApi.DSCWorkbenchesStatus `json:"workbenches,omitempty"`
 
+	// WorkbenchesV2 submodule status (submodule of Workbenches).
+	WorkbenchesV2 componentApi.DSCWorkbenchesV2Status `json:"workbenchesV2,omitempty"`
+
 	// AIPipelines component status.
 	AIPipelines componentApi.DSCDataSciencePipelinesStatus `json:"aipipelines,omitempty"`
 
