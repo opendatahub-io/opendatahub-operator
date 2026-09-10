@@ -70,7 +70,7 @@ const (
 	SeaweedFSAccessKey          = "seaweedfs-test-key"
 	SeaweedFSSecretKey          = "seaweedfs-test-secret"
 	SeaweedFSImage              = "chrislusf/seaweedfs@sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62"
-	SeaweedFSBucketCreatorImage = "curlimages/curl:8.11.1"
+	SeaweedFSBucketCreatorImage = "curlimages/curl@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"
 
 	// Fake GCS server constants for GCS backend testing.
 	FakeGCSPodName           = "fake-gcs-server"
