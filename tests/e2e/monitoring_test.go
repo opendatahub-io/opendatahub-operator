@@ -63,14 +63,13 @@ const (
 	TracesStorageSize1Gi    = "1Gi"
 
 	// SeaweedFS constants for S3 backend testing.
-	SeaweedFSPodName            = "seaweedfs"
-	SeaweedFSServiceName        = "seaweedfs"
-	SeaweedFSBucketCreatorName  = "seaweedfs-bucket-creator"
-	SeaweedFSBucketName         = "tempo-traces"
-	SeaweedFSAccessKey          = "seaweedfs-test-key"
-	SeaweedFSSecretKey          = "seaweedfs-test-secret"
-	SeaweedFSImage              = "chrislusf/seaweedfs@sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62"
-	SeaweedFSBucketCreatorImage = "curlimages/curl@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"
+	SeaweedFSPodName           = "seaweedfs"
+	SeaweedFSServiceName       = "seaweedfs"
+	SeaweedFSBucketCreatorName = "seaweedfs-bucket-creator"
+	SeaweedFSBucketName        = "tempo-traces"
+	SeaweedFSAccessKey         = "seaweedfs-test-key"
+	SeaweedFSSecretKey         = "seaweedfs-test-secret"
+	SeaweedFSImage             = "chrislusf/seaweedfs@sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62"
 
 	// Fake GCS server constants for GCS backend testing.
 	FakeGCSPodName           = "fake-gcs-server"
@@ -84,7 +83,7 @@ const (
 const (
 	// SeaweedFSS3Port is the S3 API port for SeaweedFS.
 	SeaweedFSS3Port int32 = 8333
-	// SeaweedFSMasterPort is the master port for SeaweedFS (used by weed shell for bucket creation).
+	// SeaweedFSMasterPort is the master port for SeaweedFS.
 	SeaweedFSMasterPort int32 = 9333
 	// FakeGCSPort is the HTTP port for fake-gcs-server.
 	FakeGCSPort int32 = 4443
@@ -1538,20 +1537,38 @@ func (tc *MonitoringTestCtx) validateTempoStackCreation(t *testing.T, backend, s
 		WithCustomErrorMsg(monitoringErrorMsg),
 	)
 
-	// For GCS backend, configure TempoStack to point at the in-cluster fake GCS server.
-	// This must happen after the TempoStack is created by the controller but before it
-	// tries to validate the GCS bucket.
+	t.Logf("Validating TempoStack creation with backend=%s, secretName=%s", backend, secretName)
+	tempoStackNN := types.NamespacedName{
+		Name:      TempoStackName,
+		Namespace: tc.MonitoringNamespace,
+	}
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.TempoStack, tempoStackNN),
+		WithCondition(
+			And(
+				jq.Match(`.spec.storage.secret.type == "%s"`, backend),
+				jq.Match(`.spec.storage.secret.name == "%s"`, secretName),
+				jq.Match(`.spec.retention.global.traces == "%s"`, FormattedRetention),
+			),
+		),
+		WithEventuallyTimeout(tc.TestTimeouts.monitoringStackTimeout),
+		WithCustomErrorMsg("TempoStack should be created by controller with %s backend, but was not found or has incorrect backend type", backend),
+	)
+
+	// For GCS backend, point Tempo's GCS client at the in-cluster fake GCS server instead of
+	// the real storage.googleapis.com. Without this, Tempo uses the fabricated fake credentials
+	// against the real GCS API and fails to parse the (fake) private key. This must happen after
+	// the TempoStack is created by the controller but before its readiness is checked.
 	if backend == TracesStorageBackendGCS {
 		t.Logf("Configuring TempoStack GCS endpoint for fake GCS server")
 		tc.configureFakeGCSTempoStack(tc.MonitoringNamespace)
 	}
 
-	t.Logf("Validating TempoStack creation with backend=%s, secretName=%s", backend, secretName)
+	raiseTempoStackLimits(t, tc, tempoStackNN)
+
+	t.Logf("Waiting for TempoStack to become Ready with backend=%s", backend)
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.TempoStack, types.NamespacedName{
-			Name:      TempoStackName,
-			Namespace: tc.MonitoringNamespace,
-		}),
+		WithMinimalObject(gvk.TempoStack, tempoStackNN),
 		WithCondition(
 			And(
 				jq.Match(`.spec.storage.secret.type == "%s"`, backend),
@@ -1561,8 +1578,33 @@ func (tc *MonitoringTestCtx) validateTempoStackCreation(t *testing.T, backend, s
 			),
 		),
 		WithEventuallyTimeout(tc.TestTimeouts.monitoringStackTimeout),
-		WithCustomErrorMsg("TempoStack should be created by controller with %s backend, but was not found or has incorrect backend type", backend),
+		WithCustomErrorMsg("TempoStack should become Ready with %s backend but did not", backend),
 	)
+}
+
+func raiseTempoStackLimits(t *testing.T, tc *MonitoringTestCtx, tempoStackNN types.NamespacedName) {
+	t.Helper()
+
+	t.Logf("Raising TempoStack resource limits to avoid OOM under the operator's default limits")
+	raiseTempoStackLimits := testf.Transform(`.spec.resources.total.limits.memory = "1Gi" | .spec.resources.total.limits.cpu = "1"`)
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.TempoStack, tempoStackNN),
+		WithMutateFunc(raiseTempoStackLimits),
+	)
+
+	// The operator's reconcile loop can race with this patch and revert the limits back to its
+	// own defaults shortly after. Check once the dust settles and re-apply only if that happened.
+	time.Sleep(5 * time.Second)
+	limitsStillSet, err := jq.Match(`.spec.resources.total.limits.memory == "1Gi" and .spec.resources.total.limits.cpu == "1"`).
+		Match(tc.FetchResource(WithMinimalObject(gvk.TempoStack, tempoStackNN)))
+	tc.g.Expect(err).NotTo(HaveOccurred())
+	if !limitsStillSet {
+		t.Logf("TempoStack resource limits were reverted by the operator, re-applying")
+		tc.EventuallyResourcePatched(
+			WithMinimalObject(gvk.TempoStack, tempoStackNN),
+			WithMutateFunc(raiseTempoStackLimits),
+		)
+	}
 }
 
 // validatePersesDatasourceTLS enables TLS on the existing traces configuration and validates
@@ -1640,6 +1682,7 @@ func (tc *MonitoringTestCtx) createStorageSecret(backendType, secretName, namesp
 			},
 			Type: corev1.SecretTypeOpaque,
 			Data: map[string][]byte{
+				"bucketname": []byte(FakeGCSBucketName),
 				"key.json": []byte(`{
 					"type": "service_account",
 					"project_id": "fake-test-project-not-real",
@@ -1768,7 +1811,7 @@ func (tc *MonitoringTestCtx) createSeaweedFSBucket(namespace, bucketName string)
 		WithWaitForDeletion(true),
 	)
 
-	s3Endpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", SeaweedFSServiceName, namespace, SeaweedFSS3Port)
+	s3Endpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d/%s", SeaweedFSServiceName, namespace, SeaweedFSS3Port, bucketName)
 	bucketCreatorPod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      SeaweedFSBucketCreatorName,
@@ -1786,13 +1829,12 @@ func (tc *MonitoringTestCtx) createSeaweedFSBucket(namespace, bucketName string)
 			Containers: []corev1.Container{
 				{
 					Name:    "create-bucket",
-					Image:   SeaweedFSBucketCreatorImage,
+					Image:   SeaweedFSImage,
 					Command: []string{"/bin/sh", "-c"},
 					Args: []string{
-						fmt.Sprintf(
-							"until curl -sf %s/ >/dev/null 2>&1; do sleep 2; done && curl -sf -X PUT %s/%s",
-							s3Endpoint, s3Endpoint, bucketName,
-						),
+						// A bucket is created in SeaweedFS's S3 gateway by simply PUTting its name as a path.
+						// Retry until it succeeds, since the S3 gateway may not be ready yet.
+						fmt.Sprintf("until curl -sf -X PUT %q; do sleep 2; done", s3Endpoint),
 					},
 					SecurityContext: &corev1.SecurityContext{
 						AllowPrivilegeEscalation: new(false),
@@ -1860,7 +1902,7 @@ func (tc *MonitoringTestCtx) deployFakeGCS(namespace string) {
 					Name:    "fake-gcs-server",
 					Image:   FakeGCSImage,
 					Command: []string{"/bin/fake-gcs-server"},
-					Args:    []string{"-data", "/data", "-scheme", "http"},
+					Args:    []string{"-filesystem-root", "/data", "-scheme", "http"},
 					Ports: []corev1.ContainerPort{
 						{ContainerPort: FakeGCSPort, Name: "http"},
 					},
@@ -1998,11 +2040,10 @@ func (tc *MonitoringTestCtx) configureFakeGCSTempoStack(namespace string) {
 		WithMinimalObject(gvk.TempoStack, tempoStack),
 		WithMutateFunc(testf.Transform(
 			`.spec.extraConfig.tempo.storage.trace.gcs = {
-                "bucket_name": "%s",
                 "endpoint": "http://%s.%s.svc.cluster.local:%d/storage/v1/",
                 "insecure": true
             }`,
-			FakeGCSBucketName, FakeGCSServiceName, namespace, FakeGCSPort,
+			FakeGCSServiceName, namespace, FakeGCSPort,
 		)),
 	)
 }
