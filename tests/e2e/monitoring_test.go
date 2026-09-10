@@ -61,20 +61,21 @@ const (
 	TracesStorageBackendGCS = "gcs"
 	TracesStorageSize1Gi    = "1Gi"
 
-	// MinIO constants for S3 backend testing.
-	MinIOPodName           = "minio"
-	MinIOServiceName       = "minio"
-	MinIOBucketCreatorName = "minio-bucket-creator"
-	MinIOBucketName        = "tempo-traces"
-	MinIOAccessKey         = "minioadmin"
-	MinIOSecretKey         = "minioadmin"
-	MinIOImage             = "quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e"
-	MinIOClientImage       = "quay.io/minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727"
+	// SeaweedFS constants for S3 backend testing.
+	SeaweedFSPodName           = "seaweedfs"
+	SeaweedFSServiceName       = "seaweedfs"
+	SeaweedFSBucketCreatorName = "seaweedfs-bucket-creator"
+	SeaweedFSBucketName        = "tempo-traces"
+	SeaweedFSAccessKey         = "seaweedfs-test-key"
+	SeaweedFSSecretKey         = "seaweedfs-test-secret"
+	SeaweedFSImage             = "chrislusf/seaweedfs:latest"
 )
 
 const (
-	// MinIOPort is the API port for MinIO.
-	MinIOPort int32 = 9000
+	// SeaweedFSS3Port is the S3 API port for SeaweedFS.
+	SeaweedFSS3Port int32 = 8333
+	// SeaweedFSMasterPort is the master port for SeaweedFS (used by weed shell for bucket creation).
+	SeaweedFSMasterPort int32 = 9333
 )
 
 // monitoringOwnerReferencesCondition is a reusable condition for validating owner references.
@@ -307,7 +308,7 @@ func (tc *MonitoringTestCtx) runTracesWithCloudStorageTests(t *testing.T) {
 	t.Run("Group 7: Traces with Cloud Storage", func(t *testing.T) {
 		// Cleanup: Reset and remove tempo resources at group end
 		t.Cleanup(func() {
-			tc.cleanupMinIO(tc.MonitoringNamespace)
+			tc.cleanupSeaweedFS(tc.MonitoringNamespace)
 			tc.cleanupGroup(t, "s3-secret")
 			tc.cleanupGroup(t, "gcs-secret")
 		})
@@ -1399,8 +1400,8 @@ func (tc *MonitoringTestCtx) ensureMonitoringCleanSlate(t *testing.T, secretName
 	// Clean up TempoStack and associated secret (if provided)
 	tc.cleanupTempoStackAndSecret(secretName)
 
-	// Clean up MinIO resources if they exist from previous runs
-	tc.cleanupMinIO(tc.MonitoringNamespace)
+	// Clean up SeaweedFS resources if they exist from previous runs
+	tc.cleanupSeaweedFS(tc.MonitoringNamespace)
 }
 
 // ensureOpenTelemetryCollectorReady waits for the OpenTelemetry Collector deployment to be ready
@@ -1471,9 +1472,9 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationAndPersesTLS(t *testing.T
 	tc.cleanupTracesConfiguration()
 	tc.cleanupTempoStackAndSecret(secretName)
 
-	// Clean up MinIO if it was deployed for S3 backend
+	// Clean up SeaweedFS if it was deployed for S3 backend
 	if backend == TracesStorageBackendS3 {
-		tc.cleanupMinIO(tc.MonitoringNamespace)
+		tc.cleanupSeaweedFS(tc.MonitoringNamespace)
 	}
 
 	t.Logf("Combined TempoStack+TLS validation completed for backend=%s", backend)
@@ -1486,14 +1487,14 @@ func (tc *MonitoringTestCtx) validateTempoStackCreation(t *testing.T, backend, s
 
 	tc.ensureMonitoringCleanSlate(t, secretName)
 
-	// For S3 backend, deploy MinIO to provide a real S3-compatible endpoint.
+	// For S3 backend, deploy SeaweedFS to provide a real S3-compatible endpoint.
 	// Tempo validates S3 credentials at startup by calling ListObjects, so fake
 	// credentials against a non-existent endpoint no longer work.
 	if backend == TracesStorageBackendS3 {
-		t.Logf("Deploying MinIO in namespace %s for S3 backend testing", tc.MonitoringNamespace)
-		tc.deployMinIO(tc.MonitoringNamespace)
-		tc.waitForMinIO(tc.MonitoringNamespace)
-		tc.createMinIOBucket(tc.MonitoringNamespace, MinIOBucketName)
+		t.Logf("Deploying SeaweedFS in namespace %s for S3 backend testing", tc.MonitoringNamespace)
+		tc.deploySeaweedFS(tc.MonitoringNamespace)
+		tc.waitForSeaweedFS(tc.MonitoringNamespace)
+		tc.createSeaweedFSBucket(tc.MonitoringNamespace, SeaweedFSBucketName)
 	}
 
 	t.Logf("Creating secret %s in namespace %s", secretName, tc.MonitoringNamespace)
@@ -1576,8 +1577,9 @@ func (tc *MonitoringTestCtx) validatePersesDatasourceTLS(t *testing.T, backend, 
 }
 
 // createStorageSecret creates a secret for TempoStack testing.
-// For S3 backends, this uses real MinIO credentials pointing to a MinIO instance
-// deployed in the test namespace (MinIO must be deployed first via deployMinIO).
+// For S3 backends, this uses test credentials pointing to a SeaweedFS instance
+// deployed in the test namespace (SeaweedFS must be deployed first via deploySeaweedFS).
+// SeaweedFS does not validate S3 credentials by default, so any values work.
 // For GCS backends, this uses fake credentials since Tempo does not validate GCS at startup.
 func (tc *MonitoringTestCtx) createStorageSecret(backendType, secretName, namespace string) {
 	var secret *corev1.Secret
@@ -1591,10 +1593,10 @@ func (tc *MonitoringTestCtx) createStorageSecret(backendType, secretName, namesp
 			},
 			Type: corev1.SecretTypeOpaque,
 			Data: map[string][]byte{
-				"access_key_id":     []byte(MinIOAccessKey),
-				"access_key_secret": []byte(MinIOSecretKey),
-				"bucket":            []byte(MinIOBucketName),
-				"endpoint":          fmt.Appendf(nil, "http://%s.%s.svc.cluster.local:%d", MinIOServiceName, namespace, MinIOPort),
+				"access_key_id":     []byte(SeaweedFSAccessKey),
+				"access_key_secret": []byte(SeaweedFSSecretKey),
+				"bucket":            []byte(SeaweedFSBucketName),
+				"endpoint":          fmt.Appendf(nil, "http://%s.%s.svc.cluster.local:%d", SeaweedFSServiceName, namespace, SeaweedFSS3Port),
 			},
 		}
 	case "gcs":
@@ -1622,105 +1624,113 @@ func (tc *MonitoringTestCtx) createStorageSecret(backendType, secretName, namesp
 	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(secret))
 }
 
-// deployMinIO deploys a MinIO pod and service in the given namespace for S3 backend testing.
-// MinIO provides a real S3-compatible endpoint that Tempo can validate against at startup.
-func (tc *MonitoringTestCtx) deployMinIO(namespace string) {
-	minIOPod := &corev1.Pod{
+// deploySeaweedFS deploys a SeaweedFS pod and service in the given namespace for S3 backend testing.
+// SeaweedFS provides an S3-compatible endpoint that Tempo can validate against at startup.
+// The "weed server -s3" command starts master, volume, filer, and S3 gateway in a single process.
+func (tc *MonitoringTestCtx) deploySeaweedFS(namespace string) {
+	seaweedPod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      MinIOPodName,
+			Name:      SeaweedFSPodName,
 			Namespace: namespace,
-			Labels:    map[string]string{"app": "minio"},
+			Labels:    map[string]string{"app": "seaweedfs"},
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Name:    "minio",
-					Image:   MinIOImage,
-					Command: []string{"minio"},
-					Args:    []string{"server", "/data", "--console-address", ":9001"},
+					Name:    "seaweedfs",
+					Image:   SeaweedFSImage,
+					Command: []string{"weed"},
+					Args:    []string{"server", "-s3"},
 					Ports: []corev1.ContainerPort{
-						{ContainerPort: MinIOPort, Name: "api"},
+						{ContainerPort: SeaweedFSS3Port, Name: "s3"},
+						{ContainerPort: SeaweedFSMasterPort, Name: "master"},
 					},
 					ReadinessProbe: &corev1.Probe{
 						ProbeHandler: corev1.ProbeHandler{
-							HTTPGet: &corev1.HTTPGetAction{
-								Path: "/minio/health/ready",
-								Port: intstr.FromInt32(MinIOPort),
+							TCPSocket: &corev1.TCPSocketAction{
+								Port: intstr.FromInt32(SeaweedFSS3Port),
 							},
 						},
-						InitialDelaySeconds: 5,
+						InitialDelaySeconds: 10,
 						PeriodSeconds:       5,
 					},
 				},
 			},
 		},
 	}
-	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(minIOPod))
+	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(seaweedPod))
 
-	minIOService := &corev1.Service{
+	seaweedService := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      MinIOServiceName,
+			Name:      SeaweedFSServiceName,
 			Namespace: namespace,
-			Labels:    map[string]string{"app": "minio"},
+			Labels:    map[string]string{"app": "seaweedfs"},
 		},
 		Spec: corev1.ServiceSpec{
-			Selector: map[string]string{"app": "minio"},
+			Selector: map[string]string{"app": "seaweedfs"},
 			Ports: []corev1.ServicePort{
 				{
-					Port:       MinIOPort,
-					TargetPort: intstr.FromInt32(MinIOPort),
-					Name:       "api",
+					Port:       SeaweedFSS3Port,
+					TargetPort: intstr.FromInt32(SeaweedFSS3Port),
+					Name:       "s3",
+				},
+				{
+					Port:       SeaweedFSMasterPort,
+					TargetPort: intstr.FromInt32(SeaweedFSMasterPort),
+					Name:       "master",
 				},
 			},
 		},
 	}
-	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(minIOService))
+	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(seaweedService))
 }
 
-// waitForMinIO waits for the MinIO pod to be running and ready in the given namespace.
-func (tc *MonitoringTestCtx) waitForMinIO(namespace string) {
+// waitForSeaweedFS waits for the SeaweedFS pod to be running and ready in the given namespace.
+func (tc *MonitoringTestCtx) waitForSeaweedFS(namespace string) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Pod, types.NamespacedName{
-			Name:      MinIOPodName,
+			Name:      SeaweedFSPodName,
 			Namespace: namespace,
 		}),
 		WithCondition(And(
 			jq.Match(`.status.phase == "Running"`),
 			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
 		)),
-		WithCustomErrorMsg("MinIO pod should be running and ready"),
+		WithCustomErrorMsg("SeaweedFS pod should be running and ready"),
 	)
 }
 
-// createMinIOBucket creates a bucket in MinIO using the MinIO client (mc).
-// It deploys a temporary pod that runs mc to create the bucket, then waits for completion.
-func (tc *MonitoringTestCtx) createMinIOBucket(namespace, bucketName string) {
+// createSeaweedFSBucket creates a bucket in SeaweedFS using the weed shell command.
+// It deploys a temporary pod that connects to the SeaweedFS master and creates the S3 bucket,
+// then waits for completion.
+func (tc *MonitoringTestCtx) createSeaweedFSBucket(namespace, bucketName string) {
 	// Clean up any existing bucket creator pod from previous runs
 	tc.DeleteResource(
 		WithMinimalObject(gvk.Pod, types.NamespacedName{
-			Name:      MinIOBucketCreatorName,
+			Name:      SeaweedFSBucketCreatorName,
 			Namespace: namespace,
 		}),
 		WithIgnoreNotFound(true),
 		WithWaitForDeletion(true),
 	)
 
+	masterAddr := fmt.Sprintf("%s.%s.svc.cluster.local:%d", SeaweedFSServiceName, namespace, SeaweedFSMasterPort)
 	bucketCreatorPod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      MinIOBucketCreatorName,
+			Name:      SeaweedFSBucketCreatorName,
 			Namespace: namespace,
 		},
 		Spec: corev1.PodSpec{
 			RestartPolicy: corev1.RestartPolicyNever,
 			Containers: []corev1.Container{
 				{
-					Name:    "mc",
-					Image:   MinIOClientImage,
+					Name:    "create-bucket",
+					Image:   SeaweedFSImage,
 					Command: []string{"/bin/sh", "-c"},
 					Args: []string{
 						fmt.Sprintf(
-							"until mc alias set myminio http://%s.%s.svc.cluster.local:%d %s %s 2>/dev/null; do sleep 2; done && mc mb myminio/%s --ignore-existing",
-							MinIOServiceName, namespace, MinIOPort, MinIOAccessKey, MinIOSecretKey, bucketName,
+							"until echo 'cluster.check' | weed shell -master=%s >/dev/null 2>&1; do sleep 2; done && echo 's3.bucket.create -name %s' | weed shell -master=%s",
+							masterAddr, bucketName, masterAddr,
 						),
 					},
 				},
@@ -1732,23 +1742,23 @@ func (tc *MonitoringTestCtx) createMinIOBucket(namespace, bucketName string) {
 	// Wait for the bucket creator pod to complete successfully
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Pod, types.NamespacedName{
-			Name:      MinIOBucketCreatorName,
+			Name:      SeaweedFSBucketCreatorName,
 			Namespace: namespace,
 		}),
 		WithCondition(jq.Match(`.status.phase == "Succeeded"`)),
-		WithCustomErrorMsg("MinIO bucket creator pod should complete successfully"),
+		WithCustomErrorMsg("SeaweedFS bucket creator pod should complete successfully"),
 	)
 }
 
-// cleanupMinIO removes MinIO resources (pod, service, bucket creator pod) from the given namespace.
-func (tc *MonitoringTestCtx) cleanupMinIO(namespace string) {
+// cleanupSeaweedFS removes SeaweedFS resources (pod, service, bucket creator pod) from the given namespace.
+func (tc *MonitoringTestCtx) cleanupSeaweedFS(namespace string) {
 	for _, res := range []struct {
 		gvk  schema.GroupVersionKind
 		name string
 	}{
-		{gvk: gvk.Pod, name: MinIOBucketCreatorName},
-		{gvk: gvk.Pod, name: MinIOPodName},
-		{gvk: gvk.Service, name: MinIOServiceName},
+		{gvk: gvk.Pod, name: SeaweedFSBucketCreatorName},
+		{gvk: gvk.Pod, name: SeaweedFSPodName},
+		{gvk: gvk.Service, name: SeaweedFSServiceName},
 	} {
 		tc.DeleteResource(
 			WithMinimalObject(res.gvk, types.NamespacedName{
