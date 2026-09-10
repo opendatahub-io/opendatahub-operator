@@ -6,7 +6,10 @@ package gateway
 import (
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -15,12 +18,71 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
 	. "github.com/onsi/gomega"
 )
+
+func TestGatewaySelfSignedCertificateProvider(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		xks             bool
+		certManager     bool
+		wantCertificate bool
+	}{
+		{name: "XKS with cert-manager", xks: true, certManager: true, wantCertificate: true},
+		{name: "XKS without cert-manager", xks: true},
+		{name: "OpenShift with cert-manager", certManager: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			originalClusterInfo := cluster.GetClusterInfo()
+			t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+			info := cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift}
+			if tc.xks {
+				info.Type = cluster.ClusterTypeKubernetes
+			}
+			cluster.SetClusterInfo(info)
+
+			gatewayConfig := &serviceApi.GatewayConfig{
+				ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+				Spec: serviceApi.GatewayConfigSpec{
+					Certificate: &infrav1.CertificateSpec{Type: infrav1.SelfSigned},
+				},
+			}
+			cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig), fakeclient.WithGVKs(
+				fakeclient.GVKMapping{GVK: gvk.CertManagerCertificate, Scope: meta.RESTScopeNamespace},
+			))
+			g.Expect(err).NotTo(HaveOccurred())
+			if tc.certManager {
+				g.Expect(cli.Create(t.Context(), &extv1.CustomResourceDefinition{
+					ObjectMeta: metav1.ObjectMeta{Name: gvk.CertManagerCertificateCRDName},
+				})).To(Succeed())
+			}
+			rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: gatewayConfig}
+			secretName, err := handleCertificates(t.Context(), rr, gatewayConfig, "gateway.example.com")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(secretName).To(Equal(serviceApi.GatewayConfigName + "-tls"))
+
+			secret := &corev1.Secret{}
+			err = cli.Get(t.Context(), types.NamespacedName{Name: secretName, Namespace: GetGatewayNamespace()}, secret)
+			if tc.wantCertificate {
+				g.Expect(k8serr.IsNotFound(err)).To(BeTrue())
+				g.Expect(rr.Resources).To(HaveLen(1))
+				g.Expect(rr.Resources[0].GroupVersionKind()).To(Equal(gvk.CertManagerCertificate))
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(rr.Resources).To(BeEmpty())
+				g.Expect(secret.Type).To(Equal(corev1.SecretTypeTLS))
+				g.Expect(secret.Data[corev1.TLSCertKey]).NotTo(BeEmpty())
+				g.Expect(secret.Data[corev1.TLSPrivateKeyKey]).NotTo(BeEmpty())
+			}
+		})
+	}
+}
 
 func TestXKSReconcileWithoutDomainStopsCleanly(t *testing.T) {
 	g := NewWithT(t)
