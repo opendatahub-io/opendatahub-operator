@@ -1,0 +1,190 @@
+# Rules for resolving which e2e components/services a changed set of files
+# affects: which directory conventions map to which names, dependencies
+# between names, naming aliases, names with no e2e coverage, and paths/names
+# that never affect selection. `make unit-test` checks this file stays in
+# sync with the real component/module/service registries.
+#
+# Everything a maintainer needs to configure lives here, with explanations
+# below.
+
+# ------------------------------------------------------------------------
+# framework_dirs — subdirectory names under internal/controller/{components,
+# services}/ that are shared framework code, not a real component/service
+# ------------------------------------------------------------------------
+# internal/controller/components/registry/ and internal/controller/services/
+# registry/ hold the shared ComponentHandler/ServiceHandler registry code
+# (Add/ForEach/Disable), used by every component and service. A change there
+# is cross-cutting, so it's treated as shared and forces a full-suite run,
+# not ignored and not misattributed to a fake "registry" component.
+framework_dirs:
+  - registry
+
+# ------------------------------------------------------------------------
+# manifest_files — files whose *content* diff (not just "did it change")
+# needs structured parsing to attribute changes to specific components
+# ------------------------------------------------------------------------
+# manifests-config.yaml changes are diffed structurally by cmd/manifest-tools's
+# resolve-e2e-scope subcommand, not text-matched here.
+manifest_files:
+  - manifests-config.yaml
+
+# ------------------------------------------------------------------------
+# patterns — how a changed file's path resolves to a component/service name
+# ------------------------------------------------------------------------
+# Each pattern's first capture group is the resolved name. These mirror the
+# repo's directory/file-naming conventions, so most new components/modules/
+# services need no changes here. Only a genuinely new top-level directory
+# shape (something other than components/modules/services) needs a new
+# pattern, and that's a deliberate, reviewed change.
+patterns:
+  components:
+    - "^internal/controller/components/([^/]+)/"
+    - "^internal/controller/modules/([^/]+)/"
+    - "^api/components/v1alpha1/([a-z]+)_types.*\\.go$"
+    - "^tests/e2e/([a-z][a-z0-9_]+)_test\\.go$"
+  services:
+    - "^internal/controller/services/([^/]+)/"
+    - "^api/services/v1alpha1/([a-z]+)_types.*\\.go$"
+
+# ------------------------------------------------------------------------
+# ignored — paths and names that never force a full suite run and are
+# never themselves a selectable target
+# ------------------------------------------------------------------------
+# `patterns` covers two kinds of paths that are safe to ignore for this
+# resolver's job (attributing a change within an already-running e2e job),
+# which is a different question from "should the job run at all", so this
+# list isn't the same as one built for that purpose:
+#   - docs/lint/meta files that can't affect e2e behavior at all, so a
+#     mixed PR (docs + a real component change) doesn't trigger a
+#     full-suite run for no reason
+#   - cloudmanager's footprint, which is real, tested code already covered
+#     by its own separate e2e mechanism
+# Anything not listed here falls through to `shared` by default. That
+# includes other cmd/ tooling, such as cmd/manifest-tools itself and
+# cmd/test-retry (the e2e runner), so a change to the resolver or the
+# runner is always treated as risky, never silently excluded.
+# `names` covers resolved *names* (not paths) that belong to a separately
+# tested subsystem: manifests-config.yaml's `ccmCharts` section lists Cloud
+# Manager's own Helm-chart dependencies, not DSC components.
+ignored:
+  patterns:
+    - "^docs/"
+    - "\\.[mM][dD]$"
+    - "^\\.gitignore$"
+    - "^golangci"
+    - "^crd-ref-docs\\.config"
+    - "^OWNERS$"
+    - "^PROJECT$"
+    - "^LICENSE$"
+    - "^OWNERS_ALIASES$"
+    - "^\\.[^/]+\\.(yaml|yml)$"
+    - "^(component-params-env|semgrep)\\.(yaml|yml)$"
+    - "^\\.gitleaksignore$"
+    - "^\\.yamllint$"
+    - "^api/cloudmanager/"
+    - "^cmd/cloudmanager/"
+    - "^config/cloudmanager/"
+    - "^internal/controller/cloudmanager/"
+    - "^pkg/controller/cloudmanager/"
+    - "^tests/e2e/cloudmanager/"
+    - "^hack/update-cloudmanager-rbac\\.sh$"
+    - "^pkg/operatorconfig/cloudmanager\\.go$"
+    - "^pkg/utils/test/cloudmanager/"
+  names:
+    - cert-manager-operator
+    - lws-operator
+    - sail-operator
+    - gateway-api
+
+# ------------------------------------------------------------------------
+# components.<name> / services.<name> — one entry per real, registered
+# component/module/service (cmd/main.go's existingComponents/existingModules/
+# existingServices). A unit test enforces this list stays complete in both
+# directions: every real registered name has an entry here, and every entry
+# here still corresponds to a real registered name.
+# ------------------------------------------------------------------------
+# Fields, all optional:
+#   deps:    other names to also run when this name's tests would run,
+#            expanded transitively. Only add an edge here with real
+#            evidence of the coupling (a runlevel comment, a test-ordering
+#            constraint in the code) — not a guess.
+#   aliases: other strings that resolve to this name. Used when a name
+#            arrives from manifests-config.yaml with different naming than
+#            the registered component/module (e.g. a "-module-operator"
+#            suffix), or any future manifest-key naming mismatch.
+#   covered: false
+#            a real, registered name with no e2e suite today. The resolver
+#            never selects it specifically: a change to it alone falls
+#            back to the full suite, and in a mixed diff it's dropped while
+#            the rest resolves normally. Writing e2e coverage for these
+#            names is tracked as separate follow-up work.
+components:
+  datasciencepipelines: {}
+  workbenches/odh-notebook-controller: {}
+  workbenches/kf-notebook-controller: {}
+  workbenches/notebooks: {}
+  modelmeshserving: {}
+  trainingoperator: {}
+  modelcontroller: {}
+  llamastackoperator: {}
+  codeflare: {}
+  kueue: {}
+
+  modelregistry: {}
+  # No deps populated yet: modelregistry depends on "modelcontroller", which
+  # isn't a registered component/module name on main yet. Add the edge once
+  # it lands — don't substitute a guess.
+
+  ray: {}
+  sparkoperator: {}
+  trainer: {}
+
+  trustyai: {}
+  # (no deps of its own — kserve depends on trustyai, not the reverse)
+
+  dashboard:
+    aliases: [dashboard-operator]
+
+  aigateway: {}
+  mcplifecycleoperator: {}
+  mlflowoperator: {}
+
+  kserve:
+    # kserve-modelcache: the ModelCache scenario runs in its own parallel
+    # group under this name (tests/e2e/controller_test.go's Components
+    # TestGroup), since it mutates namespace PSA labels and can't run
+    # alongside other KServe tests. Test selection matches scenario keys
+    # exactly, so selecting "kserve" alone would skip this scenario
+    # forever without this dependency.
+    deps: [trustyai, kserve-modelcache]
+    aliases: [kserve-module-operator]
+
+  # A real, selectable e2e name, but not a separately-registered
+  # component -- see kserve.deps above for why it exists. It needs its own
+  # entry so it counts as a known name, even though it's only ever reached
+  # through kserve's dependency, never directly.
+  kserve-modelcache: {}
+
+  ogx: {}
+
+  workbenches:
+    deps: [kueue, mlflowoperator]
+
+  feastoperator: {}
+
+services:
+  auth: {}
+  gateway: {}
+  monitoring: {}
+
+  certconfigmapgenerator:
+    covered: false
+
+  setupcontroller:
+    covered: false
+    # The directory is internal/controller/services/setup/, but the
+    # registered ServiceName constant is "setupcontroller"
+    # (internal/controller/services/setup/setup.go). Without this alias,
+    # the directory-name capture ("setup") would never match this entry,
+    # silently defeating the covered=false exclusion.
+    aliases: [setup]
