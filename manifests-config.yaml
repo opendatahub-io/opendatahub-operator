@@ -154,7 +154,7 @@ componentCharts:
   workbenches:
     odh:
       repo: opendatahub-io/workbenches-operator
-      ref: main@4a9433e1a71cf8c80596e22a9ce22a12e68b159c
+      ref: main@c470ed4f9d78337029c4bd45e2ac9e6a7bb4a715
       sourcePath: charts/operator
     rhoai:
       repo: red-hat-data-services/workbenches-operator
@@ -1202,6 +1202,24 @@ imageOverrides:
     rhoai:
       base: "quay.io/opendatahub/odh-workbench-codeserver-datascience-cpu-py312-ubi9"
       digest: "sha256:b477db79794d8048a7057df4a5ee4b1df59bf638e81b28d993e704c696ac846d"
+  RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_BASELINE_CPU_PY312_IMAGE:
+    source: "csv"
+    odh:
+      base: "quay.io/opendatahub/odh-workbench-codeserver-baseline-cpu-py312-c9s"
+      digest: "sha256:e97f74864e25621a3bf78d6bd3224a35a176d67266d0119be17a261e69b22116"
+    rhoai:
+      shaFrom: odh
+      base: "quay.io/opendatahub/odh-workbench-codeserver-baseline-cpu-py312-c9s"
+      digest: "sha256:e97f74864e25621a3bf78d6bd3224a35a176d67266d0119be17a261e69b22116"
+  RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_BASELINE_CPU_PY312_IMAGE:
+    source: "csv"
+    odh:
+      base: "quay.io/opendatahub/odh-workbench-jupyter-baseline-cpu-py312-c9s"
+      digest: "sha256:ff6390321330ceafb38e2084c80b58ab4b3a5f407d097be936f88d968ec5407e"
+    rhoai:
+      shaFrom: odh
+      base: "quay.io/opendatahub/odh-workbench-jupyter-baseline-cpu-py312-c9s"
+      digest: "sha256:ff6390321330ceafb38e2084c80b58ab4b3a5f407d097be936f88d968ec5407e"
   RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_DATASCIENCE_CPU_PY312_IMAGE:
     source: "csv"
     odh:
@@ -1314,14 +1332,15 @@ imageOverrides:
     rhoai:
       base: "quay.io/opendatahub/odh-mod-arch-notebooks"
       digest: "sha256:59d4557fbeb308432e1589df9b6baaa677b0e866e4219cebf78a9226b2cfa4d2"
-  RELATED_IMAGE_ODH_PIPELINE_RUNTIME_BASELINE_CPU_PY312_C9S_IMAGE:
+  RELATED_IMAGE_ODH_PIPELINE_RUNTIME_BASELINE_CPU_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-pipeline-runtime-baseline-cpu-py312-c9s"
-      digest: "sha256:63ab42297591d3872b58be7236bcf4b94e55673b06eac2350873e813c44a9b4d"
+      digest: "sha256:f17e2a7a60e5a0c2bf60d56db8bbb3321bdf45c090aedb3c0237299f2e8e8703"
     rhoai:
+      shaFrom: odh
       base: "quay.io/opendatahub/odh-pipeline-runtime-baseline-cpu-py312-c9s"
-      digest: "sha256:63ab42297591d3872b58be7236bcf4b94e55673b06eac2350873e813c44a9b4d"
+      digest: "sha256:f17e2a7a60e5a0c2bf60d56db8bbb3321bdf45c090aedb3c0237299f2e8e8703"
   RELATED_IMAGE_ODH_PRAXIS_EXTPROC_IMAGE:
     source: "csv"
     odh:
