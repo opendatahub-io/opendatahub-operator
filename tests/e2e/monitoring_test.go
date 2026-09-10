@@ -872,7 +872,8 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackend(
 	tc.ensureMonitoringCleanSlate(t, secretName)
 
 	// Tempo validates S3 credentials at startup, so use a real in-cluster S3 endpoint.
-	if backend == TracesStorageBackendS3 {
+	switch backend {
+	case TracesStorageBackendS3:
 		t.Logf("Deploying SeaweedFS in namespace %s for S3 backend testing", tc.MonitoringNamespace)
 		tc.deploySeaweedFS(tc.MonitoringNamespace)
 		t.Cleanup(func() {
@@ -880,7 +881,7 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackend(
 		})
 		tc.waitForSeaweedFS(tc.MonitoringNamespace)
 		tc.createSeaweedFSBucket(tc.MonitoringNamespace, SeaweedFSBucketName)
-	} else if backend == TracesStorageBackendGCS {
+	case TracesStorageBackendGCS:
 		t.Logf("Deploying fake GCS server in namespace %s for GCS backend testing", tc.MonitoringNamespace)
 		tc.deployFakeGCS(tc.MonitoringNamespace)
 		t.Cleanup(func() {
@@ -1239,7 +1240,9 @@ func (tc *MonitoringTestCtx) createFakeGCSBucket(namespace, bucketName string) {
 					Image:   FakeGCSClientImage,
 					Command: []string{"/bin/sh", "-c"},
 					Args: []string{fmt.Sprintf(
-						"until curl -fsS %s/_internal/healthcheck >/dev/null; do sleep 2; done && curl -fsS -X POST -H 'Content-Type: application/json' -d '{\"name\":\"%s\"}' '%s/storage/v1/b?project=fake-test-project' >/dev/null",
+						"until curl -fsS %s/_internal/healthcheck >/dev/null; do sleep 2; done && "+
+							"curl -fsS -X POST -H 'Content-Type: application/json' -d '{\"name\":\"%s\"}' "+
+							"'%s/storage/v1/b?project=fake-test-project' >/dev/null",
 						serverURL, bucketName, serverURL,
 					)},
 				},
