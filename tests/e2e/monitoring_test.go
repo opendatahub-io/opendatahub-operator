@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	gTypes "github.com/onsi/gomega/types"
@@ -12,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -55,6 +57,19 @@ const (
 	TracesStorageRetention        = "720h"
 	TracesStorageRetention24h     = "24h"
 	TracesStorageSize10Gi         = "10Gi"
+
+	// SeaweedFS constants for S3 backend testing.
+	SeaweedFSPodName           = "seaweedfs"
+	SeaweedFSServiceName       = "seaweedfs"
+	SeaweedFSBucketCreatorName = "seaweedfs-bucket-creator"
+	SeaweedFSBucketName        = "tempo-traces"
+	SeaweedFSAccessKey         = "seaweedfs-test-key"
+	SeaweedFSSecretKey         = "seaweedfs-test-secret"
+	SeaweedFSImage             = "chrislusf/seaweedfs@sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62"
+)
+
+const (
+	SeaweedFSS3Port int32 = 8333
 )
 
 // monitoringOwnerReferencesCondition is a reusable condition for validating owner references.
@@ -63,6 +78,8 @@ var monitoringOwnerReferencesCondition = And(
 	jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Monitoring.Kind),
 	jq.Match(`.metadata.ownerReferences[0].name == "%s"`, MonitoringCRName),
 )
+
+var seaweedFSBucketPattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]{1,61}[a-z0-9])$`)
 
 type MonitoringTestCtx struct {
 	*TestContext
@@ -775,6 +792,9 @@ func (tc *MonitoringTestCtx) ensureMonitoringCleanSlate(t *testing.T, secretName
 
 	// Clean up TempoStack and associated secret (if provided)
 	tc.cleanupTempoStackAndSecret(secretName)
+
+	// Clean up SeaweedFS resources from previous S3 runs.
+	tc.cleanupSeaweedFS(tc.MonitoringNamespace)
 }
 
 // ensureOpenTelemetryCollectorReady waits for the OpenTelemetry Collector deployment to be ready
@@ -841,9 +861,20 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackend(
 	// Ensure clean slate before starting this validation
 	tc.ensureMonitoringCleanSlate(t, secretName)
 
+	// Tempo validates S3 credentials at startup, so use a real in-cluster S3 endpoint.
+	if backend == TracesStorageBackendS3 {
+		t.Logf("Deploying SeaweedFS in namespace %s for S3 backend testing", tc.MonitoringNamespace)
+		tc.deploySeaweedFS(tc.MonitoringNamespace)
+		t.Cleanup(func() {
+			tc.cleanupSeaweedFS(tc.MonitoringNamespace)
+		})
+		tc.waitForSeaweedFS(tc.MonitoringNamespace)
+		tc.createSeaweedFSBucket(tc.MonitoringNamespace, SeaweedFSBucketName)
+	}
+
 	// Create the secret before enabling monitoring
 	t.Logf("Creating secret %s in namespace %s", secretName, tc.MonitoringNamespace)
-	tc.createDummySecret(backend, secretName, tc.MonitoringNamespace)
+	tc.createStorageSecret(backend, secretName, tc.MonitoringNamespace)
 
 	// Now update DSCI to set traces with specified backend
 	t.Logf("Updating DSCI with backend=%s, secretName=%s", backend, secretName)
@@ -897,8 +928,8 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackend(
 	t.Logf("Cleanup completed for backend=%s", backend)
 }
 
-// createDummySecret creates a dummy secret for TempoStack testing (S3 or GCS).
-func (tc *MonitoringTestCtx) createDummySecret(backendType, secretName, namespace string) {
+// createStorageSecret creates a storage secret for TempoStack testing.
+func (tc *MonitoringTestCtx) createStorageSecret(backendType, secretName, namespace string) {
 	var secret *corev1.Secret
 
 	switch backendType {
@@ -910,11 +941,10 @@ func (tc *MonitoringTestCtx) createDummySecret(backendType, secretName, namespac
 			},
 			Type: corev1.SecretTypeOpaque,
 			Data: map[string][]byte{
-				"access_key_id":     []byte("fake-access-key"),
-				"access_key_secret": []byte("fake-secret-key"),
-				"bucket":            []byte("fake-bucket"),
-				"endpoint":          []byte("https://s3.amazonaws.com"),
-				// No region field - causes TempoStack validation conflicts
+				"access_key_id":     []byte(SeaweedFSAccessKey),
+				"access_key_secret": []byte(SeaweedFSSecretKey),
+				"bucket":            []byte(SeaweedFSBucketName),
+				"endpoint":          []byte(fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", SeaweedFSServiceName, namespace, SeaweedFSS3Port)),
 			},
 		}
 	case "gcs":
@@ -942,6 +972,145 @@ func (tc *MonitoringTestCtx) createDummySecret(backendType, secretName, namespac
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(secret),
 	)
+}
+
+// deploySeaweedFS deploys a SeaweedFS pod and service for S3 backend testing.
+// The "weed server -s3" command starts master, volume, filer, and S3 gateway in one process.
+func (tc *MonitoringTestCtx) deploySeaweedFS(namespace string) {
+	seaweedPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      SeaweedFSPodName,
+			Namespace: namespace,
+			Labels:    map[string]string{"app": "seaweedfs"},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:    "seaweedfs",
+					Image:   SeaweedFSImage,
+					Command: []string{"weed"},
+					Args:    []string{"server", "-s3"},
+					Ports: []corev1.ContainerPort{
+						{ContainerPort: SeaweedFSS3Port, Name: "s3"},
+					},
+					ReadinessProbe: &corev1.Probe{
+						ProbeHandler: corev1.ProbeHandler{
+							TCPSocket: &corev1.TCPSocketAction{
+								Port: intstr.FromInt32(SeaweedFSS3Port),
+							},
+						},
+						InitialDelaySeconds: 10,
+						PeriodSeconds:       5,
+					},
+				},
+			},
+		},
+	}
+	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(seaweedPod))
+
+	seaweedService := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      SeaweedFSServiceName,
+			Namespace: namespace,
+			Labels:    map[string]string{"app": "seaweedfs"},
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: map[string]string{"app": "seaweedfs"},
+			Ports: []corev1.ServicePort{
+				{
+					Port:       SeaweedFSS3Port,
+					TargetPort: intstr.FromInt32(SeaweedFSS3Port),
+					Name:       "s3",
+				},
+			},
+		},
+	}
+	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(seaweedService))
+}
+
+// waitForSeaweedFS waits for SeaweedFS to be running and ready.
+func (tc *MonitoringTestCtx) waitForSeaweedFS(namespace string) {
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{
+			Name:      SeaweedFSPodName,
+			Namespace: namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.status.phase == "Running"`),
+			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
+		)),
+		WithCustomErrorMsg("SeaweedFS pod should be running and ready"),
+	)
+}
+
+// createSeaweedFSBucket creates the bucket required by Tempo's S3 store.
+func (tc *MonitoringTestCtx) createSeaweedFSBucket(namespace, bucketName string) {
+	if !seaweedFSBucketPattern.MatchString(bucketName) {
+		tc.g.Fail(fmt.Sprintf("invalid SeaweedFS bucket name: %q", bucketName))
+		return
+	}
+
+	tc.DeleteResource(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{
+			Name:      SeaweedFSBucketCreatorName,
+			Namespace: namespace,
+		}),
+		WithIgnoreNotFound(true),
+		WithWaitForDeletion(true),
+	)
+
+	bucketURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d/%s", SeaweedFSServiceName, namespace, SeaweedFSS3Port, bucketName)
+	bucketCreatorPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      SeaweedFSBucketCreatorName,
+			Namespace: namespace,
+		},
+		Spec: corev1.PodSpec{
+			RestartPolicy: corev1.RestartPolicyNever,
+			Containers: []corev1.Container{
+				{
+					Name:    "create-bucket",
+					Image:   SeaweedFSImage,
+					Command: []string{"/bin/sh", "-c"},
+					Args: []string{fmt.Sprintf(
+						"until curl -fsS -X PUT %s >/dev/null; do sleep 2; done",
+						bucketURL,
+					)},
+				},
+			},
+		},
+	}
+	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(bucketCreatorPod))
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{
+			Name:      SeaweedFSBucketCreatorName,
+			Namespace: namespace,
+		}),
+		WithCondition(jq.Match(`.status.phase == "Succeeded"`)),
+		WithCustomErrorMsg("SeaweedFS bucket creator pod should complete successfully"),
+	)
+}
+
+// cleanupSeaweedFS removes SeaweedFS and bucket-creator resources.
+func (tc *MonitoringTestCtx) cleanupSeaweedFS(namespace string) {
+	for _, resource := range []struct {
+		gvk  schema.GroupVersionKind
+		name string
+	}{
+		{gvk: gvk.Pod, name: SeaweedFSBucketCreatorName},
+		{gvk: gvk.Pod, name: SeaweedFSPodName},
+		{gvk: gvk.Service, name: SeaweedFSServiceName},
+	} {
+		tc.DeleteResource(
+			WithMinimalObject(resource.gvk, types.NamespacedName{
+				Name:      resource.name,
+				Namespace: namespace,
+			}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	}
 }
 
 // cleanupTracesConfiguration resets DSCInitialization traces configuration to prevent state contamination.
