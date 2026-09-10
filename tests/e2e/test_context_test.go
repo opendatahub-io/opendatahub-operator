@@ -30,6 +30,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
@@ -2034,9 +2035,7 @@ func (tc *TestContext) CheckMinOCPVersion(minVersion string) (bool, error) {
 // which are not created on BYOIDC clusters.
 func (tc *TestContext) SkipIfBYOIDC(t *testing.T) {
 	t.Helper()
-	authMode, err := cluster.GetClusterAuthenticationMode(tc.Context(), tc.Client())
-	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to detect cluster authentication mode")
-	if authMode == cluster.AuthModeOIDC {
+	if tc.isBYOIDC(t) {
 		t.Skip("Skipping test: not applicable on BYOIDC clusters (cluster uses external OIDC authentication)")
 	}
 }
@@ -2045,11 +2044,36 @@ func (tc *TestContext) SkipIfBYOIDC(t *testing.T) {
 // This is useful for tests that validate BYOIDC-specific behavior.
 func (tc *TestContext) SkipUnlessBYOIDC(t *testing.T) {
 	t.Helper()
-	authMode, err := cluster.GetClusterAuthenticationMode(tc.Context(), tc.Client())
-	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to detect cluster authentication mode")
-	if authMode != cluster.AuthModeOIDC {
-		t.Skipf("Skipping test: only applicable on BYOIDC clusters (cluster uses %s authentication)", authMode)
+	if !tc.isBYOIDC(t) {
+		t.Skip("Skipping test: only applicable on BYOIDC clusters")
 	}
+}
+
+// isBYOIDC detects whether the cluster uses BYOIDC authentication.
+// On OpenShift it reads the Authentication CR; on XKS (where that CRD is absent)
+// it falls back to checking whether the GatewayConfig has an OIDC stanza.
+func (tc *TestContext) isBYOIDC(t *testing.T) bool {
+	t.Helper()
+
+	authMode, err := cluster.GetClusterAuthenticationMode(tc.Context(), tc.Client())
+	if err == nil {
+		return authMode == cluster.AuthModeOIDC
+	}
+
+	if !k8serr.IsNotFound(err) {
+		tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to detect cluster authentication mode")
+	}
+
+	// Authentication CRD not found (XKS) — check GatewayConfig for OIDC stanza
+	gwc := &unstructured.Unstructured{}
+	gwc.SetGroupVersionKind(gvk.GatewayConfig)
+	if getErr := tc.Client().Get(tc.Context(), types.NamespacedName{Name: serviceApi.GatewayConfigName}, gwc); getErr != nil {
+		t.Logf("GatewayConfig not found, assuming non-BYOIDC: %v", getErr)
+		return false
+	}
+
+	oidc, _, _ := unstructured.NestedMap(gwc.Object, "spec", "oidc")
+	return oidc != nil
 }
 
 // SkipIfOCPVersionBelow is a test helper that skips the current test if the OpenShift cluster
