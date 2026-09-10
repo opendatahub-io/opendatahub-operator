@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -59,6 +60,21 @@ const (
 	TracesStorageBackendS3  = "s3"
 	TracesStorageBackendGCS = "gcs"
 	TracesStorageSize1Gi    = "1Gi"
+
+	// MinIO constants for S3 backend testing.
+	MinIOPodName           = "minio"
+	MinIOServiceName       = "minio"
+	MinIOBucketCreatorName = "minio-bucket-creator"
+	MinIOBucketName        = "tempo-traces"
+	MinIOAccessKey         = "minioadmin"
+	MinIOSecretKey         = "minioadmin"
+	MinIOImage             = "quay.io/minio/minio:latest"
+	MinIOClientImage       = "quay.io/minio/mc:latest"
+)
+
+const (
+	// MinIOPort is the API port for MinIO.
+	MinIOPort int32 = 9000
 )
 
 // monitoringOwnerReferencesCondition is a reusable condition for validating owner references.
@@ -291,6 +307,7 @@ func (tc *MonitoringTestCtx) runTracesWithCloudStorageTests(t *testing.T) {
 	t.Run("Group 7: Traces with Cloud Storage", func(t *testing.T) {
 		// Cleanup: Reset and remove tempo resources at group end
 		t.Cleanup(func() {
+			tc.cleanupMinIO(tc.MonitoringNamespace)
 			tc.cleanupGroup(t, "s3-secret")
 			tc.cleanupGroup(t, "gcs-secret")
 		})
@@ -1381,6 +1398,9 @@ func (tc *MonitoringTestCtx) ensureMonitoringCleanSlate(t *testing.T, secretName
 
 	// Clean up TempoStack and associated secret (if provided)
 	tc.cleanupTempoStackAndSecret(secretName)
+
+	// Clean up MinIO resources if they exist from previous runs
+	tc.cleanupMinIO(tc.MonitoringNamespace)
 }
 
 // ensureOpenTelemetryCollectorReady waits for the OpenTelemetry Collector deployment to be ready
@@ -1451,6 +1471,11 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationAndPersesTLS(t *testing.T
 	tc.cleanupTracesConfiguration()
 	tc.cleanupTempoStackAndSecret(secretName)
 
+	// Clean up MinIO if it was deployed for S3 backend
+	if backend == TracesStorageBackendS3 {
+		tc.cleanupMinIO(tc.MonitoringNamespace)
+	}
+
 	t.Logf("Combined TempoStack+TLS validation completed for backend=%s", backend)
 }
 
@@ -1461,8 +1486,18 @@ func (tc *MonitoringTestCtx) validateTempoStackCreation(t *testing.T, backend, s
 
 	tc.ensureMonitoringCleanSlate(t, secretName)
 
+	// For S3 backend, deploy MinIO to provide a real S3-compatible endpoint.
+	// Tempo validates S3 credentials at startup by calling ListObjects, so fake
+	// credentials against a non-existent endpoint no longer work.
+	if backend == TracesStorageBackendS3 {
+		t.Logf("Deploying MinIO in namespace %s for S3 backend testing", tc.MonitoringNamespace)
+		tc.deployMinIO(tc.MonitoringNamespace)
+		tc.waitForMinIO(tc.MonitoringNamespace)
+		tc.createMinIOBucket(tc.MonitoringNamespace, MinIOBucketName)
+	}
+
 	t.Logf("Creating secret %s in namespace %s", secretName, tc.MonitoringNamespace)
-	tc.createDummySecret(backend, secretName, tc.MonitoringNamespace)
+	tc.createStorageSecret(backend, secretName, tc.MonitoringNamespace)
 
 	t.Logf("Updating DSCI with backend=%s, secretName=%s", backend, secretName)
 	tc.updateMonitoringConfig(
@@ -1540,8 +1575,11 @@ func (tc *MonitoringTestCtx) validatePersesDatasourceTLS(t *testing.T, backend, 
 	t.Logf("PersesDatasource TLS validation passed for %s backend", backend)
 }
 
-// createDummySecret creates a dummy secret for TempoStack testing (S3 or GCS).
-func (tc *MonitoringTestCtx) createDummySecret(backendType, secretName, namespace string) {
+// createStorageSecret creates a secret for TempoStack testing.
+// For S3 backends, this uses real MinIO credentials pointing to a MinIO instance
+// deployed in the test namespace (MinIO must be deployed first via deployMinIO).
+// For GCS backends, this uses fake credentials since Tempo does not validate GCS at startup.
+func (tc *MonitoringTestCtx) createStorageSecret(backendType, secretName, namespace string) {
 	var secret *corev1.Secret
 
 	switch backendType {
@@ -1553,11 +1591,10 @@ func (tc *MonitoringTestCtx) createDummySecret(backendType, secretName, namespac
 			},
 			Type: corev1.SecretTypeOpaque,
 			Data: map[string][]byte{
-				"access_key_id":     []byte("fake-access-key"),
-				"access_key_secret": []byte("fake-secret-key"),
-				"bucket":            []byte("fake-bucket"),
-				"endpoint":          []byte("https://s3.amazonaws.com"),
-				// No region field - causes TempoStack validation conflicts
+				"access_key_id":     []byte(MinIOAccessKey),
+				"access_key_secret": []byte(MinIOSecretKey),
+				"bucket":            []byte(MinIOBucketName),
+				"endpoint":          fmt.Appendf(nil, "http://%s.%s.svc.cluster.local:%d", MinIOServiceName, namespace, MinIOPort),
 			},
 		}
 	case "gcs":
@@ -1583,6 +1620,145 @@ func (tc *MonitoringTestCtx) createDummySecret(backendType, secretName, namespac
 	}
 
 	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(secret))
+}
+
+// deployMinIO deploys a MinIO pod and service in the given namespace for S3 backend testing.
+// MinIO provides a real S3-compatible endpoint that Tempo can validate against at startup.
+func (tc *MonitoringTestCtx) deployMinIO(namespace string) {
+	minIOPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      MinIOPodName,
+			Namespace: namespace,
+			Labels:    map[string]string{"app": "minio"},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:    "minio",
+					Image:   MinIOImage,
+					Command: []string{"minio"},
+					Args:    []string{"server", "/data", "--console-address", ":9001"},
+					Ports: []corev1.ContainerPort{
+						{ContainerPort: MinIOPort, Name: "api"},
+					},
+					ReadinessProbe: &corev1.Probe{
+						ProbeHandler: corev1.ProbeHandler{
+							HTTPGet: &corev1.HTTPGetAction{
+								Path: "/minio/health/ready",
+								Port: intstr.FromInt32(MinIOPort),
+							},
+						},
+						InitialDelaySeconds: 5,
+						PeriodSeconds:       5,
+					},
+				},
+			},
+		},
+	}
+	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(minIOPod))
+
+	minIOService := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      MinIOServiceName,
+			Namespace: namespace,
+			Labels:    map[string]string{"app": "minio"},
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: map[string]string{"app": "minio"},
+			Ports: []corev1.ServicePort{
+				{
+					Port:       MinIOPort,
+					TargetPort: intstr.FromInt32(MinIOPort),
+					Name:       "api",
+				},
+			},
+		},
+	}
+	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(minIOService))
+}
+
+// waitForMinIO waits for the MinIO pod to be running and ready in the given namespace.
+func (tc *MonitoringTestCtx) waitForMinIO(namespace string) {
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{
+			Name:      MinIOPodName,
+			Namespace: namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.status.phase == "Running"`),
+			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
+		)),
+		WithCustomErrorMsg("MinIO pod should be running and ready"),
+	)
+}
+
+// createMinIOBucket creates a bucket in MinIO using the MinIO client (mc).
+// It deploys a temporary pod that runs mc to create the bucket, then waits for completion.
+func (tc *MonitoringTestCtx) createMinIOBucket(namespace, bucketName string) {
+	// Clean up any existing bucket creator pod from previous runs
+	tc.DeleteResource(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{
+			Name:      MinIOBucketCreatorName,
+			Namespace: namespace,
+		}),
+		WithIgnoreNotFound(true),
+		WithWaitForDeletion(true),
+	)
+
+	bucketCreatorPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      MinIOBucketCreatorName,
+			Namespace: namespace,
+		},
+		Spec: corev1.PodSpec{
+			RestartPolicy: corev1.RestartPolicyNever,
+			Containers: []corev1.Container{
+				{
+					Name:    "mc",
+					Image:   MinIOClientImage,
+					Command: []string{"/bin/sh", "-c"},
+					Args: []string{
+						fmt.Sprintf(
+							"until mc alias set myminio http://%s.%s.svc.cluster.local:%d %s %s 2>/dev/null; do sleep 2; done && mc mb myminio/%s --ignore-existing",
+							MinIOServiceName, namespace, MinIOPort, MinIOAccessKey, MinIOSecretKey, bucketName,
+						),
+					},
+				},
+			},
+		},
+	}
+	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(bucketCreatorPod))
+
+	// Wait for the bucket creator pod to complete successfully
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{
+			Name:      MinIOBucketCreatorName,
+			Namespace: namespace,
+		}),
+		WithCondition(jq.Match(`.status.phase == "Succeeded"`)),
+		WithCustomErrorMsg("MinIO bucket creator pod should complete successfully"),
+	)
+}
+
+// cleanupMinIO removes MinIO resources (pod, service, bucket creator pod) from the given namespace.
+func (tc *MonitoringTestCtx) cleanupMinIO(namespace string) {
+	for _, res := range []struct {
+		gvk  schema.GroupVersionKind
+		name string
+	}{
+		{gvk: gvk.Pod, name: MinIOBucketCreatorName},
+		{gvk: gvk.Pod, name: MinIOPodName},
+		{gvk: gvk.Service, name: MinIOServiceName},
+	} {
+		tc.DeleteResource(
+			WithMinimalObject(res.gvk, types.NamespacedName{
+				Name:      res.name,
+				Namespace: namespace,
+			}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	}
 }
 
 // cleanupTracesConfiguration resets DSCInitialization traces configuration to prevent state contamination.
