@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -58,6 +59,20 @@ func TestGatewayIssuerURLValidationEnvtest(t *testing.T) {
 
 	k8sClient, err := client.New(cfg, client.Options{Scheme: gatewayTestScheme()})
 	g.Expect(err).ToNot(HaveOccurred())
+
+	t.Run("certificate issuer kind is not defaulted by admission", func(t *testing.T) {
+		g := NewWithT(t)
+		gw := validGatewayWithIssuerURL("https://auth.example.com")
+		gw.Spec.Certificate = &infrav1.CertificateSpec{
+			Type:      infrav1.SelfSigned,
+			IssuerRef: &infrav1.IssuerRef{Name: "tenant-issuer"},
+		}
+		g.Expect(k8sClient.Create(ctx, gw)).To(Succeed())
+		t.Cleanup(func() { g.Expect(k8sClient.Delete(ctx, gw)).To(Succeed()) })
+		g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gw), gw)).To(Succeed())
+		g.Expect(gw.Spec.Certificate.IssuerRef.Name).To(Equal("tenant-issuer"))
+		g.Expect(gw.Spec.Certificate.IssuerRef.Kind).To(BeEmpty())
+	})
 
 	// MaxLength boundary strings: both are otherwise-valid HTTPS URLs padded in the
 	// path with an allowed character, so length is the only thing under test.

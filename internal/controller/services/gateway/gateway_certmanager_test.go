@@ -42,6 +42,13 @@ func TestResolveIssuerRef(t *testing.T) {
 			expectedKind: "Issuer",
 		},
 		{
+			name:         "name-only override inherits issuer kind from env",
+			envKind:      "Issuer",
+			cert:         &infrav1.CertificateSpec{IssuerRef: &infrav1.IssuerRef{Name: "tenant-issuer"}},
+			expectedName: "tenant-issuer",
+			expectedKind: "Issuer",
+		},
+		{
 			name:         "empty spec fields fall through to env/default",
 			envName:      "rhai-ca-issuer",
 			cert:         &infrav1.CertificateSpec{IssuerRef: &infrav1.IssuerRef{}},
