@@ -344,6 +344,28 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 	})
 }
 
+// cleanupMigratedModuleCRs runs module-specific handoff cleanup after the
+// desired module CR has been applied. Implementations are responsible for
+// waiting until their replacement controller is active before deleting a
+// legacy component CR.
+func cleanupMigratedModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
+	}
+
+	return modules.ForConfigSource(modules.ConfigFromDSC, func(handler modules.ModuleHandler, _ bool) error {
+		cleaner, ok := handler.(modules.LegacyModuleCRCleaner)
+		if !ok {
+			return nil
+		}
+		if err := cleaner.CleanupLegacyCR(ctx, rr.Client, instance); err != nil {
+			return fmt.Errorf("legacy CR cleanup failed for module %s: %w", handler.GetName(), err)
+		}
+		return nil
+	})
+}
+
 func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
