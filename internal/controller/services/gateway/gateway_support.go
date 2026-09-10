@@ -311,25 +311,27 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 		return secretName, nil
 	case infrav1.SelfSigned:
 		// domain parameter already contains the full FQDN (subdomain.baseDomain) from GetFQDN.
-		// Prefer a cert-manager Certificate (issuance + auto-renewal) when cert-manager is
-		// available; otherwise fall back to an operator-generated self-signed certificate.
-		hasCertManager, err := cluster.HasCRD(ctx, rr.Client, gvk.CertManagerCertificate)
-		if err != nil {
-			return "", fmt.Errorf("failed to check cert-manager Certificate CRD presence: %w", err)
-		}
-		if hasCertManager {
-			issuerName, issuerKind := resolveIssuerRef(gatewayConfig.Spec.Certificate)
-			cert, err := buildCertManagerCertificate(secretName, GetGatewayNamespace(), secretName, []string{domain}, issuerName, issuerKind)
+		// On XKS, prefer cert-manager for issuance and auto-renewal when available.
+		// Preserve operator-generated self-signed certificates on OpenShift.
+		if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+			hasCertManager, err := cluster.HasCRD(ctx, rr.Client, gvk.CertManagerCertificate)
 			if err != nil {
-				return "", err
+				return "", fmt.Errorf("failed to check cert-manager Certificate CRD presence: %w", err)
 			}
-			if err := rr.AddResources(cert); err != nil {
-				return "", fmt.Errorf("failed to add gateway Certificate: %w", err)
+			if hasCertManager {
+				issuerName, issuerKind := resolveIssuerRef(gatewayConfig.Spec.Certificate)
+				cert, err := buildCertManagerCertificate(secretName, GetGatewayNamespace(), secretName, []string{domain}, issuerName, issuerKind)
+				if err != nil {
+					return "", err
+				}
+				if err := rr.AddResources(cert); err != nil {
+					return "", fmt.Errorf("failed to add gateway Certificate: %w", err)
+				}
+				return secretName, nil
 			}
-			return secretName, nil
+			logf.FromContext(ctx).Info("cert-manager Certificate CRD not found; falling back to operator self-signed certificate for gateway", "secret", secretName)
 		}
 
-		logf.FromContext(ctx).Info("cert-manager Certificate CRD not found; falling back to operator self-signed certificate for gateway", "secret", secretName)
 		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, secretName, domain, GetGatewayNamespace(),
 			cluster.WithLabels( // add label easy to know it is from us.
 				labels.PlatformPartOf, ServiceName,

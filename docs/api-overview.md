@@ -2241,7 +2241,7 @@ _Appears in:_
 
 | Field | Description |
 | --- | --- |
-| `SelfSigned` | SelfSigned requests an operator-managed TLS certificate. When cert-manager is available<br />on the cluster the certificate is issued (and auto-renewed) by cert-manager using the<br />resolved issuer (see IssuerRef); otherwise the operator generates a self-signed certificate.<br /> |
+| `SelfSigned` | SelfSigned requests an operator-managed TLS certificate. On XKS, when cert-manager is<br />available the certificate is issued (and auto-renewed) by cert-manager using the<br />resolved issuer (see IssuerRef); otherwise the operator generates a self-signed certificate.<br /> |
 | `Provided` |  |
 | `OpenshiftDefaultIngress` | OpenshiftDefaultIngress uses the cluster's default ingress certificate (OpenShift only).<br /> |
 
@@ -2374,7 +2374,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `name` _string_ | Name of the cert-manager issuer. When empty, the platform default issuer name is used. |  | MaxLength: 253 <br /> |
-| `kind` _string_ | Kind of the cert-manager issuer. | ClusterIssuer | Enum: [Issuer ClusterIssuer] <br /> |
+| `kind` _string_ | Kind of the cert-manager issuer.<br />When empty, the operator environment is used, falling back to ClusterIssuer. |  | Enum: [Issuer ClusterIssuer] <br /> |
 
 
 #### KueueSchedulingSpec

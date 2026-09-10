@@ -3,8 +3,8 @@ package v1
 type CertType string
 
 const (
-	// SelfSigned requests an operator-managed TLS certificate. When cert-manager is available
-	// on the cluster the certificate is issued (and auto-renewed) by cert-manager using the
+	// SelfSigned requests an operator-managed TLS certificate. On XKS, when cert-manager is
+	// available the certificate is issued (and auto-renewed) by cert-manager using the
 	// resolved issuer (see IssuerRef); otherwise the operator generates a self-signed certificate.
 	SelfSigned CertType = "SelfSigned"
 	Provided   CertType = "Provided"
@@ -21,8 +21,8 @@ type IssuerRef struct {
 	// +kubebuilder:validation:MaxLength=253
 	Name string `json:"name,omitempty"`
 	// Kind of the cert-manager issuer.
+	// When empty, the operator environment is used, falling back to ClusterIssuer.
 	// +kubebuilder:validation:Enum=Issuer;ClusterIssuer
-	// +kubebuilder:default=ClusterIssuer
 	Kind string `json:"kind,omitempty"`
 }
 
