@@ -73,8 +73,7 @@ func commonActions() []actions.Fn {
 func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	b := reconciler.ReconcilerFor(mgr, &configv1alpha1.Platform{}).
 		WithInstanceName("modules").
-		WithDynamicOwnership().
-		WithAction(enableModulesFromPlatform)
+		WithDynamicOwnership()
 
 	platformRequest := []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configv1alpha1.PlatformInstanceName}}}
 	statusPredicate := dependentpredicates.New(dependentpredicates.WithWatchStatus(true))
