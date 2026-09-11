@@ -754,7 +754,8 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 		case k8serr.IsServiceUnavailable(err),
 			k8serr.IsTimeout(err),
 			k8serr.IsServerTimeout(err),
-			k8serr.IsTooManyRequests(err):
+			k8serr.IsTooManyRequests(err),
+			errors.Is(err, context.DeadlineExceeded):
 			setupLog.Info("Transient API error reading TLS profile, using hardened defaults", "error", err)
 			hasAPI = true // watcher self-heals when the API recovers
 		default:
@@ -787,7 +788,8 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 				k8serr.IsTimeout(err),
 				k8serr.IsServerTimeout(err),
 				k8serr.IsTooManyRequests(err),
-				k8serr.IsInternalError(err):
+				k8serr.IsInternalError(err),
+				errors.Is(err, context.DeadlineExceeded):
 				setupLog.Info("Transient error fetching TLS adherence policy, watcher will retry", "error", err)
 			default:
 				setupLog.Error(err, "unable to read TLS adherence policy, refusing to start with unknown adherence posture")
