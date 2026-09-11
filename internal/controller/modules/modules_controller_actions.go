@@ -4,13 +4,17 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -24,6 +28,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	odhan "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	odhl "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -76,6 +82,63 @@ func NewPlatformCR(dscCtx *DSCContext, source ConfigSource) *configv1alpha1.Plat
 			Modules: BuildPlatformModulesForSource(dscCtx, source),
 		},
 	}
+}
+
+// SetPlatformMetadata restores the standard metadata stamped by the generic
+// deploy action for DSC-owned Platform resources. Owner references are
+// intentionally not handled here because Platform is shared with DSCI.
+func SetPlatformMetadata(platform client.Object, instance client.Object, release common.Release, partOf string) {
+	annotations := platform.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations[odhan.InstanceGeneration] = strconv.FormatInt(instance.GetGeneration(), 10)
+	annotations[odhan.InstanceName] = instance.GetName()
+	annotations[odhan.InstanceUID] = string(instance.GetUID())
+	annotations[odhan.PlatformType] = string(release.Name)
+	annotations[odhan.PlatformVersion] = release.Version.String()
+	platform.SetAnnotations(annotations)
+
+	labels := platform.GetLabels()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[odhl.PlatformPartOf] = odhl.NormalizePartOfValue(partOf)
+	platform.SetLabels(labels)
+}
+
+// EnsurePlatformOwnerReference adds owner to the shared Platform CR without
+// involving server-side apply. OwnerReferences is shared by the DSCI and DSC
+// controllers, so each controller must read the current value, merge its
+// reference, and update only metadata. Conflicts are retried so one controller
+// cannot lose the other controller's reference. Other errors are returned to
+// let the controller reconcile again once the cache has caught up.
+func EnsurePlatformOwnerReference(ctx context.Context, cli client.Client, owner client.Object, scheme *runtime.Scheme) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		platform := &configv1alpha1.Platform{}
+		if err := cli.Get(ctx, client.ObjectKey{Name: configv1alpha1.PlatformInstanceName}, platform); err != nil {
+			return err
+		}
+
+		// Never attempt to resurrect a Platform that Kubernetes has already
+		// marked for deletion. Its owners may be changing as part of teardown.
+		if !platform.GetDeletionTimestamp().IsZero() {
+			return nil
+		}
+
+		ownerReferences := append([]metav1.OwnerReference(nil), platform.GetOwnerReferences()...)
+		if err := controllerutil.SetOwnerReference(owner, platform, scheme); err != nil {
+			return fmt.Errorf("failed to merge Platform owner reference: %w", err)
+		}
+		if reflect.DeepEqual(ownerReferences, platform.GetOwnerReferences()) {
+			return nil
+		}
+
+		if err := cli.Update(ctx, platform); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 // NewPlatformCRRemovedForSource builds a Platform CR that SSA-applies Removed
