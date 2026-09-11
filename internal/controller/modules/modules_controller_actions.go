@@ -147,23 +147,6 @@ func normalizePlatformModules(pm *configv1alpha1.PlatformModules) {
 	}
 }
 
-// enableModulesFromPlatform reads spec.modules from the Platform CR and
-// enables only those modules in the registry.
-//
-// Safety: this mutates the package-level registry. It is safe because the
-// controller uses the default MaxConcurrentReconciles=1, so only one
-// reconcile is in-flight at a time.
-func enableModulesFromPlatform(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	modules, err := modulesFromInstance(ctx, rr)
-	if err != nil {
-		return err
-	}
-
-	EnableFromList(modules.EnabledModules())
-
-	return nil
-}
-
 // buildPlatformContext constructs a PlatformContext for the current reconcile
 // cycle. Always reads from Platform CR.
 func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest) (*PlatformContext, error) {

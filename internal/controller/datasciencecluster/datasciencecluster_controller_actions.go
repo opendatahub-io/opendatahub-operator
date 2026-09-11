@@ -106,7 +106,7 @@ func cleanupDisabledComponentsWith(
 
 	log := logf.FromContext(ctx)
 
-	reverseBatches, err := provisionReg.ReverseBatches()
+	reverseBatches, err := provisionReg.ReverseBatchesAll()
 	if err != nil {
 		return fmt.Errorf("DAG reverse resolution failed during component cleanup: %w", err)
 	}
@@ -201,7 +201,7 @@ func cleanupDisabledModuleCRsWith(
 	})
 
 	log := logf.FromContext(ctx)
-	reverseBatches, err := provisionReg.ReverseBatches()
+	reverseBatches, err := provisionReg.ReverseBatchesAll()
 	if err != nil {
 		log.Error(err, "DAG reverse resolution failed, falling back to alphabetical module CR cleanup")
 		return moduleReg.ForConfigSource(modules.ConfigFromDSC, func(handler modules.ModuleHandler, _ bool) error {
@@ -255,10 +255,8 @@ func provisionComponentsWith(ctx context.Context, rr *odhtype.ReconciliationRequ
 	if err := componentReg.ForEach(func(handler cr.ComponentHandler) error {
 		name := handler.GetName()
 		if !handler.IsEnabled(instance) {
-			provision.Disable(name)
 			return nil
 		}
-		provision.Enable(name)
 		ci, err := handler.NewCRObject(ctx, rr.Client, instance)
 		if err != nil {
 			log.Error(err, "NewCRObject failed", "component", name)
