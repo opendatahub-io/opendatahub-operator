@@ -40,8 +40,21 @@ func createOCPRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		return err
 	}
 
+	if rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig) {
+		return nil
+	}
+
 	if gatewayConfig.Spec.IngressMode != serviceApi.IngressModeOcpRoute {
 		l.V(1).Info("IngressMode is not OcpRoute, skipping OCP Route creation")
+		return nil
+	}
+
+	unresolved, err := isGatewayDomainUnresolved(ctx, rr, gatewayConfig)
+	if err != nil {
+		return err
+	}
+	if unresolved {
+		l.V(1).Info("Gateway domain not configured, skipping OCP Route creation")
 		return nil
 	}
 

@@ -164,8 +164,8 @@ func GetDSCI(ctx context.Context, cli client.Client) (*dsciv2.DSCInitialization,
 // ApplicationNamespace returns the applications namespace.
 // If RHAI_APPLICATIONS_NAMESPACE is explicitly configured it is returned directly,
 // independently of whether DSCI is enabled or not.
-// Otherwise the namespace is read from DSCI (OpenShift path); a missing DSCI
-// propagates as an error so callers requeue correctly.
+// On OpenShift, the namespace is read from DSCI; a missing DSCI propagates as an
+// error so callers requeue correctly.
 func ApplicationNamespace(ctx context.Context, cli client.Client) (string, error) {
 	if ns := GetRHAIApplicationsNamespace(); ns != "" {
 		return ns, nil

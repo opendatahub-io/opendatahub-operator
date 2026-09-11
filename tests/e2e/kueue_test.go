@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/fields"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -480,12 +481,25 @@ func (tc *KueueTestCtx) ValidateKueueAutoCreateQueuesDisabled(t *testing.T) {
 		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
 	)
 
-	t.Logf("Verifying no ClusterQueue, ResourceFlavor or LocalQueue is created (autoCreateQueues=false).")
+	t.Logf("Verifying the operator did not create its default ClusterQueue, ResourceFlavor or LocalQueue (autoCreateQueues=false).")
+	// EnsureResourcesGone performs a LIST of the GVK — the NamespacedName's Name is only used
+	// for the error-message label, not as a filter. Without a field selector these checks would
+	// assert that NO ClusterQueue/ResourceFlavor exists anywhere on the cluster, and would fail
+	// on unrelated queues left behind by other suites sharing the cluster (e.g. cluster-queue-mnist
+	// from a distributed-workloads test). Scope the checks to the resources the operator itself
+	// would create (named "default"/"default-flavor") so the test verifies the operator's behaviour
+	// rather than the whole cluster's state.
 	tc.EnsureResourcesGone(
 		WithMinimalObject(gvk.ClusterQueue, types.NamespacedName{Name: kueueDefaultClusterQueueName}),
+		WithListOptions(&client.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector("metadata.name", kueueDefaultClusterQueueName),
+		}),
 	)
 	tc.EnsureResourcesGone(
 		WithMinimalObject(gvk.ResourceFlavor, types.NamespacedName{Name: kueue.DefaultFlavorName}),
+		WithListOptions(&client.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector("metadata.name", kueue.DefaultFlavorName),
+		}),
 	)
 	tc.EnsureResourcesDoNotExist(
 		WithMinimalObject(gvk.LocalQueue, types.NamespacedName{Name: kueueDefaultLocalQueueName, Namespace: managedNS}),
