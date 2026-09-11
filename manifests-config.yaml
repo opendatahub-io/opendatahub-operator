@@ -25,13 +25,15 @@ components:
       sourcePath: kserve-module/config
   ray:
     odh:
-      repo: opendatahub-io/kuberay
-      ref: dev@ad38262cb5e22d605e548ea99dcb92ef48b80422
-      sourcePath: ray-operator/config
+      repo: opendatahub-io/ray-module-operator
+      ref: RHOAIENG-64554@f32d83e0d19878b8e004a75f323620d372f9e7ca
+      sourcePath: config
+    # Downstream red-hat-data-services/ray-module-operator does not exist yet.
+    # Pin RHOAI to the same upstream commit until that repo is onboarded.
     rhoai:
-      repo: red-hat-data-services/kuberay
-      ref: rhoai-3.6-ea.2@5d9f6bf2dda4e318522ccb6d1a90087788381e9e
-      sourcePath: ray-operator/config
+      repo: opendatahub-io/ray-module-operator
+      ref: RHOAIENG-64554@f32d83e0d19878b8e004a75f323620d372f9e7ca
+      sourcePath: config
   trustyai:
     odh:
       repo: opendatahub-io/trustyai-service-operator
@@ -990,10 +992,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-ray-module-operator"
-      digest: "sha256:36fb4bb489a7755177db5022e6aaf46cbb351a1a63a46bc3c4b4596b05cfeb25"
+      digest: "sha256:9860889abd1024bbd587a3ad96786516ca6c9ee34d640c188dd4e9c77216757b"
     rhoai:
       base: "quay.io/opendatahub/odh-ray-module-operator"
-      digest: "sha256:36fb4bb489a7755177db5022e6aaf46cbb351a1a63a46bc3c4b4596b05cfeb25"
+      digest: "sha256:9860889abd1024bbd587a3ad96786516ca6c9ee34d640c188dd4e9c77216757b"
   RELATED_IMAGE_ODH_RHAII_CLUSTER_VALIDATOR_IMAGE:
     source: "csv"
     odh:

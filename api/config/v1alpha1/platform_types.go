@@ -87,6 +87,11 @@ type PlatformModules struct {
 	// SparkOperator controls the Spark Operator module lifecycle.
 	// +optional
 	SparkOperator common.ManagementSpec `json:"sparkoperator,omitempty"`
+
+	// Ray controls the Ray module lifecycle.
+	// +optional
+	Ray common.ManagementSpec `json:"ray,omitempty"`
+
 	// ModelRegistry controls the model-registry (AIHub) module operator lifecycle.
 	// +optional
 	ModelRegistry common.ManagementSpec `json:"modelregistry,omitempty"`
@@ -172,6 +177,9 @@ func (m *PlatformModules) EnabledModules() []string {
 	}
 	if m.SparkOperator.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "sparkoperator")
+	}
+	if m.Ray.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "ray")
 	}
 	if m.ModelRegistry.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "modelregistry")

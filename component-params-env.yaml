@@ -129,6 +129,9 @@ odh_exceptions:
   reason: RHOAI-only image, not applicable to ODH
 
 rhoai_exceptions:
+- image: RELATED_IMAGE_ODH_RAY_MODULE_OPERATOR_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-64554
+  reason: Ray module operator image, not yet in RHOAI-Build-Config, delivering in RHOAI 3.6 EA1
 - image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE
   reason: ODH-only image, not applicable to RHOAI
 - image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_2_IMAGE

@@ -2,9 +2,6 @@ map:
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
-  odh-kuberay-operator-controller:
-    src: ray-operator/config
-    dest: ray
   odh-trustyai-service-operator:
     src: config
     dest: trustyai
@@ -58,8 +55,8 @@ map:
     src: ogx-module/config
     dest: ogx
   odh-ray-module-operator:
-    src: config/manager
-    dest: ray-module-operator
+    src: config
+    dest: ray
   odh-data-connect-hub-controller:
     src: dc-controller/config
     dest: data-connect-hub
