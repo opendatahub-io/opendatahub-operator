@@ -85,10 +85,12 @@ func Add(ch ServiceHandler) {
 	r.Add(ch)
 }
 
+// Enable marks the service as enabled, i.e. not disabled via env var at operator startup.
 func Enable(name string) {
 	r.setEnabled(name, true)
 }
 
+// Disable marks the service as disabled via env var at operator startup.
 func Disable(name string) {
 	r.setEnabled(name, false)
 }
