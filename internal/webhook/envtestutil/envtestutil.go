@@ -988,6 +988,17 @@ func WithKueueScheduling(localQueueName string, priorityClass ...string) ObjectO
 	}
 }
 
+// WithDRA adds a Dynamic Resource Allocation ResourceClaimTemplate reference to the hardware profile.
+func WithDRA(resourceClaimTemplateName string) ObjectOption {
+	return func(obj client.Object) {
+		if hwp, ok := obj.(*infrav1.HardwareProfile); ok {
+			hwp.Spec.DRA = &infrav1.DRASpec{
+				ResourceClaimTemplateName: resourceClaimTemplateName,
+			}
+		}
+	}
+}
+
 // WithNodeScheduling adds node scheduling configuration to the hardware profile.
 //
 // Parameters:
