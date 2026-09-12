@@ -86,7 +86,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
@@ -101,6 +100,7 @@ import (
 	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
 	sparkoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/sparkoperator"
 	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
+	trustyaiModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trustyai"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
@@ -138,7 +138,6 @@ var (
 		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
 		componentApi.KueueComponentName:                kueue.NewHandler(),
 		componentApi.RayComponentName:                  ray.NewHandler(),
-		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
 	}
 
 	// Component runlevel assignments.
@@ -153,8 +152,6 @@ var (
 		componentApi.RayComponentName:                  dag.RL(20),
 
 		componentApi.KueueComponentName: dag.RL(31),
-
-		componentApi.TrustyAIComponentName: dag.RL(33),
 	}
 
 	existingServices = map[string]sr.ServiceHandler{
@@ -177,6 +174,7 @@ var (
 		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
 		componentApi.FeastOperatorComponentName:        feastModule.NewHandler(),
 		componentApi.SparkOperatorComponentName:        sparkoperatorModule.NewHandler(),
+		componentApi.TrustyAIComponentName:             trustyaiModule.NewHandler(),
 	}
 
 	// dsciConfiguredModules lists modules whose user-facing configuration
@@ -199,6 +197,7 @@ var (
 		componentApi.TrainerComponentName:              dag.RL(20),
 		componentApi.WorkbenchesComponentName:          dag.RL(20),
 		componentApi.SparkOperatorComponentName:        dag.RL(32),
+		componentApi.TrustyAIComponentName:             dag.RL(32),
 	}
 )
 

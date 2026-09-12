@@ -34,13 +34,18 @@ components:
       sourcePath: ray-operator/config
   trustyai:
     odh:
-      repo: opendatahub-io/trustyai-service-operator
-      ref: incubation@59a7f4586e63bd80196968a3a58252feeb183bb9
-      sourcePath: config
+      # TEMPORARY: pointed at the canonical upstream repo directly instead of
+      # the opendatahub-io mirror. opendatahub-io/trustyai-service-operator#195
+      # (the pull[bot] sync PR) already has this exact commit as its head but
+      # is blocked on OWNERS approval while the approver is on PTO. Switch
+      # back to opendatahub-io/trustyai-service-operator once #195 merges.
+      repo: trustyai-explainability/trustyai-service-operator
+      ref: main@2c38de923fe8facc926b8418ca154faf6f912ac7
+      sourcePath: trustyai-operator-module/config
     rhoai:
       repo: red-hat-data-services/trustyai-service-operator
-      ref: rhoai-3.6-ea.2@487c79a587a12e9ea2116b273fce8f322252dec8
-      sourcePath: config
+      ref: rhoai-3.6-ea.2@37a2f69c422960b6a6f03536ca3126594cf6d58f
+      sourcePath: trustyai-operator-module/config
   modelregistry:
     odh:
       repo: opendatahub-io/model-registry-operator
