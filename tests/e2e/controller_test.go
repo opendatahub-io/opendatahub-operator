@@ -144,7 +144,7 @@ var (
 				componentApi.DashboardComponentName:            dashboardTestSuite,
 				componentApi.RayComponentName:                  rayTestSuite,
 				componentApi.TrainerComponentName:              trainerTestSuite,
-				componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
+				componentApi.AIPipelinesComponentName:          dataSciencePipelinesTestSuite,
 				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
 				componentApi.KserveComponentName:               kserveTestSuite,
 				componentApi.FeastOperatorComponentName:        feastModuleTestSuite,
