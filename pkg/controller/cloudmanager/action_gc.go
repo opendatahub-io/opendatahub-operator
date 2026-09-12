@@ -69,7 +69,7 @@ func isStaleOrOrphaned(rr *odhTypes.ReconciliationRequest, obj unstructured.Unst
 	iGenerationInt, err := strconv.ParseInt(iGeneration, 10, 64)
 	if err != nil {
 		log.Error(err, "cannot parse InstanceGeneration annotation, skipping resource",
-			"annotation", iGeneration, "gvk", objGVK, "name", obj.GetName(), "namespace", obj.GetNamespace())
+			"annotation", iGeneration, "gvk", objGVK, "child", obj.GetName(), "childNamespace", obj.GetNamespace())
 
 		return false, nil
 	}
