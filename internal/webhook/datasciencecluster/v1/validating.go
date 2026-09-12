@@ -80,7 +80,11 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 	case admissionv1.Create:
 		return validate(ctx, []validationCheck{v.denyKueueManagedState, denyMultipleDsc, v.warnDeprecatedModelsAsService}, allowMessage, v.Client, &req)
 	case admissionv1.Update:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyV1PatchWhenV2ComponentsManaged, v.warnDeprecatedModelsAsService}, allowMessage, v.Client, &req)
+		checks := []validationCheck{
+			v.denyKueueManagedState, v.denyTrainingOperatorReEnablement,
+			v.denyV1PatchWhenV2ComponentsManaged, v.warnDeprecatedModelsAsService,
+		}
+		return validate(ctx, checks, allowMessage, v.Client, &req)
 	default:
 		return admission.Allowed(allowMessage)
 	}
@@ -120,6 +124,33 @@ func (v *Validator) denyKueueManagedState(ctx context.Context, _ client.Reader, 
 	return admission.Allowed("")
 }
 
+func (v *Validator) denyTrainingOperatorReEnablement(ctx context.Context, _ client.Reader, req *admission.Request) admission.Response {
+	if len(req.OldObject.Raw) == 0 {
+		return admission.Allowed("")
+	}
+
+	oldDSC := &dscv1.DataScienceCluster{}
+	if err := v.Decoder.DecodeRaw(req.OldObject, oldDSC); err != nil {
+		logf.FromContext(ctx).Error(err, "Error decoding old object")
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	newDSC := &dscv1.DataScienceCluster{}
+	if err := v.Decoder.DecodeRaw(req.Object, newDSC); err != nil {
+		logf.FromContext(ctx).Error(err, "Error decoding new object")
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	if dscwebhook.IsTrainingOperatorReEnabled(
+		oldDSC.Spec.Components.TrainingOperator.ManagementState,
+		newDSC.Spec.Components.TrainingOperator.ManagementState,
+	) {
+		return admission.Denied(dscwebhook.TrainingOperatorReEnablementDenied)
+	}
+
+	return admission.Allowed("")
+}
+
 // warnDeprecatedModelsAsService emits an oc/kubectl Warning when the deprecated
 // kserve.modelsAsService field is Managed. Admission is still allowed so upgrades
 // and no-op syncs keep working; CEL blocks Removed→Managed separately.
@@ -131,7 +162,7 @@ func (v *Validator) warnDeprecatedModelsAsService(ctx context.Context, _ client.
 	}
 
 	resp := admission.Allowed("")
-	resp.Warnings = dscwebhook.ModelsAsServiceDeprecationWarnings(dcsV1.Spec.Components.Kserve.ModelsAsService.ManagementState) //nolint:staticcheck
+	resp.Warnings = dscwebhook.ModelsAsServiceDeprecationWarnings(dcsV1.Spec.Components.Kserve.ModelsAsService.ManagementState)
 	return resp
 }
 
