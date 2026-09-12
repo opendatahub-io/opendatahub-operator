@@ -90,18 +90,7 @@ import (
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
-	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
-	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
-	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
-	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
-	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
-	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
-	modelregistryModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/modelregistry"
-	monitoringModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/monitoring"
-	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
-	sparkoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/sparkoperator"
-	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
-	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
+	modulebuiltin "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/builtin"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -162,43 +151,6 @@ var (
 		certconfigmapgenerator.ServiceName: certconfigmapgenerator.NewHandler(),
 		serviceApi.GatewayServiceName:      gateway.NewHandler(),
 		setup.ServiceName:                  setup.NewHandler(),
-	}
-
-	existingModules = map[string]mr.ModuleHandler{
-		componentApi.DashboardComponentName:            dashboardModule.NewHandler(),
-		serviceApi.MonitoringServiceName:               monitoringModule.NewHandler(),
-		componentApi.AIGatewayComponentName:            aigatewayModule.NewHandler(),
-		componentApi.MCPLifecycleOperatorComponentName: mcplifecycleoperatorModule.NewHandler(),
-		componentApi.MLflowOperatorComponentName:       mlflowOperatorModule.NewHandler(),
-		componentApi.ModelRegistryComponentName:        modelregistryModule.NewHandler(),
-		componentApi.KserveComponentName:               kserveModule.NewHandler(),
-		componentApi.OGXComponentName:                  ogxModule.NewHandler(),
-		componentApi.TrainerComponentName:              trainerModule.NewHandler(),
-		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
-		componentApi.FeastOperatorComponentName:        feastModule.NewHandler(),
-		componentApi.SparkOperatorComponentName:        sparkoperatorModule.NewHandler(),
-	}
-
-	// dsciConfiguredModules lists modules whose user-facing configuration
-	// lives in the DSCI spec. The DSCI controller creates their module CRs.
-	// All other modules default to DSC-configured.
-	dsciConfiguredModules = map[string]bool{
-		serviceApi.MonitoringServiceName: true,
-	}
-
-	moduleRunlevels = map[string]dag.Runlevel{
-		serviceApi.MonitoringServiceName:               dag.RL(20),
-		componentApi.DashboardComponentName:            dag.RL(20),
-		componentApi.AIGatewayComponentName:            dag.RL(32),
-		componentApi.FeastOperatorComponentName:        dag.RL(32),
-		componentApi.MCPLifecycleOperatorComponentName: dag.RL(20),
-		componentApi.MLflowOperatorComponentName:       dag.RL(32),
-		componentApi.ModelRegistryComponentName:        dag.RL(20),
-		componentApi.KserveComponentName:               dag.RL(31),
-		componentApi.OGXComponentName:                  dag.RL(32),
-		componentApi.TrainerComponentName:              dag.RL(20),
-		componentApi.WorkbenchesComponentName:          dag.RL(20),
-		componentApi.SparkOperatorComponentName:        dag.RL(32),
 	}
 )
 
@@ -277,19 +229,14 @@ func registerServices() {
 }
 
 func registerModules() {
-	for name, handler := range existingModules {
-		rl := dag.RL(99)
-		if r, ok := moduleRunlevels[name]; ok {
-			rl = r
+	for _, registration := range modulebuiltin.Registrations() {
+		name := registration.Handler.GetName()
+		opts := []mr.RegistrationOption{
+			mr.WithRunlevel(registration.Runlevel),
+			mr.WithConfigSource(registration.ConfigSource),
 		}
-
-		opts := []mr.RegistrationOption{mr.WithRunlevel(rl)}
-		if dsciConfiguredModules[name] {
-			opts = append(opts, mr.WithConfigSource(mr.ConfigFromDSCI))
-		}
-
-		mr.Add(handler, opts...)
-		provision.Add(name, provision.KindModule, rl)
+		mr.Add(registration.Handler, opts...)
+		provision.Add(name, provision.KindModule, registration.Runlevel)
 
 		if !flags.IsModuleEnabled(name) {
 			mr.Disable(name)
@@ -313,7 +260,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		fmt.Printf("Error registering service suppression flags: %s", err.Error())
 		os.Exit(1)
 	}
-	if err := flags.RegisterModuleSuppressionFlags(slices.Collect(maps.Keys(existingModules))); err != nil {
+	if err := flags.RegisterModuleSuppressionFlags(modulebuiltin.Names()); err != nil {
 		fmt.Printf("Error registering module suppression flags: %s", err.Error())
 		os.Exit(1)
 	}

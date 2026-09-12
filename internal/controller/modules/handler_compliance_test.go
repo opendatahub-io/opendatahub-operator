@@ -10,34 +10,23 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
-	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
-	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
-	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
-	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
-	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
-	mlflowoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
-	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
-	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
+	modulebuiltin "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/builtin"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
 	. "github.com/onsi/gomega"
 )
 
 // allHandlers returns every module handler the platform operator registers.
-// Keep in sync with existingModules in cmd/main.go. Monitoring is excluded
-// because it is currently commented out in registration.
 func allHandlers() []modules.ModuleHandler {
-	return []modules.ModuleHandler{
-		aigatewayModule.NewHandler(),
-		dashboardModule.NewHandler(),
-		feastModule.NewHandler(),
-		kserveModule.NewHandler(),
-		mcplifecycleoperatorModule.NewHandler(),
-		mlflowoperatorModule.NewHandler(),
-		ogxModule.NewHandler(),
-		workbenchesModule.NewHandler(),
+	registrations := modulebuiltin.Registrations()
+	handlers := make([]modules.ModuleHandler, 0, len(registrations))
+	for _, registration := range registrations {
+		handlers = append(handlers, registration.Handler)
 	}
+	return handlers
 }
 
 func managedDSCContext() (*modules.DSCContext, *modules.ModuleCRConfig) {
@@ -69,6 +58,13 @@ func managedDSCContext() (*modules.DSCContext, *modules.ModuleCRConfig) {
 						OGX: componentApi.DSCOGX{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
+					},
+				},
+			},
+			DSCI: &dsciv2.DSCInitialization{
+				Spec: dsciv2.DSCInitializationSpec{
+					Monitoring: serviceApi.DSCIMonitoring{
+						ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 					},
 				},
 			},
