@@ -7,6 +7,7 @@ import (
 	securityv1 "github.com/openshift/api/security/v1"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	olmv1 "github.com/operator-framework/operator-controller/api/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
@@ -101,6 +102,18 @@ var (
 		Group:   operatorsv1alpha1.SchemeGroupVersion.Group,
 		Version: operatorsv1alpha1.SchemeGroupVersion.Version,
 		Kind:    operatorsv1alpha1.ClusterServiceVersionKind,
+	}
+
+	ClusterCatalog = schema.GroupVersionKind{
+		Group:   olmv1.GroupVersion.Group,
+		Version: olmv1.GroupVersion.Version,
+		Kind:    "ClusterCatalog",
+	}
+
+	ClusterExtension = schema.GroupVersionKind{
+		Group:   olmv1.GroupVersion.Group,
+		Version: olmv1.GroupVersion.Version,
+		Kind:    olmv1.ClusterExtensionKind,
 	}
 
 	ClusterVersion = schema.GroupVersionKind{
