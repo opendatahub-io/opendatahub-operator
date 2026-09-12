@@ -222,7 +222,7 @@ func (r *DSCInitializationReconciler) configureSegmentIO(ctx context.Context, ds
 		Name:      "odh-segment-key-config",
 	}, segmentioConfigMap); err != nil {
 		if !k8serr.IsNotFound(err) {
-			log.Error(err, "error getting configmap 'odh-segment-key-config'")
+			log.Error(err, "error getting configmap", "resourceKind", "ConfigMap", "name", "odh-segment-key-config", "dsciName", dsciInit.Name)
 			return err
 		}
 
