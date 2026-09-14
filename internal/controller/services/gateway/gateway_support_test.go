@@ -144,7 +144,6 @@ func TestGetCertificateTypeXKSDefault(t *testing.T) {
 	originalClusterInfo := cluster.GetClusterInfo()
 	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
 	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
-
 	// nil gatewayConfig, nil certificate, and empty type all resolve to the XKS default.
 	g.Expect(getCertificateType(nil)).To(Equal(string(infrav1.SelfSigned)))
 	g.Expect(getCertificateType(&serviceApi.GatewayConfig{})).To(Equal(string(infrav1.SelfSigned)))
