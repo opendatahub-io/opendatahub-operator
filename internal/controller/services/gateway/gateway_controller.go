@@ -24,6 +24,7 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -37,6 +38,19 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 )
+
+// gatewayCRDWatchPredicate matches CRD events that must re-trigger a GatewayConfig reconcile:
+//
+//   - the Dashboard CRD, which gates the dashboard redirect resources;
+//   - the cert-manager Certificate CRD, which gates the cert-manager branch in certificate
+//     handling. Without it, a cluster that installs cert-manager after the operator started
+//     keeps serving the self-signed fallback until something else triggers a reconcile.
+func gatewayCRDWatchPredicate() predicate.Predicate {
+	return predicate.Or(
+		resources.CreatedOrUpdatedOrDeletedNamed(gvk.DashboardComponentCRDName),
+		resources.CreatedOrUpdatedOrDeletedNamed(gvk.CertManagerCertificateCRDName),
+	)
+}
 
 func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	gw := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{})
@@ -62,8 +76,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
 				handlers.ToNamed(serviceApi.GatewayConfigName)),
-			reconciler.WithPredicates(
-				resources.CreatedOrUpdatedOrDeletedNamed(gvk.DashboardComponentCRDName)),
+			reconciler.WithPredicates(gatewayCRDWatchPredicate()),
 		).
 		// Watch for certificate secrets (both OpenShift default ingress and provided).
 		Watches(
