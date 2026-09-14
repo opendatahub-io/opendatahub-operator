@@ -1,3 +1,5 @@
+//go:build !nowebhook
+
 package gateway_test
 
 import (
@@ -98,6 +100,15 @@ func TestGatewayConfigValidator(t *testing.T) {
 			spec:        serviceApi.GatewayConfigSpec{IngressMode: serviceApi.IngressModeLoadBalancer},
 			allowed:     true,
 		},
+		{
+			name:        "accepts an empty certificate on Kubernetes",
+			clusterType: cluster.ClusterTypeKubernetes,
+			spec: serviceApi.GatewayConfigSpec{
+				IngressMode: serviceApi.IngressModeLoadBalancer,
+				Certificate: &infrav1.CertificateSpec{},
+			},
+			allowed: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -132,4 +143,9 @@ func TestGatewayConfigValidator(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRegisterWebhooksNilManager(t *testing.T) {
+	g := NewWithT(t)
+	g.Expect(gatewaywebhook.RegisterWebhooks(nil)).To(MatchError("manager cannot be nil"))
 }

@@ -130,6 +130,24 @@ func TestGetCertificateType(t *testing.T) {
 	}
 }
 
+func TestDefaultCertificateTypeForKubernetes(t *testing.T) {
+	g := NewWithT(t)
+	previousClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(previousClusterInfo) })
+
+	clusterInfo := previousClusterInfo
+	clusterInfo.Type = cluster.ClusterTypeKubernetes
+	cluster.SetClusterInfo(clusterInfo)
+
+	g.Expect(defaultCertificateType()).To(Equal(infrav1.SelfSigned))
+	g.Expect(getCertificateType(nil)).To(Equal(string(infrav1.SelfSigned)))
+	g.Expect(getCertificateType(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Certificate: &infrav1.CertificateSpec{},
+		},
+	})).To(Equal(string(infrav1.SelfSigned)))
+}
+
 // TestGetGatewayAuthProxyTimeout tests the getGatewayAuthProxyTimeout function.
 func TestGetGatewayAuthProxyTimeout(t *testing.T) {
 	t.Parallel()
