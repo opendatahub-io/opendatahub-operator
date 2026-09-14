@@ -132,6 +132,33 @@ func allChartDefs(deps ccmcommon.Dependencies, chartsPath string) []chartDef {
 				Namespace:      deps.SailOperator.GetNamespace(),
 			},
 		},
+		{
+			stateFn: makeStateFn(func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
+				// Unlike the other CCM dependencies, RHCL requires an explicit "Managed"
+				// opt-in: its chart is far heavier (~30 CRDs, several Deployments) and,
+				// unlike LWS/SailOperator/GatewayAPI, isn't something every xKS cluster
+				// needs. Treat anything other than an explicit Managed (including an
+				// unset/zero-value field) as Unmanaged.
+				if d.RHCL.ManagementPolicy == ccmcommon.Managed {
+					return ccmcommon.Managed
+				}
+
+				return ccmcommon.Unmanaged
+			}, &RHCLOperatorCR),
+			operatorCR: &RHCLOperatorCR,
+			chart: types.HelmChartInfo{
+				Source: helm.Source{
+					Chart:       filepath.Join(chartsPath, "rhcl-operator"),
+					ReleaseName: "rhcl-operator",
+					Values:      helm.Values(map[string]any{}),
+				},
+			},
+			monitor: monitorConfig{
+				ConditionType:  status.ConditionRHCLReady,
+				HasDeployments: true,
+				Namespace:      RHCLOperatorNamespace,
+			},
+		},
 	}
 }
 

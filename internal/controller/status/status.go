@@ -105,6 +105,7 @@ const (
 	ConditionDependenciesReady = "DependenciesReady"
 	ConditionGatewayAPIReady   = "GatewayAPIReady"
 	ConditionLWSReady          = "LWSReady"
+	ConditionRHCLReady         = "RHCLReady"
 	ConditionSailOperatorReady = "SailOperatorReady"
 )
 
