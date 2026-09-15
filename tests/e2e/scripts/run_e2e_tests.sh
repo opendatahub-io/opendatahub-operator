@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Validation functions
 validate_bool() {
-    local var_name=$1
+    local var_name=$1 
     local value=${!var_name}
     case "$value" in
         true|false|0|1) return 0 ;;
@@ -111,19 +111,39 @@ if [ -n "${PULL_NUMBER:-}" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
   GITHUB_PR_FLAGS="--github-owner=${REPO_OWNER} --github-repo=${REPO_NAME} --github-pr=${PULL_NUMBER} --failure-label=${E2E_FLAKY_LABEL}"
 fi
 
+JUNIT_FILE="results/xunit_report.xml"
+
+filter_gate_skips_if_present() {
+  if [ ! -f "$JUNIT_FILE" ]; then
+    echo "No JUnit file at ${JUNIT_FILE}; skipping gate-skip filter"
+    return 0
+  fi
+
+  if ! command -v test-retry >/dev/null 2>&1; then
+    echo "Warning: test-retry not found; leaving ${JUNIT_FILE} unfiltered" >&2
+    return 0
+  fi
+
+  echo "Filtering tag-gate skips from ${JUNIT_FILE}"
+  test-retry filter-gate-skips --junit "$JUNIT_FILE" || {
+    echo "Warning: gate-skip filter failed; leaving ${JUNIT_FILE} unfiltered" >&2
+    return 0
+  }
+
+}
+
 # Choose test runner based on USE_TEST_RETRY flag
 if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
   echo "Using test-retry for JUnit enrichment with failure classification"
 
-  # Run with test-retry (enriched JUnit XML with <properties>)
-  # Note: No --filter flag (uses custom e2e flags like --tag, --test-operator-controller instead)
+  test_exit=0
   # shellcheck disable=SC2086
-  exec test-retry e2e \
+  test-retry e2e \
     --command ./e2e-tests \
     --filter "" \
     --path /e2e \
     --max-retries 3 \
-    --junit-output results/xunit_report.xml \
+    --junit-output "$JUNIT_FILE" \
     --verbose \
     ${GITHUB_PR_FLAGS} \
     -- --test.parallel=8 \
@@ -143,7 +163,9 @@ if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
     --workbenches-namespace="$E2E_TEST_WORKBENCHES_NAMESPACE" \
     --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
     --tag="$E2E_TEST_TAG" \
-    "$@"
+    "$@" || test_exit=$?
+
+  exit "$test_exit"
 else
   echo "Using gotestsum with leaf-oriented JUnit XML"
 
@@ -154,7 +176,7 @@ else
   raw_junit_report=results/xunit_report.unfiltered
   test_events=results/test-events.json
 
-  set +e
+  test_status=0
   gotestsum --junitfile-project-name odh-operator-e2e \
     --junitfile "$raw_junit_report" --jsonfile "$test_events" \
     --format standard-verbose --raw-command \
@@ -175,9 +197,7 @@ else
     --workbenches-namespace="$E2E_TEST_WORKBENCHES_NAMESPACE" \
     --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
     --tag="$E2E_TEST_TAG" \
-    "$@"
-  test_status=$?
-  set -e
+    "$@" || test_status=$?
 
   # Ignore only parent results. Their captured output is retained by the
   # converter as suite-level output. If this leaves no failure/error despite
@@ -206,5 +226,6 @@ else
     fi
   fi
 
+  filter_gate_skips_if_present
   exit "$test_status"
 fi
