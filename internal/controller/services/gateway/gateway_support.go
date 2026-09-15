@@ -327,6 +327,11 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 				if err := rr.AddResources(cert); err != nil {
 					return "", fmt.Errorf("failed to add gateway Certificate: %w", err)
 				}
+				logf.FromContext(ctx).V(1).Info("Created cert-manager Certificate for gateway",
+					"secret", secretName,
+					"issuerName", issuerName,
+					"issuerKind", issuerKind,
+				)
 				return secretName, nil
 			}
 			logf.FromContext(ctx).Info("cert-manager Certificate CRD not found; falling back to operator self-signed certificate for gateway", "secret", secretName)

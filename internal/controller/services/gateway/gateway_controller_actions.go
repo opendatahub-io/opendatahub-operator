@@ -236,7 +236,11 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 			if err := rr.AddResources(cert); err != nil {
 				return fmt.Errorf("failed to add kube-auth-proxy Certificate: %w", err)
 			}
-			l.V(1).Info("Created cert-manager Certificate for kube-auth-proxy", "secret", KubeAuthProxyTLSName)
+			l.V(1).Info("Created cert-manager Certificate for kube-auth-proxy",
+				"secret", KubeAuthProxyTLSName,
+				"issuerName", issuerName,
+				"issuerKind", issuerKind,
+			)
 		} else {
 			l.Info("cert-manager Certificate CRD not found; falling back to operator self-signed certificate for kube-auth-proxy", "secret", KubeAuthProxyTLSName)
 			if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, KubeAuthProxyTLSName, kapServiceDNS, GetGatewayNamespace(),
