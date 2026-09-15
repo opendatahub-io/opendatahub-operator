@@ -528,3 +528,32 @@ func TestConvertTo_CorruptStashAnnotationDoesNotLeak(t *testing.T) {
 	// Annotation must not leak onto the v2 object even though unmarshal failed
 	g.Expect(v2DSC.GetAnnotations()).NotTo(HaveKey("conversion.opendatahub.io/aigateway-state"))
 }
+
+func TestConvertRoundTrip_MaaSConsumerPortalStatus(t *testing.T) {
+	states := []operatorv1.ManagementState{operatorv1.Managed, operatorv1.Removed, ""}
+	for _, desired := range states {
+		for _, observed := range states {
+			t.Run(string(desired)+"/"+string(observed), func(t *testing.T) {
+				g := NewWithT(t)
+				original := &dscv2.DataScienceCluster{}
+				original.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = desired
+				original.Status.Components.MaaSConsumerPortal.ManagementState = observed
+				original.Status.Conditions = []common.Condition{
+					{Type: "AIPipelinesReady", Status: metav1.ConditionTrue, Reason: "Ready"},
+					{Type: "MaaSConsumerPortalAvailable", Status: metav1.ConditionFalse, Reason: "AwaitingReadiness"},
+				}
+
+				spoke := &DataScienceCluster{}
+				g.Expect(spoke.ConvertFrom(original.DeepCopy())).To(Succeed())
+				g.Expect(spoke.Status.Components.MaaSConsumerPortal).To(Equal(original.Status.Components.MaaSConsumerPortal))
+
+				restored := &dscv2.DataScienceCluster{}
+				g.Expect(spoke.ConvertTo(restored)).To(Succeed())
+				g.Expect(restored.Spec.Components.Dashboard.MaaSConsumerPortal).To(Equal(original.Spec.Components.Dashboard.MaaSConsumerPortal))
+				// Observed state must survive independently of spec, including during transitions.
+				g.Expect(restored.Status.Components.MaaSConsumerPortal).To(Equal(original.Status.Components.MaaSConsumerPortal))
+				g.Expect(restored.Status.Conditions).To(Equal(original.Status.Conditions))
+			})
+		}
+	}
+}

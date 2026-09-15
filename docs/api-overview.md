@@ -435,6 +435,7 @@ Portal submodule (submodule of Dashboard) exposed in the DSC instance.
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1799,6 +1800,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboardStatus](#dscdashboardstatus)_ | Dashboard component status. |  |  |
+| `maasConsumerPortal` _[DSCMaaSConsumerPortalStatus](#dscmaasconsumerportalstatus)_ | MaaSConsumerPortal submodule status (submodule of Dashboard). |  |  |
 | `workbenches` _[DSCWorkbenchesStatus](#dscworkbenchesstatus)_ | Workbenches component status. |  |  |
 | `datasciencepipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | DataSciencePipeline component status. |  |  |
 | `kserve` _[DSCKserveStatus](#dsckservestatus)_ | Kserve component status. |  |  |

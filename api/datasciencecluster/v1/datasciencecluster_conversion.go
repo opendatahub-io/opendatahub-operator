@@ -190,15 +190,16 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 		RelatedObjects: c.Status.RelatedObjects,
 		ErrorMessage:   c.Status.ErrorMessage,
 		Components: dscv2.ComponentsStatus{
-			Dashboard:        c.Status.Components.Dashboard,
-			Workbenches:      c.Status.Components.Workbenches,
-			AIPipelines:      c.Status.Components.DataSciencePipelines,
-			Kserve:           c.Status.Components.Kserve,
-			Kueue:            c.Status.Components.Kueue,
-			Ray:              c.Status.Components.Ray,
-			TrustyAI:         c.Status.Components.TrustyAI,
-			ModelRegistry:    c.Status.Components.ModelRegistry,
-			TrainingOperator: c.Status.Components.TrainingOperator,
+			Dashboard:          c.Status.Components.Dashboard,
+			MaaSConsumerPortal: c.Status.Components.MaaSConsumerPortal,
+			Workbenches:        c.Status.Components.Workbenches,
+			AIPipelines:        c.Status.Components.DataSciencePipelines,
+			Kserve:             c.Status.Components.Kserve,
+			Kueue:              c.Status.Components.Kueue,
+			Ray:                c.Status.Components.Ray,
+			TrustyAI:           c.Status.Components.TrustyAI,
+			ModelRegistry:      c.Status.Components.ModelRegistry,
+			TrainingOperator:   c.Status.Components.TrainingOperator,
 			Trainer: componentApi.DSCTrainerStatus{
 				ManagementSpec: common.ManagementSpec{
 					ManagementState: operatorv1.Removed,
@@ -322,6 +323,7 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 		InstalledComponents: constructInstalledComponentsFromV2Status(src.Status),
 		Components: ComponentsStatus{
 			Dashboard:            src.Status.Components.Dashboard,
+			MaaSConsumerPortal:   src.Status.Components.MaaSConsumerPortal,
 			Workbenches:          src.Status.Components.Workbenches,
 			DataSciencePipelines: src.Status.Components.AIPipelines,
 			Kserve:               src.Status.Components.Kserve,
