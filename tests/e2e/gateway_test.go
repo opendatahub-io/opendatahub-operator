@@ -27,6 +27,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -100,6 +101,7 @@ func gatewayTestSuite(t *testing.T) {
 	// Define test cases.
 	testCases := []TestCase{
 		{"Validate GatewayConfig creation", gatewayCtx.ValidateGatewayConfig},
+		{"Validate XKS GatewayConfig admission", gatewayCtx.ValidateXKSGatewayConfigAdmission},
 		{"Validate Gateway infrastructure", gatewayCtx.ValidateGatewayInfrastructure},
 		// IntegratedOAuth-specific tests (skipped on BYOIDC)
 		{"Validate OAuth client and secret creation", gatewayCtx.ValidateOAuthClientAndSecret},
@@ -166,6 +168,36 @@ func (tc *GatewayTestCtx) ValidateGatewayConfig(t *testing.T) {
 	}
 
 	t.Log("GatewayConfig validation completed")
+}
+
+// ValidateXKSGatewayConfigAdmission verifies that the deployed webhook rejects
+// OpenShift-only GatewayConfig values on XKS while leaving the valid singleton
+// unchanged.
+func (tc *GatewayTestCtx) ValidateXKSGatewayConfigAdmission(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke)
+	if !tc.IsXKS() {
+		t.Skip("Skipping test because it is only supported on XKS")
+	}
+
+	gatewayConfig := types.NamespacedName{Name: gatewayConfigName}
+
+	tc.EnsureWebhookBlocksResourceUpdate(
+		WithMinimalObject(gvk.GatewayConfig, gatewayConfig),
+		WithMutateFunc(testf.Transform(`.spec.ingressMode = "OcpRoute"`)),
+		WithFieldName("ingressMode"),
+		WithInvalidValue("OcpRoute"),
+		WithCustomErrorMsg("XKS webhook should reject OcpRoute ingress mode"),
+	)
+
+	tc.EnsureWebhookBlocksResourceUpdate(
+		WithMinimalObject(gvk.GatewayConfig, gatewayConfig),
+		WithMutateFunc(testf.Transform(`.spec.certificate.type = "OpenshiftDefaultIngress"`)),
+		WithFieldName("certificate.type"),
+		WithInvalidValue("OpenshiftDefaultIngress"),
+		WithCustomErrorMsg("XKS webhook should reject the OpenShift default ingress certificate"),
+	)
 }
 
 // ValidateGatewayInfrastructure validates Gateway API resources (GatewayClass, Gateway, TLS).
