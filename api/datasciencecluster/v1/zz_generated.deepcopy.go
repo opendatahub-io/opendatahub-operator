@@ -57,7 +57,6 @@ func (in *Components) DeepCopy() *Components {
 func (in *ComponentsStatus) DeepCopyInto(out *ComponentsStatus) {
 	*out = *in
 	in.Dashboard.DeepCopyInto(&out.Dashboard)
-	out.MaaSConsumerPortal = in.MaaSConsumerPortal
 	in.Workbenches.DeepCopyInto(&out.Workbenches)
 	in.ModelMeshServing.DeepCopyInto(&out.ModelMeshServing)
 	in.DataSciencePipelines.DeepCopyInto(&out.DataSciencePipelines)

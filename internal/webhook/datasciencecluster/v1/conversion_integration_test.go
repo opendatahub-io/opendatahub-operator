@@ -22,10 +22,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// A v1 spec patch must preserve portal status so the controller can subsequently
-// apply v2 status. Losing the field during conversion can make server-side apply
-// produce null for the portal status object and reject the entire status update.
-func TestDataScienceClusterV1PatchPreservesPortalStatus(t *testing.T) {
+// Portal status is v2-only, so conversion from v1 must initialize it to Removed.
+// Leaving it empty can make a subsequent v2 server-side status apply produce null
+// for the portal status object and reject the entire status update.
+func TestDataScienceClusterV1PatchAllowsV2StatusUpdate(t *testing.T) {
 	t.Parallel()
 
 	for _, state := range []operatorv1.ManagementState{operatorv1.Managed, operatorv1.Removed} {
@@ -71,24 +71,30 @@ func TestDataScienceClusterV1PatchPreservesPortalStatus(t *testing.T) {
 			g.Expect(k8sClient.Patch(ctx, spoke, client.MergeFrom(original))).To(Succeed())
 			g.Expect(k8sClient.Get(ctx, key, dsc)).To(Succeed())
 			g.Expect(dsc.Spec.Components.AIPipelines.ArgoWorkflowsControllers.ManagementState).To(Equal(operatorv1.Removed))
-			g.Expect(dsc.Status.Components.MaaSConsumerPortal.ManagementState).To(Equal(state))
+			g.Expect(dsc.Status.Components.MaaSConsumerPortal.ManagementState).To(Equal(operatorv1.Removed))
 
-			// Use the same status writer and field owner as the DSC controller.
+			// The v2 controller can restore observed status using its normal status writer.
 			dsc.Status.Components.MaaSConsumerPortal.ManagementState = state
 			dsc.Status.Conditions[0].Status = metav1.ConditionTrue
 			dsc.Status.Conditions[0].Reason = "Ready"
 			g.Expect(resources.ApplyStatus(ctx, k8sClient, dsc,
 				client.FieldOwner("datasciencecluster"), client.ForceOwnership)).To(Succeed())
+			g.Expect(k8sClient.Get(ctx, key, dsc)).To(Succeed())
+			g.Expect(dsc.Status.Components.MaaSConsumerPortal.ManagementState).To(Equal(state))
 
 			g.Expect(k8sClient.Get(ctx, key, spoke)).To(Succeed())
-			g.Expect(spoke.Status.Components.MaaSConsumerPortal.ManagementState).To(Equal(state))
 			g.Expect(spoke.Status.Conditions).To(ContainElement(And(
 				HaveField("Type", "DataSciencePipelinesReady"),
 				HaveField("Status", metav1.ConditionTrue),
 			)))
 
-			// Updating status through v1 must also retain the observed portal state.
+			// A v1 status write also defaults portal status without blocking later v2 writes.
 			g.Expect(k8sClient.Status().Update(ctx, spoke)).To(Succeed())
+			g.Expect(k8sClient.Get(ctx, key, dsc)).To(Succeed())
+			g.Expect(dsc.Status.Components.MaaSConsumerPortal.ManagementState).To(Equal(operatorv1.Removed))
+			dsc.Status.Components.MaaSConsumerPortal.ManagementState = state
+			g.Expect(resources.ApplyStatus(ctx, k8sClient, dsc,
+				client.FieldOwner("datasciencecluster"), client.ForceOwnership)).To(Succeed())
 			g.Expect(k8sClient.Get(ctx, key, dsc)).To(Succeed())
 			g.Expect(dsc.Status.Components.MaaSConsumerPortal.ManagementState).To(Equal(state))
 		})

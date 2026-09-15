@@ -529,7 +529,7 @@ func TestConvertTo_CorruptStashAnnotationDoesNotLeak(t *testing.T) {
 	g.Expect(v2DSC.GetAnnotations()).NotTo(HaveKey("conversion.opendatahub.io/aigateway-state"))
 }
 
-func TestConvertRoundTrip_MaaSConsumerPortalStatus(t *testing.T) {
+func TestConvertRoundTrip_MaaSConsumerPortalStatusDefaultsRemoved(t *testing.T) {
 	states := []operatorv1.ManagementState{operatorv1.Managed, operatorv1.Removed, ""}
 	for _, desired := range states {
 		for _, observed := range states {
@@ -545,13 +545,12 @@ func TestConvertRoundTrip_MaaSConsumerPortalStatus(t *testing.T) {
 
 				spoke := &DataScienceCluster{}
 				g.Expect(spoke.ConvertFrom(original.DeepCopy())).To(Succeed())
-				g.Expect(spoke.Status.Components.MaaSConsumerPortal).To(Equal(original.Status.Components.MaaSConsumerPortal))
 
 				restored := &dscv2.DataScienceCluster{}
 				g.Expect(spoke.ConvertTo(restored)).To(Succeed())
 				g.Expect(restored.Spec.Components.Dashboard.MaaSConsumerPortal).To(Equal(original.Spec.Components.Dashboard.MaaSConsumerPortal))
-				// Observed state must survive independently of spec, including during transitions.
-				g.Expect(restored.Status.Components.MaaSConsumerPortal).To(Equal(original.Status.Components.MaaSConsumerPortal))
+				// Portal status is v2-only and defaults to Removed after conversion from v1.
+				g.Expect(restored.Status.Components.MaaSConsumerPortal.ManagementState).To(Equal(operatorv1.Removed))
 				g.Expect(restored.Status.Conditions).To(Equal(original.Status.Conditions))
 			})
 		}
