@@ -19,6 +19,7 @@ const (
 type IssuerRef struct {
 	// Name of the cert-manager issuer. When empty, the platform default issuer name is used.
 	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
 	Name string `json:"name,omitempty"`
 	// Kind of the cert-manager issuer.
 	// When empty, the operator environment is used, falling back to ClusterIssuer.
