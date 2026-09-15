@@ -2373,7 +2373,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `name` _string_ | Name of the cert-manager issuer. When empty, the platform default issuer name is used. |  | MaxLength: 253 <br /> |
+| `name` _string_ | Name of the cert-manager issuer. When empty, the platform default issuer name is used. |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$` <br /> |
 | `kind` _string_ | Kind of the cert-manager issuer.<br />When empty, the operator environment is used, falling back to ClusterIssuer. |  | Enum: [Issuer ClusterIssuer] <br /> |
 
 

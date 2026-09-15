@@ -74,6 +74,40 @@ func TestGatewayIssuerURLValidationEnvtest(t *testing.T) {
 		g.Expect(gw.Spec.Certificate.IssuerRef.Kind).To(BeEmpty())
 	})
 
+	t.Run("certificate issuer name follows DNS subdomain naming", func(t *testing.T) {
+		accepted := validGatewayWithIssuerURL("https://auth.example.com")
+		accepted.Spec.Certificate = &infrav1.CertificateSpec{
+			Type: infrav1.SelfSigned,
+			IssuerRef: &infrav1.IssuerRef{
+				Name: "tenant.issuer",
+			},
+		}
+		g := NewWithT(t)
+		g.Expect(k8sClient.Create(ctx, accepted)).To(Succeed())
+		g.Expect(k8sClient.Delete(ctx, accepted)).To(Succeed())
+
+		for _, issuerName := range []string{"bad/name", "Issuer Name"} {
+			t.Run("rejected: "+issuerName, func(t *testing.T) {
+				g := NewWithT(t)
+				gw := validGatewayWithIssuerURL("https://auth.example.com")
+				gw.Spec.Certificate = &infrav1.CertificateSpec{
+					Type: infrav1.SelfSigned,
+					IssuerRef: &infrav1.IssuerRef{
+						Name: issuerName,
+					},
+				}
+
+				err := k8sClient.Create(ctx, gw)
+				if err == nil {
+					g.Expect(k8sClient.Delete(ctx, gw)).To(Succeed())
+				}
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
+				g.Expect(err.Error()).To(ContainSubstring("issuerRef.name"))
+			})
+		}
+	})
+
 	// MaxLength boundary strings: both are otherwise-valid HTTPS URLs padded in the
 	// path with an allowed character, so length is the only thing under test.
 	const maxLenBase = "https://example.com/"
