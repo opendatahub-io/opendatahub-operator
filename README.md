@@ -12,15 +12,9 @@ and configure these applications.
     - [Log mode values](#log-mode-values)
     - [Use custom application namespace](#use-custom-application-namespace)
 - [Developer Guide](#developer-guide)
-    - [Pre-requisites](#pre-requisites)
-    - [Download manifests](#download-manifests)
-    - [Structure of `COMPONENT_MANIFESTS`](#structure-of-component_manifests)
-    - [Workflow](#workflow)
-    - [Local Storage](#local-storage)
-    - [Adding New Components](#adding-new-components)
-    - [Customizing Manifests Source](#customizing-manifests-source)
-      - [for local development](#for-local-development)
-      - [for build operator image](#for-build-operator-image)
+     - [Pre-requisites](#pre-requisites)
+     - [Download manifests](#download-manifests)
+     - [Update pinned RHOAI image digests](#update-pinned-rhoai-image-digests)
     - [Build Image](#build-image)
     - [Deployment](#deployment)
   - [Test with customized manifests](#test-with-customized-manifests)
@@ -135,61 +129,31 @@ To enable it:
 
 #### Download manifests
 
-The [get_all_manifests.sh](/get_all_manifests.sh) script facilitates the process of fetching manifests from remote git repositories. It is configured to work with a predefined map of components and their corresponding manifest locations.
-
-#### Structure of `COMPONENT_MANIFESTS`
-
-Each component is associated with its manifest location in the `COMPONENT_MANIFESTS` map. The key is the component's name, and the value is its location, formatted as `<repo-org>:<repo-name>:<branch-name>:<source-folder>:<target-folder>`
-
-#### Workflow
-
-1. The script clones the remote repository `<repo-org>/<repo-name>` from the specified `<branch-name>`.
-2. It then copies the content from the relative path `<source-folder>` to the local `opt/manifests/<target-folder>` folder.
-
-#### Local Storage
-
-The script utilizes a local, empty folder named `opt/manifests` to host all required manifests, sourced directly from each component’s source repository.
-
-#### Adding New Components
-
-To include a new component in the list of manifest repositories, simply extend the `COMPONENT_MANIFESTS` map with a new entry, as shown below:
+`cmd/manifest-tools` reads `manifests-config.yaml` and downloads component manifests into `opt/manifests`.
 
 ```shell
-declare -A COMPONENT_MANIFESTS=(
-  // existing components ...
-  ["new-component"]="<repo-org>:<repo-name>:<branch-name>:<source-folder>:<target-folder>"
-)
-```
-
-#### Customizing Manifests Source
-You have the flexibility to change the source of the manifests. Invoke the `get_all_manifests.sh` script with specific flags, as illustrated below:
-
-```shell
-./get_all_manifests.sh --odh-dashboard="maistra:odh-dashboard:test-manifests:manifests:odh-dashboard"
-```
-
-If the flag name matches components key defined in `COMPONENT_MANIFESTS` it will overwrite its location, otherwise the command will fail.
-
-##### for local development
-
-```
 make get-manifests
 ```
 
-This first cleanup your local `opt/manifests` folder.
-Ensure back up before run this command if you have local changes of manifests want to reuse later.
+Edit `manifests-config.yaml` to change component repositories, refs, or source paths. Pin refs as `branch@commit-sha` when reproducibility matters.
 
-##### for build operator image
+#### Update pinned RHOAI image digests
 
-```commandline
-make image-build
+Stable 2.x uses RHOAI images. Image digests are committed in `manifests-config.yaml`; do not add scheduled or per-E2E updates, since that creates unnecessary stable-branch churn.
+
+Refresh digests manually when a release or CI fix needs newer images:
+
+```shell
+ODH_PLATFORM_TYPE=RHOAI make resolve-image-digests
 ```
 
-By default, building an image without any local changes(as a clean build)
-This is what the production build system is doing.
+Review resulting `manifests-config.yaml` changes before committing. This reads latest `rhoai-2.25` CSV data from RHOAI Build Config and updates checked-in values; normal E2E runs use committed values.
 
-In order to build an image with local `opt/manifests` folder set `USE_LOCAL` make variable to `true`
-e.g `make image-build USE_LOCAL=true"`
+For local RHOAI E2E runs against an already deployed operator:
+
+```shell
+ODH_PLATFORM_TYPE=RHOAI OPERATOR_NAMESPACE=openshift-operators make e2e-test E2E_TEST_FLAGS="-timeout 60m"
+```
 
 #### Build Image
 
