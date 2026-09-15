@@ -113,6 +113,9 @@ func TestBuildHelmCharts(t *testing.T) {
 		g.Expect(result.MonitorConfigs[1].Policy).To(Equal(ccmcommon.Unmanaged))
 		g.Expect(result.MonitorConfigs[2].Policy).To(Equal(ccmcommon.Unmanaged))
 		g.Expect(result.MonitorConfigs[3].Policy).To(Equal(ccmcommon.Unmanaged))
+		g.Expect(result.MonitorConfigs[1].RequireCR).To(BeFalse())
+		g.Expect(result.MonitorConfigs[2].RequireCR).To(BeFalse())
+		g.Expect(result.MonitorConfigs[3].RequireCR).To(BeTrue())
 	})
 
 	t.Run("uses custom namespaces in chart values", func(t *testing.T) {
@@ -148,6 +151,20 @@ func TestBuildHelmCharts(t *testing.T) {
 		values, err = sailChart.Values(ctx)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(values).To(HaveKeyWithValue("namespace", "custom-sail-ns"))
+	})
+
+	t.Run("creates RHCL operator CRs with isolated operand namespaces", func(t *testing.T) {
+		g := NewWithT(t)
+
+		customDefs := allChartDefs(ccmcommon.Dependencies{
+			RHCL: ccmcommon.RHCLDependency{
+				Configuration: ccmcommon.RHCLConfiguration{OperandNamespace: "custom-rhcl-operand-ns"},
+			},
+		}, testChartsPath)
+		defaultDefs := allChartDefs(ccmcommon.Dependencies{}, testChartsPath)
+
+		g.Expect(customDefs[3].operatorCR).To(HaveField("Namespace", "custom-rhcl-operand-ns"))
+		g.Expect(defaultDefs[3].operatorCR).To(HaveField("Namespace", RHCLOperandNamespace))
 	})
 }
 

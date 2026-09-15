@@ -15,4 +15,4 @@ spec:
       configuration:
         namespace: istio-system
     rhcl:
-      managementPolicy: Managed
+      managementPolicy: Unmanaged

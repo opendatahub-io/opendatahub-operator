@@ -301,18 +301,19 @@ func TestMonitorDependencies_OperatorCR(t *testing.T) {
 }
 
 // TestMonitorDependencies_RHCL_OperatorCR exercises the real RHCL wiring end-to-end
-// (allChartDefs' chartDef, RHCLOperatorCR, and ConditionRHCLReady) rather than a
+// (allChartDefs' chartDef, NewRHCLOperatorCR, and ConditionRHCLReady) rather than a
 // hand-built DependencyMonitorConfig, using the actual Kuadrant GVK/namespaces.
 func TestMonitorDependencies_RHCL_OperatorCR(t *testing.T) {
 	tests := []struct {
-		name             string
-		condType         string
-		condStatus       string
-		reason           string
-		message          string
-		expectedStatus   metav1.ConditionStatus
-		expectedReason   string
-		expectedMsgMatch string
+		name              string
+		condType          string
+		condStatus        string
+		reason            string
+		message           string
+		expectedStatus    metav1.ConditionStatus
+		expectedReason    string
+		expectedMsgMatch  string
+		missingOperatorCR bool
 	}{
 		{
 			name:             "degraded Kuadrant CR sets RHCLReady False",
@@ -331,6 +332,13 @@ func TestMonitorDependencies_RHCL_OperatorCR(t *testing.T) {
 			reason:         "Ready",
 			message:        "all good",
 			expectedStatus: metav1.ConditionTrue,
+		},
+		{
+			name:              "missing Kuadrant CR sets RHCLReady False",
+			missingOperatorCR: true,
+			expectedStatus:    metav1.ConditionFalse,
+			expectedReason:    dependencyDegradedReason,
+			expectedMsgMatch:  "operator CR not found",
 		},
 	}
 
@@ -376,14 +384,16 @@ func TestMonitorDependencies_RHCL_OperatorCR(t *testing.T) {
 			dep.Status = appsv1.DeploymentStatus{Replicas: 1, ReadyReplicas: 1}
 			g.Expect(cli.Status().Update(ctx, dep)).NotTo(HaveOccurred())
 
-			operatorCR := &unstructured.Unstructured{}
-			operatorCR.SetGroupVersionKind(gvk.Kuadrantv1beta1)
-			operatorCR.SetName(ccmcharts.RHCLOperatorCR.Name)
-			operatorCR.SetNamespace(ccmcharts.RHCLOperandNamespace)
-			g.Expect(cli.Create(ctx, operatorCR)).NotTo(HaveOccurred())
-			t.Cleanup(func() { _ = cli.Delete(ctx, operatorCR) })
+			if !tt.missingOperatorCR {
+				operatorCR := &unstructured.Unstructured{}
+				operatorCR.SetGroupVersionKind(gvk.Kuadrantv1beta1)
+				operatorCR.SetName(ccmcharts.NewRHCLOperatorCR(ccmcharts.RHCLOperandNamespace).Name)
+				operatorCR.SetNamespace(ccmcharts.RHCLOperandNamespace)
+				g.Expect(cli.Create(ctx, operatorCR)).NotTo(HaveOccurred())
+				t.Cleanup(func() { _ = cli.Delete(ctx, operatorCR) })
 
-			setCRCondition(g, ctx, cli, operatorCR, tt.condType, tt.condStatus, tt.reason, tt.message)
+				setCRCondition(g, ctx, cli, operatorCR, tt.condType, tt.condStatus, tt.reason, tt.message)
+			}
 
 			instance := &ccmv1alpha1.AzureKubernetesEngine{
 				Spec: ccmv1alpha1.AzureKubernetesEngineSpec{

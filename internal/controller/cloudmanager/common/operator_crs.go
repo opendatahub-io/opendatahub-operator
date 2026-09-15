@@ -1,20 +1,23 @@
 package common
 
 import (
+	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
 const (
-	// RHCLOperatorNamespace is the namespace where the rhcl-operator chart deploys
-	// the RHCL/Kuadrant operator Deployments, matching the chart's default
-	// operatorNamespace value (charts/dependencies/rhcl-operator/values.yaml).
-	RHCLOperatorNamespace = "kuadrant-operators"
+	// RHCLOperatorNamespace is the default namespace where the rhcl-operator
+	// chart deploys the RHCL/Kuadrant operator Deployments. User-configurable
+	// via RHCLDependency.Configuration.OperatorNamespace; use
+	// deps.RHCL.GetOperatorNamespace() to resolve the effective value.
+	RHCLOperatorNamespace = ccmcommon.DefaultNamespaceRHCLOperator
 
-	// RHCLOperandNamespace is the namespace where the rhcl-operator chart creates
-	// the Kuadrant custom resource, matching the chart's default operandNamespace
-	// value (charts/dependencies/rhcl-operator/values.yaml).
-	RHCLOperandNamespace = "kuadrant-system"
+	// RHCLOperandNamespace is the default namespace where the rhcl-operator
+	// chart creates the Kuadrant custom resource. User-configurable via
+	// RHCLDependency.Configuration.OperandNamespace; use
+	// deps.RHCL.GetOperandNamespace() to resolve the effective value.
+	RHCLOperandNamespace = ccmcommon.DefaultNamespaceRHCLOperand
 )
 
 var (
@@ -27,13 +30,16 @@ var (
 		GVK:  gvk.Istio,
 		Name: "default",
 	}
+)
 
-	// RHCLOperatorCR is the Kuadrant custom resource created by the rhcl-operator
-	// chart (templates/kuadrant.yaml). Unlike LWSOperatorCR/SailOperatorCR, it is
-	// namespace-scoped, matching the chart's default operandNamespace.
-	RHCLOperatorCR = types.OperatorCR{
+// NewRHCLOperatorCR returns the Kuadrant custom resource created by the
+// rhcl-operator chart (templates/kuadrant.yaml). RHCL's operand is
+// namespace-scoped, so construct this value for each reconciliation instead of
+// mutating shared package state when a custom namespace is configured.
+func NewRHCLOperatorCR(operandNamespace string) types.OperatorCR {
+	return types.OperatorCR{
 		GVK:       gvk.Kuadrantv1beta1,
 		Name:      "kuadrant",
-		Namespace: RHCLOperandNamespace,
+		Namespace: operandNamespace,
 	}
-)
+}
