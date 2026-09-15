@@ -113,6 +113,8 @@ func TestGatewayConfigValidator(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
 			cluster.SetClusterInfo(cluster.ClusterInfo{Type: tc.clusterType})
 			operation := tc.operation
 			if operation == "" {
