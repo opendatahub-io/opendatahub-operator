@@ -205,7 +205,7 @@ spec:
             - name: RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE
               value: quay.io/opendatahub/odh-model-metadata-collection@sha256:6b9b77e5be4e750c22b90ebe59cd8b916f9d99744823f461263e0dd981a4a429
             - name: RELATED_IMAGE_ODH_RAY_MODULE_OPERATOR_IMAGE
-              value: quay.io/opendatahub/odh-ray-module-operator@sha256:edaa5e7119373c62b01c5bb145ac27b14575b46b1a8bd8a02975fdbae7a0cea4
+              value: quay.io/opendatahub/odh-ray-module-operator@sha256:c80e39e3b05915c25127c2d4e25975f663ff3061cd1b1383be563559a760903d
             - name: RELATED_IMAGE_ODH_PRAXIS_EXTPROC_IMAGE
               value: quay.io/opendatahub/odh-praxis-extproc@sha256:9d03207463efe99dcc2b4286cc30a47169c05ea338b1b678d77d90c80e136046
             - name: RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE
