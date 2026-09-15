@@ -149,6 +149,20 @@ func TestBuildHelmCharts(t *testing.T) {
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(values).To(HaveKeyWithValue("namespace", "custom-sail-ns"))
 	})
+
+	t.Run("creates RHCL operator CRs with isolated operand namespaces", func(t *testing.T) {
+		g := NewWithT(t)
+
+		customDefs := allChartDefs(ccmcommon.Dependencies{
+			RHCL: ccmcommon.RHCLDependency{
+				Configuration: ccmcommon.RHCLConfiguration{OperandNamespace: "custom-rhcl-operand-ns"},
+			},
+		}, testChartsPath)
+		defaultDefs := allChartDefs(ccmcommon.Dependencies{}, testChartsPath)
+
+		g.Expect(customDefs[3].operatorCR).To(HaveField("Namespace", "custom-rhcl-operand-ns"))
+		g.Expect(defaultDefs[3].operatorCR).To(HaveField("Namespace", RHCLOperandNamespace))
+	})
 }
 
 func TestBuildHelmChartsPhase1(t *testing.T) {

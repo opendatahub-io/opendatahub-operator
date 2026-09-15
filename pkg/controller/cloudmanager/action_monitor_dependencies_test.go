@@ -301,7 +301,7 @@ func TestMonitorDependencies_OperatorCR(t *testing.T) {
 }
 
 // TestMonitorDependencies_RHCL_OperatorCR exercises the real RHCL wiring end-to-end
-// (allChartDefs' chartDef, RHCLOperatorCR, and ConditionRHCLReady) rather than a
+// (allChartDefs' chartDef, NewRHCLOperatorCR, and ConditionRHCLReady) rather than a
 // hand-built DependencyMonitorConfig, using the actual Kuadrant GVK/namespaces.
 func TestMonitorDependencies_RHCL_OperatorCR(t *testing.T) {
 	tests := []struct {
@@ -378,7 +378,7 @@ func TestMonitorDependencies_RHCL_OperatorCR(t *testing.T) {
 
 			operatorCR := &unstructured.Unstructured{}
 			operatorCR.SetGroupVersionKind(gvk.Kuadrantv1beta1)
-			operatorCR.SetName(ccmcharts.RHCLOperatorCR.Name)
+			operatorCR.SetName(ccmcharts.NewRHCLOperatorCR(ccmcharts.RHCLOperandNamespace).Name)
 			operatorCR.SetNamespace(ccmcharts.RHCLOperandNamespace)
 			g.Expect(cli.Create(ctx, operatorCR)).NotTo(HaveOccurred())
 			t.Cleanup(func() { _ = cli.Delete(ctx, operatorCR) })

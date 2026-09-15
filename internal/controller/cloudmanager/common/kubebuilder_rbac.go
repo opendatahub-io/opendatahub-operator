@@ -49,6 +49,9 @@ package common
 // lws-operator
 // +kubebuilder:rbac:groups="operator.openshift.io",resources=leaderworkersetoperators,verbs=get;list;watch;create;patch;update;delete
 
+// rhcl-operator
+// +kubebuilder:rbac:groups="kuadrant.io",resources=kuadrants,verbs=get;list;watch;create;patch;update;delete
+
 // Webhook annotations for sail-operator workaround (OSSM-12397)
 // TODO(OSSM-12397): Remove once the sail-operator ships a fix.
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations,verbs=get;list;watch;patch
