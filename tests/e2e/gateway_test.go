@@ -16,6 +16,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -27,6 +28,7 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
@@ -114,6 +116,7 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate GatewayConfig creation", gatewayCtx.ValidateGatewayConfig},
 		{"Validate Gateway infrastructure", gatewayCtx.ValidateGatewayInfrastructure},
 		{"Validate additional Gateway listeners", gatewayCtx.ValidateAdditionalGatewayListeners},
+		{"Validate XKS cert-manager certificates", gatewayCtx.ValidateXKSCertManagerCertificates},
 		// IntegratedOAuth-specific tests (skipped on BYOIDC)
 		{"Validate OAuth client and secret creation", gatewayCtx.ValidateOAuthClientAndSecret},
 		{"Validate authentication proxy deployment", gatewayCtx.ValidateAuthProxyDeployment},
@@ -373,6 +376,114 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayListeners(t *testing.T) {
 		WithCondition(jq.Match(`.status.additionalIngresses | length == 0`)),
 		WithCustomErrorMsg("GatewayConfig should remove additional ingress status entries"),
 	)
+}
+
+// ValidateXKSCertManagerCertificates verifies that XKS gateway TLS certificates are issued by
+// cert-manager rather than generated directly by the gateway controller. It checks both the
+// Gateway listener certificate and the kube-auth-proxy certificate, including the resulting TLS
+// Secrets populated by cert-manager.
+func (tc *GatewayTestCtx) ValidateXKSCertManagerCertificates(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+	if !tc.IsXKS() {
+		t.Skip("Skipping test because cert-manager gateway certificates are XKS-only")
+	}
+
+	issuerName, issuerKind := tc.getXKSCertManagerIssuer(t)
+	gatewayHostname := tc.getExpectedGatewayHostname(t)
+	gatewayNamespace := tc.gatewayNamespace()
+
+	certificates := []struct {
+		name       string
+		secretName string
+		dnsName    string
+	}{
+		{
+			name:       tc.getTLSSecretName(t),
+			secretName: tc.getTLSSecretName(t),
+			dnsName:    gatewayHostname,
+		},
+		{
+			name:       kubeAuthProxyTLSName,
+			secretName: kubeAuthProxyTLSName,
+			dnsName:    fmt.Sprintf("%s.%s.svc.cluster.local", kubeAuthProxyName, gatewayNamespace),
+		},
+	}
+
+	for _, certificate := range certificates {
+		t.Run(certificate.name, func(t *testing.T) {
+			t.Helper()
+			t.Logf("Validating cert-manager Certificate %s/%s", gatewayNamespace, certificate.name)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.CertManagerCertificate, types.NamespacedName{
+					Name:      certificate.name,
+					Namespace: gatewayNamespace,
+				}),
+				WithCondition(And(
+					jq.Match(`.spec.secretName == "%s"`, certificate.secretName),
+					jq.Match(`.spec.dnsNames == ["%s"]`, certificate.dnsName),
+					jq.Match(`.spec.issuerRef.name == "%s"`, issuerName),
+					jq.Match(`.spec.issuerRef.kind == "%s"`, issuerKind),
+					jq.Match(`.spec.issuerRef.group == "%s"`, gvk.CertManagerCertificate.Group),
+					jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
+				)),
+				WithEventuallyTimeout(tc.TestTimeouts.authGatewayTimeout),
+				WithCustomErrorMsg("cert-manager Certificate should be issued with the expected issuer and SAN"),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Secret, types.NamespacedName{
+					Name:      certificate.secretName,
+					Namespace: gatewayNamespace,
+				}),
+				WithCondition(And(
+					jq.Match(`.type == "%s"`, string(corev1.SecretTypeTLS)),
+					jq.Match(`.data."tls.crt" | length > 0`),
+					jq.Match(`.data."tls.key" | length > 0`),
+				)),
+				WithEventuallyTimeout(tc.TestTimeouts.authGatewayTimeout),
+				WithCustomErrorMsg("cert-manager should populate a non-empty TLS Secret"),
+			)
+		})
+	}
+}
+
+// getXKSCertManagerIssuer reads the issuer configuration injected into the operator deployment.
+// This keeps the e2e assertion valid for both ODH and RHOAI platform defaults without hardcoding
+// a particular CA issuer name into the test.
+func (tc *GatewayTestCtx) getXKSCertManagerIssuer(t *testing.T) (string, string) {
+	t.Helper()
+
+	operatorDeployment := &appsv1.Deployment{}
+	tc.FetchTypedResource(
+		operatorDeployment,
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      tc.getControllerDeploymentName(),
+			Namespace: tc.OperatorNamespace,
+		}),
+	)
+
+	issuerName := "opendatahub-ca-issuer"
+	issuerKind := certmanager.DefaultIssuerRefKind
+	for _, container := range operatorDeployment.Spec.Template.Spec.Containers {
+		for _, envVar := range container.Env {
+			switch envVar.Name {
+			case certmanager.EnvCAIssuerName:
+				if envVar.Value != "" {
+					issuerName = envVar.Value
+				}
+			case certmanager.EnvIssuerRefKind:
+				if envVar.Value != "" {
+					issuerKind = envVar.Value
+				}
+			}
+		}
+	}
+
+	t.Logf("Expected XKS cert-manager issuer: %s/%s", issuerKind, issuerName)
+	return issuerName, issuerKind
 }
 
 // ValidateOAuthClientAndSecret validates OpenShift OAuth client and proxy secret creation.
