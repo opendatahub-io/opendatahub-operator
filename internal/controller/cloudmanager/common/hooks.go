@@ -118,7 +118,7 @@ func ensureSailOperatorIgnoreAnnotation(ctx context.Context, c client.Client, na
 
 	logger.Info("Annotated webhook with sailoperator.io/ignore=true",
 		"kind", obj.GetObjectKind().GroupVersionKind().Kind,
-		"name", name,
+		"webhook", name,
 	)
 
 	return nil

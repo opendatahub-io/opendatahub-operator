@@ -102,8 +102,8 @@ func cleanupExcludedCharts(ctx context.Context, rr *types.ReconciliationRequest,
 		if !owned {
 			l.V(1).Info("resource not owned by this instance, skipping cleanup",
 				"gvk", objGVK,
-				"ns", live.GetNamespace(),
-				"name", live.GetName(),
+				"childNamespace", live.GetNamespace(),
+				"child", live.GetName(),
 			)
 
 			continue
@@ -111,8 +111,8 @@ func cleanupExcludedCharts(ctx context.Context, rr *types.ReconciliationRequest,
 
 		l.Info("cleanup excluded chart resource",
 			"gvk", objGVK,
-			"ns", live.GetNamespace(),
-			"name", live.GetName(),
+			"childNamespace", live.GetNamespace(),
+			"child", live.GetName(),
 		)
 
 		if err := rr.Client.Delete(ctx, live, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
