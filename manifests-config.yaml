@@ -39,7 +39,7 @@ components:
       sourcePath: trustyai-operator-module/config
     rhoai:
       repo: red-hat-data-services/trustyai-service-operator
-      ref: rhoai-3.6-ea.2@5f278d7de619907797cd10efa84f1bf963513441
+      ref: rhoai-3.6-ea.2@cafb17cc63f77d4794989c725e1eb3ccdbbdd7d2
       sourcePath: trustyai-operator-module/config
   modelregistry:
     odh:
