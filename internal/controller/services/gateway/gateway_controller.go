@@ -42,9 +42,8 @@ import (
 // gatewayCRDWatchPredicate matches CRD events that must re-trigger a GatewayConfig reconcile:
 //
 //   - the Dashboard CRD, which gates the dashboard redirect resources;
-//   - the cert-manager Certificate CRD, which gates the cert-manager branch in certificate
-//     handling. Without it, a cluster that installs cert-manager after the operator started
-//     keeps serving the self-signed fallback until something else triggers a reconcile.
+//   - the cert-manager Certificate CRD, which gates certificate handling and retries a
+//     previously blocked XKS reconcile when cert-manager is installed after the operator.
 func gatewayCRDWatchPredicate() predicate.Predicate {
 	return predicate.Or(
 		resources.CreatedOrUpdatedOrDeletedNamed(gvk.DashboardComponentCRDName),

@@ -75,9 +75,10 @@ func TestGatewaySelfSignedCertificateProvider(t *testing.T) {
 		xks             bool
 		certManager     bool
 		wantCertificate bool
+		wantError       bool
 	}{
 		{name: "XKS with cert-manager", xks: true, certManager: true, wantCertificate: true},
-		{name: "XKS without cert-manager", xks: true},
+		{name: "XKS without cert-manager", xks: true, wantError: true},
 		{name: "OpenShift with cert-manager", certManager: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -108,6 +109,11 @@ func TestGatewaySelfSignedCertificateProvider(t *testing.T) {
 			}
 			rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: gatewayConfig}
 			secretName, err := handleCertificates(t.Context(), rr, gatewayConfig, "gateway.example.com")
+			if tc.wantError {
+				g.Expect(err).To(MatchError("cert-manager Certificate CRD is required on XKS"))
+				g.Expect(rr.Resources).To(BeEmpty())
+				return
+			}
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(secretName).To(Equal(serviceApi.GatewayConfigName + "-tls"))
 
@@ -133,8 +139,7 @@ func TestGatewaySelfSignedCertificateProvider(t *testing.T) {
 }
 
 // TestKubeAuthProxyCertificateProvider covers the XKS kube-auth-proxy TLS branch in
-// createKubeAuthProxyInfrastructure, in both directions: cert-manager present issues a
-// Certificate, cert-manager absent falls back to an operator-generated self-signed Secret.
+// createKubeAuthProxyInfrastructure: cert-manager must be present and issues a Certificate.
 //
 // That branch sits near the end of the action, behind an unsupported-spec rejection, domain
 // resolution, auth-mode detection and credential setup. The existing XKS tests in this file all
@@ -143,12 +148,12 @@ func TestGatewaySelfSignedCertificateProvider(t *testing.T) {
 // line of the action - to prove the cert branch was actually exercised rather than skipped.
 func TestKubeAuthProxyCertificateProvider(t *testing.T) {
 	for _, tc := range []struct {
-		name            string
-		certManager     bool
-		wantCertificate bool
+		name        string
+		certManager bool
+		wantError   bool
 	}{
-		{name: "XKS with cert-manager", certManager: true, wantCertificate: true},
-		{name: "XKS without cert-manager"},
+		{name: "XKS with cert-manager", certManager: true},
+		{name: "XKS without cert-manager", wantError: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
@@ -200,7 +205,13 @@ func TestKubeAuthProxyCertificateProvider(t *testing.T) {
 				Conditions: conditions.NewManager(&gatewayConfigConditionsAccessor{}, ReadyConditionType),
 			}
 
-			g.Expect(createKubeAuthProxyInfrastructure(ctx, rr)).To(Succeed())
+			err = createKubeAuthProxyInfrastructure(ctx, rr)
+			if tc.wantError {
+				g.Expect(err).To(MatchError("cert-manager Certificate CRD is required on XKS"))
+				g.Expect(rr.Resources).To(BeEmpty())
+				return
+			}
+			g.Expect(err).NotTo(HaveOccurred())
 
 			ready := rr.Conditions.GetCondition(ReadyConditionType)
 			g.Expect(ready).NotTo(BeNil())
@@ -211,23 +222,15 @@ func TestKubeAuthProxyCertificateProvider(t *testing.T) {
 			tlsSecret := &corev1.Secret{}
 			err = cli.Get(ctx, types.NamespacedName{Name: KubeAuthProxyTLSName, Namespace: GetGatewayNamespace()}, tlsSecret)
 
-			if tc.wantCertificate {
-				g.Expect(k8serr.IsNotFound(err)).To(BeTrue(),
-					"cert-manager owns the Secret; the operator must not pre-create it")
-				g.Expect(rr.Resources).To(HaveLen(1))
-				// The Certificate must name the Secret the kube-auth-proxy Deployment mounts, and
-				// carry the in-cluster Service DNS name the EnvoyFilter dials for ext_authz.
-				expectCertManagerCertificate(t, g, rr.Resources[0],
-					KubeAuthProxyTLSName, GetGatewayNamespace(), KubeAuthProxyTLSName,
-					[]string{KubeAuthProxyName + "." + GetGatewayNamespace() + ".svc.cluster.local"},
-					issuerRef)
-			} else {
-				g.Expect(err).NotTo(HaveOccurred(), "self-signed fallback must create the TLS Secret")
-				g.Expect(rr.Resources).To(BeEmpty())
-				g.Expect(tlsSecret.Type).To(Equal(corev1.SecretTypeTLS))
-				g.Expect(tlsSecret.Data[corev1.TLSCertKey]).NotTo(BeEmpty())
-				g.Expect(tlsSecret.Data[corev1.TLSPrivateKeyKey]).NotTo(BeEmpty())
-			}
+			g.Expect(k8serr.IsNotFound(err)).To(BeTrue(),
+				"cert-manager owns the Secret; the operator must not pre-create it")
+			g.Expect(rr.Resources).To(HaveLen(1))
+			// The Certificate must name the Secret the kube-auth-proxy Deployment mounts, and
+			// carry the in-cluster Service DNS name the EnvoyFilter dials for ext_authz.
+			expectCertManagerCertificate(t, g, rr.Resources[0],
+				KubeAuthProxyTLSName, GetGatewayNamespace(), KubeAuthProxyTLSName,
+				[]string{KubeAuthProxyName + "." + GetGatewayNamespace() + ".svc.cluster.local"},
+				issuerRef)
 		})
 	}
 }

@@ -1,16 +1,35 @@
 package gateway
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/env"
 )
+
+// requireCertManager verifies the cert-manager API required by XKS gateway
+// certificates is available. XKS declares cert-manager as a required
+// dependency, so silently falling back to an operator-generated certificate
+// would hide a broken platform installation and bypass certificate renewal.
+func requireCertManager(ctx context.Context, cli client.Client) error {
+	hasCertificate, err := cluster.HasCRD(ctx, cli, gvk.CertManagerCertificate)
+	if err != nil {
+		return fmt.Errorf("failed to check cert-manager Certificate CRD presence: %w", err)
+	}
+	if !hasCertificate {
+		return errors.New("cert-manager Certificate CRD is required on XKS")
+	}
+	return nil
+}
 
 // resolveIssuerRef returns the cert-manager issuer name and kind used to sign gateway certificates.
 //
