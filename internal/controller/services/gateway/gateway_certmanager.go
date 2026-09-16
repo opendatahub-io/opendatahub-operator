@@ -12,7 +12,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/env"
 )
 
 // requireCertManager verifies the cert-manager API required by XKS gateway
@@ -35,14 +34,15 @@ func requireCertManager(ctx context.Context, cli client.Client) error {
 // Precedence (highest first):
 //  1. per-GatewayConfig spec.certificate.issuerRef (multi-tenant override)
 //  2. RHAI_ISSUER_REF_* environment variables (platform-wide default, set per build/platform)
-//  3. hardcoded defaults from certmanager.DefaultBootstrapConfig / DefaultIssuerRefKind
+//  3. hardcoded defaults from certmanager.DefaultBootstrapConfig
 //
 // The env-based default is the same one consumed by the cert-manager bootstrap and module
 // platform config, so a single GatewayConfig (the current singleton) resolves to the platform
 // issuer (e.g. rhai-ca-issuer on RHOAI) with no per-CR configuration required.
 func resolveIssuerRef(cert *infrav1.CertificateSpec) (string, string) {
-	name := certmanager.DefaultBootstrapConfig().CAIssuerName
-	kind := env.GetOrDefault(certmanager.EnvIssuerRefKind, certmanager.DefaultIssuerRefKind)
+	bootstrapConfig := certmanager.DefaultBootstrapConfig()
+	name := bootstrapConfig.CAIssuerName
+	kind := bootstrapConfig.IssuerRefKind
 
 	if cert != nil && cert.IssuerRef != nil {
 		if cert.IssuerRef.Name != "" {
