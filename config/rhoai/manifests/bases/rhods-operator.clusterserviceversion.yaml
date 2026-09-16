@@ -39,7 +39,10 @@ metadata:
               }
             },
             "dashboard": {
-              "managementState": "Managed"
+              "managementState": "Managed",
+              "maasConsumerPortal": {
+                "managementState": "Removed"
+              }
             },
             "aipipelines": {
               "managementState": "Managed"
