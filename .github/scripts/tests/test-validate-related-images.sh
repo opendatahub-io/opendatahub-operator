@@ -1,5 +1,5 @@
 #!/bin/bash
-# Tests for validate_rhai_helm_config function
+# Tests for validate-related-images helper functions
 
 set -euo pipefail
 
@@ -8,8 +8,10 @@ TEST_TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 
-source <(sed -n '/^validate_rhai_helm_config()/,/^}/p' \
-    "$SCRIPT_DIR/validate-related-images.sh")
+eval "$(sed -n \
+    -e '/^validate_rhai_helm_config()/,/^}/p' \
+    -e '/^extract_map_keys()/,/^}/p' \
+    "$SCRIPT_DIR/validate-related-images.sh")"
 
 # Test counter
 TESTS_RUN=0
@@ -65,7 +67,35 @@ assert_output_contains "RHAI Helm chart has no relatedImages" "$output"
 assert_output_contains "kserve" "$output"
 rm -rf "$WORKDIR"
 
-# Test 2: Non-empty RHAI_HELM_CONFIG with non-empty RHAI_HELM_COMPONENTS should succeed
+# Test 2: No quoted RELATED_IMAGE map keys is a valid empty result
+test_case "No quoted RELATED_IMAGE map keys should succeed"
+WORKDIR=$(mktemp -d)
+echo 'package empty' > "$WORKDIR/empty.go"
+exit_code=0
+output=$(extract_map_keys "$WORKDIR" 2>&1) || exit_code=$?
+
+assert_exit_code 0 "$exit_code"
+if [ -z "$output" ]; then
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+    echo "  ✓ Output is empty"
+else
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo "  ✗ Expected empty output, got: $output"
+fi
+rm -rf "$WORKDIR"
+
+# Test 3: Quoted RELATED_IMAGE map keys are still extracted
+test_case "Quoted RELATED_IMAGE map keys should be extracted"
+WORKDIR=$(mktemp -d)
+echo 'package mapped; var images = map[string]string{"RELATED_IMAGE_TEST": "value"}' > "$WORKDIR/mapped.go"
+exit_code=0
+output=$(extract_map_keys "$WORKDIR" 2>&1) || exit_code=$?
+
+assert_exit_code 0 "$exit_code"
+assert_output_contains "RELATED_IMAGE_TEST" "$output"
+rm -rf "$WORKDIR"
+
+# Test 4: Non-empty RHAI_HELM_CONFIG with non-empty RHAI_HELM_COMPONENTS should succeed
 test_case "Non-empty config with required components should succeed"
 WORKDIR=$(mktemp -d)
 echo "kserve" > "$WORKDIR/rhai-helm-components.txt"
@@ -79,7 +109,7 @@ output=$(validate_rhai_helm_config 2>&1) || exit_code=$?
 assert_exit_code 0 "$exit_code"
 rm -rf "$WORKDIR"
 
-# Test 3: Empty RHAI_HELM_CONFIG with empty RHAI_HELM_COMPONENTS should succeed
+# Test 5: Empty RHAI_HELM_CONFIG with empty RHAI_HELM_COMPONENTS should succeed
 test_case "Empty config with no required components should succeed"
 WORKDIR=$(mktemp -d)
 touch "$WORKDIR/rhai-helm-components.txt"
@@ -93,7 +123,7 @@ output=$(validate_rhai_helm_config 2>&1) || exit_code=$?
 assert_exit_code 0 "$exit_code"
 rm -rf "$WORKDIR"
 
-# Test 4: Multiple components with missing images should fail and list all
+# Test 6: Multiple components with missing images should fail and list all
 test_case "Multiple components with missing images should list all"
 WORKDIR=$(mktemp -d)
 printf "kserve\nkserve-qpext\nray" > "$WORKDIR/rhai-helm-components.txt"
