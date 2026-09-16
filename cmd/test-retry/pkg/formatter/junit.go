@@ -12,22 +12,40 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/types"
 )
 
+type TestSuites struct {
+	XMLName  xml.Name          `xml:"testsuites"`
+	Tests    int               `xml:"tests,attr"`
+	Failures int               `xml:"failures,attr"`
+	Skipped  int               `xml:"skipped,attr"`
+	Time     string            `xml:"time,attr,omitempty"`
+	Suites   []TestSuite `xml:"testsuite"`
+}
+
 // TestSuite represents a JUnit XML test suite
 type TestSuite struct {
 	XMLName   xml.Name   `xml:"testsuite"`
 	Name      string     `xml:"name,attr"`
 	Tests     int        `xml:"tests,attr"`
 	Failures  int        `xml:"failures,attr"`
+	Skipped   int        `xml:"skipped,attr"`
+	Time      string     `xml:"time,attr,omitempty"`
 	TestCases []TestCase `xml:"testcase"`
 }
 
 // TestCase represents a JUnit XML test case
 type TestCase struct {
+	Classname  string      `xml:"classname,attr,omitempty"`
 	Name       string      `xml:"name,attr"`
-	Duration   string      `xml:"time,attr"`
+	Duration   string      `xml:"time,attr,omitempty"`
+	Skipped    *Skipped    `xml:"skipped,omitempty"`
 	Failure    *Failure    `xml:"failure,omitempty"`
 	Properties *Properties `xml:"properties,omitempty"`
-	Time       time.Time   `xml:"-"`
+	SortTime   time.Time   `xml:"-"`
+}
+
+// Skipped represents a JUnit XML skipped element
+type Skipped struct {
+	Message string `xml:"message,attr,omitempty"`
 }
 
 // Failure represents a JUnit XML test failure
@@ -104,7 +122,7 @@ func convertToJUnitSuite(result *types.TestResult, suiteName string) TestSuite {
 				Content: test.FailureOutput,
 			},
 			Properties: buildClassificationProperties(test.Classification),
-			Time:       test.Time,
+			SortTime:   test.Time,
 		}
 
 		unorderedTestCases = append(unorderedTestCases, tc)
@@ -116,7 +134,7 @@ func convertToJUnitSuite(result *types.TestResult, suiteName string) TestSuite {
 		tc := TestCase{
 			Name:     test.Name,
 			Duration: formatDuration(test.Duration),
-			Time:     test.Time,
+			SortTime: test.Time,
 		}
 
 		unorderedTestCases = append(unorderedTestCases, tc)
@@ -124,7 +142,7 @@ func convertToJUnitSuite(result *types.TestResult, suiteName string) TestSuite {
 
 	// Sort test cases by time
 	sort.Slice(unorderedTestCases, func(i, j int) bool {
-		return unorderedTestCases[i].Time.Before(unorderedTestCases[j].Time)
+		return unorderedTestCases[i].SortTime.Before(unorderedTestCases[j].SortTime)
 	})
 	suite.TestCases = unorderedTestCases
 
