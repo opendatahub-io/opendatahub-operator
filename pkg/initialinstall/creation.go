@@ -21,7 +21,17 @@ import (
 // Note: When the platform is not Managed, and a DSC instance already exists, the function doesn't re-create/update the resource.
 func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 	// Set the default DSC name depending on the platform
-	releaseDataScienceCluster := &dscv2.DataScienceCluster{
+	releaseDataScienceCluster := buildDefaultDSC()
+	err := cluster.CreateWithRetry(ctx, cli, releaseDataScienceCluster) // 1 min timeout
+	if err != nil {
+		return fmt.Errorf("failed to create DataScienceCluster custom resource: %w", err)
+	}
+	return nil
+}
+
+// buildDefaultDSC returns the default DataScienceCluster CR created on a fresh install.
+func buildDefaultDSC() *dscv2.DataScienceCluster {
+	return &dscv2.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
 			APIVersion: "datasciencecluster.opendatahub.io/v2",
@@ -92,16 +102,11 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 					},
 				},
 				MCPLifecycleOperator: componentApi.DSCMCPLifecycleOperator{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 			},
 		},
 	}
-	err := cluster.CreateWithRetry(ctx, cli, releaseDataScienceCluster) // 1 min timeout
-	if err != nil {
-		return fmt.Errorf("failed to create DataScienceCluster custom resource: %w", err)
-	}
-	return nil
 }
 
 // CreateDefaultDSCI creates a default instance of DSCI

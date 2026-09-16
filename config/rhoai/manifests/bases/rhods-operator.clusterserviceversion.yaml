@@ -91,7 +91,7 @@ metadata:
               "managementState": "Removed"
             },
             "mcplifecycleoperator": {
-              "managementState": "Removed"
+              "managementState": "Managed"
             }
           }
         }

@@ -123,3 +123,46 @@ func TestGetName(t *testing.T) {
 	h := mcplifecycleoperator.NewHandler()
 	g.Expect(h.GetName()).Should(Equal(componentApi.MCPLifecycleOperatorComponentName))
 }
+
+// TestPopulatePlatformModule_ExplicitManaged verifies an explicit Managed choice
+// is honored verbatim (OCPMCP-382).
+func TestPopulatePlatformModule_ExplicitManaged(t *testing.T) {
+	g := NewWithT(t)
+	h := mcplifecycleoperator.NewHandler()
+	pm := &configv1alpha1.PlatformModules{}
+
+	h.PopulatePlatformModule(pm, &modules.DSCContext{DSC: newDSC(operatorv1.Managed)})
+	g.Expect(pm.MCPLifecycleOperator.ManagementState).Should(Equal(operatorv1.Managed))
+}
+
+// TestPopulatePlatformModule_ExplicitRemoved verifies an explicit Removed choice
+// is honored verbatim and never silently enabled (FR-008 regression guard).
+func TestPopulatePlatformModule_ExplicitRemoved(t *testing.T) {
+	g := NewWithT(t)
+	h := mcplifecycleoperator.NewHandler()
+	pm := &configv1alpha1.PlatformModules{}
+
+	h.PopulatePlatformModule(pm, &modules.DSCContext{DSC: newDSC(operatorv1.Removed)})
+	g.Expect(pm.MCPLifecycleOperator.ManagementState).Should(Equal(operatorv1.Removed))
+}
+
+// TestPopulatePlatformModule_UnsetDefaultsToRemoved documents the deliberate
+// unset fallback (FR-006): a DSC that omits managementState resolves to Removed.
+func TestPopulatePlatformModule_UnsetDefaultsToRemoved(t *testing.T) {
+	g := NewWithT(t)
+	h := mcplifecycleoperator.NewHandler()
+	pm := &configv1alpha1.PlatformModules{}
+
+	h.PopulatePlatformModule(pm, &modules.DSCContext{DSC: newDSC("")})
+	g.Expect(pm.MCPLifecycleOperator.ManagementState).Should(Equal(operatorv1.Removed))
+}
+
+// TestPopulatePlatformModule_NilGuards verifies nil inputs are handled without panic.
+func TestPopulatePlatformModule_NilGuards(t *testing.T) {
+	g := NewWithT(t)
+	h := mcplifecycleoperator.NewHandler()
+
+	g.Expect(func() { h.PopulatePlatformModule(nil, &modules.DSCContext{DSC: newDSC(operatorv1.Managed)}) }).ShouldNot(Panic())
+	g.Expect(func() { h.PopulatePlatformModule(&configv1alpha1.PlatformModules{}, nil) }).ShouldNot(Panic())
+	g.Expect(func() { h.PopulatePlatformModule(&configv1alpha1.PlatformModules{}, &modules.DSCContext{}) }).ShouldNot(Panic())
+}
