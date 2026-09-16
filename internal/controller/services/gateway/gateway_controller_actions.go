@@ -33,7 +33,6 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -192,6 +191,12 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return nil
 	}
 
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		if err := requireCertManager(ctx, rr.Client); err != nil {
+			return err
+		}
+	}
+
 	// Get secret values for both OIDC and IntegratedOAuth modes
 	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, authMode, oidcConfig)
 	if err != nil {
@@ -221,39 +226,23 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		l.V(1).Info("OAuth client created successfully")
 	}
 
-	// On XKS, provision a TLS cert for kube-auth-proxy (OCP uses the serving-cert annotation instead).
-	// Prefer a cert-manager Certificate (issuance + auto-renewal) when cert-manager is available;
-	// otherwise fall back to an operator-generated self-signed certificate.
+	// On XKS, cert-manager is a required dependency for the kube-auth-proxy TLS
+	// certificate (OCP uses the serving-cert annotation instead).
 	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
 		kapServiceDNS := fmt.Sprintf("%s.%s.svc.cluster.local", KubeAuthProxyName, GetGatewayNamespace())
-		hasCertManager, err := cluster.HasCRD(ctx, rr.Client, gvk.CertManagerCertificate)
+		issuerName, issuerKind := resolveIssuerRef(gatewayConfig.Spec.Certificate)
+		cert, err := buildCertManagerCertificate(KubeAuthProxyTLSName, GetGatewayNamespace(), KubeAuthProxyTLSName, []string{kapServiceDNS}, issuerName, issuerKind)
 		if err != nil {
-			return fmt.Errorf("failed to check cert-manager Certificate CRD presence: %w", err)
+			return err
 		}
-		if hasCertManager {
-			issuerName, issuerKind := resolveIssuerRef(gatewayConfig.Spec.Certificate)
-			cert, err := buildCertManagerCertificate(KubeAuthProxyTLSName, GetGatewayNamespace(), KubeAuthProxyTLSName, []string{kapServiceDNS}, issuerName, issuerKind)
-			if err != nil {
-				return err
-			}
-			if err := rr.AddResources(cert); err != nil {
-				return fmt.Errorf("failed to add kube-auth-proxy Certificate: %w", err)
-			}
-			l.V(1).Info("Created cert-manager Certificate for kube-auth-proxy",
-				"secret", KubeAuthProxyTLSName,
-				"issuerName", issuerName,
-				"issuerKind", issuerKind,
-			)
-		} else {
-			l.Info("cert-manager Certificate CRD not found; falling back to operator self-signed certificate for kube-auth-proxy", "secret", KubeAuthProxyTLSName)
-			if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, KubeAuthProxyTLSName, kapServiceDNS, GetGatewayNamespace(),
-				cluster.WithLabels(labels.PlatformPartOf, ServiceName),
-				cluster.OwnedBy(gatewayConfig, rr.Client.Scheme()),
-			); err != nil {
-				return fmt.Errorf("failed to create kube-auth-proxy TLS certificate: %w", err)
-			}
-			l.V(1).Info("Created self-signed TLS cert for kube-auth-proxy", "secret", KubeAuthProxyTLSName)
+		if err := rr.AddResources(cert); err != nil {
+			return fmt.Errorf("failed to add kube-auth-proxy Certificate: %w", err)
 		}
+		l.V(1).Info("Created cert-manager Certificate for kube-auth-proxy",
+			"secret", KubeAuthProxyTLSName,
+			"issuerName", issuerName,
+			"issuerKind", issuerKind,
+		)
 	}
 
 	rr.Templates = append(rr.Templates, kubeAuthProxyDeploymentTemplates)

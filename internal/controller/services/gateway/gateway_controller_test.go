@@ -16,10 +16,9 @@ import (
 )
 
 // TestGatewayCRDWatchPredicate pins the set of CRDs whose installation or removal re-triggers a
-// GatewayConfig reconcile. The cert-manager Certificate CRD matters because certificate handling
-// chooses between cert-manager and the self-signed fallback on every reconcile: without this
-// event a cluster that installs cert-manager after the operator started keeps serving the
-// self-signed fallback until something unrelated triggers a reconcile.
+// GatewayConfig reconcile. The cert-manager Certificate CRD matters because XKS certificate
+// handling is blocked until cert-manager is installed; without this event a cluster that installs
+// cert-manager after the operator started would wait for an unrelated reconcile.
 func TestGatewayCRDWatchPredicate(t *testing.T) {
 	t.Parallel()
 
