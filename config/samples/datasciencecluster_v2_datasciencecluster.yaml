@@ -14,6 +14,8 @@ spec:
         managementState: "Removed"
     dashboard:
       managementState: "Managed"
+      maasConsumerPortal:
+        managementState: "Removed"
     aipipelines:
       managementState: "Managed"
     kserve:
