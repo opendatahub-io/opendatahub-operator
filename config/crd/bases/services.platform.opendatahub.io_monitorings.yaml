@@ -251,8 +251,7 @@ spec:
             - message: CollectorReplicas can only be set when metrics.resources, metrics.storage
                 or traces are configured, and must be > 0
               rule: '!has(self.collectorReplicas) || (self.collectorReplicas > 0 &&
-                ((self.metrics.resources != null || self.metrics.storage != null)
-                || self.traces != null))'
+                (has(self.metrics.resources) || has(self.metrics.storage) || has(self.traces)))'
           status:
             description: MonitoringStatus defines the observed state of Monitoring
             properties:

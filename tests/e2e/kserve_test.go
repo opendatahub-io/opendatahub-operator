@@ -35,13 +35,17 @@ type KserveTestCtx struct {
 	*ComponentTestCtx
 }
 
+const (
+	kserveLocalGatewayName = "kserve-local-gateway"
+)
+
 var kserveTemplatedResources = []struct {
 	gvk schema.GroupVersionKind
 	nn  types.NamespacedName
 }{
 	{gvk.KnativeServing, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-serving"}},
 	{gvk.ServiceMeshMember, types.NamespacedName{Namespace: knativeServingNamespace, Name: "default"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "kserve-local-gateway"}},
+	{gvk.Gateway, types.NamespacedName{Namespace: serviceMeshNamespace, Name: kserveLocalGatewayName}},
 	{gvk.Gateway, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-ingress-gateway"}},
 	{gvk.Gateway, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-local-gateway"}},
 }
@@ -177,14 +181,19 @@ func (tc *KserveTestCtx) ValidateNoKServeFeatureTrackerOwnerReferences(t *testin
 	t.Helper()
 
 	for _, child := range kserveTemplatedResources {
+		var condition gomegaTypes.GomegaMatcher
+		if child.nn.Name == kserveLocalGatewayName {
+			// kserve-local-gateway has opendatahub.io/managed: "false" to tolerate edits, so it has no ownerReferences
+			condition = jq.Match(`.metadata.ownerReferences // [] | all(.kind != "%s")`, gvk.FeatureTracker.Kind)
+		} else {
+			condition = And(
+				jq.Match(`.metadata.ownerReferences // [] | any(.kind == "%s")`, tc.GVK.Kind),
+				jq.Match(`.metadata.ownerReferences // [] | all(.kind != "%s")`, gvk.FeatureTracker.Kind),
+			)
+		}
 		tc.EnsureResourceExists(
 			WithMinimalObject(child.gvk, child.nn),
-			WithCondition(
-				And(
-					jq.Match(`.metadata.ownerReferences | any(.kind == "%s")`, tc.GVK.Kind),
-					jq.Match(`.metadata.ownerReferences | all(.kind != "%s")`, gvk.FeatureTracker.Kind),
-				),
-			),
+			WithCondition(condition),
 			WithCustomErrorMsg(`Checking if %s/%s in %s has expected owner refs`, child.gvk, child.nn.Name, child.nn.Namespace),
 		)
 	}
@@ -267,6 +276,10 @@ func (tc *KserveTestCtx) ValidateServingTransitionToRemoved(t *testing.T) {
 
 	// Ensure that the associated resources are removed from the cluster.
 	for _, child := range kserveTemplatedResources {
+		if child.nn.Name == kserveLocalGatewayName {
+			// kserve-local-gateway is unmanaged and retained across removal
+			continue
+		}
 		tc.EnsureResourceGone(
 			WithMinimalObject(child.gvk, child.nn),
 			WithCustomErrorMsg(`Ensuring %s/%s in %s no longer exists`, child.gvk, child.nn.Name, child.nn.Namespace))
@@ -397,6 +410,10 @@ func (tc *KserveTestCtx) validateTemplatedResourceOwnerRefsAndLabels(expectOwned
 	}
 
 	for _, child := range kserveTemplatedResources {
+		if child.nn.Name == kserveLocalGatewayName {
+			// kserve-local-gateway has opendatahub.io/managed: "false" to tolerate edits; its ownerRefs/labels are not mutated on state transitions
+			continue
+		}
 		tc.EnsureResourceExists(
 			WithMinimalObject(child.gvk, child.nn),
 			WithCondition(condition),
