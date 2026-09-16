@@ -12,7 +12,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/env"
 )
 
@@ -72,9 +71,6 @@ func buildCertManagerCertificate(name, namespace, secretName string, dnsNames []
 	u.SetGroupVersionKind(gvk.CertManagerCertificate)
 	u.SetName(name)
 	u.SetNamespace(namespace)
-	u.SetLabels(map[string]string{
-		labels.PlatformPartOf: ServiceName,
-	})
 
 	if err := unstructured.SetNestedMap(u.Object, map[string]any{
 		"secretName": secretName,
