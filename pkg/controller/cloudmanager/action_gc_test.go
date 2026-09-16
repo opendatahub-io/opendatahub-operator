@@ -212,7 +212,6 @@ func TestNewGCPredicate_NoProtectedObjects(t *testing.T) {
 	rr := newTestRR(nil)
 	pred := newGCPredicate(nil)
 
-	// Without protected objects, generation mismatch deletes.
 	obj := simpleObj(ccmAnns(string(testUID), "3"))
 	got, err := pred(rr, obj)
 	g.Expect(err).NotTo(HaveOccurred())
@@ -236,8 +235,9 @@ func TestGCLogFieldsUseChildKeys(t *testing.T) {
 	t.Cleanup(func() { ctrl.SetLogger(logr.Discard()) })
 
 	cases := []struct {
-		name string
-		run  func(rr *odhTypes.ReconciliationRequest)
+		name             string
+		run              func(rr *odhTypes.ReconciliationRequest)
+		wantResourceKind string
 	}{
 		{
 			name: "orphaned resource (UID mismatch)",
@@ -256,6 +256,7 @@ func TestGCLogFieldsUseChildKeys(t *testing.T) {
 			run: func(rr *odhTypes.ReconciliationRequest) {
 				_, _ = isStaleOrOrphaned(rr, newObj(someGVK, resName, resNS, ccmAnns(string(testUID), "not-a-number")))
 			},
+			wantResourceKind: someGVK.Kind,
 		},
 		{
 			name: "protected resource is kept",
@@ -280,6 +281,10 @@ func TestGCLogFieldsUseChildKeys(t *testing.T) {
 			g.Expect(out).To(ContainSubstring(`"childNamespace"=`), "expected structured childNamespace key, got: %s", out)
 			g.Expect(out).NotTo(ContainSubstring(`"name"=`), "old name key must not be emitted, got: %s", out)
 			g.Expect(out).NotTo(ContainSubstring(`"namespace"=`), "old namespace key must not be emitted, got: %s", out)
+
+			if tc.wantResourceKind != "" {
+				g.Expect(out).To(ContainSubstring(`"resourceKind"="`+tc.wantResourceKind+`"`), "expected structured resourceKind key, got: %s", out)
+			}
 		})
 	}
 }

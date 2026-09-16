@@ -142,7 +142,9 @@ func TestCleanupExcludedChartsLogFields(t *testing.T) {
 
 		lctx, buf := captureCtx()
 		g.Expect(cleanupExcludedCharts(lctx, newCleanupRR(cl, true), charts)).To(HaveOccurred())
-		assertChildKeys(g, buf.String())
+		out := buf.String()
+		assertChildKeys(g, out)
+		g.Expect(out).To(ContainSubstring(`"resourceKind"="ConfigMap"`), "expected structured resourceKind key, got: %s", out)
 	})
 
 	t.Run("delete error is logged with child keys", func(t *testing.T) {
@@ -160,7 +162,9 @@ func TestCleanupExcludedChartsLogFields(t *testing.T) {
 
 		lctx, buf := captureCtx()
 		g.Expect(cleanupExcludedCharts(lctx, newCleanupRR(cl, true), charts)).To(HaveOccurred())
-		assertChildKeys(g, buf.String())
+		out := buf.String()
+		assertChildKeys(g, out)
+		g.Expect(out).To(ContainSubstring(`"resourceKind"="ConfigMap"`), "expected structured resourceKind key, got: %s", out)
 	})
 }
 
