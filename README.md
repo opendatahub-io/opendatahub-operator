@@ -513,8 +513,6 @@ spec:
   dependencies:
     gatewayAPI:
       managementPolicy: Managed
-    certManager:
-      managementPolicy: Managed
     lws:
       managementPolicy: Managed
     sailOperator:
@@ -532,8 +530,6 @@ spec:
   dependencies:
     gatewayAPI:
       managementPolicy: Managed
-    certManager:
-      managementPolicy: Managed
     lws:
       managementPolicy: Managed
     sailOperator:
@@ -548,10 +544,10 @@ In RHAII mode, the operator deploys only the KServe component CRD and its associ
 
 #### Prerequisites
 
-RHAII mode requires **cert-manager** to be available in the cluster. This dependency can be satisfied in one of two ways:
-
-1. **`CoreWeaveKubernetesEngine` CR**: Deploy the appropriate Cloud Manager (Azure or CoreWeave) and create the corresponding `AzureKubernetesEngine` or `CoreWeaveKubernetesEngine` CR with `certManager.managementPolicy: Managed`. The Cloud Manager will install and manage cert-manager automatically along with other dependencies. To deploy a Cloud Manager, see [CCM Deployment](#ccm-deployment).
-2. **Installing cert-manager manually**: Install cert-manager directly in the cluster before deploying the RHAII operator.
+RHAII mode requires **cert-manager** to be available in the cluster. In an XKS
+deployment, the XKS chart manages cert-manager installation. When deploying the
+Cloud Manager outside that chart, install cert-manager before deploying the RHAII
+operator.
 
 #### Supported Providers
 
