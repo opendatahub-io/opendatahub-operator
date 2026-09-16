@@ -144,6 +144,24 @@ func TestCleanupExcludedChartsLogFields(t *testing.T) {
 		g.Expect(cleanupExcludedCharts(lctx, newCleanupRR(cl, true), charts)).To(HaveOccurred())
 		assertChildKeys(g, buf.String())
 	})
+
+	t.Run("delete error is logged with child keys", func(t *testing.T) {
+		g := NewWithT(t)
+
+		cl, err := fakeclient.New(
+			fakeclient.WithObjects(makeTestConfigMap(instanceUID)),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Delete: func(_ context.Context, _ client.WithWatch, _ client.Object, _ ...client.DeleteOption) error {
+					return errors.New("transient api error")
+				},
+			}),
+		)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		lctx, buf := captureCtx()
+		g.Expect(cleanupExcludedCharts(lctx, newCleanupRR(cl, true), charts)).To(HaveOccurred())
+		assertChildKeys(g, buf.String())
+	})
 }
 
 func TestCleanupExcludedCharts(t *testing.T) {
