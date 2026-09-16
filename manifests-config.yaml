@@ -26,11 +26,11 @@ components:
   ray:
     odh:
       repo: opendatahub-io/ray-module-operator
-      ref: main@5821f4f83b837de513996f70b7e18f13806557d8
+      ref: main@88e7ca575466187dfedde35c14c444c4ac725d21
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/ray-module-operator
-      ref: main@114688f57980a9c47e52a9d6fd668cc424fa0931
+      ref: rhoai-3.6-ea.2@e2648ebb7b1e1232751ec35832bc31131d84167b
       sourcePath: config
   trustyai:
     odh:
@@ -237,11 +237,11 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/kuberay-operator"
-      digest: "sha256:85211c5ba40e6f3efe397ac8bfcaab33f5170598753dddf4c01fb581d3f7ecc9"
+      digest: "sha256:44f700d40e02ef5fc0f4ab8a069a456e2f9c7d7c1bc9396c0df5f0edbc7ea991"
     rhoai:
       shaFrom: odh
       base: quay.io/opendatahub/kuberay-operator
-      digest: "sha256:85211c5ba40e6f3efe397ac8bfcaab33f5170598753dddf4c01fb581d3f7ecc9"
+      digest: "sha256:44f700d40e02ef5fc0f4ab8a069a456e2f9c7d7c1bc9396c0df5f0edbc7ea991"
   RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE:
     component: trustyai
     tagTemplate: "{SHA}"
@@ -990,10 +990,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-ray-module-operator"
-      digest: "sha256:c80e39e3b05915c25127c2d4e25975f663ff3061cd1b1383be563559a760903d"
+      digest: "sha256:34bedab2b5884a5f05e2866acf7e56861a58c68318b43d34a6544e97261d8950"
     rhoai:
-      base: "quay.io/opendatahub/odh-ray-module-operator"
-      digest: "sha256:c80e39e3b05915c25127c2d4e25975f663ff3061cd1b1383be563559a760903d"
+      base: "quay.io/rhoai/odh-ray-module-operator-rhel9"
+      digest: "sha256:3fb918c8ec86bc820bb0292c11f08fc96da24a8dd5b3a06cb05b4c2348321f93"
   RELATED_IMAGE_ODH_RHAII_CLUSTER_VALIDATOR_IMAGE:
     source: "csv"
     odh:
