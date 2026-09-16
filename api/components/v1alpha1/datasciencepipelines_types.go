@@ -26,6 +26,8 @@ const (
 	DataSciencePipelinesComponentName = "datasciencepipelines"
 	// AIPipelinesComponentName is the platform module name used by the v2 DSC API.
 	AIPipelinesComponentName = "aipipelines"
+	// AIPipelinesInstanceName is the singleton name of the out-of-tree module CR.
+	AIPipelinesInstanceName = "default-" + AIPipelinesComponentName
 	// value should match whats set in the XValidation below
 	DataSciencePipelinesInstanceName = "default-" + DataSciencePipelinesComponentName
 	DataSciencePipelinesKind         = "DataSciencePipelines"

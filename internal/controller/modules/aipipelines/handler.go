@@ -24,14 +24,14 @@ import (
 )
 
 const (
-	moduleName          = componentApi.AIPipelinesComponentName
-	crName              = "default-aipipelines"
-	deploymentName      = "data-science-pipelines-operator-controller-manager"
-	moduleControllerEnv = "DSPO_ENABLEAIPIPELINESMODULECONTROLLER"
-	platformVersionEnv  = "DSPO_PLATFORMVERSION"
-	controllerImageEnv  = "RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE"
-	odhOverlayPath      = "overlays/odh/dspo"
-	rhoaiOverlayPath    = "overlays/rhoai/dspo"
+	moduleName               = componentApi.AIPipelinesComponentName
+	crName                   = componentApi.AIPipelinesInstanceName
+	ControllerDeploymentName = "data-science-pipelines-operator-controller-manager"
+	moduleControllerEnv      = "DSPO_ENABLEAIPIPELINESMODULECONTROLLER"
+	platformVersionEnv       = "DSPO_PLATFORMVERSION"
+	controllerImageEnv       = "RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE"
+	odhOverlayPath           = "overlays/odh/dspo"
+	rhoaiOverlayPath         = "overlays/rhoai/dspo"
 )
 
 var overlayByPlatform = map[common.Platform]string{
@@ -74,7 +74,7 @@ func NewHandler() *handler {
 				ManifestDir:          componentApi.DataSciencePipelinesComponentName,
 				SourcePath:           odhOverlayPath,
 				SourcePathByPlatform: overlayByPlatform,
-				DeploymentName:       deploymentName,
+				DeploymentName:       ControllerDeploymentName,
 				ControllerImage:      controllerImageEnv,
 				RelatedImages:        relatedImages,
 				ExtraEnv: map[string]string{

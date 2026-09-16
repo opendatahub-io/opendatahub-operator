@@ -17,6 +17,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -40,7 +41,9 @@ func logCapturingContext(t *testing.T) (context.Context, *[]string) {
 type mockModuleHandler struct {
 	modules.BaseHandler
 
-	deleteErr error
+	deleteErr  error
+	cleanupErr error
+	cleanedDSC *dscv2.DataScienceCluster
 }
 
 func (m *mockModuleHandler) IsEnabled(_ *configv1alpha1.PlatformModules) bool { return false }
@@ -52,7 +55,13 @@ func (m *mockModuleHandler) DeleteModuleCR(_ context.Context, _ client.Client) e
 	return m.deleteErr
 }
 
+func (m *mockModuleHandler) CleanupLegacyCR(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) error {
+	m.cleanedDSC = dsc
+	return m.cleanupErr
+}
+
 var _ modules.ModuleHandler = (*mockModuleHandler)(nil)
+var _ modules.LegacyModuleCRCleaner = (*mockModuleHandler)(nil)
 
 func TestProvisionComponentsErrorLogs(t *testing.T) {
 	tests := []struct {
@@ -192,4 +201,44 @@ func TestCleanupDisabledModuleCRsLogsDeleteFailure(t *testing.T) {
 		ContainSubstring(`"msg"="DeleteModuleCR failed"`),
 		ContainSubstring(`"module"="`+name+`"`),
 	)))
+}
+
+func TestCleanupMigratedModuleCRs(t *testing.T) {
+	tests := []struct {
+		name        string
+		cleanupErr  error
+		wantErrText string
+	}{
+		{name: "runs module legacy cleanup"},
+		{
+			name:        "wraps module legacy cleanup failure",
+			cleanupErr:  errors.New("cleanup failed"),
+			wantErrText: "legacy CR cleanup failed for module migrated-module: cleanup failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			dsc := newDSC()
+			mod := &mockModuleHandler{cleanupErr: tt.cleanupErr}
+			mod.Config = modules.ModuleConfig{
+				Name:   "migrated-module",
+				CRName: "default-migrated-module",
+				GVK:    schema.GroupVersionKind{Group: "test.io", Version: "v1", Kind: "MigratedModule"},
+			}
+			modReg := &modules.Registry{}
+			modReg.Add(mod)
+
+			rr := &types.ReconciliationRequest{Instance: dsc}
+			err := cleanupMigratedModuleCRsWith(t.Context(), rr, modReg)
+
+			if tt.wantErrText == "" {
+				g.Expect(err).NotTo(HaveOccurred())
+			} else {
+				g.Expect(err).To(MatchError(ContainSubstring(tt.wantErrText)))
+			}
+			g.Expect(mod.cleanedDSC).To(BeIdenticalTo(dsc))
+		})
+	}
 }

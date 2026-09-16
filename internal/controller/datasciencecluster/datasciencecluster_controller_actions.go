@@ -351,12 +351,20 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 // waiting until their replacement controller is active before deleting a
 // legacy component CR.
 func cleanupMigratedModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	return cleanupMigratedModuleCRsWith(ctx, rr, modules.DefaultRegistry())
+}
+
+func cleanupMigratedModuleCRsWith(
+	ctx context.Context,
+	rr *odhtype.ReconciliationRequest,
+	moduleReg *modules.Registry,
+) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
-	return modules.ForConfigSource(modules.ConfigFromDSC, func(handler modules.ModuleHandler, _ bool) error {
+	return moduleReg.ForConfigSource(modules.ConfigFromDSC, func(handler modules.ModuleHandler, _ bool) error {
 		cleaner, ok := handler.(modules.LegacyModuleCRCleaner)
 		if !ok {
 			return nil
