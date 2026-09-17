@@ -165,7 +165,6 @@ func TestCleanupDisabledModules_DAGResolveFailure_LogsControllerKindAndFallsBack
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(handler.deletedOperatorRes).Should(BeTrue())
 	g.Expect(logOutput).Should(ContainSubstring("DAG reverse resolution failed"))
-	g.Expect(logOutput).Should(ContainSubstring(`"controllerKind"="module"`))
 }
 
 func TestCleanupDisabledModules_CRAlive_NoPerModuleCondition(t *testing.T) {

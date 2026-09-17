@@ -302,8 +302,7 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 
 	reverseBatches, err := reverseBatchesAll()
 	if err != nil {
-		logf.FromContext(ctx).Error(err, "DAG reverse resolution failed, falling back to alphabetical cleanup order",
-			"controllerKind", "module")
+		logf.FromContext(ctx).Error(err, "DAG reverse resolution failed, falling back to alphabetical cleanup order")
 		if forAllErr := reg.ForAll(func(handler ModuleHandler, _ bool) error {
 			return cleanupOne(handler)
 		}); forAllErr != nil {
