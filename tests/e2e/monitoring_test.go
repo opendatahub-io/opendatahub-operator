@@ -28,7 +28,6 @@ import (
 // Constants for monitoring resource names.
 const (
 	MonitoringCRName                         = "default-monitoring"
-	MonitoringDependenciesReadyCondition     = "MonitoringDependenciesReady"
 	MonitoringStackName                      = "data-science-monitoringstack"
 	OpenTelemetryCollectorName               = "data-science-collector"
 	TargetAllocatorDeploymentName            = "data-science-collector-targetallocator"
@@ -503,8 +502,8 @@ func (tc *MonitoringTestCtx) ValidateMonitoringReadyConditionOnDSCI(t *testing.T
 			// Mirrored conditions from Monitoring CR
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, MonitoringDependenciesReadyCondition, metav1.ConditionTrue),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, MonitoringDependenciesReadyCondition, status.AvailableReason),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionMonitoringDependenciesReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionMonitoringDependenciesReady, status.AvailableReason),
 			// Base condition
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionMonitoringReady, metav1.ConditionTrue),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionMonitoringReady, status.ReadyReason),
