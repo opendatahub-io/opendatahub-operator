@@ -16,14 +16,10 @@ import (
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
-)
-
-const (
-	unsupportedCertificateTypeMessage = "certificate.type OpenshiftDefaultIngress is not supported on Kubernetes clusters; use SelfSigned or Provided"
-	unsupportedIngressModeMessage     = "ingressMode OcpRoute is not supported on Kubernetes clusters; use LoadBalancer"
 )
 
 //+kubebuilder:webhook:path=/validate-gatewayconfig,matchPolicy=Exact,mutating=false,failurePolicy=fail,sideEffects=None,groups=services.platform.opendatahub.io,resources=gatewayconfigs,verbs=create;update,versions=v1alpha1,name=gatewayconfig-validator.opendatahub.io,admissionReviewVersions=v1
@@ -71,10 +67,10 @@ func (v *Validator) Handle(_ context.Context, req admission.Request) admission.R
 
 	var messages []string
 	if gatewayConfig.Spec.Certificate != nil && gatewayConfig.Spec.Certificate.Type == infrav1.OpenshiftDefaultIngress {
-		messages = append(messages, unsupportedCertificateTypeMessage)
+		messages = append(messages, status.GatewayUnsupportedCertTypeOnKubernetesMessage)
 	}
 	if gatewayConfig.Spec.IngressMode == serviceApi.IngressModeOcpRoute {
-		messages = append(messages, unsupportedIngressModeMessage)
+		messages = append(messages, status.GatewayUnsupportedIngressModeOnKubernetesMessage)
 	}
 	if len(messages) > 0 {
 		return admission.Denied(strings.Join(messages, "; "))
