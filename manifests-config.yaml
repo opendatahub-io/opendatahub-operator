@@ -52,8 +52,8 @@ components:
       sourcePath: config
   datasciencepipelines:
     odh:
-      repo: lugi0/data-science-pipelines-operator
-      ref: codex/rhoaieng-91567-platform-config-status@aae9b189712806e4b0a6fa3c273a7c7b13f077e5
+      repo: opendatahub-io/data-science-pipelines-operator
+      ref: main@26d18c3ff0f548dbd42c47a1a6d52cf8f801eb43
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/data-science-pipelines-operator
@@ -266,14 +266,14 @@ imageOverrides:
   RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE:
     component: datasciencepipelines
     paramsEnvKey: IMAGES_DSPO
-    tagTemplate: "{SHA}"
+    tagTemplate: "odh-main-{SHORT_SHA}"
     odh:
       base: "quay.io/opendatahub/data-science-pipelines-operator"
-      digest: "sha256:8175cb8329498a1fc222a03bf6f6d7c3e85ed6847ea00eed06592b49359254b5"
+      digest: "sha256:0a5bbc61505711158ee090386d4a11857f30ece8b18c8766f7eec36a5ce32300"
     rhoai:
       shaFrom: odh
       base: "quay.io/opendatahub/data-science-pipelines-operator"
-      digest: "sha256:8175cb8329498a1fc222a03bf6f6d7c3e85ed6847ea00eed06592b49359254b5"
+      digest: "sha256:0a5bbc61505711158ee090386d4a11857f30ece8b18c8766f7eec36a5ce32300"
   RELATED_IMAGE_ODH_OGX_K8S_OPERATOR_IMAGE:
     component: ogx
     tagTemplate: "{SHA}"
