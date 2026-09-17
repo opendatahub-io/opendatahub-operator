@@ -106,6 +106,93 @@ func (t *WithT) Client() client.Client {
 	return t.client
 }
 
+// Apply applies a typed Kubernetes object using server-side apply.
+func (t *WithT) Apply(object client.Object, option ...client.ApplyOption) *EventuallyErr {
+	return &EventuallyErr{
+		ctx: t.Context(),
+		g:   t.WithT,
+		f: func(ctx context.Context) error {
+			options := make([]client.ApplyOption, 0, len(option)+2)
+			options = append(options, client.FieldOwner("testf"), client.ForceOwnership)
+			options = append(options, option...)
+
+			if err := resources.Apply(ctx, t.Client(), object, options...); err != nil {
+				return err
+			}
+
+			return nil
+		},
+	}
+}
+
+// GetObject retrieves a typed Kubernetes object using its type and metadata.
+func (t *WithT) GetObject(object client.Object, option ...client.GetOption) *EventuallyValue[client.Object] {
+	return &EventuallyValue[client.Object]{
+		ctx: t.Context(),
+		g:   t.WithT,
+		f: func(ctx context.Context) (client.Object, error) {
+			err := t.Client().Get(ctx, client.ObjectKeyFromObject(object), object, option...)
+			switch {
+			case k8serr.IsNotFound(err):
+				return nil, nil
+			case err != nil:
+				return nil, StopErr(err, "failed to get object")
+			default:
+				return object, nil
+			}
+		},
+	}
+}
+
+// CreateObject creates a typed Kubernetes object.
+func (t *WithT) CreateObject(object client.Object, option ...client.CreateOption) *EventuallyValue[client.Object] {
+	return &EventuallyValue[client.Object]{
+		ctx: t.Context(),
+		g:   t.WithT,
+		f: func(ctx context.Context) (client.Object, error) {
+			if err := t.Client().Create(ctx, object, option...); err != nil {
+				return nil, err
+			}
+
+			return object, nil
+		},
+	}
+}
+
+// UpdateObject updates a typed Kubernetes object.
+func (t *WithT) UpdateObject(object client.Object, option ...client.UpdateOption) *EventuallyValue[client.Object] {
+	return &EventuallyValue[client.Object]{
+		ctx: t.Context(),
+		g:   t.WithT,
+		f: func(ctx context.Context) (client.Object, error) {
+			if err := t.Client().Update(ctx, object, option...); err != nil {
+				return nil, err
+			}
+
+			return object, nil
+		},
+	}
+}
+
+// DeleteObject deletes a typed Kubernetes object.
+func (t *WithT) DeleteObject(object client.Object, option ...client.DeleteOption) *EventuallyErr {
+	return &EventuallyErr{
+		ctx: t.Context(),
+		g:   t.WithT,
+		f: func(ctx context.Context) error {
+			err := t.Client().Delete(ctx, object, option...)
+			switch {
+			case k8serr.IsNotFound(err):
+				return err
+			case err != nil:
+				return StopErr(err, "failed to delete object")
+			default:
+				return nil
+			}
+		},
+	}
+}
+
 // List performs a `kubectl get` operation to list resources of the specified GroupVersionKind.
 // It returns the list of resources wrapped in an EventuallyValue to be used with Gomega assertions.
 //
@@ -312,7 +399,8 @@ func (t *WithT) CreateOrPatch(
 }
 
 // Update performs a `kubectl update` operation on the specified resource, applying a function to mutate the resource
-// before updating. The result is wrapped in an EventuallyValue, which can be used in Gomega assertions.
+// before updating. The result is wrapped in an EventuallyValue, which can be
+// used in Gomega assertions.
 //
 // Parameters:
 //   - gvk (schema.GroupVersionKind): The GroupVersionKind of the resource to update.
@@ -360,6 +448,46 @@ func (t *WithT) Update(
 				return nil, err
 			default:
 				return in, nil
+			}
+		},
+	}
+}
+
+// UpdateStatus performs a status subresource update on the specified resource,
+// applying a function to mutate its status before updating it. The result is
+// wrapped in an EventuallyValue for use with Gomega assertions.
+func (t *WithT) UpdateStatus(
+	gvk schema.GroupVersionKind,
+	nn types.NamespacedName,
+	fn func(obj *unstructured.Unstructured) error,
+	option ...client.SubResourceUpdateOption,
+) *EventuallyValue[*unstructured.Unstructured] {
+	return &EventuallyValue[*unstructured.Unstructured]{
+		ctx: t.Context(),
+		g:   t.WithT,
+		f: func(ctx context.Context) (*unstructured.Unstructured, error) {
+			u := resources.GvkToUnstructured(gvk)
+
+			err := t.Client().Get(ctx, nn, u)
+			switch {
+			case k8serr.IsNotFound(err):
+				return nil, nil
+			case err != nil:
+				return nil, StopErr(err, "failed to get resource for status update: %s, nn: %s", gvk, nn.String())
+			}
+
+			if err := fn(u); err != nil {
+				return nil, StopErr(err, "failed to apply status update function")
+			}
+
+			err = t.Client().Status().Update(ctx, u, option...)
+			switch {
+			case k8serr.IsForbidden(err):
+				return nil, StopErr(err, "failed to update status: %s, nn: %s", gvk, nn.String())
+			case err != nil:
+				return nil, err
+			default:
+				return u, nil
 			}
 		},
 	}
@@ -447,7 +575,7 @@ func (t *WithT) Delete(
 			err := t.Client().Delete(ctx, u, option...)
 			switch {
 			case k8serr.IsNotFound(err):
-				return nil
+				return err
 			case err != nil:
 				return StopErr(err, "failed to delete resource: %s, nn: %s", gvk, nn.String())
 			default:

@@ -32,7 +32,7 @@ type TrainingOperatorCommonStatus struct {
 	common.ComponentReleaseStatus `json:",inline"`
 }
 
-// +kubebuilder:validation:XValidation:rule="!has(self.managementState) || self.managementState != 'Managed' || (has(oldSelf.managementState) && oldSelf.managementState == 'Managed')",message="TrainingOperator v1 is obsolete in RHOAI 3.6. Set managementState to Removed, then delete the TrainingOperator CR to clean up. Use Trainer v2 instead."
+// +kubebuilder:validation:XValidation:rule="!has(self.managementState) || self.managementState != 'Managed' || (oldSelf.hasValue() && has(oldSelf.value().managementState) && oldSelf.value().managementState == 'Managed')",message="TrainingOperator v1 is obsolete in RHOAI 3.6. Set managementState to Removed, then delete the TrainingOperator CR to clean up. Use Trainer v2 instead.",optionalOldSelf=true
 //nolint:lll
 
 // DSCTrainingOperator contains all the configuration exposed in DSC instance for TrainingOperator component.

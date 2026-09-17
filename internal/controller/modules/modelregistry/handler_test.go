@@ -8,8 +8,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -18,9 +18,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
-	return &configv1alpha1.PlatformModules{
-		ModelRegistry: common.ManagementSpec{
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha2.PlatformModules {
+	return &configv1alpha2.PlatformModules{
+		AIHub: common.ManagementSpec{
 			ManagementState: mgmtState,
 		},
 	}
@@ -28,10 +28,10 @@ func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.Pl
 
 func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
 	return &modules.DSCContext{
-		DSC: &dscv2.DataScienceCluster{
-			Spec: dscv2.DataScienceClusterSpec{
-				Components: dscv2.Components{
-					ModelRegistry: componentApi.DSCModelRegistry{
+		DSC: &dscv3.DataScienceCluster{
+			Spec: dscv3.DataScienceClusterSpec{
+				Components: dscv3.Components{
+					AIHub: componentApi.DSCAIHub{
 						ManagementSpec: common.ManagementSpec{
 							ManagementState: mgmtState,
 						},
@@ -70,22 +70,22 @@ func TestPopulatePlatformModule_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := modelregistry.NewHandler()
 
-	pm := &configv1alpha1.PlatformModules{}
+	pm := &configv1alpha2.PlatformModules{}
 	dscCtx := newDSCCtx(operatorv1.Managed)
 	h.PopulatePlatformModule(pm, dscCtx)
 
-	g.Expect(pm.ModelRegistry.ManagementState).Should(Equal(operatorv1.Managed))
+	g.Expect(pm.AIHub.ManagementState).Should(Equal(operatorv1.Managed))
 }
 
 func TestPopulatePlatformModule_EmptyDefaultsToRemoved(t *testing.T) {
 	g := NewWithT(t)
 	h := modelregistry.NewHandler()
 
-	pm := &configv1alpha1.PlatformModules{}
+	pm := &configv1alpha2.PlatformModules{}
 	dscCtx := newDSCCtx("")
 	h.PopulatePlatformModule(pm, dscCtx)
 
-	g.Expect(pm.ModelRegistry.ManagementState).Should(Equal(operatorv1.Removed))
+	g.Expect(pm.AIHub.ManagementState).Should(Equal(operatorv1.Removed))
 }
 
 func TestPopulatePlatformModule_NilGuards(t *testing.T) {
@@ -93,14 +93,14 @@ func TestPopulatePlatformModule_NilGuards(t *testing.T) {
 
 	// Should not panic with nil args.
 	h.PopulatePlatformModule(nil, nil)
-	h.PopulatePlatformModule(&configv1alpha1.PlatformModules{}, nil)
+	h.PopulatePlatformModule(&configv1alpha2.PlatformModules{}, nil)
 	h.PopulatePlatformModule(nil, &modules.DSCContext{})
 }
 
 func TestGetReadyConditionType(t *testing.T) {
 	g := NewWithT(t)
 	h := modelregistry.NewHandler()
-	g.Expect(h.GetReadyConditionType()).Should(Equal("ModelRegistryReady"))
+	g.Expect(h.GetReadyConditionType()).Should(Equal("AIHubReady"))
 }
 
 func TestBuildModuleCR_NilDSCContextReturnsError(t *testing.T) {
@@ -122,7 +122,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	h := modelregistry.NewHandler()
 
 	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.ModelRegistry.RegistriesNamespace = "my-registries"
+	dscCtx.DSC.Spec.Components.AIHub.ApplicationNamespace = "my-registries"
 
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, &modules.ModuleCRConfig{
 		ApplicationsNamespace: "test-apps-ns",
@@ -183,7 +183,7 @@ func TestBuildModuleCR_InstancesNamespaceDefaultsToAppNS(t *testing.T) {
 	h := modelregistry.NewHandler()
 
 	dscCtx := newDSCCtx(operatorv1.Managed)
-	// RegistriesNamespace left empty
+	// ApplicationNamespace left empty
 
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, &modules.ModuleCRConfig{
 		ApplicationsNamespace: "fallback-ns",
@@ -200,7 +200,7 @@ func TestBuildModuleCR_NilCfg(t *testing.T) {
 	h := modelregistry.NewHandler()
 
 	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.ModelRegistry.RegistriesNamespace = "my-registries"
+	dscCtx.DSC.Spec.Components.AIHub.ApplicationNamespace = "my-registries"
 
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -227,29 +227,29 @@ func TestWriteDSCComponentStatus_Enabled(t *testing.T) {
 	g := NewWithT(t)
 	h := modelregistry.NewHandler()
 
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscv3.DataScienceCluster{}
 	releases := []common.ComponentRelease{
 		{Name: "platform", Version: "1.0.0"},
 	}
 
 	h.WriteDSCComponentStatus(dsc, true, releases)
 
-	g.Expect(dsc.Status.Components.ModelRegistry.ManagementState).Should(Equal(operatorv1.Managed))
-	g.Expect(dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus).ShouldNot(BeNil())
-	g.Expect(dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus.Releases).Should(HaveLen(1))
-	g.Expect(dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus.Releases[0].Version).Should(Equal("1.0.0"))
+	g.Expect(dsc.Status.Components.AIHub.ManagementState).Should(Equal(operatorv1.Managed))
+	g.Expect(dsc.Status.Components.AIHub.AIHubCommonStatus).ShouldNot(BeNil())
+	g.Expect(dsc.Status.Components.AIHub.AIHubCommonStatus.Releases).Should(HaveLen(1))
+	g.Expect(dsc.Status.Components.AIHub.AIHubCommonStatus.Releases[0].Version).Should(Equal("1.0.0"))
 }
 
 func TestWriteDSCComponentStatus_Disabled(t *testing.T) {
 	g := NewWithT(t)
 	h := modelregistry.NewHandler()
 
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscv3.DataScienceCluster{}
 
 	h.WriteDSCComponentStatus(dsc, false, nil)
 
-	g.Expect(dsc.Status.Components.ModelRegistry.ManagementState).Should(Equal(operatorv1.Removed))
-	g.Expect(dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus).Should(BeNil())
+	g.Expect(dsc.Status.Components.AIHub.ManagementState).Should(Equal(operatorv1.Removed))
+	g.Expect(dsc.Status.Components.AIHub.AIHubCommonStatus).Should(BeNil())
 }
 
 func TestWriteDSCComponentStatus_NilDSC(t *testing.T) {
@@ -267,12 +267,12 @@ func TestGetName(t *testing.T) {
 func TestWriteLegacyStatusFields_MirrorsFromDSCSpec(t *testing.T) {
 	g := NewWithT(t)
 	h := modelregistry.NewHandler()
-	dsc := &dscv2.DataScienceCluster{
-		Spec: dscv2.DataScienceClusterSpec{
-			Components: dscv2.Components{
-				ModelRegistry: componentApi.DSCModelRegistry{
-					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
-						RegistriesNamespace: "odh-model-registries",
+	dsc := &dscv3.DataScienceCluster{
+		Spec: dscv3.DataScienceClusterSpec{
+			Components: dscv3.Components{
+				AIHub: componentApi.DSCAIHub{
+					AIHubCommonSpec: componentApi.AIHubCommonSpec{
+						ApplicationNamespace: "odh-model-registries",
 					},
 				},
 			},
@@ -281,18 +281,18 @@ func TestWriteLegacyStatusFields_MirrorsFromDSCSpec(t *testing.T) {
 
 	err := h.WriteLegacyStatusFields(context.Background(), nil, dsc, true)
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(dsc.Status.Components.ModelRegistry.RegistriesNamespace).Should(Equal("odh-model-registries"))
+	g.Expect(dsc.Status.Components.AIHub.ApplicationNamespace).Should(Equal("odh-model-registries"))
 }
 
 func TestWriteLegacyStatusFields_ClearsWhenDisabled(t *testing.T) {
 	g := NewWithT(t)
 	h := modelregistry.NewHandler()
-	dsc := &dscv2.DataScienceCluster{
-		Spec: dscv2.DataScienceClusterSpec{
-			Components: dscv2.Components{
-				ModelRegistry: componentApi.DSCModelRegistry{
-					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
-						RegistriesNamespace: "odh-model-registries",
+	dsc := &dscv3.DataScienceCluster{
+		Spec: dscv3.DataScienceClusterSpec{
+			Components: dscv3.Components{
+				AIHub: componentApi.DSCAIHub{
+					AIHubCommonSpec: componentApi.AIHubCommonSpec{
+						ApplicationNamespace: "odh-model-registries",
 					},
 				},
 			},
@@ -304,18 +304,18 @@ func TestWriteLegacyStatusFields_ClearsWhenDisabled(t *testing.T) {
 
 	err = h.WriteLegacyStatusFields(context.Background(), nil, dsc, false)
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(dsc.Status.Components.ModelRegistry.RegistriesNamespace).Should(BeEmpty())
+	g.Expect(dsc.Status.Components.AIHub.ApplicationNamespace).Should(BeEmpty())
 }
 
 func TestWriteLegacyStatusFields_ClearsWhenSpecEmpty(t *testing.T) {
 	g := NewWithT(t)
 	h := modelregistry.NewHandler()
-	dsc := &dscv2.DataScienceCluster{
-		Spec: dscv2.DataScienceClusterSpec{
-			Components: dscv2.Components{
-				ModelRegistry: componentApi.DSCModelRegistry{
-					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
-						RegistriesNamespace: "odh-model-registries",
+	dsc := &dscv3.DataScienceCluster{
+		Spec: dscv3.DataScienceClusterSpec{
+			Components: dscv3.Components{
+				AIHub: componentApi.DSCAIHub{
+					AIHubCommonSpec: componentApi.AIHubCommonSpec{
+						ApplicationNamespace: "odh-model-registries",
 					},
 				},
 			},
@@ -324,10 +324,10 @@ func TestWriteLegacyStatusFields_ClearsWhenSpecEmpty(t *testing.T) {
 
 	err := h.WriteLegacyStatusFields(context.Background(), nil, dsc, true)
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(dsc.Status.Components.ModelRegistry.RegistriesNamespace).Should(Equal("odh-model-registries"))
+	g.Expect(dsc.Status.Components.AIHub.ApplicationNamespace).Should(Equal("odh-model-registries"))
 
-	dsc.Spec.Components.ModelRegistry.RegistriesNamespace = ""
+	dsc.Spec.Components.AIHub.ApplicationNamespace = ""
 	err = h.WriteLegacyStatusFields(context.Background(), nil, dsc, true)
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(dsc.Status.Components.ModelRegistry.RegistriesNamespace).Should(BeEmpty())
+	g.Expect(dsc.Status.Components.AIHub.ApplicationNamespace).Should(BeEmpty())
 }

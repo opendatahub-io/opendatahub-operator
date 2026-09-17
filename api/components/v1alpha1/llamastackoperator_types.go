@@ -39,7 +39,10 @@ type DSCLlamaStackOperatorStatus struct {
 // The component has been renamed to OGX. DSCLlamaStackOperator and DSCLlamaStackOperatorStatus
 // are kept for backward compatibility with DSC v1 and the deprecated v2 field.
 
+// +kubebuilder:validation:XValidation:rule="!has(self.managementState) || self.managementState != 'Managed' || (oldSelf.hasValue() && has(oldSelf.value().managementState) && oldSelf.value().managementState == 'Managed')",message="LlamaStackOperator has been replaced by OGX. Set managementState to Removed.",optionalOldSelf=true
 // DSCLlamaStackOperator contains all the configuration exposed in DSC instance for LlamaStackOperator component
+//
+//nolint:lll
 type DSCLlamaStackOperator struct {
 	common.ManagementSpec `json:",inline"`
 

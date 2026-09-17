@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -29,7 +29,7 @@ func (f *fakeComponentHandler) Init(_ common.Platform, _ operatorconfig.Operator
 	return nil
 }
 func (f *fakeComponentHandler) GetName() string { return f.name }
-func (f *fakeComponentHandler) NewCRObject(_ context.Context, _ client.Client, _ *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+func (f *fakeComponentHandler) NewCRObject(_ context.Context, _ client.Client, _ *dscv3.DataScienceCluster) (common.PlatformObject, error) {
 	return nil, nil
 }
 func (f *fakeComponentHandler) NewComponentReconciler(_ context.Context, _ ctrl.Manager) error {
@@ -41,7 +41,7 @@ func (f *fakeComponentHandler) UpdateDSCStatus(_ context.Context, _ *types.Recon
 func (f *fakeComponentHandler) GroupVersionKind() schema.GroupVersionKind {
 	return schema.GroupVersionKind{}
 }
-func (f *fakeComponentHandler) IsEnabled(_ *dscv2.DataScienceCluster) bool {
+func (f *fakeComponentHandler) IsEnabled(_ *dscv3.DataScienceCluster) bool {
 	return f.enabled
 }
 

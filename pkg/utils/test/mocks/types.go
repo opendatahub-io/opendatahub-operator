@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -33,11 +33,11 @@ func (m *MockComponentHandler) GetName() string {
 	return m.Called().String(0)
 }
 
-func (m *MockComponentHandler) GetManagementState(dsc *dscv2.DataScienceCluster) operatorv1.ManagementState {
+func (m *MockComponentHandler) GetManagementState(dsc *dscv3.DataScienceCluster) operatorv1.ManagementState {
 	return m.Called(dsc).Get(0).(operatorv1.ManagementState)
 }
 
-func (m *MockComponentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+func (m *MockComponentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv3.DataScienceCluster) (common.PlatformObject, error) {
 	args := m.Called(dsc)
 	if args.Get(1) != nil {
 		return nil, args.Get(1).(error)
@@ -49,7 +49,7 @@ func (m *MockComponentHandler) NewComponentReconciler(ctx context.Context, mgr c
 	return m.Called(ctx, mgr).Error(0)
 }
 
-func (m *MockComponentHandler) UpdateDSCStatus(dsc *dscv2.DataScienceCluster, obj client.Object) error {
+func (m *MockComponentHandler) UpdateDSCStatus(dsc *dscv3.DataScienceCluster, obj client.Object) error {
 	return m.Called(dsc, obj).Error(0)
 }
 

@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -23,7 +23,7 @@ func TestUninstallDeletesDSCBeforeDSCI(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
-	dsc := &dscv2.DataScienceCluster{
+	dsc := &dscv3.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "default-dsc"},
 	}
 	dsci := &dsciv2.DSCInitialization{
@@ -39,7 +39,7 @@ func TestUninstallDeletesDSCBeforeDSCI(t *testing.T) {
 		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 			DeleteAllOf: func(ctx2 context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteAllOfOption) error {
 				switch obj.(type) {
-				case *dscv2.DataScienceCluster:
+				case *dscv3.DataScienceCluster:
 					if err := c.DeleteAllOf(ctx2, obj, opts...); err != nil {
 						return err
 					}
@@ -64,7 +64,7 @@ func TestUninstallDeletesDSCBeforeDSCI(t *testing.T) {
 	g.Expect(dscDeletedBeforeDSCI.Load()).To(BeTrue(),
 		"DSC should be deleted before DSCI deletion is attempted")
 
-	var dscList dscv2.DataScienceClusterList
+	var dscList dscv3.DataScienceClusterList
 	g.Expect(cli.List(ctx, &dscList)).To(Succeed())
 	g.Expect(dscList.Items).To(BeEmpty(), "all DSC objects should be deleted")
 
@@ -77,7 +77,7 @@ func TestUninstallWaitsForDSCRemoval(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
-	dsc := &dscv2.DataScienceCluster{
+	dsc := &dscv3.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "default-dsc"},
 	}
 	dsci := &dsciv2.DSCInitialization{
@@ -94,7 +94,7 @@ func TestUninstallWaitsForDSCRemoval(t *testing.T) {
 		fakeclient.WithObjects(dsc, dsci),
 		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 			DeleteAllOf: func(ctx2 context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteAllOfOption) error {
-				if _, ok := obj.(*dscv2.DataScienceCluster); ok {
+				if _, ok := obj.(*dscv3.DataScienceCluster); ok {
 					deleteAllOfCalled.Store(true)
 					return nil
 				}
@@ -106,10 +106,10 @@ func TestUninstallWaitsForDSCRemoval(t *testing.T) {
 				return c.DeleteAllOf(ctx2, obj, opts...)
 			},
 			List: func(ctx2 context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
-				if _, ok := list.(*dscv2.DataScienceClusterList); ok && deleteAllOfCalled.Load() {
+				if _, ok := list.(*dscv3.DataScienceClusterList); ok && deleteAllOfCalled.Load() {
 					count := listCallCount.Add(1)
 					if count >= 2 {
-						_ = c.DeleteAllOf(ctx2, &dscv2.DataScienceCluster{})
+						_ = c.DeleteAllOf(ctx2, &dscv3.DataScienceCluster{})
 						dscActuallyRemoved.Store(true)
 					}
 				}
@@ -129,7 +129,7 @@ func TestUninstallWaitsForDSCRemoval(t *testing.T) {
 	g.Expect(dscRemovedBeforeDSCIDelete.Load()).To(BeTrue(),
 		"DSCI deletion should only occur after DSC objects are fully removed")
 
-	var dscList dscv2.DataScienceClusterList
+	var dscList dscv3.DataScienceClusterList
 	g.Expect(cli.List(ctx, &dscList)).To(Succeed())
 	g.Expect(dscList.Items).To(BeEmpty(), "all DSC objects should be deleted after waiting")
 }
@@ -150,7 +150,7 @@ func TestUninstallSucceedsWithNoDSC(t *testing.T) {
 		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 			DeleteAllOf: func(ctx2 context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteAllOfOption) error {
 				switch obj.(type) {
-				case *dscv2.DataScienceCluster:
+				case *dscv3.DataScienceCluster:
 					dscDeleteAllOfCalled.Store(true)
 				case *dsciv2.DSCInitialization:
 					dsciDeleteAllOfCalled.Store(true)
@@ -190,7 +190,7 @@ func TestUninstallPropagatesDSCDeleteError(t *testing.T) {
 		fakeclient.WithObjects(dsci),
 		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 			DeleteAllOf: func(ctx2 context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteAllOfOption) error {
-				if _, ok := obj.(*dscv2.DataScienceCluster); ok {
+				if _, ok := obj.(*dscv3.DataScienceCluster); ok {
 					return errors.New("simulated DSC deletion failure")
 				}
 				if _, ok := obj.(*dsciv2.DSCInitialization); ok {
@@ -214,7 +214,7 @@ func TestUninstallPropagatesListErrorDuringPolling(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
-	dsc := &dscv2.DataScienceCluster{
+	dsc := &dscv3.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "default-dsc"},
 	}
 	dsci := &dsciv2.DSCInitialization{
@@ -228,7 +228,7 @@ func TestUninstallPropagatesListErrorDuringPolling(t *testing.T) {
 		fakeclient.WithObjects(dsc, dsci),
 		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 			DeleteAllOf: func(ctx2 context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteAllOfOption) error {
-				if _, ok := obj.(*dscv2.DataScienceCluster); ok {
+				if _, ok := obj.(*dscv3.DataScienceCluster); ok {
 					deleteAllOfCalled.Store(true)
 					return nil
 				}
@@ -238,7 +238,7 @@ func TestUninstallPropagatesListErrorDuringPolling(t *testing.T) {
 				return c.DeleteAllOf(ctx2, obj, opts...)
 			},
 			List: func(ctx2 context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
-				if _, ok := list.(*dscv2.DataScienceClusterList); ok && deleteAllOfCalled.Load() {
+				if _, ok := list.(*dscv3.DataScienceClusterList); ok && deleteAllOfCalled.Load() {
 					return errors.New("simulated List failure")
 				}
 				return c.List(ctx2, list, opts...)
@@ -259,10 +259,10 @@ func TestUninstallHandlesMultipleDSCs(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
-	dsc1 := &dscv2.DataScienceCluster{
+	dsc1 := &dscv3.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "dsc-one"},
 	}
-	dsc2 := &dscv2.DataScienceCluster{
+	dsc2 := &dscv3.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "dsc-two"},
 	}
 	dsci := &dsciv2.DSCInitialization{
@@ -277,7 +277,7 @@ func TestUninstallHandlesMultipleDSCs(t *testing.T) {
 		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 			DeleteAllOf: func(ctx2 context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteAllOfOption) error {
 				if _, ok := obj.(*dsciv2.DSCInitialization); ok {
-					dscList := &dscv2.DataScienceClusterList{}
+					dscList := &dscv3.DataScienceClusterList{}
 					if err := c.List(ctx2, dscList); err != nil {
 						return err
 					}
@@ -299,7 +299,7 @@ func TestUninstallHandlesMultipleDSCs(t *testing.T) {
 	g.Expect(dsciDeletedAfterAllDSC.Load()).To(BeTrue(),
 		"DSCI deletion should only occur after all DSC objects are removed")
 
-	var dscList dscv2.DataScienceClusterList
+	var dscList dscv3.DataScienceClusterList
 	g.Expect(cli.List(ctx, &dscList)).To(Succeed())
 	g.Expect(dscList.Items).To(BeEmpty(), "all DSC objects should be deleted")
 }
@@ -308,7 +308,7 @@ func TestUninstallTimeoutIncludesRemainingDSCNames(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
-	dsc := &dscv2.DataScienceCluster{
+	dsc := &dscv3.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "stuck-dsc"},
 	}
 	dsci := &dsciv2.DSCInitialization{
@@ -321,7 +321,7 @@ func TestUninstallTimeoutIncludesRemainingDSCNames(t *testing.T) {
 		fakeclient.WithObjects(dsc, dsci),
 		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 			DeleteAllOf: func(ctx2 context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteAllOfOption) error {
-				if _, ok := obj.(*dscv2.DataScienceCluster); ok {
+				if _, ok := obj.(*dscv3.DataScienceCluster); ok {
 					return nil
 				}
 				if _, ok := obj.(*dsciv2.DSCInitialization); ok {

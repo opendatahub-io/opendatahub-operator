@@ -16,7 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
@@ -64,8 +63,8 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 	log := logf.FromContext(ctx)
 	ctx = logf.IntoContext(ctx, log)
 
-	if req.Kind.Kind != gvk.DataScienceCluster.Kind || req.Kind.Group != gvk.DataScienceCluster.Group || req.Kind.Version != gvk.DataScienceCluster.Version {
-		err := fmt.Errorf("unexpected gvk: %v; expecting: %v", req.Kind, gvk.DataScienceCluster)
+	if req.Kind.Kind != gvk.DataScienceClusterV2.Kind || req.Kind.Group != gvk.DataScienceClusterV2.Group || req.Kind.Version != gvk.DataScienceClusterV2.Version {
+		err := fmt.Errorf("unexpected gvk: %v; expecting: %v", req.Kind, gvk.DataScienceClusterV2)
 		logf.FromContext(ctx).Error(err, "got wrong group/version/kind")
 		return admission.Errored(http.StatusBadRequest, err)
 	}
@@ -74,9 +73,9 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 
 	switch req.Operation {
 	case admissionv1.Create:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState, denyMultipleDsc, v.warnDeprecatedModelsAsService}, allowMessage, v.Client, &req)
+		return validate(ctx, []validationCheck{v.denyKueueManagedState, denyMultipleDsc}, allowMessage, v.Client, &req)
 	case admissionv1.Update:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.warnDeprecatedModelsAsService}, allowMessage, v.Client, &req)
+		return validate(ctx, []validationCheck{v.denyKueueManagedState}, allowMessage, v.Client, &req)
 	default:
 		return admission.Allowed(allowMessage)
 	}
@@ -100,13 +99,13 @@ func validate(ctx context.Context, checks []validationCheck, allowedMessage stri
 }
 
 func denyMultipleDsc(ctx context.Context, cli client.Reader, req *admission.Request) admission.Response {
-	return webhookutils.ValidateSingletonCreation(ctx, cli, req, gvk.DataScienceCluster)
+	return webhookutils.ValidateSingletonCreation(ctx, cli, req, gvk.DataScienceClusterV2)
 }
 
 func (v *Validator) denyKueueManagedState(ctx context.Context, _ client.Reader, req *admission.Request) admission.Response {
 	dsc := &dscv2.DataScienceCluster{}
 	if err := v.Decoder.DecodeRaw(req.Object, dsc); err != nil {
-		logf.FromContext(ctx).Error(err, "Error converting request object to "+gvk.DataScienceCluster.String())
+		logf.FromContext(ctx).Error(err, "Error converting request object to "+gvk.DataScienceClusterV2.String())
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 	if dsc.Spec.Components.Kueue.ManagementState == operatorv1.Managed {
@@ -114,19 +113,4 @@ func (v *Validator) denyKueueManagedState(ctx context.Context, _ client.Reader, 
 	}
 
 	return admission.Allowed("")
-}
-
-// warnDeprecatedModelsAsService emits an oc/kubectl Warning when the deprecated
-// kserve.modelsAsService field is Managed. Admission is still allowed so upgrades
-// and no-op syncs keep working; CEL blocks Removed→Managed separately.
-func (v *Validator) warnDeprecatedModelsAsService(ctx context.Context, _ client.Reader, req *admission.Request) admission.Response {
-	dsc := &dscv2.DataScienceCluster{}
-	if err := v.Decoder.DecodeRaw(req.Object, dsc); err != nil {
-		logf.FromContext(ctx).Error(err, "Error converting request object to "+gvk.DataScienceCluster.String())
-		return admission.Errored(http.StatusBadRequest, err)
-	}
-
-	resp := admission.Allowed("")
-	resp.Warnings = dscwebhook.ModelsAsServiceDeprecationWarnings(dsc.Spec.Components.Kserve.ModelsAsService.ManagementState) //nolint:staticcheck
-	return resp
 }

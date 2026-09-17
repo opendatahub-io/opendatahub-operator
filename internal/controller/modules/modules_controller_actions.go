@@ -18,8 +18,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -55,11 +55,11 @@ func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) e
 // The platform controller's instance is the Platform CR. A DSC instance is
 // also accepted so tests and legacy callers can rebuild ConfigFromDSC modules
 // from the DSC spec without fetching DSCI.
-func modulesFromInstance(_ context.Context, rr *odhtype.ReconciliationRequest) (*configv1alpha1.PlatformModules, error) {
-	if p, ok := rr.Instance.(*configv1alpha1.Platform); ok {
+func modulesFromInstance(_ context.Context, rr *odhtype.ReconciliationRequest) (*configv1alpha2.PlatformModules, error) {
+	if p, ok := rr.Instance.(*configv1alpha2.Platform); ok {
 		return &p.Spec.Modules, nil
 	}
-	if dsc, ok := rr.Instance.(*dscv2.DataScienceCluster); ok {
+	if dsc, ok := rr.Instance.(*dscv3.DataScienceCluster); ok {
 		pm := BuildPlatformModulesForSource(&DSCContext{DSC: dsc}, ConfigFromDSC)
 		return &pm, nil
 	}
@@ -69,17 +69,18 @@ func modulesFromInstance(_ context.Context, rr *odhtype.ReconciliationRequest) (
 // NewPlatformCR constructs a Platform CR with module enablement for the given
 // config source. DSC and DSCI each apply only their own fields so SSA merge
 // does not let one controller overwrite the other's modules.
-func NewPlatformCR(dscCtx *DSCContext, source ConfigSource) *configv1alpha1.Platform {
-	return &configv1alpha1.Platform{
+func NewPlatformCR(dscCtx *DSCContext, source ConfigSource) *configv1alpha2.Platform {
+	modules := BuildPlatformModulesForSource(dscCtx, source)
+	return &configv1alpha2.Platform{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: configv1alpha1.GroupVersion.String(),
-			Kind:       configv1alpha1.PlatformKind,
+			APIVersion: configv1alpha2.GroupVersion.String(),
+			Kind:       configv1alpha2.PlatformKind,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: configv1alpha1.PlatformInstanceName,
+			Name: configv1alpha2.PlatformInstanceName,
 		},
-		Spec: configv1alpha1.PlatformSpec{
-			Modules: BuildPlatformModulesForSource(dscCtx, source),
+		Spec: configv1alpha2.PlatformSpec{
+			Modules: modules,
 		},
 	}
 }
@@ -115,8 +116,8 @@ func SetPlatformMetadata(platform client.Object, instance client.Object, release
 // let the controller reconcile again once the cache has caught up.
 func EnsurePlatformOwnerReference(ctx context.Context, cli client.Client, owner client.Object, scheme *runtime.Scheme) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		platform := &configv1alpha1.Platform{}
-		if err := cli.Get(ctx, client.ObjectKey{Name: configv1alpha1.PlatformInstanceName}, platform); err != nil {
+		platform := &configv1alpha2.Platform{}
+		if err := cli.Get(ctx, client.ObjectKey{Name: configv1alpha2.PlatformInstanceName}, platform); err != nil {
 			return err
 		}
 
@@ -145,13 +146,13 @@ func EnsurePlatformOwnerReference(ctx context.Context, cli client.Client, owner 
 // for every module owned by source and leaves other sources' fields unset
 // (omitempty). Used by the DSC delete finalizer so ConfigFromDSC operators
 // tear down while DSCI-owned modules (monitoring) stay Managed.
-func NewPlatformCRRemovedForSource(dscCtx *DSCContext, source ConfigSource) *configv1alpha1.Platform {
+func NewPlatformCRRemovedForSource(dscCtx *DSCContext, source ConfigSource) *configv1alpha2.Platform {
 	platform := NewPlatformCR(dscCtx, source)
 	forceManagementStateRemoved(&platform.Spec.Modules)
 	return platform
 }
 
-func forceManagementStateRemoved(pm *configv1alpha1.PlatformModules) {
+func forceManagementStateRemoved(pm *configv1alpha2.PlatformModules) {
 	v := reflect.ValueOf(pm).Elem()
 	for _, fv := range v.Fields() {
 		if fv.Kind() != reflect.Struct {
@@ -172,8 +173,8 @@ func forceManagementStateRemoved(pm *configv1alpha1.PlatformModules) {
 // Empty management states are normalized to Removed so the Platform CR
 // always carries valid enum values (prevents CRD validation errors on
 // SSA apply where zero-value structs serialize as null).
-func BuildPlatformModules(dscCtx *DSCContext) configv1alpha1.PlatformModules {
-	var pm configv1alpha1.PlatformModules
+func BuildPlatformModules(dscCtx *DSCContext) configv1alpha2.PlatformModules {
+	var pm configv1alpha2.PlatformModules
 	DefaultRegistry().ForAll(func(handler ModuleHandler, _ bool) error { //nolint:errcheck
 		handler.PopulatePlatformModule(&pm, dscCtx)
 		return nil
@@ -185,8 +186,8 @@ func BuildPlatformModules(dscCtx *DSCContext) configv1alpha1.PlatformModules {
 // BuildPlatformModulesForSource populates only handlers whose config source
 // matches. Unmatched module fields are left zero so omitempty SSA apply does
 // not take ownership of another controller's fields.
-func BuildPlatformModulesForSource(dscCtx *DSCContext, source ConfigSource) configv1alpha1.PlatformModules {
-	var pm configv1alpha1.PlatformModules
+func BuildPlatformModulesForSource(dscCtx *DSCContext, source ConfigSource) configv1alpha2.PlatformModules {
+	var pm configv1alpha2.PlatformModules
 	DefaultRegistry().ForConfigSource(source, func(handler ModuleHandler, _ bool) error { //nolint:errcheck
 		handler.PopulatePlatformModule(&pm, dscCtx)
 		return nil
@@ -194,7 +195,7 @@ func BuildPlatformModulesForSource(dscCtx *DSCContext, source ConfigSource) conf
 	return pm
 }
 
-func normalizePlatformModules(pm *configv1alpha1.PlatformModules) {
+func normalizePlatformModules(pm *configv1alpha2.PlatformModules) {
 	v := reflect.ValueOf(pm).Elem()
 	for _, fv := range v.Fields() {
 		if fv.Kind() != reflect.Struct {
@@ -558,7 +559,7 @@ func writeDSCLegacyStatusFields(
 	ctx context.Context,
 	cli client.Client,
 	handler ModuleHandler,
-	dsc *dscv2.DataScienceCluster,
+	dsc *dscv3.DataScienceCluster,
 	enabled bool,
 ) error {
 	if dsc == nil {
@@ -810,7 +811,7 @@ func (e *modulesEvaluation) writeAggregateCondition(conditions *conditions.Manag
 func ComputeModulesStatusDetailed(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
-	dsc, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	dsc, ok := rr.Instance.(*dscv3.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("ComputeModulesStatusDetailed requires DataScienceCluster instance, got %T", rr.Instance)
 	}
@@ -864,7 +865,7 @@ func ComputeModulesStatusDetailed(ctx context.Context, rr *odhtype.Reconciliatio
 // condition. Called by the Platform controller — Platform CR status
 // reflects DAG orchestration state, not per-module detail.
 func computeModulesStatusAggregate(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	p, ok := rr.Instance.(*configv1alpha1.Platform)
+	p, ok := rr.Instance.(*configv1alpha2.Platform)
 	if !ok {
 		return fmt.Errorf("computeModulesStatusAggregate requires Platform instance, got %T", rr.Instance)
 	}

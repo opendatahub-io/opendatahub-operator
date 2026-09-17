@@ -12,7 +12,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
@@ -45,7 +45,7 @@ func (s *componentHandler) GroupVersionKind() schema.GroupVersionKind {
 	return componentApi.GroupVersion.WithKind(componentApi.KueueKind)
 }
 
-func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv3.DataScienceCluster) (common.PlatformObject, error) {
 	return &componentApi.Kueue{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.KueueKind,
@@ -69,7 +69,7 @@ func (s *componentHandler) Init(platform common.Platform, _ operatorconfig.Opera
 	return nil
 }
 
-func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
+func (s *componentHandler) IsEnabled(dsc *dscv3.DataScienceCluster) bool {
 	switch dsc.Spec.Components.Kueue.ManagementState {
 	case operatorv1.Managed:
 		return true
@@ -90,7 +90,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, nil
 	}
 
-	dsc, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	dsc, ok := rr.Instance.(*dscv3.DataScienceCluster)
 	if !ok {
 		return cs, errors.New("failed to convert to DataScienceCluster")
 	}

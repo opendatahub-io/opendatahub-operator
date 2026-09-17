@@ -24,11 +24,13 @@ const (
 )
 
 type testContextOpts struct {
-	ctx       context.Context
-	cfg       *rest.Config
-	client    client.Client
-	scheme    *runtime.Scheme
-	withTOpts []WithTOpts
+	ctx                       context.Context
+	contextSet                bool
+	cfg                       *rest.Config
+	client                    client.Client
+	scheme                    *runtime.Scheme
+	warningHandlerWithContext rest.WarningHandlerWithContext
+	withTOpts                 []WithTOpts
 }
 
 type TestContextOpt func(testContext *testContextOpts)
@@ -51,9 +53,17 @@ func WithScheme(value *runtime.Scheme) TestContextOpt {
 	}
 }
 
+// WithWarningHandler configures the REST client to use a context-aware warning handler.
+func WithWarningHandler(value rest.WarningHandlerWithContext) TestContextOpt {
+	return func(tc *testContextOpts) {
+		tc.warningHandlerWithContext = value
+	}
+}
+
 func WithContext(value context.Context) TestContextOpt {
 	return func(tc *testContextOpts) {
 		tc.ctx = value
+		tc.contextSet = true
 	}
 }
 
@@ -70,14 +80,11 @@ func NewTestContext(opts ...TestContextOpt) (*TestContext, error) {
 	}
 
 	tc := TestContext{
-		ctx:       tco.ctx,
-		scheme:    tco.scheme,
-		client:    tco.client,
-		withTOpts: tco.withTOpts,
-	}
-
-	if tc.ctx == nil {
-		tc.ctx = context.Background()
+		ctx:        tco.ctx,
+		contextSet: tco.contextSet,
+		scheme:     tco.scheme,
+		client:     tco.client,
+		withTOpts:  tco.withTOpts,
 	}
 
 	if tc.scheme == nil {
@@ -100,6 +107,12 @@ func NewTestContext(opts ...TestContextOpt) (*TestContext, error) {
 			clientCfg = cfg
 		}
 
+		if tco.warningHandlerWithContext != nil {
+			clientCfg = rest.CopyConfig(clientCfg)
+			clientCfg.WarningHandler = nil
+			clientCfg.WarningHandlerWithContext = tco.warningHandlerWithContext
+		}
+
 		ctrlCli, err := client.New(clientCfg, client.Options{Scheme: tc.scheme})
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize custom client: %w", err)
@@ -112,14 +125,19 @@ func NewTestContext(opts ...TestContextOpt) (*TestContext, error) {
 }
 
 type TestContext struct {
-	ctx    context.Context
-	client client.Client
-	scheme *runtime.Scheme
+	ctx        context.Context
+	contextSet bool
+	client     client.Client
+	scheme     *runtime.Scheme
 
 	withTOpts []WithTOpts
 }
 
 func (tc *TestContext) Context() context.Context {
+	if tc.ctx == nil {
+		return context.Background()
+	}
+
 	return tc.ctx
 }
 
@@ -141,10 +159,13 @@ func (tc *TestContext) NewWithT(t *testing.T, opts ...WithTOpts) *WithT {
 	g.SetDefaultConsistentlyPollingInterval(DefaultPollInterval)
 
 	answer := WithT{
-		ctx:    tc.ctx,
+		ctx:    t.Context(),
 		client: tc.client,
 		WithT:  g,
 		Log:    t.Log,
+	}
+	if tc.contextSet {
+		answer.ctx = tc.ctx
 	}
 
 	for _, opt := range tc.withTOpts {

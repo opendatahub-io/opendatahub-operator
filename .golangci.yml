@@ -150,6 +150,11 @@ linters:
       - legacy
       - std-error-handling
     rules:
+      # MaaS v2 compatibility tests intentionally exercise the deprecated field.
+      - linters:
+          - staticcheck
+        path: (tests/e2e/webhooks/maas_test|internal/webhook/datasciencecluster/v2/conversion/maas/.+_test)\.go
+        text: "SA1019"
       - linters:
           - dupl
         path: tests/*/(.+)_test\.go

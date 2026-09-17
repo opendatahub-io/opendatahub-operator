@@ -3,3 +3,20 @@ kind: Kustomization
 
 resources:
 - bases/
+
+patches:
+- target:
+    group: apiextensions.k8s.io
+    version: v1
+    kind: CustomResourceDefinition
+    name: platforms.config.opendatahub.io
+  path: patches/webhook_in_config_platforms.yaml
+- target:
+    group: apiextensions.k8s.io
+    version: v1
+    kind: CustomResourceDefinition
+    name: platforms.config.opendatahub.io
+  path: patches/cainjection_in_config_platforms.yaml
+
+configurations:
+- kustomizeconfig.yaml

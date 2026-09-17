@@ -12,8 +12,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -95,7 +95,7 @@ func NewHandler() *handler {
 	}
 }
 
-func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+func (h *handler) PopulatePlatformModule(pm *configv1alpha2.PlatformModules, dscCtx *modules.DSCContext) {
 	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
@@ -108,7 +108,7 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 
 // IsEnabled checks whether the Workbenches module should be deployed based on
 // PlatformModules.Workbenches.ManagementState.
-func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+func (h *handler) IsEnabled(modules *configv1alpha2.PlatformModules) bool {
 	return modules != nil && modules.Workbenches.ManagementState == operatorv1.Managed
 }
 
@@ -162,7 +162,7 @@ func (h *handler) BuildModuleCR(
 func (h *handler) WriteLegacyStatusFields(
 	_ context.Context,
 	_ client.Client,
-	dsc *dscv2.DataScienceCluster,
+	dsc *dscv3.DataScienceCluster,
 	enabled bool,
 ) error {
 	if dsc == nil {
@@ -178,7 +178,7 @@ func (h *handler) WriteLegacyStatusFields(
 	return nil
 }
 
-func writeDSCWorkbenchNamespace(dsc *dscv2.DataScienceCluster, enabled bool, workbenchNamespace string) {
+func writeDSCWorkbenchNamespace(dsc *dscv3.DataScienceCluster, enabled bool, workbenchNamespace string) {
 	if dsc == nil {
 		return
 	}

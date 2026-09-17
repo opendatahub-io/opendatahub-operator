@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"reflect"
 	"testing"
 	"time"
 
@@ -30,15 +29,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/dsc/compare"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 )
@@ -472,7 +470,32 @@ func NewDSCIV1(name string, opts ...func(*dsciv1.DSCInitialization)) *dsciv1.DSC
 	return dsci
 }
 
-// NewDSC creates a DataScienceCluster v2 object with the given name and namespace for use in tests.
+// NewDSC creates a DataScienceCluster v3 object with the given name and namespace for use in tests.
+//
+// Parameters:
+//   - name: The name of the DataScienceCluster object.
+//   - namespace: The namespace for the object.
+//   - opts: Optional functional options to mutate the object.
+//
+// Returns:
+//   - *dscv3.DataScienceCluster: The constructed DataScienceCluster object.
+func NewDSC(name string, opts ...func(*dscv3.DataScienceCluster)) *dscv3.DataScienceCluster {
+	dsc := &dscv3.DataScienceCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       gvk.DataScienceCluster.Kind,
+			APIVersion: dscv3.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+	for _, opt := range opts {
+		opt(dsc)
+	}
+	return dsc
+}
+
+// NewDSCV2 creates a DataScienceCluster v2 compatibility object for tests.
 //
 // Parameters:
 //   - name: The name of the DataScienceCluster object.
@@ -481,7 +504,7 @@ func NewDSCIV1(name string, opts ...func(*dsciv1.DSCInitialization)) *dsciv1.DSC
 //
 // Returns:
 //   - *dscv2.DataScienceCluster: The constructed DataScienceCluster object.
-func NewDSC(name string, opts ...func(*dscv2.DataScienceCluster)) *dscv2.DataScienceCluster {
+func NewDSCV2(name string, opts ...func(*dscv2.DataScienceCluster)) *dscv2.DataScienceCluster {
 	dsc := &dscv2.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       gvk.DataScienceCluster.Kind,
@@ -497,92 +520,27 @@ func NewDSC(name string, opts ...func(*dscv2.DataScienceCluster)) *dscv2.DataSci
 	return dsc
 }
 
-// NewDSCV1 creates a DataScienceCluster v1 object with the given name and namespace for use in tests.
-//
-// Parameters:
-//   - name: The name of the DataScienceCluster object.
-//   - namespace: The namespace for the object.
-//   - opts: Optional functional options to mutate the object.
-//
-// Returns:
-//   - *dscv1.DataScienceCluster: The constructed DataScienceCluster object.
-func NewDSCV1(name string, opts ...func(*dscv1.DataScienceCluster)) *dscv1.DataScienceCluster {
-	dsc := &dscv1.DataScienceCluster{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       gvk.DataScienceCluster.Kind,
-			APIVersion: dscv1.GroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-	}
-	for _, opt := range opts {
-		opt(dsc)
-	}
-	return dsc
-}
-
 // =============================================================================
 // DSC Component Configuration Helpers
 // =============================================================================
 
-// WithAllV2OnlyComponentsRemoved returns an option function that sets all v2-only components to Removed.
-// This is useful for tests that need all v2-only components in Removed state.
-// Uses reflection to dynamically detect v2-only components, so it automatically handles new v2-only components.
-func WithAllV2OnlyComponentsRemoved() func(*dscv2.DataScienceCluster) {
-	return func(dsc *dscv2.DataScienceCluster) {
-		// Get v2-only component field names from shared utility
-		v2OnlyFieldNames := compare.GetV2OnlyComponentFieldNames()
-
-		// Use reflection to set each v2-only component to Removed
-		componentsValue := reflect.ValueOf(&dsc.Spec.Components).Elem()
-
-		for _, fieldName := range v2OnlyFieldNames {
-			field := componentsValue.FieldByName(fieldName)
-			if !field.IsValid() {
-				continue // Skip if field doesn't exist (shouldn't happen)
-			}
-
-			// Get the ManagementState field of this component
-			managementStateField := field.FieldByName("ManagementState")
-			if managementStateField.IsValid() && managementStateField.CanSet() {
-				managementStateField.Set(reflect.ValueOf(operatorv1.Removed))
-			}
-		}
-	}
-}
-
 // WithTrainerManaged returns an option function that sets Trainer to Managed.
-func WithTrainerManaged() func(*dscv2.DataScienceCluster) {
-	return func(dsc *dscv2.DataScienceCluster) {
+func WithTrainerManaged() func(*dscv3.DataScienceCluster) {
+	return func(dsc *dscv3.DataScienceCluster) {
 		dsc.Spec.Components.Trainer.ManagementState = operatorv1.Managed
 	}
 }
 
-// WithTrainingOperatorManaged returns an option function that sets TrainingOperator (KFTO v1) to Managed.
-func WithTrainingOperatorManaged() func(*dscv2.DataScienceCluster) {
-	return func(dsc *dscv2.DataScienceCluster) {
-		dsc.Spec.Components.TrainingOperator.ManagementState = operatorv1.Managed
-	}
-}
-
-// WithTrainingOperatorManagedV1 is WithTrainingOperatorManaged for a v1 DataScienceCluster object.
-func WithTrainingOperatorManagedV1() func(*dscv1.DataScienceCluster) {
-	return func(dsc *dscv1.DataScienceCluster) {
-		dsc.Spec.Components.TrainingOperator.ManagementState = operatorv1.Managed
-	}
-}
-
 // WithMLflowOperatorManaged returns an option function that sets MLflowOperator to Managed.
-func WithMLflowOperatorManaged() func(*dscv2.DataScienceCluster) {
-	return func(dsc *dscv2.DataScienceCluster) {
+func WithMLflowOperatorManaged() func(*dscv3.DataScienceCluster) {
+	return func(dsc *dscv3.DataScienceCluster) {
 		dsc.Spec.Components.MLflowOperator.ManagementState = operatorv1.Managed
 	}
 }
 
 // WithSparkOperatorManaged returns an option function that sets SparkOperator to Managed.
-func WithSparkOperatorManaged() func(*dscv2.DataScienceCluster) {
-	return func(dsc *dscv2.DataScienceCluster) {
+func WithSparkOperatorManaged() func(*dscv3.DataScienceCluster) {
+	return func(dsc *dscv3.DataScienceCluster) {
 		dsc.Spec.Components.SparkOperator.ManagementState = operatorv1.Managed
 	}
 }

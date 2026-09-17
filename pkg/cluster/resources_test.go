@@ -12,8 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -127,7 +127,7 @@ func TestGetClusterSingletons(t *testing.T) {
 
 		{
 			name: "Single DataScienceCluster instance found",
-			objs: []client.Object{&dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"}}},
+			objs: []client.Object{&dscv3.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"}}},
 			err:  nil,
 			fn:   dscFn,
 		},
@@ -140,10 +140,10 @@ func TestGetClusterSingletons(t *testing.T) {
 		{
 			name: "Multiple DataScienceCluster instances found",
 			objs: []client.Object{
-				&dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "dsc-1"}},
-				&dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "dsc-2"}},
+				&dscv3.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "dsc-1"}},
+				&dscv3.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "dsc-2"}},
 			},
-			err: errors.New("failed to get a valid datasciencecluster.opendatahub.io/v2, Kind=DataScienceCluster instance, expected to find 1 instance, found 2"),
+			err: errors.New("failed to get a valid datasciencecluster.opendatahub.io/v3, Kind=DataScienceCluster instance, expected to find 1 instance, found 2"),
 			fn:  dscFn,
 		},
 	}
@@ -379,6 +379,6 @@ func TestWatchPlatforms(t *testing.T) {
 
 		requests := cluster.WatchPlatforms(t.Context(), nil)
 		g.Expect(requests).Should(HaveLen(1))
-		g.Expect(requests[0].Name).Should(Equal(configv1alpha1.PlatformInstanceName))
+		g.Expect(requests[0].Name).Should(Equal(configv1alpha2.PlatformInstanceName))
 	})
 }

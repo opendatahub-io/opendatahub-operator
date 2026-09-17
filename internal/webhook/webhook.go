@@ -11,12 +11,13 @@ import (
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dashboard"
-	dscv1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v1"
 	dscv2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
+	dscv3webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v3"
 	dsciv1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v1"
 	dsciv2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v2"
 	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	monitoringwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/monitoring"
+	platformv1alpha1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/platform/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
@@ -33,8 +34,8 @@ type webhookEntry struct {
 // Returns the first error encountered during registration, or nil if all succeed.
 func RegisterAllWebhooks(mgr ctrl.Manager) error {
 	entries := []webhookEntry{
-		{name: "dsc-v1", register: dscv1webhook.RegisterWebhooks, disabled: func() bool { return !flags.IsDSCEnabled() }},
 		{name: "dsc-v2", register: dscv2webhook.RegisterWebhooks, disabled: func() bool { return !flags.IsDSCEnabled() }},
+		{name: "dsc-v3", register: dscv3webhook.RegisterWebhooks, disabled: func() bool { return !flags.IsDSCEnabled() }},
 		{name: "dsci-v1", register: dsciv1webhook.RegisterWebhooks, disabled: func() bool { return !flags.IsDSCIEnabled() }},
 		{name: "dsci-v2", register: dsciv2webhook.RegisterWebhooks, disabled: func() bool { return !flags.IsDSCIEnabled() }},
 		// hardwareprofile: no OLM webhookDefinitions for serving (odh-model-controller, #3777).
@@ -43,6 +44,7 @@ func RegisterAllWebhooks(mgr ctrl.Manager) error {
 		{name: "monitoring", register: monitoringwebhook.RegisterWebhooks, disabled: func() bool {
 			return !sr.IsEnabled(serviceApi.MonitoringServiceName) && !mr.IsEnabled(serviceApi.MonitoringServiceName)
 		}},
+		{name: "platform-v1alpha1", register: platformv1alpha1webhook.RegisterWebhooks},
 		{name: "dashboard", register: dashboard.RegisterWebhooks, disabled: func() bool { return !mr.IsEnabled(componentApi.DashboardComponentName) }},
 	}
 

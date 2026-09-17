@@ -7,6 +7,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -14,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -107,7 +109,7 @@ func v2Tov3UpgradeDeletingDscDsciTestSuite(t *testing.T) {
 
 	// Define test cases.
 	testCases := []TestCase{
-		{"validate allows argoWorkflowsControllers datasciencepipelines DSC v1", v2Tov3UpgradeTestCtx.ValidateArgoWorkflowsControllersDatasciencepipelinesDSCV1},
+		{"validate v2 AIPipelines request against v3 storage", v2Tov3UpgradeTestCtx.ValidateAIPipelinesDSCV2},
 	}
 
 	// Run the test suite.
@@ -163,14 +165,14 @@ func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T) {
 
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Removed"`)),
+		WithMutateFunc(testf.Transform(`.spec.components.dashboard.standard.managementState = "Removed"`)),
 		WithCondition(jq.Match(`.metadata.generation == .status.observedGeneration`)),
 		WithEventuallyTimeout(tc.TestTimeouts.defaultEventuallyTimeout),
 		WithCustomErrorMsg("Failed to trigger DSC reconciliation (restore dashboard to Removed)"),
 	)
 }
 
-func (tc *V2Tov3UpgradeTestCtx) operatorManagedComponent(componentGVK schema.GroupVersionKind, componentName string, dsc *dscv2.DataScienceCluster) client.Object {
+func (tc *V2Tov3UpgradeTestCtx) operatorManagedComponent(componentGVK schema.GroupVersionKind, componentName string, dsc *dscv3.DataScienceCluster) client.Object {
 	existingComponent := resources.GvkToUnstructured(componentGVK)
 	existingComponent.SetName(componentName)
 
@@ -298,9 +300,8 @@ func (tc *V2Tov3UpgradeTestCtx) triggerDSCIReconciliation(t *testing.T) {
 	)
 }
 
-// ValidateArgoWorkflowsControllersDatasciencepipelinesDSCV1 ensures the DataSciencePipelines component is ready if the
-// argoWorkflowsControllersSpec options are set to "Removed" when using v1 API (datasciencepipelines field).
-func (tc *V2Tov3UpgradeTestCtx) ValidateArgoWorkflowsControllersDatasciencepipelinesDSCV1(t *testing.T) {
+// ValidateAIPipelinesDSCV2 checks a v2 client update against v3 storage.
+func (tc *V2Tov3UpgradeTestCtx) ValidateAIPipelinesDSCV2(t *testing.T) {
 	t.Helper()
 
 	// Clean up any existing DataScienceCluster resources before starting
@@ -312,7 +313,7 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateArgoWorkflowsControllersDatasciencepipel
 		WithCustomErrorMsg("Failed to create DSCInitialization resource %s", tc.DSCInitializationNamespacedName.Name),
 	)
 
-	dscName := "test-dsc-v1-datasciencepipelines"
+	dscName := "test-dsc-v2-aipipelines"
 
 	// Register cleanup at creation time - runs even on test failure/timeout
 	// t.Cleanup runs in LIFO order: DSC is deleted first, then DSCI
@@ -324,9 +325,13 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateArgoWorkflowsControllersDatasciencepipel
 		)
 	})
 
-	// Create a DataScienceCluster v2 resource with AIPipelines set to Managed
-	dscV2 := CreateDSC(dscName, tc.WorkbenchesNamespace)
-	dscV2.Spec.Components.AIPipelines.ManagementState = operatorv1.Managed
+	// Create through the served v2 API while the CRD stores v3.
+	dscV3 := CreateDSC(dscName, tc.WorkbenchesNamespace)
+	dscV3.Spec.Components.AIPipelines.ManagementState = operatorv1.Managed
+	dscV2 := &dscv2.DataScienceCluster{}
+	require.NoError(t, dscV2.ConvertFrom(dscV3))
+	dscV2.SetGroupVersionKind(gvk.DataScienceClusterV2)
+	dscV2.Labels = map[string]string{"api-compatibility": "v2-client"}
 
 	// Expect the Validating webhook to allow the creation
 	tc.EventuallyResourceCreated(
@@ -334,25 +339,40 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateArgoWorkflowsControllersDatasciencepipel
 		WithCustomErrorMsg("Expected validation webhook to allow DataScienceCluster v2 with AIPipelines set to Managed"),
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 	)
-
 	t.Cleanup(func() {
 		tc.DeleteResource(
-			WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+			WithMinimalObject(gvk.DataScienceClusterV2, types.NamespacedName{Name: dscName}),
 			WithIgnoreNotFound(true),
 			WithWaitForDeletion(true),
 		)
 	})
 
+	key := types.NamespacedName{Name: dscName}
+	stored := &dscv3.DataScienceCluster{}
+	require.NoError(t, tc.Client().Get(tc.Context(), key, stored))
+	require.Equal(t, "v2-client", stored.Labels["api-compatibility"])
+	require.Equal(t, dscV2.Spec.Components.AIPipelines.ManagementState, stored.Spec.Components.AIPipelines.ManagementState)
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	require.NoError(t, tc.Client().Get(tc.Context(), types.NamespacedName{Name: "datascienceclusters.datasciencecluster.opendatahub.io"}, crd))
+	require.NotContains(t, crd.Status.StoredVersions, "v1")
+	require.Contains(t, crd.Status.StoredVersions, "v3")
+	require.Len(t, crd.Spec.Versions, 2)
+	require.Equal(t, "v2", crd.Spec.Versions[0].Name)
+	require.False(t, crd.Spec.Versions[0].Storage)
+	require.Equal(t, "v3", crd.Spec.Versions[1].Name)
+	require.True(t, crd.Spec.Versions[1].Storage)
+
 	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
-		WithMutateFunc(testf.Transform(`.spec.components.datasciencepipelines.argoWorkflowsControllers.managementState = "%s"`, operatorv1.Removed)),
+		WithMinimalObject(gvk.DataScienceClusterV2, types.NamespacedName{Name: dscName}),
+		WithMutateFunc(testf.Transform(`.spec.components.aipipelines.argoWorkflowsControllers.managementState = "%s"`, operatorv1.Removed)),
 		WithCondition(
-			And(
-				// Verify DSC v1 condition type exists
-				jq.Match(`.status.conditions[] | select(.type == "DataSciencePipelinesReady") | .status == "True"`),
-				// Verify DSC v2 condition type does NOT exist
-				jq.Match(`[.status.conditions[] | select(.type == "AIPipelinesReady")] | length == 0`),
-			),
+			jq.Match(`.status.conditions[] | select(.type == "AIPipelinesReady") | .status == "True"`),
 		),
 	)
+	readV2 := &dscv2.DataScienceCluster{}
+	require.NoError(t, tc.Client().Get(tc.Context(), key, readV2))
+	require.NoError(t, tc.Client().Get(tc.Context(), key, stored))
+	require.Equal(t, operatorv1.Removed, readV2.Spec.Components.AIPipelines.ArgoWorkflowsControllers.ManagementState)
+	require.Equal(t, readV2.Spec.Components.AIPipelines, stored.Spec.Components.AIPipelines)
+	require.Equal(t, readV2.Status.Components.AIPipelines.ManagementState, stored.Status.Components.AIPipelines.ManagementState)
 }

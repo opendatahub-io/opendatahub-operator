@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -29,12 +29,12 @@ type ComponentHandler interface {
 	// (e.g. Dashboard/ModelRegistry when gateway domain is unavailable).
 	// Returning (nil, nil) is valid and indicates the component does not own a CR.
 	// Callers must handle a nil return before dereferencing the result.
-	NewCRObject(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error)
+	NewCRObject(ctx context.Context, cli client.Client, dsc *dscv3.DataScienceCluster) (common.PlatformObject, error)
 	NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error
 	// UpdateDSCStatus updates the component specific status part of the DSC
 	UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error)
 	// IsEnabled returns whether the component should be deployed/is active
-	IsEnabled(dsc *dscv2.DataScienceCluster) bool
+	IsEnabled(dsc *dscv3.DataScienceCluster) bool
 }
 
 // RegistrationOption configures optional orchestration metadata when adding
@@ -274,7 +274,7 @@ func (r *Registry) Lookup(name string) ComponentHandler { //nolint:ireturn
 // AnyComponentEnabled returns true if at least one registered component is
 // enabled in both the registry and the DataScienceCluster spec. Useful for
 // skipping upgrade-gate checks when everything is Removed.
-func (r *Registry) AnyComponentEnabled(dsc *dscv2.DataScienceCluster) bool {
+func (r *Registry) AnyComponentEnabled(dsc *dscv3.DataScienceCluster) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -288,7 +288,7 @@ func (r *Registry) AnyComponentEnabled(dsc *dscv2.DataScienceCluster) bool {
 
 // IsComponentEnabled checks if a component with the given name is enabled in the DataScienceCluster.
 // Returns false if the component is not found or if it is disabled in the registry.
-func (r *Registry) IsComponentEnabled(componentName string, dsc *dscv2.DataScienceCluster) bool {
+func (r *Registry) IsComponentEnabled(componentName string, dsc *dscv3.DataScienceCluster) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -331,6 +331,6 @@ func DefaultRegistry() *Registry {
 
 // IsComponentEnabled checks if a component with the given name is enabled in the DataScienceCluster
 // using the default registry. Returns false if the component is not found.
-func IsComponentEnabled(componentName string, dsc *dscv2.DataScienceCluster) bool {
+func IsComponentEnabled(componentName string, dsc *dscv3.DataScienceCluster) bool {
 	return r.IsComponentEnabled(componentName, dsc)
 }

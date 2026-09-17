@@ -21,7 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -122,13 +122,11 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentSuccess(t *test
 
 	skipUnless(t, Tier1)
 
-	componentName := componentApi.DashboardComponentName
-
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, operatorv1.Managed)),
+		WithMutateFunc(testf.Transform(`.spec.components.dashboard.standard.managementState = "%s"`, operatorv1.Managed)),
 		WithCondition(And(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeComponentsReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeModulesReady, metav1.ConditionTrue),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
 		)),
 	)
@@ -157,12 +155,13 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	t.Log("Verifying component count matches DSC Components struct")
 
-	expectedComponentCount := reflect.TypeFor[dscv2.Components]().NumField()
+	expectedComponentCount := reflect.TypeFor[dscv3.Components]().NumField()
 	// TrustyAI is excluded because it is a module (reports TrustyAIReady via ModulesReady, not
 	// ComponentsReady) and, separately, was already excluded from quota failure testing due to
 	// its InferenceServices CRD dependency
 	// Kueue is excluded because it does not have any deployment to manage anymore
-	// LlamaStack Operator is excluded because it has been replaced by OGX and the field is deprecated (no deployments to manage anymore)
+	// AIHub is excluded because it is a module and reports status through ModulesReady
+	// Data is excluded because its FeatureStore submodule reports status through ModulesReady
 	// AIGateway is excluded because it is a module (reports AIGatewayReady via ModulesReady, not ComponentsReady)
 	// Dashboard is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// MCPLifecycleOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
@@ -173,12 +172,10 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// Trainer is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// SparkOperator is excluded because it is a module (reports SparkOperatorReady via ModulesReady, not ComponentsReady)
 	// FeastOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
-	// TrainingOperator is excluded because it is deprecated/removed (no handler, no deployment)
-	// ModelRegistry is excluded because it is a module (reports ModelRegistryReady via ModulesReady, not ComponentsReady)
 	// AIPipelines is excluded because it is a module (reports AIPipelinesReady via ModulesReady, not ComponentsReady)
 	// Ray is excluded because it is a module (reports RayReady via ModulesReady, not ComponentsReady)
 	//nolint:mnd // explicit count of excluded components
-	excludedComponents := 17
+	excludedComponents := 15
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+

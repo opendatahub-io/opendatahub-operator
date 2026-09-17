@@ -25,18 +25,31 @@ const (
 	DashboardKind         = "Dashboard"
 )
 
-// DashboardCommonSpec spec defines the shared desired state of Dashboard (used in DSC and Dashboard CR).
+// DashboardCommonSpec defines the v3 Dashboard configuration exposed in DSC.
 type DashboardCommonSpec struct {
-	// dashboard spec exposed to DSC api
-	// dashboard spec exposed only to internal api
+	// Standard controls the core Dashboard.
+	Standard DashboardStandardSpec `json:"standard,omitempty"`
+	// MaaSPortal controls the MaaS Consumer Portal independently of the core Dashboard.
+	// +kubebuilder:default={managementState: "Removed"}
+	MaaSPortal DashboardMaaSPortalSpec `json:"maasPortal,omitempty"`
+}
 
+// DashboardCommonSpecV2 defines the legacy v2 Dashboard configuration.
+type DashboardCommonSpecV2 struct {
 	// MaaSConsumerPortal controls the MaaS Consumer Portal submodule, shipped in
-	// the dashboard-operator. It is managed independently of the core Dashboard:
-	// the dashboard-operator Deployment stays up while either the core Dashboard
-	// or the portal is Managed. This field round-trips through DashboardCommonSpec
-	// and is projected verbatim onto the Dashboard CR as spec.maasConsumerPortal.
+	// the dashboard-operator. It is managed independently of the core Dashboard.
 	// +kubebuilder:default={managementState: "Removed"}
 	MaaSConsumerPortal MaaSConsumerPortalSpec `json:"maasConsumerPortal,omitempty"`
+}
+
+// DashboardStandardSpec configures the core Dashboard lifecycle.
+type DashboardStandardSpec struct {
+	common.ManagementSpec `json:",inline"`
+}
+
+// DashboardMaaSPortalSpec configures the MaaS Consumer Portal lifecycle.
+type DashboardMaaSPortalSpec struct {
+	common.ManagementSpec `json:",inline"`
 }
 
 // MaaSConsumerPortalSpec configures the MaaS Consumer Portal submodule lifecycle.
@@ -49,12 +62,15 @@ type DashboardCommonStatus struct {
 	URL string `json:"url,omitempty"`
 }
 
-// DSCDashboard contains all the configuration exposed in DSC instance for Dashboard component
+// DSCDashboard contains the v3 Dashboard configuration exposed in a DSC.
 type DSCDashboard struct {
-	// configuration fields common across components
-	common.ManagementSpec `json:",inline"`
-	// dashboard specific field
 	DashboardCommonSpec `json:",inline"`
+}
+
+// DSCDashboardV2 contains the legacy v2 Dashboard configuration exposed in a DSC.
+type DSCDashboardV2 struct {
+	common.ManagementSpec `json:",inline"`
+	DashboardCommonSpecV2 `json:",inline"`
 }
 
 // DSCDashboardStatus contains the observed state of the Dashboard exposed in the DSC instance

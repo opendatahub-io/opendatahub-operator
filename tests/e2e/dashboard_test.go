@@ -63,6 +63,7 @@ func dashboardTestSuite(t *testing.T) {
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate portal-only keeps dashboard-operator up", componentCtx.ValidatePortalOnlyKeepsOperatorUp},
 		{"Validate portal disabled while dashboard enabled", componentCtx.ValidatePortalDisabledWhileDashboardEnabled},
+		{"Validate v2 DSC dashboard selection", componentCtx.ValidateV2DSCDashboardSelection},
 		{"Validate both removed tears down dashboard-operator", componentCtx.ValidateBothRemovedTearsDown},
 	}
 
@@ -330,6 +331,7 @@ func (tc *DashboardTestCtx) isModuleDeployed(slug string) bool {
 // This override excludes ConfigMaps belonging to disabled modules.
 func (tc *DashboardTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 	t.Helper()
+	skipUnless(t, Smoke, Tier1)
 
 	// Wait for all dashboard deployments to finish rolling out
 	tc.EnsureResourcesExist(
@@ -449,12 +451,73 @@ func (tc *DashboardTestCtx) restoreCoreDashboard(t *testing.T) {
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
-			testf.Transform(`.spec.components.dashboard.managementState = "Managed"`),
-			testf.Transform(`.spec.components.dashboard.maasConsumerPortal.managementState = "Removed"`),
+			testf.Transform(`.spec.components.dashboard.standard.managementState = "Managed"`),
+			testf.Transform(`.spec.components.dashboard.maasPortal.managementState = "Removed"`),
 		)),
 		WithCondition(And(
-			jq.Match(`.spec.components.dashboard.managementState == "Managed"`),
-			jq.Match(`.spec.components.dashboard.maasConsumerPortal.managementState == "Removed"`),
+			jq.Match(`.spec.components.dashboard.standard.managementState == "Managed"`),
+			jq.Match(`.spec.components.dashboard.maasPortal.managementState == "Removed"`),
+		)),
+	)
+}
+
+// ValidateV2DSCDashboardSelection exercises the same runtime through the
+// deprecated DSC API. Core and portal are independent v2 inputs.
+func (tc *DashboardTestCtx) ValidateV2DSCDashboardSelection(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier3)
+	if tc.IsXKS() {
+		t.Skip("v2 DSC conversion smoke is not supported on XKS")
+	}
+
+	snapshotV2DSCFields(t, tc.TestContext, []string{"spec", "components", "dashboard"})
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceClusterV2, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.dashboard.managementState = "Removed"`),
+			testf.Transform(`.spec.components.dashboard.maasConsumerPortal.managementState = "Managed"`),
+		)),
+		WithCondition(And(
+			jq.Match(`.spec.components.dashboard.managementState == "Removed"`),
+			jq.Match(`.spec.components.dashboard.maasConsumerPortal.managementState == "Managed"`),
+		)),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			jq.Match(`.spec.components.dashboard.standard.managementState == "Removed"`),
+			jq.Match(`.spec.components.dashboard.maasPortal.managementState == "Managed"`),
+		)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace, Name: dashboardControllerDeployment}),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Dashboard, types.NamespacedName{Name: componentApi.DashboardInstanceName}),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(jq.Match(`.spec.managementState == "Managed"`)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(And(
+			jq.Match(`.status.components.dashboard.managementState == "Managed"`),
+			jq.Match(`.status.components.maasConsumerPortal.managementState == "Managed"`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, dashboardReadyConditionType, metav1.ConditionTrue),
+			jq.Match(`any(.status.conditions[]; .type == "%s")`, maasConsumerPortalConditionType),
+		)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceClusterV2, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			jq.Match(`.spec.components.dashboard.managementState == "Removed"`),
+			jq.Match(`.spec.components.dashboard.maasConsumerPortal.managementState == "Managed"`),
+			jq.Match(`.status.components.dashboard.managementState == "Managed"`),
+			jq.Match(`.status.components.maasConsumerPortal.managementState == "Managed"`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, dashboardReadyConditionType, metav1.ConditionTrue),
 		)),
 	)
 }
@@ -476,12 +539,12 @@ func (tc *DashboardTestCtx) ValidatePortalOnlyKeepsOperatorUp(t *testing.T) {
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
-			testf.Transform(`.spec.components.dashboard.managementState = "Removed"`),
-			testf.Transform(`.spec.components.dashboard.maasConsumerPortal.managementState = "Managed"`),
+			testf.Transform(`.spec.components.dashboard.standard.managementState = "Removed"`),
+			testf.Transform(`.spec.components.dashboard.maasPortal.managementState = "Managed"`),
 		)),
 		WithCondition(And(
-			jq.Match(`.spec.components.dashboard.managementState == "Removed"`),
-			jq.Match(`.spec.components.dashboard.maasConsumerPortal.managementState == "Managed"`),
+			jq.Match(`.spec.components.dashboard.standard.managementState == "Removed"`),
+			jq.Match(`.spec.components.dashboard.maasPortal.managementState == "Managed"`),
 		)),
 	)
 
@@ -493,11 +556,12 @@ func (tc *DashboardTestCtx) ValidatePortalOnlyKeepsOperatorUp(t *testing.T) {
 		WithCustomErrorMsg("dashboard-operator Deployment should stay up when only maasConsumerPortal is Managed"),
 	)
 
-	// The Dashboard module CR must still exist (module enabled via the compound OR).
+	// The Dashboard module CR must remain Managed while the portal is enabled.
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Dashboard, moduleCRNN),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
-		WithCustomErrorMsg("Dashboard module CR should exist when only maasConsumerPortal is Managed"),
+		WithCondition(jq.Match(`.spec.managementState == "Managed"`)),
+		WithCustomErrorMsg("Dashboard module CR should remain Managed when only maasConsumerPortal is Managed"),
 	)
 
 	// DSC status must reflect the active Dashboard module and its Managed portal submodule.
@@ -531,12 +595,12 @@ func (tc *DashboardTestCtx) ValidatePortalDisabledWhileDashboardEnabled(t *testi
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
-			testf.Transform(`.spec.components.dashboard.managementState = "Managed"`),
-			testf.Transform(`.spec.components.dashboard.maasConsumerPortal.managementState = "Removed"`),
+			testf.Transform(`.spec.components.dashboard.standard.managementState = "Managed"`),
+			testf.Transform(`.spec.components.dashboard.maasPortal.managementState = "Removed"`),
 		)),
 		WithCondition(And(
-			jq.Match(`.spec.components.dashboard.managementState == "Managed"`),
-			jq.Match(`.spec.components.dashboard.maasConsumerPortal.managementState == "Removed"`),
+			jq.Match(`.spec.components.dashboard.standard.managementState == "Managed"`),
+			jq.Match(`.spec.components.dashboard.maasPortal.managementState == "Removed"`),
 		)),
 	)
 
@@ -578,12 +642,12 @@ func (tc *DashboardTestCtx) ValidateBothRemovedTearsDown(t *testing.T) {
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
-			testf.Transform(`.spec.components.dashboard.managementState = "Removed"`),
-			testf.Transform(`.spec.components.dashboard.maasConsumerPortal.managementState = "Removed"`),
+			testf.Transform(`.spec.components.dashboard.standard.managementState = "Removed"`),
+			testf.Transform(`.spec.components.dashboard.maasPortal.managementState = "Removed"`),
 		)),
 		WithCondition(And(
-			jq.Match(`.spec.components.dashboard.managementState == "Removed"`),
-			jq.Match(`.spec.components.dashboard.maasConsumerPortal.managementState == "Removed"`),
+			jq.Match(`.spec.components.dashboard.standard.managementState == "Removed"`),
+			jq.Match(`.spec.components.dashboard.maasPortal.managementState == "Removed"`),
 		)),
 	)
 

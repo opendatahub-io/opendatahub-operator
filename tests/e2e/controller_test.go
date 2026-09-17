@@ -29,7 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -90,6 +90,12 @@ type TestContextConfig struct {
 	operatorControllerTest           bool
 	operatorResilienceTest           bool
 	webhookTest                      bool
+	conversionWebhookTest            bool
+	conversionWebhookExplicit        bool
+	conversionWebhookDSC             bool
+	conversionWebhookPlatform        bool
+	componentSelectionExplicit       bool
+	serviceSelectionExplicit         bool
 	dagOrderingTest                  bool
 	v2tov3upgradeTest                bool
 	circuitBreakerEnabled            bool
@@ -515,6 +521,15 @@ func TestOdhOperator(t *testing.T) {
 		mustRun(t, "Deletion ConfigMap E2E Tests", cfgMapDeletionTestSuite)
 	}
 
+	// Conversion scenarios delete the singleton DSC. Run them after functional
+	// tests and before the existing destructive DSC/DSCI upgrade phase.
+	if conversionWebhookSuiteSelected() {
+		mustRun(t, "webhooks", func(t *testing.T) {
+			t.Helper()
+			t.Run("conversion", webhookConversionTestSuite)
+		})
+	}
+
 	// Run V2 to V3 upgrade test suites that needs to delete DSC and DSCI at the last position
 	if testOpts.v2tov3upgradeTest {
 		mustRun(t, "upgrade DSC and DSCI v1 API", v2Tov3UpgradeDeletingDscDsciTestSuite)
@@ -613,6 +628,12 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-operator-v2tov3upgrade", viper.GetEnvPrefix()+"_OPERATOR_V2TOV3UPGRADE"))
 	pflag.Bool("test-webhook", true, "run webhook tests")
 	checkEnvVarBindingError(viper.BindEnv("test-webhook", viper.GetEnvPrefix()+"_WEBHOOK"))
+	pflag.Bool("test-conversion-webhook", true, "run conversion webhook tests in full suites or when explicitly enabled")
+	checkEnvVarBindingError(viper.BindEnv("test-conversion-webhook", viper.GetEnvPrefix()+"_CONVERSION_WEBHOOK"))
+	pflag.Bool("test-conversion-webhook-dsc", true, "run DSC conversion webhook tests")
+	checkEnvVarBindingError(viper.BindEnv("test-conversion-webhook-dsc", viper.GetEnvPrefix()+"_CONVERSION_WEBHOOK_DSC"))
+	pflag.Bool("test-conversion-webhook-platform", true, "run Platform conversion webhook tests")
+	checkEnvVarBindingError(viper.BindEnv("test-conversion-webhook-platform", viper.GetEnvPrefix()+"_CONVERSION_WEBHOOK_PLATFORM"))
 	pflag.Bool("test-dag-ordering", true, "run DAG upgrade ordering tests")
 	checkEnvVarBindingError(viper.BindEnv("test-dag-ordering", viper.GetEnvPrefix()+"_DAG_ORDERING"))
 
@@ -690,6 +711,12 @@ func TestMain(m *testing.M) {
 	testOpts.operatorResilienceTest = viper.GetBool("test-operator-resilience")
 	testOpts.v2tov3upgradeTest = viper.GetBool("test-operator-v2tov3upgrade")
 	testOpts.webhookTest = viper.GetBool("test-webhook")
+	testOpts.conversionWebhookTest = viper.GetBool("test-conversion-webhook")
+	testOpts.conversionWebhookExplicit = pflag.Lookup("test-conversion-webhook").Changed || envIsSet("E2E_TEST_CONVERSION_WEBHOOK")
+	testOpts.conversionWebhookDSC = viper.GetBool("test-conversion-webhook-dsc")
+	testOpts.conversionWebhookPlatform = viper.GetBool("test-conversion-webhook-platform")
+	testOpts.componentSelectionExplicit = pflag.Lookup("test-component").Changed || envIsSet("E2E_TEST_COMPONENT")
+	testOpts.serviceSelectionExplicit = pflag.Lookup("test-service").Changed || envIsSet("E2E_TEST_SERVICE")
 	testOpts.dagOrderingTest = viper.GetBool("test-dag-ordering")
 	testOpts.circuitBreakerEnabled = viper.GetBool("circuit-breaker")
 	testOpts.circuitBreakerThreshold = viper.GetInt("circuit-breaker-threshold")
@@ -721,7 +748,7 @@ func registerSchemes() {
 		apiextv1.AddToScheme,
 		autoscalingv1.AddToScheme,
 		dsciv2.AddToScheme,
-		dscv2.AddToScheme,
+		dscv3.AddToScheme,
 		featurev1.AddToScheme,
 		monitoringv1.AddToScheme,
 		ofapi.AddToScheme,

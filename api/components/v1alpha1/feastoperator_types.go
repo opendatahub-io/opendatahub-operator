@@ -42,6 +42,10 @@ type DSCFeastOperator struct {
 	// Fields common across components
 	common.ManagementSpec `json:",inline"`
 
+	// DataRegistry configures the independent Data Registry lifecycle in the
+	// legacy v2 layout.
+	DataRegistry DSCDataRegistry `json:"dataRegistry,omitempty"`
+
 	// FeastOperator-specific fields
 	FeastOperatorCommonSpec `json:",inline"`
 }

@@ -24,8 +24,9 @@ import (
 	ccmCoreweaveV1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/coreweave/v1alpha1"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
@@ -39,9 +40,9 @@ var (
 		routev1.AddToScheme,
 		dsciv2.AddToScheme,
 		dscv2.AddToScheme,
+		dscv3.AddToScheme,
 		userv1.AddToScheme,
 		dsciv1.AddToScheme,
-		dscv1.AddToScheme,
 		featurev1.AddToScheme,
 		monitoringv1.AddToScheme,
 		ofapi.AddToScheme,
@@ -56,6 +57,7 @@ var (
 		coordinationv1.AddToScheme,
 		serviceApi.AddToScheme,
 		configv1alpha1.AddToScheme,
+		configv1alpha2.AddToScheme,
 		admissionv1.AddToScheme,
 		infrav1.AddToScheme,
 		gwapiv1.Install,

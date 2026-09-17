@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	v1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v1"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	v2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
-	dsciv1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v1"
+	v3webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v3"
+	dsciv3webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v1"
 	dsciv2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
@@ -18,10 +19,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-const dscSampleRelPath = "config/rhoai/samples/datasciencecluster_v2_datasciencecluster.yaml"
+const dscSampleRelPath = "config/rhoai/samples/datasciencecluster_v3_datasciencecluster.yaml"
 
 // componentStates extracts the top-level managementState of every supported component
-// in a DataScienceCluster v2 Components tree. These fields come from common.ManagementSpec,
+// in a DataScienceCluster v3 Components tree. These fields come from common.ManagementSpec,
 // which -- unlike nested fields such as kserve.nim -- carries NO +kubebuilder:default,
 // so an unset one round-trips as "" (not Managed/Removed). Comparing this map before
 // and after an API-server round-trip proves the shipped default DSC specifies every
@@ -31,10 +32,10 @@ const dscSampleRelPath = "config/rhoai/samples/datasciencecluster_v2_datascience
 // them to users (RHOAIENG-89419). llamastackoperator (renamed to ogx) is dropped from the
 // default entirely; kserve.modelsAsService (migrated to aigateway.modelsAsAService) is a
 // nested field and is asserted absent from the sample separately. See TestDefaultDSCFromSampleAdmittedByAPIServer.
-func componentStates(c dscv2.Components) map[string]operatorv1.ManagementState {
+func componentStates(c dscv3.Components) map[string]operatorv1.ManagementState {
 	return map[string]operatorv1.ManagementState{
 		"aigateway":            c.AIGateway.ManagementState,
-		"dashboard":            c.Dashboard.ManagementState,
+		"dashboard.standard":   c.Dashboard.Standard.ManagementState,
 		"aipipelines":          c.AIPipelines.ManagementState,
 		"kserve":               c.Kserve.ManagementState,
 		"kueue":                c.Kueue.ManagementState,
@@ -42,8 +43,8 @@ func componentStates(c dscv2.Components) map[string]operatorv1.ManagementState {
 		"ray":                  c.Ray.ManagementState,
 		"workbenches":          c.Workbenches.ManagementState,
 		"trustyai":             c.TrustyAI.ManagementState,
-		"modelregistry":        c.ModelRegistry.ManagementState,
-		"feastoperator":        c.FeastOperator.ManagementState,
+		"aiHub":                c.AIHub.ManagementState,
+		"data.featureStore":    c.Data.FeatureStore.ManagementState,
 		"ogx":                  c.OGX.ManagementState,
 		"mlflowoperator":       c.MLflowOperator.ManagementState,
 		"sparkoperator":        c.SparkOperator.ManagementState,
@@ -55,19 +56,19 @@ func componentStates(c dscv2.Components) map[string]operatorv1.ManagementState {
 //
 // U1 (cmd/manifest-tools .../init_resource_sync_test.go) proves the CSV
 // initialization-resource annotation is textually identical to this sample, and U2
-// proves the annotation decodes into the v2 API type. Neither runs the object through a
+// proves the annotation decodes into the v3 API type. Neither runs the object through a
 // real API server, so neither proves the shipped default DSC is actually *admissible*:
 // that it survives CRD structural + CEL validation and the validating/defaulting webhooks
 // a user's create request hits -- via either OLM path ("DataScienceCluster required"
 // prompt from the annotation, or the "Provided APIs" tab from alm-examples/the sample).
 //
 // This test decodes the shipped sample and creates it on an envtest API server with the
-// DSC v2 webhooks registered, asserting:
+// DSC v3 webhooks registered, asserting:
 //  1. Create succeeds (admissibility);
 //  2. every top-level component managementState round-trips unchanged and non-empty
 //     (a complete default, since these fields have no schema default);
 //  3. the defaulting webhook is a no-op on the already-complete sample (it neither
-//     overwrites the explicit ModelRegistry.RegistriesNamespace nor changes Kserve.NIM);
+//     overwrites the explicit AIHub.RegistriesNamespace nor changes Kserve.NIM);
 //  4. deprecated components are absent from the shipped default, so users are never
 //     presented with a config they must remediate (RHOAIENG-89419): llamastackoperator
 //     (renamed to ogx) and kserve.modelsAsService (migrated to aigateway.modelsAsAService).
@@ -83,8 +84,8 @@ func TestDefaultDSCFromSampleAdmittedByAPIServer(t *testing.T) {
 	ctx, env, teardown := envtestutil.SetupEnvAndClient(
 		t,
 		[]envt.RegisterWebhooksFn{
-			v1webhook.RegisterWebhooks,
-			dsciv1webhook.RegisterWebhooks,
+			v3webhook.RegisterWebhooks,
+			dsciv3webhook.RegisterWebhooks,
 			v2webhook.RegisterWebhooks,
 			dsciv2webhook.RegisterWebhooks,
 		},
@@ -99,24 +100,31 @@ func TestDefaultDSCFromSampleAdmittedByAPIServer(t *testing.T) {
 	sampleBytes, err := env.ReadFile(dscSampleRelPath)
 	g.Expect(err).NotTo(HaveOccurred(), "reading %s", dscSampleRelPath)
 
-	dsc := &dscv2.DataScienceCluster{}
-	g.Expect(yaml.Unmarshal(sampleBytes, dsc)).To(Succeed(), "decoding %s into a v2 DataScienceCluster", dscSampleRelPath)
+	dsc := &dscv3.DataScienceCluster{}
+	g.Expect(yaml.Unmarshal(sampleBytes, dsc)).To(Succeed(), "decoding %s into a v3 DataScienceCluster", dscSampleRelPath)
 
 	// (4) Deprecated components must not appear in the shipped default. Checked on the raw
-	// decoded sample (before API-server defaulting), since kserve.modelsAsService carries a
-	// +kubebuilder:default that the server would otherwise re-populate. The sample feeds
+	// decoded sample, so decoding into the v3 type cannot silently discard the removed
+	// kserve.modelsAsService field. The sample feeds
 	// alm-examples and -- per U1 -- is textually identical to the initialization-resource
 	// annotation, so this guards both OLM install paths against re-introducing deprecated
 	// items into the default users are presented with (RHOAIENG-89419).
-	g.Expect(dsc.Spec.Components.LlamaStackOperator.ManagementState).To(BeEmpty(),
-		"llamastackoperator is deprecated (renamed to ogx) and must not be set in the shipped default DSC")
-	g.Expect(dsc.Spec.Components.Kserve.ModelsAsService.ManagementState).To(BeEmpty(), //nolint:staticcheck // asserting the deprecated field is intentionally unset
+	var rawSample map[string]any
+	g.Expect(yaml.Unmarshal(sampleBytes, &rawSample)).To(Succeed())
+	for _, field := range []string{"trainingoperator", "llamastackoperator"} {
+		_, legacyPresent, err := unstructured.NestedFieldNoCopy(rawSample, "spec", "components", field)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(legacyPresent).To(BeFalse(), "%s is deprecated and must not be set in the shipped default DSC", field)
+	}
+	_, legacyPresent, err := unstructured.NestedFieldNoCopy(rawSample, "spec", "components", "kserve", "modelsAsService")
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(legacyPresent).To(BeFalse(),
 		"kserve.modelsAsService is deprecated (migrated to aigateway.modelsAsAService) and must not be set in the shipped default DSC")
 
 	// Capture the intended states before create -- controller-runtime's Create writes the
 	// server response (including defaults) back into dsc, so read expectations first.
 	expectedStates := componentStates(dsc.Spec.Components)
-	expectedRegistriesNamespace := dsc.Spec.Components.ModelRegistry.RegistriesNamespace
+	expectedApplicationNamespace := dsc.Spec.Components.AIHub.ApplicationNamespace
 
 	// (1) Admissibility: the shipped default DSC must be accepted by the live API server.
 	g.Expect(env.Client().Create(ctx, dsc)).To(Succeed(),
@@ -124,7 +132,7 @@ func TestDefaultDSCFromSampleAdmittedByAPIServer(t *testing.T) {
 			"validation and the validating webhook, since OLM creates exactly this object "+
 			"from the initialization-resource annotation (RHOAIENG-89419)", dscSampleRelPath)
 
-	fetched := &dscv2.DataScienceCluster{}
+	fetched := &dscv3.DataScienceCluster{}
 	g.Eventually(func() error {
 		return env.Client().Get(ctx, client.ObjectKey{Name: dsc.Name}, fetched)
 	}, "10s", "1s").Should(Succeed(), "the created default DSC should be retrievable")
@@ -141,8 +149,8 @@ func TestDefaultDSCFromSampleAdmittedByAPIServer(t *testing.T) {
 	}
 
 	// (3) The defaulting webhook must not disturb the already-complete sample.
-	g.Expect(fetched.Spec.Components.ModelRegistry.RegistriesNamespace).To(Equal(expectedRegistriesNamespace),
-		"defaulting must preserve the explicit ModelRegistry.RegistriesNamespace from the sample")
+	g.Expect(fetched.Spec.Components.AIHub.ApplicationNamespace).To(Equal(expectedApplicationNamespace),
+		"defaulting must preserve the explicit AIHub.applicationNamespace from the sample")
 	g.Expect(fetched.Spec.Components.Kserve.NIM.ManagementState).To(Equal(operatorv1.Managed),
 		"Kserve.NIM should remain Managed (the sample sets it, and the webhook only defaults it when empty)")
 }

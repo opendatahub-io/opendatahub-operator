@@ -22,7 +22,7 @@ metadata:
     olm.skipRange: '>=1.0.0 <2.0.0'
     operatorframework.io/initialization-resource: |-
       {
-        "apiVersion": "datasciencecluster.opendatahub.io/v2",
+        "apiVersion": "datasciencecluster.opendatahub.io/v3",
         "kind": "DataScienceCluster",
         "metadata": {
           "name": "default-dsc",
@@ -39,8 +39,10 @@ metadata:
               }
             },
             "dashboard": {
-              "managementState": "Managed",
-              "maasConsumerPortal": {
+              "standard": {
+                "managementState": "Managed"
+              },
+              "maasPortal": {
                 "managementState": "Removed"
               }
             },
@@ -74,12 +76,9 @@ metadata:
             "trustyai": {
               "managementState": "Managed"
             },
-            "modelregistry": {
+            "aiHub": {
               "managementState": "Managed",
-              "registriesNamespace": "rhoai-model-registries"
-            },
-            "feastoperator": {
-              "managementState": "Managed"
+              "applicationNamespace": "rhoai-model-registries"
             },
             "ogx": {
               "managementState": "Managed"
@@ -113,6 +112,11 @@ spec:
       kind: HardwareProfile
       name: hardwareprofiles.infrastructure.opendatahub.io
       version: v1alpha1
+    - description: DataScienceCluster is the Schema for the datascienceclusters API.
+      displayName: Data Science Cluster
+      kind: DataScienceCluster
+      name: datascienceclusters.datasciencecluster.opendatahub.io
+      version: v1
     - description: Auth is the Schema for the auths API
       displayName: Auth
       kind: Auth
@@ -122,12 +126,12 @@ spec:
       displayName: Data Science Cluster
       kind: DataScienceCluster
       name: datascienceclusters.datasciencecluster.opendatahub.io
-      version: v2
+      version: v3
     - description: DataScienceCluster is the Schema for the datascienceclusters API.
       displayName: Data Science Cluster
       kind: DataScienceCluster
       name: datascienceclusters.datasciencecluster.opendatahub.io
-      version: v1
+      version: v2
     - description: DSCInitialization is the Schema for the dscinitializations API.
       displayName: DSCInitialization
       kind: DSCInitialization

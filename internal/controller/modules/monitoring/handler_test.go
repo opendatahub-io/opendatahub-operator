@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
@@ -24,8 +24,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
-	return &configv1alpha1.PlatformModules{
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha2.PlatformModules {
+	return &configv1alpha2.PlatformModules{
 		Monitoring: common.ManagementSpec{
 			ManagementState: mgmtState,
 		},
@@ -85,7 +85,7 @@ func TestIsEnabled_Empty(t *testing.T) {
 func TestIsEnabled_EmptyModules(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
-	g.Expect(h.IsEnabled(&configv1alpha1.PlatformModules{})).Should(BeFalse())
+	g.Expect(h.IsEnabled(&configv1alpha2.PlatformModules{})).Should(BeFalse())
 }
 
 func TestIsEnabled_NilModules(t *testing.T) {
@@ -97,7 +97,7 @@ func TestIsEnabled_NilModules(t *testing.T) {
 func TestPopulatePlatformModule_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
-	pm := &configv1alpha1.PlatformModules{}
+	pm := &configv1alpha2.PlatformModules{}
 	h.PopulatePlatformModule(pm, &modules.DSCContext{DSCI: newDSCI(operatorv1.Managed)})
 	g.Expect(pm.Monitoring.ManagementState).Should(Equal(operatorv1.Managed))
 }
@@ -105,7 +105,7 @@ func TestPopulatePlatformModule_Managed(t *testing.T) {
 func TestPopulatePlatformModule_EmptyDefaultsToRemoved(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
-	pm := &configv1alpha1.PlatformModules{}
+	pm := &configv1alpha2.PlatformModules{}
 	h.PopulatePlatformModule(pm, &modules.DSCContext{DSCI: newDSCI("")})
 	g.Expect(pm.Monitoring.ManagementState).Should(Equal(operatorv1.Removed))
 }
@@ -113,8 +113,8 @@ func TestPopulatePlatformModule_EmptyDefaultsToRemoved(t *testing.T) {
 func TestPopulatePlatformModule_NilGuards(t *testing.T) {
 	h := monitoring.NewHandler()
 	h.PopulatePlatformModule(nil, nil)
-	h.PopulatePlatformModule(&configv1alpha1.PlatformModules{}, nil)
-	h.PopulatePlatformModule(&configv1alpha1.PlatformModules{}, &modules.DSCContext{})
+	h.PopulatePlatformModule(&configv1alpha2.PlatformModules{}, nil)
+	h.PopulatePlatformModule(&configv1alpha2.PlatformModules{}, &modules.DSCContext{})
 }
 
 func TestBuildModuleCR_NilDSCIReturnsError(t *testing.T) {

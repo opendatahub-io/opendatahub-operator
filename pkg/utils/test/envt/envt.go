@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/onsi/gomega"
 	frameworkmanager "github.com/opendatahub-io/odh-platform-utilities/framework/manager"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -425,6 +427,36 @@ func (et *EnvT) WaitForWebhookServer(ctx context.Context) error {
 			continue
 		}
 	}
+}
+
+// ConfigureCRDConversion configures a CRD to use the envtest webhook server for conversion.
+func (et *EnvT) ConfigureCRDConversion(ctx context.Context, crdName string) error {
+	extensionsClient, err := apiextensionsclientset.NewForConfig(et.Config())
+	if err != nil {
+		return fmt.Errorf("create extensions client: %w", err)
+	}
+
+	crdClient := extensionsClient.ApiextensionsV1().CustomResourceDefinitions()
+	crd, err := crdClient.Get(ctx, crdName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("get CRD %s: %w", crdName, err)
+	}
+
+	options := et.Env.WebhookInstallOptions
+	url := fmt.Sprintf("https://%s/convert", net.JoinHostPort(options.LocalServingHost, strconv.Itoa(options.LocalServingPort)))
+	crd.Spec.Conversion = &apiextensionsv1.CustomResourceConversion{
+		Strategy: apiextensionsv1.WebhookConverter,
+		Webhook: &apiextensionsv1.WebhookConversion{
+			ClientConfig:             &apiextensionsv1.WebhookClientConfig{URL: &url, CABundle: options.LocalServingCAData},
+			ConversionReviewVersions: []string{"v1"},
+		},
+	}
+
+	if _, err := crdClient.Update(ctx, crd, metav1.UpdateOptions{}); err != nil {
+		return fmt.Errorf("update CRD %s: %w", crdName, err)
+	}
+
+	return nil
 }
 
 // CleanupDelete registers a t.Cleanup function that deletes obj from the cluster

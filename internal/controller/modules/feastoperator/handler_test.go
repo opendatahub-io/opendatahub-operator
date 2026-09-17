@@ -12,16 +12,16 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
 
 	. "github.com/onsi/gomega"
 )
 
-func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
-	return &configv1alpha1.PlatformModules{
-		FeastOperator: common.ManagementSpec{
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha2.PlatformModules {
+	return &configv1alpha2.PlatformModules{
+		Data: common.ManagementSpec{
 			ManagementState: mgmtState,
 		},
 	}
@@ -55,7 +55,7 @@ func TestIsEnabled_NilModules(t *testing.T) {
 func TestIsEnabled_EmptyModules(t *testing.T) {
 	g := NewWithT(t)
 	h := feastoperator.NewHandler()
-	g.Expect(h.IsEnabled(&configv1alpha1.PlatformModules{})).Should(BeFalse())
+	g.Expect(h.IsEnabled(&configv1alpha2.PlatformModules{})).Should(BeFalse())
 }
 
 func TestBuildModuleCR_NilClientReturnsError_BothNil(t *testing.T) {

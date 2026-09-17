@@ -12,7 +12,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -101,15 +101,7 @@ func NewHandler() *handler {
 							if dscCtx == nil || dscCtx.DSC == nil {
 								return false
 							}
-							dsc := dscCtx.DSC.Spec.Components
-							if dsc.AIGateway.ModelsAsAService.ManagementState != "" {
-								return dsc.AIGateway.ModelsAsAService.ManagementState == operatorv1.Managed
-							}
-							// Deprecated: fall back to kserve.modelsAsService for
-							// users who haven't migrated their DSC to the explicit
-							// aigateway block yet.
-							return dsc.Kserve.ManagementState == operatorv1.Managed &&
-								dsc.Kserve.ModelsAsService.ManagementState == operatorv1.Managed //nolint:staticcheck
+							return dscCtx.DSC.Spec.Components.AIGateway.ModelsAsAService.ManagementState == operatorv1.Managed
 						},
 					},
 					{
@@ -129,25 +121,19 @@ func NewHandler() *handler {
 	}
 }
 
-func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+func (h *handler) PopulatePlatformModule(pm *configv1alpha2.PlatformModules, dscCtx *modules.DSCContext) {
 	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
 	dsc := dscCtx.DSC
 	state := dsc.Spec.Components.AIGateway.ManagementState
-	// Deprecated: kserve.modelsAsService fallback for 3.4→3.5 upgrade compatibility.
-	if state == "" &&
-		dsc.Spec.Components.Kserve.ManagementState == operatorv1.Managed &&
-		dsc.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed { //nolint:staticcheck
-		state = operatorv1.Managed
-	}
 	if state == "" {
 		state = operatorv1.Removed
 	}
 	pm.AIGateway.ManagementState = state
 }
 
-func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+func (h *handler) IsEnabled(modules *configv1alpha2.PlatformModules) bool {
 	return modules != nil && modules.AIGateway.ManagementState == operatorv1.Managed
 }
 
@@ -162,18 +148,7 @@ func (h *handler) BuildModuleCR(
 		return nil, errors.New("DSC is nil, cannot build AIGateway CR")
 	}
 
-	dscComponents := dscCtx.DSC.Spec.Components
-	commonSpec := dscComponents.AIGateway.AIGatewayCommonSpec.DeepCopy()
-
-	// Deprecated: if modelsAsAService is not set but kserve.modelsAsService is,
-	// populate modelsAsAService so AGO knows to deploy MaaS.
-	// TODO: remove this fallback when kserve.modelsAsService is removed from the CRD schema.
-	if commonSpec.ModelsAsAService.ManagementState == "" &&
-		dscComponents.Kserve.ManagementState == operatorv1.Managed {
-		commonSpec.ModelsAsAService.ManagementState = dscComponents.Kserve.ModelsAsService.ManagementState //nolint:staticcheck
-	}
-
-	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(commonSpec)
+	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dscCtx.DSC.Spec.Components.AIGateway.AIGatewayCommonSpec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert AIGatewayCommonSpec to unstructured: %w", err)
 	}

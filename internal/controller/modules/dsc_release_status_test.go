@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 
 	. "github.com/onsi/gomega"
 )
@@ -173,7 +173,7 @@ func TestWriteDSCComponentStatus_Kserve_SetsReleases(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscv3.DataScienceCluster{}
 	releases := []common.ComponentRelease{
 		{Name: "platform", Version: "3.5.0"},
 		{Name: "serving", Version: "0.14.1"},
@@ -192,7 +192,7 @@ func TestWriteDSCComponentStatus_Kserve_ClearsReleases(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscv3.DataScienceCluster{}
 	newReleaseHandler("Kserve").WriteDSCComponentStatus(dsc, true, []common.ComponentRelease{
 		{Name: "platform", Version: "3.5.0"},
 	})
@@ -208,7 +208,7 @@ func TestWriteDSCComponentStatus_AIGateway_SetsReleases(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscv3.DataScienceCluster{}
 	releases := []common.ComponentRelease{
 		{Name: "platform", Version: "3.5.0"},
 	}
@@ -225,7 +225,7 @@ func TestWriteDSCComponentStatus_AIGateway_ClearsReleases(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscv3.DataScienceCluster{}
 	newReleaseHandler("AIGateway").WriteDSCComponentStatus(dsc, true, []common.ComponentRelease{
 		{Name: "platform", Version: "1.0.0"},
 	})
@@ -239,7 +239,7 @@ func TestWriteDSCComponentStatus_AIGateway_ClearsReleases(t *testing.T) {
 func TestWriteDSCComponentStatus_TypeWithoutReleases_NoOp(t *testing.T) {
 	t.Parallel()
 
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscv3.DataScienceCluster{}
 	newReleaseHandler("Dashboard").WriteDSCComponentStatus(dsc, true, []common.ComponentRelease{
 		{Name: "platform", Version: "1.0.0"},
 	})
@@ -248,7 +248,7 @@ func TestWriteDSCComponentStatus_TypeWithoutReleases_NoOp(t *testing.T) {
 func TestWriteDSCComponentStatus_UnknownKind_NoOp(t *testing.T) {
 	t.Parallel()
 
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscv3.DataScienceCluster{}
 	newReleaseHandler("NonExistent").WriteDSCComponentStatus(dsc, true, []common.ComponentRelease{
 		{Name: "platform", Version: "1.0.0"},
 	})
@@ -258,7 +258,7 @@ func TestWriteDSCComponentStatus_PreservesManagementState(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscv3.DataScienceCluster{}
 	dsc.Status.Components.Kserve.ManagementState = operatorv1.Managed
 
 	newReleaseHandler("Kserve").WriteDSCComponentStatus(dsc, true, []common.ComponentRelease{
@@ -273,7 +273,7 @@ func TestWriteDSCComponentStatus_NilPointerAllocated(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscv3.DataScienceCluster{}
 	g.Expect(dsc.Status.Components.Kserve.KserveCommonStatus).Should(BeNil())
 
 	newReleaseHandler("Kserve").WriteDSCComponentStatus(dsc, true, []common.ComponentRelease{
@@ -288,7 +288,7 @@ func TestSetReleasesOnDSCField_SetsOnKserve(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscv3.DataScienceCluster{}
 	field := reflect.ValueOf(&dsc.Status.Components).Elem().FieldByName("Kserve")
 
 	setReleasesOnDSCField(field, []common.ComponentRelease{
@@ -303,7 +303,7 @@ func TestSetReleasesOnDSCField_ClearsReleasesPreservesPointer(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscv3.DataScienceCluster{}
 	field := reflect.ValueOf(&dsc.Status.Components).Elem().FieldByName("Kserve")
 
 	setReleasesOnDSCField(field, []common.ComponentRelease{
@@ -320,7 +320,7 @@ func TestSetReleasesOnDSCField_NilPointerNilReleases_NoOp(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscv3.DataScienceCluster{}
 	field := reflect.ValueOf(&dsc.Status.Components).Elem().FieldByName("Kserve")
 
 	setReleasesOnDSCField(field, nil)
@@ -330,7 +330,7 @@ func TestSetReleasesOnDSCField_NilPointerNilReleases_NoOp(t *testing.T) {
 func TestSetReleasesOnDSCField_NoOpWithoutReleasesField(t *testing.T) {
 	t.Parallel()
 
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscv3.DataScienceCluster{}
 	field := reflect.ValueOf(&dsc.Status.Components).Elem().FieldByName("Dashboard")
 
 	setReleasesOnDSCField(field, []common.ComponentRelease{

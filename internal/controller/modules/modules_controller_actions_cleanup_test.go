@@ -14,7 +14,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -40,7 +40,7 @@ type cleanupMockHandler struct {
 	operatorManifests  OperatorManifests
 }
 
-func (m *cleanupMockHandler) IsEnabled(_ *configv1alpha1.PlatformModules) bool {
+func (m *cleanupMockHandler) IsEnabled(_ *configv1alpha2.PlatformModules) bool {
 	return false
 }
 
@@ -99,7 +99,7 @@ func setupCleanupTest(t *testing.T, handler *cleanupMockHandler) (*odhtype.Recon
 
 	provision.Add(handler.GetName(), provision.KindModule, dag.RL(99))
 
-	platform := &configv1alpha1.Platform{
+	platform := &configv1alpha2.Platform{
 		ObjectMeta: metav1.ObjectMeta{Name: "default"},
 	}
 
