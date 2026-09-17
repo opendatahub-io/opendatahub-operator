@@ -3,14 +3,19 @@ package common
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
+	"github.com/go-logr/logr/funcr"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -139,6 +144,77 @@ func TestAnnotateIstioWebhooksHook(t *testing.T) {
 		g.Expect(updatedMutating.Annotations[sailOperatorIgnoreAnnotation]).Should(Equal("true"))
 		g.Expect(updatedMutating.Annotations["existing-annotation"]).Should(Equal("existing-value"))
 	})
+}
+
+// captureLogger returns a context carrying a logger that appends every log
+// line's key/value args into the returned builder for later assertions.
+func captureLogger() (context.Context, *strings.Builder) {
+	var buf strings.Builder
+	logger := funcr.New(func(_, args string) {
+		buf.WriteString(args)
+		buf.WriteByte('\n')
+	}, funcr.Options{})
+
+	return logf.IntoContext(context.Background(), logger), &buf
+}
+
+// TestAnnotateIstioWebhooksHookLogFields verifies the annotate-webhook success
+// log emits the structured "webhook" field identifying the resource and never the
+// bare "name" key (which collides with the reconciler's reserved logger key).
+func TestAnnotateIstioWebhooksHookLogFields(t *testing.T) {
+	g := NewWithT(t)
+
+	mutatingWH := &admissionregistrationv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: istioSidecarInjectorWebhook},
+	}
+	validatingWH := &admissionregistrationv1.ValidatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: istioValidatorWebhook},
+	}
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(mutatingWH, validatingWH))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ctx, buf := captureLogger()
+
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	hook := AnnotateIstioWebhooksHook()
+	g.Expect(hook(ctx, rr)).ShouldNot(HaveOccurred())
+
+	out := buf.String()
+	g.Expect(out).To(ContainSubstring(`"webhook"="`+istioSidecarInjectorWebhook+`"`), "expected structured webhook key, got: %s", out)
+	g.Expect(out).To(ContainSubstring(`"webhook"="`+istioValidatorWebhook+`"`), "expected structured webhook key, got: %s", out)
+	g.Expect(out).NotTo(ContainSubstring(`"name"=`), "old name key must not be emitted, got: %s", out)
+}
+
+// TestAnnotateIstioWebhooksHookErrorLogFields verifies that both webhook-error
+// branches emit the structured "resourceKind" and "webhook" fields and never the
+// bare "name" key. A failing Get interceptor forces both branches to error in a
+// single run.
+func TestAnnotateIstioWebhooksHookErrorLogFields(t *testing.T) {
+	g := NewWithT(t)
+
+	cli, err := fakeclient.New(fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+		Get: func(_ context.Context, _ client.WithWatch, _ client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+			return errors.New("transient api error")
+		},
+	}))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ctx, buf := captureLogger()
+
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	hook := AnnotateIstioWebhooksHook()
+	g.Expect(hook(ctx, rr)).Should(HaveOccurred())
+
+	out := buf.String()
+
+	g.Expect(out).To(ContainSubstring(`"webhook"="`+istioSidecarInjectorWebhook+`"`), "expected webhook key for mutating webhook, got: %s", out)
+	g.Expect(out).To(ContainSubstring(`"resourceKind"="MutatingWebhookConfiguration"`), "expected resourceKind for mutating webhook, got: %s", out)
+
+	g.Expect(out).To(ContainSubstring(`"webhook"="`+istioValidatorWebhook+`"`), "expected webhook key for validating webhook, got: %s", out)
+	g.Expect(out).To(ContainSubstring(`"resourceKind"="ValidatingWebhookConfiguration"`), "expected resourceKind for validating webhook, got: %s", out)
+
+	g.Expect(out).NotTo(ContainSubstring(`"name"=`), "old name key must not be emitted, got: %s", out)
 }
 
 func TestSkipCRDIfPresent(t *testing.T) {
