@@ -11,7 +11,7 @@ import (
 
 const (
 	rhoaiCSVRelPath       = "config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml"
-	rhoaiDSCSampleRelPath = "config/rhoai/samples/datasciencecluster_v2_datasciencecluster.yaml"
+	rhoaiDSCSampleRelPath = "config/rhoai/samples/datasciencecluster_v3_datasciencecluster.yaml"
 
 	initResourceAnnotation = "operatorframework.io/initialization-resource"
 )

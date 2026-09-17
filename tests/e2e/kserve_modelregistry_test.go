@@ -11,7 +11,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 )
 
-// ValidateModelRegistryStatePropagation verifies that ModelRegistry management state
+// ValidateModelRegistryStatePropagation verifies that AI Hub management state
 // from the DSC is correctly injected into the Kserve module CR spec.
 // This tests the cross-component state injection implemented in handler.go BuildModuleCR.
 func (tc *KserveTestCtx) ValidateModelRegistryStatePropagation(t *testing.T) {
@@ -23,15 +23,15 @@ func (tc *KserveTestCtx) ValidateModelRegistryStatePropagation(t *testing.T) {
 
 	kserveNN := types.NamespacedName{Name: componentApi.KserveInstanceName}
 
-	// Test 1: ModelRegistry Managed → Kserve CR should have modelRegistry.managementState = Managed
-	t.Log("Setting DSC ModelRegistry to Managed")
+	// Test 1: AI Hub Managed → Kserve CR should have modelRegistry.managementState = Managed
+	t.Log("Setting DSC AI Hub to Managed")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(func(obj *unstructured.Unstructured) error {
-			return unstructured.SetNestedField(obj.Object, "Managed", "spec", "components", "modelregistry", "managementState")
+			return unstructured.SetNestedField(obj.Object, "Managed", "spec", "components", "aiHub", "managementState")
 		}),
 		WithCondition(
-			jq.Match(`.spec.components.modelregistry.managementState == "Managed"`),
+			jq.Match(`.spec.components.aiHub.managementState == "Managed"`),
 		),
 	)
 
@@ -41,18 +41,18 @@ func (tc *KserveTestCtx) ValidateModelRegistryStatePropagation(t *testing.T) {
 		WithCondition(
 			jq.Match(`.spec.modelRegistry.managementState == "Managed"`),
 		),
-		WithCustomErrorMsg("Expected Kserve CR to have spec.modelRegistry.managementState = Managed when DSC ModelRegistry is Managed"),
+		WithCustomErrorMsg("Expected Kserve CR to have spec.modelRegistry.managementState = Managed when DSC AI Hub is Managed"),
 	)
 
-	// Test 2: ModelRegistry Removed → Kserve CR should have modelRegistry.managementState = Removed
-	t.Log("Setting DSC ModelRegistry to Removed")
+	// Test 2: AI Hub Removed → Kserve CR should have modelRegistry.managementState = Removed
+	t.Log("Setting DSC AI Hub to Removed")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(func(obj *unstructured.Unstructured) error {
-			return unstructured.SetNestedField(obj.Object, "Removed", "spec", "components", "modelregistry", "managementState")
+			return unstructured.SetNestedField(obj.Object, "Removed", "spec", "components", "aiHub", "managementState")
 		}),
 		WithCondition(
-			jq.Match(`.spec.components.modelregistry.managementState == "Removed"`),
+			jq.Match(`.spec.components.aiHub.managementState == "Removed"`),
 		),
 	)
 
@@ -62,24 +62,24 @@ func (tc *KserveTestCtx) ValidateModelRegistryStatePropagation(t *testing.T) {
 		WithCondition(
 			jq.Match(`.spec.modelRegistry.managementState == "Removed"`),
 		),
-		WithCustomErrorMsg("Expected Kserve CR to have spec.modelRegistry.managementState = Removed when DSC ModelRegistry is Removed"),
+		WithCustomErrorMsg("Expected Kserve CR to have spec.modelRegistry.managementState = Removed when DSC AI Hub is Removed"),
 	)
 
-	// Test 3: ModelRegistry empty → Kserve CR should default to Removed
-	t.Log("Unsetting DSC ModelRegistry managementState (empty)")
+	// Test 3: AI Hub empty → Kserve CR should default to Removed
+	t.Log("Unsetting DSC AI Hub managementState (empty)")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(func(obj *unstructured.Unstructured) error {
 			// Remove the managementState field entirely
-			components, found, err := unstructured.NestedMap(obj.Object, "spec", "components", "modelregistry")
+			components, found, err := unstructured.NestedMap(obj.Object, "spec", "components", "aiHub")
 			if err != nil || !found {
 				return err
 			}
 			delete(components, "managementState")
-			return unstructured.SetNestedMap(obj.Object, components, "spec", "components", "modelregistry")
+			return unstructured.SetNestedMap(obj.Object, components, "spec", "components", "aiHub")
 		}),
 		WithCondition(
-			jq.Match(`.spec.components.modelregistry.managementState // "" == ""`),
+			jq.Match(`.spec.components.aiHub.managementState // "" == ""`),
 		),
 	)
 
@@ -89,20 +89,20 @@ func (tc *KserveTestCtx) ValidateModelRegistryStatePropagation(t *testing.T) {
 		WithCondition(
 			jq.Match(`.spec.modelRegistry.managementState == "Removed"`),
 		),
-		WithCustomErrorMsg("Expected Kserve CR to have spec.modelRegistry.managementState = Removed (default) when DSC ModelRegistry state is empty"),
+		WithCustomErrorMsg("Expected Kserve CR to have spec.modelRegistry.managementState = Removed (default) when DSC AI Hub state is empty"),
 	)
 
 	// Restore to Removed for subsequent tests
-	t.Log("Restoring DSC ModelRegistry to Removed")
+	t.Log("Restoring DSC AI Hub to Removed")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(func(obj *unstructured.Unstructured) error {
-			return unstructured.SetNestedField(obj.Object, "Removed", "spec", "components", "modelregistry", "managementState")
+			return unstructured.SetNestedField(obj.Object, "Removed", "spec", "components", "aiHub", "managementState")
 		}),
 		WithCondition(
-			jq.Match(`.spec.components.modelregistry.managementState == "Removed"`),
+			jq.Match(`.spec.components.aiHub.managementState == "Removed"`),
 		),
 	)
 
-	t.Log("ModelRegistry state propagation validation passed")
+	t.Log("AI Hub state propagation validation passed")
 }
