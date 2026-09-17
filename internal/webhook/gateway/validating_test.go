@@ -3,6 +3,7 @@
 package gateway_test
 
 import (
+	"net/http"
 	"testing"
 
 	admissionv1 "k8s.io/api/admission/v1"
@@ -145,6 +146,79 @@ func TestGatewayConfigValidator(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGatewayConfigValidatorRequestErrors(t *testing.T) {
+	g := NewWithT(t)
+	sch, err := scheme.New()
+	g.Expect(err).NotTo(HaveOccurred())
+
+	validator := &gatewaywebhook.Validator{
+		Decoder: admission.NewDecoder(sch),
+		Name:    "test-gatewayconfig-validator",
+	}
+	gvr := metav1.GroupVersionResource{
+		Group:    gvk.GatewayConfig.Group,
+		Version:  gvk.GatewayConfig.Version,
+		Resource: "gatewayconfigs",
+	}
+
+	newRequest := func(operation admissionv1.Operation) admission.Request {
+		return envtestutil.NewAdmissionRequest(
+			t,
+			operation,
+			&serviceApi.GatewayConfig{
+				ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+			},
+			gvk.GatewayConfig,
+			gvr,
+		)
+	}
+
+	t.Run("rejects a request when the decoder is not initialized", func(t *testing.T) {
+		response := (&gatewaywebhook.Validator{}).Handle(t.Context(), admission.Request{})
+
+		g := NewWithT(t)
+		g.Expect(response.Allowed).To(BeFalse())
+		g.Expect(response.Result.Code).To(Equal(int32(http.StatusInternalServerError)))
+		g.Expect(response.Result.Message).To(ContainSubstring("webhook decoder not initialized"))
+	})
+
+	t.Run("rejects a request with an unexpected GVK", func(t *testing.T) {
+		request := newRequest(admissionv1.Create)
+		request.Kind = metav1.GroupVersionKind{Group: "other.opendatahub.io", Version: "v1", Kind: "Other"}
+
+		response := validator.Handle(t.Context(), request)
+
+		g := NewWithT(t)
+		g.Expect(response.Allowed).To(BeFalse())
+		g.Expect(response.Result.Code).To(Equal(int32(http.StatusBadRequest)))
+		g.Expect(response.Result.Message).To(ContainSubstring("unexpected gvk"))
+	})
+
+	t.Run("allows an unsupported operation without decoding the object", func(t *testing.T) {
+		request := newRequest(admissionv1.Delete)
+		request.Object.Raw = []byte("not-json")
+
+		response := validator.Handle(t.Context(), request)
+
+		g := NewWithT(t)
+		g.Expect(response.Allowed).To(BeTrue())
+		g.Expect(response.Result.Code).To(Equal(int32(http.StatusOK)))
+		g.Expect(response.Result.Message).To(ContainSubstring("Operation DELETE on GatewayConfig allowed"))
+	})
+
+	t.Run("rejects a request with an undecodable object", func(t *testing.T) {
+		request := newRequest(admissionv1.Create)
+		request.Object.Raw = []byte("not-json")
+
+		response := validator.Handle(t.Context(), request)
+
+		g := NewWithT(t)
+		g.Expect(response.Allowed).To(BeFalse())
+		g.Expect(response.Result.Code).To(Equal(int32(http.StatusBadRequest)))
+		g.Expect(response.Result.Message).To(ContainSubstring("failed to decode GatewayConfig"))
+	})
 }
 
 func TestRegisterWebhooksNilManager(t *testing.T) {
