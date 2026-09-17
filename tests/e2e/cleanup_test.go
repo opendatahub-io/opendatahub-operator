@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -272,5 +273,32 @@ func cleanupCodeFlareTestResources(t *testing.T, tc *TestContext) {
 		WithIgnoreNotFound(true),
 		WithWaitForDeletion(false),
 		WithAcceptableErr(meta.IsNoMatchError, "IsNoMatchError"),
+	)
+}
+
+// cleanupStaleMLflowInstances deletes any leftover MLflow tracking-server
+// instances (mlflow.opendatahub.io/v1, Kind=MLflow). The mlflow-operator refuses to delete itself while any
+// MLflow instance exists (finalizer mlflow.opendatahub.io/mlflow-operator-protection,
+// condition reason MLflowInstancesPresent), so a stray instance left behind by
+// another test suite sharing the cluster would otherwise permanently block
+// setting MLflow operator component to Removed later in the test suite (see RHOAIENG-92805).
+// The MLflow CRD may not be registered at all if MLflowOperator was never enabled, so a NoMatchError is
+// expected and acceptable.
+func cleanupStaleMLflowInstances(t *testing.T) {
+	t.Helper()
+
+	// Initialize the test context.
+	tc, err := NewTestContext(t)
+	require.NoError(t, err, "Failed to initialize test context")
+
+	t.Log("Removing any stale MLflow instances that could block MLflowOperator deletion")
+
+	tc.DeleteResources(
+		WithMinimalObject(gvk.MLflow, types.NamespacedName{}),
+		WithWaitForDeletion(true),
+		WithIgnoreNotFound(true),
+		WithAcceptableErr(meta.IsNoMatchError, "IsNoMatchError"),
+		WithEventuallyTimeout(2*time.Minute),
+		WithEventuallyPollingInterval(5*time.Second),
 	)
 }

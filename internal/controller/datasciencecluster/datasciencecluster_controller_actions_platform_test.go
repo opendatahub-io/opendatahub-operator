@@ -5,42 +5,54 @@ import (
 	"context"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	testscheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
 
-func TestSyncPlatformCR_SetsNonControllerOwner(t *testing.T) {
+func TestSyncPlatformCRPreservesExistingOwner(t *testing.T) {
 	g := NewWithT(t)
 
-	cli, err := fakeclient.New()
+	s, err := testscheme.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	dsc := newDSC()
 	dsc.SetUID(types.UID("dsc-uid"))
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{
+		Name: "default-dsci",
+		UID:  types.UID("dsci-uid"),
+	}}
+	existingPlatform := modules.NewPlatformCR(&modules.DSCContext{DSC: dsc}, modules.ConfigFromDSC)
+	g.Expect(controllerutil.SetOwnerReference(dsci, existingPlatform, s)).Should(Succeed())
+	cli, err := fakeclient.New(fakeclient.WithObjects(
+		existingPlatform,
+	))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
 	rr := &odhtype.ReconciliationRequest{
 		Client:   cli,
 		Instance: dsc,
 	}
 
 	g.Expect(syncPlatformCR(t.Context(), rr)).Should(Succeed())
-	g.Expect(rr.Resources).Should(HaveLen(1))
 
-	platform := rr.Resources[0]
-	g.Expect(&platform).Should(And(
-		jq.Match(`.kind == "%s"`, gvk.Platform.Kind),
-		jq.Match(`.metadata.ownerReferences | length == 1`),
-		jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
-		jq.Match(`.metadata.ownerReferences[0].uid == "%s"`, dsc.UID),
-		jq.Match(`(.metadata.ownerReferences[0].controller // false) == false`),
+	foundPlatform := &configv1alpha1.Platform{}
+	g.Expect(cli.Get(t.Context(), client.ObjectKey{Name: configv1alpha1.PlatformInstanceName}, foundPlatform)).Should(Succeed())
+	g.Expect(foundPlatform.GetOwnerReferences()).Should(ContainElements(
+		WithTransform(func(ref metav1.OwnerReference) types.UID { return ref.UID }, Equal(dsci.UID)),
+		WithTransform(func(ref metav1.OwnerReference) types.UID { return ref.UID }, Equal(dsc.UID)),
 	))
 }
 

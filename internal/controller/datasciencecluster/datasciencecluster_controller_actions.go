@@ -12,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -27,9 +26,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-// dscFieldManager is the SSA field owner used by the DSC deploy action
-// (lowercase Kind). The delete finalizer must use the same manager so it
-// replaces ConfigFromDSC module fields rather than fighting a second owner.
+// dscFieldManager is the SSA field owner used by the DSC deploy and delete
+// actions. Platform ownerReferences are merged and updated separately because
+// the Platform is shared with the DSCI controller.
 const dscFieldManager = "datasciencecluster"
 
 func isNilInterface(v any) bool {
@@ -63,11 +62,16 @@ func syncPlatformCR(ctx context.Context, rr *odhtype.ReconciliationRequest) erro
 	}
 
 	platform := modules.NewPlatformCR(buildDSCContext(instance), modules.ConfigFromDSC)
-	if err := controllerutil.SetOwnerReference(instance, platform, rr.Client.Scheme()); err != nil {
-		return fmt.Errorf("failed to set Platform owner reference: %w", err)
+	modules.SetPlatformMetadata(platform, instance, rr.Release, dscFieldManager)
+	if err := resources.Apply(ctx, rr.Client, platform, client.FieldOwner(dscFieldManager), client.ForceOwnership); err != nil {
+		return fmt.Errorf("failed to apply Platform CR: %w", err)
 	}
 
-	return rr.AddResources(platform)
+	if err := modules.EnsurePlatformOwnerReference(ctx, rr.Client, instance, rr.Client.Scheme()); err != nil {
+		return fmt.Errorf("failed to update Platform owner reference: %w", err)
+	}
+
+	return nil
 }
 
 // disableDSCModulesOnDelete is the DSC delete finalizer. It SSA-applies
@@ -90,15 +94,23 @@ func disableDSCModulesOnDelete(ctx context.Context, rr *odhtype.ReconciliationRe
 }
 
 func cleanupDisabledComponents(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	return cleanupDisabledComponentsWith(ctx, rr, cr.DefaultRegistry(), provision.DefaultRegistry())
+}
+
+func cleanupDisabledComponentsWith(
+	ctx context.Context,
+	rr *odhtype.ReconciliationRequest,
+	componentReg *cr.Registry,
+	provisionReg *provision.UnifiedRegistry,
+) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
 	log := logf.FromContext(ctx)
-	componentReg := cr.DefaultRegistry()
 
-	reverseBatches, err := provision.DefaultRegistry().ReverseBatches()
+	reverseBatches, err := provisionReg.ReverseBatchesAll()
 	if err != nil {
 		return fmt.Errorf("DAG reverse resolution failed during component cleanup: %w", err)
 	}
@@ -160,12 +172,20 @@ func isOwnedBy(obj, owner metav1.Object) bool {
 }
 
 func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	return cleanupDisabledModuleCRsWith(ctx, rr, modules.DefaultRegistry(), provision.DefaultRegistry())
+}
+
+func cleanupDisabledModuleCRsWith(
+	ctx context.Context,
+	rr *odhtype.ReconciliationRequest,
+	moduleReg *modules.Registry,
+	provisionReg *provision.UnifiedRegistry,
+) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
-	moduleReg := modules.DefaultRegistry()
 	if !moduleReg.HasEntries() {
 		return nil
 	}
@@ -185,7 +205,7 @@ func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationReq
 	})
 
 	log := logf.FromContext(ctx)
-	reverseBatches, err := provision.DefaultRegistry().ReverseBatches()
+	reverseBatches, err := provisionReg.ReverseBatchesAll()
 	if err != nil {
 		log.Error(err, "DAG reverse resolution failed, falling back to alphabetical module CR cleanup")
 		return moduleReg.ForConfigSource(modules.ConfigFromDSC, func(handler modules.ModuleHandler, _ bool) error {
@@ -223,6 +243,10 @@ func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationReq
 }
 
 func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	return provisionComponentsWith(ctx, rr, cr.DefaultRegistry())
+}
+
+func provisionComponentsWith(ctx context.Context, rr *odhtype.ReconciliationRequest, componentReg *cr.Registry) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
@@ -230,16 +254,13 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 
 	rr.Generated = true
 	log := logf.FromContext(ctx)
-	componentReg := cr.DefaultRegistry()
 	var failedComponents []string
 
 	if err := componentReg.ForEach(func(handler cr.ComponentHandler) error {
 		name := handler.GetName()
 		if !handler.IsEnabled(instance) {
-			provision.Disable(name)
 			return nil
 		}
-		provision.Enable(name)
 		ci, err := handler.NewCRObject(ctx, rr.Client, instance)
 		if err != nil {
 			log.Error(err, "NewCRObject failed", "component", name)

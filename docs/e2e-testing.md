@@ -38,14 +38,15 @@ For OpenShift tests additionally:
 The E2E test suite is organized into test groups that run sequentially. Within each group,
 component tests run in parallel. The suite supports two main targets:
 
-- **`make e2e-test-xks`** — KServe-only tests on KinD / vanilla Kubernetes.
-  This is the CI-equivalent E2E for KinD and covers component enable, update, delete,
-  recovery, and versioning.
+- **`make e2e-test-xks`** — KServe and gateway service tests on KinD / vanilla Kubernetes.
+  This is the CI-equivalent E2E for KinD (see `.github/workflows/test-kind-odh-e2e.yaml`).
+  Covers KServe module lifecycle, gateway infrastructure (GatewayConfig, kube-auth-proxy,
+  EnvoyFilter), and xKS DAG runlevel gating.
 
 - **`make e2e-test`** — Full suite across all components, DSC/DSCI lifecycle,
   services, webhooks, and operator resilience. Requires an OpenShift cluster.
 
-## KinD E2E (KServe Only)
+## KinD E2E (KServe and Gateway)
 
 ### Step-by-step guide
 
@@ -80,7 +81,8 @@ component tests run in parallel. The suite supports two main targets:
    kubectl wait --for=condition=Ready azurekubernetesengine/default-azurekubernetesengine --timeout=300s
    ```
 
-8. **Deploy operator** (KServe-only mode): `IMG=localhost/odh-operator:e2e make deploy-rhaii-local`
+8. **Deploy operator** (rhaii-local, KServe + gateway): `IMG=localhost/odh-operator:e2e make deploy-rhaii-local`
+   - Gateway service reconciliation is enabled (`RHAI_DISABLE_GATEWAY_SERVICE=false` in the rhaii overlay)
 
 9. **Wait for operator**:
    ```bash
@@ -89,12 +91,47 @@ component tests run in parallel. The suite supports two main targets:
    ```
 
 10. **Run E2E tests**: `make e2e-test-xks`
+    - On xKS, tests bootstrap `Platform`, Dex, and `GatewayConfig` (with OIDC) automatically — see [Dex OIDC provider](#dex-oidc-provider-kind-xks-gateway) below
+    - Production xKS installs create `GatewayConfig` via the `xks-gateway` Helm subchart in odh-gitops instead
 
 11. **Cleanup**: `make kind-delete`
 
+### Dex OIDC provider (KinD xKS gateway)
+
+KinD gateway e2e tests deploy a minimal [Dex](https://dexidp.io/) instance so
+`kube-auth-proxy` can complete OIDC discovery (`--skip-oidc-discovery=false`).
+
+#### Automatic bootstrap (recommended)
+
+`make e2e-test-xks` calls `EnsureGatewayConfigForXKS`, which:
+
+1. Deploys Dex in `dex-system` (issuer: `https://dex.dex-system.svc.cluster.local:5556/dex`)
+2. Creates `GatewayConfig` with matching OIDC client (`odh-gateway`) and `verifyProviderCertificate: false`
+
+This complements step 10 above: tests bootstrap `Platform`, Dex, and `GatewayConfig` automatically on KinD. Production xKS installs create `GatewayConfig` via the `xks-gateway` Helm subchart in odh-gitops instead.
+
+#### Manual setup
+
+If you run gateway e2e outside the test bootstrap, ensure Dex is up first:
+
+```bash
+# Dex is created automatically when tests start; to pre-provision manually, run e2e once or
+# delete/recreate GatewayConfig after wiping the cluster:
+kubectl delete gatewayconfig default-gateway --ignore-not-found
+kubectl delete ns dex-system --ignore-not-found
+make e2e-test-xks E2E_TEST_SERVICE=gateway
+```
+
+#### Notes
+
+- **Issuer URL** uses in-cluster DNS so `kube-auth-proxy` pods can reach Dex without CoreDNS hacks.
+- **Dex config** uses a `mockCallback` connector because Dex v2.41+ requires at least one connector at startup.
+- **Redirect URI** is `https://rh-ai.kind.local/oauth2/callback` (gateway hostname + OAuth callback path).
+- **arm64 Mac**: Dex is multi-arch, but `odh-kube-auth-proxy` is still amd64-only; deployment readiness may fail locally even with Dex running.
+
 ## Full E2E on KinD (Experimental)
 
-The standard `e2e-test-xks` target runs only KServe tests. It is possible to run the
+The standard `e2e-test-xks` target runs KServe, gateway, and xKS DAG ordering tests. It is possible to run the
 broader component E2E suite on KinD with additional setup to bridge the gap between
 KinD and OpenShift.
 
@@ -364,8 +401,8 @@ done
 | `make image-kind-load` | Load image into KinD cluster |
 | `make kind-setup-pull-secrets` | Configure pull secrets for `registry.redhat.io` |
 | `make deploy-ccm-local-azure` | Deploy Cloud Manager with local image pull policy |
-| `make deploy-rhaii-local` | Deploy operator in XKS/KServe-only mode |
-| `make e2e-test-xks` | Run KinD E2E tests (KServe component) |
+| `make deploy-rhaii-local` | Deploy operator in XKS mode (KServe module + gateway service enabled) |
+| `make e2e-test-xks` | Run KinD E2E tests (KServe component + gateway service + xKS DAG ordering) |
 | `make e2e-test` | Run full E2E tests (requires OpenShift) |
 | `make e2e-test-single TEST="<path>"` | Run a single E2E test |
 | `make e2e-setup-cluster` | Create DSCI/DSC without running component tests |

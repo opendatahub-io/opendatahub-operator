@@ -155,6 +155,8 @@ const (
 func dagOrderingTestSuite(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, Tier2)
+
 	tc, err := NewTestContext(t)
 	require.NoError(t, err, "Failed to initialize test context")
 
@@ -265,8 +267,6 @@ func (tc *DAGOrderingTestCtx) runOpenShiftTestCases(t *testing.T) {
 func (tc *DAGOrderingTestCtx) ValidateXKSRunlevelGating(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, Tier2, Tier3)
-
 	t.Cleanup(func() {
 		tc.DeleteResource(
 			WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: tc.GetInstanceName(gvk.Kserve)}),
@@ -322,8 +322,6 @@ func (tc *DAGOrderingTestCtx) ValidateXKSRunlevelGating(t *testing.T) {
 // version after Phase 2.
 func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T) {
 	t.Helper()
-
-	skipUnless(t, Tier2, Tier3)
 
 	// Guard against leftover quota from a prior crashed/interrupted run.
 	tc.deleteDAGQuota()
@@ -411,6 +409,7 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 			if comp.internal {
 				continue
 			}
+			t.Logf("Waiting for %s to have PlatformReady=True", comp.name)
 			tc.EnsureResourceExists(
 				WithMinimalObject(comp.gvk, types.NamespacedName{Name: tc.GetInstanceName(comp.gvk)}),
 				WithCondition(jq.Match(
@@ -449,7 +448,7 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 				t.Logf("No %s CRs found, skipping readiness check", comp.gvk.Kind)
 				continue
 			}
-
+			t.Logf("Waiting for %s to have Ready=True", comp.name)
 			tc.EnsureResourceExists(
 				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
 				WithCondition(jq.Match(
@@ -470,8 +469,6 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 // precondition to pass.
 func (tc *DAGOrderingTestCtx) ValidatePlatformReady(t *testing.T) {
 	t.Helper()
-
-	skipUnless(t, Tier2, Tier3)
 
 	for _, batch := range dagBatches {
 		for _, comp := range batch.components {
@@ -506,8 +503,6 @@ func (tc *DAGOrderingTestCtx) ValidatePlatformReady(t *testing.T) {
 // and asserts SparkOperator CR UID is unchanged.
 func (tc *DAGOrderingTestCtx) ValidateComponentStability(t *testing.T) {
 	t.Helper()
-
-	skipUnless(t, Tier2, Tier3)
 
 	t.Log("Ensuring KServe and SparkOperator are Managed")
 	tc.EventuallyResourcePatched(
@@ -601,30 +596,18 @@ func (tc *DAGOrderingTestCtx) ValidateComponentStability(t *testing.T) {
 func (tc *DAGOrderingTestCtx) ValidateDAGCleanup(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, Tier2, Tier3)
-
 	tc.setAllRemoved(t)
 
 	t.Log("Verifying all component CRs are cleaned up (no orphans)")
-	for _, batch := range dagBatches {
-		for _, comp := range batch.components {
-			instanceName := tc.GetInstanceName(comp.gvk)
-			tc.EnsureResourceGone(
-				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
-				WithEventuallyTimeout(5*time.Minute),
-				WithEventuallyPollingInterval(10*time.Second),
-			)
-		}
-	}
+	tc.ensureAllRemovedComponentsGone(t)
 }
 
 // ValidatePartialEnablement enables a subset of components spanning
 // multiple batches and verifies that disabled components don't block
-// the DAG.
+// the DAG. It also guards against RHOAIENG-93536, where quickly toggling a
+// module's managementState Removed -> Managed -> Removed left its CR orphaned.
 func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 	t.Helper()
-
-	skipUnless(t, Tier2, Tier3)
 
 	// Prior test (AdminAckGates) leaves all components Removed.
 
@@ -636,8 +619,17 @@ func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 		WithMutateFunc(selectComponentsTransform("Managed", partialFields)),
 	)
 
+	// Regression check (RHOAIENG-93536): flipping a module's managementState
+	// Managed -> Removed again before it settles used to leave its CR (and
+	// operator resources) orphaned forever.
+	t.Log("Immediately disabling modelregistry again (fast Removed->Managed->Removed toggle)")
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(selectComponentsTransform("Removed", []string{"modelregistry"})),
+	)
+
 	t.Log("Verifying enabled component CRs are created")
-	enabledGVKs := []schema.GroupVersionKind{gvk.Dashboard, gvk.Kserve, gvk.AIHub}
+	enabledGVKs := []schema.GroupVersionKind{gvk.Dashboard, gvk.Kserve}
 	for _, g := range enabledGVKs {
 		instanceName := tc.GetInstanceName(g)
 		tc.EnsureResourceExists(
@@ -648,8 +640,9 @@ func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 		)
 	}
 
+	t.Log("Verifying disabled component CRs are not created")
 	disabledGVKs := []schema.GroupVersionKind{
-		gvk.Ray, gvk.FeastOperator, gvk.SparkOperator, gvk.TrustyAI,
+		gvk.Ray, gvk.FeastOperator, gvk.SparkOperator, gvk.TrustyAI, gvk.AIHub,
 	}
 	for _, g := range disabledGVKs {
 		instanceName := tc.GetInstanceName(g)
@@ -671,8 +664,6 @@ func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 // in-tree entries for the current version and skips if none exist.
 func (tc *DAGOrderingTestCtx) ValidateInTreeGates(t *testing.T) {
 	t.Helper()
-
-	skipUnless(t, Tier2, Tier3)
 
 	operatorVersion := tc.getDeployedVersion(t)
 
@@ -754,8 +745,6 @@ func (tc *DAGOrderingTestCtx) ValidateInTreeGates(t *testing.T) {
 // (verifying provisioning resumes).
 func (tc *DAGOrderingTestCtx) ValidateAdminAckGates(t *testing.T) {
 	t.Helper()
-
-	skipUnless(t, Tier2, Tier3)
 
 	// Prior test (InTreeGates) leaves all components Removed.
 
@@ -984,8 +973,33 @@ func (tc *DAGOrderingTestCtx) setAllRemoved(t *testing.T) {
 		WithEventuallyPollingInterval(15*time.Second),
 	)
 
+	tc.ensureAllRemovedComponentsGone(t)
+}
+
+// ensureAllRemovedComponentsGone verifies that every componentEntry actually
+// driven to Removed has its CR deleted. Monitoring is removed via the DSCI
+// (setDSCIMonitoringState), not the DSC spec.components fields below, so it
+// is checked explicitly by name. Components absent from both DSC field lists
+// (e.g. Kueue, whose webhook blocks managementState=Managed) are never set
+// to Removed and are skipped rather than asserted gone.
+func (tc *DAGOrderingTestCtx) ensureAllRemovedComponentsGone(t *testing.T) {
+	t.Helper()
+
 	for _, batch := range dagBatches {
 		for _, comp := range batch.components {
+			name := comp.name
+			if name == dataSciencePipelinesComponentName {
+				name = aiPipelinesFieldName
+			}
+
+			removed := name == serviceApi.MonitoringServiceName ||
+				slices.Contains(dscComponentFieldsWithBrokenVersionHandshake, name) ||
+				slices.Contains(dscComponentFields, name)
+			if !removed {
+				t.Logf("Skipping gone-check for %s: not meant to be Removed", comp.name)
+				continue
+			}
+
 			instanceName := tc.GetInstanceName(comp.gvk)
 			tc.EnsureResourceGone(
 				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),

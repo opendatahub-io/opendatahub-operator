@@ -698,7 +698,7 @@ func createSecretCacheConfig(platform common.Platform) (map[string]cache.Config,
 		return nil, err
 	}
 
-	namespaceConfigs["openshift-ingress"] = cache.Config{}
+	namespaceConfigs[gateway.GetGatewayNamespace()] = cache.Config{} // gateway secrets (OCP: openshift-ingress, XKS: rh-ai-gateway)
 
 	return namespaceConfigs, nil
 }
@@ -709,10 +709,10 @@ func createODHGeneralCacheConfig(platform common.Platform) (map[string]cache.Con
 		return nil, err
 	}
 
-	namespaceConfigs["openshift-operators"] = cache.Config{} // for dependent operators installed namespace
-	namespaceConfigs["openshift-ingress"] = cache.Config{}   // for gateway auth proxy resources
-	namespaceConfigs["models-as-a-service"] = cache.Config{} // for maas admin rolebinding
-	namespaceConfigs["kuadrant-system"] = cache.Config{}     // for kuadrant admin rolebinding
+	namespaceConfigs["openshift-operators"] = cache.Config{}         // for dependent operators installed namespace
+	namespaceConfigs[gateway.GetGatewayNamespace()] = cache.Config{} // gateway resources (OCP: openshift-ingress, XKS: rh-ai-gateway)
+	namespaceConfigs["models-as-a-service"] = cache.Config{}         // for maas admin rolebinding
+	namespaceConfigs["kuadrant-system"] = cache.Config{}             // for kuadrant admin rolebinding
 
 	return namespaceConfigs, nil
 }
@@ -754,7 +754,8 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 		case k8serr.IsServiceUnavailable(err),
 			k8serr.IsTimeout(err),
 			k8serr.IsServerTimeout(err),
-			k8serr.IsTooManyRequests(err):
+			k8serr.IsTooManyRequests(err),
+			errors.Is(err, context.DeadlineExceeded):
 			setupLog.Info("Transient API error reading TLS profile, using hardened defaults", "error", err)
 			hasAPI = true // watcher self-heals when the API recovers
 		default:
@@ -787,7 +788,8 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 				k8serr.IsTimeout(err),
 				k8serr.IsServerTimeout(err),
 				k8serr.IsTooManyRequests(err),
-				k8serr.IsInternalError(err):
+				k8serr.IsInternalError(err),
+				errors.Is(err, context.DeadlineExceeded):
 				setupLog.Info("Transient error fetching TLS adherence policy, watcher will retry", "error", err)
 			default:
 				setupLog.Error(err, "unable to read TLS adherence policy, refusing to start with unknown adherence posture")

@@ -182,7 +182,14 @@ func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.Reconci
 	// Update managed namespaces with missing labels
 	err = ensureKueueLabelsOnManagedNamespaces(ctx, rr.Client, managedNamespaces)
 	if err != nil {
-		return fmt.Errorf("failed to add missing labels to managed namespaces: %v with error: %w", managedNamespaces, err)
+		nsNames := make([]string, 0, len(managedNamespaces))
+		for i := range managedNamespaces {
+			nsNames = append(nsNames, managedNamespaces[i].Name)
+		}
+		logf.FromContext(ctx).Error(err, "failed to add missing labels to managed namespaces",
+			"namespaces", nsNames,
+		)
+		return fmt.Errorf("failed to add missing labels to managed namespaces: %w", err)
 	}
 
 	// Generate LocalQueues in each managed namespaces.

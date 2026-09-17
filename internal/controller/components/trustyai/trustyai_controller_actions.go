@@ -115,7 +115,8 @@ func migrateDeploymentSelector(ctx context.Context, rr *odhtypes.ReconciliationR
 		if k8serr.IsNotFound(err) {
 			return nil
 		}
-		return fmt.Errorf("failed to get Deployment %s/%s: %w", ns, trustyaiDeploymentName, err)
+		log.Error(err, "failed to get Deployment", "deployment", trustyaiDeploymentName, "deploymentNamespace", ns)
+		return fmt.Errorf("failed to get Deployment: %w", err)
 	}
 
 	if deploy.Spec.Selector != nil &&
@@ -138,7 +139,8 @@ func migrateDeploymentSelector(ctx context.Context, rr *odhtypes.ReconciliationR
 		if k8serr.IsNotFound(err) {
 			return nil
 		}
-		return fmt.Errorf("failed to delete Deployment %s/%s with stale selector: %w", ns, trustyaiDeploymentName, err)
+		log.Error(err, "failed to delete Deployment with stale selector", "deployment", trustyaiDeploymentName, "deploymentNamespace", ns)
+		return fmt.Errorf("failed to delete Deployment with stale selector: %w", err)
 	}
 
 	log.Info("Deleted TrustyAI operator Deployment, it will be recreated with the correct selector",
