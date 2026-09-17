@@ -279,11 +279,13 @@ func TestGCLogFieldsUseChildKeys(t *testing.T) {
 
 			g.Expect(out).To(ContainSubstring(`"child"=`), "expected structured child key, got: %s", out)
 			g.Expect(out).To(ContainSubstring(`"childNamespace"=`), "expected structured childNamespace key, got: %s", out)
-			g.Expect(out).NotTo(ContainSubstring(`"name"=`), "old name key must not be emitted, got: %s", out)
 			g.Expect(out).NotTo(ContainSubstring(`"namespace"=`), "old namespace key must not be emitted, got: %s", out)
 
 			if tc.wantResourceKind != "" {
 				g.Expect(out).To(ContainSubstring(`"resourceKind"="`+tc.wantResourceKind+`"`), "expected structured resourceKind key, got: %s", out)
+				g.Expect(out).To(ContainSubstring(`"name"=`), "expected parent name key on error log, got: %s", out)
+			} else {
+				g.Expect(out).NotTo(ContainSubstring(`"name"=`), "old name key must not be emitted, got: %s", out)
 			}
 		})
 	}
