@@ -6,6 +6,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	pkgtls "github.com/opendatahub-io/opendatahub-operator/v2/pkg/tls"
 )
@@ -68,4 +69,36 @@ func TestIsVersionSupported(t *testing.T) {
 	assert.True(t, pkgtls.IsVersionSupported(configv1.VersionTLS13))
 	assert.False(t, pkgtls.IsVersionSupported(configv1.VersionTLS10))
 	assert.False(t, pkgtls.IsVersionSupported(configv1.VersionTLS11))
+}
+
+func TestShouldHonorClusterTLSProfile(t *testing.T) {
+	assert.False(t, pkgtls.ShouldHonorClusterTLSProfile(configv1.TLSAdherencePolicyNoOpinion))
+	assert.False(t, pkgtls.ShouldHonorClusterTLSProfile(configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly))
+	assert.True(t, pkgtls.ShouldHonorClusterTLSProfile(configv1.TLSAdherencePolicyStrictAllComponents))
+	assert.True(t, pkgtls.ShouldHonorClusterTLSProfile("FuturePolicy"))
+}
+
+func TestFromProfileStrict(t *testing.T) {
+	minVersion, cipherSuites, err := pkgtls.FromProfileStrict(
+		context.Background(),
+		&configv1.TLSSecurityProfile{Type: configv1.TLSProfileModernType},
+		pkgtls.FormatShort,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "TLS1.3", minVersion)
+	assert.NotEmpty(t, cipherSuites)
+
+	_, _, err = pkgtls.FromProfileStrict(
+		context.Background(),
+		&configv1.TLSSecurityProfile{Type: configv1.TLSProfileOldType},
+		pkgtls.FormatShort,
+	)
+	require.Error(t, err)
+
+	_, _, err = pkgtls.FromProfileStrict(
+		context.Background(),
+		&configv1.TLSSecurityProfile{Type: configv1.TLSProfileCustomType},
+		pkgtls.FormatShort,
+	)
+	require.Error(t, err)
 }
