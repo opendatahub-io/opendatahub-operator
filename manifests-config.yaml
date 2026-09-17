@@ -602,14 +602,6 @@ imageOverrides:
     rhoai:
       base: "quay.io/opendatahub/odh-kube-rbac-proxy"
       digest: "sha256:c19ed97828e4e5e736334b3ea340ba92a5d0c95f7b21080c6fd7ccf6d36836af"
-  RELATED_IMAGE_ODH_LATENCY_PREDICTOR_PREDICTION_IMAGE:
-    source: "csv"
-    odh:
-      base: "quay.io/opendatahub/odh-latency-predictor-prediction"
-      digest: "sha256:6a3cf044cab634bfe0b178686d654b9671e3f59cd904028ddd6d49cfd9815518"
-    rhoai:
-      base: "quay.io/opendatahub/odh-latency-predictor-prediction"
-      digest: "sha256:6a3cf044cab634bfe0b178686d654b9671e3f59cd904028ddd6d49cfd9815518"
   RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TEST_IMAGE:
     source: "csv"
     odh:
@@ -618,14 +610,6 @@ imageOverrides:
     rhoai:
       base: "quay.io/opendatahub/odh-latency-predictor-test"
       digest: "sha256:d7c0dbbbfa156e9b3608244d6ab5eead4570c7dac205a67631af292499c06d9f"
-  RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TRAINING_IMAGE:
-    source: "csv"
-    odh:
-      base: "quay.io/opendatahub/odh-latency-predictor-training"
-      digest: "sha256:c38bba00eb5154771f10577e8de697583889871aef78fd865d0fc47ff14115ce"
-    rhoai:
-      base: "quay.io/opendatahub/odh-latency-predictor-training"
-      digest: "sha256:c38bba00eb5154771f10577e8de697583889871aef78fd865d0fc47ff14115ce"
   RELATED_IMAGE_ODH_LLM_D_ASYNC_IMAGE:
     source: "csv"
     odh:
