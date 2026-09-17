@@ -30,7 +30,8 @@ const (
 // +kubebuilder:validation:XValidation:rule="self == oldSelf",message="namespace is immutable"
 type Namespace string
 
-// CertManagerConfiguration defines the configuration for the cert-manager operator dependency.
+// Deprecated: cert-manager configuration is no longer used by the Cloud Controller Manager.
+// This type is retained for backwards compatibility.
 // +kubebuilder:object:generate=true
 type CertManagerConfiguration struct{}
 
@@ -54,14 +55,17 @@ type SailOperatorConfiguration struct {
 // +kubebuilder:object:generate=true
 type GatewayAPIConfiguration struct{}
 
-// CertManagerDependency defines the cert-manager operator dependency.
+// Deprecated: cert-manager is no longer a Cloud Controller Manager dependency.
+// This type is retained for backwards compatibility.
 // +kubebuilder:object:generate=true
 type CertManagerDependency struct {
-	// ManagementPolicy determines whether the operator manages this dependency.
+	// Deprecated: cert-manager installation is no longer managed by the Cloud
+	// Controller Manager. This field has no runtime effect.
 	// +kubebuilder:validation:XValidation:rule="self != 'Managed' || self == oldSelf",message="cert-manager managementPolicy cannot be set to Managed"
 	ManagementPolicy ManagementPolicy `json:"managementPolicy,omitempty"`
 
-	// Configuration for the cert-manager operator.
+	// Deprecated: cert-manager configuration is no longer used by the Cloud
+	// Controller Manager. This field has no runtime effect.
 	// +optional
 	Configuration CertManagerConfiguration `json:"configuration,omitempty"`
 }
@@ -139,7 +143,9 @@ type KubernetesEngineInstance interface {
 // Dependencies defines the dependency configurations for cloud manager operators.
 // +kubebuilder:object:generate=true
 type Dependencies struct {
-	// CertManager defines the cert-manager operator dependency.
+	// Deprecated: cert-manager is no longer a Cloud Controller Manager dependency.
+	// The XKS chart owns its installation. This field has no runtime effect and
+	// is retained for backwards compatibility.
 	// +optional
 	CertManager CertManagerDependency `json:"certManager,omitempty"`
 
