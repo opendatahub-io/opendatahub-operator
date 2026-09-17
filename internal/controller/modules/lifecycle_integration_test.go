@@ -13,8 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -43,11 +43,11 @@ type lifecycleModuleStub struct {
 	deleteOperatorCalls int
 }
 
-func (s *lifecycleModuleStub) GetName() string                                { return s.name }
-func (s *lifecycleModuleStub) IsEnabled(*configv1alpha1.PlatformModules) bool { return s.enabled }
-func (s *lifecycleModuleStub) GetGVK() schema.GroupVersionKind                { return s.gvk }
+func (s *lifecycleModuleStub) GetName() string                           { return s.name }
+func (s *lifecycleModuleStub) IsEnabled(*configApi.PlatformModules) bool { return s.enabled }
+func (s *lifecycleModuleStub) GetGVK() schema.GroupVersionKind           { return s.gvk }
 
-func (s *lifecycleModuleStub) PopulatePlatformModule(_ *configv1alpha1.PlatformModules, _ *DSCContext) {
+func (s *lifecycleModuleStub) PopulatePlatformModule(_ *configApi.PlatformModules, _ *DSCContext) {
 }
 
 func (s *lifecycleModuleStub) GetOperatorManifests(*PlatformContext) OperatorManifests {
@@ -86,15 +86,15 @@ func (s *lifecycleModuleStub) DeleteOperatorResources(_ context.Context, _ clien
 	return nil
 }
 
-func (s *lifecycleModuleStub) WriteDSCComponentStatus(*dscv2.DataScienceCluster, bool, []common.ComponentRelease) {
+func (s *lifecycleModuleStub) WriteDSCComponentStatus(*dscApi.DataScienceCluster, bool, []common.ComponentRelease) {
 }
 
 func (s *lifecycleModuleStub) GetDeploymentName() string { return s.name + "-controller-manager" }
 
-func lifecycleRR(t *testing.T) (*types.ReconciliationRequest, *dscv2.DataScienceCluster) {
+func lifecycleRR(t *testing.T) (*types.ReconciliationRequest, *dscApi.DataScienceCluster) {
 	t.Helper()
 
-	dsc := &dscv2.DataScienceCluster{
+	dsc := &dscApi.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: lifecycleTestDSC, UID: "uid-lifecycle"},
 	}
 	dsci := &dsciv2.DSCInitialization{

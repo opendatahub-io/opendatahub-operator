@@ -14,6 +14,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	mlflowoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -39,7 +40,7 @@ const (
 func mlflowOperatorTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewModuleTestCtx(t, gvk.MLflowOperator, componentApi.MLflowOperatorInstanceName)
+	ct, err := NewModuleTestCtx(t, mlflowoperatorModule.NewHandler())
 	require.NoError(t, err)
 
 	componentCtx := MLflowOperatorTestCtx{
@@ -48,10 +49,12 @@ func mlflowOperatorTestSuite(t *testing.T) {
 
 	testCases := []TestCase{
 		{mlflowValidateEnabledName, componentCtx.ValidateModuleEnabled},
+		{"Validate module enabled", componentCtx.ComponentTestCtx.ValidateModuleEnabled},
 		{mlflowValidateModuleOperatorDeployName, componentCtx.ValidateModuleOperatorDeployment},
 		{mlflowValidateModuleReleasesName, componentCtx.ValidateModuleReleases},
 		{mlflowValidateDSCReadyName, componentCtx.ValidateDSCMLflowOperatorReady},
 		{mlflowValidateDisabledName, componentCtx.ValidateModuleDisabled},
+		{"Validate module disabled", componentCtx.ComponentTestCtx.ValidateModuleDisabled},
 	}
 
 	RunTestCases(t, testCases)
