@@ -172,6 +172,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 			// when - Simulate Monitoring CR getting some conditions
 			Expect(setMonitoringConditions(monitoringCR,
+				condition("MonitoringDependenciesReady", metav1.ConditionFalse, "MissingOperator", "Install the Cluster Observability Operator from OperatorHub"),
 				condition("MonitoringStackAvailable", metav1.ConditionTrue, "Ready", "Monitoring stack is ready"),
 				condition("ThanosQuerierAvailable", metav1.ConditionFalse, "Degraded", "Thanos querier is failing"),
 				condition("UnrelatedCondition", metav1.ConditionFalse, "Failing", "This should not be mirrored"),
@@ -183,6 +184,12 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: workingNamespace}, foundDsci)).To(Succeed())
 				// Should contain relevant ones
 				g.Expect(foundDsci.Status.Conditions).To(ContainElements(
+					SatisfyAll(
+						HaveField("Type", "MonitoringDependenciesReady"),
+						HaveField("Status", metav1.ConditionFalse),
+						HaveField("Reason", "MissingOperator"),
+						HaveField("Message", "Install the Cluster Observability Operator from OperatorHub"),
+					),
 					SatisfyAll(
 						HaveField("Type", "MonitoringStackAvailable"),
 						HaveField("Status", metav1.ConditionTrue),

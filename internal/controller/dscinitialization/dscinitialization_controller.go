@@ -452,6 +452,8 @@ func (r *DSCInitializationReconciler) watchMonitoringResource(ctx context.Contex
 }
 
 func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Context) []DSCInitializationCondition {
+	const monitoringDependenciesReadyCondition = "MonitoringDependenciesReady"
+
 	monitoring := &unstructured.Unstructured{}
 	monitoring.SetGroupVersionKind(gvk.Monitoring)
 	monitoring.SetName(serviceApi.MonitoringInstanceName)
@@ -476,6 +478,7 @@ func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Co
 		switch c.Type {
 		case status.ConditionTypeReady,
 			status.ConditionTypeProvisioningSucceeded,
+			monitoringDependenciesReadyCondition,
 			status.ConditionMonitoringStackAvailable,
 			status.ConditionThanosQuerierAvailable,
 			status.ConditionOpenTelemetryCollectorAvailable,
