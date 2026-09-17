@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/onsi/gomega/gstruct"
 	gTypes "github.com/onsi/gomega/types"
+	"github.com/opendatahub-io/odh-platform-utilities/pkg/cluster/olm"
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
@@ -1636,8 +1638,14 @@ func (tc *TestContext) ApproveInstallPlan(plan *ofapi.InstallPlan) {
 //   - bool: True if an operator matching the prefix is found, false otherwise.
 //   - error: Any error encountered during the search operation.
 func (tc *TestContext) CheckOperatorExists(operatorNamePrefix string) (bool, error) {
-	operatorInfo, err := cluster.OperatorExists(tc.Context(), tc.Client(), operatorNamePrefix)
-	return operatorInfo != nil, err
+	operatorInfo, err := olm.OperatorExists(tc.Context(), tc.Client(), operatorNamePrefix)
+	if err != nil {
+		if errors.Is(err, olm.ErrOperatorNotInstalled) || meta.IsNoMatchError(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return operatorInfo != nil, nil
 }
 
 // EnsureWebhookBlocksResourceCreation verifies that webhook validation blocks creation of resources with invalid values.

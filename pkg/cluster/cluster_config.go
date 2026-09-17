@@ -9,6 +9,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
+	"github.com/opendatahub-io/odh-platform-utilities/pkg/cluster/olm"
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/operator-framework/api/pkg/lib/version"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -288,9 +289,13 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 
 // detectSelfManaged detects if it is Self Managed Rhoai or OpenDataHub.
 func detectSelfManaged(ctx context.Context, cli client.Client) (common.Platform, error) {
-	operatorInfo, err := OperatorExists(ctx, cli, "rhods-operator")
+	operatorInfo, err := olm.OperatorExists(ctx, cli, "rhods-operator")
 	if operatorInfo != nil {
 		return SelfManagedRhoai, nil
+	}
+
+	if errors.Is(err, olm.ErrOperatorNotInstalled) || meta.IsNoMatchError(err) {
+		return OpenDataHub, nil
 	}
 
 	return OpenDataHub, err
