@@ -172,11 +172,11 @@ componentCharts:
   odh-observability:
     odh:
       repo: opendatahub-io/odh-observability
-      ref: main@e10b0b7b7b7bdb33ae06aa391923be770feb89b2
+      ref: main@f851ccac431b72d48754df65d79fed9b2d1d4c0e
       sourcePath: charts/odh-observability
     rhoai:
       repo: red-hat-data-services/odh-observability
-      ref: rhoai-3.6-ea.2@4551e8dec12aa748af2c645a600aeaec7381b9bb
+      ref: rhoai-3.6-ea.2@ef503c44466208071175def131bb1473c0c2f8e2
       sourcePath: charts/odh-observability
 # Image overrides — pinned operator image digests, keyed by RELATED_IMAGE_* env var name.
 # Local directories symlinked into opt/manifests/ during development.
