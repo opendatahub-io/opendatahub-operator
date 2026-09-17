@@ -3,6 +3,8 @@ package e2e_test
 import (
 	"slices"
 	"testing"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/tagging"
 )
 
 type TestTag string
@@ -26,6 +28,6 @@ func skipUnless(t *testing.T, tags ...TestTag) {
 	skipTest := !slices.Contains(tags, TestTag(testOpts.tag))
 
 	if skipTest {
-		t.Skipf("Skipping test: passed tag: %s, test tags: %v", testOpts.tag, tags)
+		t.Skipf("%s %s, test tags: %v", tagging.GateSkipPrefix, testOpts.tag, tags)
 	}
 }
