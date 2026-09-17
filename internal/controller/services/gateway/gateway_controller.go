@@ -39,6 +39,11 @@ import (
 )
 
 func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	// Stash the manager's uncached reader for configuration-driven Secret lookups
+	// (spec.oidc.secretNamespace may point outside the manager cache's secret scope).
+	// See getAuthProxySecretValues.
+	uncachedAPIReader = mgr.GetAPIReader()
+
 	gw := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{})
 	// special for ROSA: auth is defined in day0 and OAuth not registered in apiserver
 	if ok, err := cluster.IsIntegratedOAuth(ctx, mgr.GetAPIReader()); err == nil && ok {

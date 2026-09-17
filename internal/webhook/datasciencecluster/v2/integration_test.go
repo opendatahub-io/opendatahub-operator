@@ -192,6 +192,31 @@ func TestDataScienceClusterV2_Integration(t *testing.T) {
 				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed(), "CEL should allow moving an already-Managed TrainingOperator back to Removed")
 			},
 		},
+		{
+			// Explicit Removed (unlike the unset/pruned case above) keeps the sub-object
+			// present, so the CEL oldSelf branch is available and CEL itself must reject
+			// the transition to Managed — a different enforcement path from the webhook
+			// gap that the unset case exercises.
+			name: "CEL: TrainingOperator (KFTO v1) explicit Removed->Managed re-enablement blocked on update",
+			setup: func(ns string) []client.Object {
+				return nil
+			},
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				dsc := envtestutil.NewDSC("dsc-kfto-cel-removed", func(d *dscv2.DataScienceCluster) {
+					d.Spec.Components.TrainingOperator.ManagementState = operatorv1.Removed
+				})
+				g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed(), "should allow creation with TrainingOperator explicitly Removed")
+
+				key := types.NamespacedName{Name: "dsc-kfto-cel-removed", Namespace: ns}
+				fetched := &dscv2.DataScienceCluster{}
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+
+				fetched.Spec.Components.TrainingOperator.ManagementState = operatorv1.Managed
+				err := k8sClient.Update(ctx, fetched)
+				g.Expect(err).To(HaveOccurred(), "CEL should reject re-enabling the deprecated TrainingOperator v1 from Removed to Managed")
+				g.Expect(err.Error()).To(ContainSubstring("obsolete"))
+			},
+		},
 	}
 
 	for _, tc := range testCases {
