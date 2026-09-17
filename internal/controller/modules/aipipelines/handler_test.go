@@ -4,9 +4,7 @@ import (
 	"context"
 	"testing"
 
-	semver "github.com/blang/semver/v4"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	ofversion "github.com/operator-framework/api/pkg/lib/version"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -87,13 +85,12 @@ func TestBuildModuleCRDefaultsArgoToManaged(t *testing.T) {
 	}
 }
 
-func TestOperatorManifestsAndPlatformEnv(t *testing.T) {
+func TestOperatorManifestsAndEnvironment(t *testing.T) {
 	h := aipipelines.NewHandler()
 	platform := &modules.PlatformContext{
 		ManifestsBasePath: "/opt/manifests",
 		Release: common.Release{
-			Name:    cluster.OpenDataHub,
-			Version: ofversion.OperatorVersion{Version: semver.MustParse("3.6.0")},
+			Name: cluster.OpenDataHub,
 		},
 	}
 
@@ -109,13 +106,13 @@ func TestOperatorManifestsAndPlatformEnv(t *testing.T) {
 	if got := h.GetExtraEnv()["DSPO_ENABLEAIPIPELINESMODULECONTROLLER"]; got != "true" {
 		t.Fatalf("expected module controller handoff flag, got %q", got)
 	}
-	if got := h.GetPlatformEnv(platform)["DSPO_PLATFORMVERSION"]; got != "3.6.0" {
-		t.Fatalf("expected platform version env, got %q", got)
-	}
 }
 
 func TestCleanupLegacyCRWaitsForReadyReplacement(t *testing.T) {
-	const dscUID = types.UID("dsc-uid")
+	const (
+		dscUID        = types.UID("dsc-uid")
+		activeRelease = "3.6.0"
+	)
 
 	tests := []struct {
 		name            string
@@ -132,21 +129,34 @@ func TestCleanupLegacyCRWaitsForReadyReplacement(t *testing.T) {
 		{
 			name:            "managed replacement not ready",
 			managementState: operatorv1.Managed,
-			module:          newAIPipelinesCR(metav1.ConditionFalse, 2, 2),
+			module:          newAIPipelinesCR(metav1.ConditionFalse, 2, activeRelease),
 			ownerUID:        dscUID,
 		},
 		{
 			name:            "managed replacement status stale",
 			managementState: operatorv1.Managed,
-			module:          newAIPipelinesCR(metav1.ConditionTrue, 2, 1),
+			module:          newAIPipelinesCR(metav1.ConditionTrue, 1, activeRelease),
 			ownerUID:        dscUID,
 		},
 		{
-			name:            "managed replacement ready",
+			name:            "managed replacement ready with matching release",
 			managementState: operatorv1.Managed,
-			module:          newAIPipelinesCR(metav1.ConditionTrue, 2, 2),
+			module:          newAIPipelinesCR(metav1.ConditionTrue, 2, activeRelease),
 			ownerUID:        dscUID,
 			wantDeleted:     true,
+		},
+		{
+			name:            "managed replacement ready with empty release",
+			managementState: operatorv1.Managed,
+			module:          newAIPipelinesCR(metav1.ConditionTrue, 2, ""),
+			ownerUID:        dscUID,
+			wantDeleted:     true,
+		},
+		{
+			name:            "managed replacement ready with old release",
+			managementState: operatorv1.Managed,
+			module:          newAIPipelinesCR(metav1.ConditionTrue, 2, "3.5.0"),
+			ownerUID:        dscUID,
 		},
 		{
 			name:            "removed does not require replacement",
@@ -179,7 +189,7 @@ func TestCleanupLegacyCRWaitsForReadyReplacement(t *testing.T) {
 			}
 			cli := fake.NewClientBuilder().WithScheme(aipipelinesTestScheme(t)).WithObjects(objects...).Build()
 
-			if err := h.CleanupLegacyCR(context.Background(), cli, dsc); err != nil {
+			if err := h.CleanupLegacyCR(context.Background(), cli, dsc, activeRelease); err != nil {
 				t.Fatalf("cleanup legacy CR: %v", err)
 			}
 
@@ -194,7 +204,11 @@ func TestCleanupLegacyCRWaitsForReadyReplacement(t *testing.T) {
 	}
 }
 
-func newAIPipelinesCR(ready metav1.ConditionStatus, generation, observedGeneration int64) *unstructured.Unstructured {
+func newAIPipelinesCR(
+	ready metav1.ConditionStatus,
+	observedGeneration int64,
+	releaseVersion string,
+) *unstructured.Unstructured {
 	u := &unstructured.Unstructured{Object: map[string]any{
 		"status": map[string]any{
 			"observedGeneration": observedGeneration,
@@ -202,11 +216,15 @@ func newAIPipelinesCR(ready metav1.ConditionStatus, generation, observedGenerati
 				"type":   "Ready",
 				"status": string(ready),
 			}},
+			"releases": []any{map[string]any{
+				"name":    "platform",
+				"version": releaseVersion,
+			}},
 		},
 	}}
 	u.SetGroupVersionKind(aipipelines.NewHandler().GetGVK())
 	u.SetName("default-aipipelines")
-	u.SetGeneration(generation)
+	u.SetGeneration(2)
 	return u
 }
 

@@ -142,9 +142,11 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	// To handle upstream/downstream i trimmed prefix(odh) from few controller names
 	componentToControllerMap := map[string]string{
-		componentApi.AIPipelinesComponentName: "data-science-pipelines-operator-controller-manager",
-		componentApi.RayComponentName:         "kuberay-operator",
+		componentApi.RayComponentName: "kuberay-operator",
 		// componentApi.TrustyAIComponentName:             "trustyai-service-operator-controller-manager",
+	}
+	moduleToControllerMap := map[string]string{
+		componentApi.AIPipelinesComponentName: "data-science-pipelines-operator-controller-manager",
 	}
 
 	// Error message includes components + internal components name
@@ -171,8 +173,9 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// FeastOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// TrainingOperator is excluded because it is deprecated/removed (no handler, no deployment)
 	// ModelRegistry is excluded because it is a module (reports ModelRegistryReady via ModulesReady, not ComponentsReady)
+	// AIPipelines is excluded because it is a module (reports AIPipelinesReady via ModulesReady, not ComponentsReady)
 	//nolint:mnd // explicit count of excluded components
-	excludedComponents := 15
+	excludedComponents := 16
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+
@@ -183,9 +186,11 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	// Ensure clean initial state by disabling all components first
 	t.Log("Ensuring clean initial state - disabling all components")
+	moduleNames := slices.Collect(maps.Keys(moduleToControllerMap))
+	managedNames := slices.Concat(components, moduleNames)
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(updateAllComponentsTransform(components, operatorv1.Removed)),
+		WithMutateFunc(updateAllComponentsTransform(managedNames, operatorv1.Removed)),
 	)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -199,6 +204,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	allControllers := slices.Concat(
 		slices.Collect(maps.Values(componentToControllerMap)),
+		slices.Collect(maps.Values(moduleToControllerMap)),
 		slices.Collect(maps.Values(internalComponentToControllerMap)),
 	)
 
@@ -208,7 +214,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	t.Log("Enabling all components in DataScienceCluster")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(updateAllComponentsTransform(components, operatorv1.Managed)),
+		WithMutateFunc(updateAllComponentsTransform(managedNames, operatorv1.Managed)),
 	)
 
 	t.Log("Verifying component deployments are stuck due to quota")
@@ -235,10 +241,26 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		),
 	)
 
+	sort.Strings(moduleNames)
+	expectedMsgModules := fmt.Sprintf(`["%s"]`, strings.Join(moduleNames, `","`))
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(
+			jq.Match(
+				`any(.status.conditions[];
+            .type == "%s" and .status == "%s" and
+            (.message as $msg | %s | all(.[]; ($msg | contains(.)))))`,
+				status.ConditionTypeModulesReady,
+				metav1.ConditionFalse,
+				expectedMsgModules,
+			),
+		),
+	)
+
 	t.Log("Disabling all components and verifying no managed components are reported")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(updateAllComponentsTransform(components, operatorv1.Removed)),
+		WithMutateFunc(updateAllComponentsTransform(managedNames, operatorv1.Removed)),
 	)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),

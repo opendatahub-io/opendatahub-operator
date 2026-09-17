@@ -68,10 +68,6 @@ func (tc *DataSciencePipelinesTestCtx) ValidateOperandsOwnerReferences(t *testin
 
 	skipUnless(t, Smoke)
 
-	if tc.IsXKS() {
-		t.Skip("Skipping test because module operator ownership is not enforced on XKS platform")
-	}
-
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
 			Namespace: tc.AppsNamespace,

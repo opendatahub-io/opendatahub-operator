@@ -6,7 +6,9 @@ import (
 	"errors"
 	"testing"
 
+	semver "github.com/blang/semver/v4"
 	"github.com/go-logr/logr/funcr"
+	ofversion "github.com/operator-framework/api/pkg/lib/version"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -15,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
@@ -41,9 +44,10 @@ func logCapturingContext(t *testing.T) (context.Context, *[]string) {
 type mockModuleHandler struct {
 	modules.BaseHandler
 
-	deleteErr  error
-	cleanupErr error
-	cleanedDSC *dscv2.DataScienceCluster
+	deleteErr      error
+	cleanupErr     error
+	cleanedDSC     *dscv2.DataScienceCluster
+	cleanedRelease string
 }
 
 func (m *mockModuleHandler) IsEnabled(_ *configv1alpha1.PlatformModules) bool { return false }
@@ -55,8 +59,14 @@ func (m *mockModuleHandler) DeleteModuleCR(_ context.Context, _ client.Client) e
 	return m.deleteErr
 }
 
-func (m *mockModuleHandler) CleanupLegacyCR(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) error {
+func (m *mockModuleHandler) CleanupLegacyCR(
+	_ context.Context,
+	_ client.Client,
+	dsc *dscv2.DataScienceCluster,
+	activeRelease string,
+) error {
 	m.cleanedDSC = dsc
+	m.cleanedRelease = activeRelease
 	return m.cleanupErr
 }
 
@@ -230,7 +240,12 @@ func TestCleanupMigratedModuleCRs(t *testing.T) {
 			modReg := &modules.Registry{}
 			modReg.Add(mod)
 
-			rr := &types.ReconciliationRequest{Instance: dsc}
+			rr := &types.ReconciliationRequest{
+				Instance: dsc,
+				Release: common.Release{
+					Version: ofversion.OperatorVersion{Version: semver.MustParse("3.6.0")},
+				},
+			}
 			err := cleanupMigratedModuleCRsWith(t.Context(), rr, modReg)
 
 			if tt.wantErrText == "" {
@@ -239,6 +254,7 @@ func TestCleanupMigratedModuleCRs(t *testing.T) {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.wantErrText)))
 			}
 			g.Expect(mod.cleanedDSC).To(BeIdenticalTo(dsc))
+			g.Expect(mod.cleanedRelease).To(Equal("3.6.0"))
 		})
 	}
 }

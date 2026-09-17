@@ -28,7 +28,6 @@ const (
 	crName                   = componentApi.AIPipelinesInstanceName
 	ControllerDeploymentName = "data-science-pipelines-operator-controller-manager"
 	moduleControllerEnv      = "DSPO_ENABLEAIPIPELINESMODULECONTROLLER"
-	platformVersionEnv       = "DSPO_PLATFORMVERSION"
 	controllerImageEnv       = "RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE"
 	odhOverlayPath           = "overlays/odh/dspo"
 	rhoaiOverlayPath         = "overlays/rhoai/dspo"
@@ -129,20 +128,15 @@ func (h *handler) BuildModuleCR(
 	return u, nil
 }
 
-func (h *handler) GetPlatformEnv(platform *modules.PlatformContext) map[string]string {
-	if platform == nil {
-		return nil
-	}
-
-	return map[string]string{
-		platformVersionEnv: platform.Release.Version.String(),
-	}
-}
-
 // CleanupLegacyCR removes the in-tree DataSciencePipelines CR after its
 // replacement AIPipelines CR has reached Ready. When AIPipelines is Removed,
 // no handoff is needed and the legacy CR can be removed immediately.
-func (h *handler) CleanupLegacyCR(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) error {
+func (h *handler) CleanupLegacyCR(
+	ctx context.Context,
+	cli client.Client,
+	dsc *dscv2.DataScienceCluster,
+	activeRelease string,
+) error {
 	if cli == nil || dsc == nil {
 		return nil
 	}
@@ -168,7 +162,9 @@ func (h *handler) CleanupLegacyCR(ctx context.Context, cli client.Client, dsc *d
 			}
 			return err
 		}
-		if moduleStatus.ObservedGeneration != moduleStatus.Generation || !moduleReady(moduleStatus) {
+		if moduleStatus.ObservedGeneration != moduleStatus.Generation ||
+			!moduleReady(moduleStatus) ||
+			(moduleStatus.ReleaseVersion != "" && moduleStatus.ReleaseVersion != activeRelease) {
 			return nil
 		}
 	}
@@ -200,14 +196,4 @@ func ownedByDSC(obj client.Object, dsc *dscv2.DataScienceCluster) bool {
 		}
 	}
 	return false
-}
-
-// WriteDSCComponentStatus is declared explicitly to document that the AIPipelines
-// module owns the v2 DSC status stanza, including release mirroring.
-func (h *handler) WriteDSCComponentStatus(
-	dsc *dscv2.DataScienceCluster,
-	enabled bool,
-	releases []common.ComponentRelease,
-) {
-	h.BaseHandler.WriteDSCComponentStatus(dsc, enabled, releases)
 }

@@ -6,8 +6,7 @@ package modules
 
 // AIPipelines module
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=aipipelines,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=aipipelines/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=aipipelines/finalizers,verbs=update
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=aipipelines/status,verbs=get
 
 // AIGateway: new mega module
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=aigateways,verbs=get;list;watch;create;update;patch;delete

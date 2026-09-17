@@ -124,9 +124,11 @@ type DSCLegacyStatusFieldsWriter interface {
 // remove the superseded CR only after the module-specific handoff is safe.
 //
 // Implementations must be idempotent and must not delete a legacy CR owned by
-// a different DataScienceCluster.
+// a different DataScienceCluster. The active release lets implementations
+// avoid completing a handoff to a replacement that still reports an older
+// non-empty platform release.
 type LegacyModuleCRCleaner interface {
-	CleanupLegacyCR(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) error
+	CleanupLegacyCR(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster, activeRelease string) error
 }
 
 // ReadyConditionTyper allows a module handler to declare the condition type

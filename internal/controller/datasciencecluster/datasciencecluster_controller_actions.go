@@ -369,7 +369,7 @@ func cleanupMigratedModuleCRsWith(
 		if !ok {
 			return nil
 		}
-		if err := cleaner.CleanupLegacyCR(ctx, rr.Client, instance); err != nil {
+		if err := cleaner.CleanupLegacyCR(ctx, rr.Client, instance, rr.Release.Version.String()); err != nil {
 			return fmt.Errorf("legacy CR cleanup failed for module %s: %w", handler.GetName(), err)
 		}
 		return nil
