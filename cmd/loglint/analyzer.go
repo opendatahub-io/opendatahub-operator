@@ -2,6 +2,7 @@ package main
 
 import (
 	"go/ast"
+	"go/constant"
 	"go/token"
 	"regexp"
 	"slices"
@@ -62,8 +63,7 @@ func run(pass *analysis.Pass) (any, error) {
 			return
 		}
 
-		msg, ok := stringLit(call.Args[1])
-		if ok && embeddedIdentity.MatchString(msg) {
+		if msg, ok := messageMarker(pass, call.Args[1]); ok && embeddedIdentity.MatchString(msg) {
 			pass.Reportf(call.Args[1].Pos(), "odhlog: message embeds resource name or namespace; use structured keys \"name\" and \"namespace\"")
 		}
 
@@ -89,6 +89,47 @@ func kvKeys(args []ast.Expr) []string {
 		}
 	}
 	return keys
+}
+
+// messageMarker returns the static text to scan for embedded identity. It
+// recognizes compile-time constant strings (literals, string consts, and
+// constant concatenations) as well as the format-string argument of a
+// fmt.Sprintf call. Genuinely dynamic expressions yield ok == false so they
+// are left unflagged rather than guessed at.
+func messageMarker(pass *analysis.Pass, e ast.Expr) (string, bool) {
+	if format, ok := sprintfFormat(pass, e); ok {
+		return format, true
+	}
+	return constString(pass, e)
+}
+
+// sprintfFormat reports the constant format string of a fmt.Sprintf call. Only
+// the statically known format argument is inspected; formatted values are never
+// evaluated.
+func sprintfFormat(pass *analysis.Pass, e ast.Expr) (string, bool) {
+	call, ok := e.(*ast.CallExpr)
+	if !ok {
+		return "", false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Sprintf" {
+		return "", false
+	}
+	pkg, ok := sel.X.(*ast.Ident)
+	if !ok || pkg.Name != "fmt" || len(call.Args) == 0 {
+		return "", false
+	}
+	return constString(pass, call.Args[0])
+}
+
+// constString returns the value of a compile-time constant string expression,
+// covering literals, named string constants, and constant concatenations.
+func constString(pass *analysis.Pass, e ast.Expr) (string, bool) {
+	tv, ok := pass.TypesInfo.Types[e]
+	if !ok || tv.Value == nil || tv.Value.Kind() != constant.String {
+		return "", false
+	}
+	return constant.StringVal(tv.Value), true
 }
 
 func stringLit(e ast.Expr) (string, bool) {
