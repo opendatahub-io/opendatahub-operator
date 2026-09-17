@@ -115,7 +115,7 @@ spec:
             - name: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
               value: quay.io/opendatahub/vllm-orchestrator-gateway@sha256:10789a3f024d520078e4d813d06fa1d0297d4cd4af87a2d271c44c132d8e39f2
             - name: RELATED_IMAGE_ODH_TRUSTYAI_MODULE_OPERATOR_IMAGE
-              value: quay.io/opendatahub/odh-trustyai-module-operator@sha256:d2df18f5ac55940bc181538f0dd0d48a2ea1c72ea26df61b532861653dce9db9
+              value: quay.io/opendatahub/odh-trustyai-module-operator@sha256:b3cef1149bdda811ddf8ff57b4a297ecdb9de906899093612811ecc3981a6122
             - name: RELATED_IMAGE_ODH_AUTHBRIDGE_PROXY_IMAGE
               value: quay.io/opendatahub/odh-authbridge-proxy@sha256:315486763a88668daab872fe5ec3d0f228ab21cc310190622d6ece0043927d28
             - name: RELATED_IMAGE_ODH_TRUSTYAI_RAGAS_LLS_PROVIDER_DSP_IMAGE

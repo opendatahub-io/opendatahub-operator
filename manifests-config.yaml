@@ -1342,10 +1342,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-trustyai-module-operator"
-      digest: "sha256:d2df18f5ac55940bc181538f0dd0d48a2ea1c72ea26df61b532861653dce9db9"
+      digest: "sha256:b3cef1149bdda811ddf8ff57b4a297ecdb9de906899093612811ecc3981a6122"
     rhoai:
-      base: "quay.io/opendatahub/odh-trustyai-module-operator"
-      digest: "sha256:d2df18f5ac55940bc181538f0dd0d48a2ea1c72ea26df61b532861653dce9db9"
+      base: "quay.io/rhoai/odh-trustyai-module-operator-rhel9"
+      digest: "sha256:51384d96109de664f0f854e6b7fc66243f71300c864ff0079c6b0dbfecb92a35"
   RELATED_IMAGE_ODH_MODELEXPRESS_IMAGE:
     source: "csv"
     odh:
