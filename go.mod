@@ -11,6 +11,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.42.1
 	github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a
+	github.com/opendatahub-io/odh-platform-utilities v0.4.0
 	github.com/opendatahub-io/odh-platform-utilities/framework v0.0.0-20260810103007-dd94df3e806f
 	github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth v0.0.0
 	github.com/opendatahub-io/opendatahub-operator/pkg/failureclassifier v0.0.0-00010101000000-000000000000
@@ -170,6 +171,6 @@ replace github.com/opendatahub-io/opendatahub-operator/pkg/failureclassifier => 
 
 replace github.com/opendatahub-io/opendatahub-operator/pkg/scoperules => ./pkg/scoperules
 
-replace github.com/opendatahub-io/odh-platform-utilities => github.com/opendatahub-io/odh-platform-utilities v0.3.1-0.20260814093333-e3907ad3edae
+replace github.com/opendatahub-io/odh-platform-utilities => github.com/opendatahub-io/odh-platform-utilities v0.4.0
 
 exclude github.com/openshift/api v3.9.0+incompatible
