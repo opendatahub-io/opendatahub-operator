@@ -2,10 +2,9 @@
 #
 # rhai_helm_components: components whose RELATED_IMAGE_* must also be present
 #   in RHOAI-Build-Config helm/rhai-on-xks-chart/values.yaml (rhaiOperator.relatedImages).
-# odh_exceptions: RELATED_IMAGE entries intentionally absent from ODH-Build-Config.
-#   These are permanently excluded from ODH validation (e.g. architecture-specific images).
-# rhoai_exceptions: RELATED_IMAGE entries intentionally absent from RHOAI-Build-Config.
-#   These are permanently excluded from RHOAI validation (e.g. ODH-only images).
+# odh_exceptions / rhoai_exceptions: RELATED_IMAGE entries exempt from platform validation.
+#   When no explicit imageOverrides mapping exists, these also prevent automatic CSV import
+#   for that platform (e.g. architecture-specific or ODH-only images).
 # known_issues: RELATED_IMAGE errors to downgrade to warnings.
 #   Each entry MUST include a Jira link and reason.
 
@@ -127,6 +126,10 @@ odh_exceptions:
   reason: RHOAI-only image, not applicable to ODH
 - image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_IMAGE
   reason: RHOAI-only image, not applicable to ODH
+- image: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_PREDICTION_IMAGE
+  reason: Referenced by the KServe xKS Helm chart but not published in ODH-Build-Config CSV; temporary exception pending support decision
+- image: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TRAINING_IMAGE
+  reason: Referenced by the KServe xKS Helm chart but not published in ODH-Build-Config CSV; temporary exception pending support decision
 
 rhoai_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE
@@ -148,8 +151,16 @@ rhoai_exceptions:
   reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1
 - image: RELATED_IMAGE_ODH_WORKBENCHES_CONTROLLER_IMAGE
   reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1
+- image: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_PREDICTION_IMAGE
+  reason: Referenced by the KServe xKS Helm chart but not published in RHOAI-Build-Config CSV; temporary exception pending support decision
+- image: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TRAINING_IMAGE
+  reason: Referenced by the KServe xKS Helm chart but not published in RHOAI-Build-Config CSV; temporary exception pending support decision
 
 image_overrides_exceptions:
+- image: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_PREDICTION_IMAGE
+  reason: Referenced by the KServe xKS Helm chart but absent from ODH/RHOAI Build-Config CSVs; temporary exception pending support decision
+- image: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TRAINING_IMAGE
+  reason: Referenced by the KServe xKS Helm chart but absent from ODH/RHOAI Build-Config CSVs; temporary exception pending support decision
 - image: RELATED_IMAGE_DSP_INSTRUCTLAB_NVIDIA_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
   reason: Removed with InstructLab pipeline removal since RHOAI 3.0

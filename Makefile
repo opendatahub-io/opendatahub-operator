@@ -336,7 +336,7 @@ get-manifests: ## Fetch components manifests from remote git repo
 CLEANFILES += opt/manifests/* opt/charts/*
 
 .PHONY: update-rhai-images
-update-rhai-images: yq ## Fetch RHAI component manifests and update images from RHOAI-Build-Config CSV
+update-rhai-images: yq ## Locally update downloaded RHAI params.env files (not used by e2e overrides)
 	@if [ -n "$(RHAI_BRANCH)" ]; then \
 		echo "Fetching manifests from rhods-operator branch $(RHAI_BRANCH)..."; \
 		TMP_RHODS=$$(mktemp -d) && \
@@ -356,7 +356,7 @@ validate-related-images: yq ## Validate RELATED_IMAGE_* names against build conf
 
 .PHONY: resolve-image-digests
 resolve-image-digests: ## Resolve image digests from Build-Config and update manifests-config.yaml
-	go run -C ./cmd/manifest-tools main.go resolve-digests --config $(CURDIR)/manifests-config.yaml --manifests-dir $(CURDIR)/opt/manifests
+	go run -C ./cmd/manifest-tools main.go resolve-digests --config $(CURDIR)/manifests-config.yaml --related-images-config $(CURDIR)/component-params-env.yaml --manifests-dir $(CURDIR)/opt/manifests
 
 .PHONY: update-refs-shas
 update-refs-shas: ## Update branch@sha refs to latest commit SHAs from GitHub (requires GITHUB_TOKEN)
