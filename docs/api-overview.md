@@ -18,7 +18,6 @@ Package v1 contains API Schema definitions for the components v1 API group
 
 ### Resource Types
 - [Kueue](#kueue)
-- [Ray](#ray)
 - [TrustyAI](#trustyai)
 
 
@@ -1256,27 +1255,6 @@ _Appears in:_
 | `Headed` |  |
 
 
-#### Ray
-
-
-
-Ray is the Schema for the rays API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `Ray` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[RaySpec](#rayspec)_ |  |  |  |
-| `status` _[RayStatus](#raystatus)_ |  |  |  |
-
-
 #### RayCommonSpec
 
 
@@ -1287,7 +1265,6 @@ Ray is the Schema for the rays API
 
 _Appears in:_
 - [DSCRay](#dscray)
-- [RaySpec](#rayspec)
 
 
 
@@ -1301,33 +1278,6 @@ RayCommonStatus defines the shared observed state of Ray
 
 _Appears in:_
 - [DSCRayStatus](#dscraystatus)
-- [RayStatus](#raystatus)
-
-
-
-#### RaySpec
-
-
-
-RaySpec defines the desired state of Ray
-
-
-
-_Appears in:_
-- [Ray](#ray)
-
-
-
-#### RayStatus
-
-
-
-RayStatus defines the observed state of Ray
-
-
-
-_Appears in:_
-- [Ray](#ray)
 
 
 
@@ -1656,6 +1606,7 @@ _Appears in:_
 | `feastoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | FeastOperator controls the Feast module operator lifecycle. |  |  |
 | `dashboard` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Dashboard controls the Dashboard module operator lifecycle. |  |  |
 | `sparkoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | SparkOperator controls the Spark Operator module lifecycle. |  |  |
+| `ray` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Ray controls the Ray module lifecycle. |  |  |
 | `modelregistry` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | ModelRegistry controls the model-registry (AIHub) module operator lifecycle. |  |  |
 
 
@@ -2253,6 +2204,22 @@ _Appears in:_
 
 
 
+#### DRASpec
+
+
+
+DRASpec defines the Dynamic Resource Allocation configuration for a HardwareProfile.
+
+
+
+_Appears in:_
+- [HardwareProfileSpec](#hardwareprofilespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `resourceClaimTemplateName` _string_ | ResourceClaimTemplateName names a pre-existing ResourceClaimTemplate in the workload's<br />namespace. The consuming module validates that the object exists at admission time. |  | MaxLength: 253 <br />MinLength: 1 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$` <br />Required: \{\} <br /> |
+
+
 #### GatewaySpec
 
 
@@ -2327,6 +2294,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `identifiers` _[HardwareIdentifier](#hardwareidentifier) array_ | The array of identifiers |  |  |
 | `scheduling` _[SchedulingSpec](#schedulingspec)_ | SchedulingSpec specifies how workloads using this hardware profile should be scheduled. |  |  |
+| `dra` _[DRASpec](#draspec)_ | DRA references an existing Dynamic Resource Allocation ResourceClaimTemplate that workloads<br />using this hardware profile should attach. The referenced object must already exist in the<br />workload's namespace and is not created, owned, or cleaned up by the operator. |  |  |
 
 
 #### HardwareProfileStatus
@@ -2425,6 +2393,22 @@ Package v1alpha1 contains API Schema definitions for the infrastructure v1alpha1
 
 
 
+#### DRASpec
+
+
+
+DRASpec defines the Dynamic Resource Allocation configuration for a HardwareProfile.
+
+
+
+_Appears in:_
+- [HardwareProfileSpec](#hardwareprofilespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `resourceClaimTemplateName` _string_ | ResourceClaimTemplateName names a pre-existing ResourceClaimTemplate in the workload's<br />namespace. The consuming module validates that the object exists at admission time. |  | MaxLength: 253 <br />MinLength: 1 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$` <br />Required: \{\} <br /> |
+
+
 #### HardwareIdentifier
 
 
@@ -2482,6 +2466,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `identifiers` _[HardwareIdentifier](#hardwareidentifier) array_ | The array of identifiers |  |  |
 | `scheduling` _[SchedulingSpec](#schedulingspec)_ | SchedulingSpec specifies how workloads using this hardware profile should be scheduled. |  |  |
+| `dra` _[DRASpec](#draspec)_ | DRA is mirrored here to preserve the field during conversion to and from v1.<br />It is not consumed by any v1alpha1 code path. |  |  |
 
 
 #### HardwareProfileStatus

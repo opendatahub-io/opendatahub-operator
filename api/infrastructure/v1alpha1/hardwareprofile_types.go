@@ -42,6 +42,22 @@ type HardwareProfileSpec struct {
 	// SchedulingSpec specifies how workloads using this hardware profile should be scheduled.
 	// +optional
 	SchedulingSpec *SchedulingSpec `json:"scheduling,omitempty"`
+
+	// DRA is mirrored here to preserve the field during conversion to and from v1.
+	// It is not consumed by any v1alpha1 code path.
+	// +optional
+	DRA *DRASpec `json:"dra,omitempty"`
+}
+
+// DRASpec defines the Dynamic Resource Allocation configuration for a HardwareProfile.
+type DRASpec struct {
+	// ResourceClaimTemplateName names a pre-existing ResourceClaimTemplate in the workload's
+	// namespace. The consuming module validates that the object exists at admission time.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
+	ResourceClaimTemplateName string `json:"resourceClaimTemplateName"`
 }
 
 type HardwareIdentifier struct {

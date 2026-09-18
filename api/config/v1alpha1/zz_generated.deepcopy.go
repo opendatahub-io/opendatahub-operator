@@ -98,6 +98,7 @@ func (in *PlatformModules) DeepCopyInto(out *PlatformModules) {
 	out.FeastOperator = in.FeastOperator
 	out.Dashboard = in.Dashboard
 	out.SparkOperator = in.SparkOperator
+	out.Ray = in.Ray
 	out.ModelRegistry = in.ModelRegistry
 }
 
