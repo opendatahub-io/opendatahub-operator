@@ -18,6 +18,7 @@ import (
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	mlflowoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
 	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
+	rayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ray"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
@@ -36,6 +37,7 @@ func allHandlers() []modules.ModuleHandler {
 		mcplifecycleoperatorModule.NewHandler(),
 		mlflowoperatorModule.NewHandler(),
 		ogxModule.NewHandler(),
+		rayModule.NewHandler(),
 		workbenchesModule.NewHandler(),
 	}
 }
@@ -67,6 +69,9 @@ func managedDSCContext() (*modules.DSCContext, *modules.ModuleCRConfig) {
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
 						OGX: componentApi.DSCOGX{
+							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+						},
+						Ray: componentApi.DSCRay{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
 					},

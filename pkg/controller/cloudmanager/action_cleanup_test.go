@@ -4,14 +4,17 @@ package cloudmanager
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
+	"github.com/go-logr/logr/funcr"
 	helmRenderer "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -67,6 +70,102 @@ func makeTestConfigMap(ownerUID types.UID) *corev1.ConfigMap {
 	}
 
 	return cm
+}
+
+// TestCleanupExcludedChartsLogFields verifies that every cleanup log line
+// identifying the chart resource emits the structured "child"/"childNamespace"
+// keys and never the bare "name"/"namespace" keys (which collide with the
+// reconciler's reserved logger keys). Cleanup logs through the context logger, so
+// the capture logger is injected via logf.IntoContext.
+func TestCleanupExcludedChartsLogFields(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		instanceUID = types.UID("owner-uid-1234")
+		releaseName = "test"
+		cmName      = releaseName + "-config"
+		cmNS        = "default"
+	)
+
+	charts := []ctypes.HelmChartInfo{testCleanupChart(releaseName)}
+
+	// captureCtx returns a context carrying a logger that records everything at
+	// V(1) so both Info and V(1).Info lines are captured, plus its buffer.
+	captureCtx := func() (context.Context, *strings.Builder) {
+		var buf strings.Builder
+		logger := funcr.New(func(_, args string) {
+			buf.WriteString(args)
+			buf.WriteByte('\n')
+		}, funcr.Options{Verbosity: 1})
+
+		return logf.IntoContext(ctx, logger), &buf
+	}
+
+	assertChildKeys := func(g *WithT, out string) {
+		g.Expect(out).To(ContainSubstring(`"child"="`+cmName+`"`), "expected structured child key, got: %s", out)
+		g.Expect(out).To(ContainSubstring(`"childNamespace"="`+cmNS+`"`), "expected structured childNamespace key, got: %s", out)
+		g.Expect(out).NotTo(ContainSubstring(`"name"=`), "old name key must not be emitted, got: %s", out)
+		g.Expect(out).NotTo(ContainSubstring(`"namespace"=`), "old namespace key must not be emitted, got: %s", out)
+	}
+
+	t.Run("owned resource deletion is logged with child keys", func(t *testing.T) {
+		g := NewWithT(t)
+
+		cl, err := fakeclient.New(fakeclient.WithObjects(makeTestConfigMap(instanceUID)))
+		g.Expect(err).NotTo(HaveOccurred())
+
+		lctx, buf := captureCtx()
+		g.Expect(cleanupExcludedCharts(lctx, newCleanupRR(cl, true), charts)).To(Succeed())
+		assertChildKeys(g, buf.String())
+	})
+
+	t.Run("not-owned resource skip is logged with child keys", func(t *testing.T) {
+		g := NewWithT(t)
+
+		cl, err := fakeclient.New(fakeclient.WithObjects(makeTestConfigMap("other-uid")))
+		g.Expect(err).NotTo(HaveOccurred())
+
+		lctx, buf := captureCtx()
+		g.Expect(cleanupExcludedCharts(lctx, newCleanupRR(cl, true), charts)).To(Succeed())
+		assertChildKeys(g, buf.String())
+	})
+
+	t.Run("get error is logged with child keys", func(t *testing.T) {
+		g := NewWithT(t)
+
+		cl, err := fakeclient.New(fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(_ context.Context, _ client.WithWatch, _ client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+				return errors.New("transient api error")
+			},
+		}))
+		g.Expect(err).NotTo(HaveOccurred())
+
+		lctx, buf := captureCtx()
+		g.Expect(cleanupExcludedCharts(lctx, newCleanupRR(cl, true), charts)).To(HaveOccurred())
+		out := buf.String()
+		assertChildKeys(g, out)
+		g.Expect(out).To(ContainSubstring(`"resourceKind"="ConfigMap"`), "expected structured resourceKind key, got: %s", out)
+	})
+
+	t.Run("delete error is logged with child keys", func(t *testing.T) {
+		g := NewWithT(t)
+
+		cl, err := fakeclient.New(
+			fakeclient.WithObjects(makeTestConfigMap(instanceUID)),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Delete: func(_ context.Context, _ client.WithWatch, _ client.Object, _ ...client.DeleteOption) error {
+					return errors.New("transient api error")
+				},
+			}),
+		)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		lctx, buf := captureCtx()
+		g.Expect(cleanupExcludedCharts(lctx, newCleanupRR(cl, true), charts)).To(HaveOccurred())
+		out := buf.String()
+		assertChildKeys(g, out)
+		g.Expect(out).To(ContainSubstring(`"resourceKind"="ConfigMap"`), "expected structured resourceKind key, got: %s", out)
+	})
 }
 
 func TestCleanupExcludedCharts(t *testing.T) {

@@ -2,12 +2,16 @@
 package cloudmanager
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/go-logr/logr"
+	"github.com/go-logr/logr/funcr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	odhTypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -208,11 +212,83 @@ func TestNewGCPredicate_NoProtectedObjects(t *testing.T) {
 	rr := newTestRR(nil)
 	pred := newGCPredicate(nil)
 
-	// Without protected objects, generation mismatch deletes.
 	obj := simpleObj(ccmAnns(string(testUID), "3"))
 	got, err := pred(rr, obj)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(got).To(BeTrue())
+}
+
+func TestGCLogFieldsUseChildKeys(t *testing.T) {
+	g := NewWithT(t)
+
+	const (
+		resName = "my-resource"
+		resNS   = "my-namespace"
+	)
+	someGVK := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}
+
+	var buf strings.Builder
+	ctrl.SetLogger(funcr.New(func(_, args string) {
+		buf.WriteString(args)
+		buf.WriteByte('\n')
+	}, funcr.Options{Verbosity: 3}))
+	t.Cleanup(func() { ctrl.SetLogger(logr.Discard()) })
+
+	cases := []struct {
+		name             string
+		run              func(rr *odhTypes.ReconciliationRequest)
+		wantResourceKind string
+	}{
+		{
+			name: "orphaned resource (UID mismatch)",
+			run: func(rr *odhTypes.ReconciliationRequest) {
+				_, _ = isStaleOrOrphaned(rr, newObj(someGVK, resName, resNS, ccmAnns("different-uid", "5")))
+			},
+		},
+		{
+			name: "stale resource (generation mismatch)",
+			run: func(rr *odhTypes.ReconciliationRequest) {
+				_, _ = isStaleOrOrphaned(rr, newObj(someGVK, resName, resNS, ccmAnns(string(testUID), "3")))
+			},
+		},
+		{
+			name: "malformed generation annotation",
+			run: func(rr *odhTypes.ReconciliationRequest) {
+				_, _ = isStaleOrOrphaned(rr, newObj(someGVK, resName, resNS, ccmAnns(string(testUID), "not-a-number")))
+			},
+			wantResourceKind: someGVK.Kind,
+		},
+		{
+			name: "protected resource is kept",
+			run: func(rr *odhTypes.ReconciliationRequest) {
+				pred := newGCPredicate(testProtectedObjects)
+				_, _ = pred(rr, newObj(
+					schema.GroupVersionKind{Group: "cert-manager.io", Version: "v1", Kind: "Certificate"},
+					"opendatahub-ca", "cert-manager",
+					ccmAnns(string(testUID), "3"),
+				))
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			buf.Reset()
+			tc.run(newTestRR(nil))
+			out := buf.String()
+
+			g.Expect(out).To(ContainSubstring(`"child"=`), "expected structured child key, got: %s", out)
+			g.Expect(out).To(ContainSubstring(`"childNamespace"=`), "expected structured childNamespace key, got: %s", out)
+			g.Expect(out).NotTo(ContainSubstring(`"namespace"=`), "old namespace key must not be emitted, got: %s", out)
+
+			if tc.wantResourceKind != "" {
+				g.Expect(out).To(ContainSubstring(`"resourceKind"="`+tc.wantResourceKind+`"`), "expected structured resourceKind key, got: %s", out)
+				g.Expect(out).To(ContainSubstring(`"name"=`), "expected parent name key on error log, got: %s", out)
+			} else {
+				g.Expect(out).NotTo(ContainSubstring(`"name"=`), "old name key must not be emitted, got: %s", out)
+			}
+		})
+	}
 }
 
 func TestNewGCAction(t *testing.T) {
