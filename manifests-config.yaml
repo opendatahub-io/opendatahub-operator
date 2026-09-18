@@ -1375,11 +1375,12 @@ imageOverrides:
     odh:
       base: "quay.io/opendatahub/odh-eval-hub-inspectai"
       digest: "sha256:190691af3590b28c84219ca2e239952e25c3e640f0b4594d1900a31d6b3df399"
-  RELATED_IMAGE_ODH_MOD_ARCH_DATA_REGISTRY_IMAGE:
-    source: "csv"
-    odh:
-      base: "quay.io/opendatahub/odh-mod-arch-data-registry"
-      digest: "sha256:da5028df21265242b4c283cffe9dfa0046acd6d2b4a112d04aa0ae429b92f12e"
-    rhoai:
-      base: "quay.io/rhoai/odh-mod-arch-data-registry-rhel9"
-      digest: "sha256:2b2f95ab0649457fd60c7fef6a134f7420ea81a89d76dd1dc0c0992441762450"
+# Disabled for EA2; re-enable for the next release.
+#  RELATED_IMAGE_ODH_MOD_ARCH_DATA_REGISTRY_IMAGE:
+#    source: "csv"
+#    odh:
+#      base: "quay.io/opendatahub/odh-mod-arch-data-registry"
+#      digest: "sha256:da5028df21265242b4c283cffe9dfa0046acd6d2b4a112d04aa0ae429b92f12e"
+#    rhoai:
+#      base: "quay.io/rhoai/odh-mod-arch-data-registry-rhel9"
+#      digest: "sha256:2b2f95ab0649457fd60c7fef6a134f7420ea81a89dd76dd1dc0c0992441762450"
