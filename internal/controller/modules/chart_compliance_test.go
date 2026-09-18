@@ -60,14 +60,25 @@ func TestModuleChartCompliance(t *testing.T) {
 		t.Fatalf("failed to resolve charts root %s: %v", chartsRoot, err)
 	}
 
+	// In CI, charts MUST be present so manifests are always exercised — a missing
+	// or empty charts tree is a hard failure. Locally (CI unset) fall back to
+	// skipping so `make unit-test` works without `make get-manifests` first.
+	// GitHub Actions sets CI=true; this matches the convention used elsewhere
+	// in the repo (see cmd/main.go, pkg/cluster/cluster_config.go).
+	missingCharts := t.Skipf
+	if os.Getenv("CI") == "true" {
+		missingCharts = t.Fatalf
+	}
+
 	// opt/charts is committed with a .gitkeep, so the directory always exists even
 	// when charts have not been downloaded. Detect "not downloaded" by the absence
 	// of any chart subdirectory rather than the absence of the root itself, so the
-	// skip below only covers a genuinely empty tree — a populated-but-partial tree
+	// branch below only covers a genuinely empty tree — a populated-but-partial tree
 	// falls through and a missing individual chart is treated as a failure.
 	entries, err := os.ReadDir(absChartsRoot)
 	if os.IsNotExist(err) {
-		t.Skipf("charts root %s not found (run make get-manifests first)", absChartsRoot)
+		missingCharts("charts root %s not found (run make get-manifests first)", absChartsRoot)
+		return
 	}
 	if err != nil {
 		t.Fatalf("failed to read charts root %s: %v", absChartsRoot, err)
@@ -81,7 +92,8 @@ func TestModuleChartCompliance(t *testing.T) {
 		}
 	}
 	if !hasChartDir {
-		t.Skipf("charts root %s is empty (run make get-manifests first)", absChartsRoot)
+		missingCharts("charts root %s is empty (run make get-manifests first)", absChartsRoot)
+		return
 	}
 
 	handlers := moduleHandlers()
@@ -145,7 +157,11 @@ func TestModuleChartCompliance(t *testing.T) {
 		}
 	}
 
+	// The charts tree is present (guarded above) and any missing individual chart
+	// already failed, so reaching here with nothing tested means no registered
+	// handler declared a Helm chart — a module registration/wiring defect, not a
+	// missing-download situation. Always fail.
 	if testedCount == 0 {
-		t.Skip("no module charts available to test (run make get-manifests first)")
+		t.Fatal("no module handlers have Helm charts to test (possible module registration issue)")
 	}
 }
