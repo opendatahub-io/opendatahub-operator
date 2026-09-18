@@ -5,12 +5,14 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/opendatahub-io/opendatahub-operator/pkg/scoperules"
+	modulebuiltin "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/builtin"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 )
 
@@ -36,6 +38,10 @@ func repoRoot(t *testing.T) string {
 	}
 }
 
+func hasBuiltinModule(name string) bool {
+	return slices.Contains(modulebuiltin.Names(), name)
+}
+
 func TestAllComponentsHaveExplicitRunlevel(t *testing.T) {
 	t.Parallel()
 
@@ -48,9 +54,12 @@ func TestAllComponentsHaveExplicitRunlevel(t *testing.T) {
 func TestAllModulesHaveExplicitRunlevel(t *testing.T) {
 	t.Parallel()
 
-	for name := range existingModules {
-		_, ok := moduleRunlevels[name]
-		assert.True(t, ok, "module %q is registered but has no entry in moduleRunlevels — add an explicit runlevel assignment", name)
+	for _, registration := range modulebuiltin.Registrations() {
+		name := registration.Handler.GetName()
+		assert.NotEqual(t, dag.RL(99), registration.Runlevel,
+			"module %q uses Runlevel99 — assign an explicit runlevel", name)
+		ok := hasBuiltinModule(name)
+		assert.True(t, ok, "module registration %q has no matching handler", name)
 	}
 }
 
@@ -63,30 +72,12 @@ func TestComponentRunlevelsOnlyReferenceRegisteredComponents(t *testing.T) {
 	}
 }
 
-func TestModuleRunlevelsOnlyReferenceRegisteredModules(t *testing.T) {
-	t.Parallel()
-
-	for name := range moduleRunlevels {
-		_, ok := existingModules[name]
-		assert.True(t, ok, "moduleRunlevels has entry %q but no matching handler in existingModules — stale entry?", name)
-	}
-}
-
 func TestNoComponentUsesRunlevelDefault(t *testing.T) {
 	t.Parallel()
 
 	for name, rl := range componentRunlevels {
 		assert.NotEqual(t, dag.RL(99), rl,
 			"component %q uses Runlevel99 — assign an explicit runlevel", name)
-	}
-}
-
-func TestNoModuleUsesRunlevelDefault(t *testing.T) {
-	t.Parallel()
-
-	for name, rl := range moduleRunlevels {
-		assert.NotEqual(t, dag.RL(99), rl,
-			"module %q uses Runlevel99 — assign an explicit runlevel", name)
 	}
 }
 
@@ -106,7 +97,7 @@ func loadE2EScopeRules(t *testing.T) *scoperules.Rules {
 // component/module registry. Every registered name needs an entry, even
 // an empty one, so the resolver never meets a name it can't classify.
 // Component-modules live under components.<name>; a modularized service
-// (handler in existingModules, e2e coverage in the Services TestGroup)
+// (handler in builtin registrations, e2e coverage in the Services TestGroup)
 // may live under services.<name> instead.
 func TestAllComponentsAndModulesHaveScopeRulesEntry(t *testing.T) {
 	t.Parallel()
@@ -117,7 +108,7 @@ func TestAllComponentsAndModulesHaveScopeRulesEntry(t *testing.T) {
 		_, ok := rules.Components[name]
 		assert.True(t, ok, "component %q is registered but has no components.%s entry in %s", name, name, e2eScopeRulesPath)
 	}
-	for name := range existingModules {
+	for _, name := range modulebuiltin.Names() {
 		_, inComponents := rules.Components[name]
 		_, inServices := rules.Services[name]
 		assert.True(t, inComponents || inServices,
@@ -152,7 +143,7 @@ func depsTargetsOfRegisteredEntries(components map[string]scoperules.Entry) map[
 	registered := map[string]scoperules.Entry{}
 	for name, entry := range components {
 		_, isComponent := existingComponents[name]
-		_, isModule := existingModules[name]
+		isModule := hasBuiltinModule(name)
 		if isComponent || isModule {
 			registered[name] = entry
 		}
@@ -174,9 +165,9 @@ func TestScopeRulesComponentsReferenceRegisteredHandlers(t *testing.T) {
 
 	for name := range rules.Components {
 		_, isComponent := existingComponents[name]
-		_, isModule := existingModules[name]
+		isModule := hasBuiltinModule(name)
 		assert.True(t, isComponent || isModule || vouchedFor[name],
-			"%s has components.%s but no matching handler in existingComponents or existingModules, "+
+			"%s has components.%s but no matching handler in existingComponents or built-in modules, "+
 				"and it isn't a dependency of any entry that does — stale entry?", e2eScopeRulesPath, name)
 	}
 }
@@ -184,7 +175,7 @@ func TestScopeRulesComponentsReferenceRegisteredHandlers(t *testing.T) {
 // TestScopeRulesServicesReferenceRegisteredHandlers is the reverse of
 // TestAllServicesHaveScopeRulesEntry: it catches a stale services.<name>
 // entry left behind after a service is deregistered. Modularized services
-// (registered in existingModules rather than existingServices) are also
+// (registered in built-in modules rather than existingServices) are also
 // valid here.
 func TestScopeRulesServicesReferenceRegisteredHandlers(t *testing.T) {
 	t.Parallel()
@@ -193,9 +184,9 @@ func TestScopeRulesServicesReferenceRegisteredHandlers(t *testing.T) {
 
 	for name := range rules.Services {
 		_, isService := existingServices[name]
-		_, isModule := existingModules[name]
+		isModule := hasBuiltinModule(name)
 		assert.True(t, isService || isModule,
-			"%s has services.%s but no matching handler in existingServices or existingModules — stale entry?",
+			"%s has services.%s but no matching handler in existingServices or built-in modules — stale entry?",
 			e2eScopeRulesPath, name)
 	}
 }
@@ -219,7 +210,7 @@ func TestScopeRulesPatternsCaptureRegisteredNames(t *testing.T) {
 	for name := range existingComponents {
 		assertNameIsCapturable(t, root, patterns.Components, "internal/controller/components", name, rules.Components[name].Aliases)
 	}
-	for name := range existingModules {
+	for _, name := range modulebuiltin.Names() {
 		aliases := rules.Components[name].Aliases
 		if len(aliases) == 0 {
 			aliases = rules.Services[name].Aliases
