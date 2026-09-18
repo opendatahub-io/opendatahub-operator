@@ -54,16 +54,16 @@ func FilterGateSkippedTestsFile(path string) error {
 		tmp.Close()
 		return fmt.Errorf("write temp junit file: %w", err)
 	}
-	
+
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("close temp file: %w", err)
 	}
 
 	if err := os.Rename(tmp.Name(), path); err != nil {
-        return fmt.Errorf("rename temp file: %w", err)
-    }
+		return fmt.Errorf("rename temp file: %w", err)
+	}
 
-    return nil
+	return nil
 }
 
 // FilterGateSkippedTests removes testcases skipped only by tag-gate mismatch.

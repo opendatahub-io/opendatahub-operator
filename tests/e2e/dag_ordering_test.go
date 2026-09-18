@@ -98,29 +98,12 @@ var dagBatches = []componentBatch{
 	},
 }
 
-// dscComponentFieldsWithBrokenVersionHandshake lists modules excluded
-// from DAG tests because they don't watch their platform config
-// ConfigMap or don't report the platform release, causing the DAG
-// version handshake to stall. Re-enable once fixed:
-//   - aigateway:            RHOAIENG-81918
-//   - dashboard:            RHOAIENG-81919
-//   - mcplifecycleoperator: RHOAIENG-81920
-//   - trainer
-//   - workbenches:          RHOAIENG-81892
-var dscComponentFieldsWithBrokenVersionHandshake = []string{
-	"aigateway",
-	"dashboard",
-	"mcplifecycleoperator",
-	"trainer",
-	"workbenches",
-}
-
 // dscComponentFields lists the components enabled during DAG tests.
 // Kueue is excluded: a validating webhook rejects managementState=Managed.
 var dscComponentFields = []string{
-	// "aigateway",
-	// "dashboard",
-	// "workbenches",
+	"aigateway",
+	"dashboard",
+	"workbenches",
 	"aipipelines",
 	"kserve",
 	"ray",
@@ -128,9 +111,9 @@ var dscComponentFields = []string{
 	"trustyai",
 	"feastoperator",
 	"ogx",
-	// "mcplifecycleoperator",
+	"mcplifecycleoperator",
 	"mlflowoperator",
-	// "trainer",
+	"trainer",
 	"sparkoperator",
 }
 
@@ -892,10 +875,7 @@ func allComponentsManagedTransform() func(*unstructured.Unstructured) error {
 }
 
 func allComponentsRemovedTransform() func(*unstructured.Unstructured) error {
-	all := make([]string, 0, len(dscComponentFieldsWithBrokenVersionHandshake)+len(dscComponentFields))
-	all = append(all, dscComponentFieldsWithBrokenVersionHandshake...)
-	all = append(all, dscComponentFields...)
-	return selectComponentsTransform("Removed", all)
+	return selectComponentsTransform("Removed", dscComponentFields)
 }
 
 func selectComponentsTransform(state string, fields []string) func(*unstructured.Unstructured) error {
@@ -979,7 +959,7 @@ func (tc *DAGOrderingTestCtx) setAllRemoved(t *testing.T) {
 // ensureAllRemovedComponentsGone verifies that every componentEntry actually
 // driven to Removed has its CR deleted. Monitoring is removed via the DSCI
 // (setDSCIMonitoringState), not the DSC spec.components fields below, so it
-// is checked explicitly by name. Components absent from both DSC field lists
+// is checked explicitly by name. Components absent from the DSC field list
 // (e.g. Kueue, whose webhook blocks managementState=Managed) are never set
 // to Removed and are skipped rather than asserted gone.
 func (tc *DAGOrderingTestCtx) ensureAllRemovedComponentsGone(t *testing.T) {
@@ -993,7 +973,6 @@ func (tc *DAGOrderingTestCtx) ensureAllRemovedComponentsGone(t *testing.T) {
 			}
 
 			removed := name == serviceApi.MonitoringServiceName ||
-				slices.Contains(dscComponentFieldsWithBrokenVersionHandshake, name) ||
 				slices.Contains(dscComponentFields, name)
 			if !removed {
 				t.Logf("Skipping gone-check for %s: not meant to be Removed", comp.name)
