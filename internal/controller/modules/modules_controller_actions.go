@@ -3,7 +3,6 @@ package modules
 import (
 	"context"
 	"fmt"
-	"maps"
 	"reflect"
 	"strconv"
 	"strings"
@@ -275,7 +274,7 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 				platformCtx.ApplicationsNamespace,
 				platformCtx.MonitoringNamespace,
 				platformCtx.Release.Name,
-				moduleImagesFor(handler, operatorManifests, platformCtx),
+				moduleImagesFor(handler, operatorManifests),
 			)
 			if len(operatorManifests.HelmCharts) > 0 {
 				rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
@@ -433,7 +432,7 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 					platformCtx.ApplicationsNamespace,
 					platformCtx.MonitoringNamespace,
 					platformCtx.Release.Name,
-					moduleImagesFor(handler, operatorManifests, platformCtx),
+					moduleImagesFor(handler, operatorManifests),
 				)
 				if len(operatorManifests.HelmCharts) > 0 {
 					rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
@@ -495,33 +494,14 @@ func extraEnvFor(h ModuleHandler) map[string]string {
 	return nil
 }
 
-func platformEnvFor(h ModuleHandler, platform *PlatformContext) map[string]string {
-	fixedEnv := extraEnvFor(h)
-	var env map[string]string
-	if len(fixedEnv) > 0 {
-		env = make(map[string]string, len(fixedEnv))
-		maps.Copy(env, fixedEnv)
-	}
-	if pep, ok := h.(PlatformEnvProvider); ok {
-		platformEnv := pep.GetPlatformEnv(platform)
-		if len(platformEnv) > 0 {
-			if env == nil {
-				env = make(map[string]string, len(platformEnv))
-			}
-			maps.Copy(env, platformEnv)
-		}
-	}
-	return env
-}
-
-func moduleImagesFor(h ModuleHandler, manifests OperatorManifests, platform *PlatformContext) odhtype.ModuleImages {
+func moduleImagesFor(h ModuleHandler, manifests OperatorManifests) odhtype.ModuleImages {
 	return odhtype.ModuleImages{
 		DeploymentName:    deploymentNameFor(h, manifests),
 		ContainerName:     containerNameFor(h),
 		ControllerImage:   controllerImageFor(h),
 		InitContainerName: initContainerNameFor(h),
 		Images:            h.GetRelatedImages(),
-		ExtraEnv:          platformEnvFor(h, platform),
+		ExtraEnv:          extraEnvFor(h),
 	}
 }
 

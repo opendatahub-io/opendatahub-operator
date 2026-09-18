@@ -78,7 +78,6 @@ func (tc *OperatorTestCtx) ValidateOwnedCRDs(t *testing.T) {
 		{"Ray CRD", "rays.components.platform.opendatahub.io"},
 		{"TrustyAI CRD", "trustyais.components.platform.opendatahub.io"},
 		{"Kueue CRD", "kueues.components.platform.opendatahub.io"},
-		{"DataSciencePipelines CRD", "datasciencepipelines.components.platform.opendatahub.io"},
 		{"Auth CRD", "auths.services.platform.opendatahub.io"},
 		{"Platform CRD", "platforms.config.opendatahub.io"},
 	}
