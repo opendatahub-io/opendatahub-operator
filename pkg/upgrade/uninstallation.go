@@ -27,7 +27,9 @@ const (
 )
 
 // OperatorUninstall deletes all the externally generated resources.
-// This includes DSCI, namespace created by operator (but not workbench or MR's), subscription and CSV.
+// This includes DSCI, namespace created by operator (but not workbench or MR's), and OLM install
+// artifacts. Both OLMv0 (Subscription, CSV) and OLMv1 (ClusterExtension) cleanup are attempted;
+// each path no-ops when its CRDs or resources are absent (xKS, or single-OLM-version clusters).
 func OperatorUninstall(ctx context.Context, cli client.Client, platform common.Platform) error {
 	log := logf.FromContext(ctx)
 
@@ -76,10 +78,7 @@ func OperatorUninstall(ctx context.Context, cli client.Client, platform common.P
 	}
 
 	log.Info("Removing operator subscription which in turn will remove installplan")
-	subsName := "opendatahub-operator"
-	if platform == cluster.SelfManagedRhoai {
-		subsName = "rhods-operator"
-	}
+	subsName := cluster.OperatorOLMPackageName(platform)
 	if platform != cluster.ManagedRhoai {
 		if err := cluster.DeleteExistingSubscription(ctx, cli, operatorNs, subsName); err != nil {
 			return err
@@ -87,10 +86,19 @@ func OperatorUninstall(ctx context.Context, cli client.Client, platform common.P
 	}
 
 	log.Info("Removing the operator CSV in turn remove operator deployment")
-	err = removeCSV(ctx, cli)
+	if err := removeCSV(ctx, cli); err != nil {
+		return err
+	}
+
+	if platform != cluster.ManagedRhoai {
+		log.Info("Removing the operator ClusterExtension")
+		if err := removeClusterExtension(ctx, cli, platform); err != nil {
+			return err
+		}
+	}
 
 	log.Info("All resources deleted as part of uninstall.")
-	return err
+	return nil
 }
 
 func removeDSCI(ctx context.Context, cli client.Client) error {
@@ -199,5 +207,15 @@ func removeCSV(ctx context.Context, c client.Client) error {
 	}
 	log.Info("Clusterserviceversion deleted as a part of uninstall", "name", operatorCsv.Name)
 
+	return nil
+}
+
+func removeClusterExtension(ctx context.Context, cli client.Client, platform common.Platform) error {
+	log := logf.FromContext(ctx)
+	packageName := cluster.OperatorOLMPackageName(platform)
+	if err := cluster.DeleteClusterExtension(ctx, cli, packageName); err != nil {
+		return err
+	}
+	log.Info("ClusterExtension removed as part of uninstall", "package", packageName)
 	return nil
 }
