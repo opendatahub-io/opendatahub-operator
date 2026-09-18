@@ -44,6 +44,14 @@ const (
 	IngressModeLoadBalancer IngressMode = "LoadBalancer"
 )
 
+const (
+	AdditionalIngressListenerReadyConditionType       = "ListenerReady"
+	AdditionalIngressRouteAdmittedConditionType       = "RouteAdmitted"
+	AdditionalIngressAuthenticationReadyConditionType = "AuthenticationReady"
+	AdditionalIngressReadyConditionType               = "Ready"
+	AdditionalIngressReconciliationPendingReason      = "ReconciliationPending"
+)
+
 // Check that the component implements common.PlatformObject.
 var _ common.PlatformObject = (*GatewayConfig)(nil)
 
@@ -128,6 +136,46 @@ type GatewayConfigSpec struct {
 	// These settings only take effect when EnableK8sTokenValidation is true.
 	// +optional
 	TokenReview *TokenReviewConfig `json:"tokenReview,omitempty"`
+
+	// AdditionalIngresses defines additional listeners on the managed Gateway.
+	// Authentication and scaling fields are defined by the per-ingress auth contract.
+	// +optional
+	// +listType=map
+	// +listMapKey=name
+	AdditionalIngresses []AdditionalIngress `json:"additionalIngresses,omitempty"`
+}
+
+// AdditionalIngress defines topology for an additional Gateway listener.
+// +kubebuilder:object:generate=true
+type AdditionalIngress struct {
+	// Name is the stable identity of this ingress and the Gateway listener name.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	Name string `json:"name"`
+
+	// Hostname is the externally visible hostname for this ingress.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=253
+	Hostname string `json:"hostname"`
+
+	// ListenerPort is the stable internal port used by this Gateway listener.
+	// It is immutable after the ingress is created.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	ListenerPort int32 `json:"listenerPort"`
+
+	// IngressControllerName identifies the OpenShift IngressController that admits the bridge Route.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=63
+	IngressControllerName string `json:"ingressControllerName"`
+
+	// RouteLabels are applied to the bridge Route and matched against the target
+	// IngressController route selector.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinProperties=1
+	RouteLabels map[string]string `json:"routeLabels"`
 }
 
 // NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
@@ -220,6 +268,30 @@ type GatewayConfigStatus struct {
 	// Domain is the computed gateway domain (subdomain + cluster domain or default)
 	// This is the single source of truth for the gateway domain used by all components
 	Domain string `json:"domain,omitempty"`
+
+	// AdditionalIngresses contains configured additional ingresses, including entries that are not ready.
+	// +optional
+	// +listType=map
+	// +listMapKey=name
+	AdditionalIngresses []AdditionalIngressStatus `json:"additionalIngresses,omitempty"`
+}
+
+// AdditionalIngressStatus reports readiness for one additional ingress.
+// +kubebuilder:object:generate=true
+type AdditionalIngressStatus struct {
+	// Name is the stable identity of the configured ingress.
+	Name string `json:"name"`
+
+	// Hostname is the configured externally visible hostname.
+	Hostname string `json:"hostname"`
+
+	// Conditions report independent listener, Route, authentication, and aggregate readiness.
+	// +optional
+	// +patchStrategy=merge
+	// +patchMergeKey=type
+	// +listType=map
+	// +listMapKey=type
+	Conditions []common.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // +kubebuilder:object:root=true
