@@ -116,6 +116,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	operatortls "github.com/opendatahub-io/opendatahub-operator/v2/pkg/tls"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
@@ -769,14 +770,6 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 		})
 	} else {
 		hasAPI = true
-		tlsConfigFn, unsupportedCiphers := tlspkg.NewTLSConfigFromProfile(profile)
-		if len(unsupportedCiphers) > 0 {
-			setupLog.Info("some ciphers from TLS profile are not supported by Go", "unsupported", unsupportedCiphers)
-		}
-		tlsOpts = append(tlsOpts, tlsConfigFn, func(c *tls.Config) {
-			c.NextProtos = nextProtos
-		})
-
 		adherence, err = tlspkg.FetchAPIServerTLSAdherencePolicy(ctx, bootstrapClient)
 		if err != nil {
 			switch {
@@ -796,6 +789,22 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 				os.Exit(1)
 			}
 		}
+
+		if operatortls.ShouldHonorClusterTLSProfile(adherence) {
+			tlsConfigFn, unsupportedCiphers := tlspkg.NewTLSConfigFromProfile(profile)
+			if len(unsupportedCiphers) > 0 {
+				setupLog.Info("some ciphers from TLS profile are not supported by Go", "unsupported", unsupportedCiphers)
+			}
+			tlsOpts = append(tlsOpts, tlsConfigFn)
+		} else {
+			tlsOpts = append(tlsOpts, func(c *tls.Config) {
+				c.MinVersion = tls.VersionTLS12
+				c.CipherSuites = intermediateCiphers
+			})
+		}
+		tlsOpts = append(tlsOpts, func(c *tls.Config) {
+			c.NextProtos = nextProtos
+		})
 	}
 
 	return tlsOpts, profile, adherence, hasAPI

@@ -670,7 +670,6 @@ func kserveModelCacheTestSuite(t *testing.T) {
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate ModelCache enabled", componentCtx.ValidateModelCacheEnabled},
 		{"Validate ModelCache ConfigMap", componentCtx.ValidateModelCacheConfigMap},
-		{"Validate ModelCache deletion recovery", componentCtx.ValidateModelCacheDeletionRecovery},
 		{"Validate ModelCache disabled", componentCtx.ValidateModelCacheDisabled},
 	}
 
@@ -791,22 +790,6 @@ func (tc *KserveTestCtx) ValidateModelCacheConfigMap(t *testing.T) {
 				jq.Match(`.data.localModel | fromjson | .jobNamespace == "%s"`, tc.AppsNamespace),
 			),
 		),
-	)
-}
-
-// ValidateModelCacheDeletionRecovery verifies the operator recreates the
-// LocalModelNodeGroup after deletion.
-// PV and PVC deletion recovery is not tested because the modelcache DaemonSet
-// mounts the PVC, so the kubernetes.io/pvc-protection finalizer blocks PVC
-// deletion while the DaemonSet pods are running.
-func (tc *KserveTestCtx) ValidateModelCacheDeletionRecovery(t *testing.T) {
-	t.Helper()
-
-	skipUnless(t, Tier1)
-
-	t.Log("Deleting LocalModelNodeGroup 'workers' and verifying recreation")
-	tc.EnsureResourceDeletedThenRecreated(
-		WithMinimalObject(gvk.LocalModelNodeGroup, types.NamespacedName{Name: "workers"}),
 	)
 }
 

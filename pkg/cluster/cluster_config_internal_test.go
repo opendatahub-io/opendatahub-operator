@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -497,5 +498,91 @@ func TestGetOCPVersion(t *testing.T) {
 				t.Errorf("Version = %q, want %q", result.String(), tc.expectVer)
 			}
 		})
+	}
+}
+
+func TestDetectSelfManaged(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		objects []client.Object
+		want    common.Platform
+	}{
+		{
+			name: "SelfManagedRhoai via OperatorCondition",
+			objects: []client.Object{
+				newOperatorConditionForDetect("rhods-operator.v2.0.0"),
+			},
+			want: SelfManagedRhoai,
+		},
+		{
+			name: "SelfManagedRhoai via ClusterExtension",
+			objects: []client.Object{
+				newInstalledClusterExtensionForDetect("rhoai-ext", "rhods-operator", "2.0.0"),
+			},
+			want: SelfManagedRhoai,
+		},
+		{
+			name: "OpenDataHub when rhods-operator is absent",
+			want: OpenDataHub,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cli := fake.NewClientBuilder().
+				WithScheme(runtime.NewScheme()).
+				WithObjects(tc.objects...).
+				Build()
+
+			platform, err := detectSelfManaged(t.Context(), cli)
+			if err != nil {
+				t.Fatalf("detectSelfManaged() error: %v", err)
+			}
+			if platform != tc.want {
+				t.Errorf("detectSelfManaged() = %q, want %q", platform, tc.want)
+			}
+		})
+	}
+}
+
+func newOperatorConditionForDetect(name string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "operators.coreos.com/v2",
+			"kind":       "OperatorCondition",
+			"metadata":   map[string]any{"name": name},
+		},
+	}
+}
+
+func newInstalledClusterExtensionForDetect(name, packageName, version string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "olm.operatorframework.io/v1",
+			"kind":       "ClusterExtension",
+			"metadata":   map[string]any{"name": name},
+			"spec": map[string]any{
+				"source": map[string]any{
+					"sourceType": "Catalog",
+					"catalog":    map[string]any{"packageName": packageName},
+				},
+			},
+			"status": map[string]any{
+				"conditions": []any{
+					map[string]any{
+						"type":   "Installed",
+						"status": "True",
+						"reason": "Succeeded",
+					},
+				},
+				"install": map[string]any{
+					"bundle": map[string]any{"version": version},
+				},
+			},
+		},
 	}
 }
