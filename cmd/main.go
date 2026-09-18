@@ -24,7 +24,6 @@ import (
 	"maps"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 
 	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
@@ -424,13 +423,12 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 	// ReaderFailOnMissingInformer makes cache reads of un-scoped resources fail
 	// fast with ErrResourceNotCached instead of silently starting a new unfiltered
-	// informer. Gate it on CACHE_FAIL_ON_MISSING_INFORMER (default false): enable it
-	// in dev/CI (e.g. `make run`) to enforce the cache scope for exercised read paths,
-	// but keep it off in production, where a genuinely untested read path degrades to
-	// an extra informer (works, just a memory/watch cost) rather than a blocking error.
-	// See discussion on PR #3965.
-	failOnMissingInformer, _ := strconv.ParseBool(os.Getenv("CACHE_FAIL_ON_MISSING_INFORMER"))
-	cacheOptions := newCacheOptions(scheme, oDHCache, secretCache, failOnMissingInformer)
+	// informer. Gated on the cache-fail-on-missing-informer flag / CACHE_FAIL_ON_MISSING_INFORMER
+	// env var (default false): enable it in dev/CI (e.g. `make run`) to enforce the
+	// cache scope for exercised read paths, but keep it off in production, where a
+	// genuinely untested read path degrades to an extra informer (works, just a
+	// memory/watch cost) rather than a blocking error. See discussion on PR #3965.
+	cacheOptions := newCacheOptions(scheme, oDHCache, secretCache, oconfig.CacheFailOnMissingInformer)
 
 	// OpenShift-specific cache filters: only register when running on OpenShift
 	if cluster.GetClusterInfo().Type == cluster.ClusterTypeOpenShift {
