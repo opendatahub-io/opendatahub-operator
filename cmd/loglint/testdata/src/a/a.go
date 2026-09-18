@@ -8,6 +8,8 @@ func (l *Logger) Error(err error, msg string, keysAndValues ...interface{}) {}
 
 const nsMsg = "failed in namespace foo"
 
+const nameKey = "Request.Name"
+
 func Test() {
 	log := &Logger{}
 	var err error
@@ -33,4 +35,16 @@ func Test() {
 	log.Error(err, "failed", "name", "foo", "namespace", "bar") // want `missing required structured field "resourceKind"`
 
 	log.Error(err, "failed", "name", "foo") //nolint:odhlog
+
+	log.Error(err, "failed", nameKey, "foo") // want `non-standard structured log key "Request.Name"; use "name"`
+
+	log.Error(
+		err,
+		"failed in namespace foo", //nolint:odhlog
+	)
+
+	log.Error( //nolint:odhlog
+		err,
+		"failed in namespace foo", // want `message embeds resource name or namespace`
+	)
 }

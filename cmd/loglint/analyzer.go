@@ -6,7 +6,6 @@ import (
 	"go/token"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
@@ -59,32 +58,40 @@ func run(pass *analysis.Pass) (any, error) {
 		if isTestFile(pass, call.Pos()) {
 			return
 		}
-		if hasNolint(pass, call.Pos()) {
-			return
+
+		// report suppresses a diagnostic when a nolint:odhlog directive sits on
+		// the diagnostic's own line, so a directive beside a message in a
+		// multiline Error call is honored rather than only one on the call's
+		// opening line.
+		report := func(pos token.Pos, format string, args ...any) {
+			if hasNolint(pass, pos) {
+				return
+			}
+			pass.Reportf(pos, format, args...)
 		}
 
 		if msg, ok := messageMarker(pass, call.Args[1]); ok && embeddedIdentity.MatchString(msg) {
-			pass.Reportf(call.Args[1].Pos(), "odhlog: message embeds resource name or namespace; use structured keys \"name\" and \"namespace\"")
+			report(call.Args[1].Pos(), "odhlog: message embeds resource name or namespace; use structured keys \"name\" and \"namespace\"")
 		}
 
-		keys := kvKeys(call.Args[2:])
+		keys := kvKeys(pass, call.Args[2:])
 		for _, key := range keys {
 			if want, bad := forbiddenKeys[key]; bad {
-				pass.Reportf(call.Pos(), "odhlog: non-standard structured log key %q; use %q", key, want)
+				report(call.Pos(), "odhlog: non-standard structured log key %q; use %q", key, want)
 			}
 		}
 		if slices.Contains(keys, "name") && !slices.Contains(keys, "resourceKind") {
-			pass.Reportf(call.Pos(), "odhlog: missing required structured field \"resourceKind\"")
+			report(call.Pos(), "odhlog: missing required structured field \"resourceKind\"")
 		}
 	})
 
 	return nil, nil
 }
 
-func kvKeys(args []ast.Expr) []string {
+func kvKeys(pass *analysis.Pass, args []ast.Expr) []string {
 	var keys []string
 	for i := 0; i < len(args); i += 2 {
-		if s, ok := stringLit(args[i]); ok {
+		if s, ok := constString(pass, args[i]); ok {
 			keys = append(keys, s)
 		}
 	}
@@ -130,18 +137,6 @@ func constString(pass *analysis.Pass, e ast.Expr) (string, bool) {
 		return "", false
 	}
 	return constant.StringVal(tv.Value), true
-}
-
-func stringLit(e ast.Expr) (string, bool) {
-	lit, ok := e.(*ast.BasicLit)
-	if !ok || lit.Kind != token.STRING {
-		return "", false
-	}
-	s, err := strconv.Unquote(lit.Value)
-	if err != nil {
-		return "", false
-	}
-	return s, true
 }
 
 func isTestFile(pass *analysis.Pass, pos token.Pos) bool {
