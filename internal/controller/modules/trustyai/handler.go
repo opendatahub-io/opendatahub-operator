@@ -108,6 +108,7 @@ func (h *handler) BuildModuleCR(
 	u := &unstructured.Unstructured{
 		Object: map[string]any{
 			"spec": map[string]any{
+				"mcpGuardrailsMode": dscCtx.DSC.Spec.Components.TrustyAI.MCPGuardrailsMode,
 				"eval": map[string]any{
 					"lmeval": map[string]any{
 						"permitCodeExecution": lmeval.PermitCodeExecution == permitAllow,
