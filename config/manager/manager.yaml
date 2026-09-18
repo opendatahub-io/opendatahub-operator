@@ -115,7 +115,7 @@ spec:
             - name: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
               value: quay.io/opendatahub/vllm-orchestrator-gateway@sha256:10789a3f024d520078e4d813d06fa1d0297d4cd4af87a2d271c44c132d8e39f2
             - name: RELATED_IMAGE_ODH_TRUSTYAI_MODULE_OPERATOR_IMAGE
-              value: quay.io/opendatahub/odh-trustyai-module-operator@sha256:6063b3814f0b9fd61e5c9ea81835bdcd82ed37212cb7ad80afd858f2b7b6adaa
+              value: quay.io/opendatahub/odh-trustyai-module-operator@sha256:b3cef1149bdda811ddf8ff57b4a297ecdb9de906899093612811ecc3981a6122
             - name: RELATED_IMAGE_ODH_AUTHBRIDGE_PROXY_IMAGE
               value: quay.io/opendatahub/odh-authbridge-proxy@sha256:315486763a88668daab872fe5ec3d0f228ab21cc310190622d6ece0043927d28
             - name: RELATED_IMAGE_ODH_TRUSTYAI_RAGAS_LLS_PROVIDER_DSP_IMAGE
@@ -345,7 +345,7 @@ spec:
             - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE
               value: quay.io/opendatahub/odh-trustyai-service@sha256:a94d0399afc50639dc12ed56792ad1cc462c3987a319f0bf315504a80e8a914a
             - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE
-              value: quay.io/trustyai/trustyai-service-operator@sha256:2b4adaa22f2e85356f7044fc1546d04a12160ca843ac5e19b0cf99dee5c37b9c
+              value: quay.io/opendatahub/trustyai-service-operator@sha256:653ac53dfad3cd38c89f33006b1fdd208b11c14a68a794cf6945d03330d80141
             - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
               value: quay.io/opendatahub/odh-core-bff@sha256:f3b89bf0976843afc843ee4e92a2eea67072a35ddcc2c80783c107000f926ab9
             - name: RELATED_IMAGE_ODH_LLM_D_ROUTER_ENDPOINT_PICKER_IMAGE
