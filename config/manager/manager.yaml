@@ -184,6 +184,8 @@ spec:
               value: quay.io/opendatahub/odh-pipeline-runtime-tensorflow-rocm-py312-ubi9@sha256:9c4a07d96e29808f2ce0f81364278ec8925f9affa3e0c334cb90025abe541a14
             - name: RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE
               value: quay.io/opendatahub/odh-workbench-codeserver-datascience-cpu-py312-ubi9@sha256:b477db79794d8048a7057df4a5ee4b1df59bf638e81b28d993e704c696ac846d
+            - name: RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_BASELINE_CPU_PY312_IMAGE
+              value: quay.io/opendatahub/odh-workbench-codeserver-baseline-cpu-py312-c9s@sha256:e97f74864e25621a3bf78d6bd3224a35a176d67266d0119be17a261e69b22116
             - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
               value: quay.io/opendatahub/mlflow-operator@sha256:3c0794857be5f12b09be0482caeeadd01c0f560176524351d08675030c5d8769
             - name: RELATED_IMAGE_ODH_ML_PIPELINES_DRIVER_IMAGE
@@ -220,8 +222,8 @@ spec:
               value: quay.io/opendatahub/odh-observability@sha256:9d6ff20e6323e634d8c0ed5d1da4c8b2a8b82d2dd248f2bdba0d59c86abb2cd6
             - name: RELATED_IMAGE_ODH_MOD_ARCH_NOTEBOOKS_IMAGE
               value: quay.io/opendatahub/odh-mod-arch-notebooks@sha256:d16650de3a49009a5940fafe3b0aff05222d206c09ca5c919212f9c6ac2db7cc
-            - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_BASELINE_CPU_PY312_C9S_IMAGE
-              value: quay.io/opendatahub/odh-pipeline-runtime-baseline-cpu-py312-c9s@sha256:63ab42297591d3872b58be7236bcf4b94e55673b06eac2350873e813c44a9b4d
+            - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_BASELINE_CPU_PY312_IMAGE
+              value: quay.io/opendatahub/odh-pipeline-runtime-baseline-cpu-py312-c9s@sha256:f17e2a7a60e5a0c2bf60d56db8bbb3321bdf45c090aedb3c0237299f2e8e8703
             - name: RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE
               value: quay.io/opendatahub/odh-built-in-detector@sha256:8541cf4c8c2568c25810913e5c8613845dbd3473b3c253c1b117797575a5db81
             - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TRAINING_IMAGE
@@ -254,6 +256,8 @@ spec:
               value: quay.io/opendatahub/odh-pipeline-runtime-pytorch-rocm-py312-ubi9@sha256:f5d319f9a87126e13722edf66bcb800e7e47dca9d1cb14a07aa9635d68a24f2d
             - name: RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE
               value: quay.io/opendatahub/odh-th-torch-cuda-py312@sha256:7559044c3e8f5ee0aad03c034056f7086429f10b24496ae1b0170d0ab2a61675
+            - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_BASELINE_CPU_PY312_IMAGE
+              value: quay.io/opendatahub/odh-workbench-jupyter-baseline-cpu-py312-c9s@sha256:ff6390321330ceafb38e2084c80b58ab4b3a5f407d097be936f88d968ec5407e
             - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_DATASCIENCE_CPU_PY312_IMAGE
               value: quay.io/opendatahub/odh-workbench-jupyter-datascience-cpu-py312-ubi9@sha256:d07d06a04b0de04c3c9b23c6126c7494961225de0265f78a2fc3f3ea1b233265
             - name: RELATED_IMAGE_ODH_AI_GATEWAY_OPERATOR_IMAGE
