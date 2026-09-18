@@ -19,8 +19,6 @@ Package v1 contains API Schema definitions for the components v1 API group
 ### Resource Types
 - [DataSciencePipelines](#datasciencepipelines)
 - [Kueue](#kueue)
-- [Ray](#ray)
-- [TrustyAI](#trustyai)
 
 
 
