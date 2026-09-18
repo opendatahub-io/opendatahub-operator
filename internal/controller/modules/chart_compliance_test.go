@@ -60,8 +60,28 @@ func TestModuleChartCompliance(t *testing.T) {
 		t.Fatalf("failed to resolve charts root %s: %v", chartsRoot, err)
 	}
 
-	if _, err := os.Stat(absChartsRoot); os.IsNotExist(err) {
+	// opt/charts is committed with a .gitkeep, so the directory always exists even
+	// when charts have not been downloaded. Detect "not downloaded" by the absence
+	// of any chart subdirectory rather than the absence of the root itself, so the
+	// skip below only covers a genuinely empty tree — a populated-but-partial tree
+	// falls through and a missing individual chart is treated as a failure.
+	entries, err := os.ReadDir(absChartsRoot)
+	if os.IsNotExist(err) {
 		t.Skipf("charts root %s not found (run make get-manifests first)", absChartsRoot)
+	}
+	if err != nil {
+		t.Fatalf("failed to read charts root %s: %v", absChartsRoot, err)
+	}
+
+	hasChartDir := false
+	for _, e := range entries {
+		if e.IsDir() {
+			hasChartDir = true
+			break
+		}
+	}
+	if !hasChartDir {
+		t.Skipf("charts root %s is empty (run make get-manifests first)", absChartsRoot)
 	}
 
 	handlers := moduleHandlers()
@@ -83,10 +103,11 @@ func TestModuleChartCompliance(t *testing.T) {
 
 		for _, chartInfo := range manifests.HelmCharts {
 			if _, err := os.Stat(chartInfo.Chart); os.IsNotExist(err) {
-				t.Logf("chart directory %s not found for module %s (run make get-manifests first), skipping",
+				// The charts tree is populated (guarded above) but this module's
+				// declared chart is missing — a real defect (broken get-manifests
+				// config or a wrong chart path), so fail rather than skip.
+				t.Fatalf("chart directory %s not found for module %s (run make get-manifests first)",
 					chartInfo.Chart, handler.GetName())
-
-				continue
 			}
 
 			testedCount++
