@@ -8,7 +8,6 @@ import (
 
 //go:embed kueue/monitoring
 //go:embed trustyai/monitoring
-//go:embed datasciencepipelines/monitoring
 //go:embed ray/monitoring
 var ComponentRulesFS embed.FS
 
