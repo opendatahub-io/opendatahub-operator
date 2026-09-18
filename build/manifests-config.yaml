@@ -63,3 +63,6 @@ map:
   odh-data-connect-hub-controller:
     src: dc-controller/config
     dest: data-connect-hub
+  odh-praxis-ai-grid-operator:
+    src: charts/grid-operator/templates
+    dest: grid-operator
