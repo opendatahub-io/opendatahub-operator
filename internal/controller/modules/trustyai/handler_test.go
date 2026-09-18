@@ -100,6 +100,26 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
 	g.Expect(spec).ShouldNot(HaveKey("managementState"),
 		"managementState is a DSC-level field and must not be projected into the component CR")
+	mcpMode, found, err := unstructured.NestedBool(u.Object, "spec", "mcpGuardrailsMode")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+	g.Expect(mcpMode).Should(BeFalse())
+}
+
+func TestBuildModuleCR_ProjectsMCPGuardrailsMode(t *testing.T) {
+	g := NewWithT(t)
+	h := trustyai.NewHandler()
+
+	dscCtx := newDSCContext(operatorv1.Managed)
+	dscCtx.DSC.Spec.Components.TrustyAI.MCPGuardrailsMode = true
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig())
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	mcpMode, found, err := unstructured.NestedBool(u.Object, "spec", "mcpGuardrailsMode")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+	g.Expect(mcpMode).Should(BeTrue())
 }
 
 func TestBuildModuleCR_PermitFieldsConvertedToBool(t *testing.T) {
