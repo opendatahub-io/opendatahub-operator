@@ -232,11 +232,12 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		assert.Equal(t, intermediateIANACiphers, cipherSuites)
 	})
 
-	t.Run("APIServer with custom profile that has unsupported TLS version floors ciphers too", func(t *testing.T) {
+	t.Run("Strict APIServer with unsupported custom TLS version returns an error", func(t *testing.T) {
 		t.Parallel()
 		apiServer := &configv1.APIServer{
 			ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAPIServerObj},
 			Spec: configv1.APIServerSpec{
+				TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
 				TLSSecurityProfile: &configv1.TLSSecurityProfile{
 					Type: configv1.TLSProfileCustomType,
 					Custom: &configv1.CustomTLSProfile{
@@ -251,10 +252,9 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(apiServer).Build()
 
 		minVersion, cipherSuites, err := gateway.GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
-		require.NoError(t, err)
-		assert.Equal(t, "TLS1.2", minVersion)
-		assert.Equal(t, intermediateIANACiphers, cipherSuites,
-			"unsupported MinTLSVersion must floor ciphers to Intermediate, not retain custom weak ciphers")
+		require.Error(t, err)
+		assert.Empty(t, minVersion)
+		assert.Empty(t, cipherSuites)
 	})
 
 	t.Run("APIServer with custom profile", func(t *testing.T) {
@@ -266,6 +266,7 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		apiServer := &configv1.APIServer{
 			ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAPIServerObj},
 			Spec: configv1.APIServerSpec{
+				TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
 				TLSSecurityProfile: &configv1.TLSSecurityProfile{
 					Type: configv1.TLSProfileCustomType,
 					Custom: &configv1.CustomTLSProfile{

@@ -501,6 +501,7 @@ func setupClusterPrerequisitesForMain(ctx context.Context, cli client.Client, au
 			Name: cluster.ClusterAPIServerObj,
 		},
 		Spec: configv1.APIServerSpec{
+			TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
 			TLSSecurityProfile: &configv1.TLSSecurityProfile{
 				Type: configv1.TLSProfileCustomType,
 				Custom: &configv1.CustomTLSProfile{
