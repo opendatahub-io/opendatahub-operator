@@ -24,6 +24,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 
 	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
@@ -421,7 +422,15 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	cacheOptions := newCacheOptions(scheme, oDHCache, secretCache)
+	// ReaderFailOnMissingInformer makes cache reads of un-scoped resources fail
+	// fast with ErrResourceNotCached instead of silently starting a new unfiltered
+	// informer. Gate it on CACHE_FAIL_ON_MISSING_INFORMER (default false): enable it
+	// in dev/CI (e.g. `make run`) to enforce the cache scope for exercised read paths,
+	// but keep it off in production, where a genuinely untested read path degrades to
+	// an extra informer (works, just a memory/watch cost) rather than a blocking error.
+	// See discussion on PR #3965.
+	failOnMissingInformer, _ := strconv.ParseBool(os.Getenv("CACHE_FAIL_ON_MISSING_INFORMER"))
+	cacheOptions := newCacheOptions(scheme, oDHCache, secretCache, failOnMissingInformer)
 
 	// OpenShift-specific cache filters: only register when running on OpenShift
 	if cluster.GetClusterInfo().Type == cluster.ClusterTypeOpenShift {
@@ -674,10 +683,10 @@ func createODHGeneralCacheConfig(platform common.Platform) (map[string]cache.Con
 	return namespaceConfigs, nil
 }
 
-func newCacheOptions(scheme *runtime.Scheme, oDHCache, secretCache map[string]cache.Config) cache.Options {
+func newCacheOptions(scheme *runtime.Scheme, oDHCache, secretCache map[string]cache.Config, failOnMissingInformer bool) cache.Options {
 	return cache.Options{
 		Scheme:                      scheme,
-		ReaderFailOnMissingInformer: true,
+		ReaderFailOnMissingInformer: failOnMissingInformer,
 		DefaultNamespaces:           oDHCache,
 		ByObject: map[client.Object]cache.ByObject{
 			&corev1.Secret{}: {
@@ -724,11 +733,13 @@ func cacheDisableFor() []client.Object {
 		&configv1.Infrastructure{},
 		// Authentication and APIServer are cluster-scoped config.openshift.io
 		// singletons read via typed Get (pkg/cluster GetClusterAuthenticationMode /
-		// GetClusterServiceAccountIssuer, pkg/tls FromAPIServer). With
-		// ReaderFailOnMissingInformer enabled and DefaultNamespaces scoping the
-		// cache, these typed reads have no matching informer (APIServer is only
-		// watched as unstructured by the gateway controller; Authentication is not
-		// watched at all), so they must bypass the cache like Infrastructure does.
+		// GetClusterServiceAccountIssuer, pkg/tls FromAPIServer). With DefaultNamespaces
+		// scoping the cache, these typed reads have no matching informer (APIServer is
+		// only watched as unstructured by the gateway controller; Authentication is not
+		// watched at all), so they must bypass the cache like Infrastructure does —
+		// otherwise they hard-fail as "not cached" when ReaderFailOnMissingInformer is
+		// enabled (dev/CI), or silently start an unfiltered cluster-wide informer when
+		// it is not.
 		&configv1.Authentication{},
 		&configv1.APIServer{},
 		// Namespaced cert-manager Issuer and Certificate are deployed by components
@@ -737,9 +748,9 @@ func cacheDisableFor() []client.Object {
 		// watched nowhere in this manager. cert-manager types are only watched by the
 		// separate cloudmanager binary (pkg/controller/cloudmanager, via bootstrap.go
 		// WatchesGVK) — a different manager with its own cache — so the main manager
-		// has no informer for them. With ReaderFailOnMissingInformer enabled those
-		// reads hard-fail as "not cached", so they must bypass the cache like
-		// Infrastructure does. Safe to disable here: nothing in internal/controller
+		// has no informer for them. When ReaderFailOnMissingInformer is enabled (dev/CI)
+		// those reads hard-fail as "not cached"; either way they must bypass the cache
+		// like Infrastructure does. Safe to disable here: nothing in internal/controller
 		// watches cert-manager types, so no watch depends on a cached informer.
 		resources.GvkToUnstructured(gvk.CertManagerIssuer),
 		resources.GvkToUnstructured(gvk.CertManagerCertificate),
@@ -747,10 +758,10 @@ func cacheDisableFor() []client.Object {
 		// deploys and reads back via the deploy action's existence check. They are
 		// registered as dynamic owned watches (OwnsGVK(..., Dynamic(CrdExists(...)))),
 		// whose informer is only registered by an action appended AFTER the deploy
-		// action. With ReaderFailOnMissingInformer enabled, the deploy existence Get
-		// hard-fails ("not cached") before that watch-registration action runs, which
-		// aborts the reconcile chain, so the informer is never registered — a permanent
-		// deadlock (GatewayConfig stuck at ProvisioningSucceeded=False). Bypassing the
+		// action. When ReaderFailOnMissingInformer is enabled (dev/CI), the deploy
+		// existence Get hard-fails ("not cached") before that watch-registration action
+		// runs, which aborts the reconcile chain, so the informer is never registered — a
+		// permanent deadlock (GatewayConfig stuck at ProvisioningSucceeded=False). Bypassing the
 		// cache for these reads breaks the deadlock; the dynamic event-watch still
 		// registers and fires on drift (DisableFor only affects the read path). Route,
 		// the third dynamic owned GVK, is unaffected: it has a static ByObject informer
@@ -770,8 +781,8 @@ func cacheDisableFor() []client.Object {
 	// singletons the DSC/modules controllers deploy and read back via the deploy
 	// action's existence check. They are watched only dynamically
 	// (WatchesGVK(..., Dynamic(CrdExists(...)))), whose informer is registered by an
-	// action appended AFTER the deploy action. With ReaderFailOnMissingInformer
-	// enabled, the deploy existence Get hard-fails ("not cached") before that
+	// action appended AFTER the deploy action. When ReaderFailOnMissingInformer is
+	// enabled (dev/CI), the deploy existence Get hard-fails ("not cached") before that
 	// watch-registration action runs, aborting the reconcile chain, so the informer
 	// is never registered — a permanent deadlock (module CRs never created, DSC
 	// stuck ComponentsReady/ModulesReady=False). This is the same class as the Istio

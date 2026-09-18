@@ -766,9 +766,10 @@ func getAuthProxySecretValues(
 		}
 
 		// Use the uncached API reader: secretNamespace is user-supplied and may fall
-		// outside the manager cache's secret scope. With ReaderFailOnMissingInformer
-		// enabled, a cached Get for such a namespace hard-fails as "not cached" even
-		// when the Secret exists, so this lookup must bypass the cache.
+		// outside the manager cache's secret scope. A cached Get for such a namespace
+		// hard-fails as "not cached" when ReaderFailOnMissingInformer is enabled (dev/CI)
+		// even though the Secret exists, and otherwise would start an unfiltered Secret
+		// informer, so this lookup must bypass the cache.
 		externalSecret := &corev1.Secret{}
 		if err := secretReader(rr).Get(ctx, types.NamespacedName{
 			Name:      oidcConfig.ClientSecretRef.Name,

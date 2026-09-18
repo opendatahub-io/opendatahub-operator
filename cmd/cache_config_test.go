@@ -25,9 +25,15 @@ import (
 func TestNewCacheOptions_ReaderFailOnMissingInformer(t *testing.T) {
 	t.Parallel()
 
-	opts := newCacheOptions(runtime.NewScheme(), nil, nil)
-	assert.True(t, opts.ReaderFailOnMissingInformer,
-		"ReaderFailOnMissingInformer must be true to prevent silent cluster-wide informer creation")
+	// The flag is gated on CACHE_FAIL_ON_MISSING_INFORMER (default off in production,
+	// on in dev/CI): newCacheOptions must pass the caller's choice straight through.
+	optsOn := newCacheOptions(runtime.NewScheme(), nil, nil, true)
+	assert.True(t, optsOn.ReaderFailOnMissingInformer,
+		"ReaderFailOnMissingInformer must be true when enabled to prevent silent cluster-wide informer creation")
+
+	optsOff := newCacheOptions(runtime.NewScheme(), nil, nil, false)
+	assert.False(t, optsOff.ReaderFailOnMissingInformer,
+		"ReaderFailOnMissingInformer must be false when disabled so a missed read path degrades to an informer, not a blocking error")
 }
 
 func TestNewCacheOptions_DefaultNamespacesSet(t *testing.T) {
@@ -39,7 +45,7 @@ func TestNewCacheOptions_DefaultNamespacesSet(t *testing.T) {
 		"test-monitoring": {},
 	}
 
-	opts := newCacheOptions(runtime.NewScheme(), namespaces, nil)
+	opts := newCacheOptions(runtime.NewScheme(), namespaces, nil, true)
 	assert.Equal(t, namespaces, opts.DefaultNamespaces,
 		"DefaultNamespaces must be set to oDHCache so unscoped types do not watch cluster-wide")
 }
@@ -61,7 +67,7 @@ func TestNewCacheOptions_ByObjectNamespaceAssignments(t *testing.T) {
 		"secret-extra-ns":   {},
 	}
 
-	opts := newCacheOptions(runtime.NewScheme(), oDHCache, secretCache)
+	opts := newCacheOptions(runtime.NewScheme(), oDHCache, secretCache, true)
 
 	wantSecretCache := []client.Object{
 		&corev1.Secret{},
@@ -153,7 +159,7 @@ func TestNewCacheOptions_ByObjectNamespacesNotEmpty(t *testing.T) {
 
 	oDH := map[string]cache.Config{"odh-ns": {}}
 	secret := map[string]cache.Config{"odh-ns": {}, "ingress-ns": {}}
-	opts := newCacheOptions(runtime.NewScheme(), oDH, secret)
+	opts := newCacheOptions(runtime.NewScheme(), oDH, secret, true)
 
 	for key, byObj := range opts.ByObject {
 		typeName := reflect.TypeOf(key).Elem().Name()
