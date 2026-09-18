@@ -19,7 +19,6 @@ Package v1 contains API Schema definitions for the components v1 API group
 ### Resource Types
 - [DataSciencePipelines](#datasciencepipelines)
 - [Kueue](#kueue)
-- [Ray](#ray)
 - [TrustyAI](#trustyai)
 
 
@@ -1310,27 +1309,6 @@ _Appears in:_
 | `Headed` |  |
 
 
-#### Ray
-
-
-
-Ray is the Schema for the rays API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `Ray` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[RaySpec](#rayspec)_ |  |  |  |
-| `status` _[RayStatus](#raystatus)_ |  |  |  |
-
-
 #### RayCommonSpec
 
 
@@ -1341,7 +1319,6 @@ Ray is the Schema for the rays API
 
 _Appears in:_
 - [DSCRay](#dscray)
-- [RaySpec](#rayspec)
 
 
 
@@ -1355,33 +1332,6 @@ RayCommonStatus defines the shared observed state of Ray
 
 _Appears in:_
 - [DSCRayStatus](#dscraystatus)
-- [RayStatus](#raystatus)
-
-
-
-#### RaySpec
-
-
-
-RaySpec defines the desired state of Ray
-
-
-
-_Appears in:_
-- [Ray](#ray)
-
-
-
-#### RayStatus
-
-
-
-RayStatus defines the observed state of Ray
-
-
-
-_Appears in:_
-- [Ray](#ray)
 
 
 
@@ -1709,6 +1659,7 @@ _Appears in:_
 | `feastoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | FeastOperator controls the Feast module operator lifecycle. |  |  |
 | `dashboard` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Dashboard controls the Dashboard module operator lifecycle. |  |  |
 | `sparkoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | SparkOperator controls the Spark Operator module lifecycle. |  |  |
+| `ray` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Ray controls the Ray module lifecycle. |  |  |
 | `modelregistry` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | ModelRegistry controls the model-registry (AIHub) module operator lifecycle. |  |  |
 
 

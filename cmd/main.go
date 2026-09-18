@@ -84,7 +84,6 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
@@ -99,6 +98,7 @@ import (
 	modelregistryModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/modelregistry"
 	monitoringModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/monitoring"
 	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
+	rayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ray"
 	sparkoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/sparkoperator"
 	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
@@ -137,7 +137,6 @@ var (
 	existingComponents = map[string]cr.ComponentHandler{
 		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
 		componentApi.KueueComponentName:                kueue.NewHandler(),
-		componentApi.RayComponentName:                  ray.NewHandler(),
 		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
 	}
 
@@ -150,7 +149,6 @@ var (
 	// 33 — components that require KServe to be Ready.
 	componentRunlevels = map[string]dag.Runlevel{
 		componentApi.DataSciencePipelinesComponentName: dag.RL(20),
-		componentApi.RayComponentName:                  dag.RL(20),
 
 		componentApi.KueueComponentName: dag.RL(31),
 
@@ -177,6 +175,7 @@ var (
 		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
 		componentApi.FeastOperatorComponentName:        feastModule.NewHandler(),
 		componentApi.SparkOperatorComponentName:        sparkoperatorModule.NewHandler(),
+		componentApi.RayComponentName:                  rayModule.NewHandler(),
 	}
 
 	// dsciConfiguredModules lists modules whose user-facing configuration
@@ -199,6 +198,7 @@ var (
 		componentApi.TrainerComponentName:              dag.RL(20),
 		componentApi.WorkbenchesComponentName:          dag.RL(20),
 		componentApi.SparkOperatorComponentName:        dag.RL(32),
+		componentApi.RayComponentName:                  dag.RL(20),
 	}
 )
 

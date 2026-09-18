@@ -205,7 +205,7 @@ spec:
             - name: RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE
               value: quay.io/opendatahub/odh-model-metadata-collection@sha256:6b9b77e5be4e750c22b90ebe59cd8b916f9d99744823f461263e0dd981a4a429
             - name: RELATED_IMAGE_ODH_RAY_MODULE_OPERATOR_IMAGE
-              value: quay.io/opendatahub/odh-ray-module-operator@sha256:edaa5e7119373c62b01c5bb145ac27b14575b46b1a8bd8a02975fdbae7a0cea4
+              value: quay.io/opendatahub/odh-ray-module-operator@sha256:34bedab2b5884a5f05e2866acf7e56861a58c68318b43d34a6544e97261d8950
             - name: RELATED_IMAGE_ODH_PRAXIS_EXTPROC_IMAGE
               value: quay.io/opendatahub/odh-praxis-extproc@sha256:9d03207463efe99dcc2b4286cc30a47169c05ea338b1b678d77d90c80e136046
             - name: RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE
@@ -353,7 +353,7 @@ spec:
             - name: RELATED_IMAGE_ODH_ML_PIPELINES_SCHEDULEDWORKFLOW_V2_IMAGE
               value: quay.io/opendatahub/ds-pipelines-scheduledworkflow@sha256:fb335b7be62745db181cd3a7206fc74f76b76f8a9bac7677f358928ab43d1c2a
             - name: RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE
-              value: quay.io/opendatahub/kuberay-operator@sha256:9fc49f834bb9f6098e146f1b3c1468094f1628e12699cd531c5641b5530f70f2
+              value: quay.io/opendatahub/kuberay-operator@sha256:44f700d40e02ef5fc0f4ab8a069a456e2f9c7d7c1bc9396c0df5f0edbc7ea991
             - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE
               value: quay.io/opendatahub/model-registry-operator@sha256:95bb7d8843fe3c5ecc8d45264cff80a6978fe80d9f1f5d208778ec59982fc3ae
             - name: RELATED_IMAGE_ODH_MLFLOW_IMAGE

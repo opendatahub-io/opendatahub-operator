@@ -30,7 +30,7 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		instance := &componentApi.Ray{ObjectMeta: metav1.ObjectMeta{Name: "default-ray"}}
+		instance := &componentApi.Kueue{ObjectMeta: metav1.ObjectMeta{Name: "default-kueue"}}
 		rr := newReconciliationRequest(instance, false)
 
 		fn := platformrelease.NewPostStatusFn()
@@ -46,7 +46,7 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		instance := &componentApi.Ray{ObjectMeta: metav1.ObjectMeta{Name: "default-ray"}}
+		instance := &componentApi.Kueue{ObjectMeta: metav1.ObjectMeta{Name: "default-kueue"}}
 		rr := newReconciliationRequest(instance, false)
 
 		fn := platformrelease.NewPostStatusFn()
@@ -60,7 +60,7 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		instance := &componentApi.Ray{ObjectMeta: metav1.ObjectMeta{Name: "default-ray"}}
+		instance := &componentApi.Kueue{ObjectMeta: metav1.ObjectMeta{Name: "default-kueue"}}
 		rr := newReconciliationRequest(instance, true)
 
 		fn := platformrelease.NewPostStatusFn()
@@ -74,7 +74,7 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		instance := &componentApi.Ray{ObjectMeta: metav1.ObjectMeta{Name: "default-ray"}}
+		instance := &componentApi.Kueue{ObjectMeta: metav1.ObjectMeta{Name: "default-kueue"}}
 		instance.SetReleaseStatus([]common.ComponentRelease{
 			{Name: "ray", Version: "1.0.0"},
 			{Name: common.PlatformReleaseName, Version: "2.0.0"},
@@ -96,7 +96,7 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		instance := &componentApi.Ray{ObjectMeta: metav1.ObjectMeta{Name: "default-ray"}}
+		instance := &componentApi.Kueue{ObjectMeta: metav1.ObjectMeta{Name: "default-kueue"}}
 		instance.SetReleaseStatus([]common.ComponentRelease{
 			{Name: "ray", Version: "1.0.0"},
 		})
