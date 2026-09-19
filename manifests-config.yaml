@@ -35,12 +35,12 @@ components:
   trustyai:
     odh:
       repo: opendatahub-io/trustyai-service-operator
-      ref: incubation@b5812589dcad6eee28a371d7ada4bc9bf4d466d8
-      sourcePath: config
+      ref: main@feb5b94446550e46cec40daa84f17e1a57732cdc
+      sourcePath: trustyai-operator-module/config
     rhoai:
       repo: red-hat-data-services/trustyai-service-operator
-      ref: rhoai-3.6-ea.2@9a3b7b9f4f936419451c833b70ba180fe03a3e61
-      sourcePath: config
+      ref: rhoai-3.6-ea.2@75a4af5b894d0156f6fc9f6a2ee9733493011e95
+      sourcePath: trustyai-operator-module/config
   modelregistry:
     odh:
       repo: opendatahub-io/model-registry-operator
@@ -247,11 +247,11 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/trustyai-service-operator"
-      digest: "sha256:e109a3cac8b2f448ea5b2a1aecbc3575ebf5fe70428f9254d91d9d9bbe3de291"
+      digest: "sha256:653ac53dfad3cd38c89f33006b1fdd208b11c14a68a794cf6945d03330d80141"
     rhoai:
       shaFrom: odh
       base: "quay.io/opendatahub/trustyai-service-operator"
-      digest: "sha256:e109a3cac8b2f448ea5b2a1aecbc3575ebf5fe70428f9254d91d9d9bbe3de291"
+      digest: "sha256:653ac53dfad3cd38c89f33006b1fdd208b11c14a68a794cf6945d03330d80141"
   RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE:
     component: modelregistry
     paramsEnvKey: IMAGES_MODELREGISTRY_OPERATOR
@@ -1318,10 +1318,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-trustyai-module-operator"
-      digest: "sha256:22c511db0a4b7c31c573a6120340f0848cc470b7b73735a8c43993dc438c0e89"
+      digest: "sha256:b3cef1149bdda811ddf8ff57b4a297ecdb9de906899093612811ecc3981a6122"
     rhoai:
-      base: "quay.io/opendatahub/odh-trustyai-module-operator"
-      digest: "sha256:22c511db0a4b7c31c573a6120340f0848cc470b7b73735a8c43993dc438c0e89"
+      base: "quay.io/rhoai/odh-trustyai-module-operator-rhel9"
+      digest: "sha256:51384d96109de664f0f854e6b7fc66243f71300c864ff0079c6b0dbfecb92a35"
   RELATED_IMAGE_ODH_MODELEXPRESS_IMAGE:
     source: "csv"
     odh:
