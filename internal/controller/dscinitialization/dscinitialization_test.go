@@ -17,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -172,6 +173,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 			// when - Simulate Monitoring CR getting some conditions
 			Expect(setMonitoringConditions(monitoringCR,
+				condition(status.ConditionMonitoringDependenciesReady, metav1.ConditionFalse, "MissingOperator", "Install the Cluster Observability Operator from OperatorHub"),
 				condition("MonitoringStackAvailable", metav1.ConditionTrue, "Ready", "Monitoring stack is ready"),
 				condition("ThanosQuerierAvailable", metav1.ConditionFalse, "Degraded", "Thanos querier is failing"),
 				condition("UnrelatedCondition", metav1.ConditionFalse, "Failing", "This should not be mirrored"),
@@ -183,6 +185,12 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: workingNamespace}, foundDsci)).To(Succeed())
 				// Should contain relevant ones
 				g.Expect(foundDsci.Status.Conditions).To(ContainElements(
+					SatisfyAll(
+						HaveField("Type", status.ConditionMonitoringDependenciesReady),
+						HaveField("Status", metav1.ConditionFalse),
+						HaveField("Reason", "MissingOperator"),
+						HaveField("Message", "Install the Cluster Observability Operator from OperatorHub"),
+					),
 					SatisfyAll(
 						HaveField("Type", "MonitoringStackAvailable"),
 						HaveField("Status", metav1.ConditionTrue),

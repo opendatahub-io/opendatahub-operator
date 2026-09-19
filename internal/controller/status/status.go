@@ -85,6 +85,7 @@ const (
 	ConditionTypeComponentsReady                 = "ComponentsReady"
 	ConditionTypeProvisioningProgress            = "ProvisioningProgress"
 	ConditionMonitoringReady                     = "MonitoringReady"
+	ConditionMonitoringDependenciesReady         = "MonitoringDependenciesReady"
 	ConditionTypeModulesReady                    = "ModulesReady"
 	ConditionMonitoringAvailable                 = "MonitoringAvailable"
 	ConditionMonitoringStackAvailable            = "MonitoringStackAvailable"
