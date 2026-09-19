@@ -45,6 +45,10 @@ type OperatorSettings struct {
 	ManifestsBasePath string `mapstructure:"default-manifests-path"`
 	ChartsBasePath    string `mapstructure:"default-charts-path"`
 	PlatformType      string `mapstructure:"platform-type"`
+	// CacheFailOnMissingInformer makes cache reads of un-scoped resources fail
+	// fast instead of silently starting a new unfiltered informer. Off by default
+	// (production); enable in dev/CI to enforce the cache scope.
+	CacheFailOnMissingInformer bool `mapstructure:"cache-fail-on-missing-informer"`
 }
 
 // IsDSCICreationDisabled returns true if automatic DSCI creation is disabled.
