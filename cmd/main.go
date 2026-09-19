@@ -84,7 +84,6 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
@@ -99,6 +98,7 @@ import (
 	modelregistryModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/modelregistry"
 	monitoringModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/monitoring"
 	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
+	rayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ray"
 	sparkoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/sparkoperator"
 	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
@@ -116,6 +116,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	operatortls "github.com/opendatahub-io/opendatahub-operator/v2/pkg/tls"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
@@ -137,7 +138,6 @@ var (
 	existingComponents = map[string]cr.ComponentHandler{
 		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
 		componentApi.KueueComponentName:                kueue.NewHandler(),
-		componentApi.RayComponentName:                  ray.NewHandler(),
 		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
 	}
 
@@ -150,7 +150,6 @@ var (
 	// 33 — components that require KServe to be Ready.
 	componentRunlevels = map[string]dag.Runlevel{
 		componentApi.DataSciencePipelinesComponentName: dag.RL(20),
-		componentApi.RayComponentName:                  dag.RL(20),
 
 		componentApi.KueueComponentName: dag.RL(31),
 
@@ -177,6 +176,7 @@ var (
 		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
 		componentApi.FeastOperatorComponentName:        feastModule.NewHandler(),
 		componentApi.SparkOperatorComponentName:        sparkoperatorModule.NewHandler(),
+		componentApi.RayComponentName:                  rayModule.NewHandler(),
 	}
 
 	// dsciConfiguredModules lists modules whose user-facing configuration
@@ -199,6 +199,7 @@ var (
 		componentApi.TrainerComponentName:              dag.RL(20),
 		componentApi.WorkbenchesComponentName:          dag.RL(20),
 		componentApi.SparkOperatorComponentName:        dag.RL(32),
+		componentApi.RayComponentName:                  dag.RL(20),
 	}
 )
 
@@ -769,14 +770,6 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 		})
 	} else {
 		hasAPI = true
-		tlsConfigFn, unsupportedCiphers := tlspkg.NewTLSConfigFromProfile(profile)
-		if len(unsupportedCiphers) > 0 {
-			setupLog.Info("some ciphers from TLS profile are not supported by Go", "unsupported", unsupportedCiphers)
-		}
-		tlsOpts = append(tlsOpts, tlsConfigFn, func(c *tls.Config) {
-			c.NextProtos = nextProtos
-		})
-
 		adherence, err = tlspkg.FetchAPIServerTLSAdherencePolicy(ctx, bootstrapClient)
 		if err != nil {
 			switch {
@@ -796,6 +789,22 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 				os.Exit(1)
 			}
 		}
+
+		if operatortls.ShouldHonorClusterTLSProfile(adherence) {
+			tlsConfigFn, unsupportedCiphers := tlspkg.NewTLSConfigFromProfile(profile)
+			if len(unsupportedCiphers) > 0 {
+				setupLog.Info("some ciphers from TLS profile are not supported by Go", "unsupported", unsupportedCiphers)
+			}
+			tlsOpts = append(tlsOpts, tlsConfigFn)
+		} else {
+			tlsOpts = append(tlsOpts, func(c *tls.Config) {
+				c.MinVersion = tls.VersionTLS12
+				c.CipherSuites = intermediateCiphers
+			})
+		}
+		tlsOpts = append(tlsOpts, func(c *tls.Config) {
+			c.NextProtos = nextProtos
+		})
 	}
 
 	return tlsOpts, profile, adherence, hasAPI

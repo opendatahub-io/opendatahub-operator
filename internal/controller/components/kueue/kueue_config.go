@@ -2,14 +2,17 @@ package kueue
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
 
+	"github.com/opendatahub-io/odh-platform-utilities/pkg/cluster/olm"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -91,13 +94,12 @@ func createKueueCR(ctx context.Context, rr *odhtypes.ReconciliationRequest) (*un
 		return nil, fmt.Errorf("failed to lookup kueue manager config: %w", err)
 	}
 
-	kueueInfo, err := cluster.OperatorExists(ctx, rr.Client, kueueOperator)
+	kueueInfo, err := olm.OperatorExists(ctx, rr.Client, kueueOperator)
 	if err != nil {
+		if errors.Is(err, olm.ErrOperatorNotInstalled) || meta.IsNoMatchError(err) {
+			return nil, ErrKueueOperatorNotInstalled
+		}
 		return nil, fmt.Errorf("failed to check if %s exists: %w", kueueOperator, err)
-	}
-
-	if kueueInfo == nil {
-		return nil, ErrKueueOperatorNotInstalled
 	}
 	//
 	// Conversions

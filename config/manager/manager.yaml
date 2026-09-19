@@ -205,7 +205,7 @@ spec:
             - name: RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE
               value: quay.io/opendatahub/odh-model-metadata-collection@sha256:6b9b77e5be4e750c22b90ebe59cd8b916f9d99744823f461263e0dd981a4a429
             - name: RELATED_IMAGE_ODH_RAY_MODULE_OPERATOR_IMAGE
-              value: quay.io/opendatahub/odh-ray-module-operator@sha256:edaa5e7119373c62b01c5bb145ac27b14575b46b1a8bd8a02975fdbae7a0cea4
+              value: quay.io/opendatahub/odh-ray-module-operator@sha256:34bedab2b5884a5f05e2866acf7e56861a58c68318b43d34a6544e97261d8950
             - name: RELATED_IMAGE_ODH_PRAXIS_EXTPROC_IMAGE
               value: quay.io/opendatahub/odh-praxis-extproc@sha256:9d03207463efe99dcc2b4286cc30a47169c05ea338b1b678d77d90c80e136046
             - name: RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE
@@ -224,8 +224,6 @@ spec:
               value: quay.io/opendatahub/odh-pipeline-runtime-baseline-cpu-py312-c9s@sha256:63ab42297591d3872b58be7236bcf4b94e55673b06eac2350873e813c44a9b4d
             - name: RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE
               value: quay.io/opendatahub/odh-built-in-detector@sha256:8541cf4c8c2568c25810913e5c8613845dbd3473b3c253c1b117797575a5db81
-            - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TRAINING_IMAGE
-              value: quay.io/opendatahub/odh-latency-predictor-training@sha256:c38bba00eb5154771f10577e8de697583889871aef78fd865d0fc47ff14115ce
             - name: RELATED_IMAGE_ODH_LLM_D_ASYNC_IMAGE
               value: quay.io/opendatahub/odh-llm-d-async@sha256:890fbdf0b1778df03602a8ddd075627f60629cb90b016746320936506c03c391
             - name: RELATED_IMAGE_ODH_MOD_ARCH_AUTORAG_IMAGE
@@ -268,8 +266,6 @@ spec:
               value: quay.io/opendatahub/odh-ogx-core@sha256:0d810da6ddad9d500036cab549e9fc885d00270a0caaab72cb9570f57ae81290
             - name: RELATED_IMAGE_ODH_DATA_CONNECT_HUB_CONTROLLER_IMAGE
               value: quay.io/opendatahub/odh-data-connect-hub-controller@sha256:d81a576d8178ae55a622cdc7176985e4f0fa3398bc8fb97de33fb7ad10cee74d
-            - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_PREDICTION_IMAGE
-              value: quay.io/opendatahub/odh-latency-predictor-prediction@sha256:6a3cf044cab634bfe0b178686d654b9671e3f59cd904028ddd6d49cfd9815518
             - name: RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE
               value: quay.io/opendatahub/odh-ai-gateway-payload-processing@sha256:77af81889fb225a6ee15defd6b87620ae1d0b45b3bb7b15149aed12b5f6785da
             - name: RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE
@@ -353,7 +349,7 @@ spec:
             - name: RELATED_IMAGE_ODH_ML_PIPELINES_SCHEDULEDWORKFLOW_V2_IMAGE
               value: quay.io/opendatahub/ds-pipelines-scheduledworkflow@sha256:fb335b7be62745db181cd3a7206fc74f76b76f8a9bac7677f358928ab43d1c2a
             - name: RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE
-              value: quay.io/opendatahub/kuberay-operator@sha256:9fc49f834bb9f6098e146f1b3c1468094f1628e12699cd531c5641b5530f70f2
+              value: quay.io/opendatahub/kuberay-operator@sha256:44f700d40e02ef5fc0f4ab8a069a456e2f9c7d7c1bc9396c0df5f0edbc7ea991
             - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE
               value: quay.io/opendatahub/model-registry-operator@sha256:95bb7d8843fe3c5ecc8d45264cff80a6978fe80d9f1f5d208778ec59982fc3ae
             - name: RELATED_IMAGE_ODH_MLFLOW_IMAGE
