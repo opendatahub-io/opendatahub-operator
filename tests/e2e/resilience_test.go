@@ -146,7 +146,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	}
 	moduleToControllerMap := map[string]string{
 		componentApi.AIPipelinesComponentName: "data-science-pipelines-operator-controller-manager",
-		componentApi.RayComponentName:         "kuberay-operator",
+		componentApi.RayComponentName:         "ray-module-operator-controller-manager",
 	}
 
 	// Error message includes components + internal components name
