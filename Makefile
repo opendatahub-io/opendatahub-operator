@@ -315,8 +315,12 @@ vet: ## Run go vet against code.
 
 GOLANGCI_LINT_TIMEOUT ?= 5m0s
 .PHONY: lint
-lint: golangci-lint ## Run golangci-lint against code.
+lint: golangci-lint lint-logs ## Run golangci-lint and structured-log analyzer tests.
 	$(GOLANGCI_LINT) run --timeout=$(GOLANGCI_LINT_TIMEOUT)
+
+.PHONY: lint-logs
+lint-logs: ## Run structured log convention analyzer tests (RHAI-529).
+	go test ./cmd/loglint/...
 
 .PHONY: lint-fix
 lint-fix: golangci-lint ## Run golangci-lint against code.
