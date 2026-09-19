@@ -71,6 +71,11 @@ func makeStateFn(
 // allChartDefs is the single source of truth for all charts and their target
 // namespaces. BuildHelmCharts derives from this list.
 func allChartDefs(deps ccmcommon.Dependencies, chartsPath string) []chartDef {
+	// RHCL's operand CR (Kuadrant) is namespace-scoped, unlike LWS/SailOperator's
+	// cluster-scoped CRs, and its namespace is user-configurable. Construct it
+	// per call so lookups target the configured namespace without shared state.
+	rhclOperatorCR := NewRHCLOperatorCR(deps.RHCL.GetOperandNamespace())
+
 	return []chartDef{
 		{
 			stateFn: makeStateFn(func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
@@ -130,6 +135,36 @@ func allChartDefs(deps ccmcommon.Dependencies, chartsPath string) []chartDef {
 				ConditionType:  status.ConditionSailOperatorReady,
 				HasDeployments: true,
 				Namespace:      deps.SailOperator.GetNamespace(),
+			},
+		},
+		{
+			stateFn: makeStateFn(func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
+				// Unlike the other CCM dependencies, RHCL requires an explicit "Managed"
+				// opt-in: its chart is far heavier (~30 CRDs, several Deployments) and,
+				// unlike LWS/SailOperator/GatewayAPI, isn't something every xKS cluster
+				// needs. Treat anything other than an explicit Managed (including an
+				// unset/zero-value field) as Unmanaged.
+				if d.RHCL.ManagementPolicy == ccmcommon.Managed {
+					return ccmcommon.Managed
+				}
+
+				return ccmcommon.Unmanaged
+			}, &rhclOperatorCR),
+			operatorCR: &rhclOperatorCR,
+			chart: types.HelmChartInfo{
+				Source: helm.Source{
+					Chart:       filepath.Join(chartsPath, "rhcl-operator"),
+					ReleaseName: "rhcl-operator",
+					Values: helm.Values(map[string]any{
+						"operatorNamespace": deps.RHCL.GetOperatorNamespace(),
+						"operandNamespace":  deps.RHCL.GetOperandNamespace(),
+					}),
+				},
+			},
+			monitor: monitorConfig{
+				ConditionType:  status.ConditionRHCLReady,
+				HasDeployments: true,
+				Namespace:      deps.RHCL.GetOperatorNamespace(),
 			},
 		},
 	}
