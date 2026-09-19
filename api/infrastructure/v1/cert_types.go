@@ -21,6 +21,5 @@ type CertificateSpec struct {
 	// * Provided: Pre-existence of the TLS Secret (see SecretName) with a valid certificate is assumed.
 	// * OpenshiftDefaultIngress: Uses the cluster's default ingress certificate (OpenShift only).
 	// +kubebuilder:validation:Enum=SelfSigned;Provided;OpenshiftDefaultIngress
-	// +kubebuilder:default=OpenshiftDefaultIngress
 	Type CertType `json:"type,omitempty"`
 }

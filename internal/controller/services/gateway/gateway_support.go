@@ -270,12 +270,19 @@ func isGatewayReady(gateway *gwapiv1.Gateway) bool {
 // getCertificateType returns a string representation of the certificate type.
 func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
 	if gatewayConfig == nil {
-		return string(infrav1.OpenshiftDefaultIngress)
+		return string(defaultCertificateType())
 	}
 	if gatewayConfig.Spec.Certificate == nil || gatewayConfig.Spec.Certificate.Type == "" {
-		return string(infrav1.OpenshiftDefaultIngress)
+		return string(defaultCertificateType())
 	}
 	return string(gatewayConfig.Spec.Certificate.Type)
+}
+
+func defaultCertificateType() infrav1.CertType {
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		return infrav1.SelfSigned
+	}
+	return infrav1.OpenshiftDefaultIngress
 }
 
 func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig, domain string) (string, error) {
@@ -285,11 +292,7 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 	}
 
 	if certConfig.Type == "" {
-		if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
-			certConfig.Type = infrav1.SelfSigned
-		} else {
-			certConfig.Type = infrav1.OpenshiftDefaultIngress
-		}
+		certConfig.Type = defaultCertificateType()
 	}
 
 	secretName := certConfig.SecretName
