@@ -7,6 +7,9 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr/funcr"
+	operatorv1 "github.com/openshift/api/operator/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -17,13 +20,16 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
+	testscheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -192,4 +198,108 @@ func TestCleanupDisabledModuleCRsLogsDeleteFailure(t *testing.T) {
 		ContainSubstring(`"msg"="DeleteModuleCR failed"`),
 		ContainSubstring(`"module"="`+name+`"`),
 	)))
+}
+
+type provisionMockHandler struct {
+	modules.BaseHandler
+
+	buildCalled bool
+}
+
+func (m *provisionMockHandler) IsEnabled(mods *configv1alpha1.PlatformModules) bool {
+	return mods != nil && mods.Dashboard.ManagementState == operatorv1.Managed
+}
+
+func (m *provisionMockHandler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
+		return
+	}
+	pm.Dashboard.ManagementState = dscCtx.DSC.Spec.Components.Dashboard.ManagementState
+}
+
+func (m *provisionMockHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *modules.DSCContext, _ *modules.ModuleCRConfig) (*unstructured.Unstructured, error) {
+	m.buildCalled = true
+	u := &unstructured.Unstructured{}
+	u.SetGroupVersionKind(m.Config.GVK)
+	u.SetName("test-cr")
+	return u, nil
+}
+
+var _ modules.ModuleHandler = (*provisionMockHandler)(nil)
+
+func newDSCI() *dsciv2.DSCInitialization {
+	dsci := &dsciv2.DSCInitialization{}
+	dsci.SetGroupVersionKind(gvk.DSCInitialization)
+	dsci.SetName("default")
+	dsci.Spec.ApplicationsNamespace = "test-ns"
+	return dsci
+}
+
+func TestProvisionModuleCRsSkipsCRDAbsent(t *testing.T) {
+	t.Run("should skip module CR when CRD is absent", func(t *testing.T) {
+		g := NewWithT(t)
+
+		dsc := newDSC()
+		dsc.Spec.Components.Dashboard.ManagementState = operatorv1.Managed
+
+		mod := &provisionMockHandler{}
+		mod.Config = modules.ModuleConfig{
+			Name:   "dashboard",
+			CRName: "default-dashboard",
+			GVK:    testscheme.TestPlatformObjectGVK,
+		}
+
+		modReg := &modules.Registry{}
+		modReg.Add(mod)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(newDSCI()))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		ctx, logged := logCapturingContext(t)
+		rr := &types.ReconciliationRequest{Instance: dsc, Client: cli}
+
+		err = provisionModuleCRsWith(ctx, rr, modReg)
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(rr.Resources).Should(BeEmpty(), "no resources should be added when CRD is absent")
+		g.Expect(mod.buildCalled).Should(BeFalse(), "BuildModuleCR should not be called when CRD is absent")
+		g.Expect(*logged).To(ContainElement(
+			ContainSubstring("module CRD not installed yet"),
+		))
+	})
+
+	t.Run("should add module CR when CRD is present", func(t *testing.T) {
+		g := NewWithT(t)
+
+		dsc := newDSC()
+		dsc.Spec.Components.Dashboard.ManagementState = operatorv1.Managed
+
+		mod := &provisionMockHandler{}
+		mod.Config = modules.ModuleConfig{
+			Name:   "dashboard",
+			CRName: "default-dashboard",
+			GVK:    testscheme.TestPlatformObjectGVK,
+		}
+
+		modReg := &modules.Registry{}
+		modReg.Add(mod)
+
+		crd := &apiextensionsv1.CustomResourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "testplatformobjects.test.opendatahub.io",
+			},
+		}
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(newDSCI(), crd))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		ctx, _ := logCapturingContext(t)
+		rr := &types.ReconciliationRequest{Instance: dsc, Client: cli}
+
+		err = provisionModuleCRsWith(ctx, rr, modReg)
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(rr.Resources).Should(HaveLen(1), "module CR should be added when CRD is present")
+		g.Expect(mod.buildCalled).Should(BeTrue(), "BuildModuleCR should be called when CRD is present")
+	})
 }
