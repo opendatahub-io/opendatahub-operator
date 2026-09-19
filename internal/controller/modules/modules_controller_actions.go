@@ -269,7 +269,13 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 
 		appendOperatorManifests := func() {
 			operatorManifests := handler.GetOperatorManifests(platformCtx)
-			appendModuleEnvInjection(rr, platformCtx.ApplicationsNamespace, platformCtx.MonitoringNamespace, platformCtx.Release.Name, moduleImagesFor(handler, operatorManifests))
+			appendModuleEnvInjection(
+				rr,
+				platformCtx.ApplicationsNamespace,
+				platformCtx.MonitoringNamespace,
+				platformCtx.Release.Name,
+				moduleImagesFor(handler, operatorManifests),
+			)
 			if len(operatorManifests.HelmCharts) > 0 {
 				rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
 			}
@@ -421,7 +427,13 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 
 				operatorManifests := handler.GetOperatorManifests(platformCtx)
 
-				appendModuleEnvInjection(rr, platformCtx.ApplicationsNamespace, platformCtx.MonitoringNamespace, platformCtx.Release.Name, moduleImagesFor(handler, operatorManifests))
+				appendModuleEnvInjection(
+					rr,
+					platformCtx.ApplicationsNamespace,
+					platformCtx.MonitoringNamespace,
+					platformCtx.Release.Name,
+					moduleImagesFor(handler, operatorManifests),
+				)
 				if len(operatorManifests.HelmCharts) > 0 {
 					rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
 				}

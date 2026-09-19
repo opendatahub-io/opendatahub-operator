@@ -17,7 +17,6 @@
 Package v1 contains API Schema definitions for the components v1 API group
 
 ### Resource Types
-- [DataSciencePipelines](#datasciencepipelines)
 - [Kueue](#kueue)
 - [TrustyAI](#trustyai)
 
@@ -82,7 +81,6 @@ _Appears in:_
 _Appears in:_
 - [DSCDataSciencePipelines](#dscdatasciencepipelines)
 - [DataSciencePipelinesCommonSpec](#datasciencepipelinescommonspec)
-- [DataSciencePipelinesSpec](#datasciencepipelinesspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -795,27 +793,6 @@ _Appears in:_
 | `url` _string_ |  |  |  |
 
 
-#### DataSciencePipelines
-
-
-
-DataSciencePipelines is the Schema for the datasciencepipelines API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `DataSciencePipelines` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[DataSciencePipelinesSpec](#datasciencepipelinesspec)_ |  |  |  |
-| `status` _[DataSciencePipelinesStatus](#datasciencepipelinesstatus)_ |  |  |  |
-
-
 #### DataSciencePipelinesCommonSpec
 
 
@@ -826,7 +803,6 @@ DataSciencePipelines is the Schema for the datasciencepipelines API
 
 _Appears in:_
 - [DSCDataSciencePipelines](#dscdatasciencepipelines)
-- [DataSciencePipelinesSpec](#datasciencepipelinesspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -843,36 +819,6 @@ DataSciencePipelinesCommonStatus defines the shared observed state of DataScienc
 
 _Appears in:_
 - [DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)
-- [DataSciencePipelinesStatus](#datasciencepipelinesstatus)
-
-
-
-#### DataSciencePipelinesSpec
-
-
-
-DataSciencePipelinesSpec defines the desired state of DataSciencePipelines
-
-
-
-_Appears in:_
-- [DataSciencePipelines](#datasciencepipelines)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `argoWorkflowsControllers` _[ArgoWorkflowsControllersSpec](#argoworkflowscontrollersspec)_ |  |  |  |
-
-
-#### DataSciencePipelinesStatus
-
-
-
-DataSciencePipelinesStatus defines the observed state of DataSciencePipelines
-
-
-
-_Appears in:_
-- [DataSciencePipelines](#datasciencepipelines)
 
 
 
@@ -1648,6 +1594,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `aipipelines` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | AIPipelines controls the AI Pipelines module operator lifecycle. |  |  |
 | `aigateway` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | AIGateway controls the ai-gateway-operator module lifecycle. |  |  |
 | `mlflowoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | MLflowOperator controls the MLflow module operator lifecycle. |  |  |
 | `monitoring` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Monitoring controls the monitoring module operator lifecycle. |  |  |

@@ -99,8 +99,7 @@ metadata:
     operatorframework.io/suggested-namespace: redhat-ods-operator
     operators.openshift.io/infrastructure-features: '["disconnected"]'
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
-      "datasciencepipelines.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
-      "trustyais.components.platform.opendatahub.io"]'
+      "kueues.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io"]'
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
   name: rhods-operator.v2.0.0
@@ -129,12 +128,6 @@ spec:
       kind: DataScienceCluster
       name: datascienceclusters.datasciencecluster.opendatahub.io
       version: v1
-    - description: DataSciencePipelines is the Schema for the datasciencepipelines
-        API
-      displayName: Data Science Pipelines
-      kind: DataSciencePipelines
-      name: datasciencepipelines.components.platform.opendatahub.io
-      version: v1alpha1
     - description: DSCInitialization is the Schema for the dscinitializations API.
       displayName: DSCInitialization
       kind: DSCInitialization

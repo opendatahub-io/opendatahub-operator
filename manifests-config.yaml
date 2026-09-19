@@ -52,8 +52,8 @@ components:
       sourcePath: config
   datasciencepipelines:
     odh:
-      repo: opendatahub-io/data-science-pipelines-operator
-      ref: main@476f10821ce25cafa4fd7394d9a241799c103afb
+      repo: lugi0/data-science-pipelines-operator
+      ref: codex/fix-aipipelines-argo-crd-ownership@dd575752b0f6a93758c808dbf5918158ec1b6575
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/data-science-pipelines-operator
@@ -266,7 +266,7 @@ imageOverrides:
   RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE:
     component: datasciencepipelines
     paramsEnvKey: IMAGES_DSPO
-    tagTemplate: "{SHA}"
+    tagTemplate: "odh-main-{SHORT_SHA}"
     odh:
       base: "quay.io/opendatahub/data-science-pipelines-operator"
       digest: "sha256:d1569b0d51b3a9673a507532b374a9c6fdcf41c9ab34b2bcb4a31a032760c04a"
