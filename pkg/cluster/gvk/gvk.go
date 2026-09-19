@@ -751,6 +751,12 @@ var (
 		Kind:    "OperatorCondition",
 	}
 
+	ClusterExtension = schema.GroupVersionKind{
+		Group:   "olm.operatorframework.io",
+		Version: "v1",
+		Kind:    "ClusterExtension",
+	}
+
 	NetworkPolicy = schema.GroupVersionKind{
 		Group:   networkingv1.SchemeGroupVersion.Group,
 		Version: networkingv1.SchemeGroupVersion.Version,

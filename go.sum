@@ -154,8 +154,8 @@ github.com/k8s-manifest-kit/pkg v0.2.1-0.20260716110029-cb840211b914 h1:of6jyvmq
 github.com/k8s-manifest-kit/pkg v0.2.1-0.20260716110029-cb840211b914/go.mod h1:7EkZGthsczrQXZtcddxGRPTpQ8Fk4OXFmQabsv0tQQw=
 github.com/k8s-manifest-kit/renderer-helm v0.4.0 h1:l8BHvfrplxNlI7ZBkhsH0p5zfBDcHQuxiQgllNH6GcQ=
 github.com/k8s-manifest-kit/renderer-helm v0.4.0/go.mod h1:grBCai1eIVD2AAzO0nXCK+4Tm+aD40kPfbvF59KyySM=
-github.com/klauspost/compress v1.18.4 h1:RPhnKRAQ4Fh8zU2FY/6ZFDwTVTxgJ/EMydqSTzE9a2c=
-github.com/klauspost/compress v1.18.4/go.mod h1:R0h/fSBs8DE4ENlcrlib3PsXS61voFxhIs2DeRhCvJ4=
+github.com/klauspost/compress v1.18.6 h1:2jupLlAwFm95+YDR+NwD2MEfFO9d4z4Prjl1XXDjuao=
+github.com/klauspost/compress v1.18.6/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/pretty v0.3.1/go.mod h1:hoEshYVHaxMs3cyo3Yncou5ZscifuDolrwPKZanG3xk=
 github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
@@ -192,6 +192,8 @@ github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJw
 github.com/opencontainers/image-spec v1.1.1/go.mod h1:qpqAh3Dmcf36wStyyWU+kCeDgrGnAve2nCC8+7h8Q0M=
 github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a h1:MQWRo9YDTNsJh+82XWkDhqxQEJcd0I4vScIArwVIDCU=
 github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a/go.mod h1:uMYnqqPwy+1ub8me0YMZRZ1vrUQY9jS9nMcUXLBp88k=
+github.com/opendatahub-io/odh-platform-utilities v0.4.0 h1:2owyFN/cv6xoqvXCcweQPGN4FXmAh/xJ6Kbxp9E/s7w=
+github.com/opendatahub-io/odh-platform-utilities v0.4.0/go.mod h1:9fZ0sf6jCU8GTSViHUGAbFLHG3PYJ4/nG4QFLZEhYaE=
 github.com/opendatahub-io/odh-platform-utilities/framework v0.0.0-20260810103007-dd94df3e806f h1:y9wZsjvM92IhvEhjRSd2SjH5GDFxDpwnQAE+xp3A7zU=
 github.com/opendatahub-io/odh-platform-utilities/framework v0.0.0-20260810103007-dd94df3e806f/go.mod h1:PD+ImhLaGrGvjPcuDQHWvofvQyZtD6ZFGoGQIa8yCJo=
 github.com/openshift/api v0.0.0-20260610192510-1b2a074e0bd6 h1:W8yZzA6a8zTNOq+pzUAKJmpZCyxP8rTjRaLC0aLap/8=
