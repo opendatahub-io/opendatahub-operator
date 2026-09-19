@@ -46,4 +46,4 @@ spec:
     sparkoperator:
       managementState: "Removed"
     mcplifecycleoperator:
-      managementState: "Removed"
+      managementState: "Managed"
