@@ -227,20 +227,31 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		slices.Collect(maps.Keys(internalComponentToControllerMap)),
 	)
 	sort.Strings(allComponents)
-	expectedMsgComponents := fmt.Sprintf(`["%s"]`, strings.Join(allComponents, `","`))
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(
-			jq.Match(
-				`any(.status.conditions[];
+	if len(allComponents) == 0 {
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithCondition(jq.Match(
+				`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+				status.ConditionTypeComponentsReady,
+				metav1.ConditionTrue,
+			)),
+		)
+	} else {
+		expectedMsgComponents := fmt.Sprintf(`["%s"]`, strings.Join(allComponents, `","`))
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithCondition(
+				jq.Match(
+					`any(.status.conditions[];
             .type == "%s" and .status == "%s" and
             (.message as $msg | %s | all(.[]; ($msg | contains(.)))))`,
-				status.ConditionTypeComponentsReady,
-				metav1.ConditionFalse,
-				expectedMsgComponents,
+					status.ConditionTypeComponentsReady,
+					metav1.ConditionFalse,
+					expectedMsgComponents,
+				),
 			),
-		),
-	)
+		)
+	}
 
 	sort.Strings(moduleNames)
 	expectedMsgModules := fmt.Sprintf(`["%s"]`, strings.Join(moduleNames, `","`))

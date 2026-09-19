@@ -36,7 +36,7 @@ func aiPipelinesTestSuite(t *testing.T) {
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate component conditions", componentCtx.ValidateConditions},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
-		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
+		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
 		{"Validate platform release", componentCtx.ValidatePlatformRelease},
 		{"Validate argoWorkflowsControllers options", componentCtx.ValidateArgoWorkflowsControllersOptions},
@@ -46,6 +46,22 @@ func aiPipelinesTestSuite(t *testing.T) {
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
+}
+
+// ValidateUpdateDeploymentResources verifies that the AI Pipelines module
+// controller Deployment accepts resource updates.
+func (tc *DataSciencePipelinesTestCtx) ValidateUpdateDeploymentResources(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke)
+
+	deployment := tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.AppsNamespace,
+			Name:      aipipelinesModule.ControllerDeploymentName,
+		}),
+	)
+	tc.validateUpdateDeploymentsResources(t, *deployment)
 }
 
 // ValidateConditions validates that the AIPipelines module is ready.
