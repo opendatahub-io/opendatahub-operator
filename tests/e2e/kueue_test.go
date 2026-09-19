@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	gTypes "github.com/onsi/gomega/types"
+	"github.com/opendatahub-io/odh-platform-utilities/pkg/cluster/olm"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
@@ -551,7 +552,7 @@ func (tc *KueueTestCtx) expectedKueueFrameworks(t *testing.T) string {
 		`"StatefulSet"`, `"TFJob"`, `"XGBoostJob"`,
 	}
 
-	kueueInfo, err := cluster.OperatorExists(t.Context(), tc.Client(), kueueOpName)
+	kueueInfo, err := olm.OperatorExists(t.Context(), tc.Client(), kueueOpName)
 	require.NoError(t, err)
 	require.NotNil(t, kueueInfo, "kueue operator should be installed")
 
@@ -618,7 +619,7 @@ integrations:
 // External Operator CR > Kueue Component CR > DataScienceCluster CR
 //
 // Keep the real Kueue operator installed but scale its deployment to 0 during
-// condition injection. This way OperatorExists() still passes (OLM's OperatorCondition exists),
+// condition injection. This way olm.OperatorExists() still passes (OLM OperatorCondition or ClusterExtension exists),
 // but the operator can't reset conditions we inject.
 func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T) {
 	t.Helper()

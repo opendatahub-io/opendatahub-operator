@@ -101,7 +101,21 @@ func (tc *GatewayTestCtx) expectedKubeAuthProxyTLSDeploymentArgs(t *testing.T) (
 	if !found {
 		return kubeAuthProxyTLSDeploymentArgs(nil)
 	}
+	if !oracleShouldHonorClusterTLSProfile(apiServer.Spec.TLSAdherence) {
+		return kubeAuthProxyTLSDeploymentArgs(nil)
+	}
 	return kubeAuthProxyTLSDeploymentArgs(apiServer.Spec.TLSSecurityProfile)
+}
+
+func oracleShouldHonorClusterTLSProfile(adherence configv1.TLSAdherencePolicy) bool {
+	switch adherence {
+	case configv1.TLSAdherencePolicyNoOpinion, configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly:
+		return false
+	case configv1.TLSAdherencePolicyStrictAllComponents:
+		return true
+	default:
+		return true
+	}
 }
 
 func (tc *GatewayTestCtx) eventuallyKubeAuthProxyDeploymentHasTLSArgs(minVersionArg, cipherSuitesArg string) {
