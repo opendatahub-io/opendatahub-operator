@@ -188,6 +188,12 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return nil
 	}
 
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		if err := requireCertManager(ctx, rr.Client); err != nil {
+			return err
+		}
+	}
+
 	// Get secret values for both OIDC and IntegratedOAuth modes
 	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, authMode, oidcConfig)
 	if err != nil {
@@ -217,16 +223,23 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		l.V(1).Info("OAuth client created successfully")
 	}
 
-	// On XKS, generate a self-signed TLS cert for kube-auth-proxy (OCP uses serving-cert annotation instead)
+	// On XKS, cert-manager is a required dependency for the kube-auth-proxy TLS
+	// certificate (OCP uses the serving-cert annotation instead).
 	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
 		kapServiceDNS := fmt.Sprintf("%s.%s.svc.cluster.local", KubeAuthProxyName, GetGatewayNamespace())
-		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, KubeAuthProxyTLSName, kapServiceDNS, GetGatewayNamespace(),
-			cluster.WithLabels(labels.PlatformPartOf, ServiceName),
-			cluster.OwnedBy(gatewayConfig, rr.Client.Scheme()),
-		); err != nil {
-			return fmt.Errorf("failed to create kube-auth-proxy TLS certificate: %w", err)
+		issuerName, issuerKind := resolveIssuerRef(gatewayConfig.Spec.Certificate)
+		cert, err := buildCertManagerCertificate(KubeAuthProxyTLSName, GetGatewayNamespace(), KubeAuthProxyTLSName, []string{kapServiceDNS}, issuerName, issuerKind)
+		if err != nil {
+			return err
 		}
-		l.V(1).Info("Created self-signed TLS cert for kube-auth-proxy", "secret", KubeAuthProxyTLSName)
+		if err := rr.AddResources(cert); err != nil {
+			return fmt.Errorf("failed to add kube-auth-proxy Certificate: %w", err)
+		}
+		l.V(1).Info("Created cert-manager Certificate for kube-auth-proxy",
+			"secret", KubeAuthProxyTLSName,
+			"issuerName", issuerName,
+			"issuerKind", issuerKind,
+		)
 	}
 
 	rr.Templates = append(rr.Templates, kubeAuthProxyDeploymentTemplates)
