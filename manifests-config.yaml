@@ -141,6 +141,15 @@ ccmCharts:
       repo: red-hat-data-services/odh-gitops
       ref: rhoai-3.6-ea.2@580a0093f5ce5ffd5dd602342c45effe7591007b
       sourcePath: charts/dependencies/gateway-api
+  rhcl-operator:
+    odh:
+      repo: opendatahub-io/odh-gitops
+      ref: main@af383937f4efd498a24f1128cde6a1779a70e69f
+      sourcePath: charts/dependencies/rhcl-operator
+    rhoai:
+      repo: red-hat-data-services/odh-gitops
+      ref: rhoai-3.6-ea.2@96fedc9507b39bd38d999fdf5c9183a8f12d809b
+      sourcePath: charts/dependencies/rhcl-operator
 componentCharts:
   dashboard-operator:
     odh:

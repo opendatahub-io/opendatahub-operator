@@ -95,6 +95,7 @@ ignored:
     - lws-operator
     - sail-operator
     - gateway-api
+    - rhcl-operator
 
 # ------------------------------------------------------------------------
 # components.<name> / services.<name> — one entry per real, registered
