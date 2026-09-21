@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -50,6 +52,38 @@ func trustyAITestSuite(t *testing.T) {
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
+}
+
+// ValidateOperandsOwnerReferences ensures TrustyAI operand deployments are owned by the TrustyAI CR.
+// Overrides parent implementation to use TrustyAI-specific labels from the modular architecture.
+func (tc *TrustyAITestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke)
+
+	if tc.IsXKS() {
+		t.Skip("Skipping test because operand ownership by the TrustyAI CR is not enforced on XKS")
+	}
+
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(&client.ListOptions{
+			Namespace: tc.AppsNamespace,
+			LabelSelector: k8slabels.Set{
+				"app.kubernetes.io/part-of": componentApi.TrustyAIComponentName,
+			}.AsSelector(),
+		}),
+		WithCondition(
+			HaveEach(
+				jq.Match(
+					`any(.metadata.ownerReferences[]?; .kind == "%s" and .name == "%s")`,
+					componentApi.TrustyAIKind,
+					componentApi.TrustyAIInstanceName,
+				),
+			),
+		),
+		WithCustomErrorMsg("TrustyAI operand Deployments should be owned by the TrustyAI CR"),
+	)
 }
 
 // ValidateComponentEnabled validates TrustyAI component with required KServe dependency.
