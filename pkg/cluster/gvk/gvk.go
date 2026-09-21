@@ -331,10 +331,10 @@ var (
 		Kind:    componentApi.ModelMeshServingKind,
 	}
 
-	DataSciencePipelines = schema.GroupVersionKind{
+	AIPipelines = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.DataSciencePipelinesKind,
+		Kind:    componentApi.AIPipelinesKind,
 	}
 
 	Kserve = schema.GroupVersionKind{

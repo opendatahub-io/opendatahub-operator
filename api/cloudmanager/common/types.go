@@ -22,6 +22,8 @@ const (
 	DefaultNamespaceCertManagerOperand  = "cert-manager"
 	DefaultNamespaceLWSOperator         = "openshift-lws-operator"
 	DefaultNamespaceSailOperator        = "istio-system"
+	DefaultNamespaceRHCLOperator        = "kuadrant-operators"
+	DefaultNamespaceRHCLOperand         = "kuadrant-system"
 )
 
 // Namespace represents a Kubernetes namespace name (RFC 1123 DNS label).
@@ -54,6 +56,22 @@ type SailOperatorConfiguration struct {
 // GatewayAPIConfiguration defines the configuration for the Gateway API dependency.
 // +kubebuilder:object:generate=true
 type GatewayAPIConfiguration struct{}
+
+// RHCLConfiguration defines the configuration for the RHCL (Red Hat Connectivity
+// Link / Kuadrant) operator dependency.
+// +kubebuilder:object:generate=true
+type RHCLConfiguration struct {
+	// OperatorNamespace is the namespace where the RHCL/Kuadrant operator
+	// Deployments (kuadrant-operator, authorino-operator, limitador-operator,
+	// dns-operator) are deployed.
+	// +kubebuilder:default=kuadrant-operators
+	OperatorNamespace Namespace `json:"operatorNamespace,omitempty"`
+
+	// OperandNamespace is the namespace where the Kuadrant custom resource
+	// (the RHCL operand) is created.
+	// +kubebuilder:default=kuadrant-system
+	OperandNamespace Namespace `json:"operandNamespace,omitempty"`
+}
 
 // Deprecated: cert-manager is no longer a Cloud Controller Manager dependency.
 // This type is retained for backwards compatibility.
@@ -134,6 +152,44 @@ type GatewayAPIDependency struct {
 	Configuration GatewayAPIConfiguration `json:"configuration,omitempty"`
 }
 
+// RHCLDependency defines the RHCL (Red Hat Connectivity Link / Kuadrant) operator dependency.
+// +kubebuilder:object:generate=true
+type RHCLDependency struct {
+	// ManagementPolicy determines whether the operator manages this dependency.
+	// Managed: the operator installs and reconciles the dependency.
+	// Unmanaged: the operator does not manage the dependency; the user is responsible.
+	// Defaults to Unmanaged, unlike the other CCM dependencies: RHCL's chart is
+	// significantly heavier (~30 CRDs, several Deployments) and is an opt-in,
+	// specialized capability rather than something every xKS cluster needs.
+	// +kubebuilder:default=Unmanaged
+	ManagementPolicy ManagementPolicy `json:"managementPolicy,omitempty"`
+
+	// Configuration for the RHCL operator.
+	// +optional
+	// +kubebuilder:default={}
+	Configuration RHCLConfiguration `json:"configuration,omitempty"`
+}
+
+// GetOperatorNamespace returns the namespace where the RHCL/Kuadrant operator
+// Deployments are deployed, falling back to DefaultNamespaceRHCLOperator if empty.
+func (d *RHCLDependency) GetOperatorNamespace() string {
+	if d.Configuration.OperatorNamespace != "" {
+		return string(d.Configuration.OperatorNamespace)
+	}
+
+	return DefaultNamespaceRHCLOperator
+}
+
+// GetOperandNamespace returns the namespace where the Kuadrant custom resource
+// is created, falling back to DefaultNamespaceRHCLOperand if empty.
+func (d *RHCLDependency) GetOperandNamespace() string {
+	if d.Configuration.OperandNamespace != "" {
+		return string(d.Configuration.OperandNamespace)
+	}
+
+	return DefaultNamespaceRHCLOperand
+}
+
 // KubernetesEngineInstance is implemented by CCM CR types that expose their Dependencies.
 type KubernetesEngineInstance interface {
 	apicommon.PlatformObject
@@ -160,4 +216,8 @@ type Dependencies struct {
 	// GatewayAPI defines the Gateway API dependency.
 	// +optional
 	GatewayAPI GatewayAPIDependency `json:"gatewayAPI,omitempty"`
+
+	// RHCL defines the RHCL (Red Hat Connectivity Link / Kuadrant) operator dependency.
+	// +optional
+	RHCL RHCLDependency `json:"rhcl,omitempty"`
 }

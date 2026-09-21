@@ -82,13 +82,13 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
+	aipipelinesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aipipelines"
 	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
 	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
@@ -136,8 +136,7 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 
 	existingComponents = map[string]cr.ComponentHandler{
-		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
-		componentApi.KueueComponentName:                kueue.NewHandler(),
+		componentApi.KueueComponentName: kueue.NewHandler(),
 	}
 
 	// Component runlevel assignments.
@@ -148,8 +147,6 @@ var (
 	// 32 — independent extensions, no KServe dependency.
 	// 33 — components that require KServe to be Ready.
 	componentRunlevels = map[string]dag.Runlevel{
-		componentApi.DataSciencePipelinesComponentName: dag.RL(20),
-
 		componentApi.KueueComponentName: dag.RL(31),
 	}
 
@@ -161,6 +158,7 @@ var (
 	}
 
 	existingModules = map[string]mr.ModuleHandler{
+		componentApi.AIPipelinesComponentName:          aipipelinesModule.NewHandler(),
 		componentApi.DashboardComponentName:            dashboardModule.NewHandler(),
 		serviceApi.MonitoringServiceName:               monitoringModule.NewHandler(),
 		componentApi.AIGatewayComponentName:            aigatewayModule.NewHandler(),
@@ -185,6 +183,7 @@ var (
 	}
 
 	moduleRunlevels = map[string]dag.Runlevel{
+		componentApi.AIPipelinesComponentName:          dag.RL(20),
 		serviceApi.MonitoringServiceName:               dag.RL(20),
 		componentApi.DashboardComponentName:            dag.RL(20),
 		componentApi.AIGatewayComponentName:            dag.RL(32),
