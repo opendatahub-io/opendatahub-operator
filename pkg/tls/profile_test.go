@@ -153,6 +153,18 @@ func TestFromProfileStrict(t *testing.T) {
 			wantCiphers: "TLS_AES_128_GCM_SHA256",
 		},
 		{
+			name: "custom TLS 1.3 unmappable ciphers are informational",
+			profile: &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileCustomType,
+				Custom: &configv1.CustomTLSProfile{TLSProfileSpec: configv1.TLSProfileSpec{
+					Ciphers:       []string{"DHE-RSA-AES128-GCM-SHA256"},
+					MinTLSVersion: configv1.VersionTLS13,
+				}},
+			},
+			format:      pkgtls.FormatShort,
+			wantVersion: "TLS1.3",
+		},
+		{
 			name: "partially unmappable TLS 1.2 ciphers keep supported entries",
 			profile: &configv1.TLSSecurityProfile{
 				Type: configv1.TLSProfileCustomType,

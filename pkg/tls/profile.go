@@ -187,7 +187,7 @@ func FromProfileStrict(ctx context.Context, profile *configv1.TLSSecurityProfile
 		return "", "", errors.New("TLS profile contains no cipher suites")
 	}
 	ianaCiphers := ocpcrypto.OpenSSLToIANACipherSuites(spec.Ciphers)
-	if len(spec.Ciphers) > 0 && len(ianaCiphers) == 0 {
+	if spec.MinTLSVersion != configv1.VersionTLS13 && len(ianaCiphers) == 0 {
 		return "", "", errors.New("TLS profile contains no cipher suites supported by the proxy")
 	}
 	// The OpenShift API allows components to omit cipher suites they cannot
