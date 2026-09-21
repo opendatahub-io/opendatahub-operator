@@ -80,7 +80,6 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"codeflare resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateCodeFlareResourcePreservation},
 		{"modelmeshserving resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateModelMeshServingResourcePreservation},
-		{"ray raise error if codeflare component present in the cluster", v2Tov3UpgradeTestCtx.ValidateRayRaiseErrorIfCodeFlarePresent},
 		{"servicemesh resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateServiceMeshResourcePreservation},
 		// RHOAIENG-48054: DSCI should stay Ready after suite scenarios (startup cleanup before default CR creation).
 		{"default DSCInitialization remains Ready after deprecated CRD scenarios", v2Tov3UpgradeTestCtx.ValidateDefaultDSCIRemainsReadyAfterDeprecatedCRDScenarios},
@@ -148,59 +147,6 @@ func (tc *V2Tov3UpgradeTestCtx) validateComponentResourcePreservation(t *testing
 	)
 }
 
-func (tc *V2Tov3UpgradeTestCtx) ValidateRayRaiseErrorIfCodeFlarePresent(t *testing.T) {
-	t.Helper()
-
-	// Register cleanup to restore Ray to Removed state even on test failure
-	t.Cleanup(func() {
-		tc.updateComponentStateInDataScienceCluster(t, gvk.Ray.Kind, operatorv1.Removed)
-	})
-
-	dsc := tc.FetchDataScienceCluster()
-	existingComponent := tc.operatorManagedComponent(gvk.CodeFlare, defaultCodeFlareComponentName, dsc)
-
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(existingComponent),
-		WithCleanup(t),
-		WithCustomErrorMsg("Failed to create existing %s component", gvk.CodeFlare),
-	)
-
-	tc.updateComponentStateInDataScienceCluster(t, gvk.Ray.Kind, operatorv1.Managed)
-
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(And(
-			jq.Match(
-				`.status.conditions[]
-				| select(.type == "ComponentsReady" and .status == "False")
-				| .message == "%s"`,
-				"Some components are not ready: ray",
-			),
-			jq.Match(
-				`.status.conditions[]
-				| select(.type == "RayReady" and .status == "False")
-				| .message == "%s"`,
-				status.CodeFlarePresentMessage,
-			),
-		)),
-	)
-
-	tc.DeleteResource(
-		WithMinimalObject(gvk.CodeFlare, types.NamespacedName{Name: defaultCodeFlareComponentName}),
-		WithWaitForDeletion(true),
-	)
-
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(And(
-			jq.Match(
-				`.status.conditions[]
-				| select(.type == "RayReady") | .status == "True"`,
-			),
-		)),
-	)
-}
-
 func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T) {
 	t.Helper()
 
@@ -246,21 +192,6 @@ func (tc *V2Tov3UpgradeTestCtx) operatorManagedComponent(componentGVK schema.Gro
 		dsc.GetName(), componentGVK.Kind, componentName)
 
 	return existingComponent
-}
-
-func (tc *V2Tov3UpgradeTestCtx) updateComponentStateInDataScienceCluster(t *testing.T, kind string, managementState operatorv1.ManagementState) {
-	t.Helper()
-
-	// Map DataSciencePipelines to aipipelines for v2 API
-	componentFieldName := strings.ToLower(kind)
-	if kind == dataSciencePipelinesKind {
-		componentFieldName = aiPipelinesFieldName
-	}
-
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentFieldName, managementState)),
-	)
 }
 
 // createCRD creates a mock CRD for the given component GVK if it doesn't already exist in the cluster.

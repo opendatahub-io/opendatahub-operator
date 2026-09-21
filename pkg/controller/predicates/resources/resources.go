@@ -203,7 +203,7 @@ func GatewayConfigDomainChanged() predicate.Predicate {
 }
 
 // APIServerTLSSecurityProfileChanged returns a predicate that triggers reconciliation when the
-// cluster APIServer spec.tlsSecurityProfile changes.
+// cluster APIServer TLS profile or adherence policy changes.
 func APIServerTLSSecurityProfileChanged() predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
@@ -222,7 +222,8 @@ func APIServerTLSSecurityProfileChanged() predicate.Predicate {
 				// Reconcile when either object cannot be converted so TLS args stay in sync.
 				return true
 			}
-			return !reflect.DeepEqual(oldAPI.Spec.TLSSecurityProfile, newAPI.Spec.TLSSecurityProfile)
+			return !reflect.DeepEqual(oldAPI.Spec.TLSSecurityProfile, newAPI.Spec.TLSSecurityProfile) ||
+				oldAPI.Spec.TLSAdherence != newAPI.Spec.TLSAdherence
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
 			return false

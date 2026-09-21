@@ -476,6 +476,7 @@ func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Co
 		switch c.Type {
 		case status.ConditionTypeReady,
 			status.ConditionTypeProvisioningSucceeded,
+			status.ConditionMonitoringDependenciesReady,
 			status.ConditionMonitoringStackAvailable,
 			status.ConditionThanosQuerierAvailable,
 			status.ConditionOpenTelemetryCollectorAvailable,

@@ -8,12 +8,14 @@ import (
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
@@ -564,6 +566,40 @@ spec:
 	runKueueCRTest(t, kueueConfig, kueueCR)
 }
 
+func TestCreateKueueConfigurationCR_OLMv1ClusterExtension(t *testing.T) {
+	const kueueConfig = `
+apiVersion: config.kueue.x-k8s.io/v1beta1
+kind: Configuration
+integrations:
+  labelKeys:
+    - "custom.label/key1"
+`
+	const kueueCR = `
+apiVersion: kueue.openshift.io/v1
+kind: Kueue
+metadata:
+  name: cluster
+  annotations:
+    opendatahub.io/managed: "false"
+spec:
+  managementState: Managed
+  config:
+    integrations:
+      frameworks:
+        - Deployment
+        - Pod
+        - PyTorchJob
+        - RayCluster
+        - RayJob
+        - SparkApplication
+        - StatefulSet
+        - TrainJob
+      labelKeys:
+        - custom.label/key1
+`
+	runKueueCRTestOLMv1(t, kueueConfig, kueueCR)
+}
+
 func runKueueCRTest(t *testing.T, configMapYAML string, expectedCRYAML string) {
 	t.Helper()
 
@@ -609,6 +645,49 @@ func runKueueCRTest(t *testing.T, configMapYAML string, expectedCRYAML string) {
 			},
 		}
 
+		g.Expect(fakeClient.Create(ctx, cm)).Should(Succeed())
+	}
+
+	result, err := createKueueCR(ctx, rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(result).ShouldNot(BeNil())
+
+	actualCRYAML, err := yaml.Marshal(result.Object)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(string(actualCRYAML)).To(MatchYAML(expectedCRYAML))
+}
+
+func runKueueCRTestOLMv1(t *testing.T, configMapYAML string, expectedCRYAML string) {
+	t.Helper()
+
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	fakeClient, err := fakeclient.New(
+		fakeclient.WithObjects(newInstalledClusterExtension("kueue-ext", kueueOperator)),
+		fakeclient.WithGVKs(fakeclient.GVKMapping{GVK: gvk.ClusterExtension, Scope: meta.RESTScopeRoot}),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-dsci"},
+		Spec:       dsciv2.DSCInitializationSpec{ApplicationsNamespace: "test-namespace"},
+	}
+	g.Expect(fakeClient.Create(ctx, dsci)).Should(Succeed())
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:   fakeClient,
+		Instance: &componentApi.Kueue{},
+	}
+
+	if configMapYAML != "" {
+		cm := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      KueueConfigMapName,
+				Namespace: "test-namespace",
+			},
+			Data: map[string]string{KueueConfigMapEntry: configMapYAML},
+		}
 		g.Expect(fakeClient.Create(ctx, cm)).Should(Succeed())
 	}
 

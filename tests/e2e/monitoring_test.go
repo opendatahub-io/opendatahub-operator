@@ -502,11 +502,16 @@ func (tc *MonitoringTestCtx) ValidateMonitoringReadyConditionOnDSCI(t *testing.T
 			// Mirrored conditions from Monitoring CR
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionMonitoringDependenciesReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionMonitoringDependenciesReady, status.AvailableReason),
 			// Base condition
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionMonitoringReady, metav1.ConditionTrue),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionMonitoringReady, status.ReadyReason),
 		)),
-		WithCustomErrorMsg("DSCI should have mirrored Ready=True and ProvisioningSucceeded=True PLUS MonitoringReady=True when monitoring is Managed and Monitoring CR is ready"),
+		WithCustomErrorMsg(
+			"DSCI should mirror Ready=True, ProvisioningSucceeded=True, and MonitoringDependenciesReady=True "+
+				"plus MonitoringReady=True when monitoring is Managed and the Monitoring CR is ready",
+		),
 	)
 }
 

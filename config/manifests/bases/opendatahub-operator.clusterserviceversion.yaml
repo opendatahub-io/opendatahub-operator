@@ -10,7 +10,7 @@ metadata:
     createdAt: "2026-9-02T00:00:00Z"
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "datasciencepipelines.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
-      "rays.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io"]'
+      "trustyais.components.platform.opendatahub.io"]'
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v3.6.0-ea.2
   namespace: placeholder
@@ -68,11 +68,6 @@ spec:
       displayName: Kueue
       kind: Kueue
       name: kueues.components.platform.opendatahub.io
-      version: v1alpha1
-    - description: Ray is the Schema for the rays API
-      displayName: Ray
-      kind: Ray
-      name: rays.components.platform.opendatahub.io
       version: v1alpha1
     - description: TrustyAI is the Schema for the trustyais API
       displayName: Trusty AI
