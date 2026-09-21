@@ -57,7 +57,7 @@ components:
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/data-science-pipelines-operator
-      ref: rhoai-3.6-ea.2@73be619d0b95f6826233e89732417a2ac004068a
+      ref: rhoai-3.6-ea.2@2206a928e13084c143335bfd4f648528bd697976
       sourcePath: config
   ogx:
     odh:
