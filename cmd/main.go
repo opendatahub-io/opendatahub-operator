@@ -442,6 +442,16 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		cacheOptions.ByObject[&routev1.Route{}] = cache.ByObject{
 			Namespaces: oDHCache,
 		}
+		// Authentication is a cluster-scoped config.openshift.io singleton read via
+		// typed cached Get (pkg/cluster GetClusterAuthenticationMode / IsIntegratedOAuth).
+		// Register a cluster-wide informer filtered to the single "cluster" object so the
+		// read is served from cache instead of bypassing it via cacheDisableFor(). For a
+		// cluster-scoped type ByObject.Namespaces MUST stay nil (controller-runtime errors
+		// out otherwise); the Field selector alone yields the cluster-wide, single-object
+		// watch — cheap (one object) and OpenShift-guarded like the entries above.
+		cacheOptions.ByObject[&configv1.Authentication{}] = cache.ByObject{
+			Field: fields.Set{"metadata.name": cluster.ClusterAuthenticationObj}.AsSelector(),
+		}
 	}
 
 	// Prometheus operator cache filters: only register when the API is available
@@ -687,33 +697,16 @@ func newCacheOptions(scheme *runtime.Scheme, oDHCache, secretCache map[string]ca
 		Scheme:                      scheme,
 		ReaderFailOnMissingInformer: failOnMissingInformer,
 		DefaultNamespaces:           oDHCache,
+		// Only types whose namespace scope differs from DefaultNamespaces need a
+		// ByObject entry: controller-runtime defaults ByObject.Namespaces to
+		// DefaultNamespaces for every other type (and applies DefaultTransform to
+		// them via the default cache), so listing them here with Namespaces: oDHCache
+		// would be redundant. Secret is scoped to secretCache, a strict subset of
+		// oDHCache (no openshift-operators/models-as-a-service/kuadrant-system), so
+		// it must stay.
 		ByObject: map[client.Object]cache.ByObject{
 			&corev1.Secret{}: {
 				Namespaces: secretCache,
-			},
-			&corev1.ConfigMap{}: {
-				Namespaces: oDHCache,
-			},
-			&appsv1.Deployment{}: {
-				Namespaces: oDHCache,
-			},
-			&networkingv1.NetworkPolicy{}: {
-				Namespaces: oDHCache,
-			},
-			&rbacv1.Role{}: {
-				Namespaces: oDHCache,
-			},
-			&rbacv1.RoleBinding{}: {
-				Namespaces: oDHCache,
-			},
-			&corev1.ServiceAccount{}: {
-				Namespaces: oDHCache,
-			},
-			&corev1.Service{}: {
-				Namespaces: oDHCache,
-			},
-			&corev1.PersistentVolumeClaim{}: {
-				Namespaces: oDHCache,
 			},
 		},
 		DefaultTransform: func(in any) (any, error) {
@@ -730,16 +723,15 @@ func cacheDisableFor() []client.Object {
 	objs := []client.Object{
 		resources.GvkToUnstructured(gvk.OpenshiftIngress),
 		&configv1.Infrastructure{},
-		// Authentication and APIServer are cluster-scoped config.openshift.io
-		// singletons read via typed Get (pkg/cluster GetClusterAuthenticationMode /
-		// GetClusterServiceAccountIssuer, pkg/tls FromAPIServer). With DefaultNamespaces
-		// scoping the cache, these typed reads have no matching informer (APIServer is
-		// only watched as unstructured by the gateway controller; Authentication is not
-		// watched at all), so they must bypass the cache like Infrastructure does —
-		// otherwise they hard-fail as "not cached" when ReaderFailOnMissingInformer is
-		// enabled (dev/CI), or silently start an unfiltered cluster-wide informer when
-		// it is not.
-		&configv1.Authentication{},
+		// APIServer is a cluster-scoped config.openshift.io singleton read via typed Get
+		// (pkg/cluster GetClusterServiceAccountIssuer, pkg/tls FromAPIServer). With
+		// DefaultNamespaces scoping the cache it has no matching informer (it is only
+		// watched as unstructured by the gateway controller), so it must bypass the cache
+		// like Infrastructure does — otherwise it hard-fails as "not cached" when
+		// ReaderFailOnMissingInformer is enabled (dev/CI), or silently starts an unfiltered
+		// cluster-wide informer when it is not. (Authentication, the other such singleton,
+		// instead gets a field-selected cluster-wide informer registered under the OpenShift
+		// guard above, so it is served from cache rather than listed here.)
 		&configv1.APIServer{},
 		// Namespaced cert-manager Issuer and Certificate are deployed by components
 		// (e.g. ray's selfsigned-issuer + serving Certificate in the applications

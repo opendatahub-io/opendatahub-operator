@@ -69,10 +69,17 @@ func TestNewCacheOptions_ByObjectNamespaceAssignments(t *testing.T) {
 
 	opts := newCacheOptions(runtime.NewScheme(), oDHCache, secretCache, true)
 
+	// Secret is the only type whose namespace scope differs from DefaultNamespaces
+	// (secretCache is a strict subset of oDHCache), so it is the only type that needs
+	// an explicit ByObject override.
 	wantSecretCache := []client.Object{
 		&corev1.Secret{},
 	}
-	wantODHCache := []client.Object{
+	// These types are scoped to oDHCache via DefaultNamespaces: controller-runtime
+	// defaults ByObject.Namespaces to DefaultNamespaces for every type not listed in
+	// ByObject, so listing them explicitly would be redundant. They must therefore be
+	// absent from ByObject (and still namespace-scoped through DefaultNamespaces).
+	wantDefaultScoped := []client.Object{
 		&corev1.ConfigMap{},
 		&appsv1.Deployment{},
 		&networkingv1.NetworkPolicy{},
@@ -91,16 +98,19 @@ func TestNewCacheOptions_ByObjectNamespaceAssignments(t *testing.T) {
 			"%s must use secretCache namespaces, not oDHCache", typeName)
 	}
 
-	for _, obj := range wantODHCache {
+	for _, obj := range wantDefaultScoped {
 		typeName := reflect.TypeOf(obj).Elem().Name()
-		byObj, found := findByObject(opts, obj)
-		require.True(t, found, "%s must be in ByObject", typeName)
-		assert.Equal(t, oDHCache, byObj.Namespaces,
-			"%s must use oDHCache namespaces, not secretCache", typeName)
+		_, found := findByObject(opts, obj)
+		assert.False(t, found,
+			"%s must NOT be in ByObject — it is scoped to oDHCache via DefaultNamespaces", typeName)
 	}
 
-	assert.Len(t, opts.ByObject, len(wantSecretCache)+len(wantODHCache),
-		"ByObject should contain exactly the expected entries (IngressController/Auth/Route added separately by OpenShift setup)")
+	// DefaultNamespaces carries the oDHCache scope for all default-scoped types.
+	assert.Equal(t, oDHCache, opts.DefaultNamespaces,
+		"DefaultNamespaces must be oDHCache so default-scoped types stay namespace-limited")
+
+	assert.Len(t, opts.ByObject, len(wantSecretCache),
+		"ByObject should contain exactly Secret (IngressController/Auth/Route added separately by OpenShift setup)")
 }
 
 func findByObject(opts cache.Options, target client.Object) (cache.ByObject, bool) {
