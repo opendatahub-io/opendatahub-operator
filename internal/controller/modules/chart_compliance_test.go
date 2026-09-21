@@ -9,6 +9,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
+	aipipelinesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aipipelines"
 	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
@@ -41,6 +42,7 @@ var allowedKinds = map[string]bool{
 func moduleHandlers() []modules.ModuleHandler {
 	return []modules.ModuleHandler{
 		aigatewayModule.NewHandler(),
+		aipipelinesModule.NewHandler(),
 		dashboardModule.NewHandler(),
 		mcplifecycleoperatorModule.NewHandler(),
 		monitoringModule.NewHandler(),

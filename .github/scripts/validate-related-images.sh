@@ -251,6 +251,17 @@ extract_module_images() {
     done
 }
 
+extract_map_keys() {
+    local search_dir="$1"
+
+    # A repository may use RELATED_IMAGE values exclusively through module
+    # slices, leaving no quoted map keys. An empty match set is valid.
+    grep -roh '"RELATED_IMAGE_[A-Z0-9_]*"[[:space:]]*:' "$search_dir" \
+        --include='*.go' --exclude='*_test.go' 2>/dev/null \
+        | grep -oh 'RELATED_IMAGE_[A-Z0-9_]\+' \
+        | sort -u || true
+}
+
 mkdir -p "$WORKDIR/modules"
 if [ -d "$MODULES_DIR" ]; then
     for mod_dir in "$MODULES_DIR"/*/; do
@@ -422,10 +433,7 @@ sort -u -o "$WORKDIR/mapped-images.txt" "$WORKDIR/mapped-images.txt"
 grep -roh 'RELATED_IMAGE_[A-Z0-9_]\+' internal/ \
     --include='*.go' --exclude='*_test.go' \
     | sort -u > "$WORKDIR/all-refs.txt"
-grep -roh '"RELATED_IMAGE_[A-Z0-9_]*"[[:space:]]*:' internal/ \
-    --include='*.go' --exclude='*_test.go' 2>/dev/null \
-    | grep -oh 'RELATED_IMAGE_[A-Z0-9_]\+' \
-    | sort -u > "$WORKDIR/map-keys.txt"
+extract_map_keys internal/ > "$WORKDIR/map-keys.txt"
 comm -23 "$WORKDIR/all-refs.txt" "$WORKDIR/map-keys.txt" > "$WORKDIR/all-env-refs.txt"
 comm -23 "$WORKDIR/all-env-refs.txt" "$WORKDIR/mapped-images.txt" > "$WORKDIR/unmapped-refs.txt"
 while IFS= read -r img; do

@@ -402,7 +402,6 @@ Controller implementations live under `internal/controller/components/`.
 APIs live under `api/components/v1alpha1/`.
 
 - [Dashboard](https://github.com/opendatahub-io/odh-dashboard)
-- [Data Science Pipelines](https://github.com/opendatahub-io/data-science-pipelines)
 - [KServe](https://github.com/opendatahub-io/kserve)
 - [Model Controller](https://github.com/opendatahub-io/odh-model-controller)
 - [ModelRegistry](https://github.com/opendatahub-io/model-registry)
@@ -421,3 +420,4 @@ module operators live in their own repositories. See
 
 - [AI Gateway](https://github.com/opendatahub-io/ai-gateway-operator) — handler: `internal/controller/modules/aigateway/`
 - [Spark Operator](https://github.com/opendatahub-io/spark-operator/tree/main/spark-operator-module) — handler: `internal/controller/modules/sparkoperator/`
+- [AI Pipelines](https://github.com/opendatahub-io/data-science-pipelines-operator) — handler: `internal/controller/modules/aipipelines/`
