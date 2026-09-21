@@ -1321,7 +1321,7 @@ imageOverrides:
       digest: "sha256:65cba5211000f9b13b87b2bd9f1fb052ea814e1826e53f498edd84209d877b6e"
     rhoai:
       base: "quay.io/rhoai/odh-trustyai-module-operator-rhel9"
-      digest: "sha256:e6a0be61ecbedf259b80fc2a63ae8ee975aa18a6a6743538554b21bab9f7bd4c"
+      digest: "sha256:dc67f803cce055fb278d782353e1b1c5a0661d3e1be0a4bed228b99729b91388"
   RELATED_IMAGE_ODH_MODELEXPRESS_IMAGE:
     source: "csv"
     odh:
