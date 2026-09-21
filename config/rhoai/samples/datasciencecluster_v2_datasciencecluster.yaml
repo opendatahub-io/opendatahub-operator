@@ -22,6 +22,8 @@ spec:
         managementState: "Managed"
       wva:
         managementState: "Removed"
+      modelExpress:
+        managementState: "Removed"
     kueue:
       managementState: "Removed"
     trainer:

@@ -196,6 +196,8 @@ spec:
         managementState: Managed
       wva:
         managementState: Removed
+      modelExpress:
+        managementState: Removed
       rawDeploymentServiceConfig: Headless
     modelregistry:
       managementState: Managed
