@@ -17,8 +17,12 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"fmt"
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -30,6 +34,10 @@ const (
 	// value should match what's set in the XValidation below
 	GatewayConfigName = "default-gateway"
 	GatewayConfigKind = "GatewayConfig"
+
+	DefaultGatewayListenerName       = "https"
+	LegacyGatewayListenerName        = "https-legacy"
+	DefaultGatewayListenerPort int32 = 443
 )
 
 // IngressMode defines how the Gateway exposes its endpoints externally.
@@ -140,9 +148,73 @@ type GatewayConfigSpec struct {
 	// AdditionalIngresses defines additional listeners on the managed Gateway.
 	// Authentication and scaling fields are defined by the per-ingress auth contract.
 	// +optional
-	// +listType=map
-	// +listMapKey=name
-	AdditionalIngresses []AdditionalIngress `json:"additionalIngresses,omitempty"`
+	AdditionalIngresses AdditionalIngresses `json:"additionalIngresses,omitempty"`
+}
+
+// ValidateAdditionalIngresses performs runtime validation for callers that
+// construct GatewayConfig objects without API-server admission.
+func (s GatewayConfigSpec) ValidateAdditionalIngresses() error {
+	return s.AdditionalIngresses.Validate(s.IngressMode)
+}
+
+// AdditionalIngresses is the collection of additional Gateway listener definitions.
+// +listType=map
+// +listMapKey=name
+type AdditionalIngresses []AdditionalIngress
+
+// Validate performs runtime validation for additional ingress definitions.
+func (ingresses AdditionalIngresses) Validate(ingressMode IngressMode) error {
+	if len(ingresses) > 0 && ingressMode != IngressModeOcpRoute {
+		return fmt.Errorf("additional ingresses require %s ingress mode", IngressModeOcpRoute)
+	}
+
+	seenNames := make(map[string]struct{}, len(ingresses))
+	seenHostnames := make(map[string]string, len(ingresses))
+	seenPorts := map[int32]string{DefaultGatewayListenerPort: DefaultGatewayListenerName}
+	for _, ingress := range ingresses {
+		if errs := validation.IsDNS1123Label(ingress.Name); len(errs) > 0 {
+			return fmt.Errorf("additional ingress %q has invalid name: %s", ingress.Name, errs[0])
+		}
+		if ingress.Name == DefaultGatewayListenerName || ingress.Name == LegacyGatewayListenerName {
+			return fmt.Errorf("additional ingress %q uses reserved listener name", ingress.Name)
+		}
+		if _, found := seenNames[ingress.Name]; found {
+			return fmt.Errorf("additional ingresses contain duplicate name %q", ingress.Name)
+		}
+		seenNames[ingress.Name] = struct{}{}
+
+		if errs := validation.IsDNS1123Subdomain(ingress.Hostname); len(errs) > 0 {
+			return fmt.Errorf("additional ingress %q has invalid hostname %q: %s", ingress.Name, ingress.Hostname, errs[0])
+		}
+		hostname := strings.ToLower(strings.TrimSuffix(ingress.Hostname, "."))
+		if existingName, found := seenHostnames[hostname]; found {
+			return fmt.Errorf("additional ingress %q hostname %q conflicts with %q", ingress.Name, ingress.Hostname, existingName)
+		}
+		seenHostnames[hostname] = ingress.Name
+		if errs := validation.IsDNS1123Label(ingress.IngressControllerName); len(errs) > 0 {
+			return fmt.Errorf("additional ingress %q has invalid IngressController name %q: %s", ingress.Name, ingress.IngressControllerName, errs[0])
+		}
+		if len(ingress.RouteLabels) == 0 {
+			return fmt.Errorf("additional ingress %q must define route labels", ingress.Name)
+		}
+		for key, value := range ingress.RouteLabels {
+			if errs := validation.IsQualifiedName(key); len(errs) > 0 {
+				return fmt.Errorf("additional ingress %q has invalid route label key %q: %s", ingress.Name, key, errs[0])
+			}
+			if errs := validation.IsValidLabelValue(value); len(errs) > 0 {
+				return fmt.Errorf("additional ingress %q has invalid route label value for %q: %s", ingress.Name, key, errs[0])
+			}
+		}
+
+		if ingress.ListenerPort < 1 || ingress.ListenerPort > 65535 {
+			return fmt.Errorf("additional ingress %q has invalid listener port %d", ingress.Name, ingress.ListenerPort)
+		}
+		if existingName, found := seenPorts[ingress.ListenerPort]; found {
+			return fmt.Errorf("additional ingress %q listener port %d conflicts with %q", ingress.Name, ingress.ListenerPort, existingName)
+		}
+		seenPorts[ingress.ListenerPort] = ingress.Name
+	}
+	return nil
 }
 
 // AdditionalIngress defines topology for an additional Gateway listener.

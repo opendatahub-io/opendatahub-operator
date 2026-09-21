@@ -43,19 +43,20 @@ const (
 // Gateway infrastructure and OAuth proxy configuration constants.
 // These match the values defined in internal/controller/services/gateway package.
 const (
-	gatewayConfigName        = serviceApi.GatewayConfigName
-	gatewaySubdomain         = gateway.DefaultGatewaySubdomain
-	gatewayClassName         = gateway.GatewayClassName
-	standardHTTPSPort        = gateway.StandardHTTPSPort
-	oauthClientName          = gateway.AuthClientID
-	kubeAuthProxyName        = gateway.KubeAuthProxyName
-	kubeAuthProxyTLSName     = gateway.KubeAuthProxyTLSName
-	kubeAuthProxyCredsName   = gateway.KubeAuthProxySecretsName
-	oauthCallbackRouteName   = gateway.OAuthCallbackRouteName
-	authProxyOAuth2Path      = gateway.AuthProxyOAuth2Path
-	kubeAuthProxyHTTPPort    = gateway.AuthProxyHTTPPort
-	kubeAuthProxyHTTPSPort   = gateway.GatewayHTTPSPort
-	kubeAuthProxyMetricsPort = gateway.AuthProxyMetricsPort
+	gatewayConfigName          = serviceApi.GatewayConfigName
+	gatewaySubdomain           = gateway.DefaultGatewaySubdomain
+	gatewayClassName           = gateway.GatewayClassName
+	defaultGatewayListenerName = gateway.DefaultGatewayListenerName
+	standardHTTPSPort          = gateway.StandardHTTPSPort
+	oauthClientName            = gateway.AuthClientID
+	kubeAuthProxyName          = gateway.KubeAuthProxyName
+	kubeAuthProxyTLSName       = gateway.KubeAuthProxyTLSName
+	kubeAuthProxyCredsName     = gateway.KubeAuthProxySecretsName
+	oauthCallbackRouteName     = gateway.OAuthCallbackRouteName
+	authProxyOAuth2Path        = gateway.AuthProxyOAuth2Path
+	kubeAuthProxyHTTPPort      = gateway.AuthProxyHTTPPort
+	kubeAuthProxyHTTPSPort     = gateway.GatewayHTTPSPort
+	kubeAuthProxyMetricsPort   = gateway.AuthProxyMetricsPort
 )
 
 type GatewayTestCtx struct {
@@ -201,7 +202,7 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 		}),
 		WithCondition(And(
 			jq.Match(`.spec.gatewayClassName == "%s"`, gatewayClassName),
-			jq.Match(`.spec.listeners[] | select(.name == "https") | .tls.certificateRefs[0].name == "%s"`, tlsSecretName),
+			jq.Match(`.spec.listeners[] | select(.name == "%s") | .tls.certificateRefs[0].name == "%s"`, defaultGatewayListenerName, tlsSecretName),
 		)),
 		WithCustomErrorMsg("Gateway should be created with correct HTTPS listener configuration"),
 	)
@@ -627,7 +628,7 @@ func (tc *GatewayTestCtx) ValidateGatewayReadyStatus(t *testing.T) {
 			WithCondition(And(
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, string(gwapiv1.GatewayConditionAccepted), string(metav1.ConditionTrue)),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, string(gwapiv1.GatewayConditionProgrammed), string(metav1.ConditionTrue)),
-				jq.Match(`.status.listeners[] | select(.name == "https") | .attachedRoutes >= 1`),
+				jq.Match(`.status.listeners[] | select(.name == "%s") | .attachedRoutes >= 1`, defaultGatewayListenerName),
 			)),
 			WithCustomErrorMsg("Gateway should be fully operational with healthy listener"),
 		)

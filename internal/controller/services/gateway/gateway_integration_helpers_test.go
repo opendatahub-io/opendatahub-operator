@@ -885,7 +885,7 @@ func RunGatewayCreationTest(t *testing.T, setup TestSetup) {
 
 	hasHTTPSListener := false
 	for _, listener := range gw.Spec.Listeners {
-		if listener.Name == "https" {
+		if listener.Name == DefaultGatewayListenerName {
 			hasHTTPSListener = true
 			g.Expect(listener.Port).To(Equal(gwapiv1.PortNumber(gateway.StandardHTTPSPort)))
 			g.Expect(listener.Protocol).To(Equal(gwapiv1.HTTPSProtocolType))
@@ -958,7 +958,7 @@ func RunServiceCreationTest(t *testing.T, setup TestSetup) {
 	hasHTTPS := false
 	hasMetrics := false
 	for _, port := range svc.Spec.Ports {
-		if port.Name == "https" {
+		if port.Name == gateway.HTTPSPortName {
 			hasHTTPS = true
 			g.Expect(port.Port).To(Equal(int32(gateway.GatewayHTTPSPort)))
 			g.Expect(port.TargetPort.IntVal).To(Equal(int32(gateway.GatewayHTTPSPort)))
@@ -1446,7 +1446,7 @@ func RunDeploymentWithAllArgsTest(t *testing.T, setup TestSetup, expectedHostnam
 		case "http":
 			hasHTTP = true
 			g.Expect(port.ContainerPort).To(Equal(int32(gateway.AuthProxyHTTPPort)))
-		case "https":
+		case gateway.DefaultGatewayListenerName:
 			hasHTTPS = true
 			g.Expect(port.ContainerPort).To(Equal(int32(gateway.GatewayHTTPSPort)))
 		case "metrics":
@@ -1678,7 +1678,7 @@ func RunLoadBalancerIngressModeTest(t *testing.T, tc *TestEnvContext, spec servi
 		}
 		var httpsListener *gwapiv1.Listener
 		for i := range gw.Spec.Listeners {
-			if gw.Spec.Listeners[i].Name == "https" {
+			if gw.Spec.Listeners[i].Name == gateway.DefaultGatewayListenerName {
 				httpsListener = &gw.Spec.Listeners[i]
 				break
 			}
