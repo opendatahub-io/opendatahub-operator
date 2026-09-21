@@ -118,6 +118,9 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 		WVA: componentApi.WVASpec{
 			ManagementState: operatorv1.Removed,
 		},
+		ModelExpress: componentApi.ModelExpressSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		OAuthProxy: &componentApi.OAuthProxyConfig{
 			Resources: &componentApi.OAuthProxyResourceRequirements{
 				Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")},
@@ -166,6 +169,10 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g.Expect(ok).Should(BeTrue(), "spec.wva missing")
 	g.Expect(wva["managementState"]).Should(Equal("Removed"))
 
+	modelExpress, ok := spec["modelExpress"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.modelExpress missing")
+	g.Expect(modelExpress["managementState"]).Should(Equal("Managed"))
+
 	mr, ok := spec["modelRegistry"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.modelRegistry missing")
 	g.Expect(mr["managementState"]).Should(Equal("Removed"))
@@ -193,6 +200,8 @@ func TestGetRelatedImages(t *testing.T) {
 	g.Expect(images).Should(ContainElements(
 		"RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
 		"RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
+		"RELATED_IMAGE_ODH_MODELEXPRESS_IMAGE",
+		"RELATED_IMAGE_ODH_MODELEXPRESS_OPERATOR_IMAGE",
 		"RELATED_IMAGE_ODH_WORKLOAD_VARIANT_AUTOSCALER_CONTROLLER_IMAGE",
 		"RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE",
 		"RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_IMAGE",
