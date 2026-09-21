@@ -106,7 +106,11 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 }
 
 // Check authentication mode and deploy auth proxy (secret + service + deployment) + OAuth client (if integrated mode) + HTTPRoute + DestinationRule.
-func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+//
+// secretReader is used for the configuration-driven OIDC client-secret lookup, whose
+// namespace (spec.oidc.secretNamespace) may fall outside the manager cache's secret
+// scope; the caller passes the manager's uncached API reader for that (see NewReconciler).
+func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest, secretReader client.Reader) error {
 	l := logf.FromContext(ctx).WithName("createAuthProxy")
 
 	gatewayConfig, err := validateGatewayConfig(rr)
@@ -189,7 +193,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	}
 
 	// Get secret values for both OIDC and IntegratedOAuth modes
-	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, authMode, oidcConfig)
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, secretReader, authMode, oidcConfig)
 	if err != nil {
 		return fmt.Errorf("failed to get secret values: %w", err)
 	}

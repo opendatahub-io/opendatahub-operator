@@ -161,23 +161,6 @@ func GetGatewayServiceFullName() string {
 // ErrDomainRequired is returned by GetFQDN when spec.domain is not set on non-OpenShift clusters.
 var ErrDomainRequired = errors.New("spec.domain is required on non-OpenShift clusters")
 
-// uncachedAPIReader is the manager's uncached client.Reader, set once by NewReconciler.
-// It is used for configuration-driven Secret lookups whose namespace
-// (spec.oidc.secretNamespace) may fall outside the manager cache's secret scope
-// (createSecretCacheConfig in cmd/main.go). See getAuthProxySecretValues.
-var uncachedAPIReader client.Reader
-
-// secretReader returns the uncached API reader when available, falling back to the
-// cached reconciliation client (e.g. in unit tests where NewReconciler has not run).
-//
-//nolint:ireturn // intentionally returns the client.Reader interface (uncached or cached).
-func secretReader(rr *odhtypes.ReconciliationRequest) client.Reader {
-	if uncachedAPIReader != nil {
-		return uncachedAPIReader
-	}
-	return rr.Client
-}
-
 // GetFQDN returns the fully qualified domain name for the gateway based on the GatewayConfig.
 // It constructs the FQDN by combining the subdomain (or default) with either the user-specified
 // domain or the cluster domain.
@@ -721,6 +704,7 @@ func GetDashboardRouteName() string {
 func getAuthProxySecretValues(
 	ctx context.Context,
 	rr *odhtypes.ReconciliationRequest,
+	secretReader client.Reader,
 	authMode cluster.AuthenticationMode,
 	oidcConfig *serviceApi.OIDCConfig) (string, string, string, error) {
 	// Check if kube-auth-proxy-creds already exists and is valid
@@ -765,13 +749,21 @@ func getAuthProxySecretValues(
 			secretNamespace = GetGatewayNamespace() // Default to gateway namespace if not specified
 		}
 
-		// Use the uncached API reader: secretNamespace is user-supplied and may fall
-		// outside the manager cache's secret scope. A cached Get for such a namespace
-		// hard-fails as "not cached" when ReaderFailOnMissingInformer is enabled (dev/CI)
-		// even though the Secret exists, and otherwise would start an unfiltered Secret
-		// informer, so this lookup must bypass the cache.
+		// Prefer the cached client whenever the secret lives in the gateway namespace,
+		// which is always within the manager cache's secret scope (secretCache). This is
+		// the default path (empty secretNamespace resolves to it above), so the common
+		// case is served from cache. Only fall back to the uncached API reader when the
+		// user points spec.oidc.secretNamespace at a namespace outside that scope: there a
+		// cached Get would hard-fail as "not cached" when ReaderFailOnMissingInformer is
+		// enabled (dev/CI) even though the Secret exists, and otherwise would start an
+		// unfiltered Secret informer — so that lookup alone must bypass the cache.
+		var reader client.Reader = rr.Client
+		if secretNamespace != GetGatewayNamespace() {
+			reader = secretReader
+		}
+
 		externalSecret := &corev1.Secret{}
-		if err := secretReader(rr).Get(ctx, types.NamespacedName{
+		if err := reader.Get(ctx, types.NamespacedName{
 			Name:      oidcConfig.ClientSecretRef.Name,
 			Namespace: secretNamespace,
 		}, externalSecret); err != nil {
