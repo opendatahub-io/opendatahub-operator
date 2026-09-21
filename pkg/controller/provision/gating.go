@@ -77,7 +77,7 @@ func WalkBatches(
 					}
 					ready, err := checker.IsReady(ctx, entry.GetName())
 					if err != nil {
-						log.Error(err, "readiness check failed, treating as not ready", "name", entry.GetName())
+						log.Error(err, "readiness check failed, treating as not ready", "provisionEntry", entry.GetName())
 					}
 					if !ready {
 						allReady = false

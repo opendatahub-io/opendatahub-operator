@@ -46,7 +46,7 @@ func ExtractUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest)
 		data, found, err := unstructured.NestedStringMap(res.Object, "data")
 		if err != nil {
 			log.Error(err, "gate ConfigMap has non-string data entries, skipping",
-				"name", res.GetName())
+				"configmap", res.GetName())
 			kept = append(kept, *res)
 
 			continue

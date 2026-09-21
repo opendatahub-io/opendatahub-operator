@@ -319,8 +319,9 @@ lint: golangci-lint lint-logs ## Run golangci-lint and structured-log analyzer t
 	$(GOLANGCI_LINT) run --timeout=$(GOLANGCI_LINT_TIMEOUT)
 
 .PHONY: lint-logs
-lint-logs: ## Run structured log convention analyzer tests (RHAI-529).
+lint-logs: ## Run structured log convention analyzer tests and the analyzer itself.
 	go test ./cmd/loglint/...
+	go run ./cmd/loglint ./...
 
 .PHONY: lint-fix
 lint-fix: golangci-lint ## Run golangci-lint against code.

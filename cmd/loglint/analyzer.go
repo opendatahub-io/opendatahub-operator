@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/constant"
 	"go/token"
+	"go/types"
 	"regexp"
 	"slices"
 	"strings"
@@ -110,20 +111,22 @@ func messageMarker(pass *analysis.Pass, e ast.Expr) (string, bool) {
 	return constString(pass, e)
 }
 
-// sprintfFormat reports the constant format string of a fmt.Sprintf call. Only
-// the statically known format argument is inspected; formatted values are never
-// evaluated.
+// sprintfFormat reports the constant format string of a fmt.Sprintf call. The
+// callee is resolved through the type information so aliased imports of fmt are
+// recognized and identifiers that merely read "fmt" are not mistaken for it.
+// Only the statically known format argument is inspected; formatted values are
+// never evaluated.
 func sprintfFormat(pass *analysis.Pass, e ast.Expr) (string, bool) {
 	call, ok := e.(*ast.CallExpr)
 	if !ok {
 		return "", false
 	}
 	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok || sel.Sel.Name != "Sprintf" {
+	if !ok || len(call.Args) == 0 {
 		return "", false
 	}
-	pkg, ok := sel.X.(*ast.Ident)
-	if !ok || pkg.Name != "fmt" || len(call.Args) == 0 {
+	fn, ok := pass.TypesInfo.Uses[sel.Sel].(*types.Func)
+	if !ok || fn.FullName() != "fmt.Sprintf" {
 		return "", false
 	}
 	return constString(pass, call.Args[0])
