@@ -306,6 +306,8 @@ spec:
               value: quay.io/opendatahub/odh-autorag@sha256:8143dfed0c83b37afe21f2c1dac268f10d2225e90b9d6d3eef6f5d394efbba70
             - name: RELATED_IMAGE_ODH_MAAS_API_IMAGE
               value: quay.io/opendatahub/maas-api@sha256:dfdb18088434c4a1259d920ca80196aefb3487b7a582215f2fa0c8d4d33dfd24
+            - name: RELATED_IMAGE_ODH_MAAS_DISCOVERY_IMAGE
+              value: quay.io/opendatahub/maas-discovery@sha256:0000000000000000000000000000000000000000000000000000000000000000
             - name: RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE
               value: quay.io/opendatahub/maas-controller@sha256:84ebf72265c76ad7709fb5f5f4d9b0ba5667e905e7eb2164a7f4a73aab36a571
             - name: RELATED_IMAGE_ODH_MOD_ARCH_AUTOML_IMAGE
