@@ -409,13 +409,13 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	secretCache, err := createSecretCacheConfig(platform)
+	secretCache, err := createSecretCacheConfig(platform, oconfig.MonitoringNamespace)
 	if err != nil {
 		setupLog.Error(err, "unable to get application namespace into cache")
 		os.Exit(1)
 	}
 
-	oDHCache, err := createODHGeneralCacheConfig(platform)
+	oDHCache, err := createODHGeneralCacheConfig(platform, oconfig.MonitoringNamespace)
 	if err != nil {
 		setupLog.Error(err, "unable to get application namespace into cache")
 		os.Exit(1)
@@ -642,7 +642,7 @@ func (l *LeaderElectionRunnableWrapper) NeedLeaderElection() bool {
 	return true
 }
 
-func getCommonCache(platform common.Platform) (map[string]cache.Config, error) {
+func getCommonCache(platform common.Platform, monitoringNamespace string) (map[string]cache.Config, error) {
 	namespaceConfigs := map[string]cache.Config{}
 
 	// networkpolicy need operator namespace
@@ -652,7 +652,7 @@ func getCommonCache(platform common.Platform) (map[string]cache.Config, error) {
 	}
 
 	namespaceConfigs[operatorNs] = cache.Config{}
-	namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
+	namespaceConfigs[monitoringNamespace] = cache.Config{} // configurable via DSCI Monitoring.Namespace (platform default applied at startup)
 
 	// Get application namespace from cluster config
 	appNamespace := cluster.GetApplicationNamespace()
@@ -666,8 +666,8 @@ func getCommonCache(platform common.Platform) (map[string]cache.Config, error) {
 	return namespaceConfigs, nil
 }
 
-func createSecretCacheConfig(platform common.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs, err := getCommonCache(platform)
+func createSecretCacheConfig(platform common.Platform, monitoringNamespace string) (map[string]cache.Config, error) {
+	namespaceConfigs, err := getCommonCache(platform, monitoringNamespace)
 	if err != nil {
 		return nil, err
 	}
@@ -677,8 +677,8 @@ func createSecretCacheConfig(platform common.Platform) (map[string]cache.Config,
 	return namespaceConfigs, nil
 }
 
-func createODHGeneralCacheConfig(platform common.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs, err := getCommonCache(platform)
+func createODHGeneralCacheConfig(platform common.Platform, monitoringNamespace string) (map[string]cache.Config, error) {
+	namespaceConfigs, err := getCommonCache(platform, monitoringNamespace)
 	if err != nil {
 		return nil, err
 	}
