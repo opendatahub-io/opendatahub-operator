@@ -421,14 +421,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	// ReaderFailOnMissingInformer makes cache reads of un-scoped resources fail
-	// fast with ErrResourceNotCached instead of silently starting a new unfiltered
-	// informer. Gated on the cache-fail-on-missing-informer flag / CACHE_FAIL_ON_MISSING_INFORMER
-	// env var (default false): enable it in dev/CI (e.g. `make run`) to enforce the
-	// cache scope for exercised read paths, but keep it off in production, where a
-	// genuinely untested read path degrades to an extra informer (works, just a
-	// memory/watch cost) rather than a blocking error. See discussion on PR #3965.
-	cacheOptions := newCacheOptions(scheme, oDHCache, secretCache, oconfig.CacheFailOnMissingInformer)
+	cacheOptions := newCacheOptions(scheme, oDHCache, secretCache)
 
 	// OpenShift-specific cache filters: only register when running on OpenShift
 	if cluster.GetClusterInfo().Type == cluster.ClusterTypeOpenShift {
@@ -691,11 +684,10 @@ func createODHGeneralCacheConfig(platform common.Platform, monitoringNamespace s
 	return namespaceConfigs, nil
 }
 
-func newCacheOptions(scheme *runtime.Scheme, oDHCache, secretCache map[string]cache.Config, failOnMissingInformer bool) cache.Options {
+func newCacheOptions(scheme *runtime.Scheme, oDHCache, secretCache map[string]cache.Config) cache.Options {
 	return cache.Options{
-		Scheme:                      scheme,
-		ReaderFailOnMissingInformer: failOnMissingInformer,
-		DefaultNamespaces:           oDHCache,
+		Scheme:            scheme,
+		DefaultNamespaces: oDHCache,
 		// Only types whose namespace scope differs from DefaultNamespaces need a
 		// ByObject entry: controller-runtime defaults ByObject.Namespaces to
 		// DefaultNamespaces for every other type (and applies DefaultTransform to
@@ -726,11 +718,11 @@ func cacheDisableFor() []client.Object {
 		// (pkg/cluster GetClusterServiceAccountIssuer, pkg/tls FromAPIServer). With
 		// DefaultNamespaces scoping the cache it has no matching informer (it is only
 		// watched as unstructured by the gateway controller), so it must bypass the cache
-		// like Infrastructure does — otherwise it hard-fails as "not cached" when
-		// ReaderFailOnMissingInformer is enabled (dev/CI), or silently starts an unfiltered
-		// cluster-wide informer when it is not. (Authentication, the other such singleton,
-		// instead gets a field-selected cluster-wide informer registered under the OpenShift
-		// guard above, so it is served from cache rather than listed here.)
+		// like Infrastructure does — otherwise a cached read would silently start an
+		// unfiltered cluster-wide informer, defeating the cache scope. (Authentication, the
+		// other such singleton, instead gets a field-selected cluster-wide informer
+		// registered under the OpenShift guard above, so it is served from cache rather
+		// than listed here.)
 		&configv1.APIServer{},
 		// Namespaced cert-manager Issuer and Certificate are deployed by components
 		// (e.g. ray's selfsigned-issuer + serving Certificate in the applications
@@ -738,24 +730,21 @@ func cacheDisableFor() []client.Object {
 		// watched nowhere in this manager. cert-manager types are only watched by the
 		// separate cloudmanager binary (pkg/controller/cloudmanager, via bootstrap.go
 		// WatchesGVK) — a different manager with its own cache — so the main manager
-		// has no informer for them. When ReaderFailOnMissingInformer is enabled (dev/CI)
-		// those reads hard-fail as "not cached"; either way they must bypass the cache
-		// like Infrastructure does. Safe to disable here: nothing in internal/controller
-		// watches cert-manager types, so no watch depends on a cached informer.
+		// has no informer for them. They must bypass the cache like Infrastructure does,
+		// otherwise a cached read would start an unfiltered cluster-wide informer. Safe to
+		// disable here: nothing in internal/controller watches cert-manager types, so no
+		// watch depends on a cached informer.
 		resources.GvkToUnstructured(gvk.CertManagerIssuer),
 		resources.GvkToUnstructured(gvk.CertManagerCertificate),
 		// DestinationRule and EnvoyFilter are Istio types the gateway controller
 		// deploys and reads back via the deploy action's existence check. They are
 		// registered as dynamic owned watches (OwnsGVK(..., Dynamic(CrdExists(...)))),
 		// whose informer is only registered by an action appended AFTER the deploy
-		// action. When ReaderFailOnMissingInformer is enabled (dev/CI), the deploy
-		// existence Get hard-fails ("not cached") before that watch-registration action
-		// runs, which aborts the reconcile chain, so the informer is never registered — a
-		// permanent deadlock (GatewayConfig stuck at ProvisioningSucceeded=False). Bypassing the
-		// cache for these reads breaks the deadlock; the dynamic event-watch still
-		// registers and fires on drift (DisableFor only affects the read path). Route,
-		// the third dynamic owned GVK, is unaffected: it has a static ByObject informer
-		// covering the gateway namespace, so its existence read is already served.
+		// action. Bypassing the cache for these reads avoids the deploy existence Get
+		// racing the dynamic watch registration; the dynamic event-watch still registers
+		// and fires on drift (DisableFor only affects the read path). Route, the third
+		// dynamic owned GVK, is unaffected: it has a static ByObject informer covering the
+		// gateway namespace, so its existence read is already served.
 		resources.GvkToUnstructured(gvk.DestinationRule),
 		resources.GvkToUnstructured(gvk.EnvoyFilter),
 		&ofapiv1alpha1.Subscription{},
@@ -766,25 +755,6 @@ func cacheDisableFor() []client.Object {
 		&ofapiv1alpha1.CatalogSource{},
 		&ofapiv1alpha1.ClusterServiceVersion{},
 	}
-
-	// Module CRs (Dashboard, Kserve, AIHub, MLflowOperator, ...) are cluster-scoped
-	// singletons the DSC/modules controllers deploy and read back via the deploy
-	// action's existence check. They are watched only dynamically
-	// (WatchesGVK(..., Dynamic(CrdExists(...)))), whose informer is registered by an
-	// action appended AFTER the deploy action. When ReaderFailOnMissingInformer is
-	// enabled (dev/CI), the deploy existence Get hard-fails ("not cached") before that
-	// watch-registration action runs, aborting the reconcile chain, so the informer
-	// is never registered — a permanent deadlock (module CRs never created, DSC
-	// stuck ComponentsReady/ModulesReady=False). This is the same class as the Istio
-	// DestinationRule/EnvoyFilter deadlock above. Bypassing the cache for these reads
-	// breaks the deadlock; the dynamic event-watch still registers and fires on drift
-	// (DisableFor only affects the read path). The GVKs are derived from the module
-	// registry (populated by registerModules before this runs) so the list stays
-	// correct as modules are added or removed.
-	_ = mr.ForEach(func(h mr.ModuleHandler) error {
-		objs = append(objs, resources.GvkToUnstructured(h.GetGVK()))
-		return nil
-	})
 
 	return objs
 }

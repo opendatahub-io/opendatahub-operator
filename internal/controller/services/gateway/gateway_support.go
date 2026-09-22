@@ -754,9 +754,8 @@ func getAuthProxySecretValues(
 		// the default path (empty secretNamespace resolves to it above), so the common
 		// case is served from cache. Only fall back to the uncached API reader when the
 		// user points spec.oidc.secretNamespace at a namespace outside that scope: there a
-		// cached Get would hard-fail as "not cached" when ReaderFailOnMissingInformer is
-		// enabled (dev/CI) even though the Secret exists, and otherwise would start an
-		// unfiltered Secret informer — so that lookup alone must bypass the cache.
+		// cached Get would fall outside the Secret informer's scope and start an unfiltered
+		// Secret informer — so that lookup alone must bypass the cache.
 		var reader client.Reader = rr.Client
 		if secretNamespace != GetGatewayNamespace() {
 			reader = secretReader

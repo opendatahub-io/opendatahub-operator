@@ -22,20 +22,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
-func TestNewCacheOptions_ReaderFailOnMissingInformer(t *testing.T) {
-	t.Parallel()
-
-	// The flag is gated on CACHE_FAIL_ON_MISSING_INFORMER (default off in production,
-	// on in dev/CI): newCacheOptions must pass the caller's choice straight through.
-	optsOn := newCacheOptions(runtime.NewScheme(), nil, nil, true)
-	assert.True(t, optsOn.ReaderFailOnMissingInformer,
-		"ReaderFailOnMissingInformer must be true when enabled to prevent silent cluster-wide informer creation")
-
-	optsOff := newCacheOptions(runtime.NewScheme(), nil, nil, false)
-	assert.False(t, optsOff.ReaderFailOnMissingInformer,
-		"ReaderFailOnMissingInformer must be false when disabled so a missed read path degrades to an informer, not a blocking error")
-}
-
 func TestNewCacheOptions_DefaultNamespacesSet(t *testing.T) {
 	t.Parallel()
 
@@ -45,7 +31,7 @@ func TestNewCacheOptions_DefaultNamespacesSet(t *testing.T) {
 		"test-monitoring": {},
 	}
 
-	opts := newCacheOptions(runtime.NewScheme(), namespaces, nil, true)
+	opts := newCacheOptions(runtime.NewScheme(), namespaces, nil)
 	assert.Equal(t, namespaces, opts.DefaultNamespaces,
 		"DefaultNamespaces must be set to oDHCache so unscoped types do not watch cluster-wide")
 }
@@ -67,7 +53,7 @@ func TestNewCacheOptions_ByObjectNamespaceAssignments(t *testing.T) {
 		"secret-extra-ns":   {},
 	}
 
-	opts := newCacheOptions(runtime.NewScheme(), oDHCache, secretCache, true)
+	opts := newCacheOptions(runtime.NewScheme(), oDHCache, secretCache)
 
 	// Secret is the only type whose namespace scope differs from DefaultNamespaces
 	// (secretCache is a strict subset of oDHCache), so it is the only type that needs
@@ -150,7 +136,7 @@ func TestCacheDisableFor_ContainsExpectedTypes(t *testing.T) {
 			}
 		}
 		assert.True(t, found,
-			"%s must be in DisableFor — it has no informer and would fail with ReaderFailOnMissingInformer", typeName)
+			"%s must be in DisableFor — it has no scoped informer and would otherwise start an unfiltered cluster-wide one", typeName)
 	}
 
 	foundIngress := false
@@ -161,7 +147,7 @@ func TestCacheDisableFor_ContainsExpectedTypes(t *testing.T) {
 		}
 	}
 	assert.True(t, foundIngress,
-		"OpenshiftIngress (unstructured) must be in DisableFor — it has no informer and would fail with ReaderFailOnMissingInformer")
+		"OpenshiftIngress (unstructured) must be in DisableFor — it has no scoped informer and would otherwise start an unfiltered cluster-wide one")
 }
 
 func TestNewCacheOptions_ByObjectNamespacesNotEmpty(t *testing.T) {
@@ -169,7 +155,7 @@ func TestNewCacheOptions_ByObjectNamespacesNotEmpty(t *testing.T) {
 
 	oDH := map[string]cache.Config{"odh-ns": {}}
 	secret := map[string]cache.Config{"odh-ns": {}, "ingress-ns": {}}
-	opts := newCacheOptions(runtime.NewScheme(), oDH, secret, true)
+	opts := newCacheOptions(runtime.NewScheme(), oDH, secret)
 
 	for key, byObj := range opts.ByObject {
 		typeName := reflect.TypeOf(key).Elem().Name()

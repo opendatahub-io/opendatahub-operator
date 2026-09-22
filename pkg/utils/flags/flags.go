@@ -123,15 +123,6 @@ func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
 		return err
 	}
 
-	pflag.Bool("cache-fail-on-missing-informer", false,
-		"Fail cache reads of un-scoped resources with ErrResourceNotCached instead of silently "+
-			"starting a new unfiltered informer. Enable in dev/CI to enforce the cache scope; "+
-			"keep off in production, where an untested read path degrades to an extra informer "+
-			"rather than a blocking error.")
-	if err := viper.BindEnv("cache-fail-on-missing-informer", "CACHE_FAIL_ON_MISSING_INFORMER"); err != nil {
-		return err
-	}
-
 	if err := addResourceSuppressionFlags(); err != nil {
 		return err
 	}

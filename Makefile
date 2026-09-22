@@ -412,18 +412,12 @@ build: manifests generate fmt vet ## Build manager binary.
 RUN_ARGS = --log-mode=devel --pprof-bind-address=127.0.0.1:6060
 GO_RUN_MAIN = OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) DEFAULT_MANIFESTS_PATH=$(DEFAULT_MANIFESTS_PATH) DEFAULT_CHARTS_PATH=$(DEFAULT_CHARTS_PATH) go run $(GO_RUN_ARGS) ./cmd/main.go $(RUN_ARGS)
 .PHONY: run
-# CACHE_FAIL_ON_MISSING_INFORMER makes the manager cache fail fast on reads of
-# un-scoped resources (ErrResourceNotCached) instead of silently starting a new
-# unfiltered informer. Enable it for local runs so cache-scope gaps surface during
-# development; it defaults off in production (see newCacheOptions in cmd/main.go).
-run: export CACHE_FAIL_ON_MISSING_INFORMER = true
 run: manifests generate fmt vet ## Run a controller from your host.
 	$(GO_RUN_MAIN)
 
 .PHONY: run-nowebhook
 run-nowebhook: GO_RUN_ARGS += -tags nowebhook
 
-run-nowebhook: export CACHE_FAIL_ON_MISSING_INFORMER = true
 run-nowebhook: manifests generate fmt vet ## Run a controller from your host without webhook enabled
 	$(GO_RUN_MAIN)
 
