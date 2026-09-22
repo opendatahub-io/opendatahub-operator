@@ -19,6 +19,7 @@ package dscinitialization
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -36,6 +37,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -457,7 +459,11 @@ func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Co
 	monitoring.SetName(serviceApi.MonitoringInstanceName)
 	err := r.Client.Get(ctx, client.ObjectKeyFromObject(monitoring), monitoring)
 	if err != nil {
-		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+		// ErrResourceNotCached means no informer is registered for the Monitoring type (its CRD is
+		// absent, so ensureMonitoringWatch never registered the dynamic watch). Treat it the same as
+		// NotFound/NoMatch: monitoring is not enabled.
+		var notCached *cache.ErrResourceNotCached
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) || errors.As(err, &notCached) {
 			return []DSCInitializationCondition{{status.ConditionMonitoringReady, status.RemovedReason, "Monitoring is not enabled", metav1.ConditionFalse}}
 		}
 		return []DSCInitializationCondition{{status.ConditionMonitoringReady, status.NotReadyReason,

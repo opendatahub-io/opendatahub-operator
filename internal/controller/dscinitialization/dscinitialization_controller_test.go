@@ -7,16 +7,21 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr/funcr"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
@@ -226,5 +231,67 @@ func TestNoLegacyKeysInLogs(t *testing.T) {
 				"log record contains legacy key %q: %s", key, record,
 			)
 		}
+	}
+}
+
+// TestGetMonitoringReadyConditionErrorMapping verifies how GetMonitoringReadyCondition
+// maps client.Get errors to the MonitoringReady condition. In particular, a scoped cache
+// with ReaderFailOnMissingInformer returns ErrResourceNotCached when no informer exists
+// for the Monitoring type (its CRD is absent), which must be treated like NotFound/NoMatch
+// ("Monitoring is not enabled"), not as an unexpected error.
+func TestGetMonitoringReadyConditionErrorMapping(t *testing.T) {
+	t.Parallel()
+
+	monitoringGR := schema.GroupResource{Group: gvk.Monitoring.Group, Resource: "monitorings"}
+
+	tests := []struct {
+		name       string
+		getErr     error
+		wantReason string
+		wantStatus metav1.ConditionStatus
+	}{
+		{
+			name:       "ErrResourceNotCached is treated as monitoring not enabled",
+			getErr:     &cache.ErrResourceNotCached{GVK: gvk.Monitoring},
+			wantReason: status.RemovedReason,
+			wantStatus: metav1.ConditionFalse,
+		},
+		{
+			name:       "NotFound is treated as monitoring not enabled",
+			getErr:     k8serr.NewNotFound(monitoringGR, "default-monitoring"),
+			wantReason: status.RemovedReason,
+			wantStatus: metav1.ConditionFalse,
+		},
+		{
+			name:       "unexpected error surfaces as not ready / unknown",
+			getErr:     errors.New("boom"),
+			wantReason: status.NotReadyReason,
+			wantStatus: metav1.ConditionUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			cli, err := fakeclient.New(
+				fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+					Get: func(_ context.Context, _ client.WithWatch, _ client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+						return tt.getErr
+					},
+				}),
+			)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			reconciler := &DSCInitializationReconciler{Client: cli}
+
+			conditions := reconciler.GetMonitoringReadyCondition(t.Context())
+
+			g.Expect(conditions).To(HaveLen(1))
+			g.Expect(conditions[0].Type).To(Equal(status.ConditionMonitoringReady))
+			g.Expect(conditions[0].ReadyReason).To(Equal(tt.wantReason))
+			g.Expect(conditions[0].ReadyStatus).To(Equal(tt.wantStatus))
+		})
 	}
 }
