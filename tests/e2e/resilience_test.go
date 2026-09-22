@@ -297,10 +297,9 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 
 	skipUnless(t, Tier1)
 
-	// Ray and AI Pipelines are modules and report readiness through ModulesReady.
-	// Use an in-tree component here because this test validates ComponentsReady's
+	// Use Kueue as the last in-tree component here because this test validates ComponentsReady's
 	// handling of a missing component CRD.
-	crdTestingName := fmt.Sprintf("%ss.%s", componentApi.TrustyAIComponentName, componentApi.GroupVersion.Group)
+	crdTestingName := fmt.Sprintf("%ss.%s", componentApi.KueueComponentName, componentApi.GroupVersion.Group)
 	crd := tc.FetchResource(
 		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdTestingName}),
 	)
@@ -342,9 +341,9 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
-			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, operatorv1.Managed),
+			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, operatorv1.Unmanaged),
 		),
-		WithCondition(jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, operatorv1.Managed)),
+		WithCondition(jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, operatorv1.Unmanaged)),
 	)
 
 	// Verify the system is unhealthy
