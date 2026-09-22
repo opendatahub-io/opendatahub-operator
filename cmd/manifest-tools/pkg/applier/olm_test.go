@@ -203,6 +203,66 @@ imageOverrides:
 	}
 }
 
+func TestParseExtraEnv(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     []string
+		want    []envVar
+		wantErr string
+	}{
+		{name: "nil", raw: nil, want: nil},
+		{name: "empty", raw: []string{}, want: nil},
+		{
+			name: "single",
+			raw:  []string{"CACHE_FAIL_ON_MISSING_INFORMER=true"},
+			want: []envVar{{Name: "CACHE_FAIL_ON_MISSING_INFORMER", Value: "true"}},
+		},
+		{
+			name: "multiple",
+			raw:  []string{"A=1", "B=2"},
+			want: []envVar{{Name: "A", Value: "1"}, {Name: "B", Value: "2"}},
+		},
+		{
+			name: "value with equals",
+			raw:  []string{"URL=https://x/y?a=b"},
+			want: []envVar{{Name: "URL", Value: "https://x/y?a=b"}},
+		},
+		{
+			name: "empty value allowed",
+			raw:  []string{"EMPTY="},
+			want: []envVar{{Name: "EMPTY", Value: ""}},
+		},
+		{name: "no separator", raw: []string{"NOEQUALS"}, wantErr: "expected KEY=VALUE"},
+		{name: "empty key", raw: []string{"=value"}, wantErr: "expected KEY=VALUE"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseExtraEnv(tt.raw)
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("expected error containing %q, got: %v", tt.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseExtraEnv failed: %v", err)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("expected %d vars, got %d: %v", len(tt.want), len(got), got)
+			}
+			for i := range tt.want {
+				if got[i] != tt.want[i] {
+					t.Errorf("var %d: expected %+v, got %+v", i, tt.want[i], got[i])
+				}
+			}
+		})
+	}
+}
+
 func newFakeSubscription(name, namespace, packageName string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]any{
