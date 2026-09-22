@@ -35,7 +35,7 @@ components:
   trustyai:
     odh:
       repo: opendatahub-io/trustyai-service-operator
-      ref: release/odh-3.6-ea2@139bf7bf197b9ed46f642d55927de97ece0914bf
+      ref: main@7838ba58fffca619610c6b260c4ec87c031d0a27
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/trustyai-service-operator
@@ -53,7 +53,7 @@ components:
   datasciencepipelines:
     odh:
       repo: opendatahub-io/data-science-pipelines-operator
-      ref: main@486a633ea2e25a951385d9ed05824c718861d694
+      ref: main@55374000525bd49a24ecd5be73f20ca3e27d591a
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/data-science-pipelines-operator
