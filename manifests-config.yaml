@@ -402,15 +402,6 @@ imageOverrides:
     rhoai:
       base: "quay.io/opendatahub/odh-model-controller"
       digest: "sha256:b056afa7739b1932b9743d268d23e8d2c7f305c1871a8d602f5527cbeebcf4bd"
-  RELATED_IMAGE_ODH_WORKLOAD_VARIANT_AUTOSCALER_CONTROLLER_IMAGE:
-    component: kserve-module-operator
-    source: "csv"
-    odh:
-      base: "quay.io/opendatahub/workload-variant-autoscaler"
-      digest: "sha256:4ad63eb0f436c7c8a719fd8d55f5fb09fcbe9ab5279998c29c58333d42667f57"
-    rhoai:
-      base: "quay.io/opendatahub/workload-variant-autoscaler"
-      digest: "sha256:4ad63eb0f436c7c8a719fd8d55f5fb09fcbe9ab5279998c29c58333d42667f57"
   RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE:
     source: "csv"
     component: feastoperator

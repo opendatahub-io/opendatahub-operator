@@ -51,9 +51,6 @@ metadata:
               "managementState": "Managed",
               "nim": {
                 "managementState": "Managed"
-              },
-              "wva": {
-                "managementState": "Removed"
               }
             },
             "kueue": {

@@ -172,8 +172,6 @@ spec:
               value: quay.io/opendatahub/odh-workbench-jupyter-minimal-cpu-py312-ubi9@sha256:7fb1a2a3a060cd714ef5f4a09f449203e8b8d496fa7a3088472e624533579b86
             - name: RELATED_IMAGE_ODH_MODELEXPRESS_IMAGE
               value: quay.io/opendatahub/odh-modelexpress@sha256:8ff23004591259c0b444b5be5a31002a82f3f66dbf69ac8b73306c9335f87154
-            - name: RELATED_IMAGE_ODH_WORKLOAD_VARIANT_AUTOSCALER_CONTROLLER_IMAGE
-              value: quay.io/opendatahub/workload-variant-autoscaler@sha256:613fda9061f41621e17ba68be413f81f00a93a294883bdcbd3f60b59a4a40c10
             - name: RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE
               value: quay.io/opendatahub/odh-th-torch-rocm-py312@sha256:81b85d17da03b2842951a6fb65f5c4b3ac83cf882c90c1c686efba3d6eee53bc
             - name: RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE
