@@ -172,7 +172,7 @@ componentCharts:
   feastoperator:
     odh:
       repo: opendatahub-io/feast-module-operator
-      ref: v0.66.0@373d243c48883b44572a1dbc7530cc6cd07afe56
+      ref: main@d1c6cc51ef3519e4205559da41fef4b22ac0ba44
       sourcePath: config/chart
     rhoai:
       repo: red-hat-data-services/feast-module-operator
