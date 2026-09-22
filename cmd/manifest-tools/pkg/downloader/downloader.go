@@ -313,7 +313,14 @@ func git(ctx context.Context, dir string, args ...string) error {
 	return nil
 }
 
+func shouldSkipManifestFile(name string) bool {
+	return strings.HasSuffix(name, ".go") || strings.HasSuffix(name, ".test")
+}
+
 func copyDir(src, dst string) error {
+	if err := os.RemoveAll(dst); err != nil {
+		return fmt.Errorf("clearing target dir: %w", err)
+	}
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		return fmt.Errorf("creating target dir: %w", err)
 	}
@@ -321,6 +328,9 @@ func copyDir(src, dst string) error {
 	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		if !d.IsDir() && shouldSkipManifestFile(d.Name()) {
+			return nil
 		}
 
 		relPath, err := filepath.Rel(src, path)
