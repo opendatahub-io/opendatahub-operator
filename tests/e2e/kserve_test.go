@@ -143,6 +143,8 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 		WithCondition(And(
 			// Validate management states of NIM and serving components.
 			jq.Match(`.spec.nim.managementState == "%s"`, dsc.Spec.Components.Kserve.NIM.ManagementState),
+			// WVA was removed from the DSC API and must not be projected to the Kserve module CR.
+			jq.Match(`.spec | has("wva") | not`),
 			// Validate ModelRegistry state is injected from DSC
 			jq.Match(`.spec.modelRegistry.managementState == "%s"`,
 				func() string {

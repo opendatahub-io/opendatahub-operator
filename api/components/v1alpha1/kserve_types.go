@@ -82,9 +82,6 @@ type KserveCommonSpec struct {
 	// +kubebuilder:validation:XValidation:rule="self.managementState != 'Managed' || (has(oldSelf.managementState) && oldSelf.managementState == 'Managed')",message="modelsAsService is deprecated; cannot re-enable once Removed. Use spec.components.aigateway.modelsAsAService instead"
 	// +kubebuilder:default={managementState: "Removed"}
 	ModelsAsService DSCModelsAsServiceSpec `json:"modelsAsService,omitempty"`
-	// Configures and enables workload-variant-autoscaler (WVA) integration
-	// +kubebuilder:default={}
-	WVA WVASpec `json:"wva,omitempty"`
 	// Enables TLS for LLMInferenceService deployments.
 	// When unset, the KServe default (TLS enabled) is preserved.
 	// +optional
@@ -108,13 +105,6 @@ type NimSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
 	AirGapped bool `json:"airGapped,omitempty"`
-}
-
-// WVASpec enables workload-variant-autoscaler integration
-type WVASpec struct {
-	// +kubebuilder:validation:Enum=Managed;Removed
-	// +kubebuilder:default=Removed
-	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
 // ModelCacheSpec enables Model Cache integration
