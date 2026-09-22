@@ -26,7 +26,7 @@ components:
   ray:
     odh:
       repo: opendatahub-io/ray-module-operator
-      ref: main@446d26d47cbf8a71eba1a0ac4bc20fb9fa7785ab
+      ref: v1.6.2@560baadd3a5c4268e6c021f6cfe36591a7b2551e
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/ray-module-operator
@@ -35,7 +35,7 @@ components:
   trustyai:
     odh:
       repo: opendatahub-io/trustyai-service-operator
-      ref: incubation@b5812589dcad6eee28a371d7ada4bc9bf4d466d8
+      ref: release/odh-3.6-ea2@139bf7bf197b9ed46f642d55927de97ece0914bf
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/trustyai-service-operator
@@ -44,7 +44,7 @@ components:
   modelregistry:
     odh:
       repo: opendatahub-io/model-registry-operator
-      ref: main@4a45ad0eda12c6052238bd1e3fdc64da8100c837
+      ref: release/v0.3.17@86198eeb141169591f5ad3f6b294471f32456dab
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/model-registry-operator
@@ -53,7 +53,7 @@ components:
   datasciencepipelines:
     odh:
       repo: opendatahub-io/data-science-pipelines-operator
-      ref: main@486a633ea2e25a951385d9ed05824c718861d694
+      ref: v2.18.0@ab88c06494b0e1c58c6e5cfffad24a8d585b9dcd
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/data-science-pipelines-operator
@@ -71,7 +71,7 @@ components:
   trainer:
     odh:
       repo: opendatahub-io/trainer-operator
-      ref: main@9b14f96a63e4374352bf141f327bc94670016cd4
+      ref: release/odh-3.6.0-ea2@8160e0014ab13c009973cbde44ec1bbb05ea476b
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/trainer-operator
@@ -80,7 +80,7 @@ components:
   mlflowoperator:
     odh:
       repo: opendatahub-io/mlflow-operator
-      ref: main@6df31b94f07284e6e0465e174e3b0c039d219726
+      ref: 1.1.0@7abf6b5ea11c9d919998df3418fa031858085f41
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/mlflow-operator
@@ -89,7 +89,7 @@ components:
   sparkoperator:
     odh:
       repo: opendatahub-io/spark-operator
-      ref: main@07ca91f50b5b1feb40b6bc0a1f0e6b27ecc4a47c
+      ref: odh-3.6.0-ea.2@07ca91f50b5b1feb40b6bc0a1f0e6b27ecc4a47c
       sourcePath: spark-operator-module/config
     rhoai:
       repo: red-hat-data-services/spark-operator
@@ -163,7 +163,7 @@ componentCharts:
   workbenches:
     odh:
       repo: opendatahub-io/workbenches-operator
-      ref: main@31bdbf8cacedd6cbde83f96b66a70af59301b046
+      ref: v1.2.0@22fb83cf8b9e92df8cdb788e9bfc7c8c1cf61bab
       sourcePath: charts/operator
     rhoai:
       repo: red-hat-data-services/workbenches-operator
@@ -172,7 +172,7 @@ componentCharts:
   feastoperator:
     odh:
       repo: opendatahub-io/feast-module-operator
-      ref: main@d1c6cc51ef3519e4205559da41fef4b22ac0ba44
+      ref: v0.66.0@373d243c48883b44572a1dbc7530cc6cd07afe56
       sourcePath: config/chart
     rhoai:
       repo: red-hat-data-services/feast-module-operator
