@@ -158,7 +158,9 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	t.Log("Verifying component count matches DSC Components struct")
 
 	expectedComponentCount := reflect.TypeFor[dscv2.Components]().NumField()
-	// TrustyAI is excluded from quota failure testing due to InferenceServices CRD dependency
+	// TrustyAI is excluded because it is a module (reports TrustyAIReady via ModulesReady, not
+	// ComponentsReady) and, separately, was already excluded from quota failure testing due to
+	// its InferenceServices CRD dependency
 	// Kueue is excluded because it does not have any deployment to manage anymore
 	// LlamaStack Operator is excluded because it has been replaced by OGX and the field is deprecated (no deployments to manage anymore)
 	// AIGateway is excluded because it is a module (reports AIGatewayReady via ModulesReady, not ComponentsReady)
@@ -295,10 +297,9 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 
 	skipUnless(t, Tier1)
 
-	// Ray and AI Pipelines are modules and report readiness through ModulesReady.
-	// Use an in-tree component here because this test validates ComponentsReady's
+	// Use Kueue as the last in-tree component here because this test validates ComponentsReady's
 	// handling of a missing component CRD.
-	crdTestingName := fmt.Sprintf("%ss.%s", componentApi.TrustyAIComponentName, componentApi.GroupVersion.Group)
+	crdTestingName := fmt.Sprintf("%ss.%s", componentApi.KueueComponentName, componentApi.GroupVersion.Group)
 	crd := tc.FetchResource(
 		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdTestingName}),
 	)
@@ -340,9 +341,9 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
-			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, operatorv1.Managed),
+			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, operatorv1.Unmanaged),
 		),
-		WithCondition(jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, operatorv1.Managed)),
+		WithCondition(jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, operatorv1.Unmanaged)),
 	)
 
 	// Verify the system is unhealthy
