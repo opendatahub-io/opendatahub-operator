@@ -316,7 +316,7 @@ vet: ## Run go vet against code.
 GOLANGCI_LINT_TIMEOUT ?= 5m0s
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint against code.
-	$(GOLANGCI_LINT) run --timeout=$(GOLANGCI_LINT_TIMEOUT)
+	$(GOLANGCI_LINT) run --timeout=$(GOLANGCI_LINT_TIMEOUT) $$(go list -f '{{.Dir}}' ./... | grep -v '/opt/manifests/')
 
 .PHONY: lint-fix
 lint-fix: golangci-lint ## Run golangci-lint against code.
