@@ -220,6 +220,21 @@ func TestCopyDir(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(subDir, "file2.txt"), []byte("world"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	for _, excluded := range []string{
+		filepath.Join(srcDir, "assets.go"),
+		filepath.Join(subDir, "assets_test.go"),
+		filepath.Join(srcDir, "downloader.test"),
+	} {
+		if err := os.WriteFile(excluded, []byte("excluded"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(dstDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dstDir, "stale.go"), []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := copyDir(srcDir, dstDir); err != nil {
 		t.Fatalf("copyDir: %v", err)
@@ -239,6 +254,17 @@ func TestCopyDir(t *testing.T) {
 	}
 	if string(data) != "world" {
 		t.Errorf("expected 'world', got %q", string(data))
+	}
+
+	for _, excluded := range []string{
+		filepath.Join(dstDir, "assets.go"),
+		filepath.Join(dstDir, "sub", "assets_test.go"),
+		filepath.Join(dstDir, "downloader.test"),
+		filepath.Join(dstDir, "stale.go"),
+	} {
+		if _, err := os.Stat(excluded); !os.IsNotExist(err) {
+			t.Errorf("expected %s to be omitted, got err %v", excluded, err)
+		}
 	}
 }
 
