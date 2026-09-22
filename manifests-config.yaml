@@ -71,7 +71,7 @@ components:
   trainer:
     odh:
       repo: opendatahub-io/trainer-operator
-      ref: release/odh-3.6.0-ea2@8160e0014ab13c009973cbde44ec1bbb05ea476b
+      ref: main@9b14f96a63e4374352bf141f327bc94670016cd4
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/trainer-operator
