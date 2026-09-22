@@ -376,12 +376,8 @@ apply-image-overrides: ## Apply image overrides to manager.yaml (for make deploy
 	go run -C ./cmd/manifest-tools main.go apply-deploy --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --manager-file $(CURDIR)/$(MANAGER_FILE)
 
 .PHONY: apply-image-overrides-olm
-# EXTRA_OLM_ENV_FLAGS is empty for normal deploys; the e2e-test target sets it
-# (via E2E_OLM_EXTRA_ENV) so runtime-only operator env vars are injected into the
-# Subscription for e2e runs without leaking into production deploys.
-EXTRA_OLM_ENV_FLAGS =
 apply-image-overrides-olm: ## Apply image overrides to OLM Subscription (for operator-sdk run bundle)
-	go run -C ./cmd/manifest-tools main.go apply-olm --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --namespace $(OPERATOR_NAMESPACE) --package $(OPERATOR_PACKAGE) $(EXTRA_OLM_ENV_FLAGS)
+	go run -C ./cmd/manifest-tools main.go apply-olm --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --namespace $(OPERATOR_NAMESPACE) --package $(OPERATOR_PACKAGE)
 
 # Default to standard sed command
 SED_COMMAND = sed
@@ -806,14 +802,6 @@ e2e: e2e-test ## Alias for e2e-test
 # E2E_AUTO_RESOLVE=true does it narrow what actually runs; otherwise it only logs.
 export E2E_AUTO_RESOLVE
 E2E_AUTO_RESOLVE ?= false
-# Runtime-only operator env vars injected into the OLM Subscription before e2e runs.
-# CACHE_FAIL_ON_MISSING_INFORMER makes the manager cache fail fast on reads of
-# un-scoped resources so unintended cluster-wide informer creation surfaces during
-# e2e; it stays off in production deploys (only set here, never in manifests-config).
-# Space-separated KEY=VALUE list. Target-specific so it propagates to the
-# apply-image-overrides-olm prerequisite without affecting other apply-olm callers.
-E2E_OLM_EXTRA_ENV ?= CACHE_FAIL_ON_MISSING_INFORMER=true
-e2e-test: EXTRA_OLM_ENV_FLAGS = $(foreach e,$(E2E_OLM_EXTRA_ENV),--extra-env $(e))
 e2e-test:
 # Specifies the namespace where the operator pods are deployed
 ifndef E2E_TEST_OPERATOR_NAMESPACE

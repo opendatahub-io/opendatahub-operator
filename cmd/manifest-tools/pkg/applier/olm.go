@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -30,12 +29,6 @@ type Options struct {
 	Platform        string
 	Namespace       string
 	OperatorPackage string
-	// ExtraEnv holds additional operator env vars in KEY=VALUE form to inject into
-	// the Subscription's spec.config.env, on top of the image overrides loaded from
-	// the config file. The e2e path uses this to enable runtime-only settings (e.g.
-	// CACHE_FAIL_ON_MISSING_INFORMER) without affecting production deploys, which
-	// never set this flag.
-	ExtraEnv []string
 }
 
 type envVar struct {
@@ -48,12 +41,6 @@ func ApplyOLM(opts Options) error {
 	if err != nil {
 		return err
 	}
-
-	extra, err := parseExtraEnv(opts.ExtraEnv)
-	if err != nil {
-		return err
-	}
-	envVars = append(envVars, extra...)
 
 	if len(envVars) == 0 {
 		slog.Info("No overrides to apply")
@@ -99,24 +86,6 @@ func ApplyOLM(opts Options) error {
 
 func isOLMAPIUnavailable(err error) bool {
 	return meta.IsNoMatchError(err) || apierrors.IsNotFound(err)
-}
-
-// parseExtraEnv converts KEY=VALUE strings into envVars. Only the first '=' is
-// treated as the separator, so values may themselves contain '='. An empty key
-// is rejected.
-func parseExtraEnv(raw []string) ([]envVar, error) {
-	if len(raw) == 0 {
-		return nil, nil
-	}
-	out := make([]envVar, 0, len(raw))
-	for _, kv := range raw {
-		key, value, found := strings.Cut(kv, "=")
-		if !found || key == "" {
-			return nil, fmt.Errorf("invalid --extra-env %q: expected KEY=VALUE", kv)
-		}
-		out = append(out, envVar{Name: key, Value: value})
-	}
-	return out, nil
 }
 
 func applyToSubscription(ctx context.Context, dynClient dynamic.Interface, clientset kubernetes.Interface,
