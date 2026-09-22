@@ -2510,6 +2510,64 @@ Package v1 contains API Schema definitions for the services v1 API group
 
 
 
+#### AdditionalIngress
+
+
+
+AdditionalIngress defines topology for an additional Gateway listener.
+
+
+
+_Appears in:_
+- [AdditionalIngresses](#additionalingresses)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name is the stable identity of this ingress and the Gateway listener name. |  | MaxLength: 63 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
+| `hostname` _string_ | Hostname is the externally visible hostname for this ingress. |  | MaxLength: 253 <br />Required: \{\} <br /> |
+| `listenerPort` _integer_ | ListenerPort is the stable internal port used by this Gateway listener.<br />It is immutable after the ingress is created. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
+| `ingressControllerName` _string_ | IngressControllerName identifies the OpenShift IngressController that admits the bridge Route. |  | MaxLength: 63 <br />Pattern: `^[a-z]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
+| `routeLabels` _object (keys:string, values:string)_ | RouteLabels are applied to the bridge Route and matched against the target<br />IngressController route selector. |  | MinProperties: 1 <br />Required: \{\} <br /> |
+
+
+#### AdditionalIngressStatus
+
+
+
+AdditionalIngressStatus reports readiness for one additional ingress.
+
+
+
+_Appears in:_
+- [GatewayConfigStatus](#gatewayconfigstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name is the stable identity of the configured ingress. |  |  |
+| `hostname` _string_ | Hostname is the configured externally visible hostname. |  |  |
+| `conditions` _Condition array_ | Conditions report independent listener, Route, authentication, and aggregate readiness. |  |  |
+
+
+#### AdditionalIngresses
+
+_Underlying type:_ _[AdditionalIngress](#additionalingress)_
+
+AdditionalIngresses is the collection of additional Gateway listener definitions.
+
+
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name is the stable identity of this ingress and the Gateway listener name. |  | MaxLength: 63 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
+| `hostname` _string_ | Hostname is the externally visible hostname for this ingress. |  | MaxLength: 253 <br />Required: \{\} <br /> |
+| `listenerPort` _integer_ | ListenerPort is the stable internal port used by this Gateway listener.<br />It is immutable after the ingress is created. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
+| `ingressControllerName` _string_ | IngressControllerName identifies the OpenShift IngressController that admits the bridge Route. |  | MaxLength: 63 <br />Pattern: `^[a-z]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
+| `routeLabels` _object (keys:string, values:string)_ | RouteLabels are applied to the bridge Route and matched against the target<br />IngressController route selector. |  | MinProperties: 1 <br />Required: \{\} <br /> |
+
+
 #### Alerting
 
 
@@ -2661,6 +2719,7 @@ _Appears in:_
 | `verifyProviderCertificate` _boolean_ | VerifyProviderCertificate controls TLS certificate verification for the authentication provider.<br />When true (default), certificates are verified against the system trust store and providerCASecretName.<br />When false, certificate verification is disabled (development/testing only).<br />WARNING: Setting this to false disables security and should only be used in non-production environments.<br />For production use with self-signed certificates, use ProviderCASecretName instead. | true |  |
 | `enableK8sTokenValidation` _boolean_ | EnableK8sTokenValidation enables Kubernetes service account token validation via TokenReview API.<br />When enabled, kube-auth-proxy validates bearer tokens as service account tokens alongside OAuth/OIDC authentication.<br />This allows service accounts to authenticate via bearer tokens while human users authenticate via OAuth/OIDC. | true |  |
 | `tokenReview` _[TokenReviewConfig](#tokenreviewconfig)_ | TokenReview configures the rate limiting and caching behavior of Kubernetes TokenReview API calls<br />used for service account token validation.<br />If not set, kube-auth-proxy uses built-in defaults (QPS=50, Burst=100, CacheTTL=10s).<br />These settings only take effect when EnableK8sTokenValidation is true. |  |  |
+| `additionalIngresses` _[AdditionalIngresses](#additionalingresses)_ | AdditionalIngresses defines additional listeners on the managed Gateway.<br />Authentication and scaling fields are defined by the per-ingress auth contract. |  |  |
 
 
 #### GatewayConfigStatus
@@ -2677,6 +2736,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `domain` _string_ | Domain is the computed gateway domain (subdomain + cluster domain or default)<br />This is the single source of truth for the gateway domain used by all components |  |  |
+| `additionalIngresses` _[AdditionalIngressStatus](#additionalingressstatus) array_ | AdditionalIngresses contains configured additional ingresses, including entries that are not ready. |  |  |
 
 
 #### IngressMode

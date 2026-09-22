@@ -53,11 +53,13 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 	if rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig) {
 		return nil
 	}
-
 	if gatewayConfig.Spec.IngressMode == "" {
 		if err := detectAndSetIngressMode(ctx, rr, gatewayConfig); err != nil {
 			return fmt.Errorf("failed to detect ingress mode: %w", err)
 		}
+	}
+	if err := gatewayConfig.Spec.ValidateAdditionalIngresses(); err != nil {
+		return fmt.Errorf("invalid additional ingresses: %w", err)
 	}
 
 	hostname, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
@@ -92,7 +94,8 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 	// Compute legacy hostname for LoadBalancer mode (needs second listener)
 	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
 
-	if err := createGateway(rr, certSecretName, hostname, legacyInfo.LegacyHostname, gatewayConfig.Spec.IngressMode); err != nil {
+	if err := createGateway(rr, certSecretName, hostname, legacyInfo.LegacyHostname,
+		gatewayConfig.Spec.IngressMode, gatewayConfig.Spec.AdditionalIngresses); err != nil {
 		return fmt.Errorf("failed to create Gateway: %w", err)
 	}
 
