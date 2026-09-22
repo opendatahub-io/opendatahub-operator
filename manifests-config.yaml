@@ -26,7 +26,7 @@ components:
   ray:
     odh:
       repo: opendatahub-io/ray-module-operator
-      ref: v1.6.2@560baadd3a5c4268e6c021f6cfe36591a7b2551e
+      ref: main@446d26d47cbf8a71eba1a0ac4bc20fb9fa7785ab
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/ray-module-operator
@@ -53,7 +53,7 @@ components:
   datasciencepipelines:
     odh:
       repo: opendatahub-io/data-science-pipelines-operator
-      ref: v2.18.0@ab88c06494b0e1c58c6e5cfffad24a8d585b9dcd
+      ref: main@486a633ea2e25a951385d9ed05824c718861d694
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/data-science-pipelines-operator
@@ -80,7 +80,7 @@ components:
   mlflowoperator:
     odh:
       repo: opendatahub-io/mlflow-operator
-      ref: 1.1.0@7abf6b5ea11c9d919998df3418fa031858085f41
+      ref: main@6df31b94f07284e6e0465e174e3b0c039d219726
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/mlflow-operator
