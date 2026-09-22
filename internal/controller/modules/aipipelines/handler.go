@@ -65,7 +65,6 @@ func NewHandler() *handler {
 				CRName:               crName,
 				GVK:                  gvk.AIPipelines,
 				ManifestDir:          componentApi.DataSciencePipelinesComponentName,
-				SourcePath:           odhOverlayPath,
 				SourcePathByPlatform: overlayByPlatform,
 				DeploymentName:       ControllerDeploymentName,
 				ControllerImage:      controllerImageEnv,
