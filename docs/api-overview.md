@@ -2580,7 +2580,7 @@ _Appears in:_
 | `name` _string_ | Name is the stable identity of this ingress and the Gateway listener name. |  | MaxLength: 63 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
 | `hostname` _string_ | Hostname is the externally visible hostname for this ingress. |  | MaxLength: 253 <br />Required: \{\} <br /> |
 | `listenerPort` _integer_ | ListenerPort is the stable internal port used by this Gateway listener.<br />It is immutable after the ingress is created. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
-| `ingressControllerName` _string_ | IngressControllerName identifies the OpenShift IngressController that admits the bridge Route. |  | MaxLength: 63 <br />Required: \{\} <br /> |
+| `ingressControllerName` _string_ | IngressControllerName identifies the OpenShift IngressController that admits the bridge Route. |  | MaxLength: 63 <br />Pattern: `^[a-z]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
 | `routeLabels` _object (keys:string, values:string)_ | RouteLabels are applied to the bridge Route and matched against the target<br />IngressController route selector. |  | MinProperties: 1 <br />Required: \{\} <br /> |
 
 
@@ -2618,7 +2618,7 @@ _Appears in:_
 | `name` _string_ | Name is the stable identity of this ingress and the Gateway listener name. |  | MaxLength: 63 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
 | `hostname` _string_ | Hostname is the externally visible hostname for this ingress. |  | MaxLength: 253 <br />Required: \{\} <br /> |
 | `listenerPort` _integer_ | ListenerPort is the stable internal port used by this Gateway listener.<br />It is immutable after the ingress is created. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
-| `ingressControllerName` _string_ | IngressControllerName identifies the OpenShift IngressController that admits the bridge Route. |  | MaxLength: 63 <br />Required: \{\} <br /> |
+| `ingressControllerName` _string_ | IngressControllerName identifies the OpenShift IngressController that admits the bridge Route. |  | MaxLength: 63 <br />Pattern: `^[a-z]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
 | `routeLabels` _object (keys:string, values:string)_ | RouteLabels are applied to the bridge Route and matched against the target<br />IngressController route selector. |  | MinProperties: 1 <br />Required: \{\} <br /> |
 
 

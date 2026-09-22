@@ -21,9 +21,9 @@ var additionalIngressConditionTypes = []string{
 // syncAdditionalIngressStatus inventories configured ingresses before resource reconciliation.
 // Readiness is initialized here; child-resource reconcilers publish later observations.
 func syncAdditionalIngressStatus(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
-	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
-	if !ok {
-		return nil
+	gatewayConfig, err := validateGatewayConfig(rr)
+	if err != nil {
+		return err
 	}
 
 	gatewayConfig.Status.AdditionalIngresses = buildAdditionalIngressStatuses(
@@ -86,7 +86,7 @@ func currentAdditionalIngressConditions(conditions []common.Condition, generatio
 			Reason:             serviceApi.AdditionalIngressReconciliationPendingReason,
 			Message:            "Ingress readiness has not been observed yet",
 		}
-		if previous, found := byType[conditionType]; found && !previous.LastTransitionTime.IsZero() {
+		if previous, found := byType[conditionType]; found && previous.Status == metav1.ConditionUnknown && !previous.LastTransitionTime.IsZero() {
 			condition.LastTransitionTime = previous.LastTransitionTime
 		}
 		result = append(result, condition)

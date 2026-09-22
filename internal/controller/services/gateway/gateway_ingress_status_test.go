@@ -3,6 +3,7 @@ package gateway
 
 import (
 	"testing"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -64,6 +65,31 @@ func TestBuildAdditionalIngressStatusesPreservesCurrentConditions(t *testing.T) 
 	g.Expect(statuses[0].Conditions[0]).To(Equal(ready))
 	g.Expect(statuses[0].Conditions[1].Status).To(Equal(metav1.ConditionUnknown))
 	g.Expect(statuses[0].Conditions[1].ObservedGeneration).To(Equal(int64(7)))
+}
+
+func TestBuildAdditionalIngressStatusesAssignsNewTransitionTimeAfterTrue(t *testing.T) {
+	g := NewWithT(t)
+	previousTransitionTime := metav1.NewTime(time.Date(2026, time.January, 1, 12, 0, 0, 0, time.UTC))
+
+	statuses := buildAdditionalIngressStatuses(
+		[]serviceApi.AdditionalIngress{{Name: "alpha", Hostname: "alpha.example.com"}},
+		[]serviceApi.AdditionalIngressStatus{{
+			Name: "alpha",
+			Conditions: []common.Condition{{
+				Type:               serviceApi.AdditionalIngressListenerReadyConditionType,
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: 7,
+				LastTransitionTime: previousTransitionTime,
+			}},
+		}},
+		8,
+	)
+
+	condition := statuses[0].Conditions[0]
+	g.Expect(condition.Status).To(Equal(metav1.ConditionUnknown))
+	g.Expect(condition.ObservedGeneration).To(Equal(int64(8)))
+	g.Expect(condition.LastTransitionTime.IsZero()).To(BeFalse())
+	g.Expect(condition.LastTransitionTime).NotTo(Equal(previousTransitionTime))
 }
 
 func TestBuildAdditionalIngressStatusesPrunesRemovedEntries(t *testing.T) {

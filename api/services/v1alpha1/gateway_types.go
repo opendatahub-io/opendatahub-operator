@@ -191,7 +191,7 @@ func (ingresses AdditionalIngresses) Validate(ingressMode IngressMode) error {
 			return fmt.Errorf("additional ingress %q hostname %q conflicts with %q", ingress.Name, ingress.Hostname, existingName)
 		}
 		seenHostnames[hostname] = ingress.Name
-		if errs := validation.IsDNS1123Label(ingress.IngressControllerName); len(errs) > 0 {
+		if errs := validation.IsDNS1035Label(ingress.IngressControllerName); len(errs) > 0 {
 			return fmt.Errorf("additional ingress %q has invalid IngressController name %q: %s", ingress.Name, ingress.IngressControllerName, errs[0])
 		}
 		if len(ingress.RouteLabels) == 0 {
@@ -236,11 +236,13 @@ type AdditionalIngress struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=65535
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="ListenerPort is immutable"
 	ListenerPort int32 `json:"listenerPort"`
 
 	// IngressControllerName identifies the OpenShift IngressController that admits the bridge Route.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-z]([-a-z0-9]*[a-z0-9])?$`
 	IngressControllerName string `json:"ingressControllerName"`
 
 	// RouteLabels are applied to the bridge Route and matched against the target
