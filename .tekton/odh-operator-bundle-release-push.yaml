@@ -1,6 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
+  # Trigger a bundle rebuild after refreshed ODH related-image overrides.
   annotations:
     build.appstudio.openshift.io/repo: https://github.com/opendatahub-io/opendatahub-operator?rev={{revision}}
     build.appstudio.redhat.com/commit_sha: "{{revision}}"
