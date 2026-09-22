@@ -9,7 +9,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
-	"github.com/opendatahub-io/odh-platform-utilities/pkg/cluster/olm"
+	utilcluster "github.com/opendatahub-io/odh-platform-utilities/pkg/cluster"
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/operator-framework/api/pkg/lib/version"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -287,59 +287,29 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 	return nil, k8serr.NewNotFound(schema.GroupResource{Group: gvk.ClusterServiceVersion.Group}, gvk.ClusterServiceVersion.Kind)
 }
 
-// detectSelfManaged detects if it is Self Managed Rhoai or OpenDataHub.
-func detectSelfManaged(ctx context.Context, cli client.Client) (common.Platform, error) {
-	operatorInfo, err := olm.OperatorExists(ctx, cli, "rhods-operator")
-	if operatorInfo != nil {
-		return SelfManagedRhoai, nil
-	}
-
-	if errors.Is(err, olm.ErrOperatorNotInstalled) || meta.IsNoMatchError(err) {
-		return OpenDataHub, nil
-	}
-
-	return OpenDataHub, err
-}
-
-// detectManagedRhoai checks if catsrc CR add-on exists ManagedRhoai.
-func detectManagedRhoai(ctx context.Context, cli client.Client) (common.Platform, error) {
-	catalogSource := &ofapiv1alpha1.CatalogSource{}
+// getPlatform resolves the product distribution via utilities DetectPlatform.
+//
+// Explicit ODH_PLATFORM_TYPE values (OpenDataHub, ManagedRHOAI, SelfManagedRHOAI, XKS)
+// short-circuit without probing the cluster. Auto-detect follows utilities precedence:
+// Managed (CatalogSource or ClusterCatalog addon-managed-odh-catalog), then SelfManaged
+// (rhods-operator OperatorCondition or Catalog ClusterExtension), else OpenDataHub.
+//
+// Note: OLMv1 SelfManaged matching uses ClusterExtension package request
+// (sourceType=Catalog + packageName), not Installed=True. That matches the utilities
+// contract and can classify SelfManaged during install before the extension succeeds.
+func getPlatform(ctx context.Context, cli client.Client, platformType string) (common.Platform, error) {
 	operatorNs, err := GetOperatorNamespace()
 	if err != nil {
+		// Match prior detectManagedRhoai fallback when operator namespace is unset (e.g. unit tests).
 		operatorNs = "redhat-ods-operator"
 	}
-	err = cli.Get(ctx, client.ObjectKey{Name: "addon-managed-odh-catalog", Namespace: operatorNs}, catalogSource)
-	if err != nil {
-		if meta.IsNoMatchError(err) {
-			return OpenDataHub, nil
-		}
-		return OpenDataHub, client.IgnoreNotFound(err)
-	}
-	return ManagedRhoai, nil
-}
 
-func getPlatform(ctx context.Context, cli client.Client, platformType string) (common.Platform, error) {
-	switch platformType {
-	case "OpenDataHub":
-		return OpenDataHub, nil
-	case "ManagedRHOAI":
-		return ManagedRhoai, nil
-	case "SelfManagedRHOAI":
-		return SelfManagedRhoai, nil
-	case string(XKS):
-		// Non-OpenShift Kubernetes deployment (AKS, CoreWeave, EKS, …).
-		return XKS, nil
-	default:
-		// fall back to detect platform if ODH_PLATFORM_TYPE env is not provided in CSV or set to ""
-		platform, err := detectManagedRhoai(ctx, cli)
-		if err != nil {
-			return OpenDataHub, err
-		}
-		if platform == ManagedRhoai {
-			return ManagedRhoai, nil
-		}
-		return detectSelfManaged(ctx, cli)
+	platform, err := utilcluster.DetectPlatform(ctx, cli, platformType, operatorNs)
+	if err != nil {
+		return OpenDataHub, err
 	}
+
+	return common.Platform(platform), nil
 }
 
 func getRelease(ctx context.Context, cli client.Client, platformType string) (common.Release, error) {

@@ -8,6 +8,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -16,6 +17,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 )
 
 func TestGetApplicationNamespace(t *testing.T) {
@@ -501,14 +504,55 @@ func TestGetOCPVersion(t *testing.T) {
 	}
 }
 
-func TestDetectSelfManaged(t *testing.T) {
-	t.Parallel()
-
+func TestGetPlatform(t *testing.T) {
+	// Not parallel: cases mutate shared clusterConfig.Namespace for CatalogSource lookups.
 	tests := []struct {
-		name    string
-		objects []client.Object
-		want    common.Platform
+		name         string
+		platformType string
+		namespace    string
+		objects      []client.Object
+		gvkMappings  []fakeclient.GVKMapping
+		want         common.Platform
 	}{
+		{
+			name:         "explicit OpenDataHub",
+			platformType: "OpenDataHub",
+			want:         OpenDataHub,
+		},
+		{
+			name:         "explicit ManagedRHOAI",
+			platformType: "ManagedRHOAI",
+			want:         ManagedRhoai,
+		},
+		{
+			name:         "explicit SelfManagedRHOAI",
+			platformType: "SelfManagedRHOAI",
+			want:         SelfManagedRhoai,
+		},
+		{
+			name:         "explicit XKS",
+			platformType: string(XKS),
+			want:         XKS,
+		},
+		{
+			name:      "ManagedRhoai via CatalogSource",
+			namespace: "redhat-ods-operator",
+			objects: []client.Object{
+				newCatalogSourceForDetect("addon-managed-odh-catalog", "redhat-ods-operator"),
+			},
+			want: ManagedRhoai,
+		},
+		{
+			name:      "ManagedRhoai via ClusterCatalog",
+			namespace: "redhat-ods-operator",
+			objects: []client.Object{
+				newClusterCatalogForDetect("addon-managed-odh-catalog"),
+			},
+			gvkMappings: []fakeclient.GVKMapping{
+				{GVK: gvk.ClusterCatalog, Scope: meta.RESTScopeRoot},
+			},
+			want: ManagedRhoai,
+		},
 		{
 			name: "SelfManagedRhoai via OperatorCondition",
 			objects: []client.Object{
@@ -519,9 +563,22 @@ func TestDetectSelfManaged(t *testing.T) {
 		{
 			name: "SelfManagedRhoai via ClusterExtension",
 			objects: []client.Object{
-				newInstalledClusterExtensionForDetect("rhoai-ext", "rhods-operator", "2.0.0"),
+				newClusterExtensionForDetect("rhoai-ext", "rhods-operator", "redhat-ods-operator"),
+			},
+			gvkMappings: []fakeclient.GVKMapping{
+				{GVK: gvk.ClusterExtension, Scope: meta.RESTScopeRoot},
 			},
 			want: SelfManagedRhoai,
+		},
+		{
+			name: "OpenDataHub when only ODH ClusterExtension exists",
+			objects: []client.Object{
+				newClusterExtensionForDetect("odh-ext", "opendatahub-operator", "opendatahub-operator-system"),
+			},
+			gvkMappings: []fakeclient.GVKMapping{
+				{GVK: gvk.ClusterExtension, Scope: meta.RESTScopeRoot},
+			},
+			want: OpenDataHub,
 		},
 		{
 			name: "OpenDataHub when rhods-operator is absent",
@@ -531,19 +588,28 @@ func TestDetectSelfManaged(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+			prevNS := clusterConfig.Namespace
+			clusterConfig.Namespace = tc.namespace
+			t.Cleanup(func() {
+				clusterConfig.Namespace = prevNS
+			})
 
-			cli := fake.NewClientBuilder().
-				WithScheme(runtime.NewScheme()).
-				WithObjects(tc.objects...).
-				Build()
+			opts := []fakeclient.ClientOpts{fakeclient.WithObjects(tc.objects...)}
+			if len(tc.gvkMappings) > 0 {
+				opts = append(opts, fakeclient.WithGVKs(tc.gvkMappings...))
+			}
 
-			platform, err := detectSelfManaged(t.Context(), cli)
+			cli, err := fakeclient.New(opts...)
 			if err != nil {
-				t.Fatalf("detectSelfManaged() error: %v", err)
+				t.Fatalf("fakeclient.New() error: %v", err)
+			}
+
+			platform, err := getPlatform(t.Context(), cli, tc.platformType)
+			if err != nil {
+				t.Fatalf("getPlatform() error: %v", err)
 			}
 			if platform != tc.want {
-				t.Errorf("detectSelfManaged() = %q, want %q", platform, tc.want)
+				t.Errorf("getPlatform() = %q, want %q", platform, tc.want)
 			}
 		})
 	}
@@ -559,28 +625,42 @@ func newOperatorConditionForDetect(name string) *unstructured.Unstructured {
 	}
 }
 
-func newInstalledClusterExtensionForDetect(name, packageName, version string) *unstructured.Unstructured {
+func newCatalogSourceForDetect(name, namespace string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "operators.coreos.com/v1alpha1",
+			"kind":       "CatalogSource",
+			"metadata": map[string]any{
+				"name":      name,
+				"namespace": namespace,
+			},
+		},
+	}
+}
+
+func newClusterCatalogForDetect(name string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "olm.operatorframework.io/v1",
+			"kind":       "ClusterCatalog",
+			"metadata":   map[string]any{"name": name},
+		},
+	}
+}
+
+// newClusterExtensionForDetect builds a Catalog ClusterExtension requesting packageName.
+// DetectPlatform matches on package request (not Installed status).
+func newClusterExtensionForDetect(name, packageName, namespace string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]any{
 			"apiVersion": "olm.operatorframework.io/v1",
 			"kind":       "ClusterExtension",
 			"metadata":   map[string]any{"name": name},
 			"spec": map[string]any{
+				"namespace": namespace,
 				"source": map[string]any{
 					"sourceType": "Catalog",
 					"catalog":    map[string]any{"packageName": packageName},
-				},
-			},
-			"status": map[string]any{
-				"conditions": []any{
-					map[string]any{
-						"type":   "Installed",
-						"status": "True",
-						"reason": "Succeeded",
-					},
-				},
-				"install": map[string]any{
-					"bundle": map[string]any{"version": version},
 				},
 			},
 		},
