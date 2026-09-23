@@ -114,6 +114,9 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 			ManagementState: operatorv1.Managed,
 			AirGapped:       true,
 		},
+		WVA: componentApi.WVASpec{
+			ManagementState: operatorv1.Managed,
+		},
 	}
 
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
