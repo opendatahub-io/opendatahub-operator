@@ -53,11 +53,11 @@ components:
   datasciencepipelines:
     odh:
       repo: opendatahub-io/data-science-pipelines-operator
-      ref: main@55374000525bd49a24ecd5be73f20ca3e27d591a
+      ref: main@1d5636ddbc8d70646aa8f59c3fd7adb75c7a9831
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/data-science-pipelines-operator
-      ref: rhoai-3.6-ea.2@26a67c5ad46c95350e167c5f2e96260089a94e89
+      ref: rhoai-3.6-ea.2@f5cf9420549bf78344a6233089d427d46f87eb34
       sourcePath: config
   ogx:
     odh:
@@ -278,12 +278,12 @@ imageOverrides:
     tagTemplate: "odh-main-{SHORT_SHA}"
     odh:
       base: "quay.io/opendatahub/data-science-pipelines-operator"
-      digest: "sha256:5266571903bdf045094f34980420b86814bd7fbd8c30c3077387caef2aba69f6"
+      digest: "sha256:03dcd137056db484938cbf31ab95f312ddf4d6b27ab5c89b7a96d2bc88eeb620"
     rhoai:
       # Downstream Konflux tags use rhoai-3.6-ea.2-{SHA}, unlike the ODH tag template above.
       pinned: true
       base: "quay.io/rhoai/odh-data-science-pipelines-operator-controller-rhel9"
-      digest: "sha256:f0477d647fb68e9d5e94f1d7aa970cc32fe28bf52396a7179cd2bb7b2a9079ac"
+      digest: "sha256:d44af0b928d3bbc4bac529e8b4e90c418ba930776cdc2a379d3064fc512e184c"
   RELATED_IMAGE_ODH_OGX_K8S_OPERATOR_IMAGE:
     component: ogx
     tagTemplate: "{SHA}"
