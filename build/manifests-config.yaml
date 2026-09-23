@@ -64,5 +64,5 @@ map:
     src: charts/grid-operator/templates
     dest: grid-operator
   odh-trustyai-module-operator:
-    src: trustyai-operator-module/config
+    src: config/default
     dest: trustyai-module-operator
