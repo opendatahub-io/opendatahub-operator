@@ -4,365 +4,10 @@ name: opendatahub-operator
 schema: olm.package
 ---
 entries:
-- name: opendatahub-operator.v3.6.0-ea.1
 - name: opendatahub-operator.v3.6.0-ea.2
-  replaces: opendatahub-operator.v3.6.0-ea.1
 name: fast
 package: opendatahub-operator
 schema: olm.channel
----
-image: quay.io/opendatahub/opendatahub-operator-bundle:v3.6.0-ea.1
-name: opendatahub-operator.v3.6.0-ea.1
-package: opendatahub-operator
-properties:
-- type: olm.gvk
-  value:
-    group: components.platform.opendatahub.io
-    kind: DataSciencePipelines
-    version: v1alpha1
-- type: olm.gvk
-  value:
-    group: components.platform.opendatahub.io
-    kind: Kueue
-    version: v1alpha1
-- type: olm.gvk
-  value:
-    group: components.platform.opendatahub.io
-    kind: Ray
-    version: v1alpha1
-- type: olm.gvk
-  value:
-    group: components.platform.opendatahub.io
-    kind: TrustyAI
-    version: v1alpha1
-- type: olm.gvk
-  value:
-    group: config.opendatahub.io
-    kind: Platform
-    version: v1alpha1
-- type: olm.gvk
-  value:
-    group: datasciencecluster.opendatahub.io
-    kind: DataScienceCluster
-    version: v1
-- type: olm.gvk
-  value:
-    group: datasciencecluster.opendatahub.io
-    kind: DataScienceCluster
-    version: v2
-- type: olm.gvk
-  value:
-    group: dscinitialization.opendatahub.io
-    kind: DSCInitialization
-    version: v1
-- type: olm.gvk
-  value:
-    group: dscinitialization.opendatahub.io
-    kind: DSCInitialization
-    version: v2
-- type: olm.gvk
-  value:
-    group: features.opendatahub.io
-    kind: FeatureTracker
-    version: v1
-- type: olm.gvk
-  value:
-    group: infrastructure.opendatahub.io
-    kind: HardwareProfile
-    version: v1
-- type: olm.gvk
-  value:
-    group: infrastructure.opendatahub.io
-    kind: HardwareProfile
-    version: v1alpha1
-- type: olm.gvk
-  value:
-    group: services.platform.opendatahub.io
-    kind: Auth
-    version: v1alpha1
-- type: olm.gvk
-  value:
-    group: services.platform.opendatahub.io
-    kind: GatewayConfig
-    version: v1alpha1
-- type: olm.package
-  value:
-    packageName: opendatahub-operator
-    version: 3.6.0-ea.1
-- type: olm.csv.metadata
-  value:
-    annotations:
-      alm-examples: |-
-        [
-          {
-            "apiVersion": "datasciencecluster.opendatahub.io/v2",
-            "kind": "DataScienceCluster",
-            "metadata": {
-              "labels": {
-                "app.kubernetes.io/name": "datasciencecluster"
-              },
-              "name": "default-dsc"
-            },
-            "spec": {
-              "components": {
-                "aigateway": {
-                  "batchGateway": {
-                    "managementState": "Removed"
-                  },
-                  "managementState": "Removed",
-                  "modelsAsAService": {
-                    "managementState": "Removed"
-                  }
-                },
-                "aipipelines": {
-                  "managementState": "Managed"
-                },
-                "dashboard": {
-                  "managementState": "Managed"
-                },
-                "feastoperator": {
-                  "managementState": "Managed"
-                },
-                "kserve": {
-                  "managementState": "Managed",
-                  "nim": {
-                    "managementState": "Managed"
-                  },
-                  "rawDeploymentServiceConfig": "Headed",
-                  "wva": {
-                    "managementState": "Removed"
-                  }
-                },
-                "kueue": {
-                  "managementState": "Removed"
-                },
-                "llamastackoperator": {
-                  "managementState": "Removed"
-                },
-                "mcplifecycleoperator": {
-                  "managementState": "Removed"
-                },
-                "mlflowoperator": {
-                  "managementState": "Managed"
-                },
-                "modelregistry": {
-                  "managementState": "Managed",
-                  "registriesNamespace": "odh-model-registries"
-                },
-                "ogx": {
-                  "managementState": "Managed"
-                },
-                "ray": {
-                  "managementState": "Managed"
-                },
-                "sparkoperator": {
-                  "managementState": "Removed"
-                },
-                "trainer": {
-                  "managementState": "Managed"
-                },
-                "trustyai": {
-                  "managementState": "Managed"
-                },
-                "workbenches": {
-                  "managementState": "Managed",
-                  "workbenchesV2": {
-                    "managementState": "Removed"
-                  }
-                }
-              }
-            }
-          },
-          {
-            "apiVersion": "dscinitialization.opendatahub.io/v2",
-            "kind": "DSCInitialization",
-            "metadata": {
-              "labels": {
-                "app.kubernetes.io/name": "dscinitialization"
-              },
-              "name": "default-dsci"
-            },
-            "spec": {
-              "applicationsNamespace": "opendatahub",
-              "monitoring": {
-                "managementState": "Managed",
-                "metrics": {},
-                "namespace": "opendatahub"
-              },
-              "trustedCABundle": {
-                "customCABundle": "",
-                "managementState": "Managed"
-              }
-            }
-          }
-        ]
-      capabilities: Full Lifecycle
-      categories: AI/Machine Learning, Big Data
-      certified: "False"
-      containerImage: quay.io/opendatahub/opendatahub-operator:v3.6.0-ea.1
-      createdAt: "2026-09-03T04:10:48Z"
-      operators.operatorframework.io/builder: operator-sdk-v1.39.2
-      operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
-        "datasciencepipelines.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
-        "rays.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io"]'
-      operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
-      repository: https://github.com/opendatahub-io/opendatahub-operator
-    apiServiceDefinitions: {}
-    crdDescriptions:
-      owned:
-      - description: Auth is the Schema for the auths API
-        displayName: Auth
-        kind: Auth
-        name: auths.services.platform.opendatahub.io
-        version: v1alpha1
-      - description: DataScienceCluster is the Schema for the datascienceclusters
-          API.
-        displayName: Data Science Cluster
-        kind: DataScienceCluster
-        name: datascienceclusters.datasciencecluster.opendatahub.io
-        version: v1
-      - description: DataScienceCluster is the Schema for the datascienceclusters
-          API.
-        displayName: Data Science Cluster
-        kind: DataScienceCluster
-        name: datascienceclusters.datasciencecluster.opendatahub.io
-        version: v2
-      - description: DataSciencePipelines is the Schema for the datasciencepipelines
-          API
-        displayName: Data Science Pipelines
-        kind: DataSciencePipelines
-        name: datasciencepipelines.components.platform.opendatahub.io
-        version: v1alpha1
-      - description: DSCInitialization is the Schema for the dscinitializations API.
-        displayName: DSCInitialization
-        kind: DSCInitialization
-        name: dscinitializations.dscinitialization.opendatahub.io
-        version: v1
-      - description: DSCInitialization is the Schema for the dscinitializations API.
-        displayName: DSCInitialization
-        kind: DSCInitialization
-        name: dscinitializations.dscinitialization.opendatahub.io
-        version: v2
-      - kind: FeatureTracker
-        name: featuretrackers.features.opendatahub.io
-        version: v1
-      - description: GatewayConfig is the Schema for the gatewayconfigs API
-        displayName: Gateway Config
-        kind: GatewayConfig
-        name: gatewayconfigs.services.platform.opendatahub.io
-        version: v1alpha1
-      - description: HardwareProfile is the Schema for the hardwareprofiles API.
-        displayName: Hardware Profile
-        kind: HardwareProfile
-        name: hardwareprofiles.infrastructure.opendatahub.io
-        version: v1
-      - description: HardwareProfile is the Schema for the hardwareprofiles API.
-        displayName: Hardware Profile
-        kind: HardwareProfile
-        name: hardwareprofiles.infrastructure.opendatahub.io
-        version: v1alpha1
-      - description: Kueue is the Schema for the kueues API
-        displayName: Kueue
-        kind: Kueue
-        name: kueues.components.platform.opendatahub.io
-        version: v1alpha1
-      - kind: Platform
-        name: platforms.config.opendatahub.io
-        version: v1alpha1
-      - description: Ray is the Schema for the rays API
-        displayName: Ray
-        kind: Ray
-        name: rays.components.platform.opendatahub.io
-        version: v1alpha1
-      - description: TrustyAI is the Schema for the trustyais API
-        displayName: Trusty AI
-        kind: TrustyAI
-        name: trustyais.components.platform.opendatahub.io
-        version: v1alpha1
-    description: "The Open Data Hub is a machine-learning-as-a-service platform built
-      on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates
-      multiple AI/ML open source components into one operator that can easily be downloaded
-      and installed by OpenShift users.\n\nOpen Data Hub operator allows users to
-      install and manage components of the Open Data Hub. Users can mix and match
-      tools from each project to fulfill the needs of their use case. Each of the
-      projects share some components, but can be mostly seen as an extension of each
-      other to provide a complete solution for both novice and skilled enterprise
-      users.\n    \n### Components\n\n* Open Data Hub Dashboard - A web dashboard
-      that displays installed Open Data Hub components with easy access to component
-      UIs and documentation\n* ODH Notebook Controller - Secure management of Jupyter
-      Notebook in Kubernetes environments built on top of Kubeflow Notebook Controller
-      with support for OAuth\n* Jupyter Notebooks - JupyterLab notebook that provide
-      Python support for GPU workloads\n* Data Science Pipelines - Pipeline solution
-      for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Argo
-      Workflows\n* Model Mesh - ModelMesh Serving is the Controller for managing ModelMesh,
-      a general-purpose model serving management/routing layer\n* Distributed Workloads(Incubation)
-      - Stack built to make managing distributed compute infrastructure in the cloud
-      easy and intuitive for Data Scientists. This stack consists of two components\n
-      \                                     KubeRay and Kueue.\n* Kserve - Kserve
-      is the Controller for for serving machine learning (ML) models on arbitrary
-      frameworks\n* Feast - Feature Store is the fastest path to manage existing infrastructure
-      to productionize analytic data for model training and online inference.\n* OGX
-      - unified open‑source APIs for inference, RAG, agents, safety, evals & telemetry\n*
-      MLflow - MLflow is an open-source platform, purpose-built to assist machine
-      learning practitioners and teams in handling the complexities of the machine
-      learning process. MLflow focuses on the full lifecycle for machine learning
-      projects, ensuring that each phase is manageable, traceable, and reproducible.\n*
-      Spark Operator - Spark Operator is a Kubernetes operator for managing Apache
-      Spark applications. It provides a way to deploy and manage Spark applications
-      on Kubernetes.\n* AI Gateway (Model-as-a-service) aggregates all gateway-related
-      components that have no hard dependency on the workload\n* Batch Gateway is
-      a high-performance system for processing large-scale batch inference jobs, providing
-      an OpenAI-compatible API\n* MCP Lifecycle Operator - Manages the lifecycle of
-      MCP (Model Context Protocol) servers on OpenShift AI"
-    displayName: Open Data Hub Operator
-    installModes:
-    - supported: false
-      type: OwnNamespace
-    - supported: false
-      type: SingleNamespace
-    - supported: false
-      type: MultiNamespace
-    - supported: true
-      type: AllNamespaces
-    keywords:
-    - odh
-    - notebooks
-    - serving
-    - training
-    - pipelines
-    - workbenches
-    - dashboard
-    - kserve
-    - distributed workloads
-    - trustyai
-    - modelregistry
-    - feast
-    - featurestore
-    - ogx
-    - mlflow
-    - sparkoperator
-    links:
-    - name: Open Data Hub
-      url: https://opendatahub.io
-    - name: Open Data Hub Community
-      url: https://github.com/opendatahub-io/opendatahub-community
-    maintainers:
-    - email: ai-core-platform@redhat.com
-      name: Open Data Hub Maintainers
-    maturity: stable
-    minKubeVersion: 1.25.0
-    provider:
-      name: ODH
-relatedImages:
-- image: quay.io/opendatahub/odh-kube-auth-proxy:v3.6.0-ea.1
-  name: odh-kube-auth-proxy-image
-- image: quay.io/opendatahub/odh-kube-rbac-proxy:v3.6.0-ea.1
-  name: odh-kube-rbac-proxy-image
-- image: quay.io/opendatahub/opendatahub-operator-bundle:v3.6.0-ea.1
-  name: ""
-- image: quay.io/opendatahub/opendatahub-operator:v3.6.0-ea.1
-  name: ""
-schema: olm.bundle
 ---
 image: quay.io/opendatahub/opendatahub-operator-bundle:v3.6.0-ea.2
 name: opendatahub-operator.v3.6.0-ea.2
@@ -372,11 +17,6 @@ properties:
   value:
     group: components.platform.opendatahub.io
     kind: Kueue
-    version: v1alpha1
-- type: olm.gvk
-  value:
-    group: components.platform.opendatahub.io
-    kind: TrustyAI
     version: v1alpha1
 - type: olm.gvk
   value:
@@ -546,7 +186,7 @@ properties:
       categories: AI/Machine Learning, Big Data
       certified: "False"
       containerImage: quay.io/opendatahub/opendatahub-operator:v3.6.0-ea.2
-      createdAt: "2026-09-22T21:44:56Z"
+      createdAt: "2026-09-23T06:31:53Z"
       operators.operatorframework.io/builder: operator-sdk-v1.39.2
       operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
         "kueues.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io"]'
@@ -607,11 +247,6 @@ properties:
         version: v1alpha1
       - kind: Platform
         name: platforms.config.opendatahub.io
-        version: v1alpha1
-      - description: TrustyAI is the Schema for the trustyais API
-        displayName: Trusty AI
-        kind: TrustyAI
-        name: trustyais.components.platform.opendatahub.io
         version: v1alpha1
     description: "The Open Data Hub is a machine-learning-as-a-service platform built
       on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates
@@ -690,7 +325,7 @@ properties:
 relatedImages:
 - image: quay.io/opendatahub/ai-gateway-payload-processing-e2e@sha256:cf0ffd95b3a1b78e88cdbcff963b45f29cd99d914878d7cb1fec3c031d6511a1
   name: odh-ai-gateway-payload-processing-e2e-image
-- image: quay.io/opendatahub/data-science-pipelines-operator@sha256:5266571903bdf045094f34980420b86814bd7fbd8c30c3077387caef2aba69f6
+- image: quay.io/opendatahub/data-science-pipelines-operator@sha256:492f2eca583301400ccd44578fa7c0e3d850e84e46b3173d7e1b7bc408a45e8d
   name: odh-data-science-pipelines-operator-controller-image
 - image: quay.io/opendatahub/ds-pipelines-api-server@sha256:8e2e12576211b5b521485ab367b9a4d32d49d45ccafc6fb8f4f879e41a684c70
   name: odh-ml-pipelines-api-server-v2-image
@@ -714,7 +349,7 @@ relatedImages:
   name: odh-guardrails-detector-huggingface-runtime-image
 - image: quay.io/opendatahub/kserve-agent@sha256:338b6e94c77cd8db0cdb045bc6af9d1a468a57dfdeec401dd948eaa31bd4135f
   name: odh-kserve-agent-image
-- image: quay.io/opendatahub/kserve-controller@sha256:e89f78640a6af5b66a1e7eebb41c54f5a5974e02f7b6c540bbcf6f88fad78850
+- image: quay.io/opendatahub/kserve-controller@sha256:6e72a4ac896e998acf222204e10868106932adfbfd0dafdc0a9c1e4d58d0627d
   name: odh-kserve-controller-image
 - image: quay.io/opendatahub/kserve-router@sha256:c0e3adf9508c7da4a58adffde0d9973f500ddf9e53eb3dd8eca3eee4d24b02d1
   name: odh-kserve-router-image
@@ -732,7 +367,7 @@ relatedImages:
   name: odh-maas-controller-image
 - image: quay.io/opendatahub/mlflow-operator@sha256:4d825b77821dcba0c4f6e45a5fa02aac27e82861529c7f57e5aa7c4ade7fa232
   name: odh-mlflow-operator-image
-- image: quay.io/opendatahub/mlflow@sha256:143cdd6651695aa7223934aba1eda723282905fc681a93b104ec3418a8b568df
+- image: quay.io/opendatahub/mlflow@sha256:0ddf0d88cc7dceab4f6c368cce40542c3970b2b13ebe6f661eadd31e6c0c454d
   name: odh-mlflow-image
 - image: quay.io/opendatahub/mlmd-grpc-server@sha256:7a98ba63b03a1b26e331478c3ed8a8b00d55941a0728f592ec1e8f9d200679a0
   name: odh-mlmd-grpc-server-image
@@ -742,7 +377,7 @@ relatedImages:
   name: odh-mod-arch-maas-image
 - image: quay.io/opendatahub/model-registry-job-async-upload@sha256:cae175ab2740148cd0ae95269b200ed015373719c47fd1eb21d356876e8be0d5
   name: odh-model-registry-job-async-upload-image
-- image: quay.io/opendatahub/model-registry-operator@sha256:82f95e7a90177d9ba8117f95ecbae4f67b466aa9961d1316850c84afbcdd59e5
+- image: quay.io/opendatahub/model-registry-operator@sha256:78681d46a1188a7d59a168c712a37163f249b01bb0e406d4a94e11cf583a70eb
   name: odh-model-registry-operator-image
 - image: quay.io/opendatahub/model-registry@sha256:a16e5fc4b06747dddc39f5383a8a8322ec3a605ba307d27b430a15d71966f4d2
   name: odh-model-registry-image
@@ -766,17 +401,17 @@ relatedImages:
   name: odh-llm-d-batch-gateway-operator-image
 - image: quay.io/opendatahub/odh-built-in-detector@sha256:7121d1ba3e5e5dabb26abcd5a92f1ed7d9fe2a2a7468ee1da6d1f1e0abbced99
   name: odh-built-in-detector-image
-- image: quay.io/opendatahub/odh-core-bff@sha256:1eb435895d7ad9ce1fdb3b28404cd5535e7380a289875635b7631df7574ff0b4
+- image: quay.io/opendatahub/odh-core-bff@sha256:8def202f566374738baefcf2c8246fd243d284d58ec18ae81f4cbcfa601f0c69
   name: odh-core-bff-image
 - image: quay.io/opendatahub/odh-dashboard-operator@sha256:f3fbbb5dca5bdadb6aa33debcb44e1769b2abba1cd0a6a43945e409c67b6551c
   name: odh-dashboard-operator-image
 - image: quay.io/opendatahub/odh-dashboard@sha256:8cd3e578bf52f078aacdbee8318c8a5ab3c5fd8d782ecbfa8421d5182e06fef3
   name: odh-dashboard-image
-- image: quay.io/opendatahub/odh-data-connect-hub-controller@sha256:1955029d5cf561391dab4b327bd0d525fe0b2d7a2ecb48a6ae2573c244014b16
+- image: quay.io/opendatahub/odh-data-connect-hub-controller@sha256:f9dd87df20fe99e5221a06604ec940f4587600907b0eb5a0aad2ec14a8193d97
   name: odh-data-connect-hub-controller-image
-- image: quay.io/opendatahub/odh-data-connect-hub-flight@sha256:3bef1e2c50d51aa76828587a13426d3aaa2bcb7f14a195d895e75277f3848356
+- image: quay.io/opendatahub/odh-data-connect-hub-flight@sha256:ba12ad638494c79d71bd689e6ff8bdeb939884c6689d45dfb27a992cdeb33d71
   name: odh-data-connect-hub-flight-image
-- image: quay.io/opendatahub/odh-data-connect-hub-rest@sha256:5ae66d143e680dbf0096be85ae95ebadc5bc9f8226f99b65ec8993aa43be350a
+- image: quay.io/opendatahub/odh-data-connect-hub-rest@sha256:feced184ae20dd1b83dc638b22d3fdc1653cd16a43a4481796ce601b010d9787
   name: odh-data-connect-hub-rest-image
 - image: quay.io/opendatahub/odh-eval-hub-inspectai@sha256:f976ba41c06ee69bca8752343815aeae707cfb824c8c44b6bcb2601936c3d85b
   name: odh-eval-hub-inspectai-image
@@ -788,20 +423,18 @@ relatedImages:
   name: odh-feast-module-operator-image
 - image: quay.io/opendatahub/odh-kserve-autogluon-server@sha256:77351b5f013c84b0ea2dcfb598d1a43c12b5d9234578b9e384bf5be75642a53d
   name: odh-kserve-autogluon-server-image
-- image: quay.io/opendatahub/odh-kserve-llmisvc-controller@sha256:3c2ec2f10233b021112fd3c60152a696e9de01210252cefd5b19d5ee19448cff
+- image: quay.io/opendatahub/odh-kserve-llmisvc-controller@sha256:be3760deb2e1570f182db0819a98b4cebd1de04de25b8c9bdd0b38396f0be321
   name: odh-kserve-llmisvc-controller-image
-- image: quay.io/opendatahub/odh-kserve-localmodel-controller@sha256:0aea6c8a77f1e82e418194814c6ebc9fd8fb76f3e7bd8934742e4a4dc8e64d07
+- image: quay.io/opendatahub/odh-kserve-localmodel-controller@sha256:47dad2ce1a051f08c0bb1bde686d1cee3eb9e9f2b5691421fabeff60fd1d3643
   name: odh-kserve-localmodel-controller-image
 - image: quay.io/opendatahub/odh-kserve-localmodelnode-agent@sha256:29093f2009ec31e2d9e7474ea34923d2a93a4983fe0faa46ade5dfbec9e39991
   name: odh-kserve-localmodelnode-agent-image
-- image: quay.io/opendatahub/odh-kserve-module-operator@sha256:2ed849c7accc737c1a45acccbe3093927608c32fbfe92b444697a3a8914f694a
+- image: quay.io/opendatahub/odh-kserve-module-operator@sha256:b8becaa017a2a2ec9af002989e8f14a8a2f96ffad292f37a61569343b1101189
   name: odh-kserve-module-operator-image
 - image: quay.io/opendatahub/odh-kube-auth-proxy@sha256:d90930380151490d5516eeb95840eecc743e9005fc02733dec6fe79e1a00e035
   name: ""
 - image: quay.io/opendatahub/odh-kube-rbac-proxy@sha256:acd9de62b8339dbacd39635317e5e596e09a70ae26ac9eccdde4a4124388740f
   name: odh-kube-rbac-proxy-image
-- image: quay.io/opendatahub/odh-latency-predictor-test@sha256:d7c0dbbbfa156e9b3608244d6ab5eead4570c7dac205a67631af292499c06d9f
-  name: odh-latency-predictor-test-image
 - image: quay.io/opendatahub/odh-llm-d-async@sha256:fec541dc64f0a3b715e6893a234631fab29c7f6919afe1ab4025b89c32f5acbf
   name: odh-llm-d-async-image
 - image: quay.io/opendatahub/odh-llm-d-batch-gateway-apiserver@sha256:0b14adf815dd68adb3eebc22f0351d260c2819d3268accc9481c5e01e301225d
@@ -832,17 +465,17 @@ relatedImages:
   name: odh-mod-arch-autorag-image
 - image: quay.io/opendatahub/odh-mod-arch-data-connect-hub@sha256:d0f1e9fbc738c65858aa55f08099c91610223d8c11361739e8f12b255dd748d9
   name: odh-mod-arch-data-connect-hub-image
-- image: quay.io/opendatahub/odh-mod-arch-data-registry@sha256:d55eae3d2704a06e6a3fe318f345822188b8f8671b55938133a78cab98b90f4a
+- image: quay.io/opendatahub/odh-mod-arch-data-registry@sha256:bd2e6c1d9165cc01cf6c4dc74765ddfa81a4e467c8621c3848af0ff53ed12736
   name: odh-mod-arch-data-registry-image
 - image: quay.io/opendatahub/odh-mod-arch-eval-hub@sha256:8f3d111a670b659cd5a1dbd5569cd6c4dab55ab35674ed9785c9f2fd3b5f4fb8
   name: odh-mod-arch-eval-hub-image
-- image: quay.io/opendatahub/odh-mod-arch-gen-ai@sha256:33d73656ed6dcfb92fb454bc8885a09e74c68b26480752db5e7ac4fd8a2d445e
+- image: quay.io/opendatahub/odh-mod-arch-gen-ai@sha256:aea9a44fd6821f1a81abcd8b24568455f25d042e49a625abd940d545a809141e
   name: odh-mod-arch-gen-ai-image
 - image: quay.io/opendatahub/odh-mod-arch-mlflow@sha256:2204458125f0d2bb3ff013228b8ede7fc96fedf340eba2d11cc560a4f2972b66
   name: odh-mod-arch-mlflow-image
 - image: quay.io/opendatahub/odh-mod-arch-modular-architecture@sha256:0dfd41862044b430dda951a450275428cada6a9b04d489736164cea062fc9ffd
   name: odh-mod-arch-model-registry-image
-- image: quay.io/opendatahub/odh-mod-arch-notebooks@sha256:fb45c4bd8cc3cbcac0c3b71fe76ea8eb434d29a562a2856d8485dc8137ef08be
+- image: quay.io/opendatahub/odh-mod-arch-notebooks@sha256:556dad18a866919d15a924ac55850603c46b8fdc74c6bc54e0421d54a12a5688
   name: odh-mod-arch-notebooks-image
 - image: quay.io/opendatahub/odh-model-controller@sha256:94f7f4383ef91d10d60d82c0858a60158a02915fdd3000d507210139faaac775
   name: odh-model-controller-image
@@ -864,9 +497,9 @@ relatedImages:
   name: odh-ogx-k8s-operator-image
 - image: quay.io/opendatahub/odh-ogx-module-operator@sha256:3074b673983ec1c2424ea07d84dff80e6c5651031f816b80053acbe1d2f327ce
   name: odh-ogx-module-operator-image
-- image: quay.io/opendatahub/odh-openshell-cli@sha256:fcb9892901f0d930b9739584009f2f735580df4cb81ccd54fbde2d8de3ab3972
+- image: quay.io/opendatahub/odh-openshell-cli@sha256:7d35f1db0ea0061676f40c5e6795371ac23e0dcbeb66f70a1fff67cd3f0ff380
   name: odh-openshell-cli-image
-- image: quay.io/opendatahub/odh-openshell-sandbox@sha256:eec3c54f25fe3ff11de50fc76594122df08804c2d2bcfa01db1945723113dfd8
+- image: quay.io/opendatahub/odh-openshell-sandbox@sha256:0d1e35159e821d0c36bac6eef529fa80ae91b5f61a213c1221bb73c15f74d485
   name: odh-openshell-sandbox-image
 - image: quay.io/opendatahub/odh-pipeline-runtime-baseline-cpu-py312-c9s@sha256:e7fa29974895fedaa3a47ed0b3a4a56417ff1209fe9c8d3a41529b671fdb2702
   name: odh-pipeline-runtime-baseline-cpu-py312-c9s-image
@@ -892,6 +525,8 @@ relatedImages:
   name: odh-praxis-extproc-image
 - image: quay.io/opendatahub/odh-praxis-grid-enrollment@sha256:fc1d763276812f76f0ec94bbdfc18149963fabb88b0e2960f2aec9da147aeb2f
   name: odh-praxis-grid-enrollment-image
+- image: quay.io/opendatahub/odh-praxis-grid-gateway@sha256:89f7d32090d262a71d42d7968724ab7953522c60959002c8ab08112daeab6359
+  name: odh-praxis-grid-gateway-image
 - image: quay.io/opendatahub/odh-ray-module-operator@sha256:ec8e6d7b163bad1f93f0178cb81becb05e9a59f3580c517151b1130d288d37b7
   name: odh-ray-module-operator-image
 - image: quay.io/opendatahub/odh-rhaii-cluster-validator@sha256:683b44ac6828fc67d86bda17de62cafa557a9bfc96cd0a16d56148451516aba1
@@ -960,7 +595,7 @@ relatedImages:
   name: odh-workbench-jupyter-trustyai-cpu-py312-image
 - image: quay.io/opendatahub/odh-workbenches-controller@sha256:500eef12521bd01870d9bc00dadd0828e09a9e6dd8d9b2d101c956b9d74ee826
   name: odh-workbenches-controller-image
-- image: quay.io/opendatahub/odh-workbenches-operator@sha256:1c73c3b123769841a839712bfd5231506c5d1c0f2635c144e16ddd464fd24aee
+- image: quay.io/opendatahub/odh-workbenches-operator@sha256:c2ee17a842957b6d663cade827b5127da58021d8a2900836fd4ed672860c9047
   name: odh-workbenches-operator-image
 - image: quay.io/opendatahub/opendatahub-operator-bundle:v3.6.0-ea.2
   name: ""
