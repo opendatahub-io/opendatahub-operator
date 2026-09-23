@@ -99,6 +99,10 @@ type PlatformModules struct {
 	// ModelRegistry controls the model-registry (AIHub) module operator lifecycle.
 	// +optional
 	ModelRegistry common.ManagementSpec `json:"modelregistry,omitempty"`
+
+	// TrustyAI controls the TrustyAI module operator lifecycle.
+	// +optional
+	TrustyAI common.ManagementSpec `json:"trustyai,omitempty"`
 }
 
 // PlatformStatus defines the observed state of Platform.
@@ -190,6 +194,9 @@ func (m *PlatformModules) EnabledModules() []string {
 	}
 	if m.ModelRegistry.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "modelregistry")
+	}
+	if m.TrustyAI.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "trustyai")
 	}
 	return enabled
 }
