@@ -142,8 +142,11 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	// To handle upstream/downstream i trimmed prefix(odh) from few controller names
 	componentToControllerMap := map[string]string{
-		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
 		// componentApi.TrustyAIComponentName:             "trustyai-service-operator-controller-manager",
+	}
+	moduleToControllerMap := map[string]string{
+		componentApi.AIPipelinesComponentName: "data-science-pipelines-operator-controller-manager",
+		componentApi.RayComponentName:         "ray-module-operator-controller-manager",
 	}
 
 	// Error message includes components + internal components name
@@ -155,7 +158,9 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	t.Log("Verifying component count matches DSC Components struct")
 
 	expectedComponentCount := reflect.TypeFor[dscv2.Components]().NumField()
-	// TrustyAI is excluded from quota failure testing due to InferenceServices CRD dependency
+	// TrustyAI is excluded because it is a module (reports TrustyAIReady via ModulesReady, not
+	// ComponentsReady) and, separately, was already excluded from quota failure testing due to
+	// its InferenceServices CRD dependency
 	// Kueue is excluded because it does not have any deployment to manage anymore
 	// LlamaStack Operator is excluded because it has been replaced by OGX and the field is deprecated (no deployments to manage anymore)
 	// AIGateway is excluded because it is a module (reports AIGatewayReady via ModulesReady, not ComponentsReady)
@@ -170,9 +175,10 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// FeastOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// TrainingOperator is excluded because it is deprecated/removed (no handler, no deployment)
 	// ModelRegistry is excluded because it is a module (reports ModelRegistryReady via ModulesReady, not ComponentsReady)
+	// AIPipelines is excluded because it is a module (reports AIPipelinesReady via ModulesReady, not ComponentsReady)
 	// Ray is excluded because it is a module (reports RayReady via ModulesReady, not ComponentsReady)
 	//nolint:mnd // explicit count of excluded components
-	excludedComponents := 16
+	excludedComponents := 17
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+
@@ -183,9 +189,11 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	// Ensure clean initial state by disabling all components first
 	t.Log("Ensuring clean initial state - disabling all components")
+	moduleNames := slices.Collect(maps.Keys(moduleToControllerMap))
+	managedNames := slices.Concat(components, moduleNames)
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(updateAllComponentsTransform(components, operatorv1.Removed)),
+		WithMutateFunc(updateAllComponentsTransform(managedNames, operatorv1.Removed)),
 	)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -199,6 +207,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	allControllers := slices.Concat(
 		slices.Collect(maps.Values(componentToControllerMap)),
+		slices.Collect(maps.Values(moduleToControllerMap)),
 		slices.Collect(maps.Values(internalComponentToControllerMap)),
 	)
 
@@ -208,7 +217,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	t.Log("Enabling all components in DataScienceCluster")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(updateAllComponentsTransform(components, operatorv1.Managed)),
+		WithMutateFunc(updateAllComponentsTransform(managedNames, operatorv1.Managed)),
 	)
 
 	t.Log("Verifying component deployments are stuck due to quota")
@@ -220,7 +229,34 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		slices.Collect(maps.Keys(internalComponentToControllerMap)),
 	)
 	sort.Strings(allComponents)
-	expectedMsgComponents := fmt.Sprintf(`["%s"]`, strings.Join(allComponents, `","`))
+	if len(allComponents) == 0 {
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithCondition(jq.Match(
+				`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+				status.ConditionTypeComponentsReady,
+				metav1.ConditionTrue,
+			)),
+		)
+	} else {
+		expectedMsgComponents := fmt.Sprintf(`["%s"]`, strings.Join(allComponents, `","`))
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithCondition(
+				jq.Match(
+					`any(.status.conditions[];
+            .type == "%s" and .status == "%s" and
+            (.message as $msg | %s | all(.[]; ($msg | contains(.)))))`,
+					status.ConditionTypeComponentsReady,
+					metav1.ConditionFalse,
+					expectedMsgComponents,
+				),
+			),
+		)
+	}
+
+	sort.Strings(moduleNames)
+	expectedMsgModules := fmt.Sprintf(`["%s"]`, strings.Join(moduleNames, `","`))
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithCondition(
@@ -228,9 +264,9 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 				`any(.status.conditions[];
             .type == "%s" and .status == "%s" and
             (.message as $msg | %s | all(.[]; ($msg | contains(.)))))`,
-				status.ConditionTypeComponentsReady,
+				status.ConditionTypeModulesReady,
 				metav1.ConditionFalse,
-				expectedMsgComponents,
+				expectedMsgModules,
 			),
 		),
 	)
@@ -238,7 +274,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	t.Log("Disabling all components and verifying no managed components are reported")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(updateAllComponentsTransform(components, operatorv1.Removed)),
+		WithMutateFunc(updateAllComponentsTransform(managedNames, operatorv1.Removed)),
 	)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -261,10 +297,9 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 
 	skipUnless(t, Tier1)
 
-	// Ray is a module and reports readiness through ModulesReady. Use an
-	// in-tree component here because this test validates ComponentsReady's
+	// Use Kueue as the last in-tree component here because this test validates ComponentsReady's
 	// handling of a missing component CRD.
-	crdTestingName := fmt.Sprintf("%s.%s", componentApi.DataSciencePipelinesComponentName, componentApi.GroupVersion.Group)
+	crdTestingName := fmt.Sprintf("%ss.%s", componentApi.KueueComponentName, componentApi.GroupVersion.Group)
 	crd := tc.FetchResource(
 		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdTestingName}),
 	)
@@ -302,18 +337,13 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 	componentKind, _, _ := unstructured.NestedString(crd.Object, "spec", "names", "kind")
 	componentName := strings.ToLower(componentKind)
 	componentReadyCondition := componentKind + "Ready"
-	if componentKind == componentApi.DataSciencePipelinesKind {
-		// DataSciencePipelines is stored as AIPipelines in the v2 DSC API.
-		componentName = aiPipelinesFieldName
-		componentReadyCondition = componentApi.AIPipelinesKind + "Ready"
-	}
 
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
-			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, operatorv1.Managed),
+			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, operatorv1.Unmanaged),
 		),
-		WithCondition(jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, operatorv1.Managed)),
+		WithCondition(jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, operatorv1.Unmanaged)),
 	)
 
 	// Verify the system is unhealthy

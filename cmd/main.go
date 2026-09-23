@@ -82,14 +82,13 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
+	aipipelinesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aipipelines"
 	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
 	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
@@ -101,6 +100,7 @@ import (
 	rayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ray"
 	sparkoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/sparkoperator"
 	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
+	trustyaiModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trustyai"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
@@ -136,9 +136,7 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 
 	existingComponents = map[string]cr.ComponentHandler{
-		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
-		componentApi.KueueComponentName:                kueue.NewHandler(),
-		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
+		componentApi.KueueComponentName: kueue.NewHandler(),
 	}
 
 	// Component runlevel assignments.
@@ -149,11 +147,7 @@ var (
 	// 32 — independent extensions, no KServe dependency.
 	// 33 — components that require KServe to be Ready.
 	componentRunlevels = map[string]dag.Runlevel{
-		componentApi.DataSciencePipelinesComponentName: dag.RL(20),
-
 		componentApi.KueueComponentName: dag.RL(31),
-
-		componentApi.TrustyAIComponentName: dag.RL(33),
 	}
 
 	existingServices = map[string]sr.ServiceHandler{
@@ -164,6 +158,7 @@ var (
 	}
 
 	existingModules = map[string]mr.ModuleHandler{
+		componentApi.AIPipelinesComponentName:          aipipelinesModule.NewHandler(),
 		componentApi.DashboardComponentName:            dashboardModule.NewHandler(),
 		serviceApi.MonitoringServiceName:               monitoringModule.NewHandler(),
 		componentApi.AIGatewayComponentName:            aigatewayModule.NewHandler(),
@@ -176,6 +171,7 @@ var (
 		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
 		componentApi.FeastOperatorComponentName:        feastModule.NewHandler(),
 		componentApi.SparkOperatorComponentName:        sparkoperatorModule.NewHandler(),
+		componentApi.TrustyAIComponentName:             trustyaiModule.NewHandler(),
 		componentApi.RayComponentName:                  rayModule.NewHandler(),
 	}
 
@@ -187,6 +183,7 @@ var (
 	}
 
 	moduleRunlevels = map[string]dag.Runlevel{
+		componentApi.AIPipelinesComponentName:          dag.RL(20),
 		serviceApi.MonitoringServiceName:               dag.RL(20),
 		componentApi.DashboardComponentName:            dag.RL(20),
 		componentApi.AIGatewayComponentName:            dag.RL(32),
@@ -199,6 +196,7 @@ var (
 		componentApi.TrainerComponentName:              dag.RL(20),
 		componentApi.WorkbenchesComponentName:          dag.RL(20),
 		componentApi.SparkOperatorComponentName:        dag.RL(32),
+		componentApi.TrustyAIComponentName:             dag.RL(32),
 		componentApi.RayComponentName:                  dag.RL(20),
 	}
 )

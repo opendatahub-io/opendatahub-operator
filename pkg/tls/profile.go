@@ -180,10 +180,20 @@ func FromProfileStrict(ctx context.Context, profile *configv1.TLSSecurityProfile
 	if !IsVersionSupported(spec.MinTLSVersion) {
 		return "", "", fmt.Errorf("TLS profile minimum version %q is unsupported by the proxy", spec.MinTLSVersion)
 	}
+	// TLS 1.3 cipher suites are not configurable by Go. An empty list is
+	// therefore valid for TLS 1.3, but not for TLS 1.2 where it would cause
+	// the proxy to use its defaults instead of the requested policy.
+	if spec.MinTLSVersion != configv1.VersionTLS13 && len(spec.Ciphers) == 0 {
+		return "", "", errors.New("TLS profile contains no cipher suites")
+	}
 	ianaCiphers := ocpcrypto.OpenSSLToIANACipherSuites(spec.Ciphers)
-	if len(spec.Ciphers) > 0 && len(ianaCiphers) == 0 {
+	if spec.MinTLSVersion != configv1.VersionTLS13 && len(ianaCiphers) == 0 {
 		return "", "", errors.New("TLS profile contains no cipher suites supported by the proxy")
 	}
+	// The OpenShift API allows components to omit cipher suites they cannot
+	// support. Keep the supported subset and reject only an entirely unusable
+	// non-empty list. For TLS 1.3, Go ignores CipherSuites entirely, so any
+	// returned cipher names are informational rather than a restriction.
 	return MinVersionFromSpec(ctx, spec, format), strings.Join(ianaCiphers, ","), nil
 }
 

@@ -45,6 +45,10 @@ type PlatformSpec struct {
 // fields here when onboarding additional modules.
 // +kubebuilder:object:generate=true
 type PlatformModules struct {
+	// AIPipelines controls the AI Pipelines module operator lifecycle.
+	// +optional
+	AIPipelines common.ManagementSpec `json:"aipipelines,omitempty"`
+
 	// AIGateway controls the ai-gateway-operator module lifecycle.
 	// +optional
 	AIGateway common.ManagementSpec `json:"aigateway,omitempty"`
@@ -95,6 +99,10 @@ type PlatformModules struct {
 	// ModelRegistry controls the model-registry (AIHub) module operator lifecycle.
 	// +optional
 	ModelRegistry common.ManagementSpec `json:"modelregistry,omitempty"`
+
+	// TrustyAI controls the TrustyAI module operator lifecycle.
+	// +optional
+	TrustyAI common.ManagementSpec `json:"trustyai,omitempty"`
 }
 
 // PlatformStatus defines the observed state of Platform.
@@ -145,6 +153,9 @@ type PlatformList struct {
 // EnabledModules returns the names of modules whose ManagementState is Managed.
 func (m *PlatformModules) EnabledModules() []string {
 	var enabled []string
+	if m.AIPipelines.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "aipipelines")
+	}
 	if m.AIGateway.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "aigateway")
 	}
@@ -183,6 +194,9 @@ func (m *PlatformModules) EnabledModules() []string {
 	}
 	if m.ModelRegistry.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "modelregistry")
+	}
+	if m.TrustyAI.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "trustyai")
 	}
 	return enabled
 }
