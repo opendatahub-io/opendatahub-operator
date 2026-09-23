@@ -84,7 +84,6 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
@@ -101,6 +100,7 @@ import (
 	rayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ray"
 	sparkoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/sparkoperator"
 	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
+	trustyaiModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trustyai"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
@@ -136,8 +136,7 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 
 	existingComponents = map[string]cr.ComponentHandler{
-		componentApi.KueueComponentName:    kueue.NewHandler(),
-		componentApi.TrustyAIComponentName: trustyai.NewHandler(),
+		componentApi.KueueComponentName: kueue.NewHandler(),
 	}
 
 	// Component runlevel assignments.
@@ -149,8 +148,6 @@ var (
 	// 33 — components that require KServe to be Ready.
 	componentRunlevels = map[string]dag.Runlevel{
 		componentApi.KueueComponentName: dag.RL(31),
-
-		componentApi.TrustyAIComponentName: dag.RL(33),
 	}
 
 	existingServices = map[string]sr.ServiceHandler{
@@ -174,6 +171,7 @@ var (
 		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
 		componentApi.FeastOperatorComponentName:        feastModule.NewHandler(),
 		componentApi.SparkOperatorComponentName:        sparkoperatorModule.NewHandler(),
+		componentApi.TrustyAIComponentName:             trustyaiModule.NewHandler(),
 		componentApi.RayComponentName:                  rayModule.NewHandler(),
 	}
 
@@ -198,6 +196,7 @@ var (
 		componentApi.TrainerComponentName:              dag.RL(20),
 		componentApi.WorkbenchesComponentName:          dag.RL(20),
 		componentApi.SparkOperatorComponentName:        dag.RL(32),
+		componentApi.TrustyAIComponentName:             dag.RL(32),
 		componentApi.RayComponentName:                  dag.RL(20),
 	}
 )

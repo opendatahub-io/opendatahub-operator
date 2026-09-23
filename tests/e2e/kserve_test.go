@@ -332,8 +332,8 @@ func (tc *KserveTestCtx) ValidatePlatformConfigMap(t *testing.T) {
 	}
 }
 
-// ValidateComponentDisabled validates that KServe component is properly removed while
-// LLMInferenceServiceConfig resources remain (managed by the module operator with finalizers).
+// ValidateComponentDisabled validates that KServe component and its well-known
+// LLMInferenceServiceConfig resources are properly removed.
 //
 // XKS ordering: delete the module CR first (while the module operator is still
 // alive to process its finalizer), wait for it to disappear, then set the
@@ -364,13 +364,13 @@ func (tc *KserveTestCtx) ValidateComponentDisabled(t *testing.T) {
 		gvk.LLMInferenceServiceConfigV1Alpha1,
 		gvk.LLMInferenceServiceConfigV1Alpha2,
 	} {
-		tc.EnsureResourcesExist(
+		tc.EnsureResourcesGone(
 			WithMinimalObject(configGVK, types.NamespacedName{Namespace: tc.AppsNamespace}),
 			WithListOptions(&client.ListOptions{
 				Namespace: tc.AppsNamespace,
 			}),
 			WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
-			WithCustomErrorMsg("LLMInferenceServiceConfig %s resources should remain after component removal (managed by module operator)", configGVK.Version),
+			WithCustomErrorMsg("LLMInferenceServiceConfig %s resources should be removed with the component", configGVK.Version),
 		)
 	}
 
