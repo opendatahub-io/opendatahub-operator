@@ -22,6 +22,11 @@ spec:
       kind: HardwareProfile
       name: hardwareprofiles.infrastructure.opendatahub.io
       version: v1alpha1
+    - description: TrustyAI is the Schema for the trustyais API
+      displayName: Trusty AI
+      kind: TrustyAI
+      name: trustyais.components.platform.opendatahub.io
+      version: v1alpha1
     - description: Auth is the Schema for the auths API
       displayName: Auth
       kind: Auth
@@ -61,11 +66,6 @@ spec:
       displayName: Kueue
       kind: Kueue
       name: kueues.components.platform.opendatahub.io
-      version: v1alpha1
-    - description: TrustyAI is the Schema for the trustyais API
-      displayName: Trusty AI
-      kind: TrustyAI
-      name: trustyais.components.platform.opendatahub.io
       version: v1alpha1
   description: This will be replaced by Kustomize
   displayName: Open Data Hub Operator
