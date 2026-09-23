@@ -17,8 +17,12 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"fmt"
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -30,6 +34,10 @@ const (
 	// value should match what's set in the XValidation below
 	GatewayConfigName = "default-gateway"
 	GatewayConfigKind = "GatewayConfig"
+
+	DefaultGatewayListenerName       = "https"
+	LegacyGatewayListenerName        = "https-legacy"
+	DefaultGatewayListenerPort int32 = 443
 )
 
 // IngressMode defines how the Gateway exposes its endpoints externally.
@@ -42,6 +50,14 @@ const (
 	// IngressModeLoadBalancer uses a LoadBalancer service type.
 	// This requires a load balancer provider (cloud or MetalLB).
 	IngressModeLoadBalancer IngressMode = "LoadBalancer"
+)
+
+const (
+	AdditionalIngressListenerReadyConditionType       = "ListenerReady"
+	AdditionalIngressRouteAdmittedConditionType       = "RouteAdmitted"
+	AdditionalIngressAuthenticationReadyConditionType = "AuthenticationReady"
+	AdditionalIngressReadyConditionType               = "Ready"
+	AdditionalIngressReconciliationPendingReason      = "ReconciliationPending"
 )
 
 // Check that the component implements common.PlatformObject.
@@ -128,6 +144,112 @@ type GatewayConfigSpec struct {
 	// These settings only take effect when EnableK8sTokenValidation is true.
 	// +optional
 	TokenReview *TokenReviewConfig `json:"tokenReview,omitempty"`
+
+	// AdditionalIngresses defines additional listeners on the managed Gateway.
+	// Authentication and scaling fields are defined by the per-ingress auth contract.
+	// +optional
+	AdditionalIngresses AdditionalIngresses `json:"additionalIngresses,omitempty"`
+}
+
+// ValidateAdditionalIngresses performs runtime validation for callers that
+// construct GatewayConfig objects without API-server admission.
+func (s GatewayConfigSpec) ValidateAdditionalIngresses() error {
+	return s.AdditionalIngresses.Validate(s.IngressMode)
+}
+
+// AdditionalIngresses is the collection of additional Gateway listener definitions.
+// +listType=map
+// +listMapKey=name
+type AdditionalIngresses []AdditionalIngress
+
+// Validate performs runtime validation for additional ingress definitions.
+func (ingresses AdditionalIngresses) Validate(ingressMode IngressMode) error {
+	if len(ingresses) > 0 && ingressMode != IngressModeOcpRoute {
+		return fmt.Errorf("additional ingresses require %s ingress mode", IngressModeOcpRoute)
+	}
+
+	seenNames := make(map[string]struct{}, len(ingresses))
+	seenHostnames := make(map[string]string, len(ingresses))
+	seenPorts := map[int32]string{DefaultGatewayListenerPort: DefaultGatewayListenerName}
+	for _, ingress := range ingresses {
+		if errs := validation.IsDNS1123Label(ingress.Name); len(errs) > 0 {
+			return fmt.Errorf("additional ingress %q has invalid name: %s", ingress.Name, errs[0])
+		}
+		if ingress.Name == DefaultGatewayListenerName || ingress.Name == LegacyGatewayListenerName {
+			return fmt.Errorf("additional ingress %q uses reserved listener name", ingress.Name)
+		}
+		if _, found := seenNames[ingress.Name]; found {
+			return fmt.Errorf("additional ingresses contain duplicate name %q", ingress.Name)
+		}
+		seenNames[ingress.Name] = struct{}{}
+
+		if errs := validation.IsDNS1123Subdomain(ingress.Hostname); len(errs) > 0 {
+			return fmt.Errorf("additional ingress %q has invalid hostname %q: %s", ingress.Name, ingress.Hostname, errs[0])
+		}
+		hostname := strings.ToLower(strings.TrimSuffix(ingress.Hostname, "."))
+		if existingName, found := seenHostnames[hostname]; found {
+			return fmt.Errorf("additional ingress %q hostname %q conflicts with %q", ingress.Name, ingress.Hostname, existingName)
+		}
+		seenHostnames[hostname] = ingress.Name
+		if errs := validation.IsDNS1035Label(ingress.IngressControllerName); len(errs) > 0 {
+			return fmt.Errorf("additional ingress %q has invalid IngressController name %q: %s", ingress.Name, ingress.IngressControllerName, errs[0])
+		}
+		if len(ingress.RouteLabels) == 0 {
+			return fmt.Errorf("additional ingress %q must define route labels", ingress.Name)
+		}
+		for key, value := range ingress.RouteLabels {
+			if errs := validation.IsQualifiedName(key); len(errs) > 0 {
+				return fmt.Errorf("additional ingress %q has invalid route label key %q: %s", ingress.Name, key, errs[0])
+			}
+			if errs := validation.IsValidLabelValue(value); len(errs) > 0 {
+				return fmt.Errorf("additional ingress %q has invalid route label value for %q: %s", ingress.Name, key, errs[0])
+			}
+		}
+
+		if ingress.ListenerPort < 1 || ingress.ListenerPort > 65535 {
+			return fmt.Errorf("additional ingress %q has invalid listener port %d", ingress.Name, ingress.ListenerPort)
+		}
+		if existingName, found := seenPorts[ingress.ListenerPort]; found {
+			return fmt.Errorf("additional ingress %q listener port %d conflicts with %q", ingress.Name, ingress.ListenerPort, existingName)
+		}
+		seenPorts[ingress.ListenerPort] = ingress.Name
+	}
+	return nil
+}
+
+// AdditionalIngress defines topology for an additional Gateway listener.
+// +kubebuilder:object:generate=true
+type AdditionalIngress struct {
+	// Name is the stable identity of this ingress and the Gateway listener name.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	Name string `json:"name"`
+
+	// Hostname is the externally visible hostname for this ingress.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=253
+	Hostname string `json:"hostname"`
+
+	// ListenerPort is the stable internal port used by this Gateway listener.
+	// It is immutable after the ingress is created.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="ListenerPort is immutable"
+	ListenerPort int32 `json:"listenerPort"`
+
+	// IngressControllerName identifies the OpenShift IngressController that admits the bridge Route.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-z]([-a-z0-9]*[a-z0-9])?$`
+	IngressControllerName string `json:"ingressControllerName"`
+
+	// RouteLabels are applied to the bridge Route and matched against the target
+	// IngressController route selector.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinProperties=1
+	RouteLabels map[string]string `json:"routeLabels"`
 }
 
 // NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
@@ -220,6 +342,30 @@ type GatewayConfigStatus struct {
 	// Domain is the computed gateway domain (subdomain + cluster domain or default)
 	// This is the single source of truth for the gateway domain used by all components
 	Domain string `json:"domain,omitempty"`
+
+	// AdditionalIngresses contains configured additional ingresses, including entries that are not ready.
+	// +optional
+	// +listType=map
+	// +listMapKey=name
+	AdditionalIngresses []AdditionalIngressStatus `json:"additionalIngresses,omitempty"`
+}
+
+// AdditionalIngressStatus reports readiness for one additional ingress.
+// +kubebuilder:object:generate=true
+type AdditionalIngressStatus struct {
+	// Name is the stable identity of the configured ingress.
+	Name string `json:"name"`
+
+	// Hostname is the configured externally visible hostname.
+	Hostname string `json:"hostname"`
+
+	// Conditions report independent listener, Route, authentication, and aggregate readiness.
+	// +optional
+	// +patchStrategy=merge
+	// +patchMergeKey=type
+	// +listType=map
+	// +listMapKey=type
+	Conditions []common.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // +kubebuilder:object:root=true
