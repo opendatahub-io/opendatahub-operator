@@ -21,6 +21,7 @@ BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
 # default platform type
 ODH_PLATFORM_TYPE ?= OpenDataHub
+DEPLOY_ALLOW_CONFLICTING_OPERATORS ?= false
 
 
 ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
@@ -41,7 +42,6 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	# Specifies the namespace where monitoring is deployed (defaults to opendatahub)
 	MONITORING_NAMESPACE ?= opendatahub
 	CHANNELS ?= fast
-	DEPLOY_ALLOW_CONFLICTING_OPERATORS ?= false
 	ROLE_NAME=controller-manager-role
 	BUNDLE_DIR ?= odh-bundle
 	DOCKERFILE_FILENAME=Dockerfile
@@ -91,6 +91,8 @@ else
 endif
 
 MANAGER_FILE ?= $(CONFIG_DIR)/manager/manager.yaml
+
+export ODH_PLATFORM_TYPE OPERATOR_NAMESPACE KUBECTL DEPLOY_ALLOW_CONFLICTING_OPERATORS
 
 IMAGE_BUILDER ?= podman
 KUBECTL ?= kubectl
@@ -474,8 +476,8 @@ ifndef SKIP_IMAGE_OVERRIDES
 deploy: apply-image-overrides
 endif
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	OPERATOR_NAMESPACE="$(OPERATOR_NAMESPACE)" KUBECTL="$(KUBECTL)" DEPLOY_ALLOW_CONFLICTING_OPERATORS="$(DEPLOY_ALLOW_CONFLICTING_OPERATORS)" ./hack/deploy-preflight.sh
-	$(KUSTOMIZE) build $(CONFIG_DIR)/default | $(KUBECTL) apply --namespace $(OPERATOR_NAMESPACE) -f -
+	./hack/deploy-preflight.sh
+	$(KUSTOMIZE) build $(CONFIG_DIR)/default | "$${KUBECTL}" apply --namespace "$${OPERATOR_NAMESPACE}" -f -
 
 .PHONY: deploy-rhaii
 ifndef SKIP_IMAGE_OVERRIDES

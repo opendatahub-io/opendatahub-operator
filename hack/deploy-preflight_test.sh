@@ -23,6 +23,9 @@ conflict:*"get subscription rhods-operator"*)
 conflict:*"get deployment rhods-operator"*)
   echo "deployment.apps/rhods-operator"
   ;;
+rhoai:*"get deployment rhods-operator -n redhat-ods-operator"*)
+  echo "deployment.apps/rhods-operator"
+  ;;
 webhook:*"get validatingwebhookconfiguration,mutatingwebhookconfiguration"*)
   echo "validatingwebhookconfiguration.admissionregistration.k8s.io/datasciencecluster-v1-validator.opendatahub.io-f9wxw"
   ;;
@@ -32,22 +35,39 @@ odh:*"get deployment opendatahub-operator-controller-manager"*)
 odh:*"get validatingwebhookconfiguration,mutatingwebhookconfiguration"*)
   echo "validatingwebhookconfiguration.admissionregistration.k8s.io/opendatahub-operator-validating-webhook-configuration"
   ;;
+rhoai:*"get validatingwebhookconfiguration,mutatingwebhookconfiguration"*)
+  echo "validatingwebhookconfiguration.admissionregistration.k8s.io/datasciencecluster-v1-validator.opendatahub.io-f9wxw"
+  ;;
+clean:*"get csv -A -o name"*|conflict:*"get csv -A -o name"*|webhook:*"get csv -A -o name"*|odh:*"get csv -A -o name"*)
+  ;;
+clean:*"get datascienceclusters.datasciencecluster.opendatahub.io -A -o name"*|conflict:*"get datascienceclusters.datasciencecluster.opendatahub.io -A -o name"*|webhook:*"get datascienceclusters.datasciencecluster.opendatahub.io -A -o name"*|odh:*"get datascienceclusters.datasciencecluster.opendatahub.io -A -o name"*|rhoai:*"get datascienceclusters.datasciencecluster.opendatahub.io -A -o name"*)
+  ;;
+clean:*"get dscinitializations.dscinitialization.opendatahub.io -A -o name"*|conflict:*"get dscinitializations.dscinitialization.opendatahub.io -A -o name"*|webhook:*"get dscinitializations.dscinitialization.opendatahub.io -A -o name"*|odh:*"get dscinitializations.dscinitialization.opendatahub.io -A -o name"*|rhoai:*"get dscinitializations.dscinitialization.opendatahub.io -A -o name"*)
+  ;;
+clean:*"get validatingwebhookconfiguration,mutatingwebhookconfiguration -o name"*|conflict:*"get validatingwebhookconfiguration,mutatingwebhookconfiguration -o name"*|odh:*"get validatingwebhookconfiguration,mutatingwebhookconfiguration -o name"*)
+  ;;
+clean:*"get subscription rhods-operator"*|clean:*"get deployment rhods-operator"*|clean:*"get deployment opendatahub-operator-controller-manager"*|webhook:*"get subscription rhods-operator"*|webhook:*"get deployment rhods-operator"*|webhook:*"get deployment opendatahub-operator-controller-manager"*|odh:*"get subscription rhods-operator"*|odh:*"get deployment rhods-operator"*|rhoai:*"get deployment opendatahub-operator-controller-manager"*)
+  not_found
+  ;;
 *"get subscription rhods-operator"*|*"get deployment rhods-operator"*|*"get deployment opendatahub-operator-controller-manager"*|*"get crd datascienceclusters"*|*"get crd dscinitializations"*)
   not_found
   ;;
 *)
+  printf 'Unexpected kubectl invocation: %s\n' "$*" >&2
+  exit 2
   ;;
 esac
 EOF
 chmod +x "${MOCK_KUBECTL}"
 
 run_preflight() {
-  local scenario=$1
-  local allow=${2:-false}
+  local scenario="$1"
+  local allow="${2:-false}"
+  local platform="${3:-OpenDataHub}"
   local output status
 
   if output=$(MOCK_SCENARIO="${scenario}" KUBECTL="${MOCK_KUBECTL}" \
-    DEPLOY_ALLOW_CONFLICTING_OPERATORS="${allow}" "${PREFLIGHT}" 2>&1); then
+    ODH_PLATFORM_TYPE="${platform}" DEPLOY_ALLOW_CONFLICTING_OPERATORS="${allow}" "${PREFLIGHT}" 2>&1); then
     status=0
   else
     status=$?
@@ -58,6 +78,9 @@ run_preflight() {
 
 clean_result=$(run_preflight clean)
 [[ "${clean_result}" == 0$'\n'*"Deploy preflight passed"* ]]
+
+failure_result=$(run_preflight failure)
+[[ "${failure_result}" == 2$'\n'*"failed to inspect the cluster"* ]]
 
 conflict_result=$(run_preflight conflict)
 [[ "${conflict_result}" == 1$'\n'*"existing RHOAI/ODH installation"* ]]
@@ -70,5 +93,8 @@ override_result=$(run_preflight conflict true)
 
 odh_result=$(run_preflight odh)
 [[ "${odh_result}" == 0$'\n'*"Deploy preflight passed"* ]]
+
+rhoai_result=$(run_preflight rhoai false rhoai)
+[[ "${rhoai_result}" == 0$'\n'*"Deploy preflight passed"* ]]
 
 echo "deploy-preflight tests passed"
