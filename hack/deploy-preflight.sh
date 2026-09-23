@@ -79,36 +79,59 @@ if has_resource deployment "${current_operator_name}" \
   has_existing_operator=true
 fi
 
-if [[ "${is_rhoai}" != true ]]; then
-  for namespace in openshift-operators redhat-ods-operator; do
-    if has_resource subscription rhods-operator -n "${namespace}" -o name; then
-      conflicts+=("Subscription rhods-operator in namespace ${namespace}")
-    fi
-    if has_resource deployment rhods-operator -n "${namespace}" -o name; then
-      conflicts+=("Deployment rhods-operator in namespace ${namespace}")
-    fi
-  done
+if deployments=$(optional_get deployment -A \
+  -o 'custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name' --no-headers); then
+  while read -r namespace name; do
+    [[ -z "${name}" ]] && continue
+    case "${name}" in
+    rhods-operator)
+      if [[ "${is_rhoai}" != true || "${namespace}" != "${OPERATOR_NAMESPACE}" ]]; then
+        conflicts+=("Deployment ${name} in namespace ${namespace}")
+      fi
+      ;;
+    opendatahub-operator-controller-manager)
+      if [[ "${is_rhoai}" == true || "${namespace}" != "${OPERATOR_NAMESPACE}" ]]; then
+        conflicts+=("Deployment ${name} in namespace ${namespace}")
+      fi
+      ;;
+    esac
+  done <<< "${deployments}"
 else
-  if has_resource deployment opendatahub-operator-controller-manager \
-    -n opendatahub-operator-system -o name; then
-    conflicts+=("Deployment opendatahub-operator-controller-manager in namespace opendatahub-operator-system")
+  status=$?
+  if ((status != 1)); then
+    exit "${status}"
   fi
 fi
 
-if [[ "${is_rhoai}" != true ]]; then
-  if csvs=$(optional_get csv -A -o name); then
-    while IFS= read -r csv; do
-      case "${csv}" in
-      *rhods-operator*)
-        conflicts+=("${csv}")
-        ;;
-      esac
-    done <<< "${csvs}"
-  else
-    status=$?
-    if ((status != 1)); then
-      exit "${status}"
-    fi
+if subscriptions=$(optional_get subscription -A \
+  -o 'custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name' --no-headers); then
+  while read -r namespace name; do
+    case "${name}" in
+    rhods-operator)
+      conflicts+=("Subscription ${name} in namespace ${namespace}")
+      ;;
+    esac
+  done <<< "${subscriptions}"
+else
+  status=$?
+  if ((status != 1)); then
+    exit "${status}"
+  fi
+fi
+
+if csvs=$(optional_get csv -A \
+  -o 'custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name' --no-headers); then
+  while read -r namespace name; do
+    case "${name}" in
+    rhods-operator*)
+      conflicts+=("CSV ${name} in namespace ${namespace}")
+      ;;
+    esac
+  done <<< "${csvs}"
+else
+  status=$?
+  if ((status != 1)); then
+    exit "${status}"
   fi
 fi
 
