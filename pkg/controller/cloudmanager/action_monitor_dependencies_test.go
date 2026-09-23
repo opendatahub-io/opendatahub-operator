@@ -11,6 +11,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -21,6 +22,7 @@ import (
 	ccmcharts "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -69,16 +71,19 @@ func TestMonitorDependencies(t *testing.T) {
 				GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
 				LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Unmanaged},
 				SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
+				RHCL:         ccmcommon.RHCLDependency{ManagementPolicy: ccmcommon.Unmanaged},
 			},
 			expectedStatus: map[string]metav1.ConditionStatus{
 				status.ConditionGatewayAPIReady:   metav1.ConditionTrue,
 				status.ConditionLWSReady:          metav1.ConditionTrue,
 				status.ConditionSailOperatorReady: metav1.ConditionTrue,
+				status.ConditionRHCLReady:         metav1.ConditionTrue,
 			},
 			expectedReasons: map[string]string{
 				status.ConditionGatewayAPIReady:   status.UnmanagedReason,
 				status.ConditionLWSReady:          status.UnmanagedReason,
 				status.ConditionSailOperatorReady: status.UnmanagedReason,
+				status.ConditionRHCLReady:         status.UnmanagedReason,
 			},
 		},
 		{
@@ -87,9 +92,45 @@ func TestMonitorDependencies(t *testing.T) {
 				GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Managed},
 				LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Unmanaged},
 				SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
+				RHCL:         ccmcommon.RHCLDependency{ManagementPolicy: ccmcommon.Unmanaged},
 			},
 			expectedStatus: map[string]metav1.ConditionStatus{
 				status.ConditionGatewayAPIReady: metav1.ConditionTrue,
+			},
+		},
+		{
+			name: "managed RHCL with no deployments on cluster is False with DeploymentsNotReady reason",
+			dependencies: ccmcommon.Dependencies{
+				GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
+				LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Unmanaged},
+				SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
+				RHCL:         ccmcommon.RHCLDependency{ManagementPolicy: ccmcommon.Managed},
+			},
+			expectedStatus: map[string]metav1.ConditionStatus{
+				status.ConditionRHCLReady: metav1.ConditionFalse,
+			},
+			expectedReasons: map[string]string{
+				status.ConditionRHCLReady: "DeploymentsNotReady",
+			},
+		},
+		{
+			name: "managed RHCL with deployment not ready is False with DeploymentsNotReady reason",
+			dependencies: ccmcommon.Dependencies{
+				GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
+				LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Unmanaged},
+				SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
+				RHCL:         ccmcommon.RHCLDependency{ManagementPolicy: ccmcommon.Managed},
+			},
+			objects: func(_ string) []client.Object {
+				return []client.Object{
+					newDeployment("rhcl-operator", ccmcharts.RHCLOperatorNamespace),
+				}
+			},
+			expectedStatus: map[string]metav1.ConditionStatus{
+				status.ConditionRHCLReady: metav1.ConditionFalse,
+			},
+			expectedReasons: map[string]string{
+				status.ConditionRHCLReady: "DeploymentsNotReady",
 			},
 		},
 	}
@@ -259,6 +300,136 @@ func TestMonitorDependencies_OperatorCR(t *testing.T) {
 	}
 }
 
+// TestMonitorDependencies_RHCL_OperatorCR exercises the real RHCL wiring end-to-end
+// (allChartDefs' chartDef, NewRHCLOperatorCR, and ConditionRHCLReady) rather than a
+// hand-built DependencyMonitorConfig, using the actual Kuadrant GVK/namespaces.
+func TestMonitorDependencies_RHCL_OperatorCR(t *testing.T) {
+	tests := []struct {
+		name              string
+		condType          string
+		condStatus        string
+		reason            string
+		message           string
+		expectedStatus    metav1.ConditionStatus
+		expectedReason    string
+		expectedMsgMatch  string
+		missingOperatorCR bool
+	}{
+		{
+			name:             "degraded Kuadrant CR sets RHCLReady False",
+			condType:         "Degraded",
+			condStatus:       "True",
+			reason:           "TestFailed",
+			message:          "kuadrant degraded",
+			expectedStatus:   metav1.ConditionFalse,
+			expectedReason:   "DependencyDegraded",
+			expectedMsgMatch: "Degraded=True",
+		},
+		{
+			name:           "fully healthy Kuadrant CR sets RHCLReady True",
+			condType:       "Ready",
+			condStatus:     "True",
+			reason:         "Ready",
+			message:        "all good",
+			expectedStatus: metav1.ConditionTrue,
+		},
+		{
+			name:              "missing Kuadrant CR sets RHCLReady False",
+			missingOperatorCR: true,
+			expectedStatus:    metav1.ConditionFalse,
+			expectedReason:    dependencyDegradedReason,
+			expectedMsgMatch:  "operator CR not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			envTest, err := envt.New()
+			g.Expect(err).NotTo(HaveOccurred())
+			t.Cleanup(func() { _ = envTest.Stop() })
+
+			ctx := context.Background()
+			cli := envTest.Client()
+
+			crd, err := envTest.RegisterCRD(ctx, gvk.Kuadrantv1beta1, "kuadrants", "kuadrant", apiextensionsv1.NamespaceScoped, envt.WithPermissiveSchema())
+			g.Expect(err).NotTo(HaveOccurred())
+			envt.CleanupDelete(t, g, ctx, cli, crd)
+
+			for _, nsName := range []string{ccmcharts.RHCLOperatorNamespace, ccmcharts.RHCLOperandNamespace} {
+				ns := &unstructured.Unstructured{}
+				ns.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Kind: "Namespace"})
+				ns.SetName(nsName)
+				if err := cli.Create(ctx, ns); err != nil && !k8serr.IsAlreadyExists(err) {
+					g.Expect(err).NotTo(HaveOccurred())
+				}
+				t.Cleanup(func() { _ = cli.Delete(ctx, ns) })
+			}
+
+			dep := &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "kuadrant-operator-controller-manager",
+					Namespace: ccmcharts.RHCLOperatorNamespace,
+					Labels:    map[string]string{labels.InfrastructurePartOf: testResourceID},
+				},
+				Spec: appsv1.DeploymentSpec{
+					Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "kuadrant"}},
+					Template: corev1PodTemplate("kuadrant"),
+				},
+			}
+			g.Expect(cli.Create(ctx, dep)).NotTo(HaveOccurred())
+			t.Cleanup(func() { _ = cli.Delete(ctx, dep) })
+
+			dep.Status = appsv1.DeploymentStatus{Replicas: 1, ReadyReplicas: 1}
+			g.Expect(cli.Status().Update(ctx, dep)).NotTo(HaveOccurred())
+
+			if !tt.missingOperatorCR {
+				operatorCR := &unstructured.Unstructured{}
+				operatorCR.SetGroupVersionKind(gvk.Kuadrantv1beta1)
+				operatorCR.SetName(ccmcharts.NewRHCLOperatorCR(ccmcharts.RHCLOperandNamespace).Name)
+				operatorCR.SetNamespace(ccmcharts.RHCLOperandNamespace)
+				g.Expect(cli.Create(ctx, operatorCR)).NotTo(HaveOccurred())
+				t.Cleanup(func() { _ = cli.Delete(ctx, operatorCR) })
+
+				setCRCondition(g, ctx, cli, operatorCR, tt.condType, tt.condStatus, tt.reason, tt.message)
+			}
+
+			instance := &ccmv1alpha1.AzureKubernetesEngine{
+				Spec: ccmv1alpha1.AzureKubernetesEngineSpec{
+					Dependencies: ccmcommon.Dependencies{
+						RHCL: ccmcommon.RHCLDependency{ManagementPolicy: ccmcommon.Managed},
+					},
+				},
+			}
+			rr := &types.ReconciliationRequest{
+				Client:   cli,
+				Instance: instance,
+				Release:  fwapi.Release{Name: cluster.OpenDataHub},
+			}
+			rr.Conditions = conditions.NewManager(instance, status.ConditionTypeReady, ConditionsTypes...)
+
+			action, err := NewReconcileAction(testResourceID, WithBuildChartsFn(monitorTestBuildFn))
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			err = action(ctx, rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			cond := rr.Conditions.GetCondition(status.ConditionRHCLReady)
+			g.Expect(cond).NotTo(BeNil())
+			g.Expect(cond.Status).To(Equal(tt.expectedStatus))
+
+			if tt.expectedReason != "" {
+				g.Expect(cond.Reason).To(Equal(tt.expectedReason))
+			}
+
+			if tt.expectedMsgMatch != "" {
+				g.Expect(cond.Message).To(ContainSubstring(tt.expectedMsgMatch))
+			}
+		})
+	}
+}
+
 func TestSummarizeDependencyStatus(t *testing.T) {
 	tests := []struct {
 		name                 string
@@ -274,6 +445,7 @@ func TestSummarizeDependencyStatus(t *testing.T) {
 				GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
 				LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Unmanaged},
 				SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
+				RHCL:         ccmcommon.RHCLDependency{ManagementPolicy: ccmcommon.Unmanaged},
 			},
 			expectedReadyStatus: metav1.ConditionTrue,
 		},
@@ -283,10 +455,11 @@ func TestSummarizeDependencyStatus(t *testing.T) {
 				GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
 				LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Managed},
 				SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
+				RHCL:         ccmcommon.RHCLDependency{ManagementPolicy: ccmcommon.Unmanaged},
 			},
 			objects: func(_ string) []client.Object {
 				return []client.Object{
-					newDeployment("lws-operator", ccmcommon.DefaultNamespaceLWSOperator, 0),
+					newDeployment("lws-operator", ccmcommon.DefaultNamespaceLWSOperator),
 				}
 			},
 			expectedReadyStatus:  metav1.ConditionFalse,
@@ -299,11 +472,12 @@ func TestSummarizeDependencyStatus(t *testing.T) {
 				GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
 				LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Managed},
 				SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Managed},
+				RHCL:         ccmcommon.RHCLDependency{ManagementPolicy: ccmcommon.Unmanaged},
 			},
 			objects: func(_ string) []client.Object {
 				return []client.Object{
-					newDeployment("lws-operator", ccmcommon.DefaultNamespaceLWSOperator, 0),
-					newDeployment("sail-operator", ccmcommon.DefaultNamespaceSailOperator, 0),
+					newDeployment("lws-operator", ccmcommon.DefaultNamespaceLWSOperator),
+					newDeployment("sail-operator", ccmcommon.DefaultNamespaceSailOperator),
 				}
 			},
 			expectedReadyStatus:  metav1.ConditionFalse,
@@ -362,7 +536,10 @@ func TestSummarizeDependencyStatus(t *testing.T) {
 	}
 }
 
-func newDeployment(name, namespace string, readyReplicas int32) *appsv1.Deployment {
+// newDeployment builds a not-ready Deployment fixture (0/1 ready replicas). Every
+// caller in this file wants a not-ready deployment; if a test ever needs a ready
+// one, add a WithReadyReplicas-style option rather than reintroducing this param.
+func newDeployment(name, namespace string) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -371,7 +548,7 @@ func newDeployment(name, namespace string, readyReplicas int32) *appsv1.Deployme
 		},
 		Status: appsv1.DeploymentStatus{
 			Replicas:      1,
-			ReadyReplicas: readyReplicas,
+			ReadyReplicas: 0,
 		},
 	}
 }

@@ -8,13 +8,17 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 )
 
 func TestGetApplicationNamespace(t *testing.T) {
@@ -497,5 +501,168 @@ func TestGetOCPVersion(t *testing.T) {
 				t.Errorf("Version = %q, want %q", result.String(), tc.expectVer)
 			}
 		})
+	}
+}
+
+func TestGetPlatform(t *testing.T) {
+	// Not parallel: cases mutate shared clusterConfig.Namespace for CatalogSource lookups.
+	tests := []struct {
+		name         string
+		platformType string
+		namespace    string
+		objects      []client.Object
+		gvkMappings  []fakeclient.GVKMapping
+		want         common.Platform
+	}{
+		{
+			name:         "explicit OpenDataHub",
+			platformType: "OpenDataHub",
+			want:         OpenDataHub,
+		},
+		{
+			name:         "explicit ManagedRHOAI",
+			platformType: "ManagedRHOAI",
+			want:         ManagedRhoai,
+		},
+		{
+			name:         "explicit SelfManagedRHOAI",
+			platformType: "SelfManagedRHOAI",
+			want:         SelfManagedRhoai,
+		},
+		{
+			name:         "explicit XKS",
+			platformType: string(XKS),
+			want:         XKS,
+		},
+		{
+			name:      "ManagedRhoai via CatalogSource",
+			namespace: "redhat-ods-operator",
+			objects: []client.Object{
+				newCatalogSourceForDetect("addon-managed-odh-catalog", "redhat-ods-operator"),
+			},
+			want: ManagedRhoai,
+		},
+		{
+			name:      "ManagedRhoai via ClusterCatalog",
+			namespace: "redhat-ods-operator",
+			objects: []client.Object{
+				newClusterCatalogForDetect("addon-managed-odh-catalog"),
+			},
+			gvkMappings: []fakeclient.GVKMapping{
+				{GVK: gvk.ClusterCatalog, Scope: meta.RESTScopeRoot},
+			},
+			want: ManagedRhoai,
+		},
+		{
+			name: "SelfManagedRhoai via OperatorCondition",
+			objects: []client.Object{
+				newOperatorConditionForDetect("rhods-operator.v2.0.0"),
+			},
+			want: SelfManagedRhoai,
+		},
+		{
+			name: "SelfManagedRhoai via ClusterExtension",
+			objects: []client.Object{
+				newClusterExtensionForDetect("rhoai-ext", "rhods-operator", "redhat-ods-operator"),
+			},
+			gvkMappings: []fakeclient.GVKMapping{
+				{GVK: gvk.ClusterExtension, Scope: meta.RESTScopeRoot},
+			},
+			want: SelfManagedRhoai,
+		},
+		{
+			name: "OpenDataHub when only ODH ClusterExtension exists",
+			objects: []client.Object{
+				newClusterExtensionForDetect("odh-ext", "opendatahub-operator", "opendatahub-operator-system"),
+			},
+			gvkMappings: []fakeclient.GVKMapping{
+				{GVK: gvk.ClusterExtension, Scope: meta.RESTScopeRoot},
+			},
+			want: OpenDataHub,
+		},
+		{
+			name: "OpenDataHub when rhods-operator is absent",
+			want: OpenDataHub,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prevNS := clusterConfig.Namespace
+			clusterConfig.Namespace = tc.namespace
+			t.Cleanup(func() {
+				clusterConfig.Namespace = prevNS
+			})
+
+			opts := []fakeclient.ClientOpts{fakeclient.WithObjects(tc.objects...)}
+			if len(tc.gvkMappings) > 0 {
+				opts = append(opts, fakeclient.WithGVKs(tc.gvkMappings...))
+			}
+
+			cli, err := fakeclient.New(opts...)
+			if err != nil {
+				t.Fatalf("fakeclient.New() error: %v", err)
+			}
+
+			platform, err := getPlatform(t.Context(), cli, tc.platformType)
+			if err != nil {
+				t.Fatalf("getPlatform() error: %v", err)
+			}
+			if platform != tc.want {
+				t.Errorf("getPlatform() = %q, want %q", platform, tc.want)
+			}
+		})
+	}
+}
+
+func newOperatorConditionForDetect(name string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "operators.coreos.com/v2",
+			"kind":       "OperatorCondition",
+			"metadata":   map[string]any{"name": name},
+		},
+	}
+}
+
+func newCatalogSourceForDetect(name, namespace string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "operators.coreos.com/v1alpha1",
+			"kind":       "CatalogSource",
+			"metadata": map[string]any{
+				"name":      name,
+				"namespace": namespace,
+			},
+		},
+	}
+}
+
+func newClusterCatalogForDetect(name string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "olm.operatorframework.io/v1",
+			"kind":       "ClusterCatalog",
+			"metadata":   map[string]any{"name": name},
+		},
+	}
+}
+
+// newClusterExtensionForDetect builds a Catalog ClusterExtension requesting packageName.
+// DetectPlatform matches on package request (not Installed status).
+func newClusterExtensionForDetect(name, packageName, namespace string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "olm.operatorframework.io/v1",
+			"kind":       "ClusterExtension",
+			"metadata":   map[string]any{"name": name},
+			"spec": map[string]any{
+				"namespace": namespace,
+				"source": map[string]any{
+					"sourceType": "Catalog",
+					"catalog":    map[string]any{"packageName": packageName},
+				},
+			},
+		},
 	}
 }

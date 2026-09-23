@@ -82,15 +82,13 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
+	aipipelinesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aipipelines"
 	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
 	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
@@ -99,8 +97,10 @@ import (
 	modelregistryModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/modelregistry"
 	monitoringModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/monitoring"
 	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
+	rayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ray"
 	sparkoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/sparkoperator"
 	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
+	trustyaiModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trustyai"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
@@ -116,6 +116,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	operatortls "github.com/opendatahub-io/opendatahub-operator/v2/pkg/tls"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
@@ -135,10 +136,7 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 
 	existingComponents = map[string]cr.ComponentHandler{
-		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
-		componentApi.KueueComponentName:                kueue.NewHandler(),
-		componentApi.RayComponentName:                  ray.NewHandler(),
-		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
+		componentApi.KueueComponentName: kueue.NewHandler(),
 	}
 
 	// Component runlevel assignments.
@@ -149,12 +147,7 @@ var (
 	// 32 — independent extensions, no KServe dependency.
 	// 33 — components that require KServe to be Ready.
 	componentRunlevels = map[string]dag.Runlevel{
-		componentApi.DataSciencePipelinesComponentName: dag.RL(20),
-		componentApi.RayComponentName:                  dag.RL(20),
-
 		componentApi.KueueComponentName: dag.RL(31),
-
-		componentApi.TrustyAIComponentName: dag.RL(33),
 	}
 
 	existingServices = map[string]sr.ServiceHandler{
@@ -165,6 +158,7 @@ var (
 	}
 
 	existingModules = map[string]mr.ModuleHandler{
+		componentApi.AIPipelinesComponentName:          aipipelinesModule.NewHandler(),
 		componentApi.DashboardComponentName:            dashboardModule.NewHandler(),
 		serviceApi.MonitoringServiceName:               monitoringModule.NewHandler(),
 		componentApi.AIGatewayComponentName:            aigatewayModule.NewHandler(),
@@ -177,6 +171,8 @@ var (
 		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
 		componentApi.FeastOperatorComponentName:        feastModule.NewHandler(),
 		componentApi.SparkOperatorComponentName:        sparkoperatorModule.NewHandler(),
+		componentApi.TrustyAIComponentName:             trustyaiModule.NewHandler(),
+		componentApi.RayComponentName:                  rayModule.NewHandler(),
 	}
 
 	// dsciConfiguredModules lists modules whose user-facing configuration
@@ -187,6 +183,7 @@ var (
 	}
 
 	moduleRunlevels = map[string]dag.Runlevel{
+		componentApi.AIPipelinesComponentName:          dag.RL(20),
 		serviceApi.MonitoringServiceName:               dag.RL(20),
 		componentApi.DashboardComponentName:            dag.RL(20),
 		componentApi.AIGatewayComponentName:            dag.RL(32),
@@ -199,6 +196,8 @@ var (
 		componentApi.TrainerComponentName:              dag.RL(20),
 		componentApi.WorkbenchesComponentName:          dag.RL(20),
 		componentApi.SparkOperatorComponentName:        dag.RL(32),
+		componentApi.TrustyAIComponentName:             dag.RL(32),
+		componentApi.RayComponentName:                  dag.RL(20),
 	}
 )
 
@@ -754,7 +753,8 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 		case k8serr.IsServiceUnavailable(err),
 			k8serr.IsTimeout(err),
 			k8serr.IsServerTimeout(err),
-			k8serr.IsTooManyRequests(err):
+			k8serr.IsTooManyRequests(err),
+			errors.Is(err, context.DeadlineExceeded):
 			setupLog.Info("Transient API error reading TLS profile, using hardened defaults", "error", err)
 			hasAPI = true // watcher self-heals when the API recovers
 		default:
@@ -768,14 +768,6 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 		})
 	} else {
 		hasAPI = true
-		tlsConfigFn, unsupportedCiphers := tlspkg.NewTLSConfigFromProfile(profile)
-		if len(unsupportedCiphers) > 0 {
-			setupLog.Info("some ciphers from TLS profile are not supported by Go", "unsupported", unsupportedCiphers)
-		}
-		tlsOpts = append(tlsOpts, tlsConfigFn, func(c *tls.Config) {
-			c.NextProtos = nextProtos
-		})
-
 		adherence, err = tlspkg.FetchAPIServerTLSAdherencePolicy(ctx, bootstrapClient)
 		if err != nil {
 			switch {
@@ -787,13 +779,30 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 				k8serr.IsTimeout(err),
 				k8serr.IsServerTimeout(err),
 				k8serr.IsTooManyRequests(err),
-				k8serr.IsInternalError(err):
+				k8serr.IsInternalError(err),
+				errors.Is(err, context.DeadlineExceeded):
 				setupLog.Info("Transient error fetching TLS adherence policy, watcher will retry", "error", err)
 			default:
 				setupLog.Error(err, "unable to read TLS adherence policy, refusing to start with unknown adherence posture")
 				os.Exit(1)
 			}
 		}
+
+		if operatortls.ShouldHonorClusterTLSProfile(adherence) {
+			tlsConfigFn, unsupportedCiphers := tlspkg.NewTLSConfigFromProfile(profile)
+			if len(unsupportedCiphers) > 0 {
+				setupLog.Info("some ciphers from TLS profile are not supported by Go", "unsupported", unsupportedCiphers)
+			}
+			tlsOpts = append(tlsOpts, tlsConfigFn)
+		} else {
+			tlsOpts = append(tlsOpts, func(c *tls.Config) {
+				c.MinVersion = tls.VersionTLS12
+				c.CipherSuites = intermediateCiphers
+			})
+		}
+		tlsOpts = append(tlsOpts, func(c *tls.Config) {
+			c.NextProtos = nextProtos
+		})
 	}
 
 	return tlsOpts, profile, adherence, hasAPI

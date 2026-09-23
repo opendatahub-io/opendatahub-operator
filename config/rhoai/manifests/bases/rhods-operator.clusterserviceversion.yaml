@@ -39,7 +39,10 @@ metadata:
               }
             },
             "dashboard": {
-              "managementState": "Managed"
+              "managementState": "Managed",
+              "maasConsumerPortal": {
+                "managementState": "Removed"
+              }
             },
             "aipipelines": {
               "managementState": "Managed"
@@ -96,8 +99,7 @@ metadata:
     operatorframework.io/suggested-namespace: redhat-ods-operator
     operators.openshift.io/infrastructure-features: '["disconnected"]'
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
-      "datasciencepipelines.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
-      "rays.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io"]'
+      "kueues.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io"]'
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
   name: rhods-operator.v2.0.0
@@ -126,12 +128,6 @@ spec:
       kind: DataScienceCluster
       name: datascienceclusters.datasciencecluster.opendatahub.io
       version: v1
-    - description: DataSciencePipelines is the Schema for the datasciencepipelines
-        API
-      displayName: Data Science Pipelines
-      kind: DataSciencePipelines
-      name: datasciencepipelines.components.platform.opendatahub.io
-      version: v1alpha1
     - description: DSCInitialization is the Schema for the dscinitializations API.
       displayName: DSCInitialization
       kind: DSCInitialization
@@ -156,11 +152,6 @@ spec:
       displayName: Kueue
       kind: Kueue
       name: kueues.components.platform.opendatahub.io
-      version: v1alpha1
-    - description: Ray is the Schema for the rays API
-      displayName: Ray
-      kind: Ray
-      name: rays.components.platform.opendatahub.io
       version: v1alpha1
     - description: TrustyAI is the Schema for the trustyais API
       displayName: Trusty AI

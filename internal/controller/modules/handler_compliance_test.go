@@ -12,12 +12,14 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
+	aipipelinesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aipipelines"
 	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
 	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	mlflowoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
 	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
+	rayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ray"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
@@ -30,12 +32,14 @@ import (
 func allHandlers() []modules.ModuleHandler {
 	return []modules.ModuleHandler{
 		aigatewayModule.NewHandler(),
+		aipipelinesModule.NewHandler(),
 		dashboardModule.NewHandler(),
 		feastModule.NewHandler(),
 		kserveModule.NewHandler(),
 		mcplifecycleoperatorModule.NewHandler(),
 		mlflowoperatorModule.NewHandler(),
 		ogxModule.NewHandler(),
+		rayModule.NewHandler(),
 		workbenchesModule.NewHandler(),
 	}
 }
@@ -45,6 +49,9 @@ func managedDSCContext() (*modules.DSCContext, *modules.ModuleCRConfig) {
 			DSC: &dscv2.DataScienceCluster{
 				Spec: dscv2.DataScienceClusterSpec{
 					Components: dscv2.Components{
+						AIPipelines: componentApi.DSCDataSciencePipelines{
+							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+						},
 						Dashboard: componentApi.DSCDashboard{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
@@ -67,6 +74,9 @@ func managedDSCContext() (*modules.DSCContext, *modules.ModuleCRConfig) {
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
 						OGX: componentApi.DSCOGX{
+							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+						},
+						Ray: componentApi.DSCRay{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
 					},
