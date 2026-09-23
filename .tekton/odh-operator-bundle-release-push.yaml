@@ -61,6 +61,7 @@ spec:
         - IMG_TAG=v3.6.0-ea.2
         - IMAGE_TAG_BASE=quay.io/opendatahub/opendatahub-operator
         - BUNDLE_IMG=quay.io/opendatahub/opendatahub-operator-bundle:v3.6.0-ea.2
+        - ODH_PLATFORM_TYPE=OpenDataHub
         - BUILD_TYPE=Release
     - name: additional-labels
       value:

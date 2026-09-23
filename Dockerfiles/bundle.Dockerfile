@@ -7,6 +7,7 @@ ARG IMG_TAG
 # NOTE: OPERATOR_VERSION is used to not clash with the VERSION var from go-toolset image
 ARG OPERATOR_VERSION
 ARG BUNDLE_IMG
+ARG ODH_PLATFORM_TYPE=OpenDataHub
 USER root
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -41,7 +42,7 @@ COPY PROJECT PROJECT
 COPY config/ config/
 COPY Dockerfiles/ Dockerfiles/
 
-RUN VERSION=$OPERATOR_VERSION make bundle
+RUN VERSION=$OPERATOR_VERSION ODH_PLATFORM_TYPE=$ODH_PLATFORM_TYPE make bundle
 RUN VERSION=$OPERATOR_VERSION make bundle ODH_PLATFORM_TYPE=rhoai
 FROM scratch
 
