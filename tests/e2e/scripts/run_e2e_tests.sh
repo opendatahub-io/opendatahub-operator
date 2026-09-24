@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Validation functions
 validate_bool() {
-    local var_name=$1 
+    local var_name=$1
     local value=${!var_name}
     case "$value" in
         true|false|0|1) return 0 ;;
@@ -174,11 +174,14 @@ else
   # the JUnit report consumed by the CI failure importer.
   # Keep raw JUnit content outside *.xml globs so CI ingests only final report.
   raw_junit_report=results/xunit_report.unfiltered
-  test_events=results/test-events.json
+  raw_test_events=results/test-events.json
+  reordered_test_events=results/test-events-reordered.json
 
+  # 1. Capture output from ./e2e-tests via test2json:
+  #    -> results/test-events.json and results/xunit_report.unfiltered.
   test_status=0
   gotestsum --junitfile-project-name odh-operator-e2e \
-    --junitfile "$raw_junit_report" --jsonfile "$test_events" \
+    --junitfile "$raw_junit_report" --jsonfile "$raw_test_events" \
     --format standard-verbose --raw-command \
     -- test2json -t -p e2e ./e2e-tests --test.run='^TestOdhOperator' --test.v=test2json --test.parallel=8 \
     --deletion-policy="$E2E_TEST_DELETION_POLICY" \
@@ -199,13 +202,25 @@ else
     --tag="$E2E_TEST_TAG" \
     "$@" || test_status=$?
 
-  # Ignore only parent results. Their captured output is retained by the
-  # converter as suite-level output. If this leaves no failure/error despite
-  # a failed test process, retain the unfiltered report so parent-only
-  # failures (for example setup, cleanup, or watchdog failures) remain visible.
+  # 2. Group events: results/test-events.json -> results/test-events-reordered.json.
+  #    Keep each test's skip messages together and not interleaved due to parallel execution,
+  #    preserving event order within each test and first-seen group order.
+  #    This ensures go-junit-report correctly assigns skip messages to the tests
+  jq -sc '
+    to_entries
+    | group_by([.value.Package, (.value.Test // .key)])
+    | sort_by(.[0].key)
+    | .[][].value
+  ' "$raw_test_events" > "$reordered_test_events"
+
+  # 3. Convert results/test-events-reordered.json -> results/xunit_report.xml,
+  #    ignoring parent results. Their captured output is retained by the
+  #    converter as suite-level output. If this leaves no failure/error despite
+  #    a failed test process, retain the unfiltered report so parent-only
+  #    failures (for example setup, cleanup, or watchdog failures) remain visible.
   if go-junit-report -parser gojson \
     -subtest-mode ignore-parent-results \
-    -in "$test_events" \
+    -in "$reordered_test_events" \
     -out results/xunit_report.xml; then
     if [ "$test_status" -ne 0 ] && \
       ! grep -Eq '<(failure|error)([[:space:]>])' results/xunit_report.xml; then
@@ -226,6 +241,8 @@ else
     fi
   fi
 
+  # 4. Remove tag-gate skips from results/xunit_report.xml, updating it in place.
+  #    This is the final report consumed by CI.
   filter_gate_skips_if_present
   exit "$test_status"
 fi

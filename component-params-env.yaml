@@ -51,10 +51,6 @@ known_issues:
 - image: RELATED_IMAGE_ODH_MOD_ARCH_DATA_REGISTRY_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-95347
   reason: Validation failure due to RELATED_IMAGE_ODH_MOD_ARCH_DATA_REGISTRY_IMAGE offboarding in 3.6-EA.2 but staying in 3.6 GA; not in RHOAI-Build-Config for 3.6-EA.2
-- image: RELATED_IMAGE_ODH_MAAS_DISCOVERY_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-90737
-  reason: Temporary digest placeholder until maas-discovery image onboarding is completed in build config
-
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
   reason: ppc64le/s390x only, not applicable to ODH

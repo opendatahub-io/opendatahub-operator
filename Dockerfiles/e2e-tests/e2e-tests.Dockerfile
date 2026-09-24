@@ -41,6 +41,7 @@ RUN apt-get update -y && apt-get upgrade -y && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/ && \
+    apt-get install -y jq && \
     apt-get clean all
 
 # install test reporting tools and build test2json
