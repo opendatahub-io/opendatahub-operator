@@ -1318,15 +1318,15 @@ imageOverrides:
     rhoai:
       base: "quay.io/opendatahub/odh-mod-arch-notebooks"
       digest: "sha256:1e9a17cdf4a868299ebb3ccf3bdc110770bb390bd0c78dbc655f5d9ee32110f6"
-  RELATED_IMAGE_ODH_PIPELINE_RUNTIME_BASELINE_CPU_PY312_C9S_IMAGE:
+  RELATED_IMAGE_ODH_PIPELINE_RUNTIME_BASELINE_CPU_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-pipeline-runtime-baseline-cpu-py312-c9s"
-      digest: "sha256:e7fa29974895fedaa3a47ed0b3a4a56417ff1209fe9c8d3a41529b671fdb2702"
+      digest: "sha256:f17e2a7a60e5a0c2bf60d56db8bbb3321bdf45c090aedb3c0237299f2e8e8703"
     rhoai:
       shaFrom: odh
       base: "quay.io/opendatahub/odh-pipeline-runtime-baseline-cpu-py312-c9s"
-      digest: "sha256:e7fa29974895fedaa3a47ed0b3a4a56417ff1209fe9c8d3a41529b671fdb2702"
+      digest: "sha256:f17e2a7a60e5a0c2bf60d56db8bbb3321bdf45c090aedb3c0237299f2e8e8703"
   RELATED_IMAGE_ODH_PRAXIS_EXTPROC_IMAGE:
     source: "csv"
     odh:
