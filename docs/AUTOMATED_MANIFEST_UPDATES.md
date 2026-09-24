@@ -4,7 +4,7 @@ This document describes the automated systems for updating OpenDataHub component
 
 ## Overview
 
-The `manifests-config.yaml` file contains references to various OpenDataHub component repositories.
+The `manifests-config.yaml` file contains references to various OpenDataHub component repositories and pinned ODH/RHOAI Build-Config repositories.
 Since our e2e tests rely on these references, they need to be kept up to date but pointing to a branch instead of a specific commit SHA could lead to breakages in e2e tests, and block PRs to being merged.
 
 These references can become outdated as components receive updates, so we provide an automated solution to keep these references current.
@@ -26,6 +26,7 @@ It will be executed by a Github Action workflow.
 - ✅ Batch updates (all changes in single PR)
 - ✅ Automatic branch cleanup after PR merge
 - ✅ Works directly with manifests-config.yaml format
+- ✅ Updates pinned Build-Config commits together with component commits
 
 ## Configuration Details
 
@@ -50,3 +51,7 @@ Examples from `manifests-config.yaml`:
 ## Checking imageOverrides
 
 `make resolve-image-digests` fails if an `imageOverrides` row has an illegal key (must start with `RELATED_IMAGE_`), or if `component`, `tagTemplate`, `paramsEnvKey`, or `source` is set to a value that does not match its rules, and it does not rewrite `manifests-config.yaml`. PRs that change that YAML or `cmd/manifest-tools` run the unit tests that cover these errors.
+
+The command fetches the release CSV from each platform's pinned `buildConfig` commit. ODH entries resolve from the ODH CSV and may use downloaded `params.env` values. RHOAI entries do not use those ODH defaults; they resolve from the RHOAI CSV. RHOAI production references under `registry.redhat.io/rhoai/` are stored using the pullable `quay.io/rhoai/` mirror with the same digest.
+
+For `source: csv` entries, existing platform images are refreshed, platforms no longer published are removed, and newly published platforms are added when their image registry matches the import allowlist. Images listed under `odh_exceptions` or `rhoai_exceptions` in `component-params-env.yaml` are not automatically imported for that platform. An existing platform mapping remains explicitly managed until it is removed from `imageOverrides`.
