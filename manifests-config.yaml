@@ -208,6 +208,14 @@ platformManifests:
 #   tagTemplate:  (optional) must contain {SHA} and/or {SHORT_SHA}; prefixes and suffixes are allowed (quote the value)
 #   odh/rhoai:    per-platform base image, digest, and optional shaFrom
 imageOverrides:
+  RELATED_IMAGE_KORREL8R_IMAGE:
+    source: "csv"
+    odh:
+      base: "registry.redhat.io/cluster-observability-operator/korrel8r-rhel9"
+      digest: "sha256:90cc70741585b3a555888cc119c1ad630e988513dd2065158b26f6fa33dc8a22"
+    rhoai:
+      base: "registry.redhat.io/cluster-observability-operator/korrel8r-rhel9"
+      digest: "sha256:90cc70741585b3a555888cc119c1ad630e988513dd2065158b26f6fa33dc8a22"
   RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE:
     component: kserve-module-operator
     tagTemplate: "{SHA}"
