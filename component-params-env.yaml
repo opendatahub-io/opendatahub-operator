@@ -51,6 +51,15 @@ known_issues:
 - image: RELATED_IMAGE_ODH_MOD_ARCH_DATA_REGISTRY_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-95347
   reason: Validation failure due to RELATED_IMAGE_ODH_MOD_ARCH_DATA_REGISTRY_IMAGE offboarding in 3.6-EA.2 but staying in 3.6 GA; not in RHOAI-Build-Config for 3.6-EA.2
+- image: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_BASELINE_CPU_PY312_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHAIENG-6388
+  reason: Baseline runtime image published to quay.io/opendatahub; not yet in ODH-Build-Config (present in RHOAI-Build-Config)
+- image: RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_BASELINE_CPU_PY312_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHAIENG-6388
+  reason: Baseline codeserver image published to quay.io/opendatahub; not yet in ODH-Build-Config (present in RHOAI-Build-Config)
+- image: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_BASELINE_CPU_PY312_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHAIENG-6388
+  reason: Baseline jupyter image published to quay.io/opendatahub; not yet in ODH-Build-Config (present in RHOAI-Build-Config)
 
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
