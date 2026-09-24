@@ -14,6 +14,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -144,6 +145,13 @@ func (tc *DashboardTestCtx) ValidateDataRegistryImageEnvVarInjection(t *testing.
 	t.Helper()
 
 	skipUnless(t, Tier1)
+
+	if !tc.IsXKS() {
+		dsci := tc.FetchDSCInitialization()
+		if dsci.Status.Release.Name == cluster.SelfManagedRhoai && dsci.Status.Release.Version.String() == "3.6.0-ea.2" {
+			t.Skip("RHOAI 3.6 EA.2 does not publish RELATED_IMAGE_ODH_MOD_ARCH_DATA_REGISTRY_IMAGE (RHOAIENG-95347)")
+		}
+	}
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
