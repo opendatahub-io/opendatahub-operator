@@ -493,7 +493,8 @@ make undeploy-ccm-azure
 make uninstall-ccm-azure
 ```
 
-Replace `azure` with `coreweave` for CoreWeave targets.
+Replace `azure` in these targets with another provider listed under
+[Supported Providers](#supported-providers).
 
 #### CCM Configuration
 

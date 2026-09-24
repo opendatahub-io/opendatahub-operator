@@ -54,8 +54,10 @@ health checks, and removal path must match the chosen resource model.
 - [ ] Identify the operator or operand CR, including its exact GVK, name, and
   scope. A namespace-scoped CR must use the configured namespace on every
   lookup and cleanup path.
-- [ ] Define what constitutes readiness: deployments, an operand CR condition,
-  or both. Decide whether a missing required CR is unhealthy.
+- [ ] Define what constitutes readiness: deployments, an operator or operand CR
+  condition, or both.
+- [ ] If the chart creates the CR used for health monitoring, require that CR:
+  its absence must report the dependency unhealthy.
 - [ ] Define removal behavior, including whether the operand CR must be
   removed before CCM cleans up chart-owned resources.
 
@@ -100,8 +102,7 @@ it supplies the Cloud Controller Manager image rather than a DSC component.
 
 When users configure the new dependency through `rhai-on-xks-chart`:
 
-- [ ] Add `kubernetesEngine.spec.dependencies.<name>` values for each provider
-  that supports the dependency, with the agreed default policy and
+- [ ] Add `kubernetesEngine.spec.dependencies.<name>` values with the agreed default policy and
   configuration. The xKS chart's CR-creation hooks pass this provider spec
   to the KubernetesEngine CR.
 - [ ] Update `charts/rhai-on-xks-chart/values.schema.json` for the new
@@ -132,9 +133,9 @@ When users configure the new dependency through `rhai-on-xks-chart`:
   namespace fields immutable when changing them would orphan existing
   resources.
 - [ ] Add the required readiness condition in `internal/controller/status`.
-- [ ] Update the provider sample CRs in
-  `config/cloudmanager/{aws,azure,coreweave}/samples/` where the dependency is
-  supported. Keep their policy and configuration aligned with the API default.
+- [ ] Update the sample CR under `config/cloudmanager/<provider>/samples/` for
+  each supported provider. Keep its policy and configuration aligned with the
+  API default.
 - [ ] Regenerate API code and documentation with `make generate api-docs`.
 
 ## 6. Register chart lifecycle and reconciliation behavior
@@ -149,8 +150,8 @@ includes:
 - [ ] Required pre- or post-apply hooks, only when they are specific to the
   chart's behavior.
 - [ ] The operator or operand CR identity when one exists.
-- [ ] The new readiness condition, deployment namespace, and whether a missing
-  operand CR is an error (`RequireCR`).
+- [ ] The new readiness condition and deployment namespace. Set `RequireCR`
+  when the chart creates the monitored operator or operand CR.
 
 Do not bypass `BuildHelmCharts`. It derives the render list, the first cleanup
 phase, the final cleanup list, and the monitoring configuration from the same
@@ -213,7 +214,16 @@ that limitation for the dependency.
 - [ ] Inspect generated diffs. The rendered chart must not require RBAC that
   CCM has not declared.
 
-## 10. Test the integration
+## 10. Run the updated CCM for cluster tests
+
+- [ ] Follow [CCM Deployment](../README.md#ccm-deployment) to run the modified
+  CCM locally or deploy an image built with the modified code and chart. For a
+  local run, install the selected provider CRD and use the updated `opt/charts/`.
+- [ ] Confirm that CCM is running with the new chart and provider CRD before
+  CCM E2E tests. `make e2e-test-ccm` installs cert-manager if needed and runs
+  the tests; it does not deploy CCM. Unit tests do not require this step.
+
+## 11. Test the integration
 
 - [ ] Add or update `internal/controller/cloudmanager/common/charts_test.go`
   for managed, unmanaged, cleaning, and excluded states.
@@ -221,7 +231,10 @@ that limitation for the dependency.
   for namespace-scoped operator CRs.
 - [ ] Add monitoring coverage in
   `pkg/controller/cloudmanager/action_monitor_dependencies_test.go` for
-  healthy, degraded, missing, and unmanaged dependency states as applicable.
+  healthy, degraded, and unmanaged dependency states as applicable.
+- [ ] If the chart creates the monitored CR, test that `RequireCR` is set and
+  that a missing CR marks the dependency readiness condition `False` even when
+  other monitored resources are healthy.
 - [ ] Add cleanup coverage in
   `pkg/controller/cloudmanager/action_cleanup_test.go` for both removal
   phases.
