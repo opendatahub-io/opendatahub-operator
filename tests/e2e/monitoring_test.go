@@ -29,6 +29,7 @@ import (
 const (
 	MonitoringCRName                         = "default-monitoring"
 	MonitoringStackName                      = "data-science-monitoringstack"
+	ObservabilityDeploymentName              = "odh-observability"
 	OpenTelemetryCollectorName               = "data-science-collector"
 	TargetAllocatorDeploymentName            = "data-science-collector-targetallocator"
 	TargetAllocatorServiceAccount            = "data-science-collector-collector"
@@ -185,7 +186,25 @@ func (tc *MonitoringTestCtx) runBaseConfigurationTests(t *testing.T) {
 		t.Run("Auto creation of Monitoring CR", tc.ValidateMonitoringCRCreation)
 		t.Run("Test MonitoringReady condition propagated to DSCI", tc.ValidateMonitoringReadyConditionOnDSCI)
 		t.Run("Test Traces default content", tc.ValidateMonitoringCRDefaultTracesContent)
+		t.Run("Test Korrel8r image env var injection", tc.ValidateKorrel8rImageEnvVarInjection)
 	})
+}
+
+// ValidateKorrel8rImageEnvVarInjection verifies that the Korrel8r image
+// reference is forwarded to the observability Deployment.
+func (tc *MonitoringTestCtx) ValidateKorrel8rImageEnvVarInjection(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.MonitoringNamespace,
+			Name:      ObservabilityDeploymentName,
+		}),
+		WithCondition(jq.Match(
+			`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "RELATED_IMAGE_KORREL8R_IMAGE") | .value != null and .value != ""`,
+		)),
+		WithCustomErrorMsg("odh-observability Deployment should have a non-empty Korrel8r image reference injected"),
+	)
 }
 
 func (tc *MonitoringTestCtx) runMetricsAndMonitoringStackTests(t *testing.T) {
