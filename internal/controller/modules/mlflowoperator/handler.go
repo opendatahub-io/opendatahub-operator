@@ -38,6 +38,7 @@ var (
 		cluster.ManagedRhoai:     rhoaiPlatformOverlay,
 		cluster.SelfManagedRhoai: rhoaiPlatformOverlay,
 		cluster.OpenDataHub:      opendatahubOverlayPath,
+		cluster.XKS:              rhoaiPlatformOverlay,
 	}
 )
 
