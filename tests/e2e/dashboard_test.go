@@ -56,6 +56,7 @@ func dashboardTestSuite(t *testing.T) {
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate data registry image env var injection", componentCtx.ValidateDataRegistryImageEnvVarInjection},
+		{"Validate data connect hub image env var injection", componentCtx.ValidateDataConnectHubImageEnvVarInjection},
 		{"Validate dynamically watches operands", componentCtx.ValidateOperandsDynamicallyWatchedResources},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
 		{"Validate VAP blocks dashboard HardwareProfile and AcceleratorProfile creation", componentCtx.ValidateVAPBlocksDashboardCRCreation},
@@ -162,6 +163,25 @@ func (tc *DashboardTestCtx) ValidateDataRegistryImageEnvVarInjection(t *testing.
 			`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "RELATED_IMAGE_ODH_MOD_ARCH_DATA_REGISTRY_IMAGE") | .value != null and .value != ""`,
 		)),
 		WithCustomErrorMsg("dashboard-operator Deployment should have a non-empty data registry image reference injected"),
+	)
+}
+
+// ValidateDataRegistryImageEnvVarInjection verifies that the data registry image
+// reference is forwarded to the dashboard-operator Deployment.
+func (tc *DashboardTestCtx) ValidateDataConnectHubImageEnvVarInjection(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.AppsNamespace,
+			Name:      "dashboard-operator",
+		}),
+		WithCondition(jq.Match(
+			`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "RELATED_IMAGE_ODH_MOD_ARCH_DATA_CONNECT_HUB_IMAGE") | .value != null and .value != ""`,
+		)),
+		WithCustomErrorMsg("dashboard-operator Deployment should have a non-empty data connect hub image reference injected"),
 	)
 }
 
