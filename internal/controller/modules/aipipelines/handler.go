@@ -30,6 +30,7 @@ const (
 var overlayByPlatform = map[common.Platform]string{
 	cluster.ManagedRhoai:     rhoaiOverlayPath,
 	cluster.SelfManagedRhoai: rhoaiOverlayPath,
+	cluster.XKS:              rhoaiOverlayPath,
 	cluster.OpenDataHub:      odhOverlayPath,
 }
 
