@@ -12,10 +12,9 @@ const (
 	OpenshiftDefaultIngress CertType = "OpenshiftDefaultIngress"
 )
 
-// IssuerRef references the cert-manager issuer used to sign the certificate on XKS.
-// It is ignored for OpenShift's operator-generated self-signed certificates.
-// When unset (or with empty fields), the platform default issuer is used — resolved from the
-// operator's RHAI_ISSUER_REF_* environment variables (e.g. rhai-ca-issuer on RHOAI).
+// IssuerRef configures an optional cert-manager issuer override for XKS certificates created by
+// the gateway service. When unset (or with empty fields), the platform default issuer is used,
+// resolved from the operator's RHAI_ISSUER_REF_* environment variables (e.g. rhai-ca-issuer on RHOAI).
 type IssuerRef struct {
 	// Name of the cert-manager issuer. When empty, the platform default issuer name is used.
 	// +kubebuilder:validation:MaxLength=253
@@ -41,8 +40,9 @@ type CertificateSpec struct {
 	// +kubebuilder:validation:Enum=SelfSigned;Provided;OpenshiftDefaultIngress
 	// +kubebuilder:default=OpenshiftDefaultIngress
 	Type CertType `json:"type,omitempty"`
-	// IssuerRef optionally overrides the cert-manager issuer used to sign the certificate on XKS.
-	// It only takes effect for the SelfSigned type.
+	// IssuerRef optionally overrides the cert-manager issuer used on XKS. The gateway TLS certificate
+	// uses it when Type=SelfSigned; the kube-auth-proxy TLS certificate uses it whenever the auth proxy
+	// is enabled. This field is ignored on OpenShift.
 	// +optional
 	IssuerRef *IssuerRef `json:"issuerRef,omitempty"`
 }

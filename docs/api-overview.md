@@ -2146,7 +2146,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `secretName` _string_ | SecretName specifies the name of the Kubernetes Secret resource that contains a<br />TLS certificate secure HTTP communications for the KNative network. |  |  |
 | `type` _[CertType](#certtype)_ | Type specifies if the TLS certificate should be generated automatically, or if the certificate<br />is provided by the user. Allowed values are:<br />* SelfSigned: A certificate is generated automatically; on XKS, cert-manager issues it.<br />* Provided: Pre-existence of the TLS Secret (see SecretName) with a valid certificate is assumed.<br />* OpenshiftDefaultIngress: Uses the cluster's default ingress certificate (OpenShift only). | OpenshiftDefaultIngress | Enum: [SelfSigned Provided OpenshiftDefaultIngress] <br /> |
-| `issuerRef` _[IssuerRef](#issuerref)_ | IssuerRef optionally overrides the cert-manager issuer used to sign the certificate on XKS.<br />It only takes effect for the SelfSigned type. |  |  |
+| `issuerRef` _[IssuerRef](#issuerref)_ | IssuerRef optionally overrides the cert-manager issuer used on XKS. The gateway TLS certificate<br />uses it when Type=SelfSigned; the kube-auth-proxy TLS certificate uses it whenever the auth proxy<br />is enabled. This field is ignored on OpenShift. |  |  |
 
 
 
@@ -2261,10 +2261,9 @@ _Appears in:_
 
 
 
-IssuerRef references the cert-manager issuer used to sign the certificate on XKS.
-It is ignored for OpenShift's operator-generated self-signed certificates.
-When unset (or with empty fields), the platform default issuer is used — resolved from the
-operator's RHAI_ISSUER_REF_* environment variables (e.g. rhai-ca-issuer on RHOAI).
+IssuerRef configures an optional cert-manager issuer override for XKS certificates created by
+the gateway service. When unset (or with empty fields), the platform default issuer is used,
+resolved from the operator's RHAI_ISSUER_REF_* environment variables (e.g. rhai-ca-issuer on RHOAI).
 
 
 
