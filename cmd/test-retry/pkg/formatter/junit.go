@@ -46,6 +46,7 @@ type TestCase struct {
 // Skipped represents a JUnit XML skipped element
 type Skipped struct {
 	Message string `xml:"message,attr,omitempty"`
+	Content string `xml:",chardata"`
 }
 
 // Failure represents a JUnit XML test failure

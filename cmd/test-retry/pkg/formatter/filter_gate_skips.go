@@ -85,7 +85,7 @@ func FilterGateSkippedTests(content []byte) ([]byte, error) {
 		skipped := 0
 
 		for _, tc := range suites.Suites[i].TestCases {
-			if tc.Skipped != nil && strings.Contains(tc.Skipped.Message, tagging.GateSkipPrefix) {
+			if tc.Skipped != nil && (strings.Contains(tc.Skipped.Message, tagging.GateSkipPrefix) || strings.Contains(tc.Skipped.Content, tagging.GateSkipPrefix)) {
 				continue
 			}
 
