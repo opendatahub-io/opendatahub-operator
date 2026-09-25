@@ -218,6 +218,78 @@ func TestNewGCPredicate_NoProtectedObjects(t *testing.T) {
 	g.Expect(got).To(BeTrue())
 }
 
+func TestNewGCPredicate_DefersAccessControlWhileCleanupPending(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	const deferredUID = k8stypes.UID("gc-deferred-uid")
+	instance := &ccmv1alpha1.AzureKubernetesEngine{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:        deferredUID,
+			Generation: testGeneration,
+		},
+	}
+	rr := &odhTypes.ReconciliationRequest{Instance: instance}
+	t.Cleanup(func() { deferredAccessControlCleanup.Delete(string(deferredUID)) })
+	markAccessControlCleanupDeferred(rr)
+
+	pred := newGCPredicate(nil)
+
+	sa := newObj(
+		schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ServiceAccount"},
+		"cert-manager", "cert-manager",
+		ccmAnns(string(deferredUID), "3"),
+	)
+	got, err := pred(rr, sa)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(BeFalse(), "stale SA must be kept while access-control cleanup is deferred")
+
+	role := newObj(
+		schema.GroupVersionKind{Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "Role"},
+		"cert-manager", "cert-manager",
+		ccmAnns(string(deferredUID), "3"),
+	)
+	got, err = pred(rr, role)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(BeFalse(), "stale Role must be kept while access-control cleanup is deferred")
+
+	// Non-access-control resources are still GC'd (Pass A already deleted workloads;
+	// any leftover Deployment should not block on this gate).
+	deploy := newObj(
+		schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"},
+		"cert-manager", "cert-manager",
+		ccmAnns(string(deferredUID), "3"),
+	)
+	got, err = pred(rr, deploy)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(BeTrue(), "stale Deployment must still be deletable by GC")
+}
+
+func TestNewGCPredicate_DeletesAccessControlWhenCleanupNotDeferred(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	const uid = k8stypes.UID("gc-not-deferred-uid")
+	instance := &ccmv1alpha1.AzureKubernetesEngine{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:        uid,
+			Generation: testGeneration,
+		},
+	}
+	rr := &odhTypes.ReconciliationRequest{Instance: instance}
+	deferredAccessControlCleanup.Delete(string(uid))
+
+	pred := newGCPredicate(nil)
+	sa := newObj(
+		schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ServiceAccount"},
+		"cert-manager", "cert-manager",
+		ccmAnns(string(uid), "3"),
+	)
+	got, err := pred(rr, sa)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got).To(BeTrue(), "stale SA is deleted once deferred cleanup is not pending")
+}
+
 func TestGCLogFieldsUseChildKeys(t *testing.T) {
 	g := NewWithT(t)
 
@@ -242,19 +314,19 @@ func TestGCLogFieldsUseChildKeys(t *testing.T) {
 		{
 			name: "orphaned resource (UID mismatch)",
 			run: func(rr *odhTypes.ReconciliationRequest) {
-				_, _ = isStaleOrOrphaned(rr, newObj(someGVK, resName, resNS, ccmAnns("different-uid", "5")))
+				isStaleOrOrphaned(rr, newObj(someGVK, resName, resNS, ccmAnns("different-uid", "5")))
 			},
 		},
 		{
 			name: "stale resource (generation mismatch)",
 			run: func(rr *odhTypes.ReconciliationRequest) {
-				_, _ = isStaleOrOrphaned(rr, newObj(someGVK, resName, resNS, ccmAnns(string(testUID), "3")))
+				isStaleOrOrphaned(rr, newObj(someGVK, resName, resNS, ccmAnns(string(testUID), "3")))
 			},
 		},
 		{
 			name: "malformed generation annotation",
 			run: func(rr *odhTypes.ReconciliationRequest) {
-				_, _ = isStaleOrOrphaned(rr, newObj(someGVK, resName, resNS, ccmAnns(string(testUID), "not-a-number")))
+				isStaleOrOrphaned(rr, newObj(someGVK, resName, resNS, ccmAnns(string(testUID), "not-a-number")))
 			},
 			wantResourceKind: someGVK.Kind,
 		},
