@@ -97,6 +97,41 @@ func TestCreateDashboardRedirectsWithRealAPIServer(t *testing.T) {
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(templates).To(HaveLen(5))
 	})
+
+	t.Run("when redirects are disabled by annotation", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+		tc.installDashboardCRD(t, ctx)
+		tc.resetDashboardRedirectTestState(t, ctx, true)
+
+		gatewayConfig := tc.createDashboardRedirectGatewayConfig(t, ctx)
+		gatewayConfig.SetAnnotations(map[string]string{
+			DashboardRedirectsAnnotation: DashboardRedirectsDisabledValue,
+		})
+		g.Expect(tc.client.Update(ctx, gatewayConfig)).To(Succeed())
+
+		dashboard := resources.GvkToUnstructured(gvk.Dashboard)
+		dashboard.SetName(componentApi.DashboardInstanceName)
+		g.Expect(tc.client.Create(ctx, dashboard)).To(Succeed())
+
+		redirectObjects := tc.createDashboardRedirectResources(t, ctx)
+
+		for range 2 {
+			templates, err := createDashboardRedirects(ctx, tc.client, gatewayConfig)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(templates).To(BeEmpty())
+		}
+
+		for _, obj := range redirectObjects {
+			g.Expect(tc.client.Get(ctx, client.ObjectKeyFromObject(obj), obj)).
+				To(MatchError(ContainSubstring("not found")))
+		}
+
+		gatewayConfig.SetAnnotations(nil)
+		templates, err := createDashboardRedirects(ctx, tc.client, gatewayConfig)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(templates).To(HaveLen(5))
+	})
 }
 
 func startDashboardRedirectTestEnv(t *testing.T, ctx context.Context) *dashboardRedirectTestEnv {

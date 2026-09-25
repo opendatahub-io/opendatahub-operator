@@ -86,6 +86,73 @@ func TestCreateDashboardRedirects_SkipsWhenEnvDisabled(t *testing.T) {
 	g.Expect(templates).To(BeEmpty(), "no redirect templates should be added when DISABLE_DASHBOARD_REDIRECTS=true")
 }
 
+func TestCreateDashboardRedirects_DisabledByAnnotation(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+	appNs := cluster.GetApplicationNamespace()
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.GatewayConfigName,
+			Annotations: map[string]string{
+				DashboardRedirectsAnnotation: DashboardRedirectsDisabledValue,
+			},
+		},
+	}
+
+	dashboard := resources.GvkToUnstructured(gvk.Dashboard)
+	dashboard.SetName(componentApi.DashboardInstanceName)
+
+	redirectConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      DashboardRedirectConfigName,
+			Namespace: appNs,
+		},
+	}
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig, dashboard, redirectConfigMap))
+	g.Expect(err).To(Succeed())
+
+	for range 2 {
+		templates, err := createDashboardRedirects(ctx, cli, gatewayConfig)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(templates).To(BeEmpty(), "no redirect templates should be added when the annotation disables redirects")
+	}
+
+	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(redirectConfigMap), &corev1.ConfigMap{})).
+		To(MatchError(ContainSubstring("not found")))
+
+	delete(gatewayConfig.Annotations, DashboardRedirectsAnnotation)
+	templates, err := createDashboardRedirects(ctx, cli, gatewayConfig)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(templates).To(HaveLen(5), "redirect templates should be restored when the annotation is removed")
+}
+
+func TestCreateDashboardRedirects_UnsupportedAnnotationValueKeepsRedirectsEnabled(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.GatewayConfigName,
+			Annotations: map[string]string{
+				DashboardRedirectsAnnotation: "unsupported",
+			},
+		},
+	}
+
+	dashboard := resources.GvkToUnstructured(gvk.Dashboard)
+	dashboard.SetName(componentApi.DashboardInstanceName)
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig, dashboard))
+	g.Expect(err).To(Succeed())
+
+	templates, err := createDashboardRedirects(ctx, cli, gatewayConfig)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(templates).To(HaveLen(5), "unsupported annotation values should retain the enabled default")
+}
+
 func TestCreateDashboardRedirects_DeletesResourcesWhenDashboardRemoved(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
