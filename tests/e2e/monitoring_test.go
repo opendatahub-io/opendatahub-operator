@@ -29,6 +29,7 @@ import (
 const (
 	MonitoringCRName                         = "default-monitoring"
 	MonitoringStackName                      = "data-science-monitoringstack"
+	ObservabilityDeploymentName              = "odh-observability"
 	OpenTelemetryCollectorName               = "data-science-collector"
 	TargetAllocatorDeploymentName            = "data-science-collector-targetallocator"
 	TargetAllocatorServiceAccount            = "data-science-collector-collector"
@@ -78,6 +79,8 @@ const (
 	FakeGCSBucketName        = "tempo-traces"
 	FakeGCSImage             = "fsouza/fake-gcs-server@sha256:797ce226d62f947c009dc40246b30cfb456b8473d8241407f9d6f2c04e4d69ef"
 	FakeGCSClientImage       = "curlimages/curl@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"
+	ExpectedKorrel8rImage    = "registry.redhat.io/cluster-observability-operator/korrel8r-rhel9" +
+		"@sha256:90cc70741585b3a555888cc119c1ad630e988513dd2065158b26f6fa33dc8a22"
 )
 
 const (
@@ -185,7 +188,26 @@ func (tc *MonitoringTestCtx) runBaseConfigurationTests(t *testing.T) {
 		t.Run("Auto creation of Monitoring CR", tc.ValidateMonitoringCRCreation)
 		t.Run("Test MonitoringReady condition propagated to DSCI", tc.ValidateMonitoringReadyConditionOnDSCI)
 		t.Run("Test Traces default content", tc.ValidateMonitoringCRDefaultTracesContent)
+		t.Run("Test Korrel8r image env var injection", tc.ValidateKorrel8rImageEnvVarInjection)
 	})
+}
+
+// ValidateKorrel8rImageEnvVarInjection verifies that the Korrel8r image
+// reference is forwarded to the observability Deployment.
+func (tc *MonitoringTestCtx) ValidateKorrel8rImageEnvVarInjection(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.MonitoringNamespace,
+			Name:      ObservabilityDeploymentName,
+		}),
+		WithCondition(jq.Match(
+			`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "RELATED_IMAGE_KORREL8R_IMAGE") | .value == "%s"`,
+			ExpectedKorrel8rImage,
+		)),
+		WithCustomErrorMsg("odh-observability Deployment should have the CSV-resolved Korrel8r image reference injected"),
+	)
 }
 
 func (tc *MonitoringTestCtx) runMetricsAndMonitoringStackTests(t *testing.T) {
