@@ -80,6 +80,9 @@ func TestBuildModuleCRDefaultsArgoToManaged(t *testing.T) {
 
 func TestOperatorManifestsAndEnvironment(t *testing.T) {
 	h := aipipelines.NewHandler()
+	if h.Config.SourcePath != "" {
+		t.Fatalf("expected platform-specific overlays without a default source path, got %q", h.Config.SourcePath)
+	}
 	platform := &modules.PlatformContext{
 		ManifestsBasePath: "/opt/manifests",
 		Release: common.Release{
