@@ -22,7 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -168,7 +168,7 @@ func TestRemoveOwnerRef(t *testing.T) {
 	utilruntime.Must(apiextensionsv1.AddToScheme(s))
 	utilruntime.Must(componentApi.AddToScheme(s))
 	utilruntime.Must(dsciv2.AddToScheme(s))
-	utilruntime.Must(dscv2.AddToScheme(s))
+	utilruntime.Must(dscv3.AddToScheme(s))
 	utilruntime.Must(rbacv1.AddToScheme(s))
 
 	projectDir, err := envtestutil.FindProjectRoot()

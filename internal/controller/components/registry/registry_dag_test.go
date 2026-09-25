@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -25,7 +25,7 @@ type fakeHandler struct {
 
 func (f *fakeHandler) GetName() string                                                 { return f.name }
 func (f *fakeHandler) Init(_ common.Platform, _ operatorconfig.OperatorSettings) error { return nil }
-func (f *fakeHandler) NewCRObject(_ context.Context, _ client.Client, _ *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+func (f *fakeHandler) NewCRObject(_ context.Context, _ client.Client, _ *dscv3.DataScienceCluster) (common.PlatformObject, error) {
 	return nil, nil
 }
 func (f *fakeHandler) NewComponentReconciler(_ context.Context, _ ctrl.Manager) error { return nil }
@@ -33,7 +33,7 @@ func (f *fakeHandler) UpdateDSCStatus(_ context.Context, _ *types.Reconciliation
 	return metav1.ConditionTrue, nil
 }
 func (f *fakeHandler) GroupVersionKind() schema.GroupVersionKind  { return schema.GroupVersionKind{} }
-func (f *fakeHandler) IsEnabled(_ *dscv2.DataScienceCluster) bool { return true }
+func (f *fakeHandler) IsEnabled(_ *dscv3.DataScienceCluster) bool { return true }
 
 func TestResolvedBatches_RunlevelGrouping(t *testing.T) {
 	t.Parallel()

@@ -3,15 +3,13 @@ package dashboard
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -66,7 +64,7 @@ func NewHandler() *handler {
 							if dscCtx == nil || dscCtx.DSC == nil {
 								return false
 							}
-							return dscCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState == operatorv1.Managed
+							return dscCtx.DSC.Spec.Components.Dashboard.MaaSPortal.ManagementState == operatorv1.Managed
 						},
 					},
 				},
@@ -75,7 +73,7 @@ func NewHandler() *handler {
 	}
 }
 
-func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+func (h *handler) PopulatePlatformModule(pm *configv1alpha2.PlatformModules, dscCtx *modules.DSCContext) {
 	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
@@ -84,17 +82,21 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 	// MaaS Consumer Portal submodule, so it must stay up while either workload
 	// is Managed. PlatformModules.Dashboard has no portal field, so the compound
 	// OR is computed here; IsEnabled() reads the already-OR'd state.
-	ms := operatorv1.Removed
-	if dashboard.ManagementState == operatorv1.Managed ||
-		dashboard.MaaSConsumerPortal.ManagementState == operatorv1.Managed {
-		ms = operatorv1.Managed
+	pm.Dashboard.ManagementState = dashboardManagementState(dashboard)
+}
+
+func dashboardManagementState(dashboard componentApi.DSCDashboard) operatorv1.ManagementState {
+	if dashboard.Standard.ManagementState == operatorv1.Managed ||
+		dashboard.MaaSPortal.ManagementState == operatorv1.Managed {
+		return operatorv1.Managed
 	}
-	pm.Dashboard.ManagementState = ms
+
+	return operatorv1.Removed
 }
 
 // IsEnabled checks whether the dashboard module should be deployed based on
 // PlatformModules.Dashboard.ManagementState.
-func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+func (h *handler) IsEnabled(modules *configv1alpha2.PlatformModules) bool {
 	return modules != nil && modules.Dashboard.ManagementState == operatorv1.Managed
 }
 
@@ -111,10 +113,7 @@ func (h *handler) BuildModuleCR(
 		return nil, errors.New("DSC is nil, cannot build Dashboard CR")
 	}
 
-	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dscCtx.DSC.Spec.Components.Dashboard)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert DSCDashboard to unstructured: %w", err)
-	}
+	spec := dashboardModuleSpec(dscCtx.DSC.Spec.Components.Dashboard)
 	spec["components"] = buildComponentsMap(dscCtx)
 	if ns := resolveNotebooksNamespace(dscCtx, cfg); ns != "" {
 		spec["notebooksNamespace"] = ns
@@ -140,6 +139,22 @@ func (h *handler) BuildModuleCR(
 	return u, nil
 }
 
+func dashboardModuleSpec(dashboard componentApi.DSCDashboard) map[string]any {
+	spec := make(map[string]any, 2)
+	if dashboard.Standard.ManagementState != "" || dashboard.MaaSPortal.ManagementState != "" {
+		// The Dashboard CR must stay Managed while either workload is enabled.
+		// Until the dashboard-operator supports portal-only mode, projecting the
+		// core state here would remove the module CR when only the portal is Managed.
+		spec["managementState"] = string(dashboardManagementState(dashboard))
+	}
+	if dashboard.MaaSPortal.ManagementState != "" {
+		spec["maasConsumerPortal"] = map[string]any{
+			"managementState": string(dashboard.MaaSPortal.ManagementState),
+		}
+	}
+	return spec
+}
+
 // buildComponentsMap projects the management state of DSC components
 // referenced by dashboard-operator modules onto the Dashboard CR.
 func buildComponentsMap(dscCtx *modules.DSCContext) map[string]any {
@@ -149,7 +164,7 @@ func buildComponentsMap(dscCtx *modules.DSCContext) map[string]any {
 		name  string
 		state operatorv1.ManagementState
 	}{
-		{componentApi.ModelRegistryComponentName, c.ModelRegistry.ManagementState},
+		{componentApi.ModelRegistryComponentName, c.AIHub.ManagementState},
 		{componentApi.MLflowOperatorComponentName, c.MLflowOperator.ManagementState},
 		{componentApi.TrustyAIComponentName, c.TrustyAI.ManagementState},
 		{dashboardAIPipelinesName, c.AIPipelines.ManagementState},
@@ -193,8 +208,8 @@ func resolveModelRegistryNamespace(dscCtx *modules.DSCContext) string {
 	if dscCtx == nil || dscCtx.DSC == nil {
 		return ""
 	}
-	if dscCtx.DSC.Spec.Components.ModelRegistry.ManagementState != operatorv1.Managed {
+	if dscCtx.DSC.Spec.Components.AIHub.ManagementState != operatorv1.Managed {
 		return ""
 	}
-	return dscCtx.DSC.Spec.Components.ModelRegistry.RegistriesNamespace
+	return dscCtx.DSC.Spec.Components.AIHub.ApplicationNamespace
 }

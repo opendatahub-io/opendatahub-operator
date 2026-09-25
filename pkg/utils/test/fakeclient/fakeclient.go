@@ -27,6 +27,7 @@ type clientOptions struct {
 	scheme      *runtime.Scheme
 	interceptor interceptor.Funcs
 	objects     []client.Object
+	status      []client.Object
 	gvkMappings []GVKMapping
 }
 type ClientOpts func(*clientOptions)
@@ -40,6 +41,13 @@ func WithInterceptorFuncs(value interceptor.Funcs) ClientOpts {
 func WithObjects(values ...client.Object) ClientOpts {
 	return func(o *clientOptions) {
 		o.objects = append(o.objects, values...)
+	}
+}
+
+// WithStatusSubresources configures objects that support status subresource updates.
+func WithStatusSubresources(values ...client.Object) ClientOpts {
+	return func(o *clientOptions) {
+		o.status = append(o.status, values...)
 	}
 }
 
@@ -93,7 +101,7 @@ func New(opts ...ClientOpts) (client.Client, error) {
 			fakeMapper.Add(kt, meta.RESTScopeRoot)
 		case gvk.DSCInitialization:
 			fakeMapper.Add(kt, meta.RESTScopeRoot)
-		case gvk.DataScienceClusterV1:
+		case gvk.DataScienceClusterV2:
 			fakeMapper.Add(kt, meta.RESTScopeRoot)
 		case gvk.DSCInitializationV1:
 			fakeMapper.Add(kt, meta.RESTScopeRoot)
@@ -114,6 +122,7 @@ func New(opts ...ClientOpts) (client.Client, error) {
 	b = b.WithScheme(s)
 	b = b.WithRESTMapper(fakeMapper)
 	b = b.WithObjects(co.objects...)
+	b = b.WithStatusSubresource(co.status...)
 	b = b.WithInterceptorFuncs(co.interceptor)
 
 	return b.Build(), nil

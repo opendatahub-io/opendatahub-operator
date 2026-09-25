@@ -27,8 +27,7 @@ type EventuallyValue[T any] struct {
 func (e *EventuallyValue[T]) Get() (T, error) {
 	v, err := e.f(e.ctx)
 
-	var pse gomega.PollingSignalError
-	if errors.As(err, &pse) {
+	if _, ok := errors.AsType[gomega.PollingSignalError](err); ok {
 		if ue := errors.Unwrap(err); ue != nil {
 			err = ue
 		}
@@ -47,6 +46,18 @@ func (e *EventuallyValue[T]) Eventually(args ...any) *Assertion[T] {
 		timeout: e.g.DurationBundle.EventuallyTimeout,
 		polling: e.g.DurationBundle.EventuallyPollingInterval,
 	}
+}
+
+// Should eventually match the provided Gomega matcher using the default
+// timeout and polling interval.
+func (e *EventuallyValue[T]) Should(matcher types.GomegaMatcher, optionalDescription ...any) T {
+	return e.Eventually().Should(matcher, optionalDescription...)
+}
+
+// ShouldNot eventually fail to match the provided Gomega matcher using the
+// default timeout and polling interval.
+func (e *EventuallyValue[T]) ShouldNot(matcher types.GomegaMatcher, optionalDescription ...any) T {
+	return e.Eventually().ShouldNot(matcher, optionalDescription...)
 }
 
 func (e *EventuallyValue[T]) Consistently(args ...any) *Assertion[T] {
@@ -71,6 +82,10 @@ type Assertion[T any] struct {
 
 	timeout time.Duration
 	polling time.Duration
+}
+
+type assertionResult[T any] struct {
+	value T
 }
 
 func (a *Assertion[T]) WithTimeout(interval time.Duration) *Assertion[T] {
@@ -114,28 +129,31 @@ func (a *Assertion[T]) build(f any) gomega.AsyncAssertion {
 
 //nolint:dupl
 func (a *Assertion[T]) Should(matcher types.GomegaMatcher, optionalDescription ...any) T {
-	var res atomic.Value
+	var res atomic.Pointer[assertionResult[T]]
 	var wrapper any
+	store := func(value T) {
+		res.Store(&assertionResult[T]{value: value})
+	}
 
 	switch matcher.(type) {
 	case *matchers.SucceedMatcher:
 		wrapper = func(ctx context.Context) error {
 			v, err := a.f(ctx)
-			res.Store(v)
+			store(v)
 
 			return err
 		}
 	case *matchers.MatchErrorMatcher:
 		wrapper = func(ctx context.Context) error {
 			v, err := a.f(ctx)
-			res.Store(v)
+			store(v)
 
 			return err
 		}
 	default:
 		wrapper = func(ctx context.Context) (T, error) {
 			v, err := a.f(ctx)
-			res.Store(v)
+			store(v)
 
 			return v, err
 		}
@@ -143,34 +161,36 @@ func (a *Assertion[T]) Should(matcher types.GomegaMatcher, optionalDescription .
 
 	a.build(wrapper).Should(matcher, optionalDescription...)
 
-	//nolint:forcetypeassert,errcheck
-	return res.Load().(T)
+	return res.Load().value
 }
 
 //nolint:dupl
 func (a *Assertion[T]) ShouldNot(matcher types.GomegaMatcher, optionalDescription ...any) T {
-	var res atomic.Value
+	var res atomic.Pointer[assertionResult[T]]
 	var wrapper any
+	store := func(value T) {
+		res.Store(&assertionResult[T]{value: value})
+	}
 
 	switch matcher.(type) {
 	case *matchers.SucceedMatcher:
 		wrapper = func(ctx context.Context) error {
 			v, err := a.f(ctx)
-			res.Store(v)
+			store(v)
 
 			return err
 		}
 	case *matchers.MatchErrorMatcher:
 		wrapper = func(ctx context.Context) error {
 			v, err := a.f(ctx)
-			res.Store(v)
+			store(v)
 
 			return err
 		}
 	default:
 		wrapper = func(ctx context.Context) (T, error) {
 			v, err := a.f(ctx)
-			res.Store(v)
+			store(v)
 
 			return v, err
 		}
@@ -178,8 +198,7 @@ func (a *Assertion[T]) ShouldNot(matcher types.GomegaMatcher, optionalDescriptio
 
 	a.build(wrapper).ShouldNot(matcher, optionalDescription...)
 
-	//nolint:forcetypeassert,errcheck
-	return res.Load().(T)
+	return res.Load().value
 }
 
 type EventuallyErr struct {
@@ -191,8 +210,7 @@ type EventuallyErr struct {
 func (e *EventuallyErr) Get() error {
 	err := e.f(e.ctx)
 
-	var pse gomega.PollingSignalError
-	if errors.As(err, &pse) {
+	if _, ok := errors.AsType[gomega.PollingSignalError](err); ok {
 		if ue := errors.Unwrap(err); ue != nil {
 			err = ue
 		}
@@ -206,6 +224,11 @@ func (e *EventuallyErr) Eventually() types.AsyncAssertion {
 		WithContext(e.ctx).
 		WithTimeout(e.g.DurationBundle.EventuallyTimeout).
 		WithPolling(e.g.DurationBundle.EventuallyPollingInterval)
+}
+
+// Should evaluates the operation with the configured eventual assertion.
+func (e *EventuallyErr) Should(matcher types.GomegaMatcher, optionalDescription ...any) {
+	e.Eventually().Should(matcher, optionalDescription...)
 }
 
 func (e *EventuallyErr) Consistently() types.AsyncAssertion {

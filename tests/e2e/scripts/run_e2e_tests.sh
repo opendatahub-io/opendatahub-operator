@@ -67,6 +67,19 @@ validate_bool E2E_TEST_OPERATOR_V2TOV3UPGRADE
 : "${E2E_TEST_WEBHOOK:=true}"
 validate_bool E2E_TEST_WEBHOOK
 
+# Leave conversion selection unset for automatic full-suite selection.
+conversion_webhook_args=()
+if [ "${E2E_TEST_CONVERSION_WEBHOOK+x}" = x ]; then
+  validate_bool E2E_TEST_CONVERSION_WEBHOOK
+  conversion_webhook_args=(--test-conversion-webhook="$E2E_TEST_CONVERSION_WEBHOOK")
+fi
+
+: "${E2E_TEST_CONVERSION_WEBHOOK_DSC:=true}"
+validate_bool E2E_TEST_CONVERSION_WEBHOOK_DSC
+
+: "${E2E_TEST_CONVERSION_WEBHOOK_PLATFORM:=true}"
+validate_bool E2E_TEST_CONVERSION_WEBHOOK_PLATFORM
+
 : "${E2E_TEST_COMPONENTS:=true}"
 validate_bool E2E_TEST_COMPONENTS
 
@@ -94,6 +107,8 @@ validate_namespace E2E_TEST_DSC_MONITORING_NAMESPACE
 
 : "${E2E_TEST_TAG:=All}"
 validate_tag E2E_TEST_TAG
+
+: "${E2E_TEST_TIMEOUT:=110m}"
 
 # Toggle for JUnit XML enrichment with failure classification (default: disabled)
 : "${USE_TEST_RETRY:=false}"
@@ -146,7 +161,7 @@ if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
     --junit-output "$JUNIT_FILE" \
     --verbose \
     ${GITHUB_PR_FLAGS} \
-    -- --test.parallel=8 \
+    -- --test.parallel=8 --test.timeout="$E2E_TEST_TIMEOUT" \
     --deletion-policy="$E2E_TEST_DELETION_POLICY" \
     --clean-up-previous-resources="$E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES" \
     --backup-and-restore-dsci-and-dsc="$E2E_TEST_BACKUP_AND_RESTORE_DSCI_AND_DSC" \
@@ -156,6 +171,9 @@ if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
     --test-operator-resilience="$E2E_TEST_OPERATOR_RESILIENCE" \
     --test-operator-v2tov3upgrade="$E2E_TEST_OPERATOR_V2TOV3UPGRADE" \
     --test-webhook="$E2E_TEST_WEBHOOK" \
+    "${conversion_webhook_args[@]}" \
+    --test-conversion-webhook-dsc="$E2E_TEST_CONVERSION_WEBHOOK_DSC" \
+    --test-conversion-webhook-platform="$E2E_TEST_CONVERSION_WEBHOOK_PLATFORM" \
     --test-components="$E2E_TEST_COMPONENTS" \
     --test-services="$E2E_TEST_SERVICES" \
     --operator-namespace="$E2E_TEST_OPERATOR_NAMESPACE" \
@@ -183,7 +201,7 @@ else
   gotestsum --junitfile-project-name odh-operator-e2e \
     --junitfile "$raw_junit_report" --jsonfile "$raw_test_events" \
     --format standard-verbose --raw-command \
-    -- test2json -t -p e2e ./e2e-tests --test.run='^TestOdhOperator' --test.v=test2json --test.parallel=8 \
+    -- test2json -t -p e2e ./e2e-tests --test.run='^TestOdhOperator' --test.v=test2json --test.parallel=8 --test.timeout="$E2E_TEST_TIMEOUT" \
     --deletion-policy="$E2E_TEST_DELETION_POLICY" \
     --clean-up-previous-resources="$E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES" \
     --backup-and-restore-dsci-and-dsc="$E2E_TEST_BACKUP_AND_RESTORE_DSCI_AND_DSC" \
@@ -193,6 +211,9 @@ else
     --test-operator-resilience="$E2E_TEST_OPERATOR_RESILIENCE" \
     --test-operator-v2tov3upgrade="$E2E_TEST_OPERATOR_V2TOV3UPGRADE" \
     --test-webhook="$E2E_TEST_WEBHOOK" \
+    "${conversion_webhook_args[@]}" \
+    --test-conversion-webhook-dsc="$E2E_TEST_CONVERSION_WEBHOOK_DSC" \
+    --test-conversion-webhook-platform="$E2E_TEST_CONVERSION_WEBHOOK_PLATFORM" \
     --test-components="$E2E_TEST_COMPONENTS" \
     --test-services="$E2E_TEST_SERVICES" \
     --operator-namespace="$E2E_TEST_OPERATOR_NAMESPACE" \

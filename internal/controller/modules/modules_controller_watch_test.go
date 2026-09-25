@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
@@ -44,7 +44,7 @@ func TestAddDSCCompatibilityProjectorWatchesWatchesNonProjectorModules(t *testin
 	}
 	mgr := &mockManager{client: cli, scheme: s}
 
-	builder := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{})
+	builder := reconciler.ReconcilerFor(mgr, &dscv3.DataScienceCluster{})
 	builder = AddDSCCompatibilityProjectorWatches(builder)
 
 	watches := reflect.ValueOf(builder).Elem().FieldByName("watches")

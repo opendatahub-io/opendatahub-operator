@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
@@ -28,7 +28,7 @@ func (f *fallbackHandler) Init(_ common.Platform, _ operatorconfig.OperatorSetti
 	return nil
 }
 func (f *fallbackHandler) GetName() string { return f.name }
-func (f *fallbackHandler) NewCRObject(_ context.Context, _ client.Client, _ *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+func (f *fallbackHandler) NewCRObject(_ context.Context, _ client.Client, _ *dscv3.DataScienceCluster) (common.PlatformObject, error) {
 	return nil, nil
 }
 func (f *fallbackHandler) NewComponentReconciler(_ context.Context, _ ctrl.Manager) error {
@@ -40,7 +40,7 @@ func (f *fallbackHandler) UpdateDSCStatus(_ context.Context, _ *types.Reconcilia
 func (f *fallbackHandler) GroupVersionKind() schema.GroupVersionKind {
 	return schema.GroupVersionKind{}
 }
-func (f *fallbackHandler) IsEnabled(_ *dscv2.DataScienceCluster) bool { return true }
+func (f *fallbackHandler) IsEnabled(_ *dscv3.DataScienceCluster) bool { return true }
 
 func TestForEachFallsBackAlphabeticallyWhenDAGFails(t *testing.T) {
 	g := NewWithT(t)

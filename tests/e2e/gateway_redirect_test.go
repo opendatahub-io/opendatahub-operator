@@ -51,8 +51,8 @@ func (tc *GatewayTestCtx) ensureDashboardCRExists(t *testing.T) {
 
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Managed"`)),
-		WithCondition(jq.Match(`.spec.components.dashboard.managementState == "Managed"`)),
+		WithMutateFunc(testf.Transform(`.spec.components.dashboard.standard.managementState = "Managed"`)),
+		WithCondition(jq.Match(`.spec.components.dashboard.standard.managementState == "Managed"`)),
 	)
 
 	tc.EnsureResourceExists(

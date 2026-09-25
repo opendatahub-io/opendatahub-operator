@@ -25,7 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
@@ -41,7 +41,7 @@ import (
 func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	componentsPredicate := dependent.New(dependent.WithWatchStatus(true))
 
-	b := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
+	b := reconciler.ReconcilerFor(mgr, &dscv3.DataScienceCluster{}).
 		WithDynamicOwnership(
 			// Platform is shared with DSCI. DSC must not take controller
 			// ownership or Kubernetes GC would delete it (and monitoring)

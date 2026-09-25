@@ -4,6 +4,7 @@ package v2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -16,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
@@ -64,8 +64,8 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 	log := logf.FromContext(ctx)
 	ctx = logf.IntoContext(ctx, log)
 
-	if req.Kind.Kind != gvk.DataScienceCluster.Kind || req.Kind.Group != gvk.DataScienceCluster.Group || req.Kind.Version != gvk.DataScienceCluster.Version {
-		err := fmt.Errorf("unexpected gvk: %v; expecting: %v", req.Kind, gvk.DataScienceCluster)
+	if req.Kind.Kind != gvk.DataScienceClusterV2.Kind || req.Kind.Group != gvk.DataScienceClusterV2.Group || req.Kind.Version != gvk.DataScienceClusterV2.Version {
+		err := fmt.Errorf("unexpected gvk: %v; expecting: %v", req.Kind, gvk.DataScienceClusterV2)
 		logf.FromContext(ctx).Error(err, "got wrong group/version/kind")
 		return admission.Errored(http.StatusBadRequest, err)
 	}
@@ -74,9 +74,9 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 
 	switch req.Operation {
 	case admissionv1.Create:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState, denyMultipleDsc, v.warnDeprecatedModelsAsService}, allowMessage, v.Client, &req)
+		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyRetiredOperatorManagedState, denyMultipleDsc}, allowMessage, v.Client, &req)
 	case admissionv1.Update:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.warnDeprecatedModelsAsService}, allowMessage, v.Client, &req)
+		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyRetiredOperatorManagedState}, allowMessage, v.Client, &req)
 	default:
 		return admission.Allowed(allowMessage)
 	}
@@ -100,13 +100,13 @@ func validate(ctx context.Context, checks []validationCheck, allowedMessage stri
 }
 
 func denyMultipleDsc(ctx context.Context, cli client.Reader, req *admission.Request) admission.Response {
-	return webhookutils.ValidateSingletonCreation(ctx, cli, req, gvk.DataScienceCluster)
+	return webhookutils.ValidateSingletonCreation(ctx, cli, req, gvk.DataScienceClusterV2)
 }
 
 func (v *Validator) denyKueueManagedState(ctx context.Context, _ client.Reader, req *admission.Request) admission.Response {
 	dsc := &dscv2.DataScienceCluster{}
 	if err := v.Decoder.DecodeRaw(req.Object, dsc); err != nil {
-		logf.FromContext(ctx).Error(err, "Error converting request object to "+gvk.DataScienceCluster.String())
+		logf.FromContext(ctx).Error(err, "Error converting request object to "+gvk.DataScienceClusterV2.String())
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 	if dsc.Spec.Components.Kueue.ManagementState == operatorv1.Managed {
@@ -116,17 +116,63 @@ func (v *Validator) denyKueueManagedState(ctx context.Context, _ client.Reader, 
 	return admission.Allowed("")
 }
 
-// warnDeprecatedModelsAsService emits an oc/kubectl Warning when the deprecated
-// kserve.modelsAsService field is Managed. Admission is still allowed so upgrades
-// and no-op syncs keep working; CEL blocks Removed→Managed separately.
-func (v *Validator) warnDeprecatedModelsAsService(ctx context.Context, _ client.Reader, req *admission.Request) admission.Response {
+// denyRetiredOperatorManagedState prevents enabling retired components while
+// allowing a component that was already Managed to remain Managed until users
+// explicitly remove it.
+func (v *Validator) denyRetiredOperatorManagedState(ctx context.Context, _ client.Reader, req *admission.Request) admission.Response {
 	dsc := &dscv2.DataScienceCluster{}
 	if err := v.Decoder.DecodeRaw(req.Object, dsc); err != nil {
-		logf.FromContext(ctx).Error(err, "Error converting request object to "+gvk.DataScienceCluster.String())
-		return admission.Errored(http.StatusBadRequest, err)
+		logf.FromContext(ctx).Error(err, "Error decoding new DataScienceCluster v2 object")
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("decode new DSC: %w", err))
 	}
 
-	resp := admission.Allowed("")
-	resp.Warnings = dscwebhook.ModelsAsServiceDeprecationWarnings(dsc.Spec.Components.Kserve.ModelsAsService.ManagementState) //nolint:staticcheck
-	return resp
+	retiredComponents := []struct {
+		newManaged bool
+		oldManaged bool
+		message    string
+	}{
+		{
+			newManaged: dsc.Spec.Components.TrainingOperator.ManagementState == operatorv1.Managed,
+			message:    "TrainingOperator v1 is obsolete in RHOAI 3.6. Set managementState to Removed, then delete the TrainingOperator CR to clean up. Use Trainer v2 instead.",
+		},
+		{
+			newManaged: dsc.Spec.Components.LlamaStackOperator.ManagementState == operatorv1.Managed,
+			message:    "LlamaStackOperator has been replaced by OGX. Set managementState to Removed.",
+		},
+	}
+
+	if req.Operation == admissionv1.Create {
+		for _, component := range retiredComponents {
+			if component.newManaged {
+				return admission.Denied(component.message)
+			}
+		}
+		return admission.Allowed("")
+	}
+
+	needsOldObject := false
+	for _, component := range retiredComponents {
+		needsOldObject = needsOldObject || component.newManaged
+	}
+	if !needsOldObject {
+		return admission.Allowed("")
+	}
+	if len(req.OldObject.Raw) == 0 {
+		return admission.Errored(http.StatusBadRequest, errors.New("old DSC object is required for update validation"))
+	}
+	old := &dscv2.DataScienceCluster{}
+	if err := v.Decoder.DecodeRaw(req.OldObject, old); err != nil {
+		logf.FromContext(ctx).Error(err, "Error decoding old DataScienceCluster v2 object")
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("decode old DSC: %w", err))
+	}
+	retiredComponents[0].oldManaged = old.Spec.Components.TrainingOperator.ManagementState == operatorv1.Managed
+	retiredComponents[1].oldManaged = old.Spec.Components.LlamaStackOperator.ManagementState == operatorv1.Managed
+
+	for _, component := range retiredComponents {
+		if component.newManaged && !component.oldManaged {
+			return admission.Denied(component.message)
+		}
+	}
+
+	return admission.Allowed("")
 }

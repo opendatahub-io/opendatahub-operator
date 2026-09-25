@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 
 	. "github.com/onsi/gomega"
@@ -23,7 +23,7 @@ type statusMockHandler struct {
 	err     error
 }
 
-func (m *statusMockHandler) IsEnabled(_ *configv1alpha1.PlatformModules) bool {
+func (m *statusMockHandler) IsEnabled(_ *configv1alpha2.PlatformModules) bool {
 	return m.enabled
 }
 

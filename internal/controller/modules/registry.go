@@ -6,7 +6,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 )
@@ -176,7 +176,7 @@ func (r *Registry) ForConfigSource(source ConfigSource, f func(handler ModuleHan
 
 // IsModuleEnabled checks if a module with the given name is enabled in the
 // registry and also enabled based on platform configuration.
-func (r *Registry) IsModuleEnabled(moduleName string, modules *configv1alpha1.PlatformModules) bool {
+func (r *Registry) IsModuleEnabled(moduleName string, modules *configv1alpha2.PlatformModules) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -258,7 +258,7 @@ func (r *Registry) HasEntries() bool {
 // AnyEnabled returns true if at least one registered module is enabled
 // in the given PlatformContext. Returns false when all modules are
 // Removed or no modules are registered.
-func (r *Registry) AnyEnabled(modules *configv1alpha1.PlatformModules) bool {
+func (r *Registry) AnyEnabled(modules *configv1alpha2.PlatformModules) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -306,7 +306,7 @@ func ForConfigSource(source ConfigSource, f func(handler ModuleHandler, registry
 	return r.ForConfigSource(source, f)
 }
 
-func IsModuleEnabled(moduleName string, modules *configv1alpha1.PlatformModules) bool {
+func IsModuleEnabled(moduleName string, modules *configv1alpha2.PlatformModules) bool {
 	return r.IsModuleEnabled(moduleName, modules)
 }
 

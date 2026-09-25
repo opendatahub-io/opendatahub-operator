@@ -4,10 +4,37 @@ import (
 	"encoding/json"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
 )
+
+func TestTransform(t *testing.T) {
+	t.Parallel()
+
+	g := NewWithT(t)
+	object := &unstructured.Unstructured{Object: map[string]any{
+		"spec": map[string]any{
+			"components": map[string]any{
+				"kserve": map[string]any{
+					"modelsAsService": map[string]any{
+						"managementState": "Removed",
+					},
+				},
+			},
+		},
+	}}
+
+	err := jq.Transform(
+		`.spec.components.kserve.modelsAsService.managementState = "%s"`, "Managed",
+	)(object)
+
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(object.Object).To(jq.Match(
+		`.spec.components.kserve.modelsAsService.managementState == "Managed"`))
+}
 
 func TestExtract(t *testing.T) {
 	t.Parallel()

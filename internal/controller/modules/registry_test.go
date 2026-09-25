@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 
@@ -37,7 +37,7 @@ func newMockHandler(name string, enabled bool) *mockHandler {
 	}
 }
 
-func (m *mockHandler) IsEnabled(_ *configv1alpha1.PlatformModules) bool {
+func (m *mockHandler) IsEnabled(_ *configv1alpha2.PlatformModules) bool {
 	return m.enabled
 }
 
@@ -141,7 +141,7 @@ func TestRegistryIsModuleEnabled(t *testing.T) {
 	reg.Add(enabledHandler)
 	reg.Add(disabledHandler)
 
-	pm := &configv1alpha1.PlatformModules{}
+	pm := &configv1alpha2.PlatformModules{}
 
 	g.Expect(reg.IsModuleEnabled("enabled-mod", pm)).Should(BeTrue())
 	g.Expect(reg.IsModuleEnabled("disabled-mod", pm)).Should(BeFalse())

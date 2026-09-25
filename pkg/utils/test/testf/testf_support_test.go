@@ -153,7 +153,7 @@ func TestTransform(t *testing.T) {
 	})
 }
 
-func TestTransformPipeline(t *testing.T) {
+func TestAnd(t *testing.T) {
 	g := NewWithT(t)
 
 	obj := &unstructured.Unstructured{
@@ -181,9 +181,9 @@ func TestTransformPipeline(t *testing.T) {
 		return nil
 	}
 
-	pipeline := testf.TransformPipeline(step1, step2, step3)
+	transform := testf.And(step1, step2, step3)
 
-	err := pipeline(obj)
+	err := transform(obj)
 
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(obj.GetName()).To(Equal("transformed-example"))

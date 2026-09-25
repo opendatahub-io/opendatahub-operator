@@ -17,8 +17,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
@@ -29,12 +29,12 @@ import (
 func TestSetPlatformMetadata(t *testing.T) {
 	g := NewWithT(t)
 
-	platform := &configv1alpha1.Platform{ObjectMeta: metav1.ObjectMeta{
-		Name:        configv1alpha1.PlatformInstanceName,
+	platform := &configv1alpha2.Platform{ObjectMeta: metav1.ObjectMeta{
+		Name:        configv1alpha2.PlatformInstanceName,
 		Labels:      map[string]string{"custom.example.io/keep": "true"},
 		Annotations: map[string]string{"custom.example.io/keep": "true"},
 	}}
-	dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{
+	dsc := &dscv3.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{
 		Name:       "default-dsc",
 		UID:        types.UID("dsc-uid"),
 		Generation: 3,
@@ -63,8 +63,8 @@ func TestEnsurePlatformOwnerReferenceMergesOwners(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: "default-dsci", UID: types.UID("dsci-uid")}}
-	dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "default-dsc", UID: types.UID("dsc-uid")}}
-	platform := &configv1alpha1.Platform{ObjectMeta: metav1.ObjectMeta{Name: configv1alpha1.PlatformInstanceName}}
+	dsc := &dscv3.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "default-dsc", UID: types.UID("dsc-uid")}}
+	platform := &configv1alpha2.Platform{ObjectMeta: metav1.ObjectMeta{Name: configv1alpha2.PlatformInstanceName}}
 	g.Expect(controllerutil.SetOwnerReference(dsci, platform, s)).Should(Succeed())
 
 	cli, err := fakeclient.New(fakeclient.WithScheme(s), fakeclient.WithObjects(platform))
@@ -72,8 +72,8 @@ func TestEnsurePlatformOwnerReferenceMergesOwners(t *testing.T) {
 
 	g.Expect(EnsurePlatformOwnerReference(t.Context(), cli, dsc, s)).Should(Succeed())
 
-	updated := &configv1alpha1.Platform{}
-	g.Expect(cli.Get(t.Context(), client.ObjectKey{Name: configv1alpha1.PlatformInstanceName}, updated)).Should(Succeed())
+	updated := &configv1alpha2.Platform{}
+	g.Expect(cli.Get(t.Context(), client.ObjectKey{Name: configv1alpha2.PlatformInstanceName}, updated)).Should(Succeed())
 	g.Expect(updated.GetOwnerReferences()).Should(HaveLen(2))
 	g.Expect(updated.GetOwnerReferences()).Should(ContainElements(
 		WithTransform(func(ref metav1.OwnerReference) types.UID { return ref.UID }, Equal(dsci.UID)),
@@ -87,7 +87,7 @@ func TestEnsurePlatformOwnerReferencePropagatesGetErrors(t *testing.T) {
 	s, err := scheme.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "default-dsc", UID: types.UID("dsc-uid")}}
+	dsc := &dscv3.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "default-dsc", UID: types.UID("dsc-uid")}}
 	cli, err := fakeclient.New(fakeclient.WithScheme(s))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -101,8 +101,8 @@ func TestEnsurePlatformOwnerReferenceRetriesConflicts(t *testing.T) {
 	s, err := scheme.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "default-dsc", UID: types.UID("dsc-uid")}}
-	platform := &configv1alpha1.Platform{ObjectMeta: metav1.ObjectMeta{Name: configv1alpha1.PlatformInstanceName}}
+	dsc := &dscv3.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "default-dsc", UID: types.UID("dsc-uid")}}
+	platform := &configv1alpha2.Platform{ObjectMeta: metav1.ObjectMeta{Name: configv1alpha2.PlatformInstanceName}}
 	updates := 0
 	cli, err := fakeclient.New(
 		fakeclient.WithScheme(s),
@@ -111,7 +111,7 @@ func TestEnsurePlatformOwnerReferenceRetriesConflicts(t *testing.T) {
 			Update: func(ctx context.Context, client client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
 				updates++
 				if updates == 1 {
-					return k8serr.NewConflict(schema.GroupResource{Group: configv1alpha1.GroupVersion.Group, Resource: "platforms"}, obj.GetName(), errors.New("conflict"))
+					return k8serr.NewConflict(schema.GroupResource{Group: configv1alpha2.GroupVersion.Group, Resource: "platforms"}, obj.GetName(), errors.New("conflict"))
 				}
 				return client.Update(ctx, obj, opts...)
 			},

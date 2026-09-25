@@ -19,8 +19,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -88,8 +88,8 @@ func GetSingleton[T client.Object](ctx context.Context, cli client.Client, obj T
 }
 
 // GetDSC retrieves the DataScienceCluster (DSC) instance from the Kubernetes cluster.
-func GetDSC(ctx context.Context, cli client.Reader) (*dscv2.DataScienceCluster, error) {
-	instances := dscv2.DataScienceClusterList{}
+func GetDSC(ctx context.Context, cli client.Reader) (*dscv3.DataScienceCluster, error) {
+	instances := dscv3.DataScienceClusterList{}
 	if err := cli.List(ctx, &instances); err != nil {
 		return nil, fmt.Errorf("failed to list resources of type %s: %w", gvk.DataScienceCluster, err)
 	}
@@ -114,7 +114,7 @@ func GetDSC(ctx context.Context, cli client.Reader) (*dscv2.DataScienceCluster, 
 // requests for each. Use this as an event mapper to re-queue the DSC
 // controller when related resources (DSCI, GatewayConfig, module CRs) change.
 func WatchDataScienceClusters(ctx context.Context, cli client.Client) []reconcile.Request {
-	instanceList := &dscv2.DataScienceClusterList{}
+	instanceList := &dscv3.DataScienceClusterList{}
 	if err := cli.List(ctx, instanceList); err != nil {
 		logf.FromContext(ctx).Error(err, "failed to list DataScienceCluster instances for watch mapping", "resourceKind", "DataScienceCluster")
 		return []reconcile.Request{}
@@ -134,7 +134,7 @@ func WatchDataScienceClusters(ctx context.Context, cli client.Client) []reconcil
 // Platform has a webhook-enforced name so no list call is needed.
 func WatchPlatforms(_ context.Context, _ client.Client) []reconcile.Request {
 	return []reconcile.Request{
-		{NamespacedName: types.NamespacedName{Name: configv1alpha1.PlatformInstanceName}},
+		{NamespacedName: types.NamespacedName{Name: configv1alpha2.PlatformInstanceName}},
 	}
 }
 

@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -51,14 +51,14 @@ func watchDataScienceClusters(ctx context.Context, cli client.Client) []reconcil
 	return cluster.WatchDataScienceClusters(ctx, cli)
 }
 
-func buildDSCContext(dsc *dscv2.DataScienceCluster) *modules.DSCContext {
+func buildDSCContext(dsc *dscv3.DataScienceCluster) *modules.DSCContext {
 	return &modules.DSCContext{DSC: dsc}
 }
 
 func syncPlatformCR(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	instance, ok := rr.Instance.(*dscv3.DataScienceCluster)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a dscv3.DataScienceCluster)", rr.Instance)
 	}
 
 	platform := modules.NewPlatformCR(buildDSCContext(instance), modules.ConfigFromDSC)
@@ -80,9 +80,9 @@ func syncPlatformCR(ctx context.Context, rr *odhtype.ReconciliationRequest) erro
 // untouched. The apply action chain does not run during deletion, so this
 // cannot fight syncPlatformCR.
 func disableDSCModulesOnDelete(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	instance, ok := rr.Instance.(*dscv3.DataScienceCluster)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a dscv3.DataScienceCluster)", rr.Instance)
 	}
 
 	platform := modules.NewPlatformCRRemovedForSource(buildDSCContext(instance), modules.ConfigFromDSC)
@@ -103,9 +103,9 @@ func cleanupDisabledComponentsWith(
 	componentReg *cr.Registry,
 	provisionReg *provision.UnifiedRegistry,
 ) error {
-	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	instance, ok := rr.Instance.(*dscv3.DataScienceCluster)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a dscv3.DataScienceCluster)", rr.Instance)
 	}
 
 	log := logf.FromContext(ctx)
@@ -181,9 +181,9 @@ func cleanupDisabledModuleCRsWith(
 	moduleReg *modules.Registry,
 	provisionReg *provision.UnifiedRegistry,
 ) error {
-	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	instance, ok := rr.Instance.(*dscv3.DataScienceCluster)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a dscv3.DataScienceCluster)", rr.Instance)
 	}
 
 	if !moduleReg.HasEntries() {
@@ -247,9 +247,9 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 }
 
 func provisionComponentsWith(ctx context.Context, rr *odhtype.ReconciliationRequest, componentReg *cr.Registry) error {
-	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	instance, ok := rr.Instance.(*dscv3.DataScienceCluster)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a dscv3.DataScienceCluster)", rr.Instance)
 	}
 
 	rr.Generated = true
@@ -299,9 +299,9 @@ func provisionComponentsWith(ctx context.Context, rr *odhtype.ReconciliationRequ
 }
 
 func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	instance, ok := rr.Instance.(*dscv3.DataScienceCluster)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a dscv3.DataScienceCluster)", rr.Instance)
 	}
 
 	moduleReg := modules.DefaultRegistry()
@@ -347,16 +347,13 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 }
 
 func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	instance, ok := rr.Instance.(*dscv3.DataScienceCluster)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a dscv3.DataScienceCluster)", rr.Instance)
 	}
 
 	instance.Status.Release = rr.Release
 	if err := computeComponentsStatus(ctx, rr, cr.DefaultRegistry()); err != nil {
-		return err
-	}
-	if err := updateDeprecatedTrainingOperatorStatus(rr); err != nil {
 		return err
 	}
 	return modules.ComputeModulesStatusDetailed(ctx, rr)

@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -71,11 +71,11 @@ func commonActions() []actions.Fn {
 // enablement into Platform CR via SSA; on xKS the Helm chart creates it.
 // The controller always reads Platform CR — single code path.
 func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	b := reconciler.ReconcilerFor(mgr, &configv1alpha1.Platform{}).
+	b := reconciler.ReconcilerFor(mgr, &configv1alpha2.Platform{}).
 		WithInstanceName("modules").
 		WithDynamicOwnership()
 
-	platformRequest := []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configv1alpha1.PlatformInstanceName}}}
+	platformRequest := []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configv1alpha2.PlatformInstanceName}}}
 	statusPredicate := dependentpredicates.New(dependentpredicates.WithWatchStatus(true))
 
 	if err := cr.DefaultRegistry().ForEach(func(handler cr.ComponentHandler) error {
@@ -108,7 +108,7 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		Watches(
 			&corev1.ConfigMap{},
 			reconciler.WithEventMapper(func(_ context.Context, _ client.Object) []reconcile.Request {
-				return []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configv1alpha1.PlatformInstanceName}}}
+				return []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configv1alpha2.PlatformInstanceName}}}
 			}),
 			reconciler.WithPredicates(predicate.Or(
 				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),

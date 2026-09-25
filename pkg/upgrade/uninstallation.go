@@ -16,7 +16,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -121,7 +121,7 @@ func removeDSCI(ctx context.Context, cli client.Client) error {
 
 func removeDSC(ctx context.Context, cli client.Client) error {
 	log := logf.FromContext(ctx)
-	instance := &dscv2.DataScienceCluster{}
+	instance := &dscv3.DataScienceCluster{}
 
 	// Foreground waits for DSC-owned objects, including module CRs whose
 	// finalizers are processed by out-of-tree module operators. Those
@@ -143,7 +143,7 @@ func removeDSC(ctx context.Context, cli client.Client) error {
 	var remainingNames []string
 
 	if err := wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
-		dscList := &dscv2.DataScienceClusterList{}
+		dscList := &dscv3.DataScienceClusterList{}
 		if err := cli.List(ctx, dscList); err != nil {
 			return false, err
 		}

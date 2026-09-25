@@ -40,6 +40,8 @@ type DSCLlamaStackOperatorStatus struct {
 // are kept for backward compatibility with DSC v1 and the deprecated v2 field.
 
 // DSCLlamaStackOperator contains all the configuration exposed in DSC instance for LlamaStackOperator component
+//
+//nolint:lll
 type DSCLlamaStackOperator struct {
 	common.ManagementSpec `json:",inline"`
 

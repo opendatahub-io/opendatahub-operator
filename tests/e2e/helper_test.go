@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -27,8 +28,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -221,11 +221,11 @@ func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv2.DSCIniti
 }
 
 // CreateDSC creates a DataScienceCluster CR.
-func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceCluster {
-	return &dscv2.DataScienceCluster{
+func CreateDSC(name string, workbenchesNamespace string) *dscv3.DataScienceCluster {
+	return &dscv3.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
-			APIVersion: dscv2.GroupVersion.String(),
+			APIVersion: dscv3.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -233,12 +233,16 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 				"opendatahub.io/created-by-e2e-tests": "true",
 			},
 		},
-		Spec: dscv2.DataScienceClusterSpec{
-			Components: dscv2.Components{
+		Spec: dscv3.DataScienceClusterSpec{
+			Components: dscv3.Components{
 				// keep dashboard as enabled, because other test is rely on this
 				Dashboard: componentApi.DSCDashboard{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
+					DashboardCommonSpec: componentApi.DashboardCommonSpec{
+						Standard: componentApi.DashboardStandardSpec{
+							ManagementSpec: common.ManagementSpec{
+								ManagementState: operatorv1.Removed,
+							},
+						},
 					},
 				},
 				Workbenches: componentApi.DSCWorkbenches{
@@ -257,7 +261,7 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				Kserve: componentApi.DSCKserve{
+				Kserve: dscv3.DSCKserve{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
@@ -277,17 +281,12 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				ModelRegistry: componentApi.DSCModelRegistry{
+				AIHub: componentApi.DSCAIHub{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
-					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
-						RegistriesNamespace: componentApi.DefaultModelRegistriesNamespace,
-					},
-				},
-				TrainingOperator: componentApi.DSCTrainingOperator{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
+					AIHubCommonSpec: componentApi.AIHubCommonSpec{
+						ApplicationNamespace: componentApi.DefaultModelRegistriesNamespace,
 					},
 				},
 				Trainer: componentApi.DSCTrainer{
@@ -295,14 +294,11 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				FeastOperator: componentApi.DSCFeastOperator{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
+				Data: componentApi.DSCData{
+					FeatureStore: componentApi.DSCFeatureStore{
+						ManagementSpec: common.ManagementSpec{
+							ManagementState: operatorv1.Removed,
+						},
 					},
 				},
 				OGX: componentApi.DSCOGX{
@@ -327,96 +323,6 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 				},
 				MCPLifecycleOperator: componentApi.DSCMCPLifecycleOperator{
 					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-			},
-		},
-	}
-}
-
-func CreateDSCv1(name string, workbenchesNamespace string) *dscv1.DataScienceCluster {
-	return &dscv1.DataScienceCluster{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "DataScienceCluster",
-			APIVersion: dscv1.GroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-			Labels: map[string]string{
-				"opendatahub.io/created-by-e2e-tests": "true",
-			},
-		},
-		Spec: dscv1.DataScienceClusterSpec{
-			Components: dscv1.Components{
-				Dashboard: componentApi.DSCDashboard{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-				Workbenches: componentApi.DSCWorkbenches{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-					WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
-						WorkbenchNamespace: workbenchesNamespace,
-					},
-				},
-				ModelMeshServing: componentApi.DSCModelMeshServing{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-				Kserve: componentApi.DSCKserve{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-				CodeFlare: componentApi.DSCCodeFlare{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-				Ray: componentApi.DSCRay{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-				TrustyAI: componentApi.DSCTrustyAI{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-				ModelRegistry: componentApi.DSCModelRegistry{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
-						RegistriesNamespace: componentApi.DefaultModelRegistriesNamespace,
-					},
-				},
-				TrainingOperator: componentApi.DSCTrainingOperator{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-				FeastOperator: componentApi.DSCFeastOperator{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-				Kueue: dscv1.DSCKueueV1{
-					KueueManagementSpecV1: dscv1.KueueManagementSpecV1{
 						ManagementState: operatorv1.Removed,
 					},
 				},
@@ -643,7 +549,7 @@ func RestoreDSCIandDSCFromBackup(t *testing.T, dsciBackupPath, dscBackupPath str
 	if dsciBackupPath != "" || dscBackupPath != "" {
 		var err error
 		// Initialize the test context.
-		tc, err = NewTestContext(t)
+		tc, err = newTestContext(t, context.WithoutCancel(t.Context()))
 		require.NoError(t, err, "Failed to initialize test context")
 	}
 	if dsciBackupPath != "" {

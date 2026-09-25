@@ -9,8 +9,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ray"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -21,7 +21,7 @@ import (
 const testAppsNS = "opendatahub"
 
 func newDSCContext(mgmtState operatorv1.ManagementState) *modules.DSCContext {
-	dsc := &dscv2.DataScienceCluster{
+	dsc := &dscv3.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
 	}
 	dsc.Spec.Components.Ray.ManagementState = mgmtState
@@ -38,7 +38,7 @@ func newModuleCRConfig() *modules.ModuleCRConfig {
 func TestIsEnabled_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := ray.NewHandler()
-	pm := &configv1alpha1.PlatformModules{
+	pm := &configv1alpha2.PlatformModules{
 		Ray: common.ManagementSpec{ManagementState: operatorv1.Managed},
 	}
 	g.Expect(h.IsEnabled(pm)).Should(BeTrue())
@@ -47,7 +47,7 @@ func TestIsEnabled_Managed(t *testing.T) {
 func TestIsEnabled_Removed(t *testing.T) {
 	g := NewWithT(t)
 	h := ray.NewHandler()
-	pm := &configv1alpha1.PlatformModules{
+	pm := &configv1alpha2.PlatformModules{
 		Ray: common.ManagementSpec{ManagementState: operatorv1.Removed},
 	}
 	g.Expect(h.IsEnabled(pm)).Should(BeFalse())
@@ -56,7 +56,7 @@ func TestIsEnabled_Removed(t *testing.T) {
 func TestIsEnabled_Empty(t *testing.T) {
 	g := NewWithT(t)
 	h := ray.NewHandler()
-	pm := &configv1alpha1.PlatformModules{
+	pm := &configv1alpha2.PlatformModules{
 		Ray: common.ManagementSpec{ManagementState: ""},
 	}
 	g.Expect(h.IsEnabled(pm)).Should(BeFalse())
@@ -72,7 +72,7 @@ func TestPopulatePlatformModule(t *testing.T) {
 	g := NewWithT(t)
 	h := ray.NewHandler()
 
-	pm := &configv1alpha1.PlatformModules{}
+	pm := &configv1alpha2.PlatformModules{}
 	h.PopulatePlatformModule(pm, newDSCContext(operatorv1.Managed))
 
 	g.Expect(pm.Ray.ManagementState).Should(Equal(operatorv1.Managed))
@@ -82,8 +82,8 @@ func TestPopulatePlatformModule_NilSafe(t *testing.T) {
 	h := ray.NewHandler()
 
 	h.PopulatePlatformModule(nil, nil)
-	h.PopulatePlatformModule(&configv1alpha1.PlatformModules{}, nil)
-	h.PopulatePlatformModule(&configv1alpha1.PlatformModules{}, &modules.DSCContext{})
+	h.PopulatePlatformModule(&configv1alpha2.PlatformModules{}, nil)
+	h.PopulatePlatformModule(&configv1alpha2.PlatformModules{}, &modules.DSCContext{})
 }
 
 func TestBuildModuleCR_BasicProjection(t *testing.T) {

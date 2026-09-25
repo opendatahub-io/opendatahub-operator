@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
@@ -41,7 +41,7 @@ func (f *readinessHandler) GetName() string { return f.name }
 func (f *readinessHandler) GroupVersionKind() schema.GroupVersionKind {
 	return testGVK
 }
-func (f *readinessHandler) NewCRObject(_ context.Context, _ client.Client, _ *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+func (f *readinessHandler) NewCRObject(_ context.Context, _ client.Client, _ *dscv3.DataScienceCluster) (common.PlatformObject, error) {
 	return nil, nil
 }
 func (f *readinessHandler) NewComponentReconciler(_ context.Context, _ ctrl.Manager) error {
@@ -50,7 +50,7 @@ func (f *readinessHandler) NewComponentReconciler(_ context.Context, _ ctrl.Mana
 func (f *readinessHandler) UpdateDSCStatus(_ context.Context, _ *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	return metav1.ConditionTrue, nil
 }
-func (f *readinessHandler) IsEnabled(_ *dscv2.DataScienceCluster) bool { return f.enabled }
+func (f *readinessHandler) IsEnabled(_ *dscv3.DataScienceCluster) bool { return f.enabled }
 
 func newFakeClient(scheme *runtime.Scheme, objs ...client.Object) client.Client {
 	return fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
@@ -58,7 +58,7 @@ func newFakeClient(scheme *runtime.Scheme, objs ...client.Object) client.Client 
 
 func readinessTestScheme() *runtime.Scheme {
 	s := runtime.NewScheme()
-	_ = dscv2.AddToScheme(s)
+	_ = dscv3.AddToScheme(s)
 	return s
 }
 

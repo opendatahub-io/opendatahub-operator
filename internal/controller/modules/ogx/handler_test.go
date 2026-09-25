@@ -8,8 +8,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -19,9 +19,9 @@ import (
 
 func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
 	return &modules.DSCContext{
-		DSC: &dscv2.DataScienceCluster{
-			Spec: dscv2.DataScienceClusterSpec{
-				Components: dscv2.Components{
+		DSC: &dscv3.DataScienceCluster{
+			Spec: dscv3.DataScienceClusterSpec{
+				Components: dscv3.Components{
 					OGX: componentApi.DSCOGX{
 						ManagementSpec: common.ManagementSpec{
 							ManagementState: mgmtState,
@@ -33,8 +33,8 @@ func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
 	}
 }
 
-func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
-	return &configv1alpha1.PlatformModules{
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha2.PlatformModules {
+	return &configv1alpha2.PlatformModules{
 		OGX: common.ManagementSpec{
 			ManagementState: mgmtState,
 		},
@@ -62,7 +62,7 @@ func TestIsEnabled_Empty(t *testing.T) {
 func TestIsEnabled_EmptyModules(t *testing.T) {
 	g := NewWithT(t)
 	h := ogxModule.NewHandler()
-	g.Expect(h.IsEnabled(&configv1alpha1.PlatformModules{})).Should(BeFalse())
+	g.Expect(h.IsEnabled(&configv1alpha2.PlatformModules{})).Should(BeFalse())
 }
 
 func TestIsEnabled_PlatformMode_Managed(t *testing.T) {
@@ -91,28 +91,6 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
 	g.Expect(spec).ShouldNot(HaveKey("managementState"),
 		"managementState is a DSC-level field and must not be projected into the component CR")
-}
-
-func TestBuildModuleCR_LlamaStackOperatorConflict(t *testing.T) {
-	g := NewWithT(t)
-	h := ogxModule.NewHandler()
-	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.LlamaStackOperator.ManagementState = operatorv1.Managed
-
-	_, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
-	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring("LlamaStackOperator"))
-}
-
-func TestBuildModuleCR_LlamaStackOperatorRemoved(t *testing.T) {
-	g := NewWithT(t)
-	h := ogxModule.NewHandler()
-	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.LlamaStackOperator.ManagementState = operatorv1.Removed
-
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(u).ShouldNot(BeNil())
 }
 
 func TestBuildModuleCR_NilPlatformContextReturnsError(t *testing.T) {

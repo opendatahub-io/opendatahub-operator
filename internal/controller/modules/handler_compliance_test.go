@@ -8,8 +8,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
@@ -31,26 +31,32 @@ func allHandlers() []modules.ModuleHandler {
 
 func managedDSCContext() (*modules.DSCContext, *modules.ModuleCRConfig) {
 	return &modules.DSCContext{
-			DSC: &dscv2.DataScienceCluster{
-				Spec: dscv2.DataScienceClusterSpec{
-					Components: dscv2.Components{
+			DSC: &dscv3.DataScienceCluster{
+				Spec: dscv3.DataScienceClusterSpec{
+					Components: dscv3.Components{
 						AIPipelines: componentApi.DSCDataSciencePipelines{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
 						Dashboard: componentApi.DSCDashboard{
-							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+							DashboardCommonSpec: componentApi.DashboardCommonSpec{
+								Standard: componentApi.DashboardStandardSpec{
+									ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+								},
+							},
 						},
 						AIGateway: componentApi.DSCAIGateway{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
-						Kserve: componentApi.DSCKserve{
+						Kserve: dscv3.DSCKserve{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
 						Workbenches: componentApi.DSCWorkbenches{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
-						FeastOperator: componentApi.DSCFeastOperator{
-							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+						Data: componentApi.DSCData{
+							FeatureStore: componentApi.DSCFeatureStore{
+								ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+							},
 						},
 						MLflowOperator: componentApi.DSCMLflowOperator{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
@@ -62,6 +68,9 @@ func managedDSCContext() (*modules.DSCContext, *modules.ModuleCRConfig) {
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
 						Ray: componentApi.DSCRay{
+							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+						},
+						TrustyAI: componentApi.DSCTrustyAI{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
 					},
@@ -181,7 +190,7 @@ func TestHandlerCompliance_IsEnabledFalseForEmptyPlatformModules(t *testing.T) {
 	for _, h := range allHandlers() {
 		t.Run(h.GetName(), func(t *testing.T) {
 			g := NewWithT(t)
-			empty := &configv1alpha1.PlatformModules{}
+			empty := &configv1alpha2.PlatformModules{}
 			g.Expect(h.IsEnabled(empty)).Should(BeFalse(),
 				"IsEnabled should return false when PlatformModules has no modules enabled")
 		})

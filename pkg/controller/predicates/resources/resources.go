@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -55,8 +55,8 @@ var DSCDeletionPredicate = predicate.Funcs{
 	},
 }
 
-func getDSC(obj client.Object) (*dscv2.DataScienceCluster, bool) {
-	if dsc, ok := obj.(*dscv2.DataScienceCluster); ok {
+func getDSC(obj client.Object) (*dscv3.DataScienceCluster, bool) {
+	if dsc, ok := obj.(*dscv3.DataScienceCluster); ok {
 		return dsc, true
 	}
 
@@ -64,7 +64,7 @@ func getDSC(obj client.Object) (*dscv2.DataScienceCluster, bool) {
 	if err != nil {
 		return nil, false
 	}
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscv3.DataScienceCluster{}
 	err = runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, dsc)
 	if err != nil {
 		return nil, false

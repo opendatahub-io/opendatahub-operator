@@ -50,21 +50,76 @@ func feastModuleTestSuite(t *testing.T) {
 		{"Validate module CR ready", ctx.ValidateModuleCRReady},
 		{"Validate feast-operator deployed by module", ctx.ValidateFeastOperatorDeployed},
 		{"Validate upgrade: existing operands preserved", ctx.ValidateUpgradeOperandsPreserved},
+		{"Validate v2 DSC Data selection", ctx.ValidateV2DSCDataSelection},
 		{"Validate module disabled cleanup", ctx.ValidateModuleDisabledCleanup},
 	}
 
 	RunTestCases(t, testCases)
 }
 
-// ValidateComponentEnabled patches the DSC to set feastoperator to Managed,
+// ValidateV2DSCDataSelection proves that the v2 FeastOperator stanza still
+// drives the v3 FeatureStore runtime. DataRegistry is wire-mapped only here;
+// runtime projection for that child is covered by its owning integration work.
+func (ctx *FeastModuleTestCtx) ValidateV2DSCDataSelection(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier3)
+	if ctx.IsXKS() {
+		t.Skip("v2 DSC conversion smoke is not supported on XKS")
+	}
+
+	snapshotV2DSCFields(t, ctx.TestContext, []string{"spec", "components", "feastoperator"})
+	ctx.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceClusterV2, ctx.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.feastoperator.managementState = "Managed"`),
+			testf.Transform(`.spec.components.feastoperator.dataRegistry.managementState = "Managed"`),
+		)),
+		WithCondition(And(
+			jq.Match(`.spec.components.feastoperator.managementState == "Managed"`),
+			jq.Match(`.spec.components.feastoperator.dataRegistry.managementState == "Managed"`),
+		)),
+	)
+	ctx.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			jq.Match(`.spec.components.data.featureStore.managementState == "Managed"`),
+			jq.Match(`.spec.components.data.dataRegistry.managementState == "Managed"`),
+		)),
+	)
+	ctx.EnsureResourceExists(
+		WithMinimalObject(feastModuleCRGVK, types.NamespacedName{Name: feastModuleCRName}),
+		WithEventuallyTimeout(ctx.TestTimeouts.longEventuallyTimeout),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`)),
+	)
+	ctx.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: ctx.AppsNamespace, Name: feastModuleOperatorDeployment}),
+		WithEventuallyTimeout(ctx.TestTimeouts.longEventuallyTimeout),
+		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+	)
+	ctx.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
+		WithEventuallyTimeout(ctx.TestTimeouts.longEventuallyTimeout),
+		WithCondition(jq.Match(`.status.components.feastoperator.managementState == "Managed"`)),
+	)
+	ctx.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceClusterV2, ctx.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			jq.Match(`.spec.components.feastoperator.managementState == "Managed"`),
+			jq.Match(`.spec.components.feastoperator.dataRegistry.managementState == "Managed"`),
+			jq.Match(`.status.components.feastoperator.managementState == "Managed"`),
+		)),
+	)
+}
+
+// ValidateComponentEnabled patches the DSC to set the Feature Store to Managed,
 // triggering the module controller to deploy the feast module operator.
 func (ctx *FeastModuleTestCtx) ValidateComponentEnabled(t *testing.T) {
 	t.Helper()
 
 	ctx.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.feastoperator.managementState = "Managed"`)),
-		WithCondition(jq.Match(`.spec.components.feastoperator.managementState == "Managed"`)),
+		WithMutateFunc(testf.Transform(`.spec.components.data.featureStore.managementState = "Managed"`)),
+		WithCondition(jq.Match(`.spec.components.data.featureStore.managementState == "Managed"`)),
 	)
 }
 
@@ -263,8 +318,8 @@ func (ctx *FeastModuleTestCtx) ValidateModuleDisabledCleanup(t *testing.T) {
 	// Transition FeastOperator to Removed via DSC patch
 	ctx.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.feastoperator.managementState = "Removed"`)),
-		WithCondition(jq.Match(`.spec.components.feastoperator.managementState == "Removed"`)),
+		WithMutateFunc(testf.Transform(`.spec.components.data.featureStore.managementState = "Removed"`)),
+		WithCondition(jq.Match(`.spec.components.data.featureStore.managementState == "Removed"`)),
 	)
 
 	// Phase 1: Module CR should be deleted

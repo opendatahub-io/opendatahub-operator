@@ -8,7 +8,9 @@ import (
 	"github.com/onsi/gomega/types"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/assert"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -84,7 +86,6 @@ func prepareExistingConfigMapTest(g Gomega, cmName string) (types.GomegaMatcher,
 	return matcher, key, transformer, tc
 }
 
-//nolint:dupl
 func TestEventuallyValueTimeout(t *testing.T) {
 	g := NewWithT(t)
 
@@ -112,7 +113,6 @@ func TestEventuallyValueTimeout(t *testing.T) {
 	assert.Contains(t, failureMsg, fmt.Sprintf("Timed out after %d.", int(timeout.Seconds())))
 }
 
-//nolint:dupl
 func TestEventuallyErrTimeout(t *testing.T) {
 	g := NewWithT(t)
 
@@ -133,9 +133,7 @@ func TestEventuallyErrTimeout(t *testing.T) {
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	key := client.ObjectKey{Name: "foo", Namespace: "bar"}
-
-	_ = tc.NewWithT(t).Delete(gvk.ConfigMap, key).Eventually().ShouldNot(Succeed())
+	_ = tc.NewWithT(t).DeleteAll(gvk.ConfigMap).Eventually().ShouldNot(Succeed())
 
 	assert.Contains(t, failureMsg, fmt.Sprintf("Timed out after %d.", int(timeout.Seconds())))
 }
@@ -217,6 +215,18 @@ func TestGet(t *testing.T) {
 		key := client.ObjectKey{Namespace: "ns", Name: "name"}
 
 		v := wt.Get(gvk.ConfigMap, key).Eventually().WithTimeout(1 * time.Second).ShouldNot(matchMetadata)
+		g.Expect(v).Should(BeNil())
+	})
+
+	t.Run("Eventually Typed Object Not Found", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		v := wt.GetObject(&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "ns",
+				Name:      "name",
+			},
+		}).Should(BeNil())
 		g.Expect(v).Should(BeNil())
 	})
 }
@@ -325,6 +335,78 @@ func TestUpdate(t *testing.T) {
 
 		v := wt.Update(gvk.ConfigMap, key, transformer).Consistently().WithTimeout(1 * time.Second).Should(Succeed())
 		g.Expect(v).Should(matchMetadataAndData)
+	})
+}
+
+func TestUpdateStatus(t *testing.T) {
+	g := NewWithT(t)
+
+	deployment := appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Name:      xid.New().String(),
+		},
+	}
+	cl, err := fakeclient.New(
+		fakeclient.WithObjects(&deployment),
+		fakeclient.WithStatusSubresources(&deployment),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(cl).ShouldNot(BeNil())
+
+	tc, err := testf.NewTestContext(testf.WithClient(cl))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	key := client.ObjectKeyFromObject(&deployment)
+	matcher := And(
+		jq.Match(`.metadata.namespace == "%s"`, deployment.Namespace),
+		jq.Match(`.metadata.name == "%s"`, deployment.Name),
+		jq.Match(`.status.replicas == 1`),
+	)
+	transformer := testf.Transform(`.status.replicas = 1`)
+
+	t.Run("Get", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		v, err := wt.UpdateStatus(gvk.Deployment, key, transformer).Get()
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(v).Should(matcher)
+	})
+
+	t.Run("Eventually", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		v := wt.UpdateStatus(gvk.Deployment, key, transformer).Eventually().Should(matcher)
+		g.Expect(v).Should(matcher)
+	})
+
+	t.Run("Should", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		v := wt.UpdateStatus(gvk.Deployment, key, transformer).Should(matcher)
+		g.Expect(v).Should(matcher)
+	})
+
+	t.Run("Eventually Succeed", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		v := wt.UpdateStatus(gvk.Deployment, key, transformer).Eventually().Should(Succeed())
+		g.Expect(v).Should(matcher)
+	})
+
+	t.Run("Consistently", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		v := wt.UpdateStatus(gvk.Deployment, key, transformer).Consistently().WithTimeout(1 * time.Second).Should(matcher)
+		g.Expect(v).Should(matcher)
+	})
+
+	t.Run("Consistently Succeed", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		v := wt.UpdateStatus(gvk.Deployment, key, transformer).Consistently().WithTimeout(1 * time.Second).Should(Succeed())
+		g.Expect(v).Should(matcher)
 	})
 }
 
@@ -790,6 +872,13 @@ func TestDelete(t *testing.T) {
 		g.Expect(ok).Should(BeTrue())
 
 		wt.List(gvk.ConfigMap).Eventually().Should(BeEmpty())
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		wt.Delete(gvk.ConfigMap, key).Eventually().Should(
+			MatchError(k8serr.IsNotFound, "IsNotFound"))
 	})
 
 	t.Run("Consistently", func(t *testing.T) {

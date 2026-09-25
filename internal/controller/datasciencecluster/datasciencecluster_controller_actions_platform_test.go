@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -48,8 +48,8 @@ func TestSyncPlatformCRPreservesExistingOwner(t *testing.T) {
 
 	g.Expect(syncPlatformCR(t.Context(), rr)).Should(Succeed())
 
-	foundPlatform := &configv1alpha1.Platform{}
-	g.Expect(cli.Get(t.Context(), client.ObjectKey{Name: configv1alpha1.PlatformInstanceName}, foundPlatform)).Should(Succeed())
+	foundPlatform := &configv1alpha2.Platform{}
+	g.Expect(cli.Get(t.Context(), client.ObjectKey{Name: configv1alpha2.PlatformInstanceName}, foundPlatform)).Should(Succeed())
 	g.Expect(foundPlatform.GetOwnerReferences()).Should(ContainElements(
 		WithTransform(func(ref metav1.OwnerReference) types.UID { return ref.UID }, Equal(dsci.UID)),
 		WithTransform(func(ref metav1.OwnerReference) types.UID { return ref.UID }, Equal(dsc.UID)),

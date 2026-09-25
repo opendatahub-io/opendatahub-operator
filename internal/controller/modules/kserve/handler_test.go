@@ -1,23 +1,24 @@
 package kserve_test
 
 import (
-	"context"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configv1alpha2 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscv3 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 
 	. "github.com/onsi/gomega"
 )
 
-func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
-	return &configv1alpha1.PlatformModules{
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha2.PlatformModules {
+	return &configv1alpha2.PlatformModules{
 		Kserve: common.ManagementSpec{
 			ManagementState: mgmtState,
 		},
@@ -26,10 +27,10 @@ func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.Pl
 
 func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
 	return &modules.DSCContext{
-		DSC: &dscv2.DataScienceCluster{
-			Spec: dscv2.DataScienceClusterSpec{
-				Components: dscv2.Components{
-					Kserve: componentApi.DSCKserve{
+		DSC: &dscv3.DataScienceCluster{
+			Spec: dscv3.DataScienceClusterSpec{
+				Components: dscv3.Components{
+					Kserve: dscv3.DSCKserve{
 						ManagementSpec: common.ManagementSpec{
 							ManagementState: mgmtState,
 						},
@@ -67,7 +68,7 @@ func TestIsEnabled_NilModules(t *testing.T) {
 func TestIsEnabled_EmptyModules(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	g.Expect(h.IsEnabled(&configv1alpha1.PlatformModules{})).Should(BeFalse())
+	g.Expect(h.IsEnabled(&configv1alpha2.PlatformModules{})).Should(BeFalse())
 }
 
 func TestIsEnabled_PlatformMode_Managed(t *testing.T) {
@@ -91,7 +92,7 @@ func TestIsEnabled_PlatformMode_Empty(t *testing.T) {
 func TestBuildModuleCR_NilDSCContextReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
+	_, err := h.BuildModuleCR(t.Context(), nil, nil, nil)
 	g.Expect(err).Should(HaveOccurred())
 }
 
@@ -100,7 +101,7 @@ func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 	h := kserve.NewHandler()
 	dscCtx := &modules.DSCContext{}
 
-	_, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
+	_, err := h.BuildModuleCR(t.Context(), nil, dscCtx, nil)
 	g.Expect(err).Should(HaveOccurred())
 }
 
@@ -108,7 +109,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
 	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.Kserve.KserveCommonSpec = componentApi.KserveCommonSpec{
+	dscCtx.DSC.Spec.Components.Kserve.KserveCommonSpec = dscv3.KserveCommonSpec{
 		RawDeploymentServiceConfig: componentApi.KserveRawHeaded,
 		NIM: componentApi.NimSpec{
 			ManagementState: operatorv1.Managed,
@@ -117,9 +118,24 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 		WVA: componentApi.WVASpec{
 			ManagementState: operatorv1.Removed,
 		},
+		OAuthProxy: &componentApi.OAuthProxyConfig{
+			Resources: &componentApi.OAuthProxyResourceRequirements{
+				Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")},
+			},
+		},
+		EnableLLMInferenceServiceTLS:               new(false),
+		EnableLLMInferenceServiceConsoleDashboards: new(true),
+		ModelCache: &componentApi.ModelCacheSpec{
+			ManagementState: operatorv1.Managed,
+			CacheSize:       new(resource.MustParse("100Gi")),
+			NodeNames:       []string{"worker-0"},
+		},
+	}
+	dscCtx.DSC.Spec.Components.AIGateway.ModelsAsAService = componentApi.DSCModelsAsServiceSpec{
+		ManagementState: operatorv1.Managed,
 	}
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
+	u, err := h.BuildModuleCR(t.Context(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u.GetName()).Should(Equal(componentApi.KserveInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(componentApi.KserveKind))
@@ -127,7 +143,19 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
 	g.Expect(spec).ShouldNot(HaveKey("managementState"))
+	g.Expect(spec).ShouldNot(HaveKey("modelsAsService"))
+	g.Expect(spec).ShouldNot(HaveKey("modelsAsAService"))
 	g.Expect(spec["rawDeploymentServiceConfig"]).Should(Equal("Headed"))
+	g.Expect(spec["oauthProxy"]).Should(Equal(map[string]any{
+		"resources": map[string]any{"requests": map[string]any{"cpu": "100m"}},
+	}))
+	g.Expect(spec["enableLLMInferenceServiceTLS"]).Should(BeFalse())
+	g.Expect(spec["enableLLMInferenceServiceConsoleDashboards"]).Should(BeTrue())
+	g.Expect(spec["modelCache"]).Should(Equal(map[string]any{
+		"managementState": "Managed",
+		"cacheSize":       "100Gi",
+		"nodeNames":       []any{"worker-0"},
+	}))
 
 	nim, ok := spec["nim"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.nim missing")
@@ -149,7 +177,7 @@ func TestBuildModuleCR_HeadedRawServiceConfig(t *testing.T) {
 	dscCtx := newDSCCtx(operatorv1.Managed)
 	dscCtx.DSC.Spec.Components.Kserve.RawDeploymentServiceConfig = componentApi.KserveRawHeaded
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
+	u, err := h.BuildModuleCR(t.Context(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)

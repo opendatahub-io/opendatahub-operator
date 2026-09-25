@@ -146,10 +146,10 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 			// Validate ModelRegistry state is injected from DSC
 			jq.Match(`.spec.modelRegistry.managementState == "%s"`,
 				func() string {
-					if dsc.Spec.Components.ModelRegistry.ManagementState == "" {
+					if dsc.Spec.Components.AIHub.ManagementState == "" {
 						return "Removed"
 					}
-					return string(dsc.Spec.Components.ModelRegistry.ManagementState)
+					return string(dsc.Spec.Components.AIHub.ManagementState)
 				}()),
 		),
 		),
