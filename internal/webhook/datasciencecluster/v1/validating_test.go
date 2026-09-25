@@ -263,7 +263,6 @@ func TestDataScienceClusterV1_ModelsAsServiceDeprecationWarning(t *testing.T) {
 
 	withModelsAsService := func(state operatorv1.ManagementState) func(*dscv1.DataScienceCluster) {
 		return func(dsc *dscv1.DataScienceCluster) {
-			//nolint:staticcheck // SA1019: testing deprecated field warning
 			dsc.Spec.Components.Kserve.ModelsAsService.ManagementState = state
 		}
 	}

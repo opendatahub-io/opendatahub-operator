@@ -47,7 +47,7 @@ func TestXKSReconcileWithoutDomainStopsCleanly(t *testing.T) {
 	}
 
 	g.Expect(createGatewayInfrastructure(ctx, rr)).To(Succeed())
-	g.Expect(createKubeAuthProxyInfrastructure(ctx, rr)).To(Succeed())
+	g.Expect(createKubeAuthProxyInfrastructure(ctx, rr, rr.Client)).To(Succeed())
 	g.Expect(createEnvoyFilter(ctx, rr)).To(Succeed())
 	g.Expect(createNetworkPolicy(ctx, rr)).To(Succeed())
 	g.Expect(syncGatewayConfigStatus(ctx, rr)).To(Succeed())
@@ -100,7 +100,7 @@ func TestXKSReconcileRejectsOpenShiftOnlyValues(t *testing.T) {
 	}
 
 	g.Expect(createGatewayInfrastructure(ctx, rr)).To(Succeed())
-	g.Expect(createKubeAuthProxyInfrastructure(ctx, rr)).To(Succeed())
+	g.Expect(createKubeAuthProxyInfrastructure(ctx, rr, rr.Client)).To(Succeed())
 	g.Expect(createEnvoyFilter(ctx, rr)).To(Succeed())
 	g.Expect(createNetworkPolicy(ctx, rr)).To(Succeed())
 	g.Expect(syncGatewayConfigStatus(ctx, rr)).To(Succeed())

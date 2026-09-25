@@ -408,64 +408,40 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	secretCache, err := createSecretCacheConfig(platform)
+	secretCache, err := createSecretCacheConfig(platform, oconfig.MonitoringNamespace)
 	if err != nil {
 		setupLog.Error(err, "unable to get application namespace into cache")
 		os.Exit(1)
 	}
 
-	oDHCache, err := createODHGeneralCacheConfig(platform)
+	oDHCache, err := createODHGeneralCacheConfig(platform, oconfig.MonitoringNamespace)
 	if err != nil {
 		setupLog.Error(err, "unable to get application namespace into cache")
 		os.Exit(1)
 	}
 
-	cacheOptions := cache.Options{
-		Scheme: scheme,
-		ByObject: map[client.Object]cache.ByObject{
-			// Cannot find a label on various secrets, so we need to watch all secrets
-			// this includes, monitoring, dashboard, trustcabundle default cert etc for these NS
-			&corev1.Secret{}: {
-				Namespaces: secretCache,
-			},
-			// it is hard to find a label can be used for both trustCAbundle configmap and inferenceservice-config and deletionCM
-			&corev1.ConfigMap{}: {
-				Namespaces: oDHCache,
-			},
-			// for prometheus and black-box deployment and ones we owns
-			&appsv1.Deployment{}: {
-				Namespaces: oDHCache,
-			},
-			&networkingv1.NetworkPolicy{}: {
-				Namespaces: oDHCache,
-			},
-			&rbacv1.Role{}: {
-				Namespaces: oDHCache,
-			},
-			&rbacv1.RoleBinding{}: {
-				Namespaces: oDHCache,
-			},
-		},
-		DefaultTransform: func(in any) (any, error) {
-			// Nilcheck managed fields to avoid hitting https://github.com/kubernetes/kubernetes/issues/124337
-			if obj, err := meta.Accessor(in); err == nil && obj.GetManagedFields() != nil {
-				obj.SetManagedFields(nil)
-			}
-
-			return in, nil
-		},
-	}
+	cacheOptions := newCacheOptions(scheme, oDHCache, secretCache)
 
 	// OpenShift-specific cache filters: only register when running on OpenShift
 	if cluster.GetClusterInfo().Type == cluster.ClusterTypeOpenShift {
 		cacheOptions.ByObject[&operatorv1.IngressController{}] = cache.ByObject{
+			Namespaces: map[string]cache.Config{
+				cluster.IngressControllerName.Namespace: {},
+			},
 			Field: fields.Set{"metadata.name": "default"}.AsSelector(),
-		}
-		cacheOptions.ByObject[&configv1.Authentication{}] = cache.ByObject{
-			Field: fields.Set{"metadata.name": cluster.ClusterAuthenticationObj}.AsSelector(),
 		}
 		cacheOptions.ByObject[&routev1.Route{}] = cache.ByObject{
 			Namespaces: oDHCache,
+		}
+		// Authentication is a cluster-scoped config.openshift.io singleton read via
+		// typed cached Get (pkg/cluster GetClusterAuthenticationMode / IsIntegratedOAuth).
+		// Register a cluster-wide informer filtered to the single "cluster" object so the
+		// read is served from cache instead of bypassing it via cacheDisableFor(). For a
+		// cluster-scoped type ByObject.Namespaces MUST stay nil (controller-runtime errors
+		// out otherwise); the Field selector alone yields the cluster-wide, single-object
+		// watch — cheap (one object) and OpenShift-guarded like the entries above.
+		cacheOptions.ByObject[&configv1.Authentication{}] = cache.ByObject{
+			Field: fields.Set{"metadata.name": cluster.ClusterAuthenticationObj}.AsSelector(),
 		}
 	}
 
@@ -519,16 +495,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		// LeaderElectionReleaseOnCancel: true,
 		Client: client.Options{
 			Cache: &client.CacheOptions{
-				DisableFor: []client.Object{
-					resources.GvkToUnstructured(gvk.OpenshiftIngress),
-					&ofapiv1alpha1.Subscription{},
-					&authorizationv1.SelfSubjectRulesReview{},
-					&corev1.Pod{},
-					&userv1.Group{},
-					&ofapiv1alpha1.CatalogSource{},
-				},
-				// Set it to true so the cache-backed client reads unstructured objects
-				// or lists from the cache instead of a live lookup.
+				DisableFor:   cacheDisableFor(),
 				Unstructured: true,
 			},
 		},
@@ -667,7 +634,7 @@ func (l *LeaderElectionRunnableWrapper) NeedLeaderElection() bool {
 	return true
 }
 
-func getCommonCache(platform common.Platform) (map[string]cache.Config, error) {
+func getCommonCache(platform common.Platform, monitoringNamespace string) (map[string]cache.Config, error) {
 	namespaceConfigs := map[string]cache.Config{}
 
 	// networkpolicy need operator namespace
@@ -677,7 +644,7 @@ func getCommonCache(platform common.Platform) (map[string]cache.Config, error) {
 	}
 
 	namespaceConfigs[operatorNs] = cache.Config{}
-	namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
+	namespaceConfigs[monitoringNamespace] = cache.Config{} // configurable via DSCI Monitoring.Namespace (platform default applied at startup)
 
 	// Get application namespace from cluster config
 	appNamespace := cluster.GetApplicationNamespace()
@@ -691,8 +658,8 @@ func getCommonCache(platform common.Platform) (map[string]cache.Config, error) {
 	return namespaceConfigs, nil
 }
 
-func createSecretCacheConfig(platform common.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs, err := getCommonCache(platform)
+func createSecretCacheConfig(platform common.Platform, monitoringNamespace string) (map[string]cache.Config, error) {
+	namespaceConfigs, err := getCommonCache(platform, monitoringNamespace)
 	if err != nil {
 		return nil, err
 	}
@@ -702,8 +669,8 @@ func createSecretCacheConfig(platform common.Platform) (map[string]cache.Config,
 	return namespaceConfigs, nil
 }
 
-func createODHGeneralCacheConfig(platform common.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs, err := getCommonCache(platform)
+func createODHGeneralCacheConfig(platform common.Platform, monitoringNamespace string) (map[string]cache.Config, error) {
+	namespaceConfigs, err := getCommonCache(platform, monitoringNamespace)
 	if err != nil {
 		return nil, err
 	}
@@ -714,6 +681,81 @@ func createODHGeneralCacheConfig(platform common.Platform) (map[string]cache.Con
 	namespaceConfigs["kuadrant-system"] = cache.Config{}             // for kuadrant admin rolebinding
 
 	return namespaceConfigs, nil
+}
+
+func newCacheOptions(scheme *runtime.Scheme, oDHCache, secretCache map[string]cache.Config) cache.Options {
+	return cache.Options{
+		Scheme:            scheme,
+		DefaultNamespaces: oDHCache,
+		// Only types whose namespace scope differs from DefaultNamespaces need a
+		// ByObject entry: controller-runtime defaults ByObject.Namespaces to
+		// DefaultNamespaces for every other type (and applies DefaultTransform to
+		// them via the default cache), so listing them here with Namespaces: oDHCache
+		// would be redundant. Secret is scoped to secretCache, a strict subset of
+		// oDHCache (no openshift-operators/models-as-a-service/kuadrant-system), so
+		// it must stay.
+		ByObject: map[client.Object]cache.ByObject{
+			&corev1.Secret{}: {
+				Namespaces: secretCache,
+			},
+		},
+		DefaultTransform: func(in any) (any, error) {
+			if obj, err := meta.Accessor(in); err == nil && obj.GetManagedFields() != nil {
+				obj.SetManagedFields(nil)
+			}
+
+			return in, nil
+		},
+	}
+}
+
+func cacheDisableFor() []client.Object {
+	objs := []client.Object{
+		resources.GvkToUnstructured(gvk.OpenshiftIngress),
+		&configv1.Infrastructure{},
+		// APIServer is a cluster-scoped config.openshift.io singleton read via typed Get
+		// (pkg/cluster GetClusterServiceAccountIssuer, pkg/tls FromAPIServer). With
+		// DefaultNamespaces scoping the cache it has no matching informer (it is only
+		// watched as unstructured by the gateway controller), so it must bypass the cache
+		// like Infrastructure does — otherwise a cached read would silently start an
+		// unfiltered cluster-wide informer, defeating the cache scope. (Authentication, the
+		// other such singleton, instead gets a field-selected cluster-wide informer
+		// registered under the OpenShift guard above, so it is served from cache rather
+		// than listed here.)
+		&configv1.APIServer{},
+		// Namespaced cert-manager Issuer and Certificate are deployed by components
+		// (e.g. ray's selfsigned-issuer + serving Certificate in the applications
+		// namespace) and read back by the deploy action's existence check, but are
+		// watched nowhere in this manager. cert-manager types are only watched by the
+		// separate cloudmanager binary (pkg/controller/cloudmanager, via bootstrap.go
+		// WatchesGVK) — a different manager with its own cache — so the main manager
+		// has no informer for them. They must bypass the cache like Infrastructure does,
+		// otherwise a cached read would start an unfiltered cluster-wide informer. Safe to
+		// disable here: nothing in internal/controller watches cert-manager types, so no
+		// watch depends on a cached informer.
+		resources.GvkToUnstructured(gvk.CertManagerIssuer),
+		resources.GvkToUnstructured(gvk.CertManagerCertificate),
+		// DestinationRule and EnvoyFilter are Istio types the gateway controller
+		// deploys and reads back via the deploy action's existence check. They are
+		// registered as dynamic owned watches (OwnsGVK(..., Dynamic(CrdExists(...)))),
+		// whose informer is only registered by an action appended AFTER the deploy
+		// action. Bypassing the cache for these reads avoids the deploy existence Get
+		// racing the dynamic watch registration; the dynamic event-watch still registers
+		// and fires on drift (DisableFor only affects the read path). Route, the third
+		// dynamic owned GVK, is unaffected: it has a static ByObject informer covering the
+		// gateway namespace, so its existence read is already served.
+		resources.GvkToUnstructured(gvk.DestinationRule),
+		resources.GvkToUnstructured(gvk.EnvoyFilter),
+		&ofapiv1alpha1.Subscription{},
+		&authorizationv1.SelfSubjectRulesReview{},
+		&corev1.Pod{},
+		&corev1.Node{},
+		&userv1.Group{},
+		&ofapiv1alpha1.CatalogSource{},
+		&ofapiv1alpha1.ClusterServiceVersion{},
+	}
+
+	return objs
 }
 
 // addCacheIfAvailable adds obj to the ByObject cache map only when its API is
