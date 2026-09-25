@@ -24,9 +24,11 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -34,9 +36,41 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
+
+// gatewayCRDWatchPredicate matches CRD events that must re-trigger a GatewayConfig reconcile:
+//
+//   - the Dashboard CRD, which gates the dashboard redirect resources;
+//   - the cert-manager Certificate CRD, which gates certificate handling and retries a
+//     previously blocked XKS reconcile when cert-manager is installed after the operator.
+func gatewayCRDWatchPredicate() predicate.Predicate {
+	return predicate.Or(
+		resources.CreatedOrUpdatedOrDeletedNamed(gvk.DashboardComponentCRDName),
+		resources.CreatedOrUpdatedOrDeletedNamed(gvk.CertManagerCertificateCRDName),
+	)
+}
+
+func gatewayCertManagerPrecondition() precondition.PreCondition {
+	return precondition.MonitorCRD(
+		gvk.CertManagerCertificateCRDName,
+		precondition.WithClusterTypes(cluster.ClusterTypeKubernetes),
+		precondition.WithSkipFunc(func(_ context.Context, rr *odhtypes.ReconciliationRequest) (bool, error) {
+			gatewayConfig, err := validateGatewayConfig(rr)
+			if err != nil {
+				return false, err
+			}
+			return gatewayConfig.Spec.Certificate != nil &&
+				gatewayConfig.Spec.Certificate.Type == infrav1.Provided &&
+				gatewayConfig.Spec.OIDC == nil, nil
+		}),
+		precondition.WithStopReconciliation(),
+		precondition.WithMessage("cert-manager Certificate CRD is required for XKS certificate issuance"),
+	)
+}
 
 func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	gw := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{})
@@ -57,12 +91,12 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.ClusterRoleBinding).
 		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
 		OwnsGVK(gvk.DestinationRule, reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
+		OwnsGVK(gvk.CertManagerCertificate, reconciler.Dynamic(reconciler.CrdExists(gvk.CertManagerCertificate))).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
 				handlers.ToNamed(serviceApi.GatewayConfigName)),
-			reconciler.WithPredicates(
-				resources.CreatedOrUpdatedOrDeletedNamed(gvk.DashboardComponentCRDName)),
+			reconciler.WithPredicates(gatewayCRDWatchPredicate()),
 		).
 		// Watch for certificate secrets (both OpenShift default ingress and provided).
 		Watches(
@@ -86,6 +120,16 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 				}),
 			),
 		).
+		// Reconcile when cert-manager creates, updates, or removes an XKS TLS Secret.
+		Watches(
+			&corev1.Secret{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(
+				resources.GatewayCertificateSecret(func(obj client.Object) bool {
+					return IsXKSCertManagerSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
+				}),
+			),
+		).
 		Watches(
 			&gwapiv1.HTTPRoute{},
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
@@ -106,6 +150,9 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(resources.APIServerTLSSecurityProfileChanged()),
 		).
+		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
+			gatewayCertManagerPrecondition(),
+		})).
 		WithAction(syncAdditionalIngressStatus).
 		WithAction(createGatewayInfrastructure).
 		WithAction(createKubeAuthProxyInfrastructure). //  include destinationrule
