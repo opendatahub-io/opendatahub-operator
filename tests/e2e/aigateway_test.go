@@ -94,6 +94,14 @@ func aiGatewayTestSuite(t *testing.T) {
 				)),
 				WithCustomErrorMsg("ai-gateway-operator Deployment should have APPLICATIONS_NAMESPACE=%s injected", tc.AppsNamespace),
 			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Deployment, controllerNN),
+				WithCondition(jq.Match(
+					`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "RELATED_IMAGE_ODH_MAAS_DISCOVERY_IMAGE") | .value != null and .value != ""`,
+				)),
+				WithCustomErrorMsg("ai-gateway-operator Deployment should have RELATED_IMAGE_ODH_MAAS_DISCOVERY_IMAGE injected"),
+			)
 		}},
 		{"Validate releases mirrored to DSC", func(t *testing.T) {
 			t.Helper()
