@@ -15,42 +15,45 @@ spec:
           value: 'true'
         - name: RHAI_DISABLE_DSCI_RESOURCE
           value: 'true'
-        # Components (all disabled except kserve)
-        - name: RHAI_DISABLE_DASHBOARD_COMPONENT
-          value: 'true'
-        - name: RHAI_DISABLE_DATASCIENCEPIPELINES_COMPONENT
-          value: 'true'
-        - name: RHAI_DISABLE_FEASTOPERATOR_COMPONENT
-          value: 'true'
+        # In-tree components (all disabled)
         - name: RHAI_DISABLE_KUEUE_COMPONENT
           value: 'true'
-        - name: RHAI_DISABLE_OGX_COMPONENT
+        # Modules (all disabled except kserve)
+        - name: RHAI_DISABLE_AIGATEWAY_MODULE
           value: 'true'
-        - name: RHAI_DISABLE_MLFLOWOPERATOR_COMPONENT
+        - name: RHAI_DISABLE_AIPIPELINES_MODULE
           value: 'true'
-        - name: RHAI_DISABLE_MODELCONTROLLER_COMPONENT
+        - name: RHAI_DISABLE_DASHBOARD_MODULE
           value: 'true'
-        - name: RHAI_DISABLE_MODELREGISTRY_COMPONENT
+        - name: RHAI_DISABLE_FEASTOPERATOR_MODULE
           value: 'true'
-        - name: RHAI_DISABLE_RAY_COMPONENT
+        - name: RHAI_DISABLE_MCPLIFECYCLEOPERATOR_MODULE
           value: 'true'
-        - name: RHAI_DISABLE_SPARKOPERATOR_COMPONENT
+        - name: RHAI_DISABLE_MLFLOWOPERATOR_MODULE
           value: 'true'
-        - name: RHAI_DISABLE_TRAINER_COMPONENT
+        - name: RHAI_DISABLE_MODELREGISTRY_MODULE
           value: 'true'
-        - name: RHAI_DISABLE_TRUSTYAI_COMPONENT
+        - name: RHAI_DISABLE_MONITORING_MODULE
           value: 'true'
-        - name: RHAI_DISABLE_WORKBENCHES_COMPONENT
+        - name: RHAI_DISABLE_OGX_MODULE
           value: 'true'
-        # Services (all disabled)
+        - name: RHAI_DISABLE_RAY_MODULE
+          value: 'true'
+        - name: RHAI_DISABLE_SPARKOPERATOR_MODULE
+          value: 'true'
+        - name: RHAI_DISABLE_TRAINER_MODULE
+          value: 'true'
+        - name: RHAI_DISABLE_TRUSTYAI_MODULE
+          value: 'true'
+        - name: RHAI_DISABLE_WORKBENCHES_MODULE
+          value: 'true'
+        # Services (all disabled except gateway)
         - name: RHAI_DISABLE_AUTH_SERVICE
           value: 'true'
         - name: RHAI_DISABLE_CERTCONFIGMAPGENERATOR_SERVICE
           value: 'true'
         - name: RHAI_DISABLE_GATEWAY_SERVICE
           value: 'false'
-        - name: RHAI_DISABLE_MONITORING_SERVICE
-          value: 'true'
         - name: RHAI_DISABLE_SETUPCONTROLLER_SERVICE
           value: 'true'
         - name: RHAI_APPLICATIONS_NAMESPACE
