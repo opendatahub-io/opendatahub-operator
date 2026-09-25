@@ -21,8 +21,10 @@ package gateway
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 
-// Dashboard redirect feature can be disabled by setting the DISABLE_DASHBOARD_REDIRECTS
-// environment variable to "true" in the operator's Subscription:
+// Dashboard redirects can be disabled dynamically by setting the
+// platform.opendatahub.io/dashboard-redirects annotation on GatewayConfig to "disabled".
+// The existing DISABLE_DASHBOARD_REDIRECTS environment variable remains supported for
+// compatibility and can be set to "true" in the operator's Subscription:
 //
 //   apiVersion: operators.coreos.com/v1alpha1
 //   kind: Subscription
@@ -35,8 +37,8 @@ package gateway
 //         - name: DISABLE_DASHBOARD_REDIRECTS
 //           value: "true"
 //
-// By default (when not set or set to any value other than "true"), dashboard redirects
-// are ENABLED for all Gateway configurations.
+// By default, dashboard redirects are enabled unless the annotation is "disabled" or
+// the compatibility environment variable is "true".
 
 import (
 	"context"
@@ -58,6 +60,11 @@ import (
 )
 
 const (
+	// DashboardRedirectsAnnotation controls whether legacy dashboard redirects are deployed.
+	DashboardRedirectsAnnotation = "platform.opendatahub.io/dashboard-redirects"
+	// DashboardRedirectsDisabledValue disables legacy dashboard redirects when used as the annotation value.
+	DashboardRedirectsDisabledValue = "disabled"
+
 	dashboardRedirectConfigMapTemplate          = "resources/dashboard-redirect-configmap.tmpl.yaml"
 	dashboardRedirectDeploymentTemplate         = "resources/dashboard-redirect-deployment.tmpl.yaml"
 	dashboardRedirectServiceTemplate            = "resources/dashboard-redirect-service.tmpl.yaml"
@@ -100,7 +107,15 @@ func createDashboardRedirects(
 		return nil, nil
 	}
 
-	// Check if feature is explicitly disabled via operator environment variable
+	// Check the GatewayConfig annotation first so changes take effect dynamically on reconciliation.
+	if gatewayConfig.GetAnnotations()[DashboardRedirectsAnnotation] == DashboardRedirectsDisabledValue {
+		l.Info("Dashboard redirects disabled via GatewayConfig annotation",
+			"annotation", DashboardRedirectsAnnotation,
+			"value", DashboardRedirectsDisabledValue)
+		return nil, deleteDashboardRedirectResources(ctx, cli)
+	}
+
+	// Preserve the existing operator environment variable opt-out for compatibility.
 	if os.Getenv("DISABLE_DASHBOARD_REDIRECTS") == "true" {
 		l.Info("Dashboard redirects disabled via DISABLE_DASHBOARD_REDIRECTS environment variable")
 		return nil, deleteDashboardRedirectResources(ctx, cli)
