@@ -18,9 +18,9 @@ spec:
         # In-tree components (all disabled)
         - name: RHAI_DISABLE_KUEUE_COMPONENT
           value: 'true'
-        # Modules (all disabled except kserve)
+        # Modules (all disabled except kserve and aigateway)
         - name: RHAI_DISABLE_AIGATEWAY_MODULE
-          value: 'true'
+          value: 'false'
         - name: RHAI_DISABLE_AIPIPELINES_MODULE
           value: 'true'
         - name: RHAI_DISABLE_DASHBOARD_MODULE
