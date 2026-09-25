@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -98,23 +99,30 @@ var dagBatches = []componentBatch{
 	},
 }
 
-// dscComponentFields lists the components enabled during DAG tests.
-// Kueue is excluded: a validating webhook rejects managementState=Managed.
-var dscComponentFields = []string{
-	"aigateway",
-	"dashboard",
-	"workbenches",
-	"aipipelines",
-	"kserve",
-	"ray",
-	"modelregistry",
-	"trustyai",
-	"feastoperator",
-	"ogx",
-	"mcplifecycleoperator",
-	"mlflowoperator",
-	"trainer",
-	"sparkoperator",
+// dscComponentFieldsExcludedFromManagedDAGTests lists DSC spec.components keys
+// skipped when enabling all components during DAG tests.
+var dscComponentFieldsExcludedFromManagedDAGTests = []string{
+	"kueue", // validating webhook rejects managementState=Managed
+	"trainingoperator",
+	"llamastackoperator",
+}
+
+func managedDAGTestDSCComponentFields() []string {
+	all := (dscv2.Components{}).ComponentNames()
+	fields := make([]string, 0, len(all))
+	for _, name := range all {
+		if slices.Contains(dscComponentFieldsExcludedFromManagedDAGTests, name) {
+			continue
+		}
+		fields = append(fields, name)
+	}
+	return fields
+}
+
+func allDAGTestDSCComponentFields() []string {
+	all := slices.Clone((dscv2.Components{}).ComponentNames())
+	slices.Sort(all)
+	return slices.Compact(all)
 }
 
 // extensionGVKs lists in-tree component CRs at RL 31+ whose controllers
@@ -869,11 +877,11 @@ func (tc *DAGOrderingTestCtx) deleteGateSourceCMs(t *testing.T, names ...string)
 // --- helpers ---
 
 func allComponentsManagedTransform() func(*unstructured.Unstructured) error {
-	return selectComponentsTransform("Managed", dscComponentFields)
+	return selectComponentsTransform("Managed", managedDAGTestDSCComponentFields())
 }
 
 func allComponentsRemovedTransform() func(*unstructured.Unstructured) error {
-	return selectComponentsTransform("Removed", dscComponentFields)
+	return selectComponentsTransform("Removed", allDAGTestDSCComponentFields())
 }
 
 func selectComponentsTransform(state string, fields []string) func(*unstructured.Unstructured) error {
@@ -970,8 +978,7 @@ func (tc *DAGOrderingTestCtx) ensureAllRemovedComponentsGone(t *testing.T) {
 				name = aiPipelinesFieldName
 			}
 
-			removed := name == serviceApi.MonitoringServiceName ||
-				slices.Contains(dscComponentFields, name)
+			removed := name == serviceApi.MonitoringServiceName || slices.Contains(allDAGTestDSCComponentFields(), name)
 			if !removed {
 				t.Logf("Skipping gone-check for %s: not meant to be Removed", comp.name)
 				continue

@@ -166,7 +166,9 @@ func TestGetOperatorManifests_PlatformOverlay(t *testing.T) {
 	}{
 		{"odh", cluster.OpenDataHub, "/base/ogx/overlays/odh"},
 		{"self-managed-rhoai", cluster.SelfManagedRhoai, "/base/ogx/overlays/rhoai"},
-		{"unknown-has-no-overlay", cluster.XKS, "/base/ogx"},
+		{"managed-rhoai", cluster.ManagedRhoai, "/base/ogx/overlays/rhoai"},
+		{"xks", cluster.XKS, "/base/ogx/overlays/rhoai"},
+		{"unknown-has-no-overlay", "unknown", "/base/ogx"},
 	}
 
 	for _, tcase := range cases {

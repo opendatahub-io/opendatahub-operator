@@ -28,7 +28,7 @@ const (
 
 	// Module manifests are under ray-module-operator/config. OpenShift
 	// flavors use the openshift overlay (SCC, image patches, params.env).
-	// xKS falls back to the kubebuilder default overlay.
+	// xKS uses the kubebuilder default overlay, which is also used as a fallback.
 	moduleSourcePath = "default"
 )
 
@@ -37,6 +37,7 @@ var (
 		cluster.OpenDataHub:      "openshift",
 		cluster.SelfManagedRhoai: "openshift",
 		cluster.ManagedRhoai:     "openshift",
+		cluster.XKS:              moduleSourcePath,
 	}
 
 	relatedImages = []string{
