@@ -664,8 +664,8 @@ imageOverrides:
       base: "quay.io/opendatahub/odh-maas-discovery"
       digest: "sha256:678af94dfbdbb92c0f4f29ea5719603d55eddc485136ad723f85d2261d0075ec"
     rhoai:
-      base: "quay.io/opendatahub/odh-maas-discovery"
-      digest: "sha256:678af94dfbdbb92c0f4f29ea5719603d55eddc485136ad723f85d2261d0075ec"
+      base: "quay.io/rhoai/odh-maas-discovery-rel9"
+      digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
   RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE:
     source: "csv"
     odh:
