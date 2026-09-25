@@ -5,12 +5,17 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
+	"sigs.k8s.io/yaml"
 
 	"github.com/opendatahub-io/opendatahub-operator/pkg/scoperules"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 )
 
@@ -51,6 +56,61 @@ func TestAllModulesHaveExplicitRunlevel(t *testing.T) {
 	for name := range existingModules {
 		_, ok := moduleRunlevels[name]
 		assert.True(t, ok, "module %q is registered but has no entry in moduleRunlevels — add an explicit runlevel assignment", name)
+	}
+}
+
+// TestRHAIISuppressionFlags keeps both XKS deployment variants aligned with
+// registrations, including components and services that migrate to modules.
+func TestRHAIISuppressionFlags(t *testing.T) {
+	t.Parallel()
+
+	wantDisabled := map[string]bool{
+		"RHAI_DISABLE_DSC_RESOURCE":  true,
+		"RHAI_DISABLE_DSCI_RESOURCE": true,
+	}
+	for name := range existingComponents {
+		wantDisabled["RHAI_DISABLE_"+strings.ToUpper(name)+"_COMPONENT"] = true
+	}
+	for name := range existingModules {
+		wantDisabled["RHAI_DISABLE_"+strings.ToUpper(name)+"_MODULE"] = name != componentApi.KserveComponentName
+	}
+	for name := range existingServices {
+		wantDisabled["RHAI_DISABLE_"+strings.ToUpper(name)+"_SERVICE"] = name != serviceApi.GatewayServiceName
+	}
+
+	root := repoRoot(t)
+	for _, patchPath := range []string{
+		"config/rhaii/odh-operator/manager_patch.yaml",
+		"config/rhaii/rhoai/operator/manager_patch.yaml",
+	} {
+		t.Run(patchPath, func(t *testing.T) {
+			t.Parallel()
+
+			data, err := os.ReadFile(filepath.Join(root, patchPath))
+			require.NoError(t, err)
+
+			var deployment appsv1.Deployment
+			require.NoError(t, yaml.Unmarshal(data, &deployment))
+			require.Len(t, deployment.Spec.Template.Spec.Containers, 1)
+
+			suppressionEnv := make(map[string]string)
+			for _, env := range deployment.Spec.Template.Spec.Containers[0].Env {
+				if !strings.HasPrefix(env.Name, "RHAI_DISABLE_") {
+					continue
+				}
+				assert.Contains(t, wantDisabled, env.Name, "unregistered suppression flag")
+				require.NotContains(t, suppressionEnv, env.Name, "duplicate suppression flag")
+				suppressionEnv[env.Name] = env.Value
+			}
+
+			for name, disabled := range wantDisabled {
+				if disabled {
+					assert.Equal(t, "true", suppressionEnv[name], "%s must be suppressed", name)
+				} else if value, present := suppressionEnv[name]; present {
+					assert.Equal(t, "false", value, "%s must remain enabled", name)
+				}
+			}
+		})
 	}
 }
 
