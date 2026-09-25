@@ -28,6 +28,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -38,6 +39,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
 // gatewayCRDWatchPredicate matches CRD events that must re-trigger a GatewayConfig reconcile:
@@ -49,6 +51,24 @@ func gatewayCRDWatchPredicate() predicate.Predicate {
 	return predicate.Or(
 		resources.CreatedOrUpdatedOrDeletedNamed(gvk.DashboardComponentCRDName),
 		resources.CreatedOrUpdatedOrDeletedNamed(gvk.CertManagerCertificateCRDName),
+	)
+}
+
+func gatewayCertManagerPrecondition() precondition.PreCondition {
+	return precondition.MonitorCRD(
+		gvk.CertManagerCertificateCRDName,
+		precondition.WithClusterTypes(cluster.ClusterTypeKubernetes),
+		precondition.WithSkipFunc(func(_ context.Context, rr *odhtypes.ReconciliationRequest) (bool, error) {
+			gatewayConfig, err := validateGatewayConfig(rr)
+			if err != nil {
+				return false, err
+			}
+			return gatewayConfig.Spec.Certificate != nil &&
+				gatewayConfig.Spec.Certificate.Type == infrav1.Provided &&
+				gatewayConfig.Spec.OIDC == nil, nil
+		}),
+		precondition.WithStopReconciliation(),
+		precondition.WithMessage("cert-manager Certificate CRD is required for XKS certificate issuance"),
 	)
 }
 
@@ -131,12 +151,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithPredicates(resources.APIServerTLSSecurityProfileChanged()),
 		).
 		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
-			precondition.MonitorCRD(
-				gvk.CertManagerCertificateCRDName,
-				precondition.WithClusterTypes(cluster.ClusterTypeKubernetes),
-				precondition.WithStopReconciliation(),
-				precondition.WithMessage("cert-manager Certificate CRD is required on XKS"),
-			),
+			gatewayCertManagerPrecondition(),
 		})).
 		WithAction(syncAdditionalIngressStatus).
 		WithAction(createGatewayInfrastructure).
