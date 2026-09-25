@@ -440,16 +440,19 @@ make e2e-test
 
 ### Cloud Manager (CCM)
 
-The Cloud Manager (CCM) is a separate controller that manages cloud-based Kubernetes clusters. It handles infrastructure provisioning and dependency management for supported cloud providers.
+The Cloud Manager (CCM) is a separate controller that reconciles KubernetesEngine resources for supported cloud providers. It deploys configured chart dependencies and reports their health in the KubernetesEngine status.
+
+For new xKS dependencies managed by CCM, use the [chart dependency onboarding checklist](docs/CLOUDMANAGER_CHART_DEPENDENCY_ONBOARDING.md).
 
 #### Supported Providers
 
 | Provider | CRD | Description |
 |----------|-----|-------------|
-| **Azure** | `AzureKubernetesEngine` | Manages Azure AKS cluster infrastructure |
-| **CoreWeave** | `CoreWeaveKubernetesEngine` | Manages CoreWeave cluster infrastructure |
+| **AWS** | `AWSKubernetesEngine` | Reconciles dependencies for AWS clusters |
+| **Azure** | `AzureKubernetesEngine` | Reconciles dependencies for Azure AKS clusters |
+| **CoreWeave** | `CoreWeaveKubernetesEngine` | Reconciles dependencies for CoreWeave clusters |
 
-Each provider manages dependencies such as Gateway API, cert-manager, LeaderWorkerSet (LWS), and Sail Operator.
+CCM can manage chart dependencies such as Gateway API, LeaderWorkerSet (LWS), Sail Operator, and RHCL. For xKS Helm installations, cert-manager is a Helm subchart of `rhai-on-xks-chart` rather than a CCM dependency.
 
 #### CCM Deployment
 
@@ -490,7 +493,8 @@ make undeploy-ccm-azure
 make uninstall-ccm-azure
 ```
 
-Replace `azure` with `coreweave` for CoreWeave targets.
+Replace `azure` in these targets with another provider listed under
+[Supported Providers](#supported-providers).
 
 #### CCM Configuration
 
