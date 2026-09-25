@@ -2888,7 +2888,8 @@ _Appears in:_
 
 
 
-Traces enables and defines the configuration for traces collection
+Traces enables and defines the configuration for traces collection.
+Built-in Tempo requires storage; exporters-only configs (external backends) omit storage.
 
 
 
@@ -2898,7 +2899,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `storage` _[TracesStorage](#tracesstorage)_ |  |  |  |
+| `storage` _[TracesStorage](#tracesstorage)_ | Storage configures the built-in Tempo backend. Omit when using exporters only (external observability). |  |  |
 | `sampleRatio` _string_ | SampleRatio determines the sampling rate for traces<br />Value should be between 0.0 (no sampling) and 1.0 (sample all traces) |  | Pattern: `^(0(\.[0-9]+)?\|1(\.0+)?)$` <br /> |
 | `tls` _[TracesTLS](#tracestls)_ | TLS configuration for Tempo gRPC connections |  |  |
 | `exporters` _object (keys:string, values:[RawExtension](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#rawextension-runtime-pkg))_ | Exporters defines custom trace exporters for sending traces to external observability tools.<br />Each key represents the exporter name, and the value contains the exporter configuration.<br />The configuration follows the OpenTelemetry Collector exporter format. |  |  |

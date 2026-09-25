@@ -1,7 +1,8 @@
 # Manifest configuration for the opendatahub-operator.
 #
-# Top: repo definitions (components, ccmCharts, componentCharts).
+# Top: Build-Config and component repo definitions (components, ccmCharts, componentCharts).
 #   Per-platform sub-keys (odh / rhoai) with repo, ref, sourcePath.
+#   Build-Config refs select the release CSV used to resolve RELATED_IMAGE values.
 #
 # Bottom: imageOverrides — pinned operator image digests, keyed by RELATED_IMAGE_* env var name.
 #   paramsEnvKey: key in params.env
@@ -13,38 +14,45 @@
 #
 # Run 'make resolve-image-digests' to populate empty digest fields.
 
+buildConfig:
+  odh:
+    repo: opendatahub-io/ODH-Build-Config
+    ref: main@7481bafe2f4f9de5bc0020e252004b393d3c174d
+  rhoai:
+    repo: red-hat-data-services/RHOAI-Build-Config
+    ref: rhoai-3.6-ea.2@09b4332f90d3d7150a595bfc20540631ee3a3bef
 components:
   kserve-module-operator:
     odh:
       repo: opendatahub-io/kserve
-      ref: release-v0.17@879a95eb26f0cdd5e6a4da601aa066a02846d7de
+      ref: release-v0.17@c220631408b5c2653c9f132940f478d5ca097a87
       sourcePath: kserve-module/config
     rhoai:
       repo: red-hat-data-services/kserve
-      ref: rhoai-3.6-ea.2@93de34f3c299849325503c74a97f17407d703ea9
+      ref: rhoai-3.6-ea.2@1e9ee7f8ca3decf684980f70a2757f28d3e0b0fd
       sourcePath: kserve-module/config
   ray:
     odh:
       repo: opendatahub-io/ray-module-operator
-      ref: main@446d26d47cbf8a71eba1a0ac4bc20fb9fa7785ab
+      ref: main@e2f3eca350535eb2dc7dbb2d4c797f297bca26d5
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/ray-module-operator
-      ref: rhoai-3.6-ea.2@a6d98b3e47fc3eb9c49646e51792d8f51a9d0779
+      ref: rhoai-3.6-ea.2@b985226dcdd2a178b2676f08ec59672d810bc9f7
       sourcePath: config
   trustyai:
     odh:
       repo: opendatahub-io/trustyai-service-operator
-      ref: main@7838ba58fffca619610c6b260c4ec87c031d0a27
+      ref: main@d972f577fdf0747a2139f83cce3336e834ed44ec
       sourcePath: trustyai-operator-module/config
     rhoai:
       repo: red-hat-data-services/trustyai-service-operator
-      ref: rhoai-3.6-ea.2@9a3b7b9f4f936419451c833b70ba180fe03a3e61
+      ref: rhoai-3.6-ea.2@b5f94fd4de393a7169f3d9d57aaa0bac1e81bd9b
       sourcePath: trustyai-operator-module/config
   modelregistry:
     odh:
       repo: opendatahub-io/model-registry-operator
-      ref: main@4a45ad0eda12c6052238bd1e3fdc64da8100c837
+      ref: main@0b46e121f4775547cd73849d28d4749bd1b73c8b
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/model-registry-operator
@@ -53,47 +61,47 @@ components:
   datasciencepipelines:
     odh:
       repo: opendatahub-io/data-science-pipelines-operator
-      ref: main@486a633ea2e25a951385d9ed05824c718861d694
+      ref: main@3c8346f6c97728044032f126fec346270b159081
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/data-science-pipelines-operator
-      ref: rhoai-3.6-ea.2@2206a928e13084c143335bfd4f648528bd697976
+      ref: rhoai-3.6-ea.2@f5cf9420549bf78344a6233089d427d46f87eb34
       sourcePath: config
   ogx:
     odh:
       repo: opendatahub-io/ogx-k8s-operator
-      ref: odh@d566a8f2cd76fcdaa4fd8e277a918525792ac223
+      ref: odh@a0e2c4958436451c170122b138503cf28972fbdd
       sourcePath: ogx-module/config
     rhoai:
       repo: red-hat-data-services/ogx-k8s-operator
-      ref: rhoai-3.6-ea.2@f74c8f082ca24ebef9af45be06f456ee3f2600ae
+      ref: rhoai-3.6-ea.2@3f241979090953091899a1bacb0390d82b5eddef
       sourcePath: ogx-module/config
   trainer:
     odh:
       repo: opendatahub-io/trainer-operator
-      ref: main@9b14f96a63e4374352bf141f327bc94670016cd4
+      ref: main@72435c3242fe5db393583ce6469213a1631705e3
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/trainer-operator
-      ref: rhoai-3.6-ea.2@824d813fda24be9aa546e40c0890521e9d20cd9c
+      ref: rhoai-3.6-ea.2@296a001d8327c81906706799210240c49644a1a1
       sourcePath: config
   mlflowoperator:
     odh:
       repo: opendatahub-io/mlflow-operator
-      ref: main@6df31b94f07284e6e0465e174e3b0c039d219726
+      ref: main@b952a53c4b9066d0c1a8e369ec2b48ffcfb4d451
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/mlflow-operator
-      ref: rhoai-3.6-ea.2@50ff63b3b870f3713f7ccff1720fb2ed73fdd008
+      ref: rhoai-3.6-ea.2@1e1b121055df31c8c4d7c278dea68e7f47c6e4a1
       sourcePath: config
   sparkoperator:
     odh:
       repo: opendatahub-io/spark-operator
-      ref: main@07ca91f50b5b1feb40b6bc0a1f0e6b27ecc4a47c
+      ref: main@e7fa1ae5ab181b696fd27efb45ce336e7580ce7d
       sourcePath: spark-operator-module/config
     rhoai:
       repo: red-hat-data-services/spark-operator
-      ref: rhoai-3.6-ea.2@0b139b6d1e5284050eb995b9c203febc61360098
+      ref: rhoai-3.6-ea.2@e3106e17ebcbe3bbda38729e99c3cb610f3ea9a8
       sourcePath: spark-operator-module/config
   aigateway:
     odh:
@@ -107,7 +115,7 @@ components:
   mcplifecycleoperator:
     odh:
       repo: opendatahub-io/mcp-lifecycle-module-operator
-      ref: main@bcf9c16e911b043feff92f4c36e9176c458da3e5
+      ref: main@86e3962f39c41258b8883ccd591009a79ff17a54
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/mcp-lifecycle-module-operator
@@ -117,7 +125,7 @@ ccmCharts:
   lws-operator:
     odh:
       repo: opendatahub-io/odh-gitops
-      ref: main@912f6c0da0173c20fdd8090076f4d6536a74a3a1
+      ref: main@1106cd57746be7be9a37805d9f48e48518cc31b9
       sourcePath: charts/dependencies/lws-operator
     rhoai:
       repo: red-hat-data-services/odh-gitops
@@ -126,7 +134,7 @@ ccmCharts:
   sail-operator:
     odh:
       repo: opendatahub-io/odh-gitops
-      ref: main@912f6c0da0173c20fdd8090076f4d6536a74a3a1
+      ref: main@1106cd57746be7be9a37805d9f48e48518cc31b9
       sourcePath: charts/dependencies/sail-operator
     rhoai:
       repo: red-hat-data-services/odh-gitops
@@ -135,7 +143,7 @@ ccmCharts:
   gateway-api:
     odh:
       repo: opendatahub-io/odh-gitops
-      ref: main@912f6c0da0173c20fdd8090076f4d6536a74a3a1
+      ref: main@1106cd57746be7be9a37805d9f48e48518cc31b9
       sourcePath: charts/dependencies/gateway-api
     rhoai:
       repo: red-hat-data-services/odh-gitops
@@ -144,26 +152,26 @@ ccmCharts:
   rhcl-operator:
     odh:
       repo: opendatahub-io/odh-gitops
-      ref: main@af383937f4efd498a24f1128cde6a1779a70e69f
+      ref: main@1106cd57746be7be9a37805d9f48e48518cc31b9
       sourcePath: charts/dependencies/rhcl-operator
     rhoai:
       repo: red-hat-data-services/odh-gitops
-      ref: rhoai-3.6-ea.2@96fedc9507b39bd38d999fdf5c9183a8f12d809b
+      ref: rhoai-3.6-ea.2@580a0093f5ce5ffd5dd602342c45effe7591007b
       sourcePath: charts/dependencies/rhcl-operator
 componentCharts:
   dashboard-operator:
     odh:
       repo: opendatahub-io/odh-dashboard
-      ref: main@37dc64866073290326871ecb2b6f5699316767f4
+      ref: main@671bab5e738cd0e3149fbdccf756fae2d31d5044
       sourcePath: dashboard-operator/charts/dashboard
     rhoai:
       repo: red-hat-data-services/odh-dashboard
-      ref: rhoai-3.6-ea.2@c494f30eed0c1e2434c27f0cc634d070f63c4fa1
+      ref: rhoai-3.6-ea.2@be4f7655a09c570bbda31fd1eea19da614c9a3c9
       sourcePath: dashboard-operator/charts/dashboard
   workbenches:
     odh:
       repo: opendatahub-io/workbenches-operator
-      ref: main@31bdbf8cacedd6cbde83f96b66a70af59301b046
+      ref: main@f25d7e91027fce04e184054907c09b3872c45cba
       sourcePath: charts/operator
     rhoai:
       repo: red-hat-data-services/workbenches-operator
@@ -176,16 +184,16 @@ componentCharts:
       sourcePath: config/chart
     rhoai:
       repo: red-hat-data-services/feast-module-operator
-      ref: rhoai-3.6-ea.2@ab49da03393c1ed426bc9064cec8bd3577d8873e
+      ref: rhoai-3.6-ea.2@df3b3b714d66ac0fcb69517b928474412b0f3eff
       sourcePath: config/chart
   odh-observability:
     odh:
       repo: opendatahub-io/odh-observability
-      ref: main@1bc9d1ea3cfbf37a405b283af303c672bc9aa7f7
+      ref: main@3c803606db9d1a311c764d945dfe2876a2aca754
       sourcePath: charts/odh-observability
     rhoai:
       repo: red-hat-data-services/odh-observability
-      ref: rhoai-3.6-ea.2@4a1ec5bbd1159c40ea50ade121d695aa0d572d9d
+      ref: rhoai-3.6-ea.2@a2920ea2d9c65bf329fbce23c9e10410fcd541a5
       sourcePath: charts/odh-observability
 # Image overrides — pinned operator image digests, keyed by RELATED_IMAGE_* env var name.
 # Local directories symlinked into opt/manifests/ during development.
@@ -205,41 +213,37 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/kserve-controller"
-      digest: "sha256:6e72a4ac896e998acf222204e10868106932adfbfd0dafdc0a9c1e4d58d0627d"
+      digest: "sha256:ed99b45402a1cf91d171ee30e001dc7eeb1c9ccc0ecded7a2caa0117bc35c64b"
     rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/kserve-controller"
-      digest: "sha256:6e72a4ac896e998acf222204e10868106932adfbfd0dafdc0a9c1e4d58d0627d"
+      base: "quay.io/rhoai/odh-kserve-controller-rhel9"
+      digest: "sha256:38de8f671833b7f7b878d6aa60d12ec56732ff064e579c0cdbfdf8df0b6024b7"
   RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE:
     component: kserve-module-operator
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-kserve-llmisvc-controller"
-      digest: "sha256:be3760deb2e1570f182db0819a98b4cebd1de04de25b8c9bdd0b38396f0be321"
+      digest: "sha256:419f4f7ace9c40d770eca50ca336d4272782b5796ad0b2c481f39e77043e038b"
     rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/odh-kserve-llmisvc-controller"
-      digest: "sha256:be3760deb2e1570f182db0819a98b4cebd1de04de25b8c9bdd0b38396f0be321"
+      base: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9"
+      digest: "sha256:c11721e04aa7154344749b950d788ece3f8cb5cff9e436c023d9e042e3213075"
   RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE:
     component: kserve-module-operator
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-kserve-localmodel-controller"
-      digest: "sha256:47dad2ce1a051f08c0bb1bde686d1cee3eb9e9f2b5691421fabeff60fd1d3643"
+      digest: "sha256:5bfa4e1b142d3109ecd8155d4f04bdfb184b0b31a558ed1fe1a1d580381e1873"
     rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/odh-kserve-localmodel-controller"
-      digest: "sha256:47dad2ce1a051f08c0bb1bde686d1cee3eb9e9f2b5691421fabeff60fd1d3643"
+      base: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9"
+      digest: "sha256:50f493fc2742e2e6783de69a6f15b5fecec77c9d7c4ce18495f03274a9c07518"
   RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE:
     component: kserve-module-operator
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-kserve-module-operator"
-      digest: "sha256:b8becaa017a2a2ec9af002989e8f14a8a2f96ffad292f37a61569343b1101189"
+      digest: "sha256:826a9927cdccbfd3e44fb9caf7751e8f46fc2a6127d2c1b362275dbe806d18dc"
     rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/odh-kserve-module-operator"
-      digest: "sha256:b8becaa017a2a2ec9af002989e8f14a8a2f96ffad292f37a61569343b1101189"
+      base: "quay.io/rhoai/odh-kserve-module-operator-rhel9"
+      digest: "sha256:9759c278b3b0f021c08e25ccb7007768d9c47681d03b65b34ae974f0144c6852"
   RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE:
     component: ray
     paramsEnvKey: odh-kuberay-operator-controller-image
@@ -248,82 +252,75 @@ imageOverrides:
       base: "quay.io/opendatahub/kuberay-operator"
       digest: "sha256:728f0e717839dc1e577d8e5692e0480297d45a106156b29c3bc3a44e4258a76a"
     rhoai:
-      shaFrom: odh
-      base: quay.io/opendatahub/kuberay-operator
-      digest: "sha256:728f0e717839dc1e577d8e5692e0480297d45a106156b29c3bc3a44e4258a76a"
+      base: quay.io/rhoai/odh-kuberay-operator-controller-rhel9
+      digest: "sha256:5961e8cb790659c66751d341d40b02e57b11c91e57aa549d68cdc3317be5a750"
   RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE:
     component: trustyai
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/trustyai-service-operator"
-      digest: "sha256:653ac53dfad3cd38c89f33006b1fdd208b11c14a68a794cf6945d03330d80141"
+      digest: "sha256:ca1356b28407bd571ef747ca00e3ab1bba1640ed7a0efc02c1be2d89fd62dd43"
     rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/trustyai-service-operator"
-      digest: "sha256:653ac53dfad3cd38c89f33006b1fdd208b11c14a68a794cf6945d03330d80141"
+      base: "quay.io/rhoai/odh-trustyai-service-operator-rhel9"
+      digest: "sha256:405439dcb7f6f57cfcafba32940c757f96c89dad79b3ae8eceaa487ce9b6242d"
   RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE:
     component: modelregistry
     paramsEnvKey: IMAGES_MODELREGISTRY_OPERATOR
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/model-registry-operator"
-      digest: "sha256:9d268ea6559e89bc0a109716dbf605f5b8ba8df4ad62ab2d7c2246daa553a154"
+      digest: "sha256:78681d46a1188a7d59a168c712a37163f249b01bb0e406d4a94e11cf583a70eb"
     rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/model-registry-operator"
-      digest: "sha256:9d268ea6559e89bc0a109716dbf605f5b8ba8df4ad62ab2d7c2246daa553a154"
+      base: "quay.io/rhoai/odh-model-registry-operator-rhel9"
+      digest: "sha256:28b02ab6bbfa203741b8fa13f753bbc5eb17f210d8dbc10ba9213d9ed7779aa3"
   RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE:
     component: datasciencepipelines
     paramsEnvKey: IMAGES_DSPO
     tagTemplate: "odh-main-{SHORT_SHA}"
     odh:
       base: "quay.io/opendatahub/data-science-pipelines-operator"
-      digest: "sha256:b02da90b29cfe799e3acc3065e39aee8d44a98f016909bb918da63bcc936b193"
+      digest: "sha256:f5a4ebd104007a6dd13e720a676b2db603fb499abc47e9d65a3646b617341d6f"
     rhoai:
       # Downstream Konflux tags use rhoai-3.6-ea.2-{SHA}, unlike the ODH tag template above.
       pinned: true
       base: "quay.io/rhoai/odh-data-science-pipelines-operator-controller-rhel9"
-      digest: "sha256:c2dd91d03dc1fc12a902891de9b665f82394d301106b897e3307e0b7a7b3e937"
+      digest: "sha256:d44af0b928d3bbc4bac529e8b4e90c418ba930776cdc2a379d3064fc512e184c"
   RELATED_IMAGE_ODH_OGX_K8S_OPERATOR_IMAGE:
     component: ogx
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-ogx-k8s-operator"
-      digest: "sha256:2e94f51d4dd14e91ce6676899f958a36c6f9df5c5d92292ed318f6dd8ed5b45e"
+      digest: "sha256:d0a79b6c00f4ce24d8b2cfadd054c221550976a1faf334d4f7b3f9ea8528f364"
     rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/odh-ogx-k8s-operator"
-      digest: "sha256:2e94f51d4dd14e91ce6676899f958a36c6f9df5c5d92292ed318f6dd8ed5b45e"
+      base: "quay.io/rhoai/odh-ogx-k8s-operator-rhel9"
+      digest: "sha256:5a435dc143d0e99b87ca3dabf484a5c38935b30180c04b8b7caf6025ebaaae72"
   RELATED_IMAGE_ODH_TRAINER_IMAGE:
     component: trainer
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/trainer"
-      digest: "sha256:79fe8cff0c17c7f2a39c6df93ca8b3c0e43f4f4db61ea91ce0c47a3f261f0ffb"
+      digest: "sha256:4c51b474ab8323afc5e33388dbc741f58f2080320840974df1d4ade2620d38f9"
     rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/trainer"
-      digest: "sha256:79fe8cff0c17c7f2a39c6df93ca8b3c0e43f4f4db61ea91ce0c47a3f261f0ffb"
+      base: "quay.io/rhoai/odh-trainer-rhel9"
+      digest: "sha256:62f1cb66fe955e15163f9ec06d16e5691fd753e6bcf7cb3cc902c1ffcce9e69e"
   RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE:
     component: mlflowoperator
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/mlflow-operator"
-      digest: "sha256:4d825b77821dcba0c4f6e45a5fa02aac27e82861529c7f57e5aa7c4ade7fa232"
+      digest: "sha256:aa3733ae21764ed78f52514d4841ea54bab4917a972a2eecccc7db5059933a18"
     rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/mlflow-operator"
-      digest: "sha256:4d825b77821dcba0c4f6e45a5fa02aac27e82861529c7f57e5aa7c4ade7fa232"
+      base: "quay.io/rhoai/odh-mlflow-operator-rhel9"
+      digest: "sha256:b4115add2e75a6bcb26aa6bafdcd782976f000606570a21cbcaa63e30d6a082b"
   RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE:
     component: sparkoperator
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/spark-operator"
-      digest: "sha256:9aad5e2f1de10cbe09803af51987176d3c78598c28c30cd0800eec177d165539"
+      digest: "sha256:73c2e528a954011cb143241cbe7bcb03ac16b913c9f73e3b9c35b70b20c86c84"
     rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/spark-operator"
-      digest: "sha256:9aad5e2f1de10cbe09803af51987176d3c78598c28c30cd0800eec177d165539"
+      base: "quay.io/rhoai/odh-spark-operator-rhel9"
+      digest: "sha256:397b34244dba4cd098223e9683b7d558d96ab7afa347345d0db2feaf8ead2433"
   RELATED_IMAGE_ODH_AI_GATEWAY_OPERATOR_IMAGE:
     component: aigateway
     tagTemplate: "{SHA}"
@@ -331,49 +328,44 @@ imageOverrides:
       base: "quay.io/opendatahub/odh-ai-gateway-operator"
       digest: "sha256:69e7e2e32b7852b5dc8e74528472b8b466503f9c9b23768151075af850157aa1"
     rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/odh-ai-gateway-operator"
-      digest: "sha256:69e7e2e32b7852b5dc8e74528472b8b466503f9c9b23768151075af850157aa1"
+      base: "quay.io/rhoai/odh-ai-gateway-operator-rhel9"
+      digest: "sha256:d22296dbdf71387dde45ec63ce33d513558299e15ff739630cdfdeaf525c72b6"
   RELATED_IMAGE_ODH_MCP_LIFECYCLE_MODULE_OPERATOR_IMAGE:
     component: mcplifecycleoperator
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-mcp-lifecycle-module-operator"
-      digest: "sha256:8458adc3c1814d8bd0fc5aac529577ad482744af8390eca825c87608f5e8c68b"
+      digest: "sha256:f6746d2f6373635704a6210c9940f70f29301427df50d538be052f5aecca534b"
     rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/odh-mcp-lifecycle-module-operator"
-      digest: "sha256:8458adc3c1814d8bd0fc5aac529577ad482744af8390eca825c87608f5e8c68b"
+      base: "quay.io/rhoai/odh-mcp-lifecycle-module-operator-rhel9"
+      digest: "sha256:b33ac1d0f8e2e317971ab037da679fbade741f59e3c594a6cb7c43a6e82a1202"
   RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE:
     component: dashboard-operator
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-dashboard-operator"
-      digest: "sha256:f3fbbb5dca5bdadb6aa33debcb44e1769b2abba1cd0a6a43945e409c67b6551c"
+      digest: "sha256:cb4b7a35b09a85bc82f7f575412d9e1fc57538e76d69117a8b371e2ae40cc35c"
     rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/odh-dashboard-operator"
-      digest: "sha256:f3fbbb5dca5bdadb6aa33debcb44e1769b2abba1cd0a6a43945e409c67b6551c"
+      base: "quay.io/rhoai/odh-dashboard-operator-rhel9"
+      digest: "sha256:8527f7678c3fb2605adba4a3da2f007da31d898907a9c6c13f5c7548ef5e5788"
   RELATED_IMAGE_ODH_DASHBOARD_IMAGE:
     component: dashboard-operator
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-dashboard"
-      digest: "sha256:8cd3e578bf52f078aacdbee8318c8a5ab3c5fd8d782ecbfa8421d5182e06fef3"
+      digest: "sha256:305dd02b2445135e71dea2fe1de39cc3971a6c2c42d34aca64342c1d3936655d"
     rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/odh-dashboard"
-      digest: "sha256:8cd3e578bf52f078aacdbee8318c8a5ab3c5fd8d782ecbfa8421d5182e06fef3"
+      base: "quay.io/rhoai/odh-dashboard-rhel9"
+      digest: "sha256:bf28dee255e865f2fc018daba2a4ba39758785c936088ed6853906d60ff24a46"
   RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE:
     component: workbenches
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-workbenches-operator"
-      digest: "sha256:c2ee17a842957b6d663cade827b5127da58021d8a2900836fd4ed672860c9047"
+      digest: "sha256:d45b2c6bcb19ba656265845b9acee3bcb2561d5796333181a62657819bfeefa6"
     rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/odh-workbenches-operator"
-      digest: "sha256:c2ee17a842957b6d663cade827b5127da58021d8a2900836fd4ed672860c9047"
+      base: "quay.io/rhoai/odh-workbenches-operator-rhel9"
+      digest: "sha256:a6c9a3c15c609cb090e68e175b21cdfa1ad64d88661c9745074df0188e41c614"
   RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE:
     component: feastoperator
     tagTemplate: "{SHA}"
@@ -381,27 +373,26 @@ imageOverrides:
       base: "quay.io/opendatahub/odh-feast-module-operator"
       digest: "sha256:7ccaf62e11a9ca6a6d95a2afc5073d9e9104eb9d6175f0a0666eebe103cca2d0"
     rhoai:
-      shaFrom: odh
-      base: "quay.io/opendatahub/odh-feast-module-operator"
-      digest: "sha256:7ccaf62e11a9ca6a6d95a2afc5073d9e9104eb9d6175f0a0666eebe103cca2d0"
+      base: "quay.io/rhoai/odh-feast-module-operator-rhel9"
+      digest: "sha256:b8cb343b4bfa1f22e8770d430ea4345cd2d28d51c4b8536dd2d03c68299966e4"
   RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_IMAGE:
     component: mcplifecycleoperator
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-mcp-lifecycle-operator"
-      digest: "sha256:e23155a1ca30028f46edb9690dfb6aa316ceffa8ce4e852a8ca79dc663a74205"
+      digest: "sha256:7de1df2029e2d87ee3edb9796e8b0b96965615f2065fbd0e351aab46a8ddae70"
     rhoai:
-      base: "quay.io/opendatahub/odh-mcp-lifecycle-operator"
-      digest: "sha256:e23155a1ca30028f46edb9690dfb6aa316ceffa8ce4e852a8ca79dc663a74205"
+      base: "quay.io/rhoai/odh-mcp-lifecycle-operator-rhel9"
+      digest: "sha256:aa488e2906da9b834c746bfc5280345578093c2d1b76067f08bf4775e89e20f9"
   RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE:
     component: kserve-module-operator
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-model-controller"
-      digest: "sha256:6974e00b3ca25f729a718095943c8a71baf401b8b97e8e25e8ab3c7c28f3cbff"
+      digest: "sha256:94f7f4383ef91d10d60d82c0858a60158a02915fdd3000d507210139faaac775"
     rhoai:
-      base: "quay.io/opendatahub/odh-model-controller"
-      digest: "sha256:6974e00b3ca25f729a718095943c8a71baf401b8b97e8e25e8ab3c7c28f3cbff"
+      base: "quay.io/rhoai/odh-model-controller-rhel9"
+      digest: "sha256:85c4d2d657d376b69d962c060ae0c76347adb663d9e7cd2879bf7bcb67ba4b8b"
   RELATED_IMAGE_ODH_WORKLOAD_VARIANT_AUTOSCALER_CONTROLLER_IMAGE:
     component: kserve-module-operator
     source: "csv"
@@ -409,8 +400,8 @@ imageOverrides:
       base: "quay.io/opendatahub/workload-variant-autoscaler"
       digest: "sha256:4ad63eb0f436c7c8a719fd8d55f5fb09fcbe9ab5279998c29c58333d42667f57"
     rhoai:
-      base: "quay.io/opendatahub/workload-variant-autoscaler"
-      digest: "sha256:4ad63eb0f436c7c8a719fd8d55f5fb09fcbe9ab5279998c29c58333d42667f57"
+      base: "quay.io/rhoai/odh-workload-variant-autoscaler-controller-rhel9"
+      digest: "sha256:941d7791e495787028583cb1bd5c9ad3d962ce75bd69201f9ca33d908090d65b"
   RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE:
     source: "csv"
     component: feastoperator
@@ -418,22 +409,16 @@ imageOverrides:
       base: "quay.io/opendatahub/feast-operator"
       digest: "sha256:0d821aeaadcd326c1320fa4f81ab8a4b05706dac9bac9c6f03dd4098fe22f4a6"
     rhoai:
-      base: "quay.io/opendatahub/feast-operator"
-      digest: "sha256:0d821aeaadcd326c1320fa4f81ab8a4b05706dac9bac9c6f03dd4098fe22f4a6"
+      base: "quay.io/rhoai/odh-feast-operator-rhel9"
+      digest: "sha256:39453fdd543bcba6c5a88d5f3670314811d2db42af5f0d0ad78b9a3c6f5f75ea"
   RELATED_IMAGE_ODH_AGENTS_OPERATOR_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-agents-operator"
       digest: "sha256:167c0f19d9a39ab7b9b3f80fac60fa77957d7ce00cb5867354d4f7ae51310002"
-    rhoai:
-      base: "quay.io/opendatahub/odh-agents-operator"
-      digest: "sha256:167c0f19d9a39ab7b9b3f80fac60fa77957d7ce00cb5867354d4f7ae51310002"
   RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_E2E_IMAGE:
     source: "csv"
     odh:
-      base: "quay.io/opendatahub/ai-gateway-payload-processing-e2e"
-      digest: "sha256:cf0ffd95b3a1b78e88cdbcff963b45f29cd99d914878d7cb1fec3c031d6511a1"
-    rhoai:
       base: "quay.io/opendatahub/ai-gateway-payload-processing-e2e"
       digest: "sha256:cf0ffd95b3a1b78e88cdbcff963b45f29cd99d914878d7cb1fec3c031d6511a1"
   RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE:
@@ -442,630 +427,621 @@ imageOverrides:
       base: "quay.io/opendatahub/odh-ai-gateway-payload-processing"
       digest: "sha256:ed1cc3d071b484c137a702d2c9cce69d665c8818e8bcfdec30e69cc430c0b520"
     rhoai:
-      base: "quay.io/opendatahub/odh-ai-gateway-payload-processing"
-      digest: "sha256:ed1cc3d071b484c137a702d2c9cce69d665c8818e8bcfdec30e69cc430c0b520"
+      base: "quay.io/rhoai/odh-ai-gateway-payload-processing-rhel9"
+      digest: "sha256:3319e3dc7f76738bad9a38f7529f0efd6dbac7380040a1b2f911c2cfd0b176b4"
   RELATED_IMAGE_ODH_AUTHBRIDGE_PROXY_IMAGE:
     source: "csv"
     odh:
-      base: "quay.io/opendatahub/odh-authbridge-proxy"
-      digest: "sha256:315486763a88668daab872fe5ec3d0f228ab21cc310190622d6ece0043927d28"
-    rhoai:
       base: "quay.io/opendatahub/odh-authbridge-proxy"
       digest: "sha256:315486763a88668daab872fe5ec3d0f228ab21cc310190622d6ece0043927d28"
   RELATED_IMAGE_ODH_AUTOML_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-automl"
-      digest: "sha256:c80100abb622090e0d0b9ecc7a7ff655c735aef4245e49ca0532fbd03c511c91"
+      digest: "sha256:2a422c3325bc7c12b6978ab5c3fd0443780ad6b26751b8f35fb2ae2ca11e0546"
     rhoai:
-      base: "quay.io/opendatahub/odh-automl"
-      digest: "sha256:c80100abb622090e0d0b9ecc7a7ff655c735aef4245e49ca0532fbd03c511c91"
+      base: "quay.io/rhoai/odh-automl-rhel9"
+      digest: "sha256:adf89819da00c65fadebe9c4fec245cfd2c153ba8d701c6840ffcbfca3975595"
   RELATED_IMAGE_ODH_AUTORAG_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-autorag"
-      digest: "sha256:91a64a51dd76ca1f0ebc1c89e7efa57535689babf285466a81a5fdc4a0cfc087"
+      digest: "sha256:61bbc2ded2aa0d4bb2281f59b673654f83300c25849ae0e15d812de6abceeeb8"
     rhoai:
-      base: "quay.io/opendatahub/odh-autorag"
-      digest: "sha256:91a64a51dd76ca1f0ebc1c89e7efa57535689babf285466a81a5fdc4a0cfc087"
+      base: "quay.io/rhoai/odh-autorag-rhel9"
+      digest: "sha256:0a159876bde8087fec17a9bb4b0b17b524bdba7a06e03bbc1fb77d2f393af57f"
   RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-built-in-detector"
       digest: "sha256:7121d1ba3e5e5dabb26abcd5a92f1ed7d9fe2a2a7468ee1da6d1f1e0abbced99"
     rhoai:
-      base: "quay.io/opendatahub/odh-built-in-detector"
-      digest: "sha256:7121d1ba3e5e5dabb26abcd5a92f1ed7d9fe2a2a7468ee1da6d1f1e0abbced99"
+      base: "quay.io/rhoai/odh-built-in-detector-rhel9"
+      digest: "sha256:e6da59f60cc6b47c8a3d62f971b5186d3e4531249f62d152707e13c98c221078"
   RELATED_IMAGE_ODH_CORE_BFF_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-core-bff"
-      digest: "sha256:3f5a15e46fd2684983832f9ec3c5b69bff5c011af85db336c0f8bf7af01d7b5e"
+      digest: "sha256:beb8f823af2f311d5b9cec478d9ee44862192044df207a6983af52d6235d3d64"
     rhoai:
-      base: "quay.io/opendatahub/odh-core-bff"
-      digest: "sha256:3f5a15e46fd2684983832f9ec3c5b69bff5c011af85db336c0f8bf7af01d7b5e"
+      base: "quay.io/rhoai/odh-core-bff-rhel9"
+      digest: "sha256:3b8147cc539b453745c4b227655bfb033b4a2f8c8b4af8f4579bd4daa7cd6d3f"
   RELATED_IMAGE_ODH_DATA_CONNECT_HUB_FLIGHT_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-data-connect-hub-flight"
-      digest: "sha256:9f41cc611777e1a06e8b1777a84c93674c8eaf133992444d1adc5b91c5e9e31c"
+      digest: "sha256:4d7be2b1eaa899e3c497e3b4f1457c34201f03aa07ea372edffa2866bedfd7d7"
     rhoai:
-      base: "quay.io/opendatahub/odh-data-connect-hub-flight"
-      digest: "sha256:9f41cc611777e1a06e8b1777a84c93674c8eaf133992444d1adc5b91c5e9e31c"
+      base: "quay.io/rhoai/odh-data-connect-hub-flight-rhel9"
+      digest: "sha256:3f83d56fe261938990b07ed175aa33a97311306b56ffc0d1d26ea52bfe52610b"
   RELATED_IMAGE_ODH_DATA_CONNECT_HUB_REST_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-data-connect-hub-rest"
-      digest: "sha256:662ef7f3f70605f47a7e17f4361c1359af893d0284097a46a78515385e20e3c5"
+      digest: "sha256:0c0f84e7055a9c842a572a43e6e27b3aba97514ba512fbd4719b56142284f8e8"
     rhoai:
-      base: "quay.io/opendatahub/odh-data-connect-hub-rest"
-      digest: "sha256:662ef7f3f70605f47a7e17f4361c1359af893d0284097a46a78515385e20e3c5"
+      base: "quay.io/rhoai/odh-data-connect-hub-rest-rhel9"
+      digest: "sha256:a871d008090c4b323ab64d4e1eea9bbe2e5ac55e897ed9f18f8c889e13c15132"
   RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/ds-pipelines-argo-argoexec"
       digest: "sha256:5a7e9beb40fdebd696ad480fc6bf44a6207e0154599d6d258f43b8545658a922"
     rhoai:
-      base: "quay.io/opendatahub/ds-pipelines-argo-argoexec"
-      digest: "sha256:5a7e9beb40fdebd696ad480fc6bf44a6207e0154599d6d258f43b8545658a922"
+      base: "quay.io/rhoai/odh-data-science-pipelines-argo-argoexec-rhel9"
+      digest: "sha256:35bfdd303fcf84f8fc521f0db474a79d99ecd6eec3c80a7f7c5127962230281c"
   RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_WORKFLOWCONTROLLER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/ds-pipelines-argo-workflowcontroller"
       digest: "sha256:e1435acb979bee0b127f8bf7b0b22b9308043b56389995524a8ecf60ec9b6be1"
     rhoai:
-      base: "quay.io/opendatahub/ds-pipelines-argo-workflowcontroller"
-      digest: "sha256:e1435acb979bee0b127f8bf7b0b22b9308043b56389995524a8ecf60ec9b6be1"
+      base: "quay.io/rhoai/odh-data-science-pipelines-argo-workflowcontroller-rhel9"
+      digest: "sha256:0b7dcb458a3c66d63695fe8e2fb5725dd557b5b799af43a016c638c6359d19c9"
   RELATED_IMAGE_ODH_EVAL_HUB_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-eval-hub"
       digest: "sha256:ac217d00a53d4ecfd0c0c6396f1c1fbeb76bb8da86c2375625e6a0b06ae7fe97"
     rhoai:
-      base: "quay.io/opendatahub/odh-eval-hub"
-      digest: "sha256:ac217d00a53d4ecfd0c0c6396f1c1fbeb76bb8da86c2375625e6a0b06ae7fe97"
+      base: "quay.io/rhoai/odh-eval-hub-rhel9"
+      digest: "sha256:f1d8e77bf016bc55e691cd177940f218d6be3e89e9b58d3b89cee877fcef054c"
   RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/feature-server"
       digest: "sha256:98672911c37cad76859d38c5ec3c8c26f62147bccaea33f2b4dfb7c50b2f0d40"
     rhoai:
-      base: "quay.io/opendatahub/feature-server"
-      digest: "sha256:98672911c37cad76859d38c5ec3c8c26f62147bccaea33f2b4dfb7c50b2f0d40"
+      base: "quay.io/rhoai/odh-feature-server-rhel9"
+      digest: "sha256:f18a687afc6ec5551deb8d38e79f4ca84c0afce8c2adeb3622d471c0da12de87"
   RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/ta-guardrails-orchestrator"
       digest: "sha256:757f3c3e05fe0c40bcfa8d29d0511ddcaff640a38c4ee507696cf126009381b6"
     rhoai:
-      base: "quay.io/opendatahub/ta-guardrails-orchestrator"
-      digest: "sha256:757f3c3e05fe0c40bcfa8d29d0511ddcaff640a38c4ee507696cf126009381b6"
+      base: "quay.io/rhoai/odh-fms-guardrails-orchestrator-rhel9"
+      digest: "sha256:bceeb62432e613dea25b96dd13db355e9a4b7b6dcf3685eab6bf6e55d5ffd93d"
   RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/guardrails-detector-huggingface-runtime"
       digest: "sha256:01de40dc221e33ed5e3668e1a4e5c0158ed875a8f50d40406f86b4fffe1d241f"
     rhoai:
-      base: "quay.io/opendatahub/guardrails-detector-huggingface-runtime"
-      digest: "sha256:01de40dc221e33ed5e3668e1a4e5c0158ed875a8f50d40406f86b4fffe1d241f"
+      base: "quay.io/rhoai/odh-guardrails-detector-huggingface-runtime-rhel9"
+      digest: "sha256:317c30cb5ef8bbc4480ebb0dc8bf32b45ca13e7ffad814b240cdfb4275b6a261"
   RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/kubeflow-notebook-controller"
       digest: "sha256:1cdf5dfa06beac91818df6cce6d7104a2e2f79c529384d2d57c3585aa73370d6"
     rhoai:
-      base: "quay.io/opendatahub/kubeflow-notebook-controller"
-      digest: "sha256:1cdf5dfa06beac91818df6cce6d7104a2e2f79c529384d2d57c3585aa73370d6"
+      base: "quay.io/rhoai/odh-kf-notebook-controller-rhel9"
+      digest: "sha256:8284a83d1dd3e229699e281fb6a75222246a5eb24ec3fddd7bb84f20c99e4b37"
   RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/kserve-agent"
-      digest: "sha256:ba807eed2008dfe5aeada805af905e2ba1c4bbef897b7a628ebdd9c657c78149"
+      digest: "sha256:338b6e94c77cd8db0cdb045bc6af9d1a468a57dfdeec401dd948eaa31bd4135f"
     rhoai:
-      base: "quay.io/opendatahub/kserve-agent"
-      digest: "sha256:ba807eed2008dfe5aeada805af905e2ba1c4bbef897b7a628ebdd9c657c78149"
+      base: "quay.io/rhoai/odh-kserve-agent-rhel9"
+      digest: "sha256:c23134f758b9c041ca5c5ad0ecf3c1183069d31e461296a0f8ae2635d2d63c26"
   RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-kserve-autogluon-server"
-      digest: "sha256:4ba36e871eb1cef4ee4fae0a215d253b744c189d879f9b1853c365b2e84e0a13"
+      digest: "sha256:77351b5f013c84b0ea2dcfb598d1a43c12b5d9234578b9e384bf5be75642a53d"
     rhoai:
-      base: "quay.io/opendatahub/odh-kserve-autogluon-server"
-      digest: "sha256:4ba36e871eb1cef4ee4fae0a215d253b744c189d879f9b1853c365b2e84e0a13"
+      base: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9"
+      digest: "sha256:fec0599d25f2a5d5a772837e54398bf480644d641dc72b01af27f3e604df4870"
   RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-kserve-localmodelnode-agent"
-      digest: "sha256:534283c449767de01c340de7af22b8775d84d16ef18713d04a490d6ebc959639"
+      digest: "sha256:29093f2009ec31e2d9e7474ea34923d2a93a4983fe0faa46ade5dfbec9e39991"
     rhoai:
-      base: "quay.io/opendatahub/odh-kserve-localmodelnode-agent"
-      digest: "sha256:534283c449767de01c340de7af22b8775d84d16ef18713d04a490d6ebc959639"
+      base: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9"
+      digest: "sha256:8a50ea2e51d3e553fd9a76182251a281d6dbd8c658684bffac05a27a4a6f2109"
   RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/kserve-router"
-      digest: "sha256:e5a320e1e7886cd01d7fa2b1ba02d17f942be3a2cd2b6aa08d4bda801c551902"
+      digest: "sha256:c0e3adf9508c7da4a58adffde0d9973f500ddf9e53eb3dd8eca3eee4d24b02d1"
     rhoai:
-      base: "quay.io/opendatahub/kserve-router"
-      digest: "sha256:e5a320e1e7886cd01d7fa2b1ba02d17f942be3a2cd2b6aa08d4bda801c551902"
+      base: "quay.io/rhoai/odh-kserve-router-rhel9"
+      digest: "sha256:001eb4d5299fd3315959fd4dd4ca2b03fc2d5d78c1fa7108f6b9f8bfe4556a4f"
   RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/kserve-storage-initializer"
-      digest: "sha256:da44355286243ccda1ebb109235bf8dc29feed736dd2868c0b3ab81689bc029b"
+      digest: "sha256:2be4dcd6b383a701feb7e0e5a7d4f9ebb72d2dd9316fa9cb6163450aa3206601"
     rhoai:
-      base: "quay.io/opendatahub/kserve-storage-initializer"
-      digest: "sha256:da44355286243ccda1ebb109235bf8dc29feed736dd2868c0b3ab81689bc029b"
+      base: "quay.io/rhoai/odh-kserve-storage-initializer-rhel9"
+      digest: "sha256:faeb708795e93e2ce323200fa3d4dec6a9202841eda37933332e1a095ca4b7cc"
   RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-kube-auth-proxy"
       digest: "sha256:d90930380151490d5516eeb95840eecc743e9005fc02733dec6fe79e1a00e035"
     rhoai:
-      base: "quay.io/opendatahub/odh-kube-auth-proxy"
-      digest: "sha256:d90930380151490d5516eeb95840eecc743e9005fc02733dec6fe79e1a00e035"
+      base: "quay.io/rhoai/odh-kube-auth-proxy-rhel9"
+      digest: "sha256:b79928892c97402ecb9f1e3befb6ed37c229c33b06d196c71a5f9c7fa29f70d0"
   RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-kube-rbac-proxy"
       digest: "sha256:acd9de62b8339dbacd39635317e5e596e09a70ae26ac9eccdde4a4124388740f"
     rhoai:
-      base: "quay.io/opendatahub/odh-kube-rbac-proxy"
-      digest: "sha256:acd9de62b8339dbacd39635317e5e596e09a70ae26ac9eccdde4a4124388740f"
+      base: "quay.io/rhoai/odh-kube-rbac-proxy-rhel9"
+      digest: "sha256:840104f3469c04edc40e5b42b3b797367f5cac55cef76fb9563f4f766e479e4f"
   RELATED_IMAGE_ODH_LLM_D_ASYNC_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-llm-d-async"
-      digest: "sha256:fec541dc64f0a3b715e6893a234631fab29c7f6919afe1ab4025b89c32f5acbf"
+      digest: "sha256:61d37202969e9f436ff704ad64aa0502075a2390cddaaf760e880e5da52c0d09"
     rhoai:
-      base: "quay.io/opendatahub/odh-llm-d-async"
-      digest: "sha256:fec541dc64f0a3b715e6893a234631fab29c7f6919afe1ab4025b89c32f5acbf"
+      base: "quay.io/rhoai/odh-llm-d-async-rhel9"
+      digest: "sha256:5c2563855d3b8a51ac7ec512a446174a84d7e899935045134104e65ffa1b7c51"
   RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_APISERVER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-llm-d-batch-gateway-apiserver"
-      digest: "sha256:0b14adf815dd68adb3eebc22f0351d260c2819d3268accc9481c5e01e301225d"
+      digest: "sha256:40b78e0c3d290c1be1bb12652dabe3773b1653ebe0af869f2bd3502192b7ce63"
     rhoai:
-      base: "quay.io/opendatahub/odh-llm-d-batch-gateway-apiserver"
-      digest: "sha256:0b14adf815dd68adb3eebc22f0351d260c2819d3268accc9481c5e01e301225d"
+      base: "quay.io/rhoai/odh-llm-d-batch-gateway-apiserver-rhel9"
+      digest: "sha256:cbcc3f2d04354130145d04b17bef71d24984b596894df9785723d2f609f40e59"
   RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-llm-d-batch-gateway-gc"
-      digest: "sha256:a1729178eda6b5de43c621ade4282d8bdd882964333697f062841feb47207129"
+      digest: "sha256:a062e0e95d548bb9e3be96ea6e26ed10f4de348b9a3db6c8ceb91309fe1bbdf4"
     rhoai:
-      base: "quay.io/opendatahub/odh-llm-d-batch-gateway-gc"
-      digest: "sha256:a1729178eda6b5de43c621ade4282d8bdd882964333697f062841feb47207129"
+      base: "quay.io/rhoai/odh-llm-d-batch-gateway-gc-rhel9"
+      digest: "sha256:8b268d4a814f5b836029e17eb45298c6d6e23661234726c6c740d473a9b184b0"
   RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_OPERATOR_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-batch-gateway-operator"
       digest: "sha256:b4cc26edad21d57242c486990a12ccb6df2a1c1220f5765d2f664f765ab0f840"
     rhoai:
-      base: "quay.io/opendatahub/odh-batch-gateway-operator"
-      digest: "sha256:b4cc26edad21d57242c486990a12ccb6df2a1c1220f5765d2f664f765ab0f840"
+      base: "quay.io/rhoai/odh-llm-d-batch-gateway-operator-rhel9"
+      digest: "sha256:11af4a4c6cba42e25f31a1911b0b334fc69cbf21ee321311c4d3589823706fdf"
   RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-llm-d-batch-gateway-processor"
-      digest: "sha256:c55c56d71001b2a4bdc2863c7e7c23469e8a80035fb139c6dd1d79aba030b414"
+      digest: "sha256:81ef7409b15030b8d9502715812165fd1b382be81c01afa88a5523dfaca0d777"
     rhoai:
-      base: "quay.io/opendatahub/odh-llm-d-batch-gateway-processor"
-      digest: "sha256:c55c56d71001b2a4bdc2863c7e7c23469e8a80035fb139c6dd1d79aba030b414"
+      base: "quay.io/rhoai/odh-llm-d-batch-gateway-processor-rhel9"
+      digest: "sha256:d1e86e6fde1655b94d7ba9792ad276588f83e8052461377ca0d2792aff2c376e"
   RELATED_IMAGE_ODH_LLM_D_ROUTER_DISAGG_SIDECAR_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-llm-d-router-disagg-sidecar"
-      digest: "sha256:05e1f8205df6634b0d8f74c3e311cb97d04db8319e7c4096a31d2cfe87ccc4f7"
+      digest: "sha256:698c1bb3fa8346d93293980f07f1abb825a8b6aadab81462aec92423b8899c11"
     rhoai:
-      base: "quay.io/opendatahub/odh-llm-d-router-disagg-sidecar"
-      digest: "sha256:05e1f8205df6634b0d8f74c3e311cb97d04db8319e7c4096a31d2cfe87ccc4f7"
+      base: "quay.io/rhoai/odh-llm-d-router-disagg-sidecar-rhel9"
+      digest: "sha256:bdaaafbee11191e8b52c133b8b279cc88265aed85c4312d3229a818c4139ac4e"
   RELATED_IMAGE_ODH_LLM_D_ROUTER_ENDPOINT_PICKER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-llm-d-router-endpoint-picker"
-      digest: "sha256:04cd56eba4b3b60070bbc96ffd558acb0034a6172a1a68574a7658f9146fc07c"
+      digest: "sha256:872de481d87a760e5aced528f4e89334f65426e9df427acfd7ac4b351ef8ef11"
     rhoai:
-      base: "quay.io/opendatahub/odh-llm-d-router-endpoint-picker"
-      digest: "sha256:04cd56eba4b3b60070bbc96ffd558acb0034a6172a1a68574a7658f9146fc07c"
+      base: "quay.io/rhoai/odh-llm-d-router-endpoint-picker-rhel9"
+      digest: "sha256:07f817b4b2205ab4faab3b3fe52199517779c4df95b8ad1630f351da58ce9f75"
   RELATED_IMAGE_ODH_MAAS_API_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/maas-api"
-      digest: "sha256:9df25028d43380c8b08d1f4094777580a2d2c5fd31da572e8b8ea991e70b5f43"
+      digest: "sha256:d2699e032bc699f36fc82ba293821568a78e21950046f89696c4c4129d1681a3"
     rhoai:
-      base: "quay.io/opendatahub/maas-api"
-      digest: "sha256:9df25028d43380c8b08d1f4094777580a2d2c5fd31da572e8b8ea991e70b5f43"
+      base: "quay.io/rhoai/odh-maas-api-rhel9"
+      digest: "sha256:e3c2bd26c761ff5a1db1d14f765974733ca7d5565aac539932ad48cf04ee38a3"
   RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/maas-controller"
-      digest: "sha256:d8f850b2d3377b2bb31745d93fe67b5f1caf39b9a7cf9254650d8924b59a007d"
+      digest: "sha256:21710d45046d25409ff5dabcdb5feea549207da61e6e5dab022bbf7b2799bae2"
     rhoai:
-      base: "quay.io/opendatahub/maas-controller"
-      digest: "sha256:d8f850b2d3377b2bb31745d93fe67b5f1caf39b9a7cf9254650d8924b59a007d"
+      base: "quay.io/rhoai/odh-maas-controller-rhel9"
+      digest: "sha256:aa9cc9d189fd0391584f7898f57f26d96be5faf39ab0b16dd3bae2e8a8bbf8f2"
   RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_E2E_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-mcp-lifecycle-operator-e2e"
-      digest: "sha256:96a96464cd2743d6fd7062b72d995b64ae693aa5dd53638005117394612c3b7b"
-    rhoai:
-      base: "quay.io/opendatahub/odh-mcp-lifecycle-operator-e2e"
-      digest: "sha256:96a96464cd2743d6fd7062b72d995b64ae693aa5dd53638005117394612c3b7b"
+      digest: "sha256:f3d00dce441586917d61578043a56b0fad23e510ed014ad63bc2ab4915dbdabc"
   RELATED_IMAGE_ODH_MLFLOW_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/mlflow"
-      digest: "sha256:143cdd6651695aa7223934aba1eda723282905fc681a93b104ec3418a8b568df"
+      digest: "sha256:5031464fde98ede7dc6efb844516d525b1342e5fa91d6861f7872620b4e26c27"
     rhoai:
-      base: "quay.io/opendatahub/mlflow"
-      digest: "sha256:143cdd6651695aa7223934aba1eda723282905fc681a93b104ec3418a8b568df"
+      base: "quay.io/rhoai/odh-mlflow-rhel9"
+      digest: "sha256:f352846c42a5dcc0aacc215b9b491e6c4fb0081a1d6e52d4225c7cf57f43d1dd"
   RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/mlmd-grpc-server"
       digest: "sha256:7a98ba63b03a1b26e331478c3ed8a8b00d55941a0728f592ec1e8f9d200679a0"
     rhoai:
-      base: "quay.io/opendatahub/mlmd-grpc-server"
-      digest: "sha256:7a98ba63b03a1b26e331478c3ed8a8b00d55941a0728f592ec1e8f9d200679a0"
+      base: "quay.io/rhoai/odh-mlmd-grpc-server-rhel9"
+      digest: "sha256:8cb6f60bd7567ba69180676abe1909932e18cfad84bc38475b734c53a2c847b1"
   RELATED_IMAGE_ODH_MLSERVER_CUDA_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-mlserver-cuda"
       digest: "sha256:bc2f0e7070b2a2e2f3457b39c44fb6b62fb10e314bb8d74765b1a22516550d9c"
     rhoai:
-      base: "quay.io/opendatahub/odh-mlserver-cuda"
-      digest: "sha256:bc2f0e7070b2a2e2f3457b39c44fb6b62fb10e314bb8d74765b1a22516550d9c"
+      base: "quay.io/rhoai/odh-mlserver-cuda-rhel9"
+      digest: "sha256:51b625123b19682a6615cca03e9509c353ff30c4c0feb07c227e74441b4da7b0"
   RELATED_IMAGE_ODH_MLSERVER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/mlserver"
       digest: "sha256:bbf0ba6e43579214ca14f4364801a291546a630e124e59b02dedaff6d5cab545"
     rhoai:
-      base: "quay.io/opendatahub/mlserver"
-      digest: "sha256:bbf0ba6e43579214ca14f4364801a291546a630e124e59b02dedaff6d5cab545"
+      base: "quay.io/rhoai/odh-mlserver-rhel9"
+      digest: "sha256:a189fb2b768c5a96d95beeb3021ddc5938b09b16cec4acda30c2532a27b0340d"
   RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_V2_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/ds-pipelines-api-server"
       digest: "sha256:8e2e12576211b5b521485ab367b9a4d32d49d45ccafc6fb8f4f879e41a684c70"
     rhoai:
-      base: "quay.io/opendatahub/ds-pipelines-api-server"
-      digest: "sha256:8e2e12576211b5b521485ab367b9a4d32d49d45ccafc6fb8f4f879e41a684c70"
+      base: "quay.io/rhoai/odh-ml-pipelines-api-server-v2-rhel9"
+      digest: "sha256:c7341120aef09ebc07092fab9ba69eedc405adb732987e95b87468fb63bce4cc"
   RELATED_IMAGE_ODH_ML_PIPELINES_DRIVER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/ds-pipelines-driver"
       digest: "sha256:b667384a802e993dea0557213867e794a78cbbbada9f913debc9e87b42a86ca8"
     rhoai:
-      base: "quay.io/opendatahub/ds-pipelines-driver"
-      digest: "sha256:b667384a802e993dea0557213867e794a78cbbbada9f913debc9e87b42a86ca8"
+      base: "quay.io/rhoai/odh-ml-pipelines-driver-rhel9"
+      digest: "sha256:76e27579bebb42af8b50e6fd1a16ccdd62cf6be0f25563982a567da335a5be10"
   RELATED_IMAGE_ODH_ML_PIPELINES_LAUNCHER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/ds-pipelines-launcher"
       digest: "sha256:2e366bc9d7209b1498b9e971220b96cb8930db1906bd82903e603818af3e29b3"
     rhoai:
-      base: "quay.io/opendatahub/ds-pipelines-launcher"
-      digest: "sha256:2e366bc9d7209b1498b9e971220b96cb8930db1906bd82903e603818af3e29b3"
+      base: "quay.io/rhoai/odh-ml-pipelines-launcher-rhel9"
+      digest: "sha256:dae11d9ae40cc95a8f0f178b82f04f3bb1e7490c14719b3b18d8377e8dd033af"
   RELATED_IMAGE_ODH_ML_PIPELINES_PERSISTENCEAGENT_V2_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/ds-pipelines-persistenceagent"
       digest: "sha256:8ed014ca5f558b040379af2740dc6e5a9f30f2dbf0bfea2726a7ea7a1eb38f35"
     rhoai:
-      base: "quay.io/opendatahub/ds-pipelines-persistenceagent"
-      digest: "sha256:8ed014ca5f558b040379af2740dc6e5a9f30f2dbf0bfea2726a7ea7a1eb38f35"
+      base: "quay.io/rhoai/odh-ml-pipelines-persistenceagent-v2-rhel9"
+      digest: "sha256:8d7f560e9ad38d34586c04f3ead35326817be2d3ac280d62e8669c8c32710674"
   RELATED_IMAGE_ODH_ML_PIPELINES_SCHEDULEDWORKFLOW_V2_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/ds-pipelines-scheduledworkflow"
       digest: "sha256:95056bad152c2a34cda28858f7d1f761a64934ba4acc46aa3d1e3db105bd7cfd"
     rhoai:
-      base: "quay.io/opendatahub/ds-pipelines-scheduledworkflow"
-      digest: "sha256:95056bad152c2a34cda28858f7d1f761a64934ba4acc46aa3d1e3db105bd7cfd"
+      base: "quay.io/rhoai/odh-ml-pipelines-scheduledworkflow-v2-rhel9"
+      digest: "sha256:5ab0e8f4ce2aabe6016ddae93a965c105b48ec6a0c12096605fbea07fc696adf"
   RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-model-metadata-collection"
-      digest: "sha256:df6e3dae2156cdb252c015fb3fe0bb64c18722bb845f5416661de4f674ae11b0"
+      digest: "sha256:8f98057a391a4ba7aa381bc51d0ffd674c75a96e283a2dd562a0b44fb48ae9b5"
     rhoai:
-      base: "quay.io/opendatahub/odh-model-metadata-collection"
-      digest: "sha256:df6e3dae2156cdb252c015fb3fe0bb64c18722bb845f5416661de4f674ae11b0"
+      base: "quay.io/rhoai/odh-model-metadata-collection-rhel9"
+      digest: "sha256:ff85977297fe5f360a29e5e8d151a421fcef7e5feeae67ba5d6e0a7df9a47ceb"
   RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-model-metadata-collection"
-      digest: "sha256:df6e3dae2156cdb252c015fb3fe0bb64c18722bb845f5416661de4f674ae11b0"
+      digest: "sha256:8f98057a391a4ba7aa381bc51d0ffd674c75a96e283a2dd562a0b44fb48ae9b5"
     rhoai:
-      base: "quay.io/opendatahub/odh-model-metadata-collection"
-      digest: "sha256:df6e3dae2156cdb252c015fb3fe0bb64c18722bb845f5416661de4f674ae11b0"
+      base: "quay.io/rhoai/odh-model-performance-data-rhel9"
+      digest: "sha256:30a0b19d617274c6cd4a6effc489588f0351ffdd668487a9a6a84da8261a3ece"
   RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/model-registry"
-      digest: "sha256:a16e5fc4b06747dddc39f5383a8a8322ec3a605ba307d27b430a15d71966f4d2"
+      digest: "sha256:9305cf0fa2fc64169cc8a6cca971524786fb4aaa7f01abc24a0eb85507cb4638"
     rhoai:
-      base: "quay.io/opendatahub/model-registry"
-      digest: "sha256:a16e5fc4b06747dddc39f5383a8a8322ec3a605ba307d27b430a15d71966f4d2"
+      base: "quay.io/rhoai/odh-model-registry-rhel9"
+      digest: "sha256:27d3dadc867227150c2f93555958a47665f5e377432073340707cb2297ac5e3f"
   RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/model-registry-job-async-upload"
-      digest: "sha256:cae175ab2740148cd0ae95269b200ed015373719c47fd1eb21d356876e8be0d5"
+      digest: "sha256:acb0c77f9608e1e580b5220622440dcc23e6a3f0cef9773f213302aa9b018303"
     rhoai:
-      base: "quay.io/opendatahub/model-registry-job-async-upload"
-      digest: "sha256:cae175ab2740148cd0ae95269b200ed015373719c47fd1eb21d356876e8be0d5"
+      base: "quay.io/rhoai/odh-model-registry-job-async-upload-rhel9"
+      digest: "sha256:ff612b12265db0b5222630eb1af73406acf7f79dc7a32fede621cfa596e8f62b"
   RELATED_IMAGE_ODH_MODEL_SERVING_API_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-model-serving-api"
-      digest: "sha256:639fb79f76e343ebb95a10b8ef45ddeae37d1f392af64d7346c78ea43216a899"
+      digest: "sha256:dc6ced7ac752d3770e31e3e83f4f9a6c793de5b9b04dde0d194d021020cef8e8"
     rhoai:
-      base: "quay.io/opendatahub/odh-model-serving-api"
-      digest: "sha256:639fb79f76e343ebb95a10b8ef45ddeae37d1f392af64d7346c78ea43216a899"
+      base: "quay.io/rhoai/odh-model-serving-api-rhel9"
+      digest: "sha256:32cc0e77d9d990dcf36f08bacdb581807a64dce3095553cc59120d5a3ab31ccf"
   RELATED_IMAGE_ODH_MOD_ARCH_AGENT_OPS_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-mod-arch-agent-ops"
-      digest: "sha256:ac21120af2e4eb8322d1aed49ec52824a8361c004fda360eaa8b05147befc01a"
+      digest: "sha256:9ab8f3eb2168b03ec98f0d929b510da1debfeec734aff4fc00ce642ae2543f83"
     rhoai:
-      base: "quay.io/opendatahub/odh-mod-arch-agent-ops"
-      digest: "sha256:ac21120af2e4eb8322d1aed49ec52824a8361c004fda360eaa8b05147befc01a"
+      base: "quay.io/rhoai/odh-mod-arch-agent-ops-rhel9"
+      digest: "sha256:2c3d42827d3e043fc00a48fafbe409988fa5e2503b46ae1823c9686c2d4209ed"
   RELATED_IMAGE_ODH_MOD_ARCH_AUTOML_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-mod-arch-automl"
-      digest: "sha256:ec73d00a75a5c24c312295d79e4f0833ce4d724d1e3f3f7399b7e73e296e9f7b"
+      digest: "sha256:2e3032a900bece2a5e92d7fb229fd51e9f4a12001d8f7098dc0e0f25f3b39711"
     rhoai:
-      base: "quay.io/opendatahub/odh-mod-arch-automl"
-      digest: "sha256:ec73d00a75a5c24c312295d79e4f0833ce4d724d1e3f3f7399b7e73e296e9f7b"
+      base: "quay.io/rhoai/odh-mod-arch-automl-rhel9"
+      digest: "sha256:81b4684266abc9dfde7f3cbcc5b1e6ea0f95960e832d725b3763333e18cb2332"
   RELATED_IMAGE_ODH_MOD_ARCH_AUTORAG_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-mod-arch-autorag"
-      digest: "sha256:f13f10577b2146630ce4266c351915dcdf9ac95d2b941a86fada7fc3d9eaf832"
+      digest: "sha256:f449f6d739a7f1fbd0ef2413bdcadf561f19a995ab732a8a353ee4b1a46c81b7"
     rhoai:
-      base: "quay.io/opendatahub/odh-mod-arch-autorag"
-      digest: "sha256:f13f10577b2146630ce4266c351915dcdf9ac95d2b941a86fada7fc3d9eaf832"
+      base: "quay.io/rhoai/odh-mod-arch-autorag-rhel9"
+      digest: "sha256:fe85cc46dd6cf22d9907bfeeca0ed99219c3bf822c60e9eff5a62bc87ee2ea3c"
   RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-mod-arch-eval-hub"
-      digest: "sha256:8f3d111a670b659cd5a1dbd5569cd6c4dab55ab35674ed9785c9f2fd3b5f4fb8"
+      digest: "sha256:7ae0fe9676412e70af0886d4f52693e5ed151c793b36088b44631270b4fd3b60"
     rhoai:
-      base: "quay.io/opendatahub/odh-mod-arch-eval-hub"
-      digest: "sha256:8f3d111a670b659cd5a1dbd5569cd6c4dab55ab35674ed9785c9f2fd3b5f4fb8"
+      base: "quay.io/rhoai/odh-mod-arch-eval-hub-rhel9"
+      digest: "sha256:ff41970337fad971b1abe2f1779e9aa572205ef238f772da0b16b275a11cce65"
   RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-mod-arch-gen-ai"
-      digest: "sha256:33d73656ed6dcfb92fb454bc8885a09e74c68b26480752db5e7ac4fd8a2d445e"
+      digest: "sha256:e7499bdef0f1763d68baec7f97a3b2ce39dab8ca13f2d4c6e32d09c9f7fbb93b"
     rhoai:
-      base: "quay.io/opendatahub/odh-mod-arch-gen-ai"
-      digest: "sha256:33d73656ed6dcfb92fb454bc8885a09e74c68b26480752db5e7ac4fd8a2d445e"
+      base: "quay.io/rhoai/odh-mod-arch-gen-ai-rhel9"
+      digest: "sha256:2f4f8ebe82ea3ddc43563ca47259c44e8dfd34910114089035da0d37c76d692b"
   RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/mod-arch-maas"
-      digest: "sha256:789e50814b50019ee14e25fc04b57958ed9a5f797d81dcc8681b79b1d643ba8b"
+      digest: "sha256:b6b495e8aac751292f9ecb4d90a8ae3836e9f61e86fbb9cef67d6c881eab6af3"
     rhoai:
-      base: "quay.io/opendatahub/mod-arch-maas"
-      digest: "sha256:789e50814b50019ee14e25fc04b57958ed9a5f797d81dcc8681b79b1d643ba8b"
+      base: "quay.io/rhoai/odh-mod-arch-maas-rhel9"
+      digest: "sha256:2af8624b186974ba9be1b5e49825f754eaf8de8e2cc2badf977477a479337b72"
   RELATED_IMAGE_ODH_MOD_ARCH_MLFLOW_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-mod-arch-mlflow"
-      digest: "sha256:2204458125f0d2bb3ff013228b8ede7fc96fedf340eba2d11cc560a4f2972b66"
+      digest: "sha256:da80292f797849d2c56148fa35f77a3d40e1326c7865cf0c9de4ec6d4eab5798"
     rhoai:
-      base: "quay.io/opendatahub/odh-mod-arch-mlflow"
-      digest: "sha256:2204458125f0d2bb3ff013228b8ede7fc96fedf340eba2d11cc560a4f2972b66"
+      base: "quay.io/rhoai/odh-mod-arch-mlflow-rhel9"
+      digest: "sha256:ce7f0a9464b1b070e0ea10d818370c14f5ec853b9f98ebb6871f82de1a8cdb43"
   RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-mod-arch-modular-architecture"
       digest: "sha256:0dfd41862044b430dda951a450275428cada6a9b04d489736164cea062fc9ffd"
     rhoai:
-      base: "quay.io/opendatahub/odh-mod-arch-modular-architecture"
-      digest: "sha256:0dfd41862044b430dda951a450275428cada6a9b04d489736164cea062fc9ffd"
+      base: "quay.io/rhoai/odh-mod-arch-model-registry-rhel9"
+      digest: "sha256:4eaa7a9ccb928e64f1bcc334399349ab35544e5a79cced644317330fe586218e"
   RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-notebook-controller"
       digest: "sha256:ed1be99e914043400e7516fd44109bfbda9447e9d2cd9f6bf98fbbcfe02f9743"
     rhoai:
-      base: "quay.io/opendatahub/odh-notebook-controller"
-      digest: "sha256:ed1be99e914043400e7516fd44109bfbda9447e9d2cd9f6bf98fbbcfe02f9743"
+      base: "quay.io/rhoai/odh-notebook-controller-rhel9"
+      digest: "sha256:77aef0b7d191b28ee40d42e8beb893ad132347767246fcc8d4658f0bbf3febac"
   RELATED_IMAGE_ODH_OBSERVABILITY_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-observability"
-      digest: "sha256:5795308d81fccacf2a6519d8d46efbb9a050836916e98415b699945e6340a721"
+      digest: "sha256:bdb8a6217b0e156fe9ad07ab44a775dd541f55bcbf1576a268c8b241e3ad6c9e"
     rhoai:
-      base: "quay.io/opendatahub/odh-observability"
-      digest: "sha256:5795308d81fccacf2a6519d8d46efbb9a050836916e98415b699945e6340a721"
+      base: "quay.io/rhoai/odh-observability-rhel9"
+      digest: "sha256:6637e85cda8909e5e489cbd79ff62aeb142d81bef4c8232a5ddf4067f073a9e7"
   RELATED_IMAGE_ODH_OGX_CORE_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-ogx-core"
       digest: "sha256:9d6a18a03dd8a0dda0617600e751cdae40305052ae1744323489058ae9d652bd"
     rhoai:
-      base: "quay.io/opendatahub/odh-ogx-core"
-      digest: "sha256:9d6a18a03dd8a0dda0617600e751cdae40305052ae1744323489058ae9d652bd"
+      base: "quay.io/rhoai/odh-ogx-core-rhel9"
+      digest: "sha256:8cb233d8cad212f2dcdb108caa6cc053f37dcc17eb1cb8e079fbc0c2b34b1b81"
   RELATED_IMAGE_ODH_OGX_MODULE_OPERATOR_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-ogx-module-operator"
-      digest: "sha256:3074b673983ec1c2424ea07d84dff80e6c5651031f816b80053acbe1d2f327ce"
+      digest: "sha256:57bddb2b1f1a64fef16755f1a7995f306b7f0e9999987b853f4accc8f93631d4"
     rhoai:
-      base: "quay.io/opendatahub/odh-ogx-module-operator"
-      digest: "sha256:3074b673983ec1c2424ea07d84dff80e6c5651031f816b80053acbe1d2f327ce"
+      base: "quay.io/rhoai/odh-ogx-module-operator-rhel9"
+      digest: "sha256:99734c7ec2a2bda26fed4202a45d47283db8f4fc50dbd468272995167392a867"
   RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/openvino_model_server"
       digest: "sha256:aea6779e5fa366a33e02cf5f8c1937cb4ad5feeb18dae12b0619b2e775168da2"
     rhoai:
-      base: "quay.io/opendatahub/openvino_model_server"
-      digest: "sha256:aea6779e5fa366a33e02cf5f8c1937cb4ad5feeb18dae12b0619b2e775168da2"
+      base: "quay.io/rhoai/odh-openvino-model-server-rhel9"
+      digest: "sha256:9d692e92d33f0557f0bb3e57a1ef678c7490c86d2a5fd37da14f149c9d562c28"
   RELATED_IMAGE_ODH_PIPELINES_COMPONENTS_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-pipelines-components"
-      digest: "sha256:d188f7fbb5b36c1b91b28e169e11aabfdf2e435b284939a94e9b088f36ae30c2"
+      digest: "sha256:d5cf5e1bafa79c0cf07e8b5a7f7312e2bf4799fed3f155625ac689c332fa678e"
     rhoai:
-      base: "quay.io/opendatahub/odh-pipelines-components"
-      digest: "sha256:d188f7fbb5b36c1b91b28e169e11aabfdf2e435b284939a94e9b088f36ae30c2"
+      base: "quay.io/rhoai/odh-pipelines-components-rhel9"
+      digest: "sha256:5a935216e37a6300fc617a7b0b83397964d4de3d13da630416afd17ca8acc386"
   RELATED_IMAGE_ODH_PIPELINE_RUNTIME_DATASCIENCE_CPU_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-pipeline-runtime-datascience-cpu-py312-ubi9"
       digest: "sha256:9e8cdf867565a58f88463535203aaf28cbab857cbd3bb67f3306bf1440125a8d"
     rhoai:
-      base: "quay.io/opendatahub/odh-pipeline-runtime-datascience-cpu-py312-ubi9"
-      digest: "sha256:9e8cdf867565a58f88463535203aaf28cbab857cbd3bb67f3306bf1440125a8d"
+      base: "quay.io/rhoai/odh-pipeline-runtime-datascience-cpu-py312-rhel9"
+      digest: "sha256:331e11212d091a961213d3a599274b376587561c34856d2e1e49864298b7a6e4"
   RELATED_IMAGE_ODH_PIPELINE_RUNTIME_MINIMAL_CPU_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-pipeline-runtime-minimal-cpu-py312-ubi9"
       digest: "sha256:bc0f841b7003459ffce887cafa923544bdd5e99506f8218cac9a6144a7bfa56f"
     rhoai:
-      base: "quay.io/opendatahub/odh-pipeline-runtime-minimal-cpu-py312-ubi9"
-      digest: "sha256:bc0f841b7003459ffce887cafa923544bdd5e99506f8218cac9a6144a7bfa56f"
+      base: "quay.io/rhoai/odh-pipeline-runtime-minimal-cpu-py312-rhel9"
+      digest: "sha256:38a3ac81e7448048d4991789329d3e811634f581999710c481db8008216be23b"
   RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_CUDA_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-pipeline-runtime-pytorch-cuda-py312-ubi9"
       digest: "sha256:2280a939327f3f9d330092560a3bf0023857769bc5ec48576d8b8dd8396af217"
     rhoai:
-      base: "quay.io/opendatahub/odh-pipeline-runtime-pytorch-cuda-py312-ubi9"
-      digest: "sha256:2280a939327f3f9d330092560a3bf0023857769bc5ec48576d8b8dd8396af217"
+      base: "quay.io/rhoai/odh-pipeline-runtime-pytorch-cuda-py312-rhel9"
+      digest: "sha256:7f2be29962239556a225d943bf13f2ca894011b4806d90c76238003c1cea740f"
   RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_LLMCOMPRESSOR_CUDA_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312-ubi9"
       digest: "sha256:f0e697ce47d1bd0ddfee43410688ca82ff574bc6ab3f38259442e40e451cb61d"
     rhoai:
-      base: "quay.io/opendatahub/odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312-ubi9"
-      digest: "sha256:f0e697ce47d1bd0ddfee43410688ca82ff574bc6ab3f38259442e40e451cb61d"
+      base: "quay.io/rhoai/odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312-rhel9"
+      digest: "sha256:7ed5fcbf172f63b01759ace57fb927ca731b4252e2122d1df46c7757c1a7a736"
   RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_ROCM_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-pipeline-runtime-pytorch-rocm-py312-ubi9"
       digest: "sha256:7725118b8b89a85b3f94fa3f2010c38462e4927c73dae333762c0b9e16bc7100"
     rhoai:
-      base: "quay.io/opendatahub/odh-pipeline-runtime-pytorch-rocm-py312-ubi9"
-      digest: "sha256:7725118b8b89a85b3f94fa3f2010c38462e4927c73dae333762c0b9e16bc7100"
+      base: "quay.io/rhoai/odh-pipeline-runtime-pytorch-rocm-py312-rhel9"
+      digest: "sha256:eb573868a054c3a5aa5a0b0f301247836bfdd061010eaf07b10a5630c5615a2b"
   RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_CUDA_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-pipeline-runtime-tensorflow-cuda-py312-ubi9"
       digest: "sha256:8e82f33df361ea5ce1d0782c233cffb9c0af706c208dbd16e390638d97528692"
     rhoai:
-      base: "quay.io/opendatahub/odh-pipeline-runtime-tensorflow-cuda-py312-ubi9"
-      digest: "sha256:8e82f33df361ea5ce1d0782c233cffb9c0af706c208dbd16e390638d97528692"
+      base: "quay.io/rhoai/odh-pipeline-runtime-tensorflow-cuda-py312-rhel9"
+      digest: "sha256:f29755aaa40e87e9c4e8a71fd47337b73c3c5e29c45f05562fdf4336daf6ea8f"
   RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_ROCM_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-pipeline-runtime-tensorflow-rocm-py312-ubi9"
       digest: "sha256:9c4a07d96e29808f2ce0f81364278ec8925f9affa3e0c334cb90025abe541a14"
     rhoai:
-      base: "quay.io/opendatahub/odh-pipeline-runtime-tensorflow-rocm-py312-ubi9"
-      digest: "sha256:9c4a07d96e29808f2ce0f81364278ec8925f9affa3e0c334cb90025abe541a14"
+      base: "quay.io/rhoai/odh-pipeline-runtime-tensorflow-rocm-py312-rhel9"
+      digest: "sha256:533add549713807b25f4c8be185e0e179cf144b244b8c3e76805a35416173e8f"
   RELATED_IMAGE_ODH_RAY_MODULE_OPERATOR_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-ray-module-operator"
       digest: "sha256:ec8e6d7b163bad1f93f0178cb81becb05e9a59f3580c517151b1130d288d37b7"
     rhoai:
-      base: "quay.io/opendatahub/odh-ray-module-operator"
-      digest: "sha256:ec8e6d7b163bad1f93f0178cb81becb05e9a59f3580c517151b1130d288d37b7"
+      base: "quay.io/rhoai/odh-ray-module-operator-rhel9"
+      digest: "sha256:ab00de6c26e2d3ab4cbf0ac8c705ebc5e1852d9c9c82a60e56455da9b1c1cc38"
   RELATED_IMAGE_ODH_RHAII_CLUSTER_VALIDATOR_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-rhaii-cluster-validator"
       digest: "sha256:683b44ac6828fc67d86bda17de62cafa557a9bfc96cd0a16d56148451516aba1"
     rhoai:
-      base: "quay.io/opendatahub/odh-rhaii-cluster-validator"
-      digest: "sha256:683b44ac6828fc67d86bda17de62cafa557a9bfc96cd0a16d56148451516aba1"
+      base: "quay.io/rhoai/odh-rhaii-cluster-validator-rhel9"
+      digest: "sha256:2e62b07df4a4ee9aefb246fea447d326683a8376fb05eb524624916dcaf56dfb"
   RELATED_IMAGE_ODH_RHAII_VALIDATOR_TOOLS_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-rhaii-validator-tools"
       digest: "sha256:2e98087c9d9972333801d41501cfc3bd16bd5401fae197039703249f3435cc64"
     rhoai:
-      base: "quay.io/opendatahub/odh-rhaii-validator-tools"
-      digest: "sha256:2e98087c9d9972333801d41501cfc3bd16bd5401fae197039703249f3435cc64"
+      base: "quay.io/rhoai/odh-rhaii-validator-tools-rhel9"
+      digest: "sha256:4c39b16aed5a90f7343787858b8d5f36a2591ac4c22332a959329024677cfb34"
   RELATED_IMAGE_ODH_RHOAI_MCP_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-rhoai-mcp"
-      digest: "sha256:74effec9f43debf039a33447ed5b70267ff6235d0d41442f733680a2ba3051fd"
+      digest: "sha256:08370ff9dba53130623705a5847bcd5dd1d20f51db197f8d994dd4044c3e4f82"
     rhoai:
-      base: "quay.io/opendatahub/odh-rhoai-mcp"
-      digest: "sha256:74effec9f43debf039a33447ed5b70267ff6235d0d41442f733680a2ba3051fd"
+      base: "quay.io/rhoai/odh-rhoai-mcp-rhel9"
+      digest: "sha256:df937cf469081312433be89c6a05d0faff14bdb14d6d19cb6f410d57818d97fe"
   RELATED_IMAGE_ODH_SPARK_OPERATOR_MODULE_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-spark-operator-module"
-      digest: "sha256:443a4abd1af34a16e404cf37f45edb1fa506a7660363823a4a7202d0954304c3"
+      digest: "sha256:f6a7fe092bd1fda448c95904eb44f2053c7e19e2b364a222837601eaf5387a2f"
     rhoai:
-      base: "quay.io/opendatahub/odh-spark-operator-module"
-      digest: "sha256:443a4abd1af34a16e404cf37f45edb1fa506a7660363823a4a7202d0954304c3"
+      base: "quay.io/rhoai/odh-spark-operator-module-rhel9"
+      digest: "sha256:dc1406e72a38832c120c99b8ff078993973d19fbf148e18d079111e36b09ce5e"
   RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/ta-lmes-driver"
-      digest: "sha256:be58e8f8ceef95bd71582e3fde17a6073b7d91a7e23793a0d4fde70e9ee6e93f"
+      digest: "sha256:d8dda6d921a9f6ff2002ddd3e9952ef18ff636adfc562801ee0fb831b45ab8db"
     rhoai:
-      base: "quay.io/opendatahub/ta-lmes-driver"
-      digest: "sha256:be58e8f8ceef95bd71582e3fde17a6073b7d91a7e23793a0d4fde70e9ee6e93f"
+      base: "quay.io/rhoai/odh-ta-lmes-driver-rhel9"
+      digest: "sha256:dca9ec2cdec2a384af4f093011d5ed55108c976a69d737f9064dede34d1c6d3f"
   RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/ta-lmes-job"
       digest: "sha256:ccc2520a75c732d12e2b5dff723679940dd836cedf5470d68588250e6c2a9920"
     rhoai:
-      base: "quay.io/opendatahub/ta-lmes-job"
-      digest: "sha256:ccc2520a75c732d12e2b5dff723679940dd836cedf5470d68588250e6c2a9920"
+      base: "quay.io/rhoai/odh-ta-lmes-job-rhel9"
+      digest: "sha256:7d6a840ee67de1bdaf53c47856edc24a8cd830dae26c83cf9af8bc2810d23fed"
   RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-th-torch-cpu-py312"
       digest: "sha256:56c598b173e06198c49beea1b5ee01f45a73797038a690a00c062d0e7693d0a7"
     rhoai:
-      base: "quay.io/opendatahub/odh-th-torch-cpu-py312"
-      digest: "sha256:56c598b173e06198c49beea1b5ee01f45a73797038a690a00c062d0e7693d0a7"
+      base: "quay.io/rhoai/odh-th-torch-cpu-py312-rhel9"
+      digest: "sha256:e8857acd7690faf42bd9d3ed77c432669275359360deb26c2863b5c98468967a"
   RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-th-torch-cuda-py312"
       digest: "sha256:12a624bf00b394e3b32c5bcacddec3922235ac15c36d4e44df97eb3a4a7b883d"
     rhoai:
-      base: "quay.io/opendatahub/odh-th-torch-cuda-py312"
-      digest: "sha256:12a624bf00b394e3b32c5bcacddec3922235ac15c36d4e44df97eb3a4a7b883d"
+      base: "quay.io/rhoai/odh-th-torch-cuda-py312-rhel9"
+      digest: "sha256:d2fcb2b7c58620f2e1c9e8594817bca816527c7e11f5c80486c4732a886dd702"
   RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-th-torch-rocm-py312"
       digest: "sha256:88284059df44c16a27847758133c9c9f02a9a3036f9a0ad76663604d4705f8ad"
     rhoai:
-      base: "quay.io/opendatahub/odh-th-torch-rocm-py312"
-      digest: "sha256:88284059df44c16a27847758133c9c9f02a9a3036f9a0ad76663604d4705f8ad"
+      base: "quay.io/rhoai/odh-th-torch-rocm-py312-rhel9"
+      digest: "sha256:98ef3be07ae78b63a16c812ca24b40bd1e3cb4be21c2701aff06f55241ed7a51"
   RELATED_IMAGE_ODH_TRAINER_OPERATOR_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-trainer-operator"
-      digest: "sha256:c63cb64524fb6b87cd795949c8e3699a23fa677fc60f3061009169875372f0af"
+      digest: "sha256:41d840050b73864780931480e25de93cb0c73f519b9ed7d0e58f99676972363f"
     rhoai:
-      base: "quay.io/opendatahub/odh-trainer-operator"
-      digest: "sha256:c63cb64524fb6b87cd795949c8e3699a23fa677fc60f3061009169875372f0af"
+      base: "quay.io/rhoai/odh-trainer-operator-rhel9"
+      digest: "sha256:6d2d766ffe3cc41e1926c3b13add846407370c88078fe4c1663f11d0548f88c3"
   RELATED_IMAGE_ODH_TRAINING_CUDA121_TORCH24_PY311_IMAGE:
     source: "csv"
     odh:
-      base: "quay.io/opendatahub/odh-training-cuda121-torch24-py311"
-      digest: "sha256:977d67581ccaa35ce49263951e5c5af4f925b490bb4861aca7c5170a1b3b21d6"
-    rhoai:
       base: "quay.io/opendatahub/odh-training-cuda121-torch24-py311"
       digest: "sha256:977d67581ccaa35ce49263951e5c5af4f925b490bb4861aca7c5170a1b3b21d6"
   RELATED_IMAGE_ODH_TRAINING_CUDA124_TORCH25_PY311_IMAGE:
@@ -1073,15 +1049,9 @@ imageOverrides:
     odh:
       base: "quay.io/opendatahub/odh-training-cuda124-torch25-py311"
       digest: "sha256:2664e8ac0af9ad44cc0906b108603b02fce72fdd82440668eda1a6719aa913de"
-    rhoai:
-      base: "quay.io/opendatahub/odh-training-cuda124-torch25-py311"
-      digest: "sha256:2664e8ac0af9ad44cc0906b108603b02fce72fdd82440668eda1a6719aa913de"
   RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH28_PY312_IMAGE:
     source: "csv"
     odh:
-      base: "quay.io/opendatahub/odh-training-cuda128-torch28-py312-rhel9"
-      digest: "sha256:e01435fb012a742b161ed9918ca70ac855db858a512c1f8ded7bc94b29c4e7b8"
-    rhoai:
       base: "quay.io/opendatahub/odh-training-cuda128-torch28-py312-rhel9"
       digest: "sha256:e01435fb012a742b161ed9918ca70ac855db858a512c1f8ded7bc94b29c4e7b8"
   RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH29_PY312_IMAGE:
@@ -1089,15 +1059,9 @@ imageOverrides:
     odh:
       base: "quay.io/opendatahub/odh-training-cuda128-torch29-py312"
       digest: "sha256:6601b6fea1a9d4fcd78700407232d02f24a9e647c510973e58b0b38eff29e07a"
-    rhoai:
-      base: "quay.io/opendatahub/odh-training-cuda128-torch29-py312"
-      digest: "sha256:6601b6fea1a9d4fcd78700407232d02f24a9e647c510973e58b0b38eff29e07a"
   RELATED_IMAGE_ODH_TRAINING_ROCM62_TORCH24_PY311_IMAGE:
     source: "csv"
     odh:
-      base: "quay.io/opendatahub/odh-training-rocm62-torch24-py311"
-      digest: "sha256:742fbcdc20e6e7c5f0ec07e3fede4fb3d700abe716c11ff808355c9ec316c220"
-    rhoai:
       base: "quay.io/opendatahub/odh-training-rocm62-torch24-py311"
       digest: "sha256:742fbcdc20e6e7c5f0ec07e3fede4fb3d700abe716c11ff808355c9ec316c220"
   RELATED_IMAGE_ODH_TRAINING_ROCM62_TORCH25_PY311_IMAGE:
@@ -1105,23 +1069,14 @@ imageOverrides:
     odh:
       base: "quay.io/opendatahub/odh-training-rocm62-torch25-py311"
       digest: "sha256:e6534273238e207dd583a8f7f21802588af9d2faba27ee4878725cd8158d59e6"
-    rhoai:
-      base: "quay.io/opendatahub/odh-training-rocm62-torch25-py311"
-      digest: "sha256:e6534273238e207dd583a8f7f21802588af9d2faba27ee4878725cd8158d59e6"
   RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH28_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-training-rocm64-torch28-py312"
       digest: "sha256:2061cb20c7309f2f3ce91c6644d1e2c5ba6d3adde0f73bb222b42dde999c6d78"
-    rhoai:
-      base: "quay.io/opendatahub/odh-training-rocm64-torch28-py312"
-      digest: "sha256:2061cb20c7309f2f3ce91c6644d1e2c5ba6d3adde0f73bb222b42dde999c6d78"
   RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH29_PY312_IMAGE:
     source: "csv"
     odh:
-      base: "quay.io/opendatahub/odh-training-rocm64-torch29-py312"
-      digest: "sha256:873a7ae8f44e975d6c98c08af6448b5688d0e57df0eb71e5911d249145b075cc"
-    rhoai:
       base: "quay.io/opendatahub/odh-training-rocm64-torch29-py312"
       digest: "sha256:873a7ae8f44e975d6c98c08af6448b5688d0e57df0eb71e5911d249145b075cc"
   RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE:
@@ -1130,30 +1085,24 @@ imageOverrides:
       base: "quay.io/opendatahub/odh-trustyai-garak-lls-provider-dsp"
       digest: "sha256:4c9c0ff85ddf591a441497bec9a4fb6168c698bccaa688ec88f44b46663c08ea"
     rhoai:
-      base: "quay.io/opendatahub/odh-trustyai-garak-lls-provider-dsp"
-      digest: "sha256:4c9c0ff85ddf591a441497bec9a4fb6168c698bccaa688ec88f44b46663c08ea"
+      base: "quay.io/rhoai/odh-trustyai-garak-lls-provider-dsp-rhel9"
+      digest: "sha256:20522f304c697a930a34ff5aae81b9f5846dbb6a103f3604b5ab911013630626"
   RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-trustyai-nemo-guardrails-server"
       digest: "sha256:2e6b7204bc62ccedf501cacd3ec8dacdfa6f593dd5af1d94b07972389dd3943e"
     rhoai:
-      base: "quay.io/opendatahub/odh-trustyai-nemo-guardrails-server"
-      digest: "sha256:2e6b7204bc62ccedf501cacd3ec8dacdfa6f593dd5af1d94b07972389dd3943e"
+      base: "quay.io/rhoai/odh-trustyai-nemo-guardrails-server-rhel9"
+      digest: "sha256:99a4d6e30018716c95be8612ccbc60bb526d2f4e45a6b87cd99fc9538d37af9f"
   RELATED_IMAGE_ODH_TRUSTYAI_RAGAS_LLS_PROVIDER_DSP_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/llama-stack-provider-ragas"
       digest: "sha256:fa46ce6a3dd16b0eb8e06c71f99b761d742599e569ed91f7b727149bc1085520"
-    rhoai:
-      base: "quay.io/opendatahub/llama-stack-provider-ragas"
-      digest: "sha256:fa46ce6a3dd16b0eb8e06c71f99b761d742599e569ed91f7b727149bc1085520"
   RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE:
     source: "csv"
     odh:
-      base: "quay.io/opendatahub/odh-trustyai-service"
-      digest: "sha256:3fc5b86bdb583c2bf77d2cb404bf0c030bc1a8e112c620df51aa238445e20240"
-    rhoai:
       base: "quay.io/opendatahub/odh-trustyai-service"
       digest: "sha256:3fc5b86bdb583c2bf77d2cb404bf0c030bc1a8e112c620df51aa238445e20240"
   RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_PY_IMAGE:
@@ -1162,173 +1111,161 @@ imageOverrides:
       base: "quay.io/opendatahub/odh-trustyai-service-py"
       digest: "sha256:ffeba939a55a4903f9056e7bf1da2e525ffc62c9b6d695e9cca9c41d3342dca4"
     rhoai:
-      base: "quay.io/opendatahub/odh-trustyai-service-py"
-      digest: "sha256:ffeba939a55a4903f9056e7bf1da2e525ffc62c9b6d695e9cca9c41d3342dca4"
+      base: "quay.io/rhoai/odh-trustyai-service-py-rhel9"
+      digest: "sha256:a977c8988999caf4a8d9a2fb3ac6eb3a143101f90a4bee4fe1ae199d280eaff6"
   RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/vllm-orchestrator-gateway"
       digest: "sha256:10789a3f024d520078e4d813d06fa1d0297d4cd4af87a2d271c44c132d8e39f2"
     rhoai:
-      base: "quay.io/opendatahub/vllm-orchestrator-gateway"
-      digest: "sha256:10789a3f024d520078e4d813d06fa1d0297d4cd4af87a2d271c44c132d8e39f2"
+      base: "quay.io/rhoai/odh-trustyai-vllm-orchestrator-gateway-rhel9"
+      digest: "sha256:db88e0f38bd517dbb265d04e1491e1c94459cfce76fabc715a10996fd21196a3"
   RELATED_IMAGE_ODH_WORKBENCHES_CONTROLLER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-workbenches-controller"
       digest: "sha256:500eef12521bd01870d9bc00dadd0828e09a9e6dd8d9b2d101c956b9d74ee826"
     rhoai:
-      base: "quay.io/opendatahub/odh-workbenches-controller"
-      digest: "sha256:500eef12521bd01870d9bc00dadd0828e09a9e6dd8d9b2d101c956b9d74ee826"
+      base: "quay.io/rhoai/odh-workbenches-controller-rhel9"
+      digest: "sha256:7677afb43feac46af1d31052659439b10ece17e6595d780585ec6edc3db059cd"
   RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-workbench-codeserver-datascience-cpu-py312-ubi9"
       digest: "sha256:b477db79794d8048a7057df4a5ee4b1df59bf638e81b28d993e704c696ac846d"
     rhoai:
-      base: "quay.io/opendatahub/odh-workbench-codeserver-datascience-cpu-py312-ubi9"
-      digest: "sha256:b477db79794d8048a7057df4a5ee4b1df59bf638e81b28d993e704c696ac846d"
+      base: "quay.io/rhoai/odh-workbench-codeserver-datascience-cpu-py312-rhel9"
+      digest: "sha256:4c8d78792728a4f1dbc178801d3f657c0bcc88869d662a293cc2707e86003d0e"
   RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_DATASCIENCE_CPU_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-workbench-jupyter-datascience-cpu-py312-ubi9"
       digest: "sha256:f09bcaee1455b94ee698b4ac637dc3a6e52e37340256e856953db9e7ea9343b6"
     rhoai:
-      base: "quay.io/opendatahub/odh-workbench-jupyter-datascience-cpu-py312-ubi9"
-      digest: "sha256:f09bcaee1455b94ee698b4ac637dc3a6e52e37340256e856953db9e7ea9343b6"
+      base: "quay.io/rhoai/odh-workbench-jupyter-datascience-cpu-py312-rhel9"
+      digest: "sha256:c87c8badbef806d7a3843df5516cc0c3d85e30d3af38438fd69c4a4281f39be9"
   RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_CPU_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-workbench-jupyter-minimal-cpu-py312-ubi9"
       digest: "sha256:7877cbc47299f681938edb327dd6a4dbb009be3ce4bd0352c2df03f92b23aee4"
     rhoai:
-      base: "quay.io/opendatahub/odh-workbench-jupyter-minimal-cpu-py312-ubi9"
-      digest: "sha256:7877cbc47299f681938edb327dd6a4dbb009be3ce4bd0352c2df03f92b23aee4"
+      base: "quay.io/rhoai/odh-workbench-jupyter-minimal-cpu-py312-rhel9"
+      digest: "sha256:3ba77fc8696167e09ed391373e024765386edb2f4ecd921c60113caa28a5af5e"
   RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_CUDA_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-workbench-jupyter-minimal-cuda-py312-ubi9"
       digest: "sha256:9804c9d4b2ca6982372405b3ff1c0bafca71fcd15fbafbd5629edfdfa2fe26e9"
     rhoai:
-      base: "quay.io/opendatahub/odh-workbench-jupyter-minimal-cuda-py312-ubi9"
-      digest: "sha256:9804c9d4b2ca6982372405b3ff1c0bafca71fcd15fbafbd5629edfdfa2fe26e9"
+      base: "quay.io/rhoai/odh-workbench-jupyter-minimal-cuda-py312-rhel9"
+      digest: "sha256:f862efafcb8fd72878f8de2d6173a935e3d7b06982762ce66e8b95a751e4a7cd"
   RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_ROCM_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-workbench-jupyter-minimal-rocm-py312-ubi9"
       digest: "sha256:16007f19ec238324954b522872bfe58d4b36e333ed50475d4484995c1db12fdf"
     rhoai:
-      base: "quay.io/opendatahub/odh-workbench-jupyter-minimal-rocm-py312-ubi9"
-      digest: "sha256:16007f19ec238324954b522872bfe58d4b36e333ed50475d4484995c1db12fdf"
+      base: "quay.io/rhoai/odh-workbench-jupyter-minimal-rocm-py312-rhel9"
+      digest: "sha256:fe734afe93b5850166d6782a45f0c7c7636d1af7be9c6f18313d3b1e9f07db9c"
   RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_CUDA_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-workbench-jupyter-pytorch-cuda-py312-ubi9"
       digest: "sha256:5f139053dba9e3414b31509bdbe3d7c3e1c5de5acfe653e7cbdd0d86409caeda"
     rhoai:
-      base: "quay.io/opendatahub/odh-workbench-jupyter-pytorch-cuda-py312-ubi9"
-      digest: "sha256:5f139053dba9e3414b31509bdbe3d7c3e1c5de5acfe653e7cbdd0d86409caeda"
+      base: "quay.io/rhoai/odh-workbench-jupyter-pytorch-cuda-py312-rhel9"
+      digest: "sha256:7c9122bec1458b5ed08865b0e44b34c2b1de159a5897423d2e6f4273c6fa1727"
   RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_LLMCOMPRESSOR_CUDA_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-ubi9"
       digest: "sha256:0f2bcd9ee5e5c5ab84569a6faff2f2321e507399b1a5e54318298b0a3fb85fc2"
     rhoai:
-      base: "quay.io/opendatahub/odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-ubi9"
-      digest: "sha256:0f2bcd9ee5e5c5ab84569a6faff2f2321e507399b1a5e54318298b0a3fb85fc2"
+      base: "quay.io/rhoai/odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-rhel9"
+      digest: "sha256:bf66a717f2df8f7c62d5905a35c3b577b09a3950c427a31a0edd5f0f556862b5"
   RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_ROCM_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-workbench-jupyter-pytorch-rocm-py312-ubi9"
       digest: "sha256:eeeb6679d49bfa8c828c8255048749aaa04cf4aec566fd8fa7a6b485cd8fd699"
     rhoai:
-      base: "quay.io/opendatahub/odh-workbench-jupyter-pytorch-rocm-py312-ubi9"
-      digest: "sha256:eeeb6679d49bfa8c828c8255048749aaa04cf4aec566fd8fa7a6b485cd8fd699"
+      base: "quay.io/rhoai/odh-workbench-jupyter-pytorch-rocm-py312-rhel9"
+      digest: "sha256:21f155384a3769df899c049e25102858fe33cea29431f81369e6173353b6c69c"
   RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TENSORFLOW_CUDA_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-workbench-jupyter-tensorflow-cuda-py312-ubi9"
       digest: "sha256:11454fd0236aca1b7712ab6a8b424940c367624901f68dc0f14a2b718f2166c1"
     rhoai:
-      base: "quay.io/opendatahub/odh-workbench-jupyter-tensorflow-cuda-py312-ubi9"
-      digest: "sha256:11454fd0236aca1b7712ab6a8b424940c367624901f68dc0f14a2b718f2166c1"
+      base: "quay.io/rhoai/odh-workbench-jupyter-tensorflow-cuda-py312-rhel9"
+      digest: "sha256:57b7e33e1873ee2b3b2123a740b8abfd853ac085653ebc710ca24153be4bcd33"
   RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TENSORFLOW_ROCM_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-workbench-jupyter-tensorflow-rocm-py312-ubi9"
       digest: "sha256:711384a40da98b17236bede9467d348ac759dad371f803ac9e8f7ca4fac88c20"
     rhoai:
-      base: "quay.io/opendatahub/odh-workbench-jupyter-tensorflow-rocm-py312-ubi9"
-      digest: "sha256:711384a40da98b17236bede9467d348ac759dad371f803ac9e8f7ca4fac88c20"
+      base: "quay.io/rhoai/odh-workbench-jupyter-tensorflow-rocm-py312-rhel9"
+      digest: "sha256:2bdbae3ece05dae9b3c4391106d6fea285896756ad35c64f99611c613b1ed4e7"
   RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TRUSTYAI_CPU_PY312_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-workbench-jupyter-trustyai-cpu-py312-ubi9"
       digest: "sha256:12a1137193b7d7040ac75e757084a04665e9c0f39c8063b18004ec8c10c9c734"
     rhoai:
-      base: "quay.io/opendatahub/odh-workbench-jupyter-trustyai-cpu-py312-ubi9"
-      digest: "sha256:12a1137193b7d7040ac75e757084a04665e9c0f39c8063b18004ec8c10c9c734"
+      base: "quay.io/rhoai/odh-workbench-jupyter-trustyai-cpu-py312-rhel9"
+      digest: "sha256:8aaec0ac6b11ce3dde66448297d1a0e4205c29b4ce98571f00b2cce7e0618321"
   RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-kube-auth-proxy"
       digest: "sha256:d90930380151490d5516eeb95840eecc743e9005fc02733dec6fe79e1a00e035"
     rhoai:
-      base: "quay.io/opendatahub/odh-kube-auth-proxy"
-      digest: "sha256:d90930380151490d5516eeb95840eecc743e9005fc02733dec6fe79e1a00e035"
+      base: "quay.io/rhoai/odh-kube-auth-proxy-rhel9"
+      digest: "sha256:b79928892c97402ecb9f1e3befb6ed37c229c33b06d196c71a5f9c7fa29f70d0"
   RELATED_IMAGE_ODH_DATA_CONNECT_HUB_CONTROLLER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-data-connect-hub-controller"
-      digest: "sha256:72d9efa171be2b48461774a48862e483cc67c395c9d50dee84de6e8e0bc3ae61"
-    rhoai:
-      base: "quay.io/opendatahub/odh-data-connect-hub-controller"
-      digest: "sha256:72d9efa171be2b48461774a48862e483cc67c395c9d50dee84de6e8e0bc3ae61"
+      digest: "sha256:1a47637ab5badd6ce99e4ca2d6dac4c20941effe62a8992d14b2fa5ffd87dddc"
   RELATED_IMAGE_ODH_OPENSHELL_CLI_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-openshell-cli"
-      digest: "sha256:e328b3bf4e4b5e89bd378abf76e227fee8514cc0128cb6e4d7b001d5efa87378"
-    rhoai:
-      base: "quay.io/opendatahub/odh-openshell-cli"
-      digest: "sha256:e328b3bf4e4b5e89bd378abf76e227fee8514cc0128cb6e4d7b001d5efa87378"
+      digest: "sha256:70020c09b490d2b5142834cdd22f9200847ea68f9043953817f88d48013af803"
   RELATED_IMAGE_ODH_MOD_ARCH_NOTEBOOKS_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-mod-arch-notebooks"
-      digest: "sha256:1e9a17cdf4a868299ebb3ccf3bdc110770bb390bd0c78dbc655f5d9ee32110f6"
+      digest: "sha256:a30c01d5f270e1032979864e0c5912b2c4120a4ba2f0d60850554875e5792809"
     rhoai:
-      base: "quay.io/opendatahub/odh-mod-arch-notebooks"
-      digest: "sha256:1e9a17cdf4a868299ebb3ccf3bdc110770bb390bd0c78dbc655f5d9ee32110f6"
+      base: "quay.io/rhoai/odh-mod-arch-notebooks-rhel9"
+      digest: "sha256:500eb374c8cb96158c7c2fb62541430ef5ee2cca1dc9fb0958028f1920c440c3"
   RELATED_IMAGE_ODH_PIPELINE_RUNTIME_BASELINE_CPU_PY312_C9S_IMAGE:
     source: "csv"
     odh:
-      base: "quay.io/opendatahub/odh-pipeline-runtime-baseline-cpu-py312-c9s"
-      digest: "sha256:e7fa29974895fedaa3a47ed0b3a4a56417ff1209fe9c8d3a41529b671fdb2702"
-    rhoai:
       base: "quay.io/opendatahub/odh-pipeline-runtime-baseline-cpu-py312-c9s"
       digest: "sha256:e7fa29974895fedaa3a47ed0b3a4a56417ff1209fe9c8d3a41529b671fdb2702"
   RELATED_IMAGE_ODH_PRAXIS_EXTPROC_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-praxis-extproc"
-      digest: "sha256:becd2264c5e2d90c2e4ac0fdcb523e4d5f736de3be3f2decf90bde9387245081"
+      digest: "sha256:52271c021e77ee49072a86a0db50f109843a2fa330f3289276cae31bab2af5a8"
     rhoai:
-      base: "quay.io/opendatahub/odh-praxis-extproc"
-      digest: "sha256:becd2264c5e2d90c2e4ac0fdcb523e4d5f736de3be3f2decf90bde9387245081"
+      base: "quay.io/rhoai/odh-praxis-extproc-rhel9"
+      digest: "sha256:73cdd38e56ae438a42e6fa244cc58f1347491fac2a0a78ce1f7d6661d6b45957"
   RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE:
     source: "csv"
     odh:
-      base: "quay.io/opendatahub/training-operator"
-      digest: "sha256:b76dc7605a25188610fa6208a4fdde65825c9069fc48c03beee204ce1481ce68"
-    rhoai:
       base: "quay.io/opendatahub/training-operator"
       digest: "sha256:b76dc7605a25188610fa6208a4fdde65825c9069fc48c03beee204ce1481ce68"
   RELATED_IMAGE_ODH_TRUSTYAI_MODULE_OPERATOR_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-trustyai-module-operator"
-      digest: "sha256:65cba5211000f9b13b87b2bd9f1fb052ea814e1826e53f498edd84209d877b6e"
+      digest: "sha256:b71f2901f50f3620f194dfa880a4e55ab30e75a6589340c8d1d0af1eddb4a9f7"
     rhoai:
       base: "quay.io/rhoai/odh-trustyai-module-operator-rhel9"
       digest: "sha256:dc67f803cce055fb278d782353e1b1c5a0661d3e1be0a4bed228b99729b91388"
@@ -1336,87 +1273,75 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-modelexpress"
-      digest: "sha256:130acce83d615500e56a1b58efb2e1047659b225d1c5ed385c64559c3d0e13dd"
-    rhoai:
-      base: "quay.io/opendatahub/odh-modelexpress"
-      digest: "sha256:130acce83d615500e56a1b58efb2e1047659b225d1c5ed385c64559c3d0e13dd"
+      digest: "sha256:28593f8ba9d039dfe2b8cc990f1637debdb16c655c28119cd7fb2be7c67edc58"
   RELATED_IMAGE_ODH_MODELEXPRESS_OPERATOR_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-modelexpress-operator"
-      digest: "sha256:96b5021e809747a0d8fb6cbe1ee792dcd104e8f95bbe785e42b12ae21c5e95b7"
-    rhoai:
-      base: "quay.io/opendatahub/odh-modelexpress-operator"
-      digest: "sha256:96b5021e809747a0d8fb6cbe1ee792dcd104e8f95bbe785e42b12ae21c5e95b7"
+      digest: "sha256:5affa28a6f0022bedf094d3240105cd7dbe176f9885da8271865e456e140eef2"
   RELATED_IMAGE_ODH_AI_GATEWAY_CONTROLLER_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-ai-gateway-controller"
       digest: "sha256:c7a636a427a919de05f1369d70416070f9fea40751744f8052e8457b26064f51"
     rhoai:
-      base: "quay.io/opendatahub/odh-ai-gateway-controller"
-      digest: "sha256:c7a636a427a919de05f1369d70416070f9fea40751744f8052e8457b26064f51"
+      base: "quay.io/rhoai/odh-ai-gateway-controller-rhel9"
+      digest: "sha256:e1f53e0eaa3a076bd39be9b70470cf2fe1fc80a74fd88b6dbb9ab61ff4271e5d"
   RELATED_IMAGE_ODH_EVAL_HUB_INSPECTAI_IMAGE:
     source: "csv"
     odh:
-      base: "quay.io/opendatahub/odh-eval-hub-inspectai"
-      digest: "sha256:f976ba41c06ee69bca8752343815aeae707cfb824c8c44b6bcb2601936c3d85b"
-    rhoai:
       base: "quay.io/opendatahub/odh-eval-hub-inspectai"
       digest: "sha256:f976ba41c06ee69bca8752343815aeae707cfb824c8c44b6bcb2601936c3d85b"
   RELATED_IMAGE_ODH_MOD_ARCH_DATA_REGISTRY_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-mod-arch-data-registry"
-      digest: "sha256:036b6aaff408d06698549b5966f6cb87799d80f9013b85b7239027c394c16b55"
-    rhoai:
-      base: "quay.io/opendatahub/odh-mod-arch-data-registry"
-      digest: "sha256:036b6aaff408d06698549b5966f6cb87799d80f9013b85b7239027c394c16b55"
+      digest: "sha256:824d9bd9507791996686242f27ab429c7ab63140761a5ae83841e9a16b677ec0"
   RELATED_IMAGE_ODH_AUTORAG_INFERENCE_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-autorag-inference"
-      digest: "sha256:5fc4639e4f6f1798912aeace89943fa454fd0f71c3c74969aad3f4923e3e3d7f"
-    rhoai:
-      base: "quay.io/opendatahub/odh-autorag-inference"
-      digest: "sha256:5fc4639e4f6f1798912aeace89943fa454fd0f71c3c74969aad3f4923e3e3d7f"
+      digest: "sha256:5c1e32ad4081333b29e2398e2f9fbdb9f1871b0188bdc14ff1fea2339e7fb8f2"
   RELATED_IMAGE_ODH_EVAL_HUB_LIGHTEVAL_IMAGE:
     source: "csv"
     odh:
-      base: "quay.io/opendatahub/odh-eval-hub-lighteval"
-      digest: "sha256:28f65f89fce529dbeba15cc28db4100d299399c56641b651df33bc911785048b"
-    rhoai:
       base: "quay.io/opendatahub/odh-eval-hub-lighteval"
       digest: "sha256:28f65f89fce529dbeba15cc28db4100d299399c56641b651df33bc911785048b"
   RELATED_IMAGE_ODH_LLM_D_COORDINATOR_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-llm-d-coordinator"
-      digest: "sha256:dd6741cfe7f1d8774f95af71c05ec39529c5defa9a1d3df607e331262cea3a37"
-    rhoai:
-      base: "quay.io/opendatahub/odh-llm-d-coordinator"
-      digest: "sha256:dd6741cfe7f1d8774f95af71c05ec39529c5defa9a1d3df607e331262cea3a37"
-  RELATED_IMAGE_ODH_MOD_ARCH_DATA_CONNECT_HUB_IMAGE:
-    source: "csv"
-    odh:
-      base: "quay.io/opendatahub/odh-mod-arch-data-connect-hub"
-      digest: "sha256:d0f1e9fbc738c65858aa55f08099c91610223d8c11361739e8f12b255dd748d9"
-    rhoai:
-      base: "quay.io/opendatahub/odh-mod-arch-data-connect-hub"
-      digest: "sha256:d0f1e9fbc738c65858aa55f08099c91610223d8c11361739e8f12b255dd748d9"
+      digest: "sha256:c553b7a431d2ad6408d4ec701cd16c000baeb3042218ce6641e548f097dfe54c"
   RELATED_IMAGE_ODH_OPENSHELL_SANDBOX_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-openshell-sandbox"
-      digest: "sha256:c9a430e524f2b980d365eb174a503eb8a80de3ad4e2805135fc308ccb34a3f60"
-    rhoai:
-      base: "quay.io/opendatahub/odh-openshell-sandbox"
-      digest: "sha256:c9a430e524f2b980d365eb174a503eb8a80de3ad4e2805135fc308ccb34a3f60"
+      digest: "sha256:b12b0f909e2a0a2c078f443224d6ba0d01c377dc129bb2f0ae488c70fa380b53"
   RELATED_IMAGE_ODH_PRAXIS_AI_GRID_OPERATOR_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-praxis-ai-grid-operator"
-      digest: "sha256:b0fd171922ebfc31949325939c22e4da964f4b75b34b9057514c1eae8cee9b4d"
+      digest: "sha256:e5465f382741b20730772304b8428fec19c82b2db2b15656fcc101f34da2d352"
+  RELATED_IMAGE_ODH_CLI_IMAGE:
+    source: "csv"
     rhoai:
-      base: "quay.io/opendatahub/odh-praxis-ai-grid-operator"
-      digest: "sha256:b0fd171922ebfc31949325939c22e4da964f4b75b34b9057514c1eae8cee9b4d"
+      base: "quay.io/rhoai/odh-cli-rhel9"
+      digest: "sha256:5f6926b4669e4db23ca8e2a9302622b6a3b611254b8804cedda6f8e3b5505caa"
+  RELATED_IMAGE_ODH_MUST_GATHER_IMAGE:
+    source: "csv"
+    rhoai:
+      base: "quay.io/rhoai/odh-must-gather-rhel9"
+      digest: "sha256:ad0c321a9942dd62f619a8bc088a201c834fb7dd17664dfe0887d9b9cf263198"
+  RELATED_IMAGE_ODH_VLLM_CPU_IMAGE:
+    source: "csv"
+    rhoai:
+      base: "quay.io/rhoai/odh-vllm-cpu-rhel9"
+      digest: "sha256:d5a0acf592967aded878428f9c0c91e67a402a3a68c4baeb14b69305e4d7e71c"
+  RELATED_IMAGE_ODH_MOD_ARCH_DATA_CONNECT_HUB_IMAGE:
+    source: "csv"
+    odh:
+      base: "quay.io/opendatahub/odh-mod-arch-data-connect-hub"
+      digest: "sha256:e28dff0c9d2c8ecb7791f52b6f55e0778d74405f0303dd8a44086cdd524ba6ed"
+    rhoai:
+      base: "quay.io/rhoai/odh-mod-arch-data-connect-hub-rhel9"
+      digest: "sha256:4873d72fda7c161f4898cd9436dd058bc522497d0eaa0a47b359bbc45937b2c5"
