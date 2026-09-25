@@ -350,8 +350,11 @@ update-rhai-images: yq ## Locally update downloaded RHAI params.env files (not u
 	fi
 	MANIFESTS_DIR=./opt/manifests RHAI_BRANCH=$(RHAI_BRANCH) YQ=$(YQ) SED_COMMAND=$(SED_COMMAND) ./hack/update-rhai-images.sh
 .PHONY: validate-related-images
+# RHOAI Build Config branches use major.minor, while VERSION includes patch and
+# prerelease components.
+RHOAI_BUILD_CONFIG_BRANCH := rhoai-$(word 1,$(subst ., ,$(VERSION))).$(word 2,$(subst ., ,$(VERSION)))
 validate-related-images: yq ## Validate RELATED_IMAGE_* names against build configs
-	@RHOAI_BUILD_CONFIG_BRANCH=rhoai-$(shell echo $(VERSION) | sed 's/\([0-9]*\.[0-9]*\)\.[0-9]*/\1/') \
+	@RHOAI_BUILD_CONFIG_BRANCH=$(RHOAI_BUILD_CONFIG_BRANCH) \
 		YQ=$(YQ) ./.github/scripts/validate-related-images.sh
 
 .PHONY: resolve-image-digests

@@ -79,7 +79,7 @@ const (
 	FakeGCSBucketName        = "tempo-traces"
 	FakeGCSImage             = "fsouza/fake-gcs-server@sha256:797ce226d62f947c009dc40246b30cfb456b8473d8241407f9d6f2c04e4d69ef"
 	FakeGCSClientImage       = "curlimages/curl@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"
-	ExpectedKorrel8rImage    = "registry.redhat.io/cluster-observability-operator/korrel8r-rhel9:1.5.2-1787593952" +
+	ExpectedKorrel8rImage    = "registry.redhat.io/cluster-observability-operator/korrel8r-rhel9" +
 		"@sha256:90cc70741585b3a555888cc119c1ad630e988513dd2065158b26f6fa33dc8a22"
 )
 
