@@ -17,6 +17,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/gatewayconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -128,6 +129,24 @@ func TestGetCertificateType(t *testing.T) {
 			g.Expect(result).To(Equal(tc.expectedType), tc.description)
 		})
 	}
+}
+
+func TestDefaultCertificateTypeForKubernetes(t *testing.T) {
+	g := NewWithT(t)
+	previousClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(previousClusterInfo) })
+
+	clusterInfo := previousClusterInfo
+	clusterInfo.Type = cluster.ClusterTypeKubernetes
+	cluster.SetClusterInfo(clusterInfo)
+
+	g.Expect(defaultCertificateType()).To(Equal(infrav1.SelfSigned))
+	g.Expect(getCertificateType(nil)).To(Equal(string(infrav1.SelfSigned)))
+	g.Expect(getCertificateType(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Certificate: &infrav1.CertificateSpec{},
+		},
+	})).To(Equal(string(infrav1.SelfSigned)))
 }
 
 // TestGetGatewayAuthProxyTimeout tests the getGatewayAuthProxyTimeout function.
@@ -741,26 +760,26 @@ func TestKubernetesGatewayConfigErrors(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	g.Expect(kubernetesGatewayConfigErrors(nil)).To(BeEmpty())
-	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{})).To(BeEmpty())
-	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+	g.Expect(gatewayconfig.KubernetesValidationErrors(nil)).To(BeEmpty())
+	g.Expect(gatewayconfig.KubernetesValidationErrors(&serviceApi.GatewayConfig{})).To(BeEmpty())
+	g.Expect(gatewayconfig.KubernetesValidationErrors(&serviceApi.GatewayConfig{
 		Spec: serviceApi.GatewayConfigSpec{
 			IngressMode: serviceApi.IngressModeLoadBalancer,
 			Certificate: &infrav1.CertificateSpec{Type: infrav1.SelfSigned},
 		},
 	})).To(BeEmpty())
 
-	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+	g.Expect(gatewayconfig.KubernetesValidationErrors(&serviceApi.GatewayConfig{
 		Spec: serviceApi.GatewayConfigSpec{
 			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
 		},
 	})).To(ConsistOf(status.GatewayUnsupportedCertTypeOnKubernetesMessage))
 
-	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+	g.Expect(gatewayconfig.KubernetesValidationErrors(&serviceApi.GatewayConfig{
 		Spec: serviceApi.GatewayConfigSpec{IngressMode: serviceApi.IngressModeOcpRoute},
 	})).To(ConsistOf(status.GatewayUnsupportedIngressModeOnKubernetesMessage))
 
-	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+	g.Expect(gatewayconfig.KubernetesValidationErrors(&serviceApi.GatewayConfig{
 		Spec: serviceApi.GatewayConfigSpec{
 			IngressMode: serviceApi.IngressModeOcpRoute,
 			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
