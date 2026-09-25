@@ -4,6 +4,7 @@ package v2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -73,9 +74,9 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 
 	switch req.Operation {
 	case admissionv1.Create:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState, denyMultipleDsc}, allowMessage, v.Client, &req)
+		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyRetiredOperatorManagedState, denyMultipleDsc}, allowMessage, v.Client, &req)
 	case admissionv1.Update:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState}, allowMessage, v.Client, &req)
+		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyRetiredOperatorManagedState}, allowMessage, v.Client, &req)
 	default:
 		return admission.Allowed(allowMessage)
 	}
@@ -110,6 +111,67 @@ func (v *Validator) denyKueueManagedState(ctx context.Context, _ client.Reader, 
 	}
 	if dsc.Spec.Components.Kueue.ManagementState == operatorv1.Managed {
 		return admission.Denied("Managed is no longer supported as a managementState")
+	}
+
+	return admission.Allowed("")
+}
+
+// denyRetiredOperatorManagedState prevents enabling retired components while
+// allowing a component that was already Managed to remain Managed until users
+// explicitly remove it.
+func (v *Validator) denyRetiredOperatorManagedState(ctx context.Context, _ client.Reader, req *admission.Request) admission.Response {
+	dsc := &dscv2.DataScienceCluster{}
+	if err := v.Decoder.DecodeRaw(req.Object, dsc); err != nil {
+		logf.FromContext(ctx).Error(err, "Error decoding new DataScienceCluster v2 object")
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("decode new DSC: %w", err))
+	}
+
+	retiredComponents := []struct {
+		newManaged bool
+		oldManaged bool
+		message    string
+	}{
+		{
+			newManaged: dsc.Spec.Components.TrainingOperator.ManagementState == operatorv1.Managed,
+			message:    "TrainingOperator v1 is obsolete in RHOAI 3.6. Set managementState to Removed, then delete the TrainingOperator CR to clean up. Use Trainer v2 instead.",
+		},
+		{
+			newManaged: dsc.Spec.Components.LlamaStackOperator.ManagementState == operatorv1.Managed,
+			message:    "LlamaStackOperator has been replaced by OGX. Set managementState to Removed.",
+		},
+	}
+
+	if req.Operation == admissionv1.Create {
+		for _, component := range retiredComponents {
+			if component.newManaged {
+				return admission.Denied(component.message)
+			}
+		}
+		return admission.Allowed("")
+	}
+
+	needsOldObject := false
+	for _, component := range retiredComponents {
+		needsOldObject = needsOldObject || component.newManaged
+	}
+	if !needsOldObject {
+		return admission.Allowed("")
+	}
+	if len(req.OldObject.Raw) == 0 {
+		return admission.Errored(http.StatusBadRequest, errors.New("old DSC object is required for update validation"))
+	}
+	old := &dscv2.DataScienceCluster{}
+	if err := v.Decoder.DecodeRaw(req.OldObject, old); err != nil {
+		logf.FromContext(ctx).Error(err, "Error decoding old DataScienceCluster v2 object")
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("decode old DSC: %w", err))
+	}
+	retiredComponents[0].oldManaged = old.Spec.Components.TrainingOperator.ManagementState == operatorv1.Managed
+	retiredComponents[1].oldManaged = old.Spec.Components.LlamaStackOperator.ManagementState == operatorv1.Managed
+
+	for _, component := range retiredComponents {
+		if component.newManaged && !component.oldManaged {
+			return admission.Denied(component.message)
+		}
 	}
 
 	return admission.Allowed("")

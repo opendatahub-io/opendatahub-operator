@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package v2 contains API Schema definitions for the datasciencecluster v3 API group.
+// Package v3 contains API Schema definitions for the datasciencecluster v3 API group.
 // +kubebuilder:object:generate=true
 // +groupName=datasciencecluster.opendatahub.io
 package v3

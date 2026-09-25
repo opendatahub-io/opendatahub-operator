@@ -153,6 +153,9 @@ type PlatformList struct {
 // EnabledModules returns the internal handler names with Managed state.
 func (m *PlatformModules) EnabledModules() []string {
 	var enabled []string
+	if m.AIPipelines.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "aipipelines")
+	}
 	if m.AIGateway.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "aigateway")
 	}
@@ -185,6 +188,12 @@ func (m *PlatformModules) EnabledModules() []string {
 	}
 	if m.SparkOperator.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "sparkoperator")
+	}
+	if m.Ray.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "ray")
+	}
+	if m.TrustyAI.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "trustyai")
 	}
 	if m.AIHub.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "modelregistry")

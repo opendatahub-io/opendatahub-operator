@@ -34,6 +34,9 @@ metadata:
           "components": {
             "aigateway": {
               "managementState": "Removed",
+              "modelsAsAService": {
+                "managementState": "Removed"
+              },
               "batchGateway": {
                 "managementState": "Removed"
               }
@@ -80,6 +83,11 @@ metadata:
               "managementState": "Managed",
               "applicationNamespace": "rhoai-model-registries"
             },
+            "data": {
+              "featureStore": {
+                "managementState": "Managed"
+              }
+            },
             "ogx": {
               "managementState": "Managed"
             },
@@ -112,11 +120,6 @@ spec:
       kind: HardwareProfile
       name: hardwareprofiles.infrastructure.opendatahub.io
       version: v1alpha1
-    - description: DataScienceCluster is the Schema for the datascienceclusters API.
-      displayName: Data Science Cluster
-      kind: DataScienceCluster
-      name: datascienceclusters.datasciencecluster.opendatahub.io
-      version: v1
     - description: Auth is the Schema for the auths API
       displayName: Auth
       kind: Auth

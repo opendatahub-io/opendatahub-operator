@@ -392,7 +392,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20260610192510-1b2a074e0bd6/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
+| `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br />MaxLength: 8 <br /> |
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Deprecated: ModelsAsService is preserved for backward compatibility at least through 3.6.<br />MaaS is now configured via spec.components.aigateway.modelsAsAService.<br />Existing Managed values are still respected by the operator.<br />One-directional CEL: Managed→Removed (cleanup) is allowed; Removed→Managed is blocked. | \{ managementState:Removed \} |  |
@@ -787,7 +787,7 @@ _Appears in:_
 
 
 DSCTrainingOperator contains all the configuration exposed in DSC instance for TrainingOperator component.
-The XValidation rule lives here (not on the v2-only Components struct) so it applies to v1 too.
+Its retirement validation is handled by the DataScienceCluster v2 validating webhook.
 
 
 
@@ -1055,7 +1055,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
+| `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br />MaxLength: 8 <br /> |
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Deprecated: ModelsAsService is preserved for backward compatibility at least through 3.6.<br />MaaS is now configured via spec.components.aigateway.modelsAsAService.<br />Existing Managed values are still respected by the operator.<br />One-directional CEL: Managed→Removed (cleanup) is allowed; Removed→Managed is blocked. | \{ managementState:Removed \} |  |
@@ -1442,6 +1442,7 @@ _Underlying type:_ _string_
 
 _Validation:_
 - Enum: [Headless Headed]
+- MaxLength: 8
 
 _Appears in:_
 - [DSCKserve](#dsckserve)
@@ -1905,8 +1906,7 @@ Package v2 contains API Schema definitions for the datasciencecluster v2 API gro
 
 
 
-The TrainingOperator and LlamaStackOperator retirement guards are XValidation
-rules on their component API types, so they apply consistently across versions.
+TrainingOperator and LlamaStackOperator retirement is enforced by the DSC v2 validating webhook.
 
 
 
@@ -2029,7 +2029,7 @@ _Appears in:_
 
 ## datasciencecluster.opendatahub.io/v3
 
-Package v2 contains API Schema definitions for the datasciencecluster v3 API group.
+Package v3 contains API Schema definitions for the datasciencecluster v3 API group.
 
 ### Resource Types
 - [DataScienceCluster](#datasciencecluster)
@@ -2114,7 +2114,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20260610192510-1b2a074e0bd6/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
+| `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br />MaxLength: 8 <br /> |
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
 | `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
@@ -2192,7 +2192,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
+| `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br />MaxLength: 8 <br /> |
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
 | `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
@@ -2826,7 +2826,6 @@ Package v1 contains API Schema definitions for the services v1 API group
 ### Resource Types
 - [Auth](#auth)
 - [GatewayConfig](#gatewayconfig)
-- [Monitoring](#monitoring)
 
 
 
@@ -2892,12 +2891,13 @@ _Appears in:_
 
 
 
-Alerting configures Prometheus alerting rules.
+Alerting configuration for Prometheus
 
 
 
 _Appears in:_
-- [MonitoringSpec](#monitoringspec)
+- [DSCIMonitoring](#dscimonitoring)
+- [MonitoringCommonSpec](#monitoringcommonspec)
 
 
 
@@ -3092,66 +3092,30 @@ _Appears in:_
 | `enabled` _boolean_ | Enabled determines whether ingress rules are applied.<br />When true, creates NetworkPolicy allowing traffic only from Gateway pods and monitoring namespaces. |  | Required: \{\} <br /> |
 
 
-#### Logs
-
-
-
-Logs defines the configuration for cluster log forwarding via the ClusterLogForwarder operator.
-
-
-
-_Appears in:_
-- [MonitoringSpec](#monitoringspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `storage` _[LokiStorageConfig](#lokistorageconfig)_ | Storage configures the LokiStack storage backend for log forwarding.<br />Required: the operator deploys a shared LokiStack used by both log forwarding and usage logs. |  | Required: \{\} <br /> |
-| `inferenceNamespaces` _string array_ | InferenceNamespaces lists the namespaces whose application logs should be forwarded to Loki. |  | items:MaxLength: 63 <br />items:Pattern: ^[a-z0-9]([a-z0-9\-]\{0,61\}[a-z0-9])?$ <br /> |
-
-
-#### LokiStorageConfig
-
-
-
-LokiStorageConfig defines storage configuration for LokiStack.
-
-
-
-_Appears in:_
-- [Logs](#logs)
-- [UsageLogs](#usagelogs)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `type` _string_ | Type specifies the storage backend: "s3". |  | Enum: [s3] <br />Required: \{\} <br /> |
-| `secretName` _string_ | SecretName is the name of the Secret containing storage credentials.<br />For S3: must contain keys: access_key_id, access_key_secret, bucketnames, endpoint, region, insecure, s3ForcePathStyle |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$` <br />Required: \{\} <br /> |
-| `credentialMode` _string_ | CredentialMode specifies how credentials are provided to LokiStack.<br />Valid values: "static", "token", "token-cco". | static | Enum: [static token token-cco] <br /> |
-| `storageClassName` _string_ | StorageClassName specifies the storage class for LokiStack PVCs. | gp3-csi | MaxLength: 253 <br /> |
-
-
 #### Metrics
 
 
 
-Metrics defines the desired state of metrics collection.
+Metrics defines the desired state of metrics for the monitoring service
 
 
 
 _Appears in:_
-- [MonitoringSpec](#monitoringspec)
+- [DSCIMonitoring](#dscimonitoring)
+- [MonitoringCommonSpec](#monitoringcommonspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `storage` _[MetricsStorage](#metricsstorage)_ |  |  |  |
-| `replicas` _integer_ | Replicas specifies the number of replicas in the MonitoringStack. |  | Minimum: 0 <br /> |
-| `exporters` _object (keys:string, values:[RawExtension](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#rawextension-runtime-pkg))_ | Exporters defines custom metrics exporters for external observability tools.<br />The configuration follows the OpenTelemetry Collector exporter format.<br />Reserved names 'prometheus' and 'otlp/tempo' cannot be used.<br />Maximum 10 exporters allowed. |  |  |
+| `replicas` _integer_ | Replicas specifies the number of replicas in monitoringstack. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  | Minimum: 0 <br /> |
+| `exporters` _object (keys:string, values:[RawExtension](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#rawextension-runtime-pkg))_ | Exporters defines custom metrics exporters for sending metrics to external observability tools.<br />Each key represents the exporter name, and the value contains the exporter configuration.<br />The configuration follows the OpenTelemetry Collector exporter format.<br />Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters.<br />Maximum 10 exporters allowed, each config must be less than 10KB (enforced at reconciliation time). |  |  |
 
 
 #### MetricsStorage
 
 
 
-MetricsStorage defines the storage configuration for the MonitoringStack.
+MetricsStorage defines the storage configuration for the monitoring service
 
 
 
@@ -3160,29 +3124,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `size` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | Size specifies the PVC storage size (e.g. "5Gi", "10Mi"). |  |  |
-| `retention` _string_ | Retention specifies how long metrics data is retained (e.g. "1d", "2w"). |  |  |
-
-
-#### Monitoring
-
-
-
-Monitoring is the Schema for the monitorings API.
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `Monitoring` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[MonitoringSpec](#monitoringspec)_ |  |  |  |
-| `status` _[MonitoringStatus](#monitoringstatus)_ |  |  |  |
+| `size` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | Size specifies the storage size for the MonitoringStack (e.g, "5Gi", "10Mi") |  |  |
+| `retention` _string_ | Retention specifies how long metrics data should be retained (e.g., "1d", "2w") |  |  |
 
 
 #### MonitoringCommonSpec
@@ -3203,50 +3146,6 @@ _Appears in:_
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  |  |
-
-
-#### MonitoringSpec
-
-
-
-MonitoringSpec defines the desired state of Monitoring.
-
-
-
-_Appears in:_
-- [Monitoring](#monitoring)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20260610192510-1b2a074e0bd6/operator/v1#ManagementState)_ | ManagementState controls whether the operator actively manages the<br />component (Managed) or removes it (Removed). | Managed | Enum: [Managed Removed] <br /> |
-| `namespace` _string_ | Namespace is the target namespace where monitoring resources are deployed. | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
-| `metrics` _[Metrics](#metrics)_ | Metrics configures metrics collection via the MonitoringStack operator. |  |  |
-| `traces` _[Traces](#traces)_ | Traces configures distributed tracing via the Tempo operator. |  |  |
-| `usageLogs` _[UsageLogs](#usagelogs)_ | UsageLogs configures usage log collection and forwarding to Loki. |  |  |
-| `alerting` _[Alerting](#alerting)_ | Alerting configures Prometheus alerting rules. |  |  |
-| `logs` _[Logs](#logs)_ | Logs configures cluster log forwarding via the ClusterLogForwarder operator. |  |  |
-| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in the OpenTelemetry collector.<br />Defaults to 1 on single-node clusters and 2 on multi-node clusters. |  | Minimum: 0 <br /> |
-
-
-#### MonitoringStatus
-
-
-
-MonitoringStatus defines the observed state of Monitoring.
-
-
-
-_Appears in:_
-- [Monitoring](#monitoring)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _[Phase](#phase)_ | Phase is the top-level lifecycle phase of the module. |  |  |
-| `conditions` _[Condition](#condition) array_ | Conditions is the set of condition observations for this module. |  |  |
-| `observedGeneration` _integer_ | ObservedGeneration is the most recent .metadata.generation observed<br />by the controller. It allows consumers to determine whether the<br />controller has processed the latest spec changes. |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ | Releases is the list of deployed component releases. |  |  |
-| `url` _string_ | URL is the dashboard endpoint when available. |  |  |
-| `usageLogsEndpoint` _string_ | UsageLogsEndpoint is the Loki OTLP endpoint for sending usage logs.<br />Populated when usageLogs is configured. |  |  |
 
 
 #### NetworkPolicyConfig
@@ -3308,26 +3207,28 @@ _Appears in:_
 
 
 
-Traces defines the configuration for distributed traces collection.
+Traces enables and defines the configuration for traces collection.
+Built-in Tempo requires storage; exporters-only configs (external backends) omit storage.
 
 
 
 _Appears in:_
-- [MonitoringSpec](#monitoringspec)
+- [DSCIMonitoring](#dscimonitoring)
+- [MonitoringCommonSpec](#monitoringcommonspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `storage` _[TracesStorage](#tracesstorage)_ |  |  |  |
-| `sampleRatio` _string_ | SampleRatio determines the sampling rate for traces (0.0–1.0). |  | Pattern: `^(0(\.[0-9]+)?\|1(\.0+)?)$` <br /> |
-| `tls` _[TracesTLS](#tracestls)_ | TLS configures TLS for Tempo gRPC connections. |  |  |
-| `exporters` _object (keys:string, values:[RawExtension](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#rawextension-runtime-pkg))_ | Exporters defines custom trace exporters for external observability tools. |  |  |
+| `storage` _[TracesStorage](#tracesstorage)_ | Storage configures the built-in Tempo backend. Omit when using exporters only (external observability). |  |  |
+| `sampleRatio` _string_ | SampleRatio determines the sampling rate for traces<br />Value should be between 0.0 (no sampling) and 1.0 (sample all traces) |  | Pattern: `^(0(\.[0-9]+)?\|1(\.0+)?)$` <br /> |
+| `tls` _[TracesTLS](#tracestls)_ | TLS configuration for Tempo gRPC connections |  |  |
+| `exporters` _object (keys:string, values:[RawExtension](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#rawextension-runtime-pkg))_ | Exporters defines custom trace exporters for sending traces to external observability tools.<br />Each key represents the exporter name, and the value contains the exporter configuration.<br />The configuration follows the OpenTelemetry Collector exporter format. |  |  |
 
 
 #### TracesStorage
 
 
 
-TracesStorage defines the storage backend for Tempo.
+TracesStorage defines the storage configuration for tracing
 
 
 
@@ -3336,17 +3237,17 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `backend` _string_ | Backend defines the storage type: "pv", "s3", or "gcs". |  | Enum: [pv s3 gcs] <br /> |
-| `size` _string_ | Size specifies storage size (PV backend only). |  |  |
-| `secret` _string_ | Secret is the name of the Secret with storage credentials (non-PV backends). |  |  |
-| `retention` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | Retention specifies how long trace data is retained (e.g. "60m", "10h"). |  |  |
+| `backend` _string_ | Backend defines the storage backend type.<br />Valid values are "pv", "s3", and "gcs". |  | Enum: [pv s3 gcs] <br /> |
+| `size` _string_ | Size specifies the size of the storage.<br />This field is optional. |  |  |
+| `secret` _string_ | Secret specifies the secret name for storage credentials.<br />This field is required when the backend is not "pv". |  |  |
+| `retention` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | Retention specifies how long trace data should be retained globally (e.g., "60m", "10h") |  |  |
 
 
 #### TracesTLS
 
 
 
-TracesTLS defines TLS configuration for Tempo ingestion and query APIs.
+TracesTLS defines TLS configuration for trace ingestion and query APIs
 
 
 
@@ -3355,24 +3256,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `enabled` _boolean_ | Enabled enables TLS for Tempo OTLP ingestion (gRPC/HTTP) and query APIs. |  |  |
-| `certificateSecret` _string_ | CertificateSecret is the name of the Secret containing TLS certificates. |  |  |
-| `caConfigMap` _string_ | CAConfigMap is the name of the ConfigMap containing the CA certificate. |  |  |
-
-
-#### UsageLogs
-
-
-
-UsageLogs defines the configuration for usage log collection.
-
-
-
-_Appears in:_
-- [MonitoringSpec](#monitoringspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `storage` _[LokiStorageConfig](#lokistorageconfig)_ | Storage configures the LokiStack storage backend (S3).<br />When configured, the operator deploys a LokiStack instance and auto-configures the collector endpoint. |  | Required: \{\} <br /> |
+| `enabled` _boolean_ | Enabled enables TLS for Tempo OTLP ingestion (gRPC/HTTP) and query APIs (HTTP)<br />TLS is disabled by default to maintain backward compatibility |  |  |
+| `certificateSecret` _string_ | CertificateSecret specifies the name of the secret containing TLS certificates<br />If not specified, OpenShift service serving certificates will be used |  |  |
+| `caConfigMap` _string_ | CAConfigMap specifies the name of the ConfigMap containing the CA certificate<br />Required for mutual TLS authentication |  |  |
 
 

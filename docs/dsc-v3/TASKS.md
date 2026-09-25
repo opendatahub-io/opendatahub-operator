@@ -80,6 +80,7 @@ directly under the `RHOAIENG-94804` Epic, not subtasks of `RHOAIENG-94812`.
 | [`DSC-V3-022`](tasks/022.md) Dashboard/AIHub v2 DSC component E2E | `🚧 In progress` | 019, 020 in progress | Tier3 component-suite smoke coverage |
 | [`DSC-V3-023`](tasks/023.md) Data/AI Gateway v2 DSC component E2E | `🚧 In progress` | 019, 020 in progress | Tier3 component-suite smoke coverage |
 | [`DSC-V3-024`](tasks/024.md) supported-upgrade retirement E2E | `⛔ Blocked` | 010, DEC-020 supported matrix | Pinned-source ODH/RHOAI upgrade evidence unavailable |
+| [`DSC-V3-025`](tasks/025.md) CodeRabbit review findings from PR 4137 | `✅ Completed` | None | Detailed findings recorded with direct review conversation links |
 | [`RHOAIENG-94812`](tasks/011.md) final qualification | `📝 Not started` | Waits for Tasks 006-010, 012, 015-024 | Integrate and qualify all targeted E2E additions |
 
 ```text

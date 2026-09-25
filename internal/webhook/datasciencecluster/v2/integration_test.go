@@ -153,37 +153,40 @@ func TestDataScienceClusterV2_Integration(t *testing.T) {
 			},
 		},
 		{
-			name: "CEL: TrainingOperator (KFTO v1) re-enablement blocked on update",
+			name: "Webhook: TrainingOperator (KFTO v1) re-enablement blocked on update",
 			setup: func(ns string) []client.Object {
 				return nil
 			},
-			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-				dsc := envtestutil.NewDSCV2("dsc-kfto-cel")
-				g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed(), "should allow creation with TrainingOperator left unset/Removed")
-
-				key := types.NamespacedName{Name: "dsc-kfto-cel", Namespace: ns}
-				fetched := &dscv2.DataScienceCluster{}
-				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
-
-				fetched.Spec.Components.TrainingOperator.ManagementState = operatorv1.Managed
-				err := k8sClient.Update(ctx, fetched)
-				g.Expect(err).To(HaveOccurred(), "CEL should reject re-enabling the deprecated TrainingOperator v1 on update")
-				g.Expect(err.Error()).To(ContainSubstring("obsolete"))
-			},
+			test: retiredOperatorManagedTest("dsc-kfto-webhook", func(dsc *dscv2.DataScienceCluster) {
+				dsc.Spec.Components.TrainingOperator.ManagementState = operatorv1.Managed
+			}, true, "obsolete"),
 		},
 		{
-			name: "CEL: TrainingOperator (KFTO v1) Managed rejected on create",
+			name: "Webhook: TrainingOperator (KFTO v1) Managed rejected on create",
 			setup: func(ns string) []client.Object {
 				return nil
 			},
-			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-				dsc := envtestutil.NewDSCV2("dsc-kfto-cel-managed", func(dsc *dscv2.DataScienceCluster) {
-					dsc.Spec.Components.TrainingOperator.ManagementState = operatorv1.Managed
-				})
-				err := k8sClient.Create(ctx, dsc)
-				g.Expect(err).To(HaveOccurred(), "CEL should reject creating a new Managed TrainingOperator v1")
-				g.Expect(err.Error()).To(ContainSubstring("obsolete"))
+			test: retiredOperatorManagedTest("dsc-kfto-webhook-managed", func(dsc *dscv2.DataScienceCluster) {
+				dsc.Spec.Components.TrainingOperator.ManagementState = operatorv1.Managed
+			}, false, "obsolete"),
+		},
+		{
+			name: "Webhook: LlamaStackOperator re-enablement blocked on update",
+			setup: func(ns string) []client.Object {
+				return nil
 			},
+			test: retiredOperatorManagedTest("dsc-llamastack-webhook", func(dsc *dscv2.DataScienceCluster) {
+				dsc.Spec.Components.LlamaStackOperator.ManagementState = operatorv1.Managed
+			}, true, "replaced by OGX"),
+		},
+		{
+			name: "Webhook: LlamaStackOperator Managed rejected on create",
+			setup: func(ns string) []client.Object {
+				return nil
+			},
+			test: retiredOperatorManagedTest("dsc-llamastack-webhook-managed", func(dsc *dscv2.DataScienceCluster) {
+				dsc.Spec.Components.LlamaStackOperator.ManagementState = operatorv1.Managed
+			}, false, "replaced by OGX"),
 		},
 	}
 
@@ -223,5 +226,27 @@ func TestDataScienceClusterV2_Integration(t *testing.T) {
 			tc.test(g, ctx, env.Client(), ns)
 			t.Logf("Finished test case: %s", tc.name)
 		})
+	}
+}
+
+func retiredOperatorManagedTest(
+	name string,
+	setManaged func(*dscv2.DataScienceCluster),
+	update bool,
+	message string,
+) func(Gomega, context.Context, client.Client, string) {
+	return func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+		dsc := envtestutil.NewDSCV2(name)
+		if update {
+			g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed(), "should allow creation before attempting re-enablement")
+			key := types.NamespacedName{Name: name, Namespace: ns}
+			g.Expect(k8sClient.Get(ctx, key, dsc)).To(Succeed())
+			setManaged(dsc)
+			g.Expect(k8sClient.Update(ctx, dsc)).To(MatchError(ContainSubstring(message)))
+			return
+		}
+
+		setManaged(dsc)
+		g.Expect(k8sClient.Create(ctx, dsc)).To(MatchError(ContainSubstring(message)))
 	}
 }

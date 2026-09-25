@@ -1,11 +1,13 @@
 package v2_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -150,5 +152,71 @@ func TestDataScienceClusterV2_NoModelsAsServiceWarning(t *testing.T) {
 				g.Expect(resp.Warnings).To(BeEmpty())
 			})
 		}
+	}
+}
+
+func TestDataScienceClusterV2_RetiredOperatorManagedStateUpdate(t *testing.T) {
+	t.Parallel()
+	for _, component := range []struct {
+		name  string
+		state func(*dscv2.DataScienceCluster) *operatorv1.ManagementState
+	}{
+		{
+			name: "TrainingOperator",
+			state: func(dsc *dscv2.DataScienceCluster) *operatorv1.ManagementState {
+				return &dsc.Spec.Components.TrainingOperator.ManagementState
+			},
+		},
+		{
+			name: "LlamaStackOperator",
+			state: func(dsc *dscv2.DataScienceCluster) *operatorv1.ManagementState {
+				return &dsc.Spec.Components.LlamaStackOperator.ManagementState
+			},
+		},
+	} {
+		t.Run(component.name, func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range []struct {
+				name     string
+				oldState operatorv1.ManagementState
+				newState operatorv1.ManagementState
+				allowed  bool
+			}{
+				{name: "preserves existing Managed", oldState: operatorv1.Managed, newState: operatorv1.Managed, allowed: true},
+				{name: "allows removing existing Managed", oldState: operatorv1.Managed, newState: operatorv1.Removed, allowed: true},
+				{name: "denies enabling from Removed", oldState: operatorv1.Removed, newState: operatorv1.Managed, allowed: false},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					g := NewWithT(t)
+					sch, err := scheme.New()
+					g.Expect(err).NotTo(HaveOccurred())
+					cli, err := fakeclient.New(fakeclient.WithScheme(sch))
+					g.Expect(err).NotTo(HaveOccurred())
+					validator := &v2webhook.Validator{Client: cli, Name: "test-v2", Decoder: admission.NewDecoder(sch)}
+
+					oldDSC := envtestutil.NewDSCV2("retired-update")
+					*component.state(oldDSC) = tc.oldState
+					newDSC := oldDSC.DeepCopy()
+					*component.state(newDSC) = tc.newState
+					oldRaw, err := json.Marshal(oldDSC)
+					g.Expect(err).NotTo(HaveOccurred())
+					newRaw, err := json.Marshal(newDSC)
+					g.Expect(err).NotTo(HaveOccurred())
+					req := admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
+						Kind: metav1.GroupVersionKind{
+							Group:   gvk.DataScienceClusterV2.Group,
+							Version: gvk.DataScienceClusterV2.Version,
+							Kind:    gvk.DataScienceClusterV2.Kind,
+						},
+						Operation: admissionv1.Update,
+						Object:    runtime.RawExtension{Raw: newRaw},
+						OldObject: runtime.RawExtension{Raw: oldRaw},
+					}}
+
+					resp := validator.Handle(t.Context(), req)
+					g.Expect(resp.Allowed).To(Equal(tc.allowed))
+				})
+			}
+		})
 	}
 }

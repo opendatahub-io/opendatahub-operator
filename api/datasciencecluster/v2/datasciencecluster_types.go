@@ -34,8 +34,7 @@ type DataScienceClusterSpec struct {
 	Components Components `json:"components,omitempty"`
 }
 
-// The TrainingOperator and LlamaStackOperator retirement guards are XValidation
-// rules on their component API types, so they apply consistently across versions.
+// TrainingOperator and LlamaStackOperator retirement is enforced by the DSC v2 validating webhook.
 type Components struct {
 	// Dashboard component configuration.
 	Dashboard componentApi.DSCDashboardV2 `json:"dashboard,omitempty"`
