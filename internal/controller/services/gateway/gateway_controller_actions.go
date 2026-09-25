@@ -193,12 +193,6 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return nil
 	}
 
-	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
-		if err := requireCertManager(ctx, rr.Client); err != nil {
-			return err
-		}
-	}
-
 	// Get secret values for both OIDC and IntegratedOAuth modes
 	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, authMode, oidcConfig)
 	if err != nil {

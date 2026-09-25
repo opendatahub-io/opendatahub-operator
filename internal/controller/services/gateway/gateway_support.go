@@ -321,10 +321,6 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 		// On XKS, cert-manager is a required platform dependency and owns issuance
 		// and renewal. Preserve operator-generated self-signed certificates on OpenShift.
 		if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
-			if err := requireCertManager(ctx, rr.Client); err != nil {
-				return "", err
-			}
-
 			issuerName, issuerKind := resolveIssuerRef(gatewayConfig.Spec.Certificate)
 			cert, err := buildCertManagerCertificate(secretName, GetGatewayNamespace(), secretName, []string{domain}, issuerName, issuerKind)
 			if err != nil {

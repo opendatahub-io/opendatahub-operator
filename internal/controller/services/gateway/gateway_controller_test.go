@@ -112,6 +112,33 @@ func TestGatewayCertManagerPrecondition(t *testing.T) {
 	}
 }
 
+func TestGatewayCertManagerPreconditionPassesWhenCRDIsPresent(t *testing.T) {
+	g := NewWithT(t)
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec: serviceApi.GatewayConfigSpec{
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.SelfSigned},
+		},
+	}
+	certManagerCRD := &extv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: gvk.CertManagerCertificateCRDName},
+	}
+	cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig, certManagerCRD))
+	g.Expect(err).NotTo(HaveOccurred())
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     cli,
+		Instance:   gatewayConfig,
+		Conditions: conditions.NewManager(gatewayConfig, ReadyConditionType),
+	}
+
+	g.Expect(precondition.RunAll(t.Context(), rr, []precondition.PreCondition{gatewayCertManagerPrecondition()})).To(BeFalse())
+	g.Expect(rr.Conditions.GetCondition(status.ConditionDependenciesAvailable).Status).To(Equal(metav1.ConditionTrue))
+}
+
 func TestGatewayCertManagerPreconditionSkippedOnOpenShift(t *testing.T) {
 	g := NewWithT(t)
 	originalClusterInfo := cluster.GetClusterInfo()

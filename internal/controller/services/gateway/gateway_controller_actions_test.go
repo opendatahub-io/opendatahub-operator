@@ -75,10 +75,8 @@ func TestGatewaySelfSignedCertificateProvider(t *testing.T) {
 		xks             bool
 		certManager     bool
 		wantCertificate bool
-		wantError       bool
 	}{
 		{name: "XKS with cert-manager", xks: true, certManager: true, wantCertificate: true},
-		{name: "XKS without cert-manager", xks: true, wantError: true},
 		{name: "OpenShift with cert-manager", certManager: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -109,11 +107,6 @@ func TestGatewaySelfSignedCertificateProvider(t *testing.T) {
 			}
 			rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: gatewayConfig}
 			secretName, err := handleCertificates(t.Context(), rr, gatewayConfig, "gateway.example.com")
-			if tc.wantError {
-				g.Expect(err).To(MatchError("cert-manager Certificate CRD is required on XKS"))
-				g.Expect(rr.Resources).To(BeEmpty())
-				return
-			}
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(secretName).To(Equal(serviceApi.GatewayConfigName + "-tls"))
 
@@ -139,98 +132,80 @@ func TestGatewaySelfSignedCertificateProvider(t *testing.T) {
 }
 
 // TestKubeAuthProxyCertificateProvider covers the XKS kube-auth-proxy TLS branch in
-// createKubeAuthProxyInfrastructure: cert-manager must be present and issues a Certificate.
+// createKubeAuthProxyInfrastructure: the action queues a cert-manager Certificate.
 //
 // That branch sits near the end of the action, behind an unsupported-spec rejection, domain
 // resolution, auth-mode detection and credential setup. The existing XKS tests in this file all
 // return before reaching it, so the GatewayConfig below is configured to pass every one of those
-// gates, and each case checks the queued Certificate and templates to prove the cert branch
+// gates, and checks the queued Certificate and templates to prove the cert branch
 // was exercised rather than skipped. Readiness is decided after deployment and issuance.
 func TestKubeAuthProxyCertificateProvider(t *testing.T) {
-	for _, tc := range []struct {
-		name        string
-		certManager bool
-		wantError   bool
-	}{
-		{name: "XKS with cert-manager", certManager: true},
-		{name: "XKS without cert-manager", wantError: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			g := NewWithT(t)
-			ctx := t.Context()
+	g := NewWithT(t)
+	ctx := t.Context()
 
-			originalClusterInfo := cluster.GetClusterInfo()
-			t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
-			cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
 
-			issuerRef := testIssuerRef
-			gatewayConfig := &serviceApi.GatewayConfig{
-				ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
-				Spec: serviceApi.GatewayConfigSpec{
-					// Domain is required on XKS, otherwise the action returns at hostname resolution.
-					Domain: "apps.example.com",
-					// OIDC is what selects AuthModeOIDC on XKS; without it the action returns
-					// early with AuthModeNone and never provisions a proxy certificate.
-					OIDC: &serviceApi.OIDCConfig{
-						IssuerURL: "https://oidc.example.com",
-						ClientID:  "odh-gateway",
-						ClientSecretRef: corev1.SecretKeySelector{
-							LocalObjectReference: corev1.LocalObjectReference{Name: "oidc-client-secret"},
-							Key:                  "clientSecret",
-						},
-					},
-					Certificate: &infrav1.CertificateSpec{Type: infrav1.SelfSigned, IssuerRef: &issuerRef},
+	issuerRef := testIssuerRef
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec: serviceApi.GatewayConfigSpec{
+			// Domain is required on XKS, otherwise the action returns at hostname resolution.
+			Domain: "apps.example.com",
+			// OIDC is what selects AuthModeOIDC on XKS; without it the action returns
+			// early with AuthModeNone and never provisions a proxy certificate.
+			OIDC: &serviceApi.OIDCConfig{
+				IssuerURL: "https://oidc.example.com",
+				ClientID:  "odh-gateway",
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "oidc-client-secret"},
+					Key:                  "clientSecret",
 				},
-			}
-
-			oidcSecret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{Name: "oidc-client-secret", Namespace: GetGatewayNamespace()},
-				Data:       map[string][]byte{"clientSecret": []byte("oidc-secret-value")},
-			}
-
-			cli, err := fakeclient.New(
-				fakeclient.WithObjects(gatewayConfig, oidcSecret),
-				fakeclient.WithGVKs(fakeclient.GVKMapping{GVK: gvk.CertManagerCertificate, Scope: meta.RESTScopeNamespace}),
-			)
-			g.Expect(err).NotTo(HaveOccurred())
-			if tc.certManager {
-				g.Expect(cli.Create(ctx, &extv1.CustomResourceDefinition{
-					ObjectMeta: metav1.ObjectMeta{Name: gvk.CertManagerCertificateCRDName},
-				})).To(Succeed())
-			}
-
-			rr := &odhtypes.ReconciliationRequest{
-				Client:     cli,
-				Instance:   gatewayConfig,
-				Conditions: conditions.NewManager(&gatewayConfigConditionsAccessor{}, ReadyConditionType),
-			}
-
-			err = createKubeAuthProxyInfrastructure(ctx, rr)
-			if tc.wantError {
-				g.Expect(err).To(MatchError("cert-manager Certificate CRD is required on XKS"))
-				g.Expect(rr.Resources).To(BeEmpty())
-				return
-			}
-			g.Expect(err).NotTo(HaveOccurred())
-
-			g.Expect(rr.Templates).NotTo(BeEmpty(), "auth proxy resources must be queued")
-			g.Expect(rr.Conditions.GetCondition(ReadyConditionType).Status).To(Equal(metav1.ConditionUnknown),
-				"readiness is decided after the Certificate and Deployment become available")
-
-			tlsSecret := &corev1.Secret{}
-			err = cli.Get(ctx, types.NamespacedName{Name: KubeAuthProxyTLSName, Namespace: GetGatewayNamespace()}, tlsSecret)
-
-			g.Expect(k8serr.IsNotFound(err)).To(BeTrue(),
-				"cert-manager owns the Secret; the operator must not pre-create it")
-			g.Expect(rr.Resources).To(HaveLen(1))
-			// The Certificate must name the Secret the kube-auth-proxy Deployment mounts, and
-			// carry the in-cluster Service DNS name the EnvoyFilter dials for ext_authz.
-			expectCertManagerCertificate(t, g, rr.Resources[0],
-				KubeAuthProxyTLSName, GetGatewayNamespace(), KubeAuthProxyTLSName,
-				[]string{KubeAuthProxyName + "." + GetGatewayNamespace() + ".svc.cluster.local"},
-				issuerRef)
-		})
+			},
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.SelfSigned, IssuerRef: &issuerRef},
+		},
 	}
+
+	oidcSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "oidc-client-secret", Namespace: GetGatewayNamespace()},
+		Data:       map[string][]byte{"clientSecret": []byte("oidc-secret-value")},
+	}
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(gatewayConfig, oidcSecret),
+		fakeclient.WithGVKs(fakeclient.GVKMapping{GVK: gvk.CertManagerCertificate, Scope: meta.RESTScopeNamespace}),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(cli.Create(ctx, &extv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: gvk.CertManagerCertificateCRDName},
+	})).To(Succeed())
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     cli,
+		Instance:   gatewayConfig,
+		Conditions: conditions.NewManager(&gatewayConfigConditionsAccessor{}, ReadyConditionType),
+	}
+
+	err = createKubeAuthProxyInfrastructure(ctx, rr)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	g.Expect(rr.Templates).NotTo(BeEmpty(), "auth proxy resources must be queued")
+	g.Expect(rr.Conditions.GetCondition(ReadyConditionType).Status).To(Equal(metav1.ConditionUnknown),
+		"readiness is decided after the Certificate and Deployment become available")
+
+	tlsSecret := &corev1.Secret{}
+	err = cli.Get(ctx, types.NamespacedName{Name: KubeAuthProxyTLSName, Namespace: GetGatewayNamespace()}, tlsSecret)
+
+	g.Expect(k8serr.IsNotFound(err)).To(BeTrue(),
+		"cert-manager owns the Secret; the operator must not pre-create it")
+	g.Expect(rr.Resources).To(HaveLen(1))
+	// The Certificate must name the Secret the kube-auth-proxy Deployment mounts, and
+	// carry the in-cluster Service DNS name the EnvoyFilter dials for ext_authz.
+	expectCertManagerCertificate(t, g, rr.Resources[0],
+		KubeAuthProxyTLSName, GetGatewayNamespace(), KubeAuthProxyTLSName,
+		[]string{KubeAuthProxyName + "." + GetGatewayNamespace() + ".svc.cluster.local"},
+		issuerRef)
 }
 
 func TestXKSReconcileWithoutDomainStopsCleanly(t *testing.T) {
