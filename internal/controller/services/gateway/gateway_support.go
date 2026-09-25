@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 
 	oauthv1 "github.com/openshift/api/oauth/v1"
@@ -169,14 +168,9 @@ var ErrDomainRequired = errors.New("spec.domain is required on non-OpenShift clu
 // It constructs the FQDN by combining the subdomain (or default) with either the user-specified
 // domain or the cluster domain.
 func GetFQDN(ctx context.Context, cli client.Client, gatewayConfig *serviceApi.GatewayConfig) (string, error) {
-	subdomain := DefaultGatewaySubdomain
+	subdomain := getCurrentSubdomain(gatewayConfig)
 
 	if gatewayConfig != nil {
-		subdomain = strings.TrimSpace(gatewayConfig.Spec.Subdomain)
-		if subdomain == "" {
-			subdomain = DefaultGatewaySubdomain
-		}
-
 		baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
 		if baseDomain != "" {
 			return fmt.Sprintf("%s.%s", subdomain, baseDomain), nil
@@ -273,13 +267,17 @@ func isGatewayReady(gateway *gwapiv1.Gateway) bool {
 
 // getCertificateType returns a string representation of the certificate type.
 func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
-	if gatewayConfig == nil {
-		return string(infrav1.OpenshiftDefaultIngress)
+	return string(effectiveCertificateType(gatewayConfig, cluster.GetClusterInfo().Type))
+}
+
+func effectiveCertificateType(gatewayConfig *serviceApi.GatewayConfig, clusterType string) infrav1.CertType {
+	if gatewayConfig != nil && gatewayConfig.Spec.Certificate != nil && gatewayConfig.Spec.Certificate.Type != "" {
+		return gatewayConfig.Spec.Certificate.Type
 	}
-	if gatewayConfig.Spec.Certificate == nil || gatewayConfig.Spec.Certificate.Type == "" {
-		return string(infrav1.OpenshiftDefaultIngress)
+	if clusterType == cluster.ClusterTypeKubernetes {
+		return infrav1.SelfSigned
 	}
-	return string(gatewayConfig.Spec.Certificate.Type)
+	return infrav1.OpenshiftDefaultIngress
 }
 
 func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig, domain string) (string, error) {
@@ -287,14 +285,7 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 	if gatewayConfig.Spec.Certificate != nil {
 		certConfig = *gatewayConfig.Spec.Certificate
 	}
-
-	if certConfig.Type == "" {
-		if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
-			certConfig.Type = infrav1.SelfSigned
-		} else {
-			certConfig.Type = infrav1.OpenshiftDefaultIngress
-		}
-	}
+	certConfig.Type = effectiveCertificateType(gatewayConfig, cluster.GetClusterInfo().Type)
 
 	secretName := certConfig.SecretName
 	if secretName == "" {
@@ -455,13 +446,8 @@ func buildAdditionalIngressListeners(
 		return nil
 	}
 
-	sortedIngresses := append([]serviceApi.AdditionalIngress(nil), ingresses...)
-	sort.Slice(sortedIngresses, func(i, j int) bool {
-		return sortedIngresses[i].Name < sortedIngresses[j].Name
-	})
-
-	listeners := make([]gwapiv1.Listener, 0, len(sortedIngresses))
-	for _, ingress := range sortedIngresses {
+	listeners := make([]gwapiv1.Listener, 0, len(ingresses))
+	for _, ingress := range ingresses {
 		listeners = append(listeners, gwapiv1.Listener{
 			Name:          gwapiv1.SectionName(ingress.Name),
 			Protocol:      gwapiv1.HTTPSProtocolType,
@@ -512,7 +498,11 @@ spec:
 }
 
 // createOAuthClient creates an OpenShift OAuth client for integrated authentication.
-func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) error {
+func createOAuthClient(
+	ctx context.Context,
+	rr *odhtypes.ReconciliationRequest,
+	hostname string,
+) error {
 	// Read client secret from kube-auth-proxy-creds secret
 	authSecret := &corev1.Secret{}
 	if err := rr.Client.Get(ctx, types.NamespacedName{
@@ -528,11 +518,7 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, 
 	}
 	clientSecret := string(clientSecretBytes)
 
-	domain, err := GetFQDN(ctx, rr.Client, gatewayConfig)
-	if err != nil {
-		return fmt.Errorf("failed to resolve domain: %w", err)
-	}
-	redirectURL := fmt.Sprintf("https://%s%s", domain, OAuthCallbackPath)
+	redirectURL := fmt.Sprintf("https://%s%s", hostname, OAuthCallbackPath)
 	oauthClient := &oauthv1.OAuthClient{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: AuthClientID,
@@ -547,9 +533,9 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, 
 
 // createSecret dynamically creates the kube-auth-proxy-creds secret immediately on the cluster.
 func createSecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clientID, clientSecret, cookieSecret string) error {
-	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
-	if !ok {
-		return errors.New("instance is not of type *services.GatewayConfig")
+	gatewayConfig, err := validateGatewayConfig(rr)
+	if err != nil {
+		return err
 	}
 
 	secret := &corev1.Secret{
@@ -564,7 +550,7 @@ func createSecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clien
 		labels.PlatformPartOf: PartOfGatewayConfig,
 	}
 
-	_, err := controllerutil.CreateOrUpdate(ctx, rr.Client, secret, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, rr.Client, secret, func() error {
 		secret.StringData = map[string]string{
 			"OAUTH2_PROXY_CLIENT_ID":     clientID,
 			"OAUTH2_PROXY_CLIENT_SECRET": clientSecret,
@@ -665,8 +651,10 @@ type LegacyRedirectInfo struct {
 
 // getCurrentSubdomain extracts the current subdomain from GatewayConfig or returns the default.
 func getCurrentSubdomain(gc *serviceApi.GatewayConfig) string {
-	if gc != nil && gc.Spec.Subdomain != "" {
-		return gc.Spec.Subdomain
+	if gc != nil {
+		if subdomain := strings.TrimSpace(gc.Spec.Subdomain); subdomain != "" {
+			return subdomain
+		}
 	}
 	return DefaultGatewaySubdomain
 }
@@ -866,6 +854,16 @@ func IsGatewayReferencedSecret(ctx context.Context, cli client.Client, obj clien
 	}
 
 	return false
+}
+
+func isGatewayCertificateOrReferencedSecret(
+	ctx context.Context,
+	cli client.Client,
+	obj client.Object,
+	gatewayNamespace string,
+) bool {
+	return cluster.IsGatewayCertificateSecret(ctx, cli, obj, gatewayNamespace) ||
+		IsGatewayReferencedSecret(ctx, cli, obj, gatewayNamespace)
 }
 
 // detectAndSetIngressMode detects the ingress mode from an existing Gateway Service and updates

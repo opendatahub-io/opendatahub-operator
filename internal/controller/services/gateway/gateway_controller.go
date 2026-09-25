@@ -20,10 +20,13 @@ import (
 	"context"
 	"fmt"
 
+	configv1 "github.com/openshift/api/config/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -53,10 +56,40 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.Deployment).
 		OwnsGVK(gvk.HorizontalPodAutoscaler).
 		OwnsGVK(gvk.HTTPRoute).
-		OwnsGVK(gvk.Route, reconciler.Dynamic(reconciler.ClusterIsOpenShift())).
+		OwnsGVK(gvk.Route,
+			reconciler.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift())).
 		OwnsGVK(gvk.ClusterRoleBinding).
 		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
 		OwnsGVK(gvk.DestinationRule, reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
+		Watches(
+			&corev1.Service{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(resources.GatewayProviderService(GetDefaultGatewayName(), GetGatewayNamespace())),
+		).
+		Watches(
+			&operatorv1.IngressController{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(predicate.And(
+				predicate.ResourceVersionChangedPredicate{},
+				predicate.NewPredicateFuncs(func(obj client.Object) bool {
+					return obj.GetNamespace() == cluster.IngressControllerName.Namespace
+				}),
+			)),
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+		).
+		Watches(
+			&corev1.Namespace{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(GetGatewayNamespace())),
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+		).
+		Watches(
+			&configv1.Ingress{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed("cluster")),
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+		).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
@@ -64,25 +97,13 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithPredicates(
 				resources.CreatedOrUpdatedOrDeletedNamed(gvk.DashboardComponentCRDName)),
 		).
-		// Watch for certificate secrets (both OpenShift default ingress and provided).
+		// Watch for Gateway certificates and GatewayConfig-referenced OIDC/provider CA secrets.
 		Watches(
 			&corev1.Secret{},
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(
 				resources.GatewayCertificateSecret(func(obj client.Object) bool {
-					return cluster.IsGatewayCertificateSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
-				}),
-			),
-		).
-		// Watch for OIDC client secrets and provider CA secrets referenced by GatewayConfig
-		// so that creating or updating these Secrets triggers re-reconciliation (Helm/GitOps
-		// race condition: Secret may be created after the GatewayConfig CR).
-		Watches(
-			&corev1.Secret{},
-			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
-			reconciler.WithPredicates(
-				resources.GatewayCertificateSecret(func(obj client.Object) bool {
-					return IsGatewayReferencedSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
+					return isGatewayCertificateOrReferencedSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
 				}),
 			),
 		).
@@ -119,8 +140,13 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
+		// GC does not compare desired resources, so Service or IngressController changes
+		// can leave an obsolete Route behind without a GatewayConfig generation change.
+		WithAction(cleanupAdditionalIngressRoutes).
+		WithAction(syncAdditionalIngressReadiness).
 		WithAction(syncGatewayConfigStatus).
 		WithAction(gc.NewAction()).
+		WithPostStatusFn(syncAdditionalIngressReadyStatuses).
 		WithConditions(ReadyConditionType)
 
 	if _, err := gw.Build(ctx); err != nil {
