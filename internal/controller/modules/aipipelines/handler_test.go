@@ -94,10 +94,14 @@ func TestOperatorManifestsAndEnvironment(t *testing.T) {
 	if len(manifests.Manifests) != 1 || manifests.Manifests[0].SourcePath != "overlays/odh/dspo" {
 		t.Fatalf("unexpected ODH manifests: %#v", manifests.Manifests)
 	}
-	platform.Release.Name = cluster.SelfManagedRhoai
-	manifests = h.GetOperatorManifests(platform)
-	if len(manifests.Manifests) != 1 || manifests.Manifests[0].SourcePath != "overlays/rhoai/dspo" {
-		t.Fatalf("unexpected RHOAI manifests: %#v", manifests.Manifests)
+	for _, platformName := range []common.Platform{cluster.SelfManagedRhoai, cluster.ManagedRhoai, cluster.XKS} {
+		t.Run(string(platformName), func(t *testing.T) {
+			platform.Release.Name = platformName
+			manifests := h.GetOperatorManifests(platform)
+			if len(manifests.Manifests) != 1 || manifests.Manifests[0].SourcePath != "overlays/rhoai/dspo" {
+				t.Fatalf("unexpected manifests for %s: %#v", platformName, manifests.Manifests)
+			}
+		})
 	}
 	if got := h.GetExtraEnv()["DSPO_ENABLEAIPIPELINESMODULECONTROLLER"]; got != "true" {
 		t.Fatalf("expected module controller handoff flag, got %q", got)
