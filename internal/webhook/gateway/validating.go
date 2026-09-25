@@ -14,9 +14,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/gatewayconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
@@ -65,13 +64,7 @@ func (v *Validator) Handle(_ context.Context, req admission.Request) admission.R
 		return admission.Allowed("GatewayConfig values are supported on this platform")
 	}
 
-	var messages []string
-	if gatewayConfig.Spec.Certificate != nil && gatewayConfig.Spec.Certificate.Type == infrav1.OpenshiftDefaultIngress {
-		messages = append(messages, status.GatewayUnsupportedCertTypeOnKubernetesMessage)
-	}
-	if gatewayConfig.Spec.IngressMode == serviceApi.IngressModeOcpRoute {
-		messages = append(messages, status.GatewayUnsupportedIngressModeOnKubernetesMessage)
-	}
+	messages := gatewayconfig.KubernetesValidationErrors(gatewayConfig)
 	if len(messages) > 0 {
 		return admission.Denied(strings.Join(messages, "; "))
 	}
