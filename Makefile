@@ -353,9 +353,9 @@ update-rhai-images: yq ## Locally update downloaded RHAI params.env files (not u
 # RHOAI Build Config branches use major.minor, while VERSION includes patch and
 # prerelease components.
 RHOAI_BUILD_CONFIG_BRANCH := rhoai-$(word 1,$(subst ., ,$(VERSION))).$(word 2,$(subst ., ,$(VERSION)))
+export RHOAI_BUILD_CONFIG_BRANCH
 validate-related-images: yq ## Validate RELATED_IMAGE_* names against build configs
-	@RHOAI_BUILD_CONFIG_BRANCH=$(RHOAI_BUILD_CONFIG_BRANCH) \
-		YQ=$(YQ) ./.github/scripts/validate-related-images.sh
+	@YQ="$(YQ)" ./.github/scripts/validate-related-images.sh
 
 .PHONY: resolve-image-digests
 resolve-image-digests: ## Resolve image digests from Build-Config and update manifests-config.yaml
