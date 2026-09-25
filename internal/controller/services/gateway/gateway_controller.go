@@ -100,6 +100,16 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 				}),
 			),
 		).
+		// Reconcile when cert-manager creates, updates, or removes an XKS TLS Secret.
+		Watches(
+			&corev1.Secret{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(
+				resources.GatewayCertificateSecret(func(obj client.Object) bool {
+					return IsXKSCertManagerSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
+				}),
+			),
+		).
 		Watches(
 			&gwapiv1.HTTPRoute{},
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),

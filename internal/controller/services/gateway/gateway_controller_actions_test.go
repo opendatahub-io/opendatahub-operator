@@ -144,8 +144,8 @@ func TestGatewaySelfSignedCertificateProvider(t *testing.T) {
 // That branch sits near the end of the action, behind an unsupported-spec rejection, domain
 // resolution, auth-mode detection and credential setup. The existing XKS tests in this file all
 // return before reaching it, so the GatewayConfig below is configured to pass every one of those
-// gates, and each case asserts Ready=True with AuthProxyDeployedMessage - set only on the final
-// line of the action - to prove the cert branch was actually exercised rather than skipped.
+// gates, and each case checks the queued Certificate and templates to prove the cert branch
+// was exercised rather than skipped. Readiness is decided after deployment and issuance.
 func TestKubeAuthProxyCertificateProvider(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
@@ -213,11 +213,9 @@ func TestKubeAuthProxyCertificateProvider(t *testing.T) {
 			}
 			g.Expect(err).NotTo(HaveOccurred())
 
-			ready := rr.Conditions.GetCondition(ReadyConditionType)
-			g.Expect(ready).NotTo(BeNil())
-			g.Expect(ready.Status).To(Equal(metav1.ConditionTrue))
-			g.Expect(ready.Message).To(Equal(status.AuthProxyDeployedMessage),
-				"action must run to completion, otherwise the certificate branch was never reached")
+			g.Expect(rr.Templates).NotTo(BeEmpty(), "auth proxy resources must be queued")
+			g.Expect(rr.Conditions.GetCondition(ReadyConditionType).Status).To(Equal(metav1.ConditionUnknown),
+				"readiness is decided after the Certificate and Deployment become available")
 
 			tlsSecret := &corev1.Secret{}
 			err = cli.Get(ctx, types.NamespacedName{Name: KubeAuthProxyTLSName, Namespace: GetGatewayNamespace()}, tlsSecret)

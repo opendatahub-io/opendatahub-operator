@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -85,4 +88,59 @@ func buildCertManagerCertificate(name, namespace, secretName string, dnsNames []
 	}
 
 	return u, nil
+}
+
+// checkCertManagerCertificate reports why an XKS TLS certificate is not usable yet.
+func checkCertManagerCertificate(ctx context.Context, cli client.Client, name string) (string, error) {
+	key := types.NamespacedName{Name: name, Namespace: GetGatewayNamespace()}
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(gvk.CertManagerCertificate)
+	if err := cli.Get(ctx, key, cert); err != nil {
+		if k8serr.IsNotFound(err) {
+			return fmt.Sprintf("waiting for Certificate %s/%s", key.Namespace, key.Name), nil
+		}
+		return "", fmt.Errorf("failed to get Certificate %s/%s: %w", key.Namespace, key.Name, err)
+	}
+
+	conditions, found, err := unstructured.NestedSlice(cert.Object, "status", "conditions")
+	if err != nil {
+		return "", fmt.Errorf("failed to read Certificate %s/%s conditions: %w", key.Namespace, key.Name, err)
+	}
+	ready := false
+	message := "issuance is pending"
+	if found {
+		for _, raw := range conditions {
+			condition, ok := raw.(map[string]any)
+			if !ok || condition["type"] != "Ready" {
+				continue
+			}
+			if condition["status"] == "True" && condition["observedGeneration"] == cert.GetGeneration() {
+				ready = true
+				break
+			}
+			if condition["status"] == "True" {
+				message = "waiting for cert-manager to observe the current generation"
+			} else if detail, ok := condition["message"].(string); ok && detail != "" {
+				message = detail
+			} else if reason, ok := condition["reason"].(string); ok && reason != "" {
+				message = reason
+			}
+			break
+		}
+	}
+	if !ready {
+		return fmt.Sprintf("Certificate %s/%s is not ready: %s", key.Namespace, key.Name, message), nil
+	}
+
+	secret := &corev1.Secret{}
+	if err := cli.Get(ctx, key, secret); err != nil {
+		if k8serr.IsNotFound(err) {
+			return fmt.Sprintf("waiting for TLS Secret %s/%s", key.Namespace, key.Name), nil
+		}
+		return "", fmt.Errorf("failed to get TLS Secret %s/%s: %w", key.Namespace, key.Name, err)
+	}
+	if len(secret.Data[corev1.TLSCertKey]) == 0 || len(secret.Data[corev1.TLSPrivateKeyKey]) == 0 {
+		return fmt.Sprintf("TLS Secret %s/%s is missing tls.crt or tls.key", key.Namespace, key.Name), nil
+	}
+	return "", nil
 }
