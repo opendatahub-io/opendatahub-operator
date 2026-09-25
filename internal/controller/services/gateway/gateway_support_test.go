@@ -9,8 +9,10 @@ import (
 	"testing"
 	"text/template"
 
+	oauthv1 "github.com/openshift/api/oauth/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -126,6 +128,44 @@ func TestGetCertificateType(t *testing.T) {
 			t.Parallel()
 			result := getCertificateType(tc.gatewayConfig)
 			g.Expect(result).To(Equal(tc.expectedType), tc.description)
+		})
+	}
+}
+
+func TestEffectiveCertificateType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		config      *serviceApi.GatewayConfig
+		clusterType string
+		want        infrav1.CertType
+	}{
+		{
+			name:        "defaults to OpenShift ingress certificate",
+			clusterType: cluster.ClusterTypeOpenShift,
+			want:        infrav1.OpenshiftDefaultIngress,
+		},
+		{
+			name:        "defaults to self-signed certificate on Kubernetes",
+			clusterType: cluster.ClusterTypeKubernetes,
+			want:        infrav1.SelfSigned,
+		},
+		{
+			name: "uses configured certificate type",
+			config: &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{
+				Certificate: &infrav1.CertificateSpec{Type: infrav1.Provided},
+			}},
+			clusterType: cluster.ClusterTypeKubernetes,
+			want:        infrav1.Provided,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			g.Expect(effectiveCertificateType(test.config, test.clusterType)).To(Equal(test.want))
 		})
 	}
 }
@@ -418,10 +458,10 @@ func TestBuildAdditionalIngressListeners(t *testing.T) {
 	}).ValidateAdditionalIngresses()).To(Succeed())
 	listeners := buildAdditionalIngressListeners(ingresses, tlsConfig, allowedRoutes)
 	g.Expect(listeners).To(HaveLen(2))
-	g.Expect(listeners[0].Name).To(Equal(gwapiv1.SectionName("alpha")))
-	g.Expect(listeners[0].Port).To(Equal(gwapiv1.PortNumber(9443)))
-	g.Expect(listeners[1].Name).To(Equal(gwapiv1.SectionName("zeta")))
-	g.Expect(listeners[1].Port).To(Equal(gwapiv1.PortNumber(9444)))
+	g.Expect(listeners[0].Name).To(Equal(gwapiv1.SectionName("zeta")))
+	g.Expect(listeners[0].Port).To(Equal(gwapiv1.PortNumber(9444)))
+	g.Expect(listeners[1].Name).To(Equal(gwapiv1.SectionName("alpha")))
+	g.Expect(listeners[1].Port).To(Equal(gwapiv1.PortNumber(9443)))
 	for _, listener := range listeners {
 		g.Expect(listener.Hostname).To(BeNil())
 		g.Expect(listener.Protocol).To(Equal(gwapiv1.HTTPSProtocolType))
@@ -670,6 +710,31 @@ func TestComputeLegacyRedirectInfo(t *testing.T) {
 	}
 	info = computeLegacyRedirectInfo(customConfig, testHostnameCustomSubdomain)
 	g.Expect(info.LegacyHostname).To(Equal(testHostnameLegacy))
+
+	whitespaceConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{Subdomain: "   "},
+	}
+	info = computeLegacyRedirectInfo(whitespaceConfig, testHostnameDefault)
+	g.Expect(info.LegacyHostname).To(Equal(testHostnameLegacy))
+}
+
+func TestCreateOAuthClientUsesResolvedHostname(t *testing.T) {
+	g := NewWithT(t)
+	cli := newGatewayTestClient(t, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GetGatewayNamespace(),
+		},
+		Data: map[string][]byte{"OAUTH2_PROXY_CLIENT_SECRET": []byte("client-secret")},
+	})
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	hostname := "resolved.apps.example.com"
+
+	g.Expect(createOAuthClient(t.Context(), rr, hostname)).To(Succeed())
+	g.Expect(rr.Resources).To(HaveLen(1))
+	oauthClient := &oauthv1.OAuthClient{}
+	g.Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, oauthClient)).To(Succeed())
+	g.Expect(oauthClient.RedirectURIs).To(ConsistOf("https://" + hostname + OAuthCallbackPath))
 }
 
 // TestHPATemplateConstant tests that the HPA template constant is correctly defined.

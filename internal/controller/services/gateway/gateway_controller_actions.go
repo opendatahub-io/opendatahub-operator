@@ -21,6 +21,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"maps"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -123,7 +124,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return nil
 	}
 
-	_, err = resolveGatewayHostname(ctx, rr, gatewayConfig)
+	hostname, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
 	if err != nil {
 		if errors.Is(err, ErrDomainRequired) {
 			return nil
@@ -209,7 +210,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 
 	// For IntegratedOAuth mode, create OAuth client after secret is created
 	if authMode == cluster.AuthModeIntegratedOAuth {
-		if err := createOAuthClient(ctx, rr, gatewayConfig); err != nil {
+		if err := createOAuthClient(ctx, rr, hostname); err != nil {
 			rr.Conditions.MarkFalse(
 				ReadyConditionType,
 				conditions.WithReason(status.NotReadyReason),
@@ -423,6 +424,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"GatewayNameLabelKey":      labels.GatewayAPI.GatewayName,
 		"LegacySubdomain":          legacyInfo.LegacySubdomain,
 		"LegacyHostname":           legacyInfo.LegacyHostname,
+		"RouteLabels":              gatewayRouteLabels(nil),
 	}
 
 	// Add dashboard redirect template variables
@@ -487,6 +489,13 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData["TLSCipherSuite"] = tlsCipherSuites
 
 	return templateData, nil
+}
+
+func gatewayRouteLabels(additional map[string]string) map[string]string {
+	routeLabels := make(map[string]string, len(additional)+1)
+	maps.Copy(routeLabels, additional)
+	routeLabels[labels.K8SCommon.PartOf] = PartOfGatewayConfig
+	return routeLabels
 }
 
 // This function checks Gateway infrastructure readiness and updates status.Domain.

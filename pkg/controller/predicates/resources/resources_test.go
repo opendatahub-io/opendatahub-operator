@@ -20,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
+	metadatalabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	res "github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 
 	. "github.com/onsi/gomega"
@@ -1258,6 +1259,28 @@ func TestHTTPRouteReferencesGateway_DefaultNamespace(t *testing.T) {
 	}
 
 	g.Expect(predicate.Create(event.CreateEvent{Object: routeWithoutNamespace})).To(BeTrue())
+}
+
+func TestGatewayProviderService(t *testing.T) {
+	t.Parallel()
+
+	predicate := resources.GatewayProviderService("my-gateway", "my-namespace")
+	matching := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "my-namespace",
+		Labels:    map[string]string{metadatalabels.GatewayAPI.GatewayName: "my-gateway"},
+	}}
+	nonMatching := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "my-namespace",
+		Labels:    map[string]string{metadatalabels.GatewayAPI.GatewayName: "other-gateway"},
+	}}
+
+	g := NewWithT(t)
+	g.Expect(predicate.Create(event.CreateEvent{Object: matching})).To(BeTrue())
+	g.Expect(predicate.Delete(event.DeleteEvent{Object: matching})).To(BeTrue())
+	g.Expect(predicate.Generic(event.GenericEvent{Object: matching})).To(BeTrue())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: matching, ObjectNew: nonMatching})).To(BeTrue())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: nonMatching, ObjectNew: matching})).To(BeTrue())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: nonMatching, ObjectNew: nonMatching})).To(BeFalse())
 }
 
 func TestAPIServerTLSSecurityProfileChanged(t *testing.T) {

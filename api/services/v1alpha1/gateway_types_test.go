@@ -83,6 +83,24 @@ func TestAdditionalIngressesValidate(t *testing.T) {
 			wantErr: "invalid route label value",
 		},
 		{
+			name: "reserved route label",
+			ingresses: AdditionalIngresses{{
+				Name: "alpha", Hostname: "alpha.example.com", ListenerPort: 9443,
+				IngressControllerName: "shard-a", RouteLabels: map[string]string{"app.kubernetes.io/part-of": "custom"},
+			}},
+			mode:    IngressModeOcpRoute,
+			wantErr: "reserved route label key",
+		},
+		{
+			name: "reserved platform route label",
+			ingresses: AdditionalIngresses{{
+				Name: "alpha", Hostname: "alpha.example.com", ListenerPort: 9443,
+				IngressControllerName: "shard-a", RouteLabels: map[string]string{"platform.opendatahub.io/part-of": "custom"},
+			}},
+			mode:    IngressModeOcpRoute,
+			wantErr: "reserved route label key",
+		},
+		{
 			name:      "reserved name",
 			ingresses: AdditionalIngresses{valid(DefaultGatewayListenerName, "alpha.example.com", 9443)},
 			mode:      IngressModeOcpRoute,
