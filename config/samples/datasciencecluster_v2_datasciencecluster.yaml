@@ -25,6 +25,8 @@ spec:
       rawDeploymentServiceConfig: "Headed"
       wva:
         managementState: "Removed"
+      modelExpress:
+        managementState: "Removed"
     kueue:
       managementState: "Removed"
     trainer:

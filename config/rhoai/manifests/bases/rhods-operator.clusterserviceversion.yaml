@@ -52,6 +52,9 @@ metadata:
               "nim": {
                 "managementState": "Managed"
               },
+              "modelExpress": {
+                "managementState": "Removed"
+              },
               "wva": {
                 "managementState": "Removed"
               }
