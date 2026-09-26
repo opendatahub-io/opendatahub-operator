@@ -22,8 +22,10 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -37,6 +39,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -51,6 +54,34 @@ func gatewayCRDWatchPredicate() predicate.Predicate {
 	return predicate.Or(
 		resources.CreatedOrUpdatedOrDeletedNamed(gvk.DashboardComponentCRDName),
 		resources.CreatedOrUpdatedOrDeletedNamed(gvk.CertManagerCertificateCRDName),
+	)
+}
+
+// gatewayDeploymentWatchPredicate also observes proxy availability, which changes in the
+// Deployment status without changing its generation, labels, or annotations.
+func gatewayDeploymentWatchPredicate() predicate.Predicate {
+	return predicate.Or(
+		predicates.DefaultPredicate,
+		predicate.Funcs{
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				oldDeployment, oldOK := e.ObjectOld.(*unstructured.Unstructured)
+				newDeployment, newOK := e.ObjectNew.(*unstructured.Unstructured)
+				if !oldOK || !newOK ||
+					newDeployment.GetName() != KubeAuthProxyName ||
+					newDeployment.GetNamespace() != GetGatewayNamespace() {
+					return false
+				}
+
+				for _, field := range []string{"availableReplicas", "observedGeneration"} {
+					oldValue, oldFound, oldErr := unstructured.NestedInt64(oldDeployment.Object, "status", field)
+					newValue, newFound, newErr := unstructured.NestedInt64(newDeployment.Object, "status", field)
+					if oldErr != nil || newErr != nil || oldFound != newFound || oldValue != newValue {
+						return true
+					}
+				}
+				return false
+			},
+		},
 	)
 }
 
@@ -84,7 +115,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.Secret).
 		OwnsGVK(gvk.ConfigMap).
 		OwnsGVK(gvk.Service).
-		OwnsGVK(gvk.Deployment).
+		OwnsGVK(gvk.Deployment, reconciler.WithPredicates(gatewayDeploymentWatchPredicate())).
 		OwnsGVK(gvk.HorizontalPodAutoscaler).
 		OwnsGVK(gvk.HTTPRoute).
 		OwnsGVK(gvk.Route, reconciler.Dynamic(reconciler.ClusterIsOpenShift())).

@@ -8,6 +8,7 @@ import (
 
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -50,6 +51,56 @@ func TestGatewayCRDWatchPredicate(t *testing.T) {
 			g.Expect(pred.Create(event.CreateEvent{Object: crd})).To(Equal(tc.wantMatch))
 			g.Expect(pred.Update(event.UpdateEvent{ObjectOld: crd, ObjectNew: crd})).To(Equal(tc.wantMatch))
 			g.Expect(pred.Delete(event.DeleteEvent{Object: crd})).To(Equal(tc.wantMatch))
+		})
+	}
+}
+
+func TestGatewayDeploymentWatchPredicate(t *testing.T) {
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+
+	newDeployment := func(name, namespace string, generation, available, observed int64) *unstructured.Unstructured {
+		deployment := &unstructured.Unstructured{}
+		deployment.SetGroupVersionKind(gvk.Deployment)
+		deployment.SetName(name)
+		deployment.SetNamespace(namespace)
+		deployment.SetGeneration(generation)
+		if err := unstructured.SetNestedField(deployment.Object, available, "status", "availableReplicas"); err != nil {
+			t.Fatal(err)
+		}
+		if err := unstructured.SetNestedField(deployment.Object, observed, "status", "observedGeneration"); err != nil {
+			t.Fatal(err)
+		}
+		return deployment
+	}
+
+	for _, tc := range []struct {
+		name        string
+		deployName  string
+		namespace   string
+		generation  int64
+		available   int64
+		observed    int64
+		wantTrigger bool
+	}{
+		{name: "proxy becomes available", deployName: KubeAuthProxyName, namespace: GetGatewayNamespace(), generation: 1, available: 2, observed: 1, wantTrigger: true},
+		{name: "controller observes the generation", deployName: KubeAuthProxyName, namespace: GetGatewayNamespace(), generation: 1, available: 0, observed: 2, wantTrigger: true},
+		{name: "status unchanged", deployName: KubeAuthProxyName, namespace: GetGatewayNamespace(), generation: 1, available: 0, observed: 1},
+		{name: "unrelated deployment status", deployName: "other", namespace: GetGatewayNamespace(), generation: 1, available: 2, observed: 1},
+		{name: "other namespace status", deployName: KubeAuthProxyName, namespace: "other", generation: 1, available: 2, observed: 1},
+		{name: "spec change still triggers", deployName: KubeAuthProxyName, namespace: GetGatewayNamespace(), generation: 2, available: 0, observed: 1, wantTrigger: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			oldDeployment := newDeployment(tc.deployName, tc.namespace, 1, 0, 1)
+			updatedDeployment := newDeployment(tc.deployName, tc.namespace, tc.generation, tc.available, tc.observed)
+			triggered := gatewayDeploymentWatchPredicate().Update(event.UpdateEvent{
+				ObjectOld: oldDeployment,
+				ObjectNew: updatedDeployment,
+			})
+			if triggered != tc.wantTrigger {
+				t.Errorf("watch triggered = %t, want %t", triggered, tc.wantTrigger)
+			}
 		})
 	}
 }

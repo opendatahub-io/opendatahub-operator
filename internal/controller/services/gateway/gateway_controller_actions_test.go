@@ -6,6 +6,7 @@ package gateway
 import (
 	"testing"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -206,6 +207,72 @@ func TestKubeAuthProxyCertificateProvider(t *testing.T) {
 		KubeAuthProxyTLSName, GetGatewayNamespace(), KubeAuthProxyTLSName,
 		[]string{KubeAuthProxyName + "." + GetGatewayNamespace() + ".svc.cluster.local"},
 		issuerRef)
+}
+
+func TestGatewayReadinessRecoversAfterProxyStatusUpdate(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain:      "kind.local",
+			IngressMode: serviceApi.IngressModeLoadBalancer,
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.Provided},
+			OIDC:        &serviceApi.OIDCConfig{},
+		},
+	}
+	gateway := &gwapiv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{Name: GetDefaultGatewayName(), Namespace: GetGatewayNamespace()},
+		Status: gwapiv1.GatewayStatus{Conditions: []metav1.Condition{{
+			Type: string(gwapiv1.GatewayConditionAccepted), Status: metav1.ConditionTrue,
+		}}},
+	}
+	certificate := &unstructured.Unstructured{}
+	certificate.SetGroupVersionKind(gvk.CertManagerCertificate)
+	certificate.SetName(KubeAuthProxyTLSName)
+	certificate.SetNamespace(GetGatewayNamespace())
+	certificate.SetGeneration(1)
+	g.Expect(unstructured.SetNestedSlice(certificate.Object, []any{map[string]any{
+		"type": "Ready", "status": "True", "observedGeneration": int64(1),
+	}}, "status", "conditions")).To(Succeed())
+	tlsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: KubeAuthProxyTLSName, Namespace: GetGatewayNamespace()},
+		Data: map[string][]byte{
+			corev1.TLSCertKey:       []byte("cert"),
+			corev1.TLSPrivateKeyKey: []byte("key"),
+		},
+	}
+	replicas := int32(2)
+	proxy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: KubeAuthProxyName, Namespace: GetGatewayNamespace(), Generation: 1},
+		Spec:       appsv1.DeploymentSpec{Replicas: &replicas},
+		Status:     appsv1.DeploymentStatus{ObservedGeneration: 1, AvailableReplicas: 0},
+	}
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(gatewayConfig, gateway, certificate, tlsSecret, proxy),
+		fakeclient.WithGVKs(fakeclient.GVKMapping{GVK: gvk.CertManagerCertificate, Scope: meta.RESTScopeNamespace}),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     cli,
+		Instance:   gatewayConfig,
+		Conditions: conditions.NewManager(gatewayConfig, ReadyConditionType),
+	}
+
+	g.Expect(syncGatewayConfigStatus(ctx, rr)).To(Succeed())
+	g.Expect(rr.Conditions.GetCondition(ReadyConditionType).Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(rr.Conditions.GetCondition(ReadyConditionType).Message).To(ContainSubstring("Deployment"))
+
+	proxy.Status.AvailableReplicas = replicas
+	g.Expect(cli.Status().Update(ctx, proxy)).To(Succeed())
+	rr.Conditions.MarkUnknown(ReadyConditionType)
+	g.Expect(syncGatewayConfigStatus(ctx, rr)).To(Succeed())
+	g.Expect(rr.Conditions.GetCondition(ReadyConditionType).Status).To(Equal(metav1.ConditionTrue))
 }
 
 func TestXKSReconcileWithoutDomainStopsCleanly(t *testing.T) {
