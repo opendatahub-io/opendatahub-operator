@@ -212,7 +212,7 @@ func (tc *DSCTestCtx) ValidateDSCIWebhookDeniesInvalidPEMOnUpdate(t *testing.T) 
 
 	tc.EnsureWebhookBlocksResourceUpdate(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(setCustomCABundle("not-a-valid-pem")),
+		WithMutateFunc(testf.Transform(`.spec.trustedCABundle.managementState = "Managed" | .spec.trustedCABundle.customCABundle = "not-a-valid-pem"`)),
 		WithFieldName("customCABundle"),
 		WithCustomErrorMsg("Webhook should deny update with invalid PEM in customCABundle"),
 	)
