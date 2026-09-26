@@ -21,6 +21,7 @@ BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
 # default platform type
 ODH_PLATFORM_TYPE ?= OpenDataHub
+DEPLOY_ALLOW_CONFLICTING_OPERATORS ?= false
 
 
 ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
@@ -91,7 +92,10 @@ endif
 
 MANAGER_FILE ?= $(CONFIG_DIR)/manager/manager.yaml
 
+export ODH_PLATFORM_TYPE OPERATOR_NAMESPACE KUBECTL DEPLOY_ALLOW_CONFLICTING_OPERATORS
+
 IMAGE_BUILDER ?= podman
+KUBECTL ?= kubectl
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
 DEFAULT_CHARTS_PATH ?= opt/charts
 CGO_ENABLED ?= 1
@@ -472,7 +476,8 @@ ifndef SKIP_IMAGE_OVERRIDES
 deploy: apply-image-overrides
 endif
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+	./hack/deploy-preflight.sh
+	$(KUSTOMIZE) build $(CONFIG_DIR)/default | "$${KUBECTL}" apply --namespace "$${OPERATOR_NAMESPACE}" -f -
 
 .PHONY: deploy-rhaii
 ifndef SKIP_IMAGE_OVERRIDES
@@ -688,7 +693,7 @@ $(ENVTEST): $(LOCALBIN)
 test: unit-test e2e-test
 
 .PHONY: unit-test
-unit-test: unit-test-operator unit-test-clusterhealth unit-test-manifest-tools unit-test-scoperules unit-test-e2e-scope-completeness
+unit-test: unit-test-operator unit-test-clusterhealth unit-test-manifest-tools unit-test-scoperules unit-test-e2e-scope-completeness unit-test-deploy-preflight
 
 .PHONY: unit-test-operator
 unit-test-operator: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
@@ -729,6 +734,10 @@ unit-test-scoperules:
 unit-test-e2e-scope-completeness: ## Registry-completeness checks for tests/e2e/scripts/e2e-scope-rules.yaml. No cluster needed, so these run outside ginkgo's TEST_SRC and outside make e2e-test's ^TestOdhOperator filter.
 	go test ./cmd
 	go test ./tests/e2e/ -run "^TestScopeRules"
+
+.PHONY: unit-test-deploy-preflight
+unit-test-deploy-preflight:
+	./hack/deploy-preflight_test.sh
 
 # Pattern rule to generate .rules.yaml from PrometheusRule templates
 # This finds the corresponding *-prometheusrules.tmpl.yaml in the same directory
