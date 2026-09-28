@@ -154,6 +154,17 @@ func getLWSNamespace(wt *testf.WithT, cr *unstructured.Unstructured) string {
 	return deps.LWS.GetNamespace()
 }
 
+// listInfrastructureServiceAccounts returns ServiceAccounts in namespace that carry
+// the CCM InfrastructurePartOf label.
+func listInfrastructureServiceAccounts(wt *testf.WithT, namespace string) []unstructured.Unstructured {
+	wt.THelper()
+
+	return wt.List(gvk.ServiceAccount,
+		client.InNamespace(namespace),
+		client.MatchingLabels{labels.InfrastructurePartOf: getPartOfLabelValue()},
+	).Eventually().Should(Not(BeEmpty()))
+}
+
 // waitForDeploymentsAvailable waits until all managed dependency deployments
 // have the Available=True condition, meaning they're actually running.
 func waitForDeploymentsAvailable(wt *testf.WithT, deployments []unstructured.Unstructured) {
