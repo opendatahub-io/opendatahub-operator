@@ -30,5 +30,4 @@ func TestFilterGateSkipsCommand(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(content), "Skipping test: passed tag:")
 	require.Contains(t, string(content), `name="ok"`)
-
 }

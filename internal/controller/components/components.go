@@ -7,7 +7,6 @@ import (
 )
 
 //go:embed kueue/monitoring
-//go:embed trustyai/monitoring
 var ComponentRulesFS embed.FS
 
 // NormalizeManagementState returns the ManagementState or operatorv1.Removed if empty.

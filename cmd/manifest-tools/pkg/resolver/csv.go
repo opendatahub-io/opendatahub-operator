@@ -10,18 +10,30 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/manifest-tools/pkg/config"
 )
 
-const csvURL = "https://raw.githubusercontent.com/opendatahub-io/ODH-Build-Config/main/bundle/manifests/rhods-operator.clusterserviceversion.yaml"
+const (
+	csvPath                    = "bundle/manifests/rhods-operator.clusterserviceversion.yaml"
+	rhoaiProductionImagePrefix = "registry.redhat.io/rhoai/"
+	rhoaiE2EImagePrefix        = "quay.io/rhoai/"
+)
 
 type CSVImage struct {
 	Base   string
 	Digest string
 }
 
-func FetchCSVRelatedImages(ctx context.Context) (map[string]CSVImage, error) {
+func FetchCSVRelatedImages(ctx context.Context, source config.BuildConfigRepo) (map[string]CSVImage, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+
+	sha := config.ExtractSHA(source.Ref)
+	if sha == "" {
+		return nil, fmt.Errorf("Build-Config ref %q is not pinned to a commit SHA", source.Ref)
+	}
+	csvURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s", source.Repo, sha, csvPath)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, csvURL, nil)
 	if err != nil {
@@ -49,6 +61,24 @@ func FetchCSVRelatedImages(ctx context.Context) (map[string]CSVImage, error) {
 	}
 
 	return ParseCSVRelatedImages(body)
+}
+
+// NormalizeCSVImages converts production RHOAI registry references to their
+// pullable e2e mirror. Other platforms and registry.redhat.io namespaces are
+// left unchanged.
+func NormalizeCSVImages(platform string, images map[string]CSVImage) map[string]CSVImage {
+	if platform != "rhoai" {
+		return images
+	}
+
+	normalized := make(map[string]CSVImage, len(images))
+	for envName, image := range images {
+		if strings.HasPrefix(image.Base, rhoaiProductionImagePrefix) {
+			image.Base = rhoaiE2EImagePrefix + strings.TrimPrefix(image.Base, rhoaiProductionImagePrefix)
+		}
+		normalized[envName] = image
+	}
+	return normalized
 }
 
 func ParseCSVRelatedImages(data []byte) (map[string]CSVImage, error) {

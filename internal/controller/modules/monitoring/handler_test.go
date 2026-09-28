@@ -177,7 +177,7 @@ func TestBuildModuleCR_ProjectsTraces(t *testing.T) {
 	h := monitoring.NewHandler()
 	dsci := newDSCI(operatorv1.Managed)
 	dsci.Spec.Monitoring.Traces = &serviceApi.Traces{
-		Storage: serviceApi.TracesStorage{
+		Storage: &serviceApi.TracesStorage{
 			Backend: serviceApi.StorageBackendS3,
 			Secret:  "my-s3-creds",
 			Retention: metav1.Duration{
@@ -221,7 +221,7 @@ func TestBuildModuleCR_TracesWithTLSDisabled(t *testing.T) {
 	h := monitoring.NewHandler()
 	dsci := newDSCI(operatorv1.Managed)
 	dsci.Spec.Monitoring.Traces = &serviceApi.Traces{
-		Storage: serviceApi.TracesStorage{
+		Storage: &serviceApi.TracesStorage{
 			Backend: serviceApi.StorageBackendPV,
 		},
 		TLS: &serviceApi.TracesTLS{
@@ -279,6 +279,77 @@ func TestBuildModuleCR_MetricsWithExportersWithoutStorage(t *testing.T) {
 	g.Expect(metrics).ShouldNot(HaveKey("storage"))
 }
 
+func TestBuildModuleCR_TracesWithExportersWithoutStorage(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.Traces = &serviceApi.Traces{
+		Exporters: map[string]runtime.RawExtension{
+			"otlp/external": {Raw: []byte(`{"endpoint":"https://traces.example.com:4317"}`)},
+		},
+	}
+
+	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).Should(HaveKey("traces"))
+	traces, ok := spec["traces"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(traces).Should(HaveKey("exporters"))
+	g.Expect(traces).ShouldNot(HaveKey("storage"))
+	g.Expect(spec["collectorReplicas"]).Should(Equal(int64(2)))
+}
+
+func TestBuildModuleCR_TracesWithoutStorageOrExportersNulled(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.Traces = &serviceApi.Traces{
+		SampleRatio: "0.1",
+	}
+
+	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).ShouldNot(HaveKey("traces"))
+	g.Expect(spec).ShouldNot(HaveKey("collectorReplicas"))
+}
+
+func TestBuildModuleCR_Mode2ExportersOnly(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.Metrics = &serviceApi.Metrics{
+		Exporters: map[string]runtime.RawExtension{
+			"debug": {Raw: []byte(`{"verbosity":"detailed"}`)},
+		},
+	}
+	dsci.Spec.Monitoring.Traces = &serviceApi.Traces{
+		Exporters: map[string]runtime.RawExtension{
+			"debug": {Raw: []byte(`{"verbosity":"detailed"}`)},
+		},
+	}
+
+	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	metrics, ok := spec["metrics"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(metrics).Should(HaveKey("exporters"))
+	g.Expect(metrics).ShouldNot(HaveKey("storage"))
+	traces, ok := spec["traces"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(traces).Should(HaveKey("exporters"))
+	g.Expect(traces).ShouldNot(HaveKey("storage"))
+	g.Expect(spec["collectorReplicas"]).Should(Equal(int64(2)))
+}
+
 func TestBuildModuleCR_CollectorReplicasDefaulting(t *testing.T) {
 	t.Parallel()
 
@@ -288,7 +359,7 @@ func TestBuildModuleCR_CollectorReplicasDefaulting(t *testing.T) {
 		},
 	}
 	traces := &serviceApi.Traces{
-		Storage: serviceApi.TracesStorage{Backend: serviceApi.StorageBackendPV},
+		Storage: &serviceApi.TracesStorage{Backend: serviceApi.StorageBackendPV},
 	}
 
 	tests := []struct {

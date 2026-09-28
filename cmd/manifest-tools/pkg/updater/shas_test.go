@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/manifest-tools/pkg/config"
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/manifest-tools/pkg/github"
 )
 
@@ -195,5 +196,109 @@ func TestUpdateSHAs_AllFetchesFail_ReturnsError(t *testing.T) {
 	}
 	if len(result.FailedComponents) != 2 {
 		t.Fatalf("expected 2 failed components, got %d", len(result.FailedComponents))
+	}
+}
+
+func TestUpdateSHAs_AllComponentFetchesFailWhenBuildConfigSucceeds(t *testing.T) {
+	configPath := writeTestConfig(t, `buildConfig:
+  odh:
+    repo: opendatahub-io/ODH-Build-Config
+    ref: main@1111111111111111111111111111111111111111
+`+testConfigWithSHA)
+
+	gh := &mockGitHub{shas: map[string]string{
+		"opendatahub-io/ODH-Build-Config/main": "1111111111111111111111111111111111111111",
+	}}
+
+	result, err := UpdateSHAs(context.Background(), SHAsOptions{
+		ConfigFile: configPath,
+		GH:         gh,
+	})
+	if err == nil {
+		t.Fatal("expected error when all component fetches fail")
+	}
+	if result.Updated {
+		t.Fatal("expected updated=false when only the Build-Config fetch succeeds without changes")
+	}
+	if len(result.FailedComponents) != 2 {
+		t.Fatalf("expected 2 failed components, got %v", result.FailedComponents)
+	}
+}
+
+func TestUpdateSHAs_UpdatesBuildConfigRefs(t *testing.T) {
+	configPath := writeTestConfig(t, `buildConfig:
+  odh:
+    repo: opendatahub-io/ODH-Build-Config
+    ref: main@1111111111111111111111111111111111111111
+  rhoai:
+    repo: red-hat-data-services/RHOAI-Build-Config
+    ref: rhoai-3.6@2222222222222222222222222222222222222222
+components: {}
+ccmCharts: {}
+componentCharts: {}
+`)
+	gh := &mockGitHub{shas: map[string]string{
+		"opendatahub-io/ODH-Build-Config/main":               "3333333333333333333333333333333333333333",
+		"red-hat-data-services/RHOAI-Build-Config/rhoai-3.6": "4444444444444444444444444444444444444444",
+	}}
+
+	result, err := UpdateSHAs(context.Background(), SHAsOptions{ConfigFile: configPath, GH: gh})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Updated {
+		t.Fatal("expected Build-Config refs to be updated")
+	}
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.BuildConfig.ODH.Ref != "main@3333333333333333333333333333333333333333" {
+		t.Errorf("ODH Build-Config ref = %q", cfg.BuildConfig.ODH.Ref)
+	}
+	if cfg.BuildConfig.RHOAI.Ref != "rhoai-3.6@4444444444444444444444444444444444444444" {
+		t.Errorf("RHOAI Build-Config ref = %q", cfg.BuildConfig.RHOAI.Ref)
+	}
+}
+
+func TestUpdateRHOAIBranch_UpdatesComponentAndBuildConfig(t *testing.T) {
+	configPath := writeTestConfig(t, `buildConfig:
+  rhoai:
+    repo: red-hat-data-services/RHOAI-Build-Config
+    ref: rhoai-3.6@2222222222222222222222222222222222222222
+components:
+  ray:
+    rhoai:
+      repo: red-hat-data-services/kuberay
+      ref: rhoai-3.6@1111111111111111111111111111111111111111
+      sourcePath: config
+ccmCharts: {}
+componentCharts: {}
+`)
+	gh := &mockGitHub{shas: map[string]string{
+		"red-hat-data-services/kuberay/rhoai-3.7":            "3333333333333333333333333333333333333333",
+		"red-hat-data-services/RHOAI-Build-Config/rhoai-3.7": "4444444444444444444444444444444444444444",
+	}}
+
+	updated, err := UpdateRHOAIBranch(context.Background(), RHOAIBranchOptions{
+		ConfigFile: configPath,
+		NewBranch:  "rhoai-3.7",
+		GH:         gh,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !updated {
+		t.Fatal("expected RHOAI refs to be updated")
+	}
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Components["ray"].RHOAI.Ref != "rhoai-3.7@3333333333333333333333333333333333333333" {
+		t.Errorf("component ref = %q", cfg.Components["ray"].RHOAI.Ref)
+	}
+	if cfg.BuildConfig.RHOAI.Ref != "rhoai-3.7@4444444444444444444444444444444444444444" {
+		t.Errorf("Build-Config ref = %q", cfg.BuildConfig.RHOAI.Ref)
 	}
 }

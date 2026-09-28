@@ -10,11 +10,33 @@ import (
 )
 
 type ManifestsConfig struct {
+	BuildConfig       BuildConfig              `yaml:"buildConfig"`
 	Components        map[string]Component     `yaml:"components"`
 	CCMCharts         map[string]Component     `yaml:"ccmCharts"`
 	ComponentCharts   map[string]Component     `yaml:"componentCharts"`
 	PlatformManifests map[string]string        `yaml:"platformManifests"`
 	ImageOverrides    map[string]ImageOverride `yaml:"imageOverrides"`
+}
+
+type BuildConfig struct {
+	ODH   *BuildConfigRepo `yaml:"odh,omitempty"`
+	RHOAI *BuildConfigRepo `yaml:"rhoai,omitempty"`
+}
+
+type BuildConfigRepo struct {
+	Repo string `yaml:"repo"`
+	Ref  string `yaml:"ref"`
+}
+
+func (c *BuildConfig) PlatformRepo(platform string) *BuildConfigRepo {
+	switch platform {
+	case "odh":
+		return c.ODH
+	case "rhoai":
+		return c.RHOAI
+	default:
+		return nil
+	}
 }
 
 type Component struct {
@@ -46,6 +68,11 @@ type PlatformImage struct {
 }
 
 var DigestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
+
+var (
+	buildConfigRepoPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
+	fullCommitSHAPattern   = regexp.MustCompile(`^[a-f0-9]{40}$`)
+)
 
 func (pi *PlatformImage) HasValidDigest() bool {
 	return pi != nil && DigestPattern.MatchString(pi.Digest)
@@ -201,6 +228,29 @@ func (c *ManifestsConfig) CheckImageOverride(envName string, override ImageOverr
 	return nil
 }
 
+// CheckBuildConfig verifies that both platform release metadata sources are
+// present and pinned to immutable Git commit SHAs.
+func (c *ManifestsConfig) CheckBuildConfig() error {
+	for _, platform := range []string{"odh", "rhoai"} {
+		repo := c.BuildConfig.PlatformRepo(platform)
+		if repo == nil {
+			return fmt.Errorf("buildConfig.%s: required", platform)
+		}
+		if !buildConfigRepoPattern.MatchString(repo.Repo) {
+			return fmt.Errorf("buildConfig.%s.repo: %q must be in owner/repository form", platform, repo.Repo)
+		}
+		sha := ExtractSHA(repo.Ref)
+		if !fullCommitSHAPattern.MatchString(sha) {
+			return fmt.Errorf("buildConfig.%s.ref: %q must use branch@40-character-sha form", platform, repo.Ref)
+		}
+		if ExtractBranch(repo.Ref) == "" {
+			return fmt.Errorf("buildConfig.%s.ref: branch must not be empty", platform)
+		}
+	}
+
+	return nil
+}
+
 func (c *ManifestsConfig) FindComponent(name string) *Component {
 	if comp, ok := c.Components[name]; ok {
 		return &comp
@@ -315,6 +365,63 @@ func (d *NodeDoc) AddImageOverride(envName, platform, base, digest string) error
 	return nil
 }
 
+// UpsertCSVImageOverride creates a source: csv entry or adds/updates one
+// platform on an entry created earlier in the same resolution pass.
+func (d *NodeDoc) UpsertCSVImageOverride(envName, platform, base, digest string) error {
+	root := d.Root.Content[0]
+
+	overridesNode := findMapValue(root, "imageOverrides")
+	if overridesNode == nil {
+		return fmt.Errorf("imageOverrides not found")
+	}
+
+	entryNode := findMapValue(overridesNode, envName)
+	if entryNode == nil {
+		return d.AddImageOverride(envName, platform, base, digest)
+	}
+
+	sourceNode := findMapValue(entryNode, "source")
+	if sourceNode == nil || sourceNode.Value != "csv" {
+		return fmt.Errorf("imageOverrides.%s is not managed by source: csv", envName)
+	}
+
+	platformNode := findMapValue(entryNode, platform)
+	if platformNode == nil {
+		platformNode = &yaml.Node{Kind: yaml.MappingNode}
+		entryNode.Content = append(entryNode.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Value: platform},
+			platformNode,
+		)
+	}
+	setMapField(platformNode, "base", base)
+	setMapField(platformNode, "digest", digest)
+	return nil
+}
+
+// RemoveImageOverridePlatform removes one platform block from an image
+// override while preserving the other platform and the entry metadata.
+func (d *NodeDoc) RemoveImageOverridePlatform(envName, platform string) error {
+	root := d.Root.Content[0]
+
+	overridesNode := findMapValue(root, "imageOverrides")
+	if overridesNode == nil {
+		return fmt.Errorf("imageOverrides not found")
+	}
+	entryNode := findMapValue(overridesNode, envName)
+	if entryNode == nil {
+		return fmt.Errorf("imageOverrides.%s not found", envName)
+	}
+
+	for i := 0; i < len(entryNode.Content)-1; i += 2 {
+		if entryNode.Content[i].Value == platform {
+			entryNode.Content = append(entryNode.Content[:i], entryNode.Content[i+2:]...)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("imageOverrides.%s.%s not found", envName, platform)
+}
+
 // RemoveImageOverride removes an entry from imageOverrides by env name.
 func (d *NodeDoc) RemoveImageOverride(envName string) error {
 	root := d.Root.Content[0]
@@ -355,6 +462,24 @@ func (d *NodeDoc) SetComponentRef(section, componentName, platform, newRef strin
 	}
 
 	setMapField(platNode, "ref", newRef)
+	return nil
+}
+
+// SetBuildConfigRef updates the ref for one platform's Build-Config source.
+func (d *NodeDoc) SetBuildConfigRef(platform, newRef string) error {
+	root := d.Root.Content[0]
+
+	buildConfigNode := findMapValue(root, "buildConfig")
+	if buildConfigNode == nil {
+		return fmt.Errorf("buildConfig not found")
+	}
+
+	platformNode := findMapValue(buildConfigNode, platform)
+	if platformNode == nil {
+		return fmt.Errorf("buildConfig.%s not found", platform)
+	}
+
+	setMapField(platformNode, "ref", newRef)
 	return nil
 }
 

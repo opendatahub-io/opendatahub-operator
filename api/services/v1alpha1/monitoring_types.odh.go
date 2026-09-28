@@ -20,7 +20,7 @@ package v1alpha1
 
 // MonitoringCommonSpec spec defines the shared desired state of Monitoring
 // +kubebuilder:validation:XValidation:rule="has(self.alerting) ? has(self.metrics.storage)  : true",message="Alerting configuration requires metrics.storage to be configured"
-// +kubebuilder:validation:XValidation:rule="!has(self.collectorReplicas) || (self.collectorReplicas > 0 && (self.metrics.storage != null || self.traces != null))",message="CollectorReplicas can only be set when metrics.storage or traces are configured, and must be > 0"
+// +kubebuilder:validation:XValidation:rule="!has(self.collectorReplicas) || (self.collectorReplicas > 0 && ((has(self.metrics) && (has(self.metrics.storage) || (has(self.metrics.exporters) && size(self.metrics.exporters) > 0))) || has(self.traces)))",message="CollectorReplicas can only be set when metrics (storage or exporters) or traces are configured, and must be > 0"
 type MonitoringCommonSpec struct {
 	// monitoring spec exposed to DSCI api
 	// Namespace for monitoring if it is enabled

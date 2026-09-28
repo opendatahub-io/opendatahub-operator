@@ -120,6 +120,60 @@ func TestGatewayIssuerURLValidationEnvtest(t *testing.T) {
 	}
 }
 
+func TestGatewayListenerPortImmutableEnvtest(t *testing.T) {
+	logf.SetLogger(zap.New(zap.WriteTo(os.Stdout), zap.UseDevMode(true)))
+
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	projectDir, err := envtestutil.FindProjectRoot()
+	g.Expect(err).NotTo(HaveOccurred())
+
+	testEnv := &envtest.Environment{
+		CRDDirectoryPaths: []string{
+			filepath.Join(projectDir, "config", "crd", "bases"),
+		},
+		ErrorIfCRDPathMissing: true,
+	}
+
+	cfg, err := testEnv.Start()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(cfg).ToNot(BeNil())
+	defer func() {
+		g.Expect(testEnv.Stop()).To(Succeed())
+	}()
+
+	k8sClient, err := client.New(cfg, client.Options{Scheme: gatewayTestScheme()})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	gatewayConfig := &GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: GatewayConfigName},
+		Spec: GatewayConfigSpec{
+			IngressMode: IngressModeOcpRoute,
+			AdditionalIngresses: AdditionalIngresses{{
+				Name:                  "alpha",
+				Hostname:              "alpha.example.com",
+				ListenerPort:          9443,
+				IngressControllerName: "shard-a",
+				RouteLabels:           map[string]string{"example.com/ingress": "alpha"},
+			}},
+		},
+	}
+	g.Expect(k8sClient.Create(ctx, gatewayConfig)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(ctx, gatewayConfig)).To(Succeed())
+	}()
+
+	current := &GatewayConfig{}
+	g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: GatewayConfigName}, current)).To(Succeed())
+	current.Spec.AdditionalIngresses[0].ListenerPort = 9444
+
+	err = k8sClient.Update(ctx, current)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
+	g.Expect(err.Error()).To(ContainSubstring("ListenerPort is immutable"))
+}
+
 func gatewayTestScheme() *runtime.Scheme {
 	s := runtime.NewScheme()
 	_ = scheme.AddToScheme(s)

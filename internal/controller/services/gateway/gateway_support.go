@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	oauthv1 "github.com/openshift/api/oauth/v1"
@@ -36,16 +37,19 @@ const (
 
 const (
 	// Gateway infrastructure constants.
-	GatewayNamespace         = "openshift-ingress"                  // Namespace where Gateway resources are deployed on OpenShift
-	XKSGatewayNamespace      = "rh-ai-gateway"                      // Namespace for gateway resources on XKS (vanilla K8s)
-	GatewayClassName         = "data-science-gateway-class"         // GatewayClass name for gateway resources
-	GatewayControllerName    = "openshift.io/gateway-controller/v1" // OpenShift Gateway API controller name
-	XKSGatewayControllerName = "istio.io/gateway-controller"        // XKS (standard Istio) Gateway API controller name
-	DefaultGatewayName       = "data-science-gateway"               // Default gateway resource name on OpenShift
-	XKSDefaultGatewayName    = "rh-ai-gateway"                      // Default gateway resource name on XKS
-	DefaultGatewaySubdomain  = "rh-ai"                              // Default subdomain for gateway URLs
-	LegacyGatewaySubdomain   = "data-science-gateway"               // Legacy subdomain to redirect from
-	XKSIstioRevisionValue    = "default"                            // Istio revision label value on XKS
+	GatewayNamespace           = "openshift-ingress"                  // Namespace where Gateway resources are deployed on OpenShift
+	XKSGatewayNamespace        = "rh-ai-gateway"                      // Namespace for gateway resources on XKS (vanilla K8s)
+	GatewayClassName           = "data-science-gateway-class"         // GatewayClass name for gateway resources
+	GatewayControllerName      = "openshift.io/gateway-controller/v1" // OpenShift Gateway API controller name
+	XKSGatewayControllerName   = "istio.io/gateway-controller"        // XKS (standard Istio) Gateway API controller name
+	DefaultGatewayName         = "data-science-gateway"               // Default gateway resource name on OpenShift
+	XKSDefaultGatewayName      = "rh-ai-gateway"                      // Default gateway resource name on XKS
+	HTTPSPortName              = serviceApi.DefaultGatewayListenerName
+	DefaultGatewayListenerName = serviceApi.DefaultGatewayListenerName
+	LegacyGatewayListenerName  = serviceApi.LegacyGatewayListenerName
+	DefaultGatewaySubdomain    = "rh-ai"                // Default subdomain for gateway URLs
+	LegacyGatewaySubdomain     = "data-science-gateway" // Legacy subdomain to redirect from
+	XKSIstioRevisionValue      = "default"              // Istio revision label value on XKS
 
 	// Authentication constants.
 	LegacyAuthClientID       = "odh"          // Legacy OauthClient name from RHOAI 3.3.
@@ -339,7 +343,18 @@ func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
 	return rr.AddResources(gatewayClass)
 }
 
-func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, legacyDomain string, ingressMode serviceApi.IngressMode) error {
+func createGateway(
+	rr *odhtypes.ReconciliationRequest,
+	certSecretName string,
+	domain string,
+	legacyDomain string,
+	ingressMode serviceApi.IngressMode,
+	additionalIngresses serviceApi.AdditionalIngresses,
+) error {
+	if err := additionalIngresses.Validate(ingressMode); err != nil {
+		return err
+	}
+
 	listeners := []gwapiv1.Listener{}
 
 	if certSecretName != "" {
@@ -376,7 +391,7 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 		}
 
 		httpsListener := gwapiv1.Listener{
-			Name:          "https",
+			Name:          DefaultGatewayListenerName,
 			Protocol:      gwapiv1.HTTPSProtocolType,
 			Port:          StandardHTTPSPort,
 			TLS:           tlsConfig,
@@ -395,7 +410,7 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 		if ingressMode != serviceApi.IngressModeOcpRoute && legacyDomain != "" {
 			legacyHostname := gwapiv1.Hostname(legacyDomain)
 			legacyListener := gwapiv1.Listener{
-				Name:          "https-legacy",
+				Name:          LegacyGatewayListenerName,
 				Protocol:      gwapiv1.HTTPSProtocolType,
 				Port:          StandardHTTPSPort,
 				Hostname:      &legacyHostname,
@@ -404,6 +419,8 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 			}
 			listeners = append(listeners, legacyListener)
 		}
+
+		listeners = append(listeners, buildAdditionalIngressListeners(additionalIngresses, tlsConfig, allowedRoutes)...)
 	}
 
 	gateway := &gwapiv1.Gateway{
@@ -427,6 +444,34 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 	}
 
 	return rr.AddResources(gateway)
+}
+
+func buildAdditionalIngressListeners(
+	ingresses serviceApi.AdditionalIngresses,
+	tlsConfig *gwapiv1.GatewayTLSConfig,
+	allowedRoutes *gwapiv1.AllowedRoutes,
+) []gwapiv1.Listener {
+	if len(ingresses) == 0 {
+		return nil
+	}
+
+	sortedIngresses := append([]serviceApi.AdditionalIngress(nil), ingresses...)
+	sort.Slice(sortedIngresses, func(i, j int) bool {
+		return sortedIngresses[i].Name < sortedIngresses[j].Name
+	})
+
+	listeners := make([]gwapiv1.Listener, 0, len(sortedIngresses))
+	for _, ingress := range sortedIngresses {
+		listeners = append(listeners, gwapiv1.Listener{
+			Name:          gwapiv1.SectionName(ingress.Name),
+			Protocol:      gwapiv1.HTTPSProtocolType,
+			Port:          gwapiv1.PortNumber(ingress.ListenerPort),
+			TLS:           tlsConfig,
+			AllowedRoutes: allowedRoutes,
+		})
+	}
+
+	return listeners
 }
 
 // configureClusterIPInfrastructure creates a ConfigMap for ClusterIP service configuration
@@ -888,7 +933,7 @@ func reconcileGatewayForModeChange(ctx context.Context, rr *odhtypes.Reconciliat
 	// LoadBalancer: has hostname, no infrastructure
 	var hasHostname bool
 	for _, listener := range gateway.Spec.Listeners {
-		if listener.Name == "https" && listener.Hostname != nil {
+		if listener.Name == DefaultGatewayListenerName && listener.Hostname != nil {
 			hasHostname = true
 			break
 		}

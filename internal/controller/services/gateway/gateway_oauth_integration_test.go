@@ -96,6 +96,11 @@ func TestOAuthGatewayCreation(t *testing.T) {
 	RunGatewayCreationTest(t, GetOAuthTestSetup())
 }
 
+// TestOAuthAdditionalGatewayListeners validates listener add/remove reconciliation in OAuth mode (delegates to RunAdditionalGatewayListenersTest).
+func TestOAuthAdditionalGatewayListeners(t *testing.T) {
+	RunAdditionalGatewayListenersTest(t, GetOAuthTestSetup())
+}
+
 // TestOAuthHTTPRouteCreation validates HTTPRoute creation in OAuth mode (delegates to RunHTTPRouteCreationTest).
 func TestOAuthHTTPRouteCreation(t *testing.T) {
 	RunHTTPRouteCreationTest(t, GetOAuthTestSetup())

@@ -401,6 +401,107 @@ func TestIsGatewayReady(t *testing.T) {
 	}
 }
 
+func TestBuildAdditionalIngressListeners(t *testing.T) {
+	g := NewWithT(t)
+	mode := gwapiv1.TLSModeTerminate
+	tlsConfig := &gwapiv1.GatewayTLSConfig{Mode: &mode}
+	allowedRoutes := &gwapiv1.AllowedRoutes{}
+
+	ingresses := []serviceApi.AdditionalIngress{
+		{Name: "zeta", Hostname: "zeta.example.com", ListenerPort: 9444, IngressControllerName: "shard-zeta", RouteLabels: map[string]string{"example.com/ingress": "zeta"}},
+		{Name: "alpha", Hostname: "alpha.example.com", ListenerPort: 9443, IngressControllerName: "shard-alpha", RouteLabels: map[string]string{"example.com/ingress": "alpha"}},
+	}
+
+	g.Expect((serviceApi.GatewayConfigSpec{
+		IngressMode:         serviceApi.IngressModeOcpRoute,
+		AdditionalIngresses: ingresses,
+	}).ValidateAdditionalIngresses()).To(Succeed())
+	listeners := buildAdditionalIngressListeners(ingresses, tlsConfig, allowedRoutes)
+	g.Expect(listeners).To(HaveLen(2))
+	g.Expect(listeners[0].Name).To(Equal(gwapiv1.SectionName("alpha")))
+	g.Expect(listeners[0].Port).To(Equal(gwapiv1.PortNumber(9443)))
+	g.Expect(listeners[1].Name).To(Equal(gwapiv1.SectionName("zeta")))
+	g.Expect(listeners[1].Port).To(Equal(gwapiv1.PortNumber(9444)))
+	for _, listener := range listeners {
+		g.Expect(listener.Hostname).To(BeNil())
+		g.Expect(listener.Protocol).To(Equal(gwapiv1.HTTPSProtocolType))
+		g.Expect(listener.TLS).To(BeIdenticalTo(tlsConfig))
+		g.Expect(listener.AllowedRoutes).To(BeIdenticalTo(allowedRoutes))
+	}
+}
+
+func TestBuildAdditionalIngressListenersRejectsConflicts(t *testing.T) {
+	g := NewWithT(t)
+	ingress := func(name, hostname string, port int32, controller, label string) serviceApi.AdditionalIngress {
+		return serviceApi.AdditionalIngress{
+			Name: name, Hostname: hostname, ListenerPort: port,
+			IngressControllerName: controller,
+			RouteLabels:           map[string]string{"example.com/ingress": label},
+		}
+	}
+
+	tests := []struct {
+		name      string
+		ingresses []serviceApi.AdditionalIngress
+	}{
+		{
+			name:      "reserved name",
+			ingresses: []serviceApi.AdditionalIngress{{Name: DefaultGatewayListenerName, ListenerPort: 9443}},
+		},
+		{
+			name: "duplicate name",
+			ingresses: []serviceApi.AdditionalIngress{
+				ingress("alpha", "alpha.example.com", 9443, "shard-alpha", "alpha"),
+				ingress("alpha", "alpha-2.example.com", 9444, "shard-alpha-2", "alpha-2"),
+			},
+		},
+		{
+			name: "default port",
+			ingresses: []serviceApi.AdditionalIngress{
+				ingress("alpha", "alpha.example.com", StandardHTTPSPort, "shard-alpha", "alpha"),
+			},
+		},
+		{
+			name: "duplicate port",
+			ingresses: []serviceApi.AdditionalIngress{
+				ingress("alpha", "alpha.example.com", 9443, "shard-alpha", "alpha"),
+				ingress("zeta", "zeta.example.com", 9443, "shard-zeta", "zeta"),
+			},
+		},
+		{
+			name: "duplicate hostname",
+			ingresses: []serviceApi.AdditionalIngress{
+				ingress("alpha", "shared.example.com", 9443, "shard-alpha", "alpha"),
+				ingress("zeta", "SHARED.EXAMPLE.COM.", 9444, "shard-zeta", "zeta"),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g.Expect((serviceApi.GatewayConfigSpec{
+				IngressMode:         serviceApi.IngressModeOcpRoute,
+				AdditionalIngresses: tc.ingresses,
+			}).ValidateAdditionalIngresses()).To(HaveOccurred())
+		})
+	}
+}
+
+func TestValidateAdditionalIngressesRejectsNonOcpRouteMode(t *testing.T) {
+	g := NewWithT(t)
+
+	err := (serviceApi.GatewayConfigSpec{
+		IngressMode: serviceApi.IngressModeLoadBalancer,
+		AdditionalIngresses: []serviceApi.AdditionalIngress{{
+			Name:         "alpha",
+			Hostname:     "alpha.example.com",
+			ListenerPort: 9443,
+		}},
+	}).ValidateAdditionalIngresses()
+
+	g.Expect(err).To(HaveOccurred())
+}
+
 // TestGetFQDN tests the GetFQDN function with user-provided domain.
 func TestGetFQDN(t *testing.T) {
 	t.Parallel()

@@ -106,6 +106,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(resources.APIServerTLSSecurityProfileChanged()),
 		).
+		WithAction(syncAdditionalIngressStatus).
 		WithAction(createGatewayInfrastructure).
 		WithAction(createKubeAuthProxyInfrastructure). //  include destinationrule
 		WithAction(createEnvoyFilter).

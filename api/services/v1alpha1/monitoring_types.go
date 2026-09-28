@@ -61,9 +61,13 @@ type MetricsStorage struct {
 	Retention string `json:"retention,omitempty"`
 }
 
-// Traces enables and defines the configuration for traces collection
+// Traces enables and defines the configuration for traces collection.
+// Built-in Tempo requires storage; exporters-only configs (external backends) omit storage.
+// +kubebuilder:validation:XValidation:rule="has(self.storage) || (has(self.exporters) && size(self.exporters) > 0)",message="traces requires storage and/or at least one exporter"
 type Traces struct {
-	Storage TracesStorage `json:"storage"`
+	// Storage configures the built-in Tempo backend. Omit when using exporters only (external observability).
+	// +optional
+	Storage *TracesStorage `json:"storage,omitempty"`
 	// SampleRatio determines the sampling rate for traces
 	// Value should be between 0.0 (no sampling) and 1.0 (sample all traces)
 	// +kubebuilder:validation:Pattern="^(0(\\.[0-9]+)?|1(\\.0+)?)$"
