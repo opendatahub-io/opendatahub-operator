@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -35,6 +36,7 @@ func aiGatewayTestSuite(t *testing.T) {
 		Namespace: tc.AppsNamespace,
 		Name:      aiGatewayControllerDeployment,
 	}
+	relatedImageEnvVars := aigatewayModule.NewHandler().GetRelatedImages()
 
 	testCases := []TestCase{
 		{"Validate component enabled", func(t *testing.T) {
@@ -83,6 +85,7 @@ func aiGatewayTestSuite(t *testing.T) {
 		{"Validate env var injection", func(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Tier1)
+			require.NotEmpty(t, relatedImageEnvVars, "aigateway handler should declare related images for env injection")
 
 			// The platform injects APPLICATIONS_NAMESPACE into every module operator
 			// deployment unconditionally. Verify it's present with the correct value.
@@ -95,13 +98,17 @@ func aiGatewayTestSuite(t *testing.T) {
 				WithCustomErrorMsg("ai-gateway-operator Deployment should have APPLICATIONS_NAMESPACE=%s injected", tc.AppsNamespace),
 			)
 
-			tc.EnsureResourceExists(
-				WithMinimalObject(gvk.Deployment, controllerNN),
-				WithCondition(jq.Match(
-					`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "RELATED_IMAGE_ODH_MAAS_DISCOVERY_IMAGE") | .value != null and .value != ""`,
-				)),
-				WithCustomErrorMsg("ai-gateway-operator Deployment should have RELATED_IMAGE_ODH_MAAS_DISCOVERY_IMAGE injected"),
-			)
+			for _, envVarName := range relatedImageEnvVars {
+				envVarName := envVarName
+				tc.EnsureResourceExists(
+					WithMinimalObject(gvk.Deployment, controllerNN),
+					WithCondition(jq.Match(
+						`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "%s") | .value != null and .value != ""`,
+						envVarName,
+					)),
+					WithCustomErrorMsg("ai-gateway-operator Deployment should have %s injected", envVarName),
+				)
+			}
 		}},
 		{"Validate releases mirrored to DSC", func(t *testing.T) {
 			t.Helper()
