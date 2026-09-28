@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/blang/semver/v4"
 	helmRenderer "github.com/k8s-manifest-kit/renderer-helm/pkg"
@@ -13,15 +14,21 @@ import (
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/mock"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	ccmcharts "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/cloudmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -43,13 +50,20 @@ var testResourceID = labels.NormalizePartOfValue(ccmv1alpha1.AzureKubernetesEngi
 
 func newTestReconcileAction(t *testing.T, charts []types.HelmChartInfo) func(context.Context, *types.ReconciliationRequest) error {
 	t.Helper()
+	return newTestReconcileActionWithResult(t, ccmcharts.BuildResult{Charts: charts})
+}
+
+// newTestReconcileActionWithResult builds a reconcile action whose chart discovery
+// returns the given BuildResult (Charts, CleanupCharts, etc.).
+func newTestReconcileActionWithResult(t *testing.T, result ccmcharts.BuildResult) func(context.Context, *types.ReconciliationRequest) error {
+	t.Helper()
 	g := NewWithT(t)
 	action, err := cloudmanager.NewReconcileAction(
 		testResourceID,
 		cloudmanager.WithDeployOptions(),
 		cloudmanager.WithHelmOptions(helm.WithCache(false)),
 		cloudmanager.WithBuildChartsFn(func(_ context.Context, _ *types.ReconciliationRequest) (ccmcharts.BuildResult, error) {
-			return ccmcharts.BuildResult{Charts: charts}, nil
+			return result, nil
 		}),
 	)
 	g.Expect(err).NotTo(HaveOccurred())
@@ -58,7 +72,15 @@ func newTestReconcileAction(t *testing.T, charts []types.HelmChartInfo) func(con
 
 func newTestReconciliationRequest(t *testing.T, cl client.Client) *types.ReconciliationRequest {
 	t.Helper()
+	return newTestReconciliationRequestWithUID(t, cl, "")
+}
+
+func newTestReconciliationRequestWithUID(t *testing.T, cl client.Client, uid k8stypes.UID) *types.ReconciliationRequest {
+	t.Helper()
 	instance := &ccmv1alpha1.AzureKubernetesEngine{}
+	if uid != "" {
+		instance.SetUID(uid)
+	}
 
 	rr := &types.ReconciliationRequest{
 		Client:   cl,
@@ -384,4 +406,178 @@ func TestNewReconcileAction_RejectsEmptyResourceID(t *testing.T) {
 	action, err := cloudmanager.NewReconcileAction("   ")
 	g.Expect(err).To(MatchError(ContainSubstring("resourceID is required")))
 	g.Expect(action).To(BeNil())
+}
+
+// TestNewReconcileAction_AccessControlCleanupOrdering exercises Phase-2 cleanup
+// through the full NewReconcileAction pipeline: SA/RBAC stay while an owned
+// Deployment is still present, then are deleted once the workload is gone.
+func TestNewReconcileAction_AccessControlCleanupOrdering(t *testing.T) {
+	ctx := t.Context()
+
+	const (
+		releaseName = "op"
+		ns          = "default"
+	)
+
+	instanceUID := k8stypes.UID("integration-cleanup-" + xid.New().String())
+
+	operatorChart := types.HelmChartInfo{
+		Source: helmRenderer.Source{
+			Chart:       filepath.Join("testdata", "operator-chart"),
+			ReleaseName: releaseName,
+			Values:      helmRenderer.Values(map[string]any{}),
+		},
+	}
+
+	action := newTestReconcileActionWithResult(t, ccmcharts.BuildResult{
+		CleanupCharts: []types.HelmChartInfo{operatorChart},
+	})
+
+	deployKey := client.ObjectKey{Namespace: ns, Name: releaseName + "-operator"}
+	saKey := client.ObjectKey{Namespace: ns, Name: releaseName + "-sa"}
+	roleKey := client.ObjectKey{Namespace: ns, Name: releaseName + "-role"}
+	rbKey := client.ObjectKey{Namespace: ns, Name: releaseName + "-rb"}
+
+	owner := []metav1.OwnerReference{{
+		APIVersion: ccmv1alpha1.GroupVersion.String(),
+		Kind:       ccmv1alpha1.AzureKubernetesEngineKind,
+		Name:       "test",
+		UID:        instanceUID,
+	}}
+	replicas := int32(1)
+
+	makeOwnedObjects := func(includeDeployment bool) []client.Object {
+		objs := []client.Object{
+			&corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            saKey.Name,
+					Namespace:       ns,
+					OwnerReferences: owner,
+				},
+			},
+			&rbacv1.Role{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            roleKey.Name,
+					Namespace:       ns,
+					OwnerReferences: owner,
+				},
+			},
+			&rbacv1.RoleBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            rbKey.Name,
+					Namespace:       ns,
+					OwnerReferences: owner,
+				},
+				RoleRef: rbacv1.RoleRef{
+					APIGroup: rbacv1.GroupName,
+					Kind:     "Role",
+					Name:     roleKey.Name,
+				},
+				Subjects: []rbacv1.Subject{{
+					Kind:      "ServiceAccount",
+					Name:      saKey.Name,
+					Namespace: ns,
+				}},
+			},
+		}
+		if includeDeployment {
+			objs = append([]client.Object{
+				&appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            deployKey.Name,
+						Namespace:       ns,
+						OwnerReferences: owner,
+					},
+					Spec: appsv1.DeploymentSpec{
+						Replicas: &replicas,
+						Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": releaseName}},
+						Template: corev1.PodTemplateSpec{
+							ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": releaseName}},
+							Spec: corev1.PodSpec{
+								ServiceAccountName: saKey.Name,
+								Containers: []corev1.Container{{
+									Name:  "operator",
+									Image: "example.com/operator:test",
+								}},
+							},
+						},
+					},
+				},
+			}, objs...)
+		}
+
+		return objs
+	}
+
+	t.Run("defers access-control while owned Deployment still exists", func(t *testing.T) {
+		g := NewWithT(t)
+
+		var deletedKinds []string
+		cl, err := fakeclient.New(
+			fakeclient.WithObjects(makeOwnedObjects(true)...),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Delete: func(_ context.Context, _ client.WithWatch, obj client.Object, _ ...client.DeleteOption) error {
+					deletedKinds = append(deletedKinds, obj.GetObjectKind().GroupVersionKind().Kind)
+					// Leave objects in place so the Deployment stays "terminating".
+					return nil
+				},
+			}),
+		)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := newTestReconciliationRequestWithUID(t, cl, instanceUID)
+		rr.Generated = true
+
+		err = action(ctx, rr)
+		g.Expect(err).Should(HaveOccurred())
+
+		var requeueErr odherrors.RequeueAfterError
+		g.Expect(errors.As(err, &requeueErr)).Should(BeTrue())
+		g.Expect(requeueErr.After).Should(Equal(5 * time.Second))
+
+		g.Expect(deletedKinds).Should(ContainElement("Deployment"))
+		g.Expect(deletedKinds).ShouldNot(ContainElement("ServiceAccount"))
+		g.Expect(deletedKinds).ShouldNot(ContainElement("Role"))
+		g.Expect(deletedKinds).ShouldNot(ContainElement("RoleBinding"))
+
+		g.Expect(cl.Get(ctx, saKey, &corev1.ServiceAccount{})).Should(Succeed())
+		g.Expect(cl.Get(ctx, roleKey, &rbacv1.Role{})).Should(Succeed())
+		g.Expect(cl.Get(ctx, rbKey, &rbacv1.RoleBinding{})).Should(Succeed())
+		g.Expect(cl.Get(ctx, deployKey, &appsv1.Deployment{})).Should(Succeed())
+	})
+
+	t.Run("deletes access-control after owned Deployment is gone", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// First reconcile: defer Pass B while the Deployment remains.
+		cl1, err := fakeclient.New(
+			fakeclient.WithObjects(makeOwnedObjects(true)...),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Delete: func(context.Context, client.WithWatch, client.Object, ...client.DeleteOption) error {
+					return nil
+				},
+			}),
+		)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr1 := newTestReconciliationRequestWithUID(t, cl1, instanceUID)
+		rr1.Generated = true
+		err = action(ctx, rr1)
+		g.Expect(err).Should(HaveOccurred())
+		var requeueErr odherrors.RequeueAfterError
+		g.Expect(errors.As(err, &requeueErr)).Should(BeTrue())
+
+		// Second reconcile: workload gone, Generated false — deferred cleanup
+		// must still finish Pass B.
+		cl2, err := fakeclient.New(fakeclient.WithObjects(makeOwnedObjects(false)...))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr2 := newTestReconciliationRequestWithUID(t, cl2, instanceUID)
+		rr2.Generated = false
+		g.Expect(action(ctx, rr2)).Should(Succeed())
+
+		g.Expect(cl2.Get(ctx, saKey, &corev1.ServiceAccount{})).Should(MatchError(ContainSubstring("not found")))
+		g.Expect(cl2.Get(ctx, roleKey, &rbacv1.Role{})).Should(MatchError(ContainSubstring("not found")))
+		g.Expect(cl2.Get(ctx, rbKey, &rbacv1.RoleBinding{})).Should(MatchError(ContainSubstring("not found")))
+	})
 }
