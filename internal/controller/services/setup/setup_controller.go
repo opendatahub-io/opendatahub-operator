@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -12,6 +13,9 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -30,11 +34,66 @@ func (r *SetupControllerReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, nil
 	}
 
+	if err := r.markUninstallInProgress(ctx); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to report uninstall in progress: %w", err)
+	}
+
 	if err := upgrade.OperatorUninstall(ctx, r.Client, cluster.GetRelease().Name); err != nil {
 		return ctrl.Result{}, fmt.Errorf("operator uninstall failed : %w", err)
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *SetupControllerReconciler) markUninstallInProgress(ctx context.Context) error {
+	dscList := &dscv2.DataScienceClusterList{}
+	if err := r.List(ctx, dscList); err != nil {
+		return fmt.Errorf("failed to list DataScienceCluster resources: %w", err)
+	}
+
+	for i := range dscList.Items {
+		dsc := &dscList.Items[i]
+		if _, err := status.UpdateWithRetry(ctx, r.Client, dsc, func(saved *dscv2.DataScienceCluster) {
+			status.SetCondition(
+				&saved.Status.Conditions,
+				status.ConditionTypeReady,
+				status.UninstallInProgressReason,
+				status.UninstallInProgressMessage,
+				metav1.ConditionFalse,
+			)
+			saved.Status.Phase = status.PhaseNotReady
+		}); err != nil {
+			return fmt.Errorf("failed to update DataScienceCluster %q status: %w", dsc.Name, err)
+		}
+	}
+
+	dsciList := &dsciv2.DSCInitializationList{}
+	if err := r.List(ctx, dsciList); err != nil {
+		return fmt.Errorf("failed to list DSCInitialization resources: %w", err)
+	}
+
+	for i := range dsciList.Items {
+		dsci := &dsciList.Items[i]
+		if _, err := status.UpdateWithRetry(ctx, r.Client, dsci, func(saved *dsciv2.DSCInitialization) {
+			status.SetProgressingCondition(
+				&saved.Status.Conditions,
+				status.UninstallInProgressReason,
+				status.UninstallInProgressMessage,
+			)
+			status.SetCondition(
+				&saved.Status.Conditions,
+				status.ConditionTypeReady,
+				status.UninstallInProgressReason,
+				status.UninstallInProgressMessage,
+				metav1.ConditionFalse,
+			)
+			saved.Status.Phase = status.PhaseNotReady
+		}); err != nil {
+			return fmt.Errorf("failed to update DSCInitialization %q status: %w", dsci.Name, err)
+		}
+	}
+
+	return nil
 }
 
 func (r *SetupControllerReconciler) SetupWithManager(mgr ctrl.Manager) error {
