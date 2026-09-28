@@ -36,9 +36,16 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
 func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	// The manager's uncached reader is used for configuration-driven Secret lookups
+	// (spec.oidc.secretNamespace may point outside the manager cache's secret scope).
+	// Capture it here and thread it into the action rather than using a package global.
+	// See getAuthProxySecretValues.
+	apiReader := mgr.GetAPIReader()
+
 	gw := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{})
 	// special for ROSA: auth is defined in day0 and OAuth not registered in apiserver
 	if ok, err := cluster.IsIntegratedOAuth(ctx, mgr.GetAPIReader()); err == nil && ok {
@@ -108,7 +115,9 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		).
 		WithAction(syncAdditionalIngressStatus).
 		WithAction(createGatewayInfrastructure).
-		WithAction(createKubeAuthProxyInfrastructure). //  include destinationrule
+		WithAction(func(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+			return createKubeAuthProxyInfrastructure(ctx, rr, apiReader) //  include destinationrule
+		}).
 		WithAction(createEnvoyFilter).
 		WithAction(createNetworkPolicy).
 		WithAction(createOCPRoutes).

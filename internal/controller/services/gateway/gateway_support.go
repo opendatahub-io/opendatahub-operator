@@ -749,6 +749,7 @@ func GetDashboardRouteName() string {
 func getAuthProxySecretValues(
 	ctx context.Context,
 	rr *odhtypes.ReconciliationRequest,
+	secretReader client.Reader,
 	authMode cluster.AuthenticationMode,
 	oidcConfig *serviceApi.OIDCConfig) (string, string, string, error) {
 	// Check if kube-auth-proxy-creds already exists and is valid
@@ -793,8 +794,20 @@ func getAuthProxySecretValues(
 			secretNamespace = GetGatewayNamespace() // Default to gateway namespace if not specified
 		}
 
+		// Prefer the cached client whenever the secret lives in the gateway namespace,
+		// which is always within the manager cache's secret scope (secretCache). This is
+		// the default path (empty secretNamespace resolves to it above), so the common
+		// case is served from cache. Only fall back to the uncached API reader when the
+		// user points spec.oidc.secretNamespace at a namespace outside that scope: there a
+		// cached Get would fall outside the Secret informer's scope and start an unfiltered
+		// Secret informer — so that lookup alone must bypass the cache.
+		var reader client.Reader = rr.Client
+		if secretNamespace != GetGatewayNamespace() {
+			reader = secretReader
+		}
+
 		externalSecret := &corev1.Secret{}
-		if err := rr.Client.Get(ctx, types.NamespacedName{
+		if err := reader.Get(ctx, types.NamespacedName{
 			Name:      oidcConfig.ClientSecretRef.Name,
 			Namespace: secretNamespace,
 		}, externalSecret); err != nil {
