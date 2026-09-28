@@ -199,7 +199,7 @@ func (tc *MonitoringTestCtx) ValidateKorrel8rImageEnvVarInjection(t *testing.T) 
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
-			Namespace: tc.MonitoringNamespace,
+			Namespace: tc.AppsNamespace,
 			Name:      ObservabilityDeploymentName,
 		}),
 		WithCondition(jq.Match(
