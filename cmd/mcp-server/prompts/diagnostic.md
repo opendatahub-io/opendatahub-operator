@@ -42,7 +42,7 @@ Based on what Step 1 revealed, drill deeper. **Parallelize tool calls wherever p
    - `operator_dependencies` — check external prerequisites (cert-manager, tempo, opentelemetry, cluster-observability, kueue, jobset, leader-worker-set, kuadrant). **Always inspect the deployment replica counts in the response** — a dependency with `installed: true` but `replicas: 0, ready: 0` has been scaled down and is NOT healthy. Conversely, `installed: false` does not always mean truly absent — cross-check with the component's CR conditions. If they report a specific failure like `Available=False (DeploymentUnavailable)`, the operator is **installed but unhealthy**, not missing.
    - `recent_events` with `since=15m` — warning/error events around the failure timeframe.
    - `component_status` only for components with pods not in Running/Succeeded phase — do not call for components whose only issue is historical restart counts.
-   - Valid component names: `dashboard`, `kserve`, `workbenches`, `ray`, `trustyai`, `modelregistry`, `datasciencepipelines`, `trainingoperator`, `feastoperator`, `trainer`, `kueue`, `mlflowoperator`, `sparkoperator`, `modelcontroller`, `modelsasservice`, `ogx`, `modelmeshserving`.
+   - Valid component names: `dashboard`, `kserve`, `workbenches`, `ray`, `trustyai`, `modelregistry`, `datasciencepipelines`, `feastoperator`, `trainer`, `kueue`, `mlflowoperator`, `sparkoperator`, `modelcontroller`, `modelsasservice`, `ogx`, `modelmeshserving`.
 
 2. Only pull logs for pods currently not in Running/Succeeded phase (CrashLoopBackOff, Error, Pending, ImagePullBackOff):
    - Call `pods_log` (OpenShift server) for all such pods in parallel.

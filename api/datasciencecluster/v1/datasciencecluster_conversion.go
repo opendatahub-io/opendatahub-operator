@@ -190,7 +190,12 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 		RelatedObjects: c.Status.RelatedObjects,
 		ErrorMessage:   c.Status.ErrorMessage,
 		Components: dscv2.ComponentsStatus{
-			Dashboard:        c.Status.Components.Dashboard,
+			Dashboard: c.Status.Components.Dashboard,
+			MaaSConsumerPortal: componentApi.DSCMaaSConsumerPortalStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
 			Workbenches:      c.Status.Components.Workbenches,
 			AIPipelines:      c.Status.Components.DataSciencePipelines,
 			Kserve:           c.Status.Components.Kserve,
@@ -237,6 +242,11 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 				},
 			},
 			MCPLifecycleOperator: componentApi.DSCMCPLifecycleOperatorStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
+			WorkbenchesV2: componentApi.DSCWorkbenchesV2Status{
 				ManagementSpec: common.ManagementSpec{
 					ManagementState: operatorv1.Removed,
 				},

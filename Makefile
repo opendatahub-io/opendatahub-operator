@@ -30,7 +30,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	ifeq ($(VERSION), )
-		VERSION = 3.5.0
+		VERSION = 3.6.0-ea.2
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
 	OPERATOR_NAMESPACE ?= opendatahub-operator-system
@@ -60,9 +60,9 @@ else
 	# To re-generate a bundle for another specific version without changing the standard setup, you can:
 	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-	# NOTE: see also the git branches for RHOAI in get_all_manifests.sh. This variable does NOT affect those
+	# NOTE: see also the git branches for RHOAI in manifests-config.yaml. This variable does NOT affect those
 	ifeq ($(VERSION), )
-		VERSION = 3.5.0
+		VERSION = 3.6.0-ea.2
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to redhat-ods-operator)
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
@@ -88,6 +88,8 @@ else
 	CCM_DEPLOY_OVERLAY=rhoai
 	CCM_LOCAL_OVERLAY=rhoai
 endif
+
+MANAGER_FILE ?= $(CONFIG_DIR)/manager/manager.yaml
 
 IMAGE_BUILDER ?= podman
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
@@ -141,7 +143,7 @@ HELM ?= $(LOCALBIN)/helm
 KUSTOMIZE_VERSION ?= v5.8.1
 CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
-GOLANGCI_LINT_VERSION ?= v2.5.0
+GOLANGCI_LINT_VERSION ?= v2.12.2
 YQ_VERSION ?= v4.53.2
 HELM_VERSION ?= v4.1.1
 KUBE_LINTER_VERSION ?= v0.7.6
@@ -154,6 +156,7 @@ CRD_REF_DOCS_VERSION = 0.2.0
 GINKGO_VERSION ?= v2.28.1
 
 
+GO_VERSION ?= $(shell sed -n 's/^go //p' go.mod)
 PLATFORM ?= linux/amd64
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -180,7 +183,7 @@ IMAGE_BUILD_FLAGS += --build-arg CGO_ENABLED=$(CGO_ENABLED)
 IMAGE_BUILD_FLAGS += --platform $(PLATFORM)
 
 # Prometheus-Unit Tests Parameters
-PROMETHEUS_RULES_DIR = ./internal/controller/components
+PROMETHEUS_RULES_DIR = ./internal/controller
 PROMETHEUS_RULE_TEMPLATES = $(shell find $(PROMETHEUS_RULES_DIR) -name "*-prometheusrules.tmpl.yaml" 2>/dev/null)
 PROMETHEUS_ALERT_TESTS = $(shell find $(PROMETHEUS_RULES_DIR) -name "*-alerting.unit-tests.yaml" 2>/dev/null)
 
@@ -268,7 +271,7 @@ endif
 	@$(call fetch-external-crds,github.com/openshift/api,oauth/v1)
 	@# Copy IngressController CRD for gateway LoadBalancer mode (envtest integration tests)
 	@rm -f $(CONFIG_DIR)/crd/external/0000_50_ingress-operator_00-ingresscontroller.crd.yaml
-	@cp $(shell go env GOPATH)/pkg/mod/github.com/openshift/api@$(call go-mod-version,github.com/openshift/api)/operator/v1/zz_generated.crd-manifests/0000_50_ingress_00_ingresscontrollers.crd.yaml $(CONFIG_DIR)/crd/external/0000_50_ingress-operator_00-ingresscontroller.crd.yaml
+	@cp $(shell go env GOPATH)/pkg/mod/github.com/openshift/api@$(call go-mod-version,github.com/openshift/api)/operator/v1/zz_generated.crd-manifests/0000_50_ingress_00_ingresscontrollers-Default.crd.yaml $(CONFIG_DIR)/crd/external/0000_50_ingress-operator_00-ingresscontroller.crd.yaml
 	@# Copy Gateway API CRDs from Go module cache
 	@# rm -f first to handle CI environments where cached files may have restrictive permissions
 	@rm -f $(CONFIG_DIR)/crd/external/gateway.networking.k8s.io_*.yaml
@@ -277,9 +280,10 @@ endif
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/config.openshift.io_ingresses.yaml
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/config.openshift.io_authentications.yaml
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/oauth.openshift.io_oauthclients.yaml
-	@# Copy KServe CRD to shared rhaii overlay and generate kustomization
+	@# Copy rhaii CRDs to shared overlay and generate kustomization.
 	@mkdir -p config/rhaii/crd/bases
-	@cp $(CONFIG_DIR)/crd/bases/config.opendatahub.io_platforms.yaml config/rhaii/crd/bases/
+	@cp "$(CONFIG_DIR)/crd/bases/config.opendatahub.io_platforms.yaml" config/rhaii/crd/bases/
+	@cp "$(CONFIG_DIR)/crd/bases/services.platform.opendatahub.io_gatewayconfigs.yaml" config/rhaii/crd/bases/
 	@$(call add-crd-to-kustomization,config/rhaii/crd/bases)
 MANIFEST_GENERATED_FILES = config/crd/bases config/rhoai/crd/bases config/rhaii/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
 
@@ -328,13 +332,11 @@ kube-lint: prepare ## Run kube-linter against rendered manifests.
 
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
-	ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE) VERSION=$(VERSION) ./get_all_manifests.sh
-	@echo "Validating manifest image tags..."
-	@./.github/scripts/validate-manifest-images.sh
+	go run -C ./cmd/manifest-tools main.go download --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --manifests-dir $(CURDIR)/opt/manifests --charts-dir $(CURDIR)/opt/charts
 CLEANFILES += opt/manifests/* opt/charts/*
 
 .PHONY: update-rhai-images
-update-rhai-images: yq ## Fetch RHAI component manifests and update images from RHOAI-Build-Config CSV
+update-rhai-images: yq ## Locally update downloaded RHAI params.env files (not used by e2e overrides)
 	@if [ -n "$(RHAI_BRANCH)" ]; then \
 		echo "Fetching manifests from rhods-operator branch $(RHAI_BRANCH)..."; \
 		TMP_RHODS=$$(mktemp -d) && \
@@ -352,6 +354,31 @@ validate-related-images: yq ## Validate RELATED_IMAGE_* names against build conf
 	@RHOAI_BUILD_CONFIG_BRANCH=rhoai-$(shell echo $(VERSION) | sed 's/\([0-9]*\.[0-9]*\)\.[0-9]*/\1/') \
 		YQ=$(YQ) ./.github/scripts/validate-related-images.sh
 
+.PHONY: resolve-image-digests
+resolve-image-digests: ## Resolve image digests from Build-Config and update manifests-config.yaml
+	go run -C ./cmd/manifest-tools main.go resolve-digests --config $(CURDIR)/manifests-config.yaml --related-images-config $(CURDIR)/component-params-env.yaml --manifests-dir $(CURDIR)/opt/manifests
+
+.PHONY: update-refs-shas
+update-refs-shas: ## Update branch@sha refs to latest commit SHAs from GitHub (requires GITHUB_TOKEN)
+	go run -C ./cmd/manifest-tools main.go update-refs shas --config $(CURDIR)/manifests-config.yaml
+
+.PHONY: update-refs-tags
+update-refs-tags: ## Parse tracker issue and update ODH component refs (requires TRACKER_URL)
+	go run -C ./cmd/manifest-tools main.go update-refs tags --tracker-url $(TRACKER_URL) --config $(CURDIR)/manifests-config.yaml
+
+.PHONY: update-refs-rhoai-branch
+update-refs-rhoai-branch: ## Update all RHOAI refs to a new branch (requires GITHUB_TOKEN, NEW_RHOAI_BRANCH)
+	go run -C ./cmd/manifest-tools main.go update-refs rhoai-branch --branch $(NEW_RHOAI_BRANCH) --config $(CURDIR)/manifests-config.yaml
+
+
+.PHONY: apply-image-overrides
+apply-image-overrides: ## Apply image overrides to manager.yaml (for make deploy)
+	go run -C ./cmd/manifest-tools main.go apply-deploy --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --manager-file $(CURDIR)/$(MANAGER_FILE)
+
+.PHONY: apply-image-overrides-olm
+apply-image-overrides-olm: ## Apply image overrides to OLM Subscription (for operator-sdk run bundle)
+	go run -C ./cmd/manifest-tools main.go apply-olm --config $(CURDIR)/manifests-config.yaml --platform $(ODH_PLATFORM_TYPE) --namespace $(OPERATOR_NAMESPACE) --package $(OPERATOR_PACKAGE)
+
 # Default to standard sed command
 SED_COMMAND = sed
 
@@ -367,7 +394,7 @@ endif
 api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs, render managementstate with marker
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md && \
-	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)|g" ./docs/api-overview.md && \
+	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api@$(call go-mod-version,github.com/openshift/api)/operator/v1#ManagementState)|g" ./docs/api-overview.md && \
 	$(SED_COMMAND) -i "s|](#managementspec)|](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)|g" ./docs/api-overview.md
 	$(CRD_REF_DOCS) --source-path ./api/cloudmanager/ --output-path ./docs/cloudmanager-api-overview.md --renderer markdown --config ./crd-ref-docs.cloudmanager.config.yaml
 
@@ -383,7 +410,7 @@ build: manifests generate fmt vet ## Build manager binary.
 	go build -o bin/manager cmd/main.go
 
 RUN_ARGS = --log-mode=devel --pprof-bind-address=127.0.0.1:6060
-GO_RUN_MAIN = OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) DEFAULT_MANIFESTS_PATH=$(DEFAULT_MANIFESTS_PATH) go run $(GO_RUN_ARGS) ./cmd/main.go $(RUN_ARGS)
+GO_RUN_MAIN = OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) DEFAULT_MANIFESTS_PATH=$(DEFAULT_MANIFESTS_PATH) DEFAULT_CHARTS_PATH=$(DEFAULT_CHARTS_PATH) go run $(GO_RUN_ARGS) ./cmd/main.go $(RUN_ARGS)
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
 	$(GO_RUN_MAIN)
@@ -413,7 +440,7 @@ image-kind-load:
 	rm -rf image.tar
 
 .PHONY: e2e-test-ccm
-e2e-test-ccm: ## Run cloud manager e2e tests (requires CLOUD_MANAGER_PROVIDER, e.g. azure)
+e2e-test-ccm: install-cert-manager ## Run cloud manager e2e tests (requires CLOUD_MANAGER_PROVIDER, e.g. azure)
 	go test -v -count=1 -timeout=30m ./tests/e2e/cloudmanager/
 
 ##@ Deployment
@@ -441,14 +468,23 @@ uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/c
 	$(KUSTOMIZE) build $(CONFIG_DIR)/crd/bases | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
+ifndef SKIP_IMAGE_OVERRIDES
+deploy: apply-image-overrides
+endif
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: deploy-rhaii
+ifndef SKIP_IMAGE_OVERRIDES
+deploy-rhaii: apply-image-overrides
+endif
 deploy-rhaii: prepare ## Deploy controller in rhaii mode (only KServe) to the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build $(RHAII_DEFAULT_CONFIG_DIR) | $(SED_COMMAND) 's/REPLACE_RHAI_VERSION/$(VERSION)/g' | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: deploy-rhaii-local
+ifndef SKIP_IMAGE_OVERRIDES
+deploy-rhaii-local: apply-image-overrides
+endif
 deploy-rhaii-local: prepare ## Deploy controller in rhaii mode (only KServe, local image pull policy) to the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build $(RHAII_LOCAL_CONFIG_DIR) | $(SED_COMMAND) 's/REPLACE_RHAI_VERSION/$(VERSION)/g' | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
@@ -528,12 +564,23 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	rm bundle.Dockerfile
 	rm -f $(BUNDLE_DIR)/manifests/opendatahub-operator-webhook-service_v1_service.yaml
 	rm -f $(BUNDLE_DIR)/manifests/rhods-operator-webhook-service_v1_service.yaml
+	# RHOAIENG-76183: strip spec.conversion from the bundle CRDs so OLM fully owns the
+	# conversion webhook config. operator-sdk has already synthesised the ConversionWebhook
+	# entry into the CSV webhookdefinitions above (from the CRD's spec.conversion), so OLM
+	# will apply the correct conversion (service + caBundle) after install. Shipping
+	# spec.conversion in the bundle CRD instead makes OLM apply it verbatim during the
+	# InstallPlan preflight (wrong service, no caBundle) and the CR-validation LIST hits an
+	# unreachable webhook -> 404 -> failed upgrade. Non-OLM installs (config/crd) keep their
+	# static conversion, so xKS/self-managed deployments are unaffected.
+	for f in $(BUNDLE_DIR)/manifests/datasciencecluster.opendatahub.io_datascienceclusters.yaml $(BUNDLE_DIR)/manifests/dscinitialization.opendatahub.io_dscinitializations.yaml; do \
+		[ -f "$$f" ] && $(YQ) -i 'del(.spec.conversion)' "$$f"; \
+	done
 CLEANFILES += rhoai-bundle odh-bundle
 
 .PHONY: bundle-all
 bundle-all:
 	$(MAKE) bundle
-	$(MAKE) bundle ODH_PLATFORM_TYPE=rhoai
+	$(MAKE) bundle ODH_PLATFORM_TYPE=rhoai OPERATOR_PACKAGE=rhods-operator BUNDLE_DIR=rhoai-bundle
 
 # The bundle image is multi-stage to preserve the ability to build without invoking make
 # We use build args to ensure the variables are passed to the underlying internal make invocation
@@ -641,7 +688,7 @@ $(ENVTEST): $(LOCALBIN)
 test: unit-test e2e-test
 
 .PHONY: unit-test
-unit-test: unit-test-operator unit-test-clusterhealth
+unit-test: unit-test-operator unit-test-clusterhealth unit-test-manifest-tools unit-test-scoperules unit-test-e2e-scope-completeness
 
 .PHONY: unit-test-operator
 unit-test-operator: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
@@ -662,13 +709,26 @@ unit-test-operator: envtest ginkgo # directly use ginkgo since the framework is 
         		--cover \
         		--coverprofile=cover.out \
         		--succinct \
-        		--skip-package=pkg/clusterhealth,pkg/mcptools,cmd/health-check \
+        		--skip-package=pkg/clusterhealth,pkg/mcptools,pkg/scoperules,cmd/health-check \
         		$(TEST_SRC)
 CLEANFILES += cover.out
 
 .PHONY: unit-test-clusterhealth
 unit-test-clusterhealth:
 	cd pkg/clusterhealth && go test -cover ./...
+
+.PHONY: unit-test-manifest-tools
+unit-test-manifest-tools: ## cmd/manifest-tools is a separate Go module (own go.mod), so go test ./... from root never reaches it
+	go -C cmd/manifest-tools test ./...
+
+.PHONY: unit-test-scoperules
+unit-test-scoperules:
+	cd pkg/scoperules && go test -cover ./...
+
+.PHONY: unit-test-e2e-scope-completeness
+unit-test-e2e-scope-completeness: ## Registry-completeness checks for tests/e2e/scripts/e2e-scope-rules.yaml. No cluster needed, so these run outside ginkgo's TEST_SRC and outside make e2e-test's ^TestOdhOperator filter.
+	go test ./cmd
+	go test ./tests/e2e/ -run "^TestScopeRules"
 
 # Pattern rule to generate .rules.yaml from PrometheusRule templates
 # This finds the corresponding *-prometheusrules.tmpl.yaml in the same directory
@@ -714,8 +774,8 @@ test-alerts: validate-prometheus-rules $(PROMETHEUS_ALERT_RULES)
 
 #Check for alerts without unit-tests
 .PHONY: check-prometheus-alert-unit-tests
-check-prometheus-alert-unit-tests: $(PROMETHEUS_ALERT_RULES)
-	./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_RULES_DIR) $(ALERT_SEVERITY)
+check-prometheus-alert-unit-tests: $(PROMETHEUS_ALERT_RULES) $(YQ)
+	YQ=$(YQ) ./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_RULES_DIR) $(ALERT_SEVERITY)
 CLEANFILES += $(PROMETHEUS_ALERT_RULES)
 
 # Cluster health targets (cluster-health, cluster-health-*, etc.) are in cmd/health-check/Makefile.
@@ -730,6 +790,12 @@ endif
 
 .PHONY: e2e-test e2e
 e2e: e2e-test ## Alias for e2e-test
+# Path-based e2e test scoping (cmd/manifest-tools' resolve-e2e-scope subcommand)
+# runs and logs its decision whenever E2E_TEST_COMPONENT and E2E_TEST_SERVICE are
+# both unset (e.g. not already set explicitly by e2e-test-xks). Only when
+# E2E_AUTO_RESOLVE=true does it narrow what actually runs; otherwise it only logs.
+export E2E_AUTO_RESOLVE
+E2E_AUTO_RESOLVE ?= false
 e2e-test:
 # Specifies the namespace where the operator pods are deployed
 ifndef E2E_TEST_OPERATOR_NAMESPACE
@@ -750,7 +816,30 @@ endif
 ifdef ARTIFACT_DIR
 export JUNIT_OUTPUT_PATH = ${ARTIFACT_DIR}/junit_report.xml
 endif
+# Auto-apply digest-pinned image overrides to the OLM Subscription before E2E tests.
+# Set SKIP_IMAGE_OVERRIDES=1 to disable.
+ifndef SKIP_IMAGE_OVERRIDES
+e2e-test: apply-image-overrides-olm
+endif
 e2e-test:
+	@if [ -z "$${E2E_TEST_COMPONENT:-}" ] && [ -z "$${E2E_TEST_SERVICE:-}" ]; then \
+		if resolved=$$(go run -C ./cmd/manifest-tools main.go --config $(CURDIR)/manifests-config.yaml resolve-e2e-scope) \
+			&& echo "$$resolved" | grep -q '^COMPONENTS=' \
+			&& echo "$$resolved" | grep -q '^SERVICES='; then \
+			components=$$(echo "$$resolved" | grep '^COMPONENTS=' | cut -d= -f2); \
+			services=$$(echo "$$resolved" | grep '^SERVICES=' | cut -d= -f2); \
+			echo "SELECTIVE-E2E: would run components=[$$components] services=[$$services]"; \
+			if [ "$${E2E_AUTO_RESOLVE:-false}" = "true" ]; then \
+				if [ -n "$$components" ]; then export E2E_TEST_COMPONENT="$$components"; else export E2E_TEST_COMPONENTS=false; fi; \
+				if [ -n "$$services" ]; then export E2E_TEST_SERVICE="$$services"; else export E2E_TEST_SERVICES=false; fi; \
+				echo "SELECTIVE-E2E: E2E_AUTO_RESOLVE=true -- applying selective scope"; \
+			else \
+				echo "SELECTIVE-E2E: E2E_AUTO_RESOLVE is not 'true' -- running full suite (dry-run only)"; \
+			fi; \
+		else \
+			echo "SELECTIVE-E2E: could not resolve affected components -- running full suite"; \
+		fi; \
+	fi; \
 	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}
 
 .PHONY: e2e-test-single
@@ -777,13 +866,15 @@ e2e-setup-cluster:
 		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=true
 
 .PHONY: e2e-test-xks
-e2e-test-xks: ## Run e2e tests on external Kubernetes (KinD, AKS, CoreWeave, etc.)
+e2e-test-xks: ## Run e2e tests on external Kubernetes (KinD, AKS, CoreWeave, etc.). Image overrides are applied at deploy (see deploy-rhaii-local).
 	@$(MAKE) e2e-test \
 		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false \
 		-e E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT=false \
 		-e E2E_TEST_WEBHOOK=false \
+		-e E2E_TEST_COMPONENTS=true \
 		-e E2E_TEST_COMPONENT="kserve" \
-		-e E2E_TEST_SERVICES=false \
+		-e E2E_TEST_SERVICES=true \
+		-e E2E_TEST_SERVICE="gateway" \
 		-e E2E_TEST_OPERATOR_RESILIENCE=false \
 		-e E2E_TEST_OPERATOR_V2TOV3UPGRADE=false \
 		-e E2E_TEST_DSC_MANAGEMENT=false \
@@ -888,6 +979,35 @@ kind-setup-pull-secrets: ## Setup pull secrets for operator dependencies in the 
 	done
 	@echo "Pull secrets configured."
 
+.PHONY: install-cert-manager
+install-cert-manager: helm ## Install cert-manager operator (fetched from odh-gitops)
+	@if [ "$(SKIP_CERT_MANAGER_INSTALL)" = "true" ]; then \
+		echo "SKIP_CERT_MANAGER_INSTALL is set, skipping cert-manager installation"; \
+		exit 0; \
+	fi
+	@if kubectl get crd certificates.cert-manager.io >/dev/null 2>&1; then \
+		echo "cert-manager CRDs already present, skipping installation"; \
+		exit 0; \
+	fi
+	@tmpdir=$$(mktemp -d); \
+	trap "rm -rf $$tmpdir" EXIT; \
+	go run -C ./cmd/manifest-tools main.go download \
+		--config "$(CURDIR)/hack/cert-manager-config.yaml" \
+		--charts-dir $$tmpdir; \
+	"$(HELM)" upgrade --install cert-manager-operator $$tmpdir/cert-manager-operator --create-namespace --take-ownership; \
+	kubectl rollout status deployment/cert-manager-operator-controller-manager -n cert-manager-operator --timeout=120s; \
+	for dep in cert-manager cert-manager-webhook cert-manager-cainjector; do \
+		echo "Waiting for deployment/$$dep in cert-manager namespace..."; \
+		end=$$(( $$(date +%s) + 300 )); \
+		while ! kubectl rollout status deployment/$$dep -n cert-manager --timeout=10s 2>/dev/null; do \
+			if [ $$(date +%s) -ge $$end ]; then \
+				echo "Timed out waiting for deployment/$$dep"; \
+				exit 1; \
+			fi; \
+			sleep 5; \
+		done; \
+	done
+
 CCM_INSTALL_TARGETS := $(addprefix install-ccm-,$(CCM_PROVIDERS))
 .PHONY: $(CCM_INSTALL_TARGETS)
 $(CCM_INSTALL_TARGETS): install-ccm-%: manifests-ccm-% kustomize ## Install CRDs only (e.g., install-ccm-azure)
@@ -908,7 +1028,7 @@ $(CCM_DEPLOY_TARGETS): deploy-ccm-%: manifests-ccm-% kustomize ## Deploy CCM to 
 
 CCM_DEPLOY_LOCAL_TARGETS := $(addprefix deploy-ccm-local-,$(CCM_PROVIDERS))
 .PHONY: $(CCM_DEPLOY_LOCAL_TARGETS)
-$(CCM_DEPLOY_LOCAL_TARGETS): deploy-ccm-local-%: manifests-ccm-% kustomize ## Deploy CCM to cluster (e.g., deploy-ccm-azure)
+$(CCM_DEPLOY_LOCAL_TARGETS): deploy-ccm-local-%: manifests-ccm-% kustomize install-cert-manager ## Deploy CCM to cluster (e.g., deploy-ccm-azure)
 	cd $(call ccm-config-dir,$*)/manager && \
 		cp -f kustomization.yaml.in kustomization.yaml && \
 		$(KUSTOMIZE) edit set image REPLACE_IMAGE=$(IMG)
@@ -935,7 +1055,7 @@ set -e; \
 package=$(2)@$(3) ;\
 echo "Downloading $${package}" ;\
 rm -f "$(1)" || true ;\
-GOBIN=$(LOCALBIN) go install $${package} ;\
+GOTOOLCHAIN="go$(GO_VERSION)" GOBIN="$(LOCALBIN)" go install "$${package}" ;\
 mv "$(1)" "$(1)-$(3)" ;\
 } ;\
 [ "$$(readlink "$(1)")" = "$(1)-$(3)" ] || ln -sf "$(1)-$(3)" "$(1)"

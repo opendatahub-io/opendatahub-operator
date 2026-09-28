@@ -31,9 +31,11 @@ and configure these applications.
     - [Build Image](#build-image)
     - [Deployment](#deployment)
       - [Deployment Methods Comparison](#deployment-methods-comparison)
+    - [Image Overrides](#image-overrides)
   - [Cloud Manager (CCM)](#cloud-manager-ccm)
     - [Supported Providers](#supported-providers)
     - [CCM Deployment](#ccm-deployment)
+    - [CCM Configuration](#ccm-configuration)
   - [RHAII Mode](#rhaii-mode)
     - [Prerequisites](#prerequisites-1)
     - [Supported Providers](#supported-providers-1)
@@ -95,7 +97,6 @@ The following components are **automatically integrated** by the ODH operator ba
 |-----------|-------------------|---------|------------------|
 | **KServe** | [opendatahub-io/kserve](https://github.com/opendatahub-io/kserve) | Model serving platform | Optional |
 | **Ray** | [opendatahub-io/kuberay](https://github.com/opendatahub-io/kuberay) | Distributed computing framework | Optional |
-| **Training Operator** | [opendatahub-io/training-operator](https://github.com/opendatahub-io/training-operator) | ML training job management | Optional |
 | **Trainer** | [opendatahub-io/trainer](https://github.com/opendatahub-io/trainer) | ML training job management | Optional |
 | **Feast Operator** | [opendatahub-io/feast](https://github.com/opendatahub-io/feast) | Feature store for ML | Optional |
 | **Model Registry Operator** | [opendatahub-io/model-registry](https://github.com/opendatahub-io/model-registry-operator) | Model versioning and registry | Optional |
@@ -243,40 +244,36 @@ spec:
 
 #### Download manifests
 
-The [get_all_manifests.sh](/get_all_manifests.sh) script facilitates the process of fetching manifests from remote git repositories. It is configured to work with a predefined map of components and their corresponding manifest locations.
+The `manifest-tools download` command (in `cmd/manifest-tools/`) fetches manifests from remote git repositories. It reads `manifests-config.yaml` for component definitions and their manifest locations.
 
-#### Structure of `COMPONENT_MANIFESTS`
+#### Structure of `manifests-config.yaml`
 
-Each component is associated with its manifest location in the `COMPONENT_MANIFESTS` map. The key is the component's name, and the value is its location, formatted as `<repo-org>:<repo-name>:<branch-name>:<source-folder>:<target-folder>`
+Each component is defined under the `components` section with per-platform (odh/rhoai) entries containing `repo`, `ref`, and `sourcePath` fields.
 
 #### Workflow
 
-1. The script clones the remote repository `<repo-org>/<repo-name>` from the specified `<branch-name>`.
-2. It then copies the content from the relative path `<source-folder>` to the local `opt/manifests/<target-folder>` folder.
+1. The tool shallow-clones each component’s repository at the specified `ref` (supports `branch@sha` tracking format).
+2. It copies the content from `sourcePath` to the local `opt/manifests/<component>/` folder.
 
 #### Local Storage
 
-The script utilizes a local, empty folder named `opt/manifests` to host all required manifests, sourced directly from each component’s source repository.
+The tool uses `opt/manifests` and `opt/charts` folders to host all required manifests, sourced from each component’s repository.
 
 #### Adding New Components
 
-To include a new component in the list of manifest repositories, simply extend the `COMPONENT_MANIFESTS` map with a new entry, as shown below:
-
-```shell
-declare -A COMPONENT_MANIFESTS=(
-  // existing components ...
-  ["new-component"]="<repo-org>:<repo-name>:<branch-name>:<source-folder>:<target-folder>"
-)
-```
+To include a new component, add a new entry in the `components` section of `manifests-config.yaml`.
 
 #### Customizing Manifests Source
-You have the flexibility to change the source of the manifests. Invoke the `get_all_manifests.sh` script with specific flags, as illustrated below:
+
+You can override a component’s source using the `--component` flag:
 
 ```shell
-./get_all_manifests.sh --odh-dashboard="maistra:odh-dashboard:test-manifests:manifests:odh-dashboard"
+make get-manifests
+# or with overrides:
+go run -C ./cmd/manifest-tools main.go download --component dashboard=maistra:odh-dashboard:test-manifests:manifests
 ```
 
-If the flag name matches components key defined in `COMPONENT_MANIFESTS` it will overwrite its location, otherwise the command will fail.
+If the component key does not exist in `manifests-config.yaml`, the command will fail.
 
 ##### for local development
 
@@ -358,6 +355,31 @@ e.g `make image-build USE_LOCAL=true"`
   make undeploy
   ```
 
+- `make deploy` auto-applies digest-pinned image overrides from `manifests-config.yaml` to `config/manager/manager.yaml` (or `config/rhoai/manager/manager.yaml` when `ODH_PLATFORM_TYPE=rhoai`). To skip: `SKIP_IMAGE_OVERRIDES=1 make deploy`.
+
+#### Image Overrides
+
+Component operator images can be pinned by digest for reproducible testing. Image digests are configured in `manifests-config.yaml` under the `imageOverrides` section. The top-level `buildConfig` section pins the exact ODH-Build-Config and RHOAI-Build-Config commits used as release image sources. ODH overrides resolve from the ODH CSV (with `params.env` as an ODH-only source); RHOAI overrides resolve independently from the RHOAI CSV.
+
+For e2e clusters, `registry.redhat.io/rhoai/*` CSV references are rewritten to their `quay.io/rhoai/*` mirrors while retaining the production digest. Other `registry.redhat.io` namespaces are not rewritten. `hack/update-rhai-images.sh` remains a local helper for updating downloaded `params.env` files and is not part of the e2e override flow.
+
+> **Note:** For OLM deployments, image overrides are applied *after* `operator-sdk run bundle` creates the Subscription. This is safe because the DSC starts with all components set to `Removed`, so no component images are pulled before the overrides are applied.
+
+```shell
+# Resolve digests (run after updating manifest SHAs)
+make resolve-image-digests
+
+# For make deploy (auto-applied, skip with SKIP_IMAGE_OVERRIDES=1)
+make deploy IMG=...
+
+# For OLM deploy (manual)
+operator-sdk run bundle ...
+make apply-image-overrides-olm
+
+# For E2E with OLM overrides (auto-applied, skip with SKIP_IMAGE_OVERRIDES=1)
+make e2e-test
+```
+
 **Deploying operator using OLM**
 
 ***Detailed Deployement instructions***
@@ -418,16 +440,19 @@ e.g `make image-build USE_LOCAL=true"`
 
 ### Cloud Manager (CCM)
 
-The Cloud Manager (CCM) is a separate controller that manages cloud-based Kubernetes clusters. It handles infrastructure provisioning and dependency management for supported cloud providers.
+The Cloud Manager (CCM) is a separate controller that reconciles KubernetesEngine resources for supported cloud providers. It deploys configured chart dependencies and reports their health in the KubernetesEngine status.
+
+For new xKS dependencies managed by CCM, use the [chart dependency onboarding checklist](docs/CLOUDMANAGER_CHART_DEPENDENCY_ONBOARDING.md).
 
 #### Supported Providers
 
 | Provider | CRD | Description |
 |----------|-----|-------------|
-| **Azure** | `AzureKubernetesEngine` | Manages Azure AKS cluster infrastructure |
-| **CoreWeave** | `CoreWeaveKubernetesEngine` | Manages CoreWeave cluster infrastructure |
+| **AWS** | `AWSKubernetesEngine` | Reconciles dependencies for AWS clusters |
+| **Azure** | `AzureKubernetesEngine` | Reconciles dependencies for Azure AKS clusters |
+| **CoreWeave** | `CoreWeaveKubernetesEngine` | Reconciles dependencies for CoreWeave clusters |
 
-Each provider manages dependencies such as Gateway API, cert-manager, LeaderWorkerSet (LWS), and Sail Operator.
+CCM can manage chart dependencies such as Gateway API, LeaderWorkerSet (LWS), Sail Operator, and RHCL. For xKS Helm installations, cert-manager is a Helm subchart of `rhai-on-xks-chart` rather than a CCM dependency.
 
 #### CCM Deployment
 
@@ -468,7 +493,8 @@ make undeploy-ccm-azure
 make uninstall-ccm-azure
 ```
 
-Replace `azure` with `coreweave` for CoreWeave targets.
+Replace `azure` in these targets with another provider listed under
+[Supported Providers](#supported-providers).
 
 #### CCM Configuration
 
@@ -493,8 +519,6 @@ spec:
   dependencies:
     gatewayAPI:
       managementPolicy: Managed
-    certManager:
-      managementPolicy: Managed
     lws:
       managementPolicy: Managed
     sailOperator:
@@ -512,8 +536,6 @@ spec:
   dependencies:
     gatewayAPI:
       managementPolicy: Managed
-    certManager:
-      managementPolicy: Managed
     lws:
       managementPolicy: Managed
     sailOperator:
@@ -528,10 +550,10 @@ In RHAII mode, the operator deploys only the KServe component CRD and its associ
 
 #### Prerequisites
 
-RHAII mode requires **cert-manager** to be available in the cluster. This dependency can be satisfied in one of two ways:
-
-1. **`CoreWeaveKubernetesEngine` CR**: Deploy the appropriate Cloud Manager (Azure or CoreWeave) and create the corresponding `AzureKubernetesEngine` or `CoreWeaveKubernetesEngine` CR with `certManager.managementPolicy: Managed`. The Cloud Manager will install and manage cert-manager automatically along with other dependencies. To deploy a Cloud Manager, see [CCM Deployment](#ccm-deployment).
-2. **Installing cert-manager manually**: Install cert-manager directly in the cluster before deploying the RHAII operator.
+RHAII mode requires **cert-manager** to be available in the cluster. In an XKS
+deployment, the XKS chart manages cert-manager installation. When deploying the
+Cloud Manager outside that chart, install cert-manager before deploying the RHAII
+operator.
 
 #### Supported Providers
 
@@ -620,11 +642,6 @@ spec:
     namespace: opendatahub
     metrics:
       replicas: 2
-      resources:
-        cpulimit: 500m
-        cpurequest: 100m
-        memorylimit: 512Mi
-        memoryrequest: 256Mi
       storage:
         retention: 90d
         size: 5Gi
@@ -694,8 +711,6 @@ spec:
     modelregistry:
       managementState: Managed
     ray:
-      managementState: Managed
-    trainingoperator:
       managementState: Managed
     trainer:
       managementState: Managed
@@ -925,6 +940,7 @@ Evn vars can be set to configure e2e tests:
 | E2E_TEST_COMPONENT                       | A space separated configuration to control which component should be tested, by default all component specific test are executed                                                                                           | `all components`              |
 | E2E_TEST_SERVICES                        | Enable testing of individual services specified by --test-service flag                                                                                                                                                     | `true`                        |
 | E2E_TEST_SERVICE                         | A space separated configuration to control which services should be tested, by default all service specific test are executed                                                                                              | `all services`                |
+| E2E_AUTO_RESOLVE                         | When `true`, `make e2e-test` derives `E2E_TEST_COMPONENT`/`E2E_TEST_SERVICE` automatically from the PR's changed files (see [Path-based test scoping](docs/e2e-testing.md#path-based-test-scoping)), instead of running the full suite. The resolver always runs and logs its decision regardless of this flag, so its accuracy can be checked in job logs before enabling it. | `false`                       |
 | E2E_TEST_OPERATOR_V2TOV3UPGRADE          | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                                                                        | `true`                        |
 | E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES     | To configure the cleaning-up of the previous resources in the cluster. This flag is quite useful to test custom scenarios, as well as running the tests after upgrade, to keep the previous DSC and test it.               | `true`                        |
 | E2E_TEST_BACKUP_AND_RESTORE_DSCI_AND_DSC | To back up DSCI/DSC at the beginning of the whole test suite and restore them at the end. Useful for testing custom scenarios, including removal of DSCI/DSC during the tests while keeping cluster in the original shape. | `false`                       |
@@ -932,6 +948,7 @@ Evn vars can be set to configure e2e tests:
 | E2E_TEST_CIRCUIT_BREAKER_THRESHOLD       | Consecutive infrastructure failures before health-checking for infrastructure problems.                                                                                                                                    | `3`                           |
 | E2E_TEST_TAG                             | Tag to run tests for. Options: `All`, `Smoke`, `Tier1`.                                                                                                                                                                    | `All`                         |
 | E2E_TEST_FLAGS                           | Alternatively the above configurations can be passed to e2e-tests as flags using this env var (see flags table below)                                                                                                      |                               |
+| SKIP_IMAGE_OVERRIDES                     | Skip auto-applying digest-pinned image overrides during `make deploy` and `make e2e-test`. Set to any value to disable.                                                                                                    | *(unset)*                     |
 
 Alternatively the above configurations can be passed to e2e-tests as flags by setting up `E2E_TEST_FLAGS` variable. Following table lists all the available flags:
 
@@ -1074,17 +1091,17 @@ Quick reference: "I changed code in directory X — which E2E test(s) should I r
 
 | Component | Dependencies | E2E Command |
 |---|---|---|
-| kueue | workbenches | `make e2e-test -e E2E_TEST_COMPONENT=workbenches,kueue` |
-| modelcontroller | kserve, modelregistry | `make e2e-test -e E2E_TEST_COMPONENT=kserve,modelregistry,modelcontroller` |
-| modelsasservice | kserve | `make e2e-test -e E2E_TEST_COMPONENT=kserve,modelsasservice` |
-| trustyai | kserve | `make e2e-test -e E2E_TEST_COMPONENT=kserve,trustyai` |
+| kueue | workbenches | `make e2e-test -e E2E_TEST_COMPONENT="workbenches kueue"` |
+| modelcontroller | kserve, modelregistry | `make e2e-test -e E2E_TEST_COMPONENT="kserve modelregistry modelcontroller"` |
+| modelsasservice | kserve | `make e2e-test -e E2E_TEST_COMPONENT="kserve modelsasservice"` |
+| trustyai | kserve | `make e2e-test -e E2E_TEST_COMPONENT="kserve trustyai"` |
 
 **Webhook directory mapping** — webhook dirs don't always match their component:
 
 | Webhook Directory | Test Command |
 |---|---|
 | `webhook/serving/` | `E2E_TEST_COMPONENT=kserve` |
-| `webhook/kueue/` | `E2E_TEST_COMPONENT=workbenches,kueue` |
+| `webhook/kueue/` | `E2E_TEST_COMPONENT="workbenches kueue"` |
 | `webhook/dashboard/` | `E2E_TEST_COMPONENT=dashboard` |
 | `webhook/monitoring/` | `E2E_TEST_SERVICE=monitoring` |
 | `webhook/datasciencecluster/`, `webhook/dscinitialization/` | `make e2e-test` (full suite) |

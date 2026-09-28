@@ -23,7 +23,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,12 +34,10 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -69,28 +66,16 @@ func registerTestPlatformObjectCRD(t *testing.T, g *WithT, et *envt.EnvT) {
 	g.Expect(err).NotTo(HaveOccurred())
 }
 
-func createReconciler(cli client.Client) *Reconciler {
-	return &Reconciler{
-		Client:   cli,
-		Scheme:   cli.Scheme(),
-		Log:      ctrl.Log.WithName("controllers").WithName("test"),
-		Release:  cluster.GetRelease(),
-		Recorder: events.NewFakeRecorder(100),
-		name:     "test",
-		instanceFactory: func() (common.PlatformObject, error) {
-			i := &scheme.TestPlatformObject{
-				TypeMeta: ctrl.TypeMeta{
-					APIVersion: scheme.TestPlatformObjectGVK.GroupVersion().String(),
-					Kind:       scheme.TestPlatformObjectGVK.Kind,
-				},
-			}
-
-			return i, nil
-		},
-		conditionsManagerFactory: func(accessor common.ConditionsAccessor) *conditions.Manager {
-			return conditions.NewManager(accessor, status.ConditionTypeReady)
-		},
+func createReconciler(t *testing.T, mgr ctrl.Manager, opts ...ReconcilerOpt) *Reconciler {
+	t.Helper()
+	defaults := []ReconcilerOpt{
+		WithConditionsManagerFactory(status.ConditionTypeReady),
 	}
+	cc, err := NewReconciler(mgr, "test", &scheme.TestPlatformObject{}, append(defaults, opts...)...)
+	if err != nil {
+		t.Fatalf("NewReconciler: %v", err)
+	}
+	return cc
 }
 
 // startManager starts the manager in the background and waits for the cache to sync.
@@ -117,12 +102,16 @@ func TestConditions(t *testing.T) {
 
 	g := NewWithT(t)
 
-	et, err := envt.New()
+	et, err := envt.New(envt.WithManager(ctrl.Options{
+		Controller: config.Controller{SkipNameValidation: new(true)},
+	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
 	registerTestPlatformObjectCRD(t, g, et)
 
 	cli := et.Client()
+	mgr := et.Manager()
+	startManager(t, g, mgr)
 
 	dsci := resources.GvkToUnstructured(gvk.DSCInitialization)
 	dsci.SetName(xid.New().String())
@@ -201,7 +190,7 @@ func TestConditions(t *testing.T) {
 				},
 			}
 
-			cc := createReconciler(cli)
+			cc := createReconciler(t, mgr)
 			cc.AddAction(func(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 				return tt.err
 			})
@@ -242,12 +231,16 @@ func TestRequeueAfterError_CausesRequeue(t *testing.T) {
 
 	g := NewWithT(t)
 
-	et, err := envt.New()
+	et, err := envt.New(envt.WithManager(ctrl.Options{
+		Controller: config.Controller{SkipNameValidation: new(true)},
+	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
 	registerTestPlatformObjectCRD(t, g, et)
 
 	cli := et.Client()
+	mgr := et.Manager()
+	startManager(t, g, mgr)
 
 	dsci := resources.GvkToUnstructured(gvk.DSCInitialization)
 	dsci.SetName(xid.New().String())
@@ -269,7 +262,7 @@ func TestRequeueAfterError_CausesRequeue(t *testing.T) {
 	requeueDuration := 7 * time.Minute
 	secondActionExecuted := false
 
-	cc := createReconciler(cli)
+	cc := createReconciler(t, mgr)
 	cc.AddAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
 		return odherrors.NewRequeueAfterError(requeueDuration)
 	})
@@ -303,12 +296,16 @@ func TestPreConditions_StopReconciliation(t *testing.T) {
 
 	g := NewWithT(t)
 
-	et, err := envt.New()
+	et, err := envt.New(envt.WithManager(ctrl.Options{
+		Controller: config.Controller{SkipNameValidation: new(true)},
+	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
 	registerTestPlatformObjectCRD(t, g, et)
 
 	cli := et.Client()
+	mgr := et.Manager()
+	startManager(t, g, mgr)
 
 	dash := resources.GvkToUnstructured(scheme.TestPlatformObjectGVK)
 	dash.SetName("test-instance")
@@ -322,13 +319,12 @@ func TestPreConditions_StopReconciliation(t *testing.T) {
 
 	actionExecuted := false
 
-	cc := createReconciler(cli)
-	cc.preConditions = []precondition.PreCondition{
+	cc := createReconciler(t, mgr, WithPreConditions([]precondition.PreCondition{
 		precondition.MonitorCRD(
 			"fakeresources.fake.opendatahub.io",
 			precondition.WithStopReconciliation(),
 		),
-	}
+	}))
 	cc.AddAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
 		actionExecuted = true
 		return nil
@@ -363,7 +359,7 @@ func TestPreConditions_StopReconciliation_RecoverAfterCRDAppears(t *testing.T) {
 	fakeCRDName := "fakeresources.fake.opendatahub.io"
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: ptr.To(true)}, //nolint:modernize
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -382,7 +378,9 @@ func TestPreConditions_StopReconciliation_RecoverAfterCRDAppears(t *testing.T) {
 
 	_, err = ReconcilerFor(mgr, &scheme.TestPlatformObject{}).
 		WithInstanceName(xid.New().String()).
-		WithPreCondition(precondition.MonitorCRD(fakeCRDName, precondition.WithStopReconciliation())).
+		WithReconcilerOpts(WithPreConditions([]precondition.PreCondition{
+			precondition.MonitorCRD(fakeCRDName, precondition.WithStopReconciliation()),
+		})).
 		WithAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
 			actionExecuted.Store(true)
 			return nil
@@ -423,174 +421,11 @@ func TestPreConditions_StopReconciliation_RecoverAfterCRDAppears(t *testing.T) {
 	)
 }
 
-// TestReconcilerBuilder_WatchMethods_UseUnstructured verifies that all watch
-// registration methods (Owns, Watches, OwnsGVK, WatchesGVK) convert objects
-// to unstructured. This prevents the stale cache bug where typed and
-// unstructured informers can become out of sync.
-func TestReconcilerBuilder_WatchMethods_UseUnstructured(t *testing.T) {
-	g := NewWithT(t)
-
-	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
-	}))
-	g.Expect(err).NotTo(HaveOccurred())
-	t.Cleanup(func() { _ = et.Stop() })
-	registerTestPlatformObjectCRD(t, g, et)
-
-	mgr := et.Manager()
-
-	tests := []struct {
-		name       string
-		setupWatch func(*ReconcilerBuilder[*scheme.TestPlatformObject])
-	}{
-		{
-			name: "Owns with typed object",
-			setupWatch: func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
-				b.Owns(&corev1.ConfigMap{})
-			},
-		},
-		{
-			name: "Watches with typed object",
-			setupWatch: func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
-				b.Watches(&corev1.Secret{})
-			},
-		},
-		{
-			name: "OwnsGVK",
-			setupWatch: func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
-				b.OwnsGVK(gvk.Deployment)
-			},
-		},
-		{
-			name: "WatchesGVK",
-			setupWatch: func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
-				b.WatchesGVK(gvk.Secret)
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			builder := ReconcilerFor(mgr, &scheme.TestPlatformObject{})
-			tt.setupWatch(builder)
-
-			g.Expect(builder.watches).To(HaveLen(1),
-				"expected exactly one watch to be registered")
-
-			_, isUnstructured := builder.watches[0].object.(*unstructured.Unstructured)
-			g.Expect(isUnstructured).To(BeTrue(),
-				"%s must use unstructured objects to prevent stale cache bugs", tt.name)
-		})
-	}
-}
-
-func TestReconcilerBuilder_ComposeWith(t *testing.T) {
-	g := NewWithT(t)
-
-	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
-	}))
-	g.Expect(err).NotTo(HaveOccurred())
-	t.Cleanup(func() { _ = et.Stop() })
-	registerTestPlatformObjectCRD(t, g, et)
-
-	mgr := et.Manager()
-
-	t.Run("fn is called with the builder", func(t *testing.T) {
-		g := NewWithT(t)
-		called := false
-		b := ReconcilerFor(mgr, &scheme.TestPlatformObject{})
-		b.ComposeWith(func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
-			called = true
-		})
-		g.Expect(called).To(BeTrue())
-	})
-
-	t.Run("returns the same builder", func(t *testing.T) {
-		g := NewWithT(t)
-		b := ReconcilerFor(mgr, &scheme.TestPlatformObject{})
-		result := b.ComposeWith(func(*ReconcilerBuilder[*scheme.TestPlatformObject]) {})
-		g.Expect(result).To(BeIdenticalTo(b))
-	})
-
-	t.Run("actions registered inside fn land at call position", func(t *testing.T) {
-		g := NewWithT(t)
-		noop := func(_ context.Context, _ *odhtype.ReconciliationRequest) error { return nil }
-		b := ReconcilerFor(mgr, &scheme.TestPlatformObject{})
-		b.WithAction(noop)
-		b.ComposeWith(func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
-			b.WithAction(noop)
-			b.WithAction(noop)
-		})
-		b.WithAction(noop)
-		g.Expect(b.actions).To(HaveLen(4))
-	})
-
-	t.Run("multiple ComposeWith calls compose correctly", func(t *testing.T) {
-		g := NewWithT(t)
-		noop := func(_ context.Context, _ *odhtype.ReconciliationRequest) error { return nil }
-		b := ReconcilerFor(mgr, &scheme.TestPlatformObject{})
-		b.ComposeWith(func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
-			b.WithAction(noop)
-		}).ComposeWith(func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
-			b.WithAction(noop)
-			b.WithAction(noop)
-		})
-		g.Expect(b.actions).To(HaveLen(3))
-	})
-
-	t.Run("nil fn panics immediately", func(t *testing.T) {
-		g := NewWithT(t)
-		b := ReconcilerFor(mgr, &scheme.TestPlatformObject{})
-		g.Expect(func() {
-			b.ComposeWith(nil)
-		}).To(Panic())
-	})
-
-	t.Run("errors from fn surface in b.errors and are returned by Build()", func(t *testing.T) {
-		g := NewWithT(t)
-		injected := errors.New("injected error")
-		b := ReconcilerFor(mgr, &scheme.TestPlatformObject{})
-		b.ComposeWith(func(b *ReconcilerBuilder[*scheme.TestPlatformObject]) {
-			b.errors = injected
-		})
-		_, buildErr := b.Build(context.Background())
-		g.Expect(buildErr).To(MatchError(ContainSubstring(injected.Error())))
-	})
-}
-
-func TestReconcilerBuilder_WithActionE(t *testing.T) {
-	t.Run("adds action when no error", func(t *testing.T) {
-		g := NewWithT(t)
-		noop := func(_ context.Context, _ *odhtype.ReconciliationRequest) error { return nil }
-		b := &ReconcilerBuilder[*scheme.TestPlatformObject]{}
-		b.WithActionE(noop, nil)
-		g.Expect(b.actions).To(HaveLen(1))
-		g.Expect(b.errors).ToNot(HaveOccurred())
-	})
-
-	t.Run("accumulates error and skips action", func(t *testing.T) {
-		g := NewWithT(t)
-		b := &ReconcilerBuilder[*scheme.TestPlatformObject]{}
-		b.WithActionE(nil, errors.New("action init failed"))
-		g.Expect(b.actions).To(BeEmpty())
-		g.Expect(b.errors).To(HaveOccurred())
-	})
-
-	t.Run("error surfaces in Build()", func(t *testing.T) {
-		g := NewWithT(t)
-		b := &ReconcilerBuilder[*scheme.TestPlatformObject]{}
-		b.WithActionE(nil, errors.New("action init failed"))
-		_, buildErr := b.Build(context.Background())
-		g.Expect(buildErr).To(MatchError(ContainSubstring("action init failed")))
-	})
-}
-
 func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 	g := NewWithT(t)
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -606,7 +441,7 @@ func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 
 	t.Run("dynamic ownership enabled with option", func(t *testing.T) {
 		r, err := NewReconciler(mgr, "test", &scheme.TestPlatformObject{},
-			withDynamicOwnership(),
+			WithDynamicOwnership(),
 		)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(r.IsDynamicOwnershipEnabled()).To(BeTrue())
@@ -614,7 +449,7 @@ func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 
 	t.Run("dynamic ownership with excluded GVKs", func(t *testing.T) {
 		r, err := NewReconciler(mgr, "test", &scheme.TestPlatformObject{},
-			withDynamicOwnership(ExcludeGVKs(gvk.ConfigMap, gvk.Secret)),
+			WithDynamicOwnership(ExcludeGVKs(gvk.ConfigMap, gvk.Secret)),
 		)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(r.IsDynamicOwnershipEnabled()).To(BeTrue())
@@ -626,7 +461,7 @@ func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 	t.Run("Owns returns true after AddDynamicOwnedType", func(t *testing.T) {
 		g := NewWithT(t)
 		r, err := NewReconciler(mgr, "test", &scheme.TestPlatformObject{},
-			withDynamicOwnership(),
+			WithDynamicOwnership(),
 		)
 		g.Expect(err).NotTo(HaveOccurred())
 
@@ -644,7 +479,7 @@ func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 	t.Run("Owns returns true for both static and dynamic ownership", func(t *testing.T) {
 		g := NewWithT(t)
 		r, err := NewReconciler(mgr, "test", &scheme.TestPlatformObject{},
-			withDynamicOwnership(),
+			WithDynamicOwnership(),
 		)
 		g.Expect(err).NotTo(HaveOccurred())
 
@@ -666,7 +501,7 @@ func TestDynamicOwnership_DeployAction(t *testing.T) {
 	nsName := xid.New().String()
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -748,8 +583,8 @@ func TestDynamicOwnership_DeployAction(t *testing.T) {
 		Kind:               scheme.TestPlatformObjectGVK.Kind,
 		Name:               "test-instance",
 		UID:                dashboard.GetUID(),
-		Controller:         ptr.To(true),
-		BlockOwnerDeletion: ptr.To(true),
+		Controller:         new(true),
+		BlockOwnerDeletion: new(true),
 	}))
 
 	// Verify Secret was deployed WITHOUT owner reference
@@ -873,7 +708,7 @@ func TestDynamicOwnership_DisabledByDefault(t *testing.T) {
 	configMapName := xid.New().String()
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -928,7 +763,7 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 	nsName := xid.New().String()
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -1077,7 +912,7 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 	nsName := xid.New().String()
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -1128,7 +963,7 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "test"},
 					},
-					Replicas: ptr.To(int32(1)),
+					Replicas: new(int32(1)),
 					Template: corev1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{"app": "test"},
@@ -1209,7 +1044,7 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: nsName}, deployedDeployment)).To(Succeed())
 		original := deployedDeployment.DeepCopy()
 
-		deployedDeployment.Spec.Replicas = ptr.To(int32(2))
+		deployedDeployment.Spec.Replicas = new(int32(2))
 		err := cli.Patch(ctx, deployedDeployment, client.MergeFrom(original))
 		g.Expect(err).NotTo(HaveOccurred())
 
@@ -1298,7 +1133,7 @@ func TestDynamicOwnership_GCWithDynamicAction(t *testing.T) {
 	nsName := xid.New().String()
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -1435,7 +1270,7 @@ func TestDynamicOwnership_StaticOwnershipPrecedence(t *testing.T) {
 	nsName := xid.New().String()
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -1503,7 +1338,7 @@ func TestDynamicOwnership_StaticOwnershipPrecedence(t *testing.T) {
 		Kind:               scheme.TestPlatformObjectGVK.Kind,
 		Name:               "test-instance",
 		UID:                dashboard.GetUID(),
-		Controller:         ptr.To(true),
-		BlockOwnerDeletion: ptr.To(true),
+		Controller:         new(true),
+		BlockOwnerDeletion: new(true),
 	}))
 }

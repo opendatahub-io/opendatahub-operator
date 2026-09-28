@@ -111,19 +111,39 @@ if [ -n "${PULL_NUMBER:-}" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
   GITHUB_PR_FLAGS="--github-owner=${REPO_OWNER} --github-repo=${REPO_NAME} --github-pr=${PULL_NUMBER} --failure-label=${E2E_FLAKY_LABEL}"
 fi
 
+JUNIT_FILE="results/xunit_report.xml"
+
+filter_gate_skips_if_present() {
+  if [ ! -f "$JUNIT_FILE" ]; then
+    echo "No JUnit file at ${JUNIT_FILE}; skipping gate-skip filter"
+    return 0
+  fi
+
+  if ! command -v test-retry >/dev/null 2>&1; then
+    echo "Warning: test-retry not found; leaving ${JUNIT_FILE} unfiltered" >&2
+    return 0
+  fi
+
+  echo "Filtering tag-gate skips from ${JUNIT_FILE}"
+  test-retry filter-gate-skips --junit "$JUNIT_FILE" || {
+    echo "Warning: gate-skip filter failed; leaving ${JUNIT_FILE} unfiltered" >&2
+    return 0
+  }
+
+}
+
 # Choose test runner based on USE_TEST_RETRY flag
 if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
   echo "Using test-retry for JUnit enrichment with failure classification"
 
-  # Run with test-retry (enriched JUnit XML with <properties>)
-  # Note: No --filter flag (uses custom e2e flags like --tag, --test-operator-controller instead)
+  test_exit=0
   # shellcheck disable=SC2086
-  exec test-retry e2e \
+  test-retry e2e \
     --command ./e2e-tests \
     --filter "" \
     --path /e2e \
     --max-retries 3 \
-    --junit-output results/xunit_report.xml \
+    --junit-output "$JUNIT_FILE" \
     --verbose \
     ${GITHUB_PR_FLAGS} \
     -- --test.parallel=8 \
@@ -143,14 +163,27 @@ if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
     --workbenches-namespace="$E2E_TEST_WORKBENCHES_NAMESPACE" \
     --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
     --tag="$E2E_TEST_TAG" \
-    "$@"
-else
-  echo "Using gotestsum (standard JUnit XML, no enrichment)"
+    "$@" || test_exit=$?
 
-  # Run with gotestsum (existing behavior - DEFAULT)
-  exec gotestsum --junitfile-project-name odh-operator-e2e \
-    --junitfile results/xunit_report.xml --format standard-verbose --raw-command \
-    -- test2json -t -p e2e ./e2e-tests --test.v=test2json --test.parallel=8 \
+  exit "$test_exit"
+else
+  echo "Using gotestsum with leaf-oriented JUnit XML"
+
+  # Go reports a failed subtest and every failed parent as separate failures.
+  # Keep the raw artifacts for diagnostics, then exclude parent results from
+  # the JUnit report consumed by the CI failure importer.
+  # Keep raw JUnit content outside *.xml globs so CI ingests only final report.
+  raw_junit_report=results/xunit_report.unfiltered
+  raw_test_events=results/test-events.json
+  reordered_test_events=results/test-events-reordered.json
+
+  # 1. Capture output from ./e2e-tests via test2json:
+  #    -> results/test-events.json and results/xunit_report.unfiltered.
+  test_status=0
+  gotestsum --junitfile-project-name odh-operator-e2e \
+    --junitfile "$raw_junit_report" --jsonfile "$raw_test_events" \
+    --format standard-verbose --raw-command \
+    -- test2json -t -p e2e ./e2e-tests --test.run='^TestOdhOperator' --test.v=test2json --test.parallel=8 \
     --deletion-policy="$E2E_TEST_DELETION_POLICY" \
     --clean-up-previous-resources="$E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES" \
     --backup-and-restore-dsci-and-dsc="$E2E_TEST_BACKUP_AND_RESTORE_DSCI_AND_DSC" \
@@ -167,5 +200,49 @@ else
     --workbenches-namespace="$E2E_TEST_WORKBENCHES_NAMESPACE" \
     --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
     --tag="$E2E_TEST_TAG" \
-    "$@"
+    "$@" || test_status=$?
+
+  # 2. Group events: results/test-events.json -> results/test-events-reordered.json.
+  #    Keep each test's skip messages together and not interleaved due to parallel execution,
+  #    preserving event order within each test and first-seen group order.
+  #    This ensures go-junit-report correctly assigns skip messages to the tests
+  jq -sc '
+    to_entries
+    | group_by([.value.Package, (.value.Test // .key)])
+    | sort_by(.[0].key)
+    | .[][].value
+  ' "$raw_test_events" > "$reordered_test_events"
+
+  # 3. Convert results/test-events-reordered.json -> results/xunit_report.xml,
+  #    ignoring parent results. Their captured output is retained by the
+  #    converter as suite-level output. If this leaves no failure/error despite
+  #    a failed test process, retain the unfiltered report so parent-only
+  #    failures (for example setup, cleanup, or watchdog failures) remain visible.
+  if go-junit-report -parser gojson \
+    -subtest-mode ignore-parent-results \
+    -in "$reordered_test_events" \
+    -out results/xunit_report.xml; then
+    if [ "$test_status" -ne 0 ] && \
+      ! grep -Eq '<(failure|error)([[:space:]>])' results/xunit_report.xml; then
+      echo "Warning: no leaf failure found; retaining unfiltered JUnit report" >&2
+      cp -- "$raw_junit_report" results/xunit_report.xml
+    fi
+  else
+    report_status=$?
+    echo "Error: failed to generate leaf-oriented JUnit report" >&2
+    if [ -s "$raw_junit_report" ]; then
+      echo "Retaining unfiltered JUnit report"
+      cp -- "$raw_junit_report" results/xunit_report.xml
+    else
+      if [ "$test_status" -ne 0 ]; then
+        exit "$test_status"
+      fi
+      exit "$report_status"
+    fi
+  fi
+
+  # 4. Remove tag-gate skips from results/xunit_report.xml, updating it in place.
+  #    This is the final report consumed by CI.
+  filter_gate_skips_if_present
+  exit "$test_status"
 fi

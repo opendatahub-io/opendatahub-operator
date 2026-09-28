@@ -4,10 +4,14 @@ package modules
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
+	"time"
 
 	semver "github.com/blang/semver/v4"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	ofversion "github.com/operator-framework/api/pkg/lib/version"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -15,9 +19,12 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
@@ -60,7 +67,7 @@ type deletingCleanupStub struct{}
 
 func (deletingCleanupStub) GetName() string { return "cleanup-module" }
 
-func (deletingCleanupStub) IsEnabled(*PlatformContext) bool { return false }
+func (deletingCleanupStub) IsEnabled(*configv1alpha1.PlatformModules) bool { return false }
 
 func (deletingCleanupStub) GetGVK() schema.GroupVersionKind { return schema.GroupVersionKind{} }
 
@@ -73,7 +80,10 @@ func (deletingCleanupStub) GetOperatorManifests(*PlatformContext) OperatorManife
 	}
 }
 
-func (deletingCleanupStub) BuildModuleCR(context.Context, client.Client, *PlatformContext) (*unstructured.Unstructured, error) {
+func (deletingCleanupStub) PopulatePlatformModule(_ *configv1alpha1.PlatformModules, _ *DSCContext) {
+}
+
+func (deletingCleanupStub) BuildModuleCR(context.Context, client.Client, *DSCContext, *ModuleCRConfig) (*unstructured.Unstructured, error) {
 	return nil, nil
 }
 
@@ -119,7 +129,7 @@ func (s provisioningModuleStub) GetSubmoduleConditions() []SubmoduleCondition {
 
 func (s provisioningModuleStub) GetName() string { return s.moduleName }
 
-func (s provisioningModuleStub) IsEnabled(*PlatformContext) bool { return s.enabled }
+func (s provisioningModuleStub) IsEnabled(*configv1alpha1.PlatformModules) bool { return s.enabled }
 
 func (s provisioningModuleStub) GetGVK() schema.GroupVersionKind {
 	return schema.GroupVersionKind{Group: testProvisioningModuleGroup, Version: testProvisioningModuleVersion, Kind: testProvisioningModuleKind}
@@ -134,7 +144,10 @@ func (s provisioningModuleStub) GetOperatorManifests(*PlatformContext) OperatorM
 	}
 }
 
-func (s provisioningModuleStub) BuildModuleCR(context.Context, client.Client, *PlatformContext) (*unstructured.Unstructured, error) {
+func (s provisioningModuleStub) PopulatePlatformModule(_ *configv1alpha1.PlatformModules, _ *DSCContext) {
+}
+
+func (s provisioningModuleStub) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(s.GetGVK())
 	u.SetName("default-" + s.moduleName)
@@ -208,7 +221,9 @@ func (s legacyStatusFieldsWriterStub) WriteLegacyStatusFields(
 	if dsc.Status.Components.Workbenches.WorkbenchesCommonStatus == nil {
 		dsc.Status.Components.Workbenches.WorkbenchesCommonStatus = &componentApi.WorkbenchesCommonStatus{}
 	}
-	dsc.Status.Components.Workbenches.WorkbenchNamespace = dsc.Spec.Components.Workbenches.WorkbenchNamespace
+	if dsc.Status.Components.Workbenches.WorkbenchNamespace == "" {
+		dsc.Status.Components.Workbenches.WorkbenchNamespace = dsc.Spec.Components.Workbenches.WorkbenchNamespace
+	}
 	return nil
 }
 
@@ -228,7 +243,8 @@ func TestCleanupDisabledModulesPreservesModuleEnvInjectionWhileDeleting(t *testi
 	}
 
 	rr := &types.ReconciliationRequest{
-		Client: cli,
+		Client:   cli,
+		Instance: &configv1alpha1.Platform{},
 	}
 
 	if err := cleanupDisabledModules(context.Background(), rr); err != nil {
@@ -238,17 +254,18 @@ func TestCleanupDisabledModulesPreservesModuleEnvInjectionWhileDeleting(t *testi
 	if len(rr.Manifests) != 1 {
 		t.Fatalf("expected deleting module manifests to be kept alive, got %d", len(rr.Manifests))
 	}
-	if rr.ModuleEnvInjection == nil {
+	mei := types.GetModuleEnvInjection(rr)
+	if mei == nil {
 		t.Fatalf("expected module env injection to be preserved for deleting module")
 	}
-	if rr.ModuleEnvInjection.ApplicationsNamespace != testApplicationsNamespace {
-		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, rr.ModuleEnvInjection.ApplicationsNamespace)
+	if mei.ApplicationsNamespace != testApplicationsNamespace {
+		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, mei.ApplicationsNamespace)
 	}
-	if len(rr.ModuleEnvInjection.PerModuleImages) != 1 {
-		t.Fatalf("expected one deleting module env injection entry, got %d", len(rr.ModuleEnvInjection.PerModuleImages))
+	if len(mei.PerModuleImages) != 1 {
+		t.Fatalf("expected one deleting module env injection entry, got %d", len(mei.PerModuleImages))
 	}
 
-	moduleImages := rr.ModuleEnvInjection.PerModuleImages[0]
+	moduleImages := mei.PerModuleImages[0]
 	if moduleImages.DeploymentName != "cleanup-module-controller-manager" {
 		t.Fatalf("expected deployment name %q, got %q", "cleanup-module-controller-manager", moduleImages.DeploymentName)
 	}
@@ -302,20 +319,21 @@ func TestProvisionModulesAddsResourcesAndEnvInjection(t *testing.T) {
 		t.Fatalf("provision modules: %v", err)
 	}
 
-	if len(rr.Resources) != 1 {
-		t.Fatalf("expected one projected module CR, got %d", len(rr.Resources))
-	}
 	if len(rr.Manifests) != 1 {
 		t.Fatalf("expected one module manifest entry, got %d", len(rr.Manifests))
 	}
-	if rr.ModuleEnvInjection == nil || len(rr.ModuleEnvInjection.PerModuleImages) != 1 {
-		t.Fatalf("expected one module env injection entry, got %#v", rr.ModuleEnvInjection)
+	mei2 := types.GetModuleEnvInjection(rr)
+	if mei2 == nil || len(mei2.PerModuleImages) != 1 {
+		t.Fatalf("expected one module env injection entry, got %#v", mei2)
 	}
-	if rr.ModuleEnvInjection.ApplicationsNamespace != testApplicationsNamespace {
-		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, rr.ModuleEnvInjection.ApplicationsNamespace)
+	if mei2.ApplicationsNamespace != testApplicationsNamespace {
+		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, mei2.ApplicationsNamespace)
 	}
-	if rr.ModuleEnvInjection.PerModuleImages[0].DeploymentName != testProvisioningDeploymentName {
-		t.Fatalf("expected deployment name to be preserved, got %#v", rr.ModuleEnvInjection.PerModuleImages[0])
+	if mei2.PerModuleImages[0].DeploymentName != testProvisioningDeploymentName {
+		t.Fatalf("expected deployment name to be preserved, got %#v", mei2.PerModuleImages[0])
+	}
+	if got := mei2.PerModuleImages[0].ExtraEnv["ENABLE_TEST_MODULE_CONTROLLER"]; got != "true" {
+		t.Fatalf("expected fixed module env to be preserved, got %q", got)
 	}
 }
 
@@ -393,7 +411,7 @@ func TestComputeModulesStatusMarksNotReadyModules(t *testing.T) {
 		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
-	if err := ComputeModulesStatus(context.Background(), rr); err != nil {
+	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
 		t.Fatalf("compute modules status: %v", err)
 	}
 
@@ -441,7 +459,7 @@ func TestComputeModulesStatusPreservesWorkbenchNamespaceOnGetModuleStatusError(t
 		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
-	if err := ComputeModulesStatus(context.Background(), rr); err != nil {
+	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
 		t.Fatalf("compute modules status: %v", err)
 	}
 
@@ -494,7 +512,7 @@ func TestComputeModulesStatusInfoDependencyKeepsModulesReady(t *testing.T) {
 		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
-	if err := ComputeModulesStatus(context.Background(), rr); err != nil {
+	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
 		t.Fatalf("compute modules status: %v", err)
 	}
 
@@ -518,4 +536,383 @@ func TestComputeModulesStatusInfoDependencyKeepsModulesReady(t *testing.T) {
 	if ready.Status != metav1.ConditionTrue {
 		t.Fatalf("expected ModulesReady=True (Info dep is non-gating), got %s: %q", ready.Status, ready.Message)
 	}
+}
+
+// noMatchErrorModuleStub is a ModuleHandler whose GetModuleStatus returns a
+// NoKindMatchError, simulating a missing CRD.
+type noMatchErrorModuleStub struct {
+	provisioningModuleStub
+}
+
+func (s noMatchErrorModuleStub) GetModuleStatus(_ context.Context, _ client.Client) (*ModuleStatus, error) {
+	return nil, &meta.NoKindMatchError{
+		GroupKind: schema.GroupKind{
+			Group: testProvisioningModuleGroup,
+			Kind:  testProvisioningModuleKind,
+		},
+	}
+}
+
+func TestComputeModulesStatusRequeuesOnCRDAbsent(t *testing.T) {
+	withTestRegistry(t)
+
+	handler := noMatchErrorModuleStub{
+		provisioningModuleStub: provisioningModuleStub{
+			moduleName: "crd-absent-module",
+			enabled:    true,
+		},
+	}
+	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
+
+	dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName}}
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
+	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	rr := &types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+	}
+
+	err = ComputeModulesStatusDetailed(context.Background(), rr)
+
+	// Must return a RequeueAfterError so the controller retries.
+	var requeueErr odherrors.RequeueAfterError
+	if !errors.As(err, &requeueErr) {
+		t.Fatalf("expected RequeueAfterError when module CRD is absent, got: %v", err)
+	}
+	if requeueErr.After != 30*time.Second {
+		t.Fatalf("expected 30s requeue delay, got %v", requeueErr.After)
+	}
+
+	// ModulesReady condition must still be set (aggregation ran despite the requeue).
+	modulesReady := conditions.FindStatusCondition(dsc.GetStatus(), status.ConditionTypeModulesReady)
+	if modulesReady == nil {
+		t.Fatalf("expected ModulesReady condition to be set even when CRD is absent")
+	}
+	if modulesReady.Status != metav1.ConditionFalse {
+		t.Fatalf("expected ModulesReady=False, got %s", modulesReady.Status)
+	}
+
+	// Per-module condition must mention the missing CRD.
+	moduleCond := conditions.FindStatusCondition(dsc.GetStatus(), testProvisioningModuleKind+status.ReadySuffix)
+	if moduleCond == nil {
+		t.Fatalf("expected per-module condition to be set")
+	}
+	if moduleCond.Status != metav1.ConditionFalse {
+		t.Fatalf("expected per-module condition=False, got %s", moduleCond.Status)
+	}
+}
+
+func TestComputeModulesStatusNoRequeueOnRegularError(t *testing.T) {
+	withTestRegistry(t)
+
+	handler := legacyStatusFieldsWriterStub{
+		provisioningModuleStub: provisioningModuleStub{
+			moduleName: "error-module",
+			enabled:    true,
+		},
+		getStatusErr: errors.New("some transient API error"),
+	}
+	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
+
+	dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName}}
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
+	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	rr := &types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+	}
+
+	err = ComputeModulesStatusDetailed(context.Background(), rr)
+
+	// Regular errors should NOT trigger a requeue.
+	if err != nil {
+		t.Fatalf("expected nil error for regular GetModuleStatus failures, got: %v", err)
+	}
+}
+
+func TestBuildPlatformContext_MonitoringNamespaceFromDSCI(t *testing.T) {
+	const testMonitoringNS = "redhat-ods-monitoring"
+
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{Name: testDSCIName},
+	}
+	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
+	dsci.Spec.Monitoring.Namespace = testMonitoringNS
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	rr := &types.ReconciliationRequest{
+		Client:   cli,
+		Instance: &configv1alpha1.Platform{},
+	}
+
+	ctx, err := buildPlatformContext(context.Background(), rr)
+	if err != nil {
+		t.Fatalf("buildPlatformContext: %v", err)
+	}
+
+	if ctx.ApplicationsNamespace != testApplicationsNamespace {
+		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, ctx.ApplicationsNamespace)
+	}
+	if ctx.MonitoringNamespace != testMonitoringNS {
+		t.Fatalf("expected monitoring namespace %q, got %q", testMonitoringNS, ctx.MonitoringNamespace)
+	}
+}
+
+func TestBuildPlatformContext_MonitoringNamespaceEmptyWithoutDSCI(t *testing.T) {
+	cli, err := fakeclient.New()
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	rr := &types.ReconciliationRequest{
+		Client:   cli,
+		Instance: &configv1alpha1.Platform{},
+	}
+
+	ctx, err := buildPlatformContext(context.Background(), rr)
+	if err == nil {
+		if ctx.MonitoringNamespace != "" {
+			t.Fatalf("expected empty monitoring namespace without DSCI, got %q", ctx.MonitoringNamespace)
+		}
+	}
+	// ApplicationNamespace also fails without DSCI — that's expected.
+	// The key assertion: no panic, monitoring namespace is empty.
+}
+
+func TestProvisionModulesMonitoringNamespaceInjected(t *testing.T) {
+	withTestRegistry(t)
+
+	const testMonitoringNS = "redhat-ods-monitoring"
+
+	handler := provisioningModuleStub{
+		moduleName: testProvisioningModuleName,
+		enabled:    true,
+		status: &ModuleStatus{
+			Conditions: []common.Condition{{
+				Type:   status.ConditionTypeReady,
+				Status: metav1.ConditionTrue,
+			}},
+		},
+	}
+	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
+	provision.Add(handler.GetName(), provision.KindModule, dag.RL(20))
+
+	dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName, UID: "uid-1"}}
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
+	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
+	dsci.Spec.Monitoring.Namespace = testMonitoringNS
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	rr := &types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		Release:    common.Release{Name: common.Platform("Open Data Hub"), Version: ofversion.OperatorVersion{Version: semver.MustParse(testProvisioningVersion)}},
+		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+	}
+
+	if err := provisionModules(context.Background(), rr); err != nil {
+		t.Fatalf("provision modules: %v", err)
+	}
+
+	mei := types.GetModuleEnvInjection(rr)
+	if mei == nil {
+		t.Fatalf("expected module env injection to be set")
+	}
+	if mei.MonitoringNamespace != testMonitoringNS {
+		t.Fatalf("expected monitoring namespace %q, got %q", testMonitoringNS, mei.MonitoringNamespace)
+	}
+}
+
+func TestBuildPlatformModules_NoEmptyManagementState(t *testing.T) {
+	t.Parallel()
+
+	dsc := &dscv2.DataScienceCluster{}
+	pm := BuildPlatformModules(&DSCContext{DSC: dsc})
+
+	v := reflect.ValueOf(pm)
+	for sf, fv := range v.Fields() {
+		ms := fv.FieldByName("ManagementState")
+		if !ms.IsValid() {
+			continue
+		}
+		state := operatorv1.ManagementState(ms.String())
+		if state == "" {
+			t.Errorf("PlatformModules.%s.ManagementState is empty; must be Managed or Removed", sf.Name)
+		}
+		if state != operatorv1.Managed && state != operatorv1.Removed {
+			t.Errorf("PlatformModules.%s.ManagementState = %q; want Managed or Removed", sf.Name, state)
+		}
+	}
+}
+
+func TestBuildPlatformModules_WithDSCI_MonitoringManaged(t *testing.T) {
+	withTestRegistry(t)
+
+	DefaultRegistry().Add(&testDSCIConfiguredHandler{
+		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "monitoring"}},
+	}, WithConfigSource(ConfigFromDSCI))
+
+	dsci := &dsciv2.DSCInitialization{
+		Spec: dsciv2.DSCInitializationSpec{
+			Monitoring: serviceApi.DSCIMonitoring{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Managed,
+				},
+			},
+		},
+	}
+
+	pm := BuildPlatformModules(&DSCContext{
+		DSC:  &dscv2.DataScienceCluster{},
+		DSCI: dsci,
+	})
+
+	if pm.Monitoring.ManagementState != operatorv1.Managed {
+		t.Fatalf("expected monitoring=Managed when DSCI is provided, got %q", pm.Monitoring.ManagementState)
+	}
+}
+
+func TestBuildPlatformModulesForSource_DoesNotPopulateOtherSource(t *testing.T) {
+	withTestRegistry(t)
+
+	DefaultRegistry().Add(&testDSCIConfiguredHandler{
+		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "monitoring"}},
+	}, WithConfigSource(ConfigFromDSCI))
+	DefaultRegistry().Add(&testDSCConfiguredHandler{
+		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "dashboard"}},
+	})
+
+	dsc := &dscv2.DataScienceCluster{}
+	dsc.Spec.Components.Dashboard.ManagementState = operatorv1.Managed
+	dsci := &dsciv2.DSCInitialization{
+		Spec: dsciv2.DSCInitializationSpec{
+			Monitoring: serviceApi.DSCIMonitoring{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Managed,
+				},
+			},
+		},
+	}
+	dscCtx := &DSCContext{DSC: dsc, DSCI: dsci}
+
+	dsciModules := BuildPlatformModulesForSource(dscCtx, ConfigFromDSCI)
+	if dsciModules.Monitoring.ManagementState != operatorv1.Managed {
+		t.Fatalf("expected DSCI source to set monitoring=Managed, got %q", dsciModules.Monitoring.ManagementState)
+	}
+	if dsciModules.Dashboard.ManagementState != "" {
+		t.Fatalf("expected DSCI source to leave dashboard unset, got %q", dsciModules.Dashboard.ManagementState)
+	}
+
+	dscModules := BuildPlatformModulesForSource(dscCtx, ConfigFromDSC)
+	if dscModules.Dashboard.ManagementState != operatorv1.Managed {
+		t.Fatalf("expected DSC source to set dashboard=Managed, got %q", dscModules.Dashboard.ManagementState)
+	}
+	if dscModules.Monitoring.ManagementState != "" {
+		t.Fatalf("expected DSC source to leave monitoring unset, got %q", dscModules.Monitoring.ManagementState)
+	}
+}
+
+func TestNewPlatformCRRemovedForSource_ForcesDSCModulesRemoved(t *testing.T) {
+	withTestRegistry(t)
+
+	DefaultRegistry().Add(&testDSCIConfiguredHandler{
+		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "monitoring"}},
+	}, WithConfigSource(ConfigFromDSCI))
+	DefaultRegistry().Add(&testDSCConfiguredHandler{
+		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "dashboard"}},
+	})
+
+	dsc := &dscv2.DataScienceCluster{}
+	dsc.Spec.Components.Dashboard.ManagementState = operatorv1.Managed
+	dsci := &dsciv2.DSCInitialization{
+		Spec: dsciv2.DSCInitializationSpec{
+			Monitoring: serviceApi.DSCIMonitoring{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Managed,
+				},
+			},
+		},
+	}
+	dscCtx := &DSCContext{DSC: dsc, DSCI: dsci}
+
+	removed := NewPlatformCRRemovedForSource(dscCtx, ConfigFromDSC)
+	if removed.Spec.Modules.Dashboard.ManagementState != operatorv1.Removed {
+		t.Fatalf("expected dashboard=Removed on DSC delete payload, got %q", removed.Spec.Modules.Dashboard.ManagementState)
+	}
+	if removed.Spec.Modules.Monitoring.ManagementState != "" {
+		t.Fatalf("expected monitoring to stay unset so DSCI SSA keeps it, got %q", removed.Spec.Modules.Monitoring.ManagementState)
+	}
+}
+
+// testDSCIConfiguredHandler is a test double for a ConfigFromDSCI module.
+// It writes PlatformModules.Monitoring only because that is the typed SSA
+// field for DSCI-sourced enablement, not because it is the production handler.
+type testDSCIConfiguredHandler struct {
+	BaseHandler
+}
+
+func (h *testDSCIConfiguredHandler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+	return modules != nil && modules.Monitoring.ManagementState == operatorv1.Managed
+}
+
+func (h *testDSCIConfiguredHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
+	return nil, nil
+}
+
+func (h *testDSCIConfiguredHandler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *DSCContext) {
+	if pm == nil || dscCtx == nil || dscCtx.DSCI == nil {
+		return
+	}
+	ms := dscCtx.DSCI.Spec.Monitoring.ManagementState
+	if ms == "" {
+		ms = operatorv1.Removed
+	}
+	pm.Monitoring.ManagementState = ms
+}
+
+// testDSCConfiguredHandler is a test double for a ConfigFromDSC module.
+// It writes PlatformModules.Dashboard as a stand-in typed SSA field.
+type testDSCConfiguredHandler struct {
+	BaseHandler
+}
+
+func (h *testDSCConfiguredHandler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+	return modules != nil && modules.Dashboard.ManagementState == operatorv1.Managed
+}
+
+func (h *testDSCConfiguredHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
+	return nil, nil
+}
+
+func (h *testDSCConfiguredHandler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *DSCContext) {
+	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
+		return
+	}
+	ms := dscCtx.DSC.Spec.Components.Dashboard.ManagementState
+	if ms == "" {
+		ms = operatorv1.Removed
+	}
+	pm.Dashboard.ManagementState = ms
 }

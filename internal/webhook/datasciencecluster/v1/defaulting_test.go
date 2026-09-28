@@ -5,8 +5,8 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	v1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v1"
 
 	. "github.com/onsi/gomega"
@@ -14,12 +14,7 @@ import (
 
 // ptrManagementState returns a pointer to the given ManagementState.
 func ptrManagementState(ms operatorv1.ManagementState) *operatorv1.ManagementState {
-	return &ms
-}
-
-// ptrString returns a pointer to the given string.
-func ptrString(s string) *string {
-	return &s
+	return new(ms)
 }
 
 // TestDefaulterV1_DefaultingLogic exercises the defaulting webhook logic for DataScienceCluster v1 resources.
@@ -36,20 +31,20 @@ func TestDefaulterV1_DefaultingLogic(t *testing.T) {
 	}{
 		{
 			name:                "Sets default RegistriesNamespace if empty and Managed",
-			managementState:     ptrManagementState(operatorv1.Managed),
-			registriesNamespace: ptrString(""),
-			expectedNamespace:   modelregistryctrl.DefaultModelRegistriesNamespace,
+			managementState:     new(operatorv1.Managed),
+			registriesNamespace: new(""),
+			expectedNamespace:   componentApi.DefaultModelRegistriesNamespace,
 		},
 		{
 			name:                "Does not overwrite custom RegistriesNamespace if set",
-			managementState:     ptrManagementState(operatorv1.Managed),
-			registriesNamespace: ptrString("custom-ns"),
+			managementState:     new(operatorv1.Managed),
+			registriesNamespace: new("custom-ns"),
 			expectedNamespace:   "custom-ns",
 		},
 		{
 			name:                "Does nothing if not Managed",
-			managementState:     ptrManagementState(operatorv1.Removed),
-			registriesNamespace: ptrString(""),
+			managementState:     new(operatorv1.Removed),
+			registriesNamespace: new(""),
 			expectedNamespace:   "",
 		},
 		{
@@ -96,19 +91,19 @@ func TestDefaulterV1_NIMDefaultingLogic(t *testing.T) {
 	}{
 		{
 			name:                  "Sets default NIM ManagementState if empty and Kserve is Managed",
-			kserveManagementState: ptrManagementState(operatorv1.Managed),
+			kserveManagementState: new(operatorv1.Managed),
 			nimManagementState:    ptrManagementState(""),
 			expectedNIMState:      operatorv1.Managed,
 		},
 		{
 			name:                  "Does not overwrite NIM ManagementState if already set",
-			kserveManagementState: ptrManagementState(operatorv1.Managed),
-			nimManagementState:    ptrManagementState(operatorv1.Removed),
+			kserveManagementState: new(operatorv1.Managed),
+			nimManagementState:    new(operatorv1.Removed),
 			expectedNIMState:      operatorv1.Removed,
 		},
 		{
 			name:                  "Does nothing if Kserve is not Managed",
-			kserveManagementState: ptrManagementState(operatorv1.Removed),
+			kserveManagementState: new(operatorv1.Removed),
 			nimManagementState:    ptrManagementState(""),
 			expectedNIMState:      "",
 		},

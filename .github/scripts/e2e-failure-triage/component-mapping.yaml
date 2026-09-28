@@ -1,0 +1,49 @@
+# Mapping from E2E test component names to Jira component field values.
+#
+# The keys match the component names as they appear in the JUnit XML test paths:
+#   TestOdhOperator/components/group_N/<key>/...
+#
+# These are derived from the componentApi.*ComponentName constants in
+# api/components/v1alpha1/*_types.go and the Components TestGroup in
+# tests/e2e/controller_test.go.
+#
+# jira_component: The "Component" field value in the RHOAIENG Jira project.
+#                 Must match exactly.
+
+components:
+  aigateway:
+    jira_component: "Model as a Service"
+  dashboard:
+    jira_component: "AI Core Dashboard"
+  datasciencepipelines:
+    jira_component: "AI Pipelines"
+  feastoperator:
+    jira_component: "Feature Store"
+  kserve:
+    jira_component: "Serving Orchestration"
+  kserve-modelcache:
+    jira_component: "Serving Orchestration"
+  kueue:
+    jira_component: "AI Core Platform"
+  mcplifecycleoperator:
+    jira_component: "OCPMCPLO"
+  mlflowoperator:
+    jira_component: "MLflow"
+  modelregistry:
+    jira_component: "AI Hub"
+  modelsasservice:
+    jira_component: "Model as a Service"
+  ogx:
+    jira_component: "OGX Core"
+  ray:
+    jira_component: "KubeRay"
+  sparkoperator:
+    jira_component: "Kubeflow Spark Operator"
+  trainer:
+    jira_component: "Training Kubeflow"
+  trainingoperator:
+    jira_component: "Training Kubeflow"
+  trustyai:
+    jira_component: "AI Safety"
+  workbenches:
+    jira_component: "Notebooks Server"

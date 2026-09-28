@@ -15,6 +15,8 @@ COPY pkg/clusterhealth/go.mod pkg/clusterhealth/go.mod
 COPY pkg/clusterhealth/go.sum pkg/clusterhealth/go.sum
 COPY pkg/failureclassifier/go.mod pkg/failureclassifier/go.mod
 COPY pkg/failureclassifier/go.sum pkg/failureclassifier/go.sum
+COPY pkg/scoperules/go.mod pkg/scoperules/go.mod
+COPY pkg/scoperules/go.sum pkg/scoperules/go.sum
 
 RUN go mod download
 
@@ -39,10 +41,12 @@ RUN apt-get update -y && apt-get upgrade -y && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/ && \
+    apt-get install -y jq && \
     apt-get clean all
 
-# install gotestsum and build test2json
-RUN go install gotest.tools/gotestsum@latest \
+# install test reporting tools and build test2json
+RUN go install gotest.tools/gotestsum@v1.13.0 \
+ && go install github.com/jstemmer/go-junit-report/v2@v2.1.0 \
  && go build -o /usr/local/bin/test2json cmd/test2json
 
 WORKDIR /e2e
@@ -50,6 +54,7 @@ WORKDIR /e2e
 COPY --from=builder /workspace/e2e-tests .
 COPY --from=builder /workspace/test-retry /go/bin/test-retry
 COPY tests/e2e/scripts/run_e2e_tests.sh /e2e/run_e2e_tests.sh
+COPY tests/e2e/scripts/e2e-scope-rules.yaml /e2e/scripts/e2e-scope-rules.yaml
 
 RUN chmod +x ./e2e-tests /e2e/run_e2e_tests.sh /go/bin/test-retry
 

@@ -62,21 +62,20 @@ func isStaleOrOrphaned(rr *odhTypes.ReconciliationRequest, obj unstructured.Unst
 	}
 
 	if iUID != string(rr.Instance.GetUID()) {
-		log.V(3).Info("GC: deleting orphaned resource (UID mismatch)", "gvk", objGVK, "name", obj.GetName(), "namespace", obj.GetNamespace())
+		log.V(3).Info("GC: deleting orphaned resource (UID mismatch)", "gvk", objGVK, "child", obj.GetName(), "childNamespace", obj.GetNamespace())
 		return true, nil
 	}
 
 	iGenerationInt, err := strconv.ParseInt(iGeneration, 10, 64)
 	if err != nil {
 		log.Error(err, "cannot parse InstanceGeneration annotation, skipping resource",
-			"annotation", iGeneration, "gvk", objGVK, "name", obj.GetName(), "namespace", obj.GetNamespace())
-
+			"annotation", iGeneration, "gvk", objGVK, "child", obj.GetName(), "childNamespace", obj.GetNamespace(), "resourceKind", objGVK.Kind, "name", rr.Instance.GetName())
 		return false, nil
 	}
 
 	shouldDelete := rr.Instance.GetGeneration() != iGenerationInt
 	if shouldDelete {
-		log.V(3).Info("GC: deleting stale resource (generation mismatch)", "gvk", objGVK, "name", obj.GetName(), "namespace", obj.GetNamespace(),
+		log.V(3).Info("GC: deleting stale resource (generation mismatch)", "gvk", objGVK, "child", obj.GetName(), "childNamespace", obj.GetNamespace(),
 			"resourceGeneration", iGenerationInt, "crGeneration", rr.Instance.GetGeneration())
 	}
 
@@ -97,7 +96,7 @@ func newGCPredicate(protectedObjects []ProtectedObject) gc.ObjectPredicateFn {
 		objGVK := obj.GroupVersionKind()
 		key := ProtectedObject{Group: objGVK.Group, Kind: objGVK.Kind, Namespace: obj.GetNamespace(), Name: obj.GetName()}
 		if _, ok := protected[key]; ok {
-			log.V(3).Info("GC: keeping protected resource", "gvk", objGVK, "name", obj.GetName(), "namespace", obj.GetNamespace())
+			log.V(3).Info("GC: keeping protected resource", "gvk", objGVK, "child", obj.GetName(), "childNamespace", obj.GetNamespace())
 			return false, nil
 		}
 

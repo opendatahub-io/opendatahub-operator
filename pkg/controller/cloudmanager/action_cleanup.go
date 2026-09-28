@@ -82,8 +82,9 @@ func cleanupExcludedCharts(ctx context.Context, rr *types.ReconciliationRequest,
 
 			l.Error(err, "cleanup get failed, skipping resource",
 				"gvk", objGVK,
-				"ns", obj.GetNamespace(),
-				"name", obj.GetName(),
+				"childNamespace", obj.GetNamespace(),
+				"child", obj.GetName(),
+				"resourceKind", objGVK.Kind,
 			)
 			merr = multierror.Append(merr, fmt.Errorf("cleanup get failed for %s/%s: %w", obj.GetNamespace(), obj.GetName(), err))
 
@@ -102,8 +103,8 @@ func cleanupExcludedCharts(ctx context.Context, rr *types.ReconciliationRequest,
 		if !owned {
 			l.V(1).Info("resource not owned by this instance, skipping cleanup",
 				"gvk", objGVK,
-				"ns", live.GetNamespace(),
-				"name", live.GetName(),
+				"childNamespace", live.GetNamespace(),
+				"child", live.GetName(),
 			)
 
 			continue
@@ -111,8 +112,8 @@ func cleanupExcludedCharts(ctx context.Context, rr *types.ReconciliationRequest,
 
 		l.Info("cleanup excluded chart resource",
 			"gvk", objGVK,
-			"ns", live.GetNamespace(),
-			"name", live.GetName(),
+			"childNamespace", live.GetNamespace(),
+			"child", live.GetName(),
 		)
 
 		if err := rr.Client.Delete(ctx, live, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
@@ -122,8 +123,9 @@ func cleanupExcludedCharts(ctx context.Context, rr *types.ReconciliationRequest,
 
 			l.Error(err, "cleanup delete failed, skipping resource",
 				"gvk", objGVK,
-				"ns", live.GetNamespace(),
-				"name", live.GetName(),
+				"childNamespace", live.GetNamespace(),
+				"child", live.GetName(),
+				"resourceKind", objGVK.Kind,
 			)
 			merr = multierror.Append(merr, fmt.Errorf("cleanup delete failed for %s/%s: %w", live.GetNamespace(), live.GetName(), err))
 		}

@@ -2,9 +2,6 @@ map:
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
-  odh-kuberay-operator-controller:
-    src: ray-operator/config
-    dest: ray
   odh-trustyai-service-operator:
     src: config
     dest: trustyai
@@ -15,21 +12,22 @@ map:
     src: dashboard-operator/charts/dashboard
     dest: dashboard-operator
     type: chart
-  odh-training-operator:
-    src: manifests
-    dest: trainingoperator
   odh-feast-module-operator:
     src: config/chart
     dest: feastoperator
     type: chart
-  odh-trainer:
-    src: manifests
+  odh-observability:
+    src: charts/odh-observability
+    dest: odh-observability
+    type: chart
+  odh-trainer-operator:
+    src: config
     dest: trainer
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
-  odh-spark-operator:
-    src: config
+  odh-spark-operator-module:
+    src: spark-operator-module/config
     dest: sparkoperator
   odh-kserve-module-operator:
     src: kserve-module/config
@@ -56,3 +54,15 @@ map:
   odh-ogx-module-operator:
     src: ogx-module/config
     dest: ogx
+  odh-ray-module-operator:
+    src: config
+    dest: ray
+  odh-data-connect-hub-controller:
+    src: dc-controller/config
+    dest: data-connect-hub
+  odh-praxis-ai-grid-operator:
+    src: charts/grid-operator/templates
+    dest: grid-operator
+  odh-trustyai-module-operator:
+    src: trustyai-operator-module/config
+    dest: trustyai

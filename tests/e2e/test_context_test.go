@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/onsi/gomega/gstruct"
 	gTypes "github.com/onsi/gomega/types"
+	"github.com/opendatahub-io/odh-platform-utilities/pkg/cluster/olm"
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
@@ -30,6 +32,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
@@ -78,7 +81,7 @@ type TestContext struct {
 	// Namespaced name of the DataScienceCluster custom resource used for testing.
 	DataScienceClusterNamespacedName types.NamespacedName
 
-	// Namespaced name of the Platform custom resource used for testing (xKS mode).
+	// Namespaced name of the Platform custom resource used for testing.
 	PlatformNamespacedName types.NamespacedName
 
 	// DefaultResourceOpts are applied as a baseline to every NewResourceOptions call.
@@ -509,7 +512,7 @@ func (tc *TestContext) EnsureResourceDoesNotExist(opts ...ResourceOpts) {
 	if ro.AcceptableErrMatcher != nil {
 		tc.g.Expect(err).To(ro.AcceptableErrMatcher, unexpectedErrorMismatchMsg, ro.AcceptableErrMatcher, err, ro.GVK.Kind)
 	} else {
-		tc.g.Expect(err).To(BeNil(), unexpectedErrorMismatchMsg, ro.GVK.Kind, err)
+		tc.g.Expect(err).ToNot(HaveOccurred(), unexpectedErrorMismatchMsg, ro.GVK.Kind, err)
 	}
 }
 
@@ -1502,9 +1505,9 @@ func (tc *TestContext) SkipIfXKSCluster(t *testing.T) {
 	}
 }
 
-// EnsurePlatformCR creates the Platform CR if it does not already exist.
-// On xKS clusters there is no DSC controller to create it, so E2E tests
-// must ensure it exists before enabling modules.
+// EnsurePlatformCR creates the Platform CR if it does not exist. On
+// OpenShift the DSC controller creates it via syncPlatformCR; on xKS
+// there is no DSC controller so the E2E test must create it.
 func (tc *TestContext) EnsurePlatformCR(t *testing.T) {
 	t.Helper()
 
@@ -1635,8 +1638,14 @@ func (tc *TestContext) ApproveInstallPlan(plan *ofapi.InstallPlan) {
 //   - bool: True if an operator matching the prefix is found, false otherwise.
 //   - error: Any error encountered during the search operation.
 func (tc *TestContext) CheckOperatorExists(operatorNamePrefix string) (bool, error) {
-	operatorInfo, err := cluster.OperatorExists(tc.Context(), tc.Client(), operatorNamePrefix)
-	return operatorInfo != nil, err
+	operatorInfo, err := olm.OperatorExists(tc.Context(), tc.Client(), operatorNamePrefix)
+	if err != nil {
+		if errors.Is(err, olm.ErrOperatorNotInstalled) || meta.IsNoMatchError(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return operatorInfo != nil, nil
 }
 
 // EnsureWebhookBlocksResourceCreation verifies that webhook validation blocks creation of resources with invalid values.
@@ -2034,9 +2043,7 @@ func (tc *TestContext) CheckMinOCPVersion(minVersion string) (bool, error) {
 // which are not created on BYOIDC clusters.
 func (tc *TestContext) SkipIfBYOIDC(t *testing.T) {
 	t.Helper()
-	authMode, err := cluster.GetClusterAuthenticationMode(tc.Context(), tc.Client())
-	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to detect cluster authentication mode")
-	if authMode == cluster.AuthModeOIDC {
+	if tc.isBYOIDC(t) {
 		t.Skip("Skipping test: not applicable on BYOIDC clusters (cluster uses external OIDC authentication)")
 	}
 }
@@ -2045,11 +2052,36 @@ func (tc *TestContext) SkipIfBYOIDC(t *testing.T) {
 // This is useful for tests that validate BYOIDC-specific behavior.
 func (tc *TestContext) SkipUnlessBYOIDC(t *testing.T) {
 	t.Helper()
-	authMode, err := cluster.GetClusterAuthenticationMode(tc.Context(), tc.Client())
-	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to detect cluster authentication mode")
-	if authMode != cluster.AuthModeOIDC {
-		t.Skipf("Skipping test: only applicable on BYOIDC clusters (cluster uses %s authentication)", authMode)
+	if !tc.isBYOIDC(t) {
+		t.Skip("Skipping test: only applicable on BYOIDC clusters")
 	}
+}
+
+// isBYOIDC detects whether the cluster uses BYOIDC authentication.
+// On OpenShift it reads the Authentication CR; on XKS (where that CRD is absent)
+// it falls back to checking whether the GatewayConfig has an OIDC stanza.
+func (tc *TestContext) isBYOIDC(t *testing.T) bool {
+	t.Helper()
+
+	authMode, err := cluster.GetClusterAuthenticationMode(tc.Context(), tc.Client())
+	if err == nil {
+		return authMode == cluster.AuthModeOIDC
+	}
+
+	if !k8serr.IsNotFound(err) {
+		tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to detect cluster authentication mode")
+	}
+
+	// Authentication CRD not found (XKS) — check GatewayConfig for OIDC stanza
+	gwc := &unstructured.Unstructured{}
+	gwc.SetGroupVersionKind(gvk.GatewayConfig)
+	if getErr := tc.Client().Get(tc.Context(), types.NamespacedName{Name: serviceApi.GatewayConfigName}, gwc); getErr != nil {
+		t.Logf("GatewayConfig not found, assuming non-BYOIDC: %v", getErr)
+		return false
+	}
+
+	oidc, _, _ := unstructured.NestedMap(gwc.Object, "spec", "oidc")
+	return oidc != nil
 }
 
 // SkipIfOCPVersionBelow is a test helper that skips the current test if the OpenShift cluster
@@ -2248,7 +2280,7 @@ func (tc *TestContext) ScaleCSVDeploymentReplicas(
 
 	spec := &deployments[depIdx].Spec
 	originalReplicas := ptr.Deref(spec.Replicas, 1)
-	spec.Replicas = ptr.To(replicas)
+	spec.Replicas = new(replicas)
 	tc.Logf("Scaling deployment %s from %d to %d replicas.", deploymentName, originalReplicas, replicas)
 
 	tc.Logf("Updating CSV %s.", targetCSV.Name)

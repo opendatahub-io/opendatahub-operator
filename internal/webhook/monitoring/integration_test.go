@@ -51,6 +51,7 @@ func TestMonitoringWebhook_LabelInjection(t *testing.T) {
 				envtestutil.DefaultWebhookTimeout,
 				envtestutil.WithPodMonitor(),
 				envtestutil.WithServiceMonitor(),
+				envtestutil.WithMonitoring(),
 			)
 			defer teardown()
 
@@ -90,6 +91,7 @@ func TestMonitoringWebhook_Update(t *testing.T) {
 		envtestutil.DefaultWebhookTimeout,
 		envtestutil.WithPodMonitor(),
 		envtestutil.WithServiceMonitor(),
+		envtestutil.WithMonitoring(),
 	)
 	defer teardown()
 

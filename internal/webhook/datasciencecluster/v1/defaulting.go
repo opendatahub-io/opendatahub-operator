@@ -14,8 +14,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
@@ -81,8 +81,8 @@ func (d *Defaulter) applyDefaults(ctx context.Context, dsc *dscv1.DataScienceClu
 	modelRegistry := &dsc.Spec.Components.ModelRegistry
 	if modelRegistry.ManagementState == operatorv1.Managed {
 		if modelRegistry.RegistriesNamespace == "" {
-			log.V(1).Info("Setting default RegistriesNamespace for ModelRegistry", "default", modelregistryctrl.DefaultModelRegistriesNamespace)
-			modelRegistry.RegistriesNamespace = modelregistryctrl.DefaultModelRegistriesNamespace
+			log.V(1).Info("Setting default RegistriesNamespace for ModelRegistry", "default", componentApi.DefaultModelRegistriesNamespace)
+			modelRegistry.RegistriesNamespace = componentApi.DefaultModelRegistriesNamespace
 		}
 	}
 

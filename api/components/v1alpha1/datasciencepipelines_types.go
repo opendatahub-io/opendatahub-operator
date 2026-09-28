@@ -19,41 +19,17 @@ package v1alpha1
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
 	DataSciencePipelinesComponentName = "datasciencepipelines"
-	// value should match whats set in the XValidation below
-	DataSciencePipelinesInstanceName = "default-" + DataSciencePipelinesComponentName
-	DataSciencePipelinesKind         = "DataSciencePipelines"
+	// AIPipelinesComponentName is the platform module name used by the v2 DSC API.
+	AIPipelinesComponentName = "aipipelines"
+	// AIPipelinesInstanceName is the singleton name of the out-of-tree module CR.
+	AIPipelinesInstanceName = "default-" + AIPipelinesComponentName
 	// AIPipelinesKind is the user-facing name for DataSciencePipelines in v2
 	AIPipelinesKind = "AIPipelines"
 )
-
-// Check that the component implements common.PlatformObject.
-var _ common.PlatformObject = (*DataSciencePipelines)(nil)
-
-// +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-datasciencepipelines'",message="DataSciencePipelines name must be default-datasciencepipelines"
-// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
-// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
-
-// DataSciencePipelines is the Schema for the datasciencepipelines API
-type DataSciencePipelines struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   DataSciencePipelinesSpec   `json:"spec,omitempty"`
-	Status DataSciencePipelinesStatus `json:"status,omitempty"`
-}
-
-// DataSciencePipelinesSpec defines the desired state of DataSciencePipelines
-type DataSciencePipelinesSpec struct {
-	DataSciencePipelinesCommonSpec `json:",inline"`
-}
 
 type ArgoWorkflowsControllersSpec struct {
 	// Set to one of the following values:
@@ -78,45 +54,6 @@ type DataSciencePipelinesCommonSpec struct {
 // DataSciencePipelinesCommonStatus defines the shared observed state of DataSciencePipelines
 type DataSciencePipelinesCommonStatus struct {
 	common.ComponentReleaseStatus `json:",inline"`
-}
-
-// DataSciencePipelinesStatus defines the observed state of DataSciencePipelines
-type DataSciencePipelinesStatus struct {
-	common.Status                    `json:",inline"`
-	DataSciencePipelinesCommonStatus `json:",inline"`
-}
-
-func (c *DataSciencePipelines) GetStatus() *common.Status {
-	return &c.Status.Status
-}
-
-func (c *DataSciencePipelines) GetConditions() []common.Condition {
-	return c.Status.GetConditions()
-}
-
-func (c *DataSciencePipelines) SetConditions(conditions []common.Condition) {
-	c.Status.SetConditions(conditions)
-}
-
-func (c *DataSciencePipelines) GetReleaseStatus() *[]common.ComponentRelease {
-	return &c.Status.Releases
-}
-
-func (c *DataSciencePipelines) SetReleaseStatus(releases []common.ComponentRelease) {
-	c.Status.Releases = releases
-}
-
-// +kubebuilder:object:root=true
-
-// DataSciencePipelinesList contains a list of DataSciencePipelines
-type DataSciencePipelinesList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []DataSciencePipelines `json:"items"`
-}
-
-func init() {
-	SchemeBuilder.Register(&DataSciencePipelines{}, &DataSciencePipelinesList{})
 }
 
 // DSCDataSciencePipelines contains all the configuration exposed in DSC instance for DataSciencePipelines component

@@ -36,6 +36,11 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 				},
 				Workbenches: componentApi.DSCWorkbenches{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+					WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
+						WorkbenchesV2: componentApi.WorkbenchesV2Spec{
+							ManagementState: operatorv1.Removed,
+						},
+					},
 				},
 				AIPipelines: componentApi.DSCDataSciencePipelines{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
@@ -59,9 +64,6 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 				},
 				ModelRegistry: componentApi.DSCModelRegistry{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				TrainingOperator: componentApi.DSCTrainingOperator{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
 				},
 				FeastOperator: componentApi.DSCFeastOperator{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},

@@ -6,11 +6,14 @@ import (
 	"encoding/json"
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -25,20 +28,26 @@ import (
 
 // mockHandler is a minimal ComponentHandler for testing computeComponentsStatus.
 type mockHandler struct {
-	name    string
-	enabled bool
-	status  metav1.ConditionStatus
-	err     error
+	name     string
+	enabled  bool
+	status   metav1.ConditionStatus
+	err      error
+	newCRErr error
+	newCRObj common.PlatformObject
 }
 
 func (m *mockHandler) Init(_ common.Platform, _ operatorconfig.OperatorSettings) error { return nil }
 func (m *mockHandler) GetName() string                                                 { return m.name }
 func (m *mockHandler) NewCRObject(_ context.Context, _ client.Client, _ *dscv2.DataScienceCluster) (common.PlatformObject, error) {
-	return nil, nil
+	if m.newCRErr != nil {
+		return nil, m.newCRErr
+	}
+	return m.newCRObj, nil
 }
 func (m *mockHandler) NewComponentReconciler(_ context.Context, _ ctrl.Manager) error {
 	return nil
 }
+func (m *mockHandler) GroupVersionKind() schema.GroupVersionKind  { return schema.GroupVersionKind{} }
 func (m *mockHandler) IsEnabled(_ *dscv2.DataScienceCluster) bool { return m.enabled }
 func (m *mockHandler) UpdateDSCStatus(_ context.Context, _ *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	return m.status, m.err
@@ -197,5 +206,67 @@ func TestComputeComponentsStatus(t *testing.T) {
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`,
 				status.ConditionTypeComponentsReady, status.NoManagedComponentsReason),
 		)))
+	})
+}
+
+func deprecatedTOReadyType() string {
+	return componentApi.TrainingOperatorKind + status.ReadySuffix
+}
+
+func TestUpdateDeprecatedTrainingOperatorStatus(t *testing.T) {
+	t.Run("Managed sets Obsolete and tells the customer to delete the CR", func(t *testing.T) {
+		g := NewWithT(t)
+		dsc := newDSC()
+		dsc.Spec.Components.TrainingOperator.ManagementState = operatorv1.Managed
+		rr := &types.ReconciliationRequest{
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, deprecatedTOReadyType()),
+		}
+
+		g.Expect(updateDeprecatedTrainingOperatorStatus(rr)).Should(Succeed())
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.components.trainingoperator.managementState == "%s"`, operatorv1.Managed),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, deprecatedTOReadyType(), metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "Obsolete"`, deprecatedTOReadyType()),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("delete the TrainingOperator CR")`, deprecatedTOReadyType()),
+		)))
+	})
+
+	t.Run("Removed is info-severity and does not say Obsolete", func(t *testing.T) {
+		g := NewWithT(t)
+		dsc := newDSC()
+		dsc.Spec.Components.TrainingOperator.ManagementState = operatorv1.Removed
+		rr := &types.ReconciliationRequest{
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, deprecatedTOReadyType()),
+		}
+
+		g.Expect(updateDeprecatedTrainingOperatorStatus(rr)).Should(Succeed())
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.components.trainingoperator.managementState == "%s"`, operatorv1.Removed),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, deprecatedTOReadyType(), metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, deprecatedTOReadyType(), operatorv1.Removed),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`, deprecatedTOReadyType(), common.ConditionSeverityInfo),
+		)))
+	})
+
+	t.Run("empty managementState normalizes to Removed", func(t *testing.T) {
+		g := NewWithT(t)
+		dsc := newDSC()
+		rr := &types.ReconciliationRequest{
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, deprecatedTOReadyType()),
+		}
+
+		g.Expect(updateDeprecatedTrainingOperatorStatus(rr)).Should(Succeed())
+		g.Expect(dsc.Status.Components.TrainingOperator.ManagementState).Should(Equal(operatorv1.Removed))
+	})
+
+	t.Run("wrong instance type returns an error", func(t *testing.T) {
+		g := NewWithT(t)
+		rr := &types.ReconciliationRequest{Instance: &componentApi.Kueue{}}
+		g.Expect(updateDeprecatedTrainingOperatorStatus(rr)).ShouldNot(Succeed())
 	})
 }

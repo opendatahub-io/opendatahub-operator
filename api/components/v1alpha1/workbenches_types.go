@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	operatorv1 "github.com/openshift/api/operator/v1"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 )
 
@@ -34,6 +36,18 @@ const (
 type WorkbenchesCommonStatus struct {
 	common.ComponentReleaseStatus `json:",inline"`
 	WorkbenchNamespace            string `json:"workbenchNamespace,omitempty"`
+}
+
+// WorkbenchesV2Spec configures the workbenches-v2 sub-component lifecycle.
+type WorkbenchesV2Spec struct {
+	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:default=Removed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+}
+
+// DSCWorkbenchesV2Status contains the observed state of the WorkbenchesV2 submodule.
+type DSCWorkbenchesV2Status struct {
+	common.ManagementSpec `json:",inline"`
 }
 
 // DSCWorkbenches contains all the configuration exposed in DSC instance for Workbenches component

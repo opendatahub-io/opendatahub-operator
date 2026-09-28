@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
+	frameworkmanager "github.com/opendatahub-io/odh-platform-utilities/framework/manager"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
 	configv1 "github.com/openshift/api/config/v1"
@@ -65,6 +66,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	crtlmanager "sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -80,30 +82,15 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/sparkoperator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainer"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
-	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
-	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
-	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
-	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
-	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
-	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
-	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
-	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
+	modulebuiltin "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/builtin"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/monitoring"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/setup"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
@@ -113,9 +100,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	operatortls "github.com/opendatahub-io/opendatahub-operator/v2/pkg/tls"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
@@ -135,14 +122,7 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 
 	existingComponents = map[string]cr.ComponentHandler{
-		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
-		componentApi.KueueComponentName:                kueue.NewHandler(),
-		componentApi.ModelRegistryComponentName:        modelregistry.NewHandler(),
-		componentApi.RayComponentName:                  ray.NewHandler(),
-		componentApi.SparkOperatorComponentName:        sparkoperator.NewHandler(),
-		componentApi.TrainerComponentName:              trainer.NewHandler(),
-		componentApi.TrainingOperatorComponentName:     trainingoperator.NewHandler(),
-		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
+		componentApi.KueueComponentName: kueue.NewHandler(),
 	}
 
 	// Component runlevel assignments.
@@ -153,48 +133,14 @@ var (
 	// 32 — independent extensions, no KServe dependency.
 	// 33 — components that require KServe to be Ready.
 	componentRunlevels = map[string]dag.Runlevel{
-		componentApi.DataSciencePipelinesComponentName: dag.RL(20),
-		componentApi.ModelRegistryComponentName:        dag.RL(20),
-		componentApi.RayComponentName:                  dag.RL(20),
-		componentApi.TrainerComponentName:              dag.RL(20),
-		componentApi.TrainingOperatorComponentName:     dag.RL(20),
-
 		componentApi.KueueComponentName: dag.RL(31),
-
-		componentApi.SparkOperatorComponentName: dag.RL(32),
-
-		componentApi.TrustyAIComponentName: dag.RL(33),
 	}
 
 	existingServices = map[string]sr.ServiceHandler{
 		serviceApi.AuthServiceName:         auth.NewHandler(),
 		certconfigmapgenerator.ServiceName: certconfigmapgenerator.NewHandler(),
 		serviceApi.GatewayServiceName:      gateway.NewHandler(),
-		serviceApi.MonitoringServiceName:   monitoring.NewHandler(),
 		setup.ServiceName:                  setup.NewHandler(),
-	}
-
-	existingModules = map[string]mr.ModuleHandler{
-		componentApi.DashboardComponentName: dashboardModule.NewHandler(),
-		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
-		componentApi.AIGatewayComponentName:            aigatewayModule.NewHandler(),
-		componentApi.MCPLifecycleOperatorComponentName: mcplifecycleoperatorModule.NewHandler(),
-		componentApi.MLflowOperatorComponentName:       mlflowOperatorModule.NewHandler(),
-		componentApi.KserveComponentName:               kserveModule.NewHandler(),
-		componentApi.OGXComponentName:                  ogxModule.NewHandler(),
-		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
-		componentApi.FeastOperatorComponentName:        feastModule.NewHandler(),
-	}
-
-	moduleRunlevels = map[string]dag.Runlevel{
-		componentApi.DashboardComponentName:            dag.RL(20),
-		componentApi.AIGatewayComponentName:            dag.RL(32),
-		componentApi.FeastOperatorComponentName:        dag.RL(32),
-		componentApi.MCPLifecycleOperatorComponentName: dag.RL(20),
-		componentApi.MLflowOperatorComponentName:       dag.RL(32),
-		componentApi.KserveComponentName:               dag.RL(31),
-		componentApi.OGXComponentName:                  dag.RL(32),
-		componentApi.WorkbenchesComponentName:          dag.RL(20),
 	}
 )
 
@@ -273,14 +219,14 @@ func registerServices() {
 }
 
 func registerModules() {
-	for name, handler := range existingModules {
-		rl := dag.RL(99)
-		if r, ok := moduleRunlevels[name]; ok {
-			rl = r
+	for _, registration := range modulebuiltin.Registrations() {
+		name := registration.Handler.GetName()
+		opts := []mr.RegistrationOption{
+			mr.WithRunlevel(registration.Runlevel),
+			mr.WithConfigSource(registration.ConfigSource),
 		}
-
-		mr.Add(handler, mr.WithRunlevel(rl))
-		provision.Add(name, provision.KindModule, rl)
+		mr.Add(registration.Handler, opts...)
+		provision.Add(name, provision.KindModule, registration.Runlevel)
 
 		if !flags.IsModuleEnabled(name) {
 			mr.Disable(name)
@@ -304,7 +250,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		fmt.Printf("Error registering service suppression flags: %s", err.Error())
 		os.Exit(1)
 	}
-	if err := flags.RegisterModuleSuppressionFlags(slices.Collect(maps.Keys(existingModules))); err != nil {
+	if err := flags.RegisterModuleSuppressionFlags(modulebuiltin.Names()); err != nil {
 		fmt.Printf("Error registering module suppression flags: %s", err.Error())
 		os.Exit(1)
 	}
@@ -382,7 +328,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	case platform == cluster.XKS && rhaiVersion == "":
 		setupLog.Error(errors.New("RHAI_VERSION must be set when platform is XKS"), "invalid configuration")
 		os.Exit(1)
-	case platform != cluster.XKS && rhaiVersion != "":
+	case platform != cluster.XKS && rhaiVersion != "" && os.Getenv("CI") != "true":
 		setupLog.Error(fmt.Errorf(
 			"RHAI_VERSION (%q) must not be set when platform is not XKS; version is detected from CSV",
 			rhaiVersion,
@@ -473,7 +419,22 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		// This is the default mapper provider, we define it to ensure it remains
 		// consistent with controller-runtime updates. It is needed for the action dynamicownership.
 		MapperProvider: apiutil.NewDynamicRESTMapper,
-		Metrics:        ctrlmetrics.Options{BindAddress: oconfig.MetricsAddr, TLSOpts: tlsOpts},
+		Metrics: func() ctrlmetrics.Options {
+			opts := ctrlmetrics.Options{
+				BindAddress:   oconfig.MetricsAddr,
+				SecureServing: oconfig.MetricsSecure,
+				TLSOpts:       tlsOpts,
+			}
+			if oconfig.MetricsSecure {
+				opts.FilterProvider = filters.WithAuthenticationAndAuthorization
+			}
+			if oconfig.MetricsCertPath != "" {
+				opts.CertDir = oconfig.MetricsCertPath
+				opts.CertName = oconfig.MetricsCertName
+				opts.KeyName = oconfig.MetricsCertKey
+			}
+			return opts
+		}(),
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
 			Port:    9443,
 			TLSOpts: tlsOpts,
@@ -516,7 +477,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	// Wrap the manager to return the wrapped client from GetClient()
-	mgr := manager.New(ctrlMgr, manager.WithManifestsBasePath(oconfig.ManifestsBasePath), manager.WithChartsBasePath(oconfig.ChartsBasePath))
+	mgr := frameworkmanager.New(ctrlMgr, frameworkmanager.WithManifestsBasePath(oconfig.ManifestsBasePath), frameworkmanager.WithChartsBasePath(oconfig.ChartsBasePath))
 
 	// Register all webhooks using the helper
 	if err := webhook.RegisterAllWebhooks(mgr); err != nil {
@@ -674,7 +635,7 @@ func createSecretCacheConfig(platform common.Platform) (map[string]cache.Config,
 		return nil, err
 	}
 
-	namespaceConfigs["openshift-ingress"] = cache.Config{}
+	namespaceConfigs[gateway.GetGatewayNamespace()] = cache.Config{} // gateway secrets (OCP: openshift-ingress, XKS: rh-ai-gateway)
 
 	return namespaceConfigs, nil
 }
@@ -685,10 +646,10 @@ func createODHGeneralCacheConfig(platform common.Platform) (map[string]cache.Con
 		return nil, err
 	}
 
-	namespaceConfigs["openshift-operators"] = cache.Config{} // for dependent operators installed namespace
-	namespaceConfigs["openshift-ingress"] = cache.Config{}   // for gateway auth proxy resources
-	namespaceConfigs["models-as-a-service"] = cache.Config{} // for maas admin rolebinding
-	namespaceConfigs["kuadrant-system"] = cache.Config{}     // for kuadrant admin rolebinding
+	namespaceConfigs["openshift-operators"] = cache.Config{}         // for dependent operators installed namespace
+	namespaceConfigs[gateway.GetGatewayNamespace()] = cache.Config{} // gateway resources (OCP: openshift-ingress, XKS: rh-ai-gateway)
+	namespaceConfigs["models-as-a-service"] = cache.Config{}         // for maas admin rolebinding
+	namespaceConfigs["kuadrant-system"] = cache.Config{}             // for kuadrant admin rolebinding
 
 	return namespaceConfigs, nil
 }
@@ -730,7 +691,8 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 		case k8serr.IsServiceUnavailable(err),
 			k8serr.IsTimeout(err),
 			k8serr.IsServerTimeout(err),
-			k8serr.IsTooManyRequests(err):
+			k8serr.IsTooManyRequests(err),
+			errors.Is(err, context.DeadlineExceeded):
 			setupLog.Info("Transient API error reading TLS profile, using hardened defaults", "error", err)
 			hasAPI = true // watcher self-heals when the API recovers
 		default:
@@ -744,24 +706,47 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 		})
 	} else {
 		hasAPI = true
-		tlsConfigFn, unsupportedCiphers := tlspkg.NewTLSConfigFromProfile(profile)
-		if len(unsupportedCiphers) > 0 {
-			setupLog.Info("some ciphers from TLS profile are not supported by Go", "unsupported", unsupportedCiphers)
-		}
-		tlsOpts = append(tlsOpts, tlsConfigFn, func(c *tls.Config) {
-			c.NextProtos = nextProtos
-		})
-
 		adherence, err = tlspkg.FetchAPIServerTLSAdherencePolicy(ctx, bootstrapClient)
 		if err != nil {
-			setupLog.Info("unable to fetch TLS adherence policy, watcher will retry", "error", err)
+			switch {
+			case meta.IsNoMatchError(err):
+				setupLog.Info("TLS adherence API not available (non-OpenShift or pre-4.22 cluster)")
+			case k8serr.IsNotFound(err):
+				setupLog.Info("APIServer resource not found for adherence, skipping")
+			case k8serr.IsServiceUnavailable(err),
+				k8serr.IsTimeout(err),
+				k8serr.IsServerTimeout(err),
+				k8serr.IsTooManyRequests(err),
+				k8serr.IsInternalError(err),
+				errors.Is(err, context.DeadlineExceeded):
+				setupLog.Info("Transient error fetching TLS adherence policy, watcher will retry", "error", err)
+			default:
+				setupLog.Error(err, "unable to read TLS adherence policy, refusing to start with unknown adherence posture")
+				os.Exit(1)
+			}
 		}
+
+		if operatortls.ShouldHonorClusterTLSProfile(adherence) {
+			tlsConfigFn, unsupportedCiphers := tlspkg.NewTLSConfigFromProfile(profile)
+			if len(unsupportedCiphers) > 0 {
+				setupLog.Info("some ciphers from TLS profile are not supported by Go", "unsupported", unsupportedCiphers)
+			}
+			tlsOpts = append(tlsOpts, tlsConfigFn)
+		} else {
+			tlsOpts = append(tlsOpts, func(c *tls.Config) {
+				c.MinVersion = tls.VersionTLS12
+				c.CipherSuites = intermediateCiphers
+			})
+		}
+		tlsOpts = append(tlsOpts, func(c *tls.Config) {
+			c.NextProtos = nextProtos
+		})
 	}
 
 	return tlsOpts, profile, adherence, hasAPI
 }
 
-func CreateComponentReconcilers(ctx context.Context, mgr *manager.Manager) error {
+func CreateComponentReconcilers(ctx context.Context, mgr *frameworkmanager.Manager) error {
 	l := logf.FromContext(ctx)
 
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
@@ -774,7 +759,7 @@ func CreateComponentReconcilers(ctx context.Context, mgr *manager.Manager) error
 	})
 }
 
-func CreateServiceReconcilers(ctx context.Context, mgr *manager.Manager) error {
+func CreateServiceReconcilers(ctx context.Context, mgr *frameworkmanager.Manager) error {
 	log := logf.FromContext(ctx)
 
 	return sr.ForEach(func(sh sr.ServiceHandler) error {

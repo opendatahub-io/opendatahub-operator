@@ -21,43 +21,37 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
 func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	componentsPredicate := dependent.New(dependent.WithWatchStatus(true))
 
 	b := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
-		Owns(&componentApi.Ray{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.ModelRegistry{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.TrustyAI{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.Kueue{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.TrainingOperator{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.Trainer{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.DataSciencePipelines{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.SparkOperator{}, reconciler.WithPredicates(componentsPredicate))
+		WithDynamicOwnership(
+			// Platform is shared with DSCI. DSC must not take controller
+			// ownership or Kubernetes GC would delete it (and monitoring)
+			// when DSC is removed. Owner refs are set explicitly as
+			// controller=false in syncPlatformCR.
+			reconciler.ExcludeGVKs(gvk.Platform),
+			reconciler.WithDefaultPredicates(componentsPredicate),
+		)
 
-	// Module CRs are not owned by the DSC controller, but their status
-	// changes must trigger a DSC reconcile so ComputeModulesStatus can
-	// update conditions while in-tree components still exist.
-	_ = modules.ForAll(func(h modules.ModuleHandler, _ bool) error {
+	_ = modules.ForConfigSource(modules.ConfigFromDSC, func(h modules.ModuleHandler, _ bool) error {
 		moduleGVK := h.GetGVK()
 		b = b.WatchesGVK(moduleGVK,
 			reconciler.Dynamic(reconciler.CrdExists(moduleGVK)),
@@ -90,22 +84,23 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
 			))
 
+	b = modules.AddModuleCRDWatches(b, func(ctx context.Context, _ client.Object) []reconcile.Request {
+		return watchDataScienceClusters(ctx, mgr.GetClient())
+	})
+
 	_, err := b.
-		WithAction(initialize).
 		WithAction(checkPreConditions).
 		WithAction(updateStatus).
-		WithAction(checkUpgradeGates).
+		WithAction(syncPlatformCR).
+		WithAction(cleanupDisabledComponents).
+		WithAction(cleanupDisabledModuleCRs).
 		WithAction(provisionComponents).
+		WithAction(provisionModuleCRs).
 		WithAction(deploy.NewAction(
-			deploy.WithCache()),
-		).
-		WithAction(gc.NewAction(
-			gc.WithTypePredicate(
-				func(rr *types.ReconciliationRequest, objGVK schema.GroupVersionKind) (bool, error) {
-					return rr.Controller.Owns(objGVK), nil
-				},
-			),
+			deploy.WithContinueOnError(),
+			deploy.WithCache(),
 		)).
+		WithFinalizer(disableDSCModulesOnDelete).
 		WithConditions(status.ConditionTypeComponentsReady, status.ConditionTypeModulesReady).
 		Build(ctx)
 

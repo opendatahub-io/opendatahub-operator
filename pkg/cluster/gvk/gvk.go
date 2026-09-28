@@ -67,6 +67,9 @@ const (
 
 	// KServe CRDs.
 	InferenceServicesCRDName = "inferenceservices.serving.kserve.io"
+
+	// Components CRDs.
+	DashboardComponentCRDName = "dashboards.components.platform.opendatahub.io"
 )
 
 var (
@@ -328,10 +331,10 @@ var (
 		Kind:    componentApi.ModelMeshServingKind,
 	}
 
-	DataSciencePipelines = schema.GroupVersionKind{
+	AIPipelines = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.DataSciencePipelinesKind,
+		Kind:    componentApi.AIPipelinesKind,
 	}
 
 	Kserve = schema.GroupVersionKind{
@@ -370,18 +373,6 @@ var (
 		Kind:    componentApi.TrustyAIKind,
 	}
 
-	ModelRegistry = schema.GroupVersionKind{
-		Group:   componentApi.GroupVersion.Group,
-		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.ModelRegistryKind,
-	}
-
-	TrainingOperator = schema.GroupVersionKind{
-		Group:   componentApi.GroupVersion.Group,
-		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.TrainingOperatorKind,
-	}
-
 	Trainer = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
@@ -404,6 +395,12 @@ var (
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
 		Kind:    componentApi.FeastOperatorKind,
+	}
+
+	AIHub = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    "AIHub",
 	}
 
 	MLflowOperator = schema.GroupVersionKind{
@@ -752,6 +749,18 @@ var (
 		Group:   "operators.coreos.com",
 		Version: "v2",
 		Kind:    "OperatorCondition",
+	}
+
+	ClusterExtension = schema.GroupVersionKind{
+		Group:   "olm.operatorframework.io",
+		Version: "v1",
+		Kind:    "ClusterExtension",
+	}
+
+	ClusterCatalog = schema.GroupVersionKind{
+		Group:   "olm.operatorframework.io",
+		Version: "v1",
+		Kind:    "ClusterCatalog",
 	}
 
 	NetworkPolicy = schema.GroupVersionKind{

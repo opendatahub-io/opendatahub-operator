@@ -80,11 +80,26 @@ same CR. No owner-ref stripping or old-CR deletion is needed. See the
 [Component to Module Migration Guide](../../../docs/modular/Component%20to%20Module%20Migration%20Guide.md)
 for the full process.
 
+## Current modules
+
+Reference implementations under `internal/controller/modules/`:
+
+| Module | Handler | Manifest format | Runlevel |
+|--------|---------|-----------------|----------|
+| [AI Gateway](./aigateway/) | `aigateway.NewHandler()` | Kustomize (`SourcePathByPlatform`) | `dag.RL(32)` |
+| [Spark Operator](./sparkoperator/) | `sparkoperator.NewHandler()` | Kustomize (`SourcePath: default`) | `dag.RL(32)` |
+
+Both are registered in `cmd/main.go` (`existingModules` / `moduleRunlevels`).
+They check `DSC.Spec.Components.<Name>.ManagementState`, project
+`*CommonSpec` into the module CR via `BuildModuleCR`, and rely on the modules
+controller for deploy + dynamic ownership (no static `.Owns()` on the DSC
+controller).
+
 ## Adding a New Module
 
 A module team contributes four things to this repository:
 
-### 1. Manifest source entry (`get_all_manifests.sh`)
+### 1. Manifest source entry (`manifests-config.yaml`)
 
 Add the module's manifests (Helm chart **or** Kustomize overlays) to the
 `ODH_COMPONENT_CHARTS` and `RHOAI_COMPONENT_CHARTS` maps:

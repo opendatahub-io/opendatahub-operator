@@ -6,8 +6,6 @@ spec:
   dependencies:
     gatewayAPI:
       managementPolicy: Managed
-    certManager:
-      managementPolicy: Managed
     lws:
       managementPolicy: Managed
       configuration:
@@ -16,3 +14,5 @@ spec:
       managementPolicy: Managed
       configuration:
         namespace: istio-system
+    rhcl:
+      managementPolicy: Unmanaged

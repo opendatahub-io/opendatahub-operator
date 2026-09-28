@@ -16,7 +16,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -85,7 +84,7 @@ func (f *MockManager) AddReadyzCheck(name string, check healthz.Checker) error {
 //nolint:ireturn
 func (f *MockManager) GetAPIReader() client.Reader { return nil }
 func (f *MockManager) GetControllerOptions() config.Controller {
-	return config.Controller{SkipNameValidation: ptr.To(true)}
+	return config.Controller{SkipNameValidation: new(true)}
 }
 func (f *MockManager) GetHTTPClient() *http.Client { return &http.Client{} }
 
@@ -228,7 +227,7 @@ func TestFinalizer_Remove(t *testing.T) {
 	mockDashboard := &scheme.TestPlatformObject{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       mockDashboardName,
-			Finalizers: []string{platformFinalizer},
+			Finalizers: []string{finalizerName},
 			DeletionTimestamp: &metav1.Time{
 				Time: time.Now(),
 			},

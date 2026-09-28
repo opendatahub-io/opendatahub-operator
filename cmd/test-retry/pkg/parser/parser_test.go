@@ -79,15 +79,11 @@ func TestParseGoTestJSON(t *testing.T) {
 	}
 }
 
-func TestParseGoTestJSON_StderrDoesNotCauseError(t *testing.T) {
+func TestParseGoTestJSON_StderrCausesError(t *testing.T) {
 	tests := []struct {
-		name       string
-		stdout     string
-		stderr     string
-		wantErr    bool
-		wantPassed int
-		wantFailed int
-		failedName string
+		name   string
+		stdout string
+		stderr string
 	}{
 		{
 			name: "stderr with failing test",
@@ -96,9 +92,7 @@ func TestParseGoTestJSON_StderrDoesNotCauseError(t *testing.T) {
 {"Time":"2023-01-01T00:00:02Z","Action":"output","Package":"example.com/pkg","Test":"TestFailing","Output":"    failing_test.go:10: assertion failed\n"}
 {"Time":"2023-01-01T00:00:02Z","Action":"output","Package":"example.com/pkg","Test":"TestFailing","Output":"--- FAIL: TestFailing (0.50s)\n"}
 {"Time":"2023-01-01T00:00:02Z","Action":"fail","Package":"example.com/pkg","Test":"TestFailing","Elapsed":0.5}`,
-			stderr:     "panic: some diagnostic output\ngoroutine 1 [running]:\n",
-			wantFailed: 1,
-			failedName: "TestFailing",
+			stderr: "panic: some diagnostic output\ngoroutine 1 [running]:\n",
 		},
 		{
 			name: "stderr with passing test",
@@ -106,8 +100,7 @@ func TestParseGoTestJSON_StderrDoesNotCauseError(t *testing.T) {
 {"Time":"2023-01-01T00:00:01Z","Action":"output","Package":"example.com/pkg","Test":"TestPassing","Output":"=== RUN   TestPassing\n"}
 {"Time":"2023-01-01T00:00:02Z","Action":"output","Package":"example.com/pkg","Test":"TestPassing","Output":"--- PASS: TestPassing (1.00s)\n"}
 {"Time":"2023-01-01T00:00:02Z","Action":"pass","Package":"example.com/pkg","Test":"TestPassing","Elapsed":1.0}`,
-			stderr:     "level=warning msg=\"some library warning\"\n",
-			wantPassed: 1,
+			stderr: "level=warning msg=\"some library warning\"\n",
 		},
 		{
 			name: "large stderr payload",
@@ -115,8 +108,7 @@ func TestParseGoTestJSON_StderrDoesNotCauseError(t *testing.T) {
 {"Time":"2023-01-01T00:00:01Z","Action":"output","Package":"example.com/pkg","Test":"TestOk","Output":"=== RUN   TestOk\n"}
 {"Time":"2023-01-01T00:00:02Z","Action":"output","Package":"example.com/pkg","Test":"TestOk","Output":"--- PASS: TestOk (1.00s)\n"}
 {"Time":"2023-01-01T00:00:02Z","Action":"pass","Package":"example.com/pkg","Test":"TestOk","Elapsed":1.0}`,
-			stderr:     strings.Repeat("stderr line\n", 500),
-			wantPassed: 1,
+			stderr: strings.Repeat("stderr line\n", 500),
 		},
 	}
 
@@ -127,19 +119,8 @@ func TestParseGoTestJSON_StderrDoesNotCauseError(t *testing.T) {
 				Stderr: bytes.NewBuffer([]byte(tt.stderr)),
 			})
 
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err, "stderr output from test binary should not cause a parse error")
-			require.NotNil(t, result)
-			require.Len(t, result.PassedTest, tt.wantPassed)
-			require.Len(t, result.FailedTest, tt.wantFailed)
-
-			if tt.failedName != "" {
-				require.Equal(t, tt.failedName, result.FailedTest[0].Name)
-			}
+			require.Error(t, err, "stderr output from test binary should cause a parse error")
+			require.Nil(t, result)
 		})
 	}
 }

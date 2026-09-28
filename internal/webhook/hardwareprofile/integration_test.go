@@ -3,6 +3,7 @@ package hardwareprofile_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/rs/xid"
@@ -524,6 +525,23 @@ func TestHardwareProfile_CRDValidation(t *testing.T) {
 			name:        "valid queue scheduling configuration",
 			hwpOptions:  []envtestutil.ObjectOption{envtestutil.WithKueueScheduling("test-queue")},
 			expectError: false,
+		},
+		{
+			name:        "valid DRA configuration",
+			hwpOptions:  []envtestutil.ObjectOption{envtestutil.WithDRA("gpu-claim")},
+			expectError: false,
+		},
+		{
+			name:          "invalid DRA ResourceClaimTemplate name",
+			hwpOptions:    []envtestutil.ObjectOption{envtestutil.WithDRA("GPU-claim")},
+			expectError:   true,
+			errorContains: "resourceClaimTemplateName",
+		},
+		{
+			name:          "invalid DRA ResourceClaimTemplate name length",
+			hwpOptions:    []envtestutil.ObjectOption{envtestutil.WithDRA(strings.Repeat("a", 254))},
+			expectError:   true,
+			errorContains: "resourceClaimTemplateName",
 		},
 		{
 			name: "valid node scheduling configuration",

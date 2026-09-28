@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"reflect"
 	"strconv"
 	"sync"
 	"testing"
@@ -19,12 +20,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/retry"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -38,28 +39,26 @@ const (
 	gatewayServiceTLSSecretName = gateway.GatewayServiceTLSSecretName
 	envoyFilterName             = "data-science-authn-filter"
 	expectedSecretDataKeys      = 3
-	SecretHashAnnotation        = "opendatahub.io/secret-hash" //nolint:gosec
+	SecretHashAnnotation        = "opendatahub.io/secret-hash"
 )
 
 // Gateway infrastructure and OAuth proxy configuration constants.
 // These match the values defined in internal/controller/services/gateway package.
 const (
-	gatewayConfigName        = serviceApi.GatewayConfigName
-	gatewayName              = gateway.DefaultGatewayName
-	gatewaySubdomain         = gateway.DefaultGatewaySubdomain
-	gatewayClassName         = gateway.GatewayClassName
-	gatewayControllerName    = gateway.GatewayControllerName
-	gatewayNamespace         = gateway.GatewayNamespace
-	standardHTTPSPort        = gateway.StandardHTTPSPort
-	oauthClientName          = gateway.AuthClientID
-	kubeAuthProxyName        = gateway.KubeAuthProxyName
-	kubeAuthProxyTLSName     = gateway.KubeAuthProxyTLSName
-	kubeAuthProxyCredsName   = gateway.KubeAuthProxySecretsName
-	oauthCallbackRouteName   = gateway.OAuthCallbackRouteName
-	authProxyOAuth2Path      = gateway.AuthProxyOAuth2Path
-	kubeAuthProxyHTTPPort    = gateway.AuthProxyHTTPPort
-	kubeAuthProxyHTTPSPort   = gateway.GatewayHTTPSPort
-	kubeAuthProxyMetricsPort = gateway.AuthProxyMetricsPort
+	gatewayConfigName          = serviceApi.GatewayConfigName
+	gatewaySubdomain           = gateway.DefaultGatewaySubdomain
+	gatewayClassName           = gateway.GatewayClassName
+	defaultGatewayListenerName = gateway.DefaultGatewayListenerName
+	standardHTTPSPort          = gateway.StandardHTTPSPort
+	oauthClientName            = gateway.AuthClientID
+	kubeAuthProxyName          = gateway.KubeAuthProxyName
+	kubeAuthProxyTLSName       = gateway.KubeAuthProxyTLSName
+	kubeAuthProxyCredsName     = gateway.KubeAuthProxySecretsName
+	oauthCallbackRouteName     = gateway.OAuthCallbackRouteName
+	authProxyOAuth2Path        = gateway.AuthProxyOAuth2Path
+	kubeAuthProxyHTTPPort      = gateway.AuthProxyHTTPPort
+	kubeAuthProxyHTTPSPort     = gateway.GatewayHTTPSPort
+	kubeAuthProxyMetricsPort   = gateway.AuthProxyMetricsPort
 )
 
 type GatewayTestCtx struct {
@@ -79,6 +78,27 @@ type GatewayTestCtx struct {
 	oidcConfigOnce sync.Once
 }
 
+func (tc *GatewayTestCtx) gatewayName() string {
+	return gateway.GetDefaultGatewayName()
+}
+
+func (tc *GatewayTestCtx) gatewayNamespace() string {
+	return gateway.GetGatewayNamespace()
+}
+
+func (tc *GatewayTestCtx) gatewayControllerName() string {
+	return string(gateway.GetGatewayControllerName())
+}
+
+func (tc *GatewayTestCtx) getGateway(ctx context.Context) (*gwapiv1.Gateway, error) {
+	current := &gwapiv1.Gateway{}
+	err := tc.Client().Get(ctx, types.NamespacedName{
+		Name:      tc.gatewayName(),
+		Namespace: tc.gatewayNamespace(),
+	}, current)
+	return current, err
+}
+
 func gatewayTestSuite(t *testing.T) {
 	t.Helper()
 
@@ -93,6 +113,7 @@ func gatewayTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Validate GatewayConfig creation", gatewayCtx.ValidateGatewayConfig},
 		{"Validate Gateway infrastructure", gatewayCtx.ValidateGatewayInfrastructure},
+		{"Validate additional Gateway listeners", gatewayCtx.ValidateAdditionalGatewayListeners},
 		// IntegratedOAuth-specific tests (skipped on BYOIDC)
 		{"Validate OAuth client and secret creation", gatewayCtx.ValidateOAuthClientAndSecret},
 		{"Validate authentication proxy deployment", gatewayCtx.ValidateAuthProxyDeployment},
@@ -135,16 +156,27 @@ func (tc *GatewayTestCtx) ValidateGatewayConfig(t *testing.T) {
 	skipUnless(t, Smoke)
 	t.Log("Validating GatewayConfig resource")
 
-	// Common validation: Ready status and ownership
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
-		WithCondition(And(
-			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
-			jq.Match(`.metadata.ownerReferences[0].kind == "DSCInitialization"`),
-			jq.Match(`.metadata.ownerReferences[0].name == "%s"`, tc.DSCInitializationNamespacedName.Name),
-		)),
-		WithCustomErrorMsg("GatewayConfig should be Ready and owned by %s DSCInitialization", tc.DSCInitializationNamespacedName.Name),
-	)
+	readyCondition := jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue)
+
+	if tc.IsXKS() {
+		// On XKS, GatewayConfig is created by the Helm chart (not the operator),
+		// so it has no ownerReferences. Only assert Ready status.
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+			WithCondition(readyCondition),
+			WithCustomErrorMsg("GatewayConfig should be Ready"),
+		)
+	} else {
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+			WithCondition(And(
+				readyCondition,
+				jq.Match(`.metadata.ownerReferences[0].kind == "DSCInitialization"`),
+				jq.Match(`.metadata.ownerReferences[0].name == "%s"`, tc.DSCInitializationNamespacedName.Name),
+			)),
+			WithCustomErrorMsg("GatewayConfig should be Ready and owned by %s DSCInitialization", tc.DSCInitializationNamespacedName.Name),
+		)
+	}
 
 	t.Log("GatewayConfig validation completed")
 }
@@ -159,8 +191,8 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 	t.Log("Validating GatewayClass resource")
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.GatewayClass, types.NamespacedName{Name: gatewayClassName}),
-		WithCondition(jq.Match(`.spec.controllerName == "%s"`, gatewayControllerName)),
-		WithCustomErrorMsg("GatewayClass should exist with OpenShift Gateway controller"),
+		WithCondition(jq.Match(`.spec.controllerName == "%s"`, tc.gatewayControllerName())),
+		WithCustomErrorMsg("GatewayClass should exist with expected Gateway controller"),
 	)
 
 	tlsSecretName := tc.getTLSSecretName(t)
@@ -168,7 +200,7 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Secret, types.NamespacedName{
 			Name:      tlsSecretName,
-			Namespace: gatewayNamespace,
+			Namespace: tc.gatewayNamespace(),
 		}),
 		WithCustomErrorMsg("TLS secret %s should exist", tlsSecretName),
 	)
@@ -177,12 +209,12 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 	t.Log("Validating Gateway resource")
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
-			Name:      gatewayName,
-			Namespace: gatewayNamespace,
+			Name:      tc.gatewayName(),
+			Namespace: tc.gatewayNamespace(),
 		}),
 		WithCondition(And(
 			jq.Match(`.spec.gatewayClassName == "%s"`, gatewayClassName),
-			jq.Match(`.spec.listeners[] | select(.name == "https") | .tls.certificateRefs[0].name == "%s"`, tlsSecretName),
+			jq.Match(`.spec.listeners[] | select(.name == "%s") | .tls.certificateRefs[0].name == "%s"`, defaultGatewayListenerName, tlsSecretName),
 		)),
 		WithCustomErrorMsg("Gateway should be created with correct HTTPS listener configuration"),
 	)
@@ -195,10 +227,159 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 	t.Log("Gateway infrastructure validation completed")
 }
 
+// ValidateAdditionalGatewayListeners validates add/remove reconciliation on the shared Gateway.
+func (tc *GatewayTestCtx) ValidateAdditionalGatewayListeners(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier1)
+	if !tc.isOcpRouteMode(t) {
+		t.Skip("additional Gateway listeners require OcpRoute mode")
+	}
+
+	g := NewWithT(t)
+	ctx := tc.Context()
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	require.NoError(t, tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, gatewayConfig))
+	original := gatewayConfig.DeepCopy()
+	originalGateway, err := tc.getGateway(ctx)
+	require.NoError(t, err)
+	listenerSignatures := func(listeners []gwapiv1.Listener) []string {
+		signatures := make([]string, 0, len(listeners))
+		for _, listener := range listeners {
+			signatures = append(signatures, fmt.Sprintf("%s:%d", listener.Name, listener.Port))
+		}
+		return signatures
+	}
+	statusNames := func(entries []serviceApi.AdditionalIngressStatus) map[string]struct{} {
+		names := make(map[string]struct{}, len(entries))
+		for _, entry := range entries {
+			names[entry.Name] = struct{}{}
+		}
+		return names
+	}
+	waitListeners := func(expected []string) {
+		g.Eventually(func() []string {
+			current, err := tc.getGateway(ctx)
+			if err != nil {
+				return nil
+			}
+			return listenerSignatures(current.Spec.Listeners)
+		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Equal(expected))
+	}
+	validateAdditionalIngressStatus := func(expectedCount int, name, hostname string) {
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+			WithCondition(And(
+				jq.Match(`.status.additionalIngresses | length == %d`, expectedCount),
+				jq.Match(`.status.additionalIngresses[] | select(.name == "%s" and .hostname == "%s") | .conditions | length == 4`, name, hostname),
+				jq.Match(`.status.additionalIngresses[] | select(.name == "%s") | [.conditions[].type] | sort == ["AuthenticationReady", "ListenerReady", "Ready", "RouteAdmitted"]`, name),
+				jq.Match(`.status.additionalIngresses[] | select(.name == "%s") | all(.conditions[]; .status == "Unknown" and .reason == "ReconciliationPending")`, name),
+				jq.Match(`(.metadata.generation as $generation | .status.additionalIngresses[] | select(.name == "%s") | all(.conditions[]; .observedGeneration == $generation))`, name),
+			)),
+			WithCustomErrorMsg("GatewayConfig should report status for additional ingress %s", name),
+		)
+	}
+
+	restore := func() {
+		if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			current := &serviceApi.GatewayConfig{}
+			if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, current); err != nil {
+				return err
+			}
+			current.Spec.AdditionalIngresses = original.Spec.AdditionalIngresses
+			return tc.Client().Update(ctx, current)
+		}); err != nil {
+			t.Errorf("failed to restore GatewayConfig: %v", err)
+			return
+		}
+		g.Eventually(func() bool {
+			currentConfig := &serviceApi.GatewayConfig{}
+			if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, currentConfig); err != nil {
+				return false
+			}
+			currentGateway, err := tc.getGateway(ctx)
+			if err != nil {
+				return false
+			}
+			return reflect.DeepEqual(currentConfig.Spec.AdditionalIngresses, original.Spec.AdditionalIngresses) &&
+				reflect.DeepEqual(statusNames(currentConfig.Status.AdditionalIngresses), statusNames(original.Status.AdditionalIngresses)) &&
+				reflect.DeepEqual(currentGateway.Spec.Listeners, originalGateway.Spec.Listeners)
+		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
+	}
+	t.Cleanup(restore)
+
+	update := func(additional serviceApi.AdditionalIngresses) {
+		g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			current := &serviceApi.GatewayConfig{}
+			if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, current); err != nil {
+				return err
+			}
+			current.Spec.AdditionalIngresses = additional
+			return tc.Client().Update(ctx, current)
+		})).To(Succeed())
+	}
+
+	waitListeners(listenerSignatures(originalGateway.Spec.Listeners))
+
+	additional := serviceApi.AdditionalIngresses{
+		{
+			Name:                  "e2e-beta",
+			Hostname:              "e2e-beta.example.com",
+			ListenerPort:          18444,
+			IngressControllerName: "e2e-beta-shard",
+			RouteLabels:           map[string]string{"example.com/ingress": "e2e-beta"},
+		},
+		{
+			Name:                  "e2e-alpha",
+			Hostname:              "e2e-alpha.example.com",
+			ListenerPort:          18443,
+			IngressControllerName: "e2e-alpha-shard",
+			RouteLabels:           map[string]string{"example.com/ingress": "e2e-alpha"},
+		},
+	}
+	update(additional)
+	waitListeners([]string{
+		fmt.Sprintf("%s:%d", defaultGatewayListenerName, standardHTTPSPort),
+		"e2e-alpha:18443",
+		"e2e-beta:18444",
+	})
+	validateAdditionalIngressStatus(2, "e2e-alpha", "e2e-alpha.example.com")
+	validateAdditionalIngressStatus(2, "e2e-beta", "e2e-beta.example.com")
+
+	current, err := tc.getGateway(ctx)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(current.Spec.Listeners[0].Name).To(Equal(gwapiv1.SectionName(defaultGatewayListenerName)))
+	g.Expect(current.Spec.Listeners[1].Name).To(Equal(gwapiv1.SectionName("e2e-alpha")))
+	g.Expect(current.Spec.Listeners[1].Port).To(Equal(gwapiv1.PortNumber(18443)))
+	g.Expect(current.Spec.Listeners[2].Name).To(Equal(gwapiv1.SectionName("e2e-beta")))
+	g.Expect(current.Spec.Listeners[2].Port).To(Equal(gwapiv1.PortNumber(18444)))
+	for _, listener := range current.Spec.Listeners[1:] {
+		g.Expect(listener.Protocol).To(Equal(gwapiv1.HTTPSProtocolType))
+		g.Expect(listener.TLS).NotTo(BeNil())
+		g.Expect(listener.TLS.CertificateRefs).To(HaveLen(1))
+		g.Expect(listener.TLS.CertificateRefs[0].Name).To(Equal(gwapiv1.ObjectName(gatewayServiceTLSSecretName)))
+		g.Expect(listener.AllowedRoutes).NotTo(BeNil())
+	}
+
+	update(additional[1:])
+	waitListeners([]string{
+		fmt.Sprintf("%s:%d", defaultGatewayListenerName, standardHTTPSPort),
+		"e2e-alpha:18443",
+	})
+	validateAdditionalIngressStatus(1, "e2e-alpha", "e2e-alpha.example.com")
+	update(nil)
+	waitListeners(listenerSignatures(originalGateway.Spec.Listeners))
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+		WithCondition(jq.Match(`.status.additionalIngresses | length == 0`)),
+		WithCustomErrorMsg("GatewayConfig should remove additional ingress status entries"),
+	)
+}
+
 // ValidateOAuthClientAndSecret validates OpenShift OAuth client and proxy secret creation.
 func (tc *GatewayTestCtx) ValidateOAuthClientAndSecret(t *testing.T) {
 	t.Helper()
 
+	tc.SkipIfXKSCluster(t)
 	skipUnless(t, Tier1)
 	tc.SkipIfBYOIDC(t)
 	t.Log("Validating OAuth client and secret creation")
@@ -225,7 +406,7 @@ func (tc *GatewayTestCtx) ValidateOAuthClientAndSecret(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Secret, types.NamespacedName{
 			Name:      kubeAuthProxyCredsName,
-			Namespace: gatewayNamespace,
+			Namespace: tc.gatewayNamespace(),
 		}),
 		WithCondition(And(
 			jq.Match(`.type == "%s"`, string(corev1.SecretTypeOpaque)),
@@ -259,6 +440,7 @@ func (tc *GatewayTestCtx) ValidateOAuthClientAndSecret(t *testing.T) {
 func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	t.Helper()
 
+	tc.SkipIfXKSCluster(t)
 	skipUnless(t, Tier1)
 	tc.SkipIfBYOIDC(t)
 	t.Log("Validating kube-auth-proxy deployment and service")
@@ -272,7 +454,7 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
 			Name:      kubeAuthProxyName,
-			Namespace: gatewayNamespace,
+			Namespace: tc.gatewayNamespace(),
 		}),
 		WithCondition(And(
 			// replica count (minimum 2 for HPA)
@@ -356,13 +538,13 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	)
 
 	// wait for deployment readiness using TestContext helper
-	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: gatewayNamespace}, 2)
+	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: tc.gatewayNamespace()}, 2)
 
 	// kube-auth-proxy service
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Service, types.NamespacedName{
 			Name:      kubeAuthProxyName,
-			Namespace: gatewayNamespace,
+			Namespace: tc.gatewayNamespace(),
 		}),
 		WithCondition(And(
 			jq.Match(`.spec.selector.app == "%s"`, kubeAuthProxyName),
@@ -379,7 +561,7 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Secret, types.NamespacedName{
 			Name:      kubeAuthProxyTLSName,
-			Namespace: gatewayNamespace,
+			Namespace: tc.gatewayNamespace(),
 		}),
 		WithCustomErrorMsg("kube-auth-proxy TLS secret should exist"),
 	)
@@ -405,7 +587,7 @@ func (tc *GatewayTestCtx) ValidateHPA(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.HorizontalPodAutoscaler, types.NamespacedName{
 			Name:      kubeAuthProxyName,
-			Namespace: gatewayNamespace,
+			Namespace: tc.gatewayNamespace(),
 		}),
 		WithCondition(And(
 			// Target deployment reference
@@ -450,15 +632,15 @@ func (tc *GatewayTestCtx) ValidateOAuthCallbackRoute(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.HTTPRoute, types.NamespacedName{
 			Name:      oauthCallbackRouteName,
-			Namespace: gatewayNamespace,
+			Namespace: tc.gatewayNamespace(),
 		}),
 		WithCondition(And(
 			// parent reference checks
 			jq.Match(`.spec.parentRefs | length == 1`),
 			jq.Match(`.spec.parentRefs[0].group == "%s"`, gwapiv1.GroupVersion.Group),
 			jq.Match(`.spec.parentRefs[0].kind == "Gateway"`),
-			jq.Match(`.spec.parentRefs[0].name == "%s"`, gatewayName),
-			jq.Match(`.spec.parentRefs[0].namespace == "%s"`, gatewayNamespace),
+			jq.Match(`.spec.parentRefs[0].name == "%s"`, tc.gatewayName()),
+			jq.Match(`.spec.parentRefs[0].namespace == "%s"`, tc.gatewayNamespace()),
 
 			// path match checks
 			jq.Match(`.spec.rules | length == 1`),
@@ -471,7 +653,7 @@ func (tc *GatewayTestCtx) ValidateOAuthCallbackRoute(t *testing.T) {
 			jq.Match(`.spec.rules[0].backendRefs[0].group == ""`),
 			jq.Match(`.spec.rules[0].backendRefs[0].kind == "Service"`),
 			jq.Match(`.spec.rules[0].backendRefs[0].name == "%s"`, kubeAuthProxyName),
-			jq.Match(`.spec.rules[0].backendRefs[0].namespace == "%s"`, gatewayNamespace),
+			jq.Match(`.spec.rules[0].backendRefs[0].namespace == "%s"`, tc.gatewayNamespace()),
 			jq.Match(`.spec.rules[0].backendRefs[0].port == %d`, kubeAuthProxyHTTPSPort),
 			jq.Match(`.spec.rules[0].backendRefs[0].weight == 1`),
 
@@ -493,7 +675,7 @@ func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 	skipUnless(t, Tier1)
 	t.Log("Validating EnvoyFilter for authentication")
 
-	authProxyFQDN := getServiceFQDN(kubeAuthProxyName, gatewayNamespace)
+	authProxyFQDN := getServiceFQDN(kubeAuthProxyName, tc.gatewayNamespace())
 	authProxyHostPort := net.JoinHostPort(authProxyFQDN, strconv.Itoa(kubeAuthProxyHTTPSPort))
 	authProxyURI := "https://" + authProxyHostPort + "/oauth2/auth"
 	// Istio auto-creates EDS clusters with this naming pattern for better load balancing
@@ -502,13 +684,13 @@ func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.EnvoyFilter, types.NamespacedName{
 			Name:      envoyFilterName,
-			Namespace: gatewayNamespace,
+			Namespace: tc.gatewayNamespace(),
 		}),
 		WithCondition(And(
 			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.K8SCommon.PartOf, gateway.PartOfLabelValue),
 
 			// workload selector
-			jq.Match(`.spec.workloadSelector.labels."%s" == "%s"`, labels.GatewayAPI.GatewayName, gatewayName),
+			jq.Match(`.spec.workloadSelector.labels."%s" == "%s"`, labels.GatewayAPI.GatewayName, tc.gatewayName()),
 
 			jq.Match(`.spec.configPatches | length == 2`),
 
@@ -562,7 +744,7 @@ func (tc *GatewayTestCtx) ValidateEDSEndpointDiscovery(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Service, types.NamespacedName{
 			Name:      kubeAuthProxyName,
-			Namespace: gatewayNamespace,
+			Namespace: tc.gatewayNamespace(),
 		}),
 		WithCondition(And(
 			jq.Match(`.spec.selector.app == "%s"`, kubeAuthProxyName),
@@ -582,19 +764,35 @@ func (tc *GatewayTestCtx) ValidateGatewayReadyStatus(t *testing.T) {
 	skipUnless(t, Smoke)
 	t.Log("Validating Gateway ready status")
 
-	// Core validation: Gateway is Accepted, Programmed, and has routes attached
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
-			Name:      gatewayName,
-			Namespace: gatewayNamespace,
-		}),
-		WithCondition(And(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, string(gwapiv1.GatewayConditionAccepted), string(metav1.ConditionTrue)),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, string(gwapiv1.GatewayConditionProgrammed), string(metav1.ConditionTrue)),
-			jq.Match(`.status.listeners[] | select(.name == "https") | .attachedRoutes >= 1`),
-		)),
-		WithCustomErrorMsg("Gateway should be fully operational with healthy listener"),
-	)
+	if tc.IsXKS() {
+		// On vanilla Kubernetes with LoadBalancer ingress mode, Istio won't set Programmed=True
+		// when no cloud load balancer controller assigns an external IP (e.g. KinD).
+		// Only check Accepted (config is valid) which Istio sets immediately.
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
+				Name:      tc.gatewayName(),
+				Namespace: tc.gatewayNamespace(),
+			}),
+			WithCondition(
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, string(gwapiv1.GatewayConditionAccepted), string(metav1.ConditionTrue)),
+			),
+			WithCustomErrorMsg("Gateway should be accepted by the controller"),
+		)
+	} else {
+		// On OpenShift with a real ingress controller, validate full readiness
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
+				Name:      tc.gatewayName(),
+				Namespace: tc.gatewayNamespace(),
+			}),
+			WithCondition(And(
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, string(gwapiv1.GatewayConditionAccepted), string(metav1.ConditionTrue)),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, string(gwapiv1.GatewayConditionProgrammed), string(metav1.ConditionTrue)),
+				jq.Match(`.status.listeners[] | select(.name == "%s") | .attachedRoutes >= 1`, defaultGatewayListenerName),
+			)),
+			WithCustomErrorMsg("Gateway should be fully operational with healthy listener"),
+		)
+	}
 
 	t.Log("Gateway ready status validation completed")
 }
@@ -613,6 +811,7 @@ func (tc *GatewayTestCtx) ValidateGatewayReadyStatus(t *testing.T) {
 func (tc *GatewayTestCtx) ValidateUnauthenticatedRedirect(t *testing.T) {
 	t.Helper()
 
+	tc.SkipIfXKSCluster(t)
 	skipUnless(t, Tier1)
 	tc.SkipIfBYOIDC(t)
 
@@ -641,7 +840,7 @@ func (tc *GatewayTestCtx) waitForDashboardHTTPRoute(t *testing.T) {
 			Namespace: dashboardNamespace,
 		}),
 		WithCondition(And(
-			jq.Match(`.spec.parentRefs[] | select(.name == "%s") | .namespace == "%s"`, gatewayName, gatewayNamespace),
+			jq.Match(`.spec.parentRefs[] | select(.name == "%s") | .namespace == "%s"`, tc.gatewayName(), tc.gatewayNamespace()),
 			jq.Match(`.status.parents[0].conditions[] | select(.type == "Accepted") | .status == "True"`),
 			jq.Match(`.status.parents[0].conditions[] | select(.type == "ResolvedRefs") | .status == "True"`),
 		)),
@@ -716,21 +915,27 @@ func (tc *GatewayTestCtx) createHTTPClient() *http.Client {
 	}
 }
 
-// getExpectedGatewayHostname returns the expected gateway hostname based on cluster domain.
+// getExpectedGatewayHostname returns the expected gateway hostname.
+// On OpenShift it auto-detects from the cluster Ingress CR; on XKS it reads
+// GatewayConfig.spec.domain — mirroring the controller's GetFQDN logic.
 // Result is cached to avoid multiple cluster API calls.
 func (tc *GatewayTestCtx) getExpectedGatewayHostname(t *testing.T) string {
 	t.Helper()
 	tc.once.Do(func() {
-		clusterDomain, err := cluster.GetDomain(tc.Context(), tc.Client())
-		if err != nil {
-			// store empty and let caller fail with require if needed
+		gatewayConfig := &serviceApi.GatewayConfig{}
+		if err := tc.Client().Get(tc.Context(), types.NamespacedName{Name: gatewayConfigName}, gatewayConfig); err != nil {
 			tc.cachedGatewayHostname = ""
 			return
 		}
-		tc.cachedGatewayHostname = gatewaySubdomain + "." + clusterDomain
+		hostname, err := gateway.GetFQDN(tc.Context(), tc.Client(), gatewayConfig)
+		if err != nil {
+			tc.cachedGatewayHostname = ""
+			return
+		}
+		tc.cachedGatewayHostname = hostname
 	})
 	if tc.cachedGatewayHostname == "" {
-		require.FailNow(t, "failed to determine cluster domain to compute gateway hostname")
+		require.FailNow(t, "failed to determine gateway hostname (check GatewayConfig domain or cluster Ingress CR)")
 	}
 	t.Logf("Expected gateway hostname: %s", tc.cachedGatewayHostname)
 	return tc.cachedGatewayHostname
@@ -781,8 +986,8 @@ func (tc *GatewayTestCtx) validateOCPRoute(t *testing.T) {
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Route, types.NamespacedName{
-			Name:      gatewayName,
-			Namespace: gatewayNamespace,
+			Name:      tc.gatewayName(),
+			Namespace: tc.gatewayNamespace(),
 		}),
 		WithCondition(And(
 			jq.Match(`.spec.host == "%s"`, expectedHostname),
@@ -825,7 +1030,7 @@ func (tc *GatewayTestCtx) ValidateOIDCProxySecret(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Secret, types.NamespacedName{
 			Name:      kubeAuthProxyCredsName,
-			Namespace: gatewayNamespace,
+			Namespace: tc.gatewayNamespace(),
 		}),
 		WithCondition(And(
 			jq.Match(`.type == "%s"`, string(corev1.SecretTypeOpaque)),
@@ -860,7 +1065,7 @@ func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
 			Name:      kubeAuthProxyName,
-			Namespace: gatewayNamespace,
+			Namespace: tc.gatewayNamespace(),
 		}),
 		WithCondition(And(
 			// replica count
@@ -949,31 +1154,40 @@ func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
 		WithCustomErrorMsg("kube-auth-proxy OIDC deployment should exist with correct configuration"),
 	)
 
-	// wait for deployment readiness
-	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: gatewayNamespace}, 2)
+	// Wait for deployment readiness. On macOS/arm64 KinD this may fail because
+	// odh-kube-auth-proxy is amd64-only (ImagePullBackOff); amd64 CI with Dex succeeds.
+	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: tc.gatewayNamespace()}, 2)
 
-	// kube-auth-proxy service (same as IntegratedOAuth)
+	// kube-auth-proxy service
+	serviceCondition := And(
+		jq.Match(`.spec.selector.app == "%s"`, kubeAuthProxyName),
+		jq.Match(`.spec.ports | length == 2`),
+		jq.Match(`.spec.ports[] | select(.name == "https") | .port == %d`, kubeAuthProxyHTTPSPort),
+		jq.Match(`.spec.ports[] | select(.name == "https") | .targetPort == %d`, kubeAuthProxyHTTPSPort),
+		jq.Match(`.spec.ports[] | select(.name == "metrics") | .port == %d`, kubeAuthProxyMetricsPort),
+	)
+
+	if !tc.IsXKS() {
+		serviceCondition = And(
+			serviceCondition,
+			jq.Match(`.metadata.annotations."service.beta.openshift.io/serving-cert-secret-name" == "%s"`, kubeAuthProxyTLSName),
+		)
+	}
+
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Service, types.NamespacedName{
 			Name:      kubeAuthProxyName,
-			Namespace: gatewayNamespace,
+			Namespace: tc.gatewayNamespace(),
 		}),
-		WithCondition(And(
-			jq.Match(`.spec.selector.app == "%s"`, kubeAuthProxyName),
-			jq.Match(`.spec.ports | length == 2`),
-			jq.Match(`.spec.ports[] | select(.name == "https") | .port == %d`, kubeAuthProxyHTTPSPort),
-			jq.Match(`.spec.ports[] | select(.name == "https") | .targetPort == %d`, kubeAuthProxyHTTPSPort),
-			jq.Match(`.spec.ports[] | select(.name == "metrics") | .port == %d`, kubeAuthProxyMetricsPort),
-			jq.Match(`.metadata.annotations."service.beta.openshift.io/serving-cert-secret-name" == "%s"`, kubeAuthProxyTLSName),
-		)),
-		WithCustomErrorMsg("kube-auth-proxy service should exist with HTTPS and metrics ports, and service-ca annotation"),
+		WithCondition(serviceCondition),
+		WithCustomErrorMsg("kube-auth-proxy service should exist with HTTPS and metrics ports"),
 	)
 
 	// TLS secret for auth proxy
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Secret, types.NamespacedName{
 			Name:      kubeAuthProxyTLSName,
-			Namespace: gatewayNamespace,
+			Namespace: tc.gatewayNamespace(),
 		}),
 		WithCustomErrorMsg("kube-auth-proxy TLS secret should exist"),
 	)
@@ -985,6 +1199,7 @@ func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
 func (tc *GatewayTestCtx) ValidateOIDCUnauthenticatedRedirect(t *testing.T) {
 	t.Helper()
 
+	tc.SkipIfXKSCluster(t)
 	skipUnless(t, Tier1)
 	tc.SkipUnlessBYOIDC(t)
 
@@ -1043,6 +1258,7 @@ func (tc *GatewayTestCtx) ValidateOIDCUnauthenticatedRedirect(t *testing.T) {
 func (tc *GatewayTestCtx) ValidateOIDCTokenForwarding(t *testing.T) {
 	t.Helper()
 
+	tc.SkipIfXKSCluster(t)
 	skipUnless(t, Tier1)
 	tc.SkipUnlessBYOIDC(t)
 
@@ -1128,13 +1344,14 @@ func getServiceFQDN(serviceName, namespace string) string {
 func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 	t.Helper()
 
+	tc.SkipIfXKSCluster(t)
 	skipUnless(t, Tier1)
 	t.Log("Validating NetworkPolicy for kube-auth-proxy")
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.NetworkPolicy, types.NamespacedName{
 			Name:      kubeAuthProxyName,
-			Namespace: gatewayNamespace,
+			Namespace: tc.gatewayNamespace(),
 		}),
 		WithCondition(And(
 			// Verify component label
@@ -1155,8 +1372,8 @@ func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 			jq.Match(`.spec.ingress | length >= 1`),
 
 			// Verify ingress rule allows traffic from Gateway pods
-			jq.Match(`.spec.ingress[0].from[0].podSelector.matchLabels."%s" == "%s"`, labels.GatewayAPI.GatewayName, gatewayName),
-			jq.Match(`.spec.ingress[0].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "%s"`, gatewayNamespace),
+			jq.Match(`.spec.ingress[0].from[0].podSelector.matchLabels."%s" == "%s"`, labels.GatewayAPI.GatewayName, tc.gatewayName()),
+			jq.Match(`.spec.ingress[0].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "%s"`, tc.gatewayNamespace()),
 
 			// Verify ingress ports using constants
 			jq.Match(`.spec.ingress[0].ports[0].port == %d`, kubeAuthProxyHTTPSPort),

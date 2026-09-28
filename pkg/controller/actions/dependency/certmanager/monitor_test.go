@@ -61,6 +61,29 @@ func TestCRDPredicate(t *testing.T) {
 	}
 }
 
+func TestCertManagerConditionFilter(t *testing.T) {
+	tests := []struct {
+		name       string
+		condType   string
+		condStatus string
+		expected   bool
+	}{
+		{name: "Degraded=True is unhealthy", condType: "Degraded", condStatus: "True", expected: true},
+		{name: "Degraded=False is healthy", condType: "Degraded", condStatus: "False", expected: false},
+		{name: "Available=False is unhealthy", condType: "Available", condStatus: "False", expected: true},
+		{name: "Available=True is healthy", condType: "Available", condStatus: "True", expected: false},
+		{name: "Unknown condition type is healthy", condType: "Progressing", condStatus: "True", expected: false},
+		{name: "Empty condition type is healthy", condType: "", condStatus: "True", expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(certManagerConditionFilter(tt.condType, tt.condStatus)).To(Equal(tt.expected))
+		})
+	}
+}
+
 // Each subtest uses its own envtest instance rather than sharing one across subtests.
 // HasCRD relies on the REST mapper, whose discovery cache refreshes asynchronously after
 // CRD deletion. A shared instance cannot guarantee the mapper reflects zero CRDs at the

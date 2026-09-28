@@ -40,8 +40,8 @@ const (
 )
 
 const (
-	isvcImagePullSecretsPath      = "/spec/predictor/imagePullSecrets"   //nolint:gosec
-	isvcImagePullSecretsIndexPath = "/spec/predictor/imagePullSecrets/0" //nolint:gosec
+	isvcImagePullSecretsPath      = "/spec/predictor/imagePullSecrets"
+	isvcImagePullSecretsIndexPath = "/spec/predictor/imagePullSecrets/0"
 	isvcServiceAccountPath        = "/spec/predictor/serviceAccountName"
 	isvcStorageUriPath            = "/spec/predictor/model/storageUri"
 	isvcStoragePath               = "/spec/predictor/model/storage"
@@ -51,7 +51,7 @@ const (
 	llmisvcModelPath            = "/spec/model"
 	llmisvcModelUriPath         = "/spec/model/uri"
 	llmisvcServiceAccountPath   = "/spec/template/serviceAccountName"
-	llmisvcImagePullSecretsPath = "/spec/template/imagePullSecrets" //nolint:gosec
+	llmisvcImagePullSecretsPath = "/spec/template/imagePullSecrets"
 	llmisvcTemplatePath         = "/spec/template"
 )
 

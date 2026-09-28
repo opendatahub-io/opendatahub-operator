@@ -18,6 +18,8 @@ limitations under the License.
 
 package v1alpha1
 
+const DefaultModelRegistriesNamespace = "odh-model-registries"
+
 // ModelRegistryCommonSpec spec defines the shared desired state of ModelRegistry (used in DSC and ModelRegistry CR).
 type ModelRegistryCommonSpec struct {
 	// Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries"

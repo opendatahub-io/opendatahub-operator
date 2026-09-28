@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -36,6 +37,9 @@ func (f *fakeComponentHandler) NewComponentReconciler(_ context.Context, _ ctrl.
 }
 func (f *fakeComponentHandler) UpdateDSCStatus(_ context.Context, _ *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	return metav1.ConditionTrue, nil
+}
+func (f *fakeComponentHandler) GroupVersionKind() schema.GroupVersionKind {
+	return schema.GroupVersionKind{}
 }
 func (f *fakeComponentHandler) IsEnabled(_ *dscv2.DataScienceCluster) bool {
 	return f.enabled

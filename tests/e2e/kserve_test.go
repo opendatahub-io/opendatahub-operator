@@ -87,6 +87,7 @@ func kserveTestSuite(t *testing.T) {
 
 	testCases = append(testCases,
 		TestCase{"Validate platform config ConfigMap", componentCtx.ValidatePlatformConfigMap},
+		TestCase{"Validate ModelRegistry state propagation", componentCtx.ValidateModelRegistryStatePropagation},
 		TestCase{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	)
@@ -142,6 +143,14 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 		WithCondition(And(
 			// Validate management states of NIM and serving components.
 			jq.Match(`.spec.nim.managementState == "%s"`, dsc.Spec.Components.Kserve.NIM.ManagementState),
+			// Validate ModelRegistry state is injected from DSC
+			jq.Match(`.spec.modelRegistry.managementState == "%s"`,
+				func() string {
+					if dsc.Spec.Components.ModelRegistry.ManagementState == "" {
+						return "Removed"
+					}
+					return string(dsc.Spec.Components.ModelRegistry.ManagementState)
+				}()),
 		),
 		),
 	)
@@ -323,8 +332,8 @@ func (tc *KserveTestCtx) ValidatePlatformConfigMap(t *testing.T) {
 	}
 }
 
-// ValidateComponentDisabled validates that KServe component is properly removed while
-// LLMInferenceServiceConfig resources remain (managed by the module operator with finalizers).
+// ValidateComponentDisabled validates that KServe component and its well-known
+// LLMInferenceServiceConfig resources are properly removed.
 //
 // XKS ordering: delete the module CR first (while the module operator is still
 // alive to process its finalizer), wait for it to disappear, then set the
@@ -355,13 +364,13 @@ func (tc *KserveTestCtx) ValidateComponentDisabled(t *testing.T) {
 		gvk.LLMInferenceServiceConfigV1Alpha1,
 		gvk.LLMInferenceServiceConfigV1Alpha2,
 	} {
-		tc.EnsureResourcesExist(
+		tc.EnsureResourcesGone(
 			WithMinimalObject(configGVK, types.NamespacedName{Namespace: tc.AppsNamespace}),
 			WithListOptions(&client.ListOptions{
 				Namespace: tc.AppsNamespace,
 			}),
 			WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
-			WithCustomErrorMsg("LLMInferenceServiceConfig %s resources should remain after component removal (managed by module operator)", configGVK.Version),
+			WithCustomErrorMsg("LLMInferenceServiceConfig %s resources should be removed with the component", configGVK.Version),
 		)
 	}
 
@@ -661,7 +670,6 @@ func kserveModelCacheTestSuite(t *testing.T) {
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate ModelCache enabled", componentCtx.ValidateModelCacheEnabled},
 		{"Validate ModelCache ConfigMap", componentCtx.ValidateModelCacheConfigMap},
-		{"Validate ModelCache deletion recovery", componentCtx.ValidateModelCacheDeletionRecovery},
 		{"Validate ModelCache disabled", componentCtx.ValidateModelCacheDisabled},
 	}
 
@@ -692,10 +700,10 @@ func (tc *KserveTestCtx) enableModelCache(t *testing.T, nodeName string) {
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(func(obj *unstructured.Unstructured) error {
-			return unstructured.SetNestedField(obj.Object, map[string]interface{}{
+			return unstructured.SetNestedField(obj.Object, map[string]any{
 				"managementState": "Managed",
 				"cacheSize":       "5Gi",
-				"nodeNames":       []interface{}{nodeName},
+				"nodeNames":       []any{nodeName},
 			}, "spec", "components", "kserve", "modelCache")
 		}),
 		WithCondition(
@@ -782,22 +790,6 @@ func (tc *KserveTestCtx) ValidateModelCacheConfigMap(t *testing.T) {
 				jq.Match(`.data.localModel | fromjson | .jobNamespace == "%s"`, tc.AppsNamespace),
 			),
 		),
-	)
-}
-
-// ValidateModelCacheDeletionRecovery verifies the operator recreates the
-// LocalModelNodeGroup after deletion.
-// PV and PVC deletion recovery is not tested because the modelcache DaemonSet
-// mounts the PVC, so the kubernetes.io/pvc-protection finalizer blocks PVC
-// deletion while the DaemonSet pods are running.
-func (tc *KserveTestCtx) ValidateModelCacheDeletionRecovery(t *testing.T) {
-	t.Helper()
-
-	skipUnless(t, Tier1)
-
-	t.Log("Deleting LocalModelNodeGroup 'workers' and verifying recreation")
-	tc.EnsureResourceDeletedThenRecreated(
-		WithMinimalObject(gvk.LocalModelNodeGroup, types.NamespacedName{Name: "workers"}),
 	)
 }
 

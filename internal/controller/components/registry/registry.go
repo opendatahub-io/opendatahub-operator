@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -23,6 +24,7 @@ import (
 type ComponentHandler interface {
 	Init(platform common.Platform, cfg operatorconfig.OperatorSettings) error
 	GetName() string
+	GroupVersionKind() schema.GroupVersionKind
 	// NewCRObject returns the component CR; if it returns an error, reconciliation fails
 	// (e.g. Dashboard/ModelRegistry when gateway domain is unavailable).
 	// Returning (nil, nil) is valid and indicates the component does not own a CR.
@@ -71,6 +73,12 @@ type Registry struct {
 }
 
 var r = &Registry{}
+
+// resolveBatches is the DAG resolver used by ForEach. Tests override it to
+// exercise the alphabetical fallback path.
+var resolveBatches = func(r *Registry) ([][]HandlerEntry, error) {
+	return r.resolvedBatchesLocked()
+}
 
 // Add registers a new ComponentHandler to the registry.
 func (r *Registry) Add(ch ComponentHandler, opts ...RegistrationOption) {
@@ -152,9 +160,9 @@ func (r *Registry) ForEach(f func(ch ComponentHandler) error) error {
 
 	var errs *multierror.Error
 
-	batches, resolveErr := r.resolvedBatchesLocked()
+	batches, resolveErr := resolveBatches(r)
 	if resolveErr != nil {
-		ctrl.Log.WithName("component-registry").Error(resolveErr, "DAG resolution failed, falling back to alphabetical order")
+		ctrl.Log.WithName("component-registry").Error(resolveErr, "DAG resolution failed, falling back to alphabetical order", "controllerKind", "DataScienceCluster")
 		for _, name := range r.sortedNames() {
 			e := r.entries[name]
 			if !e.enabled {
@@ -292,10 +300,12 @@ func Add(ch ComponentHandler, opts ...RegistrationOption) {
 	r.Add(ch, opts...)
 }
 
+// Enable marks the component as enabled, i.e. not disabled via env var at operator startup.
 func Enable(name string) {
 	r.Enable(name)
 }
 
+// Disable marks the component as disabled via env var at operator startup.
 func Disable(name string) {
 	r.Disable(name)
 }

@@ -2,10 +2,9 @@
 #
 # rhai_helm_components: components whose RELATED_IMAGE_* must also be present
 #   in RHOAI-Build-Config helm/rhai-on-xks-chart/values.yaml (rhaiOperator.relatedImages).
-# odh_exceptions: RELATED_IMAGE entries intentionally absent from ODH-Build-Config.
-#   These are permanently excluded from ODH validation (e.g. architecture-specific images).
-# rhoai_exceptions: RELATED_IMAGE entries intentionally absent from RHOAI-Build-Config.
-#   These are permanently excluded from RHOAI validation (e.g. ODH-only images).
+# odh_exceptions / rhoai_exceptions: RELATED_IMAGE entries exempt from platform validation.
+#   When no explicit imageOverrides mapping exists, these also prevent automatic CSV import
+#   for that platform (e.g. architecture-specific or ODH-only images).
 # known_issues: RELATED_IMAGE errors to downgrade to warnings.
 #   Each entry MUST include a Jira link and reason.
 
@@ -18,25 +17,49 @@ rhai_helm_components:
 #   jira: https://issues.redhat.com/browse/RHOAIENG-XXXXX
 #   reason: Deprecated image, removal tracked in Jira
 known_issues:
-- image: RELATED_IMAGE_ODH_LLM_D_KV_CACHE_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-60938
-  reason: Unused image, will be dropped here as part of migration to module for kserve
 - image: RELATED_IMAGE_ODH_ML_PIPELINES_RUNTIME_GENERIC_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
   reason: Removed with InstrutLab pipeline removal since RHOAI 3.0
-- image: RELATED_IMAGE_DSP_INSTRUCTLAB_NVIDIA_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
-  reason: Removed with InstrutLab pipeline removal since RHOAI 3.0
-- image: RELATED_IMAGE_DSP_TOOLBOX_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
-  reason: Removed with InstrutLab pipeline removal since RHOAI 3.0
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: SBOM metadata-config commented out until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_1_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: SBOM metadata-config commented out until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_2_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: SBOM metadata-config commented out until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_IMAGE
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: Not yet in RHOAI-Build-Config or RHAI Helm until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_1_IMAGE
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: Not yet in RHOAI-Build-Config or RHAI Helm until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_2_IMAGE
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: Not yet in RHOAI-Build-Config or RHAI Helm until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_IMAGE_UPSTREAM_VERSION
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: SBOM metadata-config not yet configured until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_1_IMAGE_UPSTREAM_VERSION
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: SBOM metadata-config not yet configured until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_2_IMAGE_UPSTREAM_VERSION
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: SBOM metadata-config not yet configured until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_ODH_MOD_ARCH_DATA_REGISTRY_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-95347
+  reason: Validation failure due to RELATED_IMAGE_ODH_MOD_ARCH_DATA_REGISTRY_IMAGE offboarding in 3.6-EA.2 but staying in 3.6 GA; not in RHOAI-Build-Config for 3.6-EA.2
 
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
   reason: ppc64le/s390x only, not applicable to ODH
-- image: RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-78350
-  reason: it must be offboarded in rhoai 3.6, already offboarded in ODH-Build-Config
+- image: RELATED_IMAGE_RHAII_MODEL_OPT_CUDA_IMAGE
+  reason: RHOAI-only image, not applicable to ODH
+- image: RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE
+  reason: RHOAI-only image, not applicable to ODH
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_IMAGE
+  reason: RHOAI-only image, not applicable to ODH
 
 rhoai_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE
@@ -46,3 +69,112 @@ rhoai_exceptions:
 - image: RELATED_IMAGE_ODH_TRAINER_OPERATOR_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-62940
   reason: Trainer module operator image, not yet in RHOAI-Build-Config, delivering in RHOAI 3.6 EA1
+- image: RELATED_IMAGE_ODH_SPARK_OPERATOR_MODULE_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-69125
+  reason: Spark Operator module image, not yet in RHOAI-Build-Config, delivering in RHOAI 3.6 EA1
+- image: RELATED_IMAGE_RHAII_MODEL_OPT_CUDA_IMAGE
+  reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1
+- image: RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE
+  reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1
+- image: RELATED_IMAGE_ODH_MOD_ARCH_NOTEBOOKS_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-58839
+  reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1
+- image: RELATED_IMAGE_ODH_WORKBENCHES_CONTROLLER_IMAGE
+  reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1
+
+image_overrides_exceptions:
+- image: RELATED_IMAGE_DSP_INSTRUCTLAB_NVIDIA_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
+  reason: Removed with InstructLab pipeline removal since RHOAI 3.0
+- image: RELATED_IMAGE_DSP_TOOLBOX_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
+  reason: Removed with InstructLab pipeline removal since RHOAI 3.0
+- image: RELATED_IMAGE_ODH_ML_PIPELINES_RUNTIME_GENERIC_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
+  reason: Removed with InstructLab pipeline removal since RHOAI 3.0
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: Not yet in imageOverrides until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_1_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: Not yet in imageOverrides until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_2_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-85726
+  reason: Not yet in imageOverrides until vllm-omni-cuda image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_IMAGE
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: Not yet in imageOverrides until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_1_IMAGE
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: Not yet in imageOverrides until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_2_IMAGE
+  jira: https://issues.redhat.com/browse/RHAI-121
+  reason: Not yet in imageOverrides until AIPCC vllm-cpu-pz image is published
+- image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
+  reason: ppc64le/s390x only, not applicable to ODH build config
+- image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE
+  reason: ODH-only image, not applicable to RHOAI
+- image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_2_IMAGE
+  reason: ODH-only image, not applicable to RHOAI
+- image: RELATED_IMAGE_RHAII_MODEL_OPT_CUDA_IMAGE
+  reason: RHOAI-only image, not yet on rhoai-3.5 branch
+- image: RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE
+  reason: Not yet on rhoai-3.5 branch, merged to rhoai-3.6-ea.1
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_1_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_PZ_FAST_2_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_1_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_FAST_2_IMAGE_UPSTREAM_VERSION
+  reason: SBOM metadata env var tracking upstream version, not a container image
+- image: RELATED_IMAGE_DSP_MARIADB_IMAGE
+  reason: Missing imageOverrides entry in manifests-config.yaml, needs to be added with correct image digest by DSP team
+- image: RELATED_IMAGE_DSP_PROXYV2_IMAGE
+  reason: Missing imageOverrides entry in manifests-config.yaml, needs to be added with correct image digest by DSP team
+- image: RELATED_IMAGE_ODH_PYTHON_312_IMAGE
+  reason: Missing imageOverrides entry in manifests-config.yaml, used in trustyai and aigateway module handlers
+- image: RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE
+  reason: Missing imageOverrides entry in manifests-config.yaml, needs to be added by monitoring team
+- image: RELATED_IMAGE_NGINX_126_IMAGE
+  reason: Used via os.Getenv in gateway_support.go, injected directly without params.env
+- image: RELATED_IMAGE_ODH_UBI_MICRO_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_PERSES_IMAGE
+  reason: Used via module handler in monitoring, injected directly without params.env
+- image: RELATED_IMAGE_POSTGRESQL_16_IMAGE
+  reason: Used via module handler in dashboard and modelregistry, injected directly without params.env
+- image: RELATED_IMAGE_UBI_MINIMAL_IMAGE
+  reason: Used via module handler in aigateway, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_FAST_1_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_CPU_FAST_2_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_CUDA_FAST_1_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_CUDA_FAST_2_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_GAUDI_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_GAUDI_FAST_1_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_GAUDI_FAST_2_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_ROCM_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_ROCM_FAST_1_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_ROCM_FAST_2_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_SPYRE_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_SPYRE_FAST_1_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env
+- image: RELATED_IMAGE_RHAII_VLLM_SPYRE_FAST_2_IMAGE
+  reason: Used via module handler in kserve, injected directly without params.env

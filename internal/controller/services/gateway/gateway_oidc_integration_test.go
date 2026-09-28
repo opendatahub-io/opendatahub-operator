@@ -45,7 +45,7 @@ func ensureOIDCClientSecret(t *testing.T, tc *TestEnvContext) {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      OIDCSecretName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		},
 		Data: map[string][]byte{
 			OIDCSecretKey: []byte("test-client-secret"),
@@ -152,6 +152,11 @@ func TestOIDCGatewayCreation(t *testing.T) {
 	RunGatewayCreationTest(t, GetOIDCTestSetup())
 }
 
+// TestOIDCAdditionalGatewayListeners validates listener add/remove reconciliation in OIDC mode (delegates to RunAdditionalGatewayListenersTest).
+func TestOIDCAdditionalGatewayListeners(t *testing.T) {
+	RunAdditionalGatewayListenersTest(t, GetOIDCTestSetup())
+}
+
 // TestOIDCHTTPRouteCreation validates HTTPRoute creation in OIDC mode (delegates to RunHTTPRouteCreationTest).
 func TestOIDCHTTPRouteCreation(t *testing.T) {
 	RunHTTPRouteCreationTest(t, GetOIDCTestSetup())
@@ -171,7 +176,7 @@ func TestOIDCNoOAuthClientCreation(t *testing.T) {
 		deployment := &appsv1.Deployment{}
 		return tc.K8sClient.Get(tc.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, deployment)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
@@ -279,7 +284,7 @@ func TestOIDCWithProviderCASecret(t *testing.T) {
 	caSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      caSecretName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		},
 		Data: map[string][]byte{
 			"ca.crt": []byte("-----BEGIN CERTIFICATE-----\ntest-ca\n-----END CERTIFICATE-----"),
@@ -296,7 +301,7 @@ func TestOIDCWithProviderCASecret(t *testing.T) {
 		deployment := &appsv1.Deployment{}
 		if err := tc.K8sClient.Get(tc.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, deployment); err != nil {
 			return false
 		}
@@ -376,6 +381,11 @@ func TestOIDCSpecMutationCookieConfig(t *testing.T) {
 	RunSpecMutationCookieConfigTest(t, GetOIDCTestSetup(), SpecMutationCookieConfig())
 }
 
+// TestOIDCSpecMutationTokenReviewConfig validates token review spec mutation in OIDC mode.
+func TestOIDCSpecMutationTokenReviewConfig(t *testing.T) {
+	RunSpecMutationTokenReviewConfigTest(t, GetOIDCTestSetup(), SpecMutationTokenReviewConfig())
+}
+
 // TestOIDCSpecMutationIssuerURLChange validates that GatewayConfig IssuerURL and deployment oidc-issuer-url update when issuer URL changes.
 func TestOIDCSpecMutationIssuerURLChange(t *testing.T) {
 	tc := OIDCTestEnv
@@ -392,7 +402,7 @@ func TestOIDCSpecMutationIssuerURLChange(t *testing.T) {
 		deployment := &appsv1.Deployment{}
 		if err := tc.K8sClient.Get(tc.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, deployment); err != nil {
 			return false
 		}
@@ -466,7 +476,7 @@ func TestOIDCSubdomainChange(t *testing.T) {
 		route := &routev1.Route{}
 		if err := tc.K8sClient.Get(tc.Ctx, types.NamespacedName{
 			Name:      gateway.DefaultGatewayName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, route); err != nil {
 			return false
 		}
@@ -529,7 +539,7 @@ func TestOIDCSecretNamespace(t *testing.T) {
 		secret := &corev1.Secret{}
 		return tc.K8sClient.Get(tc.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxySecretsName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, secret)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
@@ -537,7 +547,7 @@ func TestOIDCSecretNamespace(t *testing.T) {
 	secret := &corev1.Secret{}
 	g.Expect(tc.K8sClient.Get(tc.Ctx, types.NamespacedName{
 		Name:      gateway.KubeAuthProxySecretsName,
-		Namespace: gateway.GatewayNamespace,
+		Namespace: gateway.GetGatewayNamespace(),
 	}, secret)).To(Succeed())
 	g.Expect(secret.Data).To(HaveKey(gateway.EnvClientSecret))
 }

@@ -96,6 +96,11 @@ func TestOAuthGatewayCreation(t *testing.T) {
 	RunGatewayCreationTest(t, GetOAuthTestSetup())
 }
 
+// TestOAuthAdditionalGatewayListeners validates listener add/remove reconciliation in OAuth mode (delegates to RunAdditionalGatewayListenersTest).
+func TestOAuthAdditionalGatewayListeners(t *testing.T) {
+	RunAdditionalGatewayListenersTest(t, GetOAuthTestSetup())
+}
+
 // TestOAuthHTTPRouteCreation validates HTTPRoute creation in OAuth mode (delegates to RunHTTPRouteCreationTest).
 func TestOAuthHTTPRouteCreation(t *testing.T) {
 	RunHTTPRouteCreationTest(t, GetOAuthTestSetup())
@@ -203,6 +208,11 @@ func TestOAuthLegacyRouteRemovedWhenSubdomainChangesToLegacy(t *testing.T) {
 // TestOAuthSpecMutationCookieConfig validates cookie spec mutation in OAuth mode (delegates to RunSpecMutationCookieConfigTest).
 func TestOAuthSpecMutationCookieConfig(t *testing.T) {
 	RunSpecMutationCookieConfigTest(t, GetOAuthTestSetup(), SpecMutationCookieConfig())
+}
+
+// TestOAuthSpecMutationTokenReviewConfig validates token review spec mutation in OAuth mode.
+func TestOAuthSpecMutationTokenReviewConfig(t *testing.T) {
+	RunSpecMutationTokenReviewConfigTest(t, GetOAuthTestSetup(), SpecMutationTokenReviewConfig())
 }
 
 // TestOAuthSpecMutationSubdomainChange validates that GatewayConfig subdomain and OAuthClient redirect URIs update when subdomain changes.

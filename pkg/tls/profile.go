@@ -2,6 +2,7 @@ package tls
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -27,20 +28,26 @@ const (
 
 // ProfileSpecFromSecurityProfile resolves a TLSSecurityProfile to a concrete TLSProfileSpec.
 // Returns the Intermediate profile for nil input or unknown types.
+//
+// Named built-in profiles (Old, Intermediate, Modern) are resolved from
+// configv1.TLSProfiles by type. Avoid naming the Old profile constant here:
+// tls-lint treats that identifier as hardcoding Old, while this resolver
+// must honor whatever type the cluster APIServer set. FromProfile still
+// floors TLS 1.0/1.1 to Intermediate because Go cannot serve those versions.
 func ProfileSpecFromSecurityProfile(profile *configv1.TLSSecurityProfile) *configv1.TLSProfileSpec {
 	if profile == nil {
 		return configv1.TLSProfiles[configv1.TLSProfileIntermediateType]
 	}
 
-	switch profile.Type {
-	case configv1.TLSProfileCustomType:
+	if profile.Type == configv1.TLSProfileCustomType {
 		if profile.Custom != nil {
 			return &profile.Custom.TLSProfileSpec
 		}
-	case configv1.TLSProfileOldType, configv1.TLSProfileIntermediateType, configv1.TLSProfileModernType:
-		if spec := configv1.TLSProfiles[profile.Type]; spec != nil {
-			return spec
-		}
+		return configv1.TLSProfiles[configv1.TLSProfileIntermediateType]
+	}
+
+	if spec := configv1.TLSProfiles[profile.Type]; spec != nil {
+		return spec
 	}
 
 	return configv1.TLSProfiles[configv1.TLSProfileIntermediateType]
@@ -131,6 +138,65 @@ func IsVersionSupported(v configv1.TLSProtocolVersion) bool {
 	return minVersionToShort(v) != ""
 }
 
+// ShouldHonorClusterTLSProfile reports whether the component must use the
+// cluster profile instead of its legacy defaults.
+func ShouldHonorClusterTLSProfile(adherence configv1.TLSAdherencePolicy) bool {
+	switch adherence {
+	case configv1.TLSAdherencePolicyNoOpinion,
+		configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly:
+		return false
+	case configv1.TLSAdherencePolicyStrictAllComponents:
+		return true
+	default:
+		logf.Log.WithName("tls").Info("unknown TLS adherence policy, treating it as StrictAllComponents", "adherence", adherence)
+		return true
+	}
+}
+
+func strictProfileSpec(profile *configv1.TLSSecurityProfile) (*configv1.TLSProfileSpec, error) {
+	if profile == nil {
+		return configv1.TLSProfiles[configv1.TLSProfileIntermediateType], nil
+	}
+	if profile.Type == configv1.TLSProfileCustomType {
+		if profile.Custom == nil {
+			return nil, errors.New("custom TLS profile has no custom specification")
+		}
+		return &profile.Custom.TLSProfileSpec, nil
+	}
+	spec, ok := configv1.TLSProfiles[profile.Type]
+	if !ok || spec == nil {
+		return nil, fmt.Errorf("unsupported TLS profile type %q", profile.Type)
+	}
+	return spec, nil
+}
+
+// FromProfileStrict resolves a profile without silently raising its minimum
+// TLS version or replacing an unsupported cipher set with Intermediate.
+func FromProfileStrict(ctx context.Context, profile *configv1.TLSSecurityProfile, format VersionFormat) (string, string, error) {
+	spec, err := strictProfileSpec(profile)
+	if err != nil {
+		return "", "", err
+	}
+	if !IsVersionSupported(spec.MinTLSVersion) {
+		return "", "", fmt.Errorf("TLS profile minimum version %q is unsupported by the proxy", spec.MinTLSVersion)
+	}
+	// TLS 1.3 cipher suites are not configurable by Go. An empty list is
+	// therefore valid for TLS 1.3, but not for TLS 1.2 where it would cause
+	// the proxy to use its defaults instead of the requested policy.
+	if spec.MinTLSVersion != configv1.VersionTLS13 && len(spec.Ciphers) == 0 {
+		return "", "", errors.New("TLS profile contains no cipher suites")
+	}
+	ianaCiphers := ocpcrypto.OpenSSLToIANACipherSuites(spec.Ciphers)
+	if spec.MinTLSVersion != configv1.VersionTLS13 && len(ianaCiphers) == 0 {
+		return "", "", errors.New("TLS profile contains no cipher suites supported by the proxy")
+	}
+	// The OpenShift API allows components to omit cipher suites they cannot
+	// support. Keep the supported subset and reject only an entirely unusable
+	// non-empty list. For TLS 1.3, Go ignores CipherSuites entirely, so any
+	// returned cipher names are informational rather than a restriction.
+	return MinVersionFromSpec(ctx, spec, format), strings.Join(ianaCiphers, ","), nil
+}
+
 // FromProfile resolves a TLSSecurityProfile to version and cipher strings.
 // If the profile's MinTLSVersion is unsupported (TLS 1.0/1.1), both version
 // and ciphers are floored to the Intermediate profile.
@@ -158,6 +224,9 @@ func FromAPIServer(ctx context.Context, cli client.Reader, format VersionFormat)
 		return "", "", fmt.Errorf("failed to get APIServer %q: %w", cluster.ClusterAPIServerObj, err)
 	}
 
-	minVersion, cipherSuites := FromProfile(ctx, apiServer.Spec.TLSSecurityProfile, format)
-	return minVersion, cipherSuites, nil
+	if !ShouldHonorClusterTLSProfile(apiServer.Spec.TLSAdherence) {
+		minVersion, cipherSuites := FromProfile(ctx, nil, format)
+		return minVersion, cipherSuites, nil
+	}
+	return FromProfileStrict(ctx, apiServer.Spec.TLSSecurityProfile, format)
 }

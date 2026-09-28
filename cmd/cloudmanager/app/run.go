@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 
+	frameworkmanager "github.com/opendatahub-io/odh-platform-utilities/framework/manager"
 	"github.com/spf13/cobra"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -16,7 +17,6 @@ import (
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
@@ -72,7 +72,7 @@ func Run(_ *cobra.Command, provider Provider) error {
 		return fmt.Errorf("unable to start manager: %w", err)
 	}
 
-	mgr := manager.New(ctrlMgr, manager.WithChartsBasePath(cfg.DefaultChartsPath))
+	mgr := frameworkmanager.New(ctrlMgr, frameworkmanager.WithChartsBasePath(cfg.DefaultChartsPath))
 
 	if err := provider.NewReconciler(ctx, mgr, cfg); err != nil {
 		return fmt.Errorf("unable to create %s cloud manager reconciler: %w", provider.Name, err)

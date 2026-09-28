@@ -9,18 +9,25 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 
 	. "github.com/onsi/gomega"
 )
 
-func newPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformContext {
-	return &modules.PlatformContext{
-		ApplicationsNamespace: "opendatahub",
-		ChartsBasePath:        "/opt/charts",
-		GatewayDomain:         "dashboard.example.com",
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
+	return &configv1alpha1.PlatformModules{
+		Dashboard: common.ManagementSpec{
+			ManagementState: mgmtState,
+		},
+	}
+}
+
+func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
+	return &modules.DSCContext{
 		DSC: &dscv2.DataScienceCluster{
 			Spec: dscv2.DataScienceClusterSpec{
 				Components: dscv2.Components{
@@ -55,6 +62,12 @@ func newPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformConte
 	}
 }
 
+func newModuleCRConfig(gatewayDomain string) *modules.ModuleCRConfig {
+	return &modules.ModuleCRConfig{
+		GatewayDomain: gatewayDomain,
+	}
+}
+
 func TestGetName(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
@@ -79,29 +92,28 @@ func TestDashboardInstanceName_MatchesOperatorCEL(t *testing.T) {
 func TestIsEnabled_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformCtx(operatorv1.Managed))).Should(BeTrue())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Managed))).Should(BeTrue())
 }
 
 func TestIsEnabled_Removed(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformCtx(operatorv1.Removed))).Should(BeFalse())
+	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Removed))).Should(BeFalse())
 }
 
 func TestIsEnabled_Empty(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformCtx(""))).Should(BeFalse())
+	g.Expect(h.IsEnabled(newPlatformModules(""))).Should(BeFalse())
 }
 
-func TestIsEnabled_NilDSC(t *testing.T) {
+func TestIsEnabled_EmptyModules(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	ctx := &modules.PlatformContext{ApplicationsNamespace: "opendatahub"}
-	g.Expect(h.IsEnabled(ctx)).Should(BeFalse())
+	g.Expect(h.IsEnabled(&configv1alpha1.PlatformModules{})).Should(BeFalse())
 }
 
-func TestIsEnabled_NilPlatformContext(t *testing.T) {
+func TestIsEnabled_NilModules(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
@@ -110,9 +122,9 @@ func TestIsEnabled_NilPlatformContext(t *testing.T) {
 func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
+	dscCtx := newDSCCtx(operatorv1.Managed)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig("dashboard.example.com"))
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u.GetName()).Should(Equal(componentApi.DashboardInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(componentApi.DashboardKind))
@@ -122,7 +134,6 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
 	g.Expect(spec["managementState"]).Should(Equal("Managed"))
-	g.Expect(spec["deploymentMode"]).Should(Equal("Standalone"))
 
 	gateway, ok := spec["gateway"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.gateway missing")
@@ -152,10 +163,9 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 func TestBuildModuleCR_OmitsGatewayWhenDomainEmpty(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
-	platform.GatewayDomain = ""
+	dscCtx := newDSCCtx(operatorv1.Managed)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig(""))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -166,9 +176,9 @@ func TestBuildModuleCR_OmitsGatewayWhenDomainEmpty(t *testing.T) {
 func TestBuildModuleCR_EmptyManagementStateOmitted(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	platform := newPlatformCtx("")
+	dscCtx := newDSCCtx("")
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -180,11 +190,11 @@ func TestBuildModuleCR_EmptyManagementStateOmitted(t *testing.T) {
 func TestBuildModuleCR_ComponentsDefaultToRemovedWhenEmpty(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
-	platform.DSC.Spec.Components.ModelRegistry.ManagementState = ""
-	platform.DSC.Spec.Components.AIPipelines.ManagementState = ""
+	dscCtx := newDSCCtx(operatorv1.Managed)
+	dscCtx.DSC.Spec.Components.ModelRegistry.ManagementState = ""
+	dscCtx.DSC.Spec.Components.AIPipelines.ManagementState = ""
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -202,26 +212,30 @@ func TestBuildModuleCR_ComponentsDefaultToRemovedWhenEmpty(t *testing.T) {
 	g.Expect(pipComp["managementState"]).Should(Equal("Removed"))
 }
 
-func TestBuildModuleCR_NilPlatformContextReturnsError(t *testing.T) {
+func TestBuildModuleCR_NilDSCContextReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	_, err := h.BuildModuleCR(context.Background(), nil, nil)
-	g.Expect(err).Should(HaveOccurred())
+	// nil dscCtx is valid for DSC-less deployments (e.g. XKS direct CR creation).
+	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
+	g.Expect(err.Error()).Should(ContainSubstring("DSC is nil, cannot build Dashboard CR"))
 }
 
 func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	platform := &modules.PlatformContext{ApplicationsNamespace: "opendatahub"}
-
-	_, err := h.BuildModuleCR(context.Background(), nil, platform)
-	g.Expect(err).Should(HaveOccurred())
+	// DSCContext with nil DSC is valid for DSC-less deployments.
+	_, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{}, nil)
+	g.Expect(err.Error()).Should(ContainSubstring("DSC is nil, cannot build Dashboard CR"))
 }
 
 func TestGetOperatorManifests(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
+	platform := &modules.PlatformContext{
+		ApplicationsNamespace: "opendatahub",
+		ChartsBasePath:        "/opt/charts",
+		GatewayDomain:         "dashboard.example.com",
+	}
 
 	manifests := h.GetOperatorManifests(platform)
 	g.Expect(manifests.HelmCharts).Should(HaveLen(1))
@@ -245,6 +259,258 @@ func TestGetOperatorManifests(t *testing.T) {
 	}
 }
 
+func newDSCCtxWithNamespaces(
+	mgmtState operatorv1.ManagementState,
+	workbenchMgmt operatorv1.ManagementState,
+	workbenchNamespace string,
+	mrMgmt operatorv1.ManagementState,
+	registriesNamespace string,
+) *modules.DSCContext {
+	ctx := newDSCCtx(mgmtState)
+	ctx.DSC.Spec.Components.Workbenches = componentApi.DSCWorkbenches{
+		ManagementSpec: common.ManagementSpec{ManagementState: workbenchMgmt},
+		WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
+			WorkbenchNamespace: workbenchNamespace,
+		},
+	}
+	ctx.DSC.Spec.Components.ModelRegistry = componentApi.DSCModelRegistry{
+		ManagementSpec: common.ManagementSpec{ManagementState: mrMgmt},
+		ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
+			RegistriesNamespace: registriesNamespace,
+		},
+	}
+	return ctx
+}
+
+func newModuleCRConfigWithRelease(releaseName common.Platform) *modules.ModuleCRConfig {
+	return &modules.ModuleCRConfig{
+		Release: common.Release{Name: releaseName},
+	}
+}
+
+func TestBuildModuleCR_ProjectsNotebooksNamespace_RHOAI(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "", operatorv1.Removed, "")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec["notebooksNamespace"]).Should(Equal(cluster.DefaultNotebooksNamespaceRHOAI))
+	g.Expect(spec).ShouldNot(HaveKey("modelRegistryNamespace"))
+}
+
+func TestBuildModuleCR_ProjectsNotebooksNamespace_ODH(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "", operatorv1.Removed, "")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.OpenDataHub))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec["notebooksNamespace"]).Should(Equal(cluster.DefaultNotebooksNamespaceODH))
+}
+
+func TestBuildModuleCR_ProjectsCustomNotebooksNamespace(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "custom-notebooks", operatorv1.Removed, "")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec["notebooksNamespace"]).Should(Equal("custom-notebooks"))
+}
+
+func TestBuildModuleCR_OmitsNotebooksNamespaceWhenWorkbenchesNotManaged(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Removed, "", operatorv1.Removed, "")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec).ShouldNot(HaveKey("notebooksNamespace"))
+}
+
+func TestBuildModuleCR_ProjectsModelRegistryNamespace(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Removed, "", operatorv1.Managed, "rhoai-model-registries")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec["modelRegistryNamespace"]).Should(Equal("rhoai-model-registries"))
+	g.Expect(spec).ShouldNot(HaveKey("notebooksNamespace"))
+}
+
+func TestBuildModuleCR_OmitsModelRegistryNamespaceWhenNotManaged(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Removed, "", operatorv1.Removed, "rhoai-model-registries")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec).ShouldNot(HaveKey("modelRegistryNamespace"))
+}
+
+func TestBuildModuleCR_OmitsModelRegistryNamespaceWhenEmpty(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Removed, "", operatorv1.Managed, "")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec).ShouldNot(HaveKey("modelRegistryNamespace"),
+		"empty RegistriesNamespace with Managed ModelRegistry should not project a namespace field")
+}
+
+func TestBuildModuleCR_ProjectsNotebooksNamespace_ManagedRhoai(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "", operatorv1.Removed, "")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.ManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec["notebooksNamespace"]).Should(Equal(cluster.DefaultNotebooksNamespaceRHOAI),
+		"ManagedRhoai should use the same RHOAI default notebook namespace as SelfManagedRhoai")
+}
+
+func TestBuildModuleCR_ProjectsBothNamespaces(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(
+		operatorv1.Managed,
+		operatorv1.Managed, "rhods-notebooks",
+		operatorv1.Managed, "rhoai-model-registries",
+	)
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec["notebooksNamespace"]).Should(Equal("rhods-notebooks"))
+	g.Expect(spec["modelRegistryNamespace"]).Should(Equal("rhoai-model-registries"))
+}
+
+func TestBuildModuleCR_NilCfgWithWorkbenchesManaged_DefaultsToODH(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "", operatorv1.Removed, "")
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec["notebooksNamespace"]).Should(Equal(cluster.DefaultNotebooksNamespaceODH),
+		"nil cfg means no release info — should fall back to ODH default")
+}
+
+// populatedState runs PopulatePlatformModule for the given core Dashboard and
+// portal management states and returns the resulting PlatformModules state.
+func populatedState(coreState, portalState operatorv1.ManagementState) operatorv1.ManagementState {
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtx(coreState)
+	dscCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = portalState
+	pm := &configv1alpha1.PlatformModules{}
+	h.PopulatePlatformModule(pm, dscCtx)
+	return pm.Dashboard.ManagementState
+}
+
+func TestPopulatePlatformModule_Both(t *testing.T) {
+	g := NewWithT(t)
+	g.Expect(populatedState(operatorv1.Managed, operatorv1.Managed)).Should(Equal(operatorv1.Managed))
+}
+
+func TestPopulatePlatformModule_DashboardOnly(t *testing.T) {
+	g := NewWithT(t)
+	g.Expect(populatedState(operatorv1.Managed, operatorv1.Removed)).Should(Equal(operatorv1.Managed))
+}
+
+func TestPopulatePlatformModule_PortalOnly(t *testing.T) {
+	g := NewWithT(t)
+	// Core Dashboard Removed but portal Managed: the dashboard-operator Deployment
+	// must stay up (compound OR).
+	g.Expect(populatedState(operatorv1.Removed, operatorv1.Managed)).Should(Equal(operatorv1.Managed))
+}
+
+func TestPopulatePlatformModule_Neither(t *testing.T) {
+	g := NewWithT(t)
+	g.Expect(populatedState(operatorv1.Removed, operatorv1.Removed)).Should(Equal(operatorv1.Removed))
+}
+
+func TestPopulatePlatformModule_EmptyStatesRemoved(t *testing.T) {
+	g := NewWithT(t)
+	// Absent (empty) on both sides defaults to Removed.
+	g.Expect(populatedState("", "")).Should(Equal(operatorv1.Removed))
+}
+
+func TestBuildModuleCR_ProjectsMaaSConsumerPortal(t *testing.T) {
+	tests := []struct {
+		name            string
+		managementState operatorv1.ManagementState
+	}{
+		{name: "Managed", managementState: operatorv1.Managed},
+		{name: "Removed", managementState: operatorv1.Removed},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			h := dashboard.NewHandler()
+			dscCtx := newDSCCtx(operatorv1.Managed)
+			dscCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = tt.managementState
+
+			u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig("dashboard.example.com"))
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			spec, ok := u.Object["spec"].(map[string]any)
+			g.Expect(ok).Should(BeTrue(), "spec is not a map")
+
+			portal, ok := spec["maasConsumerPortal"].(map[string]any)
+			g.Expect(ok).Should(BeTrue(), "spec.maasConsumerPortal missing")
+			g.Expect(portal["managementState"]).Should(Equal(string(tt.managementState)), "portal managementState passes through verbatim")
+
+			// No bool-style consumerPortal projection (this is a direct passthrough, not a translation).
+			g.Expect(spec).ShouldNot(HaveKey("consumerPortal"))
+		})
+	}
+}
+
+func TestGetSubmoduleConditions_MaaSConsumerPortal(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+
+	subs := h.GetSubmoduleConditions()
+	g.Expect(subs).Should(HaveLen(1))
+
+	sm := subs[0]
+	g.Expect(sm.SourceConditionType).Should(Equal("MaaSConsumerPortalAvailable"))
+	g.Expect(sm.DSCConditionType).Should(Equal("MaaSConsumerPortalAvailable"))
+	g.Expect(sm.StatusFieldName).Should(Equal("MaaSConsumerPortal"))
+	g.Expect(sm.IsEnabled).ShouldNot(BeNil())
+
+	enabledCtx := newDSCCtx(operatorv1.Removed)
+	enabledCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = operatorv1.Managed
+	g.Expect(sm.IsEnabled(enabledCtx)).Should(BeTrue())
+
+	disabledCtx := newDSCCtx(operatorv1.Managed)
+	disabledCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = operatorv1.Removed
+	g.Expect(sm.IsEnabled(disabledCtx)).Should(BeFalse())
+}
+
 func TestGetControllerImage(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
@@ -261,6 +527,7 @@ func TestGetRelatedImages(t *testing.T) {
 		"RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE",
 		"RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE",
 		"RELATED_IMAGE_ODH_MOD_ARCH_MLFLOW_IMAGE",
+		"RELATED_IMAGE_ODH_MOD_ARCH_NOTEBOOKS_IMAGE",
 		"RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE",
 		"RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE",
 		"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
@@ -268,9 +535,12 @@ func TestGetRelatedImages(t *testing.T) {
 		"RELATED_IMAGE_ODH_MOD_ARCH_AUTOML_IMAGE",
 		"RELATED_IMAGE_ODH_AUTOML_IMAGE",
 		"RELATED_IMAGE_ODH_MOD_ARCH_AUTORAG_IMAGE",
+		"RELATED_IMAGE_ODH_MOD_ARCH_DATA_CONNECT_HUB_IMAGE",
 		"RELATED_IMAGE_ODH_MOD_ARCH_AGENT_OPS_IMAGE",
+		"RELATED_IMAGE_ODH_MOD_ARCH_DATA_REGISTRY_IMAGE",
 		"RELATED_IMAGE_ODH_AUTORAG_IMAGE",
 		"RELATED_IMAGE_ODH_CORE_BFF_IMAGE",
 		"RELATED_IMAGE_POSTGRESQL_16_IMAGE",
+		"RELATED_IMAGE_ODH_OGX_CORE_IMAGE",
 	))
 }

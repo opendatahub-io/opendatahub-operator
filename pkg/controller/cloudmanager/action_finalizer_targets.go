@@ -18,9 +18,6 @@ func IstioCleanupTarget() cleanup.Target {
 // FinalizerCleanupTargets returns the cleanup targets used by the finalizer
 // action during parent CR deletion. These ensure dependency CRs are deleted
 // before the cascade removes their operators.
-//
-// Note: the CertManager/cluster target is intentionally omitted here because
-// certmanager.Bootstrap already registers its own cleanup finalizer for it.
 func FinalizerCleanupTargets() []cleanup.Target {
 	return []cleanup.Target{
 		IstioCleanupTarget(),

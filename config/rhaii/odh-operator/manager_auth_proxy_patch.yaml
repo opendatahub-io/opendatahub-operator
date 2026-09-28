@@ -1,5 +1,8 @@
-# This patch inject a sidecar container which is a HTTP proxy for the
-# controller manager, it performs RBAC authorization against the Kubernetes API using SubjectAccessReviews.
+# This patch configures the operator for xKS (non-OpenShift) deployments.
+# Metrics are served on plain HTTP port 8080 without authentication because
+# service-ca is not available. The deployment is single-tenant (one operator
+# per cluster). Network access controls (e.g., NetworkPolicy) must be applied
+# by the deployment environment if multi-tenant isolation is required.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,4 +16,5 @@ spec:
         args:
         - "--health-probe-bind-address=:8081"
         - "--metrics-bind-address=0.0.0.0:8080"
+        - "--metrics-secure=false"
         - "--leader-elect"

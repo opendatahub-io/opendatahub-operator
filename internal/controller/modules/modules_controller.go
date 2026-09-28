@@ -3,9 +3,12 @@ package modules
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -13,8 +16,6 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -24,13 +25,11 @@ import (
 	helmrender "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
 	kustomizerender "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	dependentpredicates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
 // commonActions returns the shared action chain for both DSC and Platform modes.
@@ -43,7 +42,6 @@ import (
 // odh-upgrade-acks. If unacked gates exist, deploy never runs.
 func commonActions() []actions.Fn {
 	return []actions.Fn{
-		initializeModules,
 		cleanupDisabledModules,
 		provisionModules,
 		helmrender.NewAction(),
@@ -68,50 +66,49 @@ func commonActions() []actions.Fn {
 	}
 }
 
-// NewModuleReconciler creates a dedicated controller for the module lifecycle.
-// It checks the DSC/DSCI suppression flags to select the appropriate mode:
-//
-//   - DSC mode (OpenShift/ODH): reconciles DataScienceCluster as its primary
-//     resource, watches DSCI, full PlatformContext available.
-//   - Platform mode (xKS): reconciles a Platform CR as its primary resource.
-//     PlatformContext.DSC and .DSCI are nil; only modules whose
-//     ManagementState is Managed in spec.modules are enabled.
+// NewModuleReconciler creates the platform controller that reconciles the
+// Platform CR. On OpenShift the DSC/DSCI controllers project module
+// enablement into Platform CR via SSA; on xKS the Helm chart creates it.
+// The controller always reads Platform CR — single code path.
 func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	if flags.IsDSCEnabled() && flags.IsDSCIEnabled() {
-		return newDSCModuleReconciler(ctx, mgr)
+	b := reconciler.ReconcilerFor(mgr, &configv1alpha1.Platform{}).
+		WithInstanceName("modules").
+		WithDynamicOwnership()
+
+	platformRequest := []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configv1alpha1.PlatformInstanceName}}}
+	statusPredicate := dependentpredicates.New(dependentpredicates.WithWatchStatus(true))
+
+	if err := cr.DefaultRegistry().ForEach(func(handler cr.ComponentHandler) error {
+		b = b.WatchesGVK(handler.GroupVersionKind(),
+			reconciler.Dynamic(reconciler.CrdExists(handler.GroupVersionKind())),
+			reconciler.WithEventMapper(func(_ context.Context, _ client.Object) []reconcile.Request {
+				return platformRequest
+			}),
+			reconciler.WithPredicates(statusPredicate),
+		)
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to register component CR watches: %w", err)
 	}
 
-	return newPlatformModuleReconciler(ctx, mgr)
-}
-
-// newDSCModuleReconciler creates the module controller in DSC mode.
-// It reconciles DataScienceCluster and watches DSCI, matching the original
-// behavior. Dynamic ownership is enabled so all deployed resources
-// (module CRs, operator Deployments, RBAC) get owner references pointing
-// to the DSC. This provides cascade deletion and enables
-// EnqueueRequestForOwner watches registered automatically by the
-// dynamic ownership action.
-func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	b := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
-		WithInstanceName("modules").
-		WithDynamicOwnership(reconciler.WithGVKPredicates(moduleStatusPredicates())).
-		// The modules controller still reconciles against the DSC in OpenShift mode,
-		// but the datasciencecluster controller must remain the only writer of the
-		// user-facing DSC status conditions. Letting both controllers patch DSC
-		// conditions would reintroduce atomic status.conditions races where the
-		// last writer wins.
-		WithoutConditionCleanup().
-		WithoutStatusConditionsIf(cr.HasEntries).
-		Watches(
-			&dsciv2.DSCInitialization{},
-			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
-				return cluster.WatchDataScienceClusters(ctx, mgr.GetClient())
+	if err := DefaultRegistry().ForEach(func(handler ModuleHandler) error {
+		b = b.WatchesGVK(handler.GetGVK(),
+			reconciler.Dynamic(reconciler.CrdExists(handler.GetGVK())),
+			reconciler.WithEventMapper(func(_ context.Context, _ client.Object) []reconcile.Request {
+				return platformRequest
 			}),
-			reconciler.WithPredicates(predicates.DefaultPredicate)).
+			reconciler.WithPredicates(statusPredicate),
+		)
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to register module CR watches: %w", err)
+	}
+
+	b = b.
 		Watches(
 			&corev1.ConfigMap{},
-			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
-				return cluster.WatchDataScienceClusters(ctx, mgr.GetClient())
+			reconciler.WithEventMapper(func(_ context.Context, _ client.Object) []reconcile.Request {
+				return []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configv1alpha1.PlatformInstanceName}}}
 			}),
 			reconciler.WithPredicates(predicate.Or(
 				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
@@ -119,61 +116,68 @@ func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 			)))
 
 	b = addModuleCRWatches(b)
+	b = addModuleCRDWatches(b, func(ctx context.Context, _ client.Object) []reconcile.Request {
+		return cluster.WatchDataScienceClusters(ctx, mgr.GetClient())
+	})
 
 	for _, a := range commonActions() {
 		b = b.WithAction(a)
 	}
 
-	if _, err := b.WithConditions(status.ConditionTypeModulesReady).Build(ctx); err != nil {
-		return fmt.Errorf("failed to create module reconciler (DSC mode): %w", err)
+	// Hold the Platform CR until every module CR is gone so module-operator
+	// Deployments (owned by Platform) stay up to process their CR finalizers.
+	// This is the uninstall/cascade path; per-module disable uses
+	// cleanupDisabledModules on the apply path instead.
+	_, err := b.WithFinalizer(waitForModuleCRDeletion).
+		WithConditions(
+			status.ConditionTypeModulesReady,
+			status.ConditionTypeProvisioningProgress,
+		).Build(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create platform controller: %w", err)
 	}
+
 	return nil
 }
 
-// newPlatformModuleReconciler creates the module controller in platform mode
-// (xKS). It reconciles the Platform CR as its primary resource. No DSC or DSCI
-// is available; only modules with ManagementState Managed are enabled.
-// Dynamic ownership is enabled for the same reasons as DSC mode.
-func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	b := reconciler.ReconcilerFor(mgr, &configv1alpha1.Platform{}).
-		WithInstanceName("modules").
-		WithDynamicOwnership(reconciler.WithGVKPredicates(moduleStatusPredicates())).
-		WithoutConditionCleanup().
-		WithoutStatusConditionsIf(cr.HasEntries).
-		WithAction(enableModulesFromPlatform)
-
+// addModuleCRDWatches registers a non-dynamic watch on CustomResourceDefinition
+// resources filtered to the API groups used by registered modules. When a module
+// CRD is created, this triggers a reconcile so the controller can register the
+// dynamic module CR watch and read the module's status — resolving the race
+// where the controller reconciles before a module CRD is available.
+func addModuleCRDWatches[T common.PlatformObject](
+	b *reconciler.ReconcilerBuilder[T],
+	mapper func(ctx context.Context, obj client.Object) []reconcile.Request,
+) *reconciler.ReconcilerBuilder[T] {
 	reg := DefaultRegistry()
-	if reg.HasEntries() {
-		if err := reg.ForAll(func(h ModuleHandler, _ bool) error {
-			b = b.WatchesGVK(h.GetGVK(),
-				reconciler.Dynamic(reconciler.CrdExists(h.GetGVK())),
-				reconciler.WithEventMapper(
-					func(ctx context.Context, _ client.Object) []reconcile.Request {
-						return cluster.WatchPlatforms(ctx, mgr.GetClient())
-					}),
-				reconciler.WithPredicates(
-					dependentpredicates.New(dependentpredicates.WithWatchStatus(true)),
-				),
-			)
-			return nil
-		}); err != nil {
-			return fmt.Errorf("failed to register module GVK watches: %w", err)
-		}
+	if !reg.HasEntries() {
+		return b
 	}
 
-	for _, a := range commonActions() {
-		b = b.WithAction(a)
+	groupSet := make(map[string]bool)
+	_ = reg.ForAll(func(h ModuleHandler, _ bool) error {
+		groupSet[h.GetGVK().Group] = true
+		return nil
+	})
+
+	groups := make([]string, 0, len(groupSet))
+	for g := range groupSet {
+		groups = append(groups, g)
+	}
+	sort.Strings(groups)
+
+	crdPredicates := make([]predicate.Predicate, 0, len(groups))
+	for _, g := range groups {
+		crdPredicates = append(crdPredicates, resources.CreatedOrUpdatedOrDeletedNameSuffixed("."+g))
 	}
 
-	rec, err := b.WithConditions(
-		status.ConditionTypeModulesReady,
-		status.ConditionTypeProvisioningProgress,
-	).Build(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to create module reconciler (platform mode): %w", err)
-	}
-	registerModuleCROwnedTypes(rec)
-	return nil
+	b.Watches(
+		&apiextensionsv1.CustomResourceDefinition{},
+		reconciler.WithEventMapper(mapper),
+		reconciler.WithPredicates(predicate.Or(crdPredicates...)),
+	)
+
+	return b
 }
 
 func addModuleCRWatches[T common.PlatformObject](b *reconciler.ReconcilerBuilder[T]) *reconciler.ReconcilerBuilder[T] {
@@ -194,20 +198,29 @@ func addModuleCRWatches[T common.PlatformObject](b *reconciler.ReconcilerBuilder
 	return b
 }
 
+// AddModuleCRDWatches registers a non-dynamic CRD watch so that module CRD
+// creation triggers a reconcile. Exported for use by the DSC controller.
+func AddModuleCRDWatches[T common.PlatformObject](
+	b *reconciler.ReconcilerBuilder[T],
+	mapper func(ctx context.Context, obj client.Object) []reconcile.Request,
+) *reconciler.ReconcilerBuilder[T] {
+	return addModuleCRDWatches(b, mapper)
+}
+
 // AddDSCCompatibilityProjectorWatches registers watches for module CR status
 // changes that must requeue the user-facing DSC controller.
 //
 // The datasciencecluster controller computes generic module readiness
-// (ModulesReady, AIGatewayReady, etc.) via ComputeModulesStatus. DSC must
-// watch every registered module CR so its status stays current as module
-// CRs transition.
+// (ModulesReady, AIGatewayReady, etc.) via ComputeModulesStatusDetailed for
+// ConfigFromDSC modules only. DSCI-configured modules (e.g. monitoring) report
+// status on DSCI and are watched there.
 func AddDSCCompatibilityProjectorWatches[T common.PlatformObject](b *reconciler.ReconcilerBuilder[T]) *reconciler.ReconcilerBuilder[T] {
 	reg := DefaultRegistry()
 	if !reg.HasEntries() {
 		return b
 	}
 
-	_ = reg.ForAll(func(handler ModuleHandler, _ bool) error {
+	_ = reg.ForConfigSource(ConfigFromDSC, func(handler ModuleHandler, _ bool) error {
 		// Requeue the DSC controller from module CR status changes without
 		// claiming ownership of the module CR type itself. The modules
 		// controller provisions module CRs; the DSC controller only needs the

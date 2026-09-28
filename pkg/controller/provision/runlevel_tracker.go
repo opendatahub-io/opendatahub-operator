@@ -1,14 +1,16 @@
 package provision
 
-import "sync"
+import (
+	"sync"
+)
 
 // RunlevelTracker records which runlevels have been cleared at a given
-// operator version. The DSC controller calls MarkCleared as it walks
-// the DAG; in-tree component controllers call IsCleared in their
-// precondition to decide whether to proceed with reconciliation.
+// operator version. The platform controller calls MarkCleared as it walks
+// the DAG via WalkBatches; in-tree component controllers call IsCleared
+// in their precondition to decide whether to proceed with reconciliation.
 //
-// On operator restart (including upgrades), the tracker is empty so all
-// component controllers block until the DSC controller re-walks the DAG.
+// After operator restart the tracker starts empty — component controllers
+// block until WalkBatches populates it by processing each batch.
 type RunlevelTracker struct {
 	mu          sync.RWMutex
 	version     string

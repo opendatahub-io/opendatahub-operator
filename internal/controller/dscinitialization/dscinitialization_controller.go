@@ -21,12 +21,14 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -35,16 +37,19 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -67,6 +72,11 @@ type DSCInitializationReconciler struct {
 	Scheme           *runtime.Scheme
 	Recorder         events.EventRecorder
 	OperatorSettings operatorconfig.OperatorSettings
+
+	ctrl                 controller.Controller
+	mgr                  ctrl.Manager
+	monitoringWatchMu    sync.Mutex
+	monitoringWatchAdded bool
 }
 
 type DSCInitializationCondition struct {
@@ -79,7 +89,7 @@ type DSCInitializationCondition struct {
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
 func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,maintidx,gocyclo
 	log := logf.FromContext(ctx).WithName("DSCInitialization")
-	log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
+	log.Info("Reconciling DSCInitialization.")
 
 	currentOperatorRelease := cluster.GetRelease()
 	// Set platform
@@ -90,7 +100,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	case k8serr.IsNotFound(err):
 		return ctrl.Result{}, nil
 	case err != nil:
-		log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
+		log.Error(err, "Failed to retrieve resource.", "resourceKind", "DSCInitialization", "name", req.Name)
 
 		ref := &corev1.ObjectReference{Name: req.Name, Namespace: req.Namespace}
 		ref.SetGroupVersionKind(gvk.DSCInitialization)
@@ -109,16 +119,18 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
+	r.ensureMonitoringWatch(ctx)
+
 	if instance.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
-			log.Info("Adding finalizer for DSCInitialization", "name", instance.Name, "finalizer", finalizerName)
+			log.Info("Adding finalizer for DSCInitialization", "finalizer", finalizerName)
 			controllerutil.AddFinalizer(instance, finalizerName)
 			if err := r.Client.Update(ctx, instance); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
 	} else {
-		log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "finalizer", finalizerName)
+		log.Info("Finalization DSCInitialization start deleting instance", "finalizer", finalizerName)
 
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			newInstance := &dsciv2.DSCInitialization{}
@@ -134,7 +146,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return nil
 		})
 		if err != nil {
-			log.Error(err, "Failed to remove finalizer when deleting DSCInitialization instance")
+			log.Error(err, "Failed to remove finalizer")
 			return ctrl.Result{}, err
 		}
 
@@ -151,7 +163,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			saved.Status.Release = currentOperatorRelease
 		})
 		if err != nil {
-			log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+			log.Error(err, "Failed to add conditions to status of resource.")
 			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
 				"%s for instance %s: %v", message, instance.Name, err)
 
@@ -166,7 +178,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			saved.Status.Release = currentOperatorRelease
 		})
 		if err != nil {
-			log.Error(err, "Failed to update release version for DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+			log.Error(err, "Failed to update release version for resource.")
 			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
 				"%s for instance %s: %v", message, instance.Name, err)
 			return reconcile.Result{}, err
@@ -179,7 +191,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			status.SetProgressingCondition(&saved.Status.Conditions, status.ReconcileFailed, err.Error())
 			saved.Status.Phase = status.PhaseError
 		}); err != nil {
-			log.Error(err, "Failed to update DSCInitialization conditions", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+			log.Error(err, "Failed to update conditions")
 
 			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
 				"%s for instance %s", err.Error(), instance.Name)
@@ -195,7 +207,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if platform == cluster.ManagedRhoai {
 		osdConfigsPath := filepath.Join(r.OperatorSettings.ManifestsBasePath, "osd-configs")
 		if err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, instance.Spec.ApplicationsNamespace, "osd", true); err != nil {
-			log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
+			log.Error(err, "Failed to apply osd specific configs from manifests", "path", osdConfigsPath)
 			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
 				"Failed to apply %s: %v", osdConfigsPath, err)
 
@@ -207,19 +219,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		if err = r.configureSegmentIO(ctx, instance); err != nil {
 			return reconcile.Result{}, err
 		}
-	}
-
-	switch instance.Spec.Monitoring.ManagementState {
-	case operatorv1.Managed:
-		if err = r.newMonitoringCR(ctx, instance); err != nil {
-			return ctrl.Result{}, err
-		}
-	case operatorv1.Removed:
-		if err = r.deleteMonitoringCR(ctx); err != nil {
-			return reconcile.Result{}, err
-		}
-	default:
-		// Unknown or empty state: do nothing
 	}
 
 	// legacy ServiceMesh FeatureTracker cleanup, retained from the remove ServiceMesh controller
@@ -264,6 +263,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, err
 	}
 
+	// Create/Update Platform CR and DSCI-configured module CRs
+	if err = r.reconcileDSCIModules(ctx, instance); err != nil {
+		log.Error(err, "failed to reconcile DSCI-configured modules")
+		return ctrl.Result{}, err
+	}
+
 	// Finish reconciling
 	monitoringConditions := r.GetMonitoringReadyCondition(ctx)
 	_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
@@ -274,7 +279,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		saved.Status.Phase = status.PhaseReady
 	})
 	if err != nil {
-		log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")
+		log.Error(err, "failed to update status after reconciliation")
 		r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
 			"Failed to update DSCInitialization status: %v", err)
 	}
@@ -288,7 +293,7 @@ func getObject(gvk schema.GroupVersionKind) client.Object {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	c, err := ctrl.NewControllerManagedBy(mgr).
 		// add predicates prevents meaningless reconciliations from being triggered
 		// not use WithEventFilter() because it conflict with secret and configmap predicate
 		For(
@@ -351,19 +356,54 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			getObject(gvk.GatewayConfig),
 			handler.EnqueueRequestsFromMapFunc(r.watchGatewayConfigResource),
 		).
-		Watches(
-			getObject(gvk.Monitoring),
-			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringResource),
-		).
-		Watches( // TODO: this might not be needed after v3.3.
+		Watches( // HWP: temporary for VAP/VAPB, should be removed in v3.3.
 			getObject(gvk.CustomResourceDefinition),
-			handler.EnqueueRequestsFromMapFunc(r.watchHWProfileCRDResource),
+			handler.EnqueueRequestsFromMapFunc(r.reconcileOnCRDChange),
 			builder.WithPredicates(predicate.Or(
 				rp.CreatedOrUpdatedName("acceleratorprofiles.dashboard.opendatahub.io"),
 				rp.CreatedOrUpdatedName("hardwareprofiles.dashboard.opendatahub.io"),
+				rp.CreatedOrUpdatedName(serviceApi.MonitoringCRDName),
 			)),
 		).
-		Complete(r)
+		Build(r)
+	if err != nil {
+		return err
+	}
+
+	r.ctrl = c
+	r.mgr = mgr
+	return nil
+}
+
+// ensureMonitoringWatch registers a watch on Monitoring CRs once the CRD
+// exists. The CRD is installed by the odh-observability chart, not this
+// operator, so the watch cannot be static at manager setup. Called at the
+// start of each reconcile; no-ops after the watch is added.
+func (r *DSCInitializationReconciler) ensureMonitoringWatch(ctx context.Context) {
+	if r.ctrl == nil || r.mgr == nil {
+		return
+	}
+
+	r.monitoringWatchMu.Lock()
+	defer r.monitoringWatchMu.Unlock()
+	if r.monitoringWatchAdded {
+		return
+	}
+
+	hasCRD, err := cluster.HasCRD(ctx, r.Client, gvk.Monitoring)
+	if err != nil || !hasCRD {
+		return
+	}
+
+	if err := r.ctrl.Watch(source.Kind(
+		r.mgr.GetCache(),
+		getObject(gvk.Monitoring),
+		handler.EnqueueRequestsFromMapFunc(r.watchMonitoringResource),
+	)); err != nil {
+		logf.Log.Error(err, "failed to watch Monitoring CR")
+		return
+	}
+	r.monitoringWatchAdded = true
 }
 
 func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a client.Object) []reconcile.Request {
@@ -371,7 +411,7 @@ func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a c
 	instanceList := &serviceApi.AuthList{}
 	if err := r.Client.List(ctx, instanceList); err != nil {
 		// do not handle if cannot get list
-		log.Error(err, "Failed to get AuthList")
+		log.Error(err, "Failed to get AuthList", "resourceKind", "Auth")
 		return nil
 	}
 	if len(instanceList.Items) == 0 {
@@ -388,7 +428,7 @@ func (r *DSCInitializationReconciler) watchGatewayConfigResource(ctx context.Con
 	instanceList := &serviceApi.GatewayConfigList{}
 	if err := r.Client.List(ctx, instanceList); err != nil {
 		// do not handle if cannot get list
-		log.Error(err, "Failed to get GatewayConfigList")
+		log.Error(err, "Failed to get GatewayConfigList", "resourceKind", "GatewayConfig")
 		return nil
 	}
 	if len(instanceList.Items) == 0 {
@@ -402,49 +442,41 @@ func (r *DSCInitializationReconciler) watchGatewayConfigResource(ctx context.Con
 
 func (r *DSCInitializationReconciler) watchMonitoringResource(ctx context.Context, _ client.Object) []reconcile.Request {
 	log := logf.FromContext(ctx)
-	instanceList := &serviceApi.MonitoringList{}
-	if err := r.Client.List(ctx, instanceList); err != nil {
-		log.Error(err, "failed to get MonitoringList")
-		return nil
-	}
-	if len(instanceList.Items) == 0 {
-		log.Info("Found no Monitoring instance in cluster, reconciling to recreate one")
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: serviceApi.MonitoringInstanceName}}}
-	}
-
-	// Monitoring CR exists — trigger DSCI reconciliation so it can
-	// propagate the latest Monitoring status into its own conditions.
-	dsciList := &dsciv2.DSCInitializationList{}
-	if err := r.Client.List(ctx, dsciList); err != nil {
-		log.Error(err, "Failed to get DSCInitializationList")
-		return nil
-	}
-	if len(dsciList.Items) == 0 {
-		log.Info("Found no DSCInitialization instance in cluster")
+	dsci, err := cluster.GetDSCI(ctx, r.Client)
+	if err != nil {
+		log.V(1).Info("no DSCI found, triggering default-dsci reconciliation as fallback")
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
 	}
 
-	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: dsciList.Items[0].Name}}}
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: dsci.Name}}}
 }
 
 func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Context) []DSCInitializationCondition {
-	monitoring := &serviceApi.Monitoring{}
-	err := r.Client.Get(ctx, client.ObjectKey{Name: serviceApi.MonitoringInstanceName}, monitoring)
+	monitoring := &unstructured.Unstructured{}
+	monitoring.SetGroupVersionKind(gvk.Monitoring)
+	monitoring.SetName(serviceApi.MonitoringInstanceName)
+	err := r.Client.Get(ctx, client.ObjectKeyFromObject(monitoring), monitoring)
 	if err != nil {
-		if k8serr.IsNotFound(err) {
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
 			return []DSCInitializationCondition{{status.ConditionMonitoringReady, status.RemovedReason, "Monitoring is not enabled", metav1.ConditionFalse}}
 		}
 		return []DSCInitializationCondition{{status.ConditionMonitoringReady, status.NotReadyReason,
 			fmt.Sprintf("Failed to retrieve Monitoring CR status: %v", err), metav1.ConditionUnknown}}
 	}
 
-	monitoringConditions := monitoring.GetConditions()
+	monitoringConditions, err := modules.ParseConditions(monitoring)
+	if err != nil {
+		return []DSCInitializationCondition{{status.ConditionMonitoringReady, status.NotReadyReason,
+			fmt.Sprintf("Failed to parse Monitoring CR status: %v", err), metav1.ConditionUnknown}}
+	}
+
 	conditions := make([]DSCInitializationCondition, 0, len(monitoringConditions)+1)
 
 	for _, c := range monitoringConditions {
 		switch c.Type {
 		case status.ConditionTypeReady,
 			status.ConditionTypeProvisioningSucceeded,
+			status.ConditionMonitoringDependenciesReady,
 			status.ConditionMonitoringStackAvailable,
 			status.ConditionThanosQuerierAvailable,
 			status.ConditionOpenTelemetryCollectorAvailable,
@@ -473,87 +505,6 @@ func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Co
 	})
 
 	return conditions
-}
-
-func (r *DSCInitializationReconciler) deleteMonitoringCR(ctx context.Context) error {
-	defaultMonitoring := &serviceApi.Monitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: serviceApi.MonitoringInstanceName,
-		},
-	}
-	err := r.Client.Delete(ctx, defaultMonitoring)
-	if err != nil && !k8serr.IsNotFound(err) {
-		return err
-	}
-
-	return nil
-}
-
-func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci *dsciv2.DSCInitialization) error {
-	defaultMonitoring := &serviceApi.Monitoring{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       serviceApi.MonitoringKind,
-			APIVersion: serviceApi.GroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: serviceApi.MonitoringInstanceName,
-		},
-		Spec: serviceApi.MonitoringSpec{
-			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
-				Namespace: dsci.Spec.Monitoring.Namespace,
-			},
-		},
-	}
-
-	metricsEnabled := dsci.Spec.Monitoring.Metrics != nil && dsci.Spec.Monitoring.Metrics.Storage != nil
-	tracesEnabled := dsci.Spec.Monitoring.Traces != nil
-
-	if metricsEnabled {
-		defaultMonitoring.Spec.Metrics = dsci.Spec.Monitoring.Metrics
-	} else {
-		defaultMonitoring.Spec.Metrics = nil
-	}
-
-	if tracesEnabled {
-		defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
-		if defaultMonitoring.Spec.Traces.TLS != nil && !defaultMonitoring.Spec.Traces.TLS.Enabled {
-			defaultMonitoring.Spec.Traces.TLS = nil
-		}
-	} else {
-		defaultMonitoring.Spec.Traces = nil
-	}
-
-	defaultMonitoring.Spec.Alerting = dsci.Spec.Monitoring.Alerting
-
-	if metricsEnabled || tracesEnabled {
-		if dsci.Spec.Monitoring.CollectorReplicas != 0 {
-			defaultMonitoring.Spec.CollectorReplicas = dsci.Spec.Monitoring.CollectorReplicas
-		} else {
-			isSNO := cluster.IsSingleNodeCluster(ctx, r.Client)
-			if isSNO {
-				defaultMonitoring.Spec.CollectorReplicas = 1
-			} else {
-				defaultMonitoring.Spec.CollectorReplicas = 2
-			}
-		}
-	}
-
-	if err := controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme()); err != nil {
-		return err
-	}
-
-	err := resources.Apply(
-		ctx,
-		r.Client,
-		defaultMonitoring,
-		client.FieldOwner(fieldManager),
-		client.ForceOwnership,
-	)
-
-	if err != nil && !k8serr.IsAlreadyExists(err) {
-		return err
-	}
-	return nil
 }
 
 // CreateGatewayConfig creates a default GatewayConfig if it doesn't exist.
@@ -607,26 +558,71 @@ func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, i
 	return nil
 }
 
-// watchHWProfileCRDResource triggers DSCI reconciliation when Dashboard AcceleratorProfile/HWProfile CRDs are created.
-// This ensures VAP/VAPB resources can be created when Dashboard CRDs become available.
-// TODO: this is a temporary solution to ensure VAP/VAPB resources are created when Dashboard CRDs become available, it should be removed in v3.3.
-func (r *DSCInitializationReconciler) watchHWProfileCRDResource(ctx context.Context, a client.Object) []reconcile.Request {
+// reconcileOnCRDChange maps optional CRD events to a DSCI reconcile. The
+// Monitoring CRD comes from the odh-observability chart; Dashboard
+// AcceleratorProfile/HWProfile CRDs come from the dashboard module (VAP/VAPB).
+// TODO: the HWP/AcceleratorProfile portion is temporary for VAP/VAPB and should be removed in v3.3.
+func (r *DSCInitializationReconciler) reconcileOnCRDChange(ctx context.Context, a client.Object) []reconcile.Request {
+	log := logf.FromContext(ctx)
+	log.V(1).Info("optional CRD change detected, triggering DSCI reconciliation", "CRD", a.GetName())
+
+	dsci, err := cluster.GetDSCI(ctx, r.Client)
+	if err != nil {
+		log.V(1).Info("no DSCI found, triggering default-dsci reconciliation as fallback")
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
+	}
+
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: dsci.Name}}}
+}
+
+// reconcileDSCIModules creates/updates DSCI-owned fields on the Platform CR
+// and provisions module CRs whose configuration comes from the DSCI spec
+// (e.g. Monitoring). SSA apply only includes ConfigFromDSCI fields so DSC-owned
+// modules are not overwritten. Platform ownership is merged separately because
+// the Platform is shared with the DSC controller.
+func (r *DSCInitializationReconciler) reconcileDSCIModules(ctx context.Context, instance *dsciv2.DSCInitialization) error {
 	log := logf.FromContext(ctx)
 
-	log.V(1).Info("Dashboard CRD change detected, triggering DSCI reconciliation for VAP/VAPB resources", "CRD", a.GetName())
-
-	instanceList := &dsciv2.DSCInitializationList{}
-	if err := r.Client.List(ctx, instanceList); err != nil {
-		log.Error(err, "Failed to get DSCInitializationList")
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
+	dscCtx := &modules.DSCContext{
+		DSCI: instance,
 	}
 
-	if len(instanceList.Items) == 0 {
-		// No DSCI found, but trigger anyway for default name in case of race conditions
-		// If no DSCI actually exists, the reconcile request will be ignored
-		log.V(1).Info("No DSCI instances found, triggering default-dsci reconciliation as fallback to create VAP/VAPB")
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
+	platform := modules.NewPlatformCR(dscCtx, modules.ConfigFromDSCI)
+	if err := resources.Apply(ctx, r.Client, platform, client.FieldOwner(fieldManager), client.ForceOwnership); err != nil {
+		return fmt.Errorf("failed to apply Platform CR: %w", err)
+	}
+	if err := modules.EnsurePlatformOwnerReference(ctx, r.Client, instance, r.Scheme); err != nil {
+		return fmt.Errorf("failed to update Platform owner reference: %w", err)
 	}
 
-	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name}}}
+	return modules.ForConfigSource(modules.ConfigFromDSCI, func(handler modules.ModuleHandler, _ bool) error {
+		if !handler.IsEnabled(&platform.Spec.Modules) {
+			log.V(1).Info("deleting disabled module CR", "module", handler.GetName())
+			return handler.DeleteModuleCR(ctx, r.Client)
+		}
+
+		moduleCR, err := handler.BuildModuleCR(ctx, r.Client, dscCtx, nil)
+		if err != nil {
+			return fmt.Errorf("BuildModuleCR failed for module %s: %w", handler.GetName(), err)
+		}
+
+		if moduleCR == nil {
+			return nil
+		}
+
+		if err := controllerutil.SetControllerReference(instance, moduleCR, r.Scheme); err != nil {
+			return fmt.Errorf("failed to set owner reference for module %s: %w", handler.GetName(), err)
+		}
+
+		if err := resources.Apply(ctx, r.Client, moduleCR, client.FieldOwner(fieldManager), client.ForceOwnership); err != nil {
+			if meta.IsNoMatchError(err) || k8serr.IsNotFound(err) {
+				log.V(1).Info("module CRD not installed yet, will retry when CRD appears", "module", handler.GetName())
+				return nil
+			}
+			return fmt.Errorf("failed to apply module CR %s: %w", handler.GetName(), err)
+		}
+
+		log.V(1).Info("provisioned DSCI-configured module CR", "module", handler.GetName())
+		return nil
+	})
 }

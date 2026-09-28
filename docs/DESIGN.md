@@ -81,7 +81,6 @@ List of currently integrated ODH components:
 | Kueue | `Kueue` |
 | Model Registry | `ModelRegistry` |
 | Ray | `Ray` |
-| Training Operator | `TrainingOperator` |
 | TrustyAI | `TrustyAI` |
 | Workbenches (IDEs) | `Workbenches` |
 
@@ -204,8 +203,6 @@ spec:
     ray:
       managementState: Managed
     kueue:
-      managementState: Managed
-    trainingoperator:
       managementState: Managed
     workbenches:
       managementState: Managed

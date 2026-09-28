@@ -24,6 +24,7 @@ flymd.*
 # Files created by IDE
 .idea/
 .cursor/
+.zed/
 
 # Exclude wheel files for now.
 # The only wheel file is the TF wheel one which is quite large.
@@ -94,3 +95,6 @@ config/cloudmanager/*/manager/kustomization.yaml
 cmd/component-codegen/component-codegen
 /cloudmanager
 .venv/
+
+# Ignore claude worktrees
+/.claude/worktrees/

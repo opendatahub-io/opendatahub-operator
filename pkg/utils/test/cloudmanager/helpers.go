@@ -10,6 +10,7 @@ import (
 
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
+	frameworkmanager "github.com/opendatahub-io/odh-platform-utilities/framework/manager"
 	"go.uber.org/zap/zapcore"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -17,7 +18,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
@@ -27,9 +27,7 @@ import (
 
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	certmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/cloudmanager"
-	opmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
@@ -155,9 +153,9 @@ func StartIsolatedController(t *testing.T, ctx context.Context, cfg ControllerTe
 
 	et, err := SetupEnvTest(cfg.CRDSubdir,
 		envt.WithManager(ctrl.Options{
-			Controller: ctrlconfig.Controller{SkipNameValidation: ptr.To(true)},
+			Controller: ctrlconfig.Controller{SkipNameValidation: new(true)},
 		}),
-		envt.WithOpManagerOptions(opmanager.WithChartsBasePath(chartsPath)),
+		envt.WithOpManagerOptions(frameworkmanager.WithChartsBasePath(chartsPath)),
 		envt.WithRegisterControllers(func(mgr ctrlmanager.Manager) error {
 			return cfg.NewReconciler(ctx, mgr, &operatorconfig.CloudManagerConfig{
 				RhaiOperatorNamespace: TestOperatorNamespace,
@@ -221,10 +219,7 @@ func CreateCR(t *testing.T, wt *testf.WithT, cfg ControllerTestConfig, deps ccmc
 // Targets are derived automatically from production code, so new cleanup
 // targets are picked up without test changes.
 func StripOperatorCRFinalizers(ctx context.Context, cli client.Client) error {
-	targets := append(
-		cloudmanager.FinalizerCleanupTargets(),
-		certmanager.BootstrapCleanupTarget(),
-	)
+	targets := cloudmanager.FinalizerCleanupTargets()
 
 	for _, t := range targets {
 		obj := &unstructured.Unstructured{}
@@ -312,7 +307,7 @@ func RunTestMain(m *testing.M, tc **testf.TestContext, cfg ControllerTestConfig)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	et, err := SetupEnvTest(cfg.CRDSubdir,
-		envt.WithOpManagerOptions(opmanager.WithChartsBasePath(chartsPath)),
+		envt.WithOpManagerOptions(frameworkmanager.WithChartsBasePath(chartsPath)),
 		envt.WithRegisterControllers(func(mgr ctrlmanager.Manager) error {
 			return cfg.NewReconciler(ctx, mgr, &operatorconfig.CloudManagerConfig{
 				RhaiOperatorNamespace: TestOperatorNamespace,

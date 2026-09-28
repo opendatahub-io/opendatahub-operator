@@ -64,6 +64,7 @@ func monitorDependencies(ctx context.Context, rr *types.ReconciliationRequest, r
 				CRName:      cfg.OperatorCR.Name,
 				CRNamespace: cfg.OperatorCR.Namespace,
 				Filter:      defaultDegradedConditionFilter,
+				RequireCR:   cfg.RequireCR,
 			})
 			if err != nil {
 				return fmt.Errorf("operator CR check for %s failed: %w", cfg.ReleaseName, err)

@@ -18,7 +18,6 @@ package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -28,73 +27,11 @@ const (
 	RayKind         = "Ray"
 )
 
-// Check that the component implements common.PlatformObject.
-var _ common.PlatformObject = (*Ray)(nil)
-
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-ray'",message="Ray name must be default-ray"
-// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
-// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
-
-// Ray is the Schema for the rays API
-type Ray struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   RaySpec   `json:"spec,omitempty"`
-	Status RayStatus `json:"status,omitempty"`
-}
-
-// RaySpec defines the desired state of Ray
-type RaySpec struct {
-	RayCommonSpec `json:",inline"`
-}
-
 type RayCommonSpec struct{}
 
 // RayCommonStatus defines the shared observed state of Ray
 type RayCommonStatus struct {
 	common.ComponentReleaseStatus `json:",inline"`
-}
-
-// RayStatus defines the observed state of Ray
-type RayStatus struct {
-	common.Status   `json:",inline"`
-	RayCommonStatus `json:",inline"`
-}
-
-// +kubebuilder:object:root=true
-// RayList contains a list of Ray
-type RayList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Ray `json:"items"`
-}
-
-func init() {
-	SchemeBuilder.Register(&Ray{}, &RayList{})
-}
-
-func (c *Ray) GetStatus() *common.Status {
-	return &c.Status.Status
-}
-
-func (c *Ray) GetConditions() []common.Condition {
-	return c.Status.GetConditions()
-}
-
-func (c *Ray) SetConditions(conditions []common.Condition) {
-	c.Status.SetConditions(conditions)
-}
-
-func (c *Ray) GetReleaseStatus() *[]common.ComponentRelease { return &c.Status.Releases }
-
-func (c *Ray) SetReleaseStatus(releases []common.ComponentRelease) {
-	c.Status.Releases = releases
 }
 
 // DSCRay contains all the configuration exposed in DSC instance for Ray component

@@ -222,10 +222,12 @@ func Add(name string, kind NodeKind, runlevel dag.Runlevel) {
 	defaultRegistry.Add(name, kind, runlevel)
 }
 
+// Enable marks the component/module as enabled, i.e. not disabled via env var at operator startup.
 func Enable(name string) {
 	defaultRegistry.Enable(name)
 }
 
+// Disable marks the component/module as disabled via env var at operator startup.
 func Disable(name string) {
 	defaultRegistry.Disable(name)
 }

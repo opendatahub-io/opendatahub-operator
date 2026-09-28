@@ -1,0 +1,31 @@
+name: TLS Config Lint
+on:
+  pull_request:
+    branches: [main, master, dev, odh, incubating, stable, stable-2.x]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  tls-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: sebrandon1/tls-config-lint@88376f09d2f79693895634c8c4961d12c94a5970 # v1.1.9
+        id: lint
+        with:
+          severity-threshold: high
+          sarif-output: tls-lint.sarif
+          exclude-dirs: vendor,node_modules,test/fixtures
+          # tls-profile-old (HIGH) and tls-profile-custom (MEDIUM) fire as
+          # structural false positives in OCP TLS compliance resolver code
+          # (any switch over all TLSSecurityProfile types). Re-enable once
+          # org-wide TLS compliance work is complete and findings are validated.
+          # exclude-patterns: tls-profile-old,tls-profile-custom
+
+      - uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        if: always()
+        with:
+          sarif_file: tls-lint.sarif

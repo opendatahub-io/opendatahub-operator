@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	gTypes "github.com/onsi/gomega/types"
+	"github.com/opendatahub-io/odh-platform-utilities/pkg/cluster/olm"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
@@ -14,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/fields"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -97,7 +99,11 @@ func (tc *KueueTestCtx) ensureKueueOperatorsInstalled(t *testing.T) {
 func kueueTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Kueue{})
+	ct, err := NewComponentTestCtx(t, &componentApi.Kueue{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.KueueInstanceName,
+		},
+	})
 	require.NoError(t, err)
 
 	componentCtx := KueueTestCtx{
@@ -105,10 +111,11 @@ func kueueTestSuite(t *testing.T) {
 	}
 
 	// Define core test cases
-	testCases := make([]TestCase, 0, 6)
+	testCases := make([]TestCase, 0, 7)
 	testCases = append(testCases,
 		TestCase{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWithoutOcpKueueOperator},
 		TestCase{"Validate component removed to unmanaged transition", componentCtx.ValidateKueueRemovedToUnmanagedTransition},
+		TestCase{"Validate platform release", componentCtx.ValidatePlatformRelease},
 		TestCase{"Validate component unmanaged to removed transition", componentCtx.ValidateKueueUnmanagedToRemovedTransition},
 		TestCase{"Validate autoCreateQueues disabled skips queue creation", componentCtx.ValidateKueueAutoCreateQueuesDisabled},
 	)
@@ -127,7 +134,11 @@ func kueueDegradedMonitoringTestSuite(t *testing.T) {
 	t.Helper()
 	t.Skip("Skipping: flaky due to namespace stuck in Terminating state. See RHOAIENG-46773 and RHOAIENG-46774.")
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Kueue{})
+	ct, err := NewComponentTestCtx(t, &componentApi.Kueue{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.KueueInstanceName,
+		},
+	})
 	require.NoError(t, err)
 
 	componentCtx := KueueTestCtx{
@@ -471,12 +482,25 @@ func (tc *KueueTestCtx) ValidateKueueAutoCreateQueuesDisabled(t *testing.T) {
 		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
 	)
 
-	t.Logf("Verifying no ClusterQueue, ResourceFlavor or LocalQueue is created (autoCreateQueues=false).")
+	t.Logf("Verifying the operator did not create its default ClusterQueue, ResourceFlavor or LocalQueue (autoCreateQueues=false).")
+	// EnsureResourcesGone performs a LIST of the GVK — the NamespacedName's Name is only used
+	// for the error-message label, not as a filter. Without a field selector these checks would
+	// assert that NO ClusterQueue/ResourceFlavor exists anywhere on the cluster, and would fail
+	// on unrelated queues left behind by other suites sharing the cluster (e.g. cluster-queue-mnist
+	// from a distributed-workloads test). Scope the checks to the resources the operator itself
+	// would create (named "default"/"default-flavor") so the test verifies the operator's behaviour
+	// rather than the whole cluster's state.
 	tc.EnsureResourcesGone(
 		WithMinimalObject(gvk.ClusterQueue, types.NamespacedName{Name: kueueDefaultClusterQueueName}),
+		WithListOptions(&client.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector("metadata.name", kueueDefaultClusterQueueName),
+		}),
 	)
 	tc.EnsureResourcesGone(
 		WithMinimalObject(gvk.ResourceFlavor, types.NamespacedName{Name: kueue.DefaultFlavorName}),
+		WithListOptions(&client.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector("metadata.name", kueue.DefaultFlavorName),
+		}),
 	)
 	tc.EnsureResourcesDoNotExist(
 		WithMinimalObject(gvk.LocalQueue, types.NamespacedName{Name: kueueDefaultLocalQueueName, Namespace: managedNS}),
@@ -528,7 +552,7 @@ func (tc *KueueTestCtx) expectedKueueFrameworks(t *testing.T) string {
 		`"StatefulSet"`, `"TFJob"`, `"XGBoostJob"`,
 	}
 
-	kueueInfo, err := cluster.OperatorExists(t.Context(), tc.Client(), kueueOpName)
+	kueueInfo, err := olm.OperatorExists(t.Context(), tc.Client(), kueueOpName)
 	require.NoError(t, err)
 	require.NotNil(t, kueueInfo, "kueue operator should be installed")
 
@@ -595,7 +619,7 @@ integrations:
 // External Operator CR > Kueue Component CR > DataScienceCluster CR
 //
 // Keep the real Kueue operator installed but scale its deployment to 0 during
-// condition injection. This way OperatorExists() still passes (OLM's OperatorCondition exists),
+// condition injection. This way olm.OperatorExists() still passes (OLM OperatorCondition or ClusterExtension exists),
 // but the operator can't reset conditions we inject.
 func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T) {
 	t.Helper()

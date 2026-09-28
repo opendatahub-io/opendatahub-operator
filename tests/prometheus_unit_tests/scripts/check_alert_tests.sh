@@ -3,12 +3,14 @@
 PROMETHEUS_RULES_DIR=$1
 ALERT_SEVERITY=$2
 
+YQ="${YQ:-yq}"
+
 # Collect all alerts from the PrometheusRule template files
 while IFS= read -r ALERT; do
   ALL_ALERTS+=("$ALERT")
 done < <(
   find "${PROMETHEUS_RULES_DIR}" -name "*-prometheusrules.tmpl.yaml" -type f | while read -r rule_file; do
-    yq -N e '.spec.groups[].rules[]
+    $YQ -N e '.spec.groups[].rules[]
       | select(.alert != null and .labels.severity == "'${ALERT_SEVERITY}'")
       | .alert' "${rule_file}"
   done
@@ -19,7 +21,7 @@ while IFS= read -r ALERT; do
   PROMETHEUS_UNIT_TEST_CHECK+=("$ALERT")
 done < <(
   find "${PROMETHEUS_RULES_DIR}" -name "*-alerting.unit-tests.yaml" -type f | while read -r alert; do
-    yq -N eval-all '.tests[]
+    $YQ -N eval-all '.tests[]
     | .alert_rule_test[]
     | .exp_alerts[]
     | .exp_labels

@@ -101,6 +101,35 @@ func TestCheckPreConditions_Managed_KueueOperatorAlreadyInstalled(t *testing.T) 
 	g.Expect(result.Message).Should(ContainSubstring(status.KueueStateManagedNotSupportedMessage))
 }
 
+func TestCheckPreConditions_Unmanaged_KueueOperatorInstalledViaClusterExtension(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(newInstalledClusterExtension("kueue-ext", kueueOperator)),
+		fakeclient.WithGVKs(fakeclient.GVKMapping{GVK: gvk.ClusterExtension, Scope: meta.RESTScopeRoot}),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	kueue := componentApi.Kueue{
+		Spec: componentApi.KueueSpec{
+			KueueManagementSpec: componentApi.KueueManagementSpec{
+				ManagementState: operatorv1.Unmanaged,
+			},
+		},
+	}
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &kueue,
+		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+	}
+
+	result, err := checkPreConditions(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(result.Pass).Should(BeTrue())
+}
+
 func TestCheckPreConditions_Unmanaged_KueueOperatorNotInstalled(t *testing.T) {
 	ctx := t.Context()
 	g := NewWithT(t)
@@ -911,5 +940,33 @@ func TestKueueConditionFilter(t *testing.T) {
 			result := kueueDegradedConditionFilter(tt.conditionType, tt.conditionValue)
 			g.Expect(result).To(Equal(tt.shouldDegrade))
 		})
+	}
+}
+
+func newInstalledClusterExtension(name, packageName string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "olm.operatorframework.io/v1",
+			"kind":       "ClusterExtension",
+			"metadata":   map[string]any{"name": name},
+			"spec": map[string]any{
+				"source": map[string]any{
+					"sourceType": "Catalog",
+					"catalog":    map[string]any{"packageName": packageName},
+				},
+			},
+			"status": map[string]any{
+				"conditions": []any{
+					map[string]any{
+						"type":   "Installed",
+						"status": "True",
+						"reason": "Succeeded",
+					},
+				},
+				"install": map[string]any{
+					"bundle": map[string]any{"version": "1.4.0"},
+				},
+			},
+		},
 	}
 }

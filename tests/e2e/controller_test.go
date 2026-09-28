@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"flag"
 	"fmt"
+	"log"
 	"maps"
 	"os"
 	"slices"
@@ -24,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -142,10 +143,8 @@ var (
 			{
 				componentApi.DashboardComponentName:            dashboardTestSuite,
 				componentApi.RayComponentName:                  rayTestSuite,
-				componentApi.ModelRegistryComponentName:        modelRegistryTestSuite,
-				componentApi.TrainingOperatorComponentName:     trainingOperatorTestSuite,
 				componentApi.TrainerComponentName:              trainerTestSuite,
-				componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
+				componentApi.AIPipelinesComponentName:          aiPipelinesTestSuite,
 				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
 				componentApi.KserveComponentName:               kserveTestSuite,
 				componentApi.FeastOperatorComponentName:        feastModuleTestSuite,
@@ -157,16 +156,14 @@ var (
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
 				componentApi.KueueComponentName: kueueTestSuite,
+				// ModelRegistry and Kserve are coupled, so must not run with Kserve tests in parallel
+				componentApi.ModelRegistryComponentName: modelRegistryTestSuite,
 			},
 			{
-				// TrustyAI tests depends on KServe, so must not run with Kserve or ModelsAsService tests in parallel
+				// TrustyAI tests depends on KServe, so must not run with Kserve tests in parallel
 				componentApi.TrustyAIComponentName: trustyAITestSuite,
 				// MLflowOperator tests should not run in parallel with Workbenches tests, as Workbenches tests integration with MLflowOperator
 				componentApi.MLflowOperatorComponentName: mlflowOperatorTestSuite,
-			},
-			{
-				// ModelsAsService tests depends on KServe, so must not run with Kserve or TrustyAI tests in parallel
-				componentApi.ModelsAsServiceComponentName: modelsAsServiceTestSuite,
 			},
 			{
 				// run external operator degraded monitoring tests isolated from other component tests
@@ -399,7 +396,8 @@ func TestOdhOperator(t *testing.T) {
 
 	registerSchemes()
 
-	log.SetLogger(zap.New(zap.UseDevMode(true)))
+	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(os.Stdout)))
+	log.SetOutput(os.Stdout) // Used for cluster diagnostics output
 
 	if deadline, ok := t.Deadline(); ok {
 		remaining := time.Until(deadline)
@@ -453,6 +451,10 @@ func TestOdhOperator(t *testing.T) {
 	if testOpts.cleanUpPreviousResources {
 		CleanupPreviousTestResources(t)
 	}
+	// Remove any leftover MLflow instances from previous test runs which might have been created by previous components
+	// when running within DevTestOps pipeline. CleanupPreviousTestResources is disabled in that pipeline, so this has
+	// to run separately.
+	cleanupStaleMLflowInstances(t)
 
 	if collector := startMetricsCollectorIfEnabled(); collector != nil {
 		defer collector.Stop()
@@ -460,6 +462,7 @@ func TestOdhOperator(t *testing.T) {
 
 	if tc, err := NewTestContext(t); err == nil && tc.IsXKS() {
 		tc.EnsurePlatformCR(t)
+		tc.EnsureGatewayConfigForXKS(t)
 	}
 
 	if testOpts.dependantOperatorsManagementTest {
@@ -610,7 +613,7 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-operator-v2tov3upgrade", viper.GetEnvPrefix()+"_OPERATOR_V2TOV3UPGRADE"))
 	pflag.Bool("test-webhook", true, "run webhook tests")
 	checkEnvVarBindingError(viper.BindEnv("test-webhook", viper.GetEnvPrefix()+"_WEBHOOK"))
-	pflag.Bool("test-dag-ordering", false, "run DAG upgrade ordering tests")
+	pflag.Bool("test-dag-ordering", true, "run DAG upgrade ordering tests")
 	checkEnvVarBindingError(viper.BindEnv("test-dag-ordering", viper.GetEnvPrefix()+"_DAG_ORDERING"))
 
 	pflag.Bool("circuit-breaker", true, "enable circuit breaker to halt tests on infrastructure failures")

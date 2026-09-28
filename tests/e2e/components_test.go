@@ -7,6 +7,7 @@ import (
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -244,6 +245,15 @@ func (tc *ComponentTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
 		),
 	)
 
+	tc.validateUpdateDeploymentsResources(t, deployments...)
+}
+
+func (tc *ComponentTestCtx) validateUpdateDeploymentsResources(
+	t *testing.T,
+	deployments ...unstructured.Unstructured,
+) {
+	t.Helper()
+
 	for _, d := range deployments {
 		t.Run("deployment_"+d.GetName(), func(t *testing.T) {
 			t.Helper()
@@ -328,6 +338,22 @@ func (tc *ComponentTestCtx) ValidateComponentReleases(t *testing.T) {
 				),
 			),
 		),
+	)
+}
+
+// ValidatePlatformRelease ensures that the component CR status.releases
+// contains a "platform" entry with a non-empty version.
+func (tc *ComponentTestCtx) ValidatePlatformRelease(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.GVK, tc.NamespacedName),
+		WithCondition(
+			jq.Match(`.status.releases[] | select(.name == "%s") | .version != ""`, common.PlatformReleaseName),
+		),
+		WithCustomErrorMsg("Component CR should have a platform release entry with non-empty version"),
 	)
 }
 

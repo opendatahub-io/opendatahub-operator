@@ -6,14 +6,16 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 )
 
 type registryEntry struct {
-	handler  ModuleHandler
-	enabled  bool
-	runlevel dag.Runlevel
+	handler      ModuleHandler
+	enabled      bool
+	runlevel     dag.Runlevel
+	configSource ConfigSource
 }
 
 func (e registryEntry) GetName() string           { return e.handler.GetName() }
@@ -91,29 +93,6 @@ func (r *Registry) IsEnabled(name string) bool {
 	return ok && e.enabled
 }
 
-// EnableFromList enables only the named modules, disabling all others.
-// Names that don't match any registered module are silently ignored.
-func (r *Registry) EnableFromList(names []string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	want := make(map[string]bool, len(names))
-	for _, n := range names {
-		want[n] = true
-	}
-	for name, e := range r.entries {
-		e.enabled = want[name]
-		r.entries[name] = e
-
-		if want[name] {
-			provision.Enable(name)
-		} else {
-			provision.Disable(name)
-		}
-	}
-	r.resolvedCache = nil
-}
-
 // sortedNames returns module names in sorted order for deterministic iteration.
 // Caller must hold at least r.mu.RLock().
 func (r *Registry) sortedNames() []string {
@@ -177,14 +156,32 @@ func (r *Registry) ForAll(f func(handler ModuleHandler, registryEnabled bool) er
 	return errs.ErrorOrNil()
 }
 
+// ForConfigSource iterates over modules whose config source matches,
+// regardless of enabled state.
+func (r *Registry) ForConfigSource(source ConfigSource, f func(handler ModuleHandler, registryEnabled bool) error) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var errs *multierror.Error
+	for _, name := range r.sortedNames() {
+		e := r.entries[name]
+		if e.configSource != source {
+			continue
+		}
+		errs = multierror.Append(errs, f(e.handler, e.enabled))
+	}
+
+	return errs.ErrorOrNil()
+}
+
 // IsModuleEnabled checks if a module with the given name is enabled in the
 // registry and also enabled based on platform configuration.
-func (r *Registry) IsModuleEnabled(moduleName string, platform *PlatformContext) bool {
+func (r *Registry) IsModuleEnabled(moduleName string, modules *configv1alpha1.PlatformModules) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	e, ok := r.entries[moduleName]
-	return ok && e.enabled && e.handler.IsEnabled(platform)
+	return ok && e.enabled && e.handler.IsEnabled(modules)
 }
 
 // ResolvedBatches returns modules grouped by runlevel and topologically
@@ -261,12 +258,12 @@ func (r *Registry) HasEntries() bool {
 // AnyEnabled returns true if at least one registered module is enabled
 // in the given PlatformContext. Returns false when all modules are
 // Removed or no modules are registered.
-func (r *Registry) AnyEnabled(platform *PlatformContext) bool {
+func (r *Registry) AnyEnabled(modules *configv1alpha1.PlatformModules) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	for _, e := range r.entries {
-		if e.enabled && e.handler.IsEnabled(platform) {
+		if e.enabled && e.handler.IsEnabled(modules) {
 			return true
 		}
 	}
@@ -279,20 +276,18 @@ func Add(handler ModuleHandler, opts ...RegistrationOption) {
 	r.Add(handler, opts...)
 }
 
+// Enable marks the module as enabled, i.e. not disabled via env var at operator startup.
 func Enable(name string) {
 	r.Enable(name)
 }
 
+// Disable marks the module as disabled via env var at operator startup.
 func Disable(name string) {
 	r.Disable(name)
 }
 
 func IsEnabled(name string) bool {
 	return r.IsEnabled(name)
-}
-
-func EnableFromList(names []string) {
-	r.EnableFromList(names)
 }
 
 func ForEach(f func(ModuleHandler) error) error {
@@ -307,8 +302,12 @@ func ForAll(f func(handler ModuleHandler, registryEnabled bool) error) error {
 	return r.ForAll(f)
 }
 
-func IsModuleEnabled(moduleName string, platform *PlatformContext) bool {
-	return r.IsModuleEnabled(moduleName, platform)
+func ForConfigSource(source ConfigSource, f func(handler ModuleHandler, registryEnabled bool) error) error {
+	return r.ForConfigSource(source, f)
+}
+
+func IsModuleEnabled(moduleName string, modules *configv1alpha1.PlatformModules) bool {
+	return r.IsModuleEnabled(moduleName, modules)
 }
 
 func DefaultRegistry() *Registry {

@@ -20,6 +20,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -140,6 +141,9 @@ type BaseHandler struct {
 	Config ModuleConfig
 }
 
+func (b *BaseHandler) PopulatePlatformModule(_ *configv1alpha1.PlatformModules, _ *DSCContext) {
+}
+
 func (b *BaseHandler) GetName() string {
 	return b.Config.Name
 }
@@ -229,9 +233,8 @@ func setDSCComponentField(dsc *dscv2.DataScienceCluster, fieldName string, enabl
 // Releases on the pointed-to struct. Types without a Releases field are
 // silently skipped.
 func setReleasesOnDSCField(field reflect.Value, releases []common.ComponentRelease) {
-	for i := range field.NumField() {
-		f := field.Field(i)
-		if f.Kind() != reflect.Ptr || f.Type().Elem().Kind() != reflect.Struct {
+	for _, f := range field.Fields() {
+		if f.Kind() != reflect.Pointer || f.Type().Elem().Kind() != reflect.Struct {
 			continue
 		}
 
@@ -337,7 +340,7 @@ func (b *BaseHandler) GetModuleStatus(ctx context.Context, cli client.Client) (*
 	}, nil
 }
 
-const platformReleaseName = "platform"
+const platformReleaseName = common.PlatformReleaseName
 
 func extractReleases(u *unstructured.Unstructured) []common.ComponentRelease {
 	items, found, _ := unstructured.NestedSlice(u.Object, "status", "releases")
@@ -347,7 +350,7 @@ func extractReleases(u *unstructured.Unstructured) []common.ComponentRelease {
 
 	result := make([]common.ComponentRelease, 0, len(items))
 	for _, item := range items {
-		entry, ok := item.(map[string]interface{})
+		entry, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
