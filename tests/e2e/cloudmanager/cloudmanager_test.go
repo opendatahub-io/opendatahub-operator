@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -505,6 +506,15 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			sailDep := getManagedDependencyDeploymentByName(wt, freshCR, "servicemesh")
 			sailNN := types.NamespacedName{Name: sailDep.GetName(), Namespace: sailDep.GetNamespace()}
 
+			// Capture LWS operator ServiceAccounts before Unmanaged so we can assert
+			// they are retained while the Deployment terminates (safe cleanup ordering).
+			lwsSAs := listInfrastructureServiceAccounts(wt, lwsNN.Namespace)
+			wt.Expect(lwsSAs).NotTo(BeEmpty(), "expected LWS ServiceAccounts before Unmanaged transition")
+			lwsSANames := make([]string, len(lwsSAs))
+			for i, sa := range lwsSAs {
+				lwsSANames[i] = sa.GetName()
+			}
+
 			wt.Get(gvk.Deployment, types.NamespacedName{
 				Name: "istiod", Namespace: sailOperatorNS,
 			}).Eventually().Should(Not(BeNil()))
@@ -515,6 +525,40 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
 				return unstructured.SetNestedField(obj.Object, depsWithCustomNamespaces(ccmapi.Unmanaged), "spec", "dependencies")
 			}).Eventually().Should(Not(BeNil()))
+
+			// While the LWS operator Deployment still exists, at least one of its
+			// ServiceAccounts must remain (RBAC must outlive the workload).
+			wt.Log("asserting LWS ServiceAccounts retained while operator Deployment still present")
+			wt.Eventually(func(g Gomega) {
+				dep := &unstructured.Unstructured{}
+				dep.SetGroupVersionKind(gvk.Deployment)
+				err := wt.Client().Get(wt.Context(), lwsNN, dep)
+				if k8serr.IsNotFound(err) {
+					return
+				}
+				g.Expect(err).NotTo(HaveOccurred())
+
+				saStillPresent := false
+				for _, name := range lwsSANames {
+					sa := &unstructured.Unstructured{}
+					sa.SetGroupVersionKind(gvk.ServiceAccount)
+					getErr := wt.Client().Get(wt.Context(), types.NamespacedName{
+						Name: name, Namespace: lwsNN.Namespace,
+					}, sa)
+					if getErr == nil {
+						saStillPresent = true
+						break
+					}
+					g.Expect(k8serr.IsNotFound(getErr)).To(BeTrue(),
+						"unexpected error getting ServiceAccount %s/%s: %v", lwsNN.Namespace, name, getErr)
+				}
+				g.Expect(saStillPresent).To(BeTrue(),
+					"LWS ServiceAccount must remain while Deployment %s/%s still exists",
+					lwsNN.Namespace, lwsNN.Name)
+
+				// Keep polling until the Deployment is gone.
+				g.Expect(false).To(BeTrue(), "waiting for LWS Deployment to terminate")
+			}).Should(Succeed())
 
 			// sail-operator cleanup check.
 			// Istio CR is deleted first (foreground propagation), forcing sail-operator to
@@ -537,6 +581,14 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			wt.Get(ccmcommon.LWSOperatorCR.GVK, types.NamespacedName{
 				Name: ccmcommon.LWSOperatorCR.Name, Namespace: lwsNS,
 			}).Eventually().Should(BeNil())
+
+			// After the workload is gone, access-control resources must also be removed.
+			wt.Log("asserting LWS ServiceAccounts removed after operator Deployment is gone")
+			for _, name := range lwsSANames {
+				wt.Get(gvk.ServiceAccount, types.NamespacedName{
+					Name: name, Namespace: lwsNN.Namespace,
+				}).Eventually().Should(BeNil())
+			}
 
 			// All managed deployments should be gone.
 			wt.Log("verifying all managed deployments are gone")
