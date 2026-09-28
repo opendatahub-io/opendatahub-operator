@@ -17,7 +17,7 @@
 buildConfig:
   odh:
     repo: opendatahub-io/ODH-Build-Config
-    ref: main@eeb2c218f2791326468a17760200a0bfae1debf6
+    ref: main@92d39ada38bb627b008a3a6b46444064601237b8
   rhoai:
     repo: red-hat-data-services/RHOAI-Build-Config
     ref: rhoai-3.6-ea.2@3fc33c7759e7666805fb5019faf8b19737d4e6e0
@@ -1234,7 +1234,7 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-openshell-cli"
-      digest: "sha256:a82c849644a86226d4683b7e06ce1f5424f31cab7ee11c3f9b10f32385ee6530"
+      digest: "sha256:bf107e4611303a8feeae8017c57c708ce7d85a94a6f1908d7553ede2a054fe63"
   RELATED_IMAGE_ODH_MOD_ARCH_NOTEBOOKS_IMAGE:
     source: "csv"
     odh:
@@ -1316,7 +1316,7 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-openshell-sandbox"
-      digest: "sha256:0c80175bb25fcd2d75ea075f704b75c186bc2f89bf14e50d433d1b9fc16b152f"
+      digest: "sha256:79067a6670c65256dfa34e75200a235c8fdc1a670647c61b46c2b8cd1cce3da2"
   RELATED_IMAGE_ODH_PRAXIS_AI_GRID_OPERATOR_IMAGE:
     source: "csv"
     odh:
