@@ -346,13 +346,13 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	secretCache, err := createSecretCacheConfig(platform, oconfig.MonitoringNamespace)
+	secretCache, err := createSecretCacheConfig(platform)
 	if err != nil {
 		setupLog.Error(err, "unable to get application namespace into cache")
 		os.Exit(1)
 	}
 
-	oDHCache, err := createODHGeneralCacheConfig(platform, oconfig.MonitoringNamespace)
+	oDHCache, err := createODHGeneralCacheConfig(platform)
 	if err != nil {
 		setupLog.Error(err, "unable to get application namespace into cache")
 		os.Exit(1)
@@ -386,6 +386,15 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// Prometheus operator cache filters: only register when the API is available
 	addCacheIfAvailable(setupClient, cacheOptions.ByObject, &promv1.PrometheusRule{}, gvk.PrometheusRule, cache.ByObject{Namespaces: oDHCache})
 	addCacheIfAvailable(setupClient, cacheOptions.ByObject, &promv1.ServiceMonitor{}, gvk.ServiceMonitor, cache.ByObject{Namespaces: oDHCache})
+
+	// Istio types the gateway controller deploys and reads back (deploy action existence
+	// check) in the gateway namespace. Cache them scoped to that namespace when the CRDs
+	// are present, so the read is served from cache without a cluster-wide informer. When
+	// the CRDs are absent at startup the gateway's dynamic owned watch (OwnsGVK + CrdExists)
+	// handles them at runtime — same pattern as PrometheusRule/ServiceMonitor above.
+	gatewayNSCache := map[string]cache.Config{gateway.GetGatewayNamespace(): {}}
+	addCacheIfAvailable(setupClient, cacheOptions.ByObject, resources.GvkToUnstructured(gvk.DestinationRule), gvk.DestinationRule, cache.ByObject{Namespaces: gatewayNSCache})
+	addCacheIfAvailable(setupClient, cacheOptions.ByObject, resources.GvkToUnstructured(gvk.EnvoyFilter), gvk.EnvoyFilter, cache.ByObject{Namespaces: gatewayNSCache})
 
 	// Fetch the cluster TLS security profile for webhook and metrics servers
 	tlsOpts, tlsProfile, tlsAdherence, hasOpenShiftConfigAPI := fetchTLSProfile(ctx, scheme, oconfig.RestConfig)
@@ -572,7 +581,7 @@ func (l *LeaderElectionRunnableWrapper) NeedLeaderElection() bool {
 	return true
 }
 
-func getCommonCache(platform common.Platform, monitoringNamespace string) (map[string]cache.Config, error) {
+func getCommonCache(platform common.Platform) (map[string]cache.Config, error) {
 	namespaceConfigs := map[string]cache.Config{}
 
 	// networkpolicy need operator namespace
@@ -582,7 +591,7 @@ func getCommonCache(platform common.Platform, monitoringNamespace string) (map[s
 	}
 
 	namespaceConfigs[operatorNs] = cache.Config{}
-	namespaceConfigs[monitoringNamespace] = cache.Config{} // configurable via DSCI Monitoring.Namespace (platform default applied at startup)
+	namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 
 	// Get application namespace from cluster config
 	appNamespace := cluster.GetApplicationNamespace()
@@ -596,8 +605,8 @@ func getCommonCache(platform common.Platform, monitoringNamespace string) (map[s
 	return namespaceConfigs, nil
 }
 
-func createSecretCacheConfig(platform common.Platform, monitoringNamespace string) (map[string]cache.Config, error) {
-	namespaceConfigs, err := getCommonCache(platform, monitoringNamespace)
+func createSecretCacheConfig(platform common.Platform) (map[string]cache.Config, error) {
+	namespaceConfigs, err := getCommonCache(platform)
 	if err != nil {
 		return nil, err
 	}
@@ -607,8 +616,8 @@ func createSecretCacheConfig(platform common.Platform, monitoringNamespace strin
 	return namespaceConfigs, nil
 }
 
-func createODHGeneralCacheConfig(platform common.Platform, monitoringNamespace string) (map[string]cache.Config, error) {
-	namespaceConfigs, err := getCommonCache(platform, monitoringNamespace)
+func createODHGeneralCacheConfig(platform common.Platform) (map[string]cache.Config, error) {
+	namespaceConfigs, err := getCommonCache(platform)
 	if err != nil {
 		return nil, err
 	}
@@ -661,29 +670,6 @@ func cacheDisableFor() []client.Object {
 		// registered under the OpenShift guard above, so it is served from cache rather
 		// than listed here.)
 		&configv1.APIServer{},
-		// Namespaced cert-manager Issuer and Certificate are deployed by components
-		// (e.g. ray's selfsigned-issuer + serving Certificate in the applications
-		// namespace) and read back by the deploy action's existence check, but are
-		// watched nowhere in this manager. cert-manager types are only watched by the
-		// separate cloudmanager binary (pkg/controller/cloudmanager, via bootstrap.go
-		// WatchesGVK) — a different manager with its own cache — so the main manager
-		// has no informer for them. They must bypass the cache like Infrastructure does,
-		// otherwise a cached read would start an unfiltered cluster-wide informer. Safe to
-		// disable here: nothing in internal/controller watches cert-manager types, so no
-		// watch depends on a cached informer.
-		resources.GvkToUnstructured(gvk.CertManagerIssuer),
-		resources.GvkToUnstructured(gvk.CertManagerCertificate),
-		// DestinationRule and EnvoyFilter are Istio types the gateway controller
-		// deploys and reads back via the deploy action's existence check. They are
-		// registered as dynamic owned watches (OwnsGVK(..., Dynamic(CrdExists(...)))),
-		// whose informer is only registered by an action appended AFTER the deploy
-		// action. Bypassing the cache for these reads avoids the deploy existence Get
-		// racing the dynamic watch registration; the dynamic event-watch still registers
-		// and fires on drift (DisableFor only affects the read path). Route, the third
-		// dynamic owned GVK, is unaffected: it has a static ByObject informer covering the
-		// gateway namespace, so its existence read is already served.
-		resources.GvkToUnstructured(gvk.DestinationRule),
-		resources.GvkToUnstructured(gvk.EnvoyFilter),
 		&ofapiv1alpha1.Subscription{},
 		&authorizationv1.SelfSubjectRulesReview{},
 		&corev1.Pod{},
