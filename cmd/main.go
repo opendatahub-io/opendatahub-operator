@@ -171,6 +171,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 	utilruntime.Must(admissionregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(promv1.AddToScheme(scheme))
+	utilruntime.Must(configv1.Install(scheme))
 	utilruntime.Must(operatorv1.Install(scheme))
 	utilruntime.Must(consolev1.AddToScheme(scheme))
 	utilruntime.Must(securityv1.Install(scheme))
@@ -397,7 +398,9 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// OpenShift-specific cache filters: only register when running on OpenShift
 	if cluster.GetClusterInfo().Type == cluster.ClusterTypeOpenShift {
 		cacheOptions.ByObject[&operatorv1.IngressController{}] = cache.ByObject{
-			Field: fields.Set{"metadata.name": "default"}.AsSelector(),
+			Namespaces: map[string]cache.Config{
+				cluster.IngressControllerName.Namespace: {},
+			},
 		}
 		cacheOptions.ByObject[&configv1.Authentication{}] = cache.ByObject{
 			Field: fields.Set{"metadata.name": cluster.ClusterAuthenticationObj}.AsSelector(),

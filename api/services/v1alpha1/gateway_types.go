@@ -26,6 +26,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	metadatalabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 const (
@@ -201,6 +202,9 @@ func (ingresses AdditionalIngresses) Validate(ingressMode IngressMode) error {
 			if errs := validation.IsQualifiedName(key); len(errs) > 0 {
 				return fmt.Errorf("additional ingress %q has invalid route label key %q: %s", ingress.Name, key, errs[0])
 			}
+			if key == metadatalabels.K8SCommon.PartOf || key == metadatalabels.PlatformPartOf {
+				return fmt.Errorf("additional ingress %q uses reserved route label key %q", ingress.Name, key)
+			}
 			if errs := validation.IsValidLabelValue(value); len(errs) > 0 {
 				return fmt.Errorf("additional ingress %q has invalid route label value for %q: %s", ingress.Name, key, errs[0])
 			}
@@ -366,6 +370,14 @@ type AdditionalIngressStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	Conditions []common.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+}
+
+func (s *AdditionalIngressStatus) GetConditions() []common.Condition {
+	return s.Conditions
+}
+
+func (s *AdditionalIngressStatus) SetConditions(conditions []common.Condition) {
+	s.Conditions = append(s.Conditions[:0:0], conditions...)
 }
 
 // +kubebuilder:object:root=true
