@@ -106,6 +106,7 @@ type Operator struct {
 	skipOperatorGroup   bool
 	globalOperatorGroup bool
 	channel             string
+	useOLMv1            bool
 }
 
 // TestCaseOpts defines a function type that can be used to modify how individual test cases are executed.
@@ -544,13 +545,17 @@ func (tc *TestContext) ensureOperatorsAreInstalled(t *testing.T, operators []Ope
 			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
 			testFn: func(t *testing.T) {
 				t.Helper()
-				switch {
-				case op.skipOperatorGroup:
-					tc.EnsureOperatorInstalledWithChannel(op.nn, op.channel)
-				case op.globalOperatorGroup:
-					tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(op.nn, op.channel)
-				default:
-					tc.EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(op.nn, op.channel)
+				if op.useOLMv1 {
+					tc.EnsureOperatorInstalledViaClusterExtension(op.nn, op.channel)
+				} else {
+					switch {
+					case op.skipOperatorGroup:
+						tc.EnsureOperatorInstalledWithChannel(op.nn, op.channel)
+					case op.globalOperatorGroup:
+						tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(op.nn, op.channel)
+					default:
+						tc.EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(op.nn, op.channel)
+					}
 				}
 			},
 		}
