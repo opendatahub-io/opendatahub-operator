@@ -188,7 +188,7 @@ func TestKubeAuthProxyCertificateProvider(t *testing.T) {
 		Conditions: conditions.NewManager(&gatewayConfigConditionsAccessor{}, ReadyConditionType),
 	}
 
-	err = createKubeAuthProxyInfrastructure(ctx, rr)
+	err = createKubeAuthProxyInfrastructure(ctx, rr, rr.Client)
 	g.Expect(err).NotTo(HaveOccurred())
 
 	g.Expect(rr.Templates).NotTo(BeEmpty(), "auth proxy resources must be queued")
