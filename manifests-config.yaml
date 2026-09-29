@@ -458,14 +458,6 @@ imageOverrides:
     rhoai:
       base: "quay.io/rhoai/odh-autorag-rhel9"
       digest: "sha256:0a159876bde8087fec17a9bb4b0b17b524bdba7a06e03bbc1fb77d2f393af57f"
-  RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE:
-    source: "csv"
-    odh:
-      base: "quay.io/opendatahub/odh-built-in-detector"
-      digest: "sha256:7121d1ba3e5e5dabb26abcd5a92f1ed7d9fe2a2a7468ee1da6d1f1e0abbced99"
-    rhoai:
-      base: "quay.io/rhoai/odh-built-in-detector-rhel9"
-      digest: "sha256:e6da59f60cc6b47c8a3d62f971b5186d3e4531249f62d152707e13c98c221078"
   RELATED_IMAGE_ODH_CORE_BFF_IMAGE:
     source: "csv"
     odh:
@@ -522,14 +514,6 @@ imageOverrides:
     rhoai:
       base: "quay.io/rhoai/odh-feature-server-rhel9"
       digest: "sha256:f18a687afc6ec5551deb8d38e79f4ca84c0afce8c2adeb3622d471c0da12de87"
-  RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE:
-    source: "csv"
-    odh:
-      base: "quay.io/opendatahub/ta-guardrails-orchestrator"
-      digest: "sha256:757f3c3e05fe0c40bcfa8d29d0511ddcaff640a38c4ee507696cf126009381b6"
-    rhoai:
-      base: "quay.io/rhoai/odh-fms-guardrails-orchestrator-rhel9"
-      digest: "sha256:bceeb62432e613dea25b96dd13db355e9a4b7b6dcf3685eab6bf6e55d5ffd93d"
   RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE:
     source: "csv"
     odh:
@@ -1121,14 +1105,6 @@ imageOverrides:
     rhoai:
       base: "quay.io/rhoai/odh-trustyai-service-py-rhel9"
       digest: "sha256:a977c8988999caf4a8d9a2fb3ac6eb3a143101f90a4bee4fe1ae199d280eaff6"
-  RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE:
-    source: "csv"
-    odh:
-      base: "quay.io/opendatahub/vllm-orchestrator-gateway"
-      digest: "sha256:10789a3f024d520078e4d813d06fa1d0297d4cd4af87a2d271c44c132d8e39f2"
-    rhoai:
-      base: "quay.io/rhoai/odh-trustyai-vllm-orchestrator-gateway-rhel9"
-      digest: "sha256:db88e0f38bd517dbb265d04e1491e1c94459cfce76fabc715a10996fd21196a3"
   RELATED_IMAGE_ODH_WORKBENCHES_CONTROLLER_IMAGE:
     source: "csv"
     odh:
