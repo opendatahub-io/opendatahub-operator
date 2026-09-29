@@ -106,7 +106,7 @@ func TestGetCertificateType(t *testing.T) {
 			description:  "should return provided certificate type",
 		},
 		{
-			name: "empty certificate type defaults to OpenshiftDefaultIngress",
+			name: "empty certificate type defaults to OpenshiftDefaultIngress on OpenShift",
 			gatewayConfig: &serviceApi.GatewayConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: testGatewayName,
@@ -118,7 +118,7 @@ func TestGetCertificateType(t *testing.T) {
 				},
 			},
 			expectedType: string(infrav1.OpenshiftDefaultIngress),
-			description:  "should return OpenShift default when certificate type is empty string",
+			description:  "should return OpenShift default when certificate type is empty on a non-XKS cluster",
 		},
 	}
 
@@ -147,6 +147,11 @@ func TestDefaultCertificateTypeForKubernetes(t *testing.T) {
 			Certificate: &infrav1.CertificateSpec{},
 		},
 	})).To(Equal(string(infrav1.SelfSigned)))
+
+	// An explicit type is always honored regardless of platform, even on XKS.
+	g.Expect(getCertificateType(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress}},
+	})).To(Equal(string(infrav1.OpenshiftDefaultIngress)))
 }
 
 // TestGetGatewayAuthProxyTimeout tests the getGatewayAuthProxyTimeout function.
