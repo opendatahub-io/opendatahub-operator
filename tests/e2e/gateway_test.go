@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -11,11 +12,13 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -24,12 +27,15 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -234,7 +240,7 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 	t.Log("Gateway infrastructure validation completed")
 }
 
-// ValidateAdditionalGatewayListeners validates add/remove reconciliation on the shared Gateway.
+// ValidateAdditionalGatewayListeners validates additional listener and Route reconciliation.
 func (tc *GatewayTestCtx) ValidateAdditionalGatewayListeners(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Tier1)
@@ -249,19 +255,34 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayListeners(t *testing.T) {
 	original := gatewayConfig.DeepCopy()
 	originalGateway, err := tc.getGateway(ctx)
 	require.NoError(t, err)
+	dsc := &dscv2.DataScienceCluster{}
+	require.NoError(t, tc.Client().Get(ctx, tc.DataScienceClusterNamespacedName, dsc))
+	originalDashboardState := dsc.Spec.Components.Dashboard.ManagementState
+	if originalDashboardState != operatorv1.Managed {
+		tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
+		t.Cleanup(func() {
+			tc.UpdateComponentStateInDataScienceClusterWithKind(originalDashboardState, componentApi.DashboardKind)
+		})
+	}
+	tc.waitForDashboardHTTPRoute(t)
+	defaultRouteKey := types.NamespacedName{Name: tc.gatewayName(), Namespace: tc.gatewayNamespace()}
+	defaultRoute := &routev1.Route{}
+	require.NoError(t, tc.Client().Get(ctx, defaultRouteKey, defaultRoute))
+	defaultRouteUID := defaultRoute.UID
+	require.NotEmpty(t, defaultRoute.Spec.Host)
+	checkDefault := func() {
+		tc.assertDefaultGatewayContinuity(t, originalGateway.UID, defaultRouteUID, defaultRoute.Spec.Host)
+	}
+	ingressControllerName := fmt.Sprintf("e2e-alpha-shard-%x", time.Now().UnixNano())
+	ingressControllerKey := types.NamespacedName{
+		Name: ingressControllerName, Namespace: cluster.IngressControllerName.Namespace,
+	}
 	listenerSignatures := func(listeners []gwapiv1.Listener) []string {
 		signatures := make([]string, 0, len(listeners))
 		for _, listener := range listeners {
 			signatures = append(signatures, fmt.Sprintf("%s:%d", listener.Name, listener.Port))
 		}
 		return signatures
-	}
-	statusNames := func(entries []serviceApi.AdditionalIngressStatus) map[string]struct{} {
-		names := make(map[string]struct{}, len(entries))
-		for _, entry := range entries {
-			names[entry.Name] = struct{}{}
-		}
-		return names
 	}
 	waitListeners := func(expected []string) {
 		g.Eventually(func() []string {
@@ -272,47 +293,32 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayListeners(t *testing.T) {
 			return listenerSignatures(current.Spec.Listeners)
 		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Equal(expected))
 	}
-	validateAdditionalIngressStatus := func(expectedCount int, name, hostname string) {
+	validateAdditionalIngressStatus := func(
+		expectedCount int,
+		name, hostname string,
+		expectedRouteStatus, expectedReadyStatus metav1.ConditionStatus,
+	) {
 		tc.EnsureResourceExists(
 			WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
 			WithCondition(And(
 				jq.Match(`.status.additionalIngresses | length == %d`, expectedCount),
 				jq.Match(`.status.additionalIngresses[] | select(.name == "%s" and .hostname == "%s") | .conditions | length == 4`, name, hostname),
 				jq.Match(`.status.additionalIngresses[] | select(.name == "%s") | [.conditions[].type] | sort == ["AuthenticationReady", "ListenerReady", "Ready", "RouteAdmitted"]`, name),
-				jq.Match(`.status.additionalIngresses[] | select(.name == "%s") | all(.conditions[]; .status == "Unknown" and .reason == "ReconciliationPending")`, name),
-				jq.Match(`(.metadata.generation as $generation | .status.additionalIngresses[] | select(.name == "%s") | all(.conditions[]; .observedGeneration == $generation))`, name),
+				jq.Match(`.status.additionalIngresses[] | select(.name == "%s") | any(.conditions[]; .type == "ListenerReady" and .status == "True")`, name),
+				jq.Match(`.status.additionalIngresses[] | select(.name == "%s") | any(.conditions[]; .type == "RouteAdmitted" and .status == "%s")`, name, expectedRouteStatus),
+				jq.Match(
+					`.status.additionalIngresses[] | select(.name == "%s") | `+
+						`any(.conditions[]; .type == "AuthenticationReady" and .status == "Unknown" `+
+						`and .reason == "StatusUnavailable")`, name),
+				jq.Match(`.status.additionalIngresses[] | select(.name == "%s") | any(.conditions[]; .type == "Ready" and .status == "%s")`, name, expectedReadyStatus),
+				jq.Match(
+					`(.metadata.generation as $generation | .status.additionalIngresses[] | `+
+						`select(.name == "%s") | all(.conditions[]; .observedGeneration == $generation `+
+						`and .reason != "" and .message != ""))`, name),
 			)),
 			WithCustomErrorMsg("GatewayConfig should report status for additional ingress %s", name),
 		)
 	}
-
-	restore := func() {
-		if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-			current := &serviceApi.GatewayConfig{}
-			if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, current); err != nil {
-				return err
-			}
-			current.Spec.AdditionalIngresses = original.Spec.AdditionalIngresses
-			return tc.Client().Update(ctx, current)
-		}); err != nil {
-			t.Errorf("failed to restore GatewayConfig: %v", err)
-			return
-		}
-		g.Eventually(func() bool {
-			currentConfig := &serviceApi.GatewayConfig{}
-			if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, currentConfig); err != nil {
-				return false
-			}
-			currentGateway, err := tc.getGateway(ctx)
-			if err != nil {
-				return false
-			}
-			return reflect.DeepEqual(currentConfig.Spec.AdditionalIngresses, original.Spec.AdditionalIngresses) &&
-				reflect.DeepEqual(statusNames(currentConfig.Status.AdditionalIngresses), statusNames(original.Status.AdditionalIngresses)) &&
-				reflect.DeepEqual(currentGateway.Spec.Listeners, originalGateway.Spec.Listeners)
-		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
-	}
-	t.Cleanup(restore)
 
 	update := func(additional serviceApi.AdditionalIngresses) {
 		g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
@@ -326,7 +332,10 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayListeners(t *testing.T) {
 	}
 
 	waitListeners(listenerSignatures(originalGateway.Spec.Listeners))
+	checkDefault()
 
+	alphaDomain := ingressControllerName + ".e2e.invalid"
+	alphaHostname := "e2e-alpha." + alphaDomain
 	additional := serviceApi.AdditionalIngresses{
 		{
 			Name:                  "e2e-beta",
@@ -337,28 +346,72 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayListeners(t *testing.T) {
 		},
 		{
 			Name:                  "e2e-alpha",
-			Hostname:              "e2e-alpha.example.com",
+			Hostname:              alphaHostname,
 			ListenerPort:          18443,
-			IngressControllerName: "e2e-alpha-shard",
+			IngressControllerName: ingressControllerName,
 			RouteLabels:           map[string]string{"example.com/ingress": "e2e-alpha"},
 		},
 	}
-	update(additional)
+	replicas := int32(1)
+	alphaIngressController := &operatorv1.IngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: ingressControllerKey.Name, Namespace: ingressControllerKey.Namespace,
+		},
+		Spec: operatorv1.IngressControllerSpec{
+			Domain:   alphaDomain,
+			Replicas: &replicas,
+			EndpointPublishingStrategy: &operatorv1.EndpointPublishingStrategy{
+				Type: operatorv1.PrivateStrategyType,
+			},
+			RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
+				"example.com/ingress": "e2e-alpha",
+			}},
+		},
+	}
+	require.NoError(t, tc.Client().Create(ctx, alphaIngressController), "create temporary private IngressController")
+	t.Cleanup(func() {
+		restoreAdditionalIngressGatewayTest(t, tc, original, originalGateway, ingressControllerKey)
+	})
+	t.Cleanup(func() { tc.logAdditionalIngressEvidence(t, ingressControllerKey) })
+	update(additional[1:])
 	waitListeners([]string{
 		fmt.Sprintf("%s:%d", defaultGatewayListenerName, standardHTTPSPort),
 		"e2e-alpha:18443",
-		"e2e-beta:18444",
 	})
-	validateAdditionalIngressStatus(2, "e2e-alpha", "e2e-alpha.example.com")
-	validateAdditionalIngressStatus(2, "e2e-beta", "e2e-beta.example.com")
+	validateAdditionalIngressStatus(1, "e2e-alpha", alphaHostname, metav1.ConditionTrue, metav1.ConditionUnknown)
+	checkDefault()
+	update(additional)
+	waitListeners([]string{
+		fmt.Sprintf("%s:%d", defaultGatewayListenerName, standardHTTPSPort),
+		"e2e-beta:18444",
+		"e2e-alpha:18443",
+	})
+	validateAdditionalIngressStatus(2, "e2e-alpha", alphaHostname, metav1.ConditionTrue, metav1.ConditionUnknown)
+	validateAdditionalIngressStatus(2, "e2e-beta", "e2e-beta.example.com", metav1.ConditionFalse, metav1.ConditionFalse)
+	checkDefault()
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`)),
+		WithCustomErrorMsg("a failed additional ingress must not affect GatewayConfig default readiness"),
+	)
+
+	alphaRouteKey := types.NamespacedName{
+		Name: gateway.GetAdditionalIngressRouteName("e2e-alpha"), Namespace: gateway.GetGatewayNamespace(),
+	}
+	validateAdditionalIngressRouteAdmissionStatus(t, tc, alphaRouteKey, "e2e-alpha", alphaHostname, ingressControllerName)
+	currentConfig := &serviceApi.GatewayConfig{}
+	g.Expect(tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, currentConfig)).To(Succeed())
+	additionalIngressGeneration := currentConfig.Generation
+	validateAdditionalIngressRouteSelectorChange(t, tc, ingressControllerKey, alphaRouteKey,
+		additional[1].Hostname, additionalIngressGeneration, validateAdditionalIngressStatus)
 
 	current, err := tc.getGateway(ctx)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(current.Spec.Listeners[0].Name).To(Equal(gwapiv1.SectionName(defaultGatewayListenerName)))
-	g.Expect(current.Spec.Listeners[1].Name).To(Equal(gwapiv1.SectionName("e2e-alpha")))
-	g.Expect(current.Spec.Listeners[1].Port).To(Equal(gwapiv1.PortNumber(18443)))
-	g.Expect(current.Spec.Listeners[2].Name).To(Equal(gwapiv1.SectionName("e2e-beta")))
-	g.Expect(current.Spec.Listeners[2].Port).To(Equal(gwapiv1.PortNumber(18444)))
+	g.Expect(current.Spec.Listeners[1].Name).To(Equal(gwapiv1.SectionName("e2e-beta")))
+	g.Expect(current.Spec.Listeners[1].Port).To(Equal(gwapiv1.PortNumber(18444)))
+	g.Expect(current.Spec.Listeners[2].Name).To(Equal(gwapiv1.SectionName("e2e-alpha")))
+	g.Expect(current.Spec.Listeners[2].Port).To(Equal(gwapiv1.PortNumber(18443)))
 	for _, listener := range current.Spec.Listeners[1:] {
 		g.Expect(listener.Protocol).To(Equal(gwapiv1.HTTPSProtocolType))
 		g.Expect(listener.TLS).NotTo(BeNil())
@@ -372,7 +425,8 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayListeners(t *testing.T) {
 		fmt.Sprintf("%s:%d", defaultGatewayListenerName, standardHTTPSPort),
 		"e2e-alpha:18443",
 	})
-	validateAdditionalIngressStatus(1, "e2e-alpha", "e2e-alpha.example.com")
+	validateAdditionalIngressStatus(1, "e2e-alpha", alphaHostname, metav1.ConditionTrue, metav1.ConditionUnknown)
+	checkDefault()
 	update(nil)
 	waitListeners(listenerSignatures(originalGateway.Spec.Listeners))
 	tc.EnsureResourceExists(
@@ -380,6 +434,297 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayListeners(t *testing.T) {
 		WithCondition(jq.Match(`.status.additionalIngresses | length == 0`)),
 		WithCustomErrorMsg("GatewayConfig should remove additional ingress status entries"),
 	)
+	g.Eventually(func() bool {
+		return k8serr.IsNotFound(tc.Client().Get(ctx, alphaRouteKey, &routev1.Route{}))
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
+	checkDefault()
+}
+
+func (tc *GatewayTestCtx) assertDefaultGatewayContinuity(
+	t *testing.T, gatewayUID, routeUID types.UID, hostname string,
+) {
+	t.Helper()
+	g := NewWithT(t)
+	ctx := tc.Context()
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`)),
+	)
+	currentGateway, err := tc.getGateway(ctx)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(currentGateway.UID).To(Equal(gatewayUID))
+	currentRoute := &routev1.Route{}
+	g.Expect(tc.Client().Get(ctx, types.NamespacedName{
+		Name: tc.gatewayName(), Namespace: tc.gatewayNamespace(),
+	}, currentRoute)).To(Succeed())
+	g.Expect(currentRoute.UID).To(Equal(routeUID))
+	httpClient := tc.createHTTPClient()
+	g.Eventually(func() error {
+		requestCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, "https://"+hostname, nil)
+		if err != nil {
+			return err
+		}
+		response, err := httpClient.Do(request)
+		if err != nil {
+			return err
+		}
+		defer response.Body.Close()
+		if response.StatusCode != http.StatusFound && response.StatusCode != http.StatusTemporaryRedirect {
+			return fmt.Errorf("default hostname returned %d, expected authentication redirect", response.StatusCode)
+		}
+		if response.Header.Get("Location") == "" {
+			return errors.New("default hostname redirect has no Location header")
+		}
+		return nil
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+}
+
+func (tc *GatewayTestCtx) logAdditionalIngressEvidence(t *testing.T, ingressControllerKey types.NamespacedName) {
+	t.Helper()
+	if !t.Failed() {
+		return
+	}
+	ctx := tc.Context()
+	logObject := func(name string, object any) {
+		data, err := json.MarshalIndent(object, "", "  ")
+		if err != nil {
+			t.Logf("%s: %v", name, err)
+			return
+		}
+		t.Logf("%s:\n%s", name, data)
+	}
+	currentConfig := &serviceApi.GatewayConfig{}
+	if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, currentConfig); err == nil {
+		logObject("GatewayConfig", currentConfig)
+	}
+	if current, err := tc.getGateway(ctx); err == nil {
+		logObject("Gateway", current)
+	}
+	services := &corev1.ServiceList{}
+	if err := tc.Client().List(ctx, services, client.InNamespace(tc.gatewayNamespace()),
+		client.MatchingLabels{labels.GatewayAPI.GatewayName: tc.gatewayName()}); err == nil {
+		logObject("Gateway Services", services.Items)
+	}
+	routes := &routev1.RouteList{}
+	if err := tc.Client().List(ctx, routes, client.InNamespace(tc.gatewayNamespace())); err == nil {
+		for _, route := range routes.Items {
+			if route.Name == tc.gatewayName() || strings.HasPrefix(route.Name, "gateway-additional-") {
+				logObject("Route "+route.Name, route)
+			}
+		}
+	}
+	controller := &operatorv1.IngressController{}
+	if err := tc.Client().Get(ctx, ingressControllerKey, controller); err == nil {
+		logObject("IngressController", controller)
+	}
+}
+
+func validateAdditionalIngressRouteAdmissionStatus(
+	t *testing.T,
+	tc *GatewayTestCtx,
+	routeKey types.NamespacedName,
+	ingressName, hostname, targetRouter string,
+) {
+	t.Helper()
+	g := NewWithT(t)
+	ctx := tc.Context()
+	g.Eventually(func() error {
+		route := &routev1.Route{}
+		if err := tc.Client().Get(ctx, routeKey, route); err != nil {
+			return err
+		}
+		admitted := make(map[string]struct{})
+		for _, router := range route.Status.Ingress {
+			if router.Host != hostname {
+				continue
+			}
+			for _, condition := range router.Conditions {
+				if condition.Type == routev1.RouteAdmitted && condition.Status == corev1.ConditionTrue && router.RouterName != "" {
+					admitted[router.RouterName] = struct{}{}
+				}
+			}
+		}
+		if _, found := admitted[targetRouter]; !found {
+			return fmt.Errorf("target IngressController %q has not admitted Route %q", targetRouter, routeKey.Name)
+		}
+		reason := "Ready"
+		severity := ""
+		if len(admitted) > 1 {
+			reason = "MultipleIngressControllers"
+			severity = "Info"
+		}
+		current := &serviceApi.GatewayConfig{}
+		if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, current); err != nil {
+			return err
+		}
+		for _, status := range current.Status.AdditionalIngresses {
+			if status.Name != ingressName {
+				continue
+			}
+			for _, condition := range status.Conditions {
+				if condition.Type == serviceApi.AdditionalIngressRouteAdmittedConditionType &&
+					condition.Status == metav1.ConditionTrue && condition.Reason == reason &&
+					string(condition.Severity) == severity {
+					return nil
+				}
+			}
+		}
+		return fmt.Errorf("RouteAdmitted condition does not reflect %d admitting IngressControllers", len(admitted))
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+}
+
+func restoreAdditionalIngressGatewayTest(
+	t *testing.T,
+	tc *GatewayTestCtx,
+	original *serviceApi.GatewayConfig,
+	originalGateway *gwapiv1.Gateway,
+	ingressControllerKey types.NamespacedName,
+) {
+	t.Helper()
+	g := NewWithT(t)
+	ctx := tc.Context()
+	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		current := &serviceApi.GatewayConfig{}
+		if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, current); err != nil {
+			return err
+		}
+		current.Spec.AdditionalIngresses = original.Spec.AdditionalIngresses
+		return tc.Client().Update(ctx, current)
+	})
+	if err != nil {
+		t.Errorf("failed to restore GatewayConfig: %v", err)
+	} else {
+		g.Eventually(func() bool {
+			currentConfig := &serviceApi.GatewayConfig{}
+			if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, currentConfig); err != nil {
+				return false
+			}
+			currentGateway, err := tc.getGateway(ctx)
+			if err != nil {
+				return false
+			}
+			return reflect.DeepEqual(currentConfig.Spec.AdditionalIngresses, original.Spec.AdditionalIngresses) &&
+				reflect.DeepEqual(additionalIngressStatusNames(currentConfig.Status.AdditionalIngresses), additionalIngressStatusNames(original.Status.AdditionalIngresses)) &&
+				reflect.DeepEqual(currentGateway.Spec.Listeners, originalGateway.Spec.Listeners)
+		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
+	}
+	if err := tc.Client().Delete(ctx, &operatorv1.IngressController{ObjectMeta: metav1.ObjectMeta{
+		Name: ingressControllerKey.Name, Namespace: ingressControllerKey.Namespace,
+	}}); err != nil && !k8serr.IsNotFound(err) {
+		t.Errorf("failed to delete test IngressController: %v", err)
+		return
+	}
+	g.Eventually(func() bool {
+		current := &operatorv1.IngressController{}
+		return k8serr.IsNotFound(tc.Client().Get(ctx, ingressControllerKey, current))
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
+}
+
+func additionalIngressStatusNames(entries []serviceApi.AdditionalIngressStatus) map[string]struct{} {
+	names := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		names[entry.Name] = struct{}{}
+	}
+	return names
+}
+
+func validateAdditionalIngressRouteSelectorChange(
+	t *testing.T,
+	tc *GatewayTestCtx,
+	ingressControllerKey types.NamespacedName,
+	routeKey types.NamespacedName,
+	expectedHostname string,
+	expectedGeneration int64,
+	validateStatus func(int, string, string, metav1.ConditionStatus, metav1.ConditionStatus),
+) {
+	t.Helper()
+	g := NewWithT(t)
+	ctx := tc.Context()
+	g.Eventually(func() error {
+		route := &routev1.Route{}
+		if err := tc.Client().Get(ctx, routeKey, route); err != nil {
+			return err
+		}
+		if route.Spec.Host != expectedHostname {
+			return fmt.Errorf("additional Route host is %q, expected %q", route.Spec.Host, expectedHostname)
+		}
+		return nil
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+	g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		current := &operatorv1.IngressController{}
+		if err := tc.Client().Get(ctx, ingressControllerKey, current); err != nil {
+			return err
+		}
+		current.Spec.RouteSelector = &metav1.LabelSelector{MatchLabels: map[string]string{
+			"example.com/ingress": "no-longer-e2e-alpha",
+		}}
+		return tc.Client().Update(ctx, current)
+	})).To(Succeed())
+	g.Eventually(func() error {
+		current := &serviceApi.GatewayConfig{}
+		if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, current); err != nil {
+			return err
+		}
+		if current.Generation != expectedGeneration {
+			return fmt.Errorf("GatewayConfig generation changed from %d to %d", expectedGeneration, current.Generation)
+		}
+		route := &routev1.Route{}
+		if err := tc.Client().Get(ctx, routeKey, route); err != nil {
+			return err
+		}
+		for _, router := range route.Status.Ingress {
+			if router.Host != expectedHostname || router.RouterName != ingressControllerKey.Name {
+				continue
+			}
+			for _, condition := range router.Conditions {
+				if condition.Type == routev1.RouteAdmitted && condition.Status == corev1.ConditionTrue {
+					return fmt.Errorf("IngressController %q still admits Route %q", ingressControllerKey.Name, routeKey.Name)
+				}
+			}
+		}
+		return nil
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+		WithCondition(jq.Match(
+			`.status.additionalIngresses[] | select(.name == "e2e-alpha") | `+
+				`any(.conditions[]; .type == "RouteAdmitted" and .status != "True")`)),
+		WithCustomErrorMsg("GatewayConfig should report that the target IngressController stopped admitting the retained Route"),
+	)
+	validateStatus(2, "e2e-beta", "e2e-beta.example.com", metav1.ConditionFalse, metav1.ConditionFalse)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`)),
+		WithCustomErrorMsg("an additional ingress failure must not affect default Gateway readiness"),
+	)
+	defaultRoute := &routev1.Route{}
+	g.Expect(tc.Client().Get(ctx, types.NamespacedName{
+		Name: tc.gatewayName(), Namespace: tc.gatewayNamespace(),
+	}, defaultRoute)).To(Succeed())
+	g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		current := &operatorv1.IngressController{}
+		if err := tc.Client().Get(ctx, ingressControllerKey, current); err != nil {
+			return err
+		}
+		current.Spec.RouteSelector = &metav1.LabelSelector{MatchLabels: map[string]string{
+			"example.com/ingress": "e2e-alpha",
+		}}
+		return tc.Client().Update(ctx, current)
+	})).To(Succeed())
+	g.Eventually(func() error {
+		route := &routev1.Route{}
+		if err := tc.Client().Get(ctx, routeKey, route); err != nil {
+			return err
+		}
+		if route.Spec.Host != expectedHostname {
+			return fmt.Errorf("additional Route host is %q, expected %q", route.Spec.Host, expectedHostname)
+		}
+		return nil
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+	validateStatus(2, "e2e-alpha", expectedHostname, metav1.ConditionTrue, metav1.ConditionUnknown)
+	validateStatus(2, "e2e-beta", "e2e-beta.example.com", metav1.ConditionFalse, metav1.ConditionFalse)
 }
 
 // ValidateXKSCertManagerCertificates verifies that XKS gateway TLS certificates are issued by
