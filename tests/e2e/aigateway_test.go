@@ -99,7 +99,6 @@ func aiGatewayTestSuite(t *testing.T) {
 			)
 
 			for _, envVarName := range relatedImageEnvVars {
-				envVarName := envVarName
 				tc.EnsureResourceExists(
 					WithMinimalObject(gvk.Deployment, controllerNN),
 					WithCondition(jq.Match(
