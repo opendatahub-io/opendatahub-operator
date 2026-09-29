@@ -1492,7 +1492,7 @@ func RunSpecMutationTokenReviewConfigTest(t *testing.T, setup TestSetup, tokenRe
 		deployment := &appsv1.Deployment{}
 		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, deployment); err != nil {
 			return false
 		}
@@ -1524,7 +1524,7 @@ func RunSpecMutationTokenReviewConfigTest(t *testing.T, setup TestSetup, tokenRe
 		deployment := &appsv1.Deployment{}
 		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, deployment); err != nil {
 			return false
 		}
