@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +31,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -220,16 +222,23 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		l.V(1).Info("OAuth client created successfully")
 	}
 
-	// On XKS, generate a self-signed TLS cert for kube-auth-proxy (OCP uses serving-cert annotation instead)
+	// On XKS, cert-manager is a required dependency for the kube-auth-proxy TLS
+	// certificate (OCP uses the serving-cert annotation instead).
 	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
 		kapServiceDNS := fmt.Sprintf("%s.%s.svc.cluster.local", KubeAuthProxyName, GetGatewayNamespace())
-		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, KubeAuthProxyTLSName, kapServiceDNS, GetGatewayNamespace(),
-			cluster.WithLabels(labels.PlatformPartOf, ServiceName),
-			cluster.OwnedBy(gatewayConfig, rr.Client.Scheme()),
-		); err != nil {
-			return fmt.Errorf("failed to create kube-auth-proxy TLS certificate: %w", err)
+		issuerName, issuerKind := resolveIssuerRef(gatewayConfig.Spec.Certificate)
+		cert, err := buildCertManagerCertificate(KubeAuthProxyTLSName, GetGatewayNamespace(), KubeAuthProxyTLSName, []string{kapServiceDNS}, issuerName, issuerKind)
+		if err != nil {
+			return err
 		}
-		l.V(1).Info("Created self-signed TLS cert for kube-auth-proxy", "secret", KubeAuthProxyTLSName)
+		if err := rr.AddResources(cert); err != nil {
+			return fmt.Errorf("failed to add kube-auth-proxy Certificate: %w", err)
+		}
+		l.V(1).Info("Created cert-manager Certificate for kube-auth-proxy",
+			"secret", KubeAuthProxyTLSName,
+			"issuerName", issuerName,
+			"issuerKind", issuerKind,
+		)
 	}
 
 	rr.Templates = append(rr.Templates, kubeAuthProxyDeploymentTemplates)
@@ -261,13 +270,12 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		},
 	}
 	rr.Templates = append(rr.Templates, kubeAuthProxyCommonTemplates...)
-
-	// Mark GatewayConfigReady as true since all auth proxy setup succeeded
-	// This will be checked later by syncGatewayConfigStatus
-	rr.Conditions.MarkTrue(
+	// Clear a previous readiness failure. The status action checks the deployed
+	// resources before it can mark this condition true.
+	rr.Conditions.MarkUnknown(
 		ReadyConditionType,
-		conditions.WithReason(status.ReadyReason),
-		conditions.WithMessage(status.AuthProxyDeployedMessage),
+		conditions.WithReason(status.NotReadyReason),
+		conditions.WithMessage("Auth proxy resources are being deployed"),
 	)
 
 	return nil
@@ -534,11 +542,42 @@ func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationReq
 		return fmt.Errorf("failed to get Gateway: %w", err)
 	}
 
-	// Check if Gateway infrastructure is ready
-	gatewayReady := isGatewayReady(gateway)
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		if gatewayConfig.Spec.Certificate == nil || gatewayConfig.Spec.Certificate.Type == "" ||
+			gatewayConfig.Spec.Certificate.Type == infrav1.SelfSigned {
+			secretName := gatewayCertificateSecretName(gatewayConfig)
+			message, err := checkCertManagerCertificate(ctx, rr.Client, secretName)
+			if err != nil {
+				return err
+			}
+			if message != "" {
+				markGatewayNotReady(rr, message)
+				return nil
+			}
+		}
 
-	if !gatewayReady {
-		// Gateway exists but not ready yet
+		if gatewayConfig.Spec.OIDC != nil {
+			message, err := checkCertManagerCertificate(ctx, rr.Client, KubeAuthProxyTLSName)
+			if err != nil {
+				return err
+			}
+			if message != "" {
+				markGatewayNotReady(rr, message)
+				return nil
+			}
+			message, err = checkKubeAuthProxyDeployment(ctx, rr.Client)
+			if err != nil {
+				return err
+			}
+			if message != "" {
+				markGatewayNotReady(rr, message)
+				return nil
+			}
+		}
+	}
+
+	// Check if Gateway infrastructure is ready after reporting any XKS certificate failure.
+	if !isGatewayReady(gateway) {
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
 			conditions.WithReason(status.NotReadyReason),
@@ -559,4 +598,32 @@ func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationReq
 	}
 
 	return nil
+}
+
+func markGatewayNotReady(rr *odhtypes.ReconciliationRequest, message string) {
+	rr.Conditions.MarkFalse(
+		ReadyConditionType,
+		conditions.WithReason(status.NotReadyReason),
+		conditions.WithMessage("%s", message),
+	)
+}
+
+func checkKubeAuthProxyDeployment(ctx context.Context, cli client.Client) (string, error) {
+	deployment := &appsv1.Deployment{}
+	key := types.NamespacedName{Name: KubeAuthProxyName, Namespace: GetGatewayNamespace()}
+	if err := cli.Get(ctx, key, deployment); err != nil {
+		if k8serr.IsNotFound(err) {
+			return fmt.Sprintf("waiting for kube-auth-proxy Deployment %s/%s", key.Namespace, key.Name), nil
+		}
+		return "", fmt.Errorf("failed to get kube-auth-proxy Deployment %s/%s: %w", key.Namespace, key.Name, err)
+	}
+
+	replicas := int32(1)
+	if deployment.Spec.Replicas != nil {
+		replicas = *deployment.Spec.Replicas
+	}
+	if deployment.Status.ObservedGeneration < deployment.Generation || deployment.Status.AvailableReplicas < replicas {
+		return fmt.Sprintf("waiting for kube-auth-proxy Deployment %s/%s to become available", key.Namespace, key.Name), nil
+	}
+	return "", nil
 }
