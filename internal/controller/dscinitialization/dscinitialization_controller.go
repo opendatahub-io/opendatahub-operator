@@ -526,6 +526,13 @@ func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, i
 	}
 
 	// GatewayConfig CR isn't found, create default GatewayConfig CR.
+	// Pick a platform-appropriate certificate type: OpenshiftDefaultIngress relies on the
+	// cluster's default ingress certificate and only exists on OpenShift, so on XKS (vanilla
+	// Kubernetes) default to SelfSigned, which is issued by the required cert-manager dependency.
+	certType := infrav1.OpenshiftDefaultIngress
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		certType = infrav1.SelfSigned
+	}
 	defaultGateway := &serviceApi.GatewayConfig{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       serviceApi.GatewayConfigKind,
@@ -536,7 +543,7 @@ func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, i
 		},
 		Spec: serviceApi.GatewayConfigSpec{
 			Certificate: &infrav1.CertificateSpec{
-				Type:       infrav1.OpenshiftDefaultIngress,
+				Type:       certType,
 				SecretName: gateway.DefaultGatewayTLSSecretName,
 			},
 			Cookie: serviceApi.CookieConfig{

@@ -30,7 +30,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	ifeq ($(VERSION), )
-		VERSION = 3.6.0-ea.2
+		VERSION = 3.6.0
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
 	OPERATOR_NAMESPACE ?= opendatahub-operator-system
@@ -62,7 +62,7 @@ else
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	# NOTE: see also the git branches for RHOAI in manifests-config.yaml. This variable does NOT affect those
 	ifeq ($(VERSION), )
-		VERSION = 3.6.0-ea.2
+		VERSION = 3.6.0
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to redhat-ods-operator)
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
@@ -350,9 +350,12 @@ update-rhai-images: yq ## Locally update downloaded RHAI params.env files (not u
 	fi
 	MANIFESTS_DIR=./opt/manifests RHAI_BRANCH=$(RHAI_BRANCH) YQ=$(YQ) SED_COMMAND=$(SED_COMMAND) ./hack/update-rhai-images.sh
 .PHONY: validate-related-images
+# RHOAI Build Config branches use major.minor, while VERSION includes patch and
+# prerelease components.
+RHOAI_BUILD_CONFIG_BRANCH := rhoai-$(word 1,$(subst ., ,$(VERSION))).$(word 2,$(subst ., ,$(VERSION)))
+export RHOAI_BUILD_CONFIG_BRANCH
 validate-related-images: yq ## Validate RELATED_IMAGE_* names against build configs
-	@RHOAI_BUILD_CONFIG_BRANCH=rhoai-$(shell echo $(VERSION) | sed 's/\([0-9]*\.[0-9]*\)\.[0-9]*/\1/') \
-		YQ=$(YQ) ./.github/scripts/validate-related-images.sh
+	@YQ="$(YQ)" ./.github/scripts/validate-related-images.sh
 
 .PHONY: resolve-image-digests
 resolve-image-digests: ## Resolve image digests from Build-Config and update manifests-config.yaml

@@ -41,7 +41,7 @@ type ProtectedObject struct {
 // Reads infrastructure.opendatahub.io annotations first, falling back to the
 // legacy platform.opendatahub.io prefix so resources deployed before the
 // annotation migration are still subject to GC.
-func isStaleOrOrphaned(rr *odhTypes.ReconciliationRequest, obj unstructured.Unstructured) (bool, error) {
+func isStaleOrOrphaned(rr *odhTypes.ReconciliationRequest, obj unstructured.Unstructured) bool {
 	log := logf.Log.WithName("ccm-gc")
 	objGVK := obj.GroupVersionKind()
 
@@ -58,19 +58,19 @@ func isStaleOrOrphaned(rr *odhTypes.ReconciliationRequest, obj unstructured.Unst
 	}
 
 	if iUID == "" || iGeneration == "" {
-		return false, nil
+		return false
 	}
 
 	if iUID != string(rr.Instance.GetUID()) {
 		log.V(3).Info("GC: deleting orphaned resource (UID mismatch)", "gvk", objGVK, "child", obj.GetName(), "childNamespace", obj.GetNamespace())
-		return true, nil
+		return true
 	}
 
 	iGenerationInt, err := strconv.ParseInt(iGeneration, 10, 64)
 	if err != nil {
 		log.Error(err, "cannot parse InstanceGeneration annotation, skipping resource",
 			"annotation", iGeneration, "gvk", objGVK, "child", obj.GetName(), "childNamespace", obj.GetNamespace(), "resourceKind", objGVK.Kind, "name", rr.Instance.GetName())
-		return false, nil
+		return false
 	}
 
 	shouldDelete := rr.Instance.GetGeneration() != iGenerationInt
@@ -79,12 +79,18 @@ func isStaleOrOrphaned(rr *odhTypes.ReconciliationRequest, obj unstructured.Unst
 			"resourceGeneration", iGenerationInt, "crGeneration", rr.Instance.GetGeneration())
 	}
 
-	return shouldDelete, nil
+	return shouldDelete
 }
 
 // newGCPredicate returns the ObjectPredicateFn used by NewGCAction. It first
 // skips any resource matching a ProtectedObject entry (version-agnostic
 // Group+Kind+Name+Namespace), then delegates to isStaleOrOrphaned.
+//
+// Access-control kinds (SA/RBAC) that would otherwise be deleted as stale are
+// retained while cleanupExcludedCharts has deferred Pass B (owned operator
+// workloads still terminating). ReconcileAction runs before GC and sets that
+// deferred flag; without this gate GC would strip Lease-update permissions
+// mid-SIGTERM via generation mismatch on the same reconcile.
 func newGCPredicate(protectedObjects []ProtectedObject) gc.ObjectPredicateFn {
 	log := logf.Log.WithName("ccm-gc")
 	protected := make(map[ProtectedObject]struct{}, len(protectedObjects))
@@ -100,7 +106,17 @@ func newGCPredicate(protectedObjects []ProtectedObject) gc.ObjectPredicateFn {
 			return false, nil
 		}
 
-		return isStaleOrOrphaned(rr, obj)
+		if !isStaleOrOrphaned(rr, obj) {
+			return false, nil
+		}
+
+		if isAccessControlKind(objGVK.Kind) && isAccessControlCleanupDeferred(rr) {
+			log.V(3).Info("GC: keeping access-control while operator workload cleanup is deferred",
+				"gvk", objGVK, "child", obj.GetName(), "childNamespace", obj.GetNamespace())
+			return false, nil
+		}
+
+		return true, nil
 	}
 }
 
