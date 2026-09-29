@@ -70,13 +70,17 @@ spec:
           inline_code: |
             function envoy_on_request(request_handle)
               -- Check for authentication success indicators from ext_authz response.
-              -- OAuth mode: x-auth-request-access-token is set (--pass-access-token + --set-xauthrequest)
-              -- OIDC mode: x-auth-request-user is set (--set-xauthrequest), authorization header
-              --   is already set by ext_authz via allowed_upstream_headers (--set-authorization-header)
+              -- x-auth-request-access-token is set whenever kube-auth-proxy is run with
+              -- --pass-access-token + --set-xauthrequest: always the case in OAuth mode, and in
+              -- OIDC mode when GatewayConfig.spec.oidc.passAccessToken=true (e.g. AKS browser flow).
+              -- OIDC mode without passAccessToken: x-auth-request-user is set (--set-xauthrequest),
+              --   authorization header is already set by ext_authz via allowed_upstream_headers
+              --   (--set-authorization-header), carrying the ID token instead of an access token.
               local access_token = request_handle:headers():get("x-auth-request-access-token")
               local auth_user = request_handle:headers():get("x-auth-request-user")
 
-              -- OAuth mode: set authorization and forwarded token from access_token
+              -- Access token available (OAuth mode, or OIDC mode with passAccessToken=true):
+              -- set authorization and forwarded token from access_token
               if access_token then
                 request_handle:headers():add("x-forwarded-access-token", access_token)
                 request_handle:headers():replace("authorization", "Bearer " .. access_token)

@@ -128,6 +128,7 @@ func gatewayTestSuite(t *testing.T) {
 		// BYOIDC-specific tests (skipped on IntegratedOAuth)
 		{"Validate OIDC proxy secret creation", gatewayCtx.ValidateOIDCProxySecret},
 		{"Validate OIDC authentication proxy deployment", gatewayCtx.ValidateOIDCAuthProxyDeployment},
+		{"Validate OIDC scope and pass-access-token deployment args", gatewayCtx.ValidateOIDCScopeAndPassAccessTokenDeployment},
 		{"Validate OIDC token forwarding to dashboard", gatewayCtx.ValidateOIDCTokenForwarding},
 		{"Validate OIDC unauthenticated access redirects to login", gatewayCtx.ValidateOIDCUnauthenticatedRedirect},
 		// Common tests (run on both)
@@ -1398,6 +1399,69 @@ func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
 	)
 
 	t.Log("kube-auth-proxy OIDC deployment and service validation completed")
+}
+
+// ValidateOIDCScopeAndPassAccessTokenDeployment validates that setting
+// GatewayConfig.spec.oidc.scope and .passAccessToken adds the corresponding 
+// --scope/--pass-access-token=true args to the kube-auth-proxy Deployment,
+// and that restoring the original config removes them again.
+func (tc *GatewayTestCtx) ValidateOIDCScopeAndPassAccessTokenDeployment(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+	tc.SkipUnlessBYOIDC(t)
+	t.Log("Validating kube-auth-proxy deployment args for OIDC scope/passAccessToken")
+
+	const testScope = "openid profile email aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/.default"
+
+	g := NewWithT(t)
+	ctx := tc.Context()
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	require.NoError(t, tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, gatewayConfig))
+	require.NotNil(t, gatewayConfig.Spec.OIDC, "GatewayConfig should have OIDC configuration on BYOIDC cluster")
+	originalScope := gatewayConfig.Spec.OIDC.Scope
+	originalPassAccessToken := gatewayConfig.Spec.OIDC.PassAccessToken
+
+	update := func(scope string, passAccessToken bool) {
+		g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			current := &serviceApi.GatewayConfig{}
+			if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, current); err != nil {
+				return err
+			}
+			current.Spec.OIDC.Scope = scope
+			current.Spec.OIDC.PassAccessToken = passAccessToken
+			return tc.Client().Update(ctx, current)
+		})).To(Succeed())
+	}
+
+	t.Cleanup(func() {
+		update(originalScope, originalPassAccessToken)
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.Deployment, types.NamespacedName{Name: kubeAuthProxyName, Namespace: tc.gatewayNamespace()}),
+			WithCondition(And(
+				jq.Match(`.spec.template.spec.containers[0].args | all(. != "--scope=%s")`, testScope),
+				jq.Match(`.spec.template.spec.containers[0].args | all(. != "--pass-access-token=true")`),
+			)),
+			WithEventuallyTimeout(tc.TestTimeouts.authGatewayTimeout),
+			WithCustomErrorMsg("kube-auth-proxy deployment should revert after restoring original OIDC scope/passAccessToken"),
+		)
+	})
+
+	update(testScope, true)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Name: kubeAuthProxyName, Namespace: tc.gatewayNamespace()}),
+		WithCondition(And(
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--scope=%s")`, testScope),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--pass-access-token=true")`),
+		)),
+		WithEventuallyTimeout(tc.TestTimeouts.authGatewayTimeout),
+		WithCustomErrorMsg("kube-auth-proxy deployment should add --scope and --pass-access-token=true when GatewayConfig.spec.oidc sets them"),
+	)
+
+	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: tc.gatewayNamespace()}, 2)
+
+	t.Log("OIDC scope/passAccessToken deployment args validated")
 }
 
 // ValidateOIDCUnauthenticatedRedirect tests that unauthenticated requests are redirected to the OIDC provider.

@@ -441,9 +441,18 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData["DashboardRedirectImage"] = getDashboardRedirectImage()
 	templateData["RedirectConfigHash"] = CalculateRedirectConfigHash(hostname)
 
+	// Always set OIDCScope/OIDCPassAccessToken so templates can reference them
+	// without missingkey=error, even when OIDC is unconfigured. Empty scope and
+	// false pass-access-token preserve existing (e.g. OpenShift) behavior of
+	// forwarding only the ID token.
+	templateData["OIDCScope"] = ""
+	templateData["OIDCPassAccessToken"] = false
+
 	// Add OIDC-specific fields only if OIDC config is present
 	if gatewayConfig.Spec.OIDC != nil {
 		templateData["OIDCIssuerURL"] = gatewayConfig.Spec.OIDC.IssuerURL
+		templateData["OIDCScope"] = gatewayConfig.Spec.OIDC.Scope
+		templateData["OIDCPassAccessToken"] = gatewayConfig.Spec.OIDC.PassAccessToken
 	}
 
 	// Add provider CA certificate configuration if specified
