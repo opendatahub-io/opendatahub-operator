@@ -105,7 +105,7 @@ func TestGetCertificateType(t *testing.T) {
 			description:  "should return provided certificate type",
 		},
 		{
-			name: "empty certificate type defaults to OpenshiftDefaultIngress",
+			name: "empty certificate type defaults to OpenshiftDefaultIngress on OpenShift",
 			gatewayConfig: &serviceApi.GatewayConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: testGatewayName,
@@ -117,7 +117,7 @@ func TestGetCertificateType(t *testing.T) {
 				},
 			},
 			expectedType: string(infrav1.OpenshiftDefaultIngress),
-			description:  "should return OpenShift default when certificate type is empty string",
+			description:  "should return OpenShift default when certificate type is empty on a non-XKS cluster",
 		},
 	}
 
@@ -128,6 +128,29 @@ func TestGetCertificateType(t *testing.T) {
 			g.Expect(result).To(Equal(tc.expectedType), tc.description)
 		})
 	}
+}
+
+// TestGetCertificateTypeXKSDefault verifies that on XKS (vanilla Kubernetes) an unset certificate
+// type resolves to SelfSigned, mirroring the platform-aware default applied by handleCertificates.
+// It mutates global cluster info, so it is intentionally not parallel (see other cluster-type tests).
+func TestGetCertificateTypeXKSDefault(t *testing.T) {
+	g := NewWithT(t)
+
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+
+	// nil gatewayConfig, nil certificate, and empty type all resolve to the XKS default.
+	g.Expect(getCertificateType(nil)).To(Equal(string(infrav1.SelfSigned)))
+	g.Expect(getCertificateType(&serviceApi.GatewayConfig{})).To(Equal(string(infrav1.SelfSigned)))
+	g.Expect(getCertificateType(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{Certificate: &infrav1.CertificateSpec{Type: ""}},
+	})).To(Equal(string(infrav1.SelfSigned)))
+
+	// An explicit type is always honored regardless of platform.
+	g.Expect(getCertificateType(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress}},
+	})).To(Equal(string(infrav1.OpenshiftDefaultIngress)))
 }
 
 // TestGetGatewayAuthProxyTimeout tests the getGatewayAuthProxyTimeout function.
