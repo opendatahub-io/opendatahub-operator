@@ -124,6 +124,16 @@ func oidcSpecWithIssuerURL(issuerURL string) serviceApi.GatewayConfigSpec {
 	return spec
 }
 
+// oidcSpecWithScopeAndPassAccessToken returns the OIDC spec with Scope and PassAccessToken set,
+// mirroring the AKS browser OIDC flow (requests an access token for a specific audience and
+// forwards it downstream).
+func oidcSpecWithScopeAndPassAccessToken() serviceApi.GatewayConfigSpec {
+	spec := getOIDCGatewayConfigSpec()
+	spec.OIDC.Scope = "openid profile email 6dae42f8-4368-4678-94ff-3960e28e3630/.default"
+	spec.OIDC.PassAccessToken = true
+	return spec
+}
+
 // GetOIDCTestSetup returns TestSetup for OIDC mode (OIDCTestEnv, default OIDC spec, ensureOIDCClientSecret). Use for most OIDC tests.
 func GetOIDCTestSetup() TestSetup {
 	return TestSetup{
@@ -199,10 +209,31 @@ func TestOIDCServiceCreation(t *testing.T) {
 }
 
 // TestOIDCDeploymentWithAllArgs validates Deployment args in OIDC mode (delegates to RunDeploymentWithAllArgsTest).
+// Scope and pass-access-token are unset here, so both flags must be absent, preserving the
+// existing ID-token-only forwarding behavior.
 func TestOIDCDeploymentWithAllArgs(t *testing.T) {
 	RunDeploymentWithAllArgsTest(t, GetOIDCTestSetup(), DefaultGatewayHost(OIDCClusterDomain),
 		[]string{"--provider=oidc", fmt.Sprintf("--oidc-issuer-url=%s", OIDCIssuerURL), "--skip-oidc-discovery=false", "--ssl-insecure-skip-verify=false", "--pass-authorization-header=true", "--set-authorization-header=true"},
 		[]string{"--provider=openshift", "--scope=user:full", "--pass-access-token=true"})
+}
+
+// TestOIDCDeploymentWithScopeAndPassAccessToken validates that --scope and --pass-access-token=true
+// are added to the Deployment when GatewayConfig.spec.oidc.scope/passAccessToken are set (e.g. the
+// AKS browser OIDC flow, which needs an access token minted for a specific audience).
+func TestOIDCDeploymentWithScopeAndPassAccessToken(t *testing.T) {
+	setup := TestSetup{
+		TC:        OIDCTestEnv,
+		Spec:      oidcSpecWithScopeAndPassAccessToken(),
+		SetupFunc: ensureOIDCClientSecret,
+	}
+	RunDeploymentWithAllArgsTest(t, setup, DefaultGatewayHost(OIDCClusterDomain),
+		[]string{
+			"--provider=oidc",
+			fmt.Sprintf("--oidc-issuer-url=%s", OIDCIssuerURL),
+			"--scope=openid profile email 6dae42f8-4368-4678-94ff-3960e28e3630/.default",
+			"--pass-access-token=true",
+		},
+		nil)
 }
 
 // TestOIDCHPACreation validates HPA creation in OIDC mode (delegates to RunHPACreationTest).
