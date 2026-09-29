@@ -37,8 +37,11 @@ type CertificateSpec struct {
 	// * SelfSigned: A certificate is generated automatically; on XKS, cert-manager issues it.
 	// * Provided: Pre-existence of the TLS Secret (see SecretName) with a valid certificate is assumed.
 	// * OpenshiftDefaultIngress: Uses the cluster's default ingress certificate (OpenShift only).
+	// When unset, the operator selects a platform-appropriate default: OpenshiftDefaultIngress on
+	// OpenShift and SelfSigned on XKS (vanilla Kubernetes), where cert-manager issues the
+	// certificate. A static CRD default is intentionally omitted so this platform-aware selection
+	// can apply; see handleCertificates.
 	// +kubebuilder:validation:Enum=SelfSigned;Provided;OpenshiftDefaultIngress
-	// +kubebuilder:default=OpenshiftDefaultIngress
 	Type CertType `json:"type,omitempty"`
 	// IssuerRef optionally overrides the cert-manager issuer used on XKS. The gateway TLS certificate
 	// uses it when Type=SelfSigned; the kube-auth-proxy TLS certificate uses it whenever the auth proxy

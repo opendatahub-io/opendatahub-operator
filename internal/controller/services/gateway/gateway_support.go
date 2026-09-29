@@ -272,14 +272,16 @@ func isGatewayReady(gateway *gwapiv1.Gateway) bool {
 }
 
 // getCertificateType returns a string representation of the certificate type.
+// When the type is unset it mirrors the platform-aware default applied by handleCertificates:
+// SelfSigned on XKS (vanilla Kubernetes) and OpenshiftDefaultIngress on OpenShift.
 func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
-	if gatewayConfig == nil {
-		return string(infrav1.OpenshiftDefaultIngress)
+	if gatewayConfig != nil && gatewayConfig.Spec.Certificate != nil && gatewayConfig.Spec.Certificate.Type != "" {
+		return string(gatewayConfig.Spec.Certificate.Type)
 	}
-	if gatewayConfig.Spec.Certificate == nil || gatewayConfig.Spec.Certificate.Type == "" {
-		return string(infrav1.OpenshiftDefaultIngress)
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		return string(infrav1.SelfSigned)
 	}
-	return string(gatewayConfig.Spec.Certificate.Type)
+	return string(infrav1.OpenshiftDefaultIngress)
 }
 
 func gatewayCertificateSecretName(gatewayConfig *serviceApi.GatewayConfig) string {
