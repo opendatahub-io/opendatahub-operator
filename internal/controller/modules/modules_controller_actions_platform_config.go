@@ -15,7 +15,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/env"
 )
 
 const (
@@ -161,7 +160,7 @@ func buildCertManagerConfigParams() map[string]string {
 
 	params := map[string]string{
 		CertManagerIssuerRefNameKey:     bc.CAIssuerName,
-		CertManagerIssuerRefKindKey:     env.GetOrDefault(certmanager.EnvIssuerRefKind, certmanager.DefaultIssuerRefKind),
+		CertManagerIssuerRefKindKey:     bc.IssuerRefKind,
 		CertManagerCASecretNameKey:      bc.CertName,
 		CertManagerCASecretNamespaceKey: bc.CertManagerNamespace,
 	}

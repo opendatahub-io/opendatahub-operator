@@ -272,14 +272,23 @@ func isGatewayReady(gateway *gwapiv1.Gateway) bool {
 }
 
 // getCertificateType returns a string representation of the certificate type.
+// When the type is unset it mirrors the platform-aware default applied by handleCertificates:
+// SelfSigned on XKS (vanilla Kubernetes) and OpenshiftDefaultIngress on OpenShift.
 func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
-	if gatewayConfig == nil {
-		return string(infrav1.OpenshiftDefaultIngress)
+	if gatewayConfig != nil && gatewayConfig.Spec.Certificate != nil && gatewayConfig.Spec.Certificate.Type != "" {
+		return string(gatewayConfig.Spec.Certificate.Type)
 	}
-	if gatewayConfig.Spec.Certificate == nil || gatewayConfig.Spec.Certificate.Type == "" {
-		return string(infrav1.OpenshiftDefaultIngress)
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		return string(infrav1.SelfSigned)
 	}
-	return string(gatewayConfig.Spec.Certificate.Type)
+	return string(infrav1.OpenshiftDefaultIngress)
+}
+
+func gatewayCertificateSecretName(gatewayConfig *serviceApi.GatewayConfig) string {
+	if gatewayConfig.Spec.Certificate != nil && gatewayConfig.Spec.Certificate.SecretName != "" {
+		return gatewayConfig.Spec.Certificate.SecretName
+	}
+	return fmt.Sprintf("%s-tls", gatewayConfig.Name)
 }
 
 func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig, domain string) (string, error) {
@@ -296,10 +305,7 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 		}
 	}
 
-	secretName := certConfig.SecretName
-	if secretName == "" {
-		secretName = fmt.Sprintf("%s-tls", gatewayConfig.Name)
-	}
+	secretName := gatewayCertificateSecretName(gatewayConfig)
 
 	switch certConfig.Type {
 	case infrav1.OpenshiftDefaultIngress:
@@ -313,7 +319,26 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 		}
 		return secretName, nil
 	case infrav1.SelfSigned:
-		// domain parameter already contains the full FQDN (subdomain.baseDomain) from GetFQDN
+		// domain parameter already contains the full FQDN (subdomain.baseDomain) from GetFQDN.
+		// On XKS, cert-manager is a required platform dependency and owns issuance
+		// and renewal. Preserve operator-generated self-signed certificates on OpenShift.
+		if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+			issuerName, issuerKind := resolveIssuerRef(gatewayConfig.Spec.Certificate)
+			cert, err := buildCertManagerCertificate(secretName, GetGatewayNamespace(), secretName, []string{domain}, issuerName, issuerKind)
+			if err != nil {
+				return "", err
+			}
+			if err := rr.AddResources(cert); err != nil {
+				return "", fmt.Errorf("failed to add gateway Certificate: %w", err)
+			}
+			logf.FromContext(ctx).V(1).Info("Created cert-manager Certificate for gateway",
+				"secret", secretName,
+				"issuerName", issuerName,
+				"issuerKind", issuerKind,
+			)
+			return secretName, nil
+		}
+
 		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, secretName, domain, GetGatewayNamespace(),
 			cluster.WithLabels( // add label easy to know it is from us.
 				labels.PlatformPartOf, ServiceName,
@@ -879,6 +904,24 @@ func IsGatewayReferencedSecret(ctx context.Context, cli client.Client, obj clien
 	}
 
 	return false
+}
+
+// IsXKSCertManagerSecret matches the TLS Secrets issued for the XKS gateway and auth proxy.
+func IsXKSCertManagerSecret(ctx context.Context, cli client.Client, obj client.Object, gatewayNamespace string) bool {
+	if cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes || obj.GetNamespace() != gatewayNamespace {
+		return false
+	}
+
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayConfigName}, gatewayConfig); err != nil {
+		return false
+	}
+	if gatewayConfig.Spec.OIDC != nil && obj.GetName() == KubeAuthProxyTLSName {
+		return true
+	}
+	return (gatewayConfig.Spec.Certificate == nil || gatewayConfig.Spec.Certificate.Type == "" ||
+		gatewayConfig.Spec.Certificate.Type == infrav1.SelfSigned) &&
+		obj.GetName() == gatewayCertificateSecretName(gatewayConfig)
 }
 
 // detectAndSetIngressMode detects the ingress mode from an existing Gateway Service and updates
