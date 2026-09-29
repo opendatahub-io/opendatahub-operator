@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -38,6 +39,7 @@ func (tc *GatewayTestCtx) DashboardRedirectTestSuite(t *testing.T) {
 		{"Validate dashboard redirect Service", tc.ValidateDashboardRedirectService},
 		{"Validate dashboard redirect Routes", tc.ValidateDashboardRedirectRoutes},
 		{"Validate dashboard redirect HTTP functionality", tc.ValidateDashboardRedirectHTTP},
+		{"Validate dashboard redirect annotation opt-out", tc.ValidateDashboardRedirectAnnotationOptOut},
 	}
 
 	RunTestCases(t, testCases)
@@ -368,4 +370,77 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectHTTP(t *testing.T) {
 
 	t.Logf("Redirect works correctly: %s -> %s", dashboardURL, location)
 	t.Log("Dashboard redirect HTTP functionality validation completed")
+}
+
+// ValidateDashboardRedirectAnnotationOptOut verifies that the GatewayConfig annotation
+// dynamically removes redirect resources and that removing it recreates them.
+func (tc *GatewayTestCtx) ValidateDashboardRedirectAnnotationOptOut(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier1)
+	t.Log("Validating dashboard redirect annotation opt-out")
+
+	appNamespace := tc.AppsNamespace
+	dashboardRouteName := getDashboardRouteNameByPlatform(tc.FetchPlatformRelease())
+	type redirectResource struct {
+		resourceGVK schema.GroupVersionKind
+		nn          types.NamespacedName
+	}
+	redirectResources := []redirectResource{
+		{resourceGVK: gvk.Deployment, nn: types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: appNamespace}},
+		{resourceGVK: gvk.Service, nn: types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: appNamespace}},
+		{resourceGVK: gvk.ConfigMap, nn: types.NamespacedName{Name: gateway.DashboardRedirectConfigName, Namespace: appNamespace}},
+		{resourceGVK: gvk.Route, nn: types.NamespacedName{Name: dashboardRouteName, Namespace: appNamespace}},
+	}
+	if gatewaySubdomain != gateway.LegacyGatewaySubdomain {
+		redirectResources = append(redirectResources, redirectResource{
+			resourceGVK: gvk.Route,
+			nn:          types.NamespacedName{Name: gateway.LegacyGatewaySubdomain, Namespace: appNamespace},
+		})
+	}
+
+	setAnnotation := func(disabled bool) {
+		mutation := testf.Transform(`del(.metadata.annotations["%s"])`, gateway.DashboardRedirectsAnnotation)
+		condition := jq.Match(`.metadata.annotations["%s"] == null`, gateway.DashboardRedirectsAnnotation)
+		if disabled {
+			mutation = testf.Transform(
+				`(.metadata.annotations //= {}) | .metadata.annotations["%s"] = "%s"`,
+				gateway.DashboardRedirectsAnnotation,
+				gateway.DashboardRedirectsDisabledValue,
+			)
+			condition = jq.Match(
+				`.metadata.annotations["%s"] == "%s"`,
+				gateway.DashboardRedirectsAnnotation,
+				gateway.DashboardRedirectsDisabledValue,
+			)
+		}
+
+		tc.EventuallyResourcePatched(
+			WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+			WithMutateFunc(mutation),
+			WithCondition(condition),
+		)
+	}
+
+	t.Cleanup(func() { setAnnotation(false) })
+	setAnnotation(true)
+
+	for _, resource := range redirectResources {
+		tc.EnsureResourceGone(
+			WithMinimalObject(resource.resourceGVK, resource.nn),
+			WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+			WithCustomErrorMsg("redirect resource %s/%s should be removed when redirects are disabled", resource.resourceGVK.Kind, resource.nn.Name),
+		)
+	}
+
+	setAnnotation(false)
+
+	for _, resource := range redirectResources {
+		tc.EnsureResourceExists(
+			WithMinimalObject(resource.resourceGVK, resource.nn),
+			WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+			WithCustomErrorMsg("redirect resource %s/%s should be recreated when the annotation is removed", resource.resourceGVK.Kind, resource.nn.Name),
+		)
+	}
+
+	t.Log("Dashboard redirect annotation opt-out validation completed")
 }
