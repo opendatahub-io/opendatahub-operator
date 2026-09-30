@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	gomegaTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	"github.com/stretchr/testify/require"
@@ -141,6 +142,7 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate kube-auth-proxy TLS args match cluster APIServer", gatewayCtx.ValidateKubeAuthProxyTLSArgsMatchAPIServer},
 		{"Validate HorizontalPodAutoscaler configuration updates", gatewayCtx.ValidateHPA},
 		{"Validate NetworkPolicy creation", gatewayCtx.ValidateNetworkPolicy},
+		{"Validate NetworkPolicy ingress traffic", gatewayCtx.ValidateNetworkPolicyIngressTraffic},
 		{"Validate OAuth callback HTTPRoute", gatewayCtx.ValidateOAuthCallbackRoute},
 		{"Validate EnvoyFilter creation", gatewayCtx.ValidateEnvoyFilter},
 		{"Validate EDS endpoint discovery", gatewayCtx.ValidateEDSEndpointDiscovery},
@@ -2032,49 +2034,51 @@ func getServiceFQDN(serviceName, namespace string) string {
 func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 	t.Helper()
 
-	tc.SkipIfXKSCluster(t)
 	skipUnless(t, Tier1)
+	if tc.IsXKS() {
+		tc.SkipUnlessBYOIDC(t)
+	}
 	t.Log("Validating NetworkPolicy for kube-auth-proxy")
+
+	policyChecks := []gomegaTypes.GomegaMatcher{
+		// Verify the policy is owned by GatewayConfig and selects only proxy pods.
+		jq.Match(`.metadata.ownerReferences | any(.kind == "GatewayConfig" and .name == "%s" and .controller == true)`, gatewayConfigName),
+		jq.Match(`.metadata.labels."app.kubernetes.io/component" == "authentication"`),
+		jq.Match(`.spec.podSelector.matchLabels.app == "%s"`, kubeAuthProxyName),
+
+		// Keep the current egress contract visible until the egress design is resolved.
+		jq.Match(`.spec.policyTypes | any(. == "Ingress")`),
+		jq.Match(`.spec.policyTypes | any(. == "Egress")`),
+		jq.Match(`.spec.egress | length == 1`),
+		jq.Match(`.spec.egress[0] == {}`),
+
+		// Only Gateway pods can use the authentication ingress rule on TCP 8443.
+		jq.Match(`.spec.ingress | length >= 1`),
+		jq.Match(`.spec.ingress[0].from | length == 1`),
+		jq.Match(`.spec.ingress[0].ports | length == 1`),
+		jq.Match(`.spec.ingress[0].from[0].podSelector.matchExpressions[0].key == "%s"`, labels.GatewayAPI.GatewayName),
+		jq.Match(`.spec.ingress[0].from[0].podSelector.matchExpressions[0].operator == "In"`),
+		jq.Match(`.spec.ingress[0].from[0].podSelector.matchExpressions[0].values | any(. == "%s")`, tc.gatewayName()),
+		jq.Match(`.spec.ingress[0].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "%s"`, tc.gatewayNamespace()),
+		jq.Match(`.spec.ingress[0].ports[0].port == %d`, kubeAuthProxyHTTPSPort),
+		jq.Match(`.spec.ingress[0].ports[0].protocol == "%s"`, string(corev1.ProtocolTCP)),
+		jq.Match(`[.spec.ingress[1:][] | select((.ports | length) == 0 or any(.ports[]; .port == %d))] | length == 0`, kubeAuthProxyHTTPSPort),
+		jq.Match(`[.spec.ingress[] | select((.ports | length) == 0 or any(.ports[]; .port == %d))] | length == 0`, kubeAuthProxyHTTPPort),
+	}
+	if !tc.IsXKS() {
+		policyChecks = append(policyChecks,
+			jq.Match(`.spec.ingress | length == 3`),
+			jq.Match(`.spec.ingress[1].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "openshift-monitoring"`),
+			jq.Match(`.spec.ingress[2].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "openshift-user-workload-monitoring"`),
+		)
+	}
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.NetworkPolicy, types.NamespacedName{
 			Name:      kubeAuthProxyName,
 			Namespace: tc.gatewayNamespace(),
 		}),
-		WithCondition(And(
-			// Verify component label
-			jq.Match(`.metadata.labels."app.kubernetes.io/component" == "authentication"`),
-
-			// Verify pod selector matches kube-auth-proxy with specific labels
-			jq.Match(`.spec.podSelector.matchLabels.app == "%s"`, kubeAuthProxyName),
-
-			// Verify ingress and egress policy types are enabled
-			jq.Match(`.spec.policyTypes | any(. == "Ingress")`),
-			jq.Match(`.spec.policyTypes | any(. == "Egress")`),
-
-			// Verify egress allows all outbound traffic (API server, OAuth, OIDC, DNS)
-			jq.Match(`.spec.egress | length == 1`),
-			jq.Match(`.spec.egress[0] == {}`),
-
-			// Verify ingress rules exist
-			jq.Match(`.spec.ingress | length >= 1`),
-
-			// Verify ingress rule allows traffic from Gateway pods
-			jq.Match(`.spec.ingress[0].from[0].podSelector.matchExpressions[0].key == "%s"`, labels.GatewayAPI.GatewayName),
-			jq.Match(`.spec.ingress[0].from[0].podSelector.matchExpressions[0].operator == "In"`),
-			jq.Match(`.spec.ingress[0].from[0].podSelector.matchExpressions[0].values | any(. == "%s")`, tc.gatewayName()),
-			jq.Match(`.spec.ingress[0].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "%s"`, tc.gatewayNamespace()),
-
-			// Verify ingress ports using constants
-			jq.Match(`.spec.ingress[0].ports[0].port == %d`, kubeAuthProxyHTTPSPort),
-			jq.Match(`.spec.ingress[0].ports[0].protocol == "%s"`, string(corev1.ProtocolTCP)),
-
-			// Verify monitoring ingress rule exists
-			jq.Match(`.spec.ingress | length == 3`),
-			// And validate the monitoring rules are present
-			jq.Match(`.spec.ingress[1].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "openshift-monitoring"`),
-			jq.Match(`.spec.ingress[2].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "openshift-user-workload-monitoring"`),
-		)),
+		WithCondition(And(policyChecks...)),
 		WithCustomErrorMsg("NetworkPolicy should exist with correct ingress and egress rules for kube-auth-proxy"),
 	)
 

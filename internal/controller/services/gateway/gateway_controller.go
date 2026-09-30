@@ -37,9 +37,11 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
@@ -47,6 +49,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
+
+const gatewayResourceApplyFailedReason = "GatewayResourceApplyFailed"
 
 // gatewayCRDWatchPredicate matches CRD events that must re-trigger a GatewayConfig reconcile:
 //
@@ -150,6 +154,24 @@ func gatewayCertManagerPrecondition() precondition.PreCondition {
 		precondition.WithStopReconciliation(),
 		precondition.WithMessage("cert-manager Certificate CRD is required for XKS certificate issuance"),
 	)
+}
+
+// gatewayDeployAction records resource apply failures on GatewayConfigReady before
+// returning the error to the reconciler. The later status action cannot run when
+// deployment fails, so without this condition it can retain a stale Ready message.
+func gatewayDeployAction(opts ...deploy.ActionOpts) actions.Fn {
+	deployAction := deploy.NewAction(opts...)
+	return func(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+		if err := deployAction(ctx, rr); err != nil {
+			rr.Conditions.MarkFalse(
+				ReadyConditionType,
+				conditions.WithReason(gatewayResourceApplyFailedReason),
+				conditions.WithMessage("Failed to apply GatewayConfig resources: %v", err),
+			)
+			return err
+		}
+		return nil
+	}
 }
 
 func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
@@ -264,7 +286,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).
-		WithAction(deploy.NewAction(
+		WithAction(gatewayDeployAction(
 			deploy.WithCache(),
 		)).
 		WithAction(syncAdditionalIngressReadiness).
