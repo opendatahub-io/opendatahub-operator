@@ -78,6 +78,55 @@ data:
     }
   redirect.conf: |
     location / {
-        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
+        error_page 418 =200 /deprecation.html;
+        if ($http_accept ~* "text/html") {
+            return 418;
+        }
         return 301 https://{{.GatewayHostname}}$request_uri;
     }
+    location = /deprecation.html {
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        if ($http_accept !~* "text/html") {
+            return 301 https://{{.GatewayHostname}}$request_uri;
+        }
+    }
+  deprecation.html: |
+    <!doctype html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>OpenShift AI address has changed</title>
+      <style>
+        body { font: 1.125rem/1.6 system-ui, sans-serif; color: #151515; background: #fff; margin: 0; }
+        main { max-width: 42rem; margin: 10vh auto; padding: 1.5rem; }
+        a { color: #0066cc; overflow-wrap: anywhere; }
+        a:focus-visible { outline: 3px solid #0066cc; outline-offset: 3px; }
+      </style>
+    </head>
+    <body>
+      <main>
+        <h1>OpenShift AI has a new address</h1>
+        <p>This address is being retired. Update your bookmark to the new address:</p>
+        <p><a id="destination" href="https://{{.DashboardRedirectHostnameHTML}}/">https://{{.DashboardRedirectHostnameHTML}}/</a></p>
+        <p>You will be redirected in 10 seconds. You can use the link now.</p>
+        <noscript><p>Automatic redirection requires JavaScript. Use the link above to continue.</p></noscript>
+      </main>
+      <script>
+        const link = document.getElementById('destination');
+        const destination = new URL(link.href);
+        destination.pathname = window.location.pathname;
+        destination.search = window.location.search;
+        destination.hash = window.location.hash;
+        link.href = destination.href;
+        link.textContent = destination.href;
+        window.setTimeout(() => window.location.replace(destination.href), 10000);
+      </script>
+    </body>
+    </html>
