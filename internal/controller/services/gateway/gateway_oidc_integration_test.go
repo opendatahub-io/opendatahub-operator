@@ -255,6 +255,14 @@ func TestOIDCNetworkPolicyCreation(t *testing.T) {
 	RunNetworkPolicyCreationTest(t, GetOIDCTestSetup())
 }
 
+func TestOIDCNetworkPolicyReconciliation(t *testing.T) {
+	RunNetworkPolicyReconciliationTest(t, GetOIDCTestSetup())
+}
+
+func TestOIDCNetworkPolicyMissingConfig(t *testing.T) {
+	RunNetworkPolicyMissingOIDCConfigTest(t, GetOIDCTestSetup())
+}
+
 // TestOIDCNginxDashboardRedirectSkippedWithoutDashboard validates redirects are skipped when Dashboard is not deployed in OIDC mode.
 func TestOIDCNginxDashboardRedirectSkippedWithoutDashboard(t *testing.T) {
 	RunNginxDashboardRedirectSkippedWithoutDashboardTest(t, GetOIDCTestSetup())

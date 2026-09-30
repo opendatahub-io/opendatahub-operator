@@ -61,6 +61,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/rest"
@@ -735,7 +736,7 @@ func getIstioCRDs() []*apiextensionsv1.CustomResourceDefinition {
 }
 
 // deleteGatewayConfigDependents deletes resources that would be cascade-deleted by Kubernetes GC in a real cluster
-// (Gateway, gateway OCP Routes, kube-auth-proxy Deployment). Envtest does not run kube-controller-manager, so GC
+// (Gateway, gateway OCP Routes, kube-auth-proxy Deployment and NetworkPolicy). Envtest does not run kube-controller-manager, so GC
 // never runs; this cleanup runs from DeleteGatewayConfig after GatewayConfig is gone. Extend this function if more
 // dependent resource types need explicit deletion in envtest.
 func deleteGatewayConfigDependents(t *testing.T, ctx context.Context, cli client.Client) {
@@ -780,9 +781,29 @@ func deleteGatewayConfigDependents(t *testing.T, ctx context.Context, cli client
 	// Delete kube-auth-proxy Deployment if it exists (no wait).
 	dep := &appsv1.Deployment{}
 	if err := cli.Get(ctx, types.NamespacedName{Name: gateway.KubeAuthProxyName, Namespace: ns}, dep); err == nil {
+		if dep.DeletionTimestamp != nil {
+			dep.Finalizers = nil // envtest has no kube-controller-manager to finish foreground deletion
+			if err := cli.Update(ctx, dep); err != nil && !k8serr.IsNotFound(err) {
+				t.Fatalf("Failed to finalize Deployment %s: %v", gateway.KubeAuthProxyName, err)
+			}
+		}
 		_ = cli.Delete(ctx, dep)
 	} else if !k8serr.IsNotFound(err) {
 		t.Fatalf("Failed to get Deployment %s: %v", gateway.KubeAuthProxyName, err)
+	}
+
+	// Envtest cannot follow the NetworkPolicy owner reference after GatewayConfig deletion.
+	policy := &networkingv1.NetworkPolicy{}
+	if err := cli.Get(ctx, types.NamespacedName{Name: gateway.KubeAuthProxyName, Namespace: ns}, policy); err == nil {
+		if policy.DeletionTimestamp != nil {
+			policy.Finalizers = nil
+			if err := cli.Update(ctx, policy); err != nil && !k8serr.IsNotFound(err) {
+				t.Fatalf("Failed to finalize NetworkPolicy %s: %v", gateway.KubeAuthProxyName, err)
+			}
+		}
+		_ = cli.Delete(ctx, policy)
+	} else if !k8serr.IsNotFound(err) {
+		t.Fatalf("Failed to get NetworkPolicy %s: %v", gateway.KubeAuthProxyName, err)
 	}
 }
 
@@ -2029,6 +2050,140 @@ func RunNetworkPolicyCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(np.Spec.Ingress).To(HaveLen(3))
 	g.Expect(np.Spec.Egress).To(HaveLen(1))
 	g.Expect(np.Spec.Egress[0]).To(Equal(networkingv1.NetworkPolicyEgressRule{}))
+	assertOwnedByGatewayConfig(g, np)
+}
+
+// RunNetworkPolicyReconciliationTest verifies adoption of a legacy policy and restoration after drift or deletion.
+func RunNetworkPolicyReconciliationTest(t *testing.T, setup TestSetup) {
+	t.Helper()
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+
+	ctx := setup.TC.Ctx
+	cli := setup.TC.K8sClient
+	key := types.NamespacedName{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()}
+
+	policy := &networkingv1.NetworkPolicy{}
+	g.Eventually(func() error { return cli.Get(ctx, key, policy) }, TestTimeout, TestInterval).Should(Succeed())
+	assertOwnedByGatewayConfig(g, policy)
+
+	// Simulate an existing policy created before GatewayConfig owned NetworkPolicies.
+	policy.OwnerReferences = nil
+	g.Expect(cli.Update(ctx, policy)).To(Succeed())
+	spec := setup.Spec
+	spec.AuthProxyTimeout = metav1.Duration{Duration: 45 * time.Second}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	g.Eventually(func() bool {
+		current := &networkingv1.NetworkPolicy{}
+		if err := cli.Get(ctx, key, current); err != nil {
+			return false
+		}
+		return len(current.OwnerReferences) == 1 &&
+			current.OwnerReferences[0].Kind == serviceApi.GatewayConfigKind &&
+			current.OwnerReferences[0].Name == serviceApi.GatewayConfigName
+	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfig should adopt an existing NetworkPolicy")
+
+	g.Expect(cli.Get(ctx, key, policy)).To(Succeed())
+	wrongPort := intstr.FromInt(9443)
+	policy.Spec.Ingress[0].Ports[0].Port = &wrongPort
+	g.Expect(cli.Update(ctx, policy)).To(Succeed())
+	g.Eventually(func() bool {
+		current := &networkingv1.NetworkPolicy{}
+		if err := cli.Get(ctx, key, current); err != nil {
+			return false
+		}
+		if len(current.Spec.Ingress) == 0 || len(current.Spec.Ingress[0].Ports) == 0 ||
+			current.Spec.Ingress[0].Ports[0].Port == nil {
+			return false
+		}
+		return current.Spec.Ingress[0].Ports[0].Port.IntValue() == gateway.GatewayHTTPSPort
+	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfig should restore an edited NetworkPolicy")
+
+	g.Expect(cli.Get(ctx, key, policy)).To(Succeed())
+	deletedUID := policy.UID
+	g.Expect(cli.Delete(ctx, policy)).To(Succeed())
+	g.Eventually(func() bool {
+		current := &networkingv1.NetworkPolicy{}
+		if err := cli.Get(ctx, key, current); err != nil {
+			return false
+		}
+		return current.UID != deletedUID && len(current.OwnerReferences) == 1 &&
+			current.OwnerReferences[0].Kind == serviceApi.GatewayConfigKind
+	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfig should recreate a deleted NetworkPolicy")
+}
+
+// Envtest has no kube-controller-manager to complete foreground deletion of
+// owned objects. A deletionTimestamp proves that the controller issued the delete.
+func deletionRequestedOrComplete(ctx context.Context, cli client.Client, key types.NamespacedName, obj client.Object) bool {
+	err := cli.Get(ctx, key, obj)
+	if k8serr.IsNotFound(err) {
+		return true
+	}
+	return err == nil && obj.GetDeletionTimestamp() != nil
+}
+
+// RunNetworkPolicyAuthModeLifecycleTest verifies that Authentication/cluster changes alone
+// trigger reconciliation and removal of both the proxy and its policy.
+func RunNetworkPolicyAuthModeLifecycleTest(t *testing.T, setup TestSetup) {
+	t.Helper()
+	g := NewWithT(t)
+	ctx := setup.TC.Ctx
+	cli := setup.TC.K8sClient
+	key := types.NamespacedName{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()}
+
+	auth := &configv1.Authentication{}
+	g.Expect(cli.Get(ctx, types.NamespacedName{Name: cluster.ClusterAuthenticationObj}, auth)).To(Succeed())
+	originalType := auth.Spec.Type
+	defer func() {
+		g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			current := &configv1.Authentication{}
+			if err := cli.Get(ctx, types.NamespacedName{Name: cluster.ClusterAuthenticationObj}, current); err != nil {
+				return err
+			}
+			current.Spec.Type = originalType
+			return cli.Update(ctx, current)
+		})).To(Succeed())
+	}()
+	defer setup.Setup(t)()
+
+	g.Eventually(func() error { return cli.Get(ctx, key, &appsv1.Deployment{}) }, TestTimeout, TestInterval).Should(Succeed())
+	g.Eventually(func() error { return cli.Get(ctx, key, &networkingv1.NetworkPolicy{}) }, TestTimeout, TestInterval).Should(Succeed())
+
+	g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		current := &configv1.Authentication{}
+		if err := cli.Get(ctx, types.NamespacedName{Name: cluster.ClusterAuthenticationObj}, current); err != nil {
+			return err
+		}
+		current.Spec.Type = configv1.AuthenticationTypeNone
+		return cli.Update(ctx, current)
+	})).To(Succeed())
+
+	g.Eventually(func() bool {
+		return deletionRequestedOrComplete(ctx, cli, key, &appsv1.Deployment{}) &&
+			deletionRequestedOrComplete(ctx, cli, key, &networkingv1.NetworkPolicy{})
+	}, TestTimeout, TestInterval).Should(BeTrue(), "auth mode change should remove the proxy and its policy")
+}
+
+// RunNetworkPolicyMissingOIDCConfigTest verifies that a missing OIDC configuration
+// removes a previously deployed proxy and policy.
+func RunNetworkPolicyMissingOIDCConfigTest(t *testing.T, setup TestSetup) {
+	t.Helper()
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+	ctx := setup.TC.Ctx
+	cli := setup.TC.K8sClient
+	key := types.NamespacedName{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()}
+
+	g.Eventually(func() error { return cli.Get(ctx, key, &appsv1.Deployment{}) }, TestTimeout, TestInterval).Should(Succeed())
+	g.Eventually(func() error { return cli.Get(ctx, key, &networkingv1.NetworkPolicy{}) }, TestTimeout, TestInterval).Should(Succeed())
+
+	spec := setup.Spec
+	spec.OIDC = nil
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	g.Eventually(func() bool {
+		return deletionRequestedOrComplete(ctx, cli, key, &appsv1.Deployment{}) &&
+			deletionRequestedOrComplete(ctx, cli, key, &networkingv1.NetworkPolicy{})
+	}, TestTimeout, TestInterval).Should(BeTrue(), "missing OIDC configuration should remove the proxy and its policy")
 }
 
 // RunGatewayConfigStatusConditionsTest validates that GatewayConfig status gets conditions set (e.g. Ready).

@@ -190,6 +190,14 @@ func TestOAuthNetworkPolicyCreation(t *testing.T) {
 	RunNetworkPolicyCreationTest(t, GetOAuthTestSetup())
 }
 
+func TestOAuthNetworkPolicyReconciliation(t *testing.T) {
+	RunNetworkPolicyReconciliationTest(t, GetOAuthTestSetup())
+}
+
+func TestOAuthNetworkPolicyAuthModeLifecycle(t *testing.T) {
+	RunNetworkPolicyAuthModeLifecycleTest(t, GetOAuthTestSetup())
+}
+
 // TestOAuthNginxDashboardRedirectSkippedWithoutDashboard validates redirects are skipped when Dashboard is not deployed in OAuth mode.
 func TestOAuthNginxDashboardRedirectSkippedWithoutDashboard(t *testing.T) {
 	RunNginxDashboardRedirectSkippedWithoutDashboardTest(t, GetOAuthTestSetup())
