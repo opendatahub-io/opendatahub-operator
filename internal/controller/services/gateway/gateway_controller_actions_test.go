@@ -10,6 +10,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -29,6 +30,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	testscheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
@@ -39,6 +41,40 @@ import (
 // fail if name and kind are transposed, or if the per-GatewayConfig override is ignored in favour
 // of the platform default.
 var testIssuerRef = infrav1.IssuerRef{Name: "test-ca-issuer", Kind: "Issuer"}
+
+func TestDeleteLegacyNetworkPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		ownerRefs   []metav1.OwnerReference
+		managed     string
+		component   string
+		wantDeleted bool
+	}{
+		{name: "legacy gateway policy", component: ComponentLabelValue, wantDeleted: true},
+		{name: "owned gateway policy", component: ComponentLabelValue, ownerRefs: []metav1.OwnerReference{{Kind: serviceApi.GatewayConfigKind, Name: serviceApi.GatewayConfigName}}},
+		{name: "opted-out policy", component: ComponentLabelValue, managed: "false"},
+		{name: "unrelated policy", component: "other"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			policy := &networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{
+				Name:      KubeAuthProxyName,
+				Namespace: GetGatewayNamespace(),
+				Labels: map[string]string{
+					labels.PlatformPartOf:      labels.NormalizePartOfValue(serviceApi.GatewayConfigKind),
+					labels.K8SCommon.Component: tc.component,
+				},
+				Annotations:     map[string]string{"opendatahub.io/managed": tc.managed},
+				OwnerReferences: tc.ownerRefs,
+			}}
+			cli, err := fakeclient.New(fakeclient.WithObjects(policy))
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(deleteLegacyNetworkPolicy(t.Context(), &odhtypes.ReconciliationRequest{Client: cli})).To(Succeed())
+			err = cli.Get(t.Context(), types.NamespacedName{Name: KubeAuthProxyName, Namespace: GetGatewayNamespace()}, &networkingv1.NetworkPolicy{})
+			g.Expect(k8serr.IsNotFound(err)).To(Equal(tc.wantDeleted))
+		})
+	}
+}
 
 // expectCertManagerCertificate asserts the full wiring of a produced cert-manager Certificate:
 // its identity, the Secret cert-manager is told to populate, the SANs requested, and the issuer

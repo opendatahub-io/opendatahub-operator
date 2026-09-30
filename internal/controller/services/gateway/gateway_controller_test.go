@@ -55,6 +55,53 @@ func TestGatewayCRDWatchPredicate(t *testing.T) {
 	}
 }
 
+func TestGatewayAuthenticationWatchPredicate(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	newAuth := func(name, authType string) *unstructured.Unstructured {
+		auth := &unstructured.Unstructured{}
+		auth.SetName(name)
+		g.Expect(unstructured.SetNestedField(auth.Object, authType, "spec", "type")).To(Succeed())
+		return auth
+	}
+
+	pred := gatewayAuthenticationWatchPredicate()
+	oldAuth := newAuth(cluster.ClusterAuthenticationObj, "IntegratedOAuth")
+	g.Expect(pred.Create(event.CreateEvent{Object: oldAuth})).To(BeTrue())
+	g.Expect(pred.Delete(event.DeleteEvent{Object: oldAuth})).To(BeTrue())
+	g.Expect(pred.Update(event.UpdateEvent{ObjectOld: oldAuth, ObjectNew: newAuth(cluster.ClusterAuthenticationObj, "None")})).To(BeTrue())
+	g.Expect(pred.Update(event.UpdateEvent{ObjectOld: oldAuth, ObjectNew: newAuth(cluster.ClusterAuthenticationObj, "IntegratedOAuth")})).To(BeFalse())
+	g.Expect(pred.Update(event.UpdateEvent{ObjectOld: oldAuth, ObjectNew: newAuth("other", "None")})).To(BeFalse())
+	g.Expect(pred.Create(event.CreateEvent{Object: newAuth("other", "None")})).To(BeFalse())
+}
+
+func TestGatewayGCObjectPredicate(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	newResource := func(kind metav1.TypeMeta) unstructured.Unstructured {
+		obj := unstructured.Unstructured{}
+		obj.SetAPIVersion(kind.APIVersion)
+		obj.SetKind(kind.Kind)
+		obj.SetName(KubeAuthProxyName)
+		obj.SetNamespace(GetGatewayNamespace())
+		return obj
+	}
+
+	for _, resourceGVK := range []metav1.TypeMeta{
+		{APIVersion: gvk.Deployment.GroupVersion().String(), Kind: gvk.Deployment.Kind},
+		{APIVersion: gvk.NetworkPolicy.GroupVersion().String(), Kind: gvk.NetworkPolicy.Kind},
+	} {
+		obj := newResource(resourceGVK)
+		remove, err := gatewayGCObjectPredicate(&odhtypes.ReconciliationRequest{}, obj)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(remove).To(BeTrue(), "an omitted proxy resource should be collected")
+
+		remove, err = gatewayGCObjectPredicate(&odhtypes.ReconciliationRequest{Resources: []unstructured.Unstructured{obj}}, obj)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(remove).To(BeFalse(), "a desired proxy resource should stay")
+	}
+}
+
 func TestGatewayDeploymentWatchPredicate(t *testing.T) {
 	originalClusterInfo := cluster.GetClusterInfo()
 	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
