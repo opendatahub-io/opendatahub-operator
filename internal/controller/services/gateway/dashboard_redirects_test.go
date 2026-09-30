@@ -36,6 +36,7 @@ func TestDashboardRedirectConfigTemplate(t *testing.T) {
 		"PartOfGatewayConfig":           PartOfGatewayConfig,
 		"GatewayHostname":               testHostnameDefault,
 		"DashboardRedirectHostnameHTML": html.EscapeString(testHostnameDefault),
+		"DashboardRedirectProductName":  "Open Data Hub",
 	}
 	var config corev1.ConfigMap
 	g.Expect(yaml.Unmarshal([]byte(renderAuthProxyTemplate(g, dashboardRedirectConfigMapTemplate, data)), &config)).To(Succeed())
