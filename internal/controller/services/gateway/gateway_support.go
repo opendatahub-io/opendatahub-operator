@@ -724,11 +724,19 @@ func calculateAuthConfigHash(authSecret *corev1.Secret) string {
 	return hex.EncodeToString(hash[:])
 }
 
-// CalculateRedirectConfigHash returns a hash of the gateway hostname.
-// Used as a pod annotation so deployment rollout triggers when subdomain/domain changes.
-// Hash is fixed-length (64 chars) to avoid annotation size limits from long hostnames.
-func CalculateRedirectConfigHash(hostname string) string {
-	h := sha256.Sum256([]byte(hostname))
+// CalculateRedirectConfigHash hashes the hostname and embedded redirect configuration.
+// The pod annotation changes when an upgrade updates the ConfigMap template, so Nginx
+// reloads its subPath mounts even if the gateway hostname stays the same.
+func CalculateRedirectConfigHash(hostname string) (string, error) {
+	config, err := gatewayResources.ReadFile(dashboardRedirectConfigMapTemplate)
+	if err != nil {
+		return "", fmt.Errorf("read dashboard redirect configuration for rollout hash: %w", err)
+	}
+	return calculateRedirectConfigHash(hostname, config), nil
+}
+
+func calculateRedirectConfigHash(hostname string, config []byte) string {
+	h := sha256.Sum256([]byte(hostname + "\x00" + string(config)))
 	return hex.EncodeToString(h[:])
 }
 

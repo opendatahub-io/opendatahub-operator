@@ -21,6 +21,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"html"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -394,6 +395,10 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 	// Compute legacy redirect info for template
 	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
+	redirectConfigHash, err := CalculateRedirectConfigHash(hostname)
+	if err != nil {
+		return nil, err
+	}
 
 	templateData := map[string]any{
 		"IsOpenShift":              cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes,
@@ -439,7 +444,8 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData["DashboardRedirectConfigName"] = DashboardRedirectConfigName
 	templateData["DashboardRouteName"] = GetDashboardRouteName()
 	templateData["DashboardRedirectImage"] = getDashboardRedirectImage()
-	templateData["RedirectConfigHash"] = CalculateRedirectConfigHash(hostname)
+	templateData["DashboardRedirectHostnameHTML"] = html.EscapeString(hostname)
+	templateData["RedirectConfigHash"] = redirectConfigHash
 
 	// Add OIDC-specific fields only if OIDC config is present
 	if gatewayConfig.Spec.OIDC != nil {

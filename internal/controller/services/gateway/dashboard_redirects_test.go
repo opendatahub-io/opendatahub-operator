@@ -4,6 +4,7 @@
 package gateway
 
 import (
+	"html"
 	"testing"
 
 	routev1 "github.com/openshift/api/route/v1"
@@ -11,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -21,6 +23,38 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+func TestDashboardRedirectConfigTemplate(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	data := map[string]any{
+		"DashboardRedirectConfigName":   DashboardRedirectConfigName,
+		"DashboardRedirectNamespace":    "opendatahub",
+		"DashboardRedirectName":         DashboardRedirectName,
+		"PartOfLabelKey":                "app.kubernetes.io/part-of",
+		"PartOfGatewayConfig":           PartOfGatewayConfig,
+		"GatewayHostname":               testHostnameDefault,
+		"DashboardRedirectHostnameHTML": html.EscapeString(testHostnameDefault),
+	}
+	var config corev1.ConfigMap
+	g.Expect(yaml.Unmarshal([]byte(renderAuthProxyTemplate(g, dashboardRedirectConfigMapTemplate, data)), &config)).To(Succeed())
+
+	redirect := config.Data["redirect.conf"]
+	g.Expect(redirect).To(ContainSubstring("return 301 https://" + testHostnameDefault + "$request_uri"))
+	g.Expect(redirect).To(ContainSubstring("$http_accept ~* \"text/html\""))
+	g.Expect(redirect).To(ContainSubstring("error_page 418 =200 /deprecation.html"))
+	g.Expect(redirect).To(ContainSubstring("$http_accept !~* \"text/html\""))
+
+	page := config.Data["deprecation.html"]
+	g.Expect(page).To(ContainSubstring(`<html lang="en">`))
+	g.Expect(page).To(ContainSubstring(`href="https://` + testHostnameDefault + `/"`))
+	g.Expect(page).To(ContainSubstring("destination.pathname = window.location.pathname"))
+	g.Expect(page).To(ContainSubstring("destination.search = window.location.search"))
+	g.Expect(page).To(ContainSubstring("destination.hash = window.location.hash"))
+	g.Expect(page).To(ContainSubstring("link.textContent = destination.href"))
+	g.Expect(page).NotTo(ContainSubstring("$request_uri"), "request data must never be embedded in the HTML")
+}
 
 func TestCreateDashboardRedirects_SkipsWhenDashboardNotDeployed(t *testing.T) {
 	t.Parallel()
