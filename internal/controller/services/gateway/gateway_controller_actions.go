@@ -374,19 +374,6 @@ func createNetworkPolicy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return nil
 	}
 
-	// Ingress is enabled by default (when NetworkPolicy is nil or Ingress is nil)
-	// If Ingress is specified, use the explicit Enabled value
-	ingressEnabled := true
-	if gatewayConfig.Spec.NetworkPolicy != nil && gatewayConfig.Spec.NetworkPolicy.Ingress != nil {
-		ingressEnabled = gatewayConfig.Spec.NetworkPolicy.Ingress.Enabled
-	}
-
-	// Only skip NetworkPolicy creation if ingress is explicitly disabled
-	if !ingressEnabled {
-		l.V(1).Info("Ingress disabled, skipping NetworkPolicy creation")
-		return deleteLegacyNetworkPolicy(ctx, rr)
-	}
-
 	authMode, err := getGatewayAuthenticationMode(ctx, rr, gatewayConfig)
 	if err != nil {
 		return err
@@ -405,7 +392,7 @@ func createNetworkPolicy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return deleteLegacyNetworkPolicy(ctx, rr)
 	}
 
-	l.V(1).Info("Creating NetworkPolicy for kube-auth-proxy", "ingress", ingressEnabled)
+	l.V(1).Info("Creating NetworkPolicy for kube-auth-proxy")
 
 	rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{
 		FS:   gatewayResources,

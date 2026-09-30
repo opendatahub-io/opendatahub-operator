@@ -132,10 +132,6 @@ type GatewayConfigSpec struct {
 	// +kubebuilder:validation:Maximum=10
 	AuthProxyMaxReplicas *int32 `json:"authProxyMaxReplicas,omitempty"`
 
-	// NetworkPolicy configuration for kube-auth-proxy
-	// +optional
-	NetworkPolicy *NetworkPolicyConfig `json:"networkPolicy,omitempty"`
-
 	// ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider.
 	// Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.
 	// Secret must exist in the gateway namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate.
@@ -297,26 +293,6 @@ type AdditionalIngressOIDCConfig struct {
 	// SecretNamespace is the source Secret's namespace; defaults to the gateway namespace.
 	// +optional
 	SecretNamespace string `json:"secretNamespace,omitempty"`
-}
-
-// NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
-// When nil or when Ingress is nil, NetworkPolicy ingress rules are enabled by default
-// to restrict access to kube-auth-proxy pods.
-type NetworkPolicyConfig struct {
-	// Ingress defines ingress NetworkPolicy rules.
-	// When nil, ingress rules are applied by default (allows traffic from Gateway pods and monitoring namespaces).
-	// When specified, Enabled must be set to true to apply rules or false to skip NetworkPolicy creation.
-	// Set Enabled=false only in development environments or when using alternative network security controls.
-	// +optional
-	Ingress *IngressPolicyConfig `json:"ingress,omitempty"`
-}
-
-// IngressPolicyConfig defines ingress NetworkPolicy rules
-type IngressPolicyConfig struct {
-	// Enabled determines whether ingress rules are applied.
-	// When true, creates NetworkPolicy allowing traffic only from Gateway pods and monitoring namespaces.
-	// +kubebuilder:validation:Required
-	Enabled bool `json:"enabled"`
 }
 
 // OIDCConfig defines OIDC provider configuration

@@ -1957,31 +1957,6 @@ func RunLegacyRouteRemovedWhenSubdomainChangesToLegacyTest(t *testing.T, setup T
 		"Legacy redirect route should not exist when GatewayConfig subdomain is legacy from the start")
 }
 
-// RunNetworkPolicyDisabledTest validates that no new NetworkPolicy is created when spec has NetworkPolicy.Ingress.Enabled=false.
-func RunNetworkPolicyDisabledTest(t *testing.T, setup TestSetup, spec serviceApi.GatewayConfigSpec) {
-	g := NewWithT(t)
-
-	var listBefore networkingv1.NetworkPolicyList
-	g.Expect(setup.TC.K8sClient.List(setup.TC.Ctx, &listBefore, client.InNamespace(gateway.GetGatewayNamespace()))).To(Succeed())
-	countBefore := len(listBefore.Items)
-
-	CreateGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient, spec)
-	defer DeleteGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient)
-
-	g.Eventually(func() error {
-		deployment := &appsv1.Deployment{}
-		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GetGatewayNamespace(),
-		}, deployment)
-	}, TestTimeout, TestInterval).Should(Succeed())
-
-	var listAfter networkingv1.NetworkPolicyList
-	g.Expect(setup.TC.K8sClient.List(setup.TC.Ctx, &listAfter, client.InNamespace(gateway.GetGatewayNamespace()))).To(Succeed())
-	g.Expect(len(listAfter.Items)).To(BeNumerically("<=", countBefore),
-		"NetworkPolicy count must not increase when Ingress.Enabled=false")
-}
-
 // RunLoadBalancerIngressModeTest validates that Gateway is shaped for LoadBalancer (no Infrastructure, hostname set) and no OCP Route is created.
 // CreateGatewayConfig ensures no existing GatewayConfig before create. Pass spec with IngressModeLoadBalancer (e.g. oauthSpecWithLoadBalancer or oidcSpecWithLoadBalancer).
 func RunLoadBalancerIngressModeTest(t *testing.T, tc *TestEnvContext, spec serviceApi.GatewayConfigSpec) {
