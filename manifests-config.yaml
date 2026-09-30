@@ -682,14 +682,6 @@ imageOverrides:
     rhoai:
       base: "quay.io/rhoai/odh-vllm-cuda-rhel9"
       digest: "sha256:293c6eb7571bd239516a175b1ebbd4e4bc3b1076022d7aaf6b7f16264227aebf"
-  RELATED_IMAGE_ODH_VLLM_GAUDI_IMAGE:
-    source: "csv"
-    odh:
-      base: "quay.io/rhoai/odh-vllm-gaudi-rhel9"
-      digest: "sha256:0cb6c76db6d8b672513821016f377b95a7108c472e1ee0d911ee9d95687a8403"
-    rhoai:
-      base: "quay.io/rhoai/odh-vllm-gaudi-rhel9"
-      digest: "sha256:0cb6c76db6d8b672513821016f377b95a7108c472e1ee0d911ee9d95687a8403"
   RELATED_IMAGE_ODH_VLLM_ROCM_IMAGE:
     source: "csv"
     odh:
