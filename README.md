@@ -856,7 +856,7 @@ spec:
 
 This will use the cluster's default domain with your custom subdomain: `custom-gateway.apps.cluster.example.com`
 
-The operator creates a NetworkPolicy whenever it deploys kube-auth-proxy. Remove the obsolete `spec.networkPolicy` field from existing GatewayConfig manifests.
+The operator creates a NetworkPolicy whenever it deploys kube-auth-proxy. On upgrade, a previously stored `spec.networkPolicy.ingress.enabled: false` no longer suppresses policy creation; the upgraded controller creates the policy during reconciliation. The stored GatewayConfig needs no manual migration, but remove the obsolete `spec.networkPolicy` field from manifests before applying them again.
 
 **Important Notes:**
 - The GatewayConfig name must be exactly `default-gateway`

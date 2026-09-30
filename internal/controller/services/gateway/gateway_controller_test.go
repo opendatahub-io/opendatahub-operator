@@ -4,25 +4,98 @@
 package gateway
 
 import (
+	"context"
+	"errors"
 	"testing"
 
+	networkingv1 "k8s.io/api/networking/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
 
 	. "github.com/onsi/gomega"
 )
+
+func TestGatewayDeployActionReportsNetworkPolicyFailureAndRecovery(t *testing.T) {
+	g := NewWithT(t)
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+
+	blocked := true
+	proxyPolicyError := errors.New("networkpolicies.networking.k8s.io \"kube-auth-proxy\" is forbidden")
+	gatewayConfig := &serviceApi.GatewayConfig{ObjectMeta: metav1.ObjectMeta{
+		Name: serviceApi.GatewayConfigName, UID: types.UID("gateway-config-uid"),
+	}}
+	hostname := gwapiv1.Hostname("gateway.example.com")
+	gateway := &gwapiv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{Name: GetDefaultGatewayName(), Namespace: GetGatewayNamespace()},
+		Spec:       gwapiv1.GatewaySpec{Listeners: []gwapiv1.Listener{{Hostname: &hostname}}},
+		Status: gwapiv1.GatewayStatus{Conditions: []metav1.Condition{{
+			Type: string(gwapiv1.GatewayConditionAccepted), Status: metav1.ConditionTrue,
+		}}},
+	}
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(gatewayConfig, gateway),
+		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			Create: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+				if blocked && obj.GetObjectKind().GroupVersionKind() == gvk.NetworkPolicy {
+					return proxyPolicyError
+				}
+				return cl.Create(ctx, obj, opts...)
+			},
+		}),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     cli,
+		Instance:   gatewayConfig,
+		Conditions: conditions.NewManager(gatewayConfig, ReadyConditionType),
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", gvk.NetworkPolicy).Return(true)
+		}),
+	}
+	g.Expect(rr.AddResources(&networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{
+		Name: KubeAuthProxyName, Namespace: GetGatewayNamespace(),
+	}})).To(Succeed())
+	deployAction := gatewayDeployAction(deploy.WithMode(deploy.ModePatch))
+	rr.Conditions.MarkTrue(ReadyConditionType, conditions.WithReason(status.ReadyReason))
+
+	err = deployAction(t.Context(), rr)
+	g.Expect(err).To(MatchError(ContainSubstring(proxyPolicyError.Error())))
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(ready.Reason).To(Equal(gatewayResourceApplyFailedReason))
+	g.Expect(ready.Message).To(ContainSubstring(proxyPolicyError.Error()))
+
+	blocked = false
+	rr.Conditions.MarkUnknown(ReadyConditionType) // The proxy action resets readiness on retry.
+	g.Expect(deployAction(t.Context(), rr)).To(Succeed())
+	g.Expect(syncGatewayConfigStatus(t.Context(), rr)).To(Succeed())
+	ready = rr.Conditions.GetCondition(ReadyConditionType)
+	g.Expect(ready.Status).To(Equal(metav1.ConditionTrue))
+	g.Expect(ready.Reason).To(Equal(status.ReadyReason))
+	g.Expect(cli.Get(t.Context(), types.NamespacedName{
+		Name: KubeAuthProxyName, Namespace: GetGatewayNamespace(),
+	}, &networkingv1.NetworkPolicy{})).To(Succeed())
+}
 
 // TestGatewayCRDWatchPredicate pins the set of CRDs whose installation or removal re-triggers a
 // GatewayConfig reconcile. The cert-manager Certificate CRD matters because XKS certificate
