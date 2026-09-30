@@ -871,6 +871,7 @@ func authProxyTemplateData() map[string]any {
 		"RedirectURL":              "https://" + testHostnameDefault + OAuthCallbackPath,
 		"TLSMinVersion":            "VersionTLS12",
 		"TLSCipherSuite":           "TLS_AES_128_GCM_SHA256",
+		"TLSCurvePreferences":      "",
 		"CookieExpire":             testCookieExpireDefault,
 		"CookieRefresh":            testCookieRefreshDefault,
 		"AuthProxyCookieName":      AuthProxyCookieName,

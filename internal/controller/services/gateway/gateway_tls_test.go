@@ -155,17 +155,25 @@ const oldIANACiphers = "TLS_AES_128_GCM_SHA256," +
 func TestKubeAuthProxyTLSFromProfile(t *testing.T) {
 	t.Parallel()
 
-	minVersion, cipherSuites := gateway.KubeAuthProxyTLSFromProfile(context.Background(), nil)
+	minVersion, cipherSuites, curvePreferences, err := gateway.KubeAuthProxyTLSFromProfile(context.Background(), nil)
+	require.NoError(t, err)
 	assert.Equal(t, "TLS1.2", minVersion)
 	assert.Equal(t, intermediateIANACiphers, cipherSuites)
+	assert.Equal(t, "4588,29,23,24", curvePreferences)
 
-	minVersion, cipherSuites = gateway.KubeAuthProxyTLSFromProfile(context.Background(), &configv1.TLSSecurityProfile{Type: configv1.TLSProfileOldType})
+	minVersion, cipherSuites, curvePreferences, err = gateway.KubeAuthProxyTLSFromProfile(context.Background(), &configv1.TLSSecurityProfile{Type: configv1.TLSProfileOldType})
+	require.NoError(t, err)
 	assert.Equal(t, "TLS1.2", minVersion)
 	assert.Equal(t, intermediateIANACiphers, cipherSuites)
+	assert.Equal(t, "4588,29,23,24", curvePreferences)
 
-	minVersion, cipherSuites = gateway.KubeAuthProxyTLSFromProfile(context.Background(), &configv1.TLSSecurityProfile{Type: configv1.TLSProfileIntermediateType})
+	minVersion, cipherSuites, curvePreferences, err = gateway.KubeAuthProxyTLSFromProfile(
+		context.Background(), &configv1.TLSSecurityProfile{Type: configv1.TLSProfileIntermediateType},
+	)
+	require.NoError(t, err)
 	assert.Equal(t, "TLS1.2", minVersion)
 	assert.Equal(t, intermediateIANACiphers, cipherSuites)
+	assert.Equal(t, "4588,29,23,24", curvePreferences)
 
 	customProfile := &configv1.TLSSecurityProfile{
 		Type: configv1.TLSProfileCustomType,
@@ -173,16 +181,21 @@ func TestKubeAuthProxyTLSFromProfile(t *testing.T) {
 			TLSProfileSpec: configv1.TLSProfileSpec{
 				Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
 				MinTLSVersion: configv1.VersionTLS12,
+				Groups:        []configv1.TLSGroup{configv1.TLSGroupSecP256r1, configv1.TLSGroupX25519},
 			},
 		},
 	}
-	minVersion, cipherSuites = gateway.KubeAuthProxyTLSFromProfile(context.Background(), customProfile)
+	minVersion, cipherSuites, curvePreferences, err = gateway.KubeAuthProxyTLSFromProfile(context.Background(), customProfile)
+	require.NoError(t, err)
 	assert.Equal(t, "TLS1.2", minVersion)
 	assert.Equal(t, "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", cipherSuites)
+	assert.Equal(t, "23,29", curvePreferences)
 
-	minVersion, cipherSuites = gateway.KubeAuthProxyTLSFromProfile(context.Background(), &configv1.TLSSecurityProfile{Type: configv1.TLSProfileModernType})
+	minVersion, cipherSuites, curvePreferences, err = gateway.KubeAuthProxyTLSFromProfile(context.Background(), &configv1.TLSSecurityProfile{Type: configv1.TLSProfileModernType})
+	require.NoError(t, err)
 	assert.Equal(t, "TLS1.3", minVersion)
 	assert.Equal(t, "TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384,TLS_CHACHA20_POLY1305_SHA256", cipherSuites)
+	assert.Equal(t, "4588,29,23,24", curvePreferences)
 }
 
 func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
@@ -195,10 +208,11 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		t.Parallel()
 		cli := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-		minVersion, cipherSuites, err := gateway.GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
+		minVersion, cipherSuites, curvePreferences, err := gateway.GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
 		require.NoError(t, err)
 		assert.Equal(t, "TLS1.2", minVersion)
 		assert.Equal(t, intermediateIANACiphers, cipherSuites)
+		assert.Equal(t, "4588,29,23,24", curvePreferences)
 	})
 
 	t.Run("APIServer without tlsSecurityProfile uses intermediate defaults", func(t *testing.T) {
@@ -208,10 +222,11 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		}
 		cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(apiServer).Build()
 
-		minVersion, cipherSuites, err := gateway.GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
+		minVersion, cipherSuites, curvePreferences, err := gateway.GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
 		require.NoError(t, err)
 		assert.Equal(t, "TLS1.2", minVersion)
 		assert.Equal(t, intermediateIANACiphers, cipherSuites)
+		assert.Equal(t, "4588,29,23,24", curvePreferences)
 	})
 
 	t.Run("APIServer with old profile", func(t *testing.T) {
@@ -226,10 +241,11 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		}
 		cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(apiServer).Build()
 
-		minVersion, cipherSuites, err := gateway.GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
+		minVersion, cipherSuites, curvePreferences, err := gateway.GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
 		require.NoError(t, err)
 		assert.Equal(t, "TLS1.2", minVersion)
 		assert.Equal(t, intermediateIANACiphers, cipherSuites)
+		assert.Equal(t, "4588,29,23,24", curvePreferences)
 	})
 
 	t.Run("Strict APIServer with unsupported custom TLS version returns an error", func(t *testing.T) {
@@ -251,10 +267,11 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		}
 		cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(apiServer).Build()
 
-		minVersion, cipherSuites, err := gateway.GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
+		minVersion, cipherSuites, curvePreferences, err := gateway.GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
 		require.Error(t, err)
 		assert.Empty(t, minVersion)
 		assert.Empty(t, cipherSuites)
+		assert.Empty(t, curvePreferences)
 	})
 
 	t.Run("APIServer with custom profile", func(t *testing.T) {
@@ -262,6 +279,7 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		customSpec := configv1.TLSProfileSpec{
 			Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
 			MinTLSVersion: configv1.VersionTLS12,
+			Groups:        []configv1.TLSGroup{configv1.TLSGroupSecP256r1, configv1.TLSGroupX25519},
 		}
 		apiServer := &configv1.APIServer{
 			ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAPIServerObj},
@@ -277,10 +295,11 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		}
 		cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(apiServer).Build()
 
-		minVersion, cipherSuites, err := gateway.GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
+		minVersion, cipherSuites, curvePreferences, err := gateway.GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
 		require.NoError(t, err)
 		assert.Equal(t, "TLS1.2", minVersion)
 		assert.Equal(t, "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", cipherSuites)
+		assert.Equal(t, "23,29", curvePreferences)
 	})
 }
 
