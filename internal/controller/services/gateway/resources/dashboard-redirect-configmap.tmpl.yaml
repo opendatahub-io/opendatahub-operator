@@ -102,7 +102,7 @@ data:
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title>OpenShift AI address has changed</title>
+      <title>{{.DashboardRedirectProductName}} address has changed</title>
       <style>
         body { font: 1.125rem/1.6 system-ui, sans-serif; color: #151515; background: #fff; margin: 0; }
         main { max-width: 42rem; margin: 10vh auto; padding: 1.5rem; }
@@ -112,7 +112,7 @@ data:
     </head>
     <body>
       <main>
-        <h1>OpenShift AI has a new address</h1>
+        <h1>{{.DashboardRedirectProductName}} has a new address</h1>
         <p>This address is being retired. Update your bookmark to the new address:</p>
         <p><a id="destination" href="https://{{.DashboardRedirectHostnameHTML}}/">https://{{.DashboardRedirectHostnameHTML}}/</a></p>
         <p>You will be redirected in 10 seconds. You can use the link now.</p>

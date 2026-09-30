@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -328,7 +329,13 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectHTTP(t *testing.T) {
 	skipUnless(t, Tier1)
 	t.Log("Validating dashboard redirect HTTP functionality")
 
-	dashboardRouteName := getDashboardRouteNameByPlatform(tc.FetchPlatformRelease())
+	platformRelease := tc.FetchPlatformRelease()
+	dashboardRouteName := getDashboardRouteNameByPlatform(platformRelease)
+	productName := "Open Data Hub"
+	switch platformRelease {
+	case cluster.ManagedRhoai, cluster.SelfManagedRhoai:
+		productName = "OpenShift AI"
+	}
 	appNamespace := tc.AppsNamespace
 	routeNames := []string{dashboardRouteName}
 	if gatewaySubdomain != gateway.LegacyGatewaySubdomain {
@@ -382,9 +389,11 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectHTTP(t *testing.T) {
 			g.Expect(resp.Header.Get("Content-Type")).To(ContainSubstring("text/html"))
 			g.Expect(resp.Header.Get("Cache-Control")).To(ContainSubstring("no-store"))
 			g.Expect(resp.Header.Get("Location")).To(BeEmpty())
-			body, err := io.ReadAll(resp.Body)
+			const maxPageBytes = 64 << 10
+			body, err := io.ReadAll(io.LimitReader(resp.Body, maxPageBytes+1))
 			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(string(body)).To(ContainSubstring("OpenShift AI has a new address"))
+			g.Expect(len(body)).To(BeNumerically("<=", maxPageBytes))
+			g.Expect(string(body)).To(ContainSubstring(productName + " has a new address"))
 			g.Expect(string(body)).To(ContainSubstring(`href="https://` + expectedGatewayHostname + `/"`))
 			g.Expect(string(body)).To(ContainSubstring("destination.hash = window.location.hash"))
 			g.Expect(string(body)).NotTo(ContainSubstring("alert(1)"), "request data must not appear in the HTML page")
