@@ -35,30 +35,36 @@ RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go test -c ./test
 RUN cd cmd/test-retry && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -o ../../test-retry .
 
 ################################################################################
-FROM golang:$GOLANG_VERSION
+FROM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION
 
-RUN apt-get update -y && apt-get upgrade -y && \
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
+USER root
+
+RUN dnf upgrade -y && \
+    curl -fLO "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/ && \
-    apt-get install -y jq && \
-    apt-get clean all
+    dnf install -y jq && \
+    dnf clean all
 
 # install test reporting tools and build test2json
-RUN go install gotest.tools/gotestsum@v1.13.0 \
+RUN export GOBIN=/usr/local/bin \
+ && go install gotest.tools/gotestsum@v1.13.0 \
  && go install github.com/jstemmer/go-junit-report/v2@v2.1.0 \
- && go build -o /usr/local/bin/test2json cmd/test2json
+ && go build -o /usr/local/bin/test2json cmd/test2json \
+ && go clean -cache -modcache
 
 WORKDIR /e2e
 
 COPY --from=builder /workspace/e2e-tests .
-COPY --from=builder /workspace/test-retry /go/bin/test-retry
+COPY --from=builder /workspace/test-retry /usr/local/bin/test-retry
 COPY tests/e2e/scripts/run_e2e_tests.sh /e2e/run_e2e_tests.sh
 COPY tests/e2e/scripts/e2e-scope-rules.yaml /e2e/scripts/e2e-scope-rules.yaml
 
-RUN chmod +x ./e2e-tests /e2e/run_e2e_tests.sh /go/bin/test-retry
+RUN chmod +x ./e2e-tests /e2e/run_e2e_tests.sh /usr/local/bin/test-retry
 
-RUN mkdir -p results
+RUN mkdir -p results && chown 1001:0 results && chmod g=u results
 
-# run main go command
+ENV GOPATH=/tmp/go GOCACHE=/tmp/go-build
+USER 1001
+
 ENTRYPOINT ["/e2e/run_e2e_tests.sh"]
