@@ -856,23 +856,7 @@ spec:
 
 This will use the cluster's default domain with your custom subdomain: `custom-gateway.apps.cluster.example.com`
 
-For an advanced example to disable NetworkPolicy creation for auth proxy:
-
-```yaml
-apiVersion: services.platform.opendatahub.io/v1alpha1
-kind: GatewayConfig
-metadata:
-  name: default-gateway
-spec:
-  cookie: {}
-  certificate:
-    type: SelfSigned
-  networkPolicy:
-    ingress:
-      enabled: false
-```
-
-**Note:** NetworkPolicy is enabled by default to restrict access to the kube-auth-proxy.
+The operator creates a NetworkPolicy whenever it deploys kube-auth-proxy. Remove the obsolete `spec.networkPolicy` field from existing GatewayConfig manifests.
 
 **Important Notes:**
 - The GatewayConfig name must be exactly `default-gateway`
