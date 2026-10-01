@@ -2053,7 +2053,7 @@ func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 		jq.Match(`.spec.egress[0] == {}`),
 
 		// Only Gateway pods can use the authentication ingress rule on TCP 8443.
-		jq.Match(`.spec.ingress | length >= 1`),
+		jq.Match(`.spec.ingress | length == 1`),
 		jq.Match(`.spec.ingress[0].from | length == 1`),
 		jq.Match(`.spec.ingress[0].ports | length == 1`),
 		jq.Match(`.spec.ingress[0].from[0].podSelector.matchExpressions[0].key == "%s"`, labels.GatewayAPI.GatewayName),
@@ -2062,15 +2062,8 @@ func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 		jq.Match(`.spec.ingress[0].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "%s"`, tc.gatewayNamespace()),
 		jq.Match(`.spec.ingress[0].ports[0].port == %d`, kubeAuthProxyHTTPSPort),
 		jq.Match(`.spec.ingress[0].ports[0].protocol == "%s"`, string(corev1.ProtocolTCP)),
-		jq.Match(`[.spec.ingress[1:][] | select((.ports | length) == 0 or any(.ports[]; .port == %d))] | length == 0`, kubeAuthProxyHTTPSPort),
 		jq.Match(`[.spec.ingress[] | select((.ports | length) == 0 or any(.ports[]; .port == %d))] | length == 0`, kubeAuthProxyHTTPPort),
-	}
-	if !tc.IsXKS() {
-		policyChecks = append(policyChecks,
-			jq.Match(`.spec.ingress | length == 3`),
-			jq.Match(`.spec.ingress[1].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "openshift-monitoring"`),
-			jq.Match(`.spec.ingress[2].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "openshift-user-workload-monitoring"`),
-		)
+		jq.Match(`[.spec.ingress[] | select((.ports | length) == 0 or any(.ports[]; .port == %d))] | length == 0`, kubeAuthProxyMetricsPort),
 	}
 
 	tc.EnsureResourceExists(
