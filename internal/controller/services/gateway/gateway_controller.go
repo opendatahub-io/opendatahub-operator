@@ -19,7 +19,10 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	configv1 "github.com/openshift/api/config/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -43,6 +46,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	metadatalabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 // gatewayCRDWatchPredicate matches CRD events that must re-trigger a GatewayConfig reconcile:
@@ -103,6 +107,17 @@ func gatewayCertManagerPrecondition() precondition.PreCondition {
 	)
 }
 
+var defaultGatewayGCObjectPredicate = gc.DefaultObjectPredicate(metadatalabels.ODHPlatformPrefix)
+
+func gatewayGCObjectPredicate(rr *odhtypes.ReconciliationRequest, obj unstructured.Unstructured) (bool, error) {
+	if cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes &&
+		obj.GroupVersionKind() == gvk.Route && obj.GetNamespace() == GetGatewayNamespace() &&
+		strings.HasPrefix(obj.GetName(), additionalIngressRouteNamePrefix) {
+		return false, nil
+	}
+	return defaultGatewayGCObjectPredicate(rr, obj)
+}
+
 func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	gw := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{})
 	// special for ROSA: auth is defined in day0 and OAuth not registered in apiserver
@@ -118,36 +133,54 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.Deployment, reconciler.WithPredicates(gatewayDeploymentWatchPredicate())).
 		OwnsGVK(gvk.HorizontalPodAutoscaler).
 		OwnsGVK(gvk.HTTPRoute).
-		OwnsGVK(gvk.Route, reconciler.Dynamic(reconciler.ClusterIsOpenShift())).
+		OwnsGVK(gvk.Route,
+			reconciler.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift())).
 		OwnsGVK(gvk.ClusterRoleBinding).
 		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
 		OwnsGVK(gvk.DestinationRule, reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
 		OwnsGVK(gvk.CertManagerCertificate, reconciler.Dynamic(reconciler.CrdExists(gvk.CertManagerCertificate))).
+		Watches(
+			&corev1.Service{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(resources.GatewayProviderService(GetDefaultGatewayName(), GetGatewayNamespace())),
+		).
+		Watches(
+			&operatorv1.IngressController{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(predicate.And(
+				predicate.ResourceVersionChangedPredicate{},
+				predicate.NewPredicateFuncs(func(obj client.Object) bool {
+					return obj.GetNamespace() == cluster.IngressControllerName.Namespace
+				}),
+			)),
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+		).
+		Watches(
+			&corev1.Namespace{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(GetGatewayNamespace())),
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+		).
+		Watches(
+			&configv1.Ingress{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed("cluster")),
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+		).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
 				handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(gatewayCRDWatchPredicate()),
 		).
-		// Watch for certificate secrets (both OpenShift default ingress and provided).
+		// Watch for Gateway certificates and GatewayConfig-referenced OIDC/provider CA secrets.
 		Watches(
 			&corev1.Secret{},
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(
 				resources.GatewayCertificateSecret(func(obj client.Object) bool {
-					return cluster.IsGatewayCertificateSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
-				}),
-			),
-		).
-		// Watch for OIDC client secrets and provider CA secrets referenced by GatewayConfig
-		// so that creating or updating these Secrets triggers re-reconciliation (Helm/GitOps
-		// race condition: Secret may be created after the GatewayConfig CR).
-		Watches(
-			&corev1.Secret{},
-			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
-			reconciler.WithPredicates(
-				resources.GatewayCertificateSecret(func(obj client.Object) bool {
-					return IsGatewayReferencedSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
+					return isGatewayCertificateOrReferencedSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
 				}),
 			),
 		).
@@ -197,8 +230,15 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
+		// GC does not compare desired resources, so Service or IngressController changes
+		// can leave an obsolete Route behind without a GatewayConfig generation change.
+		WithAction(cleanupAdditionalIngressRoutes).
+		WithAction(syncAdditionalIngressReadiness).
 		WithAction(syncGatewayConfigStatus).
-		WithAction(gc.NewAction()).
+		// GC checks annotations, not rr.Resources. Bridge Routes have their
+		// own cleanup; default and dashboard Routes still use normal GC.
+		WithAction(gc.NewAction(gc.WithObjectPredicate(gatewayGCObjectPredicate))).
+		WithPostStatusFn(syncAdditionalIngressReadyStatuses).
 		WithConditions(ReadyConditionType)
 
 	if _, err := gw.Build(ctx); err != nil {
