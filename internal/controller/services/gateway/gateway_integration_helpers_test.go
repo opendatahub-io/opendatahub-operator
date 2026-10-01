@@ -2022,7 +2022,7 @@ func RunNetworkPolicyCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(np.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue("app", gateway.KubeAuthProxyName))
 	g.Expect(np.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeIngress))
 	g.Expect(np.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeEgress))
-	g.Expect(np.Spec.Ingress).To(HaveLen(3))
+	g.Expect(np.Spec.Ingress).To(HaveLen(1))
 	g.Expect(np.Spec.Egress).To(HaveLen(1))
 	g.Expect(np.Spec.Egress[0]).To(Equal(networkingv1.NetworkPolicyEgressRule{}))
 	assertOwnedByGatewayConfig(g, np)
@@ -2042,8 +2042,21 @@ func RunNetworkPolicyReconciliationTest(t *testing.T, setup TestSetup) {
 	g.Eventually(func() error { return cli.Get(ctx, key, policy) }, TestTimeout, TestInterval).Should(Succeed())
 	assertOwnedByGatewayConfig(g, policy)
 
-	// Simulate an existing policy created before GatewayConfig owned NetworkPolicies.
+	// Simulate a policy from before GatewayConfig owned NetworkPolicies, with
+	// the former broad monitoring ingress rules still present.
 	policy.OwnerReferences = nil
+	metricsPort := intstr.FromInt(gateway.AuthProxyMetricsPort)
+	protocol := corev1.ProtocolTCP
+	for _, namespace := range []string{"openshift-monitoring", "openshift-user-workload-monitoring"} {
+		policy.Spec.Ingress = append(policy.Spec.Ingress, networkingv1.NetworkPolicyIngressRule{
+			From: []networkingv1.NetworkPolicyPeer{{
+				NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
+					"kubernetes.io/metadata.name": namespace,
+				}},
+			}},
+			Ports: []networkingv1.NetworkPolicyPort{{Protocol: &protocol, Port: &metricsPort}},
+		})
+	}
 	g.Expect(cli.Update(ctx, policy)).To(Succeed())
 	spec := setup.Spec
 	spec.AuthProxyTimeout = metav1.Duration{Duration: 45 * time.Second}
@@ -2053,10 +2066,10 @@ func RunNetworkPolicyReconciliationTest(t *testing.T, setup TestSetup) {
 		if err := cli.Get(ctx, key, current); err != nil {
 			return false
 		}
-		return len(current.OwnerReferences) == 1 &&
+		return len(current.Spec.Ingress) == 1 && len(current.OwnerReferences) == 1 &&
 			current.OwnerReferences[0].Kind == serviceApi.GatewayConfigKind &&
 			current.OwnerReferences[0].Name == serviceApi.GatewayConfigName
-	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfig should adopt an existing NetworkPolicy")
+	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfig should adopt the policy and remove legacy monitoring ingress")
 
 	g.Expect(cli.Get(ctx, key, policy)).To(Succeed())
 	wrongPort := intstr.FromInt(9443)

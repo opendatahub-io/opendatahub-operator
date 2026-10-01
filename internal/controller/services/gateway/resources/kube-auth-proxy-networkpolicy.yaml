@@ -27,23 +27,6 @@ spec:
         - protocol: TCP
           port: {{.GatewayHTTPSPort}}
 
-    # Allow metrics collection from OpenShift monitoring
-    - from:
-      - namespaceSelector:
-          matchLabels:
-            kubernetes.io/metadata.name: openshift-monitoring
-      ports:
-        - protocol: TCP
-          port: {{.AuthProxyMetricsPort}}
-
-    # Allow metrics collection from user workload monitoring
-    - from:
-      - namespaceSelector:
-          matchLabels:
-            kubernetes.io/metadata.name: openshift-user-workload-monitoring
-      ports:
-        - protocol: TCP
-          port: {{.AuthProxyMetricsPort}}
   # Allow all egress: kube-auth-proxy needs to reach the Kubernetes API server
   # for OAuth discovery, external OIDC providers at dynamic IPs, and DNS.
   egress:

@@ -867,7 +867,7 @@ The operator creates a NetworkPolicy whenever it deploys kube-auth-proxy. On upg
 - Certificate types can be `OpenshiftDefaultIngress`, `SelfSigned`, or `Provided`
 - If `subdomain` is not specified or is empty, the default value `rh-ai` is used.
 - If `domain` is not specified, the cluster's default domain is used.
-- **NetworkPolicy is enabled by default** to secure kube-auth-proxy traffic. It restricts ingress to Gateway pods and monitoring namespaces only.
+- **NetworkPolicy is enabled by default** to secure kube-auth-proxy traffic. It allows Gateway pods to reach the authentication port (TCP 8443). The Service still exposes the metrics port (TCP 9000), but this policy does not allow remote scrapers to reach it. Monitoring ingress rules can be added when kube-auth-proxy is actually configured as a metrics scrape target.
 
 ### Run functional Tests
 
