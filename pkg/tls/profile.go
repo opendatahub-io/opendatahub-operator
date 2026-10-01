@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -133,6 +134,28 @@ func CipherSuitesFromSpec(ctx context.Context, spec *configv1.TLSProfileSpec) st
 	return strings.Join(ianaCiphers, ",")
 }
 
+// CurvePreferencesFromSpec returns a comma-separated list of numeric Go
+// crypto/tls CurveID values for the profile's supported groups.
+func CurvePreferencesFromSpec(ctx context.Context, spec *configv1.TLSProfileSpec) (string, error) {
+	if spec == nil || len(spec.Groups) == 0 {
+		return "", nil
+	}
+
+	log := logf.FromContext(ctx).WithName("CurvePreferencesFromSpec")
+	curveIDs, unsupported := ocpcrypto.TLSGroupsToCurveIDs(spec.Groups)
+	for _, group := range unsupported {
+		log.V(1).Info("TLS group is unsupported by Go crypto/tls and was dropped", "group", group)
+	}
+	if len(curveIDs) == 0 {
+		return "", errors.New("TLS profile contains no supported groups")
+	}
+	curveStrings := make([]string, 0, len(curveIDs))
+	for _, id := range curveIDs {
+		curveStrings = append(curveStrings, strconv.FormatInt(int64(id), 10))
+	}
+	return strings.Join(curveStrings, ","), nil
+}
+
 // IsVersionSupported returns true if the MinTLSVersion can be mapped to a proxy flag value.
 func IsVersionSupported(v configv1.TLSProtocolVersion) bool {
 	return minVersionToShort(v) != ""
@@ -173,6 +196,24 @@ func strictProfileSpec(profile *configv1.TLSSecurityProfile) (*configv1.TLSProfi
 // FromProfileStrict resolves a profile without silently raising its minimum
 // TLS version or replacing an unsupported cipher set with Intermediate.
 func FromProfileStrict(ctx context.Context, profile *configv1.TLSSecurityProfile, format VersionFormat) (string, string, error) {
+	return fromProfileStrictBase(ctx, profile, format)
+}
+
+// FromProfileStrictWithCurvePreferences resolves a strict profile for a
+// proxy that supports TLS version, cipher suite, and curve preference flags.
+func FromProfileStrictWithCurvePreferences(ctx context.Context, profile *configv1.TLSSecurityProfile, format VersionFormat) (string, string, string, error) {
+	minVersion, cipherSuites, err := fromProfileStrictBase(ctx, profile, format)
+	if err != nil {
+		return "", "", "", err
+	}
+	curvePreferences, err := CurvePreferencesFromSpec(ctx, ProfileSpecFromSecurityProfile(profile))
+	if err != nil {
+		return "", "", "", err
+	}
+	return minVersion, cipherSuites, curvePreferences, nil
+}
+
+func fromProfileStrictBase(ctx context.Context, profile *configv1.TLSSecurityProfile, format VersionFormat) (string, string, error) {
 	spec, err := strictProfileSpec(profile)
 	if err != nil {
 		return "", "", err
@@ -201,6 +242,22 @@ func FromProfileStrict(ctx context.Context, profile *configv1.TLSSecurityProfile
 // If the profile's MinTLSVersion is unsupported (TLS 1.0/1.1), both version
 // and ciphers are floored to the Intermediate profile.
 func FromProfile(ctx context.Context, profile *configv1.TLSSecurityProfile, format VersionFormat) (string, string) {
+	minVersion, cipherSuites, _, err := FromProfileWithCurvePreferences(ctx, profile, format)
+	if err != nil {
+		// Only the curve preferences failed; FromProfileWithCurvePreferences
+		// already applied the version floor, so resolve version and ciphers
+		// from the same profile without curve preferences.
+		l := logf.FromContext(ctx).WithName("FromProfile")
+		l.V(1).Info("unsupported curve preferences, falling back to version and cipher settings", "error", err)
+		spec := ProfileSpecFromSecurityProfile(profile)
+		return MinVersionFromSpec(ctx, spec, format), CipherSuitesFromSpec(ctx, spec)
+	}
+	return minVersion, cipherSuites
+}
+
+// FromProfileWithCurvePreferences resolves a profile using the legacy fallback
+// behavior and returns version, cipher, and curve preference strings.
+func FromProfileWithCurvePreferences(ctx context.Context, profile *configv1.TLSSecurityProfile, format VersionFormat) (string, string, string, error) {
 	l := logf.FromContext(ctx).WithName("FromProfile")
 	spec := ProfileSpecFromSecurityProfile(profile)
 
@@ -210,23 +267,50 @@ func FromProfile(ctx context.Context, profile *configv1.TLSSecurityProfile, form
 		spec = configv1.TLSProfiles[configv1.TLSProfileIntermediateType]
 	}
 
-	return MinVersionFromSpec(ctx, spec, format), CipherSuitesFromSpec(ctx, spec)
+	curvePreferences, err := CurvePreferencesFromSpec(ctx, spec)
+	if err != nil {
+		return "", "", "", err
+	}
+	return MinVersionFromSpec(ctx, spec, format), CipherSuitesFromSpec(ctx, spec), curvePreferences, nil
 }
 
 // FromAPIServer fetches the cluster TLS profile and returns version and cipher strings.
 func FromAPIServer(ctx context.Context, cli client.Reader, format VersionFormat) (string, string, error) {
-	apiServer := &configv1.APIServer{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: cluster.ClusterAPIServerObj}, apiServer); err != nil {
-		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
-			minVersion, cipherSuites := FromProfile(ctx, nil, format)
-			return minVersion, cipherSuites, nil
-		}
-		return "", "", fmt.Errorf("failed to get APIServer %q: %w", cluster.ClusterAPIServerObj, err)
+	profile, err := strictProfileFromAPIServer(ctx, cli)
+	if err != nil {
+		return "", "", err
 	}
-
-	if !ShouldHonorClusterTLSProfile(apiServer.Spec.TLSAdherence) {
+	if profile == nil {
 		minVersion, cipherSuites := FromProfile(ctx, nil, format)
 		return minVersion, cipherSuites, nil
 	}
-	return FromProfileStrict(ctx, apiServer.Spec.TLSSecurityProfile, format)
+	return FromProfileStrict(ctx, profile, format)
+}
+
+// FromAPIServerWithCurvePreferences fetches the cluster TLS profile and
+// returns version, cipher, and curve preference strings for a proxy.
+func FromAPIServerWithCurvePreferences(ctx context.Context, cli client.Reader, format VersionFormat) (string, string, string, error) {
+	profile, err := strictProfileFromAPIServer(ctx, cli)
+	if err != nil {
+		return "", "", "", err
+	}
+	if profile == nil {
+		return FromProfileWithCurvePreferences(ctx, nil, format)
+	}
+	return FromProfileStrictWithCurvePreferences(ctx, profile, format)
+}
+
+func strictProfileFromAPIServer(ctx context.Context, cli client.Reader) (*configv1.TLSSecurityProfile, error) {
+	apiServer := &configv1.APIServer{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: cluster.ClusterAPIServerObj}, apiServer); err != nil {
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get APIServer %q: %w", cluster.ClusterAPIServerObj, err)
+	}
+
+	if !ShouldHonorClusterTLSProfile(apiServer.Spec.TLSAdherence) {
+		return nil, nil
+	}
+	return apiServer.Spec.TLSSecurityProfile, nil
 }
