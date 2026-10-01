@@ -1133,11 +1133,30 @@ func (tc *TestContext) ensureInstallPlan(nn types.NamespacedName, channelName st
 
 // EnsureOperatorInstalledViaClusterExtension installs an operator via OLMv1 ClusterExtension
 // and waits for the Installed condition to become True.
+// If ClusterExtension CRD is not available on the cluster, skips installation gracefully.
+// This allows tests to continue on clusters where OLMv1 is not enabled.
 //
 //   - nn.Name      = OLM package name (also ClusterExtension resource name)
 //   - nn.Namespace = install namespace (where operator pods land)
 //   - channel      = OLM channel (e.g. "stable-v1.4")
 func (tc *TestContext) EnsureOperatorInstalledViaClusterExtension(nn types.NamespacedName, channel string) {
+	// Probe for OLMv1 availability: fetch minimal ClusterExtension to check if CRD exists
+	_, err := fetchResourceSync(tc.NewResourceOptions(
+		WithMinimalObject(gvk.ClusterExtension, types.NamespacedName{Name: "probe"}),
+	))
+
+	// If ClusterExtension CRD doesn't exist, OLMv1 is not available — fall back to OLMv0
+	if meta.IsNoMatchError(err) {
+		tc.Logf("OLMv1 not available on this cluster; falling back to OLMv0 for %s", nn.Name)
+		// Use global OperatorGroup for OLMv0 fallback since operators like Kueue require AllNamespaces mode
+		tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(nn, channel)
+		return
+	}
+
+	// Fail on any other error during probe (not just missing CRD)
+	tc.g.Expect(err).NotTo(HaveOccurred(), "failed to probe for OLMv1 availability")
+
+	// OLMv1 is available, proceed with ClusterExtension install
 	tc.ensureClusterExtensionSAExists(nn)
 	tc.ensureClusterExtensionInstalled(nn, channel)
 	tc.ensureClusterExtensionReady(nn.Name)
@@ -1172,15 +1191,14 @@ func (tc *TestContext) ensureClusterExtensionSAExists(nn types.NamespacedName) {
 }
 
 // ensureClusterExtensionInstalled creates a ClusterExtension for the given operator.
+// Assumes OLMv1 is available (caller probes in EnsureOperatorInstalledViaClusterExtension).
 // Fetch-first: spec.namespace and spec.serviceAccount.name are immutable (CEL self == oldSelf).
 // EventuallyResourceCreatedOrUpdated must not be used when the resource may already exist.
 func (tc *TestContext) ensureClusterExtensionInstalled(nn types.NamespacedName, channel string) {
 	existing, err := fetchResourceSync(tc.NewResourceOptions(
 		WithMinimalObject(gvk.ClusterExtension, types.NamespacedName{Name: nn.Name}),
 	))
-	if meta.IsNoMatchError(err) {
-		tc.g.Expect(err).NotTo(HaveOccurred(), "ClusterExtension CRD not installed — is OLMv1 running on this cluster?")
-	}
+	tc.g.Expect(err).NotTo(HaveOccurred())
 	if err == nil && existing != nil {
 		return
 	}
