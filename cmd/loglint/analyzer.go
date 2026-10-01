@@ -235,7 +235,7 @@ func nolintMatches(text string) bool {
 		list = list[:i]
 	}
 
-	for _, name := range strings.Split(list, ",") {
+	for name := range strings.SplitSeq(list, ",") {
 		if strings.TrimSpace(name) == "odhlog" {
 			return true
 		}
