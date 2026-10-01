@@ -65,7 +65,14 @@ func buildCharts(ctx context.Context, rr *types.ReconciliationRequest) (ccmchart
 		return ccmcharts.BuildResult{}, fmt.Errorf("instance %T does not implement KubernetesEngineInstance", rr.Instance)
 	}
 
-	return ccmcharts.BuildHelmCharts(ctx, rr.Client, dp.GetDependencies(), rr.ChartsBasePath, rr.Instance.GetUID())
+	return ccmcharts.BuildHelmCharts(
+		ctx,
+		rr.Client,
+		dp.GetDependencies(),
+		rr.ChartsBasePath,
+		rr.Instance.GetUID(),
+		rr.Instance.GetObjectKind().GroupVersionKind(),
+	)
 }
 
 func filterCRs(resources []unstructured.Unstructured, crs []types.OperatorCR) []unstructured.Unstructured {
