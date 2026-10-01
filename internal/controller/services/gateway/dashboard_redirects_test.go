@@ -54,6 +54,7 @@ func TestDashboardRedirectConfigTemplate(t *testing.T) {
 	g.Expect(page).To(ContainSubstring("destination.search = window.location.search"))
 	g.Expect(page).To(ContainSubstring("destination.hash = window.location.hash"))
 	g.Expect(page).To(ContainSubstring("link.textContent = destination.href"))
+	g.Expect(page).To(ContainSubstring("window.setTimeout(() => window.location.replace(destination.href), 10000)"))
 	g.Expect(page).NotTo(ContainSubstring("$request_uri"), "request data must never be embedded in the HTML")
 }
 
