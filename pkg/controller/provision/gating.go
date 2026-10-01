@@ -78,8 +78,8 @@ func WalkBatches(
 					ready, err := checker.IsReady(ctx, entry.GetName())
 					if err != nil {
 						log.Error(err, "readiness check failed, treating as not ready",
-							"name", entry.GetName(),
-							"resourceKind", entry.GetKind())
+							"node", entry.GetName(),
+							"nodeKind", entry.GetKind())
 					}
 					if !ready {
 						allReady = false

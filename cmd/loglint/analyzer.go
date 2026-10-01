@@ -6,7 +6,6 @@ import (
 	"go/token"
 	"go/types"
 	"regexp"
-	"slices"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
@@ -25,7 +24,10 @@ var Analyzer = &analysis.Analyzer{
 	Run:      run,
 }
 
-var embeddedIdentity = regexp.MustCompile(`(?i)(in namespace|Request\.Name)`)
+var (
+	embeddedNamespace = regexp.MustCompile(`(?i)(in namespace|for namespace|namespace\s*[:=]?\s*%|Request\.Namespace)`)
+	embeddedName      = regexp.MustCompile(`(?i)(\bname\s*[:=]?\s*%|\bnamed\s+%|Request\.Name)`)
+)
 
 var forbiddenKeys = map[string]string{
 	"Request.Name":                   "name",
@@ -50,7 +52,7 @@ func run(pass *analysis.Pass) (any, error) {
 			return
 		}
 		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || sel.Sel.Name != "Error" {
+		if !ok || sel.Sel.Name != "Error" || !isLogrError(pass, sel) {
 			return
 		}
 		if len(call.Args) < 2 {
@@ -71,32 +73,73 @@ func run(pass *analysis.Pass) (any, error) {
 			pass.Reportf(pos, format, args...)
 		}
 
-		if msg, ok := messageMarker(pass, call.Args[1]); ok && embeddedIdentity.MatchString(msg) {
-			report(call.Args[1].Pos(), "odhlog: message embeds resource name or namespace; use structured keys \"name\" and \"namespace\"")
+		if msg, ok := messageMarker(pass, call.Args[1]); ok {
+			if embeddedNamespace.MatchString(msg) || embeddedName.MatchString(msg) {
+				{
+					report(call.Args[1].Pos(), "odhlog: message embeds resource name or namespace; use structured keys \"name\" and \"namespace\"")
+				}
+			}
 		}
 
 		keys := kvKeys(pass, call.Args[2:])
-		for _, key := range keys {
-			if want, bad := forbiddenKeys[key]; bad {
-				report(call.Pos(), "odhlog: non-standard structured log key %q; use %q", key, want)
+		var namePos token.Pos
+		hasName, hasKind := false, false
+		for _, k := range keys {
+			if want, bad := forbiddenKeys[k.name]; bad {
+				report(k.pos, "odhlog: non-standard structured log key %q; use %q", k.name, want)
+			}
+			switch k.name {
+			case "name":
+				hasName, namePos = true, k.pos
+			case "resourceKind":
+				hasKind = true
 			}
 		}
-		if slices.Contains(keys, "name") && !slices.Contains(keys, "resourceKind") {
-			report(call.Pos(), "odhlog: missing required structured field \"resourceKind\"")
+		if hasName && !hasKind {
+			report(namePos, "odhlog: missing required structured field \"resourceKind\"")
 		}
 	})
 
 	return nil, nil
 }
 
-func kvKeys(pass *analysis.Pass, args []ast.Expr) []string {
-	var keys []string
+type kvKey struct {
+	name string
+	pos  token.Pos
+}
+
+func kvKeys(pass *analysis.Pass, args []ast.Expr) []kvKey {
+	var keys []kvKey
 	for i := 0; i < len(args); i += 2 {
 		if s, ok := constString(pass, args[i]); ok {
-			keys = append(keys, s)
+			keys = append(keys, kvKey{name: s, pos: args[i].Pos()})
 		}
 	}
 	return keys
+}
+
+func isLogrError(pass *analysis.Pass, sel *ast.SelectorExpr) bool {
+	fn, ok := pass.TypesInfo.Uses[sel.Sel].(*types.Func)
+	if !ok {
+		return false
+	}
+	sig, ok := fn.Type().(*types.Signature)
+	if !ok || !sig.Variadic() || sig.Params().Len() != 3 {
+		return false
+	}
+	p := sig.Params()
+	if p.At(0).Type() != types.Universe.Lookup("error").Type() {
+		return false
+	}
+	if b, ok := p.At(1).Type().(*types.Basic); !ok || b.Kind() != types.String {
+		return false
+	}
+	slice, ok := p.At(2).Type().(*types.Slice)
+	if !ok {
+		return false
+	}
+	iface, ok := slice.Elem().Underlying().(*types.Interface)
+	return ok && iface.NumMethods() == 0
 }
 
 // messageMarker returns the static text to scan for embedded identity. It
@@ -158,11 +201,46 @@ func hasNolint(pass *analysis.Pass, pos token.Pos) bool {
 			if pass.Fset.Position(c.Pos()).Line != line {
 				continue
 			}
-			if strings.Contains(c.Text, "nolint:odhlog") {
+			if nolintMatches(c.Text) {
 				return true
 			}
 		}
 	}
+	return false
+}
+
+func nolintMatches(text string) bool {
+	text = strings.TrimPrefix(text, "//")
+	text = strings.TrimPrefix(text, "/*")
+	text = strings.TrimSpace(text)
+
+	const prefix = "nolint"
+
+	if !strings.HasPrefix(text, prefix) {
+		return false
+	}
+
+	rest := text[len(prefix):]
+
+	if rest == "" || strings.HasPrefix(rest, " ") {
+		return true
+	}
+
+	if !strings.HasPrefix(rest, ":") {
+		return false
+	}
+
+	list := rest[1:]
+	if i := strings.IndexAny(list, " \t"); i >= 0 {
+		list = list[:i]
+	}
+
+	for _, name := range strings.Split(list, ",") {
+		if strings.TrimSpace(name) == "odhlog" {
+			return true
+		}
+	}
+
 	return false
 }
 
