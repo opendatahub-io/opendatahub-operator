@@ -1,10 +1,10 @@
 package e2e_test
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -88,15 +88,39 @@ func aiGatewayTestSuite(t *testing.T) {
 			skipUnless(t, Tier1)
 			require.NotEmpty(t, relatedImageEnvVars, "aigateway handler should declare related images for env injection")
 
-			presentRelatedImageEnvVars := make([]string, 0, len(relatedImageEnvVars))
+			relatedImageEnvVarSet := make(map[string]struct{}, len(relatedImageEnvVars))
 			for _, envVarName := range relatedImageEnvVars {
-				if value, found := os.LookupEnv(envVarName); found && value != "" {
-					presentRelatedImageEnvVars = append(presentRelatedImageEnvVars, envVarName)
-				} else {
-					t.Logf("Skipping env var injection check for %s: env var not set in e2e environment", envVarName)
+				relatedImageEnvVarSet[envVarName] = struct{}{}
+			}
+
+			operatorDeploymentNN := types.NamespacedName{
+				Namespace: tc.OperatorNamespace,
+				Name:      tc.getControllerDeploymentName(),
+			}
+			operatorDeployment := &appsv1.Deployment{}
+			tc.FetchTypedResource(
+				operatorDeployment,
+				WithMinimalObject(gvk.Deployment, operatorDeploymentNN),
+				WithCustomErrorMsg("Failed to fetch operator Deployment %s in namespace %s", operatorDeploymentNN.Name, operatorDeploymentNN.Namespace),
+			)
+
+			expectedRelatedImageEnvVars := map[string]string{}
+			for _, container := range operatorDeployment.Spec.Template.Spec.Containers {
+				for _, envVar := range container.Env {
+					if _, shouldCheck := relatedImageEnvVarSet[envVar.Name]; !shouldCheck {
+						continue
+					}
+					if envVar.Value == "" {
+						continue
+					}
+					expectedRelatedImageEnvVars[envVar.Name] = envVar.Value
 				}
 			}
-			require.NotEmpty(t, presentRelatedImageEnvVars, "expected at least one aigateway related image env var to be set in e2e environment")
+			require.NotEmpty(t, expectedRelatedImageEnvVars,
+				"expected at least one aigateway related image env var to be configured on operator Deployment %s/%s",
+				operatorDeploymentNN.Namespace,
+				operatorDeploymentNN.Name,
+			)
 
 			// The platform injects APPLICATIONS_NAMESPACE into every module operator
 			// deployment unconditionally. Verify it's present with the correct value.
@@ -109,14 +133,15 @@ func aiGatewayTestSuite(t *testing.T) {
 				WithCustomErrorMsg("ai-gateway-operator Deployment should have APPLICATIONS_NAMESPACE=%s injected", tc.AppsNamespace),
 			)
 
-			for _, envVarName := range presentRelatedImageEnvVars {
+			for envVarName, expectedValue := range expectedRelatedImageEnvVars {
 				tc.EnsureResourceExists(
 					WithMinimalObject(gvk.Deployment, controllerNN),
 					WithCondition(jq.Match(
-						`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "%s") | .value != null and .value != ""`,
+						`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "%s") | .value == "%s"`,
 						envVarName,
+						expectedValue,
 					)),
-					WithCustomErrorMsg("ai-gateway-operator Deployment should have %s injected", envVarName),
+					WithCustomErrorMsg("ai-gateway-operator Deployment should have %s=%s injected", envVarName, expectedValue),
 				)
 			}
 		}},
