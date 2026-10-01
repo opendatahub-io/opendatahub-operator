@@ -884,6 +884,26 @@ func authProxyTemplateData() map[string]any {
 	}
 }
 
+func TestGetKubeAuthProxyImage(t *testing.T) {
+	t.Run("uses configured image when set", func(t *testing.T) {
+		const configuredImage = "registry.example.com/kube-auth-proxy:custom"
+		t.Setenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE", configuredImage)
+
+		if got := getKubeAuthProxyImage(); got != configuredImage {
+			t.Fatalf("getKubeAuthProxyImage() = %q, want configured image %q", got, configuredImage)
+		}
+	})
+
+	t.Run("uses pinned compatible fallback when unset", func(t *testing.T) {
+		t.Setenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE", "")
+
+		const fallbackImage = "quay.io/opendatahub/odh-kube-auth-proxy@sha256:bf699d1a281bd1b182e34f6834176253e0551abf5c6319c2c3308eec4966cb55"
+		if got := getKubeAuthProxyImage(); got != fallbackImage {
+			t.Fatalf("getKubeAuthProxyImage() = %q, want pinned fallback %q", got, fallbackImage)
+		}
+	})
+}
+
 func renderAuthProxyTemplate(g Gomega, path string, data map[string]any) string {
 	content, err := gatewayResources.ReadFile(path)
 	g.Expect(err).NotTo(HaveOccurred(), path)
@@ -956,6 +976,24 @@ func TestAuthProxyTemplatesRenderWithTokenReview(t *testing.T) {
 		g.Expect(rendered).To(ContainSubstring("--kube-api-qps=75"))
 		g.Expect(rendered).To(ContainSubstring("--kube-api-burst=150"))
 		g.Expect(rendered).To(ContainSubstring("--kube-api-cache-ttl=30s"))
+	}
+}
+
+func TestAuthProxyTemplatesRenderTLSCurvePreferences(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	data := authProxyTemplateData()
+	data["TLSCurvePreferences"] = "23,29"
+
+	for _, path := range []string{
+		kubeAuthProxyDeploymentOauthTemplate,
+		kubeAuthProxyDeploymentOidcTemplate,
+	} {
+		rendered := renderAuthProxyTemplate(g, path, data)
+		g.Expect(rendered).To(ContainSubstring("--tls-min-version=VersionTLS12"))
+		g.Expect(rendered).To(ContainSubstring("--tls-cipher-suite=TLS_AES_128_GCM_SHA256"))
+		g.Expect(rendered).To(ContainSubstring("--tls-curve-preferences=23,29"))
 	}
 }
 
