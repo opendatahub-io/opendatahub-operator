@@ -1,13 +1,18 @@
 package e2e_test
 
 import (
+	"net/netip"
+	"os"
+	"reflect"
 	"testing"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -32,6 +37,12 @@ func (tc *TestContext) EnsureGatewayConfigForXKS(t *testing.T) {
 	t.Helper()
 
 	tc.ensureDexForXKS(t)
+	gatewayNS := gateway.GetGatewayNamespace()
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(CreateNamespaceWithLabels(gatewayNS, nil)),
+		WithEventuallyTimeout(tc.TestTimeouts.crCreationTimeout),
+	)
+	tc.ensureXKSDexEgressPolicy(t)
 
 	gatewayConfig := &serviceApi.GatewayConfig{}
 	err := tc.Client().Get(tc.Context(), types.NamespacedName{Name: serviceApi.GatewayConfigName}, gatewayConfig)
@@ -47,14 +58,8 @@ func (tc *TestContext) EnsureGatewayConfigForXKS(t *testing.T) {
 		t.Fatalf("failed to check for existing GatewayConfig: %v", err)
 	}
 
-	gatewayNS := gateway.GetGatewayNamespace()
 	t.Logf("Bootstrapping GatewayConfig for xKS (namespace=%s, domain=%s, issuer=%s)",
 		gatewayNS, xksGatewayDomain, xksGatewayOIDCIssuerURL)
-
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(CreateNamespaceWithLabels(gatewayNS, nil)),
-		WithEventuallyTimeout(tc.TestTimeouts.crCreationTimeout),
-	)
 
 	oidcSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -83,6 +88,14 @@ func (tc *TestContext) EnsureGatewayConfigForXKS(t *testing.T) {
 
 func newXKSGatewayConfig() *serviceApi.GatewayConfig {
 	gatewayNS := gateway.GetGatewayNamespace()
+	podCIDR := os.Getenv("XKS_E2E_POD_CIDR")
+	if podCIDR == "" {
+		podCIDR = "10.244.0.0/16" // KinD default
+	}
+	serviceCIDR := os.Getenv("XKS_E2E_SERVICE_CIDR")
+	if serviceCIDR == "" {
+		serviceCIDR = "10.96.0.0/12" // KinD default
+	}
 	return &serviceApi.GatewayConfig{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: serviceApi.GroupVersion.String(),
@@ -94,6 +107,10 @@ func newXKSGatewayConfig() *serviceApi.GatewayConfig {
 		Spec: serviceApi.GatewayConfigSpec{
 			IngressMode: serviceApi.IngressModeLoadBalancer,
 			Domain:      xksGatewayDomain,
+			AuthProxyEgress: &serviceApi.AuthProxyEgressConfig{
+				PodCIDRs:     []string{podCIDR},
+				ServiceCIDRs: []string{serviceCIDR},
+			},
 			Certificate: &infrav1.CertificateSpec{
 				Type:       infrav1.SelfSigned,
 				SecretName: gateway.DefaultGatewayTLSSecretName,
@@ -125,6 +142,8 @@ func (tc *TestContext) updateXKSGatewayConfigForE2E(t *testing.T, gatewayConfig 
 	expected := newXKSGatewayConfig().Spec
 	needsUpdate := gatewayConfig.Spec.OIDC == nil ||
 		gatewayConfig.Spec.OIDC.IssuerURL != expected.OIDC.IssuerURL ||
+		gatewayConfig.Spec.AuthProxyEgress == nil ||
+		!reflect.DeepEqual(gatewayConfig.Spec.AuthProxyEgress, expected.AuthProxyEgress) ||
 		gatewayConfig.Spec.VerifyProviderCertificate == nil ||
 		*gatewayConfig.Spec.VerifyProviderCertificate != false
 
@@ -136,6 +155,8 @@ func (tc *TestContext) updateXKSGatewayConfigForE2E(t *testing.T, gatewayConfig 
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: serviceApi.GatewayConfigName}),
 		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.authProxyEgress.podCIDRs = ["%s"]`, expected.AuthProxyEgress.PodCIDRs[0]),
+			testf.Transform(`.spec.authProxyEgress.serviceCIDRs = ["%s"]`, expected.AuthProxyEgress.ServiceCIDRs[0]),
 			testf.Transform(`.spec.verifyProviderCertificate = false`),
 			testf.Transform(`.spec.oidc.issuerURL = "%s"`, xksGatewayOIDCIssuerURL),
 			testf.Transform(`.spec.oidc.clientID = "%s"`, xksGatewayOIDCClientID),
@@ -147,6 +168,45 @@ func (tc *TestContext) updateXKSGatewayConfigForE2E(t *testing.T, gatewayConfig 
 	)
 
 	return true
+}
+
+// The in-cluster Dex issuer is deliberately permitted by a separate egress-only
+// policy, as an administrator would do for an in-cluster OIDC provider.
+func (tc *TestContext) ensureXKSDexEgressPolicy(t *testing.T) {
+	t.Helper()
+	service := &corev1.Service{}
+	if err := tc.Client().Get(tc.Context(), types.NamespacedName{Name: xksDexName, Namespace: xksDexNamespace}, service); err != nil {
+		t.Fatalf("get Dex Service for egress policy: %v", err)
+	}
+	protocol := corev1.ProtocolTCP
+	port := intstr.FromInt32(xksDexPort)
+	serviceIP, err := netip.ParseAddr(service.Spec.ClusterIP)
+	if err != nil {
+		t.Fatalf("parse Dex Service IP: %v", err)
+	}
+	peers := []networkingv1.NetworkPolicyPeer{{
+		NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"kubernetes.io/metadata.name": xksDexNamespace}},
+		PodSelector:       &metav1.LabelSelector{MatchLabels: map[string]string{"app": xksDexName}},
+	}, {
+		IPBlock: &networkingv1.IPBlock{CIDR: netip.PrefixFrom(serviceIP, serviceIP.BitLen()).String()},
+	}}
+	policy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "kube-auth-proxy-oidc-test-egress", Namespace: gateway.GetGatewayNamespace()},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{
+				"app": gateway.KubeAuthProxyName, "opendatahub.io/auth-mode": "oidc",
+			}},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
+			Egress: []networkingv1.NetworkPolicyEgressRule{{
+				To:    peers,
+				Ports: []networkingv1.NetworkPolicyPort{{Protocol: &protocol, Port: &port}},
+			}},
+		},
+	}
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(policy),
+		WithEventuallyTimeout(tc.TestTimeouts.crCreationTimeout),
+	)
 }
 
 func (tc *TestContext) waitForXKSGatewayConfigReady(t *testing.T) {

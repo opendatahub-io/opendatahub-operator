@@ -23,6 +23,7 @@ import (
 	fwgc "github.com/opendatahub-io/odh-platform-utilities/framework/controller/actions/gc"
 	configv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -91,6 +92,20 @@ func gatewayAuthenticationWatchPredicate() predicate.Predicate {
 	}
 }
 
+func gatewayAPIEndpointSliceWatchPredicate() predicate.Predicate {
+	isAPIEndpointSlice := func(obj client.Object) bool {
+		return obj != nil && obj.GetNamespace() == apiServiceNamespace &&
+			obj.GetLabels()[discoveryv1.LabelServiceName] == apiServiceName
+	}
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool { return isAPIEndpointSlice(e.Object) },
+		DeleteFunc: func(e event.DeleteEvent) bool { return isAPIEndpointSlice(e.Object) },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return isAPIEndpointSlice(e.ObjectOld) || isAPIEndpointSlice(e.ObjectNew)
+		},
+	}
+}
+
 // The default GC predicate only sees GatewayConfig generation changes. Authentication/cluster
 // can change the desired proxy resources without changing that generation.
 func gatewayGCObjectPredicate(rr *odhtypes.ReconciliationRequest, obj unstructured.Unstructured) (bool, error) {
@@ -155,9 +170,10 @@ func gatewayCertManagerPrecondition() precondition.PreCondition {
 	)
 }
 
-// gatewayDeployAction records resource apply failures on GatewayConfigReady before
-// returning the error to the reconciler. The later status action cannot run when
-// deployment fails, so without this condition it can retain a stale Ready message.
+// gatewayDeployAction records apply failures on GatewayConfigReady. The reconciler
+// handles ProvisioningSucceeded and top-level Ready, but skips the later status
+// action on error. Without this mark, GatewayConfigReady gets a generic
+// ConditionReasonNotSet status instead of the apply error.
 func gatewayDeployAction(opts ...deploy.ActionOpts) actions.Fn {
 	deployAction := deploy.NewAction(opts...)
 	return func(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -258,6 +274,28 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(gatewayAuthenticationWatchPredicate()),
+		).
+		// The policy uses the current Pod/Service ranges, DNS Service target ports,
+		// and exact Kubernetes API endpoint addresses and ports.
+		Watches(
+			&configv1.Network{},
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed("cluster")),
+		).
+		Watches(
+			&corev1.Service{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(predicate.Or(
+				resources.CreatedOrUpdatedOrDeletedNamedInNamespace(apiServiceName, apiServiceNamespace),
+				resources.CreatedOrUpdatedOrDeletedNamedInNamespace("dns-default", "openshift-dns"),
+				resources.CreatedOrUpdatedOrDeletedNamedInNamespace("kube-dns", "kube-system"),
+			)),
+		).
+		Watches(
+			&discoveryv1.EndpointSlice{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(gatewayAPIEndpointSliceWatchPredicate()),
 		).
 		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
 			gatewayCertManagerPrecondition(),

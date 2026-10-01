@@ -347,6 +347,24 @@ func createNetworkPolicy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	}
 
 	l.V(1).Info("Creating NetworkPolicy for kube-auth-proxy")
+	// Queue the policy even when discovery fails so an existing allow-all egress
+	// rule is replaced by deny-all egress on the next successful apply.
+	rules := make([]networkingv1.NetworkPolicyEgressRule, 0)
+	resolvedRules, resolveErr := resolveAuthProxyEgress(ctx, rr.Client, gatewayConfig.Spec, authMode)
+	if resolveErr != nil {
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason("AuthProxyEgressUnavailable"),
+			conditions.WithMessage("Cannot configure kube-auth-proxy egress: %v", resolveErr),
+		)
+		l.Error(resolveErr, "auth proxy egress denied until destinations are resolved")
+	} else {
+		rules = resolvedRules
+	}
+	if rr.Extensions == nil {
+		rr.Extensions = make(map[string]any)
+	}
+	rr.Extensions[authProxyEgressRulesKey] = rules
 
 	rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{
 		FS:   gatewayResources,
@@ -456,6 +474,10 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"GatewayNameLabelKey":      labels.GatewayAPI.GatewayName,
 		"LegacySubdomain":          legacyInfo.LegacySubdomain,
 		"LegacyHostname":           legacyInfo.LegacyHostname,
+		"AuthProxyEgressRules":     make([]networkingv1.NetworkPolicyEgressRule, 0),
+	}
+	if rules, ok := rr.Extensions[authProxyEgressRulesKey].([]networkingv1.NetworkPolicyEgressRule); ok {
+		templateData["AuthProxyEgressRules"] = rules
 	}
 
 	// Add dashboard redirect template variables

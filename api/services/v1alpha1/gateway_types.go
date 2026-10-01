@@ -75,6 +75,18 @@ type GatewayConfigSpec struct {
 	// +optional
 	OIDC *OIDCConfig `json:"oidc,omitempty"`
 
+	// AuthProxyEgress supplies Pod and Service CIDRs excluded from the auth proxy's
+	// external egress rule on Kubernetes clusters. Both ranges are required there;
+	// OpenShift obtains them from Network/cluster instead.
+	// The rule allows TCP 443 for OpenShift OAuth, or the HTTPS port in
+	// spec.oidc.issuerURL (443 if omitted) for OIDC, to every IP outside those
+	// ranges, including private IPs. It cannot select only the issuer's hostname.
+	// In-cluster issuers or discovery endpoints on other ports need a separate
+	// NetworkPolicy. If the ranges are unavailable, GatewayConfig reports NotReady
+	// and the operator-owned policy has no egress rules.
+	// +optional
+	AuthProxyEgress *AuthProxyEgressConfig `json:"authProxyEgress,omitempty"`
+
 	// Certificate specifies configuration of the TLS certificate securing communication for the gateway.
 	// +optional
 	Certificate *infrav1.CertificateSpec `json:"certificate,omitempty"`
@@ -246,6 +258,18 @@ type AdditionalIngress struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinProperties=1
 	RouteLabels map[string]string `json:"routeLabels"`
+}
+
+// AuthProxyEgressConfig describes cluster address ranges excluded from baseline
+// external HTTPS egress on Kubernetes clusters.
+type AuthProxyEgressConfig struct {
+	// PodCIDRs contains every cluster Pod address range.
+	// +kubebuilder:validation:MinItems=1
+	PodCIDRs []string `json:"podCIDRs"`
+
+	// ServiceCIDRs contains every cluster Service address range.
+	// +kubebuilder:validation:MinItems=1
+	ServiceCIDRs []string `json:"serviceCIDRs"`
 }
 
 // OIDCConfig defines OIDC provider configuration
