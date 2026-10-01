@@ -16,6 +16,7 @@ spec:
       labels:
         app: {{.KubeAuthProxyServiceName}}
         {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
+        opendatahub.io/auth-mode: oidc
       annotations:
         opendatahub.io/secret-hash: "{{.AuthConfigHash}}"
     spec:

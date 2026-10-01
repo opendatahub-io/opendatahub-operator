@@ -3004,6 +3004,24 @@ Auth is the Schema for the auths API
 | `status` _[AuthStatus](#authstatus)_ |  |  |  |
 
 
+#### AuthProxyEgressConfig
+
+
+
+AuthProxyEgressConfig describes cluster address ranges excluded from baseline
+external HTTPS egress on Kubernetes clusters.
+
+
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `podCIDRs` _string array_ | PodCIDRs contains every cluster Pod address range. |  | MinItems: 1 <br /> |
+| `serviceCIDRs` _string array_ | ServiceCIDRs contains every cluster Service address range. |  | MinItems: 1 <br /> |
+
+
 #### AuthSpec
 
 
@@ -3111,6 +3129,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `ingressMode` _[IngressMode](#ingressmode)_ | IngressMode specifies how the Gateway is exposed externally.<br />"OcpRoute" uses ClusterIP with OpenShift Routes (OpenShift only).<br />"LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB). |  | Enum: [OcpRoute LoadBalancer] <br /> |
 | `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (used when cluster is in OIDC authentication mode) |  |  |
+| `authProxyEgress` _[AuthProxyEgressConfig](#authproxyegressconfig)_ | AuthProxyEgress supplies Pod and Service CIDRs excluded from the auth proxy's<br />external egress rule on Kubernetes clusters. Both ranges are required there;<br />OpenShift obtains them from Network/cluster instead.<br />The rule allows TCP 443 for OpenShift OAuth, or the HTTPS port in<br />spec.oidc.issuerURL (443 if omitted) for OIDC, to every IP outside those<br />ranges, including private IPs. It cannot select only the issuer's hostname.<br />In-cluster issuers or discovery endpoints on other ports need a separate<br />NetworkPolicy. If the ranges are unavailable, GatewayConfig reports NotReady<br />and the operator-owned policy has no egress rules. |  |  |
 | `certificate` _[CertificateSpec](#certificatespec)_ | Certificate specifies configuration of the TLS certificate securing communication for the gateway. |  |  |
 | `domain` _string_ | Domain specifies the host name for intercepting incoming requests.<br />Most likely, you will want to use a wildcard name, like *.example.com.<br />If not set, the cluster's default ingress domain is used (when available).<br />On Kubernetes clusters without a discoverable ingress domain, this field is required.<br />If you choose to generate a certificate, this is the domain used for the certificate request.<br />Example: *.example.com, example.com, apps.example.com |  | Pattern: `^(\*\.)?([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)*[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br /> |
 | `subdomain` _string_ | Subdomain configuration for the GatewayConfig<br />Example: my-gateway, custom-gateway |  | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)$` <br /> |

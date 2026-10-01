@@ -86,7 +86,8 @@ func TestGatewayDeployActionReportsNetworkPolicyFailureAndRecovery(t *testing.T)
 	g.Expect(ready.Message).To(ContainSubstring(proxyPolicyError.Error()))
 
 	blocked = false
-	rr.Conditions.MarkUnknown(ReadyConditionType) // The proxy action resets readiness on retry.
+	// The preceding proxy action resets this condition before a retry reaches deploy.
+	rr.Conditions.MarkUnknown(ReadyConditionType)
 	g.Expect(deployAction(t.Context(), rr)).To(Succeed())
 	g.Expect(syncGatewayConfigStatus(t.Context(), rr)).To(Succeed())
 	ready = rr.Conditions.GetCondition(ReadyConditionType)
