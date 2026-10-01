@@ -323,7 +323,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectRoutes(t *testing.T) {
 	t.Log("Dashboard redirect Routes validation completed")
 }
 
-// ValidateDashboardRedirectHTTP checks browser and non-browser responses on both legacy Routes.
+// ValidateDashboardRedirectHTTP checks text/html and non-HTML responses on both legacy Routes.
 func (tc *GatewayTestCtx) ValidateDashboardRedirectHTTP(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Tier1)
@@ -373,7 +373,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectHTTP(t *testing.T) {
 			}
 		})
 
-		t.Run(routeName+" browser", func(t *testing.T) {
+		t.Run(routeName+" text/html", func(t *testing.T) {
 			g := NewWithT(t)
 			requestURI := "/%3Cscript%3Ealert(1)%3C%2Fscript%3E?next=https%3A%2F%2Fevil.example"
 			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
