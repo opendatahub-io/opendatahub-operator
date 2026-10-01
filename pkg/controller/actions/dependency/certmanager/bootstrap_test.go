@@ -53,6 +53,12 @@ func TestDefaultBootstrapConfigEnvOverrides(t *testing.T) {
 			expected: "cert-manager",
 		},
 		{
+			name:     "defaults IssuerRefKind when env var is unset",
+			envVar:   "",
+			getField: func(c certmanager.BootstrapConfig) string { return c.IssuerRefKind },
+			expected: certmanager.DefaultIssuerRefKind,
+		},
+		{
 			name:     "overrides CAIssuerName from RHAI_ISSUER_REF_NAME",
 			envVar:   certmanager.EnvCAIssuerName,
 			envValue: "custom-ca-issuer",
@@ -73,6 +79,13 @@ func TestDefaultBootstrapConfigEnvOverrides(t *testing.T) {
 			getField: func(c certmanager.BootstrapConfig) string { return c.CertManagerNamespace },
 			expected: "custom-cert-ns",
 		},
+		{
+			name:     "overrides IssuerRefKind from RHAI_ISSUER_REF_KIND",
+			envVar:   certmanager.EnvIssuerRefKind,
+			envValue: "Issuer",
+			getField: func(c certmanager.BootstrapConfig) string { return c.IssuerRefKind },
+			expected: "Issuer",
+		},
 	}
 
 	for _, tc := range cases {
@@ -85,6 +98,7 @@ func TestDefaultBootstrapConfigEnvOverrides(t *testing.T) {
 			t.Setenv(certmanager.EnvCAIssuerName, "")
 			t.Setenv(certmanager.EnvCertName, "")
 			t.Setenv(certmanager.EnvCertManagerNS, "")
+			t.Setenv(certmanager.EnvIssuerRefKind, "")
 
 			if tc.envVar != "" {
 				t.Setenv(tc.envVar, tc.envValue)
@@ -101,11 +115,13 @@ func TestDefaultBootstrapConfigEnvOverrides(t *testing.T) {
 		t.Setenv(certmanager.EnvCAIssuerName, "all-ca-issuer")
 		t.Setenv(certmanager.EnvCertName, "all-ca-cert")
 		t.Setenv(certmanager.EnvCertManagerNS, "all-cert-ns")
+		t.Setenv(certmanager.EnvIssuerRefKind, "Issuer")
 
 		config := certmanager.DefaultBootstrapConfig()
 		g.Expect(config.CAIssuerName).To(Equal("all-ca-issuer"))
 		g.Expect(config.CertName).To(Equal("all-ca-cert"))
 		g.Expect(config.CertManagerNamespace).To(Equal("all-cert-ns"))
+		g.Expect(config.IssuerRefKind).To(Equal("Issuer"))
 	})
 
 	t.Run("functional options take precedence over env vars", func(t *testing.T) {
@@ -114,6 +130,7 @@ func TestDefaultBootstrapConfigEnvOverrides(t *testing.T) {
 		t.Setenv(certmanager.EnvCAIssuerName, "")
 		t.Setenv(certmanager.EnvCertName, "")
 		t.Setenv(certmanager.EnvCertManagerNS, "")
+		t.Setenv(certmanager.EnvIssuerRefKind, "")
 
 		t.Setenv(certmanager.EnvCAIssuerName, "env-ca-issuer")
 

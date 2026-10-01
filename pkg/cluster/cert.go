@@ -264,7 +264,8 @@ func IsGatewayCertificateSecret(ctx context.Context, cli client.Client, obj clie
 		return obj.GetName() == expectedName
 
 	default:
-		// no need action on selfsigned as operator create it which has the ownerreference on it with reconcile.
+		// On OpenShift, operator-created self-signed Secrets have a GatewayConfig owner reference.
+		// On XKS, the GatewayConfig controller watches cert-manager-issued TLS Secrets separately.
 		return false
 	}
 }

@@ -2,8 +2,8 @@ map:
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
-  odh-trustyai-module-operator:
-    src: trustyai-operator-module/config
+  odh-trustyai-service-operator:
+    src: config
     dest: trustyai
   odh-model-registry-operator:
     src: config
@@ -63,3 +63,6 @@ map:
   odh-praxis-ai-grid-operator:
     src: charts/grid-operator/templates
     dest: grid-operator
+  odh-trustyai-module-operator:
+    src: trustyai-operator-module/config
+    dest: trustyai

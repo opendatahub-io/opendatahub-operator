@@ -30,6 +30,7 @@ const (
 var overlayByPlatform = map[common.Platform]string{
 	cluster.ManagedRhoai:     rhoaiOverlayPath,
 	cluster.SelfManagedRhoai: rhoaiOverlayPath,
+	cluster.XKS:              rhoaiOverlayPath,
 	cluster.OpenDataHub:      odhOverlayPath,
 }
 
@@ -65,7 +66,6 @@ func NewHandler() *handler {
 				CRName:               crName,
 				GVK:                  gvk.AIPipelines,
 				ManifestDir:          componentApi.DataSciencePipelinesComponentName,
-				SourcePath:           odhOverlayPath,
 				SourcePathByPlatform: overlayByPlatform,
 				DeploymentName:       ControllerDeploymentName,
 				ControllerImage:      controllerImageEnv,

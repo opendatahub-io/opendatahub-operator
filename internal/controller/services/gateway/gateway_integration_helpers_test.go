@@ -101,7 +101,7 @@ const (
 	updatedCookieExpireArg  = "--cookie-expire=48h0m0s"
 	updatedCookieRefreshArg = "--cookie-refresh=2h0m0s"
 
-	// testTLSMinVersion and testTLSCipherSuites are the hardcoded expected values that
+	// testTLSMinVersion, testTLSCipherSuites, and testTLSCurvePreferences are the hardcoded expected values that
 	// correspond to the explicit Custom TLS profile set on the APIServer in
 	// setupClusterPrerequisitesForMain. They are kept in sync with that profile definition
 	// and intentionally not derived from the production TLS helper functions so that
@@ -110,6 +110,7 @@ const (
 	testTLSCipherSuites = "--tls-cipher-suite=" +
 		"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256," +
 		"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+	testTLSCurvePreferences = "--tls-curve-preferences=23,29"
 )
 
 // EnvoyFilter filter names (canonical names from Envoy proto).
@@ -525,6 +526,10 @@ func setupClusterPrerequisitesForMain(ctx context.Context, cli client.Client, au
 				Custom: &configv1.CustomTLSProfile{
 					TLSProfileSpec: configv1.TLSProfileSpec{
 						MinTLSVersion: configv1.VersionTLS12,
+						Groups: []configv1.TLSGroup{
+							configv1.TLSGroupSecP256r1,
+							configv1.TLSGroupX25519,
+						},
 						Ciphers: []string{
 							"ECDHE-RSA-AES128-GCM-SHA256",
 							"ECDHE-RSA-AES256-GCM-SHA384",
@@ -1492,7 +1497,7 @@ func RunSpecMutationTokenReviewConfigTest(t *testing.T, setup TestSetup, tokenRe
 		deployment := &appsv1.Deployment{}
 		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, deployment); err != nil {
 			return false
 		}
@@ -1524,7 +1529,7 @@ func RunSpecMutationTokenReviewConfigTest(t *testing.T, setup TestSetup, tokenRe
 		deployment := &appsv1.Deployment{}
 		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, deployment); err != nil {
 			return false
 		}
@@ -1660,10 +1665,11 @@ func RunDeploymentWithAllArgsTest(t *testing.T, setup TestSetup, expectedHostnam
 	g.Expect(args).To(ContainElement(fmt.Sprintf("--redirect-url=https://%s/oauth2/callback", expectedHostname)))
 	g.Expect(args).To(ContainElement(fmt.Sprintf("--tls-cert-file=%s/tls.crt", gateway.TLSCertsMountPath)))
 	g.Expect(args).To(ContainElement(fmt.Sprintf("--tls-key-file=%s/tls.key", gateway.TLSCertsMountPath)))
-	// testTLSMinVersion and testTLSCipherSuites are constants derived from the explicit
+	// testTLSMinVersion, testTLSCipherSuites, and testTLSCurvePreferences are constants derived from the explicit
 	// Custom TLS profile set on the APIServer in setupClusterPrerequisitesForMain.
 	g.Expect(args).To(ContainElement(testTLSMinVersion))
 	g.Expect(args).To(ContainElement(testTLSCipherSuites))
+	g.Expect(args).To(ContainElement(testTLSCurvePreferences))
 	g.Expect(args).To(ContainElement("--use-system-trust-store=true"))
 	g.Expect(args).To(ContainElement(defaultCookieExpireArg))
 	g.Expect(args).To(ContainElement(defaultCookieRefreshArg))

@@ -80,6 +80,9 @@ func TestBuildModuleCRDefaultsArgoToManaged(t *testing.T) {
 
 func TestOperatorManifestsAndEnvironment(t *testing.T) {
 	h := aipipelines.NewHandler()
+	if h.Config.SourcePath != "" {
+		t.Fatalf("expected platform-specific overlays without a default source path, got %q", h.Config.SourcePath)
+	}
 	platform := &modules.PlatformContext{
 		ManifestsBasePath: "/opt/manifests",
 		Release: common.Release{
@@ -91,10 +94,14 @@ func TestOperatorManifestsAndEnvironment(t *testing.T) {
 	if len(manifests.Manifests) != 1 || manifests.Manifests[0].SourcePath != "overlays/odh/dspo" {
 		t.Fatalf("unexpected ODH manifests: %#v", manifests.Manifests)
 	}
-	platform.Release.Name = cluster.SelfManagedRhoai
-	manifests = h.GetOperatorManifests(platform)
-	if len(manifests.Manifests) != 1 || manifests.Manifests[0].SourcePath != "overlays/rhoai/dspo" {
-		t.Fatalf("unexpected RHOAI manifests: %#v", manifests.Manifests)
+	for _, platformName := range []common.Platform{cluster.SelfManagedRhoai, cluster.ManagedRhoai, cluster.XKS} {
+		t.Run(string(platformName), func(t *testing.T) {
+			platform.Release.Name = platformName
+			manifests := h.GetOperatorManifests(platform)
+			if len(manifests.Manifests) != 1 || manifests.Manifests[0].SourcePath != "overlays/rhoai/dspo" {
+				t.Fatalf("unexpected manifests for %s: %#v", platformName, manifests.Manifests)
+			}
+		})
 	}
 	if got := h.GetExtraEnv()["DSPO_ENABLEAIPIPELINESMODULECONTROLLER"]; got != "true" {
 		t.Fatalf("expected module controller handoff flag, got %q", got)

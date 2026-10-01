@@ -44,6 +44,7 @@ func NewHandler() *handler {
 					"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 					"RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE",
 					"RELATED_IMAGE_PERSES_IMAGE",
+					"RELATED_IMAGE_KORREL8R_IMAGE",
 				},
 			},
 		},
@@ -105,7 +106,7 @@ func (h *handler) BuildModuleCR(
 	spec := dscCtx.DSCI.Spec.Monitoring.MonitoringCommonSpec.DeepCopy()
 
 	metricsEnabled := spec.Metrics != nil && (spec.Metrics.Storage != nil || len(spec.Metrics.Exporters) > 0)
-	tracesEnabled := spec.Traces != nil
+	tracesEnabled := spec.Traces != nil && (spec.Traces.Storage != nil || len(spec.Traces.Exporters) > 0)
 
 	if !metricsEnabled {
 		spec.Metrics = nil
