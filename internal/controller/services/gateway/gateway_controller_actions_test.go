@@ -194,7 +194,7 @@ func TestKubeAuthProxyCertificateProvider(t *testing.T) {
 		Conditions: conditions.NewManager(&gatewayConfigConditionsAccessor{}, ReadyConditionType),
 	}
 
-	err = createKubeAuthProxyInfrastructure(ctx, rr)
+	err = createKubeAuthProxyInfrastructure(ctx, rr, rr.Client)
 	g.Expect(err).NotTo(HaveOccurred())
 
 	g.Expect(rr.Templates).NotTo(BeEmpty(), "auth proxy resources must be queued")
@@ -306,7 +306,7 @@ func TestXKSReconcileWithoutDomainStopsCleanly(t *testing.T) {
 	}
 
 	g.Expect(createGatewayInfrastructure(ctx, rr)).To(Succeed())
-	g.Expect(createKubeAuthProxyInfrastructure(ctx, rr)).To(Succeed())
+	g.Expect(createKubeAuthProxyInfrastructure(ctx, rr, rr.Client)).To(Succeed())
 	g.Expect(createEnvoyFilter(ctx, rr)).To(Succeed())
 	g.Expect(createNetworkPolicy(ctx, rr)).To(Succeed())
 	g.Expect(syncGatewayConfigStatus(ctx, rr)).To(Succeed())
@@ -359,7 +359,7 @@ func TestXKSReconcileRejectsOpenShiftOnlyValues(t *testing.T) {
 	}
 
 	g.Expect(createGatewayInfrastructure(ctx, rr)).To(Succeed())
-	g.Expect(createKubeAuthProxyInfrastructure(ctx, rr)).To(Succeed())
+	g.Expect(createKubeAuthProxyInfrastructure(ctx, rr, rr.Client)).To(Succeed())
 	g.Expect(createEnvoyFilter(ctx, rr)).To(Succeed())
 	g.Expect(createNetworkPolicy(ctx, rr)).To(Succeed())
 	g.Expect(syncGatewayConfigStatus(ctx, rr)).To(Succeed())

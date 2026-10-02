@@ -110,7 +110,7 @@ func TestDefaultDSCFromSampleAdmittedByAPIServer(t *testing.T) {
 	// items into the default users are presented with (RHOAIENG-89419).
 	g.Expect(dsc.Spec.Components.LlamaStackOperator.ManagementState).To(BeEmpty(),
 		"llamastackoperator is deprecated (renamed to ogx) and must not be set in the shipped default DSC")
-	g.Expect(dsc.Spec.Components.Kserve.ModelsAsService.ManagementState).To(BeEmpty(), //nolint:staticcheck // asserting the deprecated field is intentionally unset
+	g.Expect(dsc.Spec.Components.Kserve.ModelsAsService.ManagementState).To(BeEmpty(),
 		"kserve.modelsAsService is deprecated (migrated to aigateway.modelsAsAService) and must not be set in the shipped default DSC")
 
 	// Capture the intended states before create -- controller-runtime's Create writes the
