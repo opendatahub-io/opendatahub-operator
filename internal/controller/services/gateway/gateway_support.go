@@ -740,8 +740,11 @@ func getKubeAuthProxyImage() string {
 	if image := os.Getenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE"); image != "" {
 		return image
 	}
-	// Fallback for ODH development - pinned to sha256 digest for disconnected/air-gapped support
-	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:f9d9dc6e0e05fe7b47141e605e1dd147302dd023936c2d20e205afbc96a51d9d" // latest as of 2026-07-06 (6a6aa63c)
+	// Fallback for ODH development - pinned to sha256 digest for disconnected/air-gapped support.
+	// This build must support the TLS startup flags the gateway emits (--tls-min-version,
+	// --tls-cipher-suite and --tls-curve-preferences); it matches the ODH e2e image in
+	// manifests-config.yaml so the fallback stays compatible with the rendered proxy args.
+	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:d90930380151490d5516eeb95840eecc743e9005fc02733dec6fe79e1a00e035" // latest as of 2026-09-17
 }
 
 // getDashboardRedirectImage returns the nginx image for dashboard redirects.
