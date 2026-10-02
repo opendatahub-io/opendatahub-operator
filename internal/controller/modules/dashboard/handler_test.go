@@ -9,8 +9,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -18,8 +18,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
-	return &configv1alpha1.PlatformModules{
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configApi.PlatformModules {
+	return &configApi.PlatformModules{
 		Dashboard: common.ManagementSpec{
 			ManagementState: mgmtState,
 		},
@@ -28,15 +28,19 @@ func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.Pl
 
 func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
 	return &modules.DSCContext{
-		DSC: &dscv2.DataScienceCluster{
-			Spec: dscv2.DataScienceClusterSpec{
-				Components: dscv2.Components{
+		DSC: &dscApi.DataScienceCluster{
+			Spec: dscApi.DataScienceClusterSpec{
+				Components: dscApi.Components{
 					Dashboard: componentApi.DSCDashboard{
-						ManagementSpec: common.ManagementSpec{
-							ManagementState: mgmtState,
+						DashboardCommonSpec: componentApi.DashboardCommonSpec{
+							Standard: componentApi.DashboardStandardSpec{
+								ManagementSpec: common.ManagementSpec{
+									ManagementState: mgmtState,
+								},
+							},
 						},
 					},
-					ModelRegistry: componentApi.DSCModelRegistry{
+					AIHub: componentApi.DSCAIHub{
 						ManagementSpec: common.ManagementSpec{
 							ManagementState: operatorv1.Managed,
 						},
@@ -110,7 +114,7 @@ func TestIsEnabled_Empty(t *testing.T) {
 func TestIsEnabled_EmptyModules(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	g.Expect(h.IsEnabled(&configv1alpha1.PlatformModules{})).Should(BeFalse())
+	g.Expect(h.IsEnabled(&configApi.PlatformModules{})).Should(BeFalse())
 }
 
 func TestIsEnabled_NilModules(t *testing.T) {
@@ -191,7 +195,7 @@ func TestBuildModuleCR_ComponentsDefaultToRemovedWhenEmpty(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.ModelRegistry.ManagementState = ""
+	dscCtx.DSC.Spec.Components.AIHub.ManagementState = ""
 	dscCtx.DSC.Spec.Components.AIPipelines.ManagementState = ""
 
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
@@ -264,7 +268,7 @@ func newDSCCtxWithNamespaces(
 	workbenchMgmt operatorv1.ManagementState,
 	workbenchNamespace string,
 	mrMgmt operatorv1.ManagementState,
-	registriesNamespace string,
+	applicationNamespace string,
 ) *modules.DSCContext {
 	ctx := newDSCCtx(mgmtState)
 	ctx.DSC.Spec.Components.Workbenches = componentApi.DSCWorkbenches{
@@ -273,10 +277,10 @@ func newDSCCtxWithNamespaces(
 			WorkbenchNamespace: workbenchNamespace,
 		},
 	}
-	ctx.DSC.Spec.Components.ModelRegistry = componentApi.DSCModelRegistry{
+	ctx.DSC.Spec.Components.AIHub = componentApi.DSCAIHub{
 		ManagementSpec: common.ManagementSpec{ManagementState: mrMgmt},
-		ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
-			RegistriesNamespace: registriesNamespace,
+		AIHubCommonSpec: componentApi.AIHubCommonSpec{
+			ApplicationNamespace: applicationNamespace,
 		},
 	}
 	return ctx
@@ -423,8 +427,8 @@ func TestBuildModuleCR_NilCfgWithWorkbenchesManaged_DefaultsToODH(t *testing.T) 
 func populatedState(coreState, portalState operatorv1.ManagementState) operatorv1.ManagementState {
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtx(coreState)
-	dscCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = portalState
-	pm := &configv1alpha1.PlatformModules{}
+	dscCtx.DSC.Spec.Components.Dashboard.MaaSPortal.ManagementState = portalState
+	pm := &configApi.PlatformModules{}
 	h.PopulatePlatformModule(pm, dscCtx)
 	return pm.Dashboard.ManagementState
 }
@@ -471,7 +475,7 @@ func TestBuildModuleCR_ProjectsMaaSConsumerPortal(t *testing.T) {
 			g := NewWithT(t)
 			h := dashboard.NewHandler()
 			dscCtx := newDSCCtx(operatorv1.Managed)
-			dscCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = tt.managementState
+			dscCtx.DSC.Spec.Components.Dashboard.MaaSPortal.ManagementState = tt.managementState
 
 			u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig("dashboard.example.com"))
 			g.Expect(err).ShouldNot(HaveOccurred())
@@ -489,6 +493,36 @@ func TestBuildModuleCR_ProjectsMaaSConsumerPortal(t *testing.T) {
 	}
 }
 
+func TestBuildModuleCR_UsesEffectiveDashboardManagementState(t *testing.T) {
+	tests := []struct {
+		name     string
+		standard operatorv1.ManagementState
+		portal   operatorv1.ManagementState
+		want     operatorv1.ManagementState
+	}{
+		{name: "both managed", standard: operatorv1.Managed, portal: operatorv1.Managed, want: operatorv1.Managed},
+		{name: "standard only", standard: operatorv1.Managed, portal: operatorv1.Removed, want: operatorv1.Managed},
+		{name: "portal only", standard: operatorv1.Removed, portal: operatorv1.Managed, want: operatorv1.Managed},
+		{name: "portal with absent standard", portal: operatorv1.Managed, want: operatorv1.Managed},
+		{name: "both removed", standard: operatorv1.Removed, portal: operatorv1.Removed, want: operatorv1.Removed},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			dscCtx := newDSCCtx(tt.standard)
+			dscCtx.DSC.Spec.Components.Dashboard.MaaSPortal.ManagementState = tt.portal
+
+			u, err := dashboard.NewHandler().BuildModuleCR(t.Context(), nil, dscCtx, nil)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			spec, ok := u.Object["spec"].(map[string]any)
+			g.Expect(ok).To(BeTrue())
+			g.Expect(spec["managementState"]).To(Equal(string(tt.want)))
+		})
+	}
+}
+
 func TestGetSubmoduleConditions_MaaSConsumerPortal(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
@@ -498,16 +532,16 @@ func TestGetSubmoduleConditions_MaaSConsumerPortal(t *testing.T) {
 
 	sm := subs[0]
 	g.Expect(sm.SourceConditionType).Should(Equal("MaaSConsumerPortalAvailable"))
-	g.Expect(sm.DSCConditionType).Should(Equal("MaaSConsumerPortalAvailable"))
-	g.Expect(sm.StatusFieldName).Should(Equal("MaaSConsumerPortal"))
+	g.Expect(sm.DSCConditionType).Should(Equal("MaaSPortalAvailable"))
+	g.Expect(sm.StatusFieldName).Should(Equal("MaaSPortal"))
 	g.Expect(sm.IsEnabled).ShouldNot(BeNil())
 
 	enabledCtx := newDSCCtx(operatorv1.Removed)
-	enabledCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = operatorv1.Managed
+	enabledCtx.DSC.Spec.Components.Dashboard.MaaSPortal.ManagementState = operatorv1.Managed
 	g.Expect(sm.IsEnabled(enabledCtx)).Should(BeTrue())
 
 	disabledCtx := newDSCCtx(operatorv1.Managed)
-	disabledCtx.DSC.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = operatorv1.Removed
+	disabledCtx.DSC.Spec.Components.Dashboard.MaaSPortal.ManagementState = operatorv1.Removed
 	g.Expect(sm.IsEnabled(disabledCtx)).Should(BeFalse())
 }
 

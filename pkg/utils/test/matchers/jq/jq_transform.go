@@ -5,7 +5,44 @@ import (
 	"reflect"
 
 	"github.com/itchyny/gojq"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
+
+// Transform creates a function that applies a jq expression to an
+// unstructured Kubernetes object and replaces the object's content with the
+// transformed map.
+func Transform(format string, args ...any) func(*unstructured.Unstructured) error {
+	expression := fmt.Sprintf(format, args...)
+
+	return func(in *unstructured.Unstructured) error {
+		return transformObject(in, expression)
+	}
+}
+
+func transformObject(in *unstructured.Unstructured, expression string) error {
+	query, err := gojq.Parse(expression)
+	if err != nil {
+		return fmt.Errorf("unable to parse expression %q: %w", expression, err)
+	}
+
+	result, ok := query.Run(in.Object).Next()
+	if !ok || result == nil {
+		return nil
+	}
+
+	if err, ok := result.(error); ok {
+		return fmt.Errorf("query execution error: %w", err)
+	}
+
+	content, ok := result.(map[string]any)
+	if !ok {
+		return fmt.Errorf("expected map[string]interface{}, got %T", result)
+	}
+
+	in.SetUnstructuredContent(content)
+
+	return nil
+}
 
 func Extract(expression string) func(in any) (any, error) {
 	return func(in any) (any, error) {

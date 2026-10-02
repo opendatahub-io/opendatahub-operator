@@ -33,6 +33,7 @@ const (
 )
 
 // +kubebuilder:validation:Enum=Headless;Headed
+// +kubebuilder:validation:MaxLength=8
 type RawServiceConfig string
 
 const (

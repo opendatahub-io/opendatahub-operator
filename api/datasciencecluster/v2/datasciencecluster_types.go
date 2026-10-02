@@ -34,11 +34,10 @@ type DataScienceClusterSpec struct {
 	Components Components `json:"components,omitempty"`
 }
 
-// Note: the TrainingOperator re-enablement guard is an XValidation rule on
-// componentApi.DSCTrainingOperator, not here, so it applies to v1 too.
+// TrainingOperator and LlamaStackOperator retirement is enforced by the DSC v2 validating webhook.
 type Components struct {
 	// Dashboard component configuration.
-	Dashboard componentApi.DSCDashboard `json:"dashboard,omitempty"`
+	Dashboard componentApi.DSCDashboardV2 `json:"dashboard,omitempty"`
 
 	// Workbenches component configuration.
 	Workbenches componentApi.DSCWorkbenches `json:"workbenches,omitempty"`
@@ -215,8 +214,8 @@ func (s *DataScienceClusterStatus) SetConditions(conditions []common.Condition) 
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:deprecatedversion:warning="datasciencecluster.opendatahub.io/v2 DataScienceCluster is deprecated; use datasciencecluster.opendatahub.io/v3 DataScienceCluster"
 // +kubebuilder:subresource:status
-// +kubebuilder:storageversion
 // +kubebuilder:resource:scope=Cluster,shortName=dsc
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"

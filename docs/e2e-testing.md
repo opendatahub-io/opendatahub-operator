@@ -46,6 +46,50 @@ component tests run in parallel. The suite supports two main targets:
 - **`make e2e-test`** — Full suite across all components, DSC/DSCI lifecycle,
   services, webhooks, and operator resilience. Requires an OpenShift cluster.
 
+### Conversion webhook tests
+
+The OpenShift `All` and `Tier3` suites run conversion tests after component and
+service tests. Targeted runs include them only when
+`E2E_TEST_CONVERSION_WEBHOOK=true` is set. The existing `E2E_TEST_WEBHOOK` flag
+still controls monitoring admission-webhook tests; it does not select conversion
+tests.
+
+The conversion subtests are grouped by the CRD whose webhook is exercised:
+
+```text
+TestOdhOperator/webhooks/conversion/
+├── dsc/{dashboard,aihub,ai-gateway,data,trainingoperator,llamastackoperator}/{v2_v3,v3_v2}/...
+└── platform/v1alpha1_v1alpha2
+```
+
+Both groups run by default. Set `E2E_TEST_CONVERSION_WEBHOOK_DSC=false` for
+Platform-only tests, or `E2E_TEST_CONVERSION_WEBHOOK_PLATFORM=false` for DSC-only
+tests. Setting both to `false` skips the conversion suite. The DSC group reuses
+or creates `DSCInitialization/default-dsci` and deletes `default-dsc` during its
+scenarios; on a non-disposable cluster, enable
+`E2E_TEST_BACKUP_AND_RESTORE_DSCI_AND_DSC=true`. Platform-only runs do not create
+a DSCI. Conversion tests are skipped on xKS clusters.
+
+The `Tier3` component suites also include v2 DSC smoke cases for Dashboard,
+ModelRegistry/AIHub, FeastOperator/Data, and AI Gateway. They use the v2 API to
+change the same DSC exercised by the normal component suite, verify its v3
+projection and runtime, then restore their own fields. These cases run with
+normal component selection; they do not require the conversion-webhook flag.
+For a targeted run after installing a new image, for example:
+
+```bash
+E2E_TEST_DSC_MANAGEMENT=true E2E_TEST_COMPONENTS=true \
+  E2E_TEST_COMPONENT=dashboard E2E_TEST_TAG=Tier3 \
+  E2E_TEST_CONVERSION_WEBHOOK=false make e2e-test
+```
+
+Repeat with `modelregistry`, `feastoperator`, or `aigateway` as the component.
+The explicit `E2E_TEST_COMPONENTS=true` overrides a local `.envrc` configured
+for conversion-only tests. On a clean cluster, enable `E2E_TEST_DSC_MANAGEMENT`
+for the first run so the suite creates `default-dsci` and `default-dsc` before
+component tests. Subsequent runs can omit it if those resources remain; with
+`E2E_TEST_DELETION_POLICY=never`, the suite leaves them in place.
+
 ## KinD E2E (KServe and Gateway)
 
 ### Step-by-step guide
@@ -420,7 +464,11 @@ done
 | `PULL_SECRET` | *(required)* | Path to container registry auth config |
 | `E2E_TEST_COMPONENT` | *(all)* | Single component to test (e.g., `kserve`) |
 | `E2E_TEST_SERVICES` | `true` | Enable/disable service tests |
-| `E2E_TEST_WEBHOOK` | `true` | Enable/disable webhook tests |
+| `E2E_TEST_WEBHOOK` | `true` | Enable/disable the existing monitoring admission-webhook tests when the monitoring service suite runs. |
+| `E2E_TEST_CONVERSION_WEBHOOK` | auto | Conversion webhook scenarios run in full OpenShift `All`/`Tier3` suites. Set `true` to include them in a targeted run or `false` to disable them. DSC scenarios delete `default-dsc`; enable DSCI/DSC backup and restore for non-disposable clusters. |
+| `E2E_TEST_CONVERSION_WEBHOOK_DSC` | `true` | Include DSC conversion scenarios when conversion tests run. Set `false` for Platform-only conversion tests. |
+| `E2E_TEST_CONVERSION_WEBHOOK_PLATFORM` | `true` | Include Platform conversion scenarios when conversion tests run. Set `false` for DSC-only conversion tests. |
+| `E2E_TEST_TIMEOUT` | `110m` | Timeout for the containerized E2E binary, including conversion webhook scenarios. |
 | `E2E_TEST_DSC_MANAGEMENT` | `true` | Enable/disable DSC lifecycle tests |
 | `E2E_TEST_DSC_VALIDATION` | `true` | Enable/disable DSC validation tests |
 | `E2E_TEST_OPERATOR_RESILIENCE` | `true` | Enable/disable operator resilience tests |
