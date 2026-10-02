@@ -53,6 +53,11 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 		return
 	}
 	ms := dscCtx.DSC.Spec.Components.MCPLifecycleOperator.ManagementState
+	// Default-on for GA (OCPMCP-382) is delivered by the default DSC, which sets
+	// managementState explicitly to Managed. This unset fallback only applies to a
+	// DSC that omits the field entirely; it is intentionally Removed so that an
+	// admin who deliberately trims the field is never surprised by an enabled
+	// module. Explicit choices (including Removed) are always honored as written.
 	if ms == "" {
 		ms = operatorv1.Removed
 	}

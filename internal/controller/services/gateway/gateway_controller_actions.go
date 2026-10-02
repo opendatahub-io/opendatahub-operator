@@ -491,12 +491,13 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		}
 	}
 
-	tlsMinVersion, tlsCipherSuites, err := GetKubeAuthProxyTLSFromAPIServer(ctx, rr.Client)
+	tlsMinVersion, tlsCipherSuites, tlsCurvePreferences, err := GetKubeAuthProxyTLSFromAPIServer(ctx, rr.Client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve APIServer TLS profile: %w", err)
 	}
 	templateData["TLSMinVersion"] = tlsMinVersion
 	templateData["TLSCipherSuite"] = tlsCipherSuites
+	templateData["TLSCurvePreferences"] = tlsCurvePreferences
 
 	return templateData, nil
 }

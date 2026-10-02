@@ -4,8 +4,10 @@
 package gateway
 
 import (
+	"context"
 	"testing"
 
+	configv1 "github.com/openshift/api/config/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -13,7 +15,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -24,6 +29,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
+	testscheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -365,4 +371,111 @@ func TestXKSReconcileRejectsOpenShiftOnlyValues(t *testing.T) {
 	g.Expect(ready.Message).To(ContainSubstring(status.GatewayUnsupportedCertTypeOnKubernetesMessage))
 	g.Expect(ready.Message).To(ContainSubstring(status.GatewayUnsupportedIngressModeOnKubernetesMessage))
 	g.Expect(rr.Resources).To(BeEmpty(), "no gateway resources should be queued for unsupported XKS spec")
+}
+
+// TestGetTemplateDataTLSCurvePreferences covers the APIServer TLS resolution in
+// getTemplateData: the kube-auth-proxy template data must carry the version,
+// cipher and curve-preference flags, and a denied APIServer read must fail.
+func TestGetTemplateDataTLSCurvePreferences(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+
+	strictProfile := &configv1.TLSSecurityProfile{
+		Type: configv1.TLSProfileCustomType,
+		Custom: &configv1.CustomTLSProfile{TLSProfileSpec: configv1.TLSProfileSpec{
+			Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+			MinTLSVersion: configv1.VersionTLS12,
+			Groups: []configv1.TLSGroup{
+				configv1.TLSGroupX25519,
+				configv1.TLSGroupSecP256r1,
+			},
+		}},
+	}
+	apiServer := &configv1.APIServer{
+		ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAPIServerObj},
+		Spec: configv1.APIServerSpec{
+			TLSAdherence:       configv1.TLSAdherencePolicyStrictAllComponents,
+			TLSSecurityProfile: strictProfile,
+		},
+	}
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec:       serviceApi.GatewayConfigSpec{Domain: "apps.example.com"},
+	}
+
+	scheme, err := testscheme.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(configv1.Install(scheme)).To(Succeed())
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(gatewayConfig, apiServer),
+		fakeclient.WithScheme(scheme),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     cli,
+		Instance:   gatewayConfig,
+		Conditions: conditions.NewManager(gatewayConfig, ReadyConditionType),
+	}
+
+	templateData, err := getTemplateData(ctx, rr)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(templateData).To(HaveKeyWithValue("TLSMinVersion", "TLS1.2"))
+	g.Expect(templateData).To(HaveKeyWithValue("TLSCipherSuite", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"))
+	g.Expect(templateData).To(HaveKeyWithValue("TLSCurvePreferences", "29,23"))
+}
+
+// TestGetTemplateDataTLSReadError covers the failure path of the APIServer TLS
+// resolution in getTemplateData: a read error must surface instead of falling
+// back to defaults.
+func TestGetTemplateDataTLSReadError(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec:       serviceApi.GatewayConfigSpec{Domain: "apps.example.com"},
+	}
+
+	scheme, err := testscheme.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(configv1.Install(scheme)).To(Succeed())
+
+	// An interceptor that fails every Get of the APIServer object, leaving all
+	// other reads (GatewayConfig) working.
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(gatewayConfig),
+		fakeclient.WithScheme(scheme),
+		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, clnt client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if _, ok := obj.(*configv1.APIServer); ok {
+					return k8serr.NewForbidden(
+						schema.GroupResource{Group: "config.openshift.io", Resource: "apiservers"},
+						key.Name, nil)
+				}
+				return clnt.Get(ctx, key, obj, opts...)
+			},
+		}),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     cli,
+		Instance:   gatewayConfig,
+		Conditions: conditions.NewManager(gatewayConfig, ReadyConditionType),
+	}
+
+	_, err = getTemplateData(ctx, rr)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("failed to resolve APIServer TLS profile"))
 }
