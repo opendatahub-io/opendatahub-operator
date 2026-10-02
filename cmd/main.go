@@ -412,7 +412,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	addCacheIfAvailable(setupClient, cacheOptions.ByObject, &promv1.ServiceMonitor{}, gvk.ServiceMonitor, cache.ByObject{Namespaces: oDHCache})
 
 	// Fetch the cluster TLS security profile for webhook and metrics servers
-	tlsOpts, tlsProfile, tlsAdherence, hasOpenShiftConfigAPI := fetchTLSProfile(ctx, scheme, oconfig.RestConfig)
+	tlsOpts, tlsProfile, tlsAdherence, hasOpenShiftConfigAPI, err := fetchTLSProfile(ctx, scheme, oconfig.RestConfig)
+	if err != nil {
+		setupLog.Error(err, "unable to establish manager TLS configuration")
+		os.Exit(1)
+	}
 
 	ctrlMgr, err := ctrl.NewManager(oconfig.RestConfig, ctrl.Options{ // single pod does not need to have LeaderElection
 		Scheme: scheme,
@@ -663,87 +667,127 @@ func addCacheIfAvailable(cli client.Client, byObject map[client.Object]cache.ByO
 	}
 }
 
-func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.Config) ([]func(*tls.Config), configv1.TLSProfileSpec, configv1.TLSAdherencePolicy, bool) {
-	var tlsOpts []func(*tls.Config)
+func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.Config) ([]func(*tls.Config), configv1.TLSProfileSpec, configv1.TLSAdherencePolicy, bool, error) {
+	bootstrapClient, err := client.New(restCfg, client.Options{Scheme: scheme})
+	if err != nil {
+		// Refuse to start: the TLS posture cannot be determined and the same
+		// rest.Config would fail manager construction anyway.
+		return nil, configv1.TLSProfileSpec{}, "", false, fmt.Errorf("unable to create bootstrap client for TLS profile: %w", err)
+	}
+
+	return fetchTLSProfileWithClient(ctx, bootstrapClient)
+}
+
+func fetchTLSProfileWithClient(ctx context.Context, bootstrapClient client.Client) ([]func(*tls.Config), configv1.TLSProfileSpec, configv1.TLSAdherencePolicy, bool, error) {
 	var profile configv1.TLSProfileSpec
 	var adherence configv1.TLSAdherencePolicy
 	hasAPI := false
-	nextProtos := []string{"h2", "http/1.1"}
 
-	bootstrapClient, err := client.New(restCfg, client.Options{Scheme: scheme})
+	profile, err := tlspkg.FetchAPIServerTLSProfile(ctx, bootstrapClient)
 	if err != nil {
-		setupLog.Error(err, "unable to create bootstrap client for TLS profile, using hardened defaults")
-		tlsOpts = append(tlsOpts, func(c *tls.Config) {
-			c.MinVersion = tls.VersionTLS12
-			c.CipherSuites = intermediateCiphers
-			c.NextProtos = nextProtos
-		})
-		return tlsOpts, *configv1.TLSProfiles[configv1.TLSProfileIntermediateType], adherence, false
-	}
-
-	profile, err = tlspkg.FetchAPIServerTLSProfile(ctx, bootstrapClient)
-	if err != nil {
-		switch {
-		case meta.IsNoMatchError(err):
-			setupLog.Info("TLS profile not available, using hardened defaults (non-OpenShift cluster)")
-		case k8serr.IsNotFound(err):
-			setupLog.Info("APIServer resource not found, using hardened defaults")
-		case k8serr.IsServiceUnavailable(err),
-			k8serr.IsTimeout(err),
-			k8serr.IsServerTimeout(err),
-			k8serr.IsTooManyRequests(err),
-			errors.Is(err, context.DeadlineExceeded):
+		switch classifyTLSProfileReadError(err) {
+		case tlsReadFallback:
+			switch {
+			case meta.IsNoMatchError(err):
+				setupLog.Info("TLS profile not available, using hardened defaults (non-OpenShift cluster)")
+			case k8serr.IsNotFound(err):
+				setupLog.Info("APIServer resource not found, using hardened defaults")
+			}
+		case tlsReadTransient:
 			setupLog.Info("Transient API error reading TLS profile, using hardened defaults", "error", err)
 			hasAPI = true // watcher self-heals when the API recovers
-		default:
-			setupLog.Error(err, "unable to read APIServer TLS profile, refusing to start with unknown TLS posture")
-			os.Exit(1)
+		case tlsReadRefuse:
+			return nil, profile, adherence, false, fmt.Errorf("unable to read APIServer TLS profile, refusing to start with unknown TLS posture: %w", err)
 		}
-		tlsOpts = append(tlsOpts, func(c *tls.Config) {
-			c.MinVersion = tls.VersionTLS12
-			c.CipherSuites = intermediateCiphers
-			c.NextProtos = nextProtos
-		})
-	} else {
-		hasAPI = true
-		adherence, err = tlspkg.FetchAPIServerTLSAdherencePolicy(ctx, bootstrapClient)
-		if err != nil {
+		tlsOpts, _, buildErr := buildManagerTLSOpts(configv1.TLSProfileSpec{}, configv1.TLSAdherencePolicyNoOpinion)
+		return tlsOpts, profile, adherence, hasAPI, buildErr
+	}
+
+	hasAPI = true
+	adherence, err = tlspkg.FetchAPIServerTLSAdherencePolicy(ctx, bootstrapClient)
+	if err != nil {
+		switch classifyTLSAdherenceReadError(err) {
+		case tlsReadFallback:
 			switch {
 			case meta.IsNoMatchError(err):
 				setupLog.Info("TLS adherence API not available (non-OpenShift or pre-4.22 cluster)")
 			case k8serr.IsNotFound(err):
 				setupLog.Info("APIServer resource not found for adherence, skipping")
-			case k8serr.IsServiceUnavailable(err),
-				k8serr.IsTimeout(err),
-				k8serr.IsServerTimeout(err),
-				k8serr.IsTooManyRequests(err),
-				k8serr.IsInternalError(err),
-				errors.Is(err, context.DeadlineExceeded):
-				setupLog.Info("Transient error fetching TLS adherence policy, watcher will retry", "error", err)
-			default:
-				setupLog.Error(err, "unable to read TLS adherence policy, refusing to start with unknown adherence posture")
-				os.Exit(1)
 			}
+		case tlsReadTransient:
+			setupLog.Info("Transient error fetching TLS adherence policy, watcher will retry", "error", err)
+		case tlsReadRefuse:
+			return nil, profile, adherence, hasAPI, fmt.Errorf("unable to read TLS adherence policy, refusing to start with unknown adherence posture: %w", err)
 		}
-
-		if operatortls.ShouldHonorClusterTLSProfile(adherence) {
-			tlsConfigFn, unsupportedCiphers := tlspkg.NewTLSConfigFromProfile(profile)
-			if len(unsupportedCiphers) > 0 {
-				setupLog.Info("some ciphers from TLS profile are not supported by Go", "unsupported", unsupportedCiphers)
-			}
-			tlsOpts = append(tlsOpts, tlsConfigFn)
-		} else {
-			tlsOpts = append(tlsOpts, func(c *tls.Config) {
-				c.MinVersion = tls.VersionTLS12
-				c.CipherSuites = intermediateCiphers
-			})
-		}
-		tlsOpts = append(tlsOpts, func(c *tls.Config) {
-			c.NextProtos = nextProtos
-		})
 	}
 
-	return tlsOpts, profile, adherence, hasAPI
+	tlsOpts, unsupported, err := buildManagerTLSOpts(profile, adherence)
+	if err != nil {
+		return nil, profile, adherence, hasAPI, fmt.Errorf("unable to apply APIServer TLS profile to manager: %w", err)
+	}
+	if len(unsupported) > 0 {
+		setupLog.Info("some TLS settings from profile are not supported by Go", "unsupported", unsupported)
+	}
+	return tlsOpts, profile, adherence, hasAPI, nil
+}
+
+type tlsReadOutcome int
+
+const (
+	tlsReadFallback tlsReadOutcome = iota
+	tlsReadTransient
+	tlsReadRefuse
+)
+
+func classifyTLSProfileReadError(err error) tlsReadOutcome {
+	if meta.IsNoMatchError(err) || k8serr.IsNotFound(err) {
+		return tlsReadFallback
+	}
+	if k8serr.IsServiceUnavailable(err) ||
+		k8serr.IsTimeout(err) ||
+		k8serr.IsServerTimeout(err) ||
+		k8serr.IsTooManyRequests(err) ||
+		errors.Is(err, context.DeadlineExceeded) {
+		return tlsReadTransient
+	}
+	return tlsReadRefuse
+}
+
+func classifyTLSAdherenceReadError(err error) tlsReadOutcome {
+	if meta.IsNoMatchError(err) || k8serr.IsNotFound(err) {
+		return tlsReadFallback
+	}
+	if k8serr.IsServiceUnavailable(err) ||
+		k8serr.IsTimeout(err) ||
+		k8serr.IsServerTimeout(err) ||
+		k8serr.IsTooManyRequests(err) ||
+		k8serr.IsInternalError(err) ||
+		errors.Is(err, context.DeadlineExceeded) {
+		return tlsReadTransient
+	}
+	return tlsReadRefuse
+}
+
+func buildManagerTLSOpts(profile configv1.TLSProfileSpec, adherence configv1.TLSAdherencePolicy) ([]func(*tls.Config), []string, error) {
+	nextProtos := []string{"h2", "http/1.1"}
+	if !operatortls.ShouldHonorClusterTLSProfile(adherence) {
+		return []func(*tls.Config){func(c *tls.Config) {
+			c.MinVersion = tls.VersionTLS12
+			c.CipherSuites = intermediateCiphers
+			c.NextProtos = nextProtos
+		}}, nil, nil
+	}
+
+	if err := operatortls.ValidateStrictManagerTLSProfile(profile); err != nil {
+		return nil, nil, err
+	}
+	tlsConfigFn, unsupported := tlspkg.NewTLSConfigFromProfile(profile)
+	return []func(*tls.Config){
+		tlsConfigFn,
+		func(c *tls.Config) {
+			c.NextProtos = nextProtos
+		},
+	}, unsupported, nil
 }
 
 func CreateComponentReconcilers(ctx context.Context, mgr *frameworkmanager.Manager) error {
