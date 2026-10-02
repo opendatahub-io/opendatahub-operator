@@ -166,10 +166,6 @@ linters:
           - gosec
         path: _test\.go
         text: "G101:"
-      - linters:
-          - staticcheck
-        text: "SA1019:.*ModelsAsService is deprecated"
-        path: internal/webhook/datasciencecluster/
     paths:
       - api
       - third_party$
