@@ -670,9 +670,9 @@ func addCacheIfAvailable(cli client.Client, byObject map[client.Object]cache.ByO
 func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.Config) ([]func(*tls.Config), configv1.TLSProfileSpec, configv1.TLSAdherencePolicy, bool, error) {
 	bootstrapClient, err := client.New(restCfg, client.Options{Scheme: scheme})
 	if err != nil {
-		setupLog.Error(err, "unable to create bootstrap client for TLS profile, using hardened defaults")
-		tlsOpts, _, buildErr := buildManagerTLSOpts(configv1.TLSProfileSpec{}, configv1.TLSAdherencePolicyNoOpinion)
-		return tlsOpts, *configv1.TLSProfiles[configv1.TLSProfileIntermediateType], configv1.TLSAdherencePolicyNoOpinion, false, buildErr
+		// Refuse to start: the TLS posture cannot be determined and the same
+		// rest.Config would fail manager construction anyway.
+		return nil, configv1.TLSProfileSpec{}, "", false, fmt.Errorf("unable to create bootstrap client for TLS profile: %w", err)
 	}
 
 	return fetchTLSProfileWithClient(ctx, bootstrapClient)
