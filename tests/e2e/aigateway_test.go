@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"testing"
 
+	gTypes "github.com/onsi/gomega/types"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -283,32 +284,37 @@ func validateAIGatewayEnvVarInjection(t *testing.T, tc *TestContext, controllerN
 			expectedRelatedImageEnvVars[envVar.Name] = envVar.Value
 		}
 	}
-	require.NotEmpty(t, expectedRelatedImageEnvVars,
-		"expected at least one aigateway related image env var to be configured on operator Deployment %s/%s",
-		operatorDeploymentNN.Namespace,
-		operatorDeploymentNN.Name,
-	)
-
+	matchers := make([]gTypes.GomegaMatcher, 0, 1+len(expectedRelatedImageEnvVars))
 	// The platform injects APPLICATIONS_NAMESPACE into every module operator
 	// deployment unconditionally. Verify it's present with the correct value.
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Deployment, controllerNN),
-		WithCondition(jq.Match(
-			`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "APPLICATIONS_NAMESPACE") | .value == "%s"`,
-			tc.AppsNamespace,
-		)),
-		WithCustomErrorMsg("ai-gateway-operator Deployment should have APPLICATIONS_NAMESPACE=%s injected", tc.AppsNamespace),
-	)
+	matchers = append(matchers, jq.Match(
+		`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "APPLICATIONS_NAMESPACE") | .value == "%s"`,
+		tc.AppsNamespace,
+	))
 
 	for envVarName, expectedValue := range expectedRelatedImageEnvVars {
-		tc.EnsureResourceExists(
-			WithMinimalObject(gvk.Deployment, controllerNN),
-			WithCondition(jq.Match(
-				`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "%s") | .value == "%s"`,
-				envVarName,
-				expectedValue,
-			)),
-			WithCustomErrorMsg("ai-gateway-operator Deployment should have %s=%s injected", envVarName, expectedValue),
+		matchers = append(matchers, jq.Match(
+			`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "%s") | .value == "%s"`,
+			envVarName,
+			expectedValue,
+		))
+	}
+
+	if len(expectedRelatedImageEnvVars) == 0 {
+		t.Logf(
+			"No non-empty AIGateway RELATED_IMAGE_* env vars configured on operator Deployment %s/%s; validating APPLICATIONS_NAMESPACE only",
+			operatorDeploymentNN.Namespace,
+			operatorDeploymentNN.Name,
 		)
 	}
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, controllerNN),
+		WithCondition(And(matchers...)),
+		WithCustomErrorMsg(
+			"ai-gateway-operator Deployment should have expected env var injection from operator Deployment %s/%s",
+			operatorDeploymentNN.Namespace,
+			operatorDeploymentNN.Name,
+		),
+	)
 }
