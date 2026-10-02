@@ -6,9 +6,11 @@ package gateway
 import (
 	"bytes"
 	"context"
+	"os"
 	"testing"
 	"text/template"
 
+	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -1107,4 +1109,35 @@ func TestIsGatewayReferencedSecret(t *testing.T) {
 			g.Expect(result).To(Equal(tc.expected))
 		})
 	}
+}
+
+// TestGetKubeAuthProxyImageFallbackMatchesManifestsConfig is a drift guard for
+// RHOAIENG-97595: the code fallback image in getKubeAuthProxyImage must match the
+// ODH digest pinned in manifests-config.yaml, otherwise the fallback (used in local
+// dev when RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE is unset) lags behind the image
+// the gateway TLS flags require and the proxy exits on an unrecognized flag.
+func TestGetKubeAuthProxyImageFallbackMatchesManifestsConfig(t *testing.T) {
+	g := NewWithT(t)
+	t.Setenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE", "")
+
+	data, err := os.ReadFile("../../../../manifests-config.yaml")
+	g.Expect(err).NotTo(HaveOccurred())
+
+	var cfg struct {
+		ImageOverrides map[string]struct {
+			ODH struct {
+				Repo   string `yaml:"base"`
+				Digest string `yaml:"digest"`
+			} `yaml:"odh"`
+		} `yaml:"imageOverrides"`
+	}
+	g.Expect(yaml.Unmarshal(data, &cfg)).To(Succeed())
+
+	override, ok := cfg.ImageOverrides["RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE"]
+	g.Expect(ok).To(BeTrue(), "manifests-config.yaml must pin the kube-auth-proxy image")
+	g.Expect(override.ODH.Repo).NotTo(BeEmpty())
+	g.Expect(override.ODH.Digest).To(HavePrefix("sha256:"))
+
+	g.Expect(getKubeAuthProxyImage()).To(Equal(override.ODH.Repo+"@"+override.ODH.Digest),
+		"fallback image must match the ODH digest in manifests-config.yaml")
 }
