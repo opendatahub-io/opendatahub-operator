@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -462,6 +463,32 @@ func TestFromAPIServerWithCurvePreferences(t *testing.T) {
 			wantErr:       true,
 			wantErrString: "failed to get APIServer",
 		},
+		{
+			name:          "unauthorized API read fails closed",
+			reader:        &stubReader{getErr: k8serr.NewUnauthorized("authentication required")},
+			wantVersion:   "",
+			wantErr:       true,
+			wantErrString: "failed to get APIServer",
+		},
+		{
+			name:        "missing API kind uses intermediate defaults",
+			reader:      &stubReader{getErr: &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "config.openshift.io", Kind: "APIServer"}}},
+			wantVersion: "TLS1.2",
+			wantCurves:  "4588,29,23,24",
+		},
+		{
+			name:          "transient API read fails closed for gateway reconciliation",
+			reader:        &stubReader{getErr: k8serr.NewServiceUnavailable("API server unavailable")},
+			wantVersion:   "",
+			wantErr:       true,
+			wantErrString: "failed to get APIServer",
+		},
+		{
+			name:        "unknown adherence honors the profile",
+			reader:      &stubReader{objects: []client.Object{apiServerWith(strictProfile, configv1.TLSAdherencePolicy("FuturePolicy"))}},
+			wantVersion: "TLS1.2",
+			wantCurves:  "29",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -505,4 +532,65 @@ func TestFromAPIServer(t *testing.T) {
 	reader = &stubReader{getErr: k8serr.NewForbidden(schema.GroupResource{Group: "config.openshift.io", Resource: "apiservers"}, "cluster", nil)}
 	_, _, err = pkgtls.FromAPIServer(context.Background(), reader, pkgtls.FormatShort)
 	require.Error(t, err)
+}
+
+func TestValidateStrictManagerTLSProfile(t *testing.T) {
+	tests := []struct {
+		name    string
+		spec    configv1.TLSProfileSpec
+		wantErr string
+	}{
+		{
+			name: "intermediate profile is supported",
+			spec: *configv1.TLSProfiles[configv1.TLSProfileIntermediateType],
+		},
+		{
+			name: "modern profile does not validate TLS 1.3 ciphers",
+			spec: *configv1.TLSProfiles[configv1.TLSProfileModernType],
+		},
+		{
+			name: "unsupported minimum version",
+			spec: configv1.TLSProfileSpec{
+				MinTLSVersion: configv1.VersionTLS10,
+				Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+			},
+			wantErr: "minimum version",
+		},
+		{
+			name: "empty TLS 1.2 cipher list",
+			spec: configv1.TLSProfileSpec{
+				MinTLSVersion: configv1.VersionTLS12,
+			},
+			wantErr: "no cipher suites",
+		},
+		{
+			name: "all TLS 1.2 ciphers unsupported",
+			spec: configv1.TLSProfileSpec{
+				MinTLSVersion: configv1.VersionTLS12,
+				Ciphers:       []string{"DHE-RSA-AES128-GCM-SHA256", "DHE-RSA-AES256-GCM-SHA384"},
+			},
+			wantErr: "no cipher suites supported",
+		},
+		{
+			name: "all groups unsupported",
+			spec: configv1.TLSProfileSpec{
+				MinTLSVersion: configv1.VersionTLS12,
+				Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+				Groups:        []configv1.TLSGroup{"unsupported-group"},
+			},
+			wantErr: "no TLS groups supported",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := pkgtls.ValidateStrictManagerTLSProfile(tt.spec)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
 }

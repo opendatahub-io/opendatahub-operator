@@ -161,6 +161,36 @@ func IsVersionSupported(v configv1.TLSProtocolVersion) bool {
 	return minVersionToShort(v) != ""
 }
 
+// ValidateStrictManagerTLSProfile validates a resolved profile before it is passed
+// to controller-runtime-common for the operator's own TLS servers.
+//
+// The shared helper panics for an unknown minimum version and leaves
+// CipherSuites empty when none of the requested TLS <=1.2 ciphers are
+// representable by Go. Both cases would make a Strict profile fail open to
+// runtime defaults, so reject them before installing TLS options.
+func ValidateStrictManagerTLSProfile(spec configv1.TLSProfileSpec) error {
+	if !IsVersionSupported(spec.MinTLSVersion) {
+		return fmt.Errorf("TLS profile minimum version %q is unsupported by the manager", spec.MinTLSVersion)
+	}
+
+	if spec.MinTLSVersion != configv1.VersionTLS13 {
+		if len(spec.Ciphers) == 0 {
+			return errors.New("TLS profile contains no cipher suites")
+		}
+		if len(ocpcrypto.OpenSSLToIANACipherSuites(spec.Ciphers)) == 0 {
+			return errors.New("TLS profile contains no cipher suites supported by the manager")
+		}
+	}
+
+	if len(spec.Groups) > 0 {
+		if curves, _ := ocpcrypto.TLSGroupsToCurveIDs(spec.Groups); len(curves) == 0 {
+			return errors.New("TLS profile contains no TLS groups supported by the manager")
+		}
+	}
+
+	return nil
+}
+
 // ShouldHonorClusterTLSProfile reports whether the component must use the
 // cluster profile instead of its legacy defaults.
 func ShouldHonorClusterTLSProfile(adherence configv1.TLSAdherencePolicy) bool {

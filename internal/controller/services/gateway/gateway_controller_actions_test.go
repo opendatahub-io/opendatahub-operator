@@ -479,3 +479,66 @@ func TestGetTemplateDataTLSReadError(t *testing.T) {
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(ContainSubstring("failed to resolve APIServer TLS profile"))
 }
+
+// TestGetTemplateDataInvalidStrictProfileStopsBeforeRender verifies the
+// reconciliation safety boundary: an unusable Strict profile fails while
+// computing template data, so the render/deploy actions cannot modify the
+// existing proxy workload. A corrected profile can be rendered on the next
+// reconciliation.
+func TestGetTemplateDataInvalidStrictProfileStopsBeforeRender(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec:       serviceApi.GatewayConfigSpec{Domain: "apps.example.com"},
+	}
+
+	newClient := func(profile *configv1.TLSSecurityProfile) client.Client {
+		scheme, err := testscheme.New()
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(configv1.Install(scheme)).To(Succeed())
+		apiServer := &configv1.APIServer{
+			ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAPIServerObj},
+			Spec: configv1.APIServerSpec{
+				TLSAdherence:       configv1.TLSAdherencePolicyStrictAllComponents,
+				TLSSecurityProfile: profile,
+			},
+		}
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(gatewayConfig, apiServer),
+			fakeclient.WithScheme(scheme),
+		)
+		g.Expect(err).NotTo(HaveOccurred())
+		return cli
+	}
+
+	invalidProfile := &configv1.TLSSecurityProfile{
+		Type: configv1.TLSProfileCustomType,
+		Custom: &configv1.CustomTLSProfile{TLSProfileSpec: configv1.TLSProfileSpec{
+			MinTLSVersion: configv1.VersionTLS12,
+			Ciphers:       []string{"DHE-RSA-AES128-GCM-SHA256"},
+			Groups:        []configv1.TLSGroup{configv1.TLSGroupX25519},
+		}},
+	}
+	validProfile := invalidProfile.DeepCopy()
+	validProfile.Custom.Ciphers = []string{"ECDHE-RSA-AES128-GCM-SHA256"}
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:   newClient(invalidProfile),
+		Instance: gatewayConfig,
+	}
+	_, err := getTemplateData(ctx, rr)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("failed to resolve APIServer TLS profile"))
+
+	rr.Client = newClient(validProfile)
+	templateData, err := getTemplateData(ctx, rr)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(templateData).To(HaveKeyWithValue("TLSMinVersion", "TLS1.2"))
+	g.Expect(templateData).To(HaveKeyWithValue("TLSCipherSuite", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"))
+}
