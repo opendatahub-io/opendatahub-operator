@@ -132,6 +132,47 @@ type TracesStorage struct {
 type Alerting struct {
 }
 
+// Logs defines the configuration for cluster log forwarding via the ClusterLogForwarder operator.
+type Logs struct {
+	// Storage configures the LokiStack storage backend for log forwarding.
+	// Required: the operator deploys a shared LokiStack used by both log forwarding and usage logs.
+	// +kubebuilder:validation:Required
+	Storage *LokiStorageConfig `json:"storage"`
+
+	// InferenceNamespaces lists the namespaces whose application logs should be forwarded to Loki.
+	// +kubebuilder:validation:items:Pattern=`^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?$`
+	// +kubebuilder:validation:items:MaxLength=63
+	InferenceNamespaces []string `json:"inferenceNamespaces,omitempty"`
+}
+
+// LokiStorageConfig defines storage configuration for LokiStack.
+type LokiStorageConfig struct {
+	// Type specifies the storage backend: "s3".
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=s3
+	Type string `json:"type"`
+
+	// SecretName is the name of the Secret containing storage credentials.
+	// For S3: must contain keys: access_key_id, access_key_secret, bucketnames, endpoint, region, insecure, s3ForcePathStyle
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
+	// +kubebuilder:validation:MaxLength=253
+	SecretName string `json:"secretName"`
+
+	// CredentialMode specifies how credentials are provided to LokiStack.
+	// Valid values: "static", "token", "token-cco".
+	// +optional
+	// +kubebuilder:default="static"
+	// +kubebuilder:validation:Enum=static;token;token-cco
+	CredentialMode string `json:"credentialMode,omitempty"`
+
+	// StorageClassName specifies the storage class for LokiStack PVCs.
+	// +optional
+	// +kubebuilder:default="gp3-csi"
+	// +kubebuilder:validation:MaxLength=253
+	StorageClassName string `json:"storageClassName,omitempty"`
+}
+
 type DSCIMonitoring struct {
 	// configuration fields common across services
 	common.ManagementSpec `json:",inline"`
