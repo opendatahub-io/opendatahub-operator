@@ -41,7 +41,7 @@ func monitorTestBuildFn(ctx context.Context, rr *types.ReconciliationRequest) (c
 	if !ok {
 		return ccmcharts.BuildResult{}, nil
 	}
-	result, err := ccmcharts.BuildHelmCharts(ctx, rr.Client, dp.GetDependencies(), "")
+	result, err := ccmcharts.BuildHelmCharts(ctx, rr.Client, dp.GetDependencies(), "", rr.Instance.GetUID())
 	if err != nil {
 		return ccmcharts.BuildResult{}, err
 	}

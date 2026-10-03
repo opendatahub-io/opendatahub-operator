@@ -8,6 +8,7 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
@@ -27,7 +28,7 @@ const (
 // metadata and a function that computes its state based on management
 // policy and cluster state.
 type chartDef struct {
-	stateFn    func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies) (chartState, error)
+	stateFn    func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies, ownerUID k8stypes.UID) (chartState, error)
 	chart      types.HelmChartInfo
 	monitor    monitorConfig
 	operatorCR *types.OperatorCR
@@ -44,23 +45,23 @@ type monitorConfig struct {
 
 // makeStateFn returns a stateFn that checks the management policy and,
 // for Unmanaged dependencies with an OperatorCR, keeps the chart while
-// the CR exists on cluster (Phase 1).
+// the CR is owned by the current KubernetesEngine instance (Phase 1).
 func makeStateFn(
 	policyFn func(ccmcommon.Dependencies) ccmcommon.ManagementPolicy,
 	operatorCR *types.OperatorCR,
-) func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies) (chartState, error) {
-	return func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies) (chartState, error) {
+) func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies, ownerUID k8stypes.UID) (chartState, error) {
+	return func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies, ownerUID k8stypes.UID) (chartState, error) {
 		if policyFn(d) != ccmcommon.Unmanaged {
 			return chartManaged, nil
 		}
 
 		if operatorCR != nil {
-			exists, err := operatorCRExists(ctx, cli, operatorCR)
+			owned, err := operatorCROwnedBy(ctx, cli, operatorCR, ownerUID)
 			if err != nil {
 				// Stay managed on transient errors — safe default that avoids premature Phase 2 cleanup.
 				return chartManaged, err
 			}
-			if exists {
+			if owned {
 				return chartCleaning, nil
 			}
 		}
@@ -197,11 +198,11 @@ type BuildResult struct {
 
 // BuildHelmCharts returns the charts to render, CRs to filter, and monitoring
 // configs in a single pass. Each chart's stateFn is called exactly once.
-func BuildHelmCharts(ctx context.Context, cli client.Client, deps ccmcommon.Dependencies, chartsPath string) (BuildResult, error) {
+func BuildHelmCharts(ctx context.Context, cli client.Client, deps ccmcommon.Dependencies, chartsPath string, ownerUID k8stypes.UID) (BuildResult, error) {
 	var result BuildResult
 
 	for _, def := range allChartDefs(deps, chartsPath) {
-		state, err := def.stateFn(ctx, cli, deps)
+		state, err := def.stateFn(ctx, cli, deps, ownerUID)
 		if err != nil {
 			return BuildResult{}, err
 		}
@@ -237,7 +238,7 @@ func BuildHelmCharts(ctx context.Context, cli client.Client, deps ccmcommon.Depe
 	return result, nil
 }
 
-func operatorCRExists(ctx context.Context, cli client.Client, cr *types.OperatorCR) (bool, error) {
+func operatorCROwnedBy(ctx context.Context, cli client.Client, cr *types.OperatorCR, ownerUID k8stypes.UID) (bool, error) {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(cr.GVK)
 
@@ -250,5 +251,11 @@ func operatorCRExists(ctx context.Context, cli client.Client, cr *types.Operator
 		return false, err
 	}
 
-	return true, nil
+	for _, owner := range obj.GetOwnerReferences() {
+		if owner.UID == ownerUID && ownerUID != "" {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
