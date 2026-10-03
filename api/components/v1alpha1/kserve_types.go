@@ -82,7 +82,9 @@ type KserveCommonSpec struct {
 	// +kubebuilder:validation:XValidation:rule="self.managementState != 'Managed' || (has(oldSelf.managementState) && oldSelf.managementState == 'Managed')",message="modelsAsService is deprecated; cannot re-enable once Removed. Use spec.components.aigateway.modelsAsAService instead"
 	// +kubebuilder:default={managementState: "Removed"}
 	ModelsAsService DSCModelsAsServiceSpec `json:"modelsAsService,omitempty"`
-	// Configures and enables workload-variant-autoscaler (WVA) integration
+	// Deprecated: workload-variant-autoscaler (WVA) is no longer supported.
+	// The field is preserved for backward compatibility, but the operator ignores it.
+	// WVA is treated as Removed regardless of this value.
 	// +kubebuilder:default={}
 	WVA WVASpec `json:"wva,omitempty"`
 	// Enables TLS for LLMInferenceService deployments.
@@ -110,7 +112,10 @@ type NimSpec struct {
 	AirGapped bool `json:"airGapped,omitempty"`
 }
 
-// WVASpec enables workload-variant-autoscaler integration
+// WVASpec is preserved only for backward compatibility with existing workload-variant-autoscaler (WVA) configuration.
+// Deprecated: workload-variant-autoscaler (WVA) is no longer supported.
+// The field is preserved for backward compatibility, but the operator ignores it.
+// WVA is treated as Removed regardless of this value.
 type WVASpec struct {
 	// +kubebuilder:validation:Enum=Managed;Removed
 	// +kubebuilder:default=Removed

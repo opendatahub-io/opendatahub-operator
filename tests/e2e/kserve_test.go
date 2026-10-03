@@ -143,6 +143,9 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 		WithCondition(And(
 			// Validate management states of NIM and serving components.
 			jq.Match(`.spec.nim.managementState == "%s"`, dsc.Spec.Components.Kserve.NIM.ManagementState),
+			// WVA is deprecated and must not be enabled. The Kserve API may still
+			// default the preserved compatibility field to Removed.
+			jq.Match(`(.spec.wva.managementState // "Removed") == "Removed"`),
 			// Validate ModelRegistry state is injected from DSC
 			jq.Match(`.spec.modelRegistry.managementState == "%s"`,
 				func() string {

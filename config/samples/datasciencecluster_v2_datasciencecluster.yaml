@@ -23,8 +23,6 @@ spec:
       nim:
         managementState: "Managed"
       rawDeploymentServiceConfig: "Headed"
-      wva:
-        managementState: "Removed"
     kueue:
       managementState: "Removed"
     trainer:

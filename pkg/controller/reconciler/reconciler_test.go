@@ -860,23 +860,21 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 
 	t.Run("CR is restored after external deletion", func(t *testing.T) {
 		g := NewWithT(t)
+		oldUID := deployedCR.GetUID()
 
 		// Delete the CR externally
 		err := cli.Delete(ctx, deployedCR)
 		g.Expect(err).NotTo(HaveOccurred())
 
-		// Verify CR is deleted
-		g.Eventually(func() bool {
-			err := cli.Get(ctx, client.ObjectKey{Name: crName, Namespace: nsName}, deployedCR)
-			return err != nil && k8serr.IsNotFound(err)
-		}).WithTimeout(5*time.Second).Should(BeTrue(), "CR should be deleted")
-
-		// Wait for watch-triggered reconciliation to restore the CR
+		// Wait for watch-triggered reconciliation to restore the CR. The controller may
+		// restore the resource before the test observes a NotFound, so verify recreation
+		// by UID instead of requiring an intermediate deleted state.
 		g.Eventually(func(gg Gomega) {
 			restored := &unstructured.Unstructured{}
 			restored.SetAPIVersion("test.opendatahub.io/v1")
 			restored.SetKind("TestWidget")
 			gg.Expect(cli.Get(ctx, client.ObjectKey{Name: crName, Namespace: nsName}, restored)).To(Succeed())
+			gg.Expect(restored.GetUID()).NotTo(Equal(oldUID))
 			gg.Expect(restored.GetOwnerReferences()).To(HaveLen(1))
 		}).WithTimeout(10*time.Second).Should(Succeed(), "CR should be restored after deletion")
 	})

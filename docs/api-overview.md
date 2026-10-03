@@ -260,7 +260,7 @@ _Appears in:_
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Deprecated: ModelsAsService is preserved for backward compatibility at least through 3.6.<br />MaaS is now configured via spec.components.aigateway.modelsAsAService.<br />Existing Managed values are still respected by the operator.<br />One-directional CEL: Managed→Removed (cleanup) is allowed; Removed→Managed is blocked. | \{ managementState:Removed \} |  |
-| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
+| `wva` _[WVASpec](#wvaspec)_ | Deprecated: workload-variant-autoscaler (WVA) is no longer supported.<br />The field is preserved for backward compatibility, but the operator ignores it.<br />WVA is treated as Removed regardless of this value. | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
@@ -864,7 +864,7 @@ _Appears in:_
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Deprecated: ModelsAsService is preserved for backward compatibility at least through 3.6.<br />MaaS is now configured via spec.components.aigateway.modelsAsAService.<br />Existing Managed values are still respected by the operator.<br />One-directional CEL: Managed→Removed (cleanup) is allowed; Removed→Managed is blocked. | \{ managementState:Removed \} |  |
-| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
+| `wva` _[WVASpec](#wvaspec)_ | Deprecated: workload-variant-autoscaler (WVA) is no longer supported.<br />The field is preserved for backward compatibility, but the operator ignores it.<br />WVA is treated as Removed regardless of this value. | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
@@ -1426,7 +1426,10 @@ _Appears in:_
 
 
 
-WVASpec enables workload-variant-autoscaler integration
+WVASpec is preserved only for backward compatibility with existing workload-variant-autoscaler (WVA) configuration.
+Deprecated: workload-variant-autoscaler (WVA) is no longer supported.
+The field is preserved for backward compatibility, but the operator ignores it.
+WVA is treated as Removed regardless of this value.
 
 
 
