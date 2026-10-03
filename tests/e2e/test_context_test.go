@@ -1987,24 +1987,12 @@ func (tc *TestContext) uninstallOperatorViaClusterExtension(nn types.NamespacedN
 	ceOpts = append(ceOpts, opts...) // Add user-provided options
 	tc.DeleteResource(ceOpts...)
 
-	// Delete installer SA/CRB created by ensureClusterExtensionSAExists
+	// Delete installer SA/CRB created by ensureClusterExtensionSAExists. These are best-effort:
+	// they are installer infra (per-operator named, idempotently recreated on the next install),
+	// so a failed delete must not fail the test.
 	saName := clusterExtensionSAName(nn.Name)
-
-	saOpts := make([]ResourceOpts, 0, 2+len(opts))
-	saOpts = append(saOpts,
-		WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{Name: saName, Namespace: nn.Namespace}),
-		WithIgnoreNotFound(true),
-	)
-	saOpts = append(saOpts, opts...) // Add user-provided options
-	tc.DeleteResource(saOpts...)
-
-	crbOpts := make([]ResourceOpts, 0, 2+len(opts))
-	crbOpts = append(crbOpts,
-		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{Name: saName}),
-		WithIgnoreNotFound(true),
-	)
-	crbOpts = append(crbOpts, opts...) // Add user-provided options
-	tc.DeleteResource(crbOpts...)
+	tc.bestEffortDeleteResource(gvk.ServiceAccount, types.NamespacedName{Name: saName, Namespace: nn.Namespace})
+	tc.bestEffortDeleteResource(gvk.ClusterRoleBinding, types.NamespacedName{Name: saName})
 }
 
 // extractSubscriptionCSVName returns the CSV name referenced by a Subscription status.
