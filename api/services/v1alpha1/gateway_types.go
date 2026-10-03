@@ -75,6 +75,18 @@ type GatewayConfigSpec struct {
 	// +optional
 	OIDC *OIDCConfig `json:"oidc,omitempty"`
 
+	// AuthProxyEgress supplies Pod and Service CIDRs excluded from the auth proxy's
+	// external egress rule on Kubernetes clusters. Both ranges are required there;
+	// OpenShift obtains them from Network/cluster instead.
+	// The rule allows TCP 443 for OpenShift OAuth, or the HTTPS port in
+	// spec.oidc.issuerURL (443 if omitted) for OIDC, to every IP outside those
+	// ranges, including private IPs. It cannot select only the issuer's hostname.
+	// In-cluster issuers or discovery endpoints on other ports need a separate
+	// NetworkPolicy. If the ranges are unavailable, GatewayConfig reports NotReady
+	// and the operator-owned policy has no egress rules.
+	// +optional
+	AuthProxyEgress *AuthProxyEgressConfig `json:"authProxyEgress,omitempty"`
+
 	// Certificate specifies configuration of the TLS certificate securing communication for the gateway.
 	// +optional
 	Certificate *infrav1.CertificateSpec `json:"certificate,omitempty"`
@@ -111,10 +123,6 @@ type GatewayConfigSpec struct {
 	// This controls how long Envoy waits for a response from the authentication proxy before timing out 403 response.
 	// +optional
 	AuthProxyTimeout metav1.Duration `json:"authProxyTimeout,omitempty"`
-
-	// NetworkPolicy configuration for kube-auth-proxy
-	// +optional
-	NetworkPolicy *NetworkPolicyConfig `json:"networkPolicy,omitempty"`
 
 	// ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider.
 	// Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.
@@ -252,24 +260,16 @@ type AdditionalIngress struct {
 	RouteLabels map[string]string `json:"routeLabels"`
 }
 
-// NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
-// When nil or when Ingress is nil, NetworkPolicy ingress rules are enabled by default
-// to restrict access to kube-auth-proxy pods.
-type NetworkPolicyConfig struct {
-	// Ingress defines ingress NetworkPolicy rules.
-	// When nil, ingress rules are applied by default (allows traffic from Gateway pods and monitoring namespaces).
-	// When specified, Enabled must be set to true to apply rules or false to skip NetworkPolicy creation.
-	// Set Enabled=false only in development environments or when using alternative network security controls.
-	// +optional
-	Ingress *IngressPolicyConfig `json:"ingress,omitempty"`
-}
+// AuthProxyEgressConfig describes cluster address ranges excluded from baseline
+// external HTTPS egress on Kubernetes clusters.
+type AuthProxyEgressConfig struct {
+	// PodCIDRs contains every cluster Pod address range.
+	// +kubebuilder:validation:MinItems=1
+	PodCIDRs []string `json:"podCIDRs"`
 
-// IngressPolicyConfig defines ingress NetworkPolicy rules
-type IngressPolicyConfig struct {
-	// Enabled determines whether ingress rules are applied.
-	// When true, creates NetworkPolicy allowing traffic only from Gateway pods and monitoring namespaces.
-	// +kubebuilder:validation:Required
-	Enabled bool `json:"enabled"`
+	// ServiceCIDRs contains every cluster Service address range.
+	// +kubebuilder:validation:MinItems=1
+	ServiceCIDRs []string `json:"serviceCIDRs"`
 }
 
 // OIDCConfig defines OIDC provider configuration

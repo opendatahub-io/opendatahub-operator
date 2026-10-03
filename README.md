@@ -856,23 +856,7 @@ spec:
 
 This will use the cluster's default domain with your custom subdomain: `custom-gateway.apps.cluster.example.com`
 
-For an advanced example to disable NetworkPolicy creation for auth proxy:
-
-```yaml
-apiVersion: services.platform.opendatahub.io/v1alpha1
-kind: GatewayConfig
-metadata:
-  name: default-gateway
-spec:
-  cookie: {}
-  certificate:
-    type: SelfSigned
-  networkPolicy:
-    ingress:
-      enabled: false
-```
-
-**Note:** NetworkPolicy is enabled by default to restrict access to the kube-auth-proxy.
+The operator creates a NetworkPolicy whenever it deploys kube-auth-proxy. On upgrade, a previously stored `spec.networkPolicy.ingress.enabled: false` no longer suppresses policy creation; the upgraded controller creates the policy during reconciliation. The stored GatewayConfig needs no manual migration, but remove the obsolete `spec.networkPolicy` field from manifests before applying them again.
 
 **Important Notes:**
 - The GatewayConfig name must be exactly `default-gateway`
@@ -883,7 +867,64 @@ spec:
 - Certificate types can be `OpenshiftDefaultIngress`, `SelfSigned`, or `Provided`
 - If `subdomain` is not specified or is empty, the default value `rh-ai` is used.
 - If `domain` is not specified, the cluster's default domain is used.
-- **NetworkPolicy is enabled by default** to secure kube-auth-proxy traffic. It restricts ingress to Gateway pods and monitoring namespaces only.
+- **NetworkPolicy is enabled by default** to secure kube-auth-proxy traffic. It allows Gateway pods to reach the authentication port (TCP 8443). The Service still exposes the metrics port (TCP 9000), but this policy does not allow remote scrapers to reach it. Monitoring ingress rules can be added when kube-auth-proxy is actually configured as a metrics scrape target.
+
+The same policy permits kube-auth-proxy egress to the cluster DNS Service, to the
+Kubernetes API Service and its current endpoints when OAuth or Kubernetes token
+validation needs them, and outside the cluster Pod and Service CIDRs on TCP 443
+for OAuth or the port in the OIDC issuer URL (443 if omitted).
+OpenShift supplies those CIDRs through `Network/cluster`. On Kubernetes clusters,
+set them explicitly in GatewayConfig before upgrading from the former unrestricted
+egress rule:
+
+```yaml
+spec:
+  authProxyEgress:
+    podCIDRs: ["10.244.0.0/16"]     # replace with all Pod CIDRs on your cluster
+    serviceCIDRs: ["10.96.0.0/12"] # replace with all Service CIDRs on your cluster
+```
+
+If the CIDRs or required DNS/API destinations cannot be resolved, the operator
+reconciles an empty egress list and reports GatewayConfig as NotReady. Kubernetes
+clusters need a `kube-system/kube-dns` Service for the built-in DNS rule; OpenShift
+uses `openshift-dns/dns-default`. The external HTTPS rule permits all IPv4 or IPv6
+addresses outside the corresponding excluded CIDRs, including private addresses
+outside those ranges on the selected port. It does not identify a particular
+identity provider. An OIDC issuer URL with `:8443` therefore allows TCP 8443
+to every destination outside the excluded CIDRs.
+
+For an OIDC issuer inside the cluster, or a discovery endpoint on another port,
+create a separate egress-only NetworkPolicy in the gateway namespace selecting proxy pods labeled
+`app: kube-auth-proxy` and `opendatahub.io/auth-mode: oidc`. For example, a
+discovery endpoint on a fixed external address and TCP 8443 needs:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kube-auth-proxy-oidc-issuer
+  namespace: openshift-ingress # use the actual gateway namespace
+spec:
+  podSelector:
+    matchLabels:
+      app: kube-auth-proxy
+      opendatahub.io/auth-mode: oidc
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 203.0.113.42/32 # replace with the endpoint's address or range
+      ports:
+        - protocol: TCP
+          port: 8443
+```
+
+Apply the supplemental policy before upgrading an existing installation whose
+issuer needs it. OIDC discovery may reference additional hosts or ports; allow
+those destinations too. Standard NetworkPolicy cannot select a destination by
+DNS name, so a provider with changing addresses needs a maintained CIDR rule or
+another network control that supports DNS destinations. Policies selecting the
+same proxy pods are additive, so review their combined permissions.
 
 ### Run functional Tests
 

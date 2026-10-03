@@ -2623,6 +2623,24 @@ Auth is the Schema for the auths API
 | `status` _[AuthStatus](#authstatus)_ |  |  |  |
 
 
+#### AuthProxyEgressConfig
+
+
+
+AuthProxyEgressConfig describes cluster address ranges excluded from baseline
+external HTTPS egress on Kubernetes clusters.
+
+
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `podCIDRs` _string array_ | PodCIDRs contains every cluster Pod address range. |  | MinItems: 1 <br /> |
+| `serviceCIDRs` _string array_ | ServiceCIDRs contains every cluster Service address range. |  | MinItems: 1 <br /> |
+
+
 #### AuthSpec
 
 
@@ -2728,13 +2746,13 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `ingressMode` _[IngressMode](#ingressmode)_ | IngressMode specifies how the Gateway is exposed externally.<br />"OcpRoute" uses ClusterIP with OpenShift Routes (OpenShift only).<br />"LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB). |  | Enum: [OcpRoute LoadBalancer] <br /> |
 | `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (used when cluster is in OIDC authentication mode) |  |  |
+| `authProxyEgress` _[AuthProxyEgressConfig](#authproxyegressconfig)_ | AuthProxyEgress supplies Pod and Service CIDRs excluded from the auth proxy's<br />external egress rule on Kubernetes clusters. Both ranges are required there;<br />OpenShift obtains them from Network/cluster instead.<br />The rule allows TCP 443 for OpenShift OAuth, or the HTTPS port in<br />spec.oidc.issuerURL (443 if omitted) for OIDC, to every IP outside those<br />ranges, including private IPs. It cannot select only the issuer's hostname.<br />In-cluster issuers or discovery endpoints on other ports need a separate<br />NetworkPolicy. If the ranges are unavailable, GatewayConfig reports NotReady<br />and the operator-owned policy has no egress rules. |  |  |
 | `certificate` _[CertificateSpec](#certificatespec)_ | Certificate specifies configuration of the TLS certificate securing communication for the gateway. |  |  |
 | `domain` _string_ | Domain specifies the host name for intercepting incoming requests.<br />Most likely, you will want to use a wildcard name, like *.example.com.<br />If not set, the cluster's default ingress domain is used (when available).<br />On Kubernetes clusters without a discoverable ingress domain, this field is required.<br />If you choose to generate a certificate, this is the domain used for the certificate request.<br />Example: *.example.com, example.com, apps.example.com |  | Pattern: `^(\*\.)?([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)*[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br /> |
 | `subdomain` _string_ | Subdomain configuration for the GatewayConfig<br />Example: my-gateway, custom-gateway |  | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)$` <br /> |
 | `cookie` _[CookieConfig](#cookieconfig)_ | Cookie configuration (applies to both OIDC and OpenShift OAuth) |  |  |
 | `authTimeout` _string_ | AuthTimeout is the duration Envoy waits for auth proxy responses.<br />Requests timeout with 403 if exceeded.<br />Deprecated: Use AuthProxyTimeout instead. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
 | `authProxyTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | AuthProxyTimeout defines the timeout for external authorization service calls (e.g., "5s", "10s")<br />This controls how long Envoy waits for a response from the authentication proxy before timing out 403 response. |  |  |
-| `networkPolicy` _[NetworkPolicyConfig](#networkpolicyconfig)_ | NetworkPolicy configuration for kube-auth-proxy |  |  |
 | `providerCASecretName` _string_ | ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider.<br />Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.<br />Secret must exist in the gateway namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate. |  |  |
 | `verifyProviderCertificate` _boolean_ | VerifyProviderCertificate controls TLS certificate verification for the authentication provider.<br />When true (default), certificates are verified against the system trust store and providerCASecretName.<br />When false, certificate verification is disabled (development/testing only).<br />WARNING: Setting this to false disables security and should only be used in non-production environments.<br />For production use with self-signed certificates, use ProviderCASecretName instead. | true |  |
 | `enableK8sTokenValidation` _boolean_ | EnableK8sTokenValidation enables Kubernetes service account token validation via TokenReview API.<br />When enabled, kube-auth-proxy validates bearer tokens as service account tokens alongside OAuth/OIDC authentication.<br />This allows service accounts to authenticate via bearer tokens while human users authenticate via OAuth/OIDC. | true |  |
@@ -2775,22 +2793,6 @@ _Appears in:_
 | --- | --- |
 | `OcpRoute` | IngressModeOcpRoute uses ClusterIP service with OpenShift Routes (OpenShift only).<br /> |
 | `LoadBalancer` | IngressModeLoadBalancer uses a LoadBalancer service type.<br />This requires a load balancer provider (cloud or MetalLB).<br /> |
-
-
-#### IngressPolicyConfig
-
-
-
-IngressPolicyConfig defines ingress NetworkPolicy rules
-
-
-
-_Appears in:_
-- [NetworkPolicyConfig](#networkpolicyconfig)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `enabled` _boolean_ | Enabled determines whether ingress rules are applied.<br />When true, creates NetworkPolicy allowing traffic only from Gateway pods and monitoring namespaces. |  | Required: \{\} <br /> |
 
 
 #### Metrics
@@ -2847,24 +2849,6 @@ _Appears in:_
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  |  |
-
-
-#### NetworkPolicyConfig
-
-
-
-NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
-When nil or when Ingress is nil, NetworkPolicy ingress rules are enabled by default
-to restrict access to kube-auth-proxy pods.
-
-
-
-_Appears in:_
-- [GatewayConfigSpec](#gatewayconfigspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `ingress` _[IngressPolicyConfig](#ingresspolicyconfig)_ | Ingress defines ingress NetworkPolicy rules.<br />When nil, ingress rules are applied by default (allows traffic from Gateway pods and monitoring namespaces).<br />When specified, Enabled must be set to true to apply rules or false to skip NetworkPolicy creation.<br />Set Enabled=false only in development environments or when using alternative network security controls. |  |  |
 
 
 #### OIDCConfig
