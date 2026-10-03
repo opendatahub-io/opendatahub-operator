@@ -9,7 +9,7 @@ require (
 	github.com/itchyny/gojq v0.12.19
 	github.com/k8s-manifest-kit/renderer-helm v0.4.0
 	github.com/onsi/ginkgo/v2 v2.28.1
-	github.com/onsi/gomega v1.42.1
+	github.com/onsi/gomega v1.44.0
 	github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a
 	github.com/opendatahub-io/odh-platform-utilities v0.4.0
 	github.com/opendatahub-io/odh-platform-utilities/framework v0.0.0-20260810103007-dd94df3e806f
@@ -139,7 +139,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.45.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/exp v0.0.0-20260112195511-716be5621a96 // indirect
 	golang.org/x/net v0.58.0 // indirect
