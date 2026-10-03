@@ -705,6 +705,8 @@ spec:
         managementState: Managed
       wva:
         managementState: Removed
+      modelExpress:
+        managementState: Removed
       rawDeploymentServiceConfig: Headed
     kueue:
       managementState: Removed
