@@ -15,6 +15,7 @@ import (
 	dscv2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
 	dsciv1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v1"
 	dsciv2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v2"
+	gatewaywebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/gateway"
 	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	monitoringwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/monitoring"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
@@ -43,6 +44,7 @@ func RegisterAllWebhooks(mgr ctrl.Manager) error {
 		{name: "monitoring", register: monitoringwebhook.RegisterWebhooks, disabled: func() bool {
 			return !sr.IsEnabled(serviceApi.MonitoringServiceName) && !mr.IsEnabled(serviceApi.MonitoringServiceName)
 		}},
+		{name: "gatewayconfig", register: gatewaywebhook.RegisterWebhooks, disabled: func() bool { return !sr.IsEnabled(serviceApi.GatewayServiceName) }},
 		{name: "dashboard", register: dashboard.RegisterWebhooks, disabled: func() bool { return !mr.IsEnabled(componentApi.DashboardComponentName) }},
 	}
 

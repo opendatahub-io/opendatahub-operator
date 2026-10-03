@@ -245,9 +245,16 @@ func IsGatewayCertificateSecret(ctx context.Context, cli client.Client, obj clie
 
 	certConfig := *gatewayConfig.Spec.Certificate
 	certType := certConfig.Type
+	if certType == "" {
+		if GetClusterInfo().Type == ClusterTypeKubernetes {
+			certType = infrav1.SelfSigned
+		} else {
+			certType = infrav1.OpenshiftDefaultIngress
+		}
+	}
 
 	switch certType {
-	case infrav1.OpenshiftDefaultIngress, "":
+	case infrav1.OpenshiftDefaultIngress:
 		ingressCtrl, err := FindAvailableIngressController(ctx, cli)
 		if err != nil {
 			return false
