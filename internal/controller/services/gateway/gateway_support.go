@@ -30,7 +30,8 @@ import (
 )
 
 const (
-	ServiceName        = serviceApi.GatewayServiceName
+	ServiceName = serviceApi.GatewayServiceName
+	// ReadyConditionType is GatewayConfig's service-specific Ready condition; the reconciler computes aggregate Ready.
 	ReadyConditionType = serviceApi.GatewayConfigKind + status.ReadySuffix
 )
 

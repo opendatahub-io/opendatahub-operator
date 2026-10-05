@@ -35,6 +35,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -46,6 +47,32 @@ import (
 
 //go:embed resources
 var gatewayResources embed.FS
+
+const (
+	deprecatedNetworkPolicyConfigConditionType = "GatewayConfigNetworkPolicyDeprecated"
+	deprecatedNetworkPolicyConfigReason        = "DeprecatedConfigurationIgnored"
+)
+
+// reportDeprecatedNetworkPolicyConfig informs users that the legacy setting is
+// accepted for compatibility but does not control the operator-managed policy.
+func reportDeprecatedNetworkPolicyConfig(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	gatewayConfig, err := validateGatewayConfig(rr)
+	if err != nil {
+		return err
+	}
+	if gatewayConfig.Spec.NetworkPolicy == nil {
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(
+		deprecatedNetworkPolicyConfigConditionType,
+		conditions.WithSeverity(common.ConditionSeverityInfo),
+		conditions.WithReason(deprecatedNetworkPolicyConfigReason),
+		conditions.WithMessage("spec.networkPolicy is deprecated and ignored; the operator always manages the kube-auth-proxy NetworkPolicy"),
+		conditions.WithObservedGeneration(gatewayConfig.Generation),
+	)
+	return nil
+}
 
 func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createGatewayInfrastructure")
@@ -398,6 +425,7 @@ func createNetworkPolicy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	rules := make([]networkingv1.NetworkPolicyEgressRule, 0)
 	resolvedRules, resolveErr := resolveAuthProxyEgress(ctx, rr.Client, gatewayConfig.Spec, authMode)
 	if resolveErr != nil {
+		// Record the egress failure on GatewayConfig's service-specific Ready condition.
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
 			conditions.WithReason("AuthProxyEgressUnavailable"),

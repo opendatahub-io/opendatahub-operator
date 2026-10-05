@@ -5,6 +5,7 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -23,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -74,6 +76,61 @@ func TestDeleteLegacyNetworkPolicy(t *testing.T) {
 			g.Expect(k8serr.IsNotFound(err)).To(Equal(tc.wantDeleted))
 		})
 	}
+}
+
+func TestReportDeprecatedNetworkPolicyConfig(t *testing.T) {
+	t.Run("reports the ignored legacy setting as informational", func(t *testing.T) {
+		g := NewWithT(t)
+		gatewayConfig := &serviceApi.GatewayConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName, Generation: 3},
+		}
+		g.Expect(json.Unmarshal([]byte(`{"networkPolicy":{"ingress":{"enabled":false}}}`), &gatewayConfig.Spec)).To(Succeed())
+		manager := conditions.NewManager(
+			gatewayConfig,
+			status.ConditionTypeReady,
+			status.ConditionTypeProvisioningSucceeded,
+			ReadyConditionType,
+		)
+		manager.Reset()
+		manager.MarkTrue(status.ConditionTypeProvisioningSucceeded)
+		manager.MarkTrue(ReadyConditionType)
+		rr := &odhtypes.ReconciliationRequest{Instance: gatewayConfig, Conditions: manager}
+
+		g.Expect(reportDeprecatedNetworkPolicyConfig(t.Context(), rr)).To(Succeed())
+
+		condition := manager.GetCondition(deprecatedNetworkPolicyConfigConditionType)
+		g.Expect(condition).NotTo(BeNil())
+		g.Expect(condition.Status).To(Equal(metav1.ConditionTrue))
+		g.Expect(condition.Severity).To(Equal(common.ConditionSeverityInfo))
+		g.Expect(condition.Reason).To(Equal(deprecatedNetworkPolicyConfigReason))
+		g.Expect(condition.Message).To(ContainSubstring("spec.networkPolicy is deprecated and ignored"))
+		g.Expect(condition.ObservedGeneration).To(Equal(int64(3)))
+		g.Expect(manager.GetCondition(status.ConditionTypeReady).Status).To(Equal(metav1.ConditionTrue))
+	})
+
+	t.Run("stale information condition is removed when the field is absent", func(t *testing.T) {
+		g := NewWithT(t)
+		gatewayConfig := &serviceApi.GatewayConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		}
+		manager := conditions.NewManager(
+			gatewayConfig,
+			status.ConditionTypeReady,
+			status.ConditionTypeProvisioningSucceeded,
+			ReadyConditionType,
+		)
+		manager.MarkTrue(
+			deprecatedNetworkPolicyConfigConditionType,
+			conditions.WithSeverity(common.ConditionSeverityInfo),
+		)
+		manager.Reset()
+		rr := &odhtypes.ReconciliationRequest{Instance: gatewayConfig, Conditions: manager}
+
+		g.Expect(reportDeprecatedNetworkPolicyConfig(t.Context(), rr)).To(Succeed())
+		manager.CleanupStaleConditions()
+
+		g.Expect(manager.GetCondition(deprecatedNetworkPolicyConfigConditionType)).To(BeNil())
+	})
 }
 
 // expectCertManagerCertificate asserts the full wiring of a produced cert-manager Certificate:

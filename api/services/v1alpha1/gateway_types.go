@@ -144,6 +144,13 @@ type GatewayConfigSpec struct {
 	// +kubebuilder:validation:Maximum=10
 	AuthProxyMaxReplicas *int32 `json:"authProxyMaxReplicas,omitempty"`
 
+	// NetworkPolicy configures NetworkPolicy behavior for kube-auth-proxy.
+	// It is retained for backward compatibility and has no effect; the operator
+	// always manages the kube-auth-proxy NetworkPolicy.
+	// Deprecated: This setting is ignored and will be removed in a future API version.
+	// +optional
+	NetworkPolicy *NetworkPolicyConfig `json:"networkPolicy,omitempty"`
+
 	// ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider.
 	// Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.
 	// Secret must exist in the gateway namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate.
@@ -312,11 +319,35 @@ type AdditionalIngressOIDCConfig struct {
 type AuthProxyEgressConfig struct {
 	// PodCIDRs contains every cluster Pod address range.
 	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:items:MaxLength=43
 	PodCIDRs []string `json:"podCIDRs"`
 
 	// ServiceCIDRs contains every cluster Service address range.
 	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:items:MaxLength=43
 	ServiceCIDRs []string `json:"serviceCIDRs"`
+}
+
+// NetworkPolicyConfig is retained only for backward compatibility.
+//
+// Deprecated: This configuration is ignored. The operator always manages the
+// kube-auth-proxy NetworkPolicy.
+type NetworkPolicyConfig struct {
+	// Ingress is retained for backward compatibility and has no effect.
+	// Deprecated: This setting is ignored.
+	// +optional
+	Ingress *IngressPolicyConfig `json:"ingress,omitempty"`
+}
+
+// IngressPolicyConfig is retained only for backward compatibility.
+//
+// Deprecated: This configuration is ignored. The operator always manages the
+// kube-auth-proxy NetworkPolicy.
+type IngressPolicyConfig struct {
+	// Enabled is retained for backward compatibility and has no effect.
+	// Deprecated: This setting is ignored.
+	// +kubebuilder:validation:Required
+	Enabled bool `json:"enabled"`
 }
 
 // OIDCConfig defines OIDC provider configuration

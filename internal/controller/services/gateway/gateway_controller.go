@@ -171,10 +171,8 @@ func gatewayCertManagerPrecondition() precondition.PreCondition {
 	)
 }
 
-// gatewayDeployAction records apply failures on GatewayConfigReady. The reconciler
-// handles ProvisioningSucceeded and top-level Ready, but skips the later status
-// action on error. Without this mark, GatewayConfigReady gets a generic
-// ConditionReasonNotSet status instead of the apply error.
+// gatewayDeployAction records apply failures on ReadyConditionType because the
+// reconciler skips syncGatewayConfigStatus after a deployment error.
 func gatewayDeployAction(opts ...deploy.ActionOpts) actions.Fn {
 	deployAction := deploy.NewAction(opts...)
 	return func(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -314,6 +312,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
 			gatewayCertManagerPrecondition(),
 		})).
+		WithAction(reportDeprecatedNetworkPolicyConfig).
 		WithAction(syncAdditionalIngressStatus).
 		WithAction(createGatewayInfrastructure).
 		WithAction(createKubeAuthProxyInfrastructure). //  include destinationrule

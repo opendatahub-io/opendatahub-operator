@@ -27,6 +27,11 @@ const (
 	dnsServicePort          = 53
 	apiServiceName          = "kubernetes"
 	apiServiceNamespace     = "default"
+
+	openshiftDNSNamespace    = "openshift-dns"
+	openshiftDNSServiceName  = "dns-default"
+	kubernetesDNSNamespace   = "kube-system"
+	kubernetesDNSServiceName = "kube-dns"
 )
 
 // resolveAuthProxyEgress builds only destination- and port-scoped rules. A failure
@@ -166,9 +171,9 @@ func networkPolicyPort(protocol corev1.Protocol, port intstr.IntOrString) networ
 }
 
 func authProxyDNSRules(ctx context.Context, cli client.Client) ([]networkingv1.NetworkPolicyEgressRule, error) {
-	namespace, name := "openshift-dns", "dns-default"
+	namespace, name := openshiftDNSNamespace, openshiftDNSServiceName
 	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
-		namespace, name = "kube-system", "kube-dns"
+		namespace, name = kubernetesDNSNamespace, kubernetesDNSServiceName
 	}
 	service := &corev1.Service{}
 	if err := cli.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, service); err != nil {

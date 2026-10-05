@@ -3018,8 +3018,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `podCIDRs` _string array_ | PodCIDRs contains every cluster Pod address range. |  | MinItems: 1 <br /> |
-| `serviceCIDRs` _string array_ | ServiceCIDRs contains every cluster Service address range. |  | MinItems: 1 <br /> |
+| `podCIDRs` _string array_ | PodCIDRs contains every cluster Pod address range. |  | MinItems: 1 <br />items:MaxLength: 43 <br /> |
+| `serviceCIDRs` _string array_ | ServiceCIDRs contains every cluster Service address range. |  | MinItems: 1 <br />items:MaxLength: 43 <br /> |
 
 
 #### AuthSpec
@@ -3137,6 +3137,7 @@ _Appears in:_
 | `authTimeout` _string_ | AuthTimeout is the duration Envoy waits for auth proxy responses.<br />Requests timeout with 403 if exceeded.<br />Deprecated: Use AuthProxyTimeout instead. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
 | `authProxyTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | AuthProxyTimeout defines the timeout for external authorization service calls (e.g., "5s", "10s")<br />This controls how long Envoy waits for a response from the authentication proxy before timing out 403 response. |  |  |
 | `authProxyMaxReplicas` _integer_ | AuthProxyMaxReplicas is the maximum number of replicas for the default gateway's auth proxy.<br />The HPA minimum is fixed at 2; setting the maximum to 2 fixes the replica count.<br />Additional ingress proxies are configured independently through their auth.maxReplicas. | 10 | Maximum: 10 <br />Minimum: 2 <br /> |
+| `networkPolicy` _[NetworkPolicyConfig](#networkpolicyconfig)_ | NetworkPolicy configures NetworkPolicy behavior for kube-auth-proxy.<br />It is retained for backward compatibility and has no effect; the operator<br />always manages the kube-auth-proxy NetworkPolicy.<br />Deprecated: This setting is ignored and will be removed in a future API version. |  |  |
 | `providerCASecretName` _string_ | ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider.<br />Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.<br />Secret must exist in the gateway namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate. |  |  |
 | `verifyProviderCertificate` _boolean_ | VerifyProviderCertificate controls TLS certificate verification for the authentication provider.<br />When true (default), certificates are verified against the system trust store and providerCASecretName.<br />When false, certificate verification is disabled (development/testing only).<br />WARNING: Setting this to false disables security and should only be used in non-production environments.<br />For production use with self-signed certificates, use ProviderCASecretName instead. | true |  |
 | `enableK8sTokenValidation` _boolean_ | EnableK8sTokenValidation enables Kubernetes service account token validation via TokenReview API.<br />When enabled, kube-auth-proxy validates bearer tokens as service account tokens alongside OAuth/OIDC authentication.<br />This allows service accounts to authenticate via bearer tokens while human users authenticate via OAuth/OIDC. | true |  |
@@ -3194,6 +3195,25 @@ _Appears in:_
 | --- | --- |
 | `OcpRoute` | IngressModeOcpRoute uses ClusterIP service with OpenShift Routes (OpenShift only).<br /> |
 | `LoadBalancer` | IngressModeLoadBalancer uses a LoadBalancer service type.<br />This requires a load balancer provider (cloud or MetalLB).<br /> |
+
+
+#### IngressPolicyConfig
+
+
+
+IngressPolicyConfig is retained only for backward compatibility.
+
+Deprecated: This configuration is ignored. The operator always manages the
+kube-auth-proxy NetworkPolicy.
+
+
+
+_Appears in:_
+- [NetworkPolicyConfig](#networkpolicyconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ | Enabled is retained for backward compatibility and has no effect.<br />Deprecated: This setting is ignored. |  | Required: \{\} <br /> |
 
 
 #### Logs
@@ -3290,6 +3310,25 @@ _Appears in:_
 | `logs` _[Logs](#logs)_ | Logs configures cluster log forwarding via the ClusterLogForwarder operator. |  |  |
 | `usageLogs` _[UsageLogs](#usagelogs)_ | UsageLogs configures usage log collection and forwarding to Loki. |  |  |
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  |  |
+
+
+#### NetworkPolicyConfig
+
+
+
+NetworkPolicyConfig is retained only for backward compatibility.
+
+Deprecated: This configuration is ignored. The operator always manages the
+kube-auth-proxy NetworkPolicy.
+
+
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ingress` _[IngressPolicyConfig](#ingresspolicyconfig)_ | Ingress is retained for backward compatibility and has no effect.<br />Deprecated: This setting is ignored. |  |  |
 
 
 #### OIDCConfig
