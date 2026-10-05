@@ -78,9 +78,9 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 
 	switch req.Operation {
 	case admissionv1.Create:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState, denyMultipleDsc, v.warnDeprecatedModelsAsService}, allowMessage, v.Client, &req)
+		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyUnsupportedWVA, denyMultipleDsc, v.warnDeprecatedModelsAsService}, allowMessage, v.Client, &req)
 	case admissionv1.Update:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyV1PatchWhenV2ComponentsManaged, v.warnDeprecatedModelsAsService}, allowMessage, v.Client, &req)
+		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyUnsupportedWVA, v.denyV1PatchWhenV2ComponentsManaged, v.warnDeprecatedModelsAsService}, allowMessage, v.Client, &req)
 	default:
 		return admission.Allowed(allowMessage)
 	}
@@ -118,6 +118,16 @@ func (v *Validator) denyKueueManagedState(ctx context.Context, _ client.Reader, 
 	}
 
 	return admission.Allowed("")
+}
+
+func (v *Validator) denyUnsupportedWVA(ctx context.Context, _ client.Reader, req *admission.Request) admission.Response {
+	dcsV1 := &dscv1.DataScienceCluster{}
+	if err := v.Decoder.DecodeRaw(req.Object, dcsV1); err != nil {
+		logf.FromContext(ctx).Error(err, "Error converting request object to "+gvk.DataScienceClusterV1.String())
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	return dscwebhook.WVAUnsupportedResponse(dcsV1.Spec.Components.Kserve.WVA.ManagementState)
 }
 
 // warnDeprecatedModelsAsService emits an oc/kubectl Warning when the deprecated

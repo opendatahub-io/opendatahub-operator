@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	v2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
@@ -34,6 +35,11 @@ func TestDataScienceClusterV2_ValidatingWebhook(t *testing.T) {
 	withKueueState := func(state operatorv1.ManagementState) func(*dscv2.DataScienceCluster) {
 		return func(dsc *dscv2.DataScienceCluster) {
 			dsc.Spec.Components.Kueue.ManagementState = state
+		}
+	}
+	withWVAState := func(state operatorv1.ManagementState) func(*dscv2.DataScienceCluster) {
+		return func(dsc *dscv2.DataScienceCluster) {
+			dsc.Spec.Components.Kserve.WVA.ManagementState = state
 		}
 	}
 
@@ -99,6 +105,21 @@ func TestDataScienceClusterV2_ValidatingWebhook(t *testing.T) {
 			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Delete, envtestutil.NewDSC("test", withKueueState(operatorv1.Managed)), gvk.DataScienceCluster, gvr),
 			allowed: true,
 		},
+		{
+			name:    "Denies create with WVA Managed",
+			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSC("test-wva", withWVAState(operatorv1.Managed)), gvk.DataScienceCluster, gvr),
+			allowed: false,
+		},
+		{
+			name:    "Allows create with WVA Removed",
+			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSC("test-wva-removed", withWVAState(operatorv1.Removed)), gvk.DataScienceCluster, gvr),
+			allowed: true,
+		},
+		{
+			name:    "Denies update with WVA Managed",
+			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Update, envtestutil.NewDSC("test-wva-update", withWVAState(operatorv1.Managed)), gvk.DataScienceCluster, gvr),
+			allowed: false,
+		},
 	}
 
 	for _, tc := range cases {
@@ -124,6 +145,41 @@ func TestDataScienceClusterV2_ValidatingWebhook(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDataScienceClusterV2_WVADeprecationWarning(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	gvr := metav1.GroupVersionResource{
+		Group:    gvk.DataScienceCluster.Group,
+		Version:  gvk.DataScienceCluster.Version,
+		Resource: "datascienceclusters",
+	}
+
+	withWVA := func(state operatorv1.ManagementState) func(*dscv2.DataScienceCluster) {
+		return func(dsc *dscv2.DataScienceCluster) {
+			dsc.Spec.Components.Kserve.WVA = componentApi.WVASpec{ManagementState: state}
+		}
+	}
+
+	sch, err := scheme.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	cli, err := fakeclient.New(fakeclient.WithObjects(envtestutil.NewDSCI("dsci-for-dsc")), fakeclient.WithScheme(sch))
+	g.Expect(err).ShouldNot(HaveOccurred())
+	validator := &v2webhook.Validator{
+		Client:  cli,
+		Name:    "test-v2",
+		Decoder: admission.NewDecoder(sch),
+	}
+
+	req := envtestutil.NewAdmissionRequest(t, admissionv1.Create,
+		envtestutil.NewDSC("test-wva-warning", withWVA(operatorv1.Removed)),
+		gvk.DataScienceCluster, gvr)
+	resp := validator.Handle(ctx, req)
+	g.Expect(resp.Allowed).To(BeTrue())
+	g.Expect(resp.Warnings).To(ContainElement(ContainSubstring("spec.components.kserve.wva is deprecated")))
 }
 
 func TestDataScienceClusterV2_ModelsAsServiceDeprecationWarning(t *testing.T) {

@@ -129,6 +129,28 @@ func TestConstructInstalledComponentsFromV2Status_EmptyValue(t *testing.T) {
 	}
 }
 
+func TestConvertTo_ForcesWVAToRemoved(t *testing.T) {
+	g := NewWithT(t)
+
+	v1DSC := &DataScienceCluster{}
+	v1DSC.Spec.Components.Kserve.WVA.ManagementState = operatorv1.Managed
+
+	v2DSC := &dscv2.DataScienceCluster{}
+	g.Expect(v1DSC.ConvertTo(v2DSC)).To(Succeed())
+	g.Expect(v2DSC.Spec.Components.Kserve.WVA.ManagementState).To(Equal(operatorv1.Removed))
+}
+
+func TestConvertFrom_ForcesWVAToRemoved(t *testing.T) {
+	g := NewWithT(t)
+
+	v2DSC := &dscv2.DataScienceCluster{}
+	v2DSC.Spec.Components.Kserve.WVA.ManagementState = operatorv1.Managed
+
+	v1DSC := &DataScienceCluster{}
+	g.Expect(v1DSC.ConvertFrom(v2DSC)).To(Succeed())
+	g.Expect(v1DSC.Spec.Components.Kserve.WVA.ManagementState).To(Equal(operatorv1.Removed))
+}
+
 // TestConvertFrom_ConstructsInstalledComponents verifies that ConvertFrom properly
 // constructs the v1 InstalledComponents field from v2 component management states.
 func TestConvertFrom_ConstructsInstalledComponents(t *testing.T) {

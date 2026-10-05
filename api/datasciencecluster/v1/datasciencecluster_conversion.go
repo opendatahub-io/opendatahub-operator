@@ -103,13 +103,15 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 	dst := dstRaw.(*dscv2.DataScienceCluster)
 
 	dst.ObjectMeta = c.ObjectMeta
+	kserve := c.Spec.Components.Kserve
+	kserve.WVA.ManagementState = operatorv1.Removed
 
 	dst.Spec = dscv2.DataScienceClusterSpec{
 		Components: dscv2.Components{
 			Dashboard:   c.Spec.Components.Dashboard,
 			Workbenches: c.Spec.Components.Workbenches,
 			AIPipelines: c.Spec.Components.DataSciencePipelines,
-			Kserve:      c.Spec.Components.Kserve,
+			Kserve:      kserve,
 			Kueue: componentApi.DSCKueue{
 				KueueManagementSpec: componentApi.KueueManagementSpec{
 					ManagementState: c.Spec.Components.Kueue.ManagementState,
@@ -286,6 +288,7 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 	// so the CEL transition rule's oldSelf reflects the actual value (prevents "no such key:
 	// managementState" on v1 API writes when aigateway.modelsAsAService has no managementState).
 	v1Kserve := src.Spec.Components.Kserve
+	v1Kserve.WVA.ManagementState = operatorv1.Removed
 	if src.Spec.Components.AIGateway.ModelsAsAService.ManagementState != "" {
 		v1Kserve.ModelsAsService = src.Spec.Components.AIGateway.ModelsAsAService
 	}

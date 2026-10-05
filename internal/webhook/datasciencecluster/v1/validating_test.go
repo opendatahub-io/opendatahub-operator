@@ -41,6 +41,11 @@ func TestDataScienceClusterV1_ValidatingWebhook(t *testing.T) {
 			dsc.Spec.Components.Kueue.ManagementState = state
 		}
 	}
+	withWVAState := func(state operatorv1.ManagementState) func(*dscv1.DataScienceCluster) {
+		return func(dsc *dscv1.DataScienceCluster) {
+			dsc.Spec.Components.Kserve.WVA.ManagementState = state
+		}
+	}
 
 	cases := []struct {
 		name         string
@@ -120,6 +125,22 @@ func TestDataScienceClusterV1_ValidatingWebhook(t *testing.T) {
 			name:    "Allows delete with Kueue Managed",
 			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Delete, envtestutil.NewDSCV1("test", withKueueState(operatorv1.Managed)), gvk.DataScienceClusterV1, gvr),
 			allowed: true,
+		},
+		{
+			name:    "Denies create with WVA Managed",
+			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSCV1("test-wva", withWVAState(operatorv1.Managed)), gvk.DataScienceClusterV1, gvr),
+			allowed: false,
+		},
+		{
+			name:    "Allows create with WVA Removed",
+			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSCV1("test-wva-removed", withWVAState(operatorv1.Removed)), gvk.DataScienceClusterV1, gvr),
+			allowed: true,
+		},
+		{
+			name:         "Denies update with WVA Managed",
+			existingObjs: []client.Object{envtestutil.NewDSC("test-wva-update", envtestutil.WithAllV2OnlyComponentsRemoved())},
+			req:          envtestutil.NewAdmissionRequest(t, admissionv1.Update, envtestutil.NewDSCV1("test-wva-update", withWVAState(operatorv1.Managed)), gvk.DataScienceClusterV1, gvr),
+			allowed:      false,
 		},
 
 		// V2-only component protection cases
