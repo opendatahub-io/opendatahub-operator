@@ -657,6 +657,14 @@ imageOverrides:
     rhoai:
       base: "quay.io/rhoai/odh-maas-api-rhel9"
       digest: "sha256:7b701e8ef45a1e82b27c671e60b50f18fbe9643dd24b47fa849950a121650f40"
+  RELATED_IMAGE_ODH_MAAS_DISCOVERY_IMAGE:
+    source: "csv"
+    odh:
+      base: "quay.io/opendatahub/odh-maas-discovery"
+      digest: "sha256:678af94dfbdbb92c0f4f29ea5719603d55eddc485136ad723f85d2261d0075ec"
+    rhoai:
+      base: "quay.io/rhoai/odh-maas-discovery-rhel9"
+      digest: "sha256:207f91735501244df38d31eb55dd501316160dc90008e73a0c6b8066f2647c82"
   RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE:
     source: "csv"
     odh:
@@ -1353,11 +1361,6 @@ imageOverrides:
     rhoai:
       base: "quay.io/rhoai/odh-mod-arch-data-connect-hub-rhel9"
       digest: "sha256:121cee3718b934801251bb2d6aa205fb1ee140224e93ef55de40bea8841659c9"
-  RELATED_IMAGE_ODH_MAAS_DISCOVERY_IMAGE:
-    source: "csv"
-    rhoai:
-      base: "quay.io/rhoai/odh-maas-discovery-rhel9"
-      digest: "sha256:e237b378f6ebfd5141c9b2e20741139fb52370967da2e53e84a25d296be07dc6"
   RELATED_IMAGE_ODH_OPENSHELL_GATEWAY_IMAGE:
     source: "csv"
     rhoai:
