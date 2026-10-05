@@ -349,6 +349,11 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			getObject(gvk.GatewayConfig),
 			handler.EnqueueRequestsFromMapFunc(r.watchGatewayConfigResource),
 		).
+		Watches(
+			getObject(gvk.Platform),
+			handler.EnqueueRequestsFromMapFunc(r.watchPlatformResource),
+			builder.WithPredicates(rp.PlatformDeletionPredicate()),
+		).
 		Watches( // HWP: temporary for VAP/VAPB, should be removed in v3.3.
 			getObject(gvk.CustomResourceDefinition),
 			handler.EnqueueRequestsFromMapFunc(r.reconcileOnCRDChange),
@@ -441,6 +446,22 @@ func (r *DSCInitializationReconciler) watchMonitoringResource(ctx context.Contex
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
 	}
 
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: dsci.Name}}}
+}
+
+func (r *DSCInitializationReconciler) watchPlatformResource(ctx context.Context, _ client.Object) []reconcile.Request {
+	dsci, err := cluster.GetDSCI(ctx, r.Client)
+	if err != nil {
+		// Controller-runtime silently drops mapper errors, while reconcile
+		// errors are retried with backoff. If the DSCI lookup fails when a
+		// Platform deletion event fires, enqueue the operator-created
+		// singleton (CreateDefaultDSCI uses this name) so the lookup is
+		// retried instead of losing the event, mirroring
+		// watchMonitoringResource and reconcileOnCRDChange. A missing DSCI
+		// resolves to a harmless no-op reconcile.
+		logf.FromContext(ctx).V(1).Info("failed to get DSCI for Platform watch, triggering default-dsci reconciliation as fallback", "error", err)
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
+	}
 	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: dsci.Name}}}
 }
 
@@ -581,8 +602,8 @@ func (r *DSCInitializationReconciler) reconcileOnCRDChange(ctx context.Context, 
 // reconcileDSCIModules creates/updates DSCI-owned fields on the Platform CR
 // and provisions module CRs whose configuration comes from the DSCI spec
 // (e.g. Monitoring). SSA apply only includes ConfigFromDSCI fields so DSC-owned
-// modules are not overwritten. Platform ownership is merged separately because
-// the Platform is shared with the DSC controller.
+// modules are not overwritten. Platform ownership is updated separately so
+// DSCI remains its sole, stable lifecycle owner.
 func (r *DSCInitializationReconciler) reconcileDSCIModules(ctx context.Context, instance *dsciv2.DSCInitialization) error {
 	log := logf.FromContext(ctx)
 
@@ -594,8 +615,8 @@ func (r *DSCInitializationReconciler) reconcileDSCIModules(ctx context.Context, 
 	if err := resources.Apply(ctx, r.Client, platform, client.FieldOwner(fieldManager), client.ForceOwnership); err != nil {
 		return fmt.Errorf("failed to apply Platform CR: %w", err)
 	}
-	if err := modules.EnsurePlatformOwnerReference(ctx, r.Client, instance, r.Scheme); err != nil {
-		return fmt.Errorf("failed to update Platform owner reference: %w", err)
+	if err := modules.EnsurePlatformLifecycleOwnerReference(ctx, r.Client, instance, r.Scheme); err != nil {
+		return fmt.Errorf("failed to update Platform lifecycle owner reference: %w", err)
 	}
 
 	return modules.ForConfigSource(modules.ConfigFromDSCI, func(handler modules.ModuleHandler, _ bool) error {
