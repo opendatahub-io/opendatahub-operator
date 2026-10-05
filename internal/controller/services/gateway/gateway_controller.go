@@ -19,7 +19,6 @@ package gateway
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -46,7 +45,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	metadatalabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 // gatewayCRDWatchPredicate matches CRD events that must re-trigger a GatewayConfig reconcile:
@@ -107,17 +105,6 @@ func gatewayCertManagerPrecondition() precondition.PreCondition {
 	)
 }
 
-var defaultGatewayGCObjectPredicate = gc.DefaultObjectPredicate(metadatalabels.ODHPlatformPrefix)
-
-func gatewayGCObjectPredicate(rr *odhtypes.ReconciliationRequest, obj unstructured.Unstructured) (bool, error) {
-	if cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes &&
-		obj.GroupVersionKind() == gvk.Route && obj.GetNamespace() == GetGatewayNamespace() &&
-		strings.HasPrefix(obj.GetName(), additionalIngressRouteNamePrefix) {
-		return false, nil
-	}
-	return defaultGatewayGCObjectPredicate(rr, obj)
-}
-
 func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	gw := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{})
 	// special for ROSA: auth is defined in day0 and OAuth not registered in apiserver
@@ -140,6 +127,8 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
 		OwnsGVK(gvk.DestinationRule, reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
 		OwnsGVK(gvk.CertManagerCertificate, reconciler.Dynamic(reconciler.CrdExists(gvk.CertManagerCertificate))).
+		// Only the default provider Service is read to detect an unset ingress mode.
+		// Additional provider Services do not affect reconciliation or readiness.
 		Watches(
 			&corev1.Service{},
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
@@ -174,25 +163,18 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 				handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(gatewayCRDWatchPredicate()),
 		).
-		// Watch for Gateway certificates and GatewayConfig-referenced OIDC/provider CA secrets.
+		// Watch Gateway certificates, referenced secrets, and XKS cert-manager TLS Secrets.
 		Watches(
 			&corev1.Secret{},
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
-			reconciler.WithPredicates(
+			reconciler.WithPredicates(predicate.Or(
 				resources.GatewayCertificateSecret(func(obj client.Object) bool {
 					return isGatewayCertificateOrReferencedSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
 				}),
-			),
-		).
-		// Reconcile when cert-manager creates, updates, or removes an XKS TLS Secret.
-		Watches(
-			&corev1.Secret{},
-			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
-			reconciler.WithPredicates(
 				resources.GatewayCertificateSecret(func(obj client.Object) bool {
 					return IsXKSCertManagerSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
 				}),
-			),
+			)),
 		).
 		Watches(
 			&gwapiv1.HTTPRoute{},
@@ -230,16 +212,11 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
-		// GC does not compare desired resources, so Service or IngressController changes
-		// can leave an obsolete Route behind without a GatewayConfig generation change.
-		WithAction(cleanupAdditionalIngressRoutes).
 		WithAction(syncAdditionalIngressReadiness).
 		WithAction(syncGatewayConfigStatus).
-		// GC checks annotations, not rr.Resources. Bridge Routes have their
-		// own cleanup; default and dashboard Routes still use normal GC.
-		WithAction(gc.NewAction(gc.WithObjectPredicate(gatewayGCObjectPredicate))).
+		WithAction(gc.NewAction()).
 		WithPostStatusFn(syncAdditionalIngressReadyStatuses).
-		WithConditions(ReadyConditionType)
+		WithConditions(ReadyConditionType, serviceApi.AdditionalGatewaysReadyConditionType)
 
 	if _, err := gw.Build(ctx); err != nil {
 		return fmt.Errorf("could not create the GatewayConfig controller: %w", err)

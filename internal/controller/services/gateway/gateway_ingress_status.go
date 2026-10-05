@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -26,25 +27,25 @@ import (
 
 const (
 	additionalIngressReasonDependencyUnavailable = "DependencyUnavailable"
-	additionalIngressReasonConfigurationInvalid  = "ConfigurationInvalid"
 	additionalIngressReasonOwnershipConflict     = "OwnershipConflict"
+	additionalIngressReasonHostnameConflict      = "HostnameConflict"
 	additionalIngressReasonStatusReadFailed      = "StatusReadFailed"
 	additionalIngressReasonStatusUnavailable     = "StatusUnavailable"
 	additionalIngressReasonNotReady              = "NotReady"
 	additionalIngressReasonReady                 = "Ready"
 	additionalIngressReasonMultipleControllers   = "MultipleIngressControllers"
-	additionalIngressRouteServicesKey            = "gateway/additional-ingress-route-services"
+	additionalIngressReasonNoAdditionalGateways  = "NoAdditionalGateways"
 )
 
 var additionalIngressConditionTypes = []string{
-	serviceApi.AdditionalIngressListenerReadyConditionType,
+	serviceApi.AdditionalIngressGatewayReadyConditionType,
 	serviceApi.AdditionalIngressRouteAdmittedConditionType,
 	serviceApi.AdditionalIngressAuthenticationReadyConditionType,
 	serviceApi.AdditionalIngressReadyConditionType,
 }
 
-// syncAdditionalIngressStatus inventories configured ingresses before the
-// reconciliation actions report their per-ingress conditions.
+// syncAdditionalIngressStatus inventories configured ingresses before actions
+// report their per-ingress conditions.
 func syncAdditionalIngressStatus(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	gatewayConfig, err := validateGatewayConfig(rr)
 	if err != nil {
@@ -55,19 +56,46 @@ func syncAdditionalIngressStatus(_ context.Context, rr *odhtypes.ReconciliationR
 		gatewayConfig.Status.AdditionalIngresses,
 		gatewayConfig.Generation,
 	)
+	updateAdditionalGatewaysReadyCondition(rr, gatewayConfig)
 	return nil
 }
 
-func additionalIngressRouteServices(rr *odhtypes.ReconciliationRequest) map[string]string {
-	if rr.Extensions == nil {
-		rr.Extensions = make(map[string]any)
+// updateAdditionalGatewaysReadyCondition uses the recorded GatewayReady conditions,
+// before the reconciler computes overall Ready and phase.
+func updateAdditionalGatewaysReadyCondition(rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) {
+	var failed, pending []string
+	for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
+		status := additionalIngressStatusByName(gatewayConfig, ingress.Name)
+		var condition *common.Condition
+		if status != nil {
+			condition = conditions.FindStatusCondition(status, serviceApi.AdditionalIngressGatewayReadyConditionType)
+		}
+		switch {
+		case condition == nil || condition.ObservedGeneration != gatewayConfig.Generation:
+			pending = append(pending, ingress.Name)
+		case condition.Status == metav1.ConditionFalse:
+			failed = append(failed, ingress.Name)
+		case condition.Status != metav1.ConditionTrue:
+			pending = append(pending, ingress.Name)
+		}
 	}
-	if services, ok := rr.Extensions[additionalIngressRouteServicesKey].(map[string]string); ok && services != nil {
-		return services
+
+	conditionStatus := metav1.ConditionTrue
+	reason, message := additionalIngressReasonReady, "All additional Gateways are ready"
+	switch {
+	case len(failed) > 0:
+		conditionStatus = metav1.ConditionFalse
+		reason, message = additionalIngressReasonNotReady, "Additional Gateways are not ready: "+strings.Join(failed, ", ")
+	case len(pending) > 0:
+		conditionStatus = metav1.ConditionUnknown
+		reason, message = serviceApi.AdditionalIngressReconciliationPendingReason, "Additional Gateway readiness is pending: "+strings.Join(pending, ", ")
+	case len(gatewayConfig.Spec.AdditionalIngresses) == 0:
+		reason, message = additionalIngressReasonNoAdditionalGateways, "No additional Gateways are configured"
 	}
-	services := make(map[string]string)
-	rr.Extensions[additionalIngressRouteServicesKey] = services
-	return services
+	rr.Conditions.Mark(serviceApi.AdditionalGatewaysReadyConditionType, conditionStatus,
+		conditions.WithReason(reason), conditions.WithMessage(message),
+		conditions.WithObservedGeneration(gatewayConfig.Generation),
+		conditions.WithSeverity(common.ConditionSeverityError))
 }
 
 func recordAdditionalIngressRouteCondition(
@@ -117,43 +145,49 @@ func syncAdditionalIngressReadiness(ctx context.Context, rr *odhtypes.Reconcilia
 	if err != nil {
 		return err
 	}
+	defer updateAdditionalGatewaysReadyCondition(rr, gatewayConfig)
 	if len(gatewayConfig.Spec.AdditionalIngresses) == 0 {
 		return nil
 	}
 
 	l := logf.FromContext(ctx).WithName("syncAdditionalIngressReadiness")
-	services := additionalIngressRouteServices(rr)
-	gateway := &gwapiv1.Gateway{}
-	gatewayErr := rr.Client.Get(ctx, types.NamespacedName{
-		Name: GetDefaultGatewayName(), Namespace: GetGatewayNamespace(),
-	}, gateway)
-	retry := gatewayErr != nil && !k8serr.IsNotFound(gatewayErr)
-	if retry {
-		l.Error(gatewayErr, "Failed to read Gateway status for additional ingress listeners")
-	}
+	retry := false
 
 	for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
 		status := additionalIngressStatusByName(gatewayConfig, ingress.Name)
-		if status == nil {
+		if status == nil || additionalIngressHasGatewayConflict(gatewayConfig, ingress.Name) {
 			continue
 		}
 
+		gatewayName := ingress.Name
+		gateway := &gwapiv1.Gateway{}
+		gatewayErr := rr.Client.Get(ctx, types.NamespacedName{
+			Name: gatewayName, Namespace: GetGatewayNamespace(),
+		}, gateway)
 		switch {
 		case k8serr.IsNotFound(gatewayErr):
 			setAdditionalIngressCondition(status, gatewayConfig.Generation,
-				serviceApi.AdditionalIngressListenerReadyConditionType, metav1.ConditionFalse,
-				additionalIngressReasonDependencyUnavailable, "The shared Gateway does not exist")
+				serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionUnknown,
+				serviceApi.AdditionalIngressReconciliationPendingReason,
+				fmt.Sprintf("Gateway %q has not been observed yet", gatewayName))
 		case gatewayErr != nil:
+			l.Error(gatewayErr, "Failed to read additional Gateway status", "gateway", gatewayName)
 			setAdditionalIngressCondition(status, gatewayConfig.Generation,
-				serviceApi.AdditionalIngressListenerReadyConditionType, metav1.ConditionUnknown,
-				additionalIngressReasonStatusReadFailed, "The shared Gateway status could not be read")
+				serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionUnknown,
+				additionalIngressReasonStatusReadFailed, "The additional Gateway status could not be read")
+			retry = true
 		default:
-			conditions.SetStatusCondition(status, additionalIngressListenerCondition(
-				gateway, ingress.Name, gatewayConfig.Generation,
-			))
+			conditionStatus := metav1.ConditionFalse
+			reason, message := additionalIngressReasonNotReady, fmt.Sprintf("Gateway %q is not accepted", gatewayName)
+			if isGatewayReady(gateway) {
+				conditionStatus = metav1.ConditionTrue
+				reason, message = additionalIngressReasonReady, fmt.Sprintf("Gateway %q is accepted", gatewayName)
+			}
+			setAdditionalIngressCondition(status, gatewayConfig.Generation,
+				serviceApi.AdditionalIngressGatewayReadyConditionType, conditionStatus, reason, message)
 		}
 
-		if err := syncAdditionalIngressRouteReadiness(ctx, rr, gatewayConfig, ingress, services[ingress.Name], status); err != nil {
+		if err := syncAdditionalIngressRouteReadiness(ctx, rr, gatewayConfig, ingress, status); err != nil {
 			l.Error(err, "Failed to read additional ingress Route status", "ingress", ingress.Name)
 			retry = true
 		}
@@ -176,114 +210,18 @@ func routeHasLabels(actual, required map[string]string) bool {
 	return true
 }
 
-func additionalIngressListenerCondition(
-	gateway *gwapiv1.Gateway,
-	listenerName string,
-	generation int64,
-) common.Condition {
-	condition := func(status metav1.ConditionStatus, reason, message string) common.Condition {
-		return common.Condition{
-			Type:               serviceApi.AdditionalIngressListenerReadyConditionType,
-			Status:             status,
-			ObservedGeneration: generation,
-			Reason:             reason,
-			Message:            message,
-		}
-	}
-
-	configured := false
-	for _, listener := range gateway.Spec.Listeners {
-		if string(listener.Name) == listenerName {
-			configured = true
-			break
-		}
-	}
-	if !configured {
-		return condition(metav1.ConditionFalse, additionalIngressReasonNotReady,
-			fmt.Sprintf("Gateway listener %q is not configured", listenerName))
-	}
-
-	var listenerStatus *gwapiv1.ListenerStatus
-	for i := range gateway.Status.Listeners {
-		if string(gateway.Status.Listeners[i].Name) == listenerName {
-			listenerStatus = &gateway.Status.Listeners[i]
-			break
-		}
-	}
-	if listenerStatus == nil {
-		return condition(metav1.ConditionUnknown, serviceApi.AdditionalIngressReconciliationPendingReason,
-			fmt.Sprintf("Gateway has not reported status for listener %q", listenerName))
-	}
-
-	requiredConditions := []gwapiv1.ListenerConditionType{
-		gwapiv1.ListenerConditionAccepted,
-		gwapiv1.ListenerConditionResolvedRefs,
-		gwapiv1.ListenerConditionProgrammed,
-	}
-	var failedCondition *metav1.Condition
-	var pendingReason, pendingMessage string
-	pending := false
-	for _, conditionType := range requiredConditions {
-		observed := meta.FindStatusCondition(listenerStatus.Conditions, string(conditionType))
-		if observed == nil {
-			if !pending {
-				pending = true
-				pendingReason = serviceApi.AdditionalIngressReconciliationPendingReason
-				pendingMessage = fmt.Sprintf("Gateway has not reported %s for listener %q", conditionType, listenerName)
-			}
-			continue
-		}
-		if observed.ObservedGeneration != gateway.Generation {
-			if !pending {
-				pending = true
-				pendingReason = serviceApi.AdditionalIngressReconciliationPendingReason
-				pendingMessage = fmt.Sprintf("Gateway listener %q status has not observed the current Gateway generation", listenerName)
-			}
-			continue
-		}
-		if observed.Status == metav1.ConditionFalse && failedCondition == nil {
-			failedCondition = observed
-		}
-		if observed.Status != metav1.ConditionTrue && !pending {
-			pending = true
-			pendingReason = serviceApi.AdditionalIngressReconciliationPendingReason
-			pendingMessage = fmt.Sprintf("Gateway listener %q has not reported %s as ready", listenerName, conditionType)
-			if details := conditionDetails(observed.Reason, observed.Message); details != "" {
-				pendingMessage += ": " + details
-			}
-		}
-	}
-	if failedCondition != nil {
-		message := fmt.Sprintf("Gateway listener %q condition %s is False", listenerName, failedCondition.Type)
-		if details := conditionDetails(failedCondition.Reason, failedCondition.Message); details != "" {
-			message += ": " + details
-		}
-		return condition(metav1.ConditionFalse, additionalIngressReasonNotReady, message)
-	}
-	if pending {
-		return condition(metav1.ConditionUnknown,
-			firstNonEmpty(pendingReason, serviceApi.AdditionalIngressReconciliationPendingReason),
-			firstNonEmpty(pendingMessage, fmt.Sprintf("Gateway listener %q readiness is pending", listenerName)))
-	}
-	return condition(metav1.ConditionTrue, additionalIngressReasonReady,
-		fmt.Sprintf("Gateway listener %q is accepted, programmed, and has resolved references", listenerName))
-}
-
 func syncAdditionalIngressRouteReadiness(
 	ctx context.Context,
 	rr *odhtypes.ReconciliationRequest,
 	gatewayConfig *serviceApi.GatewayConfig,
 	ingress serviceApi.AdditionalIngress,
-	serviceName string,
 	ingressStatus *serviceApi.AdditionalIngressStatus,
 ) error {
-	if serviceName == "" {
-		return nil
-	}
+	serviceName := GetGatewayServiceFullName(ingress.Name)
 
 	route := &routev1.Route{}
 	routeKey := client.ObjectKey{
-		Name: GetAdditionalIngressRouteName(ingress.Name), Namespace: GetGatewayNamespace(),
+		Name: ingress.Name, Namespace: GetGatewayNamespace(),
 	}
 	err := rr.Client.Get(ctx, routeKey, route)
 	if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
@@ -306,12 +244,12 @@ func syncAdditionalIngressRouteReadiness(
 		return nil
 	}
 	if route.Spec.Host != ingress.Hostname || route.Spec.To.Name != serviceName ||
-		route.Spec.Port == nil || route.Spec.Port.TargetPort.IntVal != ingress.ListenerPort ||
+		route.Spec.Port == nil || route.Spec.Port.TargetPort != intstr.FromInt(StandardHTTPSPort) ||
 		!routeHasLabels(route.Labels, gatewayRouteLabels(ingress.RouteLabels)) {
 		setAdditionalIngressCondition(ingressStatus, gatewayConfig.Generation,
 			serviceApi.AdditionalIngressRouteAdmittedConditionType, metav1.ConditionFalse,
 			additionalIngressReasonNotReady,
-			fmt.Sprintf("Route %q does not match the configured hostname, Service, listener port, or labels", route.Name))
+			fmt.Sprintf("Route %q does not match the configured hostname, Service, HTTPS port, or labels", route.Name))
 		return nil
 	}
 
@@ -350,9 +288,9 @@ func additionalIngressRouteCondition(
 	var reason, message string
 	switch {
 	case targetAdmission == nil:
-		status = metav1.ConditionUnknown
-		reason = serviceApi.AdditionalIngressReconciliationPendingReason
-		message = fmt.Sprintf("Waiting for IngressController %q to report Route admission", ingress.IngressControllerName)
+		status = metav1.ConditionFalse
+		reason = additionalIngressReasonNotReady
+		message = fmt.Sprintf("IngressController %q has not admitted the bridge Route", ingress.IngressControllerName)
 	case targetAdmission.Status == corev1.ConditionTrue:
 		status = metav1.ConditionTrue
 		reason = additionalIngressReasonReady
@@ -405,9 +343,8 @@ func markAuthenticationStatusUnavailable(status *serviceApi.AdditionalIngressSta
 
 func updateAdditionalIngressReadyCondition(status *serviceApi.AdditionalIngressStatus, generation int64) {
 	conditionTypes := []string{
-		serviceApi.AdditionalIngressListenerReadyConditionType,
+		serviceApi.AdditionalIngressGatewayReadyConditionType,
 		serviceApi.AdditionalIngressRouteAdmittedConditionType,
-		serviceApi.AdditionalIngressAuthenticationReadyConditionType,
 	}
 	var failed, pending *common.Condition
 	for _, conditionType := range conditionTypes {
@@ -444,7 +381,7 @@ func updateAdditionalIngressReadyCondition(status *serviceApi.AdditionalIngressS
 	default:
 		setAdditionalIngressCondition(status, generation, serviceApi.AdditionalIngressReadyConditionType,
 			metav1.ConditionTrue, additionalIngressReasonReady,
-			"Listener, Route, and authentication are ready")
+			"Gateway and Route are ready")
 	}
 }
 
@@ -478,6 +415,17 @@ func additionalIngressStatusByName(
 		}
 	}
 	return nil
+}
+
+func additionalIngressHasGatewayConflict(gatewayConfig *serviceApi.GatewayConfig, name string) bool {
+	status := additionalIngressStatusByName(gatewayConfig, name)
+	if status == nil {
+		return false
+	}
+	condition := conditions.FindStatusCondition(status, serviceApi.AdditionalIngressGatewayReadyConditionType)
+	return condition != nil && condition.ObservedGeneration == gatewayConfig.Generation &&
+		condition.Status == metav1.ConditionFalse &&
+		(condition.Reason == additionalIngressReasonOwnershipConflict || condition.Reason == additionalIngressReasonHostnameConflict)
 }
 
 func firstNonEmpty(values ...string) string {
@@ -514,8 +462,15 @@ func buildAdditionalIngressStatuses(
 		status := serviceApi.AdditionalIngressStatus{
 			Name:     spec.Name,
 			Hostname: spec.Hostname,
+			GatewayRef: serviceApi.GatewayReference{
+				Name: spec.Name, Namespace: GetGatewayNamespace(),
+			},
 		}
-		status.Conditions = currentAdditionalIngressConditions(previousByName[spec.Name].Conditions, generation)
+		previousStatus := previousByName[spec.Name]
+		if previousStatus.GatewayRef != status.GatewayRef {
+			previousStatus.Conditions = nil
+		}
+		status.Conditions = currentAdditionalIngressConditions(previousStatus.Conditions, generation)
 		statuses = append(statuses, status)
 	}
 

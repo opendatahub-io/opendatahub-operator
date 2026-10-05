@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -72,6 +73,42 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		}
 		return err
 	}
+	if len(gatewayConfig.Spec.AdditionalIngresses) > 0 {
+		legacyHostname := computeLegacyRedirectInfo(gatewayConfig, hostname).LegacyHostname
+		for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
+			var conflictReason, conflictMessage string
+			if strings.EqualFold(ingress.Hostname, hostname) || strings.EqualFold(ingress.Hostname, legacyHostname) {
+				conflictReason = additionalIngressReasonHostnameConflict
+				conflictMessage = fmt.Sprintf("additional ingress %q hostname %q conflicts with a managed Gateway hostname", ingress.Name, ingress.Hostname)
+			} else {
+				manageable, err := canManageGatewayResource(ctx, rr.Client, gatewayConfig, &gwapiv1.Gateway{ObjectMeta: metav1.ObjectMeta{
+					Name: ingress.Name, Namespace: GetGatewayNamespace(),
+				}})
+				if err != nil {
+					return fmt.Errorf("failed to validate additional Gateway %q ownership: %w", ingress.Name, err)
+				}
+				if !manageable {
+					conflictReason = additionalIngressReasonOwnershipConflict
+					conflictMessage = fmt.Sprintf("additional Gateway %q already exists and is not owned by GatewayConfig %q", ingress.Name, gatewayConfig.Name)
+				}
+			}
+			if conflictReason != "" {
+				if status := additionalIngressStatusByName(gatewayConfig, ingress.Name); status != nil {
+					setAdditionalIngressCondition(status, gatewayConfig.Generation,
+						serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionFalse,
+						conflictReason, conflictMessage)
+					updateAdditionalIngressReadyCondition(status, gatewayConfig.Generation)
+				}
+				updateAdditionalGatewaysReadyCondition(rr, gatewayConfig)
+				continue
+			}
+			if additionalIngressHasGatewayConflict(gatewayConfig, ingress.Name) {
+				setAdditionalIngressCondition(additionalIngressStatusByName(gatewayConfig, ingress.Name), gatewayConfig.Generation,
+					serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionUnknown,
+					serviceApi.AdditionalIngressReconciliationPendingReason, "Gateway conflict has been resolved")
+			}
+		}
+	}
 
 	// Handle ingress mode changes by deleting Gateway if configuration doesn't match.
 	// This is necessary because SSA doesn't remove fields that are omitted from the desired object.
@@ -97,8 +134,7 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 	// Compute legacy hostname for LoadBalancer mode (needs second listener)
 	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
 
-	if err := createGateway(rr, certSecretName, hostname, legacyInfo.LegacyHostname,
-		gatewayConfig.Spec.IngressMode, gatewayConfig.Spec.AdditionalIngresses); err != nil {
+	if err := createGateway(ctx, rr, certSecretName, hostname, legacyInfo.LegacyHostname, gatewayConfig); err != nil {
 		return fmt.Errorf("failed to create Gateway: %w", err)
 	}
 
@@ -395,13 +431,14 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 	// Compute legacy redirect info for template
 	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
+	gatewayFilters := gatewayEnvoyFilterTargets(gatewayConfig)
 
 	templateData := map[string]any{
 		"IsOpenShift":              cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes,
 		"GatewayNamespace":         GetGatewayNamespace(),
 		"GatewayName":              GetDefaultGatewayName(),
 		"GatewayHostname":          hostname,
-		"GatewayServiceName":       GetGatewayServiceFullName(),
+		"GatewayServiceName":       GetDefaultGatewayServiceFullName(),
 		"KubeAuthProxyServiceName": KubeAuthProxyName,
 		"KubeAuthProxySecretsName": KubeAuthProxySecretsName,
 		"KubeAuthProxyTLSName":     KubeAuthProxyTLSName,
@@ -415,7 +452,6 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"AuthProxyCookieName":      AuthProxyCookieName,
 		"TLSCertsVolumeName":       TLSCertsVolumeName,
 		"TLSCertsMountPath":        TLSCertsMountPath,
-		"EnvoyFilter":              AuthnFilterName,
 		"RedirectURL":              fmt.Sprintf("https://%s%s", hostname, OAuthCallbackPath),
 		"DestinationRuleName":      DestinationRuleName,
 		"CookieExpire":             cookieExpire,
@@ -430,6 +466,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"IstioRevisionValue":       GetIstioRevisionValue(),
 		"PartOfGatewayConfig":      PartOfGatewayConfig,
 		"GatewayNameLabelKey":      labels.GatewayAPI.GatewayName,
+		"GatewayFilters":           gatewayFilters,
 		"LegacySubdomain":          legacyInfo.LegacySubdomain,
 		"LegacyHostname":           legacyInfo.LegacyHostname,
 		"RouteLabels":              gatewayRouteLabels(nil),

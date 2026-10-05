@@ -1269,18 +1269,28 @@ func TestGatewayProviderService(t *testing.T) {
 		Namespace: "my-namespace",
 		Labels:    map[string]string{metadatalabels.GatewayAPI.GatewayName: "my-gateway"},
 	}}
-	nonMatching := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
-		Namespace: "my-namespace",
-		Labels:    map[string]string{metadatalabels.GatewayAPI.GatewayName: "other-gateway"},
-	}}
+	otherGateway := matching.DeepCopy()
+	otherGateway.Labels[metadatalabels.GatewayAPI.GatewayName] = "other-gateway"
 
 	g := NewWithT(t)
 	g.Expect(predicate.Create(event.CreateEvent{Object: matching})).To(BeTrue())
 	g.Expect(predicate.Delete(event.DeleteEvent{Object: matching})).To(BeTrue())
 	g.Expect(predicate.Generic(event.GenericEvent{Object: matching})).To(BeTrue())
-	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: matching, ObjectNew: nonMatching})).To(BeTrue())
-	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: nonMatching, ObjectNew: matching})).To(BeTrue())
-	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: nonMatching, ObjectNew: nonMatching})).To(BeFalse())
+	g.Expect(predicate.Create(event.CreateEvent{Object: otherGateway})).To(BeFalse())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: matching, ObjectNew: otherGateway})).To(BeTrue())
+
+	unlabeled := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Namespace: "my-namespace"}}
+	g.Expect(predicate.Create(event.CreateEvent{Object: unlabeled})).To(BeFalse())
+	g.Expect(predicate.Create(event.CreateEvent{})).To(BeFalse())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: matching, ObjectNew: unlabeled})).To(BeTrue())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: unlabeled, ObjectNew: matching})).To(BeTrue())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: unlabeled, ObjectNew: unlabeled})).To(BeFalse())
+	wrongNamespace := matching.DeepCopy()
+	wrongNamespace.Namespace = "other-namespace"
+	g.Expect(predicate.Create(event.CreateEvent{Object: wrongNamespace})).To(BeFalse())
+	emptyLabel := matching.DeepCopy()
+	emptyLabel.Labels[metadatalabels.GatewayAPI.GatewayName] = ""
+	g.Expect(predicate.Create(event.CreateEvent{Object: emptyLabel})).To(BeFalse())
 }
 
 func TestAPIServerTLSSecurityProfileChanged(t *testing.T) {

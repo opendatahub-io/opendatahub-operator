@@ -25,43 +25,23 @@ package gateway
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"strings"
 	gotemplate "text/template"
-	"time"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
-	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	metadatalabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	templateutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/template"
 )
 
-// GatewayServiceFullName is the name of the auto-created Gateway service.
-// Format: <gateway-name>-<gatewayclass-name>.
-var GatewayServiceFullName = DefaultGatewayName + "-" + GatewayClassName
-
 const (
-	additionalIngressRouteNamePrefix = "gateway-additional-"
-	additionalIngressRouteHashLength = 8
-	serviceCAAnnotation              = "router.openshift.io/service-ca-certificate"
+	serviceCAAnnotation = "router.openshift.io/service-ca-certificate"
 )
 
 // createOCPRoutes adds OCP Route template when in OcpRoute mode.
@@ -101,7 +81,7 @@ func createOCPRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		},
 	)
 
-	if err := createAdditionalIngressRoutes(ctx, rr, gatewayConfig.Spec.AdditionalIngresses); err != nil {
+	if err := createAdditionalIngressRoutes(ctx, rr, gatewayConfig); err != nil {
 		return err
 	}
 
@@ -111,100 +91,32 @@ func createOCPRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 func createAdditionalIngressRoutes(
 	ctx context.Context,
 	rr *odhtypes.ReconciliationRequest,
-	ingresses serviceApi.AdditionalIngresses,
+	gatewayConfig *serviceApi.GatewayConfig,
 ) error {
+	ingresses := gatewayConfig.Spec.AdditionalIngresses
 	if len(ingresses) == 0 {
 		return nil
 	}
 
 	l := logf.FromContext(ctx).WithName("createAdditionalIngressRoutes")
-	services := additionalIngressRouteServices(rr)
-
-	gatewayService, serviceUnavailableMessage, err := findGatewayService(ctx, rr.Client)
-	if err != nil {
-		recordAllAdditionalIngressRouteConditions(rr, ingresses,
-			additionalIngressReasonStatusReadFailed, "Shared Gateway Service could not be inspected")
-		l.Error(err, "Failed to inspect shared Gateway Service; skipping additional ingress Routes")
-		return odherrors.NewRequeueAfterError(30 * time.Second)
-	}
-	if gatewayService == nil {
-		l.Info("Skipping additional ingress Routes because shared Gateway Service is unavailable", "message", serviceUnavailableMessage)
-		recordAllAdditionalIngressRouteConditions(rr, ingresses,
-			additionalIngressReasonDependencyUnavailable, serviceUnavailableMessage)
-		return nil
-	}
-
-	gatewayNamespace := &corev1.Namespace{}
-	if err := rr.Client.Get(ctx, client.ObjectKey{Name: GetGatewayNamespace()}, gatewayNamespace); err != nil {
-		if k8serr.IsNotFound(err) {
-			l.Info("Skipping additional ingress Routes because Gateway namespace is unavailable",
-				"namespace", GetGatewayNamespace())
-			recordAllAdditionalIngressRouteConditions(rr, ingresses,
-				additionalIngressReasonDependencyUnavailable, "Gateway namespace is not available yet")
-			return nil
-		}
-		recordAllAdditionalIngressRouteConditions(rr, ingresses,
-			additionalIngressReasonStatusReadFailed, "Gateway namespace could not be inspected")
-		l.Error(err, "Failed to get Gateway namespace; skipping additional ingress Routes", "namespace", GetGatewayNamespace())
-		return odherrors.NewRequeueAfterError(30 * time.Second)
-	}
-
-	ingressControllers := &operatorv1.IngressControllerList{}
-	if err := rr.Client.List(ctx, ingressControllers,
-		client.InNamespace(cluster.IngressControllerName.Namespace),
-	); err != nil {
-		recordAllAdditionalIngressRouteConditions(rr, ingresses,
-			additionalIngressReasonStatusReadFailed, "IngressControllers could not be inspected")
-		l.Error(err, "Failed to list IngressControllers; skipping additional ingress Routes")
-		return odherrors.NewRequeueAfterError(30 * time.Second)
-	}
-
-	controllersByName := make(map[string]*operatorv1.IngressController, len(ingressControllers.Items))
-	for i := range ingressControllers.Items {
-		controller := &ingressControllers.Items[i]
-		controllersByName[controller.Name] = controller
-	}
-
-	retry := false
 	for _, ingress := range ingresses {
-		_, found := controllersByName[ingress.IngressControllerName]
-		if !found {
-			l.Info("Skipping additional ingress Route because target IngressController is unavailable",
-				"ingress", ingress.Name, "ingressController", ingress.IngressControllerName)
-			rejectAdditionalIngressRoute(rr, ingress.Name,
-				additionalIngressReasonDependencyUnavailable,
-				fmt.Sprintf("Target IngressController %q was not found", ingress.IngressControllerName))
+		if additionalIngressHasGatewayConflict(gatewayConfig, ingress.Name) {
 			continue
 		}
-
-		if !serviceExposesIngressPort(gatewayService, ingress.ListenerPort) {
-			l.Info("Skipping additional ingress Route because shared Gateway Service does not expose listener port",
-				"ingress", ingress.Name, "listenerPort", ingress.ListenerPort, "service", gatewayService.Name)
-			rejectAdditionalIngressRoute(rr, ingress.Name,
-				additionalIngressReasonConfigurationInvalid,
-				fmt.Sprintf("Shared Gateway Service %q does not expose listener port %d", gatewayService.Name, ingress.ListenerPort))
-			continue
-		}
-
-		route, err := buildAdditionalIngressRoute(ingress, gatewayService)
+		route, err := buildAdditionalIngressRoute(ingress)
 		if err != nil {
 			recordAdditionalIngressRouteCondition(rr, ingress.Name, metav1.ConditionUnknown,
 				additionalIngressReasonNotReady, "The bridge Route could not be rendered")
 			return fmt.Errorf("failed to render additional ingress Route for %q: %w", ingress.Name, err)
 		}
-		manageable, err := canManageAdditionalIngressRoute(ctx, rr, route)
+		manageable, err := canManageGatewayResource(ctx, rr.Client, gatewayConfig, route)
 		if err != nil {
-			l.Info("Skipping additional ingress Route because existing Route ownership could not be verified",
-				"ingress", ingress.Name, "error", err)
-			recordAdditionalIngressRouteCondition(rr, ingress.Name, metav1.ConditionUnknown,
-				additionalIngressReasonStatusReadFailed, "Existing bridge Route ownership could not be verified")
-			retry = true
-			continue
+			return fmt.Errorf("failed to verify additional ingress Route %q ownership: %w", route.Name, err)
 		}
 		if !manageable {
 			l.Info("Skipping additional ingress Route because existing Route is not owned by GatewayConfig",
 				"ingress", ingress.Name, "route", route.Name)
-			rejectAdditionalIngressRoute(rr, ingress.Name,
+			recordAdditionalIngressRouteCondition(rr, ingress.Name, metav1.ConditionFalse,
 				additionalIngressReasonOwnershipConflict,
 				fmt.Sprintf("Route %q is not controlled by this GatewayConfig", route.Name))
 			continue
@@ -214,181 +126,44 @@ func createAdditionalIngressRoutes(
 				additionalIngressReasonNotReady, "The bridge Route could not be added to the desired resources")
 			return fmt.Errorf("failed to add additional ingress Route for %q: %w", ingress.Name, err)
 		}
-		services[ingress.Name] = gatewayService.Name
-	}
-
-	if retry {
-		return odherrors.NewRequeueAfterError(30 * time.Second)
 	}
 	return nil
 }
 
-func rejectAdditionalIngressRoute(
-	rr *odhtypes.ReconciliationRequest,
-	ingressName, reason, message string,
-) {
-	recordAdditionalIngressRouteCondition(rr, ingressName, metav1.ConditionFalse, reason, message)
-}
-
-// cleanupAdditionalIngressRoutes deletes owned bridge Routes that were removed
-// from the spec or failed a confirmed configuration check. Unknown dependency
-// state retains the configured Route until it can be checked safely.
-func cleanupAdditionalIngressRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	if rr.SkipDeploy || cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
-		return nil
-	}
-	gatewayConfig, err := validateGatewayConfig(rr)
-	if err != nil {
-		return err
-	}
-
-	desiredRoutes := make(map[string]struct{})
-	if gatewayConfig.Spec.IngressMode == serviceApi.IngressModeOcpRoute {
-		services := additionalIngressRouteServices(rr)
-		for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
-			status := additionalIngressStatusByName(gatewayConfig, ingress.Name)
-			if status != nil {
-				condition := conditions.FindStatusCondition(status, serviceApi.AdditionalIngressRouteAdmittedConditionType)
-				if services[ingress.Name] == "" && condition != nil && condition.ObservedGeneration == gatewayConfig.Generation &&
-					condition.Status == metav1.ConditionFalse {
-					continue
-				}
-			}
-			desiredRoutes[GetAdditionalIngressRouteName(ingress.Name)] = struct{}{}
-		}
-	}
-
-	return cleanupStaleAdditionalIngressRoutes(ctx, rr, desiredRoutes)
-}
-
-func findGatewayService(ctx context.Context, cli client.Client) (*corev1.Service, string, error) {
-	gateway := &gwapiv1.Gateway{}
-	if err := cli.Get(ctx, client.ObjectKey{
-		Name:      GetDefaultGatewayName(),
-		Namespace: GetGatewayNamespace(),
-	}, gateway); err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil, "Shared Gateway does not exist yet", nil
-		}
-		return nil, "", fmt.Errorf("failed to get managed Gateway: %w", err)
-	}
-
-	services := &corev1.ServiceList{}
-	if err := cli.List(ctx, services,
-		client.InNamespace(GetGatewayNamespace()),
-		client.MatchingLabels{metadatalabels.GatewayAPI.GatewayName: GetDefaultGatewayName()},
-	); err != nil {
-		return nil, "", fmt.Errorf("failed to list shared Gateway Services: %w", err)
-	}
-
-	if len(services.Items) == 0 {
-		return nil, "No shared Gateway Service matches the managed Gateway yet", nil
-	}
-	if len(services.Items) > 1 {
-		return nil, fmt.Sprintf("Multiple shared Gateway Services (%d) match the managed Gateway", len(services.Items)), nil
-	}
-
-	service := &services.Items[0]
-	// Istio versions emit Gateway owner references as v1beta1 or v1 and may omit the controller bit.
-	// Match group, kind, name, and UID so this survives API version changes and rejects recreated Gateways.
-	hasGatewayOwner := false
-	for _, owner := range service.OwnerReferences {
-		ownerGroupVersion, err := schema.ParseGroupVersion(owner.APIVersion)
-		if err != nil || ownerGroupVersion.Group != gvk.KubernetesGateway.Group {
-			continue
-		}
-		if owner.Kind == gvk.KubernetesGateway.Kind && owner.Name == gateway.Name && owner.UID == gateway.UID {
-			hasGatewayOwner = true
-			break
-		}
-	}
-	if !hasGatewayOwner {
-		return nil, fmt.Sprintf("Shared Gateway Service %q is not owned by the managed Gateway", service.Name), nil
-	}
-	if service.Spec.ClusterIP == "" || service.Spec.ClusterIP == corev1.ClusterIPNone ||
-		(service.Spec.Type != "" && service.Spec.Type != corev1.ServiceTypeClusterIP) {
-		return nil, fmt.Sprintf("Shared Gateway Service %q is not a routable ClusterIP Service", service.Name), nil
-	}
-
-	return service, "", nil
-}
-
-func serviceExposesIngressPort(service *corev1.Service, listenerPort int32) bool {
-	for _, servicePort := range service.Spec.Ports {
-		if servicePort.Port == listenerPort {
-			return true
-		}
-	}
-	return false
-}
-
-func cleanupStaleAdditionalIngressRoutes(
+func canManageGatewayResource(
 	ctx context.Context,
-	rr *odhtypes.ReconciliationRequest,
-	desiredRoutes map[string]struct{},
-) error {
-	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
-	if !ok {
-		return nil
-	}
-
-	routes := &routev1.RouteList{}
-	if err := rr.Client.List(ctx, routes, client.InNamespace(GetGatewayNamespace())); err != nil {
-		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
-			return nil
-		}
-		return fmt.Errorf("failed to list additional ingress Routes for cleanup: %w", err)
-	}
-
-	for i := range routes.Items {
-		route := &routes.Items[i]
-		if !route.DeletionTimestamp.IsZero() || !strings.HasPrefix(route.Name, additionalIngressRouteNamePrefix) {
-			continue
-		}
-		if _, desired := desiredRoutes[route.Name]; desired || !isOwnedByGatewayConfig(route, gatewayConfig) {
-			continue
-		}
-		if err := rr.Client.Delete(ctx, route); err != nil && !k8serr.IsNotFound(err) {
-			return fmt.Errorf("failed to delete stale additional ingress Route %q: %w", route.Name, err)
-		}
-	}
-	return nil
-}
-
-func canManageAdditionalIngressRoute(
-	ctx context.Context,
-	rr *odhtypes.ReconciliationRequest,
-	desired *routev1.Route,
+	cli client.Client,
+	gatewayConfig *serviceApi.GatewayConfig,
+	desired client.Object,
 ) (bool, error) {
-	existing := &routev1.Route{}
-	err := rr.Client.Get(ctx, client.ObjectKeyFromObject(desired), existing)
+	existing, ok := desired.DeepCopyObject().(client.Object)
+	if !ok {
+		return false, fmt.Errorf("cannot copy resource %T", desired)
+	}
+	err := cli.Get(ctx, client.ObjectKeyFromObject(desired), existing)
 	if k8serr.IsNotFound(err) {
 		return true, nil
 	}
 	if err != nil {
-		return false, fmt.Errorf("failed to get existing bridge Route: %w", err)
+		return false, fmt.Errorf("failed to get existing resource %s: %w", client.ObjectKeyFromObject(desired), err)
 	}
 
-	gatewayConfig, err := validateGatewayConfig(rr)
-	if err != nil {
-		return false, err
-	}
 	return isOwnedByGatewayConfig(existing, gatewayConfig), nil
 }
 
-func isOwnedByGatewayConfig(route *routev1.Route, gatewayConfig *serviceApi.GatewayConfig) bool {
-	controller := metav1.GetControllerOf(route)
+func isOwnedByGatewayConfig(obj client.Object, gatewayConfig *serviceApi.GatewayConfig) bool {
+	controller := metav1.GetControllerOf(obj)
 	return controller != nil && controller.UID == gatewayConfig.UID &&
 		controller.Name == gatewayConfig.Name && controller.Kind == serviceApi.GatewayConfigKind
 }
 
-func buildAdditionalIngressRoute(ingress serviceApi.AdditionalIngress, service *corev1.Service) (*routev1.Route, error) {
+func buildAdditionalIngressRoute(ingress serviceApi.AdditionalIngress) (*routev1.Route, error) {
 	data := map[string]any{
-		"GatewayName":        GetAdditionalIngressRouteName(ingress.Name),
+		"GatewayName":        ingress.Name,
 		"GatewayNamespace":   GetGatewayNamespace(),
 		"GatewayHostname":    ingress.Hostname,
-		"GatewayServiceName": service.Name,
-		"StandardHTTPSPort":  ingress.ListenerPort,
+		"GatewayServiceName": GetGatewayServiceFullName(ingress.Name),
+		"StandardHTTPSPort":  StandardHTTPSPort,
 		"RouteLabels":        gatewayRouteLabels(ingress.RouteLabels),
 	}
 
@@ -414,16 +189,4 @@ func buildAdditionalIngressRoute(ingress serviceApi.AdditionalIngress, service *
 		return nil, fmt.Errorf("failed to decode Route template: %w", err)
 	}
 	return route, nil
-}
-
-// GetAdditionalIngressRouteName returns the stable Route name for an additional ingress.
-func GetAdditionalIngressRouteName(ingressName string) string {
-	digest := sha256.Sum256([]byte(ingressName))
-	hash := hex.EncodeToString(digest[:additionalIngressRouteHashLength/2])
-	maxIngressNameLength := 63 - len(additionalIngressRouteNamePrefix) - len(hash) - 1
-	name := ingressName
-	if len(name) > maxIngressNameLength {
-		name = strings.TrimRight(name[:maxIngressNameLength], "-")
-	}
-	return fmt.Sprintf("%s%s-%s", additionalIngressRouteNamePrefix, name, hash)
 }
