@@ -80,7 +80,12 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 	case admissionv1.Create:
 		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyUnsupportedWVA, denyMultipleDsc, v.warnDeprecatedModelsAsService}, allowMessage, v.Client, &req)
 	case admissionv1.Update:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyUnsupportedWVA, v.denyV1PatchWhenV2ComponentsManaged, v.warnDeprecatedModelsAsService}, allowMessage, v.Client, &req)
+		return validate(ctx, []validationCheck{
+			v.denyKueueManagedState,
+			v.denyUnsupportedWVA,
+			v.denyV1PatchWhenV2ComponentsManaged,
+			v.warnDeprecatedModelsAsService,
+		}, allowMessage, v.Client, &req)
 	default:
 		return admission.Allowed(allowMessage)
 	}
@@ -127,6 +132,7 @@ func (v *Validator) denyUnsupportedWVA(ctx context.Context, _ client.Reader, req
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
+	//nolint:staticcheck // SA1019: field is kept so existing objects still decode; Managed is rejected
 	return dscwebhook.WVAUnsupportedResponse(dcsV1.Spec.Components.Kserve.WVA.ManagementState)
 }
 

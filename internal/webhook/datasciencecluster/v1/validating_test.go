@@ -43,7 +43,7 @@ func TestDataScienceClusterV1_ValidatingWebhook(t *testing.T) {
 	}
 	withWVAState := func(state operatorv1.ManagementState) func(*dscv1.DataScienceCluster) {
 		return func(dsc *dscv1.DataScienceCluster) {
-			dsc.Spec.Components.Kserve.WVA.ManagementState = state
+			dsc.Spec.Components.Kserve.WVA.ManagementState = state //nolint:staticcheck // SA1019: testing the deprecated field
 		}
 	}
 
