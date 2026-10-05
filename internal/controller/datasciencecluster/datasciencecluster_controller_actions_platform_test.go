@@ -22,7 +22,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestSyncPlatformCRPreservesExistingOwner(t *testing.T) {
+func TestSyncPlatformCRDoesNotAddDSCOwner(t *testing.T) {
 	g := NewWithT(t)
 
 	s, err := testscheme.New()
@@ -50,18 +50,31 @@ func TestSyncPlatformCRPreservesExistingOwner(t *testing.T) {
 
 	foundPlatform := &configApi.Platform{}
 	g.Expect(cli.Get(t.Context(), client.ObjectKey{Name: configApi.PlatformInstanceName}, foundPlatform)).Should(Succeed())
-	g.Expect(foundPlatform.GetOwnerReferences()).Should(ContainElements(
+	g.Expect(foundPlatform.GetOwnerReferences()).Should(ConsistOf(
 		WithTransform(func(ref metav1.OwnerReference) types.UID { return ref.UID }, Equal(dsci.UID)),
-		WithTransform(func(ref metav1.OwnerReference) types.UID { return ref.UID }, Equal(dsc.UID)),
 	))
 }
 
 func TestDisableDSCModulesOnDelete_AppliesPlatform(t *testing.T) {
 	g := NewWithT(t)
 
+	platform := &configApi.Platform{ObjectMeta: metav1.ObjectMeta{
+		Name: configApi.PlatformInstanceName,
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: "datasciencecluster.opendatahub.io/v3",
+			Kind:       "DataScienceCluster",
+			Name:       "default-dsc",
+			UID:        types.UID("old-dsc"),
+		}},
+	}}
 	applied := false
-	cli, err := fakeclient.New(fakeclient.WithInterceptorFuncs(interceptor.Funcs{
-		Apply: func(_ context.Context, _ client.WithWatch, _ runtime.ApplyConfiguration, _ ...client.ApplyOption) error {
+	cli, err := fakeclient.New(fakeclient.WithObjects(platform), fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+		Apply: func(ctx context.Context, c client.WithWatch, _ runtime.ApplyConfiguration, _ ...client.ApplyOption) error {
+			current := &configApi.Platform{}
+			if err := c.Get(ctx, client.ObjectKey{Name: configApi.PlatformInstanceName}, current); err != nil {
+				return err
+			}
+			g.Expect(current.GetOwnerReferences()).Should(BeEmpty(), "legacy DSC owner must be removed before finalizer applies Removed")
 			applied = true
 			return nil
 		},

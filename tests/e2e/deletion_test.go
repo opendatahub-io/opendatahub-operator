@@ -68,19 +68,16 @@ func (tc *DeletionTestCtx) TestDSCDeletion(t *testing.T) {
 	dsci := tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 	)
-	dsc := tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-	)
 	dsciUID := string(dsci.GetUID())
-	dscUID := string(dsc.GetUID())
 	platform := tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
 	)
 	platformUID := string(platform.GetUID())
 
-	// Reconcile DSC after DSCI and verify the shared Platform retains both
-	// non-controller owner references.
-	t.Log("Reconcile DSC after DSCI to verify both Platform owners are retained")
+	// Reconcile DSC after DSCI and verify the shared Platform keeps DSCI as its
+	// sole lifecycle owner: the DSC controller no longer adds its own owner
+	// reference so DSC replacement cannot garbage collect the Platform.
+	t.Log("Reconcile DSC after DSCI to verify Platform keeps DSCI as sole lifecycle owner")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(
@@ -93,7 +90,7 @@ func (tc *DeletionTestCtx) TestDSCDeletion(t *testing.T) {
 		WithCondition(And(
 			jq.Match(`.metadata.uid == "%s"`, platformUID),
 			jq.Match(`any(.metadata.ownerReferences[]; .kind == "%s" and .name == "%s" and .uid == "%s")`, gvk.DSCInitialization.Kind, tc.DSCInitializationNamespacedName.Name, dsciUID),
-			jq.Match(`any(.metadata.ownerReferences[]; .kind == "%s" and .name == "%s" and .uid == "%s")`, gvk.DataScienceCluster.Kind, tc.DataScienceClusterNamespacedName.Name, dscUID),
+			jq.Match(`all(.metadata.ownerReferences[]; .kind != "%s")`, gvk.DataScienceCluster.Kind),
 		)),
 		WithConsistentlyDuration(30*time.Second),
 		WithConsistentlyPollingInterval(5*time.Second),

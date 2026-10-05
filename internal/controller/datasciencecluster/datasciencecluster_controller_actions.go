@@ -67,10 +67,6 @@ func syncPlatformCR(ctx context.Context, rr *odhtype.ReconciliationRequest) erro
 		return fmt.Errorf("failed to apply Platform CR: %w", err)
 	}
 
-	if err := modules.EnsurePlatformOwnerReference(ctx, rr.Client, instance, rr.Client.Scheme()); err != nil {
-		return fmt.Errorf("failed to update Platform owner reference: %w", err)
-	}
-
 	return nil
 }
 
@@ -83,6 +79,10 @@ func disableDSCModulesOnDelete(ctx context.Context, rr *odhtype.ReconciliationRe
 	instance, ok := rr.Instance.(*dscApi.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscApi.DataScienceCluster)", rr.Instance)
+	}
+
+	if err := modules.RemovePlatformDSCOwnerReference(ctx, rr.Client); err != nil {
+		return fmt.Errorf("failed to remove legacy DSC owner from Platform: %w", err)
 	}
 
 	platform := modules.NewPlatformCRRemovedForSource(buildDSCContext(instance), modules.ConfigFromDSC)
