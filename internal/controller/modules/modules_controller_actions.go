@@ -9,6 +9,7 @@ import (
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -20,6 +21,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -108,13 +110,12 @@ func SetPlatformMetadata(platform client.Object, instance client.Object, release
 	platform.SetLabels(labels)
 }
 
-// EnsurePlatformOwnerReference adds owner to the shared Platform CR without
-// involving server-side apply. OwnerReferences is shared by the DSCI and DSC
-// controllers, so each controller must read the current value, merge its
-// reference, and update only metadata. Conflicts are retried so one controller
-// cannot lose the other controller's reference. Other errors are returned to
-// let the controller reconcile again once the cache has caught up.
-func EnsurePlatformOwnerReference(ctx context.Context, cli client.Client, owner client.Object, scheme *runtime.Scheme) error {
+// EnsurePlatformLifecycleOwnerReference makes DSCI the sole lifecycle owner of
+// Platform without involving server-side apply. Older builds added DSC as
+// an owner too; that turns normal DSC replacement into Platform deletion. The
+// DSCI owner retains the intended full-uninstall ordering while allowing DSC
+// to be deleted and recreated independently.
+func EnsurePlatformLifecycleOwnerReference(ctx context.Context, cli client.Client, owner *dsciv2.DSCInitialization, scheme *runtime.Scheme) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		platform := &configApi.Platform{}
 		if err := cli.Get(ctx, client.ObjectKey{Name: configApi.PlatformInstanceName}, platform); err != nil {
@@ -129,8 +130,9 @@ func EnsurePlatformOwnerReference(ctx context.Context, cli client.Client, owner 
 
 		ownerReferences := append([]metav1.OwnerReference(nil), platform.GetOwnerReferences()...)
 		if err := controllerutil.SetOwnerReference(owner, platform, scheme); err != nil {
-			return fmt.Errorf("failed to merge Platform owner reference: %w", err)
+			return fmt.Errorf("failed to set Platform lifecycle owner reference: %w", err)
 		}
+		platform.SetOwnerReferences(removeDSCOwnerReferences(platform.GetOwnerReferences()))
 		if reflect.DeepEqual(ownerReferences, platform.GetOwnerReferences()) {
 			return nil
 		}
@@ -139,6 +141,38 @@ func EnsurePlatformOwnerReference(ctx context.Context, cli client.Client, owner 
 			return err
 		}
 		return nil
+	})
+}
+
+func removeDSCOwnerReferences(references []metav1.OwnerReference) []metav1.OwnerReference {
+	filtered := make([]metav1.OwnerReference, 0, len(references))
+	for _, reference := range references {
+		if strings.Split(reference.APIVersion, "/")[0] == dscApi.GroupVersion.Group && reference.Kind == "DataScienceCluster" {
+			continue
+		}
+		filtered = append(filtered, reference)
+	}
+	return filtered
+}
+
+// RemovePlatformDSCOwnerReference removes the legacy DSC owner before the DSC
+// delete finalizer completes. Kubernetes cannot garbage collect a Platform
+// through that owner while the finalizer is still running.
+func RemovePlatformDSCOwnerReference(ctx context.Context, cli client.Client) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		platform := &configApi.Platform{}
+		if err := cli.Get(ctx, client.ObjectKey{Name: configApi.PlatformInstanceName}, platform); err != nil {
+			if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+				return nil
+			}
+			return err
+		}
+		filtered := removeDSCOwnerReferences(platform.GetOwnerReferences())
+		if reflect.DeepEqual(filtered, platform.GetOwnerReferences()) {
+			return nil
+		}
+		platform.SetOwnerReferences(filtered)
+		return cli.Update(ctx, platform)
 	})
 }
 
@@ -347,10 +381,18 @@ func waitForModuleCRDeletion(ctx context.Context, rr *odhtype.ReconciliationRequ
 		return nil
 	}
 
+	controllerReplacement, err := platformDeletionIsControllerReplacement(ctx, rr)
+	if err != nil {
+		return err
+	}
+	if controllerReplacement {
+		logf.FromContext(ctx).Info("preserving module CRs while a live DSC or DSCI replaces Platform")
+	}
+
 	log := logf.FromContext(ctx)
 	var pending []string
 
-	err := reg.ForAll(func(handler ModuleHandler, _ bool) error {
+	err = reg.ForAll(func(handler ModuleHandler, _ bool) error {
 		name := handler.GetName()
 
 		state, stateErr := handler.GetModuleCRState(ctx, rr.Client)
@@ -362,6 +404,9 @@ func waitForModuleCRDeletion(ctx context.Context, rr *odhtype.ReconciliationRequ
 		case CRStateAbsent:
 			return nil
 		case CRStateAlive:
+			if controllerReplacement {
+				return nil
+			}
 			log.Info("deleting module CR so its operator can process finalizers", "module", name)
 			if delErr := handler.DeleteModuleCR(ctx, rr.Client); delErr != nil {
 				return fmt.Errorf("deleting module CR %s: %w", name, delErr)
@@ -383,6 +428,37 @@ func waitForModuleCRDeletion(ctx context.Context, rr *odhtype.ReconciliationRequ
 	}
 
 	return nil
+}
+
+// platformDeletionIsControllerReplacement distinguishes a Platform deletion
+// caused by a controller handoff from an intentional addon uninstall. A live
+// DSC or DSCI still declares the desired modules, so deleting their module CRs
+// would turn a transient Platform replacement into destructive teardown.
+func platformDeletionIsControllerReplacement(ctx context.Context, rr *odhtype.ReconciliationRequest) (bool, error) {
+	// XKS has no DSC/DSCI controller handoff; its Platform deletion is teardown.
+	if rr.Release.Name == cluster.XKS {
+		return false, nil
+	}
+
+	dsc, err := cluster.GetDSC(ctx, rr.Client)
+	if err == nil {
+		if dsc.GetDeletionTimestamp().IsZero() {
+			return true, nil
+		}
+	} else if !k8serr.IsNotFound(err) && !meta.IsNoMatchError(err) {
+		return false, fmt.Errorf("getting DataScienceCluster while finalizing Platform: %w", err)
+	}
+
+	dsci, err := cluster.GetDSCI(ctx, rr.Client)
+	if err == nil {
+		if dsci.GetDeletionTimestamp().IsZero() {
+			return true, nil
+		}
+	} else if !k8serr.IsNotFound(err) && !meta.IsNoMatchError(err) {
+		return false, fmt.Errorf("getting DSCInitialization while finalizing Platform: %w", err)
+	}
+
+	return false, nil
 }
 
 // provisionModules iterates over the unified DAG batches (which contain
