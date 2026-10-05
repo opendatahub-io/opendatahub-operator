@@ -28,7 +28,10 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -121,7 +124,14 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.KueueInstanceName),
 			),
-			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamePrefixed(kueueOperator))).
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamePrefixed(kueueOperator)),
+			reconciler.Dynamic(reconciler.CrdExists(gvk.OperatorCondition))).
+		WatchesGVK(gvk.ClusterExtension,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KueueInstanceName),
+			),
+			reconciler.WithPredicates(clusterExtensionForPackage(kueueOperator)),
+			reconciler.Dynamic(reconciler.CrdExists(gvk.ClusterExtension))).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
@@ -197,4 +207,75 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 	}
 
 	return nil
+}
+
+const (
+	clusterExtensionCatalogSourceType    = "Catalog"
+	clusterExtensionInstalledCondition   = "Installed"
+	clusterExtensionInstalledReasonValue = "Succeeded"
+)
+
+func clusterExtensionForPackage(packageName string) predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return clusterExtensionMatchesInstalledPackage(e.Object, packageName)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return clusterExtensionMatchesInstalledPackage(e.ObjectOld, packageName) ||
+				clusterExtensionMatchesInstalledPackage(e.ObjectNew, packageName)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return clusterExtensionMatchesInstalledPackage(e.Object, packageName)
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return clusterExtensionMatchesInstalledPackage(e.Object, packageName)
+		},
+	}
+}
+
+// clusterExtensionMatchesInstalledPackage mirrors olm.OperatorExists OLMv1 matching:
+// Catalog source, matching packageName, and Installed=True with reason Succeeded.
+func clusterExtensionMatchesInstalledPackage(obj client.Object, packageName string) bool {
+	u, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return false
+	}
+
+	sourceType, found, err := unstructured.NestedString(u.Object, "spec", "source", "sourceType")
+	if err != nil || !found || sourceType != clusterExtensionCatalogSourceType {
+		return false
+	}
+
+	pkg, found, err := unstructured.NestedString(u.Object, "spec", "source", "catalog", "packageName")
+	if err != nil || !found || pkg != packageName {
+		return false
+	}
+
+	return clusterExtensionInstalled(u)
+}
+
+func clusterExtensionInstalled(ext *unstructured.Unstructured) bool {
+	conditions, found, err := unstructured.NestedSlice(ext.Object, "status", "conditions")
+	if err != nil || !found {
+		return false
+	}
+
+	for _, raw := range conditions {
+		cond, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		condType, _ := cond["type"].(string)
+		condStatus, _ := cond["status"].(string)
+		condReason, _ := cond["reason"].(string)
+
+		if condType == clusterExtensionInstalledCondition &&
+			condStatus == "True" &&
+			condReason == clusterExtensionInstalledReasonValue {
+			return true
+		}
+	}
+
+	return false
 }

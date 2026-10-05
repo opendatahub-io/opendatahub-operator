@@ -1330,6 +1330,16 @@ func TestAPIServerTLSSecurityProfileChanged(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "Update/adherence change triggers reconcile",
+			invoke: func() bool {
+				oldAPI := clusterAPIServer(configv1.TLSProfileIntermediateType)
+				newAPI := clusterAPIServer(configv1.TLSProfileIntermediateType)
+				newAPI.Spec.TLSAdherence = configv1.TLSAdherencePolicyStrictAllComponents
+				return pred.Update(event.UpdateEvent{ObjectOld: oldAPI, ObjectNew: newAPI})
+			},
+			want: true,
+		},
+		{
 			name: "Update/non-cluster APIServer does not trigger reconcile",
 			invoke: func() bool {
 				return pred.Update(event.UpdateEvent{

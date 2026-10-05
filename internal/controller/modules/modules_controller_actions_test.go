@@ -332,6 +332,9 @@ func TestProvisionModulesAddsResourcesAndEnvInjection(t *testing.T) {
 	if mei2.PerModuleImages[0].DeploymentName != testProvisioningDeploymentName {
 		t.Fatalf("expected deployment name to be preserved, got %#v", mei2.PerModuleImages[0])
 	}
+	if got := mei2.PerModuleImages[0].ExtraEnv["ENABLE_TEST_MODULE_CONTROLLER"]; got != "true" {
+		t.Fatalf("expected fixed module env to be preserved, got %q", got)
+	}
 }
 
 func TestInjectPlatformConfigCreatesModuleConfigMap(t *testing.T) {

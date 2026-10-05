@@ -6,9 +6,11 @@ package gateway
 import (
 	"bytes"
 	"context"
+	"os"
 	"testing"
 	"text/template"
 
+	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -105,7 +107,7 @@ func TestGetCertificateType(t *testing.T) {
 			description:  "should return provided certificate type",
 		},
 		{
-			name: "empty certificate type defaults to OpenshiftDefaultIngress",
+			name: "empty certificate type defaults to OpenshiftDefaultIngress on OpenShift",
 			gatewayConfig: &serviceApi.GatewayConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: testGatewayName,
@@ -117,7 +119,7 @@ func TestGetCertificateType(t *testing.T) {
 				},
 			},
 			expectedType: string(infrav1.OpenshiftDefaultIngress),
-			description:  "should return OpenShift default when certificate type is empty string",
+			description:  "should return OpenShift default when certificate type is empty on a non-XKS cluster",
 		},
 	}
 
@@ -128,6 +130,29 @@ func TestGetCertificateType(t *testing.T) {
 			g.Expect(result).To(Equal(tc.expectedType), tc.description)
 		})
 	}
+}
+
+// TestGetCertificateTypeXKSDefault verifies that on XKS (vanilla Kubernetes) an unset certificate
+// type resolves to SelfSigned, mirroring the platform-aware default applied by handleCertificates.
+// It mutates global cluster info, so it is intentionally not parallel (see other cluster-type tests).
+func TestGetCertificateTypeXKSDefault(t *testing.T) {
+	g := NewWithT(t)
+
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+
+	// nil gatewayConfig, nil certificate, and empty type all resolve to the XKS default.
+	g.Expect(getCertificateType(nil)).To(Equal(string(infrav1.SelfSigned)))
+	g.Expect(getCertificateType(&serviceApi.GatewayConfig{})).To(Equal(string(infrav1.SelfSigned)))
+	g.Expect(getCertificateType(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{Certificate: &infrav1.CertificateSpec{Type: ""}},
+	})).To(Equal(string(infrav1.SelfSigned)))
+
+	// An explicit type is always honored regardless of platform.
+	g.Expect(getCertificateType(&serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress}},
+	})).To(Equal(string(infrav1.OpenshiftDefaultIngress)))
 }
 
 // TestGetGatewayAuthProxyTimeout tests the getGatewayAuthProxyTimeout function.
@@ -399,6 +424,107 @@ func TestIsGatewayReady(t *testing.T) {
 			g.Expect(result).To(Equal(tc.expectReady), tc.description)
 		})
 	}
+}
+
+func TestBuildAdditionalIngressListeners(t *testing.T) {
+	g := NewWithT(t)
+	mode := gwapiv1.TLSModeTerminate
+	tlsConfig := &gwapiv1.GatewayTLSConfig{Mode: &mode}
+	allowedRoutes := &gwapiv1.AllowedRoutes{}
+
+	ingresses := []serviceApi.AdditionalIngress{
+		{Name: "zeta", Hostname: "zeta.example.com", ListenerPort: 9444, IngressControllerName: "shard-zeta", RouteLabels: map[string]string{"example.com/ingress": "zeta"}},
+		{Name: "alpha", Hostname: "alpha.example.com", ListenerPort: 9443, IngressControllerName: "shard-alpha", RouteLabels: map[string]string{"example.com/ingress": "alpha"}},
+	}
+
+	g.Expect((serviceApi.GatewayConfigSpec{
+		IngressMode:         serviceApi.IngressModeOcpRoute,
+		AdditionalIngresses: ingresses,
+	}).ValidateAdditionalIngresses()).To(Succeed())
+	listeners := buildAdditionalIngressListeners(ingresses, tlsConfig, allowedRoutes)
+	g.Expect(listeners).To(HaveLen(2))
+	g.Expect(listeners[0].Name).To(Equal(gwapiv1.SectionName("alpha")))
+	g.Expect(listeners[0].Port).To(Equal(gwapiv1.PortNumber(9443)))
+	g.Expect(listeners[1].Name).To(Equal(gwapiv1.SectionName("zeta")))
+	g.Expect(listeners[1].Port).To(Equal(gwapiv1.PortNumber(9444)))
+	for _, listener := range listeners {
+		g.Expect(listener.Hostname).To(BeNil())
+		g.Expect(listener.Protocol).To(Equal(gwapiv1.HTTPSProtocolType))
+		g.Expect(listener.TLS).To(BeIdenticalTo(tlsConfig))
+		g.Expect(listener.AllowedRoutes).To(BeIdenticalTo(allowedRoutes))
+	}
+}
+
+func TestBuildAdditionalIngressListenersRejectsConflicts(t *testing.T) {
+	g := NewWithT(t)
+	ingress := func(name, hostname string, port int32, controller, label string) serviceApi.AdditionalIngress {
+		return serviceApi.AdditionalIngress{
+			Name: name, Hostname: hostname, ListenerPort: port,
+			IngressControllerName: controller,
+			RouteLabels:           map[string]string{"example.com/ingress": label},
+		}
+	}
+
+	tests := []struct {
+		name      string
+		ingresses []serviceApi.AdditionalIngress
+	}{
+		{
+			name:      "reserved name",
+			ingresses: []serviceApi.AdditionalIngress{{Name: DefaultGatewayListenerName, ListenerPort: 9443}},
+		},
+		{
+			name: "duplicate name",
+			ingresses: []serviceApi.AdditionalIngress{
+				ingress("alpha", "alpha.example.com", 9443, "shard-alpha", "alpha"),
+				ingress("alpha", "alpha-2.example.com", 9444, "shard-alpha-2", "alpha-2"),
+			},
+		},
+		{
+			name: "default port",
+			ingresses: []serviceApi.AdditionalIngress{
+				ingress("alpha", "alpha.example.com", StandardHTTPSPort, "shard-alpha", "alpha"),
+			},
+		},
+		{
+			name: "duplicate port",
+			ingresses: []serviceApi.AdditionalIngress{
+				ingress("alpha", "alpha.example.com", 9443, "shard-alpha", "alpha"),
+				ingress("zeta", "zeta.example.com", 9443, "shard-zeta", "zeta"),
+			},
+		},
+		{
+			name: "duplicate hostname",
+			ingresses: []serviceApi.AdditionalIngress{
+				ingress("alpha", "shared.example.com", 9443, "shard-alpha", "alpha"),
+				ingress("zeta", "SHARED.EXAMPLE.COM.", 9444, "shard-zeta", "zeta"),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g.Expect((serviceApi.GatewayConfigSpec{
+				IngressMode:         serviceApi.IngressModeOcpRoute,
+				AdditionalIngresses: tc.ingresses,
+			}).ValidateAdditionalIngresses()).To(HaveOccurred())
+		})
+	}
+}
+
+func TestValidateAdditionalIngressesRejectsNonOcpRouteMode(t *testing.T) {
+	g := NewWithT(t)
+
+	err := (serviceApi.GatewayConfigSpec{
+		IngressMode: serviceApi.IngressModeLoadBalancer,
+		AdditionalIngresses: []serviceApi.AdditionalIngress{{
+			Name:         "alpha",
+			Hostname:     "alpha.example.com",
+			ListenerPort: 9443,
+		}},
+	}).ValidateAdditionalIngresses()
+
+	g.Expect(err).To(HaveOccurred())
 }
 
 // TestGetFQDN tests the GetFQDN function with user-provided domain.
@@ -747,6 +873,7 @@ func authProxyTemplateData() map[string]any {
 		"RedirectURL":              "https://" + testHostnameDefault + OAuthCallbackPath,
 		"TLSMinVersion":            "VersionTLS12",
 		"TLSCipherSuite":           "TLS_AES_128_GCM_SHA256",
+		"TLSCurvePreferences":      "",
 		"CookieExpire":             testCookieExpireDefault,
 		"CookieRefresh":            testCookieRefreshDefault,
 		"AuthProxyCookieName":      AuthProxyCookieName,
@@ -982,4 +1109,35 @@ func TestIsGatewayReferencedSecret(t *testing.T) {
 			g.Expect(result).To(Equal(tc.expected))
 		})
 	}
+}
+
+// TestGetKubeAuthProxyImageFallbackMatchesManifestsConfig is a drift guard for
+// RHOAIENG-97595: the code fallback image in getKubeAuthProxyImage must match the
+// ODH digest pinned in manifests-config.yaml, otherwise the fallback (used in local
+// dev when RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE is unset) lags behind the image
+// the gateway TLS flags require and the proxy exits on an unrecognized flag.
+func TestGetKubeAuthProxyImageFallbackMatchesManifestsConfig(t *testing.T) {
+	g := NewWithT(t)
+	t.Setenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE", "")
+
+	data, err := os.ReadFile("../../../../manifests-config.yaml")
+	g.Expect(err).NotTo(HaveOccurred())
+
+	var cfg struct {
+		ImageOverrides map[string]struct {
+			ODH struct {
+				Repo   string `yaml:"base"`
+				Digest string `yaml:"digest"`
+			} `yaml:"odh"`
+		} `yaml:"imageOverrides"`
+	}
+	g.Expect(yaml.Unmarshal(data, &cfg)).To(Succeed())
+
+	override, ok := cfg.ImageOverrides["RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE"]
+	g.Expect(ok).To(BeTrue(), "manifests-config.yaml must pin the kube-auth-proxy image")
+	g.Expect(override.ODH.Repo).NotTo(BeEmpty())
+	g.Expect(override.ODH.Digest).To(HavePrefix("sha256:"))
+
+	g.Expect(getKubeAuthProxyImage()).To(Equal(override.ODH.Repo+"@"+override.ODH.Digest),
+		"fallback image must match the ODH digest in manifests-config.yaml")
 }

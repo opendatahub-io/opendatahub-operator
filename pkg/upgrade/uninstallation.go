@@ -7,7 +7,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -17,6 +19,7 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -24,10 +27,14 @@ const (
 	// DeleteConfigMapLabel is the label for configMap used to trigger operator uninstall
 	// TODO: Label should be updated if addon name changes.
 	DeleteConfigMapLabel = "api.openshift.com/addon-managed-odh-delete"
+
+	odhOperatorPackage   = "opendatahub-operator"
+	rhoaiOperatorPackage = "rhods-operator"
 )
 
 // OperatorUninstall deletes all the externally generated resources.
-// This includes DSCI, namespace created by operator (but not workbench or MR's), subscription and CSV.
+// This includes DSCI, namespaces created by the operator (but not workbench or MR's),
+// Subscription/CSV (OLM v0), and matching Catalog ClusterExtension (OLM v1).
 func OperatorUninstall(ctx context.Context, cli client.Client, platform common.Platform) error {
 	log := logf.FromContext(ctx)
 
@@ -86,11 +93,20 @@ func OperatorUninstall(ctx context.Context, cli client.Client, platform common.P
 		}
 	}
 
+	// CSV (OLMv0) and ClusterExtension (OLMv1) both tear down the operator
+	// Deployment and its SA/RBAC. Keep them last, CE after CSV, so earlier
+	// uninstall steps still have a live operator identity.
 	log.Info("Removing the operator CSV in turn remove operator deployment")
-	err = removeCSV(ctx, cli)
+	if err := removeCSV(ctx, cli); err != nil {
+		return err
+	}
+
+	if err := removeClusterExtension(ctx, cli, platform, operatorNs); err != nil {
+		return err
+	}
 
 	log.Info("All resources deleted as part of uninstall.")
-	return err
+	return nil
 }
 
 func removeDSCI(ctx context.Context, cli client.Client) error {
@@ -200,4 +216,72 @@ func removeCSV(ctx context.Context, c client.Client) error {
 	log.Info("Clusterserviceversion deleted as a part of uninstall", "name", operatorCsv.Name)
 
 	return nil
+}
+
+// removeClusterExtension deletes Catalog ClusterExtensions for the platform operator package
+// that target installNamespace (spec.namespace). Matching mirrors
+// odh-platform-utilities cluster.ClusterExtensionInstallsPackage scoping so an
+// unrelated CE for the same package in another namespace is left alone.
+// Skipped when platform is empty (unknown package) or ManagedRhoai (addon-managed).
+// Absent ClusterExtension CRD is treated as success.
+func removeClusterExtension(ctx context.Context, cli client.Client, platform common.Platform, installNamespace string) error {
+	if platform == "" || platform == cluster.ManagedRhoai {
+		return nil
+	}
+
+	packageName := odhOperatorPackage
+	if platform == cluster.SelfManagedRhoai {
+		packageName = rhoaiOperatorPackage
+	}
+
+	log := logf.FromContext(ctx)
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk.ClusterExtension)
+
+	if err := cli.List(ctx, list); err != nil {
+		if meta.IsNoMatchError(err) || k8serr.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("list ClusterExtensions: %w", err)
+	}
+
+	for i := range list.Items {
+		ext := &list.Items[i]
+		if !clusterExtensionMatchesPackage(ext, packageName, installNamespace) {
+			continue
+		}
+
+		log.Info("Deleting ClusterExtension as a part of uninstall",
+			"name", ext.GetName(), "package", packageName, "namespace", installNamespace)
+		if err := cli.Delete(ctx, ext); client.IgnoreNotFound(err) != nil {
+			return fmt.Errorf("delete ClusterExtension %s: %w", ext.GetName(), err)
+		}
+	}
+
+	return nil
+}
+
+// clusterExtensionMatchesPackage reports whether ext is a Catalog ClusterExtension
+// for packageName installed into installNamespace. Same filter as
+// odh-platform-utilities' unexported clusterExtensionInstallsPackage when
+// installNamespace is non-empty.
+func clusterExtensionMatchesPackage(ext *unstructured.Unstructured, packageName, installNamespace string) bool {
+	if installNamespace != "" {
+		ns, found, err := unstructured.NestedString(ext.Object, "spec", "namespace")
+		if err != nil || !found || ns != installNamespace {
+			return false
+		}
+	}
+
+	sourceType, found, err := unstructured.NestedString(ext.Object, "spec", "source", "sourceType")
+	if err != nil || !found || sourceType != "Catalog" {
+		return false
+	}
+
+	pkg, found, err := unstructured.NestedString(ext.Object, "spec", "source", "catalog", "packageName")
+	if err != nil || !found || pkg != packageName {
+		return false
+	}
+
+	return true
 }

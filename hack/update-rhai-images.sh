@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Updates RHAI component manifests with pinned images from the
 # RHOAI-Build-Config CSV (ClusterServiceVersion).
+# This is a local params.env helper; e2e RELATED_IMAGE overrides are resolved
+# from manifests-config.yaml by cmd/manifest-tools.
 #
 # Usage: ./hack/update-rhai-images.sh [--branch <branch>] [-c <component>]
 #

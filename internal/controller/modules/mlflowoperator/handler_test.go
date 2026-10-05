@@ -93,6 +93,13 @@ func TestGetOperatorManifests(t *testing.T) {
 	if len(managedRhoaiManifests.Manifests) != 1 || managedRhoaiManifests.Manifests[0].SourcePath != "overlays/rhoai" {
 		t.Fatalf("expected managed RHOAI overlay, got %#v", managedRhoaiManifests.Manifests)
 	}
+
+	xksManifests := handler.GetOperatorManifests(&modules.PlatformContext{
+		Release: common.Release{Name: cluster.XKS},
+	})
+	if len(xksManifests.Manifests) != 1 || xksManifests.Manifests[0].SourcePath != "overlays/rhoai" {
+		t.Fatalf("expected RHOAI overlay for XKS, got %#v", xksManifests.Manifests)
+	}
 }
 
 func TestBuildModuleCR(t *testing.T) {

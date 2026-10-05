@@ -32,6 +32,8 @@ var (
 	sourcePathByPlatform = map[common.Platform]string{
 		cluster.OpenDataHub:      "overlays/odh",
 		cluster.SelfManagedRhoai: "overlays/rhoai",
+		cluster.ManagedRhoai:     "overlays/rhoai",
+		cluster.XKS:              "overlays/rhoai",
 	}
 
 	relatedImages = []string{

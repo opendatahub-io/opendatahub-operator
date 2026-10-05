@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	oauthv1 "github.com/openshift/api/oauth/v1"
@@ -36,16 +37,19 @@ const (
 
 const (
 	// Gateway infrastructure constants.
-	GatewayNamespace         = "openshift-ingress"                  // Namespace where Gateway resources are deployed on OpenShift
-	XKSGatewayNamespace      = "rh-ai-gateway"                      // Namespace for gateway resources on XKS (vanilla K8s)
-	GatewayClassName         = "data-science-gateway-class"         // GatewayClass name for gateway resources
-	GatewayControllerName    = "openshift.io/gateway-controller/v1" // OpenShift Gateway API controller name
-	XKSGatewayControllerName = "istio.io/gateway-controller"        // XKS (standard Istio) Gateway API controller name
-	DefaultGatewayName       = "data-science-gateway"               // Default gateway resource name on OpenShift
-	XKSDefaultGatewayName    = "rh-ai-gateway"                      // Default gateway resource name on XKS
-	DefaultGatewaySubdomain  = "rh-ai"                              // Default subdomain for gateway URLs
-	LegacyGatewaySubdomain   = "data-science-gateway"               // Legacy subdomain to redirect from
-	XKSIstioRevisionValue    = "default"                            // Istio revision label value on XKS
+	GatewayNamespace           = "openshift-ingress"                  // Namespace where Gateway resources are deployed on OpenShift
+	XKSGatewayNamespace        = "rh-ai-gateway"                      // Namespace for gateway resources on XKS (vanilla K8s)
+	GatewayClassName           = "data-science-gateway-class"         // GatewayClass name for gateway resources
+	GatewayControllerName      = "openshift.io/gateway-controller/v1" // OpenShift Gateway API controller name
+	XKSGatewayControllerName   = "istio.io/gateway-controller"        // XKS (standard Istio) Gateway API controller name
+	DefaultGatewayName         = "data-science-gateway"               // Default gateway resource name on OpenShift
+	XKSDefaultGatewayName      = "rh-ai-gateway"                      // Default gateway resource name on XKS
+	HTTPSPortName              = serviceApi.DefaultGatewayListenerName
+	DefaultGatewayListenerName = serviceApi.DefaultGatewayListenerName
+	LegacyGatewayListenerName  = serviceApi.LegacyGatewayListenerName
+	DefaultGatewaySubdomain    = "rh-ai"                // Default subdomain for gateway URLs
+	LegacyGatewaySubdomain     = "data-science-gateway" // Legacy subdomain to redirect from
+	XKSIstioRevisionValue      = "default"              // Istio revision label value on XKS
 
 	// Authentication constants.
 	LegacyAuthClientID       = "odh"          // Legacy OauthClient name from RHOAI 3.3.
@@ -268,14 +272,23 @@ func isGatewayReady(gateway *gwapiv1.Gateway) bool {
 }
 
 // getCertificateType returns a string representation of the certificate type.
+// When the type is unset it mirrors the platform-aware default applied by handleCertificates:
+// SelfSigned on XKS (vanilla Kubernetes) and OpenshiftDefaultIngress on OpenShift.
 func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
-	if gatewayConfig == nil {
-		return string(infrav1.OpenshiftDefaultIngress)
+	if gatewayConfig != nil && gatewayConfig.Spec.Certificate != nil && gatewayConfig.Spec.Certificate.Type != "" {
+		return string(gatewayConfig.Spec.Certificate.Type)
 	}
-	if gatewayConfig.Spec.Certificate == nil || gatewayConfig.Spec.Certificate.Type == "" {
-		return string(infrav1.OpenshiftDefaultIngress)
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		return string(infrav1.SelfSigned)
 	}
-	return string(gatewayConfig.Spec.Certificate.Type)
+	return string(infrav1.OpenshiftDefaultIngress)
+}
+
+func gatewayCertificateSecretName(gatewayConfig *serviceApi.GatewayConfig) string {
+	if gatewayConfig.Spec.Certificate != nil && gatewayConfig.Spec.Certificate.SecretName != "" {
+		return gatewayConfig.Spec.Certificate.SecretName
+	}
+	return fmt.Sprintf("%s-tls", gatewayConfig.Name)
 }
 
 func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig, domain string) (string, error) {
@@ -292,10 +305,7 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 		}
 	}
 
-	secretName := certConfig.SecretName
-	if secretName == "" {
-		secretName = fmt.Sprintf("%s-tls", gatewayConfig.Name)
-	}
+	secretName := gatewayCertificateSecretName(gatewayConfig)
 
 	switch certConfig.Type {
 	case infrav1.OpenshiftDefaultIngress:
@@ -309,7 +319,26 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 		}
 		return secretName, nil
 	case infrav1.SelfSigned:
-		// domain parameter already contains the full FQDN (subdomain.baseDomain) from GetFQDN
+		// domain parameter already contains the full FQDN (subdomain.baseDomain) from GetFQDN.
+		// On XKS, cert-manager is a required platform dependency and owns issuance
+		// and renewal. Preserve operator-generated self-signed certificates on OpenShift.
+		if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+			issuerName, issuerKind := resolveIssuerRef(gatewayConfig.Spec.Certificate)
+			cert, err := buildCertManagerCertificate(secretName, GetGatewayNamespace(), secretName, []string{domain}, issuerName, issuerKind)
+			if err != nil {
+				return "", err
+			}
+			if err := rr.AddResources(cert); err != nil {
+				return "", fmt.Errorf("failed to add gateway Certificate: %w", err)
+			}
+			logf.FromContext(ctx).V(1).Info("Created cert-manager Certificate for gateway",
+				"secret", secretName,
+				"issuerName", issuerName,
+				"issuerKind", issuerKind,
+			)
+			return secretName, nil
+		}
+
 		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, secretName, domain, GetGatewayNamespace(),
 			cluster.WithLabels( // add label easy to know it is from us.
 				labels.PlatformPartOf, ServiceName,
@@ -339,7 +368,18 @@ func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
 	return rr.AddResources(gatewayClass)
 }
 
-func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, legacyDomain string, ingressMode serviceApi.IngressMode) error {
+func createGateway(
+	rr *odhtypes.ReconciliationRequest,
+	certSecretName string,
+	domain string,
+	legacyDomain string,
+	ingressMode serviceApi.IngressMode,
+	additionalIngresses serviceApi.AdditionalIngresses,
+) error {
+	if err := additionalIngresses.Validate(ingressMode); err != nil {
+		return err
+	}
+
 	listeners := []gwapiv1.Listener{}
 
 	if certSecretName != "" {
@@ -376,7 +416,7 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 		}
 
 		httpsListener := gwapiv1.Listener{
-			Name:          "https",
+			Name:          DefaultGatewayListenerName,
 			Protocol:      gwapiv1.HTTPSProtocolType,
 			Port:          StandardHTTPSPort,
 			TLS:           tlsConfig,
@@ -395,7 +435,7 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 		if ingressMode != serviceApi.IngressModeOcpRoute && legacyDomain != "" {
 			legacyHostname := gwapiv1.Hostname(legacyDomain)
 			legacyListener := gwapiv1.Listener{
-				Name:          "https-legacy",
+				Name:          LegacyGatewayListenerName,
 				Protocol:      gwapiv1.HTTPSProtocolType,
 				Port:          StandardHTTPSPort,
 				Hostname:      &legacyHostname,
@@ -404,6 +444,8 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 			}
 			listeners = append(listeners, legacyListener)
 		}
+
+		listeners = append(listeners, buildAdditionalIngressListeners(additionalIngresses, tlsConfig, allowedRoutes)...)
 	}
 
 	gateway := &gwapiv1.Gateway{
@@ -427,6 +469,34 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 	}
 
 	return rr.AddResources(gateway)
+}
+
+func buildAdditionalIngressListeners(
+	ingresses serviceApi.AdditionalIngresses,
+	tlsConfig *gwapiv1.GatewayTLSConfig,
+	allowedRoutes *gwapiv1.AllowedRoutes,
+) []gwapiv1.Listener {
+	if len(ingresses) == 0 {
+		return nil
+	}
+
+	sortedIngresses := append([]serviceApi.AdditionalIngress(nil), ingresses...)
+	sort.Slice(sortedIngresses, func(i, j int) bool {
+		return sortedIngresses[i].Name < sortedIngresses[j].Name
+	})
+
+	listeners := make([]gwapiv1.Listener, 0, len(sortedIngresses))
+	for _, ingress := range sortedIngresses {
+		listeners = append(listeners, gwapiv1.Listener{
+			Name:          gwapiv1.SectionName(ingress.Name),
+			Protocol:      gwapiv1.HTTPSProtocolType,
+			Port:          gwapiv1.PortNumber(ingress.ListenerPort),
+			TLS:           tlsConfig,
+			AllowedRoutes: allowedRoutes,
+		})
+	}
+
+	return listeners
 }
 
 // configureClusterIPInfrastructure creates a ConfigMap for ClusterIP service configuration
@@ -670,8 +740,11 @@ func getKubeAuthProxyImage() string {
 	if image := os.Getenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE"); image != "" {
 		return image
 	}
-	// Fallback for ODH development - pinned to sha256 digest for disconnected/air-gapped support
-	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:f9d9dc6e0e05fe7b47141e605e1dd147302dd023936c2d20e205afbc96a51d9d" // latest as of 2026-07-06 (6a6aa63c)
+	// Fallback for ODH development - pinned to sha256 digest for disconnected/air-gapped support.
+	// This build must support the TLS startup flags the gateway emits (--tls-min-version,
+	// --tls-cipher-suite and --tls-curve-preferences); it matches the ODH e2e image in
+	// manifests-config.yaml so the fallback stays compatible with the rendered proxy args.
+	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:d90930380151490d5516eeb95840eecc743e9005fc02733dec6fe79e1a00e035" // latest as of 2026-09-17
 }
 
 // getDashboardRedirectImage returns the nginx image for dashboard redirects.
@@ -823,6 +896,24 @@ func IsGatewayReferencedSecret(ctx context.Context, cli client.Client, obj clien
 	return false
 }
 
+// IsXKSCertManagerSecret matches the TLS Secrets issued for the XKS gateway and auth proxy.
+func IsXKSCertManagerSecret(ctx context.Context, cli client.Client, obj client.Object, gatewayNamespace string) bool {
+	if cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes || obj.GetNamespace() != gatewayNamespace {
+		return false
+	}
+
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayConfigName}, gatewayConfig); err != nil {
+		return false
+	}
+	if gatewayConfig.Spec.OIDC != nil && obj.GetName() == KubeAuthProxyTLSName {
+		return true
+	}
+	return (gatewayConfig.Spec.Certificate == nil || gatewayConfig.Spec.Certificate.Type == "" ||
+		gatewayConfig.Spec.Certificate.Type == infrav1.SelfSigned) &&
+		obj.GetName() == gatewayCertificateSecretName(gatewayConfig)
+}
+
 // detectAndSetIngressMode detects the ingress mode from an existing Gateway Service and updates
 // the GatewayConfig to match. This preserves existing Gateway configuration when ingressMode is unset.
 func detectAndSetIngressMode(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) error {
@@ -888,7 +979,7 @@ func reconcileGatewayForModeChange(ctx context.Context, rr *odhtypes.Reconciliat
 	// LoadBalancer: has hostname, no infrastructure
 	var hasHostname bool
 	for _, listener := range gateway.Spec.Listeners {
-		if listener.Name == "https" && listener.Hostname != nil {
+		if listener.Name == DefaultGatewayListenerName && listener.Hostname != nil {
 			hasHostname = true
 			break
 		}

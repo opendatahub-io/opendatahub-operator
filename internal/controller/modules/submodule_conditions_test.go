@@ -457,7 +457,7 @@ func TestWriteDSCComponentStatus_FieldResolution(t *testing.T) {
 	g := NewWithT(t)
 
 	knownKinds := []string{
-		"Dashboard", "Workbenches", "Kserve", "Kueue", "Ray",
+		"AIPipelines", "Dashboard", "Workbenches", "Kserve", "Kueue", "Ray",
 		"TrustyAI", "ModelRegistry", "TrainingOperator", "FeastOperator",
 		"OGX", "MLflowOperator", "Trainer", "SparkOperator", "AIGateway",
 		"MCPLifecycleOperator",

@@ -2,18 +2,20 @@ package kueue
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/opendatahub-io/odh-platform-utilities/pkg/cluster/olm"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -29,13 +31,12 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	case operatorv1.Managed:
 		return precondition.CheckResult{Pass: false, Message: ErrKueueStateManagedNotSupported.Error()}, nil
 	case operatorv1.Unmanaged:
-		kueueInfo, err := cluster.OperatorExists(ctx, rr.Client, kueueOperator)
+		_, err := olm.OperatorExists(ctx, rr.Client, kueueOperator)
 		if err != nil {
+			if errors.Is(err, olm.ErrOperatorNotInstalled) || meta.IsNoMatchError(err) {
+				return precondition.CheckResult{Pass: false, Message: ErrKueueOperatorNotInstalled.Error()}, nil
+			}
 			return precondition.CheckResult{}, err
-		}
-
-		if kueueInfo == nil {
-			return precondition.CheckResult{Pass: false, Message: ErrKueueOperatorNotInstalled.Error()}, nil
 		}
 	default:
 		return precondition.CheckResult{Pass: true}, nil

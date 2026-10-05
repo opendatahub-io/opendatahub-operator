@@ -3,12 +3,15 @@ package e2e_test
 import (
 	"testing"
 
+	gTypes "github.com/onsi/gomega/types"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -35,6 +38,7 @@ func aiGatewayTestSuite(t *testing.T) {
 		Namespace: tc.AppsNamespace,
 		Name:      aiGatewayControllerDeployment,
 	}
+	relatedImageEnvVars := aigatewayModule.NewHandler().GetRelatedImages()
 
 	testCases := []TestCase{
 		{"Validate component enabled", func(t *testing.T) {
@@ -83,17 +87,7 @@ func aiGatewayTestSuite(t *testing.T) {
 		{"Validate env var injection", func(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Tier1)
-
-			// The platform injects APPLICATIONS_NAMESPACE into every module operator
-			// deployment unconditionally. Verify it's present with the correct value.
-			tc.EnsureResourceExists(
-				WithMinimalObject(gvk.Deployment, controllerNN),
-				WithCondition(jq.Match(
-					`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "APPLICATIONS_NAMESPACE") | .value == "%s"`,
-					tc.AppsNamespace,
-				)),
-				WithCustomErrorMsg("ai-gateway-operator Deployment should have APPLICATIONS_NAMESPACE=%s injected", tc.AppsNamespace),
-			)
+			validateAIGatewayEnvVarInjection(t, tc, controllerNN, relatedImageEnvVars)
 		}},
 		{"Validate releases mirrored to DSC", func(t *testing.T) {
 			t.Helper()
@@ -256,4 +250,71 @@ func aiGatewayTestSuite(t *testing.T) {
 	}
 
 	RunTestCases(t, testCases)
+}
+
+func validateAIGatewayEnvVarInjection(t *testing.T, tc *TestContext, controllerNN types.NamespacedName, relatedImageEnvVars []string) {
+	t.Helper()
+	require.NotEmpty(t, relatedImageEnvVars, "aigateway handler should declare related images for env injection")
+
+	relatedImageEnvVarSet := make(map[string]struct{}, len(relatedImageEnvVars))
+	for _, envVarName := range relatedImageEnvVars {
+		relatedImageEnvVarSet[envVarName] = struct{}{}
+	}
+
+	operatorDeploymentNN := types.NamespacedName{
+		Namespace: tc.OperatorNamespace,
+		Name:      tc.getControllerDeploymentName(),
+	}
+	operatorDeployment := &appsv1.Deployment{}
+	tc.FetchTypedResource(
+		operatorDeployment,
+		WithMinimalObject(gvk.Deployment, operatorDeploymentNN),
+		WithCustomErrorMsg("Failed to fetch operator Deployment %s in namespace %s", operatorDeploymentNN.Name, operatorDeploymentNN.Namespace),
+	)
+
+	expectedRelatedImageEnvVars := map[string]string{}
+	for _, container := range operatorDeployment.Spec.Template.Spec.Containers {
+		for _, envVar := range container.Env {
+			if _, shouldCheck := relatedImageEnvVarSet[envVar.Name]; !shouldCheck {
+				continue
+			}
+			if envVar.Value == "" {
+				continue
+			}
+			expectedRelatedImageEnvVars[envVar.Name] = envVar.Value
+		}
+	}
+	matchers := make([]gTypes.GomegaMatcher, 0, 1+len(expectedRelatedImageEnvVars))
+	// The platform injects APPLICATIONS_NAMESPACE into every module operator
+	// deployment unconditionally. Verify it's present with the correct value.
+	matchers = append(matchers, jq.Match(
+		`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "APPLICATIONS_NAMESPACE") | .value == "%s"`,
+		tc.AppsNamespace,
+	))
+
+	for envVarName, expectedValue := range expectedRelatedImageEnvVars {
+		matchers = append(matchers, jq.Match(
+			`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "%s") | .value == "%s"`,
+			envVarName,
+			expectedValue,
+		))
+	}
+
+	if len(expectedRelatedImageEnvVars) == 0 {
+		t.Logf(
+			"No non-empty AIGateway RELATED_IMAGE_* env vars configured on operator Deployment %s/%s; validating APPLICATIONS_NAMESPACE only",
+			operatorDeploymentNN.Namespace,
+			operatorDeploymentNN.Name,
+		)
+	}
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, controllerNN),
+		WithCondition(And(matchers...)),
+		WithCustomErrorMsg(
+			"ai-gateway-operator Deployment should have expected env var injection from operator Deployment %s/%s",
+			operatorDeploymentNN.Namespace,
+			operatorDeploymentNN.Name,
+		),
+	)
 }

@@ -47,6 +47,7 @@ var (
 	sourcePathByPlatform = map[common.Platform]string{
 		cluster.OpenDataHub:      "overlays/odh",
 		cluster.SelfManagedRhoai: "overlays/rhoai",
+		cluster.ManagedRhoai:     "overlays/rhoai",
 		cluster.XKS:              "overlays/rhoai",
 	}
 
@@ -64,6 +65,7 @@ var (
 		// MaaS images
 		"RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE",
 		"RELATED_IMAGE_ODH_MAAS_API_IMAGE",
+		"RELATED_IMAGE_ODH_MAAS_DISCOVERY_IMAGE",
 		"RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE",
 		"RELATED_IMAGE_UBI_MINIMAL_IMAGE",
 		"RELATED_IMAGE_ODH_PYTHON_312_IMAGE",

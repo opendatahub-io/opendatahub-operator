@@ -17,6 +17,10 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"reflect"
+	"sort"
+	"strings"
+
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -45,6 +49,10 @@ type PlatformSpec struct {
 // fields here when onboarding additional modules.
 // +kubebuilder:object:generate=true
 type PlatformModules struct {
+	// AIPipelines controls the AI Pipelines module operator lifecycle.
+	// +optional
+	AIPipelines common.ManagementSpec `json:"aipipelines,omitempty"`
+
 	// AIGateway controls the ai-gateway-operator module lifecycle.
 	// +optional
 	AIGateway common.ManagementSpec `json:"aigateway,omitempty"`
@@ -87,9 +95,18 @@ type PlatformModules struct {
 	// SparkOperator controls the Spark Operator module lifecycle.
 	// +optional
 	SparkOperator common.ManagementSpec `json:"sparkoperator,omitempty"`
+
+	// Ray controls the Ray module lifecycle.
+	// +optional
+	Ray common.ManagementSpec `json:"ray,omitempty"`
+
 	// ModelRegistry controls the model-registry (AIHub) module operator lifecycle.
 	// +optional
 	ModelRegistry common.ManagementSpec `json:"modelregistry,omitempty"`
+
+	// TrustyAI controls the TrustyAI module operator lifecycle.
+	// +optional
+	TrustyAI common.ManagementSpec `json:"trustyai,omitempty"`
 }
 
 // PlatformStatus defines the observed state of Platform.
@@ -137,45 +154,55 @@ type PlatformList struct {
 	Items           []Platform `json:"items"`
 }
 
+// moduleJSONName returns the Platform module name from a struct field json tag.
+func moduleJSONName(field reflect.StructField) (string, bool) {
+	tag := field.Tag.Get("json")
+	if tag == "" || tag == "-" {
+		return "", false
+	}
+	name, _, _ := strings.Cut(tag, ",")
+	if name == "" {
+		return "", false
+	}
+	return name, true
+}
+
+// ModuleNames returns the module names declared on the Platform CR, derived
+// from PlatformModules struct json tags.
+func (PlatformModules) ModuleNames() []string {
+	t := reflect.TypeOf(PlatformModules{})
+	names := make([]string, 0, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		if name, ok := moduleJSONName(t.Field(i)); ok {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
 // EnabledModules returns the names of modules whose ManagementState is Managed.
 func (m *PlatformModules) EnabledModules() []string {
-	var enabled []string
-	if m.AIGateway.ManagementState == operatorv1.Managed {
-		enabled = append(enabled, "aigateway")
+	if m == nil {
+		return nil
 	}
-	if m.MLflowOperator.ManagementState == operatorv1.Managed {
-		enabled = append(enabled, "mlflowoperator")
+
+	v := reflect.ValueOf(m).Elem()
+	enabled := make([]string, 0, v.NumField())
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		if field.Kind() != reflect.Struct {
+			continue
+		}
+		ms := field.FieldByName("ManagementState")
+		if !ms.IsValid() || operatorv1.ManagementState(ms.String()) != operatorv1.Managed {
+			continue
+		}
+		if name, ok := moduleJSONName(v.Type().Field(i)); ok {
+			enabled = append(enabled, name)
+		}
 	}
-	if m.Monitoring.ManagementState == operatorv1.Managed {
-		enabled = append(enabled, "monitoring")
-	}
-	if m.MCPLifecycleOperator.ManagementState == operatorv1.Managed {
-		enabled = append(enabled, "mcplifecycleoperator")
-	}
-	if m.Kserve.ManagementState == operatorv1.Managed {
-		enabled = append(enabled, "kserve")
-	}
-	if m.Trainer.ManagementState == operatorv1.Managed {
-		enabled = append(enabled, "trainer")
-	}
-	if m.Workbenches.ManagementState == operatorv1.Managed {
-		enabled = append(enabled, "workbenches")
-	}
-	if m.OGX.ManagementState == operatorv1.Managed {
-		enabled = append(enabled, "ogx")
-	}
-	if m.FeastOperator.ManagementState == operatorv1.Managed {
-		enabled = append(enabled, "feastoperator")
-	}
-	if m.Dashboard.ManagementState == operatorv1.Managed {
-		enabled = append(enabled, "dashboard")
-	}
-	if m.SparkOperator.ManagementState == operatorv1.Managed {
-		enabled = append(enabled, "sparkoperator")
-	}
-	if m.ModelRegistry.ManagementState == operatorv1.Managed {
-		enabled = append(enabled, "modelregistry")
-	}
+	sort.Strings(enabled)
 	return enabled
 }
 

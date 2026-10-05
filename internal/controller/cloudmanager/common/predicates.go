@@ -10,7 +10,7 @@ import (
 
 // OperatorCRGVKPredicates returns a WithGVKPredicates option that configures
 // ResourceVersionChangedPredicate for operator CR GVKs (Istio, CertManager,
-// LeaderWorkerSetOperator). This ensures status-only changes on these CRs
+// LeaderWorkerSetOperator, Kuadrant). This ensures status-only changes on these CRs
 // trigger re-reconciliation, which DefaultPredicate (GenerationChangedPredicate)
 // would otherwise filter out.
 func OperatorCRGVKPredicates() reconciler.DynamicOwnershipOption {
@@ -18,5 +18,6 @@ func OperatorCRGVKPredicates() reconciler.DynamicOwnershipOption {
 		gvk.Istio:                     {predicate.ResourceVersionChangedPredicate{}},
 		gvk.CertManagerV1Alpha1:       {predicate.ResourceVersionChangedPredicate{}},
 		gvk.LeaderWorkerSetOperatorV1: {predicate.ResourceVersionChangedPredicate{}},
+		gvk.Kuadrantv1beta1:           {predicate.ResourceVersionChangedPredicate{}},
 	})
 }

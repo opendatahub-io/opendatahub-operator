@@ -107,6 +107,9 @@ type BootstrapConfig struct {
 	// issuer to get their own certificates.
 	CAIssuerName string
 
+	// IssuerRefKind is the kind of the issuer referenced by downstream components.
+	IssuerRefKind string
+
 	// OperatorCertConfig holds the configuration for the operator's webhook serving certificate.
 	// When OperatorCertConfig.Namespace is empty, no webhook Certificate is created.
 	OperatorCertConfig *OperatorCertConfig
@@ -124,7 +127,7 @@ func WithOperatorCert(namespace string) BootstrapConfigOpt {
 }
 
 // DefaultBootstrapConfig returns the standard ODH PKI bootstrap configuration.
-// Overridable fields (CAIssuerName, CertName, CertManagerNamespace) are resolved
+// Overridable fields (CAIssuerName, IssuerRefKind, CertName, CertManagerNamespace) are resolved
 // from RHAI_* environment variables, falling back to hardcoded defaults.
 //
 // By default, Operator is nil and no webhook Certificate is created.
@@ -138,6 +141,7 @@ func DefaultBootstrapConfig(opts ...BootstrapConfigOpt) BootstrapConfig {
 		CertName:             env.GetOrDefault(EnvCertName, prefix+"-ca"),
 		CertManagerNamespace: env.GetOrDefault(EnvCertManagerNS, "cert-manager"),
 		CAIssuerName:         env.GetOrDefault(EnvCAIssuerName, prefix+"-ca-issuer"),
+		IssuerRefKind:        env.GetOrDefault(EnvIssuerRefKind, DefaultIssuerRefKind),
 	}
 	for _, opt := range opts {
 		opt(&config)

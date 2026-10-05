@@ -13,11 +13,11 @@ import (
 )
 
 type TestSuites struct {
-	XMLName  xml.Name          `xml:"testsuites"`
-	Tests    int               `xml:"tests,attr"`
-	Failures int               `xml:"failures,attr"`
-	Skipped  int               `xml:"skipped,attr"`
-	Time     string            `xml:"time,attr,omitempty"`
+	XMLName  xml.Name    `xml:"testsuites"`
+	Tests    int         `xml:"tests,attr"`
+	Failures int         `xml:"failures,attr"`
+	Skipped  int         `xml:"skipped,attr"`
+	Time     string      `xml:"time,attr,omitempty"`
 	Suites   []TestSuite `xml:"testsuite"`
 }
 
@@ -46,6 +46,7 @@ type TestCase struct {
 // Skipped represents a JUnit XML skipped element
 type Skipped struct {
 	Message string `xml:"message,attr,omitempty"`
+	Content string `xml:",chardata"`
 }
 
 // Failure represents a JUnit XML test failure

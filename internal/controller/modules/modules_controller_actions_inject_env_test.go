@@ -5,7 +5,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/go-logr/logr/funcr"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -134,6 +136,26 @@ func makeDeploymentWithInitContainers(name string, initContainerNames ...string)
 								"image": "registry.example.com/module:latest",
 							},
 						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func makeDeploymentNoContainers(name, namespace string) unstructured.Unstructured {
+	return unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata": map[string]any{
+				"name":      name,
+				"namespace": namespace,
+			},
+			"spec": map[string]any{
+				"template": map[string]any{
+					"spec": map[string]any{
+						"containers": []any{},
 					},
 				},
 			},
@@ -672,6 +694,36 @@ func TestInjectInitContainerNotFound(t *testing.T) {
 	err := injectModuleEnv(context.Background(), rr)
 	g.Expect(err).Should(HaveOccurred())
 	g.Expect(err.Error()).Should(ContainSubstring(`init container "nonexistent" not found`))
+}
+
+func TestInjectModuleEnvErrorLogFields(t *testing.T) {
+	g := NewWithT(t)
+
+	var logOutput string
+
+	logger := funcr.New(func(prefix, args string) {
+		logOutput += prefix + " " + args
+	}, funcr.Options{})
+
+	dep := makeDeploymentNoContainers("module-operator", "opendatahub")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+	}
+
+	odhtype.SetModuleEnvInjection(rr, &odhtype.ModuleEnvInjection{
+		PerModuleImages: []odhtype.ModuleImages{{
+			DeploymentName: "module-operator",
+		}},
+	})
+
+	err := injectModuleEnv(logf.IntoContext(context.Background(), logger), rr)
+
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(logOutput).Should(ContainSubstring(`"deployment"="module-operator"`))
+	g.Expect(logOutput).Should(ContainSubstring(`"deploymentNamespace"="opendatahub"`))
+	g.Expect(logOutput).ShouldNot(ContainSubstring(`"name"=`))
+	g.Expect(logOutput).ShouldNot(ContainSubstring(`"namespace"=`))
 }
 
 func TestInjectEmptyInitContainerName(t *testing.T) {

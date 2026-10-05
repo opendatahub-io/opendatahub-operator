@@ -121,13 +121,9 @@ func TestFetchReleasesStatusAction(t *testing.T) {
 
 			// Create the ReconciliationRequest and set a dummy resource instance
 			rr := types.ReconciliationRequest{
-				Instance: &componentApi.DataSciencePipelines{
+				Instance: &componentApi.Kueue{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "mock-instance",
-					},
-
-					Spec: componentApi.DataSciencePipelinesSpec{
-						DataSciencePipelinesCommonSpec: componentApi.DataSciencePipelinesCommonSpec{},
 					},
 				},
 			}
@@ -227,8 +223,8 @@ func TestFetchReleasesStatusAction_PlatformRelease(t *testing.T) {
 			err := os.WriteFile(metadataPath, []byte(multiReleaseMetadataYAML), 0600)
 			g.Expect(err).NotTo(HaveOccurred())
 
-			instance := &componentApi.DataSciencePipelines{
-				ObjectMeta: metav1.ObjectMeta{Name: "default-dsp"},
+			instance := &componentApi.Kueue{
+				ObjectMeta: metav1.ObjectMeta{Name: "default-kueue"},
 			}
 			if tt.existingReleases != nil {
 				instance.SetReleaseStatus(tt.existingReleases)

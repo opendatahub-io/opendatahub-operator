@@ -15,11 +15,12 @@ import (
 )
 
 type Options struct {
-	ConfigFile          string
-	ManifestsDir        string
-	CSVImportRegistries []string
+	ConfigFile              string
+	RelatedImagesConfigFile string
+	ManifestsDir            string
+	CSVImportRegistries     []string
 	// FetchCSVImages overrides the real HTTP fetch; used in tests only.
-	FetchCSVImages func(ctx context.Context) (map[string]CSVImage, error)
+	FetchCSVImages func(ctx context.Context, source config.BuildConfigRepo) (map[string]CSVImage, error)
 }
 
 type Result struct {
@@ -34,6 +35,13 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 	cfg, err := config.Load(opts.ConfigFile)
 	if err != nil {
 		return nil, err
+	}
+	relatedImagesConfig := &config.RelatedImagesConfig{}
+	if opts.RelatedImagesConfigFile != "" {
+		relatedImagesConfig, err = config.LoadRelatedImagesConfig(opts.RelatedImagesConfigFile)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	envNames := make([]string, 0, len(cfg.ImageOverrides))
@@ -62,6 +70,10 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 	}
 	slog.Info("imageOverrides check passed", slog.Int("count", len(envNames)))
 
+	if err := cfg.CheckBuildConfig(); err != nil {
+		return nil, err
+	}
+
 	nodeDoc, err := config.LoadNode(opts.ConfigFile)
 	if err != nil {
 		return nil, err
@@ -69,17 +81,21 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 
 	var results []Result
 	var unresolved []Result
-	var csvStale []string
 
 	fetchCSV := opts.FetchCSVImages
 	if fetchCSV == nil {
 		fetchCSV = FetchCSVRelatedImages
 	}
-	csvImages, err := fetchCSV(ctx)
-	if err != nil {
-		slog.Warn("Failed to fetch CSV related images, csv fallback disabled", slog.String("error", err.Error()))
-	} else {
-		slog.Info("Fetched CSV related images", slog.Int("count", len(csvImages)))
+	csvImages := make(map[string]map[string]CSVImage, 2)
+	for _, platform := range []string{"odh", "rhoai"} {
+		source := cfg.BuildConfig.PlatformRepo(platform)
+		images, err := fetchCSV(ctx, *source)
+		if err != nil {
+			return nil, fmt.Errorf("fetching %s Build-Config CSV: %w", platform, err)
+		}
+		csvImages[platform] = NormalizeCSVImages(platform, images)
+		slog.Info("Fetched CSV related images",
+			slog.String("platform", platform), slog.Int("count", len(images)))
 	}
 
 	// Track resolved digests so shaFrom can reference freshly-resolved values
@@ -100,25 +116,23 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 	for _, envName := range envNames {
 		override := cfg.ImageOverrides[envName]
 		for _, platform := range []string{"odh", "rhoai"} {
+			platformCSVImages := csvImages[platform]
 			// Entries with source: csv are always updated from CSV
 			if override.Source == "csv" {
-				if csvImages != nil {
-					if img, ok := csvImages[envName]; ok && config.DigestPattern.MatchString(img.Digest) {
-						if len(opts.CSVImportRegistries) > 0 && !matchesRegistry(img.Base, opts.CSVImportRegistries) {
-							slog.Info("CSV entry skipped (registry not allowed)", slog.String("env", envName), slog.String("platform", platform))
-							continue
-						}
-						if err := nodeDoc.SetImageOverrideField(envName, platform, "base", img.Base); err != nil {
-							slog.Warn("Failed to set base field", slog.String("error", err.Error()))
-						}
-						if err := nodeDoc.SetImageOverrideField(envName, platform, "digest", img.Digest); err != nil {
-							slog.Warn("Failed to set digest field", slog.String("error", err.Error()))
-						}
-						results = append(results, Result{envName, platform, img.Base, img.Digest, "csv"})
-						slog.Info("Updated from CSV (auto-managed)", slog.String("env", envName), slog.String("platform", platform))
-					} else if platform == "odh" {
-						csvStale = append(csvStale, envName)
+				// Existing platform blocks are refreshed here. Missing platform
+				// blocks are reconciled against the import allowlist below.
+				if override.PlatformImage(platform) == nil {
+					continue
+				}
+				if img, ok := platformCSVImages[envName]; ok && config.DigestPattern.MatchString(img.Digest) {
+					if err := nodeDoc.SetImageOverrideField(envName, platform, "base", img.Base); err != nil {
+						slog.Warn("Failed to set base field", slog.String("error", err.Error()))
 					}
+					if err := nodeDoc.SetImageOverrideField(envName, platform, "digest", img.Digest); err != nil {
+						slog.Warn("Failed to set digest field", slog.String("error", err.Error()))
+					}
+					results = append(results, Result{envName, platform, img.Base, img.Digest, "csv"})
+					slog.Info("Updated from CSV (auto-managed)", slog.String("env", envName), slog.String("platform", platform))
 				}
 				continue
 			}
@@ -193,8 +207,10 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 				slog.Info("Registry lookup failed, falling through", slog.String("env", envName), slog.String("platform", platform), slog.String("imageRef", imageRef))
 			}
 
-			// Priority 2: params.env (value cached during the check above)
-			if imageRef := paramsEnvValue[envName]; imageRef != "" {
+			// Priority 2 for ODH only: params.env (value cached during the check above).
+			// RHOAI params.env files contain ODH defaults and are not a downstream
+			// release source.
+			if imageRef := paramsEnvValue[envName]; platform == "odh" && imageRef != "" {
 				if strings.Contains(imageRef, "@sha256:") {
 					pBase, pDigest := SplitImageRef(imageRef)
 					if config.DigestPattern.MatchString(pDigest) {
@@ -234,8 +250,8 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 			}
 
 			// Priority 3: CSV fallback
-			if csvImages != nil {
-				if img, ok := csvImages[envName]; ok && config.DigestPattern.MatchString(img.Digest) {
+			if platformCSVImages != nil {
+				if img, ok := platformCSVImages[envName]; ok && config.DigestPattern.MatchString(img.Digest) {
 					if sha != "" {
 						slog.Warn("Image for commit SHA not found in registry, falling back to CSV",
 							slog.String("env", envName), slog.String("platform", platform))
@@ -290,10 +306,13 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 		slog.Info("Copied from shaFrom source", slog.String("env", entry.envName), slog.String("platform", entry.platform), slog.String("source", entry.source))
 	}
 
-	// Third pass: import CSV entries not already in manifests-config
-	if csvImages != nil {
-		csvEnvNames := make([]string, 0, len(csvImages))
-		for envName := range csvImages {
+	// Third pass: import allowlisted CSV images not already in the original
+	// config. Upsert lets an env var receive both platform images in one pass
+	// when both image bases match the allowlist.
+	for _, platform := range []string{"odh", "rhoai"} {
+		platformCSVImages := csvImages[platform]
+		csvEnvNames := make([]string, 0, len(platformCSVImages))
+		for envName := range platformCSVImages {
 			csvEnvNames = append(csvEnvNames, envName)
 		}
 		sort.Strings(csvEnvNames)
@@ -302,29 +321,70 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 			if _, exists := cfg.ImageOverrides[envName]; exists {
 				continue
 			}
-			img := csvImages[envName]
+			if relatedImagesConfig.IsPlatformException(platform, envName) {
+				continue
+			}
+			img := platformCSVImages[envName]
 			if !config.DigestPattern.MatchString(img.Digest) {
 				continue
 			}
 			if len(opts.CSVImportRegistries) > 0 && !matchesRegistry(img.Base, opts.CSVImportRegistries) {
 				continue
 			}
-			if err := nodeDoc.AddImageOverride(envName, "odh", img.Base, img.Digest); err != nil {
-				slog.Warn("Failed to add CSV image override", slog.String("env", envName), slog.String("error", err.Error()))
+			if err := nodeDoc.UpsertCSVImageOverride(envName, platform, img.Base, img.Digest); err != nil {
+				slog.Warn("Failed to add CSV image override", slog.String("env", envName), slog.String("platform", platform), slog.String("error", err.Error()))
 				continue
 			}
-			results = append(results, Result{envName, "odh", img.Base, img.Digest, "csv-imported"})
-			slog.Info("Imported from CSV", slog.String("env", envName), slog.String("base", img.Base))
+			results = append(results, Result{envName, platform, img.Base, img.Digest, "csv-imported"})
+			slog.Info("Imported from CSV", slog.String("env", envName), slog.String("platform", platform), slog.String("base", img.Base))
 		}
 	}
 
-	// Remove source: csv entries no longer present in CSV
-	for _, envName := range csvStale {
-		if err := nodeDoc.RemoveImageOverride(envName); err != nil {
-			slog.Warn("Failed to remove stale CSV entry", slog.String("env", envName), slog.String("error", err.Error()))
+	// Reconcile platform membership for source: csv rows. Remove stale
+	// configured platforms, add newly-published allowlisted platforms, and
+	// remove the whole row when no platform image remains.
+	for _, envName := range envNames {
+		override := cfg.ImageOverrides[envName]
+		if override.Source != "csv" {
 			continue
 		}
-		slog.Info("Removed stale CSV entry", slog.String("env", envName))
+		remaining := 0
+		for _, platform := range []string{"odh", "rhoai"} {
+			img, present := csvImages[platform][envName]
+			present = present && config.DigestPattern.MatchString(img.Digest)
+			if override.PlatformImage(platform) == nil {
+				if relatedImagesConfig.IsPlatformException(platform, envName) {
+					continue
+				}
+				if !present || (len(opts.CSVImportRegistries) > 0 && !matchesRegistry(img.Base, opts.CSVImportRegistries)) {
+					continue
+				}
+				if err := nodeDoc.UpsertCSVImageOverride(envName, platform, img.Base, img.Digest); err != nil {
+					slog.Warn("Failed to add CSV platform", slog.String("env", envName), slog.String("platform", platform), slog.String("error", err.Error()))
+					continue
+				}
+				results = append(results, Result{envName, platform, img.Base, img.Digest, "csv-imported"})
+				slog.Info("Added newly-published CSV platform", slog.String("env", envName), slog.String("platform", platform), slog.String("base", img.Base))
+				remaining++
+				continue
+			}
+			if present {
+				remaining++
+				continue
+			}
+			if err := nodeDoc.RemoveImageOverridePlatform(envName, platform); err != nil {
+				slog.Warn("Failed to remove stale CSV platform", slog.String("env", envName), slog.String("platform", platform), slog.String("error", err.Error()))
+				continue
+			}
+			slog.Info("Removed stale CSV platform", slog.String("env", envName), slog.String("platform", platform))
+		}
+		if remaining == 0 {
+			if err := nodeDoc.RemoveImageOverride(envName); err != nil {
+				slog.Warn("Failed to remove stale CSV entry", slog.String("env", envName), slog.String("error", err.Error()))
+				continue
+			}
+			slog.Info("Removed stale CSV entry", slog.String("env", envName))
+		}
 	}
 
 	if len(unresolved) > 0 {

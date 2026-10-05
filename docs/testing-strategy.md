@@ -79,7 +79,7 @@ The operator's `make unit-test` runs against the full source tree including `pkg
 | `ogx` | `ogx/handler_test.go` | 95.8% |
 | `workbenches` | `workbenches/handler_test.go` | 88.2% |
 
-Note: The core framework coverage of 71.9% is partially due to `chart_compliance_test.go` failing when Helm charts have not been fetched (`make get-manifests` required).
+Note: The core framework coverage of 71.9% is partially due to `manifests_compliance_test.go` failing when Helm charts have not been fetched (`make get-manifests` required).
 
 ### End-to-End (cluster-based)
 
@@ -120,7 +120,7 @@ Contract interfaces define the behavioral expectations that any consumer or hand
 
 ### Compliance Tests
 
-- **`chart_compliance_test.go`** (`internal/controller/modules/`): Validates that Helm chart output for each module handler conforms to allowed Kubernetes resource kinds. Ensures charts do not introduce unsupported resource types. Requires charts to be fetched (`make get-manifests`).
+- **`manifests_compliance_test.go`** (`internal/controller/modules/`): Validates that Helm chart output for each module handler conforms to allowed Kubernetes resource kinds. Ensures charts do not introduce unsupported resource types. Requires charts to be fetched (`make get-manifests`).
 
 - **`handler_compliance_test.go`** (`internal/controller/modules/`, NEW): Behavioral compliance test that exercises all registered `ModuleHandler` implementations against a common set of structural assertions: non-empty unique names, valid GVKs, manifest source presence, CR/GVK consistency, nil-safety for `IsEnabled` and `WriteDSCComponentStatus`, and optional interface conformance (`ReadyConditionTyper`, `ContainerNamer`, `DeploymentNamer`, `SubmoduleConditionProvider`). Validates that new handlers satisfy the same structural contract as existing ones.
 
@@ -173,7 +173,7 @@ Handler implementations use compile-time interface satisfaction checks (e.g., `v
 |----------------------------------------|------------|
 | Library packages have unit tests with documented coverage | Level 1: coverage table above; CI via `test-unit.yaml` with Codecov upload |
 | Module handlers have per-handler unit tests | Level 2: handler test files with coverage per handler (73.7% -- 97.1%) |
-| Contract interfaces are validated across all implementations | Level 3: `chart_compliance_test.go`, `handler_compliance_test.go` (NEW), compile-time assertions |
+| Contract interfaces are validated across all implementations | Level 3: `manifests_compliance_test.go`, `handler_compliance_test.go` (NEW), compile-time assertions |
 | Module lifecycle is integration-tested end-to-end | Level 2 E2E: `tests/e2e/*_test.go` on OpenShift; Level 3: `lifecycle_integration_test.go` (NEW) |
 | Test gaps are identified and tracked | Gaps section above: predicates, handlers, upgrade compat, pipeline envtest, xKS coverage |
 | CI runs tests automatically on relevant changes | `test-unit.yaml` triggers on `internal/**`, `pkg/**`, `cmd/main.go`, `api/**`, `config/**` changes |

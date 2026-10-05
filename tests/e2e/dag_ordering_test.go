@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -58,13 +59,13 @@ var dagBatches = []componentBatch{
 		components: []componentEntry{
 			{name: componentApi.DashboardComponentName, gvk: gvk.Dashboard, internal: true},
 			{name: serviceApi.MonitoringServiceName, gvk: gvk.Monitoring, internal: true, dsciConfigured: true},
-			{name: componentApi.DataSciencePipelinesComponentName, gvk: gvk.DataSciencePipelines},
+			{name: componentApi.AIPipelinesComponentName, gvk: gvk.AIPipelines, internal: true},
 			// ModelRegistry is an out-of-tree module whose CR is the shared
 			// cluster-scoped AIHub singleton "default-aihub"; it is referenced
 			// directly via gvk.AIHub and routed through the module-readiness
 			// (Ready=True) path like the other modules (mlflow, spark).
 			{name: componentApi.ModelRegistryComponentName, gvk: gvk.AIHub, internal: true},
-			{name: componentApi.RayComponentName, gvk: gvk.Ray},
+			{name: componentApi.RayComponentName, gvk: gvk.Ray, internal: true},
 			{name: componentApi.TrainerComponentName, gvk: gvk.Trainer, internal: true},
 			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches, internal: true},
 			{name: componentApi.MCPLifecycleOperatorComponentName, gvk: gvk.MCPLifecycleOperator, internal: true},
@@ -93,54 +94,42 @@ var dagBatches = []componentBatch{
 		name:     "Batch33",
 		runlevel: 33,
 		components: []componentEntry{
-			{name: componentApi.TrustyAIComponentName, gvk: gvk.TrustyAI},
+			{name: componentApi.TrustyAIComponentName, gvk: gvk.TrustyAI, internal: true},
 		},
 	},
 }
 
-// dscComponentFieldsWithBrokenVersionHandshake lists modules excluded
-// from DAG tests because they don't watch their platform config
-// ConfigMap or don't report the platform release, causing the DAG
-// version handshake to stall. Re-enable once fixed:
-//   - aigateway:            RHOAIENG-81918
-//   - dashboard:            RHOAIENG-81919
-//   - mcplifecycleoperator: RHOAIENG-81920
-//   - trainer
-//   - workbenches:          RHOAIENG-81892
-var dscComponentFieldsWithBrokenVersionHandshake = []string{
-	"aigateway",
-	"dashboard",
-	"mcplifecycleoperator",
-	"trainer",
-	"workbenches",
+// dscComponentFieldsExcludedFromManagedDAGTests lists DSC spec.components keys
+// skipped when enabling all components during DAG tests.
+var dscComponentFieldsExcludedFromManagedDAGTests = []string{
+	"kueue", // validating webhook rejects managementState=Managed
+	"trainingoperator",
+	"llamastackoperator",
 }
 
-// dscComponentFields lists the components enabled during DAG tests.
-// Kueue is excluded: a validating webhook rejects managementState=Managed.
-var dscComponentFields = []string{
-	// "aigateway",
-	// "dashboard",
-	// "workbenches",
-	"aipipelines",
-	"kserve",
-	"ray",
-	"modelregistry",
-	"trustyai",
-	"feastoperator",
-	"ogx",
-	// "mcplifecycleoperator",
-	"mlflowoperator",
-	// "trainer",
-	"sparkoperator",
+func managedDAGTestDSCComponentFields() []string {
+	all := (dscv2.Components{}).ComponentNames()
+	fields := make([]string, 0, len(all))
+	for _, name := range all {
+		if slices.Contains(dscComponentFieldsExcludedFromManagedDAGTests, name) {
+			continue
+		}
+		fields = append(fields, name)
+	}
+	return fields
+}
+
+func allDAGTestDSCComponentFields() []string {
+	all := slices.Clone((dscv2.Components{}).ComponentNames())
+	slices.Sort(all)
+	return slices.Compact(all)
 }
 
 // extensionGVKs lists in-tree component CRs at RL 31+ whose controllers
 // write PlatformReady via RunlevelGateAction. Fully-modularized components
-// (Kserve, FeastOperator, MLflowOperator, SparkOperator) are excluded — they
-// have no in-tree controller to write PlatformReady.
-var extensionGVKs = []schema.GroupVersionKind{
-	gvk.TrustyAI,
-}
+// (Kserve, FeastOperator, MLflowOperator, SparkOperator, TrustyAI) are
+// excluded — they have no in-tree controller to write PlatformReady.
+var extensionGVKs = []schema.GroupVersionKind{}
 
 const (
 	dagQuotaName   = "dag-test-restrictive-quota"
@@ -888,14 +877,11 @@ func (tc *DAGOrderingTestCtx) deleteGateSourceCMs(t *testing.T, names ...string)
 // --- helpers ---
 
 func allComponentsManagedTransform() func(*unstructured.Unstructured) error {
-	return selectComponentsTransform("Managed", dscComponentFields)
+	return selectComponentsTransform("Managed", managedDAGTestDSCComponentFields())
 }
 
 func allComponentsRemovedTransform() func(*unstructured.Unstructured) error {
-	all := make([]string, 0, len(dscComponentFieldsWithBrokenVersionHandshake)+len(dscComponentFields))
-	all = append(all, dscComponentFieldsWithBrokenVersionHandshake...)
-	all = append(all, dscComponentFields...)
-	return selectComponentsTransform("Removed", all)
+	return selectComponentsTransform("Removed", allDAGTestDSCComponentFields())
 }
 
 func selectComponentsTransform(state string, fields []string) func(*unstructured.Unstructured) error {
@@ -979,7 +965,7 @@ func (tc *DAGOrderingTestCtx) setAllRemoved(t *testing.T) {
 // ensureAllRemovedComponentsGone verifies that every componentEntry actually
 // driven to Removed has its CR deleted. Monitoring is removed via the DSCI
 // (setDSCIMonitoringState), not the DSC spec.components fields below, so it
-// is checked explicitly by name. Components absent from both DSC field lists
+// is checked explicitly by name. Components absent from the DSC field list
 // (e.g. Kueue, whose webhook blocks managementState=Managed) are never set
 // to Removed and are skipped rather than asserted gone.
 func (tc *DAGOrderingTestCtx) ensureAllRemovedComponentsGone(t *testing.T) {
@@ -992,9 +978,7 @@ func (tc *DAGOrderingTestCtx) ensureAllRemovedComponentsGone(t *testing.T) {
 				name = aiPipelinesFieldName
 			}
 
-			removed := name == serviceApi.MonitoringServiceName ||
-				slices.Contains(dscComponentFieldsWithBrokenVersionHandshake, name) ||
-				slices.Contains(dscComponentFields, name)
+			removed := name == serviceApi.MonitoringServiceName || slices.Contains(allDAGTestDSCComponentFields(), name)
 			if !removed {
 				t.Logf("Skipping gone-check for %s: not meant to be Removed", comp.name)
 				continue

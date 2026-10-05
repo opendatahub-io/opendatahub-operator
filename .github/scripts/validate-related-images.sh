@@ -97,7 +97,7 @@ fetch_and_extract() {
     local label="$3"
 
     local temp_file
-    temp_file=$(mktemp "${WORKDIR}/fetched.XXXXXX.yaml")
+    temp_file=$(mktemp "${WORKDIR}/fetched.XXXXXX")
 
     if ! curl -sfL --max-filesize 10485760 --connect-timeout 10 --max-time 30 \
             "$url" -o "$temp_file" 2>/dev/null; then
@@ -251,6 +251,17 @@ extract_module_images() {
     done
 }
 
+extract_map_keys() {
+    local search_dir="$1"
+
+    # A repository may use RELATED_IMAGE values exclusively through module
+    # slices, leaving no quoted map keys. An empty match set is valid.
+    grep -roh '"RELATED_IMAGE_[A-Z0-9_]*"[[:space:]]*:' "$search_dir" \
+        --include='*.go' --exclude='*_test.go' 2>/dev/null \
+        | grep -oh 'RELATED_IMAGE_[A-Z0-9_]\+' \
+        | sort -u || true
+}
+
 mkdir -p "$WORKDIR/modules"
 if [ -d "$MODULES_DIR" ]; then
     for mod_dir in "$MODULES_DIR"/*/; do
@@ -316,7 +327,7 @@ touch "$RHAI_HELM_CONFIG"
 echo ""
 echo "Fetching RHAI Helm chart values (${RHOAI_BUILD_CONFIG_BRANCH})..."
 RHAI_HELM_URL="${RHOAI_BASE_URL}/helm/rhai-on-xks-chart/values.yaml"
-rhai_temp=$(mktemp "${WORKDIR}/fetched.XXXXXX.yaml")
+rhai_temp=$(mktemp "${WORKDIR}/fetched.XXXXXX")
 if curl -sfL --max-filesize 10485760 --connect-timeout 10 --max-time 30 \
         "$RHAI_HELM_URL" -o "$rhai_temp" 2>/dev/null; then
     if ! $YQ -r '.rhaiOperator.relatedImages[].name' "$rhai_temp" 2>/dev/null | sort -u > "$RHAI_HELM_CONFIG"; then
@@ -356,7 +367,7 @@ fetch_sbom_metadata() {
     local label="$1"
     local url="$2"
     local sbom_temp
-    sbom_temp=$(mktemp "${WORKDIR}/fetched.XXXXXX.yaml")
+    sbom_temp=$(mktemp "${WORKDIR}/fetched.XXXXXX")
     echo ""
     echo "Fetching SBOM metadata config from ${label}..."
     if curl -sfL --max-filesize 10485760 --connect-timeout 10 --max-time 30 \
@@ -422,10 +433,7 @@ sort -u -o "$WORKDIR/mapped-images.txt" "$WORKDIR/mapped-images.txt"
 grep -roh 'RELATED_IMAGE_[A-Z0-9_]\+' internal/ \
     --include='*.go' --exclude='*_test.go' \
     | sort -u > "$WORKDIR/all-refs.txt"
-grep -roh '"RELATED_IMAGE_[A-Z0-9_]*"[[:space:]]*:' internal/ \
-    --include='*.go' --exclude='*_test.go' 2>/dev/null \
-    | grep -oh 'RELATED_IMAGE_[A-Z0-9_]\+' \
-    | sort -u > "$WORKDIR/map-keys.txt"
+extract_map_keys internal/ > "$WORKDIR/map-keys.txt"
 comm -23 "$WORKDIR/all-refs.txt" "$WORKDIR/map-keys.txt" > "$WORKDIR/all-env-refs.txt"
 comm -23 "$WORKDIR/all-env-refs.txt" "$WORKDIR/mapped-images.txt" > "$WORKDIR/unmapped-refs.txt"
 while IFS= read -r img; do
