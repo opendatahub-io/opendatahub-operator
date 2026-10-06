@@ -152,9 +152,9 @@ func TestOIDCGatewayCreation(t *testing.T) {
 	RunGatewayCreationTest(t, GetOIDCTestSetup())
 }
 
-// TestOIDCAdditionalGatewayListeners validates listener add/remove reconciliation in OIDC mode (delegates to RunAdditionalGatewayListenersTest).
-func TestOIDCAdditionalGatewayListeners(t *testing.T) {
-	RunAdditionalGatewayListenersTest(t, GetOIDCTestSetup())
+// TestOIDCAdditionalGateways validates per-ingress Gateway reconciliation in OIDC mode.
+func TestOIDCAdditionalGateways(t *testing.T) {
+	RunAdditionalGatewaysTest(t, GetOIDCTestSetup())
 }
 
 // TestOIDCHTTPRouteCreation validates HTTPRoute creation in OIDC mode (delegates to RunHTTPRouteCreationTest).
