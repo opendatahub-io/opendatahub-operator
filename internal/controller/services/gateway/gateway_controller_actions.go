@@ -73,11 +73,11 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		}
 		return err
 	}
+	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
 	if len(gatewayConfig.Spec.AdditionalIngresses) > 0 {
-		legacyHostname := computeLegacyRedirectInfo(gatewayConfig, hostname).LegacyHostname
 		for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
 			var conflictReason, conflictMessage string
-			if strings.EqualFold(ingress.Hostname, hostname) || strings.EqualFold(ingress.Hostname, legacyHostname) {
+			if strings.EqualFold(ingress.Hostname, hostname) || strings.EqualFold(ingress.Hostname, legacyInfo.LegacyHostname) {
 				conflictReason = additionalIngressReasonHostnameConflict
 				conflictMessage = fmt.Sprintf("additional ingress %q hostname %q conflicts with a managed Gateway hostname", ingress.Name, ingress.Hostname)
 			} else {
@@ -90,6 +90,18 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 				if !manageable {
 					conflictReason = additionalIngressReasonOwnershipConflict
 					conflictMessage = fmt.Sprintf("additional Gateway %q already exists and is not owned by GatewayConfig %q", ingress.Name, gatewayConfig.Name)
+				} else {
+					configMapName := additionalGatewayInfrastructureConfigMapName(ingress.Name)
+					manageable, err = canManageGatewayResource(ctx, rr.Client, gatewayConfig, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+						Name: configMapName, Namespace: GetGatewayNamespace(),
+					}})
+					if err != nil {
+						return fmt.Errorf("failed to validate additional Gateway infrastructure ConfigMap %q ownership: %w", configMapName, err)
+					}
+					if !manageable {
+						conflictReason = additionalIngressReasonOwnershipConflict
+						conflictMessage = fmt.Sprintf("additional Gateway infrastructure ConfigMap %q already exists and is not owned by GatewayConfig %q", configMapName, gatewayConfig.Name)
+					}
 				}
 			}
 			if conflictReason != "" {
@@ -97,7 +109,6 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 					setAdditionalIngressCondition(status, gatewayConfig.Generation,
 						serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionFalse,
 						conflictReason, conflictMessage)
-					updateAdditionalIngressReadyCondition(status, gatewayConfig.Generation)
 				}
 				updateAdditionalGatewaysReadyCondition(rr, gatewayConfig)
 				continue
@@ -131,10 +142,7 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		}
 	}
 
-	// Compute legacy hostname for LoadBalancer mode (needs second listener)
-	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
-
-	if err := createGateway(ctx, rr, certSecretName, hostname, legacyInfo.LegacyHostname, gatewayConfig); err != nil {
+	if err := createGateway(rr, certSecretName, hostname, legacyInfo.LegacyHostname, gatewayConfig); err != nil {
 		return fmt.Errorf("failed to create Gateway: %w", err)
 	}
 

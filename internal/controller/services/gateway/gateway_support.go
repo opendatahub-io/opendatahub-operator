@@ -187,6 +187,9 @@ func gatewayEnvoyFilterTargets(gatewayConfig *serviceApi.GatewayConfig) []gatewa
 	targets := []gatewayEnvoyFilterTarget{{Name: AuthnFilterName, GatewayName: GetDefaultGatewayName()}}
 	if gatewayConfig != nil {
 		for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
+			if additionalIngressHasGatewayConflict(gatewayConfig, ingress.Name) {
+				continue
+			}
 			targets = append(targets, gatewayEnvoyFilterTarget{
 				Name:        additionalGatewayEnvoyFilterName(ingress.Name),
 				GatewayName: ingress.Name,
@@ -417,7 +420,6 @@ func managedGateway(name string, listeners []gwapiv1.Listener) *gwapiv1.Gateway 
 }
 
 func createGateway(
-	ctx context.Context,
 	rr *odhtypes.ReconciliationRequest,
 	certSecretName string,
 	domain string,
@@ -479,11 +481,10 @@ func createGateway(
 		return err
 	}
 
-	return createAdditionalGateways(ctx, rr, gatewayConfig, allowedRoutes)
+	return createAdditionalGateways(rr, gatewayConfig, allowedRoutes)
 }
 
 func createAdditionalGateways(
-	ctx context.Context,
 	rr *odhtypes.ReconciliationRequest,
 	gatewayConfig *serviceApi.GatewayConfig,
 	allowedRoutes *gwapiv1.AllowedRoutes,
@@ -502,15 +503,6 @@ func createAdditionalGateways(
 		})
 
 		configMapName := additionalGatewayInfrastructureConfigMapName(ingress.Name)
-		manageable, err := canManageGatewayResource(ctx, rr.Client, gatewayConfig, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
-			Name: configMapName, Namespace: GetGatewayNamespace(),
-		}})
-		if err != nil {
-			return fmt.Errorf("failed to validate additional Gateway infrastructure ConfigMap %q ownership: %w", configMapName, err)
-		}
-		if !manageable {
-			return fmt.Errorf("additional Gateway infrastructure ConfigMap %q already exists and is not owned by GatewayConfig %q", configMapName, gatewayConfig.Name)
-		}
 		if err := configureClusterIPInfrastructure(
 			rr, gateway,
 			configMapName,

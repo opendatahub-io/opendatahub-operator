@@ -898,6 +898,7 @@ func TestAuthTemplatesCoverEveryManagedGateway(t *testing.T) {
 		Domain:              "apps.example.com",
 		AdditionalIngresses: serviceApi.AdditionalIngresses{{Name: "alpha"}, {Name: "beta"}},
 	}}
+	config.Generation = 1
 	data := authProxyTemplateData()
 	productionData, err := getTemplateData(t.Context(), &odhtypes.ReconciliationRequest{
 		Client: newGatewayTestClient(t, config), Instance: config,
@@ -924,6 +925,23 @@ func TestAuthTemplatesCoverEveryManagedGateway(t *testing.T) {
 	for _, name := range []string{GetDefaultGatewayName(), "alpha", "beta"} {
 		g.Expect(networkPolicy).To(ContainSubstring("- " + name))
 	}
+
+	config.Status.AdditionalIngresses = []serviceApi.AdditionalIngressStatus{{Name: "alpha"}, {Name: "beta"}}
+	setAdditionalIngressCondition(&config.Status.AdditionalIngresses[0], config.Generation,
+		serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionFalse,
+		additionalIngressReasonOwnershipConflict, "Gateway belongs to another owner")
+	productionData, err = getTemplateData(t.Context(), &odhtypes.ReconciliationRequest{
+		Client: newGatewayTestClient(t, config), Instance: config,
+	})
+	g.Expect(err).NotTo(HaveOccurred())
+	data["GatewayFilters"] = productionData["GatewayFilters"]
+	envoyFilters = renderAuthProxyTemplate(g, envoyFilterTemplate, data)
+	g.Expect(strings.Count(envoyFilters, "kind: EnvoyFilter")).To(Equal(2))
+	g.Expect(envoyFilters).NotTo(ContainSubstring("name: " + additionalGatewayEnvoyFilterName("alpha")))
+	g.Expect(envoyFilters).To(ContainSubstring("name: " + additionalGatewayEnvoyFilterName("beta")))
+	networkPolicy = renderAuthProxyTemplate(g, networkPolicyTemplate, data)
+	g.Expect(networkPolicy).NotTo(ContainSubstring("- alpha"))
+	g.Expect(networkPolicy).To(ContainSubstring("- beta"))
 }
 
 // TestAuthProxyTemplatesErrorWhenTokenReviewKeysMissing documents the e2e bug:

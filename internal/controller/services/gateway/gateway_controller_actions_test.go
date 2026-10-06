@@ -444,7 +444,10 @@ func TestCreateGatewayInfrastructureValidatesAdditionalResourceOwnership(t *test
 				ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName, UID: "config-uid"},
 				Spec: serviceApi.GatewayConfigSpec{
 					Domain: "apps.example.com", IngressMode: serviceApi.IngressModeOcpRoute,
-					AdditionalIngresses: serviceApi.AdditionalIngresses{additionalIngress("alpha", "alpha.example.com", "alpha")},
+					AdditionalIngresses: serviceApi.AdditionalIngresses{
+						additionalIngress("alpha", "alpha.example.com", "alpha"),
+						additionalIngress("beta", "beta.example.com", "beta"),
+					},
 				},
 			}
 			configMap := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
@@ -467,19 +470,34 @@ func TestCreateGatewayInfrastructureValidatesAdditionalResourceOwnership(t *test
 					},
 				}))
 			g.Expect(err).NotTo(HaveOccurred())
-			rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: config}
+			rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: config,
+				Conditions: conditions.NewManager(config, serviceApi.AdditionalGatewaysReadyConditionType)}
+			g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
 			err = createGatewayInfrastructure(t.Context(), rr)
-			if test.allowed {
-				g.Expect(err).NotTo(HaveOccurred())
-			} else {
+			if test.lookupKind != "" {
 				g.Expect(err).To(HaveOccurred())
-				if test.lookupKind != "" {
-					g.Expect(err).To(MatchError(lookupErr))
-				} else {
-					g.Expect(err).To(MatchError(ContainSubstring("is not owned by GatewayConfig")))
-				}
+				g.Expect(err).To(MatchError(lookupErr))
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+				resourceNames := make([]string, 0, len(rr.Resources))
 				for _, resource := range rr.Resources {
-					g.Expect(resource.GetName()).NotTo(BeElementOf("alpha", configMap.Name))
+					resourceNames = append(resourceNames, resource.GetName())
+				}
+				g.Expect(resourceNames).To(ContainElements(GetDefaultGatewayName(), "beta", additionalGatewayInfrastructureConfigMapName("beta")))
+				if test.allowed {
+					g.Expect(resourceNames).To(ContainElements("alpha", configMap.Name))
+				} else {
+					g.Expect(resourceNames).NotTo(ContainElement("alpha"))
+					g.Expect(resourceNames).NotTo(ContainElement(configMap.Name))
+					g.Expect(conditions.FindStatusCondition(additionalIngressStatusByName(config, "alpha"),
+						serviceApi.AdditionalIngressGatewayReadyConditionType).Reason).To(Equal(additionalIngressReasonOwnershipConflict))
+					g.Expect(gatewayEnvoyFilterTargets(config)).To(Equal([]gatewayEnvoyFilterTarget{
+						{Name: AuthnFilterName, GatewayName: GetDefaultGatewayName()},
+						{Name: additionalGatewayEnvoyFilterName("beta"), GatewayName: "beta"},
+					}))
+					g.Expect(syncAdditionalIngressReadyStatuses(t.Context(), rr, false)).To(Succeed())
+					g.Expect(conditions.FindStatusCondition(additionalIngressStatusByName(config, "alpha"),
+						serviceApi.AdditionalIngressReadyConditionType).Status).To(Equal(metav1.ConditionFalse))
 				}
 			}
 			if test.lookupKind != "ConfigMap" {
