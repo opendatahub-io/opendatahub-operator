@@ -25,7 +25,6 @@ func (m AIHubSuite) run(t *testing.T) {
 	t.Run("v3_v2", m.v3ToV2)
 }
 
-//nolint:dupl // Both directions must verify the versioned AI Hub namespace status paths.
 func (m AIHubSuite) v2ToV3(t *testing.T) {
 	w := m.newScenario(t)
 
@@ -49,7 +48,8 @@ func (m AIHubSuite) v2ToV3(t *testing.T) {
 		jq.Match(`.spec.components.aiHub.managementState == "Managed"`),
 		jq.Match(`.spec.components.aiHub.instancesNamespace == "model-registries"`),
 		jq.Match(`.status.components.aiHub.managementState == "Managed"`),
-		jq.Match(`.status.components.aiHub.applicationNamespace == "model-registries"`),
+		jq.Match(`.status.components.aiHub.instancesNamespace == "model-registries"`),
+		jq.Match(`(.status.components.aiHub | has("applicationNamespace")) == false`),
 	))
 
 	w.Get(gvk.DataScienceClusterV2, dscKey).Should(And(
@@ -60,7 +60,6 @@ func (m AIHubSuite) v2ToV3(t *testing.T) {
 	))
 }
 
-//nolint:dupl // Both directions must verify the versioned AI Hub namespace status paths.
 func (m AIHubSuite) v3ToV2(t *testing.T) {
 	w := m.newScenario(t)
 
@@ -91,6 +90,7 @@ func (m AIHubSuite) v3ToV2(t *testing.T) {
 		jq.Match(`.spec.components.aiHub.managementState == "Managed"`),
 		jq.Match(`.spec.components.aiHub.instancesNamespace == "model-registries"`),
 		jq.Match(`.status.components.aiHub.managementState == "Managed"`),
-		jq.Match(`.status.components.aiHub.applicationNamespace == "model-registries"`),
+		jq.Match(`.status.components.aiHub.instancesNamespace == "model-registries"`),
+		jq.Match(`(.status.components.aiHub | has("applicationNamespace")) == false`),
 	))
 }

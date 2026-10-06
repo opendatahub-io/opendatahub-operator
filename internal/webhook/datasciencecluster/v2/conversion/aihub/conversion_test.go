@@ -37,7 +37,7 @@ func TestAIHubConversionV2ToV3(t *testing.T) {
 	g.Expect(hub.Spec.Components.AIHub.ManagementState).To(Equal(operatorv1.Managed))
 	g.Expect(hub.Spec.Components.AIHub.InstancesNamespace).To(Equal(registriesNamespace))
 	g.Expect(hub.Status.Components.AIHub.ManagementState).To(Equal(operatorv1.Managed))
-	g.Expect(hub.Status.Components.AIHub.ApplicationNamespace).To(Equal(registriesNamespace))
+	g.Expect(hub.Status.Components.AIHub.InstancesNamespace).To(Equal(registriesNamespace))
 	g.Expect(hub.Status.Conditions).To(ConsistOf(
 		MatchFields(IgnoreExtras, Fields{
 			"Type":   Equal("AIHubReady"),
@@ -57,7 +57,7 @@ func TestAIHubConversionV3ToV2(t *testing.T) {
 	}
 	source.Status.Components.AIHub.ManagementState = operatorv1.Managed
 	source.Status.Components.AIHub.AIHubCommonStatus = &componentApi.AIHubCommonStatus{
-		ApplicationNamespace: registriesNamespace,
+		InstancesNamespace: registriesNamespace,
 	}
 
 	destination := &dscv2.DataScienceCluster{}

@@ -21,7 +21,7 @@ import "github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 // AIHubCommonStatus defines the observed state shared by the public v3 AI Hub
 // component.
 type AIHubCommonStatus struct {
-	ApplicationNamespace          string `json:"applicationNamespace,omitempty"`
+	InstancesNamespace            string `json:"instancesNamespace,omitempty"`
 	common.ComponentReleaseStatus `json:",inline"`
 }
 

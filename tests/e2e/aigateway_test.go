@@ -372,7 +372,8 @@ func validateV2DSCCanonicalMaaSSelection(t *testing.T, tc *TestContext, moduleGV
 	v2Read := &dscv2.DataScienceCluster{}
 	require.NoError(t, tc.Client().Get(t.Context(), tc.DataScienceClusterNamespacedName, v2Read))
 	require.Equal(t, operatorv1.Managed, v2Read.Status.Components.ModelsAsAService.ManagementState)
-	if v2Read.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed { //nolint:staticcheck // v2 compatibility read.
+	//nolint:staticcheck // v2 compatibility read.
+	if v2Read.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed {
 		require.Equal(t, operatorv1.Removed, v2Read.Spec.Components.AIGateway.ModelsAsAService.ManagementState)
 	} else {
 		require.Equal(t, operatorv1.Managed, v2Read.Spec.Components.AIGateway.ModelsAsAService.ManagementState)

@@ -100,7 +100,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `applicationNamespace` _string_ |  |  |  |
+| `instancesNamespace` _string_ |  |  |  |
 
 
 #### ArgoWorkflowsControllersSpec

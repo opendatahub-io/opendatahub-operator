@@ -264,7 +264,7 @@ func TestGetName(t *testing.T) {
 	g.Expect(h.GetName()).Should(Equal(componentApi.ModelRegistryComponentName))
 }
 
-func TestWriteLegacyStatusFields_MirrorsFromDSCSpec(t *testing.T) {
+func TestWriteDSCComponentStatus_MirrorsNamespaceFromDSCSpec(t *testing.T) {
 	g := NewWithT(t)
 	h := modelregistry.NewHandler()
 	dsc := &dscApi.DataScienceCluster{
@@ -279,12 +279,11 @@ func TestWriteLegacyStatusFields_MirrorsFromDSCSpec(t *testing.T) {
 		},
 	}
 
-	err := h.WriteLegacyStatusFields(context.Background(), nil, dsc, true)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(dsc.Status.Components.AIHub.ApplicationNamespace).Should(Equal("odh-model-registries"))
+	h.WriteDSCComponentStatus(dsc, true, nil)
+	g.Expect(dsc.Status.Components.AIHub.InstancesNamespace).Should(Equal("odh-model-registries"))
 }
 
-func TestWriteLegacyStatusFields_ClearsWhenDisabled(t *testing.T) {
+func TestWriteDSCComponentStatus_ClearsNamespaceWhenDisabled(t *testing.T) {
 	g := NewWithT(t)
 	h := modelregistry.NewHandler()
 	dsc := &dscApi.DataScienceCluster{
@@ -299,15 +298,13 @@ func TestWriteLegacyStatusFields_ClearsWhenDisabled(t *testing.T) {
 		},
 	}
 
-	err := h.WriteLegacyStatusFields(context.Background(), nil, dsc, true)
-	g.Expect(err).NotTo(HaveOccurred())
+	h.WriteDSCComponentStatus(dsc, true, nil)
 
-	err = h.WriteLegacyStatusFields(context.Background(), nil, dsc, false)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(dsc.Status.Components.AIHub.ApplicationNamespace).Should(BeEmpty())
+	h.WriteDSCComponentStatus(dsc, false, nil)
+	g.Expect(dsc.Status.Components.AIHub.InstancesNamespace).Should(BeEmpty())
 }
 
-func TestWriteLegacyStatusFields_ClearsWhenSpecEmpty(t *testing.T) {
+func TestWriteDSCComponentStatus_ClearsNamespaceWhenSpecEmpty(t *testing.T) {
 	g := NewWithT(t)
 	h := modelregistry.NewHandler()
 	dsc := &dscApi.DataScienceCluster{
@@ -322,12 +319,10 @@ func TestWriteLegacyStatusFields_ClearsWhenSpecEmpty(t *testing.T) {
 		},
 	}
 
-	err := h.WriteLegacyStatusFields(context.Background(), nil, dsc, true)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(dsc.Status.Components.AIHub.ApplicationNamespace).Should(Equal("odh-model-registries"))
+	h.WriteDSCComponentStatus(dsc, true, nil)
+	g.Expect(dsc.Status.Components.AIHub.InstancesNamespace).Should(Equal("odh-model-registries"))
 
 	dsc.Spec.Components.AIHub.InstancesNamespace = ""
-	err = h.WriteLegacyStatusFields(context.Background(), nil, dsc, true)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(dsc.Status.Components.AIHub.ApplicationNamespace).Should(BeEmpty())
+	h.WriteDSCComponentStatus(dsc, true, nil)
+	g.Expect(dsc.Status.Components.AIHub.InstancesNamespace).Should(BeEmpty())
 }

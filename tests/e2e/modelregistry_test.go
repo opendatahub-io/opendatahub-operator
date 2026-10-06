@@ -90,7 +90,8 @@ func modelRegistryTestSuite(t *testing.T) {
 				WithCondition(And(
 					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, aiHubReadyCondition, metav1.ConditionTrue),
 					jq.Match(`.status.components.aiHub.managementState == "Managed"`),
-					jq.Match(`.status.components.aiHub.applicationNamespace == "%s"`, modelRegistryTestNamespace),
+					jq.Match(`.status.components.aiHub.instancesNamespace == "%s"`, modelRegistryTestNamespace),
+					jq.Match(`(.status.components.aiHub | has("applicationNamespace")) == false`),
 				)),
 				WithCustomErrorMsg("DataScienceCluster should have %s condition set to True with Managed state", aiHubReadyCondition),
 			)
@@ -164,7 +165,8 @@ func modelRegistryTestSuite(t *testing.T) {
 				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 				WithCondition(And(
 					jq.Match(`.status.components.aiHub.managementState == "Managed"`),
-					jq.Match(`.status.components.aiHub.applicationNamespace == "%s"`, modelRegistryTestNamespace),
+					jq.Match(`.status.components.aiHub.instancesNamespace == "%s"`, modelRegistryTestNamespace),
+					jq.Match(`(.status.components.aiHub | has("applicationNamespace")) == false`),
 					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, aiHubReadyCondition, metav1.ConditionTrue),
 				)),
 			)

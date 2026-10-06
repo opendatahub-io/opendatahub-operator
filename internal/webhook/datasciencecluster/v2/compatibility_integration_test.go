@@ -62,7 +62,7 @@ func TestV2ClientAgainstV3Storage(t *testing.T) {
 	v3.Status.Components.Dashboard.ManagementState = operatorv1.Managed
 	v3.Status.Components.AIHub.ManagementState = operatorv1.Managed
 	v3.Status.Components.AIHub.AIHubCommonStatus = &componentApi.AIHubCommonStatus{
-		ApplicationNamespace: "model-registry-ns",
+		InstancesNamespace: "model-registry-ns",
 	}
 	v3.Status.Release = common.Release{Name: "OpenDataHub"}
 	v3.Status.Conditions = []common.Condition{

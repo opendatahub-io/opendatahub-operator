@@ -179,7 +179,7 @@ func TestConversionPreservesUnchangedFields(t *testing.T) {
 	delete(statusComponents, "trainingoperator")
 	delete(statusComponents, "llamastackoperator")
 	aiHubStatus := statusComponents["modelregistry"].(map[string]any)
-	aiHubStatus["applicationNamespace"] = aiHubStatus["registriesNamespace"]
+	aiHubStatus["instancesNamespace"] = aiHubStatus["registriesNamespace"]
 	delete(aiHubStatus, "registriesNamespace")
 	statusComponents["aiHub"] = aiHubStatus
 	delete(statusComponents, "modelregistry")

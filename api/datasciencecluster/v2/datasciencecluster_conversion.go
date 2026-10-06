@@ -102,7 +102,7 @@ func modelRegistryStatusToAIHub(src componentApi.DSCModelRegistryStatus) compone
 	}
 
 	dst.AIHubCommonStatus = &componentApi.AIHubCommonStatus{
-		ApplicationNamespace: src.RegistriesNamespace,
+		InstancesNamespace: src.RegistriesNamespace,
 		ComponentReleaseStatus: common.ComponentReleaseStatus{
 			Releases: slices.Clone(src.Releases),
 		},
@@ -117,7 +117,7 @@ func aiHubStatusToModelRegistry(src componentApi.DSCAIHubStatus) componentApi.DS
 	}
 
 	dst.ModelRegistryCommonStatus = &componentApi.ModelRegistryCommonStatus{
-		RegistriesNamespace: src.ApplicationNamespace,
+		RegistriesNamespace: src.InstancesNamespace,
 		ComponentReleaseStatus: common.ComponentReleaseStatus{
 			Releases: slices.Clone(src.Releases),
 		},

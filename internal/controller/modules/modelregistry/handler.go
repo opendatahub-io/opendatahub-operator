@@ -83,58 +83,20 @@ func (h *handler) WriteDSCComponentStatus(dsc *dscApi.DataScienceCluster, enable
 	}
 	dsc.Status.Components.AIHub.ManagementState = ms
 
-	if len(releases) > 0 {
-		if dsc.Status.Components.AIHub.AIHubCommonStatus == nil {
-			dsc.Status.Components.AIHub.AIHubCommonStatus = &componentApi.AIHubCommonStatus{}
+	instancesNamespace := ""
+	if enabled {
+		instancesNamespace = dsc.Spec.Components.AIHub.InstancesNamespace
+	}
+
+	componentStatus := &dsc.Status.Components.AIHub
+	if componentStatus.AIHubCommonStatus == nil {
+		if instancesNamespace == "" && len(releases) == 0 {
+			return
 		}
-		dsc.Status.Components.AIHub.Releases = releases
-	} else if dsc.Status.Components.AIHub.AIHubCommonStatus != nil {
-		dsc.Status.Components.AIHub.Releases = nil
+		componentStatus.AIHubCommonStatus = &componentApi.AIHubCommonStatus{}
 	}
-}
-
-// WriteLegacyStatusFields mirrors instancesNamespace from the DSC spec into
-// dsc.status.components.aiHub.applicationNamespace so consumers (e.g. odh-dashboard) can
-// resolve the model registries namespace from DSC status.
-//
-// TODO: Remove once consumers read the registry namespace directly from the AIHub
-// module CR instead of DSC status.
-func (h *handler) WriteLegacyStatusFields(
-	_ context.Context,
-	_ client.Client,
-	dsc *dscApi.DataScienceCluster,
-	enabled bool,
-) error {
-	if dsc == nil {
-		return nil
-	}
-
-	if !enabled {
-		writeDSCApplicationNamespace(dsc, false, "")
-		return nil
-	}
-
-	writeDSCApplicationNamespace(dsc, true, dsc.Spec.Components.AIHub.InstancesNamespace)
-	return nil
-}
-
-func writeDSCApplicationNamespace(dsc *dscApi.DataScienceCluster, enabled bool, applicationNamespace string) {
-	if dsc == nil {
-		return
-	}
-
-	if !enabled || applicationNamespace == "" {
-		if dsc.Status.Components.AIHub.AIHubCommonStatus != nil {
-			dsc.Status.Components.AIHub.ApplicationNamespace = ""
-		}
-		return
-	}
-
-	if dsc.Status.Components.AIHub.AIHubCommonStatus == nil {
-		dsc.Status.Components.AIHub.AIHubCommonStatus = &componentApi.AIHubCommonStatus{}
-	}
-
-	dsc.Status.Components.AIHub.ApplicationNamespace = applicationNamespace
+	componentStatus.InstancesNamespace = instancesNamespace
+	componentStatus.Releases = releases
 }
 
 func (h *handler) BuildModuleCR(
