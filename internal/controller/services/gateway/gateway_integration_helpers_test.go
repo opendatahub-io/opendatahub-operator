@@ -61,6 +61,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/rest"
@@ -68,6 +69,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -78,8 +80,10 @@ import (
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	metadatalabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -766,6 +770,22 @@ func deleteGatewayConfigDependents(t *testing.T, ctx context.Context, cli client
 	if err := cli.Get(ctx, types.NamespacedName{Name: gateway.DefaultGatewayName, Namespace: ns}, gwRoute); err == nil {
 		_ = cli.Delete(ctx, gwRoute)
 	}
+	bridgeRoutes := &routev1.RouteList{}
+	if err := cli.List(ctx, bridgeRoutes, client.InNamespace(ns)); err != nil {
+		t.Fatalf("Failed to list additional bridge Routes: %v", err)
+	}
+	for i := range bridgeRoutes.Items {
+		route := &bridgeRoutes.Items[i]
+		for _, owner := range route.OwnerReferences {
+			if owner.Kind == serviceApi.GatewayConfigKind && owner.Name == serviceApi.GatewayConfigName &&
+				route.Name != gateway.GetDefaultGatewayName() {
+				if err := cli.Delete(ctx, route); err != nil && !k8serr.IsNotFound(err) {
+					t.Fatalf("Failed to delete additional bridge Route %q: %v", route.Name, err)
+				}
+				break
+			}
+		}
+	}
 
 	// Delete dashboard redirect routes in application namespace (opendatahub).
 	// Platform-specific dashboard route plus legacy gateway route.
@@ -917,133 +937,269 @@ func RunGatewayCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(hasHTTPSListener).To(BeTrue(), "Gateway should have HTTPS listener")
 }
 
-// RunAdditionalGatewayListenersTest validates listener projection, ordering, update, and removal.
-func RunAdditionalGatewayListenersTest(t *testing.T, setup TestSetup) {
+// RunAdditionalGatewaysTest validates separate Gateway and bridge Route reconciliation.
+func RunAdditionalGatewaysTest(t *testing.T, setup TestSetup) {
 	g := NewWithT(t)
 	defer setup.Setup(t)()
+	defaultGatewayBefore := &gwapiv1.Gateway{}
+	g.Eventually(func() error {
+		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+			Name: gateway.GetDefaultGatewayName(), Namespace: gateway.GetGatewayNamespace(),
+		}, defaultGatewayBefore)
+	}, TestTimeout, TestInterval).Should(Succeed())
+	defaultRouteBefore := &routev1.Route{}
+	g.Eventually(func() error {
+		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+			Name: gateway.GetDefaultGatewayName(), Namespace: gateway.GetGatewayNamespace(),
+		}, defaultRouteBefore)
+	}, TestTimeout, TestInterval).Should(Succeed())
+	defaultHTTPRouteBefore := &gwapiv1.HTTPRoute{}
+	g.Eventually(func() error {
+		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+			Name: gateway.OAuthCallbackRouteName, Namespace: gateway.GetGatewayNamespace(),
+		}, defaultHTTPRouteBefore)
+	}, TestTimeout, TestInterval).Should(Succeed())
+
+	alpha := serviceApi.AdditionalIngress{
+		Name: "alpha", Hostname: "alpha.example.com", IngressControllerName: "shard-alpha",
+		RouteLabels: map[string]string{"example.com/ingress": "alpha"},
+	}
+	beta := serviceApi.AdditionalIngress{
+		Name: "beta", Hostname: "beta.example.com", IngressControllerName: "shard-beta",
+		RouteLabels: map[string]string{"example.com/ingress": "beta"},
+	}
+	validateGatewayAndRoute := func(ingress serviceApi.AdditionalIngress) {
+		t.Helper()
+		var gatewayRef serviceApi.GatewayReference
+		g.Eventually(func() bool {
+			current := &serviceApi.GatewayConfig{}
+			if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+				Name: serviceApi.GatewayConfigName,
+			}, current); err != nil {
+				return false
+			}
+			for _, status := range current.Status.AdditionalIngresses {
+				if status.Name == ingress.Name {
+					gatewayRef = status.GatewayRef
+					return gatewayRef == (serviceApi.GatewayReference{
+						Name: ingress.Name, Namespace: gateway.GetGatewayNamespace(),
+					})
+				}
+			}
+			return false
+		}, TestTimeout, TestInterval).Should(BeTrue())
+		g.Eventually(func() error {
+			gatewayObject := &gwapiv1.Gateway{}
+			if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+				Name: gatewayRef.Name, Namespace: gatewayRef.Namespace,
+			}, gatewayObject); err != nil {
+				return err
+			}
+			if gatewayObject.Spec.GatewayClassName != gwapiv1.ObjectName(gateway.GatewayClassName) {
+				return fmt.Errorf("additional Gateway uses class %q", gatewayObject.Spec.GatewayClassName)
+			}
+			if len(gatewayObject.Spec.Listeners) != 1 {
+				return fmt.Errorf("additional Gateway has %d listeners", len(gatewayObject.Spec.Listeners))
+			}
+			listener := gatewayObject.Spec.Listeners[0]
+			if listener.Name != gateway.DefaultGatewayListenerName ||
+				listener.Port != gwapiv1.PortNumber(gateway.StandardHTTPSPort) ||
+				listener.Protocol != gwapiv1.HTTPSProtocolType {
+				return fmt.Errorf("additional Gateway has unexpected listener %+v", listener)
+			}
+			secretName := gatewayObject.Name + "-service-tls"
+			if listener.TLS == nil || len(listener.TLS.CertificateRefs) != 1 ||
+				listener.TLS.CertificateRefs[0].Name != gwapiv1.ObjectName(secretName) ||
+				listener.AllowedRoutes == nil {
+				return fmt.Errorf("additional Gateway has no serving certificate or allowed routes")
+			}
+			if gatewayObject.Spec.Infrastructure == nil || gatewayObject.Spec.Infrastructure.ParametersRef == nil {
+				return fmt.Errorf("additional Gateway has no infrastructure ConfigMap reference")
+			}
+			configMap := &corev1.ConfigMap{}
+			if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+				Name: gatewayObject.Spec.Infrastructure.ParametersRef.Name, Namespace: gateway.GetGatewayNamespace(),
+			}, configMap); err != nil {
+				return err
+			}
+			if !strings.Contains(configMap.Data["service"], secretName) {
+				return fmt.Errorf("additional Gateway Service has no serving certificate annotation")
+			}
+			assertOwnedByGatewayConfig(g, gatewayObject)
+
+			route := &routev1.Route{}
+			if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+				Name: ingress.Name, Namespace: gateway.GetGatewayNamespace(),
+			}, route); err != nil {
+				return err
+			}
+			if route.Spec.Host != ingress.Hostname || route.Spec.To.Name != gateway.GetGatewayServiceFullName(ingress.Name) {
+				return fmt.Errorf("bridge Route targets %q at %q", route.Spec.To.Name, route.Spec.Host)
+			}
+			if route.Spec.Port == nil || route.Spec.Port.TargetPort != intstr.FromInt(gateway.StandardHTTPSPort) {
+				return fmt.Errorf("bridge Route does not target HTTPS port 443")
+			}
+			if route.Spec.TLS == nil || route.Spec.TLS.Termination != routev1.TLSTerminationReencrypt ||
+				route.Annotations["router.openshift.io/service-ca-certificate"] != "true" {
+				return fmt.Errorf("bridge Route has no reencrypt TLS or service CA annotation")
+			}
+			for key, value := range ingress.RouteLabels {
+				if route.Labels[key] != value {
+					return fmt.Errorf("bridge Route label %q=%q, expected %q", key, route.Labels[key], value)
+				}
+			}
+			assertOwnedByGatewayConfig(g, route)
+			return nil
+		}, TestTimeout, TestInterval).Should(Succeed())
+	}
 
 	spec := setup.Spec
-	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{
-		{
-			Name:                  "beta",
-			Hostname:              "beta.example.com",
-			ListenerPort:          10444,
-			IngressControllerName: "shard-beta",
-			RouteLabels:           map[string]string{"example.com/ingress": "beta"},
-		},
-		{
-			Name:                  "alpha",
-			Hostname:              "alpha.example.com",
-			ListenerPort:          10443,
-			IngressControllerName: "shard-alpha",
-			RouteLabels:           map[string]string{"example.com/ingress": "alpha"},
-		},
-	}
-	listenerSignatures := func(listeners []gwapiv1.Listener) []string {
-		signatures := make([]string, 0, len(listeners))
-		for _, listener := range listeners {
-			signatures = append(signatures, fmt.Sprintf("%s:%d", listener.Name, listener.Port))
-		}
-		return signatures
-	}
-
-	g.Eventually(func() error {
-		gatewayObject, err := getGateway(setup.TC.Ctx, setup.TC.K8sClient)
-		if err != nil {
-			return err
-		}
-		if len(gatewayObject.Spec.Listeners) != 1 {
-			return fmt.Errorf("expected default listener, got %d listeners", len(gatewayObject.Spec.Listeners))
-		}
-		return nil
-	}, TestTimeout, TestInterval).Should(Succeed())
+	spec.IngressMode = serviceApi.IngressModeOcpRoute
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{alpha, beta}
 	UpdateGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient, spec)
+	validateGatewayAndRoute(alpha)
+	validateGatewayAndRoute(beta)
 
-	g.Eventually(func() []string {
-		gatewayObject, err := getGateway(setup.TC.Ctx, setup.TC.K8sClient)
-		if err != nil {
+	// envtest has no Gateway provider; report acceptance as that controller would.
+	setGatewayAcceptance := func(name string, accepted metav1.ConditionStatus) {
+		t.Helper()
+		g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			obj := &gwapiv1.Gateway{}
+			if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+				Name: name, Namespace: gateway.GetGatewayNamespace(),
+			}, obj); err != nil {
+				return err
+			}
+			obj.Status.Conditions = []metav1.Condition{{
+				Type: string(gwapiv1.GatewayConditionAccepted), Status: accepted,
+				ObservedGeneration: obj.Generation, LastTransitionTime: metav1.Now(), Reason: "TestAcceptance",
+			}}
+			return setup.TC.K8sClient.Status().Update(setup.TC.Ctx, obj)
+		})).To(Succeed())
+	}
+	checkReadiness := func(expected metav1.ConditionStatus) {
+		t.Helper()
+		g.Eventually(func() error {
+			config, err := getGatewayConfig(setup.TC.Ctx, setup.TC.K8sClient)
+			if err != nil {
+				return err
+			}
+			for _, conditionType := range []string{serviceApi.AdditionalGatewaysReadyConditionType, status.ConditionTypeReady} {
+				condition := conditions.FindStatusCondition(config, conditionType)
+				if condition == nil {
+					return fmt.Errorf("%s condition is missing", conditionType)
+				}
+				if condition.Status != expected {
+					return fmt.Errorf("%s is %s (%s), expected %s", conditionType, condition.Status, condition.Reason, expected)
+				}
+			}
+			condition := conditions.FindStatusCondition(config, serviceApi.AdditionalGatewaysReadyConditionType)
+			if condition.ObservedGeneration != config.Generation {
+				return fmt.Errorf("additional Gateway summary has stale generation %d", condition.ObservedGeneration)
+			}
+			defaultReady := conditions.FindStatusCondition(config, gateway.ReadyConditionType)
+			if defaultReady == nil {
+				return fmt.Errorf("default Gateway readiness is missing")
+			}
+			if defaultReady.Status != metav1.ConditionTrue {
+				return fmt.Errorf("default Gateway is %s: %s", defaultReady.Status, defaultReady.Message)
+			}
+			phase := status.PhaseNotReady
+			if expected == metav1.ConditionTrue {
+				phase = status.PhaseReady
+			}
+			if config.Status.Phase != phase {
+				return fmt.Errorf("GatewayConfig phase is %q, expected %q", config.Status.Phase, phase)
+			}
 			return nil
+		}, TestTimeout, TestInterval).Should(Succeed())
+	}
+	setGatewayAcceptance(gateway.GetDefaultGatewayName(), metav1.ConditionTrue)
+	checkReadiness(metav1.ConditionFalse)
+	setGatewayAcceptance(alpha.Name, metav1.ConditionTrue)
+	checkReadiness(metav1.ConditionFalse)
+	setGatewayAcceptance(beta.Name, metav1.ConditionTrue)
+	checkReadiness(metav1.ConditionTrue)
+	setGatewayAcceptance(beta.Name, metav1.ConditionFalse)
+	checkReadiness(metav1.ConditionFalse)
+	setGatewayAcceptance(beta.Name, metav1.ConditionTrue)
+	checkReadiness(metav1.ConditionTrue)
+
+	checkDefault := func() {
+		defaultGateway, err := getGateway(setup.TC.Ctx, setup.TC.K8sClient)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(defaultGateway.UID).To(Equal(defaultGatewayBefore.UID))
+		g.Expect(defaultGateway.Spec).To(Equal(defaultGatewayBefore.Spec))
+		g.Expect(defaultGateway.Spec.Listeners).To(HaveLen(1))
+		g.Expect(defaultGateway.Spec.Listeners[0].Name).To(Equal(gwapiv1.SectionName(gateway.DefaultGatewayListenerName)))
+		g.Expect(defaultGateway.Spec.Listeners[0].Port).To(Equal(gwapiv1.PortNumber(gateway.StandardHTTPSPort)))
+		defaultRoute := &routev1.Route{}
+		g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+			Name: gateway.GetDefaultGatewayName(), Namespace: gateway.GetGatewayNamespace(),
+		}, defaultRoute)).To(Succeed())
+		g.Expect(defaultRoute.UID).To(Equal(defaultRouteBefore.UID))
+		g.Expect(defaultRoute.Spec).To(Equal(defaultRouteBefore.Spec))
+
+		defaultHTTPRoute := &gwapiv1.HTTPRoute{}
+		g.Eventually(func() error {
+			return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+				Name: gateway.OAuthCallbackRouteName, Namespace: gateway.GetGatewayNamespace(),
+			}, defaultHTTPRoute)
+		}, TestTimeout, TestInterval).Should(Succeed())
+		g.Expect(defaultHTTPRoute.UID).To(Equal(defaultHTTPRouteBefore.UID))
+		g.Expect(defaultHTTPRoute.Spec).To(Equal(defaultHTTPRouteBefore.Spec))
+		g.Expect(defaultHTTPRoute.Spec.ParentRefs).NotTo(BeEmpty())
+		g.Expect(defaultHTTPRoute.Spec.ParentRefs[0].Name).To(Equal(gwapiv1.ObjectName(gateway.GetDefaultGatewayName())))
+		g.Expect(defaultHTTPRoute.Spec.ParentRefs[0].SectionName).To(BeNil())
+	}
+	checkDefault()
+
+	waitForDeletion := func(name string) {
+		for _, obj := range []client.Object{
+			&gwapiv1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: gateway.GetGatewayNamespace()}},
+			&routev1.Route{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: gateway.GetGatewayNamespace()}},
+			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: name + "-config", Namespace: gateway.GetGatewayNamespace()}},
+		} {
+			key := client.ObjectKeyFromObject(obj)
+			g.Eventually(func() error {
+				err := setup.TC.K8sClient.Get(setup.TC.Ctx, key, obj)
+				if k8serr.IsNotFound(err) {
+					return nil
+				}
+				if err != nil {
+					return err
+				}
+				// envtest has no GC to finish foreground deletion; wait for the controller to request it first.
+				if !obj.GetDeletionTimestamp().IsZero() && controllerutil.RemoveFinalizer(obj, metav1.FinalizerDeleteDependents) {
+					if err := setup.TC.K8sClient.Update(setup.TC.Ctx, obj); err != nil {
+						return err
+					}
+				}
+				return fmt.Errorf("removed %T %q still exists", obj, name)
+			}, TestTimeout, TestInterval).Should(Succeed())
 		}
-		return listenerSignatures(gatewayObject.Spec.Listeners)
-	}, TestTimeout, TestInterval).Should(Equal([]string{
-		fmt.Sprintf("%s:%d", gateway.DefaultGatewayListenerName, gateway.StandardHTTPSPort),
-		"alpha:10443",
-		"beta:10444",
-	}))
-
-	gatewayObject, err := getGateway(setup.TC.Ctx, setup.TC.K8sClient)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(gatewayObject.Spec.Listeners[0].Name).To(Equal(gwapiv1.SectionName(gateway.DefaultGatewayListenerName)))
-	g.Expect(gatewayObject.Spec.Listeners[1].Name).To(Equal(gwapiv1.SectionName("alpha")))
-	g.Expect(gatewayObject.Spec.Listeners[2].Name).To(Equal(gwapiv1.SectionName("beta")))
-	for _, listener := range gatewayObject.Spec.Listeners {
-		g.Expect(listener.Protocol).To(Equal(gwapiv1.HTTPSProtocolType))
-		g.Expect(listener.TLS).NotTo(BeNil())
-		g.Expect(listener.TLS.CertificateRefs).To(HaveLen(1))
-		g.Expect(listener.TLS.CertificateRefs[0].Name).To(Equal(gwapiv1.ObjectName(gateway.GatewayServiceTLSSecretName)))
-		g.Expect(listener.AllowedRoutes).NotTo(BeNil())
 	}
-	g.Expect(gatewayObject.Spec.Listeners[1].Port).To(Equal(gwapiv1.PortNumber(10443)))
-	g.Expect(gatewayObject.Spec.Listeners[2].Port).To(Equal(gwapiv1.PortNumber(10444)))
-	g.Expect(gatewayObject.Spec.Listeners[1].Hostname).To(BeNil())
-	g.Expect(gatewayObject.Spec.Listeners[2].Hostname).To(BeNil())
 
-	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{
-		{
-			Name:                  "alpha",
-			Hostname:              "alpha.example.com",
-			ListenerPort:          10443,
-			IngressControllerName: "shard-alpha",
-			RouteLabels:           map[string]string{"example.com/ingress": "alpha"},
-		},
-	}
+	setGatewayAcceptance(alpha.Name, metav1.ConditionFalse)
+	checkReadiness(metav1.ConditionFalse)
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{beta}
 	UpdateGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient, spec)
-	g.Eventually(func() []string {
-		gatewayObject, err := getGateway(setup.TC.Ctx, setup.TC.K8sClient)
+	validateGatewayAndRoute(beta)
+	waitForDeletion(alpha.Name)
+	checkReadiness(metav1.ConditionTrue)
+	checkDefault()
+
+	spec.AdditionalIngresses = nil
+	UpdateGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient, spec)
+	waitForDeletion(beta.Name)
+	checkReadiness(metav1.ConditionTrue)
+	checkDefault()
+	g.Eventually(func() []serviceApi.AdditionalIngressStatus {
+		config, err := getGatewayConfig(setup.TC.Ctx, setup.TC.K8sClient)
 		if err != nil {
 			return nil
 		}
-		return listenerSignatures(gatewayObject.Spec.Listeners)
-	}, TestTimeout, TestInterval).Should(Equal([]string{
-		fmt.Sprintf("%s:%d", gateway.DefaultGatewayListenerName, gateway.StandardHTTPSPort),
-		"alpha:10443",
-	}))
-	gatewayObject, err = getGateway(setup.TC.Ctx, setup.TC.K8sClient)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(gatewayObject.Spec.Listeners[0].Name).To(Equal(gwapiv1.SectionName(gateway.DefaultGatewayListenerName)))
-	g.Expect(gatewayObject.Spec.Listeners[1].Name).To(Equal(gwapiv1.SectionName("alpha")))
-	g.Eventually(func() []serviceApi.AdditionalIngressStatus {
-		gatewayConfig := &serviceApi.GatewayConfig{}
-		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{Name: serviceApi.GatewayConfigName}, gatewayConfig); err != nil {
-			return nil
-		}
-		return gatewayConfig.Status.AdditionalIngresses
-	}, TestTimeout, TestInterval).Should(HaveLen(1))
-	gatewayConfig, err := getGatewayConfig(setup.TC.Ctx, setup.TC.K8sClient)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(gatewayConfig.Status.AdditionalIngresses[0].Name).To(Equal("alpha"))
-	g.Expect(gatewayConfig.Status.AdditionalIngresses[0].Hostname).To(Equal("alpha.example.com"))
-	g.Expect(gatewayConfig.Status.AdditionalIngresses[0].Conditions).To(HaveLen(4))
-
-	cleanupSpec := setup.Spec
-	cleanupSpec.AdditionalIngresses = nil
-
-	UpdateGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient, cleanupSpec)
-	g.Eventually(func() []string {
-		gatewayObject, err := getGateway(setup.TC.Ctx, setup.TC.K8sClient)
-		if err != nil {
-			return nil
-		}
-		return listenerSignatures(gatewayObject.Spec.Listeners)
-	}, TestTimeout, TestInterval).Should(Equal([]string{
-		fmt.Sprintf("%s:%d", gateway.DefaultGatewayListenerName, gateway.StandardHTTPSPort),
-	}))
-	g.Eventually(func() []serviceApi.AdditionalIngressStatus {
-		gatewayConfig := &serviceApi.GatewayConfig{}
-		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{Name: serviceApi.GatewayConfigName}, gatewayConfig); err != nil {
-			return nil
-		}
-		return gatewayConfig.Status.AdditionalIngresses
+		return config.Status.AdditionalIngresses
 	}, TestTimeout, TestInterval).Should(BeEmpty())
 }
 
@@ -1711,7 +1867,7 @@ func RunOCPRouteCreationTest(t *testing.T, setup TestSetup, expectedHostname str
 
 	g.Expect(route.Spec.Host).To(Equal(expectedHostname))
 	g.Expect(route.Spec.To.Kind).To(Equal("Service"))
-	g.Expect(route.Spec.To.Name).To(Equal(gateway.GatewayServiceFullName))
+	g.Expect(route.Spec.To.Name).To(Equal(gateway.GetDefaultGatewayServiceFullName()))
 	g.Expect(route.Spec.Port.TargetPort.IntVal).To(Equal(int32(gateway.StandardHTTPSPort)))
 	g.Expect(route.Spec.TLS.Termination).To(Equal(routev1.TLSTerminationReencrypt))
 	g.Expect(route.Spec.TLS.InsecureEdgeTerminationPolicy).To(Equal(routev1.InsecureEdgeTerminationPolicyRedirect))

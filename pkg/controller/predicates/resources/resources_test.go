@@ -20,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
+	metadatalabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	res "github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 
 	. "github.com/onsi/gomega"
@@ -1258,6 +1259,38 @@ func TestHTTPRouteReferencesGateway_DefaultNamespace(t *testing.T) {
 	}
 
 	g.Expect(predicate.Create(event.CreateEvent{Object: routeWithoutNamespace})).To(BeTrue())
+}
+
+func TestGatewayProviderService(t *testing.T) {
+	t.Parallel()
+
+	predicate := resources.GatewayProviderService("my-gateway", "my-namespace")
+	matching := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "my-namespace",
+		Labels:    map[string]string{metadatalabels.GatewayAPI.GatewayName: "my-gateway"},
+	}}
+	otherGateway := matching.DeepCopy()
+	otherGateway.Labels[metadatalabels.GatewayAPI.GatewayName] = "other-gateway"
+
+	g := NewWithT(t)
+	g.Expect(predicate.Create(event.CreateEvent{Object: matching})).To(BeTrue())
+	g.Expect(predicate.Delete(event.DeleteEvent{Object: matching})).To(BeTrue())
+	g.Expect(predicate.Generic(event.GenericEvent{Object: matching})).To(BeTrue())
+	g.Expect(predicate.Create(event.CreateEvent{Object: otherGateway})).To(BeFalse())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: matching, ObjectNew: otherGateway})).To(BeTrue())
+
+	unlabeled := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Namespace: "my-namespace"}}
+	g.Expect(predicate.Create(event.CreateEvent{Object: unlabeled})).To(BeFalse())
+	g.Expect(predicate.Create(event.CreateEvent{})).To(BeFalse())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: matching, ObjectNew: unlabeled})).To(BeTrue())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: unlabeled, ObjectNew: matching})).To(BeTrue())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: unlabeled, ObjectNew: unlabeled})).To(BeFalse())
+	wrongNamespace := matching.DeepCopy()
+	wrongNamespace.Namespace = "other-namespace"
+	g.Expect(predicate.Create(event.CreateEvent{Object: wrongNamespace})).To(BeFalse())
+	emptyLabel := matching.DeepCopy()
+	emptyLabel.Labels[metadatalabels.GatewayAPI.GatewayName] = ""
+	g.Expect(predicate.Create(event.CreateEvent{Object: emptyLabel})).To(BeFalse())
 }
 
 func TestAPIServerTLSSecurityProfileChanged(t *testing.T) {

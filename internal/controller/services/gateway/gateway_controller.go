@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	configv1 "github.com/openshift/api/config/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -118,48 +120,61 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.Deployment, reconciler.WithPredicates(gatewayDeploymentWatchPredicate())).
 		OwnsGVK(gvk.HorizontalPodAutoscaler).
 		OwnsGVK(gvk.HTTPRoute).
-		OwnsGVK(gvk.Route, reconciler.Dynamic(reconciler.ClusterIsOpenShift())).
+		OwnsGVK(gvk.Route,
+			reconciler.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift())).
 		OwnsGVK(gvk.ClusterRoleBinding).
 		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
 		OwnsGVK(gvk.DestinationRule, reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
 		OwnsGVK(gvk.CertManagerCertificate, reconciler.Dynamic(reconciler.CrdExists(gvk.CertManagerCertificate))).
+		// Only the default provider Service is read to detect an unset ingress mode.
+		// Additional provider Services do not affect reconciliation or readiness.
+		Watches(
+			&corev1.Service{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(resources.GatewayProviderService(GetDefaultGatewayName(), GetGatewayNamespace())),
+		).
+		Watches(
+			&operatorv1.IngressController{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(predicate.And(
+				predicate.ResourceVersionChangedPredicate{},
+				predicate.NewPredicateFuncs(func(obj client.Object) bool {
+					return obj.GetNamespace() == cluster.IngressControllerName.Namespace
+				}),
+			)),
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+		).
+		Watches(
+			&corev1.Namespace{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(GetGatewayNamespace())),
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+		).
+		Watches(
+			&configv1.Ingress{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed("cluster")),
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+		).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
 				handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(gatewayCRDWatchPredicate()),
 		).
-		// Watch for certificate secrets (both OpenShift default ingress and provided).
+		// Watch Gateway certificates, referenced secrets, and XKS cert-manager TLS Secrets.
 		Watches(
 			&corev1.Secret{},
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
-			reconciler.WithPredicates(
+			reconciler.WithPredicates(predicate.Or(
 				resources.GatewayCertificateSecret(func(obj client.Object) bool {
-					return cluster.IsGatewayCertificateSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
+					return isGatewayCertificateOrReferencedSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
 				}),
-			),
-		).
-		// Watch for OIDC client secrets and provider CA secrets referenced by GatewayConfig
-		// so that creating or updating these Secrets triggers re-reconciliation (Helm/GitOps
-		// race condition: Secret may be created after the GatewayConfig CR).
-		Watches(
-			&corev1.Secret{},
-			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
-			reconciler.WithPredicates(
-				resources.GatewayCertificateSecret(func(obj client.Object) bool {
-					return IsGatewayReferencedSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
-				}),
-			),
-		).
-		// Reconcile when cert-manager creates, updates, or removes an XKS TLS Secret.
-		Watches(
-			&corev1.Secret{},
-			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
-			reconciler.WithPredicates(
 				resources.GatewayCertificateSecret(func(obj client.Object) bool {
 					return IsXKSCertManagerSecret(ctx, mgr.GetClient(), obj, GetGatewayNamespace())
 				}),
-			),
+			)),
 		).
 		Watches(
 			&gwapiv1.HTTPRoute{},
@@ -197,9 +212,11 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
+		WithAction(syncAdditionalIngressReadiness).
 		WithAction(syncGatewayConfigStatus).
 		WithAction(gc.NewAction()).
-		WithConditions(ReadyConditionType)
+		WithPostStatusFn(syncAdditionalIngressReadyStatuses).
+		WithConditions(ReadyConditionType, serviceApi.AdditionalGatewaysReadyConditionType)
 
 	if _, err := gw.Build(ctx); err != nil {
 		return fmt.Errorf("could not create the GatewayConfig controller: %w", err)
