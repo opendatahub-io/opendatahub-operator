@@ -8,6 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -15,13 +16,14 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 
 	. "github.com/onsi/gomega"
 )
 
-// TestKubernetesSelfSignedCertificateFallback verifies that an empty certificate
-// object uses the Kubernetes fallback instead of the OpenShift ingress certificate.
-func TestKubernetesSelfSignedCertificateFallback(t *testing.T) {
+// TestKubernetesCertManagerCertificateFallback verifies that an empty certificate
+// object requests a cert-manager-issued certificate instead of the OpenShift ingress certificate.
+func TestKubernetesCertManagerCertificateFallback(t *testing.T) {
 	tc := OAuthTestEnv
 	g := NewWithT(t)
 
@@ -55,18 +57,23 @@ func TestKubernetesSelfSignedCertificateFallback(t *testing.T) {
 	})
 	defer DeleteGatewayConfig(t, tc.Ctx, tc.K8sClient)
 
-	g.Eventually(func() bool {
-		certificate := &corev1.Secret{}
-		if err := tc.K8sClient.Get(tc.Ctx, types.NamespacedName{
+	certificate := &unstructured.Unstructured{}
+	certificate.SetGroupVersionKind(gvk.CertManagerCertificate)
+	g.Eventually(func() error {
+		return tc.K8sClient.Get(tc.Ctx, types.NamespacedName{
 			Name:      "default-gateway-tls",
 			Namespace: gateway.GetGatewayNamespace(),
-		}, certificate); err != nil {
-			return false
-		}
-		return certificate.Type == corev1.SecretTypeTLS &&
-			len(certificate.Data[corev1.TLSCertKey]) > 0 &&
-			len(certificate.Data[corev1.TLSPrivateKeyKey]) > 0
-	}, TestTimeout, TestInterval).Should(BeTrue(), "Kubernetes fallback should create a self-signed TLS secret")
+		}, certificate)
+	}, TestTimeout, TestInterval).Should(Succeed(), "Kubernetes fallback should create a cert-manager Certificate")
+
+	secretName, found, err := unstructured.NestedString(certificate.Object, "spec", "secretName")
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(found).To(BeTrue())
+	g.Expect(secretName).To(Equal("default-gateway-tls"))
+	dnsNames, found, err := unstructured.NestedStringSlice(certificate.Object, "spec", "dnsNames")
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(found).To(BeTrue())
+	g.Expect(dnsNames).To(Equal([]string{"rh-ai.apps.kubernetes.example.com"}))
 
 	created := &serviceApi.GatewayConfig{}
 	g.Expect(tc.K8sClient.Get(tc.Ctx, types.NamespacedName{Name: serviceApi.GatewayConfigName}, created)).To(Succeed())
