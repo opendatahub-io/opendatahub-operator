@@ -227,6 +227,15 @@ func GetDefaultIngressCertSecretName(ingressCtrl *operatorv1.IngressController) 
 	return "router-certs-" + ingressCtrl.Name
 }
 
+// DefaultGatewayCertificateType returns the platform-specific certificate type
+// used when GatewayConfig does not specify one.
+func DefaultGatewayCertificateType(clusterType string) infrav1.CertType {
+	if clusterType == ClusterTypeKubernetes {
+		return infrav1.SelfSigned
+	}
+	return infrav1.OpenshiftDefaultIngress
+}
+
 // IsGatewayCertificateSecret returns true if obj is a certificate secret used by the GatewayConfig.
 // It checks for both OpenShift default ingress certificates and provided certificates.
 func IsGatewayCertificateSecret(ctx context.Context, cli client.Client, obj client.Object, gatewayNamespace string) bool {
@@ -246,11 +255,7 @@ func IsGatewayCertificateSecret(ctx context.Context, cli client.Client, obj clie
 	certConfig := *gatewayConfig.Spec.Certificate
 	certType := certConfig.Type
 	if certType == "" {
-		if GetClusterInfo().Type == ClusterTypeKubernetes {
-			certType = infrav1.SelfSigned
-		} else {
-			certType = infrav1.OpenshiftDefaultIngress
-		}
+		certType = DefaultGatewayCertificateType(GetClusterInfo().Type)
 	}
 
 	switch certType {

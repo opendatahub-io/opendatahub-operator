@@ -315,10 +315,7 @@ func effectiveCertificateType(gatewayConfig *serviceApi.GatewayConfig, clusterTy
 	if gatewayConfig != nil && gatewayConfig.Spec.Certificate != nil && gatewayConfig.Spec.Certificate.Type != "" {
 		return gatewayConfig.Spec.Certificate.Type
 	}
-	if clusterType == cluster.ClusterTypeKubernetes {
-		return infrav1.SelfSigned
-	}
-	return infrav1.OpenshiftDefaultIngress
+	return cluster.DefaultGatewayCertificateType(clusterType)
 }
 
 func gatewayCertificateSecretName(gatewayConfig *serviceApi.GatewayConfig) string {
