@@ -3,7 +3,11 @@ package gatewayconfig
 import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+)
+
+const (
+	GatewayUnsupportedCertTypeOnKubernetesMessage    = "certificate.type OpenshiftDefaultIngress is not supported on Kubernetes clusters; use SelfSigned or Provided"
+	GatewayUnsupportedIngressModeOnKubernetesMessage = "ingressMode OcpRoute is not supported on Kubernetes clusters; use LoadBalancer"
 )
 
 // KubernetesValidationErrors returns messages for GatewayConfig values that
@@ -15,10 +19,10 @@ func KubernetesValidationErrors(gatewayConfig *serviceApi.GatewayConfig) []strin
 
 	var messages []string
 	if gatewayConfig.Spec.Certificate != nil && gatewayConfig.Spec.Certificate.Type == infrav1.OpenshiftDefaultIngress {
-		messages = append(messages, status.GatewayUnsupportedCertTypeOnKubernetesMessage)
+		messages = append(messages, GatewayUnsupportedCertTypeOnKubernetesMessage)
 	}
 	if gatewayConfig.Spec.IngressMode == serviceApi.IngressModeOcpRoute {
-		messages = append(messages, status.GatewayUnsupportedIngressModeOnKubernetesMessage)
+		messages = append(messages, GatewayUnsupportedIngressModeOnKubernetesMessage)
 	}
 	return messages
 }

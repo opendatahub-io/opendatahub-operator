@@ -22,10 +22,10 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/gatewayconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gatewayconfig"
 
 	. "github.com/onsi/gomega"
 )
@@ -781,11 +781,11 @@ func TestKubernetesGatewayConfigErrors(t *testing.T) {
 		Spec: serviceApi.GatewayConfigSpec{
 			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
 		},
-	})).To(ConsistOf(status.GatewayUnsupportedCertTypeOnKubernetesMessage))
+	})).To(ConsistOf(gatewayconfig.GatewayUnsupportedCertTypeOnKubernetesMessage))
 
 	g.Expect(gatewayconfig.KubernetesValidationErrors(&serviceApi.GatewayConfig{
 		Spec: serviceApi.GatewayConfigSpec{IngressMode: serviceApi.IngressModeOcpRoute},
-	})).To(ConsistOf(status.GatewayUnsupportedIngressModeOnKubernetesMessage))
+	})).To(ConsistOf(gatewayconfig.GatewayUnsupportedIngressModeOnKubernetesMessage))
 
 	g.Expect(gatewayconfig.KubernetesValidationErrors(&serviceApi.GatewayConfig{
 		Spec: serviceApi.GatewayConfigSpec{
@@ -793,8 +793,8 @@ func TestKubernetesGatewayConfigErrors(t *testing.T) {
 			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
 		},
 	})).To(ConsistOf(
-		status.GatewayUnsupportedCertTypeOnKubernetesMessage,
-		status.GatewayUnsupportedIngressModeOnKubernetesMessage,
+		gatewayconfig.GatewayUnsupportedCertTypeOnKubernetesMessage,
+		gatewayconfig.GatewayUnsupportedIngressModeOnKubernetesMessage,
 	))
 }
 
@@ -822,8 +822,8 @@ func TestRejectUnsupportedKubernetesGatewaySpec(t *testing.T) {
 	g.Expect(ready).NotTo(BeNil())
 	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
 	g.Expect(ready.Reason).To(Equal(status.NotReadyReason))
-	g.Expect(ready.Message).To(ContainSubstring(status.GatewayUnsupportedCertTypeOnKubernetesMessage))
-	g.Expect(ready.Message).To(ContainSubstring(status.GatewayUnsupportedIngressModeOnKubernetesMessage))
+	g.Expect(ready.Message).To(ContainSubstring(gatewayconfig.GatewayUnsupportedCertTypeOnKubernetesMessage))
+	g.Expect(ready.Message).To(ContainSubstring(gatewayconfig.GatewayUnsupportedIngressModeOnKubernetesMessage))
 }
 
 func TestRejectUnsupportedKubernetesGatewaySpecIgnoredOnOpenShift(t *testing.T) {
