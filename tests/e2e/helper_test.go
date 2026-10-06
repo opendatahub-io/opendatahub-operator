@@ -327,6 +327,11 @@ func CreateDSC(name string, workbenchesNamespace string) *dscApi.DataScienceClus
 						ManagementState: operatorv1.Removed,
 					},
 				},
+				DatabaseService: componentApi.DSCDatabaseService{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
 			},
 		},
 	}
