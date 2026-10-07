@@ -123,6 +123,15 @@ type GatewayConfigSpec struct {
 	// +optional
 	AuthProxyTimeout metav1.Duration `json:"authProxyTimeout,omitempty"`
 
+	// AuthProxyMaxReplicas is the maximum number of replicas for the default gateway's auth proxy.
+	// The HPA minimum is fixed at 2; setting the maximum to 2 fixes the replica count.
+	// Additional ingress proxies are configured independently through their auth.maxReplicas.
+	// +optional
+	// +kubebuilder:default=10
+	// +kubebuilder:validation:Minimum=2
+	// +kubebuilder:validation:Maximum=10
+	AuthProxyMaxReplicas *int32 `json:"authProxyMaxReplicas,omitempty"`
+
 	// NetworkPolicy configuration for kube-auth-proxy
 	// +optional
 	NetworkPolicy *NetworkPolicyConfig `json:"networkPolicy,omitempty"`
@@ -242,6 +251,52 @@ type AdditionalIngress struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinProperties=1
 	RouteLabels map[string]string `json:"routeLabels"`
+
+	// Auth configures this ingress's client credentials and auth proxy capacity.
+	// Authentication mode and provider settings are inherited from the default gateway.
+	// +optional
+	// +kubebuilder:default={}
+	Auth AdditionalIngressAuth `json:"auth,omitempty"`
+}
+
+// AdditionalIngressAuth defines authentication configuration for an additional ingress.
+type AdditionalIngressAuth struct {
+	// OIDC supplies this ingress's distinct client identity in OIDC mode.
+	// Required in OIDC mode; omit in integrated OpenShift OAuth mode, where the
+	// operator generates a distinct OAuthClient. The issuer comes from spec.oidc.
+	// +optional
+	OIDC *AdditionalIngressOIDCConfig `json:"oidc,omitempty"`
+
+	// MaxReplicas is the maximum number of replicas for this ingress's auth proxy.
+	// The minimum remains fixed at 2. This does not configure the default proxy.
+	// A value of 2 requests two fixed replicas without an HPA; larger values enable autoscaling.
+	// +optional
+	// +kubebuilder:default=10
+	// +kubebuilder:validation:Minimum=2
+	// +kubebuilder:validation:Maximum=10
+	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
+}
+
+// AdditionalIngressOIDCConfig defines client credentials without provider overrides.
+type AdditionalIngressOIDCConfig struct {
+	// ClientID is distinct from the default ingress and sibling ingress client IDs.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	ClientID string `json:"clientID"`
+
+	// ClientSecretRef references an administrator-managed Secret containing the client secret.
+	// Each ingress must reference a distinct Secret, including from the default ingress.
+	// The operator must not own or delete this source Secret.
+	// Name and key must be nonempty; optional must be omitted or false.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0",message="clientSecretRef.name must be non-empty"
+	// +kubebuilder:validation:XValidation:rule="size(self.key) > 0",message="clientSecretRef.key must be non-empty"
+	// +kubebuilder:validation:XValidation:rule="!has(self.optional) || !self.optional",message="clientSecretRef.optional must be false"
+	ClientSecretRef corev1.SecretKeySelector `json:"clientSecretRef"`
+
+	// SecretNamespace is the source Secret's namespace; defaults to the gateway namespace.
+	// +optional
+	SecretNamespace string `json:"secretNamespace,omitempty"`
 }
 
 // NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.

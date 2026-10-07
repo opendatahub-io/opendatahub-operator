@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -207,6 +209,123 @@ func TestGatewayIssuerURLValidationEnvtest(t *testing.T) {
 			g.Expect(k8sClient.Create(ctx, gw)).To(Succeed())
 			g.Expect(k8sClient.Delete(ctx, gw)).To(Succeed())
 		})
+	}
+}
+
+func TestGatewayAdditionalIngressValidationEnvtest(t *testing.T) {
+	logf.SetLogger(zap.New(zap.WriteTo(os.Stdout), zap.UseDevMode(true)))
+
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	projectDir, err := envtestutil.FindProjectRoot()
+	g.Expect(err).NotTo(HaveOccurred())
+
+	testEnv := &envtest.Environment{
+		CRDDirectoryPaths: []string{
+			filepath.Join(projectDir, "config", "crd", "bases"),
+		},
+		ErrorIfCRDPathMissing: true,
+	}
+
+	cfg, err := testEnv.Start()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(cfg).ToNot(BeNil())
+	defer func() {
+		g.Expect(testEnv.Stop()).To(Succeed())
+	}()
+
+	k8sClient, err := client.New(cfg, client.Options{Scheme: gatewayTestScheme()})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	authCases := []struct {
+		name    string
+		auth    string
+		maximum int32
+		wantErr string
+		wantKey string
+	}{
+		{name: "omitted auth", maximum: 10},
+		{name: "empty auth", auth: `{}`, maximum: 10},
+		{name: "maximum equals fixed minimum", auth: `{"maxReplicas":2}`, maximum: 2},
+		{name: "configured maximum", auth: `{"maxReplicas":4}`, maximum: 4},
+		{name: "largest maximum", auth: `{"maxReplicas":10}`, maximum: 10},
+		{name: "zero maximum", auth: `{"maxReplicas":0}`, wantErr: "maxReplicas"},
+		{name: "maximum below minimum", auth: `{"maxReplicas":1}`, wantErr: "maxReplicas"},
+		{name: "maximum above limit", auth: `{"maxReplicas":11}`, wantErr: "maxReplicas"},
+		{name: "missing Secret key", auth: `{"oidc":{"clientID":"alpha-client","clientSecretRef":{"name":"alpha-oidc"}}}`, wantErr: "key"},
+		{name: "OIDC explicit key", auth: `{"oidc":{"clientID":"alpha-client","clientSecretRef":{"name":"alpha-oidc","key":"clientSecret"}}}`, maximum: 10, wantKey: "clientSecret"},
+		{name: "OIDC custom key", auth: `{"oidc":{"clientID":"alpha-client","clientSecretRef":{"name":"alpha-oidc","key":"credentials"}}}`, maximum: 10, wantKey: "credentials"},
+		{name: "required Secret", auth: `{"oidc":{"clientID":"alpha-client","clientSecretRef":{"name":"alpha-oidc","key":"clientSecret","optional":false}}}`, maximum: 10, wantKey: "clientSecret"},
+		{name: "optional Secret", auth: `{"oidc":{"clientID":"alpha-client","clientSecretRef":{"name":"alpha-oidc","key":"clientSecret","optional":true}}}`, wantErr: "clientSecretRef.optional"},
+		{name: "missing client ID", auth: `{"oidc":{"clientSecretRef":{"name":"alpha-oidc","key":"clientSecret"}}}`, wantErr: "clientID"},
+		{name: "empty client ID", auth: `{"oidc":{"clientID":"","clientSecretRef":{"name":"alpha-oidc","key":"clientSecret"}}}`, wantErr: "clientID"},
+		{name: "missing Secret reference", auth: `{"oidc":{"clientID":"alpha-client"}}`, wantErr: "clientSecretRef"},
+		{name: "missing Secret name", auth: `{"oidc":{"clientID":"alpha-client","clientSecretRef":{"key":"clientSecret"}}}`, wantErr: "clientSecretRef.name"},
+		{name: "empty Secret name", auth: `{"oidc":{"clientID":"alpha-client","clientSecretRef":{"name":"","key":"clientSecret"}}}`, wantErr: "clientSecretRef.name"},
+		{name: "empty Secret key", auth: `{"oidc":{"clientID":"alpha-client","clientSecretRef":{"name":"alpha-oidc","key":""}}}`, wantErr: "key"},
+	}
+	for _, target := range []string{"additional ingress", "default gateway"} {
+		for _, tc := range authCases {
+			if target == "default gateway" && strings.Contains(tc.auth, "oidc") {
+				continue
+			}
+			t.Run(target+" auth: "+tc.name, func(t *testing.T) {
+				g := NewWithT(t)
+				ingress := map[string]interface{}{
+					"name": "alpha", "hostname": "alpha.example.com",
+					"ingressControllerName": "shard-a", "routeLabels": map[string]interface{}{"example.com/ingress": "alpha"},
+				}
+				var auth map[string]interface{}
+				if tc.auth != "" {
+					g.Expect(json.Unmarshal([]byte(tc.auth), &auth)).To(Succeed())
+					ingress["auth"] = auth
+				}
+				config := &unstructured.Unstructured{Object: map[string]interface{}{
+					"apiVersion": GroupVersion.String(), "kind": GatewayConfigKind,
+					"metadata": map[string]interface{}{"name": GatewayConfigName},
+					"spec": map[string]interface{}{
+						"ingressMode": string(IngressModeOcpRoute), "additionalIngresses": []interface{}{ingress},
+					},
+				}}
+				if target == "default gateway" {
+					delete(ingress, "auth")
+					if maximum, ok := auth["maxReplicas"]; ok {
+						config.Object["spec"].(map[string]interface{})["authProxyMaxReplicas"] = maximum
+					}
+				}
+				err := k8sClient.Create(ctx, config)
+				if err == nil {
+					t.Cleanup(func() { g.Expect(k8sClient.Delete(ctx, config)).To(Succeed()) })
+				}
+				if tc.wantErr != "" {
+					g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
+					wantErr := tc.wantErr
+					if target == "default gateway" {
+						wantErr = "authProxyMaxReplicas"
+					}
+					g.Expect(err.Error()).To(ContainSubstring(wantErr))
+					return
+				}
+				g.Expect(err).NotTo(HaveOccurred())
+				var observed GatewayConfig
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: GatewayConfigName}, &observed)).To(Succeed())
+				ingressAuth := observed.Spec.AdditionalIngresses[0].Auth
+				if target == "default gateway" {
+					ingressAuth = AdditionalIngressAuth{MaxReplicas: observed.Spec.AuthProxyMaxReplicas}
+				}
+				g.Expect(ingressAuth.MaxReplicas).NotTo(BeNil())
+				g.Expect(*ingressAuth.MaxReplicas).To(Equal(tc.maximum))
+				if tc.wantKey != "" {
+					g.Expect(ingressAuth.OIDC).NotTo(BeNil())
+					g.Expect(ingressAuth.OIDC.ClientSecretRef.Key).To(Equal(tc.wantKey))
+					g.Expect(ingressAuth.OIDC.SecretNamespace).To(BeEmpty())
+				} else {
+					g.Expect(ingressAuth.OIDC).To(BeNil())
+				}
+			})
+		}
+
 	}
 }
 

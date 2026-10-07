@@ -350,6 +350,123 @@ func TestBuildModuleCR_Mode2ExportersOnly(t *testing.T) {
 	g.Expect(spec["collectorReplicas"]).Should(Equal(int64(2)))
 }
 
+func TestBuildModuleCR_ProjectsLogs(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.Logs = &serviceApi.Logs{
+		Storage: &serviceApi.LokiStorageConfig{
+			Type:             "s3",
+			SecretName:       "rhoai-logs-s3",
+			CredentialMode:   "static",
+			StorageClassName: "gp3-csi",
+		},
+		InferenceNamespaces: []string{"my-project"},
+	}
+
+	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+
+	logs, ok := spec["logs"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.logs missing")
+	storage, ok := logs["storage"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.logs.storage missing")
+	g.Expect(storage["type"]).Should(Equal("s3"))
+	g.Expect(storage["secretName"]).Should(Equal("rhoai-logs-s3"))
+	g.Expect(storage["credentialMode"]).Should(Equal("static"))
+	g.Expect(storage["storageClassName"]).Should(Equal("gp3-csi"))
+	g.Expect(logs["inferenceNamespaces"]).Should(Equal([]any{"my-project"}))
+}
+
+func TestBuildModuleCR_ProjectsUsageLogs(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.UsageLogs = &serviceApi.UsageLogs{
+		Storage: &serviceApi.LokiStorageConfig{
+			Type:             "s3",
+			SecretName:       "rhoai-logs-s3",
+			CredentialMode:   "static",
+			StorageClassName: "gp3-csi",
+		},
+	}
+
+	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).ShouldNot(HaveKey("logs"))
+
+	usageLogs, ok := spec["usageLogs"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.usageLogs missing")
+	storage, ok := usageLogs["storage"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.usageLogs.storage missing")
+	g.Expect(storage["type"]).Should(Equal("s3"))
+	g.Expect(storage["secretName"]).Should(Equal("rhoai-logs-s3"))
+	g.Expect(storage["credentialMode"]).Should(Equal("static"))
+	g.Expect(storage["storageClassName"]).Should(Equal("gp3-csi"))
+	g.Expect(spec).ShouldNot(HaveKey("collectorReplicas"))
+}
+
+func TestBuildModuleCR_UsageLogsWithoutStorageNulled(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.UsageLogs = &serviceApi.UsageLogs{}
+
+	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).ShouldNot(HaveKey("usageLogs"))
+}
+
+func TestBuildModuleCR_ProjectsLogsAndUsageLogsIndependently(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.Logs = &serviceApi.Logs{
+		Storage: &serviceApi.LokiStorageConfig{
+			Type:       "s3",
+			SecretName: "rhoai-logs-s3",
+		},
+	}
+	dsci.Spec.Monitoring.UsageLogs = &serviceApi.UsageLogs{
+		Storage: &serviceApi.LokiStorageConfig{
+			Type:       "s3",
+			SecretName: "rhoai-logs-s3",
+		},
+	}
+
+	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).Should(HaveKey("logs"))
+	g.Expect(spec).Should(HaveKey("usageLogs"))
+	g.Expect(spec).ShouldNot(HaveKey("collectorReplicas"))
+}
+
+func TestBuildModuleCR_LogsWithoutStorageNulled(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.Logs = &serviceApi.Logs{}
+
+	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).ShouldNot(HaveKey("logs"))
+}
+
 func TestBuildModuleCR_CollectorReplicasDefaulting(t *testing.T) {
 	t.Parallel()
 

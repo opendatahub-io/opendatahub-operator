@@ -699,9 +699,10 @@ func TestGetTemplateDataTLSCurvePreferences(t *testing.T) {
 		},
 	}
 
+	maximum := int32(4)
 	gatewayConfig := &serviceApi.GatewayConfig{
 		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
-		Spec:       serviceApi.GatewayConfigSpec{Domain: "apps.example.com"},
+		Spec:       serviceApi.GatewayConfigSpec{Domain: "apps.example.com", AuthProxyMaxReplicas: &maximum},
 	}
 
 	scheme, err := testscheme.New()
@@ -722,6 +723,7 @@ func TestGetTemplateDataTLSCurvePreferences(t *testing.T) {
 
 	templateData, err := getTemplateData(ctx, rr)
 	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(templateData).To(HaveKeyWithValue("AuthProxyMaxReplicas", maximum))
 	g.Expect(templateData).To(HaveKeyWithValue("TLSMinVersion", "TLS1.2"))
 	g.Expect(templateData).To(HaveKeyWithValue("TLSCipherSuite", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"))
 	g.Expect(templateData).To(HaveKeyWithValue("TLSCurvePreferences", "29,23"))
