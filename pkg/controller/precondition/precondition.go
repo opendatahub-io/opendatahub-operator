@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	frameworkapi "github.com/opendatahub-io/odh-platform-utilities/framework/api"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -225,11 +226,11 @@ func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions 
 			opts = append(opts,
 				cond.WithReason(PreConditionFailedReason),
 				cond.WithSeverity(agg.severity),
-				cond.WithMessage("%s", strings.Join(agg.messages, "; ")),
+				cond.WithMessage(strings.Join(agg.messages, "; ")),
 			)
 		}
 
-		rr.Conditions.Mark(ct, agg.status, opts...)
+		rr.Conditions.Mark(frameworkapi.ConditionType(ct), agg.status, opts...)
 
 		if agg.shouldStop {
 			shouldStop = true

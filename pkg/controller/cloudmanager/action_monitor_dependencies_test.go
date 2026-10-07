@@ -21,9 +21,9 @@ import (
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
 	ccmcharts "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
@@ -164,7 +164,7 @@ func TestMonitorDependencies(t *testing.T) {
 				Instance: instance,
 				Release:  fwapi.Release{Name: cluster.OpenDataHub},
 			}
-			rr.Conditions = conditions.NewManager(instance, status.ConditionTypeReady, ConditionsTypes...)
+			rr.Conditions = conditionstest.NewManager(instance, status.ConditionTypeReady, ConditionsTypes...)
 
 			action, err := NewReconcileAction(testResourceID, WithBuildChartsFn(monitorTestBuildFn))
 			g.Expect(err).ShouldNot(HaveOccurred())
@@ -173,13 +173,13 @@ func TestMonitorDependencies(t *testing.T) {
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			for condType, expected := range tt.expectedStatus {
-				cond := rr.Conditions.GetCondition(condType)
+				cond := rr.Conditions.GetCondition(fwapi.ConditionType(condType))
 				g.Expect(cond).NotTo(BeNil(), "condition %s should exist", condType)
 				g.Expect(cond.Status).To(Equal(expected), "condition %s status", condType)
 			}
 
 			for condType, expectedReason := range tt.expectedReasons {
-				cond := rr.Conditions.GetCondition(condType)
+				cond := rr.Conditions.GetCondition(fwapi.ConditionType(condType))
 				g.Expect(cond.Reason).To(Equal(expectedReason), "condition %s reason", condType)
 			}
 		})
@@ -272,7 +272,7 @@ func TestMonitorDependencies_OperatorCR(t *testing.T) {
 				Instance: instance,
 				Release:  fwapi.Release{Name: cluster.OpenDataHub},
 			}
-			rr.Conditions = conditions.NewManager(instance, status.ConditionTypeReady, ConditionsTypes...)
+			rr.Conditions = conditionstest.NewManager(instance, status.ConditionTypeReady, ConditionsTypes...)
 
 			configs := []ccmcharts.DependencyMonitorConfig{
 				{
@@ -291,7 +291,7 @@ func TestMonitorDependencies_OperatorCR(t *testing.T) {
 			err = monitorDependencies(ctx, rr, testResourceID, configs)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			cond := rr.Conditions.GetCondition(conditionType)
+			cond := rr.Conditions.GetCondition(fwapi.ConditionType(conditionType))
 			g.Expect(cond).NotTo(BeNil())
 			g.Expect(cond.Status).To(Equal(tt.expectedStatus))
 
@@ -413,7 +413,7 @@ func TestMonitorDependencies_RHCL_OperatorCR(t *testing.T) {
 				Instance: instance,
 				Release:  fwapi.Release{Name: cluster.OpenDataHub},
 			}
-			rr.Conditions = conditions.NewManager(instance, status.ConditionTypeReady, ConditionsTypes...)
+			rr.Conditions = conditionstest.NewManager(instance, status.ConditionTypeReady, ConditionsTypes...)
 
 			action, err := NewReconcileAction(testResourceID, WithBuildChartsFn(monitorTestBuildFn))
 			g.Expect(err).ShouldNot(HaveOccurred())
@@ -515,7 +515,7 @@ func TestSummarizeDependencyStatus(t *testing.T) {
 				Instance: instance,
 				Release:  fwapi.Release{Name: cluster.OpenDataHub},
 			}
-			rr.Conditions = conditions.NewManager(instance, status.ConditionTypeReady, ConditionsTypes...)
+			rr.Conditions = conditionstest.NewManager(instance, status.ConditionTypeReady, ConditionsTypes...)
 
 			action, err := NewReconcileAction(testResourceID, WithBuildChartsFn(monitorTestBuildFn))
 			g.Expect(err).ShouldNot(HaveOccurred())

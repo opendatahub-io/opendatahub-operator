@@ -250,7 +250,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
 			conditions.WithReason(status.NotReadyReason),
-			conditions.WithMessage("%s: %v", status.AuthProxyFailedGenerateSecretMessage, err),
+			conditions.WithMessagef("%s: %v", status.AuthProxyFailedGenerateSecretMessage, err),
 		)
 		return fmt.Errorf("failed to create auth proxy secret: %w", err)
 	}
@@ -261,7 +261,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 			rr.Conditions.MarkFalse(
 				ReadyConditionType,
 				conditions.WithReason(status.NotReadyReason),
-				conditions.WithMessage("%s: %v", status.AuthProxyFailedOAuthClientMessage, err),
+				conditions.WithMessagef("%s: %v", status.AuthProxyFailedOAuthClientMessage, err),
 			)
 			return fmt.Errorf("failed to create OAuth client: %w", err)
 		}
@@ -671,7 +671,7 @@ func markGatewayNotReady(rr *odhtypes.ReconciliationRequest, message string) {
 	rr.Conditions.MarkFalse(
 		ReadyConditionType,
 		conditions.WithReason(status.NotReadyReason),
-		conditions.WithMessage("%s", message),
+		conditions.WithMessage(message),
 	)
 }
 

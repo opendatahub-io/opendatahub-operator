@@ -6,6 +6,7 @@ import (
 	"errors"
 	"testing"
 
+	frameworkapi "github.com/opendatahub-io/odh-platform-utilities/framework/api"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -105,7 +106,7 @@ func TestCustom_AllOptions(t *testing.T) {
 
 	g.Expect(shouldStop).To(BeTrue())
 
-	got := rr.Conditions.GetCondition(customCondition)
+	got := rr.Conditions.GetCondition(frameworkapi.ConditionType(customCondition))
 	g.Expect(got).NotTo(BeNil())
 	g.Expect(got.Status).To(Equal(metav1.ConditionFalse))
 	g.Expect(got.Severity).To(Equal(common.ConditionSeverityInfo))

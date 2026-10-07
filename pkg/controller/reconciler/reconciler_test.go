@@ -12,6 +12,9 @@ import (
 	"time"
 
 	gomegaTypes "github.com/onsi/gomega/types"
+	frameworkapi "github.com/opendatahub-io/odh-platform-utilities/framework/api"
+	fwconditions "github.com/opendatahub-io/odh-platform-utilities/framework/controller/conditions"
+	fwreconciler "github.com/opendatahub-io/odh-platform-utilities/framework/controller/reconciler"
 	"github.com/rs/xid"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -67,8 +70,13 @@ func registerTestPlatformObjectCRD(t *testing.T, g *WithT, et *envt.EnvT) {
 
 func createReconciler(t *testing.T, mgr ctrl.Manager, opts ...ReconcilerOpt) *Reconciler {
 	t.Helper()
+	aggregator, err := fwconditions.NewAggregator(frameworkapi.ConditionType(status.ConditionTypeReady))
+	if err != nil {
+		t.Fatalf("NewAggregator: %v", err)
+	}
+
 	defaults := []ReconcilerOpt{
-		WithConditionsManagerFactory(status.ConditionTypeReady),
+		fwreconciler.WithConditionAggregator(aggregator),
 	}
 	cc, err := NewReconciler(mgr, "test", &scheme.TestPlatformObject{}, append(defaults, opts...)...)
 	if err != nil {
@@ -860,23 +868,20 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 
 	t.Run("CR is restored after external deletion", func(t *testing.T) {
 		g := NewWithT(t)
+		originalUID := deployedCR.GetUID()
 
 		// Delete the CR externally
 		err := cli.Delete(ctx, deployedCR)
 		g.Expect(err).NotTo(HaveOccurred())
 
-		// Verify CR is deleted
-		g.Eventually(func() bool {
-			err := cli.Get(ctx, client.ObjectKey{Name: crName, Namespace: nsName}, deployedCR)
-			return err != nil && k8serr.IsNotFound(err)
-		}).WithTimeout(5*time.Second).Should(BeTrue(), "CR should be deleted")
-
-		// Wait for watch-triggered reconciliation to restore the CR
+		// The watch can restore the CR before the cached client observes its
+		// absence, so verify that the replacement has a new UID.
 		g.Eventually(func(gg Gomega) {
 			restored := &unstructured.Unstructured{}
 			restored.SetAPIVersion("test.opendatahub.io/v1")
 			restored.SetKind("TestWidget")
 			gg.Expect(cli.Get(ctx, client.ObjectKey{Name: crName, Namespace: nsName}, restored)).To(Succeed())
+			gg.Expect(restored.GetUID()).NotTo(Equal(originalUID), "CR should have been recreated")
 			gg.Expect(restored.GetOwnerReferences()).To(HaveLen(1))
 		}).WithTimeout(10*time.Second).Should(Succeed(), "CR should be restored after deletion")
 	})

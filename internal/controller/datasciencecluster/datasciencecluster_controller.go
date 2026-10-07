@@ -101,7 +101,10 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 			deploy.WithCache(),
 		)).
 		WithFinalizer(disableDSCModulesOnDelete).
-		WithConditions(status.ConditionTypeComponentsReady, status.ConditionTypeModulesReady).
+		WithConditions(reconciler.DependentConditions(
+			status.ConditionTypeComponentsReady,
+			status.ConditionTypeModulesReady,
+		)...).
 		Build(ctx)
 
 	if err != nil {

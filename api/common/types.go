@@ -71,7 +71,12 @@ type WithStatus = fwapi.WithStatus
 
 type ConditionsAccessor = fwapi.ConditionsAccessor
 
-type WithReleases = fwapi.WithReleases
+// WithReleases preserves the operator's slice-based release status contract.
+// Framework module consumers can use framework/api.WithReleases directly.
+type WithReleases interface {
+	GetReleaseStatus() *[]ComponentRelease
+	SetReleaseStatus([]ComponentRelease)
+}
 
 type PlatformObject = fwapi.PlatformObject
 

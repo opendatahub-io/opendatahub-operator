@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	ctrlrecorder "sigs.k8s.io/controller-runtime/pkg/recorder"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
 
@@ -65,7 +66,7 @@ func (f *MockManager) GetEventRecorderFor(name string) record.EventRecorder {
 }
 
 //nolint:ireturn // Returns stdlib interface required by manager.Manager
-func (f *MockManager) GetEventRecorder(name string) events.EventRecorder {
+func (f *MockManager) GetEventRecorder(name string) ctrlrecorder.EventRecorder {
 	return events.NewFakeRecorder(100)
 }
 

@@ -42,7 +42,7 @@ func NewReconciler(ctx context.Context, mgr ctrl.Manager, cfg *operatorconfig.Cl
 		WithFinalizer(cleanup.NewFinalizer(
 			cloudmanager.FinalizerCleanupTargets()...,
 		)).
-		WithConditions(cloudmanager.ConditionsTypes...).
+		WithConditions(reconciler.DependentConditions(cloudmanager.ConditionsTypes...)...).
 		Build(ctx)
 	return err
 }

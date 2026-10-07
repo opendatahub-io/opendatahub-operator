@@ -15,9 +15,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
-	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -43,7 +43,7 @@ func newRunlevelRRWithVersion(ver string, kind string) *types.ReconciliationRequ
 	return &types.ReconciliationRequest{
 		Instance:   instance,
 		Release:    fwapi.Release{Version: version.OperatorVersion{Version: sv}},
-		Conditions: cond.NewManager(instance, "Ready", PlatformReadyConditionType),
+		Conditions: conditionstest.NewManager(instance, "Ready", PlatformReadyConditionType),
 	}
 }
 

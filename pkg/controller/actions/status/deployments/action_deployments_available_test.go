@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/onsi/gomega/gstruct"
+	frameworkapi "github.com/opendatahub-io/odh-platform-utilities/framework/api"
+	fwsd "github.com/opendatahub-io/odh-platform-utilities/framework/controller/actions/status/deployments"
 	"github.com/rs/xid"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,9 +15,9 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -84,7 +86,7 @@ func TestDeploymentsAvailableActionNotReady(t *testing.T) {
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
-	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
+	rr.Conditions = conditionstest.NewManager(rr.Instance, status.ConditionTypeReady)
 
 	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -169,7 +171,7 @@ func TestDeploymentsAvailableActionReady(t *testing.T) {
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
-	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
+	rr.Conditions = conditionstest.NewManager(rr.Instance, status.ConditionTypeReady)
 
 	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -251,7 +253,7 @@ func TestDeploymentsAvailableReadyAutoSelector(t *testing.T) {
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
-	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
+	rr.Conditions = conditionstest.NewManager(rr.Instance, status.ConditionTypeReady)
 
 	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -312,7 +314,7 @@ func TestDeploymentsAvailableActionWithPartOfLabel(t *testing.T) {
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
-	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
+	rr.Conditions = conditionstest.NewManager(rr.Instance, status.ConditionTypeReady)
 
 	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -372,7 +374,7 @@ func TestDeploymentsAvailableActionWithCustomConditionType(t *testing.T) {
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			action := deployments.NewAction(
-				deployments.WithConditionType(customCondition),
+				fwsd.WithConditionType(frameworkapi.ConditionType(customCondition)),
 				deployments.WithSelectorLabel(labels.PlatformPartOf, ns),
 				deployments.InNamespace(ns),
 			)
@@ -382,7 +384,7 @@ func TestDeploymentsAvailableActionWithCustomConditionType(t *testing.T) {
 				Instance: &scheme.TestPlatformObject{},
 				Release:  common.Release{Name: cluster.OpenDataHub},
 			}
-			rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady, customCondition)
+			rr.Conditions = conditionstest.NewManager(rr.Instance, status.ConditionTypeReady, customCondition)
 
 			err = action(ctx, &rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
@@ -460,7 +462,7 @@ func TestDeploymentsAvailableActionNotReadyNotFound(t *testing.T) {
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
-	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
+	rr.Conditions = conditionstest.NewManager(rr.Instance, status.ConditionTypeReady)
 
 	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -530,7 +532,7 @@ func TestDeploymentsAvailableActionReadyWithoutAutomaticPartOfUsesComponentLabel
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
-	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
+	rr.Conditions = conditionstest.NewManager(rr.Instance, status.ConditionTypeReady)
 
 	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
