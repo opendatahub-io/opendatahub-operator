@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
-	"net/url"
 	"sort"
-	"strconv"
 
 	configv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -18,7 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
@@ -28,21 +25,24 @@ const (
 	apiServiceName          = "kubernetes"
 	apiServiceNamespace     = "default"
 
-	openshiftDNSNamespace    = "openshift-dns"
-	openshiftDNSServiceName  = "dns-default"
-	kubernetesDNSNamespace   = "kube-system"
-	kubernetesDNSServiceName = "kube-dns"
+	openshiftDNSNamespace   = "openshift-dns"
+	openshiftDNSServiceName = "dns-default"
 )
 
-// resolveAuthProxyEgress builds only destination- and port-scoped rules. A failure
-// must leave the policy with an empty egress list, never its old allow-all rule.
+// resolveAuthProxyEgress restricts egress for OpenShift OAuth. OIDC retains
+// allow-all because standard NetworkPolicy cannot reliably represent its
+// discovery destinations. Other cluster types retain allow-all because their
+// cluster address ranges are not reliably available.
 func resolveAuthProxyEgress(
 	ctx context.Context,
 	cli client.Client,
-	spec serviceApi.GatewayConfigSpec,
 	mode cluster.AuthenticationMode,
 ) ([]networkingv1.NetworkPolicyEgressRule, error) {
-	podCIDRs, serviceCIDRs, err := authProxyClusterCIDRs(ctx, cli, spec)
+	if cluster.GetClusterInfo().Type != cluster.ClusterTypeOpenShift || mode == cluster.AuthModeOIDC {
+		return []networkingv1.NetworkPolicyEgressRule{{}}, nil
+	}
+
+	podCIDRs, serviceCIDRs, err := authProxyClusterCIDRs(ctx, cli)
 	if err != nil {
 		return nil, err
 	}
@@ -52,21 +52,15 @@ func resolveAuthProxyEgress(
 		return nil, err
 	}
 
-	validateTokens := spec.EnableK8sTokenValidation == nil || *spec.EnableK8sTokenValidation
-	if mode == cluster.AuthModeIntegratedOAuth || (mode == cluster.AuthModeOIDC && validateTokens) {
+	if mode == cluster.AuthModeIntegratedOAuth {
 		apiRules, err := authProxyAPIRules(ctx, cli)
 		if err != nil {
 			return nil, err
 		}
 		rules = append(rules, apiRules...)
 	}
-	externalPort, err := authProxyExternalPort(spec, mode)
-	if err != nil {
-		return nil, err
-	}
-
 	// NetworkPolicy has no FQDN peer. This is the baseline for the OpenShift
-	// OAuth route or the OIDC issuer port, not an IdP-specific rule.
+	// OAuth route, not an IdP-specific rule.
 	for _, family := range []string{"ipv4", "ipv6"} {
 		except := cidrsForFamily(append(append([]string{}, podCIDRs...), serviceCIDRs...), family)
 		if len(except) == 0 {
@@ -78,51 +72,22 @@ func resolveAuthProxyEgress(
 		}
 		rules = append(rules, networkingv1.NetworkPolicyEgressRule{
 			To:    []networkingv1.NetworkPolicyPeer{{IPBlock: &networkingv1.IPBlock{CIDR: cidr, Except: except}}},
-			Ports: []networkingv1.NetworkPolicyPort{networkPolicyPort(corev1.ProtocolTCP, intstr.FromInt32(externalPort))},
+			Ports: []networkingv1.NetworkPolicyPort{networkPolicyPort(corev1.ProtocolTCP, intstr.FromInt32(443))},
 		})
 	}
 	return rules, nil
 }
 
-func authProxyExternalPort(spec serviceApi.GatewayConfigSpec, mode cluster.AuthenticationMode) (int32, error) {
-	if mode != cluster.AuthModeOIDC {
-		return 443, nil
-	}
-	if spec.OIDC == nil {
-		return 0, errors.New("oidc config is required to resolve auth proxy egress port")
-	}
-	issuer, err := url.Parse(spec.OIDC.IssuerURL)
-	if err != nil || issuer.Scheme != "https" || issuer.Hostname() == "" {
-		return 0, errors.New("oidc issuer URL must be a valid HTTPS URL with a host")
-	}
-	if issuer.Port() == "" {
-		return 443, nil
-	}
-	port, err := strconv.ParseUint(issuer.Port(), 10, 16)
-	if err != nil || port == 0 {
-		return 0, errors.New("oidc issuer URL must use a valid TCP port")
-	}
-	return int32(port), nil
-}
-
-func authProxyClusterCIDRs(ctx context.Context, cli client.Client, spec serviceApi.GatewayConfigSpec) ([]string, []string, error) {
+func authProxyClusterCIDRs(ctx context.Context, cli client.Client) ([]string, []string, error) {
 	var podCIDRs, serviceCIDRs []string
-	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
-		if spec.AuthProxyEgress == nil {
-			return nil, nil, errors.New("spec.authProxyEgress.podCIDRs and serviceCIDRs are required on Kubernetes clusters")
-		}
-		podCIDRs = spec.AuthProxyEgress.PodCIDRs
-		serviceCIDRs = spec.AuthProxyEgress.ServiceCIDRs
-	} else {
-		network := &configv1.Network{}
-		if err := cli.Get(ctx, types.NamespacedName{Name: "cluster"}, network); err != nil {
-			return nil, nil, fmt.Errorf("get OpenShift cluster Network: %w", err)
-		}
-		for _, entry := range network.Status.ClusterNetwork {
-			podCIDRs = append(podCIDRs, entry.CIDR)
-		}
-		serviceCIDRs = network.Status.ServiceNetwork
+	network := &configv1.Network{}
+	if err := cli.Get(ctx, types.NamespacedName{Name: "cluster"}, network); err != nil {
+		return nil, nil, fmt.Errorf("get OpenShift cluster Network: %w", err)
 	}
+	for _, entry := range network.Status.ClusterNetwork {
+		podCIDRs = append(podCIDRs, entry.CIDR)
+	}
+	serviceCIDRs = network.Status.ServiceNetwork
 	if len(podCIDRs) == 0 || len(serviceCIDRs) == 0 {
 		return nil, nil, errors.New("both Pod and Service CIDRs are required for auth proxy egress")
 	}
@@ -171,19 +136,15 @@ func networkPolicyPort(protocol corev1.Protocol, port intstr.IntOrString) networ
 }
 
 func authProxyDNSRules(ctx context.Context, cli client.Client) ([]networkingv1.NetworkPolicyEgressRule, error) {
-	namespace, name := openshiftDNSNamespace, openshiftDNSServiceName
-	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
-		namespace, name = kubernetesDNSNamespace, kubernetesDNSServiceName
-	}
 	service := &corev1.Service{}
-	if err := cli.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, service); err != nil {
-		return nil, fmt.Errorf("get cluster DNS Service %s/%s: %w", namespace, name, err)
+	if err := cli.Get(ctx, types.NamespacedName{Namespace: openshiftDNSNamespace, Name: openshiftDNSServiceName}, service); err != nil {
+		return nil, fmt.Errorf("get OpenShift DNS Service %s/%s: %w", openshiftDNSNamespace, openshiftDNSServiceName, err)
 	}
 	if len(service.Spec.Selector) == 0 {
-		return nil, fmt.Errorf("cluster DNS Service %s/%s has no Pod selector", namespace, name)
+		return nil, fmt.Errorf("OpenShift DNS Service %s/%s has no Pod selector", openshiftDNSNamespace, openshiftDNSServiceName)
 	}
 	peer := networkingv1.NetworkPolicyPeer{
-		NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"kubernetes.io/metadata.name": namespace}},
+		NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"kubernetes.io/metadata.name": openshiftDNSNamespace}},
 		PodSelector:       &metav1.LabelSelector{MatchLabels: service.Spec.Selector},
 	}
 	var rules []networkingv1.NetworkPolicyEgressRule
@@ -211,7 +172,7 @@ func authProxyDNSRules(ctx context.Context, cli client.Client) ([]networkingv1.N
 		}
 	}
 	if len(rules) == 0 {
-		return nil, fmt.Errorf("cluster DNS Service %s/%s has no UDP or TCP port 53", namespace, name)
+		return nil, fmt.Errorf("OpenShift DNS Service %s/%s has no UDP or TCP port 53", openshiftDNSNamespace, openshiftDNSServiceName)
 	}
 	return rules, nil
 }

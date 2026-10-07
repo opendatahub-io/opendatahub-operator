@@ -869,62 +869,19 @@ The operator creates a NetworkPolicy whenever it deploys kube-auth-proxy. On upg
 - If `domain` is not specified, the cluster's default domain is used.
 - **NetworkPolicy is enabled by default** to secure kube-auth-proxy traffic. It allows Gateway pods to reach the authentication port (TCP 8443). The Service still exposes the metrics port (TCP 9000), but this policy does not allow remote scrapers to reach it. Monitoring ingress rules can be added when kube-auth-proxy is actually configured as a metrics scrape target.
 
-The same policy permits kube-auth-proxy egress to the cluster DNS Service, to the
-Kubernetes API Service and its current endpoints when OAuth or Kubernetes token
-validation needs them, and outside the cluster Pod and Service CIDRs on TCP 443
-for OAuth or the port in the OIDC issuer URL (443 if omitted).
-OpenShift supplies those CIDRs through `Network/cluster`. On Kubernetes clusters,
-set them explicitly in GatewayConfig before upgrading from the former unrestricted
-egress rule:
+On OpenShift, egress depends on the authentication mode. Integrated OAuth uses
+restricted egress to the cluster DNS Service, Kubernetes API Service and its
+current endpoints, and external HTTPS on TCP 443 outside the cluster Pod and
+Service CIDRs. OpenShift supplies those CIDRs through `Network/cluster`. If the
+CIDRs or required DNS/API destinations cannot be resolved, the operator applies
+an empty egress list and reports GatewayConfig as NotReady.
 
-```yaml
-spec:
-  authProxyEgress:
-    podCIDRs: ["10.244.0.0/16"]     # replace with all Pod CIDRs on your cluster
-    serviceCIDRs: ["10.96.0.0/12"] # replace with all Service CIDRs on your cluster
-```
-
-If the CIDRs or required DNS/API destinations cannot be resolved, the operator
-reconciles an empty egress list and reports GatewayConfig as NotReady. Kubernetes
-clusters need a `kube-system/kube-dns` Service for the built-in DNS rule; OpenShift
-uses `openshift-dns/dns-default`. The external HTTPS rule permits all IPv4 or IPv6
-addresses outside the corresponding excluded CIDRs, including private addresses
-outside those ranges on the selected port. It does not identify a particular
-identity provider. An OIDC issuer URL with `:8443` therefore allows TCP 8443
-to every destination outside the excluded CIDRs.
-
-For an OIDC issuer inside the cluster, or a discovery endpoint on another port,
-create a separate egress-only NetworkPolicy in the gateway namespace selecting proxy pods labeled
-`app: kube-auth-proxy` and `opendatahub.io/auth-mode: oidc`. For example, a
-discovery endpoint on a fixed external address and TCP 8443 needs:
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: kube-auth-proxy-oidc-issuer
-  namespace: openshift-ingress # use the actual gateway namespace
-spec:
-  podSelector:
-    matchLabels:
-      app: kube-auth-proxy
-      opendatahub.io/auth-mode: oidc
-  policyTypes: [Egress]
-  egress:
-    - to:
-        - ipBlock:
-            cidr: 203.0.113.42/32 # replace with the endpoint's address or range
-      ports:
-        - protocol: TCP
-          port: 8443
-```
-
-Apply the supplemental policy before upgrading an existing installation whose
-issuer needs it. OIDC discovery may reference additional hosts or ports; allow
-those destinations too. Standard NetworkPolicy cannot select a destination by
-DNS name, so a provider with changing addresses needs a maintained CIDR rule or
-another network control that supports DNS destinations. Policies selecting the
-same proxy pods are additive, so review their combined permissions.
+OIDC retains allow-all egress on OpenShift. Issuer discovery can involve multiple
+hosts, ports, or in-cluster destinations, and standard NetworkPolicy cannot
+reliably express those destinations by DNS name. Other Kubernetes distributions
+also retain allow-all egress because the operator cannot reliably discover their
+cluster Pod and Service CIDRs, and GatewayConfig does not expose fields to
+configure them.
 
 ### Run functional Tests
 

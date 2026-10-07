@@ -2293,32 +2293,37 @@ func RunNetworkPolicyCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(np.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeIngress))
 	g.Expect(np.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeEgress))
 	g.Expect(np.Spec.Ingress).To(HaveLen(1))
-	g.Expect(np.Spec.Egress).NotTo(BeEmpty())
-	g.Expect(np.Spec.Egress).NotTo(ContainElement(networkingv1.NetworkPolicyEgressRule{}))
-	tcp := corev1.ProtocolTCP
-	port443 := intstr.FromInt32(443)
-	g.Expect(np.Spec.Egress).To(ContainElement(networkingv1.NetworkPolicyEgressRule{
-		To: []networkingv1.NetworkPolicyPeer{{IPBlock: &networkingv1.IPBlock{
-			CIDR: "0.0.0.0/0", Except: []string{"10.0.0.0/24", "10.244.0.0/16"},
-		}}},
-		Ports: []networkingv1.NetworkPolicyPort{{Protocol: &tcp, Port: &port443}},
-	}))
-	apiPort := intstr.FromInt32(6443)
-	g.Expect(np.Spec.Egress).To(ContainElement(networkingv1.NetworkPolicyEgressRule{
-		To:    []networkingv1.NetworkPolicyPeer{{IPBlock: &networkingv1.IPBlock{CIDR: "192.0.2.1/32"}}},
-		Ports: []networkingv1.NetworkPolicyPort{{Protocol: &tcp, Port: &apiPort}},
-	}))
-	dnsPort := intstr.FromString("dns")
-	udp := corev1.ProtocolUDP
-	g.Expect(np.Spec.Egress).To(ContainElement(networkingv1.NetworkPolicyEgressRule{
-		To: []networkingv1.NetworkPolicyPeer{{
-			NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"kubernetes.io/metadata.name": "openshift-dns"}},
-			PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
-				"dns.operator.openshift.io/daemonset-dns": "default",
+	if setup.Spec.OIDC != nil {
+		// OIDC needs unrestricted egress because NetworkPolicy cannot represent its IdP FQDN.
+		g.Expect(np.Spec.Egress).To(Equal([]networkingv1.NetworkPolicyEgressRule{{}}))
+	} else {
+		g.Expect(np.Spec.Egress).NotTo(BeEmpty())
+		g.Expect(np.Spec.Egress).NotTo(ContainElement(networkingv1.NetworkPolicyEgressRule{}))
+		tcp := corev1.ProtocolTCP
+		port443 := intstr.FromInt32(443)
+		g.Expect(np.Spec.Egress).To(ContainElement(networkingv1.NetworkPolicyEgressRule{
+			To: []networkingv1.NetworkPolicyPeer{{IPBlock: &networkingv1.IPBlock{
+				CIDR: "0.0.0.0/0", Except: []string{"10.0.0.0/24", "10.244.0.0/16"},
+			}}},
+			Ports: []networkingv1.NetworkPolicyPort{{Protocol: &tcp, Port: &port443}},
+		}))
+		apiPort := intstr.FromInt32(6443)
+		g.Expect(np.Spec.Egress).To(ContainElement(networkingv1.NetworkPolicyEgressRule{
+			To:    []networkingv1.NetworkPolicyPeer{{IPBlock: &networkingv1.IPBlock{CIDR: "192.0.2.1/32"}}},
+			Ports: []networkingv1.NetworkPolicyPort{{Protocol: &tcp, Port: &apiPort}},
+		}))
+		dnsPort := intstr.FromString("dns")
+		udp := corev1.ProtocolUDP
+		g.Expect(np.Spec.Egress).To(ContainElement(networkingv1.NetworkPolicyEgressRule{
+			To: []networkingv1.NetworkPolicyPeer{{
+				NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"kubernetes.io/metadata.name": "openshift-dns"}},
+				PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
+					"dns.operator.openshift.io/daemonset-dns": "default",
+				}},
 			}},
-		}},
-		Ports: []networkingv1.NetworkPolicyPort{{Protocol: &udp, Port: &dnsPort}},
-	}))
+			Ports: []networkingv1.NetworkPolicyPort{{Protocol: &udp, Port: &dnsPort}},
+		}))
+	}
 	assertOwnedByGatewayConfig(g, np)
 }
 
@@ -2361,8 +2366,15 @@ func RunNetworkPolicyReconciliationTest(t *testing.T, setup TestSetup) {
 		if err := cli.Get(ctx, key, current); err != nil {
 			return false
 		}
-		return len(current.Spec.Ingress) == 1 && len(current.Spec.Egress) > 0 &&
-			len(current.Spec.Egress[0].To) > 0 && len(current.Spec.Egress[0].Ports) > 0 && len(current.OwnerReferences) == 1 &&
+		egressRestored := len(current.Spec.Egress) > 0
+		if setup.Spec.OIDC != nil {
+			// OIDC needs unrestricted egress because NetworkPolicy cannot represent its IdP FQDN.
+			egressRestored = len(current.Spec.Egress) == 1 &&
+				len(current.Spec.Egress[0].To) == 0 && len(current.Spec.Egress[0].Ports) == 0
+		} else if egressRestored {
+			egressRestored = len(current.Spec.Egress[0].To) > 0 && len(current.Spec.Egress[0].Ports) > 0
+		}
+		return len(current.Spec.Ingress) == 1 && egressRestored && len(current.OwnerReferences) == 1 &&
 			current.OwnerReferences[0].Kind == serviceApi.GatewayConfigKind &&
 			current.OwnerReferences[0].Name == serviceApi.GatewayConfigName
 	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfig should adopt the policy and remove legacy monitoring ingress")

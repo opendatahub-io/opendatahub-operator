@@ -38,11 +38,9 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
@@ -50,8 +48,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
-
-const gatewayResourceApplyFailedReason = "GatewayResourceApplyFailed"
 
 // gatewayCRDWatchPredicate matches CRD events that must re-trigger a GatewayConfig reconcile:
 //
@@ -171,23 +167,6 @@ func gatewayCertManagerPrecondition() precondition.PreCondition {
 	)
 }
 
-// gatewayDeployAction records apply failures on ReadyConditionType because the
-// reconciler skips syncGatewayConfigStatus after a deployment error.
-func gatewayDeployAction(opts ...deploy.ActionOpts) actions.Fn {
-	deployAction := deploy.NewAction(opts...)
-	return func(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-		if err := deployAction(ctx, rr); err != nil {
-			rr.Conditions.MarkFalse(
-				ReadyConditionType,
-				conditions.WithReason(gatewayResourceApplyFailedReason),
-				conditions.WithMessage("Failed to apply GatewayConfig resources: %v", err),
-			)
-			return err
-		}
-		return nil
-	}
-}
-
 func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	gw := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{})
 	// special for ROSA: auth is defined in day0 and OAuth not registered in apiserver
@@ -287,8 +266,8 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(gatewayAuthenticationWatchPredicate()),
 		).
-		// The policy uses the current Pod/Service ranges, DNS Service target ports,
-		// and exact Kubernetes API endpoint addresses and ports.
+		// OpenShift policy egress uses the current Pod/Service ranges, DNS Service
+		// target ports, and exact Kubernetes API endpoint addresses and ports.
 		Watches(
 			&configv1.Network{},
 			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
@@ -297,15 +276,16 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		).
 		Watches(
 			&corev1.Service{},
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(predicate.Or(
 				resources.CreatedOrUpdatedOrDeletedNamedInNamespace(apiServiceName, apiServiceNamespace),
-				resources.CreatedOrUpdatedOrDeletedNamedInNamespace("dns-default", "openshift-dns"),
-				resources.CreatedOrUpdatedOrDeletedNamedInNamespace("kube-dns", "kube-system"),
+				resources.CreatedOrUpdatedOrDeletedNamedInNamespace(openshiftDNSServiceName, openshiftDNSNamespace),
 			)),
 		).
 		Watches(
 			&discoveryv1.EndpointSlice{},
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(gatewayAPIEndpointSliceWatchPredicate()),
 		).
@@ -323,9 +303,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).
-		WithAction(gatewayDeployAction(
-			deploy.WithCache(),
-		)).
+		WithAction(deploy.NewAction(deploy.WithCache())).
 		WithAction(syncAdditionalIngressReadiness).
 		WithAction(syncGatewayConfigStatus).
 		WithAction(gc.NewAction(gc.WithObjectPredicate(gatewayGCObjectPredicate))).

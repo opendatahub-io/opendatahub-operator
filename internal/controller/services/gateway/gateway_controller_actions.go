@@ -51,6 +51,7 @@ var gatewayResources embed.FS
 const (
 	deprecatedNetworkPolicyConfigConditionType = "GatewayConfigNetworkPolicyDeprecated"
 	deprecatedNetworkPolicyConfigReason        = "DeprecatedConfigurationIgnored"
+	authProxyEgressUnavailableReason           = "AuthProxyEgressUnavailable"
 )
 
 // reportDeprecatedNetworkPolicyConfig informs users that the legacy setting is
@@ -423,12 +424,12 @@ func createNetworkPolicy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	// Queue the policy even when discovery fails so an existing allow-all egress
 	// rule is replaced by deny-all egress on the next successful apply.
 	rules := make([]networkingv1.NetworkPolicyEgressRule, 0)
-	resolvedRules, resolveErr := resolveAuthProxyEgress(ctx, rr.Client, gatewayConfig.Spec, authMode)
+	resolvedRules, resolveErr := resolveAuthProxyEgress(ctx, rr.Client, authMode)
 	if resolveErr != nil {
 		// Record the egress failure on GatewayConfig's service-specific Ready condition.
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
-			conditions.WithReason("AuthProxyEgressUnavailable"),
+			conditions.WithReason(authProxyEgressUnavailableReason),
 			conditions.WithMessage("Cannot configure kube-auth-proxy egress: %v", resolveErr),
 		)
 		l.Error(resolveErr, "auth proxy egress denied until destinations are resolved")

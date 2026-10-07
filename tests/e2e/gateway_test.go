@@ -2039,34 +2039,14 @@ func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 		tc.SkipUnlessBYOIDC(t)
 	}
 	t.Log("Validating NetworkPolicy for kube-auth-proxy")
-	externalPort := 443
-	if tc.isBYOIDC(t) {
-		issuer, err := url.Parse(tc.getOIDCConfig(t).IssuerURL)
-		require.NoError(t, err)
-		if issuer.Port() != "" {
-			externalPort, err = strconv.Atoi(issuer.Port())
-			require.NoError(t, err)
-		}
-	}
 
 	policyChecks := []gomegaTypes.GomegaMatcher{
 		// Verify the policy is owned by GatewayConfig and selects only proxy pods.
 		jq.Match(`.metadata.ownerReferences | any(.kind == "GatewayConfig" and .name == "%s" and .controller == true)`, gatewayConfigName),
 		jq.Match(`.metadata.labels."app.kubernetes.io/component" == "authentication"`),
 		jq.Match(`.spec.podSelector.matchLabels.app == "%s"`, kubeAuthProxyName),
-
-		// Every egress permission must name both a destination and a port.
 		jq.Match(`.spec.policyTypes | any(. == "Ingress")`),
 		jq.Match(`.spec.policyTypes | any(. == "Egress")`),
-		jq.Match(`.spec.egress | length > 0`),
-		jq.Match(`.spec.egress | all(.[]; (.to | length) > 0 and (.ports | length) > 0)`),
-		jq.Match(
-			`.spec.egress | any(.[]; `+
-				`any(.to[]; (.ipBlock.cidr? == "0.0.0.0/0" or .ipBlock.cidr? == "::/0") and (.ipBlock.except | length) > 0) and `+
-				`any(.ports[]; .protocol == "TCP" and .port == %d))`,
-			externalPort,
-		),
-
 		// Only Gateway pods can use the authentication ingress rule on TCP 8443.
 		jq.Match(`.spec.ingress | length == 1`),
 		jq.Match(`.spec.ingress[0].from | length == 1`),
@@ -2079,6 +2059,27 @@ func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 		jq.Match(`.spec.ingress[0].ports[0].protocol == "%s"`, string(corev1.ProtocolTCP)),
 		jq.Match(`[.spec.ingress[] | select((.ports | length) == 0 or any(.ports[]; .port == %d))] | length == 0`, kubeAuthProxyHTTPPort),
 		jq.Match(`[.spec.ingress[] | select((.ports | length) == 0 or any(.ports[]; .port == %d))] | length == 0`, kubeAuthProxyMetricsPort),
+	}
+	if tc.IsXKS() || tc.isBYOIDC(t) {
+		// OIDC keeps allow-all egress because standard NetworkPolicy cannot
+		// reliably represent issuer discovery destinations. XKS also retains
+		// allow-all egress because its cluster CIDRs are not reliably discoverable.
+		policyChecks = append(policyChecks,
+			jq.Match(`.spec.egress | length == 1`),
+			jq.Match(`.spec.egress[0] == {}`),
+		)
+	} else {
+		policyChecks = append(policyChecks,
+			// Every restricted egress permission must name a destination and a port.
+			jq.Match(`.spec.egress | length > 0`),
+			jq.Match(`.spec.egress | all(.[]; (.to | length) > 0 and (.ports | length) > 0)`),
+			jq.Match(
+				`.spec.egress | any(.[]; `+
+					`any(.to[]; (.ipBlock.cidr? == "0.0.0.0/0" or .ipBlock.cidr? == "::/0") and (.ipBlock.except | length) > 0) and `+
+					`any(.ports[]; .protocol == "TCP" and .port == %d))`,
+				443,
+			),
+		)
 	}
 
 	tc.EnsureResourceExists(

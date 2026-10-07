@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -141,7 +142,7 @@ echo 'API control connected; all proxy ports denied' > /dev/termination-log
 		if len(current.Status.ContainerStatuses) > 0 {
 			terminated := current.Status.ContainerStatuses[0].State.Terminated
 			if terminated != nil {
-				return fmt.Sprintf("%s: %s", current.Status.Phase, terminated.Message), nil
+				return fmt.Sprintf("%s: %s", current.Status.Phase, strings.TrimSpace(terminated.Message)), nil
 			}
 		}
 		return string(current.Status.Phase), nil

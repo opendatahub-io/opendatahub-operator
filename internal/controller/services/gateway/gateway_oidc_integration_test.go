@@ -255,36 +255,26 @@ func TestOIDCNetworkPolicyMissingConfig(t *testing.T) {
 	RunNetworkPolicyMissingOIDCConfigTest(t, GetOIDCTestSetup())
 }
 
-func TestOIDCNetworkPolicyFollowsIssuerPort(t *testing.T) {
+func TestOIDCNetworkPolicyAllowsAllEgress(t *testing.T) {
 	setup := GetOIDCTestSetup()
 	defer setup.Setup(t)()
 	g := NewWithT(t)
 	key := types.NamespacedName{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()}
-	externalPort := func() int32 {
+	egressRules := func() []networkingv1.NetworkPolicyEgressRule {
 		policy := &networkingv1.NetworkPolicy{}
 		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, key, policy); err != nil {
-			return 0
+			return nil
 		}
-		for _, rule := range policy.Spec.Egress {
-			if len(rule.To) == 1 && rule.To[0].IPBlock != nil && rule.To[0].IPBlock.CIDR == "0.0.0.0/0" &&
-				len(rule.Ports) == 1 && rule.Ports[0].Port != nil {
-				return rule.Ports[0].Port.IntVal
-			}
-		}
-		return 0
+		return policy.Spec.Egress
 	}
-	g.Eventually(externalPort, TestTimeout, TestInterval).Should(Equal(int32(443)))
 	g.Eventually(func() string {
 		deployment, err := getAuthProxyDeployment(setup.TC.Ctx, setup.TC.K8sClient)
 		if err != nil {
-			return ""
+			return "deployment not found"
 		}
 		return deployment.Spec.Template.Labels["opendatahub.io/auth-mode"]
-	}, TestTimeout, TestInterval).Should(Equal("oidc"))
-	UpdateGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient, oidcSpecWithIssuerURL("https://keycloak.example.com:8443/realms/test"))
-	g.Eventually(externalPort, TestTimeout, TestInterval).Should(Equal(int32(8443)))
-	UpdateGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient, oidcSpecWithIssuerURL(OIDCIssuerURL))
-	g.Eventually(externalPort, TestTimeout, TestInterval).Should(Equal(int32(443)))
+	}, TestTimeout, TestInterval).Should(BeEmpty())
+	g.Eventually(egressRules, TestTimeout, TestInterval).Should(Equal([]networkingv1.NetworkPolicyEgressRule{{}}))
 }
 
 // TestOIDCNginxDashboardRedirectSkippedWithoutDashboard validates redirects are skipped when Dashboard is not deployed in OIDC mode.
