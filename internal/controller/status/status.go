@@ -98,6 +98,9 @@ const (
 	ConditionPersesTempoDataSourceAvailable      = "PersesTempoDataSourceAvailable"
 	ConditionPersesPrometheusDataSourceAvailable = "PersesPrometheusDataSourceAvailable"
 	ConditionNodeMetricsEndpointAvailable        = "NodeMetricsEndpointAvailable"
+	ConditionLokiStackAvailable                  = "LokiStackAvailable"
+	ConditionClusterLogForwarderAvailable        = "ClusterLogForwarderAvailable"
+	ConditionUsageLogsCollectorAvailable         = "UsageLogsCollectorAvailable"
 	ConditionImageStreamsAvailable               = "ImageStreamsAvailable"
 	ConditionImageStreamsNotAvailableReason      = "ImageStreamsNotReady"
 
