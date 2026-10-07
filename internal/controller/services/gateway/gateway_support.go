@@ -671,6 +671,13 @@ func rejectUnsupportedKubernetesGatewaySpec(rr *odhtypes.ReconciliationRequest, 
 	return true
 }
 
+func getGatewayAuthProxyMaxReplicas(gatewayConfig *serviceApi.GatewayConfig) int32 {
+	if gatewayConfig.Spec.AuthProxyMaxReplicas != nil {
+		return *gatewayConfig.Spec.AuthProxyMaxReplicas
+	}
+	return 10
+}
+
 // getGatewayAuthProxyTimeout returns the auth timeout using:
 // Deprecated AuthTimeout field > AuthProxyTimeout field > default (5s).
 func getGatewayAuthProxyTimeout(gatewayConfig *serviceApi.GatewayConfig) string {

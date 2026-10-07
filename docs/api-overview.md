@@ -2895,6 +2895,42 @@ _Appears in:_
 | `hostname` _string_ | Hostname is the externally visible hostname for this ingress. |  | MaxLength: 253 <br />Required: \{\} <br /> |
 | `ingressControllerName` _string_ | IngressControllerName is the IngressController whose Route admission is used for readiness. |  | MaxLength: 63 <br />Pattern: `^[a-z]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
 | `routeLabels` _object (keys:string, values:string)_ | RouteLabels are applied to the bridge Route and can match the target<br />IngressController route selector. They do not prevent other matching<br />IngressControllers from admitting the Route. |  | MinProperties: 1 <br />Required: \{\} <br /> |
+| `auth` _[AdditionalIngressAuth](#additionalingressauth)_ | Auth configures this ingress's client credentials and auth proxy capacity.<br />Authentication mode and provider settings are inherited from the default gateway. | \{  \} |  |
+
+
+#### AdditionalIngressAuth
+
+
+
+AdditionalIngressAuth defines authentication configuration for an additional ingress.
+
+
+
+_Appears in:_
+- [AdditionalIngress](#additionalingress)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `oidc` _[AdditionalIngressOIDCConfig](#additionalingressoidcconfig)_ | OIDC supplies this ingress's distinct client identity in OIDC mode.<br />Required in OIDC mode; omit in integrated OpenShift OAuth mode, where the<br />operator generates a distinct OAuthClient. The issuer comes from spec.oidc. |  |  |
+| `maxReplicas` _integer_ | MaxReplicas is the maximum number of replicas for this ingress's auth proxy.<br />The minimum remains fixed at 2. This does not configure the default proxy.<br />A value of 2 requests two fixed replicas without an HPA; larger values enable autoscaling. | 10 | Maximum: 10 <br />Minimum: 2 <br /> |
+
+
+#### AdditionalIngressOIDCConfig
+
+
+
+AdditionalIngressOIDCConfig defines client credentials without provider overrides.
+
+
+
+_Appears in:_
+- [AdditionalIngressAuth](#additionalingressauth)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `clientID` _string_ | ClientID is distinct from the default ingress and sibling ingress client IDs. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | ClientSecretRef references an administrator-managed Secret containing the client secret.<br />Each ingress must reference a distinct Secret, including from the default ingress.<br />The operator must not own or delete this source Secret.<br />Name and key must be nonempty; optional must be omitted or false. |  | Required: \{\} <br /> |
+| `secretNamespace` _string_ | SecretNamespace is the source Secret's namespace; defaults to the gateway namespace. |  |  |
 
 
 #### AdditionalIngressStatus
@@ -2933,6 +2969,7 @@ _Appears in:_
 | `hostname` _string_ | Hostname is the externally visible hostname for this ingress. |  | MaxLength: 253 <br />Required: \{\} <br /> |
 | `ingressControllerName` _string_ | IngressControllerName is the IngressController whose Route admission is used for readiness. |  | MaxLength: 63 <br />Pattern: `^[a-z]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
 | `routeLabels` _object (keys:string, values:string)_ | RouteLabels are applied to the bridge Route and can match the target<br />IngressController route selector. They do not prevent other matching<br />IngressControllers from admitting the Route. |  | MinProperties: 1 <br />Required: \{\} <br /> |
+| `auth` _[AdditionalIngressAuth](#additionalingressauth)_ | Auth configures this ingress's client credentials and auth proxy capacity.<br />Authentication mode and provider settings are inherited from the default gateway. | \{  \} |  |
 
 
 #### Alerting
@@ -3081,6 +3118,7 @@ _Appears in:_
 | `cookie` _[CookieConfig](#cookieconfig)_ | Cookie configuration (applies to both OIDC and OpenShift OAuth) |  |  |
 | `authTimeout` _string_ | AuthTimeout is the duration Envoy waits for auth proxy responses.<br />Requests timeout with 403 if exceeded.<br />Deprecated: Use AuthProxyTimeout instead. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
 | `authProxyTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | AuthProxyTimeout defines the timeout for external authorization service calls (e.g., "5s", "10s")<br />This controls how long Envoy waits for a response from the authentication proxy before timing out 403 response. |  |  |
+| `authProxyMaxReplicas` _integer_ | AuthProxyMaxReplicas is the maximum number of replicas for the default gateway's auth proxy.<br />The HPA minimum is fixed at 2; setting the maximum to 2 fixes the replica count.<br />Additional ingress proxies are configured independently through their auth.maxReplicas. | 10 | Maximum: 10 <br />Minimum: 2 <br /> |
 | `networkPolicy` _[NetworkPolicyConfig](#networkpolicyconfig)_ | NetworkPolicy configuration for kube-auth-proxy |  |  |
 | `providerCASecretName` _string_ | ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider.<br />Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.<br />Secret must exist in the gateway namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate. |  |  |
 | `verifyProviderCertificate` _boolean_ | VerifyProviderCertificate controls TLS certificate verification for the authentication provider.<br />When true (default), certificates are verified against the system trust store and providerCASecretName.<br />When false, certificate verification is disabled (development/testing only).<br />WARNING: Setting this to false disables security and should only be used in non-production environments.<br />For production use with self-signed certificates, use ProviderCASecretName instead. | true |  |

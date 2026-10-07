@@ -139,7 +139,7 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate OIDC unauthenticated access redirects to login", gatewayCtx.ValidateOIDCUnauthenticatedRedirect},
 		// Common tests (run on both)
 		{"Validate kube-auth-proxy TLS args match cluster APIServer", gatewayCtx.ValidateKubeAuthProxyTLSArgsMatchAPIServer},
-		{"Validate HorizontalPodAutoscaler creation", gatewayCtx.ValidateHPA},
+		{"Validate HorizontalPodAutoscaler configuration updates", gatewayCtx.ValidateHPA},
 		{"Validate NetworkPolicy creation", gatewayCtx.ValidateNetworkPolicy},
 		{"Validate OAuth callback HTTPRoute", gatewayCtx.ValidateOAuthCallbackRoute},
 		{"Validate EnvoyFilter creation", gatewayCtx.ValidateEnvoyFilter},
@@ -1225,55 +1225,85 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	t.Log("kube-auth-proxy deployment and service validation completed")
 }
 
-// ValidateHPA validates the HorizontalPodAutoscaler for kube-auth-proxy.
-//
-// The HPA automatically scales kube-auth-proxy pods based on CPU utilization to handle varying load.
-// This test verifies:
-// - HPA exists with correct target deployment reference
-// - Minimum replicas is set to 2 (matching deployment initial replica count)
-// - Maximum replicas allows scaling up to 10 pods
-// - CPU utilization target is set to 70%.
-// - Scaling behavior is configured for stable scale-down and rapid scale-up.
+// ValidateHPA checks HPA configuration and reconciliation of maximum replica updates.
 func (tc *GatewayTestCtx) ValidateHPA(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Tier1)
 	t.Log("Validating HorizontalPodAutoscaler for kube-auth-proxy")
 
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.HorizontalPodAutoscaler, types.NamespacedName{
-			Name:      kubeAuthProxyName,
-			Namespace: tc.gatewayNamespace(),
-		}),
-		WithCondition(And(
-			// Target deployment reference
-			jq.Match(`.spec.scaleTargetRef.apiVersion == "apps/v1"`),
-			jq.Match(`.spec.scaleTargetRef.kind == "Deployment"`),
-			jq.Match(`.spec.scaleTargetRef.name == "%s"`, kubeAuthProxyName),
+	ctx := tc.Context()
+	configKey := types.NamespacedName{Name: gatewayConfigName}
+	config := &serviceApi.GatewayConfig{}
+	require.NoError(t, tc.Client().Get(ctx, configKey, config))
+	originalMaximum := config.Spec.AuthProxyMaxReplicas
+	expectedMaximum := int32(10)
+	if originalMaximum != nil {
+		expectedMaximum = *originalMaximum
+	}
 
-			// Replica bounds
-			jq.Match(`.spec.minReplicas == 2`),
-			jq.Match(`.spec.maxReplicas == 10`),
+	validate := func(maximum int32) types.UID {
+		return tc.EnsureResourceExists(
+			WithMinimalObject(gvk.HorizontalPodAutoscaler, types.NamespacedName{
+				Name:      kubeAuthProxyName,
+				Namespace: tc.gatewayNamespace(),
+			}),
+			WithCondition(And(
+				// Target deployment reference
+				jq.Match(`.spec.scaleTargetRef.apiVersion == "apps/v1"`),
+				jq.Match(`.spec.scaleTargetRef.kind == "Deployment"`),
+				jq.Match(`.spec.scaleTargetRef.name == "%s"`, kubeAuthProxyName),
 
-			// Scale-down behavior: 5 min stabilization, 50% reduction per minute
-			jq.Match(`.spec.behavior.scaleDown.stabilizationWindowSeconds == 300`),
-			jq.Match(`.spec.behavior.scaleDown.policies[0].type == "Percent"`),
-			jq.Match(`.spec.behavior.scaleDown.policies[0].value == 50`),
-			jq.Match(`.spec.behavior.scaleDown.policies[0].periodSeconds == 60`),
+				// Replica bounds
+				jq.Match(`.spec.minReplicas == 2`),
+				jq.Match(`.spec.maxReplicas == %d`, maximum),
 
-			// Scale-up behavior: immediate, aggressive scaling
-			jq.Match(`.spec.behavior.scaleUp.stabilizationWindowSeconds == 0`),
-			jq.Match(`.spec.behavior.scaleUp.selectPolicy == "Max"`),
+				// Scale-down behavior: 5 min stabilization, 50% reduction per minute
+				jq.Match(`.spec.behavior.scaleDown.stabilizationWindowSeconds == 300`),
+				jq.Match(`.spec.behavior.scaleDown.policies[0].type == "Percent"`),
+				jq.Match(`.spec.behavior.scaleDown.policies[0].value == 50`),
+				jq.Match(`.spec.behavior.scaleDown.policies[0].periodSeconds == 60`),
 
-			// CPU utilization metric
-			jq.Match(`.spec.metrics | length == 1`),
-			jq.Match(`.spec.metrics[0].type == "Resource"`),
-			jq.Match(`.spec.metrics[0].resource.name == "cpu"`),
-			jq.Match(`.spec.metrics[0].resource.target.type == "Utilization"`),
-			jq.Match(`.spec.metrics[0].resource.target.averageUtilization == 70`),
-		)),
-		WithCustomErrorMsg("HPA should exist with correct scaling behavior and CPU target=70%%"),
-	)
+				// Scale-up behavior: immediate, aggressive scaling
+				jq.Match(`.spec.behavior.scaleUp.stabilizationWindowSeconds == 0`),
+				jq.Match(`.spec.behavior.scaleUp.selectPolicy == "Max"`),
+
+				// CPU utilization metric
+				jq.Match(`.spec.metrics | length == 1`),
+				jq.Match(`.spec.metrics[0].type == "Resource"`),
+				jq.Match(`.spec.metrics[0].resource.name == "cpu"`),
+				jq.Match(`.spec.metrics[0].resource.target.type == "Utilization"`),
+				jq.Match(`.spec.metrics[0].resource.target.averageUtilization == 70`),
+			)),
+			WithEventuallyTimeout(tc.TestTimeouts.authGatewayTimeout),
+			WithCustomErrorMsg("HPA should retain minimum 2 and reconcile maximum %d with CPU target=70%%", maximum),
+		).GetUID()
+	}
+
+	originalUID := validate(expectedMaximum)
+	setMaximum := func(maximum *int32) error {
+		return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			current := &serviceApi.GatewayConfig{}
+			if err := tc.Client().Get(ctx, configKey, current); err != nil {
+				return err
+			}
+			current.Spec.AuthProxyMaxReplicas = maximum
+			return tc.Client().Update(ctx, current)
+		})
+	}
+	t.Cleanup(func() {
+		if err := setMaximum(originalMaximum); err != nil {
+			t.Errorf("failed to restore GatewayConfig authProxyMaxReplicas: %v", err)
+			return
+		}
+		require.Equal(t, originalUID, validate(expectedMaximum), "restoration must update the existing HPA")
+	})
+
+	for _, maximum := range []int32{4, 2} {
+		t.Logf("Updating default auth proxy maximum replicas to %d", maximum)
+		require.NoError(t, setMaximum(&maximum))
+		require.Equal(t, originalUID, validate(maximum), "scaling configuration must update the existing HPA")
+	}
 
 	t.Log("HorizontalPodAutoscaler validation completed")
 }
