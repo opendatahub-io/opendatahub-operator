@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -53,8 +55,8 @@ func (tc *GatewayTestCtx) ensureDashboardCRExists(t *testing.T) {
 
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Managed"`)),
-		WithCondition(jq.Match(`.spec.components.dashboard.managementState == "Managed"`)),
+		WithMutateFunc(testf.Transform(`.spec.components.dashboard.standard.managementState = "Managed"`)),
+		WithCondition(jq.Match(`.spec.components.dashboard.standard.managementState == "Managed"`)),
 	)
 
 	tc.EnsureResourceExists(
@@ -90,6 +92,8 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectConfigMap(t *testing.T) {
 			// Nginx config content
 			jq.Match(`.data."redirect.conf" != null`),
 			jq.Match(`.data."redirect.conf" | contains("location /")`),
+			jq.Match(`.data."redirect.conf" | contains("text/html")`),
+			jq.Match(`.data."deprecation.html" | contains("<html lang=\"en\">")`),
 			jq.Match(`.data."redirect.conf" | contains("return 301 https://%s")`, expectedGatewayHostname),
 			jq.Match(`.data."redirect.conf" | contains("$request_uri")`),
 
@@ -115,6 +119,9 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 	t.Log("Validating dashboard redirect Deployment")
 
 	appNamespace := tc.AppsNamespace
+	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
+	expectedHash, err := gateway.CalculateRedirectConfigHash(expectedGatewayHostname)
+	tc.g.Expect(err).NotTo(HaveOccurred())
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
@@ -130,6 +137,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 			jq.Match(`.metadata.labels.app == "%s"`, gateway.DashboardRedirectName),
 			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, gateway.PartOfGatewayConfig),
 			jq.Match(`.spec.template.metadata.labels.app == "%s"`, gateway.DashboardRedirectName),
+			jq.Match(`.spec.template.metadata.annotations["opendatahub.io/redirect-config-hash"] == "%s"`, expectedHash),
 
 			// Owner reference
 			jq.Match(`.metadata.ownerReferences[] | select(.kind == "GatewayConfig") | .controller == true`),
@@ -150,6 +158,8 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "redirect-config" and .subPath == "nginx.conf") | .mountPath == "/etc/nginx/nginx.conf"`),
 			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "redirect-config" and .subPath == "redirect.conf")`+
 				` | .mountPath == "/opt/app-root/etc/nginx.default.d/redirect.conf"`),
+			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "redirect-config" and .subPath == "deprecation.html")`+
+				` | .mountPath == "/opt/app-root/src/deprecation.html"`),
 
 			// Volumes
 			jq.Match(`.spec.template.spec.volumes[] | select(.name == "redirect-config") | .configMap.name == "%s"`, gateway.DashboardRedirectConfigName),
@@ -175,6 +185,8 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: appNamespace}),
 		WithCondition(And(
 			jq.Match(`.status.readyReplicas == 2`),
+			jq.Match(`.status.updatedReplicas == 2`),
+			jq.Match(`.status.observedGeneration >= .metadata.generation`),
 			jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`),
 		)),
 		WithCustomErrorMsg("dashboard-redirect Deployment should have 2 ready replicas and Available condition"),
@@ -311,64 +323,86 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectRoutes(t *testing.T) {
 	t.Log("Dashboard redirect Routes validation completed")
 }
 
-// ValidateDashboardRedirectHTTP validates the HTTP redirect functionality.
-//
-// This test verifies end-to-end redirect behavior:
-// - HTTP request to old dashboard route returns 301
-// - Location header points to new gateway URL
-// - Path is preserved in redirect ($request_uri works correctly).
+// ValidateDashboardRedirectHTTP checks text/html and non-HTML responses on both legacy Routes.
 func (tc *GatewayTestCtx) ValidateDashboardRedirectHTTP(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Tier1)
 	t.Log("Validating dashboard redirect HTTP functionality")
 
-	dashboardRouteName := getDashboardRouteNameByPlatform(tc.FetchPlatformRelease())
+	platformRelease := tc.FetchPlatformRelease()
+	dashboardRouteName := getDashboardRouteNameByPlatform(platformRelease)
+	productName := "Open Data Hub"
+	switch platformRelease {
+	case cluster.ManagedRhoai, cluster.SelfManagedRhoai:
+		productName = "OpenShift AI"
+	}
 	appNamespace := tc.AppsNamespace
-
-	// Fetch the dashboard route to get its host
-	routeObj := tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Route, types.NamespacedName{
-			Name:      dashboardRouteName,
-			Namespace: appNamespace,
-		}),
-		WithCustomErrorMsg("Dashboard redirect route should exist"),
-	)
-
-	// Extract the route host using jq
-	dashboardRouteHost := ExtractAndExpectValue[string](tc.g, routeObj, ".spec.host", Not(BeEmpty()))
-
-	// Get expected gateway hostname
+	routeNames := []string{dashboardRouteName}
+	if gatewaySubdomain != gateway.LegacyGatewaySubdomain {
+		routeNames = append(routeNames, gateway.LegacyGatewaySubdomain)
+	}
 	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
-
-	// Test redirect with path preservation
-	testPath := "/some/test/path"
-	dashboardURL := "https://" + dashboardRouteHost + testPath
-	expectedRedirectURL := "https://" + expectedGatewayHostname + testPath
-
-	t.Logf("Testing redirect from %s to %s", dashboardURL, expectedRedirectURL)
-
 	httpClient := tc.createHTTPClient()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	for _, routeName := range routeNames {
+		routeObj := tc.EnsureResourceExists(
+			WithMinimalObject(gvk.Route, types.NamespacedName{Name: routeName, Namespace: appNamespace}),
+			WithCustomErrorMsg("Dashboard redirect route %s should exist", routeName),
+		)
+		routeHost := ExtractAndExpectValue[string](tc.g, routeObj, ".spec.host", Not(BeEmpty()))
+		baseURL := "https://" + routeHost
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, dashboardURL, nil)
-	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to create HTTP request")
+		t.Run(routeName+" non-browser", func(t *testing.T) {
+			g := NewWithT(t)
+			for _, requestURI := range []string{
+				"/some/test/path?tab=models&next=https%3A%2F%2Fevil.example",
+				"/deprecation.html?tab=models",
+			} {
+				func() {
+					ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+					defer cancel()
+					req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+requestURI, nil)
+					g.Expect(err).NotTo(HaveOccurred())
+					req.Header.Set("Accept", "application/json")
+					resp, err := httpClient.Do(req)
+					g.Expect(err).NotTo(HaveOccurred())
+					defer func() {
+						g.Expect(resp.Body.Close()).To(Succeed())
+					}()
 
-	resp, err := httpClient.Do(req)
-	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to make HTTP request to dashboard redirect route")
-	defer resp.Body.Close()
+					g.Expect(resp.StatusCode).To(Equal(http.StatusMovedPermanently))
+					g.Expect(resp.Header.Get("Location")).To(Equal("https://" + expectedGatewayHostname + requestURI))
+					g.Expect(resp.Header.Get("Cache-Control")).To(ContainSubstring("no-store"))
+				}()
+			}
+		})
 
-	// Verify 301 Moved Permanently
-	tc.g.Expect(resp.StatusCode).To(Equal(http.StatusMovedPermanently),
-		"Expected 301 redirect, got %d", resp.StatusCode)
+		t.Run(routeName+" text/html", func(t *testing.T) {
+			g := NewWithT(t)
+			requestURI := "/%3Cscript%3Ealert(1)%3C%2Fscript%3E?next=https%3A%2F%2Fevil.example"
+			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+			defer cancel()
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+requestURI, nil)
+			g.Expect(err).NotTo(HaveOccurred())
+			req.Header.Set("Accept", "text/html,application/xhtml+xml")
+			resp, err := httpClient.Do(req)
+			g.Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
 
-	// Verify Location header
-	location := resp.Header.Get("Location")
-	tc.g.Expect(location).To(Equal(expectedRedirectURL),
-		"Redirect location should preserve path and point to new gateway URL")
-
-	t.Logf("Redirect works correctly: %s -> %s", dashboardURL, location)
+			g.Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			g.Expect(resp.Header.Get("Content-Type")).To(ContainSubstring("text/html"))
+			g.Expect(resp.Header.Get("Cache-Control")).To(ContainSubstring("no-store"))
+			g.Expect(resp.Header.Get("Location")).To(BeEmpty())
+			const maxPageBytes = 64 << 10
+			body, err := io.ReadAll(io.LimitReader(resp.Body, maxPageBytes+1))
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(len(body)).To(BeNumerically("<=", maxPageBytes))
+			g.Expect(string(body)).To(ContainSubstring(productName + " has a new address"))
+			g.Expect(string(body)).To(ContainSubstring(`href="https://` + expectedGatewayHostname + `/"`))
+			g.Expect(string(body)).To(ContainSubstring("destination.hash = window.location.hash"))
+			g.Expect(string(body)).NotTo(ContainSubstring("alert(1)"), "request data must not appear in the HTML page")
+		})
+	}
 	t.Log("Dashboard redirect HTTP functionality validation completed")
 }
 
