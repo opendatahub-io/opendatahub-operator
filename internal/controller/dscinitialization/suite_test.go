@@ -49,7 +49,6 @@ import (
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
-	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
@@ -130,7 +129,6 @@ var _ = BeforeSuite(func() {
 	utilruntime.Must(clientgoscheme.AddToScheme(testScheme))
 	utilruntime.Must(dsciv2.AddToScheme(testScheme))
 	utilruntime.Must(dscApi.AddToScheme(testScheme))
-	utilruntime.Must(featuresv1.AddToScheme(testScheme))
 	utilruntime.Must(networkingv1.AddToScheme(testScheme))
 	utilruntime.Must(rbacv1.AddToScheme(testScheme))
 	utilruntime.Must(corev1.AddToScheme(testScheme))

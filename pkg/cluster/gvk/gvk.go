@@ -25,7 +25,6 @@ import (
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
-	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -150,12 +149,6 @@ var (
 		Group:   infrav1alpha1.GroupVersion.Group,
 		Version: infrav1alpha1.GroupVersion.Version,
 		Kind:    "HardwareProfile",
-	}
-
-	FeatureTracker = schema.GroupVersionKind{
-		Group:   featuresv1.GroupVersion.Group,
-		Version: featuresv1.GroupVersion.Version,
-		Kind:    "FeatureTracker",
 	}
 
 	Pod = schema.GroupVersionKind{
