@@ -773,6 +773,8 @@ The GatewayConfig custom resource is used to configure gateway settings for Open
 
 In `OcpRoute` mode, the operator applies a `60s` timeout to the default shared Gateway Route when the default IngressController's server timeout is shorter. Administrators can override this through `spec.ocpRoute.serverTimeout`. See [Configure the shared Gateway Route timeout](docs/gateway-route-timeouts.md) for examples and how this setting interacts with component HTTPRoute timeouts.
 
+For legacy Dashboard and gateway URLs, see [Route cleanup and legacy URL redirects](docs/route-gc-on-upgrade.md), including the RHOAI 3.6+ deprecation page and how to disable or re-enable redirects through GatewayConfig.
+
 Here's an example of the default GatewayConfig CR (automatically created):
 
 ```yaml
