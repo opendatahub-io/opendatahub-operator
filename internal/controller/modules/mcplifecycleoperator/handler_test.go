@@ -8,26 +8,26 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 
 	. "github.com/onsi/gomega"
 )
 
-func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
-	return &configv1alpha1.PlatformModules{
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configApi.PlatformModules {
+	return &configApi.PlatformModules{
 		MCPLifecycleOperator: common.ManagementSpec{
 			ManagementState: mgmtState,
 		},
 	}
 }
 
-func newDSC(mgmtState operatorv1.ManagementState) *dscv2.DataScienceCluster {
-	return &dscv2.DataScienceCluster{
-		Spec: dscv2.DataScienceClusterSpec{
-			Components: dscv2.Components{
+func newDSC(mgmtState operatorv1.ManagementState) *dscApi.DataScienceCluster {
+	return &dscApi.DataScienceCluster{
+		Spec: dscApi.DataScienceClusterSpec{
+			Components: dscApi.Components{
 				MCPLifecycleOperator: componentApi.DSCMCPLifecycleOperator{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: mgmtState,
@@ -59,7 +59,7 @@ func TestIsEnabled_Empty(t *testing.T) {
 func TestIsEnabled_EmptyModules(t *testing.T) {
 	g := NewWithT(t)
 	h := mcplifecycleoperator.NewHandler()
-	g.Expect(h.IsEnabled(&configv1alpha1.PlatformModules{})).Should(BeFalse())
+	g.Expect(h.IsEnabled(&configApi.PlatformModules{})).Should(BeFalse())
 }
 
 func TestIsEnabled_NilModules(t *testing.T) {
@@ -143,7 +143,7 @@ func TestPopulatePlatformModule_ExplicitValuesHonored(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			g := NewWithT(t)
 			h := mcplifecycleoperator.NewHandler()
-			pm := &configv1alpha1.PlatformModules{}
+			pm := &configApi.PlatformModules{}
 
 			h.PopulatePlatformModule(pm, &modules.DSCContext{DSC: newDSC(state)})
 			g.Expect(pm.MCPLifecycleOperator.ManagementState).Should(Equal(state))
@@ -156,7 +156,7 @@ func TestPopulatePlatformModule_ExplicitValuesHonored(t *testing.T) {
 func TestPopulatePlatformModule_UnsetDefaultsToRemoved(t *testing.T) {
 	g := NewWithT(t)
 	h := mcplifecycleoperator.NewHandler()
-	pm := &configv1alpha1.PlatformModules{}
+	pm := &configApi.PlatformModules{}
 
 	h.PopulatePlatformModule(pm, &modules.DSCContext{DSC: newDSC("")})
 	g.Expect(pm.MCPLifecycleOperator.ManagementState).Should(Equal(operatorv1.Removed))
@@ -168,6 +168,6 @@ func TestPopulatePlatformModule_NilGuards(t *testing.T) {
 	h := mcplifecycleoperator.NewHandler()
 
 	g.Expect(func() { h.PopulatePlatformModule(nil, &modules.DSCContext{DSC: newDSC(operatorv1.Managed)}) }).ShouldNot(Panic())
-	g.Expect(func() { h.PopulatePlatformModule(&configv1alpha1.PlatformModules{}, nil) }).ShouldNot(Panic())
-	g.Expect(func() { h.PopulatePlatformModule(&configv1alpha1.PlatformModules{}, &modules.DSCContext{}) }).ShouldNot(Panic())
+	g.Expect(func() { h.PopulatePlatformModule(&configApi.PlatformModules{}, nil) }).ShouldNot(Panic())
+	g.Expect(func() { h.PopulatePlatformModule(&configApi.PlatformModules{}, &modules.DSCContext{}) }).ShouldNot(Panic())
 }

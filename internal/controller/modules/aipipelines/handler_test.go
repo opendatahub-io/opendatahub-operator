@@ -8,8 +8,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aipipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -17,8 +17,8 @@ import (
 
 func TestPopulatePlatformModule(t *testing.T) {
 	h := aipipelines.NewHandler()
-	pm := &configv1alpha1.PlatformModules{}
-	dsc := &dscv2.DataScienceCluster{}
+	pm := &configApi.PlatformModules{}
+	dsc := &dscApi.DataScienceCluster{}
 	dsc.Spec.Components.AIPipelines.ManagementState = operatorv1.Managed
 
 	h.PopulatePlatformModule(pm, &modules.DSCContext{DSC: dsc})
@@ -30,9 +30,9 @@ func TestPopulatePlatformModule(t *testing.T) {
 
 func TestPopulatePlatformModuleDefaultsToRemoved(t *testing.T) {
 	h := aipipelines.NewHandler()
-	pm := &configv1alpha1.PlatformModules{}
+	pm := &configApi.PlatformModules{}
 
-	h.PopulatePlatformModule(pm, &modules.DSCContext{DSC: &dscv2.DataScienceCluster{}})
+	h.PopulatePlatformModule(pm, &modules.DSCContext{DSC: &dscApi.DataScienceCluster{}})
 
 	if pm.AIPipelines.ManagementState != operatorv1.Removed {
 		t.Fatalf("expected empty DSC state to become Removed, got %q", pm.AIPipelines.ManagementState)
@@ -41,7 +41,7 @@ func TestPopulatePlatformModuleDefaultsToRemoved(t *testing.T) {
 
 func TestBuildModuleCR(t *testing.T) {
 	h := aipipelines.NewHandler()
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscApi.DataScienceCluster{}
 	dsc.Spec.Components.AIPipelines.ManagementState = operatorv1.Managed
 	dsc.Spec.Components.AIPipelines.ArgoWorkflowsControllers = &componentApi.ArgoWorkflowsControllersSpec{
 		ManagementState: operatorv1.Removed,
@@ -68,7 +68,7 @@ func TestBuildModuleCR(t *testing.T) {
 
 func TestBuildModuleCRDefaultsArgoToManaged(t *testing.T) {
 	h := aipipelines.NewHandler()
-	moduleCR, err := h.BuildModuleCR(t.Context(), nil, &modules.DSCContext{DSC: &dscv2.DataScienceCluster{}}, nil)
+	moduleCR, err := h.BuildModuleCR(t.Context(), nil, &modules.DSCContext{DSC: &dscApi.DataScienceCluster{}}, nil)
 	if err != nil {
 		t.Fatalf("build AIPipelines CR: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestOperatorManifestsAndEnvironment(t *testing.T) {
 
 func TestWriteDSCComponentStatus(t *testing.T) {
 	h := aipipelines.NewHandler()
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscApi.DataScienceCluster{}
 	releases := []common.ComponentRelease{{Name: "platform", Version: "3.6.0"}}
 
 	h.WriteDSCComponentStatus(dsc, true, releases)

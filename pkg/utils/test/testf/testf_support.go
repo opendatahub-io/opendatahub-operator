@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/itchyny/gojq"
 	"github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -12,6 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 )
 
 // StopErr stops the retry process with a specified message and wraps the provided error.
@@ -47,12 +48,12 @@ func StopErr(err error, format string, args ...any) error {
 // and applies a transformation to it. The function returns an error if the transformation fails.
 type TransformFn func(obj *unstructured.Unstructured) error
 
-// TransformPipeline constructs a composite TransformFn from a series of TransformFn steps.
+// And constructs a composite TransformFn from a series of TransformFn steps.
 // It returns a single TransformFn that applies each step sequentially to the given object.
 //
 // If any step returns an error, the pipeline terminates immediately and returns that error.
 // If all steps succeed, the pipeline returns nil.
-func TransformPipeline(steps ...TransformFn) TransformFn {
+func And(steps ...TransformFn) TransformFn {
 	return func(obj *unstructured.Unstructured) error {
 		for _, step := range steps {
 			err := step(obj)
@@ -63,6 +64,11 @@ func TransformPipeline(steps ...TransformFn) TransformFn {
 
 		return nil
 	}
+}
+
+// TransformPipeline is kept as a descriptive alias for And.
+func TransformPipeline(steps ...TransformFn) TransformFn {
+	return And(steps...)
 }
 
 // Transform creates a transformation function that applies a JQ-like query expression to an
@@ -81,33 +87,7 @@ func TransformPipeline(steps ...TransformFn) TransformFn {
 //   - func(*unstructured.Unstructured) error: A function that applies the formatted query to
 //     the provided `*unstructured.Unstructured` object and updates its content.
 func Transform(format string, args ...any) TransformFn {
-	expression := fmt.Sprintf(format, args...)
-
-	return func(in *unstructured.Unstructured) error {
-		query, err := gojq.Parse(expression)
-		if err != nil {
-			return fmt.Errorf("unable to parse expression %q: %w", expression, err)
-		}
-
-		result, ok := query.Run(in.Object).Next()
-		if !ok || result == nil {
-			// No results or nil result, nothing to update
-			return nil
-		}
-
-		if err, ok := result.(error); ok {
-			return fmt.Errorf("query execution error: %w", err)
-		}
-
-		uc, ok := result.(map[string]any)
-		if !ok {
-			return fmt.Errorf("expected map[string]interface{}, got %T", result)
-		}
-
-		in.SetUnstructuredContent(uc)
-
-		return nil
-	}
+	return jq.Transform(format, args...)
 }
 
 // TransformSpecToUnstructured creates a transformation function that converts a Go struct

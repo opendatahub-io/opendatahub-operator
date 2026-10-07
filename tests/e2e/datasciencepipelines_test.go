@@ -24,7 +24,7 @@ type DataSciencePipelinesTestCtx struct {
 func aiPipelinesTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewModuleTestCtx(t, gvk.AIPipelines, componentApi.AIPipelinesInstanceName)
+	ct, err := NewModuleTestCtx(t, aipipelinesModule.NewHandler())
 	require.NoError(t, err)
 
 	componentCtx := DataSciencePipelinesTestCtx{
@@ -34,6 +34,7 @@ func aiPipelinesTestSuite(t *testing.T) {
 	// Define test cases.
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate module enabled", componentCtx.ValidateModuleEnabled},
 		{"Validate component conditions", componentCtx.ValidateConditions},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentResources},
@@ -42,6 +43,7 @@ func aiPipelinesTestSuite(t *testing.T) {
 		{"Validate argoWorkflowsControllers options", componentCtx.ValidateArgoWorkflowsControllersOptions},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+		{"Validate module disabled", componentCtx.ValidateModuleDisabled},
 	}
 
 	// Run the test suite.

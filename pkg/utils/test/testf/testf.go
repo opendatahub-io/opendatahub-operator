@@ -24,11 +24,12 @@ const (
 )
 
 type testContextOpts struct {
-	ctx       context.Context
-	cfg       *rest.Config
-	client    client.Client
-	scheme    *runtime.Scheme
-	withTOpts []WithTOpts
+	ctx                       context.Context
+	cfg                       *rest.Config
+	client                    client.Client
+	scheme                    *runtime.Scheme
+	warningHandlerWithContext rest.WarningHandlerWithContext
+	withTOpts                 []WithTOpts
 }
 
 type TestContextOpt func(testContext *testContextOpts)
@@ -48,6 +49,13 @@ func WithRestConfig(value *rest.Config) TestContextOpt {
 func WithScheme(value *runtime.Scheme) TestContextOpt {
 	return func(tc *testContextOpts) {
 		tc.scheme = value
+	}
+}
+
+// WithWarningHandler configures the REST client to use a context-aware warning handler.
+func WithWarningHandler(value rest.WarningHandlerWithContext) TestContextOpt {
+	return func(tc *testContextOpts) {
+		tc.warningHandlerWithContext = value
 	}
 }
 
@@ -76,10 +84,6 @@ func NewTestContext(opts ...TestContextOpt) (*TestContext, error) {
 		withTOpts: tco.withTOpts,
 	}
 
-	if tc.ctx == nil {
-		tc.ctx = context.Background()
-	}
-
 	if tc.scheme == nil {
 		s, err := scheme.New()
 		if err != nil {
@@ -98,6 +102,12 @@ func NewTestContext(opts ...TestContextOpt) (*TestContext, error) {
 			}
 
 			clientCfg = cfg
+		}
+
+		if tco.warningHandlerWithContext != nil {
+			clientCfg = rest.CopyConfig(clientCfg)
+			clientCfg.WarningHandler = nil
+			clientCfg.WarningHandlerWithContext = tco.warningHandlerWithContext
 		}
 
 		ctrlCli, err := client.New(clientCfg, client.Options{Scheme: tc.scheme})
@@ -120,6 +130,10 @@ type TestContext struct {
 }
 
 func (tc *TestContext) Context() context.Context {
+	if tc.ctx == nil {
+		return context.Background()
+	}
+
 	return tc.ctx
 }
 
@@ -141,7 +155,7 @@ func (tc *TestContext) NewWithT(t *testing.T, opts ...WithTOpts) *WithT {
 	g.SetDefaultConsistentlyPollingInterval(DefaultPollInterval)
 
 	answer := WithT{
-		ctx:    tc.ctx,
+		ctx:    tc.Context(),
 		client: tc.client,
 		WithT:  g,
 		Log:    t.Log,

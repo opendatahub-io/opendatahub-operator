@@ -116,7 +116,6 @@ type PlatformStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:storageversion
 // +kubebuilder:resource:scope=Cluster,shortName=odhp
 // +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default'",message="Platform name must be default"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
