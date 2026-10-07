@@ -3175,6 +3175,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ingressMode` _[IngressMode](#ingressmode)_ | IngressMode specifies how the Gateway is exposed externally.<br />"OcpRoute" uses ClusterIP with OpenShift Routes (OpenShift only).<br />"LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB). |  | Enum: [OcpRoute LoadBalancer] <br /> |
+| `ocpRoute` _[OCPRouteConfig](#ocprouteconfig)_ | OCPRoute configures the OpenShift Route exposing the default shared Gateway.<br />These settings are inactive in LoadBalancer mode and do not configure an external load balancer. |  |  |
 | `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (used when cluster is in OIDC authentication mode) |  |  |
 | `certificate` _[CertificateSpec](#certificatespec)_ | Certificate specifies configuration of the TLS certificate securing communication for the gateway. |  |  |
 | `domain` _string_ | Domain specifies the host name for intercepting incoming requests.<br />Most likely, you will want to use a wildcard name, like *.example.com.<br />If not set, the cluster's default ingress domain is used (when available).<br />On Kubernetes clusters without a discoverable ingress domain, this field is required.<br />If you choose to generate a certificate, this is the domain used for the certificate request.<br />Example: *.example.com, example.com, apps.example.com |  | Pattern: `^(\*\.)?([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)*[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br /> |
@@ -3371,6 +3372,22 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ingress` _[IngressPolicyConfig](#ingresspolicyconfig)_ | Ingress defines ingress NetworkPolicy rules.<br />When nil, ingress rules are applied by default (allows traffic from Gateway pods and monitoring namespaces).<br />When specified, Enabled must be set to true to apply rules or false to skip NetworkPolicy creation.<br />Set Enabled=false only in development environments or when using alternative network security controls. |  |  |
+
+
+#### OCPRouteConfig
+
+
+
+OCPRouteConfig configures the default shared Gateway's OpenShift Route.
+
+
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `serverTimeout` _string_ | ServerTimeout is the maximum server-side inactivity interval enforced by the OpenShift router.<br />It applies to all traffic using the default shared Gateway Route, independently of HTTPRoute timeouts<br />and AuthProxyTimeout. It does not apply to additional ingress Routes or upgraded connections.<br />Specify a positive integer with a unit of ms, s, m, or h (for example, "330s").<br />The maximum is 2147483647ms, matching HAProxy's supported timeout range.<br />When omitted, no timeout annotation is set and the OpenShift router's configuration is used.<br />Removing this field removes the operator-managed timeout annotation. |  | MaxLength: 16 <br />Pattern: `^[0-9]+(ms\|s\|m\|h)$` <br /> |
 
 
 #### OIDCConfig

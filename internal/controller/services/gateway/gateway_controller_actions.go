@@ -446,6 +446,11 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		return nil, err
 	}
 
+	serverTimeout := ""
+	if gatewayConfig.Spec.IngressMode == serviceApi.IngressModeOcpRoute && gatewayConfig.Spec.OCPRoute != nil {
+		serverTimeout = gatewayConfig.Spec.OCPRoute.ServerTimeout
+	}
+
 	templateData := map[string]any{
 		"IsOpenShift":              cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes,
 		"GatewayNamespace":         GetGatewayNamespace(),
@@ -484,6 +489,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"LegacySubdomain":          legacyInfo.LegacySubdomain,
 		"LegacyHostname":           legacyInfo.LegacyHostname,
 		"RouteLabels":              gatewayRouteLabels(nil),
+		"RouteServerTimeout":       serverTimeout,
 	}
 
 	// Add dashboard redirect template variables

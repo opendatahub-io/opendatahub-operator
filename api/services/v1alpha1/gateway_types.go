@@ -82,6 +82,11 @@ type GatewayConfigSpec struct {
 	// +optional
 	IngressMode IngressMode `json:"ingressMode,omitempty"`
 
+	// OCPRoute configures the OpenShift Route exposing the default shared Gateway.
+	// These settings are inactive in LoadBalancer mode and do not configure an external load balancer.
+	// +optional
+	OCPRoute *OCPRouteConfig `json:"ocpRoute,omitempty"`
+
 	// OIDC configuration (used when cluster is in OIDC authentication mode)
 	// +optional
 	OIDC *OIDCConfig `json:"oidc,omitempty"`
@@ -169,6 +174,22 @@ type GatewayConfigSpec struct {
 	// Component controllers manage the HTTPRoutes attached to these Gateways.
 	// +optional
 	AdditionalIngresses AdditionalIngresses `json:"additionalIngresses,omitempty"`
+}
+
+// OCPRouteConfig configures the default shared Gateway's OpenShift Route.
+type OCPRouteConfig struct {
+	// ServerTimeout is the maximum server-side inactivity interval enforced by the OpenShift router.
+	// It applies to all traffic using the default shared Gateway Route, independently of HTTPRoute timeouts
+	// and AuthProxyTimeout. It does not apply to additional ingress Routes or upgraded connections.
+	// Specify a positive integer with a unit of ms, s, m, or h (for example, "330s").
+	// The maximum is 2147483647ms, matching HAProxy's supported timeout range.
+	// When omitted, no timeout annotation is set and the OpenShift router's configuration is used.
+	// Removing this field removes the operator-managed timeout annotation.
+	// +optional
+	// +kubebuilder:validation:MaxLength=16
+	// +kubebuilder:validation:Pattern=`^[0-9]+(ms|s|m|h)$`
+	// +kubebuilder:validation:XValidation:rule="duration(self) > duration('0s') && duration(self) <= duration('2147483647ms')",message="serverTimeout must be positive and no greater than 2147483647ms"
+	ServerTimeout string `json:"serverTimeout,omitempty"`
 }
 
 // ValidateAdditionalIngresses checks additional ingress topology and Route labels.

@@ -165,6 +165,7 @@ func buildAdditionalIngressRoute(ingress serviceApi.AdditionalIngress) (*routev1
 		"GatewayServiceName": GetGatewayServiceFullName(ingress.Name),
 		"StandardHTTPSPort":  StandardHTTPSPort,
 		"RouteLabels":        gatewayRouteLabels(ingress.RouteLabels),
+		"RouteServerTimeout": "",
 	}
 
 	content, err := gatewayResources.ReadFile(ocpRouteTemplate)
