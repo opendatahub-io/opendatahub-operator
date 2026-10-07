@@ -14,10 +14,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	metadatalabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -55,8 +56,8 @@ var DSCDeletionPredicate = predicate.Funcs{
 	},
 }
 
-func getDSC(obj client.Object) (*dscv2.DataScienceCluster, bool) {
-	if dsc, ok := obj.(*dscv2.DataScienceCluster); ok {
+func getDSC(obj client.Object) (*dscApi.DataScienceCluster, bool) {
+	if dsc, ok := obj.(*dscApi.DataScienceCluster); ok {
 		return dsc, true
 	}
 
@@ -64,7 +65,7 @@ func getDSC(obj client.Object) (*dscv2.DataScienceCluster, bool) {
 	if err != nil {
 		return nil, false
 	}
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscApi.DataScienceCluster{}
 	err = runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, dsc)
 	if err != nil {
 		return nil, false
@@ -153,6 +154,29 @@ func HTTPRouteReferencesGateway(gatewayName, gatewayNamespace string) predicate.
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
 			return referencesGateway(e.Object)
+		},
+	}
+}
+
+// GatewayProviderService filters Services created for the specified Gateway.
+func GatewayProviderService(gatewayName, gatewayNamespace string) predicate.Predicate {
+	isGatewayProviderService := func(obj client.Object) bool {
+		return obj != nil && obj.GetNamespace() == gatewayNamespace &&
+			obj.GetLabels()[metadatalabels.GatewayAPI.GatewayName] == gatewayName
+	}
+
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return isGatewayProviderService(e.Object)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return isGatewayProviderService(e.ObjectOld) || isGatewayProviderService(e.ObjectNew)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return isGatewayProviderService(e.Object)
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return isGatewayProviderService(e.Object)
 		},
 	}
 }

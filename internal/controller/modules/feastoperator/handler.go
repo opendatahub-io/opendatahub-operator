@@ -11,8 +11,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -20,9 +22,10 @@ import (
 )
 
 const (
-	moduleName = componentApi.FeastOperatorComponentName
-	crName     = componentApi.FeastOperatorInstanceName
-	chartDir   = "feastoperator"
+	moduleName             = componentApi.FeastOperatorComponentName
+	crName                 = componentApi.FeastOperatorInstanceName
+	chartDir               = "feastoperator"
+	dataReadyConditionType = "DataReady"
 )
 
 type handler struct {
@@ -50,19 +53,54 @@ func NewHandler() *handler {
 	}
 }
 
-func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+func (h *handler) PopulatePlatformModule(pm *configApi.PlatformModules, dscCtx *modules.DSCContext) {
 	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
-	ms := dscCtx.DSC.Spec.Components.FeastOperator.ManagementState
-	if ms == "" {
-		ms = operatorv1.Removed
+
+	data := dscCtx.DSC.Spec.Components.Data
+	switch {
+	case data.FeatureStore.ManagementState == operatorv1.Managed:
+		pm.Data.ManagementState = operatorv1.Managed
+	case data.DataRegistry.ManagementState == operatorv1.Managed:
+		pm.Data.ManagementState = operatorv1.Managed
+	default:
+		pm.Data.ManagementState = operatorv1.Removed
 	}
-	pm.FeastOperator.ManagementState = ms
 }
 
-func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
-	return modules != nil && modules.FeastOperator.ManagementState == operatorv1.Managed
+func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
+	return modules != nil && modules.Data.ManagementState == operatorv1.Managed
+}
+
+func (h *handler) GetReadyConditionType() string {
+	return dataReadyConditionType
+}
+
+// WriteDSCComponentStatus writes the FeastOperator module's aggregate status
+// to the renamed Data field in v3 DSC status.
+func (h *handler) WriteDSCComponentStatus(
+	dsc *dscApi.DataScienceCluster,
+	enabled bool,
+	releases []common.ComponentRelease,
+) {
+	if dsc == nil {
+		return
+	}
+
+	managementState := operatorv1.Removed
+	if enabled {
+		managementState = operatorv1.Managed
+	}
+
+	dataStatus := &dsc.Status.Components.Data
+	dataStatus.ManagementState = managementState
+	if dataStatus.DataCommonStatus == nil && len(releases) > 0 {
+		dataStatus.DataCommonStatus = &componentApi.DataCommonStatus{}
+	}
+	if dataStatus.DataCommonStatus != nil {
+		dataStatus.Releases = releases
+	}
 }
 
 // BuildModuleCR constructs the FeastOperator CR with OIDC settings projected

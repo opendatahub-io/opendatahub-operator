@@ -173,7 +173,14 @@ SHELL = /usr/bin/env bash -o pipefail
 
 # E2E tests additional flags
 # See README.md, default go test timeout 10m
-E2E_TEST_FLAGS = -timeout 80m
+E2E_TEST_FLAGS = -timeout 110m
+# Set USE_TEST_RETRY=false to run tests once without whole-test retries.
+USE_TEST_RETRY ?= true
+# Maximum retries after the initial E2E run; USE_TEST_RETRY=false forces zero.
+E2E_TESTING_MAX_RETRIES ?= 3
+ifneq ($(filter false 0,$(USE_TEST_RETRY)),)
+E2E_TESTING_MAX_RETRIES := 0
+endif
 
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead
@@ -284,6 +291,7 @@ endif
 	@mkdir -p config/rhaii/crd/bases
 	@cp "$(CONFIG_DIR)/crd/bases/config.opendatahub.io_platforms.yaml" config/rhaii/crd/bases/
 	@cp "$(CONFIG_DIR)/crd/bases/services.platform.opendatahub.io_gatewayconfigs.yaml" config/rhaii/crd/bases/
+	@cp "$(CONFIG_DIR)/crd/kustomizeconfig.yaml" config/rhaii/crd/kustomizeconfig.yaml
 	@$(call add-crd-to-kustomization,config/rhaii/crd/bases)
 MANIFEST_GENERATED_FILES = config/crd/bases config/rhoai/crd/bases config/rhaii/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
 
@@ -403,7 +411,8 @@ api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md && \
 	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)|g" ./docs/api-overview.md && \
-	$(SED_COMMAND) -i "s|](#managementspec)|](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)|g" ./docs/api-overview.md
+	$(SED_COMMAND) -i "s|](#managementspec)|](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)|g" ./docs/api-overview.md && \
+	go run ./hack/disambiguate-api-doc-anchors.go ./docs/api-overview.md
 	$(CRD_REF_DOCS) --source-path ./api/cloudmanager/ --output-path ./docs/cloudmanager-api-overview.md --renderer markdown --config ./crd-ref-docs.cloudmanager.config.yaml
 
 .PHONY: ginkgo
@@ -580,7 +589,7 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	# InstallPlan preflight (wrong service, no caBundle) and the CR-validation LIST hits an
 	# unreachable webhook -> 404 -> failed upgrade. Non-OLM installs (config/crd) keep their
 	# static conversion, so xKS/self-managed deployments are unaffected.
-	for f in $(BUNDLE_DIR)/manifests/datasciencecluster.opendatahub.io_datascienceclusters.yaml $(BUNDLE_DIR)/manifests/dscinitialization.opendatahub.io_dscinitializations.yaml; do \
+	for f in $(BUNDLE_DIR)/manifests/datasciencecluster.opendatahub.io_datascienceclusters.yaml $(BUNDLE_DIR)/manifests/dscinitialization.opendatahub.io_dscinitializations.yaml $(BUNDLE_DIR)/manifests/config.opendatahub.io_platforms.yaml; do \
 		[ -f "$$f" ] && $(YQ) -i 'del(.spec.conversion)' "$$f"; \
 	done
 CLEANFILES += rhoai-bundle odh-bundle
@@ -685,7 +694,7 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
 
 # Run tests.
-TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/... ./api/services/v1alpha1/... ./cmd/cloudmanager/...
+TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/... ./api/datasciencecluster/... ./api/services/v1alpha1/... ./cmd/cloudmanager/...
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
@@ -848,7 +857,7 @@ e2e-test:
 			echo "SELECTIVE-E2E: could not resolve affected components -- running full suite"; \
 		fi; \
 	fi; \
-	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}
+	go run -C ./cmd/test-retry main.go e2e --verbose --max-retries=$(E2E_TESTING_MAX_RETRIES) --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}
 
 .PHONY: e2e-test-single
 e2e-test-single:
@@ -868,6 +877,7 @@ e2e-setup-cluster:
 		-e E2E_TEST_COMPONENTS=false \
 		-e E2E_TEST_SERVICES=false \
 		-e E2E_TEST_WEBHOOK=false \
+		-e E2E_TEST_CONVERSION_WEBHOOK=false \
 		-e E2E_TEST_OPERATOR_RESILIENCE=false \
 		-e E2E_TEST_OPERATOR_V2TOV3UPGRADE=false \
 		-e E2E_TEST_DELETION_POLICY=never \
@@ -879,6 +889,7 @@ e2e-test-xks: ## Run e2e tests on external Kubernetes (KinD, AKS, CoreWeave, etc
 		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false \
 		-e E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT=false \
 		-e E2E_TEST_WEBHOOK=false \
+		-e E2E_TEST_CONVERSION_WEBHOOK=false \
 		-e E2E_TEST_COMPONENTS=true \
 		-e E2E_TEST_COMPONENT="kserve" \
 		-e E2E_TEST_SERVICES=true \
