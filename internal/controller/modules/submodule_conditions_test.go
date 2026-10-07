@@ -456,7 +456,7 @@ func TestWriteDSCComponentStatus_FieldResolution(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	// FeastOperator uses a custom status writer to populate the renamed v3 Data field.
+	// Data uses a custom status writer to populate its v3 status field.
 	knownKinds := []string{
 		"AIPipelines", "Dashboard", "Workbenches", "Kserve", "Kueue", "Ray",
 		"TrustyAI", "AIHub",

@@ -177,7 +177,7 @@ componentCharts:
       repo: red-hat-data-services/workbenches-operator
       ref: rhoai-3.6@e9cfda2ee6f4a03131438405120e52608d8d1d95
       sourcePath: charts/operator
-  feastoperator:
+  data:
     odh:
       repo: opendatahub-io/feast-module-operator
       ref: main@d1c6cc51ef3519e4205559da41fef4b22ac0ba44
@@ -375,7 +375,7 @@ imageOverrides:
       base: "quay.io/rhoai/odh-workbenches-operator-rhel9"
       digest: "sha256:3ef8a0c061282fe934c6a0f6f7941e127fe9ed76e3956b813fee778597033744"
   RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE:
-    component: feastoperator
+    component: data
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-feast-module-operator"
@@ -409,7 +409,7 @@ imageOverrides:
       digest: "sha256:4ad63eb0f436c7c8a719fd8d55f5fb09fcbe9ab5279998c29c58333d42667f57"
   RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE:
     source: "csv"
-    component: feastoperator
+    component: data
     odh:
       base: "quay.io/opendatahub/feast-operator"
       digest: "sha256:0d821aeaadcd326c1320fa4f81ab8a4b05706dac9bac9c6f03dd4098fe22f4a6"

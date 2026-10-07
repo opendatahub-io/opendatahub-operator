@@ -165,7 +165,8 @@ components:
   workbenches:
     deps: [kueue, mlflowoperator]
 
-  feastoperator: {}
+  data:
+    aliases: [data_module]
 
 services:
   auth: {}

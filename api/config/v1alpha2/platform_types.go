@@ -43,8 +43,6 @@ type PlatformSpec struct {
 }
 
 // PlatformModules declares per-module management state for Platform mode.
-// The data field is the public name for the internal feastoperator module;
-// all other fields use their internal module names.
 // Add new module fields here when onboarding additional modules.
 // +kubebuilder:object:generate=true
 type PlatformModules struct {
@@ -154,8 +152,8 @@ type PlatformList struct {
 	Items           []Platform `json:"items"`
 }
 
-// moduleHandlerName returns the internal handler name for a Platform module field.
-func moduleHandlerName(field reflect.StructField) (string, bool) {
+// moduleJSONName returns the Platform module name from a struct field JSON tag.
+func moduleJSONName(field reflect.StructField) (string, bool) {
 	tag := field.Tag.Get("json")
 	if tag == "" || tag == "-" {
 		return "", false
@@ -165,20 +163,15 @@ func moduleHandlerName(field reflect.StructField) (string, bool) {
 		return "", false
 	}
 
-	switch name {
-	case "data":
-		return "feastoperator", true
-	default:
-		return name, true
-	}
+	return name, true
 }
 
 // ModuleNames returns the internal handler names declared on PlatformModules.
-func (PlatformModules) ModuleNames() []string {
+func (m *PlatformModules) ModuleNames() []string {
 	t := reflect.TypeOf(PlatformModules{})
 	names := make([]string, 0, t.NumField())
 	for i := 0; i < t.NumField(); i++ {
-		if name, ok := moduleHandlerName(t.Field(i)); ok {
+		if name, ok := moduleJSONName(t.Field(i)); ok {
 			names = append(names, name)
 		}
 	}
@@ -203,7 +196,7 @@ func (m *PlatformModules) EnabledModules() []string {
 		if !ms.IsValid() || operatorv1.ManagementState(ms.String()) != operatorv1.Managed {
 			continue
 		}
-		if name, ok := moduleHandlerName(v.Type().Field(i)); ok {
+		if name, ok := moduleJSONName(v.Type().Field(i)); ok {
 			enabled = append(enabled, name)
 		}
 	}

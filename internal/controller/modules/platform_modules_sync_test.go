@@ -17,7 +17,7 @@ func TestPlatformModulesMatchBuiltInHandlers(t *testing.T) {
 	for _, name := range builtIn {
 		builtInNames[name] = true
 	}
-	platformModuleNames := (configApi.PlatformModules{}).ModuleNames()
+	platformModuleNames := (&configApi.PlatformModules{}).ModuleNames()
 	platformModules := make(map[string]bool, len(platformModuleNames))
 	for _, name := range platformModuleNames {
 		platformModules[name] = true

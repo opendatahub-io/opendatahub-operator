@@ -1,4 +1,4 @@
-package feastoperator
+package data
 
 import (
 	"context"
@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	moduleName             = componentApi.FeastOperatorComponentName
+	moduleName             = componentApi.DataModuleName
 	crName                 = componentApi.FeastOperatorInstanceName
-	chartDir               = "feastoperator"
+	chartDir               = componentApi.DataModuleName
 	dataReadyConditionType = "DataReady"
 )
 
@@ -77,7 +77,7 @@ func (h *handler) GetReadyConditionType() string {
 	return dataReadyConditionType
 }
 
-// WriteDSCComponentStatus writes the FeastOperator module's aggregate status
+// WriteDSCComponentStatus writes the Data module's aggregate status
 // to the renamed Data field in v3 DSC status.
 func (h *handler) WriteDSCComponentStatus(
 	dsc *dscApi.DataScienceCluster,

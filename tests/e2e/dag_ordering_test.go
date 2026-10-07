@@ -185,7 +185,7 @@ var dagBatches = []componentBatch{
 		runlevel: 32,
 		components: []componentEntry{
 			{
-				name:     componentApi.FeastOperatorComponentName,
+				name:     componentApi.DataModuleName,
 				gvk:      gvk.FeastOperator,
 				internal: true,
 				Enable: func(dsc *dscApi.DataScienceCluster) {
@@ -270,7 +270,7 @@ var dscComponentsExcludedFromManagedDAGTests = []string{
 
 // extensionGVKs lists in-tree component CRs at RL 31+ whose controllers
 // write PlatformReady via RunlevelGateAction. Fully-modularized components
-// (Kserve, FeastOperator, MLflowOperator, SparkOperator, TrustyAI) are
+// (Kserve, Data, MLflowOperator, SparkOperator, TrustyAI) are
 // excluded — they have no in-tree controller to write PlatformReady.
 var extensionGVKs = []schema.GroupVersionKind{}
 
