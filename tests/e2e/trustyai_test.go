@@ -4,7 +4,10 @@ import (
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/stretchr/testify/require"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -12,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	trustyaiModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -30,6 +34,7 @@ const (
 	trustyAIPartOfLabel                = "app.kubernetes.io/part-of"
 	trustyAIModuleControllerDeployment = "trustyai-operator-module-controller-manager"
 	trustyAIServiceOperatorDeployment  = "trustyai-service-operator-controller-manager"
+	dummyPrometheusName                = "dummy-prometheus"
 )
 
 // trustyAITestSuite runs the complete TrustyAI component test suite.
@@ -37,16 +42,18 @@ const (
 func trustyAITestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewModuleTestCtx(t, gvk.TrustyAI, componentApi.TrustyAIInstanceName)
+	ct, err := NewModuleTestCtx(t, trustyaiModule.NewHandler())
 	require.NoError(t, err)
 
 	componentCtx := TrustyAITestCtx{
 		ComponentTestCtx: ct,
 	}
+	componentCtx.createDummyPrometheus(t)
 
 	// Define test cases.
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate module enabled", componentCtx.ValidateModuleEnabled},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
@@ -54,10 +61,71 @@ func trustyAITestSuite(t *testing.T) {
 		{"Validate MCP guardrails mode", componentCtx.ValidateMCPGuardrailsMode},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+		{"Validate module disabled", componentCtx.ValidateModuleDisabled},
 	}
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
+}
+
+// createDummyPrometheus provides an instance for environments such as CRC,
+// where no default Prometheus instance exists, so the TrustyAI tests can run.
+func (tc *TrustyAITestCtx) createDummyPrometheus(t *testing.T) {
+	t.Helper()
+
+	key := types.NamespacedName{
+		Name:      dummyPrometheusName,
+		Namespace: tc.AppsNamespace,
+	}
+
+	prometheuses := &monitoringv1.PrometheusList{}
+	err := tc.Client().List(tc.Context(), prometheuses)
+	switch {
+	case err == nil && len(prometheuses.Items) > 0:
+		return
+	case meta.IsNoMatchError(err):
+		t.Logf("Prometheus CRD not installed; skipping dummy Prometheus %q", key)
+		return
+	case err == nil:
+		// No Prometheus instance exists; create the test instance below.
+	default:
+		require.NoError(t, err, "failed to list Prometheus instances")
+	}
+
+	err = tc.Client().Create(tc.Context(), &monitoringv1.Prometheus{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      key.Name,
+			Namespace: key.Namespace,
+		},
+		Spec: monitoringv1.PrometheusSpec{
+			CommonPrometheusFields: monitoringv1.CommonPrometheusFields{
+				Paused: true,
+			},
+		},
+	})
+
+	switch {
+	case err == nil:
+	case k8serr.IsAlreadyExists(err):
+		return
+	default:
+		require.NoError(t, err, "failed to create dummy Prometheus %q", key)
+	}
+
+	t.Cleanup(func() {
+		err := tc.Client().Delete(tc.Context(), &monitoringv1.Prometheus{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      key.Name,
+				Namespace: key.Namespace,
+			},
+		})
+
+		if k8serr.IsNotFound(err) {
+			return
+		}
+
+		require.NoError(t, err, "failed to delete test-created Prometheus %q", key)
+	})
 }
 
 // ValidateUpdateDeploymentsResources verifies that the TrustyAI module operator

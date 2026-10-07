@@ -16,7 +16,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -589,26 +589,34 @@ func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		oldDSC *dscv2.DataScienceCluster
-		newDSC *dscv2.DataScienceCluster
+		oldDSC *dscApi.DataScienceCluster
+		newDSC *dscApi.DataScienceCluster
 		want   bool
 	}{
 		{
 			name: "components spec changed",
-			oldDSC: &dscv2.DataScienceCluster{
-				Spec: dscv2.DataScienceClusterSpec{
-					Components: dscv2.Components{
+			oldDSC: &dscApi.DataScienceCluster{
+				Spec: dscApi.DataScienceClusterSpec{
+					Components: dscApi.Components{
 						Dashboard: componentApi.DSCDashboard{
-							ManagementSpec: common.ManagementSpec{ManagementState: "Managed"},
+							DashboardCommonSpec: componentApi.DashboardCommonSpec{
+								Standard: componentApi.DashboardStandardSpec{
+									ManagementSpec: common.ManagementSpec{ManagementState: "Managed"},
+								},
+							},
 						},
 					},
 				},
 			},
-			newDSC: &dscv2.DataScienceCluster{
-				Spec: dscv2.DataScienceClusterSpec{
-					Components: dscv2.Components{
+			newDSC: &dscApi.DataScienceCluster{
+				Spec: dscApi.DataScienceClusterSpec{
+					Components: dscApi.Components{
 						Dashboard: componentApi.DSCDashboard{
-							ManagementSpec: common.ManagementSpec{ManagementState: "Removed"},
+							DashboardCommonSpec: componentApi.DashboardCommonSpec{
+								Standard: componentApi.DashboardStandardSpec{
+									ManagementSpec: common.ManagementSpec{ManagementState: "Removed"},
+								},
+							},
 						},
 					},
 				},
@@ -617,8 +625,8 @@ func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
 		},
 		{
 			name: "conditions count changed",
-			oldDSC: &dscv2.DataScienceCluster{
-				Status: dscv2.DataScienceClusterStatus{
+			oldDSC: &dscApi.DataScienceCluster{
+				Status: dscApi.DataScienceClusterStatus{
 					Status: common.Status{
 						Conditions: []common.Condition{
 							{Type: "Ready", Status: metav1.ConditionTrue},
@@ -626,8 +634,8 @@ func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
 					},
 				},
 			},
-			newDSC: &dscv2.DataScienceCluster{
-				Status: dscv2.DataScienceClusterStatus{
+			newDSC: &dscApi.DataScienceCluster{
+				Status: dscApi.DataScienceClusterStatus{
 					Status: common.Status{
 						Conditions: []common.Condition{
 							{Type: "Ready", Status: metav1.ConditionTrue},
@@ -640,8 +648,8 @@ func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
 		},
 		{
 			name: "condition status changed",
-			oldDSC: &dscv2.DataScienceCluster{
-				Status: dscv2.DataScienceClusterStatus{
+			oldDSC: &dscApi.DataScienceCluster{
+				Status: dscApi.DataScienceClusterStatus{
 					Status: common.Status{
 						Conditions: []common.Condition{
 							{Type: "Ready", Status: metav1.ConditionFalse},
@@ -649,8 +657,8 @@ func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
 					},
 				},
 			},
-			newDSC: &dscv2.DataScienceCluster{
-				Status: dscv2.DataScienceClusterStatus{
+			newDSC: &dscApi.DataScienceCluster{
+				Status: dscApi.DataScienceClusterStatus{
 					Status: common.Status{
 						Conditions: []common.Condition{
 							{Type: "Ready", Status: metav1.ConditionTrue},
@@ -662,15 +670,19 @@ func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
 		},
 		{
 			name: "no changes",
-			oldDSC: &dscv2.DataScienceCluster{
-				Spec: dscv2.DataScienceClusterSpec{
-					Components: dscv2.Components{
+			oldDSC: &dscApi.DataScienceCluster{
+				Spec: dscApi.DataScienceClusterSpec{
+					Components: dscApi.Components{
 						Dashboard: componentApi.DSCDashboard{
-							ManagementSpec: common.ManagementSpec{ManagementState: "Managed"},
+							DashboardCommonSpec: componentApi.DashboardCommonSpec{
+								Standard: componentApi.DashboardStandardSpec{
+									ManagementSpec: common.ManagementSpec{ManagementState: "Managed"},
+								},
+							},
 						},
 					},
 				},
-				Status: dscv2.DataScienceClusterStatus{
+				Status: dscApi.DataScienceClusterStatus{
 					Status: common.Status{
 						Conditions: []common.Condition{
 							{Type: "Ready", Status: metav1.ConditionTrue},
@@ -678,15 +690,19 @@ func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
 					},
 				},
 			},
-			newDSC: &dscv2.DataScienceCluster{
-				Spec: dscv2.DataScienceClusterSpec{
-					Components: dscv2.Components{
+			newDSC: &dscApi.DataScienceCluster{
+				Spec: dscApi.DataScienceClusterSpec{
+					Components: dscApi.Components{
 						Dashboard: componentApi.DSCDashboard{
-							ManagementSpec: common.ManagementSpec{ManagementState: "Managed"},
+							DashboardCommonSpec: componentApi.DashboardCommonSpec{
+								Standard: componentApi.DashboardStandardSpec{
+									ManagementSpec: common.ManagementSpec{ManagementState: "Managed"},
+								},
+							},
 						},
 					},
 				},
-				Status: dscv2.DataScienceClusterStatus{
+				Status: dscApi.DataScienceClusterStatus{
 					Status: common.Status{
 						Conditions: []common.Condition{
 							{Type: "Ready", Status: metav1.ConditionTrue},
@@ -698,7 +714,7 @@ func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
 		},
 	}
 
-	unstructuredDSC := func(t *testing.T, g *WithT, dsc *dscv2.DataScienceCluster) *unstructured.Unstructured {
+	unstructuredDSC := func(t *testing.T, g *WithT, dsc *dscApi.DataScienceCluster) *unstructured.Unstructured {
 		t.Helper()
 
 		u, err := res.ToUnstructured(dsc)
@@ -768,13 +784,13 @@ func TestDSCComponentUpdatePredicate_WrongType(t *testing.T) {
 	// old object is not a DSC
 	got := resources.DSCComponentUpdatePredicate.Update(event.UpdateEvent{
 		ObjectOld: &corev1.Pod{},
-		ObjectNew: &dscv2.DataScienceCluster{},
+		ObjectNew: &dscApi.DataScienceCluster{},
 	})
 	g.Expect(got).To(BeFalse())
 
 	// new object is not a DSC
 	got = resources.DSCComponentUpdatePredicate.Update(event.UpdateEvent{
-		ObjectOld: &dscv2.DataScienceCluster{},
+		ObjectOld: &dscApi.DataScienceCluster{},
 		ObjectNew: &corev1.Pod{},
 	})
 	g.Expect(got).To(BeFalse())

@@ -1,0 +1,221 @@
+/*
+Copyright 2026.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package v1alpha2
+
+import (
+	"reflect"
+	"sort"
+	"strings"
+
+	operatorv1 "github.com/openshift/api/operator/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+)
+
+const (
+	PlatformKind         = "Platform"
+	PlatformInstanceName = "default"
+)
+
+// PlatformSpec defines the desired state of Platform.
+type PlatformSpec struct {
+	// Modules declares the set of modules managed by this Platform instance.
+	// Each field corresponds to a registered module handler. Modules follow
+	// the same Managed/Removed/empty convention as DSC components: Managed
+	// deploys the module, Removed tears it down, empty means not managed.
+	// +optional
+	Modules PlatformModules `json:"modules,omitempty"`
+}
+
+// PlatformModules declares per-module management state for Platform mode.
+// Fields aiHub and data are the public names for internal modelregistry and
+// feastoperator modules, respectively. Other module field names are unchanged.
+// Add new module fields here when onboarding additional modules.
+// +kubebuilder:object:generate=true
+type PlatformModules struct {
+	// AIPipelines controls the AI Pipelines module operator lifecycle.
+	// +optional
+	AIPipelines common.ManagementSpec `json:"aipipelines,omitempty"`
+
+	// AIGateway controls the ai-gateway-operator module lifecycle.
+	// +optional
+	AIGateway common.ManagementSpec `json:"aigateway,omitempty"`
+
+	// MLflowOperator controls the MLflow module operator lifecycle.
+	// +optional
+	MLflowOperator common.ManagementSpec `json:"mlflowoperator,omitempty"`
+
+	// Monitoring controls the monitoring module operator lifecycle.
+	// +optional
+	Monitoring common.ManagementSpec `json:"monitoring,omitempty"`
+
+	// MCPLifecycleOperator controls the MCP Lifecycle Operator module lifecycle.
+	// +optional
+	MCPLifecycleOperator common.ManagementSpec `json:"mcplifecycleoperator,omitempty"`
+
+	// Kserve controls the kserve module operator lifecycle.
+	// +optional
+	Kserve common.ManagementSpec `json:"kserve,omitempty"`
+
+	// Trainer controls the Trainer module operator lifecycle.
+	// +optional
+	Trainer common.ManagementSpec `json:"trainer,omitempty"`
+
+	// Workbenches controls the workbenches module operator lifecycle.
+	// +optional
+	Workbenches common.ManagementSpec `json:"workbenches,omitempty"`
+
+	// OGX controls the OGX module operator lifecycle.
+	// +optional
+	OGX common.ManagementSpec `json:"ogx,omitempty"`
+
+	// Data controls the Data module operator lifecycle.
+	// +optional
+	Data common.ManagementSpec `json:"data,omitempty"`
+
+	// Dashboard controls the Dashboard module operator lifecycle.
+	// +optional
+	Dashboard common.ManagementSpec `json:"dashboard,omitempty"`
+
+	// SparkOperator controls the Spark Operator module lifecycle.
+	// +optional
+	SparkOperator common.ManagementSpec `json:"sparkoperator,omitempty"`
+
+	// Ray controls the Ray module lifecycle.
+	// +optional
+	Ray common.ManagementSpec `json:"ray,omitempty"`
+
+	// TrustyAI controls the TrustyAI module operator lifecycle.
+	// +optional
+	TrustyAI common.ManagementSpec `json:"trustyai,omitempty"`
+
+	// AIHub controls the AI Hub module operator lifecycle.
+	// +optional
+	AIHub common.ManagementSpec `json:"aiHub,omitempty"`
+}
+
+// PlatformStatus defines the observed state of Platform.
+type PlatformStatus struct {
+	common.Status `json:",inline"`
+}
+
+//+kubebuilder:object:root=true
+//+kubebuilder:subresource:status
+//+kubebuilder:storageversion
+// +kubebuilder:resource:scope=Cluster,shortName=odhp
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default'",message="Platform name must be default"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
+
+// Platform is the Schema for the platforms API. It serves as the primary
+// reconcile trigger for the module reconciler on clusters where
+// DataScienceCluster is not installed (xKS / vanilla Kubernetes).
+type Platform struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   PlatformSpec   `json:"spec,omitempty"`
+	Status PlatformStatus `json:"status,omitempty"`
+}
+
+func (p *Platform) GetStatus() *common.Status {
+	return &p.Status.Status
+}
+
+func (p *Platform) GetConditions() []common.Condition {
+	return p.Status.GetConditions()
+}
+
+func (p *Platform) SetConditions(conditions []common.Condition) {
+	p.Status.SetConditions(conditions)
+}
+
+//+kubebuilder:object:root=true
+
+// PlatformList contains a list of Platform.
+type PlatformList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Platform `json:"items"`
+}
+
+// moduleHandlerName returns the internal handler name for a Platform module field.
+func moduleHandlerName(field reflect.StructField) (string, bool) {
+	tag := field.Tag.Get("json")
+	if tag == "" || tag == "-" {
+		return "", false
+	}
+	name, _, _ := strings.Cut(tag, ",")
+	if name == "" {
+		return "", false
+	}
+
+	// TODO(RHOAIENG-98726): Remove this mapping when the internal module
+	// handlers use the public aiHub and data names.
+	// https://redhat.atlassian.net/browse/RHOAIENG-98726
+	switch name {
+	case "aiHub":
+		return "modelregistry", true
+	case "data":
+		return "feastoperator", true
+	default:
+		return name, true
+	}
+}
+
+// ModuleNames returns the internal handler names declared on PlatformModules.
+func (PlatformModules) ModuleNames() []string {
+	t := reflect.TypeOf(PlatformModules{})
+	names := make([]string, 0, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		if name, ok := moduleHandlerName(t.Field(i)); ok {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+// EnabledModules returns the internal handler names with Managed state.
+func (m *PlatformModules) EnabledModules() []string {
+	if m == nil {
+		return nil
+	}
+
+	v := reflect.ValueOf(m).Elem()
+	var enabled []string
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		if field.Kind() != reflect.Struct {
+			continue
+		}
+		ms := field.FieldByName("ManagementState")
+		if !ms.IsValid() || operatorv1.ManagementState(ms.String()) != operatorv1.Managed {
+			continue
+		}
+		if name, ok := moduleHandlerName(v.Type().Field(i)); ok {
+			enabled = append(enabled, name)
+		}
+	}
+	sort.Strings(enabled)
+	return enabled
+}
+
+func init() {
+	SchemeBuilder.Register(&Platform{}, &PlatformList{})
+}

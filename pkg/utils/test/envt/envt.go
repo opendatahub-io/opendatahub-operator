@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +16,8 @@ import (
 	"github.com/onsi/gomega"
 	frameworkmanager "github.com/opendatahub-io/odh-platform-utilities/framework/manager"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apiextensionsv1client "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -22,6 +25,7 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -425,6 +429,49 @@ func (et *EnvT) WaitForWebhookServer(ctx context.Context) error {
 			continue
 		}
 	}
+}
+
+// ConfigureCRDConversion configures a CRD to use the envtest webhook server for conversion.
+func (et *EnvT) ConfigureCRDConversion(ctx context.Context, crdName string) error {
+	extensionsClient, err := apiextensionsclientset.NewForConfig(et.Config())
+	if err != nil {
+		return fmt.Errorf("create extensions client: %w", err)
+	}
+
+	options := et.Env.WebhookInstallOptions
+	url := fmt.Sprintf("https://%s/convert", net.JoinHostPort(options.LocalServingHost, strconv.Itoa(options.LocalServingPort)))
+	conversion := &apiextensionsv1.CustomResourceConversion{
+		Strategy: apiextensionsv1.WebhookConverter,
+		Webhook: &apiextensionsv1.WebhookConversion{
+			ClientConfig:             &apiextensionsv1.WebhookClientConfig{URL: &url, CABundle: options.LocalServingCAData},
+			ConversionReviewVersions: []string{"v1"},
+		},
+	}
+
+	return configureCRDConversion(ctx, extensionsClient.ApiextensionsV1().CustomResourceDefinitions(), crdName, conversion)
+}
+
+func configureCRDConversion(
+	ctx context.Context,
+	crdClient apiextensionsv1client.CustomResourceDefinitionInterface,
+	crdName string,
+	conversion *apiextensionsv1.CustomResourceConversion,
+) error {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		crd, err := crdClient.Get(ctx, crdName, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("get CRD %s: %w", crdName, err)
+		}
+
+		crd.Spec.Conversion = conversion
+		_, err = crdClient.Update(ctx, crd, metav1.UpdateOptions{})
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("configure conversion for CRD %s: %w", crdName, err)
+	}
+
+	return nil
 }
 
 // CleanupDelete registers a t.Cleanup function that deletes obj from the cluster
