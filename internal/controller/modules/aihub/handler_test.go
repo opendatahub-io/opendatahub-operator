@@ -1,4 +1,4 @@
-package modelregistry_test
+package aihub_test
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/modelregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aihub"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 
@@ -44,31 +44,31 @@ func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
 
 func TestIsEnabled_Managed(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Managed))).Should(BeTrue())
 }
 
 func TestIsEnabled_Removed(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Removed))).Should(BeFalse())
 }
 
 func TestIsEnabled_Empty(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 	g.Expect(h.IsEnabled(newPlatformModules(""))).Should(BeFalse())
 }
 
 func TestIsEnabled_NilModules(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
 }
 
 func TestPopulatePlatformModule_Managed(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 
 	pm := &configApi.PlatformModules{}
 	dscCtx := newDSCCtx(operatorv1.Managed)
@@ -79,7 +79,7 @@ func TestPopulatePlatformModule_Managed(t *testing.T) {
 
 func TestPopulatePlatformModule_EmptyDefaultsToRemoved(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 
 	pm := &configApi.PlatformModules{}
 	dscCtx := newDSCCtx("")
@@ -89,7 +89,7 @@ func TestPopulatePlatformModule_EmptyDefaultsToRemoved(t *testing.T) {
 }
 
 func TestPopulatePlatformModule_NilGuards(t *testing.T) {
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 
 	// Should not panic with nil args.
 	h.PopulatePlatformModule(nil, nil)
@@ -99,27 +99,27 @@ func TestPopulatePlatformModule_NilGuards(t *testing.T) {
 
 func TestGetReadyConditionType(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 	g.Expect(h.GetReadyConditionType()).Should(Equal("AIHubReady"))
 }
 
 func TestBuildModuleCR_NilDSCContextReturnsError(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
 	g.Expect(err).Should(HaveOccurred())
 }
 
 func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 	_, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{}, nil)
 	g.Expect(err).Should(HaveOccurred())
 }
 
 func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 
 	dscCtx := newDSCCtx(operatorv1.Managed)
 	dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace = "my-registries"
@@ -143,7 +143,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 
 func TestBuildModuleCR_WithGatewayDomain(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 
 	dscCtx := newDSCCtx(operatorv1.Managed)
 
@@ -163,7 +163,7 @@ func TestBuildModuleCR_WithGatewayDomain(t *testing.T) {
 
 func TestBuildModuleCR_WithoutGatewayDomain(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 
 	dscCtx := newDSCCtx(operatorv1.Managed)
 
@@ -180,7 +180,7 @@ func TestBuildModuleCR_WithoutGatewayDomain(t *testing.T) {
 
 func TestBuildModuleCR_InstancesNamespaceDefaultsToAppNS(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 
 	dscCtx := newDSCCtx(operatorv1.Managed)
 	// ApplicationNamespace left empty
@@ -197,7 +197,7 @@ func TestBuildModuleCR_InstancesNamespaceDefaultsToAppNS(t *testing.T) {
 
 func TestBuildModuleCR_NilCfg(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 
 	dscCtx := newDSCCtx(operatorv1.Managed)
 	dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace = "my-registries"
@@ -213,7 +213,7 @@ func TestBuildModuleCR_NilCfg(t *testing.T) {
 
 func TestBuildModuleCR_EmptyManagementStateNormalized(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 
 	dscCtx := newDSCCtx("") // empty management state
 
@@ -225,7 +225,7 @@ func TestBuildModuleCR_EmptyManagementStateNormalized(t *testing.T) {
 
 func TestWriteDSCComponentStatus_Enabled(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 
 	dsc := &dscApi.DataScienceCluster{}
 	releases := []common.ComponentRelease{
@@ -242,7 +242,7 @@ func TestWriteDSCComponentStatus_Enabled(t *testing.T) {
 
 func TestWriteDSCComponentStatus_Disabled(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 
 	dsc := &dscApi.DataScienceCluster{}
 
@@ -253,20 +253,20 @@ func TestWriteDSCComponentStatus_Disabled(t *testing.T) {
 }
 
 func TestWriteDSCComponentStatus_NilDSC(t *testing.T) {
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 	// Should not panic.
 	h.WriteDSCComponentStatus(nil, true, nil)
 }
 
 func TestGetName(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
-	g.Expect(h.GetName()).Should(Equal(componentApi.ModelRegistryComponentName))
+	h := aihub.NewHandler()
+	g.Expect(h.GetName()).Should(Equal("aihub"))
 }
 
 func TestWriteDSCComponentStatus_MirrorsNamespaceFromDSCSpec(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 	dsc := &dscApi.DataScienceCluster{
 		Spec: dscApi.DataScienceClusterSpec{
 			Components: dscApi.Components{
@@ -285,7 +285,7 @@ func TestWriteDSCComponentStatus_MirrorsNamespaceFromDSCSpec(t *testing.T) {
 
 func TestWriteDSCComponentStatus_ClearsNamespaceWhenDisabled(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 	dsc := &dscApi.DataScienceCluster{
 		Spec: dscApi.DataScienceClusterSpec{
 			Components: dscApi.Components{
@@ -306,7 +306,7 @@ func TestWriteDSCComponentStatus_ClearsNamespaceWhenDisabled(t *testing.T) {
 
 func TestWriteDSCComponentStatus_ClearsNamespaceWhenSpecEmpty(t *testing.T) {
 	g := NewWithT(t)
-	h := modelregistry.NewHandler()
+	h := aihub.NewHandler()
 	dsc := &dscApi.DataScienceCluster{
 		Spec: dscApi.DataScienceClusterSpec{
 			Components: dscApi.Components{
