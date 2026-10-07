@@ -1901,8 +1901,8 @@ DataScienceCluster is not installed (xKS / vanilla Kubernetes).
 
 
 PlatformModules declares per-module management state for Platform mode.
-Fields aiHub and data are the public names for internal modelregistry and
-feastoperator modules, respectively. Other module field names are unchanged.
+The data field is the public name for the internal feastoperator module;
+all other fields use their internal module names.
 Add new module fields here when onboarding additional modules.
 
 
@@ -1926,7 +1926,7 @@ _Appears in:_
 | `sparkoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | SparkOperator controls the Spark Operator module lifecycle. |  |  |
 | `ray` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Ray controls the Ray module lifecycle. |  |  |
 | `trustyai` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | TrustyAI controls the TrustyAI module operator lifecycle. |  |  |
-| `aiHub` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | AIHub controls the AI Hub module operator lifecycle. |  |  |
+| `aihub` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | AIHub controls the AI Hub module operator lifecycle. |  |  |
 
 
 #### PlatformSpec (v1alpha2)

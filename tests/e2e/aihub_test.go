@@ -19,25 +19,25 @@ import (
 )
 
 const (
-	modelRegistryModuleOperatorDeployment = "aihub-controller-manager"
-	modelRegistryModuleCRName             = "default-aihub"
-	modelRegistryTestNamespace            = "e2e-model-registries"
-	aiHubReadyCondition                   = "AIHubReady"
+	aihubModuleOperatorDeployment = "aihub-controller-manager"
+	aihubModuleCRName             = "default-aihub"
+	aihubTestNamespace            = "e2e-model-registries"
+	aiHubReadyCondition           = "AIHubReady"
 )
 
-func modelRegistryTestSuite(t *testing.T) {
+func aihubTestSuite(t *testing.T) {
 	t.Helper()
 
 	tc, err := NewTestContext(t)
 	require.NoError(t, err)
 
 	moduleGVK := gvk.AIHub
-	moduleCRNN := types.NamespacedName{Name: modelRegistryModuleCRName}
+	moduleCRNN := types.NamespacedName{Name: aihubModuleCRName}
 	controllerNN := types.NamespacedName{
 		Namespace: tc.AppsNamespace,
-		Name:      modelRegistryModuleOperatorDeployment,
+		Name:      aihubModuleOperatorDeployment,
 	}
-	registriesNSNN := types.NamespacedName{Name: modelRegistryTestNamespace}
+	registriesNSNN := types.NamespacedName{Name: aihubTestNamespace}
 
 	var originalInstancesNamespace string
 
@@ -58,11 +58,11 @@ func modelRegistryTestSuite(t *testing.T) {
 					if err := unstructured.SetNestedField(obj.Object, "Managed", "spec", "components", "aiHub", "managementState"); err != nil {
 						return err
 					}
-					return unstructured.SetNestedField(obj.Object, modelRegistryTestNamespace, "spec", "components", "aiHub", "instancesNamespace")
+					return unstructured.SetNestedField(obj.Object, aihubTestNamespace, "spec", "components", "aiHub", "instancesNamespace")
 				}),
 				WithCondition(And(
 					jq.Match(`.spec.components.aiHub.managementState == "Managed"`),
-					jq.Match(`.spec.components.aiHub.instancesNamespace == "%s"`, modelRegistryTestNamespace),
+					jq.Match(`.spec.components.aiHub.instancesNamespace == "%s"`, aihubTestNamespace),
 				)),
 			)
 
@@ -90,7 +90,7 @@ func modelRegistryTestSuite(t *testing.T) {
 				WithCondition(And(
 					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, aiHubReadyCondition, metav1.ConditionTrue),
 					jq.Match(`.status.components.aiHub.managementState == "Managed"`),
-					jq.Match(`.status.components.aiHub.instancesNamespace == "%s"`, modelRegistryTestNamespace),
+					jq.Match(`.status.components.aiHub.instancesNamespace == "%s"`, aihubTestNamespace),
 					jq.Match(`(.status.components.aiHub | has("applicationNamespace")) == false`),
 				)),
 				WithCustomErrorMsg("DataScienceCluster should have %s condition set to True with Managed state", aiHubReadyCondition),
@@ -128,7 +128,7 @@ func modelRegistryTestSuite(t *testing.T) {
 				WithMinimalObject(gvk.DataScienceClusterV2, tc.DataScienceClusterNamespacedName),
 				WithMutateFunc(testf.TransformPipeline(
 					testf.Transform(`.spec.components.modelregistry.managementState = "Removed"`),
-					testf.Transform(`.spec.components.modelregistry.registriesNamespace = "%s"`, modelRegistryTestNamespace),
+					testf.Transform(`.spec.components.modelregistry.registriesNamespace = "%s"`, aihubTestNamespace),
 				)),
 			)
 			tc.EventuallyResourcePatched(
@@ -136,7 +136,7 @@ func modelRegistryTestSuite(t *testing.T) {
 				WithMutateFunc(testf.Transform(`.spec.components.modelregistry.managementState = "Managed"`)),
 				WithCondition(And(
 					jq.Match(`.spec.components.modelregistry.managementState == "Managed"`),
-					jq.Match(`.spec.components.modelregistry.registriesNamespace == "%s"`, modelRegistryTestNamespace),
+					jq.Match(`.spec.components.modelregistry.registriesNamespace == "%s"`, aihubTestNamespace),
 				)),
 			)
 
@@ -144,14 +144,14 @@ func modelRegistryTestSuite(t *testing.T) {
 				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 				WithCondition(And(
 					jq.Match(`.spec.components.aiHub.managementState == "Managed"`),
-					jq.Match(`.spec.components.aiHub.instancesNamespace == "%s"`, modelRegistryTestNamespace),
+					jq.Match(`.spec.components.aiHub.instancesNamespace == "%s"`, aihubTestNamespace),
 				)),
 			)
 			tc.EnsureResourceExists(
 				WithMinimalObject(moduleGVK, moduleCRNN),
 				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 				WithCondition(And(
-					jq.Match(`.spec.instancesNamespace == "%s"`, modelRegistryTestNamespace),
+					jq.Match(`.spec.instancesNamespace == "%s"`, aihubTestNamespace),
 					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 				)),
 			)
@@ -165,7 +165,7 @@ func modelRegistryTestSuite(t *testing.T) {
 				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 				WithCondition(And(
 					jq.Match(`.status.components.aiHub.managementState == "Managed"`),
-					jq.Match(`.status.components.aiHub.instancesNamespace == "%s"`, modelRegistryTestNamespace),
+					jq.Match(`.status.components.aiHub.instancesNamespace == "%s"`, aihubTestNamespace),
 					jq.Match(`(.status.components.aiHub | has("applicationNamespace")) == false`),
 					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, aiHubReadyCondition, metav1.ConditionTrue),
 				)),
@@ -173,8 +173,8 @@ func modelRegistryTestSuite(t *testing.T) {
 			tc.EnsureResourceExists(
 				WithMinimalObject(gvk.DataScienceClusterV2, tc.DataScienceClusterNamespacedName),
 				WithCondition(And(
-					jq.Match(`.spec.components.modelregistry.registriesNamespace == "%s"`, modelRegistryTestNamespace),
-					jq.Match(`.status.components.modelregistry.registriesNamespace == "%s"`, modelRegistryTestNamespace),
+					jq.Match(`.spec.components.modelregistry.registriesNamespace == "%s"`, aihubTestNamespace),
+					jq.Match(`.status.components.modelregistry.registriesNamespace == "%s"`, aihubTestNamespace),
 					jq.Match(`.status.conditions[] | select(.type == "ModelRegistryReady") | .status == "True"`),
 				)),
 			)
@@ -187,7 +187,7 @@ func modelRegistryTestSuite(t *testing.T) {
 				WithMinimalObject(gvk.AIHub, moduleCRNN),
 				WithCondition(And(
 					jq.Match(`.spec.applicationNamespace == "%s"`, tc.AppsNamespace),
-					jq.Match(`.spec.instancesNamespace == "%s"`, modelRegistryTestNamespace),
+					jq.Match(`.spec.instancesNamespace == "%s"`, aihubTestNamespace),
 				)),
 			)
 		}},
@@ -197,7 +197,7 @@ func modelRegistryTestSuite(t *testing.T) {
 
 			tc.EnsureResourceExists(
 				WithMinimalObject(gvk.Namespace, registriesNSNN),
-				WithCustomErrorMsg("non-default registries namespace %s should be auto-created", modelRegistryTestNamespace),
+				WithCustomErrorMsg("non-default registries namespace %s should be auto-created", aihubTestNamespace),
 			)
 		}},
 		{"Validate releases mirrored to DSC", func(t *testing.T) {

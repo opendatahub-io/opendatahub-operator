@@ -77,7 +77,7 @@ List of currently integrated ODH components:
 | Feature Store (Feast) | `FeastOperator` |
 | KServe | `Kserve` |
 | Kueue | `Kueue` |
-| Model Registry | `ModelRegistry` |
+| AI Hub | `AIHub` |
 | Ray | `Ray` |
 | TrustyAI | `TrustyAI` |
 | Workbenches (IDEs) | `Workbenches` |

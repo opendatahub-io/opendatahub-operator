@@ -208,7 +208,7 @@ alphabetically for determinism.
 
 ```text
 Batch 1 — RL(20):
-  dashboard, datasciencepipelines, modelregistry, ray,
+  dashboard, datasciencepipelines, aihub, ray,
   trainer, workbenches, mcplifecycleoperator (module)
 
 Batch 2 — RL(31):
