@@ -1,8 +1,8 @@
 # RHOAI Route Cleanup: Upgrade Mechanics
 
-What this explains: How OpenShift routes get created, updated, and automatically deleted when you upgrade RHOAI from 2.x → 3.3 → 3.4+.
+This guide explains how OpenShift routes get created, updated, and automatically deleted when you upgrade RHOAI from 2.x → 3.3 → 3.4–3.5 → 3.6+, and how administrators can disable legacy Dashboard and gateway redirects.
 
-Validated: June 15, 2026 JIRA: RHOAIENG-61574
+Historical upgrade validation: June 15, 2026, RHOAIENG-61574. The RHOAI 3.6+ behavior is documented under [RHOAIENG-97565](https://redhat.atlassian.net/browse/RHOAIENG-97565), covering implementation PRs [#4138](https://github.com/opendatahub-io/opendatahub-operator/pull/4138) and [#4160](https://github.com/opendatahub-io/opendatahub-operator/pull/4160).
 
 ---
 
@@ -11,11 +11,12 @@ Validated: June 15, 2026 JIRA: RHOAIENG-61574
 | Upgrade Path | Old Dashboard URL | New URL | User Action |
 | ----- | ----- | ----- | ----- |
 | 2.x → 3.3 | Broken (route deleted, no redirect) | data-science-gateway.apps.\<cluster\> | Must update bookmarks |
-| 2.x → 3.4+ | Works (301 redirect) | rh-ai.apps.\<cluster\> | Should update bookmarks |
+| 2.x → 3.4–3.5 | Works (immediate 301 redirect) | rh-ai.apps.\<cluster\> | Should update bookmarks |
 | 3.3 → 3.4 | N/A | rh-ai.apps.\<cluster\> (old gateway URL redirects) | Should update bookmarks |
-| 3.4 → future | Will break when redirects are removed | rh-ai.apps.\<cluster\> | Must migrate before removal |
+| Earlier version → 3.6+ | HTML requests show a deprecation page, then redirect after 10 seconds; other requests receive an immediate 301 | Configured gateway hostname (default: rh-ai.apps.\<cluster\>) | Update bookmarks using the link on the page |
+| Redirects disabled or removed | Old URLs stop redirecting | Configured gateway hostname | Use the gateway URL directly |
 
-**Bottom line:** The operator automatically cleans up old routes via garbage collection (GC). Starting from 3.4, old URLs redirect to the new rh-ai URL so nothing breaks immediately. Users should migrate bookmarks to rh-ai during this transition window.
+The operator automatically cleans up old routes via garbage collection (GC). Starting from 3.4, legacy URLs redirect to the configured gateway hostname while redirects are enabled and Dashboard is deployed. Redirects are enabled by default. Users should update bookmarks to the gateway URL during this transition.
 
 ---
 
@@ -43,7 +44,7 @@ https://data-science-gateway.apps.<cluster>/  →  Gateway service  →  All RHO
 
 The old rhods-dashboard route is gone — automatically deleted by GC (explained below). No redirect exists. The old URL simply stops working.
 
-## RHOAI 3.4+ — New URL with backward-compatible redirects
+## RHOAI 3.4–3.5 — New URL with immediate redirects
 
 The gateway hostname changes from data-science-gateway to rh-ai, and two redirect routes are created for backward compatibility:
 
@@ -52,7 +53,46 @@ Old Dashboard URL:  https://rhods-dashboard-redhat-ods-applications.apps.<cluste
 Old Gateway URL:    https://data-science-gateway.apps.<cluster>/  ──301──▶ https://rh-ai.apps.<cluster>/
 ```
 
-Both redirects are powered by an Nginx deployment that returns 301 Moved Permanently, preserving the original request path so deep links also redirect correctly. For example, https://rhods-dashboard-.../projects/myproject redirects to https://rh-ai.apps.\<cluster\>/projects/myproject.
+Both redirects are powered by an Nginx deployment that immediately returns `301 Moved Permanently`, preserving the original request path and query string so deep links also redirect correctly. For example, https://rhods-dashboard-.../projects/myproject redirects to https://rh-ai.apps.\<cluster\>/projects/myproject.
+
+## RHOAI 3.6+ — Deprecation page for HTML requests
+
+The same legacy Dashboard and gateway URLs remain supported while redirects are enabled:
+
+| Legacy URL | Purpose |
+| ----- | ----- |
+| `https://rhods-dashboard-redhat-ods-applications.apps.<cluster>/` | RHOAI 2.x Dashboard URL |
+| `https://data-science-gateway.apps.<cluster>/` | RHOAI 3.3 gateway URL |
+
+The Dashboard hostname uses the applications namespace; `redhat-ods-applications` above is the RHOAI default. On Open Data Hub, the Dashboard route is named `odh-dashboard`, giving a legacy URL of `https://odh-dashboard-<applications-namespace>.apps.<cluster>/`. The legacy gateway hostname uses the domain configured for the gateway. Its redirect route is created only when the configured gateway subdomain differs from `data-science-gateway`.
+
+Both legacy URLs send users to the HTTPS hostname configured by the `default-gateway` GatewayConfig, which defaults to `https://rh-ai.apps.<cluster>/`. Custom gateway domains and subdomains are reflected in the destination. To find the current gateway hostname, run:
+
+```bash
+oc get gatewayconfig.services.platform.opendatahub.io default-gateway \
+  -o jsonpath='{.status.domain}{"\n"}'
+```
+
+The response depends on the request's `Accept` header:
+
+| Request | Response |
+| ----- | ----- |
+| Accepts `text/html` (typical browser navigation) | `200 OK` with a temporary deprecation page; automatically redirects after 10 seconds using JavaScript |
+| Does not accept `text/html` (for example, a CLI or API client using `Accept: */*`, or no `Accept` header) | Immediate `301 Moved Permanently` with the destination in the `Location` header |
+
+The deprecation page explains that the old address is being retired and asks users to update their bookmarks. It shows a link that users can follow immediately, copy, or bookmark. The page uses **OpenShift AI** branding on RHOAI and **Open Data Hub** branding on ODH. It includes a semantic heading, readable text, and a visible keyboard focus indicator on the link. When JavaScript is disabled, the page instructs users to follow the gateway link manually.
+
+For browsers with JavaScript enabled, both the displayed link and the automatic redirect preserve the original path, query string, and browser fragment. For example:
+
+```text
+https://rhods-dashboard-redhat-ods-applications.apps.<cluster>/projects/myproject?tab=models#details
+  → https://rh-ai.apps.<cluster>/projects/myproject?tab=models#details
+
+https://data-science-gateway.apps.<cluster>/projects/myproject?tab=models#details
+  → https://rh-ai.apps.<cluster>/projects/myproject?tab=models#details
+```
+
+The immediate 301 preserves the path and query string in its `Location` header. Browser fragments are not sent to the server; the deprecation page preserves them using the browser's current URL. Both the page and the immediate redirect responses send headers that prevent caching.
 
 ---
 
@@ -253,12 +293,14 @@ Location: https://rh-ai.apps.../
 
 # Redirect Lifecycle and Removal
 
-## Today: Explicit deletion
+## Explicit deletion
 
 The redirect routes and their supporting resources (Nginx Deployment, Service, ConfigMap) are explicitly deleted when:
 
 * Dashboard component is removed — If the Dashboard CR doesn't exist, createDashboardRedirects cleans up directly. This explicit approach is needed because removing Dashboard doesn't change GatewayConfig's generation, so GC alone would miss them.  
-* Feature disabled by admin — Setting DISABLE\_DASHBOARD\_REDIRECTS=true in the operator Subscription env removes all redirect resources immediately.
+* Redirects disabled by an administrator — In RHOAI 3.6+, setting the `platform.opendatahub.io/dashboard-redirects` annotation to `"disabled"` on the `default-gateway` GatewayConfig removes both legacy redirect routes and their supporting resources on reconciliation. The existing `DISABLE_DASHBOARD_REDIRECTS=true` operator environment variable also remains supported. See [administrator configuration](#administrators) below.
+
+Removing the annotation restores the redirect resources on reconciliation, provided Dashboard is deployed and `DISABLE_DASHBOARD_REDIRECTS` is not `true`. The configured gateway URL remains available when legacy redirects are disabled.
 
 ## Future removal
 
@@ -290,12 +332,40 @@ The exact removal timeline and mechanism will be decided as part of RHOAIENG-615
 
 ## Administrators
 
-Right now (3.4):
+Redirects are enabled by default. In RHOAI 3.4–3.5, legacy URLs receive an immediate 301. From RHOAI 3.6, requests accepting `text/html` receive the deprecation page before redirecting. Communicate the current gateway URL to users and ask them to update their bookmarks.
 
-* Old URLs work via redirect — nothing is broken  
-* Communicate to users: update bookmarks to https://rh-ai.apps.\<cluster\>/
+### Disable redirects through GatewayConfig
 
-Optional — disable redirects early on a specific cluster:
+From RHOAI 3.6, add the following annotation to the existing cluster-scoped `default-gateway` GatewayConfig:
+
+```yaml
+metadata:
+  name: default-gateway
+  annotations:
+    platform.opendatahub.io/dashboard-redirects: "disabled"
+```
+
+To set it using the CLI:
+
+```bash
+oc annotate gatewayconfig.services.platform.opendatahub.io default-gateway \
+  platform.opendatahub.io/dashboard-redirects=disabled --overwrite
+```
+
+The operator removes both legacy redirect routes and the redirect Deployment, Service, and ConfigMap on reconciliation. Users must then access the configured gateway URL directly.
+
+To re-enable redirects, remove the annotation:
+
+```bash
+oc annotate gatewayconfig.services.platform.opendatahub.io default-gateway \
+  platform.opendatahub.io/dashboard-redirects-
+```
+
+The operator recreates the redirect resources on reconciliation when Dashboard is deployed. Only the exact annotation value `disabled` disables redirects; removing the annotation or changing it to another value restores the default behavior unless the compatibility environment variable is `true`.
+
+### Compatibility environment variable
+
+The existing `DISABLE_DASHBOARD_REDIRECTS=true` environment variable remains supported, including on RHOAI 3.4–3.5. For OLM installations, set it in the operator Subscription:
 
 ```yaml
 # In Subscription for rhods-operator
@@ -306,6 +376,8 @@ spec:
       value: "true"
 ```
 
+Either setting disables redirects. If the environment variable is `true`, removing the GatewayConfig annotation alone does not re-enable them. Remove the environment variable from the Subscription's `spec.config.env` list or change its value to `"false"`, and remove the `disabled` annotation to restore redirects. Subscription environment changes take effect when the operator Deployment is updated.
+
 ## End users
 
 Update your bookmarks from:
@@ -315,9 +387,10 @@ https://rhods-dashboard-redhat-ods-applications.apps.<cluster>/
 https://data-science-gateway.apps.<cluster>/
 ```
 
-To the new stable URL:
+To the configured gateway URL (the default is shown below):
 
 ```text
 https://rh-ai.apps.<cluster>/
 ```
 
+From RHOAI 3.6, use the link on the deprecation page to copy or bookmark the destination, including your current path, query string, and browser fragment when JavaScript is enabled. You can follow the link immediately or wait for the automatic redirect after 10 seconds.

@@ -771,6 +771,8 @@ The GatewayConfig custom resource is used to configure gateway settings for Open
 
 **Automatic Creation**: The GatewayConfig CR is automatically created when a DSCInitialization CR is applied to the cluster. Users typically don't need to create this CR manually unless they want to configure OIDC authentication mode or customize ingress gateway settings.
 
+For legacy Dashboard and gateway URLs, see [Route cleanup and legacy URL redirects](docs/route-gc-on-upgrade.md), including the RHOAI 3.6+ deprecation page and how to disable or re-enable redirects through GatewayConfig.
+
 Here's an example of the default GatewayConfig CR (automatically created):
 
 ```yaml
