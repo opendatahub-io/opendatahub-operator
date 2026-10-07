@@ -105,8 +105,8 @@ metadata:
       }
     operatorframework.io/suggested-namespace: redhat-ods-operator
     operators.openshift.io/infrastructure-features: '["disconnected"]'
-    operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
-      "kueues.components.platform.opendatahub.io", "platforms.config.opendatahub.io",
+    operators.operatorframework.io/internal-objects: '["kueues.components.platform.opendatahub.io",
+      "platforms.config.opendatahub.io",
       "trustyais.components.platform.opendatahub.io"]'
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI

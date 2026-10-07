@@ -32,7 +32,6 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 )
@@ -788,7 +787,6 @@ func registerSchemes() {
 		autoscalingv1.AddToScheme,
 		dsciv2.AddToScheme,
 		dscApi.AddToScheme,
-		featurev1.AddToScheme,
 		monitoringv1.AddToScheme,
 		ofapi.AddToScheme,
 		operatorv1.AddToScheme,

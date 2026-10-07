@@ -170,8 +170,8 @@ Component CRDs can be marked as internal to hide them from users in the Operator
 To mark your component as internal, update `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml`to add your component's CRD to the `operators.operatorframework.io/internal-objects` annotation:
 
 ```yaml
-operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
-  "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
+operators.operatorframework.io/internal-objects: '["dashboards.components.platform.opendatahub.io",
+  "datasciencepipelines.components.platform.opendatahub.io",
   ...
   "examplecomponents.components.platform.opendatahub.io"]'
 ```
