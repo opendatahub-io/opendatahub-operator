@@ -38,6 +38,7 @@ package gateway_test
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
@@ -2085,13 +2086,18 @@ func RunNginxDashboardRedirectCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(cm.Data).To(HaveKey("redirect.conf"))
 	redirectConf := cm.Data["redirect.conf"]
 	g.Expect(redirectConf).To(ContainSubstring("location /"))
-	g.Expect(redirectConf).To(ContainSubstring("add_header Cache-Control \"no-store, no-cache, must-revalidate\""))
+	g.Expect(redirectConf).To(ContainSubstring("add_header Cache-Control \"no-store, no-cache, must-revalidate\" always"))
+	g.Expect(redirectConf).To(ContainSubstring("$http_accept ~* \"text/html\""))
+	g.Expect(redirectConf).To(ContainSubstring("error_page 418 =200 /deprecation.html"))
 	g.Expect(redirectConf).To(ContainSubstring("return 301"))
 	g.Expect(redirectConf).To(ContainSubstring("$request_uri"))
 	gatewayHost, err := gateway.GetGatewayDomain(setup.TC.Ctx, setup.TC.K8sClient)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(gatewayHost).NotTo(BeEmpty())
 	g.Expect(redirectConf).To(ContainSubstring("https://" + gatewayHost))
+	g.Expect(cm.Data).To(HaveKey("deprecation.html"))
+	g.Expect(cm.Data["deprecation.html"]).To(ContainSubstring(`href="https://` + gatewayHost + `/"`))
+	g.Expect(cm.Data["deprecation.html"]).To(ContainSubstring("destination.hash = window.location.hash"))
 
 	// Deployment
 	var dep appsv1.Deployment
@@ -2118,6 +2124,16 @@ func RunNginxDashboardRedirectCreationTest(t *testing.T, setup TestSetup) {
 	}
 	g.Expect(hasNginxConfMount).To(BeTrue(),
 		"dashboard-redirect must mount nginx.conf at /etc/nginx/nginx.conf to control worker_processes")
+	var hasDeprecationPageMount bool
+	for _, vm := range container.VolumeMounts {
+		if vm.Name == "redirect-config" &&
+			vm.MountPath == "/opt/app-root/src/deprecation.html" &&
+			vm.SubPath == "deprecation.html" {
+			hasDeprecationPageMount = true
+			break
+		}
+	}
+	g.Expect(hasDeprecationPageMount).To(BeTrue(), "dashboard-redirect must mount the deprecation page")
 
 	var hasRedirectConfigVolume bool
 	for _, vol := range dep.Spec.Template.Spec.Volumes {
@@ -2134,9 +2150,26 @@ func RunNginxDashboardRedirectCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(dep.Spec.Template.Annotations).To(HaveKey(redirectConfigHashAnnotation))
 	actualHash := dep.Spec.Template.Annotations[redirectConfigHashAnnotation]
 	g.Expect(actualHash).To(MatchRegexp("^[0-9a-f]{64}$"))
-	expectedHash := gateway.CalculateRedirectConfigHash(gatewayHost)
+	expectedHash, err := gateway.CalculateRedirectConfigHash(gatewayHost)
+	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(actualHash).To(Equal(expectedHash),
-		"redirect-config-hash must reflect gateway hostname to ensure rollout on subdomain/domain change")
+		"redirect-config-hash must reflect the hostname and redirect configuration")
+	legacyHash := fmt.Sprintf("%x", sha256.Sum256([]byte(gatewayHost)))
+	g.Expect(actualHash).NotTo(Equal(legacyHash), "upgrade must change the hostname-only rollout hash")
+
+	// Simulate the annotation left by the previous operator version. The deployment
+	// watch must trigger reconciliation and replace it with the new config hash.
+	initialGeneration := dep.Generation
+	dep.Spec.Template.Annotations[redirectConfigHashAnnotation] = legacyHash
+	g.Expect(setup.TC.K8sClient.Update(setup.TC.Ctx, &dep)).To(Succeed())
+	g.Eventually(func() bool {
+		var updated appsv1.Deployment
+		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, nnApp, &updated); err != nil {
+			return false
+		}
+		return updated.Spec.Template.Annotations[redirectConfigHashAnnotation] == expectedHash &&
+			updated.Generation > initialGeneration+1
+	}, TestTimeout, TestInterval).Should(BeTrue(), "redirect Deployment should roll back to the new config hash")
 
 	// Service
 	var svc corev1.Service
