@@ -421,3 +421,6 @@ module operators live in their own repositories. See
 - [AI Gateway](https://github.com/opendatahub-io/ai-gateway-operator) — handler: `internal/controller/modules/aigateway/`
 - [Spark Operator](https://github.com/opendatahub-io/spark-operator/tree/main/spark-operator-module) — handler: `internal/controller/modules/sparkoperator/`
 - [AI Pipelines](https://github.com/opendatahub-io/data-science-pipelines-operator) — handler: `internal/controller/modules/aipipelines/`
+- [Monitoring and observability (odh-observability)](https://github.com/opendatahub-io/odh-observability) — handler: `internal/controller/modules/monitoring/`
+  - [Observability deployment modes](https://github.com/opendatahub-io/odh-observability/blob/main/docs/observability-modes.md)
+  - [Korrel8r](https://github.com/opendatahub-io/odh-observability/blob/main/docs/korrel8r.md)
