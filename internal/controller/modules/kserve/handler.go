@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	types "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -136,7 +136,7 @@ func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) module
 	return result
 }
 
-func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+func (h *handler) PopulatePlatformModule(pm *configApi.PlatformModules, dscCtx *modules.DSCContext) {
 	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
@@ -147,7 +147,7 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 	pm.Kserve.ManagementState = ms
 }
 
-func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 	return modules != nil && modules.Kserve.ManagementState == operatorv1.Managed
 }
 
@@ -165,14 +165,13 @@ func (h *handler) BuildModuleCR(
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert KserveCommonSpec to unstructured: %w", err)
 	}
-	delete(spec, "modelsAsService")
 	delete(spec, "wva")
 
 	// Inject cross-component ModelRegistry state.
 	// ModelRegistry is a separate DSC component, not a Kserve sub-component.
 	// We forward its management state so kserve-module can propagate it
 	// to odh-model-controller's params.env as "modelregistry-state".
-	mrState := string(dscCtx.DSC.Spec.Components.ModelRegistry.ManagementState)
+	mrState := string(dscCtx.DSC.Spec.Components.AIHub.ManagementState)
 	if mrState == "" {
 		mrState = string(operatorv1.Removed)
 	}

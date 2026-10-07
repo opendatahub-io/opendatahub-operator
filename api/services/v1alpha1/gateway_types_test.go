@@ -7,11 +7,10 @@ import (
 )
 
 func TestAdditionalIngressesValidate(t *testing.T) {
-	valid := func(name, hostname string, port int32) AdditionalIngress {
+	valid := func(name, hostname string) AdditionalIngress {
 		return AdditionalIngress{
 			Name:                  name,
 			Hostname:              hostname,
-			ListenerPort:          port,
 			IngressControllerName: "shard-a",
 			RouteLabels:           map[string]string{"example.com/ingress": name},
 		}
@@ -25,32 +24,25 @@ func TestAdditionalIngressesValidate(t *testing.T) {
 	}{
 		{
 			name:      "valid entries",
-			ingresses: AdditionalIngresses{valid("alpha", "alpha.example.com", 9443), valid("beta", "beta.example.com", 9444)},
+			ingresses: AdditionalIngresses{valid("alpha", "alpha.example.com"), valid("beta", "beta.example.com")},
 			mode:      IngressModeOcpRoute,
 		},
 		{
 			name:      "additional ingress requires OcpRoute",
-			ingresses: AdditionalIngresses{valid("alpha", "alpha.example.com", 9443)},
+			ingresses: AdditionalIngresses{valid("alpha", "alpha.example.com")},
 			mode:      IngressModeLoadBalancer,
 			wantErr:   "require OcpRoute",
 		},
 		{
-			name:      "invalid name",
-			ingresses: AdditionalIngresses{valid("bad_name", "alpha.example.com", 9443)},
-			mode:      IngressModeOcpRoute,
-			wantErr:   "invalid name",
-		},
-		{
 			name:      "invalid hostname",
-			ingresses: AdditionalIngresses{valid("alpha", "not a hostname", 9443)},
+			ingresses: AdditionalIngresses{valid("alpha", "not a hostname")},
 			mode:      IngressModeOcpRoute,
 			wantErr:   "invalid hostname",
 		},
 		{
 			name: "invalid controller name",
 			ingresses: AdditionalIngresses{{
-				Name: "alpha", Hostname: "alpha.example.com", ListenerPort: 9443,
-				IngressControllerName: "bad_name", RouteLabels: map[string]string{"example.com/ingress": "alpha"},
+				Name: "alpha", Hostname: "alpha.example.com", IngressControllerName: "bad_name", RouteLabels: map[string]string{"example.com/ingress": "alpha"},
 			}},
 			mode:    IngressModeOcpRoute,
 			wantErr: "invalid IngressController name",
@@ -58,8 +50,7 @@ func TestAdditionalIngressesValidate(t *testing.T) {
 		{
 			name: "missing route labels",
 			ingresses: AdditionalIngresses{{
-				Name: "alpha", Hostname: "alpha.example.com", ListenerPort: 9443,
-				IngressControllerName: "shard-a",
+				Name: "alpha", Hostname: "alpha.example.com", IngressControllerName: "shard-a",
 			}},
 			mode:    IngressModeOcpRoute,
 			wantErr: "must define route labels",
@@ -67,8 +58,7 @@ func TestAdditionalIngressesValidate(t *testing.T) {
 		{
 			name: "invalid route label",
 			ingresses: AdditionalIngresses{{
-				Name: "alpha", Hostname: "alpha.example.com", ListenerPort: 9443,
-				IngressControllerName: "shard-a", RouteLabels: map[string]string{"bad key": "alpha"},
+				Name: "alpha", Hostname: "alpha.example.com", IngressControllerName: "shard-a", RouteLabels: map[string]string{"bad key": "alpha"},
 			}},
 			mode:    IngressModeOcpRoute,
 			wantErr: "invalid route label key",
@@ -76,53 +66,32 @@ func TestAdditionalIngressesValidate(t *testing.T) {
 		{
 			name: "invalid route label value",
 			ingresses: AdditionalIngresses{{
-				Name: "alpha", Hostname: "alpha.example.com", ListenerPort: 9443,
-				IngressControllerName: "shard-a", RouteLabels: map[string]string{"example.com/ingress": "bad value"},
+				Name: "alpha", Hostname: "alpha.example.com", IngressControllerName: "shard-a", RouteLabels: map[string]string{"example.com/ingress": "bad value"},
 			}},
 			mode:    IngressModeOcpRoute,
 			wantErr: "invalid route label value",
 		},
 		{
-			name:      "reserved name",
-			ingresses: AdditionalIngresses{valid(DefaultGatewayListenerName, "alpha.example.com", 9443)},
-			mode:      IngressModeOcpRoute,
-			wantErr:   "reserved listener name",
+			name: "reserved route label",
+			ingresses: AdditionalIngresses{{
+				Name: "alpha", Hostname: "alpha.example.com", IngressControllerName: "shard-a", RouteLabels: map[string]string{"app.kubernetes.io/part-of": "custom"},
+			}},
+			mode:    IngressModeOcpRoute,
+			wantErr: "reserved route label key",
 		},
 		{
-			name:      "reserved legacy name",
-			ingresses: AdditionalIngresses{valid(LegacyGatewayListenerName, "alpha.example.com", 9443)},
-			mode:      IngressModeOcpRoute,
-			wantErr:   "reserved listener name",
-		},
-		{
-			name:      "duplicate name",
-			ingresses: AdditionalIngresses{valid("alpha", "alpha.example.com", 9443), valid("alpha", "beta.example.com", 9444)},
-			mode:      IngressModeOcpRoute,
-			wantErr:   "duplicate name",
+			name: "reserved platform route label",
+			ingresses: AdditionalIngresses{{
+				Name: "alpha", Hostname: "alpha.example.com", IngressControllerName: "shard-a", RouteLabels: map[string]string{"platform.opendatahub.io/part-of": "custom"},
+			}},
+			mode:    IngressModeOcpRoute,
+			wantErr: "reserved route label key",
 		},
 		{
 			name:      "duplicate hostname",
-			ingresses: AdditionalIngresses{valid("alpha", "shared.example.com", 9443), valid("beta", "shared.example.com", 9444)},
+			ingresses: AdditionalIngresses{valid("alpha", "shared.example.com"), valid("beta", "shared.example.com")},
 			mode:      IngressModeOcpRoute,
 			wantErr:   "hostname \"shared.example.com\" conflicts with",
-		},
-		{
-			name:      "invalid port",
-			ingresses: AdditionalIngresses{valid("alpha", "alpha.example.com", 0)},
-			mode:      IngressModeOcpRoute,
-			wantErr:   "invalid listener port",
-		},
-		{
-			name:      "reserved port",
-			ingresses: AdditionalIngresses{valid("alpha", "alpha.example.com", DefaultGatewayListenerPort)},
-			mode:      IngressModeOcpRoute,
-			wantErr:   "conflicts with",
-		},
-		{
-			name:      "duplicate port",
-			ingresses: AdditionalIngresses{valid("alpha", "alpha.example.com", 9443), valid("beta", "beta.example.com", 9443)},
-			mode:      IngressModeOcpRoute,
-			wantErr:   "conflicts with",
 		},
 	}
 

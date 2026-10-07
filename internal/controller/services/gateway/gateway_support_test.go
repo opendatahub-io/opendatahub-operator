@@ -7,12 +7,15 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"text/template"
 
+	oauthv1 "github.com/openshift/api/oauth/v1"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -153,6 +156,44 @@ func TestGetCertificateTypeXKSDefault(t *testing.T) {
 	g.Expect(getCertificateType(&serviceApi.GatewayConfig{
 		Spec: serviceApi.GatewayConfigSpec{Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress}},
 	})).To(Equal(string(infrav1.OpenshiftDefaultIngress)))
+}
+
+func TestEffectiveCertificateType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		config      *serviceApi.GatewayConfig
+		clusterType string
+		want        infrav1.CertType
+	}{
+		{
+			name:        "defaults to OpenShift ingress certificate",
+			clusterType: cluster.ClusterTypeOpenShift,
+			want:        infrav1.OpenshiftDefaultIngress,
+		},
+		{
+			name:        "defaults to self-signed certificate on Kubernetes",
+			clusterType: cluster.ClusterTypeKubernetes,
+			want:        infrav1.SelfSigned,
+		},
+		{
+			name: "uses configured certificate type",
+			config: &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{
+				Certificate: &infrav1.CertificateSpec{Type: infrav1.Provided},
+			}},
+			clusterType: cluster.ClusterTypeKubernetes,
+			want:        infrav1.Provided,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			g.Expect(effectiveCertificateType(test.config, test.clusterType)).To(Equal(test.want))
+		})
+	}
 }
 
 // TestGetGatewayAuthProxyTimeout tests the getGatewayAuthProxyTimeout function.
@@ -313,15 +354,23 @@ func TestCalculateRedirectConfigHash(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	hash1 := CalculateRedirectConfigHash(testHostnameDefault)
+	hash1, err := CalculateRedirectConfigHash(testHostnameDefault)
+	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(hash1).To(MatchRegexp("^[0-9a-f]{64}$"), "hash should be 64 hex chars")
 	g.Expect(hash1).To(HaveLen(64))
 
-	hash2 := CalculateRedirectConfigHash(testHostnameCustom)
+	hash2, err := CalculateRedirectConfigHash(testHostnameCustom)
+	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(hash2).NotTo(Equal(hash1), "different hostnames should produce different hashes")
 
-	hash3 := CalculateRedirectConfigHash(testHostnameDefault)
+	hash3, err := CalculateRedirectConfigHash(testHostnameDefault)
+	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(hash3).To(Equal(hash1), "same hostname should produce same hash")
+
+	config, err := gatewayResources.ReadFile(dashboardRedirectConfigMapTemplate)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(calculateRedirectConfigHash(testHostnameDefault, append(config, '\n'))).
+		NotTo(Equal(hash1), "changing the redirect configuration should roll the pods")
 }
 
 // TestIsGatewayReady tests the isGatewayReady helper function.
@@ -426,90 +475,19 @@ func TestIsGatewayReady(t *testing.T) {
 	}
 }
 
-func TestBuildAdditionalIngressListeners(t *testing.T) {
+func TestAdditionalGatewayNamesAreStableAndServiceSafe(t *testing.T) {
 	g := NewWithT(t)
-	mode := gwapiv1.TLSModeTerminate
-	tlsConfig := &gwapiv1.GatewayTLSConfig{Mode: &mode}
-	allowedRoutes := &gwapiv1.AllowedRoutes{}
+	longName := strings.Repeat("a", serviceApi.MaxAdditionalGatewayNameLength)
+	g.Expect(GetGatewayServiceFullName(longName)).To(Equal(longName + "-" + GatewayClassName))
+	g.Expect(GetGatewayServiceFullName(longName)).To(HaveLen(63))
 
-	ingresses := []serviceApi.AdditionalIngress{
-		{Name: "zeta", Hostname: "zeta.example.com", ListenerPort: 9444, IngressControllerName: "shard-zeta", RouteLabels: map[string]string{"example.com/ingress": "zeta"}},
-		{Name: "alpha", Hostname: "alpha.example.com", ListenerPort: 9443, IngressControllerName: "shard-alpha", RouteLabels: map[string]string{"example.com/ingress": "alpha"}},
-	}
-
-	g.Expect((serviceApi.GatewayConfigSpec{
-		IngressMode:         serviceApi.IngressModeOcpRoute,
-		AdditionalIngresses: ingresses,
-	}).ValidateAdditionalIngresses()).To(Succeed())
-	listeners := buildAdditionalIngressListeners(ingresses, tlsConfig, allowedRoutes)
-	g.Expect(listeners).To(HaveLen(2))
-	g.Expect(listeners[0].Name).To(Equal(gwapiv1.SectionName("alpha")))
-	g.Expect(listeners[0].Port).To(Equal(gwapiv1.PortNumber(9443)))
-	g.Expect(listeners[1].Name).To(Equal(gwapiv1.SectionName("zeta")))
-	g.Expect(listeners[1].Port).To(Equal(gwapiv1.PortNumber(9444)))
-	for _, listener := range listeners {
-		g.Expect(listener.Hostname).To(BeNil())
-		g.Expect(listener.Protocol).To(Equal(gwapiv1.HTTPSProtocolType))
-		g.Expect(listener.TLS).To(BeIdenticalTo(tlsConfig))
-		g.Expect(listener.AllowedRoutes).To(BeIdenticalTo(allowedRoutes))
-	}
-}
-
-func TestBuildAdditionalIngressListenersRejectsConflicts(t *testing.T) {
-	g := NewWithT(t)
-	ingress := func(name, hostname string, port int32, controller, label string) serviceApi.AdditionalIngress {
-		return serviceApi.AdditionalIngress{
-			Name: name, Hostname: hostname, ListenerPort: port,
-			IngressControllerName: controller,
-			RouteLabels:           map[string]string{"example.com/ingress": label},
-		}
-	}
-
-	tests := []struct {
-		name      string
-		ingresses []serviceApi.AdditionalIngress
-	}{
-		{
-			name:      "reserved name",
-			ingresses: []serviceApi.AdditionalIngress{{Name: DefaultGatewayListenerName, ListenerPort: 9443}},
-		},
-		{
-			name: "duplicate name",
-			ingresses: []serviceApi.AdditionalIngress{
-				ingress("alpha", "alpha.example.com", 9443, "shard-alpha", "alpha"),
-				ingress("alpha", "alpha-2.example.com", 9444, "shard-alpha-2", "alpha-2"),
-			},
-		},
-		{
-			name: "default port",
-			ingresses: []serviceApi.AdditionalIngress{
-				ingress("alpha", "alpha.example.com", StandardHTTPSPort, "shard-alpha", "alpha"),
-			},
-		},
-		{
-			name: "duplicate port",
-			ingresses: []serviceApi.AdditionalIngress{
-				ingress("alpha", "alpha.example.com", 9443, "shard-alpha", "alpha"),
-				ingress("zeta", "zeta.example.com", 9443, "shard-zeta", "zeta"),
-			},
-		},
-		{
-			name: "duplicate hostname",
-			ingresses: []serviceApi.AdditionalIngress{
-				ingress("alpha", "shared.example.com", 9443, "shard-alpha", "alpha"),
-				ingress("zeta", "SHARED.EXAMPLE.COM.", 9444, "shard-zeta", "zeta"),
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			g.Expect((serviceApi.GatewayConfigSpec{
-				IngressMode:         serviceApi.IngressModeOcpRoute,
-				AdditionalIngresses: tc.ingresses,
-			}).ValidateAdditionalIngresses()).To(HaveOccurred())
-		})
-	}
+	ingresses := []serviceApi.AdditionalIngress{{Name: "alpha"}, {Name: "beta"}}
+	config := &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{AdditionalIngresses: ingresses}}
+	g.Expect(gatewayEnvoyFilterTargets(config)).To(Equal([]gatewayEnvoyFilterTarget{
+		{Name: AuthnFilterName, GatewayName: GetDefaultGatewayName()},
+		{Name: additionalGatewayEnvoyFilterName("alpha"), GatewayName: "alpha"},
+		{Name: additionalGatewayEnvoyFilterName("beta"), GatewayName: "beta"},
+	}))
 }
 
 func TestValidateAdditionalIngressesRejectsNonOcpRouteMode(t *testing.T) {
@@ -518,9 +496,8 @@ func TestValidateAdditionalIngressesRejectsNonOcpRouteMode(t *testing.T) {
 	err := (serviceApi.GatewayConfigSpec{
 		IngressMode: serviceApi.IngressModeLoadBalancer,
 		AdditionalIngresses: []serviceApi.AdditionalIngress{{
-			Name:         "alpha",
-			Hostname:     "alpha.example.com",
-			ListenerPort: 9443,
+			Name:     "alpha",
+			Hostname: "alpha.example.com",
 		}},
 	}).ValidateAdditionalIngresses()
 
@@ -695,6 +672,31 @@ func TestComputeLegacyRedirectInfo(t *testing.T) {
 	}
 	info = computeLegacyRedirectInfo(customConfig, testHostnameCustomSubdomain)
 	g.Expect(info.LegacyHostname).To(Equal(testHostnameLegacy))
+
+	whitespaceConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{Subdomain: "   "},
+	}
+	info = computeLegacyRedirectInfo(whitespaceConfig, testHostnameDefault)
+	g.Expect(info.LegacyHostname).To(Equal(testHostnameLegacy))
+}
+
+func TestCreateOAuthClientUsesResolvedHostname(t *testing.T) {
+	g := NewWithT(t)
+	cli := newGatewayTestClient(t, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GetGatewayNamespace(),
+		},
+		Data: map[string][]byte{"OAUTH2_PROXY_CLIENT_SECRET": []byte("client-secret")},
+	})
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	hostname := "resolved.apps.example.com"
+
+	g.Expect(createOAuthClient(t.Context(), rr, hostname)).To(Succeed())
+	g.Expect(rr.Resources).To(HaveLen(1))
+	oauthClient := &oauthv1.OAuthClient{}
+	g.Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, oauthClient)).To(Succeed())
+	g.Expect(oauthClient.RedirectURIs).To(ConsistOf("https://" + hostname + OAuthCallbackPath))
 }
 
 // TestHPATemplateConstant tests that the HPA template constant is correctly defined.
@@ -896,6 +898,58 @@ func renderAuthProxyTemplate(g Gomega, path string, data map[string]any) string 
 	var buf bytes.Buffer
 	g.Expect(tmpl.Execute(&buf, data)).To(Succeed(), "template %s should render", path)
 	return buf.String()
+}
+
+func TestAuthTemplatesCoverEveryManagedGateway(t *testing.T) {
+	g := NewWithT(t)
+	config := &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{
+		Domain:              "apps.example.com",
+		AdditionalIngresses: serviceApi.AdditionalIngresses{{Name: "alpha"}, {Name: "beta"}},
+	}}
+	config.Generation = 1
+	data := authProxyTemplateData()
+	productionData, err := getTemplateData(t.Context(), &odhtypes.ReconciliationRequest{
+		Client: newGatewayTestClient(t, config), Instance: config,
+	})
+	g.Expect(err).NotTo(HaveOccurred())
+	data["GatewayFilters"] = productionData["GatewayFilters"]
+	data["GatewayNameLabelKey"] = productionData["GatewayNameLabelKey"]
+	data["GatewayNamespace"] = GetGatewayNamespace()
+	data["GatewayHTTPSPort"] = GatewayHTTPSPort
+	data["AuthProxyTimeout"] = "5s"
+	data["PartOfLabelKey"] = "app.kubernetes.io/part-of"
+	data["PartOfLabelValue"] = PartOfLabelValue
+	data["IstioRevisionLabel"] = IstioRevisionLabel
+	data["IstioRevisionValue"] = GetIstioRevisionValue()
+
+	envoyFilters := renderAuthProxyTemplate(g, envoyFilterTemplate, data)
+	g.Expect(strings.Count(envoyFilters, "kind: EnvoyFilter")).To(Equal(3))
+	for _, ingressName := range []string{"alpha", "beta"} {
+		g.Expect(envoyFilters).To(ContainSubstring("name: " + additionalGatewayEnvoyFilterName(ingressName)))
+		g.Expect(envoyFilters).To(ContainSubstring("gateway.networking.k8s.io/gateway-name: " + ingressName))
+	}
+
+	networkPolicy := renderAuthProxyTemplate(g, networkPolicyTemplate, data)
+	for _, name := range []string{GetDefaultGatewayName(), "alpha", "beta"} {
+		g.Expect(networkPolicy).To(ContainSubstring("- " + name))
+	}
+
+	config.Status.AdditionalIngresses = []serviceApi.AdditionalIngressStatus{{Name: "alpha"}, {Name: "beta"}}
+	setAdditionalIngressCondition(&config.Status.AdditionalIngresses[0], config.Generation,
+		serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionFalse,
+		additionalIngressReasonOwnershipConflict, "Gateway belongs to another owner")
+	productionData, err = getTemplateData(t.Context(), &odhtypes.ReconciliationRequest{
+		Client: newGatewayTestClient(t, config), Instance: config,
+	})
+	g.Expect(err).NotTo(HaveOccurred())
+	data["GatewayFilters"] = productionData["GatewayFilters"]
+	envoyFilters = renderAuthProxyTemplate(g, envoyFilterTemplate, data)
+	g.Expect(strings.Count(envoyFilters, "kind: EnvoyFilter")).To(Equal(2))
+	g.Expect(envoyFilters).NotTo(ContainSubstring("name: " + additionalGatewayEnvoyFilterName("alpha")))
+	g.Expect(envoyFilters).To(ContainSubstring("name: " + additionalGatewayEnvoyFilterName("beta")))
+	networkPolicy = renderAuthProxyTemplate(g, networkPolicyTemplate, data)
+	g.Expect(networkPolicy).NotTo(ContainSubstring("- alpha"))
+	g.Expect(networkPolicy).To(ContainSubstring("- beta"))
 }
 
 // TestAuthProxyTemplatesErrorWhenTokenReviewKeysMissing documents the e2e bug:

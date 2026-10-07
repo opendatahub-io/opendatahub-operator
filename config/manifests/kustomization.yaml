@@ -33,6 +33,14 @@ patches:
     version: v1
     kind: CustomResourceDefinition
     name: datascienceclusters.datasciencecluster.opendatahub.io
+- patch: |-
+    - op: remove
+      path: /metadata/annotations/service.beta.openshift.io~1inject-cabundle
+  target:
+    group: apiextensions.k8s.io
+    version: v1
+    kind: CustomResourceDefinition
+    name: platforms.config.opendatahub.io
 
 # [WEBHOOK] To enable webhooks, uncomment all the sections with [WEBHOOK] prefix.
 # Do NOT uncomment sections with prefix [CERTMANAGER], as OLM does not support cert-manager.

@@ -35,6 +35,9 @@ spec:
         - name: redirect-config
           mountPath: /opt/app-root/etc/nginx.default.d/redirect.conf
           subPath: redirect.conf
+        - name: redirect-config
+          mountPath: /opt/app-root/src/deprecation.html
+          subPath: deprecation.html
         resources:
           requests:
             cpu: 50m

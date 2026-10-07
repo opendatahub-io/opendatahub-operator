@@ -1,7 +1,7 @@
 name: TLS Config Lint
 on:
   pull_request:
-    branches: [main, master, dev, odh, incubating, stable, stable-2.x]
+    branches: [main, master, dev, odh, incubation, stable, stable-2.x]
 
 permissions:
   contents: read

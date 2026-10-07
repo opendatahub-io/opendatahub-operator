@@ -77,6 +77,12 @@ linters:
           alias: dscv1
         - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2
           alias: dscv2
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3
+          alias: dscApi
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1
+          alias: configv1alpha1
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2
+          alias: configApi
         - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1
           alias: infrav1
         - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
@@ -150,6 +156,11 @@ linters:
       - legacy
       - std-error-handling
     rules:
+      # MaaS v2 compatibility tests intentionally exercise the deprecated field.
+      - linters:
+          - staticcheck
+        path: (tests/e2e/webhooks/conversion/dsc/ai_gateway|internal/webhook/datasciencecluster/v2/conversion/maas/.+_test)\.go
+        text: "SA1019"
       - linters:
           - dupl
         path: tests/*/(.+)_test\.go

@@ -1,16 +1,19 @@
 package v2_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
 	v2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -27,8 +30,8 @@ func TestDataScienceClusterV2_ValidatingWebhook(t *testing.T) {
 	ctx := t.Context()
 
 	gvr := metav1.GroupVersionResource{
-		Group:    gvk.DataScienceCluster.Group,
-		Version:  gvk.DataScienceCluster.Version,
+		Group:    gvk.DataScienceClusterV2.Group,
+		Version:  gvk.DataScienceClusterV2.Version,
 		Resource: "datascienceclusters",
 	}
 
@@ -53,71 +56,71 @@ func TestDataScienceClusterV2_ValidatingWebhook(t *testing.T) {
 		{
 			name:         "Allows creation if none exist",
 			existingObjs: nil,
-			req:          envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSC("test-create"), gvk.DataScienceCluster, gvr),
+			req:          envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSCV2("test-create"), gvk.DataScienceClusterV2, gvr),
 			allowed:      true,
 		},
 		{
 			name:         "Denies creation if one already exists",
-			existingObjs: []client.Object{envtestutil.NewDSC("existing")},
-			req:          envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSC("test-create"), gvk.DataScienceCluster, gvr),
+			existingObjs: []client.Object{envtestutil.NewDSCV2("existing")},
+			req:          envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSCV2("test-create"), gvk.DataScienceClusterV2, gvr),
 			allowed:      false,
 		},
 		{
 			name:         "Allows deletion always",
 			existingObjs: nil,
-			req:          envtestutil.NewAdmissionRequest(t, admissionv1.Delete, envtestutil.NewDSC("test-delete"), gvk.DataScienceCluster, gvr),
+			req:          envtestutil.NewAdmissionRequest(t, admissionv1.Delete, envtestutil.NewDSCV2("test-delete"), gvk.DataScienceClusterV2, gvr),
 			allowed:      true,
 		},
 
 		// Kueue managementState validation cases
 		{
 			name:    "Denies create with Kueue Managed",
-			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSC("test", withKueueState(operatorv1.Managed)), gvk.DataScienceCluster, gvr),
+			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSCV2("test", withKueueState(operatorv1.Managed)), gvk.DataScienceClusterV2, gvr),
 			allowed: false,
 		},
 		{
 			name:    "Allows create with Kueue Unmanaged",
-			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSC("test", withKueueState(operatorv1.Unmanaged)), gvk.DataScienceCluster, gvr),
+			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSCV2("test", withKueueState(operatorv1.Unmanaged)), gvk.DataScienceClusterV2, gvr),
 			allowed: true,
 		},
 		{
 			name:    "Allows create with Kueue Removed",
-			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSC("test", withKueueState(operatorv1.Removed)), gvk.DataScienceCluster, gvr),
+			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSCV2("test", withKueueState(operatorv1.Removed)), gvk.DataScienceClusterV2, gvr),
 			allowed: true,
 		},
 		{
 			name:    "Denies update with Kueue Managed",
-			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Update, envtestutil.NewDSC("test", withKueueState(operatorv1.Managed)), gvk.DataScienceCluster, gvr),
+			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Update, envtestutil.NewDSCV2("test", withKueueState(operatorv1.Managed)), gvk.DataScienceClusterV2, gvr),
 			allowed: false,
 		},
 		{
 			name:    "Allows update with Kueue Unmanaged",
-			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Update, envtestutil.NewDSC("test", withKueueState(operatorv1.Unmanaged)), gvk.DataScienceCluster, gvr),
+			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Update, envtestutil.NewDSCV2("test", withKueueState(operatorv1.Unmanaged)), gvk.DataScienceClusterV2, gvr),
 			allowed: true,
 		},
 		{
 			name:    "Allows update with Kueue Removed",
-			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Update, envtestutil.NewDSC("test", withKueueState(operatorv1.Removed)), gvk.DataScienceCluster, gvr),
+			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Update, envtestutil.NewDSCV2("test", withKueueState(operatorv1.Removed)), gvk.DataScienceClusterV2, gvr),
 			allowed: true,
 		},
 		{
 			name:    "Allows delete with Kueue Managed",
-			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Delete, envtestutil.NewDSC("test", withKueueState(operatorv1.Managed)), gvk.DataScienceCluster, gvr),
+			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Delete, envtestutil.NewDSCV2("test", withKueueState(operatorv1.Managed)), gvk.DataScienceClusterV2, gvr),
 			allowed: true,
 		},
 		{
 			name:    "Denies create with WVA Managed",
-			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSC("test-wva", withWVAState(operatorv1.Managed)), gvk.DataScienceCluster, gvr),
+			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSCV2("test-wva", withWVAState(operatorv1.Managed)), gvk.DataScienceClusterV2, gvr),
 			allowed: false,
 		},
 		{
 			name:    "Allows create with WVA Removed",
-			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSC("test-wva-removed", withWVAState(operatorv1.Removed)), gvk.DataScienceCluster, gvr),
+			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSCV2("test-wva-removed", withWVAState(operatorv1.Removed)), gvk.DataScienceClusterV2, gvr),
 			allowed: true,
 		},
 		{
 			name:    "Denies update with WVA Managed",
-			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Update, envtestutil.NewDSC("test-wva-update", withWVAState(operatorv1.Managed)), gvk.DataScienceCluster, gvr),
+			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Update, envtestutil.NewDSCV2("test-wva-update", withWVAState(operatorv1.Managed)), gvk.DataScienceClusterV2, gvr),
 			allowed: false,
 		},
 	}
@@ -153,8 +156,8 @@ func TestDataScienceClusterV2_WVADeprecationWarning(t *testing.T) {
 	g := NewWithT(t)
 
 	gvr := metav1.GroupVersionResource{
-		Group:    gvk.DataScienceCluster.Group,
-		Version:  gvk.DataScienceCluster.Version,
+		Group:    gvk.DataScienceClusterV2.Group,
+		Version:  gvk.DataScienceClusterV2.Version,
 		Resource: "datascienceclusters",
 	}
 
@@ -175,60 +178,102 @@ func TestDataScienceClusterV2_WVADeprecationWarning(t *testing.T) {
 	}
 
 	req := envtestutil.NewAdmissionRequest(t, admissionv1.Create,
-		envtestutil.NewDSC("test-wva-warning", withWVA(operatorv1.Removed)),
-		gvk.DataScienceCluster, gvr)
+		envtestutil.NewDSCV2("test-wva-warning", withWVA(operatorv1.Removed)),
+		gvk.DataScienceClusterV2, gvr)
 	resp := validator.Handle(ctx, req)
 	g.Expect(resp.Allowed).To(BeTrue())
-	g.Expect(resp.Warnings).To(ContainElement(ContainSubstring("spec.components.kserve.wva is deprecated")))
+	g.Expect(resp.Warnings).To(ContainElement(dscwebhook.DeprecatedWVAWarning))
 }
 
-func TestDataScienceClusterV2_ModelsAsServiceDeprecationWarning(t *testing.T) {
+func TestDataScienceClusterV2_NoModelsAsServiceWarning(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
 	g := NewWithT(t)
-
+	sch, err := scheme.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	cli, err := fakeclient.New(fakeclient.WithScheme(sch))
+	g.Expect(err).NotTo(HaveOccurred())
+	validator := &v2webhook.Validator{Client: cli, Name: "test-v2", Decoder: admission.NewDecoder(sch)}
 	gvr := metav1.GroupVersionResource{
-		Group:    gvk.DataScienceCluster.Group,
-		Version:  gvk.DataScienceCluster.Version,
-		Resource: "datascienceclusters",
+		Group: gvk.DataScienceClusterV2.Group, Version: "v2", Resource: "datascienceclusters",
 	}
-
-	withModelsAsService := func(state operatorv1.ManagementState) func(*dscv2.DataScienceCluster) {
-		return func(dsc *dscv2.DataScienceCluster) {
-			dsc.Spec.Components.Kserve.ModelsAsService.ManagementState = state //nolint:staticcheck
+	for _, operation := range []admissionv1.Operation{admissionv1.Create, admissionv1.Update} {
+		for _, state := range []operatorv1.ManagementState{"", operatorv1.Managed, operatorv1.Removed} {
+			t.Run(string(operation)+"/"+string(state), func(t *testing.T) {
+				t.Parallel()
+				g := NewWithT(t)
+				dsc := envtestutil.NewDSCV2("maas-warning")
+				dsc.Spec.Components.Kserve.ModelsAsService.ManagementState = state //nolint:staticcheck
+				req := envtestutil.NewAdmissionRequest(t, operation, dsc, gvk.DataScienceClusterV2, gvr)
+				resp := validator.Handle(t.Context(), req)
+				g.Expect(resp.Allowed).To(BeTrue())
+				g.Expect(resp.Warnings).To(BeEmpty())
+			})
 		}
 	}
+}
 
-	sch, err := scheme.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
-	cli, err := fakeclient.New(fakeclient.WithObjects(envtestutil.NewDSCI("dsci-for-dsc")), fakeclient.WithScheme(sch))
-	g.Expect(err).ShouldNot(HaveOccurred())
-	validator := &v2webhook.Validator{
-		Client:  cli,
-		Name:    "test-v2",
-		Decoder: admission.NewDecoder(sch),
+func TestDataScienceClusterV2_RetiredOperatorManagedStateUpdate(t *testing.T) {
+	t.Parallel()
+	for _, component := range []struct {
+		name  string
+		state func(*dscv2.DataScienceCluster) *operatorv1.ManagementState
+	}{
+		{
+			name: "TrainingOperator",
+			state: func(dsc *dscv2.DataScienceCluster) *operatorv1.ManagementState {
+				return &dsc.Spec.Components.TrainingOperator.ManagementState
+			},
+		},
+		{
+			name: "LlamaStackOperator",
+			state: func(dsc *dscv2.DataScienceCluster) *operatorv1.ManagementState {
+				return &dsc.Spec.Components.LlamaStackOperator.ManagementState
+			},
+		},
+	} {
+		t.Run(component.name, func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range []struct {
+				name     string
+				oldState operatorv1.ManagementState
+				newState operatorv1.ManagementState
+				allowed  bool
+			}{
+				{name: "preserves existing Managed", oldState: operatorv1.Managed, newState: operatorv1.Managed, allowed: true},
+				{name: "allows removing existing Managed", oldState: operatorv1.Managed, newState: operatorv1.Removed, allowed: true},
+				{name: "denies enabling from Removed", oldState: operatorv1.Removed, newState: operatorv1.Managed, allowed: false},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					g := NewWithT(t)
+					sch, err := scheme.New()
+					g.Expect(err).NotTo(HaveOccurred())
+					cli, err := fakeclient.New(fakeclient.WithScheme(sch))
+					g.Expect(err).NotTo(HaveOccurred())
+					validator := &v2webhook.Validator{Client: cli, Name: "test-v2", Decoder: admission.NewDecoder(sch)}
+
+					oldDSC := envtestutil.NewDSCV2("retired-update")
+					*component.state(oldDSC) = tc.oldState
+					newDSC := oldDSC.DeepCopy()
+					*component.state(newDSC) = tc.newState
+					oldRaw, err := json.Marshal(oldDSC)
+					g.Expect(err).NotTo(HaveOccurred())
+					newRaw, err := json.Marshal(newDSC)
+					g.Expect(err).NotTo(HaveOccurred())
+					req := admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
+						Kind: metav1.GroupVersionKind{
+							Group:   gvk.DataScienceClusterV2.Group,
+							Version: gvk.DataScienceClusterV2.Version,
+							Kind:    gvk.DataScienceClusterV2.Kind,
+						},
+						Operation: admissionv1.Update,
+						Object:    runtime.RawExtension{Raw: newRaw},
+						OldObject: runtime.RawExtension{Raw: oldRaw},
+					}}
+
+					resp := validator.Handle(t.Context(), req)
+					g.Expect(resp.Allowed).To(Equal(tc.allowed))
+				})
+			}
+		})
 	}
-
-	t.Run("Warns on create when modelsAsService is Managed", func(t *testing.T) {
-		t.Parallel()
-		g := NewWithT(t)
-		req := envtestutil.NewAdmissionRequest(t, admissionv1.Create,
-			envtestutil.NewDSC("test-warn", withModelsAsService(operatorv1.Managed)),
-			gvk.DataScienceCluster, gvr)
-		resp := validator.Handle(ctx, req)
-		g.Expect(resp.Allowed).To(BeTrue())
-		g.Expect(resp.Warnings).To(ContainElement(ContainSubstring("modelsAsService is deprecated")))
-		g.Expect(resp.Warnings).To(ContainElement(ContainSubstring("aigateway.modelsAsAService")))
-	})
-
-	t.Run("No warning when modelsAsService is Removed", func(t *testing.T) {
-		t.Parallel()
-		g := NewWithT(t)
-		req := envtestutil.NewAdmissionRequest(t, admissionv1.Create,
-			envtestutil.NewDSC("test-no-warn", withModelsAsService(operatorv1.Removed)),
-			gvk.DataScienceCluster, gvr)
-		resp := validator.Handle(ctx, req)
-		g.Expect(resp.Allowed).To(BeTrue())
-		g.Expect(resp.Warnings).To(BeEmpty())
-	})
 }
