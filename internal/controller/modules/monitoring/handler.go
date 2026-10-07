@@ -92,7 +92,7 @@ func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 // BuildModuleCR constructs the Monitoring CR from DSCI spec with
 // conditional field projection matching the monitoring domain rules:
 // collector replica defaulting, TLS nulling when disabled, and
-// metrics/traces omitted when storage/config is unset.
+// metrics/traces/logs/usageLogs omitted when storage/config is unset.
 func (h *handler) BuildModuleCR(
 	ctx context.Context,
 	cli client.Client,
@@ -107,6 +107,8 @@ func (h *handler) BuildModuleCR(
 
 	metricsEnabled := spec.Metrics != nil && (spec.Metrics.Storage != nil || len(spec.Metrics.Exporters) > 0)
 	tracesEnabled := spec.Traces != nil && (spec.Traces.Storage != nil || len(spec.Traces.Exporters) > 0)
+	logsEnabled := spec.Logs != nil && spec.Logs.Storage != nil
+	usageLogsEnabled := spec.UsageLogs != nil && spec.UsageLogs.Storage != nil
 
 	if !metricsEnabled {
 		spec.Metrics = nil
@@ -118,6 +120,14 @@ func (h *handler) BuildModuleCR(
 		}
 	} else {
 		spec.Traces = nil
+	}
+
+	if !logsEnabled {
+		spec.Logs = nil
+	}
+
+	if !usageLogsEnabled {
+		spec.UsageLogs = nil
 	}
 
 	if metricsEnabled || tracesEnabled {

@@ -3036,6 +3036,8 @@ _Appears in:_
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
+| `logs` _[Logs](#logs)_ | Logs configures cluster log forwarding via the ClusterLogForwarder operator. |  |  |
+| `usageLogs` _[UsageLogs](#usagelogs)_ | UsageLogs configures usage log collection and forwarding to Loki. |  |  |
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  |  |
 
 
@@ -3157,6 +3159,44 @@ _Appears in:_
 | `enabled` _boolean_ | Enabled determines whether ingress rules are applied.<br />When true, creates NetworkPolicy allowing traffic only from Gateway pods and monitoring namespaces. |  | Required: \{\} <br /> |
 
 
+#### Logs
+
+
+
+Logs defines the configuration for cluster log forwarding via the ClusterLogForwarder operator.
+
+
+
+_Appears in:_
+- [DSCIMonitoring](#dscimonitoring)
+- [MonitoringCommonSpec](#monitoringcommonspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `storage` _[LokiStorageConfig](#lokistorageconfig)_ | Storage configures the LokiStack storage backend for log forwarding.<br />Required: the operator deploys a shared LokiStack used by both log forwarding and usage logs. |  | Required: \{\} <br /> |
+| `inferenceNamespaces` _string array_ | InferenceNamespaces lists the namespaces whose application logs should be forwarded to Loki. |  | items:MaxLength: 63 <br />items:Pattern: ^[a-z0-9]([a-z0-9\-]\{0,61\}[a-z0-9])?$ <br /> |
+
+
+#### LokiStorageConfig
+
+
+
+LokiStorageConfig defines storage configuration for LokiStack.
+
+
+
+_Appears in:_
+- [Logs](#logs)
+- [UsageLogs](#usagelogs)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `type` _string_ | Type specifies the storage backend: "s3". |  | Enum: [s3] <br />Required: \{\} <br /> |
+| `secretName` _string_ | SecretName is the name of the Secret containing storage credentials.<br />For S3: must contain keys: access_key_id, access_key_secret, bucketnames, endpoint, region, insecure, s3ForcePathStyle |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$` <br />Required: \{\} <br /> |
+| `credentialMode` _string_ | CredentialMode specifies how credentials are provided to LokiStack.<br />Valid values: "static", "token", "token-cco". | static | Enum: [static token token-cco] <br /> |
+| `storageClassName` _string_ | StorageClassName specifies the storage class for LokiStack PVCs. | gp3-csi | MaxLength: 253 <br /> |
+
+
 #### Metrics
 
 
@@ -3210,6 +3250,8 @@ _Appears in:_
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
+| `logs` _[Logs](#logs)_ | Logs configures cluster log forwarding via the ClusterLogForwarder operator. |  |  |
+| `usageLogs` _[UsageLogs](#usagelogs)_ | UsageLogs configures usage log collection and forwarding to Loki. |  |  |
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  |  |
 
 
@@ -3324,5 +3366,22 @@ _Appears in:_
 | `enabled` _boolean_ | Enabled enables TLS for Tempo OTLP ingestion (gRPC/HTTP) and query APIs (HTTP)<br />TLS is disabled by default to maintain backward compatibility |  |  |
 | `certificateSecret` _string_ | CertificateSecret specifies the name of the secret containing TLS certificates<br />If not specified, OpenShift service serving certificates will be used |  |  |
 | `caConfigMap` _string_ | CAConfigMap specifies the name of the ConfigMap containing the CA certificate<br />Required for mutual TLS authentication |  |  |
+
+
+#### UsageLogs
+
+
+
+UsageLogs defines the configuration for usage log collection.
+
+
+
+_Appears in:_
+- [DSCIMonitoring](#dscimonitoring)
+- [MonitoringCommonSpec](#monitoringcommonspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `storage` _[LokiStorageConfig](#lokistorageconfig)_ | Storage configures the LokiStack storage backend (S3).<br />When configured, the operator deploys a LokiStack instance and auto-configures the collector endpoint. |  | Required: \{\} <br /> |
 
 
