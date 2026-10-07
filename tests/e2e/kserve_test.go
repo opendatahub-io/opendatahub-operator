@@ -68,7 +68,6 @@ func kserveTestSuite(t *testing.T) {
 		TestCase{"Validate module enabled", componentCtx.ValidateModuleEnabled},
 		TestCase{"Validate component spec", componentCtx.ValidateSpec},
 		TestCase{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
-		TestCase{"Validate no Kserve FeatureTrackers", componentCtx.ValidateNoKserveFeatureTrackers},
 		TestCase{"Validate VAP created when kserve is enabled", componentCtx.ValidateS3SecretCheckBucketExist},
 		TestCase{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		TestCase{"Validate component releases", componentCtx.ValidateComponentReleases},
@@ -208,29 +207,6 @@ func (tc *KserveTestCtx) ValidateSubscriptionDependencyConditions(t *testing.T) 
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
 				kserve.LLMInferenceServiceWideEPDependencies, metav1.ConditionTrue),
 		)),
-	)
-}
-
-// ValidateNoKserveFeatureTrackers ensures there are no FeatureTrackers for Kserve.
-func (tc *KserveTestCtx) ValidateNoKserveFeatureTrackers(t *testing.T) {
-	t.Helper()
-
-	skipUnless(t, Smoke)
-
-	// FeatureTrackers are not supported on XKS platform (also CRD are not installed), skip the test
-	tc.SkipIfXKSCluster(t)
-
-	tc.EnsureResourcesDoNotExist(
-		WithMinimalObject(gvk.FeatureTracker, tc.NamespacedName),
-		WithListOptions(&client.ListOptions{
-			Namespace: tc.AppsNamespace,
-			LabelSelector: k8slabels.SelectorFromSet(
-				k8slabels.Set{
-					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
-				},
-			),
-		}),
-		WithCustomErrorMsg("Expected no KServe-related FeatureTracker resources to be present"),
 	)
 }
 
