@@ -17,19 +17,32 @@ limitations under the License.
 package gateway
 
 // +kubebuilder:rbac:groups=route.openshift.io,resources=routes/custom-host,verbs=create;patch;update
+// +kubebuilder:rbac:groups=operator.openshift.io,resources=ingresscontrollers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=config.openshift.io,resources=ingresses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
+// +kubebuilder:rbac:groups=route.openshift.io,resources=routes,verbs=create;delete;get;list;patch;update;watch
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	gotemplate "text/template"
 
+	routev1 "github.com/openshift/api/route/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	templateutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/template"
 )
 
-// GatewayServiceFullName is the name of the auto-created Gateway service.
-// Format: <gateway-name>-<gatewayclass-name>.
-var GatewayServiceFullName = DefaultGatewayName + "-" + GatewayClassName
+const (
+	serviceCAAnnotation = "router.openshift.io/service-ca-certificate"
+)
 
 // createOCPRoutes adds OCP Route template when in OcpRoute mode.
 func createOCPRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -39,7 +52,6 @@ func createOCPRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 	if err != nil {
 		return err
 	}
-
 	if rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig) {
 		return nil
 	}
@@ -55,6 +67,8 @@ func createOCPRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 	}
 	if unresolved {
 		l.V(1).Info("Gateway domain not configured, skipping OCP Route creation")
+		recordAllAdditionalIngressRouteConditions(rr, gatewayConfig.Spec.AdditionalIngresses,
+			additionalIngressReasonDependencyUnavailable, "Gateway domain is not available yet")
 		return nil
 	}
 
@@ -67,5 +81,112 @@ func createOCPRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		},
 	)
 
+	if err := createAdditionalIngressRoutes(ctx, rr, gatewayConfig); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func createAdditionalIngressRoutes(
+	ctx context.Context,
+	rr *odhtypes.ReconciliationRequest,
+	gatewayConfig *serviceApi.GatewayConfig,
+) error {
+	ingresses := gatewayConfig.Spec.AdditionalIngresses
+	if len(ingresses) == 0 {
+		return nil
+	}
+
+	l := logf.FromContext(ctx).WithName("createAdditionalIngressRoutes")
+	for _, ingress := range ingresses {
+		if additionalIngressHasGatewayConflict(gatewayConfig, ingress.Name) {
+			continue
+		}
+		route, err := buildAdditionalIngressRoute(ingress)
+		if err != nil {
+			recordAdditionalIngressRouteCondition(rr, ingress.Name, metav1.ConditionUnknown,
+				additionalIngressReasonNotReady, "The bridge Route could not be rendered")
+			return fmt.Errorf("failed to render additional ingress Route for %q: %w", ingress.Name, err)
+		}
+		manageable, err := canManageGatewayResource(ctx, rr.Client, gatewayConfig, route)
+		if err != nil {
+			return fmt.Errorf("failed to verify additional ingress Route %q ownership: %w", route.Name, err)
+		}
+		if !manageable {
+			l.Info("Skipping additional ingress Route because existing Route is not owned by GatewayConfig",
+				"ingress", ingress.Name, "route", route.Name)
+			recordAdditionalIngressRouteCondition(rr, ingress.Name, metav1.ConditionFalse,
+				additionalIngressReasonOwnershipConflict,
+				fmt.Sprintf("Route %q is not controlled by this GatewayConfig", route.Name))
+			continue
+		}
+		if err := rr.AddResources(route); err != nil {
+			recordAdditionalIngressRouteCondition(rr, ingress.Name, metav1.ConditionUnknown,
+				additionalIngressReasonNotReady, "The bridge Route could not be added to the desired resources")
+			return fmt.Errorf("failed to add additional ingress Route for %q: %w", ingress.Name, err)
+		}
+	}
+	return nil
+}
+
+func canManageGatewayResource(
+	ctx context.Context,
+	cli client.Client,
+	gatewayConfig *serviceApi.GatewayConfig,
+	desired client.Object,
+) (bool, error) {
+	existing, ok := desired.DeepCopyObject().(client.Object)
+	if !ok {
+		return false, fmt.Errorf("cannot copy resource %T", desired)
+	}
+	err := cli.Get(ctx, client.ObjectKeyFromObject(desired), existing)
+	if k8serr.IsNotFound(err) {
+		return true, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to get existing resource %s: %w", client.ObjectKeyFromObject(desired), err)
+	}
+
+	return isOwnedByGatewayConfig(existing, gatewayConfig), nil
+}
+
+func isOwnedByGatewayConfig(obj client.Object, gatewayConfig *serviceApi.GatewayConfig) bool {
+	controller := metav1.GetControllerOf(obj)
+	return controller != nil && controller.UID == gatewayConfig.UID &&
+		controller.Name == gatewayConfig.Name && controller.Kind == serviceApi.GatewayConfigKind
+}
+
+func buildAdditionalIngressRoute(ingress serviceApi.AdditionalIngress) (*routev1.Route, error) {
+	data := map[string]any{
+		"GatewayName":        ingress.Name,
+		"GatewayNamespace":   GetGatewayNamespace(),
+		"GatewayHostname":    ingress.Hostname,
+		"GatewayServiceName": GetGatewayServiceFullName(ingress.Name),
+		"StandardHTTPSPort":  StandardHTTPSPort,
+		"RouteLabels":        gatewayRouteLabels(ingress.RouteLabels),
+	}
+
+	content, err := gatewayResources.ReadFile(ocpRouteTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Route template: %w", err)
+	}
+	tmpl, err := gotemplate.New(ocpRouteTemplate).
+		Funcs(templateutils.TextTemplateFuncMap()).
+		Option("missingkey=error").
+		Parse(string(content))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Route template: %w", err)
+	}
+
+	var rendered bytes.Buffer
+	if err := tmpl.Execute(&rendered, data); err != nil {
+		return nil, fmt.Errorf("failed to execute Route template: %w", err)
+	}
+
+	route := &routev1.Route{}
+	if err := k8syaml.Unmarshal(rendered.Bytes(), route); err != nil {
+		return nil, fmt.Errorf("failed to decode Route template: %w", err)
+	}
+	return route, nil
 }

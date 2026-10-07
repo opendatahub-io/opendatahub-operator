@@ -12,16 +12,17 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
 
 	. "github.com/onsi/gomega"
 )
 
-func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
-	return &configv1alpha1.PlatformModules{
-		FeastOperator: common.ManagementSpec{
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configApi.PlatformModules {
+	return &configApi.PlatformModules{
+		Data: common.ManagementSpec{
 			ManagementState: mgmtState,
 		},
 	}
@@ -55,7 +56,7 @@ func TestIsEnabled_NilModules(t *testing.T) {
 func TestIsEnabled_EmptyModules(t *testing.T) {
 	g := NewWithT(t)
 	h := feastoperator.NewHandler()
-	g.Expect(h.IsEnabled(&configv1alpha1.PlatformModules{})).Should(BeFalse())
+	g.Expect(h.IsEnabled(&configApi.PlatformModules{})).Should(BeFalse())
 }
 
 func TestBuildModuleCR_NilClientReturnsError_BothNil(t *testing.T) {
@@ -172,6 +173,32 @@ func TestGetGVK(t *testing.T) {
 	g.Expect(gvk.Group).Should(Equal("components.platform.opendatahub.io"))
 	g.Expect(gvk.Version).Should(Equal("v1alpha1"))
 	g.Expect(gvk.Kind).Should(Equal("FeastOperator"))
+}
+
+func TestGetReadyConditionType(t *testing.T) {
+	g := NewWithT(t)
+	h := feastoperator.NewHandler()
+	g.Expect(h.GetReadyConditionType()).Should(Equal("DataReady"))
+}
+
+func TestWriteDSCComponentStatus(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		enabled bool
+		want    operatorv1.ManagementState
+	}{
+		{name: "managed", enabled: true, want: operatorv1.Managed},
+		{name: "removed", enabled: false, want: operatorv1.Removed},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			dsc := &dscApi.DataScienceCluster{}
+
+			feastoperator.NewHandler().WriteDSCComponentStatus(dsc, tt.enabled, nil)
+
+			g.Expect(dsc.Status.Components.Data.ManagementState).Should(Equal(tt.want))
+		})
+	}
 }
 
 func unstructuredNestedMap(obj map[string]any, fields ...string) (map[string]any, bool) {

@@ -19,12 +19,12 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
-	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -110,14 +110,20 @@ var (
 	}
 
 	DataScienceCluster = schema.GroupVersionKind{
+		Group:   dscApi.GroupVersion.Group,
+		Version: dscApi.GroupVersion.Version,
+		Kind:    "DataScienceCluster",
+	}
+
+	DataScienceClusterV2 = schema.GroupVersionKind{
 		Group:   dscv2.GroupVersion.Group,
 		Version: dscv2.GroupVersion.Version,
 		Kind:    "DataScienceCluster",
 	}
 
-	DataScienceClusterV1 = schema.GroupVersionKind{
-		Group:   dscv1.GroupVersion.Group,
-		Version: dscv1.GroupVersion.Version,
+	DataScienceClusterV3 = schema.GroupVersionKind{
+		Group:   dscApi.GroupVersion.Group,
+		Version: dscApi.GroupVersion.Version,
 		Kind:    "DataScienceCluster",
 	}
 
@@ -143,12 +149,6 @@ var (
 		Group:   infrav1alpha1.GroupVersion.Group,
 		Version: infrav1alpha1.GroupVersion.Version,
 		Kind:    "HardwareProfile",
-	}
-
-	FeatureTracker = schema.GroupVersionKind{
-		Group:   featuresv1.GroupVersion.Group,
-		Version: featuresv1.GroupVersion.Version,
-		Kind:    "FeatureTracker",
 	}
 
 	Pod = schema.GroupVersionKind{
@@ -385,11 +385,19 @@ var (
 		Kind:    serviceApi.MonitoringKind,
 	}
 
-	Platform = schema.GroupVersionKind{
+	PlatformV1alpha1 = schema.GroupVersionKind{
+		Group:   configv1alpha1.GroupVersion.Group,
+		Version: configv1alpha1.GroupVersion.Version,
+		Kind:    configv1alpha1.PlatformKind,
+	}
+
+	PlatformV1alpha2 = schema.GroupVersionKind{
 		Group:   configApi.GroupVersion.Group,
 		Version: configApi.GroupVersion.Version,
 		Kind:    configApi.PlatformKind,
 	}
+
+	Platform = PlatformV1alpha2
 
 	FeastOperator = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,

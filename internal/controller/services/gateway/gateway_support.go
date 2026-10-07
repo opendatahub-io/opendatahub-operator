@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 
 	oauthv1 "github.com/openshift/api/oauth/v1"
@@ -39,11 +38,11 @@ const (
 	// Gateway infrastructure constants.
 	GatewayNamespace           = "openshift-ingress"                  // Namespace where Gateway resources are deployed on OpenShift
 	XKSGatewayNamespace        = "rh-ai-gateway"                      // Namespace for gateway resources on XKS (vanilla K8s)
-	GatewayClassName           = "data-science-gateway-class"         // GatewayClass name for gateway resources
+	GatewayClassName           = serviceApi.GatewayClassName          // GatewayClass name for gateway resources
 	GatewayControllerName      = "openshift.io/gateway-controller/v1" // OpenShift Gateway API controller name
 	XKSGatewayControllerName   = "istio.io/gateway-controller"        // XKS (standard Istio) Gateway API controller name
-	DefaultGatewayName         = "data-science-gateway"               // Default gateway resource name on OpenShift
-	XKSDefaultGatewayName      = "rh-ai-gateway"                      // Default gateway resource name on XKS
+	DefaultGatewayName         = serviceApi.DefaultGatewayName        // Default gateway resource name on OpenShift
+	XKSDefaultGatewayName      = serviceApi.XKSDefaultGatewayName     // Default gateway resource name on XKS
 	HTTPSPortName              = serviceApi.DefaultGatewayListenerName
 	DefaultGatewayListenerName = serviceApi.DefaultGatewayListenerName
 	LegacyGatewayListenerName  = serviceApi.LegacyGatewayListenerName
@@ -156,10 +155,48 @@ func GetIstioRevisionValue() string {
 	return IstioRevisionValue
 }
 
-// GetGatewayServiceFullName returns the auto-created Gateway service name.
+// GetDefaultGatewayServiceFullName returns the auto-created Gateway service name.
 // Format: <gateway-name>-<gatewayclass-name>.
-func GetGatewayServiceFullName() string {
-	return GetDefaultGatewayName() + "-" + GatewayClassName
+func GetDefaultGatewayServiceFullName() string {
+	return GetGatewayServiceFullName(GetDefaultGatewayName())
+}
+
+// GetGatewayServiceFullName returns Istio's Service name for a Gateway.
+func GetGatewayServiceFullName(gatewayName string) string {
+	return gatewayName + "-" + GatewayClassName
+}
+
+func additionalGatewayInfrastructureConfigMapName(ingressName string) string {
+	return ingressName + "-config"
+}
+
+func additionalGatewayServiceTLSSecretName(ingressName string) string {
+	return ingressName + "-service-tls"
+}
+
+func additionalGatewayEnvoyFilterName(ingressName string) string {
+	return ingressName + "-authn"
+}
+
+type gatewayEnvoyFilterTarget struct {
+	Name        string
+	GatewayName string
+}
+
+func gatewayEnvoyFilterTargets(gatewayConfig *serviceApi.GatewayConfig) []gatewayEnvoyFilterTarget {
+	targets := []gatewayEnvoyFilterTarget{{Name: AuthnFilterName, GatewayName: GetDefaultGatewayName()}}
+	if gatewayConfig != nil {
+		for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
+			if additionalIngressHasGatewayConflict(gatewayConfig, ingress.Name) {
+				continue
+			}
+			targets = append(targets, gatewayEnvoyFilterTarget{
+				Name:        additionalGatewayEnvoyFilterName(ingress.Name),
+				GatewayName: ingress.Name,
+			})
+		}
+	}
+	return targets
 }
 
 // ErrDomainRequired is returned by GetFQDN when spec.domain is not set on non-OpenShift clusters.
@@ -169,14 +206,9 @@ var ErrDomainRequired = errors.New("spec.domain is required on non-OpenShift clu
 // It constructs the FQDN by combining the subdomain (or default) with either the user-specified
 // domain or the cluster domain.
 func GetFQDN(ctx context.Context, cli client.Client, gatewayConfig *serviceApi.GatewayConfig) (string, error) {
-	subdomain := DefaultGatewaySubdomain
+	subdomain := getCurrentSubdomain(gatewayConfig)
 
 	if gatewayConfig != nil {
-		subdomain = strings.TrimSpace(gatewayConfig.Spec.Subdomain)
-		if subdomain == "" {
-			subdomain = DefaultGatewaySubdomain
-		}
-
 		baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
 		if baseDomain != "" {
 			return fmt.Sprintf("%s.%s", subdomain, baseDomain), nil
@@ -275,13 +307,17 @@ func isGatewayReady(gateway *gwapiv1.Gateway) bool {
 // When the type is unset it mirrors the platform-aware default applied by handleCertificates:
 // SelfSigned on XKS (vanilla Kubernetes) and OpenshiftDefaultIngress on OpenShift.
 func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
+	return string(effectiveCertificateType(gatewayConfig, cluster.GetClusterInfo().Type))
+}
+
+func effectiveCertificateType(gatewayConfig *serviceApi.GatewayConfig, clusterType string) infrav1.CertType {
 	if gatewayConfig != nil && gatewayConfig.Spec.Certificate != nil && gatewayConfig.Spec.Certificate.Type != "" {
-		return string(gatewayConfig.Spec.Certificate.Type)
+		return gatewayConfig.Spec.Certificate.Type
 	}
-	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
-		return string(infrav1.SelfSigned)
+	if clusterType == cluster.ClusterTypeKubernetes {
+		return infrav1.SelfSigned
 	}
-	return string(infrav1.OpenshiftDefaultIngress)
+	return infrav1.OpenshiftDefaultIngress
 }
 
 func gatewayCertificateSecretName(gatewayConfig *serviceApi.GatewayConfig) string {
@@ -296,14 +332,7 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 	if gatewayConfig.Spec.Certificate != nil {
 		certConfig = *gatewayConfig.Spec.Certificate
 	}
-
-	if certConfig.Type == "" {
-		if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
-			certConfig.Type = infrav1.SelfSigned
-		} else {
-			certConfig.Type = infrav1.OpenshiftDefaultIngress
-		}
-	}
+	certConfig.Type = effectiveCertificateType(gatewayConfig, cluster.GetClusterInfo().Type)
 
 	secretName := gatewayCertificateSecretName(gatewayConfig)
 
@@ -368,60 +397,60 @@ func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
 	return rr.AddResources(gatewayClass)
 }
 
+func gatewayHTTPSListener(name gwapiv1.SectionName, secretName string, allowedRoutes *gwapiv1.AllowedRoutes) gwapiv1.Listener {
+	httpsMode := gwapiv1.TLSModeTerminate
+	return gwapiv1.Listener{
+		Name: name, Protocol: gwapiv1.HTTPSProtocolType, Port: StandardHTTPSPort,
+		TLS: &gwapiv1.GatewayTLSConfig{
+			Mode:            &httpsMode,
+			CertificateRefs: []gwapiv1.SecretObjectReference{{Name: gwapiv1.ObjectName(secretName)}},
+		},
+		AllowedRoutes: allowedRoutes,
+	}
+}
+
+func managedGateway(name string, listeners []gwapiv1.Listener) *gwapiv1.Gateway {
+	return &gwapiv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name, Namespace: GetGatewayNamespace(),
+			Labels: map[string]string{IstioRevisionLabel: GetIstioRevisionValue()},
+		},
+		Spec: gwapiv1.GatewaySpec{GatewayClassName: GatewayClassName, Listeners: listeners},
+	}
+}
+
 func createGateway(
 	rr *odhtypes.ReconciliationRequest,
 	certSecretName string,
 	domain string,
 	legacyDomain string,
-	ingressMode serviceApi.IngressMode,
-	additionalIngresses serviceApi.AdditionalIngresses,
+	gatewayConfig *serviceApi.GatewayConfig,
 ) error {
-	if err := additionalIngresses.Validate(ingressMode); err != nil {
-		return err
-	}
+	ingressMode := gatewayConfig.Spec.IngressMode
 
 	listeners := []gwapiv1.Listener{}
+	allowedNamespaces := gwapiv1.NamespacesFromSelector
+	namespaceSelector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      "kubernetes.io/metadata.name",
+				Operator: metav1.LabelSelectorOpIn,
+				Values: []string{
+					GetGatewayNamespace(),
+					cluster.GetApplicationNamespace(),
+				},
+			},
+		},
+	}
+	allowedRoutes := &gwapiv1.AllowedRoutes{
+		Namespaces: &gwapiv1.RouteNamespaces{
+			From:     &allowedNamespaces,
+			Selector: namespaceSelector,
+		},
+	}
 
 	if certSecretName != "" {
-		httpsMode := gwapiv1.TLSModeTerminate
-		allowedNamespaces := gwapiv1.NamespacesFromSelector
-
-		namespaceSelector := &metav1.LabelSelector{
-			MatchExpressions: []metav1.LabelSelectorRequirement{
-				{
-					Key:      "kubernetes.io/metadata.name",
-					Operator: metav1.LabelSelectorOpIn,
-					Values: []string{
-						GetGatewayNamespace(),
-						cluster.GetApplicationNamespace(),
-					},
-				},
-			},
-		}
-
-		tlsConfig := &gwapiv1.GatewayTLSConfig{
-			Mode: &httpsMode,
-			CertificateRefs: []gwapiv1.SecretObjectReference{
-				{
-					Name: gwapiv1.ObjectName(certSecretName),
-				},
-			},
-		}
-
-		allowedRoutes := &gwapiv1.AllowedRoutes{
-			Namespaces: &gwapiv1.RouteNamespaces{
-				From:     &allowedNamespaces,
-				Selector: namespaceSelector,
-			},
-		}
-
-		httpsListener := gwapiv1.Listener{
-			Name:          DefaultGatewayListenerName,
-			Protocol:      gwapiv1.HTTPSProtocolType,
-			Port:          StandardHTTPSPort,
-			TLS:           tlsConfig,
-			AllowedRoutes: allowedRoutes,
-		}
+		httpsListener := gatewayHTTPSListener(DefaultGatewayListenerName, certSecretName, allowedRoutes)
 
 		if ingressMode != serviceApi.IngressModeOcpRoute {
 			hostname := gwapiv1.Hostname(domain)
@@ -434,84 +463,79 @@ func createGateway(
 		// (EnvoyFilter will redirect these to the new hostname)
 		if ingressMode != serviceApi.IngressModeOcpRoute && legacyDomain != "" {
 			legacyHostname := gwapiv1.Hostname(legacyDomain)
-			legacyListener := gwapiv1.Listener{
-				Name:          LegacyGatewayListenerName,
-				Protocol:      gwapiv1.HTTPSProtocolType,
-				Port:          StandardHTTPSPort,
-				Hostname:      &legacyHostname,
-				TLS:           tlsConfig,
-				AllowedRoutes: allowedRoutes,
-			}
+			legacyListener := gatewayHTTPSListener(LegacyGatewayListenerName, certSecretName, allowedRoutes)
+			legacyListener.Hostname = &legacyHostname
 			listeners = append(listeners, legacyListener)
 		}
-
-		listeners = append(listeners, buildAdditionalIngressListeners(additionalIngresses, tlsConfig, allowedRoutes)...)
 	}
 
-	gateway := &gwapiv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      GetDefaultGatewayName(),
-			Namespace: GetGatewayNamespace(),
-			Labels: map[string]string{
-				IstioRevisionLabel: GetIstioRevisionValue(),
-			},
-		},
-		Spec: gwapiv1.GatewaySpec{
-			GatewayClassName: GatewayClassName,
-			Listeners:        listeners,
-		},
-	}
+	gateway := managedGateway(GetDefaultGatewayName(), listeners)
 
 	if ingressMode == serviceApi.IngressModeOcpRoute {
-		if err := configureClusterIPInfrastructure(rr, gateway); err != nil {
+		if err := configureClusterIPInfrastructure(rr, gateway, GatewayInfraConfigMapName, GatewayServiceTLSSecretName); err != nil {
 			return err
 		}
 	}
 
-	return rr.AddResources(gateway)
+	if err := rr.AddResources(gateway); err != nil {
+		return err
+	}
+
+	return createAdditionalGateways(rr, gatewayConfig, allowedRoutes)
 }
 
-func buildAdditionalIngressListeners(
-	ingresses serviceApi.AdditionalIngresses,
-	tlsConfig *gwapiv1.GatewayTLSConfig,
+func createAdditionalGateways(
+	rr *odhtypes.ReconciliationRequest,
+	gatewayConfig *serviceApi.GatewayConfig,
 	allowedRoutes *gwapiv1.AllowedRoutes,
-) []gwapiv1.Listener {
-	if len(ingresses) == 0 {
+) error {
+	if len(gatewayConfig.Spec.AdditionalIngresses) == 0 {
 		return nil
 	}
 
-	sortedIngresses := append([]serviceApi.AdditionalIngress(nil), ingresses...)
-	sort.Slice(sortedIngresses, func(i, j int) bool {
-		return sortedIngresses[i].Name < sortedIngresses[j].Name
-	})
-
-	listeners := make([]gwapiv1.Listener, 0, len(sortedIngresses))
-	for _, ingress := range sortedIngresses {
-		listeners = append(listeners, gwapiv1.Listener{
-			Name:          gwapiv1.SectionName(ingress.Name),
-			Protocol:      gwapiv1.HTTPSProtocolType,
-			Port:          gwapiv1.PortNumber(ingress.ListenerPort),
-			TLS:           tlsConfig,
-			AllowedRoutes: allowedRoutes,
+	for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
+		if additionalIngressHasGatewayConflict(gatewayConfig, ingress.Name) {
+			continue
+		}
+		secretName := additionalGatewayServiceTLSSecretName(ingress.Name)
+		gateway := managedGateway(ingress.Name, []gwapiv1.Listener{
+			gatewayHTTPSListener(DefaultGatewayListenerName, secretName, allowedRoutes),
 		})
+
+		configMapName := additionalGatewayInfrastructureConfigMapName(ingress.Name)
+		if err := configureClusterIPInfrastructure(
+			rr, gateway,
+			configMapName,
+			secretName,
+		); err != nil {
+			return err
+		}
+		if err := rr.AddResources(gateway); err != nil {
+			return fmt.Errorf("failed to add Gateway for additional ingress %q: %w", ingress.Name, err)
+		}
 	}
 
-	return listeners
+	return nil
 }
 
 // configureClusterIPInfrastructure creates a ConfigMap for ClusterIP service configuration
 // and sets the Gateway's infrastructure reference.
-func configureClusterIPInfrastructure(rr *odhtypes.ReconciliationRequest, gateway *gwapiv1.Gateway) error {
+func configureClusterIPInfrastructure(
+	rr *odhtypes.ReconciliationRequest,
+	gateway *gwapiv1.Gateway,
+	configMapName string,
+	serviceTLSSecretName string,
+) error {
 	serviceConfig := fmt.Sprintf(`metadata:
   annotations:
     service.beta.openshift.io/serving-cert-secret-name: "%s"
 spec:
   type: ClusterIP
-`, GatewayServiceTLSSecretName)
+`, serviceTLSSecretName)
 
 	infraConfigMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      GatewayInfraConfigMapName,
+			Name:      configMapName,
 			Namespace: GetGatewayNamespace(),
 			Labels: map[string]string{
 				labels.PlatformPartOf: PartOfGatewayConfig,
@@ -529,7 +553,7 @@ spec:
 		ParametersRef: &gwapiv1.LocalParametersReference{
 			Group: "",
 			Kind:  "ConfigMap",
-			Name:  GatewayInfraConfigMapName,
+			Name:  configMapName,
 		},
 	}
 
@@ -537,7 +561,11 @@ spec:
 }
 
 // createOAuthClient creates an OpenShift OAuth client for integrated authentication.
-func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) error {
+func createOAuthClient(
+	ctx context.Context,
+	rr *odhtypes.ReconciliationRequest,
+	hostname string,
+) error {
 	// Read client secret from kube-auth-proxy-creds secret
 	authSecret := &corev1.Secret{}
 	if err := rr.Client.Get(ctx, types.NamespacedName{
@@ -553,11 +581,7 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, 
 	}
 	clientSecret := string(clientSecretBytes)
 
-	domain, err := GetFQDN(ctx, rr.Client, gatewayConfig)
-	if err != nil {
-		return fmt.Errorf("failed to resolve domain: %w", err)
-	}
-	redirectURL := fmt.Sprintf("https://%s%s", domain, OAuthCallbackPath)
+	redirectURL := fmt.Sprintf("https://%s%s", hostname, OAuthCallbackPath)
 	oauthClient := &oauthv1.OAuthClient{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: AuthClientID,
@@ -572,9 +596,9 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, 
 
 // createSecret dynamically creates the kube-auth-proxy-creds secret immediately on the cluster.
 func createSecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clientID, clientSecret, cookieSecret string) error {
-	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
-	if !ok {
-		return errors.New("instance is not of type *services.GatewayConfig")
+	gatewayConfig, err := validateGatewayConfig(rr)
+	if err != nil {
+		return err
 	}
 
 	secret := &corev1.Secret{
@@ -589,7 +613,7 @@ func createSecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clien
 		labels.PlatformPartOf: PartOfGatewayConfig,
 	}
 
-	_, err := controllerutil.CreateOrUpdate(ctx, rr.Client, secret, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, rr.Client, secret, func() error {
 		secret.StringData = map[string]string{
 			"OAUTH2_PROXY_CLIENT_ID":     clientID,
 			"OAUTH2_PROXY_CLIENT_SECRET": clientSecret,
@@ -647,6 +671,13 @@ func rejectUnsupportedKubernetesGatewaySpec(rr *odhtypes.ReconciliationRequest, 
 	return true
 }
 
+func getGatewayAuthProxyMaxReplicas(gatewayConfig *serviceApi.GatewayConfig) int32 {
+	if gatewayConfig.Spec.AuthProxyMaxReplicas != nil {
+		return *gatewayConfig.Spec.AuthProxyMaxReplicas
+	}
+	return 10
+}
+
 // getGatewayAuthProxyTimeout returns the auth timeout using:
 // Deprecated AuthTimeout field > AuthProxyTimeout field > default (5s).
 func getGatewayAuthProxyTimeout(gatewayConfig *serviceApi.GatewayConfig) string {
@@ -690,8 +721,10 @@ type LegacyRedirectInfo struct {
 
 // getCurrentSubdomain extracts the current subdomain from GatewayConfig or returns the default.
 func getCurrentSubdomain(gc *serviceApi.GatewayConfig) string {
-	if gc != nil && gc.Spec.Subdomain != "" {
-		return gc.Spec.Subdomain
+	if gc != nil {
+		if subdomain := strings.TrimSpace(gc.Spec.Subdomain); subdomain != "" {
+			return subdomain
+		}
 	}
 	return DefaultGatewaySubdomain
 }
@@ -724,11 +757,19 @@ func calculateAuthConfigHash(authSecret *corev1.Secret) string {
 	return hex.EncodeToString(hash[:])
 }
 
-// CalculateRedirectConfigHash returns a hash of the gateway hostname.
-// Used as a pod annotation so deployment rollout triggers when subdomain/domain changes.
-// Hash is fixed-length (64 chars) to avoid annotation size limits from long hostnames.
-func CalculateRedirectConfigHash(hostname string) string {
-	h := sha256.Sum256([]byte(hostname))
+// CalculateRedirectConfigHash hashes the hostname and embedded redirect configuration.
+// The pod annotation changes when an upgrade updates the ConfigMap template, so Nginx
+// reloads its subPath mounts even if the gateway hostname stays the same.
+func CalculateRedirectConfigHash(hostname string) (string, error) {
+	config, err := gatewayResources.ReadFile(dashboardRedirectConfigMapTemplate)
+	if err != nil {
+		return "", fmt.Errorf("read dashboard redirect configuration for rollout hash: %w", err)
+	}
+	return calculateRedirectConfigHash(hostname, config), nil
+}
+
+func calculateRedirectConfigHash(hostname string, config []byte) string {
+	h := sha256.Sum256([]byte(hostname + "\x00" + string(config)))
 	return hex.EncodeToString(h[:])
 }
 
@@ -914,6 +955,16 @@ func IsXKSCertManagerSecret(ctx context.Context, cli client.Client, obj client.O
 		obj.GetName() == gatewayCertificateSecretName(gatewayConfig)
 }
 
+func isGatewayCertificateOrReferencedSecret(
+	ctx context.Context,
+	cli client.Client,
+	obj client.Object,
+	gatewayNamespace string,
+) bool {
+	return cluster.IsGatewayCertificateSecret(ctx, cli, obj, gatewayNamespace) ||
+		IsGatewayReferencedSecret(ctx, cli, obj, gatewayNamespace)
+}
+
 // detectAndSetIngressMode detects the ingress mode from an existing Gateway Service and updates
 // the GatewayConfig to match. This preserves existing Gateway configuration when ingressMode is unset.
 func detectAndSetIngressMode(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) error {
@@ -921,7 +972,7 @@ func detectAndSetIngressMode(ctx context.Context, rr *odhtypes.ReconciliationReq
 
 	svc := &corev1.Service{}
 	err := rr.Client.Get(ctx, client.ObjectKey{
-		Name:      GetGatewayServiceFullName(),
+		Name:      GetDefaultGatewayServiceFullName(),
 		Namespace: GetGatewayNamespace(),
 	}, svc)
 

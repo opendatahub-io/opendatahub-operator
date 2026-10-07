@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	metadatalabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 const (
@@ -38,6 +40,12 @@ const (
 	DefaultGatewayListenerName       = "https"
 	LegacyGatewayListenerName        = "https-legacy"
 	DefaultGatewayListenerPort int32 = 443
+
+	DefaultGatewayName    = "data-science-gateway"
+	XKSDefaultGatewayName = "rh-ai-gateway"
+	GatewayClassName      = "data-science-gateway-class"
+	// MaxAdditionalGatewayNameLength keeps Istio's <Gateway>-<GatewayClass> Service name within 63 characters.
+	MaxAdditionalGatewayNameLength = 63 - len(GatewayClassName) - 1
 )
 
 // IngressMode defines how the Gateway exposes its endpoints externally.
@@ -53,7 +61,10 @@ const (
 )
 
 const (
-	AdditionalIngressListenerReadyConditionType       = "ListenerReady"
+	// AdditionalGatewaysReadyConditionType summarizes the per-ingress GatewayReady conditions
+	// and contributes to GatewayConfig's overall Ready condition.
+	AdditionalGatewaysReadyConditionType              = "AdditionalGatewaysReady"
+	AdditionalIngressGatewayReadyConditionType        = "GatewayReady"
 	AdditionalIngressRouteAdmittedConditionType       = "RouteAdmitted"
 	AdditionalIngressAuthenticationReadyConditionType = "AuthenticationReady"
 	AdditionalIngressReadyConditionType               = "Ready"
@@ -112,6 +123,15 @@ type GatewayConfigSpec struct {
 	// +optional
 	AuthProxyTimeout metav1.Duration `json:"authProxyTimeout,omitempty"`
 
+	// AuthProxyMaxReplicas is the maximum number of replicas for the default gateway's auth proxy.
+	// The HPA minimum is fixed at 2; setting the maximum to 2 fixes the replica count.
+	// Additional ingress proxies are configured independently through their auth.maxReplicas.
+	// +optional
+	// +kubebuilder:default=10
+	// +kubebuilder:validation:Minimum=2
+	// +kubebuilder:validation:Maximum=10
+	AuthProxyMaxReplicas *int32 `json:"authProxyMaxReplicas,omitempty"`
+
 	// NetworkPolicy configuration for kube-auth-proxy
 	// +optional
 	NetworkPolicy *NetworkPolicyConfig `json:"networkPolicy,omitempty"`
@@ -145,19 +165,18 @@ type GatewayConfigSpec struct {
 	// +optional
 	TokenReview *TokenReviewConfig `json:"tokenReview,omitempty"`
 
-	// AdditionalIngresses defines additional listeners on the managed Gateway.
-	// Authentication and scaling fields are defined by the per-ingress auth contract.
+	// AdditionalIngresses defines additional Gateways managed by GatewayConfig.
+	// Component controllers manage the HTTPRoutes attached to these Gateways.
 	// +optional
 	AdditionalIngresses AdditionalIngresses `json:"additionalIngresses,omitempty"`
 }
 
-// ValidateAdditionalIngresses performs runtime validation for callers that
-// construct GatewayConfig objects without API-server admission.
+// ValidateAdditionalIngresses checks additional ingress topology and Route labels.
 func (s GatewayConfigSpec) ValidateAdditionalIngresses() error {
 	return s.AdditionalIngresses.Validate(s.IngressMode)
 }
 
-// AdditionalIngresses is the collection of additional Gateway listener definitions.
+// AdditionalIngresses is the collection of additional Gateway definitions.
 // +listType=map
 // +listMapKey=name
 type AdditionalIngresses []AdditionalIngress
@@ -168,21 +187,8 @@ func (ingresses AdditionalIngresses) Validate(ingressMode IngressMode) error {
 		return fmt.Errorf("additional ingresses require %s ingress mode", IngressModeOcpRoute)
 	}
 
-	seenNames := make(map[string]struct{}, len(ingresses))
 	seenHostnames := make(map[string]string, len(ingresses))
-	seenPorts := map[int32]string{DefaultGatewayListenerPort: DefaultGatewayListenerName}
-	for _, ingress := range ingresses {
-		if errs := validation.IsDNS1123Label(ingress.Name); len(errs) > 0 {
-			return fmt.Errorf("additional ingress %q has invalid name: %s", ingress.Name, errs[0])
-		}
-		if ingress.Name == DefaultGatewayListenerName || ingress.Name == LegacyGatewayListenerName {
-			return fmt.Errorf("additional ingress %q uses reserved listener name", ingress.Name)
-		}
-		if _, found := seenNames[ingress.Name]; found {
-			return fmt.Errorf("additional ingresses contain duplicate name %q", ingress.Name)
-		}
-		seenNames[ingress.Name] = struct{}{}
-
+	for i, ingress := range ingresses {
 		if errs := validation.IsDNS1123Subdomain(ingress.Hostname); len(errs) > 0 {
 			return fmt.Errorf("additional ingress %q has invalid hostname %q: %s", ingress.Name, ingress.Hostname, errs[0])
 		}
@@ -201,29 +207,31 @@ func (ingresses AdditionalIngresses) Validate(ingressMode IngressMode) error {
 			if errs := validation.IsQualifiedName(key); len(errs) > 0 {
 				return fmt.Errorf("additional ingress %q has invalid route label key %q: %s", ingress.Name, key, errs[0])
 			}
+			if key == metadatalabels.K8SCommon.PartOf || key == metadatalabels.PlatformPartOf {
+				return fmt.Errorf("additional ingress %q uses reserved route label key %q", ingress.Name, key)
+			}
 			if errs := validation.IsValidLabelValue(value); len(errs) > 0 {
 				return fmt.Errorf("additional ingress %q has invalid route label value for %q: %s", ingress.Name, key, errs[0])
 			}
 		}
-
-		if ingress.ListenerPort < 1 || ingress.ListenerPort > 65535 {
-			return fmt.Errorf("additional ingress %q has invalid listener port %d", ingress.Name, ingress.ListenerPort)
+		for _, sibling := range ingresses[:i] {
+			if maps.Equal(ingress.RouteLabels, sibling.RouteLabels) {
+				return fmt.Errorf("additional ingress %q route labels conflict with %q", ingress.Name, sibling.Name)
+			}
 		}
-		if existingName, found := seenPorts[ingress.ListenerPort]; found {
-			return fmt.Errorf("additional ingress %q listener port %d conflicts with %q", ingress.Name, ingress.ListenerPort, existingName)
-		}
-		seenPorts[ingress.ListenerPort] = ingress.Name
 	}
 	return nil
 }
 
-// AdditionalIngress defines topology for an additional Gateway listener.
+// AdditionalIngress defines an additional Gateway.
 // +kubebuilder:object:generate=true
 type AdditionalIngress struct {
-	// Name is the stable identity of this ingress and the Gateway listener name.
+	// Name is the Gateway name and stable identity of this ingress.
+	// The 36-character limit keeps Istio's <Gateway>-<GatewayClass> Service name within 63 characters.
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MaxLength=63
-	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// +kubebuilder:validation:MaxLength=36
+	// +kubebuilder:validation:Pattern=`^[a-z]([-a-z0-9]*[a-z0-9])?$`
+	// +kubebuilder:validation:XValidation:rule="self != 'data-science-gateway' && self != 'rh-ai-gateway'",message="name conflicts with a default Gateway"
 	Name string `json:"name"`
 
 	// Hostname is the externally visible hostname for this ingress.
@@ -231,25 +239,64 @@ type AdditionalIngress struct {
 	// +kubebuilder:validation:MaxLength=253
 	Hostname string `json:"hostname"`
 
-	// ListenerPort is the stable internal port used by this Gateway listener.
-	// It is immutable after the ingress is created.
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=65535
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="ListenerPort is immutable"
-	ListenerPort int32 `json:"listenerPort"`
-
-	// IngressControllerName identifies the OpenShift IngressController that admits the bridge Route.
+	// IngressControllerName is the IngressController whose Route admission is used for readiness.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:Pattern=`^[a-z]([-a-z0-9]*[a-z0-9])?$`
 	IngressControllerName string `json:"ingressControllerName"`
 
-	// RouteLabels are applied to the bridge Route and matched against the target
-	// IngressController route selector.
+	// RouteLabels are applied to the bridge Route and can match the target
+	// IngressController route selector. They do not prevent other matching
+	// IngressControllers from admitting the Route.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinProperties=1
 	RouteLabels map[string]string `json:"routeLabels"`
+
+	// Auth configures this ingress's client credentials and auth proxy capacity.
+	// Authentication mode and provider settings are inherited from the default gateway.
+	// +optional
+	// +kubebuilder:default={}
+	Auth AdditionalIngressAuth `json:"auth,omitempty"`
+}
+
+// AdditionalIngressAuth defines authentication configuration for an additional ingress.
+type AdditionalIngressAuth struct {
+	// OIDC supplies this ingress's distinct client identity in OIDC mode.
+	// Required in OIDC mode; omit in integrated OpenShift OAuth mode, where the
+	// operator generates a distinct OAuthClient. The issuer comes from spec.oidc.
+	// +optional
+	OIDC *AdditionalIngressOIDCConfig `json:"oidc,omitempty"`
+
+	// MaxReplicas is the maximum number of replicas for this ingress's auth proxy.
+	// The minimum remains fixed at 2. This does not configure the default proxy.
+	// A value of 2 requests two fixed replicas without an HPA; larger values enable autoscaling.
+	// +optional
+	// +kubebuilder:default=10
+	// +kubebuilder:validation:Minimum=2
+	// +kubebuilder:validation:Maximum=10
+	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
+}
+
+// AdditionalIngressOIDCConfig defines client credentials without provider overrides.
+type AdditionalIngressOIDCConfig struct {
+	// ClientID is distinct from the default ingress and sibling ingress client IDs.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	ClientID string `json:"clientID"`
+
+	// ClientSecretRef references an administrator-managed Secret containing the client secret.
+	// Each ingress must reference a distinct Secret, including from the default ingress.
+	// The operator must not own or delete this source Secret.
+	// Name and key must be nonempty; optional must be omitted or false.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0",message="clientSecretRef.name must be non-empty"
+	// +kubebuilder:validation:XValidation:rule="size(self.key) > 0",message="clientSecretRef.key must be non-empty"
+	// +kubebuilder:validation:XValidation:rule="!has(self.optional) || !self.optional",message="clientSecretRef.optional must be false"
+	ClientSecretRef corev1.SecretKeySelector `json:"clientSecretRef"`
+
+	// SecretNamespace is the source Secret's namespace; defaults to the gateway namespace.
+	// +optional
+	SecretNamespace string `json:"secretNamespace,omitempty"`
 }
 
 // NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
@@ -344,6 +391,7 @@ type GatewayConfigStatus struct {
 	Domain string `json:"domain,omitempty"`
 
 	// AdditionalIngresses contains configured additional ingresses, including entries that are not ready.
+	// Their GatewayReady conditions feed the top-level AdditionalGatewaysReady condition.
 	// +optional
 	// +listType=map
 	// +listMapKey=name
@@ -359,13 +407,35 @@ type AdditionalIngressStatus struct {
 	// Hostname is the configured externally visible hostname.
 	Hostname string `json:"hostname"`
 
-	// Conditions report independent listener, Route, authentication, and aggregate readiness.
+	// GatewayRef identifies the operator-managed Gateway for component HTTPRoute parentRefs.
+	// The reference remains published while the ingress is configured, regardless of readiness.
+	// +optional
+	GatewayRef GatewayReference `json:"gatewayRef,omitempty"`
+
+	// Conditions report Gateway, Route, authentication, and aggregate readiness.
 	// +optional
 	// +patchStrategy=merge
 	// +patchMergeKey=type
 	// +listType=map
 	// +listMapKey=type
 	Conditions []common.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+}
+
+// GatewayReference identifies an operator-managed Gateway by name and namespace.
+type GatewayReference struct {
+	// Name is the Gateway name.
+	Name string `json:"name"`
+
+	// Namespace is the namespace containing the Gateway.
+	Namespace string `json:"namespace"`
+}
+
+func (s *AdditionalIngressStatus) GetConditions() []common.Condition {
+	return s.Conditions
+}
+
+func (s *AdditionalIngressStatus) SetConditions(conditions []common.Condition) {
+	s.Conditions = append(s.Conditions[:0:0], conditions...)
 }
 
 // +kubebuilder:object:root=true

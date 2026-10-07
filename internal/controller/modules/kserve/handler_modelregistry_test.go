@@ -15,7 +15,7 @@ func TestBuildModuleCR_ModelRegistryStateManaged(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
 	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.ModelRegistry.ManagementState = operatorv1.Managed
+	dscCtx.DSC.Spec.Components.AIHub.ManagementState = operatorv1.Managed
 
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -32,7 +32,7 @@ func TestBuildModuleCR_ModelRegistryStateRemoved(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
 	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.ModelRegistry.ManagementState = operatorv1.Removed
+	dscCtx.DSC.Spec.Components.AIHub.ManagementState = operatorv1.Removed
 
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())

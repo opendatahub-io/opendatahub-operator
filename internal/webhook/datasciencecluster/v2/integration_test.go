@@ -11,9 +11,9 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	v1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v1"
 	v2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
-	dsciv1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v1"
+	v3webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v3"
+	dsciv3webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v1"
 	dsciv2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
@@ -56,7 +56,7 @@ func TestDataScienceClusterV2_Integration(t *testing.T) {
 				return nil
 			},
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-				dsc := envtestutil.NewDSC("dsc-one")
+				dsc := envtestutil.NewDSCV2("dsc-one")
 				g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed(), "should allow creation of a DataScienceCluster v2 when none exist")
 			},
 		},
@@ -64,11 +64,11 @@ func TestDataScienceClusterV2_Integration(t *testing.T) {
 			name: "Denies creation if one already exists",
 			setup: func(ns string) []client.Object {
 				return []client.Object{
-					envtestutil.NewDSC("existing"),
+					envtestutil.NewDSCV2("existing"),
 				}
 			},
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-				dsc := envtestutil.NewDSC("dsc-two")
+				dsc := envtestutil.NewDSCV2("dsc-two")
 				err := k8sClient.Create(ctx, dsc)
 				g.Expect(err).NotTo(Succeed(), "should not allow creation of a second DataScienceCluster v2")
 			},
@@ -77,7 +77,7 @@ func TestDataScienceClusterV2_Integration(t *testing.T) {
 			name: "Allows deletion always",
 			setup: func(ns string) []client.Object {
 				return []client.Object{
-					envtestutil.NewDSC("dsc-delete"),
+					envtestutil.NewDSCV2("dsc-delete"),
 				}
 			},
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
@@ -94,7 +94,7 @@ func TestDataScienceClusterV2_Integration(t *testing.T) {
 				return nil
 			},
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-				dsc := envtestutil.NewDSC("dsc-defaulting", WithModelRegistryDefaulting())
+				dsc := envtestutil.NewDSCV2("dsc-defaulting", WithModelRegistryDefaulting())
 				g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed(), "should allow creation of DataScienceCluster v2 for defaulting test")
 
 				fetched := &dscv2.DataScienceCluster{}
@@ -113,7 +113,7 @@ func TestDataScienceClusterV2_Integration(t *testing.T) {
 				return nil
 			},
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-				dsc := envtestutil.NewDSC("dsc-mr-cel", WithModelRegistryDefaulting())
+				dsc := envtestutil.NewDSCV2("dsc-mr-cel", WithModelRegistryDefaulting())
 				g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed(), "should create DSC with ModelRegistry Managed and empty RegistriesNamespace")
 
 				key := types.NamespacedName{Name: "dsc-mr-cel", Namespace: ns}
@@ -153,44 +153,40 @@ func TestDataScienceClusterV2_Integration(t *testing.T) {
 			},
 		},
 		{
-			name: "CEL: TrainingOperator (KFTO v1) re-enablement blocked on update",
+			name: "Webhook: TrainingOperator (KFTO v1) re-enablement blocked on update",
 			setup: func(ns string) []client.Object {
 				return nil
 			},
-			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-				dsc := envtestutil.NewDSC("dsc-kfto-cel")
-				g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed(), "should allow creation with TrainingOperator left unset/Removed")
-
-				key := types.NamespacedName{Name: "dsc-kfto-cel", Namespace: ns}
-				fetched := &dscv2.DataScienceCluster{}
-				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
-
-				fetched.Spec.Components.TrainingOperator.ManagementState = operatorv1.Managed
-				err := k8sClient.Update(ctx, fetched)
-				g.Expect(err).To(HaveOccurred(), "CEL should reject re-enabling the deprecated TrainingOperator v1 on update")
-				g.Expect(err.Error()).To(ContainSubstring("obsolete"))
-			},
+			test: retiredOperatorManagedTest("dsc-kfto-webhook", func(dsc *dscv2.DataScienceCluster) {
+				dsc.Spec.Components.TrainingOperator.ManagementState = operatorv1.Managed
+			}, true, "obsolete"),
 		},
 		{
-			name: "CEL: TrainingOperator (KFTO v1) Managed allowed on create and persists across unrelated updates",
+			name: "Webhook: TrainingOperator (KFTO v1) Managed rejected on create",
 			setup: func(ns string) []client.Object {
 				return nil
 			},
-			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-				dsc := envtestutil.NewDSC("dsc-kfto-cel-managed", envtestutil.WithTrainingOperatorManaged())
-				g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed(), "CEL transition rule should not apply on create (no oldSelf)")
-
-				key := types.NamespacedName{Name: "dsc-kfto-cel-managed", Namespace: ns}
-				fetched := &dscv2.DataScienceCluster{}
-				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
-
-				fetched.Spec.Components.Trainer.ManagementState = operatorv1.Managed
-				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed(), "CEL should allow keeping TrainingOperator Managed while changing an unrelated field")
-
-				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
-				fetched.Spec.Components.TrainingOperator.ManagementState = operatorv1.Removed
-				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed(), "CEL should allow moving an already-Managed TrainingOperator back to Removed")
+			test: retiredOperatorManagedTest("dsc-kfto-webhook-managed", func(dsc *dscv2.DataScienceCluster) {
+				dsc.Spec.Components.TrainingOperator.ManagementState = operatorv1.Managed
+			}, false, "obsolete"),
+		},
+		{
+			name: "Webhook: LlamaStackOperator re-enablement blocked on update",
+			setup: func(ns string) []client.Object {
+				return nil
 			},
+			test: retiredOperatorManagedTest("dsc-llamastack-webhook", func(dsc *dscv2.DataScienceCluster) {
+				dsc.Spec.Components.LlamaStackOperator.ManagementState = operatorv1.Managed
+			}, true, "replaced by OGX"),
+		},
+		{
+			name: "Webhook: LlamaStackOperator Managed rejected on create",
+			setup: func(ns string) []client.Object {
+				return nil
+			},
+			test: retiredOperatorManagedTest("dsc-llamastack-webhook-managed", func(dsc *dscv2.DataScienceCluster) {
+				dsc.Spec.Components.LlamaStackOperator.ManagementState = operatorv1.Managed
+			}, false, "replaced by OGX"),
 		},
 	}
 
@@ -201,8 +197,8 @@ func TestDataScienceClusterV2_Integration(t *testing.T) {
 			ctx, env, teardown := envtestutil.SetupEnvAndClient(
 				t,
 				[]envt.RegisterWebhooksFn{
-					v1webhook.RegisterWebhooks,
-					dsciv1webhook.RegisterWebhooks,
+					v3webhook.RegisterWebhooks,
+					dsciv3webhook.RegisterWebhooks,
 					v2webhook.RegisterWebhooks,
 					dsciv2webhook.RegisterWebhooks,
 				},
@@ -217,7 +213,7 @@ func TestDataScienceClusterV2_Integration(t *testing.T) {
 
 			if tc.setup != nil {
 				for _, obj := range tc.setup(ns) {
-					t.Logf("Creating setup object: %+v", obj)
+					t.Logf("Creating setup object: %T %s", obj, client.ObjectKeyFromObject(obj))
 					g := NewWithT(t)
 					g.Expect(env.Client().Create(ctx, obj)).To(Succeed(), "setup object creation should succeed")
 					// Verify the object was created
@@ -230,5 +226,27 @@ func TestDataScienceClusterV2_Integration(t *testing.T) {
 			tc.test(g, ctx, env.Client(), ns)
 			t.Logf("Finished test case: %s", tc.name)
 		})
+	}
+}
+
+func retiredOperatorManagedTest(
+	name string,
+	setManaged func(*dscv2.DataScienceCluster),
+	update bool,
+	message string,
+) func(Gomega, context.Context, client.Client, string) {
+	return func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+		dsc := envtestutil.NewDSCV2(name)
+		if update {
+			g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed(), "should allow creation before attempting re-enablement")
+			key := types.NamespacedName{Name: name, Namespace: ns}
+			g.Expect(k8sClient.Get(ctx, key, dsc)).To(Succeed())
+			setManaged(dsc)
+			g.Expect(k8sClient.Update(ctx, dsc)).To(MatchError(ContainSubstring(message)))
+			return
+		}
+
+		setManaged(dsc)
+		g.Expect(k8sClient.Create(ctx, dsc)).To(MatchError(ContainSubstring(message)))
 	}
 }

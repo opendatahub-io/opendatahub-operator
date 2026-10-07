@@ -46,7 +46,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
-	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
@@ -87,7 +86,7 @@ type DSCInitializationCondition struct {
 }
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
-func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,maintidx,gocyclo
+func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen
 	log := logf.FromContext(ctx).WithName("DSCInitialization")
 	log.Info("Reconciling DSCInitialization.")
 
@@ -218,30 +217,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if platform == cluster.SelfManagedRhoai {
 		if err = r.configureSegmentIO(ctx, instance); err != nil {
 			return reconcile.Result{}, err
-		}
-	}
-
-	// legacy ServiceMesh FeatureTracker cleanup, retained from the remove ServiceMesh controller
-	// TODO where exactly to put this logic ?
-	ftNames := []string{
-		instance.Spec.ApplicationsNamespace + "-mesh-shared-configmap",
-		instance.Spec.ApplicationsNamespace + "-mesh-control-plane-creation",
-		instance.Spec.ApplicationsNamespace + "-mesh-metrics-collection",
-		instance.Spec.ApplicationsNamespace + "-enable-proxy-injection-in-authorino-deployment",
-		instance.Spec.ApplicationsNamespace + "-mesh-control-plane-external-authz",
-	}
-	for _, name := range ftNames {
-		ft := featuresv1.FeatureTracker{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
-			},
-		}
-
-		err := r.Client.Delete(ctx, &ft, client.PropagationPolicy(metav1.DeletePropagationForeground))
-		if k8serr.IsNotFound(err) {
-			continue
-		} else if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to delete FeatureTracker %s: %w", ft.GetName(), err)
 		}
 	}
 
@@ -483,7 +458,10 @@ func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Co
 			status.ConditionTempoAvailable,
 			status.ConditionPersesAvailable,
 			status.ConditionAlertingAvailable,
-			status.ConditionNodeMetricsEndpointAvailable:
+			status.ConditionNodeMetricsEndpointAvailable,
+			status.ConditionLokiStackAvailable,
+			status.ConditionClusterLogForwarderAvailable,
+			status.ConditionUsageLogsCollectorAvailable:
 			conditions = append(conditions, DSCInitializationCondition{
 				Type:         c.Type,
 				ReadyReason:  c.Reason,

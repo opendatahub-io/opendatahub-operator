@@ -10,8 +10,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -53,26 +53,26 @@ func NewHandler() *handler {
 	}
 }
 
-func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
-	return modules != nil && modules.ModelRegistry.ManagementState == operatorv1.Managed
+func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
+	return modules != nil && modules.AIHub.ManagementState == operatorv1.Managed
 }
 
-func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+func (h *handler) PopulatePlatformModule(pm *configApi.PlatformModules, dscCtx *modules.DSCContext) {
 	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
-	ms := dscCtx.DSC.Spec.Components.ModelRegistry.ManagementState
+	ms := dscCtx.DSC.Spec.Components.AIHub.ManagementState
 	if ms == "" {
 		ms = operatorv1.Removed
 	}
-	pm.ModelRegistry.ManagementState = ms
+	pm.AIHub.ManagementState = ms
 }
 
 func (h *handler) GetReadyConditionType() string {
-	return componentApi.ModelRegistryKind + status.ReadySuffix
+	return "AIHub" + status.ReadySuffix
 }
 
-func (h *handler) WriteDSCComponentStatus(dsc *dscv2.DataScienceCluster, enabled bool, releases []common.ComponentRelease) {
+func (h *handler) WriteDSCComponentStatus(dsc *dscApi.DataScienceCluster, enabled bool, releases []common.ComponentRelease) {
 	if dsc == nil {
 		return
 	}
@@ -81,60 +81,22 @@ func (h *handler) WriteDSCComponentStatus(dsc *dscv2.DataScienceCluster, enabled
 	if enabled {
 		ms = operatorv1.Managed
 	}
-	dsc.Status.Components.ModelRegistry.ManagementState = ms
+	dsc.Status.Components.AIHub.ManagementState = ms
 
-	if len(releases) > 0 {
-		if dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus == nil {
-			dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus = &componentApi.ModelRegistryCommonStatus{}
+	instancesNamespace := ""
+	if enabled {
+		instancesNamespace = dsc.Spec.Components.AIHub.InstancesNamespace
+	}
+
+	componentStatus := &dsc.Status.Components.AIHub
+	if componentStatus.AIHubCommonStatus == nil {
+		if instancesNamespace == "" && len(releases) == 0 {
+			return
 		}
-		dsc.Status.Components.ModelRegistry.Releases = releases
-	} else if dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus != nil {
-		dsc.Status.Components.ModelRegistry.Releases = nil
+		componentStatus.AIHubCommonStatus = &componentApi.AIHubCommonStatus{}
 	}
-}
-
-// WriteLegacyStatusFields mirrors registriesNamespace from the DSC spec into
-// dsc.status.components.modelRegistry so consumers (e.g. odh-dashboard) can
-// resolve the model registries namespace from DSC status.
-//
-// TODO: Remove once consumers read registriesNamespace directly from the AIHub
-// module CR instead of DSC status.
-func (h *handler) WriteLegacyStatusFields(
-	_ context.Context,
-	_ client.Client,
-	dsc *dscv2.DataScienceCluster,
-	enabled bool,
-) error {
-	if dsc == nil {
-		return nil
-	}
-
-	if !enabled {
-		writeDSCRegistriesNamespace(dsc, false, "")
-		return nil
-	}
-
-	writeDSCRegistriesNamespace(dsc, true, dsc.Spec.Components.ModelRegistry.RegistriesNamespace)
-	return nil
-}
-
-func writeDSCRegistriesNamespace(dsc *dscv2.DataScienceCluster, enabled bool, registriesNamespace string) {
-	if dsc == nil {
-		return
-	}
-
-	if !enabled || registriesNamespace == "" {
-		if dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus != nil {
-			dsc.Status.Components.ModelRegistry.RegistriesNamespace = ""
-		}
-		return
-	}
-
-	if dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus == nil {
-		dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus = &componentApi.ModelRegistryCommonStatus{}
-	}
-
-	dsc.Status.Components.ModelRegistry.RegistriesNamespace = registriesNamespace
+	componentStatus.InstancesNamespace = instancesNamespace
+	componentStatus.Releases = releases
 }
 
 func (h *handler) BuildModuleCR(
@@ -147,14 +109,14 @@ func (h *handler) BuildModuleCR(
 		return nil, errors.New("DSC is nil, cannot build AIHub CR")
 	}
 
-	managementState := components.NormalizeManagementState(dscCtx.DSC.Spec.Components.ModelRegistry.ManagementState)
+	managementState := components.NormalizeManagementState(dscCtx.DSC.Spec.Components.AIHub.ManagementState)
 
 	appNS := ""
 	if cfg != nil {
 		appNS = cfg.ApplicationsNamespace
 	}
 
-	instNS := dscCtx.DSC.Spec.Components.ModelRegistry.RegistriesNamespace
+	instNS := dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace
 	if instNS == "" {
 		instNS = appNS
 	}
