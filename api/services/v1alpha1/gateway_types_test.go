@@ -1,10 +1,53 @@
 package v1alpha1
 
 import (
+	"encoding/json"
 	"testing"
 
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 )
+
+func TestAdditionalIngressAuthSerializationAndDeepCopy(t *testing.T) {
+	g := NewWithT(t)
+	maximum := int32(4)
+	defaultMaximum := int32(6)
+	config := &GatewayConfig{Spec: GatewayConfigSpec{
+		AuthProxyMaxReplicas: &defaultMaximum,
+		AdditionalIngresses: AdditionalIngresses{{
+			Name: "alpha",
+			Auth: AdditionalIngressAuth{
+				MaxReplicas: &maximum,
+				OIDC: &AdditionalIngressOIDCConfig{
+					ClientID: "alpha-client", SecretNamespace: "identity",
+					ClientSecretRef: corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "alpha-oidc"},
+						Key:                  "clientSecret",
+					},
+				},
+			},
+		}},
+	}}
+	encoded, err := json.Marshal(config)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(string(encoded)).To(ContainSubstring(`"auth":{"oidc":{"clientID":"alpha-client"`))
+	g.Expect(string(encoded)).NotTo(ContainSubstring("issuerURL"))
+	var decoded GatewayConfig
+	g.Expect(json.Unmarshal(encoded, &decoded)).To(Succeed())
+	g.Expect(decoded.Spec).To(Equal(config.Spec))
+
+	copied := config.DeepCopy()
+	*copied.Spec.AuthProxyMaxReplicas = 2
+	*copied.Spec.AdditionalIngresses[0].Auth.MaxReplicas = 8
+	copied.Spec.AdditionalIngresses[0].Auth.OIDC.ClientID = "other-client"
+	copied.Spec.AdditionalIngresses[0].Auth.OIDC.ClientSecretRef.Name = "other-secret"
+	copied.Spec.AdditionalIngresses[0].Auth.OIDC.ClientSecretRef.Key = "other-key"
+	g.Expect(*config.Spec.AuthProxyMaxReplicas).To(Equal(int32(6)))
+	g.Expect(*config.Spec.AdditionalIngresses[0].Auth.MaxReplicas).To(Equal(int32(4)))
+	g.Expect(config.Spec.AdditionalIngresses[0].Auth.OIDC.ClientID).To(Equal("alpha-client"))
+	g.Expect(config.Spec.AdditionalIngresses[0].Auth.OIDC.ClientSecretRef.Name).To(Equal("alpha-oidc"))
+	g.Expect(config.Spec.AdditionalIngresses[0].Auth.OIDC.ClientSecretRef.Key).To(Equal("clientSecret"))
+}
 
 func TestAdditionalIngressesValidate(t *testing.T) {
 	valid := func(name, hostname string) AdditionalIngress {
