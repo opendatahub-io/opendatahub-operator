@@ -21,6 +21,8 @@ package v1alpha1
 // MonitoringCommonSpec spec defines the shared desired state of Monitoring
 // +kubebuilder:validation:XValidation:rule="has(self.alerting) ? has(self.metrics.storage) : true",message="Alerting configuration requires metrics.storage to be configured"
 // +kubebuilder:validation:XValidation:rule="!has(self.collectorReplicas) || (self.collectorReplicas > 0 && ((has(self.metrics) && (has(self.metrics.storage) || (has(self.metrics.exporters) && size(self.metrics.exporters) > 0))) || has(self.traces)))",message="CollectorReplicas can only be set when metrics (storage or exporters) or traces are configured, and must be > 0"
+// +kubebuilder:validation:XValidation:rule="has(self.logs) ? has(self.logs.storage) : true",message="Log forwarding requires logs.storage to be configured for the LokiStack instance"
+// +kubebuilder:validation:XValidation:rule="has(self.usageLogs) ? has(self.usageLogs.storage) : true",message="Usage logs require usageLogs.storage to be configured for the LokiStack instance"
 type MonitoringCommonSpec struct {
 	// monitoring spec exposed to DSCI api
 	// Namespace for monitoring if it is enabled
@@ -35,6 +37,10 @@ type MonitoringCommonSpec struct {
 	Traces *Traces `json:"traces,omitempty"`
 	// Alerting configuration for Prometheus
 	Alerting *Alerting `json:"alerting,omitempty"`
+	// Logs configures cluster log forwarding via the ClusterLogForwarder operator.
+	Logs *Logs `json:"logs,omitempty"`
+	// UsageLogs configures usage log collection and forwarding to Loki.
+	UsageLogs *UsageLogs `json:"usageLogs,omitempty"`
 	// CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults
 	// to 1 on single-node clusters and 2 on multi-node clusters.
 	CollectorReplicas int32 `json:"collectorReplicas,omitempty"`

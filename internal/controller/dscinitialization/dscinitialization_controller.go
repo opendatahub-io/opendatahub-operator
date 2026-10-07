@@ -458,7 +458,10 @@ func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Co
 			status.ConditionTempoAvailable,
 			status.ConditionPersesAvailable,
 			status.ConditionAlertingAvailable,
-			status.ConditionNodeMetricsEndpointAvailable:
+			status.ConditionNodeMetricsEndpointAvailable,
+			status.ConditionLokiStackAvailable,
+			status.ConditionClusterLogForwarderAvailable,
+			status.ConditionUsageLogsCollectorAvailable:
 			conditions = append(conditions, DSCInitializationCondition{
 				Type:         c.Type,
 				ReadyReason:  c.Reason,
