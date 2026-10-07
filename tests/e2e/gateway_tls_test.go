@@ -1,7 +1,9 @@
 package e2e_test
 
 import (
+	"crypto/tls"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -30,8 +32,47 @@ import (
 func kubeAuthProxyTLSDeploymentArgs(profile *configv1.TLSSecurityProfile) (string, string, string) {
 	spec := oracleProfileSpec(profile)
 	return fmt.Sprintf("--tls-min-version=%s", oracleMinVersion(spec.MinTLSVersion)),
-		fmt.Sprintf("--tls-cipher-suite=%s", oracleCipherSuites(spec.Ciphers)),
+		fmt.Sprintf("--tls-cipher-suite=%s", oracleCipherSuites(spec.Ciphers, spec.MinTLSVersion)),
 		oracleCurvePreferences(spec.Groups)
+}
+
+func TestKubeAuthProxyTLSDeploymentArgsFiltersTLS13CiphersForTLS12(t *testing.T) {
+	t.Parallel()
+
+	ciphers := append([]string(nil), configv1.TLSProfiles[configv1.TLSProfileModernType].Ciphers...)
+	ciphers = append(ciphers, configv1.TLSProfiles[configv1.TLSProfileIntermediateType].Ciphers...)
+	profile := &configv1.TLSSecurityProfile{
+		Type: configv1.TLSProfileCustomType,
+		Custom: &configv1.CustomTLSProfile{TLSProfileSpec: configv1.TLSProfileSpec{
+			MinTLSVersion: configv1.VersionTLS12,
+			Ciphers:       ciphers,
+		}},
+	}
+
+	minVersionArg, cipherSuitesArg, _ := kubeAuthProxyTLSDeploymentArgs(profile)
+	require.Equal(t, "--tls-min-version=TLS1.2", minVersionArg)
+
+	expected := cipherSuitesUsableAtTLS12(ciphers)
+	require.Equal(t, "--tls-cipher-suite="+strings.Join(expected, ","), cipherSuitesArg)
+}
+
+// cipherSuitesUsableAtTLS12 returns the IANA names of the given OpenSSL cipher
+// list that Go's crypto/tls negotiates at TLS 1.2, preserving input order.
+// TLS 1.3-only suites are excluded via the stdlib suite metadata, independently
+// of the oracle's cipher ID check.
+func cipherSuitesUsableAtTLS12(ciphers []string) []string {
+	supportsTLS12 := make(map[string]bool)
+	for _, suite := range tls.CipherSuites() {
+		supportsTLS12[suite.Name] = slices.Contains(suite.SupportedVersions, tls.VersionTLS12)
+	}
+
+	names := make([]string, 0, len(ciphers))
+	for _, iana := range ocpcrypto.OpenSSLToIANACipherSuites(ciphers) {
+		if supportsTLS12[iana] {
+			names = append(names, iana)
+		}
+	}
+	return names
 }
 
 // oracleProfileSpec resolves a TLSSecurityProfile to its TLSProfileSpec,
@@ -74,9 +115,21 @@ func oracleMinVersion(v configv1.TLSProtocolVersion) string {
 }
 
 // oracleCipherSuites maps OpenSSL cipher names to IANA names via the library-go
-// utility, with an Intermediate fallback when the result would otherwise be empty.
-func oracleCipherSuites(ciphers []string) string {
+// utility, dropping TLS 1.3 suites when the minimum version is TLS 1.2. It uses
+// the Intermediate profile as a fallback when no usable suites remain.
+func oracleCipherSuites(ciphers []string, minVersion configv1.TLSProtocolVersion) string {
 	iana := ocpcrypto.OpenSSLToIANACipherSuites(ciphers)
+	if minVersion != configv1.VersionTLS13 {
+		filtered := make([]string, 0, len(iana))
+		for _, cipher := range iana {
+			code, err := ocpcrypto.CipherSuite(cipher)
+			if err != nil || code&0xff00 == 0x1300 {
+				continue
+			}
+			filtered = append(filtered, cipher)
+		}
+		iana = filtered
+	}
 	if len(iana) == 0 {
 		iana = ocpcrypto.OpenSSLToIANACipherSuites(
 			configv1.TLSProfiles[configv1.TLSProfileIntermediateType].Ciphers,
