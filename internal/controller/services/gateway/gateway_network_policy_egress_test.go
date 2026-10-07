@@ -5,6 +5,7 @@ package gateway
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 	"text/template"
 
@@ -18,6 +19,7 @@ import (
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	templateutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/template"
@@ -47,7 +49,10 @@ func TestOpenShiftMissingNetworkQueuesDenyAllEgress(t *testing.T) {
 		Client: cli, Instance: config,
 		Conditions: conditions.NewManager(&gatewayConfigConditionsAccessor{}, ReadyConditionType),
 	}
-	g.Expect(createNetworkPolicy(t.Context(), rr)).To(Succeed())
+	var requeueErr odherrors.RequeueAfterError
+	g.Expect(errors.As(createNetworkPolicy(t.Context(), rr), &requeueErr)).To(BeTrue(),
+		"egress resolution failure must schedule a timed requeue")
+	g.Expect(requeueErr.After).To(Equal(authProxyEgressRequeueDelay))
 	g.Expect(rr.Templates).To(HaveLen(1))
 	rules, ok := rr.Extensions[authProxyEgressRulesKey].([]networkingv1.NetworkPolicyEgressRule)
 	g.Expect(ok).To(BeTrue())
@@ -55,6 +60,71 @@ func TestOpenShiftMissingNetworkQueuesDenyAllEgress(t *testing.T) {
 	ready := rr.Conditions.GetCondition(ReadyConditionType)
 	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
 	g.Expect(ready.Reason).To(Equal("AuthProxyEgressUnavailable"))
+}
+
+func TestAuthProxyEgressConditionRecoversAfterDestinationsResolve(t *testing.T) {
+	original := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(original) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+	g := NewWithT(t)
+	config := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: "example.com", IngressMode: serviceApi.IngressModeLoadBalancer,
+		},
+	}
+	authentication := &configv1.Authentication{
+		ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
+		Spec:       configv1.AuthenticationSpec{Type: configv1.AuthenticationTypeIntegratedOAuth},
+	}
+	cli, err := fakeclient.New(fakeclient.WithObjects(config, authentication))
+	g.Expect(err).NotTo(HaveOccurred())
+	rr := &odhtypes.ReconciliationRequest{
+		Client: cli, Instance: config,
+		Conditions: conditions.NewManager(&gatewayConfigConditionsAccessor{}, ReadyConditionType),
+	}
+
+	// Reconciliation while the cluster Network is missing fails closed.
+	var requeueErr odherrors.RequeueAfterError
+	g.Expect(errors.As(createNetworkPolicy(t.Context(), rr), &requeueErr)).To(BeTrue())
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(ready.Reason).To(Equal(authProxyEgressUnavailableReason))
+
+	// Next reconciliation after the dependencies recovered must release the
+	// recorded failure so the status action can mark the condition ready.
+	apiPort := int32(6443)
+	network := &configv1.Network{ObjectMeta: metav1.ObjectMeta{Name: "cluster"}}
+	network.Status.ClusterNetwork = []configv1.ClusterNetworkEntry{{CIDR: "10.244.0.0/16"}}
+	network.Status.ServiceNetwork = []string{"10.96.0.0/12"}
+	dnsService := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "dns-default", Namespace: "openshift-dns"}, Spec: corev1.ServiceSpec{
+		ClusterIP: "172.30.0.10", ClusterIPs: []string{"172.30.0.10"}, Selector: map[string]string{"dns.operator.openshift.io/daemonset-dns": "default"},
+		Ports: []corev1.ServicePort{
+			{Name: "dns", Port: 53, Protocol: corev1.ProtocolUDP, TargetPort: intstr.FromInt32(53)},
+			{Name: "dns-tcp", Port: 53, Protocol: corev1.ProtocolTCP, TargetPort: intstr.FromInt32(53)},
+		},
+	}}
+	apiService := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "kubernetes", Namespace: "default"}, Spec: corev1.ServiceSpec{
+		ClusterIP: "172.30.0.1", ClusterIPs: []string{"172.30.0.1"},
+		Ports: []corev1.ServicePort{{Name: "https", Port: 443, Protocol: corev1.ProtocolTCP}},
+	}}
+	apiEndpoints := &discoveryv1.EndpointSlice{ObjectMeta: metav1.ObjectMeta{
+		Name: "kubernetes-1", Namespace: "default", Labels: map[string]string{discoveryv1.LabelServiceName: "kubernetes"},
+	}, AddressType: discoveryv1.AddressTypeIPv4,
+		Ports:     []discoveryv1.EndpointPort{{Port: &apiPort}},
+		Endpoints: []discoveryv1.Endpoint{{Addresses: []string{"192.0.2.1"}}},
+	}
+	recoveredCli, err := fakeclient.New(fakeclient.WithObjects(config, authentication, network, dnsService, apiService, apiEndpoints))
+	g.Expect(err).NotTo(HaveOccurred())
+	rr.Client = recoveredCli
+
+	g.Expect(createNetworkPolicy(t.Context(), rr)).To(Succeed())
+	ready = rr.Conditions.GetCondition(ReadyConditionType)
+	g.Expect(ready.Status).To(Equal(metav1.ConditionTrue))
+	g.Expect(ready.Reason).To(Equal("Ready"))
+	rules, ok := rr.Extensions[authProxyEgressRulesKey].([]networkingv1.NetworkPolicyEgressRule)
+	g.Expect(ok).To(BeTrue())
+	g.Expect(rules).NotTo(BeEmpty())
 }
 
 func TestAuthProxyNetworkPolicyDenyAllEgressRendering(t *testing.T) {

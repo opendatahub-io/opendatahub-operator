@@ -302,6 +302,11 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(createDashboardRedirectsAction).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
+			// The gateway templates depend on cluster state resolved during
+			// reconciliation (auth-proxy egress rules from Network/DNS/EndpointSlices,
+			// gateway filters), which can change without a GatewayConfig generation
+			// bump, so the render cache must not skip re-rendering.
+			template.WithCache(false),
 		)).
 		WithAction(deploy.NewAction(deploy.WithCache())).
 		WithAction(syncAdditionalIngressReadiness).

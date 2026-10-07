@@ -2371,8 +2371,8 @@ func RunNetworkPolicyReconciliationTest(t *testing.T, setup TestSetup) {
 			// OIDC needs unrestricted egress because NetworkPolicy cannot represent its IdP FQDN.
 			egressRestored = len(current.Spec.Egress) == 1 &&
 				len(current.Spec.Egress[0].To) == 0 && len(current.Spec.Egress[0].Ports) == 0
-		} else if egressRestored {
-			egressRestored = len(current.Spec.Egress[0].To) > 0 && len(current.Spec.Egress[0].Ports) > 0
+		} else {
+			egressRestored = egressRulesResolved(current.Spec.Egress)
 		}
 		return len(current.Spec.Ingress) == 1 && egressRestored && len(current.OwnerReferences) == 1 &&
 			current.OwnerReferences[0].Kind == serviceApi.GatewayConfigKind &&
@@ -2406,6 +2406,117 @@ func RunNetworkPolicyReconciliationTest(t *testing.T, setup TestSetup) {
 		return current.UID != deletedUID && len(current.OwnerReferences) == 1 &&
 			current.OwnerReferences[0].Kind == serviceApi.GatewayConfigKind
 	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfig should recreate a deleted NetworkPolicy")
+}
+
+// egressRulesResolved reports whether the egress rules represent resolved
+// destinations: at least one rule and no empty (allow-all) rule.
+func egressRulesResolved(rules []networkingv1.NetworkPolicyEgressRule) bool {
+	if len(rules) == 0 {
+		return false
+	}
+	for _, rule := range rules {
+		if len(rule.To) == 0 && len(rule.Ports) == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// envtest has no Gateway provider; report acceptance as that controller would.
+func setDefaultGatewayAcceptance(t *testing.T, g *WithT, ctx context.Context, cli client.Client, accepted metav1.ConditionStatus) {
+	t.Helper()
+	g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		obj := &gwapiv1.Gateway{}
+		if err := cli.Get(ctx, types.NamespacedName{
+			Name: gateway.GetDefaultGatewayName(), Namespace: gateway.GetGatewayNamespace(),
+		}, obj); err != nil {
+			return err
+		}
+		obj.Status.Conditions = []metav1.Condition{{
+			Type:               string(gwapiv1.GatewayConditionAccepted),
+			Status:             accepted,
+			ObservedGeneration: obj.Generation,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "TestAcceptance",
+		}}
+		return cli.Status().Update(ctx, obj)
+	})).To(Succeed())
+}
+
+// RunNetworkPolicyEgressDenyAllReconciliationTest verifies that cluster-state
+// changes alone re-render the policy: losing the cluster Network must replace
+// the egress rules with deny-all, report the failure on GatewayConfigReady, and
+// restoring it must bring the resolved rules and readiness back, without any
+// GatewayConfig spec change.
+func RunNetworkPolicyEgressDenyAllReconciliationTest(t *testing.T, setup TestSetup) {
+	t.Helper()
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+
+	ctx := setup.TC.Ctx
+	cli := setup.TC.K8sClient
+	key := types.NamespacedName{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()}
+	configKey := types.NamespacedName{Name: serviceApi.GatewayConfigName}
+
+	policy := &networkingv1.NetworkPolicy{}
+	g.Eventually(func() error { return cli.Get(ctx, key, policy) }, TestTimeout, TestInterval).Should(Succeed())
+	g.Expect(egressRulesResolved(policy.Spec.Egress)).To(BeTrue())
+
+	setDefaultGatewayAcceptance(t, g, ctx, cli, metav1.ConditionTrue)
+
+	g.Eventually(func() bool {
+		gc := &serviceApi.GatewayConfig{}
+		if err := cli.Get(ctx, configKey, gc); err != nil {
+			return false
+		}
+		ready := conditions.FindStatusCondition(gc, gateway.ReadyConditionType)
+		return ready != nil && ready.Status == metav1.ConditionTrue
+	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfigReady should be ready before the Network is lost")
+
+	network := &configv1.Network{}
+	g.Expect(cli.Get(ctx, types.NamespacedName{Name: "cluster"}, network)).To(Succeed())
+	originalNetwork := network.DeepCopy()
+	g.Expect(cli.Delete(ctx, network)).To(Succeed())
+
+	g.Eventually(func() bool {
+		current := &networkingv1.NetworkPolicy{}
+		if err := cli.Get(ctx, key, current); err != nil {
+			return false
+		}
+		return len(current.Spec.Egress) == 0
+	}, TestTimeout, TestInterval).Should(BeTrue(), "losing Network/cluster should apply deny-all egress without a GatewayConfig spec change")
+
+	g.Eventually(func() bool {
+		gc := &serviceApi.GatewayConfig{}
+		if err := cli.Get(ctx, configKey, gc); err != nil {
+			return false
+		}
+		ready := conditions.FindStatusCondition(gc, gateway.ReadyConditionType)
+		return ready != nil && ready.Status == metav1.ConditionFalse &&
+			ready.Reason == "AuthProxyEgressUnavailable"
+	}, TestTimeout, TestInterval).Should(BeTrue(), "the egress failure should be reported on GatewayConfigReady")
+
+	restoredNetwork := &configv1.Network{ObjectMeta: metav1.ObjectMeta{Name: originalNetwork.Name}}
+	g.Expect(cli.Create(ctx, restoredNetwork)).To(Succeed())
+	restoredNetwork.Status = originalNetwork.Status
+	g.Expect(cli.Status().Update(ctx, restoredNetwork)).To(Succeed())
+
+	g.Eventually(func() bool {
+		current := &networkingv1.NetworkPolicy{}
+		if err := cli.Get(ctx, key, current); err != nil {
+			return false
+		}
+		return egressRulesResolved(current.Spec.Egress)
+	}, TestTimeout, TestInterval).Should(BeTrue(), "restoring Network/cluster should restore the resolved egress rules")
+
+	g.Eventually(func() bool {
+		gc := &serviceApi.GatewayConfig{}
+		if err := cli.Get(ctx, configKey, gc); err != nil {
+			return false
+		}
+		ready := conditions.FindStatusCondition(gc, gateway.ReadyConditionType)
+		return ready != nil && ready.Status == metav1.ConditionTrue
+	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfigReady should recover once destinations resolve")
 }
 
 // Envtest has no kube-controller-manager to complete foreground deletion of

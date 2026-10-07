@@ -24,6 +24,7 @@ import (
 	"html"
 	"maps"
 	"strings"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -40,6 +41,7 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -52,6 +54,7 @@ const (
 	deprecatedNetworkPolicyConfigConditionType = "GatewayConfigNetworkPolicyDeprecated"
 	deprecatedNetworkPolicyConfigReason        = "DeprecatedConfigurationIgnored"
 	authProxyEgressUnavailableReason           = "AuthProxyEgressUnavailable"
+	authProxyEgressRequeueDelay                = 30 * time.Second
 )
 
 // reportDeprecatedNetworkPolicyConfig informs users that the legacy setting is
@@ -435,6 +438,18 @@ func createNetworkPolicy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		l.Error(resolveErr, "auth proxy egress denied until destinations are resolved")
 	} else {
 		rules = resolvedRules
+		// Destinations resolved again after a previous failure: release the
+		// recorded failure so syncGatewayConfigStatus can mark the condition
+		// ready again, otherwise the persisted False would never recover.
+		if existing := rr.Conditions.GetCondition(ReadyConditionType); existing != nil &&
+			existing.Status == metav1.ConditionFalse &&
+			existing.Reason == authProxyEgressUnavailableReason {
+			rr.Conditions.MarkTrue(
+				ReadyConditionType,
+				conditions.WithReason(status.ReadyReason),
+				conditions.WithMessage("kube-auth-proxy egress destinations resolved"),
+			)
+		}
 	}
 	if rr.Extensions == nil {
 		rr.Extensions = make(map[string]any)
@@ -445,6 +460,13 @@ func createNetworkPolicy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		FS:   gatewayResources,
 		Path: networkPolicyTemplate,
 	})
+
+	if resolveErr != nil {
+		// Fail closed with a bounded retry: the deny-all policy queued above is
+		// still applied by the rest of the action chain, and the controller
+		// retries on a timer instead of waiting for a dependency watch event.
+		return odherrors.NewRequeueAfterError(authProxyEgressRequeueDelay)
+	}
 
 	return nil
 }

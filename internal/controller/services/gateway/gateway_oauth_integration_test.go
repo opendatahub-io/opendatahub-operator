@@ -185,6 +185,11 @@ func TestOAuthNetworkPolicyReconciliation(t *testing.T) {
 	RunNetworkPolicyReconciliationTest(t, GetOAuthTestSetup())
 }
 
+// TestOAuthNetworkPolicyEgressDenyAllReconciliation validates that cluster-state changes alone re-render the egress rules (delegates to RunNetworkPolicyEgressDenyAllReconciliationTest).
+func TestOAuthNetworkPolicyEgressDenyAllReconciliation(t *testing.T) {
+	RunNetworkPolicyEgressDenyAllReconciliationTest(t, GetOAuthTestSetup())
+}
+
 func TestOAuthNetworkPolicyAuthModeLifecycle(t *testing.T) {
 	RunNetworkPolicyAuthModeLifecycleTest(t, GetOAuthTestSetup())
 }
