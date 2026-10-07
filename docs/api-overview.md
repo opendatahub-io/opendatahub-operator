@@ -410,7 +410,6 @@ _Appears in:_
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
-| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
@@ -451,7 +450,7 @@ _Appears in:_
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Deprecated: ModelsAsService is preserved for backward compatibility at least through 3.6.<br />MaaS is now configured via spec.components.aigateway.modelsAsAService.<br />Existing Managed values are still respected by the operator.<br />One-directional CEL: Managed→Removed (cleanup) is allowed; Removed→Managed is blocked. | \{ managementState:Removed \} |  |
-| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
+| `wva` _[WVASpec](#wvaspec)_ | WVA is retained for v2 compatibility and is always treated as Removed. | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
@@ -1109,7 +1108,6 @@ _Appears in:_
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
-| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
@@ -1134,7 +1132,7 @@ _Appears in:_
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Deprecated: ModelsAsService is preserved for backward compatibility at least through 3.6.<br />MaaS is now configured via spec.components.aigateway.modelsAsAService.<br />Existing Managed values are still respected by the operator.<br />One-directional CEL: Managed→Removed (cleanup) is allowed; Removed→Managed is blocked. | \{ managementState:Removed \} |  |
-| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
+| `wva` _[WVASpec](#wvaspec)_ | WVA is retained for v2 compatibility and is always treated as Removed. | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
@@ -1702,19 +1700,18 @@ _Appears in:_
 
 
 
-WVASpec enables workload-variant-autoscaler integration
+WVASpec preserves the legacy WVA management state for v2 compatibility.
+Only Removed is supported.
 
 
 
 _Appears in:_
-- [DSCKserve](#dsckserve)
 - [DSCKserveV2](#dsckservev2)
-- [KserveCommonSpec](#kservecommonspec)
 - [KserveCommonSpecV2](#kservecommonspecv2)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ |  | Removed | Enum: [Removed] <br /> |
 
 
 #### WorkbenchesCommonSpec

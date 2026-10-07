@@ -90,6 +90,7 @@ func TestMaaSConversionMatrix(t *testing.T) {
 
 			expected := original.DeepCopy()
 			setRetiredOperatorsRemoved(expected)
+			expected.Spec.Components.Kserve.WVA.ManagementState = operatorv1.Removed
 			expected.Spec.Components.AIGateway.ModelsAsAService.ManagementState = projected
 			expected.Spec.Components.AIGateway.ManagementState = parent
 			expected.Spec.Components.Kserve.ModelsAsService.ManagementState = operatorv1.Removed
@@ -231,6 +232,7 @@ func TestMaaSConversionDefaultsEmptyMaaSStates(t *testing.T) {
 
 	expected := source.DeepCopy()
 	setRetiredOperatorsRemoved(expected)
+	expected.Spec.Components.Kserve.WVA.ManagementState = operatorv1.Removed
 	expected.Spec.Components.AIGateway.ModelsAsAService.ManagementState = operatorv1.Removed
 	expected.Spec.Components.Kserve.ModelsAsService.ManagementState = operatorv1.Removed
 	g.Expect(back).To(Equal(expected))
