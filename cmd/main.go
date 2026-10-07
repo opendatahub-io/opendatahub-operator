@@ -46,7 +46,6 @@ import (
 	"github.com/spf13/viper"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
-	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -661,18 +660,19 @@ func cacheDisableFor() []client.Object {
 		resources.GvkToUnstructured(gvk.OpenshiftIngress),
 		&configv1.Infrastructure{},
 		// APIServer is a cluster-scoped config.openshift.io singleton read via typed Get
-		// (pkg/cluster GetClusterServiceAccountIssuer, pkg/tls FromAPIServer). With
-		// DefaultNamespaces scoping the cache it has no matching informer (it is only
-		// watched as unstructured by the gateway controller), so it must bypass the cache
-		// like Infrastructure does — otherwise a cached read would silently start an
-		// unfiltered cluster-wide informer, defeating the cache scope. (Authentication, the
-		// other such singleton, instead gets a field-selected cluster-wide informer
-		// registered under the OpenShift guard above, so it is served from cache rather
-		// than listed here.)
+		// (pkg/cluster GetClusterServiceAccountIssuer, pkg/tls FromAPIServer). On OpenShift
+		// it is also watched typed by controller-runtime-common's SecurityProfileWatcher
+		// (For(&configv1.APIServer{}), registered above only when hasOpenShiftConfigAPI),
+		// so a cluster-scoped informer for it does exist there. We still bypass the cache
+		// for our own typed Gets rather than depend on that external watcher's informer
+		// being registered and synced first: its lifecycle is owned by an upstream library
+		// and gated on the OpenShift config API, and a direct read of a singleton is cheap.
+		// This keeps reads deterministic and avoids ErrResourceNotCached regressions.
+		// (Authentication, the other such singleton, instead gets a field-selected
+		// cluster-wide informer registered under the OpenShift guard above, so it is served
+		// from cache rather than listed here.)
 		&configv1.APIServer{},
 		&ofapiv1alpha1.Subscription{},
-		&authorizationv1.SelfSubjectRulesReview{},
-		&corev1.Pod{},
 		&corev1.Node{},
 		&userv1.Group{},
 		&ofapiv1alpha1.CatalogSource{},

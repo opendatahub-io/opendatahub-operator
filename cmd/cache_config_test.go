@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
-	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -116,8 +115,6 @@ func TestCacheDisableFor_ContainsExpectedTypes(t *testing.T) {
 	expectedTyped := []client.Object{
 		&configv1.Infrastructure{},
 		&ofapiv1alpha1.Subscription{},
-		&authorizationv1.SelfSubjectRulesReview{},
-		&corev1.Pod{},
 		&corev1.Node{},
 		&userv1.Group{},
 		&ofapiv1alpha1.CatalogSource{},
