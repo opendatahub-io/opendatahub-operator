@@ -70,8 +70,7 @@ func buildCharts(ctx context.Context, rr *types.ReconciliationRequest) (ccmchart
 		rr.Client,
 		dp.GetDependencies(),
 		rr.ChartsBasePath,
-		rr.Instance.GetUID(),
-		rr.Instance.GetObjectKind().GroupVersionKind(),
+		rr.Instance,
 	)
 }
 

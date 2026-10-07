@@ -46,8 +46,7 @@ func monitorTestBuildFn(ctx context.Context, rr *types.ReconciliationRequest) (c
 		rr.Client,
 		dp.GetDependencies(),
 		"",
-		rr.Instance.GetUID(),
-		gvk.AzureKubernetesEngine,
+		rr.Instance,
 	)
 	if err != nil {
 		return ccmcharts.BuildResult{}, err

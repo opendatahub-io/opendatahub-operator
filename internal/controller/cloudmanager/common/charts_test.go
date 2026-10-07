@@ -28,6 +28,14 @@ const (
 
 var testOwnerGVK = gvk.AzureKubernetesEngine
 
+func newTestOwner() *unstructured.Unstructured {
+	owner := &unstructured.Unstructured{}
+	owner.SetGroupVersionKind(testOwnerGVK)
+	owner.SetUID(testOwnerUID)
+
+	return owner
+}
+
 func setTestOwner(cr *unstructured.Unstructured) {
 	cr.SetOwnerReferences([]metav1.OwnerReference{{
 		APIVersion: testOwnerGVK.GroupVersion().String(),
@@ -70,7 +78,7 @@ func TestBuildHelmCharts(t *testing.T) {
 
 		// RHCL defaults to Unmanaged (unlike the others), so it must be set explicitly here.
 		deps := ccmcommon.Dependencies{RHCL: ccmcommon.RHCLDependency{ManagementPolicy: ccmcommon.Managed}}
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, testOwnerUID, testOwnerGVK)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(HaveLen(len(expectedReleaseNames)))
@@ -87,7 +95,7 @@ func TestBuildHelmCharts(t *testing.T) {
 		deps := getAllUnmanagedDependencies()
 		deps.LWS.ManagementPolicy = ccmcommon.Managed
 
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, testOwnerUID, testOwnerGVK)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(HaveLen(1))
@@ -103,7 +111,7 @@ func TestBuildHelmCharts(t *testing.T) {
 
 		deps := getAllUnmanagedDependencies()
 
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, testOwnerUID, testOwnerGVK)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(BeEmpty())
@@ -120,7 +128,7 @@ func TestBuildHelmCharts(t *testing.T) {
 		deps := getAllUnmanagedDependencies()
 		deps.GatewayAPI.ManagementPolicy = ccmcommon.Managed
 
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, testOwnerUID, testOwnerGVK)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.MonitorConfigs).To(HaveLen(4))
@@ -149,7 +157,7 @@ func TestBuildHelmCharts(t *testing.T) {
 			},
 		}
 
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, testOwnerUID, testOwnerGVK)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		// RHCL defaults to Unmanaged (unlike the others), so it's excluded here.
@@ -228,7 +236,7 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 				cli := newFakeClient(t, fakeclient.WithObjects(cr))
 
 				deps := getAllUnmanagedDependencies()
-				result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, testOwnerUID, testOwnerGVK)
+				result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 				g.Expect(err).NotTo(HaveOccurred())
 
 				g.Expect(result.Charts).To(HaveLen(1))
@@ -272,7 +280,7 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 						cr.SetOwnerReferences(owner.refs)
 
 						cli := newFakeClient(t, fakeclient.WithObjects(cr))
-						result, err := BuildHelmCharts(ctx, cli, getAllUnmanagedDependencies(), testChartsPath, testOwnerUID, testOwnerGVK)
+						result, err := BuildHelmCharts(ctx, cli, getAllUnmanagedDependencies(), testChartsPath, newTestOwner())
 						g.Expect(err).NotTo(HaveOccurred())
 						g.Expect(result.Charts).To(BeEmpty())
 						g.Expect(result.FilterCRs).To(BeEmpty())
@@ -291,7 +299,7 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 			GatewayAPI: ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
 		}
 
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, testOwnerUID, testOwnerGVK)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		// RHCL defaults to Unmanaged (unlike the others) and has no CR on cluster,
@@ -326,7 +334,7 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 		cli := newFakeClient(t, fakeclient.WithObjects(istioCR, lwsCR, rhclCR))
 
 		deps := getAllUnmanagedDependencies()
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, testOwnerUID, testOwnerGVK)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(HaveLen(3))
@@ -341,7 +349,7 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 		cli := newFakeClient(t)
 
 		deps := getAllUnmanagedDependencies()
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, testOwnerUID, testOwnerGVK)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(BeEmpty())
@@ -364,7 +372,7 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 			SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
 		}
 
-		_, err = BuildHelmCharts(ctx, cli, deps, testChartsPath, testOwnerUID, testOwnerGVK)
+		_, err = BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).To(MatchError(getErr))
 	})
 
@@ -385,7 +393,7 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 			RHCL:         ccmcommon.RHCLDependency{ManagementPolicy: ccmcommon.Unmanaged},
 		}
 
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, testOwnerUID, testOwnerGVK)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(HaveLen(2))

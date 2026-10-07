@@ -2,14 +2,14 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 
 	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
@@ -29,7 +29,7 @@ const (
 // metadata and a function that computes its state based on management
 // policy and cluster state.
 type chartDef struct {
-	stateFn    func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies, ownerUID k8stypes.UID, ownerGVK schema.GroupVersionKind) (chartState, error)
+	stateFn    func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies, owner runtime.Object) (chartState, error)
 	chart      types.HelmChartInfo
 	monitor    monitorConfig
 	operatorCR *types.OperatorCR
@@ -50,14 +50,14 @@ type monitorConfig struct {
 func makeStateFn(
 	policyFn func(ccmcommon.Dependencies) ccmcommon.ManagementPolicy,
 	operatorCR *types.OperatorCR,
-) func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies, ownerUID k8stypes.UID, ownerGVK schema.GroupVersionKind) (chartState, error) {
-	return func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies, ownerUID k8stypes.UID, ownerGVK schema.GroupVersionKind) (chartState, error) {
+) func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies, owner runtime.Object) (chartState, error) {
+	return func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies, owner runtime.Object) (chartState, error) {
 		if policyFn(d) != ccmcommon.Unmanaged {
 			return chartManaged, nil
 		}
 
 		if operatorCR != nil {
-			owned, err := operatorCROwnedBy(ctx, cli, operatorCR, ownerUID, ownerGVK)
+			owned, err := operatorCROwnedBy(ctx, cli, operatorCR, owner)
 			if err != nil {
 				// Stay managed on transient errors — safe default that avoids premature Phase 2 cleanup.
 				return chartManaged, err
@@ -204,13 +204,12 @@ func BuildHelmCharts(
 	cli client.Client,
 	deps ccmcommon.Dependencies,
 	chartsPath string,
-	ownerUID k8stypes.UID,
-	ownerGVK schema.GroupVersionKind,
+	owner runtime.Object,
 ) (BuildResult, error) {
 	var result BuildResult
 
 	for _, def := range allChartDefs(deps, chartsPath) {
-		state, err := def.stateFn(ctx, cli, deps, ownerUID, ownerGVK)
+		state, err := def.stateFn(ctx, cli, deps, owner)
 		if err != nil {
 			return BuildResult{}, err
 		}
@@ -246,11 +245,18 @@ func BuildHelmCharts(
 	return result, nil
 }
 
-func operatorCROwnedBy(ctx context.Context, cli client.Client, cr *types.OperatorCR, ownerUID k8stypes.UID, ownerGVK schema.GroupVersionKind) (bool, error) {
+func operatorCROwnedBy(ctx context.Context, cli client.Client, cr *types.OperatorCR, owner runtime.Object) (bool, error) {
+	ownerMeta, err := meta.Accessor(owner)
+	if err != nil {
+		return false, fmt.Errorf("get owner metadata: %w", err)
+	}
+	ownerUID := ownerMeta.GetUID()
+	ownerGVK := owner.GetObjectKind().GroupVersionKind()
+
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(cr.GVK)
 
-	err := cli.Get(ctx, client.ObjectKey{Name: cr.Name, Namespace: cr.Namespace}, obj)
+	err = cli.Get(ctx, client.ObjectKey{Name: cr.Name, Namespace: cr.Namespace}, obj)
 	if err != nil {
 		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
 			return false, nil
@@ -259,9 +265,9 @@ func operatorCROwnedBy(ctx context.Context, cli client.Client, cr *types.Operato
 		return false, err
 	}
 
-	for _, owner := range obj.GetOwnerReferences() {
-		if owner.UID == ownerUID && ownerUID != "" &&
-			owner.APIVersion == ownerGVK.GroupVersion().String() && owner.Kind == ownerGVK.Kind {
+	for _, ownerRef := range obj.GetOwnerReferences() {
+		if ownerRef.UID == ownerUID && ownerUID != "" &&
+			ownerRef.APIVersion == ownerGVK.GroupVersion().String() && ownerRef.Kind == ownerGVK.Kind {
 			return true, nil
 		}
 	}
