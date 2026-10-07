@@ -75,9 +75,6 @@ type KserveCommonSpec struct {
 	// Configures and enables NVIDIA NIM integration
 	// +kubebuilder:default={}
 	NIM NimSpec `json:"nim,omitempty"`
-	// Configures and enables workload-variant-autoscaler (WVA) integration
-	// +kubebuilder:default={}
-	WVA WVASpec `json:"wva,omitempty"`
 	// Enables TLS for LLMInferenceService deployments.
 	// When unset, the KServe default (TLS enabled) is preserved.
 	// +optional
@@ -145,7 +142,7 @@ type NimSpec struct {
 
 // WVASpec enables workload-variant-autoscaler integration
 type WVASpec struct {
-	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:validation:Enum=Removed
 	// +kubebuilder:default=Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
