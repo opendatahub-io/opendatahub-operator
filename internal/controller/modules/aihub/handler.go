@@ -1,4 +1,4 @@
-package modelregistry
+package aihub
 
 import (
 	"context"
@@ -20,8 +20,7 @@ import (
 )
 
 const (
-	moduleName = componentApi.ModelRegistryComponentName
-	crName     = "default-aihub"
+	crName = "default-aihub"
 )
 
 type handler struct {
@@ -32,10 +31,10 @@ func NewHandler() *handler {
 	return &handler{
 		BaseHandler: modules.BaseHandler{
 			Config: modules.ModuleConfig{
-				Name:            moduleName,
+				Name:            componentApi.AIHubModuleName,
 				CRName:          crName,
 				GVK:             gvk.AIHub,
-				ManifestDir:     "modelregistry",
+				ManifestDir:     "aihub",
 				SourcePath:      "overlays/aihub",
 				DeploymentName:  "aihub-controller-manager",
 				ControllerImage: "RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE",

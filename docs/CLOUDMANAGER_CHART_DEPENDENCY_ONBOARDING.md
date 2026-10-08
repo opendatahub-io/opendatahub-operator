@@ -43,12 +43,12 @@ health checks, and removal path must match the chosen resource model.
 
 - [ ] Identify the chart owner, chart name, release name, supported chart and
   operand versions, and any prerequisites or transitive dependencies.
-- [ ] Decide whether the dependency is required for every engine or is an
-  optional capability.
+- [ ] Decide whether the dependency is required for the components enabled by
+  default, or it is an optional capability.
 - [ ] Decide the default `managementPolicy` deliberately. `Managed` means CCM
   installs and reconciles the dependency. `Unmanaged` requests that CCM stop
   managing it; the administrator must supply it after cleanup completes. See
-  the existing-CR caveat in step 7. Do not copy another dependency's default.
+  the existing-CR behavior in step 7. Do not copy another dependency's default.
 - [ ] Identify every configurable value CCM must pass to the chart, especially
   operator and operand namespaces.
 - [ ] Identify the operator or operand CR, including its exact GVK, name, and
@@ -65,6 +65,10 @@ health checks, and removal path must match the chosen resource model.
 
 In `odh-gitops`:
 
+- [ ] Define whether a Helm chart already exists and can be used. If so,
+  identify the chart. If not, identify the OLM bundle (or bundles) from which
+  the Helm chart should be generated, or the source manifests when no OLM
+  bundle exists.
 - [ ] Add or update `charts/dependencies/<chart>/` with its `Chart.yaml`,
   `values.yaml`, templates, and any applicable CRDs, RBAC, or update script.
 - [ ] Render the chart with default and CCM-supplied values. Check stable
@@ -114,6 +118,11 @@ When users configure the new dependency through `rhai-on-xks-chart`:
   In particular, `templates/_helpers.tpl` currently reads
   `configuration.namespace`; dependencies with other namespace fields need
   explicit handling wherever those namespaces matter.
+- [ ] Be sure that the ServiceAccounts of all dependency operators and
+  operands contain the correct `imagePullSecrets` reference. When private
+  images need a pull secret, update the xKS Helm chart to create it in all
+  operator and operand namespaces, including custom namespaces, and verify
+  that every ServiceAccount reference resolves to the secret in its namespace.
 - [ ] Update the xKS chart's generated CCM CRDs, RBAC, and templates from a
   matching operator revision using
   `charts/rhai-on-xks-chart/scripts/update-bundle.sh`. Review the generated
@@ -162,13 +171,15 @@ definition.
 For a dependency with an operator or operand CR, an `Unmanaged` transition is
 two phases:
 
-1. If the CR still exists, keep rendering the chart but exclude that CR from
-  CCM deployment. Garbage collection can then remove the CR before the
-   operator.
-2. Once the CR is absent, stop rendering the chart and delete only the
-  chart-rendered resources that are owned by the CCM instance.
+1. If a CR owned by this CCM instance still exists, keep rendering the chart
+   but exclude that CR from CCM deployment. Garbage collection can then remove
+   the CR before the operator.
+2. Once the CCM-owned CR is absent, stop rendering the chart and delete only
+   chart-rendered resources that are owned by the CCM instance.
 
 - [ ] Verify both phases for the new dependency in unit tests.
+- [ ] Verify that a preexisting administrator-managed CR with the same identity
+  does not keep the chart active when the dependency is `Unmanaged`.
 - [ ] Do not delete unowned resources or the unremovable resources (including
   CRDs and namespaces). CCM's garbage-collection action remains last in its
   action chain.
@@ -176,13 +187,10 @@ two phases:
 A chart without an operator or operand CR goes directly to the excluded state
 when set to `Unmanaged`.
 
-**Existing-CR caveat:** `makeStateFn` checks only whether a CR with the
-configured GVK, name, and namespace exists. It does not check ownership before
-entering phase 1. A preexisting administrator-managed CR with that identity can
-therefore cause CCM to render and apply the chart's other resources even when
-policy is `Unmanaged`. Before claiming safe coexistence with a user-managed
-installation, add ownership-aware handling and a regression test, or document
-that limitation for the dependency.
+**Existing-CR behavior:** `makeStateFn` enters phase 1 only when the CR with
+the configured GVK, name, and namespace is owned by the current CCM instance.
+A preexisting administrator-managed CR with that identity does not cause CCM
+to render and apply the chart's other resources when policy is `Unmanaged`.
 
 ## 8. Monitor health and watch state changes
 

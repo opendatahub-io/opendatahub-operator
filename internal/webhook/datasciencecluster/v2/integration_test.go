@@ -61,6 +61,35 @@ func TestDataScienceClusterV2_Integration(t *testing.T) {
 			},
 		},
 		{
+			name:  "Schema: rejects WVA Managed",
+			setup: func(ns string) []client.Object { return nil },
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				dsc := envtestutil.NewDSCV2("dsc-wva-managed")
+				dsc.Spec.Components.Kserve.WVA.ManagementState = operatorv1.Managed
+				g.Expect(k8sClient.Create(ctx, dsc)).To(HaveOccurred())
+			},
+		},
+		{
+			name:  "Schema: accepts WVA Removed",
+			setup: func(ns string) []client.Object { return nil },
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				dsc := envtestutil.NewDSCV2("dsc-wva-removed")
+				dsc.Spec.Components.Kserve.WVA.ManagementState = operatorv1.Removed
+				g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed())
+			},
+		},
+		{
+			name:  "Schema: accepts default WVA state",
+			setup: func(ns string) []client.Object { return nil },
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				dsc := envtestutil.NewDSCV2("dsc-wva-default")
+				g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed())
+				fetched := &dscv2.DataScienceCluster{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(dsc), fetched)).To(Succeed())
+				g.Expect(fetched.Spec.Components.Kserve.WVA.ManagementState).To(Equal(operatorv1.Removed))
+			},
+		},
+		{
 			name: "Denies creation if one already exists",
 			setup: func(ns string) []client.Object {
 				return []client.Object{

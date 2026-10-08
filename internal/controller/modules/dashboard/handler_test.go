@@ -341,7 +341,7 @@ func TestBuildModuleCR_OmitsNotebooksNamespaceWhenWorkbenchesNotManaged(t *testi
 	g.Expect(spec).ShouldNot(HaveKey("notebooksNamespace"))
 }
 
-func TestBuildModuleCR_ProjectsModelRegistryNamespace(t *testing.T) {
+func TestBuildModuleCR_ProjectsAIHubNamespace(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Removed, "", operatorv1.Managed, "rhoai-model-registries")
@@ -354,7 +354,7 @@ func TestBuildModuleCR_ProjectsModelRegistryNamespace(t *testing.T) {
 	g.Expect(spec).ShouldNot(HaveKey("notebooksNamespace"))
 }
 
-func TestBuildModuleCR_OmitsModelRegistryNamespaceWhenNotManaged(t *testing.T) {
+func TestBuildModuleCR_OmitsAIHubNamespaceWhenNotManaged(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Removed, "", operatorv1.Removed, "rhoai-model-registries")
@@ -366,7 +366,7 @@ func TestBuildModuleCR_OmitsModelRegistryNamespaceWhenNotManaged(t *testing.T) {
 	g.Expect(spec).ShouldNot(HaveKey("modelRegistryNamespace"))
 }
 
-func TestBuildModuleCR_OmitsModelRegistryNamespaceWhenEmpty(t *testing.T) {
+func TestBuildModuleCR_OmitsAIHubNamespaceWhenEmpty(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Removed, "", operatorv1.Managed, "")
@@ -376,7 +376,7 @@ func TestBuildModuleCR_OmitsModelRegistryNamespaceWhenEmpty(t *testing.T) {
 
 	spec, _ := u.Object["spec"].(map[string]any)
 	g.Expect(spec).ShouldNot(HaveKey("modelRegistryNamespace"),
-		"empty RegistriesNamespace with Managed ModelRegistry should not project a namespace field")
+		"empty RegistriesNamespace with Managed AI Hub should not project a namespace field")
 }
 
 func TestBuildModuleCR_ProjectsNotebooksNamespace_ManagedRhoai(t *testing.T) {

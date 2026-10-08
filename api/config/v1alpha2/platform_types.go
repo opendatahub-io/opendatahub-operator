@@ -43,8 +43,8 @@ type PlatformSpec struct {
 }
 
 // PlatformModules declares per-module management state for Platform mode.
-// Fields aiHub and data are the public names for internal modelregistry and
-// feastoperator modules, respectively. Other module field names are unchanged.
+// The data field is the public name for the internal feastoperator module;
+// all other fields use their internal module names.
 // Add new module fields here when onboarding additional modules.
 // +kubebuilder:object:generate=true
 type PlatformModules struct {
@@ -106,7 +106,7 @@ type PlatformModules struct {
 
 	// AIHub controls the AI Hub module operator lifecycle.
 	// +optional
-	AIHub common.ManagementSpec `json:"aiHub,omitempty"`
+	AIHub common.ManagementSpec `json:"aihub,omitempty"`
 }
 
 // PlatformStatus defines the observed state of Platform.
@@ -165,12 +165,7 @@ func moduleHandlerName(field reflect.StructField) (string, bool) {
 		return "", false
 	}
 
-	// TODO(RHOAIENG-98726): Remove this mapping when the internal module
-	// handlers use the public aiHub and data names.
-	// https://redhat.atlassian.net/browse/RHOAIENG-98726
 	switch name {
-	case "aiHub":
-		return "modelregistry", true
 	case "data":
 		return "feastoperator", true
 	default:

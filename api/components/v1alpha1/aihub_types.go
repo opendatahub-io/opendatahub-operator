@@ -18,6 +18,8 @@ package v1alpha1
 
 import "github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 
+const AIHubModuleName = "aihub"
+
 // AIHubCommonStatus defines the observed state shared by the public v3 AI Hub
 // component.
 type AIHubCommonStatus struct {
