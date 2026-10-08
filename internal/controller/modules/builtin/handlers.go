@@ -8,7 +8,7 @@ import (
 	aihubModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aihub"
 	aipipelinesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aipipelines"
 	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
-	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
+	dataModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/data"
 	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
@@ -78,7 +78,7 @@ var registrations = []ModuleRegistration{
 		Runlevel: dag.RL(32),
 	},
 	{
-		Handler:  feastModule.NewHandler(),
+		Handler:  dataModule.NewHandler(),
 		Runlevel: dag.RL(32),
 	},
 	{
