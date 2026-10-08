@@ -84,7 +84,7 @@ func ExtractValue[T any](in any, expression string) (T, error) {
 		rt := reflect.TypeFor[T]()
 
 		if rv.CanConvert(rt) {
-			result, _ = rv.Convert(rt).Interface().(T)
+			result, _ = reflect.TypeAssert[T](rv.Convert(rt))
 		} else {
 			return result, fmt.Errorf("result value is not of the expected type (expected:%T, got:%T", result, v)
 		}

@@ -143,7 +143,7 @@ HELM ?= $(LOCALBIN)/helm
 KUSTOMIZE_VERSION ?= v5.8.1
 CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
-GOLANGCI_LINT_VERSION ?= v2.12.2
+GOLANGCI_LINT_VERSION ?= v2.14.0
 YQ_VERSION ?= v4.53.2
 HELM_VERSION ?= v4.1.1
 KUBE_LINTER_VERSION ?= v0.7.6
@@ -313,8 +313,8 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 GOLANGCI_TMP_FILE = .golangci.mktmp.yml
 .PHONY: fmt
 fmt: golangci-lint yq ## Formats code and imports.
-	go fmt ./...
-	$(GOLANGCI_LINT) fmt
+	go fmt $(GOLANGCI_LINT_PACKAGES)
+	$(GOLANGCI_LINT) fmt $(GOLANGCI_LINT_PACKAGES)
 CLEANFILES += $(GOLANGCI_TMP_FILE)
 
 .PHONY: vet
@@ -322,14 +322,16 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 GOLANGCI_LINT_TIMEOUT ?= 5m0s
+# Keep linting opt-in to source roots so fork-local prefetched artifacts are never loaded.
+GOLANGCI_LINT_PACKAGES ?= ./api/... ./cmd/... ./hack/... ./internal/... ./pkg/... ./tests/...
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint against code.
-	$(GOLANGCI_LINT) run --timeout=$(GOLANGCI_LINT_TIMEOUT)
+	$(GOLANGCI_LINT) run --timeout=$(GOLANGCI_LINT_TIMEOUT) $(GOLANGCI_LINT_PACKAGES)
 
 .PHONY: lint-fix
 lint-fix: golangci-lint ## Run golangci-lint against code.
-	$(GOLANGCI_LINT) run --fix
-	$(GOLANGCI_LINT) fmt
+	$(GOLANGCI_LINT) run --fix $(GOLANGCI_LINT_PACKAGES)
+	$(GOLANGCI_LINT) fmt $(GOLANGCI_LINT_PACKAGES)
 
 .PHONY: kube-lint
 kube-lint: prepare ## Run kube-linter against rendered manifests.
@@ -544,8 +546,7 @@ $(OPERATOR_SDK): $(LOCALBIN)
 	chmod +x $(OPERATOR_SDK) ;\
 
 .PHONY: golangci-lint
-golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
-$(GOLANGCI_LINT): $(LOCALBIN)
+golangci-lint: $(LOCALBIN) ## Download golangci-lint locally if necessary.
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint,$(GOLANGCI_LINT_VERSION))
 
 OS=$(shell uname -s)

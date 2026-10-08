@@ -1,11 +1,14 @@
 version: "2"
 linters:
   default: all
+  enable:
+    - gomodguard_v2
   disable:
     - cyclop
     - depguard
     - err113
     - exhaustruct
+    - exhaustruct_v5
     - forbidigo
     - funlen
     - gochecknoglobals
@@ -25,6 +28,7 @@ linters:
     - funcorder
     - godoclint
     - noinlineerr
+    - gomodguard
   settings:
     errcheck:
       check-type-assertions: true
@@ -177,6 +181,11 @@ linters:
           - gosec
         path: _test\.go
         text: "G101:"
+      # Test asset roots are intentionally configurable through an environment variable.
+      - linters:
+          - gosec
+        path: internal/controller/modules/manifests_compliance_test\.go
+        text: "G703:"
     paths:
       - api
       - third_party$
