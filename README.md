@@ -1099,7 +1099,7 @@ Quick reference: "I changed code in directory X — which E2E test(s) should I r
 | Component | Dependencies | E2E Command |
 |---|---|---|
 | kueue | workbenches | `make e2e-test -e E2E_TEST_COMPONENT="workbenches kueue"` |
-| modelcontroller | kserve, modelregistry | `make e2e-test -e E2E_TEST_COMPONENT="kserve modelregistry modelcontroller"` |
+| modelcontroller | kserve, aihub | `make e2e-test -e E2E_TEST_COMPONENT="kserve aihub modelcontroller"` |
 | modelsasservice | kserve | `make e2e-test -e E2E_TEST_COMPONENT="kserve modelsasservice"` |
 | trustyai | kserve | `make e2e-test -e E2E_TEST_COMPONENT="kserve trustyai"` |
 

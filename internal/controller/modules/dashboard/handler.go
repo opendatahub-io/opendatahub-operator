@@ -116,7 +116,7 @@ func (h *handler) BuildModuleCR(
 	if ns := resolveNotebooksNamespace(dscCtx, cfg); ns != "" {
 		spec["notebooksNamespace"] = ns
 	}
-	if ns := resolveModelRegistryNamespace(dscCtx); ns != "" {
+	if ns := resolveAIHubNamespace(dscCtx); ns != "" {
 		spec["modelRegistryNamespace"] = ns
 	}
 
@@ -169,7 +169,7 @@ func buildComponentsMap(dscCtx *modules.DSCContext) map[string]any {
 		name  string
 		state operatorv1.ManagementState
 	}{
-		{componentApi.ModelRegistryComponentName, c.AIHub.ManagementState},
+		{"modelregistry", c.AIHub.ManagementState},
 		{componentApi.MLflowOperatorComponentName, c.MLflowOperator.ManagementState},
 		{componentApi.TrustyAIComponentName, c.TrustyAI.ManagementState},
 		{dashboardAIPipelinesName, c.AIPipelines.ManagementState},
@@ -207,9 +207,8 @@ func resolveNotebooksNamespace(dscCtx *modules.DSCContext, cfg *modules.ModuleCR
 	return cluster.DefaultNotebooksNamespaceODH
 }
 
-// resolveModelRegistryNamespace returns the model-registry namespace to project into the
-// Dashboard CR. Returns empty string if ModelRegistry is not Managed.
-func resolveModelRegistryNamespace(dscCtx *modules.DSCContext) string {
+// resolveAIHubNamespace returns the AI Hub namespace to project into the Dashboard CR.
+func resolveAIHubNamespace(dscCtx *modules.DSCContext) string {
 	if dscCtx == nil || dscCtx.DSC == nil {
 		return ""
 	}

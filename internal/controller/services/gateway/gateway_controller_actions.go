@@ -471,6 +471,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"CookieRefresh":            cookieRefresh,
 		"AuthConfigHash":           authConfigHash,
 		"AuthProxyTimeout":         getGatewayAuthProxyTimeout(gatewayConfig),
+		"AuthProxyMaxReplicas":     getGatewayAuthProxyMaxReplicas(gatewayConfig),
 		"ComponentLabelKey":        labels.K8SCommon.Component,
 		"ComponentLabelValue":      ComponentLabelValue,
 		"PartOfLabelKey":           labels.K8SCommon.PartOf,

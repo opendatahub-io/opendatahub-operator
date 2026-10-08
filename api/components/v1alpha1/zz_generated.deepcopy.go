@@ -1251,7 +1251,6 @@ func (in *KserveCommonSpec) DeepCopyInto(out *KserveCommonSpec) {
 		(*in).DeepCopyInto(*out)
 	}
 	out.NIM = in.NIM
-	out.WVA = in.WVA
 	if in.EnableLLMInferenceServiceTLS != nil {
 		in, out := &in.EnableLLMInferenceServiceTLS, &out.EnableLLMInferenceServiceTLS
 		*out = new(bool)

@@ -158,6 +158,7 @@ func TestConversionPreservesUnchangedFields(t *testing.T) {
 	g.Expect(original.ConvertTo(hub)).To(Succeed())
 	expectedWire := wireWithoutVersion(t, original)
 	delete(expectedWire["spec"].(map[string]any)["components"].(map[string]any)["kserve"].(map[string]any), "modelsAsService")
+	delete(expectedWire["spec"].(map[string]any)["components"].(map[string]any)["kserve"].(map[string]any), "wva")
 	components := expectedWire["spec"].(map[string]any)["components"].(map[string]any)
 	delete(components, "trainingoperator")
 	delete(components, "llamastackoperator")
@@ -201,6 +202,7 @@ func TestConversionPreservesUnchangedFields(t *testing.T) {
 	expectedRoundTrip := original.DeepCopy()
 	expectedRoundTrip.Spec.Components.TrainingOperator.ManagementState = operatorv1.Removed
 	expectedRoundTrip.Spec.Components.LlamaStackOperator.ManagementState = operatorv1.Removed
+	expectedRoundTrip.Spec.Components.Kserve.WVA.ManagementState = operatorv1.Removed
 	expectedRoundTrip.Status.Components.TrainingOperator.ManagementState = operatorv1.Removed
 	expectedRoundTrip.Status.Components.LlamaStackOperator.ManagementState = operatorv1.Removed
 	g.Expect(back).To(Equal(expectedRoundTrip))

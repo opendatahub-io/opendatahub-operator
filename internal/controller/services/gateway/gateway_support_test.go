@@ -13,10 +13,12 @@ import (
 
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	"gopkg.in/yaml.v3"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
+	k8syaml "sigs.k8s.io/yaml"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -950,6 +952,26 @@ func TestAuthTemplatesCoverEveryManagedGateway(t *testing.T) {
 	networkPolicy = renderAuthProxyTemplate(g, networkPolicyTemplate, data)
 	g.Expect(networkPolicy).NotTo(ContainSubstring("- alpha"))
 	g.Expect(networkPolicy).To(ContainSubstring("- beta"))
+}
+
+func TestDefaultAuthProxyScaling(t *testing.T) {
+	for _, maximum := range []int32{0, 2, 4, 10} {
+		g := NewWithT(t)
+		config := &serviceApi.GatewayConfig{}
+		expected := maximum
+		if maximum == 0 {
+			expected = 10 // A nil field bypasses admission defaults in direct callers.
+		} else {
+			config.Spec.AuthProxyMaxReplicas = &maximum
+		}
+		data := authProxyTemplateData()
+		data["AuthProxyMaxReplicas"] = getGatewayAuthProxyMaxReplicas(config)
+		rendered := renderAuthProxyTemplate(g, kubeAuthProxyHPATemplate, data)
+		var hpa autoscalingv2.HorizontalPodAutoscaler
+		g.Expect(k8syaml.Unmarshal([]byte(rendered), &hpa)).To(Succeed())
+		g.Expect(hpa.Spec.MinReplicas).To(HaveValue(Equal(int32(2))))
+		g.Expect(hpa.Spec.MaxReplicas).To(Equal(expected))
+	}
 }
 
 // TestAuthProxyTemplatesErrorWhenTokenReviewKeysMissing documents the e2e bug:

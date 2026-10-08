@@ -410,7 +410,6 @@ _Appears in:_
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
-| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
@@ -451,7 +450,7 @@ _Appears in:_
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Deprecated: ModelsAsService is preserved for backward compatibility at least through 3.6.<br />MaaS is now configured via spec.components.aigateway.modelsAsAService.<br />Existing Managed values are still respected by the operator.<br />One-directional CEL: Managed→Removed (cleanup) is allowed; Removed→Managed is blocked. | \{ managementState:Removed \} |  |
-| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
+| `wva` _[WVASpec](#wvaspec)_ | WVA is retained for v2 compatibility and is always treated as Removed. | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
@@ -1109,7 +1108,6 @@ _Appears in:_
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
-| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
@@ -1134,7 +1132,7 @@ _Appears in:_
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Deprecated: ModelsAsService is preserved for backward compatibility at least through 3.6.<br />MaaS is now configured via spec.components.aigateway.modelsAsAService.<br />Existing Managed values are still respected by the operator.<br />One-directional CEL: Managed→Removed (cleanup) is allowed; Removed→Managed is blocked. | \{ managementState:Removed \} |  |
-| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
+| `wva` _[WVASpec](#wvaspec)_ | WVA is retained for v2 compatibility and is always treated as Removed. | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
@@ -1702,19 +1700,18 @@ _Appears in:_
 
 
 
-WVASpec enables workload-variant-autoscaler integration
+WVASpec preserves the legacy WVA management state for v2 compatibility.
+Only Removed is supported.
 
 
 
 _Appears in:_
-- [DSCKserve](#dsckserve)
 - [DSCKserveV2](#dsckservev2)
-- [KserveCommonSpec](#kservecommonspec)
 - [KserveCommonSpecV2](#kservecommonspecv2)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ |  | Removed | Enum: [Removed] <br /> |
 
 
 #### WorkbenchesCommonSpec
@@ -1901,8 +1898,6 @@ DataScienceCluster is not installed (xKS / vanilla Kubernetes).
 
 
 PlatformModules declares per-module management state for Platform mode.
-Fields aiHub and data are the public names for internal modelregistry and
-feastoperator modules, respectively. Other module field names are unchanged.
 Add new module fields here when onboarding additional modules.
 
 
@@ -1926,7 +1921,7 @@ _Appears in:_
 | `sparkoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | SparkOperator controls the Spark Operator module lifecycle. |  |  |
 | `ray` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Ray controls the Ray module lifecycle. |  |  |
 | `trustyai` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | TrustyAI controls the TrustyAI module operator lifecycle. |  |  |
-| `aiHub` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | AIHub controls the AI Hub module operator lifecycle. |  |  |
+| `aihub` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | AIHub controls the AI Hub module operator lifecycle. |  |  |
 
 
 #### PlatformSpec (v1alpha2)
@@ -2895,6 +2890,42 @@ _Appears in:_
 | `hostname` _string_ | Hostname is the externally visible hostname for this ingress. |  | MaxLength: 253 <br />Required: \{\} <br /> |
 | `ingressControllerName` _string_ | IngressControllerName is the IngressController whose Route admission is used for readiness. |  | MaxLength: 63 <br />Pattern: `^[a-z]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
 | `routeLabels` _object (keys:string, values:string)_ | RouteLabels are applied to the bridge Route and can match the target<br />IngressController route selector. They do not prevent other matching<br />IngressControllers from admitting the Route. |  | MinProperties: 1 <br />Required: \{\} <br /> |
+| `auth` _[AdditionalIngressAuth](#additionalingressauth)_ | Auth configures this ingress's client credentials and auth proxy capacity.<br />Authentication mode and provider settings are inherited from the default gateway. | \{  \} |  |
+
+
+#### AdditionalIngressAuth
+
+
+
+AdditionalIngressAuth defines authentication configuration for an additional ingress.
+
+
+
+_Appears in:_
+- [AdditionalIngress](#additionalingress)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `oidc` _[AdditionalIngressOIDCConfig](#additionalingressoidcconfig)_ | OIDC supplies this ingress's distinct client identity in OIDC mode.<br />Required in OIDC mode; omit in integrated OpenShift OAuth mode, where the<br />operator generates a distinct OAuthClient. The issuer comes from spec.oidc. |  |  |
+| `maxReplicas` _integer_ | MaxReplicas is the maximum number of replicas for this ingress's auth proxy.<br />The minimum remains fixed at 2. This does not configure the default proxy.<br />A value of 2 requests two fixed replicas without an HPA; larger values enable autoscaling. | 10 | Maximum: 10 <br />Minimum: 2 <br /> |
+
+
+#### AdditionalIngressOIDCConfig
+
+
+
+AdditionalIngressOIDCConfig defines client credentials without provider overrides.
+
+
+
+_Appears in:_
+- [AdditionalIngressAuth](#additionalingressauth)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `clientID` _string_ | ClientID is distinct from the default ingress and sibling ingress client IDs. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | ClientSecretRef references an administrator-managed Secret containing the client secret.<br />Each ingress must reference a distinct Secret, including from the default ingress.<br />The operator must not own or delete this source Secret.<br />Name and key must be nonempty; optional must be omitted or false. |  | Required: \{\} <br /> |
+| `secretNamespace` _string_ | SecretNamespace is the source Secret's namespace; defaults to the gateway namespace. |  |  |
 
 
 #### AdditionalIngressStatus
@@ -2933,6 +2964,7 @@ _Appears in:_
 | `hostname` _string_ | Hostname is the externally visible hostname for this ingress. |  | MaxLength: 253 <br />Required: \{\} <br /> |
 | `ingressControllerName` _string_ | IngressControllerName is the IngressController whose Route admission is used for readiness. |  | MaxLength: 63 <br />Pattern: `^[a-z]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
 | `routeLabels` _object (keys:string, values:string)_ | RouteLabels are applied to the bridge Route and can match the target<br />IngressController route selector. They do not prevent other matching<br />IngressControllers from admitting the Route. |  | MinProperties: 1 <br />Required: \{\} <br /> |
+| `auth` _[AdditionalIngressAuth](#additionalingressauth)_ | Auth configures this ingress's client credentials and auth proxy capacity.<br />Authentication mode and provider settings are inherited from the default gateway. | \{  \} |  |
 
 
 #### Alerting
@@ -3036,6 +3068,8 @@ _Appears in:_
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
+| `logs` _[Logs](#logs)_ | Logs configures cluster log forwarding via the ClusterLogForwarder operator. |  |  |
+| `usageLogs` _[UsageLogs](#usagelogs)_ | UsageLogs configures usage log collection and forwarding to Loki. |  |  |
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  |  |
 
 
@@ -3081,6 +3115,7 @@ _Appears in:_
 | `cookie` _[CookieConfig](#cookieconfig)_ | Cookie configuration (applies to both OIDC and OpenShift OAuth) |  |  |
 | `authTimeout` _string_ | AuthTimeout is the duration Envoy waits for auth proxy responses.<br />Requests timeout with 403 if exceeded.<br />Deprecated: Use AuthProxyTimeout instead. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
 | `authProxyTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | AuthProxyTimeout defines the timeout for external authorization service calls (e.g., "5s", "10s")<br />This controls how long Envoy waits for a response from the authentication proxy before timing out 403 response. |  |  |
+| `authProxyMaxReplicas` _integer_ | AuthProxyMaxReplicas is the maximum number of replicas for the default gateway's auth proxy.<br />The HPA minimum is fixed at 2; setting the maximum to 2 fixes the replica count.<br />Additional ingress proxies are configured independently through their auth.maxReplicas. | 10 | Maximum: 10 <br />Minimum: 2 <br /> |
 | `networkPolicy` _[NetworkPolicyConfig](#networkpolicyconfig)_ | NetworkPolicy configuration for kube-auth-proxy |  |  |
 | `providerCASecretName` _string_ | ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider.<br />Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.<br />Secret must exist in the gateway namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate. |  |  |
 | `verifyProviderCertificate` _boolean_ | VerifyProviderCertificate controls TLS certificate verification for the authentication provider.<br />When true (default), certificates are verified against the system trust store and providerCASecretName.<br />When false, certificate verification is disabled (development/testing only).<br />WARNING: Setting this to false disables security and should only be used in non-production environments.<br />For production use with self-signed certificates, use ProviderCASecretName instead. | true |  |
@@ -3157,6 +3192,44 @@ _Appears in:_
 | `enabled` _boolean_ | Enabled determines whether ingress rules are applied.<br />When true, creates NetworkPolicy allowing traffic only from Gateway pods and monitoring namespaces. |  | Required: \{\} <br /> |
 
 
+#### Logs
+
+
+
+Logs defines the configuration for cluster log forwarding via the ClusterLogForwarder operator.
+
+
+
+_Appears in:_
+- [DSCIMonitoring](#dscimonitoring)
+- [MonitoringCommonSpec](#monitoringcommonspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `storage` _[LokiStorageConfig](#lokistorageconfig)_ | Storage configures the LokiStack storage backend for log forwarding.<br />Required: the operator deploys a shared LokiStack used by both log forwarding and usage logs. |  | Required: \{\} <br /> |
+| `inferenceNamespaces` _string array_ | InferenceNamespaces lists the namespaces whose application logs should be forwarded to Loki. |  | items:MaxLength: 63 <br />items:Pattern: ^[a-z0-9]([a-z0-9\-]\{0,61\}[a-z0-9])?$ <br /> |
+
+
+#### LokiStorageConfig
+
+
+
+LokiStorageConfig defines storage configuration for LokiStack.
+
+
+
+_Appears in:_
+- [Logs](#logs)
+- [UsageLogs](#usagelogs)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `type` _string_ | Type specifies the storage backend: "s3". |  | Enum: [s3] <br />Required: \{\} <br /> |
+| `secretName` _string_ | SecretName is the name of the Secret containing storage credentials.<br />For S3: must contain keys: access_key_id, access_key_secret, bucketnames, endpoint, region, insecure, s3ForcePathStyle |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$` <br />Required: \{\} <br /> |
+| `credentialMode` _string_ | CredentialMode specifies how credentials are provided to LokiStack.<br />Valid values: "static", "token", "token-cco". | static | Enum: [static token token-cco] <br /> |
+| `storageClassName` _string_ | StorageClassName specifies the storage class for LokiStack PVCs. | gp3-csi | MaxLength: 253 <br /> |
+
+
 #### Metrics
 
 
@@ -3210,6 +3283,8 @@ _Appears in:_
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
+| `logs` _[Logs](#logs)_ | Logs configures cluster log forwarding via the ClusterLogForwarder operator. |  |  |
+| `usageLogs` _[UsageLogs](#usagelogs)_ | UsageLogs configures usage log collection and forwarding to Loki. |  |  |
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  |  |
 
 
@@ -3324,5 +3399,22 @@ _Appears in:_
 | `enabled` _boolean_ | Enabled enables TLS for Tempo OTLP ingestion (gRPC/HTTP) and query APIs (HTTP)<br />TLS is disabled by default to maintain backward compatibility |  |  |
 | `certificateSecret` _string_ | CertificateSecret specifies the name of the secret containing TLS certificates<br />If not specified, OpenShift service serving certificates will be used |  |  |
 | `caConfigMap` _string_ | CAConfigMap specifies the name of the ConfigMap containing the CA certificate<br />Required for mutual TLS authentication |  |  |
+
+
+#### UsageLogs
+
+
+
+UsageLogs defines the configuration for usage log collection.
+
+
+
+_Appears in:_
+- [DSCIMonitoring](#dscimonitoring)
+- [MonitoringCommonSpec](#monitoringcommonspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `storage` _[LokiStorageConfig](#lokistorageconfig)_ | Storage configures the LokiStack storage backend (S3).<br />When configured, the operator deploys a LokiStack instance and auto-configures the collector endpoint. |  | Required: \{\} <br /> |
 
 

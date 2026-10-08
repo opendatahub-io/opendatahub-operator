@@ -70,7 +70,8 @@ func TestPlatformConversionPreservesFieldsAndRenamesModules(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	var wire map[string]json.RawMessage
 	g.Expect(json.Unmarshal(encoded, &wire)).To(Succeed())
-	g.Expect(wire).To(HaveKey("aiHub"))
+	g.Expect(wire).To(HaveKey("aihub"))
+	g.Expect(wire).NotTo(HaveKey("aiHub"))
 	g.Expect(wire).To(HaveKey("data"))
 	g.Expect(wire).NotTo(HaveKey("modelregistry"))
 	g.Expect(wire).NotTo(HaveKey("feastoperator"))

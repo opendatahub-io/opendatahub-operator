@@ -867,7 +867,7 @@ func (tc *TestContext) UpdateComponentStateInDataScienceClusterWithKind(state op
 	switch kind {
 	case componentApi.DashboardKind:
 		specPath = ".spec.components.dashboard.standard.managementState"
-	case componentApi.ModelRegistryKind:
+	case gvk.AIHub.Kind:
 		specPath = ".spec.components.aiHub.managementState"
 		conditionKind = "AIHub"
 	case componentApi.FeastOperatorKind:

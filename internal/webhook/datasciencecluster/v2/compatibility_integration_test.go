@@ -7,6 +7,8 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -46,6 +48,7 @@ func TestV2ClientAgainstV3Storage(t *testing.T) {
 	v2.Spec.Components.FeastOperator.DataRegistry.ManagementState = operatorv1.Removed
 	v2.Spec.Components.AIGateway.ManagementState = operatorv1.Managed
 	v2.Spec.Components.AIGateway.ModelsAsAService.ManagementState = operatorv1.Managed
+	v2.Spec.Components.Kserve.WVA.ManagementState = operatorv1.Removed
 	g.Expect(cli.Create(ctx, v2)).To(Succeed())
 	key := client.ObjectKeyFromObject(v2)
 	v3 := &dscApi.DataScienceCluster{}
@@ -58,6 +61,12 @@ func TestV2ClientAgainstV3Storage(t *testing.T) {
 	g.Expect(v3.Spec.Components.Data.FeatureStore.ManagementState).To(Equal(operatorv1.Managed))
 	g.Expect(v3.Spec.Components.Data.DataRegistry.ManagementState).To(Equal(operatorv1.Removed))
 	g.Expect(v3.Spec.Components.AIGateway.ModelsAsAService.ManagementState).To(Equal(operatorv1.Managed))
+	v3Wire, err := runtime.DefaultUnstructuredConverter.ToUnstructured(v3)
+	g.Expect(err).NotTo(HaveOccurred())
+	v3Kserve, found, err := unstructured.NestedMap(v3Wire, "spec", "components", "kserve")
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(found).To(BeTrue())
+	g.Expect(v3Kserve).NotTo(HaveKey("wva"))
 
 	v3.Status.Components.Dashboard.ManagementState = operatorv1.Managed
 	v3.Status.Components.AIHub.ManagementState = operatorv1.Managed
@@ -71,6 +80,7 @@ func TestV2ClientAgainstV3Storage(t *testing.T) {
 	}
 	g.Expect(cli.Status().Update(ctx, v3)).To(Succeed())
 	g.Expect(cli.Get(ctx, key, v2)).To(Succeed())
+	g.Expect(v2.Spec.Components.Kserve.WVA.ManagementState).To(Equal(operatorv1.Removed))
 	g.Expect(v2.Status.Components.Dashboard.ManagementState).To(Equal(operatorv1.Managed))
 	g.Expect(v2.Status.Components.ModelRegistry.ManagementState).To(Equal(operatorv1.Managed))
 	g.Expect(v2.Status.Components.ModelRegistry.RegistriesNamespace).To(Equal("model-registry-ns"))

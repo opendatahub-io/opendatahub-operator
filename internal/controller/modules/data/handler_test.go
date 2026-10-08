@@ -1,4 +1,4 @@
-package feastoperator_test
+package data_test
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/data"
 
 	. "github.com/onsi/gomega"
 )
@@ -37,38 +37,38 @@ func newTestScheme() *runtime.Scheme {
 
 func TestIsEnabled_Managed(t *testing.T) {
 	g := NewWithT(t)
-	h := feastoperator.NewHandler()
+	h := data.NewHandler()
 	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Managed))).Should(BeTrue())
 }
 
 func TestIsEnabled_Removed(t *testing.T) {
 	g := NewWithT(t)
-	h := feastoperator.NewHandler()
+	h := data.NewHandler()
 	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Removed))).Should(BeFalse())
 }
 
 func TestIsEnabled_NilModules(t *testing.T) {
 	g := NewWithT(t)
-	h := feastoperator.NewHandler()
+	h := data.NewHandler()
 	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
 }
 
 func TestIsEnabled_EmptyModules(t *testing.T) {
 	g := NewWithT(t)
-	h := feastoperator.NewHandler()
+	h := data.NewHandler()
 	g.Expect(h.IsEnabled(&configApi.PlatformModules{})).Should(BeFalse())
 }
 
 func TestBuildModuleCR_NilClientReturnsError_BothNil(t *testing.T) {
 	g := NewWithT(t)
-	h := feastoperator.NewHandler()
+	h := data.NewHandler()
 	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
 	g.Expect(err).Should(HaveOccurred())
 }
 
 func TestBuildModuleCR_NilClientReturnsError(t *testing.T) {
 	g := NewWithT(t)
-	h := feastoperator.NewHandler()
+	h := data.NewHandler()
 
 	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
 	g.Expect(err).Should(HaveOccurred())
@@ -77,7 +77,7 @@ func TestBuildModuleCR_NilClientReturnsError(t *testing.T) {
 
 func TestBuildModuleCR_NonOIDCCluster(t *testing.T) {
 	g := NewWithT(t)
-	h := feastoperator.NewHandler()
+	h := data.NewHandler()
 
 	cli := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
 
@@ -90,7 +90,7 @@ func TestBuildModuleCR_NonOIDCCluster(t *testing.T) {
 
 func TestBuildModuleCR_OIDCIssuerProjected(t *testing.T) {
 	g := NewWithT(t)
-	h := feastoperator.NewHandler()
+	h := data.NewHandler()
 
 	cli := fake.NewClientBuilder().
 		WithScheme(newTestScheme()).
@@ -121,7 +121,7 @@ func TestBuildModuleCR_OIDCIssuerProjected(t *testing.T) {
 
 func TestBuildModuleCR_InvalidIssuerReturnsError(t *testing.T) {
 	g := NewWithT(t)
-	h := feastoperator.NewHandler()
+	h := data.NewHandler()
 
 	cli := fake.NewClientBuilder().
 		WithScheme(newTestScheme()).
@@ -148,7 +148,7 @@ func TestBuildModuleCR_InvalidIssuerReturnsError(t *testing.T) {
 
 func TestImageHandling(t *testing.T) {
 	g := NewWithT(t)
-	h := feastoperator.NewHandler()
+	h := data.NewHandler()
 
 	g.Expect(h.GetControllerImage()).Should(Equal("RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE"))
 
@@ -162,13 +162,13 @@ func TestImageHandling(t *testing.T) {
 
 func TestGetName(t *testing.T) {
 	g := NewWithT(t)
-	h := feastoperator.NewHandler()
-	g.Expect(h.GetName()).Should(Equal(componentApi.FeastOperatorComponentName))
+	h := data.NewHandler()
+	g.Expect(h.GetName()).Should(Equal(componentApi.DataModuleName))
 }
 
 func TestGetGVK(t *testing.T) {
 	g := NewWithT(t)
-	h := feastoperator.NewHandler()
+	h := data.NewHandler()
 	gvk := h.GetGVK()
 	g.Expect(gvk.Group).Should(Equal("components.platform.opendatahub.io"))
 	g.Expect(gvk.Version).Should(Equal("v1alpha1"))
@@ -177,7 +177,7 @@ func TestGetGVK(t *testing.T) {
 
 func TestGetReadyConditionType(t *testing.T) {
 	g := NewWithT(t)
-	h := feastoperator.NewHandler()
+	h := data.NewHandler()
 	g.Expect(h.GetReadyConditionType()).Should(Equal("DataReady"))
 }
 
@@ -194,7 +194,7 @@ func TestWriteDSCComponentStatus(t *testing.T) {
 			g := NewWithT(t)
 			dsc := &dscApi.DataScienceCluster{}
 
-			feastoperator.NewHandler().WriteDSCComponentStatus(dsc, tt.enabled, nil)
+			data.NewHandler().WriteDSCComponentStatus(dsc, tt.enabled, nil)
 
 			g.Expect(dsc.Status.Components.Data.ManagementState).Should(Equal(tt.want))
 		})

@@ -43,8 +43,6 @@ type PlatformSpec struct {
 }
 
 // PlatformModules declares per-module management state for Platform mode.
-// Fields aiHub and data are the public names for internal modelregistry and
-// feastoperator modules, respectively. Other module field names are unchanged.
 // Add new module fields here when onboarding additional modules.
 // +kubebuilder:object:generate=true
 type PlatformModules struct {
@@ -106,7 +104,7 @@ type PlatformModules struct {
 
 	// AIHub controls the AI Hub module operator lifecycle.
 	// +optional
-	AIHub common.ManagementSpec `json:"aiHub,omitempty"`
+	AIHub common.ManagementSpec `json:"aihub,omitempty"`
 }
 
 // PlatformStatus defines the observed state of Platform.
@@ -154,8 +152,8 @@ type PlatformList struct {
 	Items           []Platform `json:"items"`
 }
 
-// moduleHandlerName returns the internal handler name for a Platform module field.
-func moduleHandlerName(field reflect.StructField) (string, bool) {
+// moduleJSONName returns the Platform module name from a struct field JSON tag.
+func moduleJSONName(field reflect.StructField) (string, bool) {
 	tag := field.Tag.Get("json")
 	if tag == "" || tag == "-" {
 		return "", false
@@ -165,25 +163,15 @@ func moduleHandlerName(field reflect.StructField) (string, bool) {
 		return "", false
 	}
 
-	// TODO(RHOAIENG-98726): Remove this mapping when the internal module
-	// handlers use the public aiHub and data names.
-	// https://redhat.atlassian.net/browse/RHOAIENG-98726
-	switch name {
-	case "aiHub":
-		return "modelregistry", true
-	case "data":
-		return "feastoperator", true
-	default:
-		return name, true
-	}
+	return name, true
 }
 
 // ModuleNames returns the internal handler names declared on PlatformModules.
-func (PlatformModules) ModuleNames() []string {
+func (m *PlatformModules) ModuleNames() []string {
 	t := reflect.TypeOf(PlatformModules{})
 	names := make([]string, 0, t.NumField())
 	for i := 0; i < t.NumField(); i++ {
-		if name, ok := moduleHandlerName(t.Field(i)); ok {
+		if name, ok := moduleJSONName(t.Field(i)); ok {
 			names = append(names, name)
 		}
 	}
@@ -208,7 +196,7 @@ func (m *PlatformModules) EnabledModules() []string {
 		if !ms.IsValid() || operatorv1.ManagementState(ms.String()) != operatorv1.Managed {
 			continue
 		}
-		if name, ok := moduleHandlerName(v.Type().Field(i)); ok {
+		if name, ok := moduleJSONName(v.Type().Field(i)); ok {
 			enabled = append(enabled, name)
 		}
 	}

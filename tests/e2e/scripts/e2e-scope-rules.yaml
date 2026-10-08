@@ -125,8 +125,8 @@ components:
       - datasciencepipelines
   kueue: {}
 
-  modelregistry: {}
-  # No deps populated yet: modelregistry depends on "modelcontroller", which
+  aihub: {}
+  # No deps populated yet: aihub depends on "modelcontroller", which
   # isn't a registered component/module name on main yet. Add the edge once
   # it lands — don't substitute a guess.
 
@@ -152,7 +152,7 @@ components:
     # exactly, so selecting "kserve" alone would skip this scenario
     # forever without this dependency.
     deps: [trustyai, kserve-modelcache]
-    aliases: [kserve-module-operator]
+    aliases: [kserve-module-operator, kserve_aihub]
 
   # A real, selectable e2e name, but not a separately-registered
   # component -- see kserve.deps above for why it exists. It needs its own
@@ -165,7 +165,8 @@ components:
   workbenches:
     deps: [kueue, mlflowoperator]
 
-  feastoperator: {}
+  data:
+    aliases: [data_module]
 
 services:
   auth: {}
