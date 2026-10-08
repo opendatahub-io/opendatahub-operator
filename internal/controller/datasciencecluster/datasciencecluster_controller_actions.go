@@ -17,6 +17,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -322,11 +323,18 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		return fmt.Errorf("failed to resolve application namespace: %w", err)
 	}
 
-	gatewayDomain, _ := resources.GetGatewayDomain(ctx, rr.Client)
+	gatewayConfig, err := resources.GetGatewayConfig(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("get GatewayConfig for module CRs: %w", err)
+	}
+
 	crCfg := &modules.ModuleCRConfig{
 		ApplicationsNamespace: appNS,
-		GatewayDomain:         gatewayDomain,
 		Release:               rr.Release,
+	}
+	if gatewayConfig != nil {
+		crCfg.GatewayDomain = gatewayConfig.Status.Domain
+		crCfg.GatewayIngresses = append([]serviceApi.AdditionalIngressStatus{}, gatewayConfig.Status.AdditionalIngresses...)
 	}
 
 	return moduleReg.ForConfigSource(modules.ConfigFromDSC, func(handler modules.ModuleHandler, _ bool) error {

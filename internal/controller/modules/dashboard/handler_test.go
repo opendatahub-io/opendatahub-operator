@@ -238,7 +238,6 @@ func TestGetOperatorManifests(t *testing.T) {
 	platform := &modules.PlatformContext{
 		ApplicationsNamespace: "opendatahub",
 		ChartsBasePath:        "/opt/charts",
-		GatewayDomain:         "dashboard.example.com",
 	}
 
 	manifests := h.GetOperatorManifests(platform)
