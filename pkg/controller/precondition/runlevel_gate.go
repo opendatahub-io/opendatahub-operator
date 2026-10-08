@@ -56,7 +56,7 @@ func runlevelGateAction(ctx context.Context, rr *types.ReconciliationRequest) er
 
 		rr.Conditions.MarkFalse(PlatformReadyConditionType,
 			conditions.WithReason("RunlevelNotCleared"),
-			conditions.WithMessage("%s", msg),
+			conditions.WithMessage(msg),
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
 

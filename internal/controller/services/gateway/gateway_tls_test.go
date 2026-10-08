@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	pkgtls "github.com/opendatahub-io/odh-platform-utilities/framework/tls"
 	configv1 "github.com/openshift/api/config/v1"
 	ocpcrypto "github.com/openshift/library-go/pkg/crypto"
 	"github.com/stretchr/testify/assert"
@@ -32,16 +33,13 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	pkgtls "github.com/opendatahub-io/opendatahub-operator/v2/pkg/tls"
 )
 
 // expectedCurvePreferences computes the expected --tls-curve-preferences value
 // for a set of TLS groups. The numbers are Go crypto/tls CurveID values, mapped
-// from OpenShift's TLSGroup names by library-go's TLSGroupsToCurveIDs (the same
-// mapping production uses via pkgtls.CurvePreferencesFromSpec). They are stable
-// per the Go stdlib and IANA registry; they only change if Go or library-go
-// reassigns a curve ID, in which case this expectation and pkg/tls/profile_test.go
-// move together.
+// from OpenShift's TLSGroup names by library-go's TLSGroupsToCurveIDs. Production
+// resolves the same Go CurveID values through odh-platform-utilities/framework/tls.
+// They are stable per the Go stdlib and IANA registry.
 func expectedCurvePreferences(groups []configv1.TLSGroup) string {
 	curves, _ := ocpcrypto.TLSGroupsToCurveIDs(groups)
 	ids := make([]string, 0, len(curves))
@@ -137,10 +135,7 @@ func TestTlsProfileSpecFromSecurityProfile(t *testing.T) {
 // cipher list passed through the openshift/library-go OpenSSL->IANA mapping.
 // It is intentionally NOT computed from the production CipherSuitesFromSpec
 // so that it serves as an independent oracle.
-const intermediateIANACiphers = "TLS_AES_128_GCM_SHA256," +
-	"TLS_AES_256_GCM_SHA384," +
-	"TLS_CHACHA20_POLY1305_SHA256," +
-	"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256," +
+const intermediateIANACiphers = "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256," +
 	"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256," +
 	"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384," +
 	"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384," +
@@ -149,10 +144,7 @@ const intermediateIANACiphers = "TLS_AES_128_GCM_SHA256," +
 
 // oldIANACiphers is the expected comma-joined IANA cipher string for the Old TLS profile,
 // derived with the same methodology as intermediateIANACiphers.
-const oldIANACiphers = "TLS_AES_128_GCM_SHA256," +
-	"TLS_AES_256_GCM_SHA384," +
-	"TLS_CHACHA20_POLY1305_SHA256," +
-	"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256," +
+const oldIANACiphers = "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256," +
 	"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256," +
 	"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384," +
 	"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384," +

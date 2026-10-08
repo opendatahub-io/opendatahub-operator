@@ -129,10 +129,10 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	// This is the uninstall/cascade path; per-module disable uses
 	// cleanupDisabledModules on the apply path instead.
 	_, err := b.WithFinalizer(waitForModuleCRDeletion).
-		WithConditions(
+		WithConditions(reconciler.DependentConditions(
 			status.ConditionTypeModulesReady,
 			status.ConditionTypeProvisioningProgress,
-		).Build(ctx)
+		)...).Build(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create platform controller: %w", err)
 	}

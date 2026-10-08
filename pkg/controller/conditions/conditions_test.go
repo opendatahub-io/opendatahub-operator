@@ -7,6 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 
 	. "github.com/onsi/gomega"
@@ -19,6 +20,22 @@ const (
 	deploymentsAvailable  = "DeploymentsAvailable"
 	dependenciesAvailable = "DependenciesAvailable"
 )
+
+func TestWithMessageKeepsPercentLiteral(t *testing.T) {
+	g := NewWithT(t)
+	condition := &common.Condition{}
+	conditions.WithMessage("literal %s")(condition)
+
+	g.Expect(condition.Message).To(Equal("literal %s"))
+}
+
+func TestWithMessagefFormatsArguments(t *testing.T) {
+	g := NewWithT(t)
+	condition := &common.Condition{}
+	conditions.WithMessagef("item %s: %d", "a", 2)(condition)
+
+	g.Expect(condition.Message).To(Equal("item a: 2"))
+}
 
 type fakeAccessor struct {
 	conditions []common.Condition
@@ -36,7 +53,7 @@ func TestManager_InitializeConditions(t *testing.T) {
 	g := NewWithT(t)
 
 	accessor := &fakeAccessor{}
-	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition, dependency2Condition)
+	manager := conditionstest.NewManager(accessor, readyCondition, dependency1Condition, dependency2Condition)
 
 	g.Expect(accessor.GetConditions()).To(HaveLen(3))
 	g.Expect(manager.GetCondition(readyCondition)).NotTo(BeNil())
@@ -49,7 +66,7 @@ func TestManager_IsHappy(t *testing.T) {
 	g := NewWithT(t)
 
 	accessor := &fakeAccessor{}
-	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition, dependency2Condition)
+	manager := conditionstest.NewManager(accessor, readyCondition, dependency1Condition, dependency2Condition)
 
 	g.Expect(manager.IsHappy()).To(BeFalse())
 
@@ -74,7 +91,7 @@ func TestManager_IsHappy_NoDependents(t *testing.T) {
 		{Type: dependency2Condition, Status: metav1.ConditionUnknown},
 	})
 
-	manager := conditions.NewManager(accessor, readyCondition)
+	manager := conditionstest.NewManager(accessor, readyCondition)
 	g.Expect(manager.IsHappy()).To(BeFalse())
 
 	manager.MarkFalse(dependency1Condition)
@@ -94,14 +111,13 @@ func TestManager_SetAndClearCondition(t *testing.T) {
 	g := NewWithT(t)
 
 	accessor := &fakeAccessor{}
-	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition)
+	manager := conditionstest.NewManager(accessor, readyCondition, dependency1Condition)
 
 	manager.MarkTrue(dependency1Condition)
 	g.Expect(manager.GetCondition(dependency1Condition)).NotTo(BeNil())
 	g.Expect(manager.GetCondition(dependency1Condition).Status).To(Equal(metav1.ConditionTrue))
 
-	err := manager.ClearCondition(dependency1Condition)
-	g.Expect(err).ToNot(HaveOccurred())
+	manager.ClearCondition(dependency1Condition)
 	g.Expect(manager.GetCondition(dependency1Condition)).To(BeNil())
 }
 
@@ -109,7 +125,7 @@ func TestManager_RecomputeHappiness(t *testing.T) {
 	g := NewWithT(t)
 
 	accessor := &fakeAccessor{}
-	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition, dependency2Condition)
+	manager := conditionstest.NewManager(accessor, readyCondition, dependency1Condition, dependency2Condition)
 
 	manager.MarkTrue(dependency1Condition)
 	manager.MarkFalse(dependency2Condition, conditions.WithSeverity(common.ConditionSeverityError))
@@ -124,7 +140,7 @@ func TestManager_ResetPreservesConditions(t *testing.T) {
 	g := NewWithT(t)
 
 	accessor := &fakeAccessor{}
-	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition, dependency2Condition)
+	manager := conditionstest.NewManager(accessor, readyCondition, dependency1Condition, dependency2Condition)
 
 	manager.MarkTrue(dependency1Condition)
 	manager.MarkTrue(dependency2Condition)
@@ -151,7 +167,7 @@ func TestManager_CleanupStaleConditions(t *testing.T) {
 		{Type: dependency2Condition, Status: metav1.ConditionTrue},
 	})
 
-	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition)
+	manager := conditionstest.NewManager(accessor, readyCondition, dependency1Condition)
 
 	manager.Reset()
 
@@ -168,7 +184,7 @@ func TestManager_CleanupStaleConditionsPreservesHappy(t *testing.T) {
 	g := NewWithT(t)
 
 	accessor := &fakeAccessor{}
-	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition)
+	manager := conditionstest.NewManager(accessor, readyCondition, dependency1Condition)
 
 	manager.MarkTrue(dependency1Condition)
 	g.Expect(manager.IsHappy()).To(BeTrue())
@@ -187,7 +203,7 @@ func TestManager_TimestampPreservedWhenConditionUnchanged(t *testing.T) {
 	g := NewWithT(t)
 
 	accessor := &fakeAccessor{}
-	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition)
+	manager := conditionstest.NewManager(accessor, readyCondition, dependency1Condition)
 
 	manager.MarkTrue(dependency1Condition, conditions.WithReason("TestReason"), conditions.WithMessage("test message"))
 
@@ -225,7 +241,7 @@ func TestManager_CleanupStaleConditionsRecomputesHappiness(t *testing.T) {
 		},
 	})
 
-	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition)
+	manager := conditionstest.NewManager(accessor, readyCondition, dependency1Condition)
 	g.Expect(manager.IsHappy()).To(BeFalse())
 
 	manager.Reset()
@@ -243,7 +259,7 @@ func TestManager_CleanupStaleConditionsNoopWithoutReset(t *testing.T) {
 	g := NewWithT(t)
 
 	accessor := &fakeAccessor{}
-	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition, dependency2Condition)
+	manager := conditionstest.NewManager(accessor, readyCondition, dependency1Condition, dependency2Condition)
 
 	manager.MarkTrue(dependency1Condition)
 	manager.MarkTrue(dependency2Condition)
@@ -263,7 +279,7 @@ func TestManager_UnsetDependentsBlockHappiness(t *testing.T) {
 	g := NewWithT(t)
 
 	accessor := &fakeAccessor{}
-	manager := conditions.NewManager(accessor, readyCondition, deploymentsAvailable, dependenciesAvailable)
+	manager := conditionstest.NewManager(accessor, readyCondition, deploymentsAvailable, dependenciesAvailable)
 
 	manager.Reset()
 
@@ -271,7 +287,7 @@ func TestManager_UnsetDependentsBlockHappiness(t *testing.T) {
 	manager.MarkTrue(deploymentsAvailable)
 
 	manager.CleanupStaleConditions()
-	manager.RecomputeHappiness("")
+	manager.RecomputeHappiness()
 
 	// Unset dependent should be marked False (not removed), blocking happiness.
 	g.Expect(manager.IsHappy()).To(BeFalse(), "Ready must be False when a declared dependent was not set")
@@ -286,7 +302,7 @@ func TestManager_AllDependentsSetAllowsHappiness(t *testing.T) {
 	g := NewWithT(t)
 
 	accessor := &fakeAccessor{}
-	manager := conditions.NewManager(accessor, readyCondition, deploymentsAvailable, dependenciesAvailable)
+	manager := conditionstest.NewManager(accessor, readyCondition, deploymentsAvailable, dependenciesAvailable)
 
 	manager.Reset()
 
@@ -294,7 +310,7 @@ func TestManager_AllDependentsSetAllowsHappiness(t *testing.T) {
 	manager.MarkTrue(dependenciesAvailable)
 
 	manager.CleanupStaleConditions()
-	manager.RecomputeHappiness("")
+	manager.RecomputeHappiness()
 
 	g.Expect(manager.IsHappy()).To(BeTrue(), "Ready should be True when all dependents are set")
 }
@@ -308,7 +324,7 @@ func TestManager_NonDependentStaleConditionRemoved(t *testing.T) {
 		{Type: "OrphanedCondition", Status: metav1.ConditionTrue},
 	})
 
-	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition)
+	manager := conditionstest.NewManager(accessor, readyCondition, dependency1Condition)
 
 	manager.Reset()
 	manager.MarkTrue(dependency1Condition)
@@ -324,12 +340,12 @@ func TestManager_UnsetDependentRecoversOnNextCycle(t *testing.T) {
 	g := NewWithT(t)
 
 	accessor := &fakeAccessor{}
-	manager := conditions.NewManager(accessor, readyCondition, deploymentsAvailable)
+	manager := conditionstest.NewManager(accessor, readyCondition, deploymentsAvailable)
 
 	// First cycle: dependent not set
 	manager.Reset()
 	manager.CleanupStaleConditions()
-	manager.RecomputeHappiness("")
+	manager.RecomputeHappiness()
 
 	g.Expect(manager.IsHappy()).To(BeFalse())
 	cond := manager.GetCondition(deploymentsAvailable)
@@ -337,12 +353,12 @@ func TestManager_UnsetDependentRecoversOnNextCycle(t *testing.T) {
 	g.Expect(cond.Reason).To(Equal(conditions.ConditionReasonNotSet))
 
 	// Second cycle: dependent is set, should recover
-	manager2 := conditions.NewManager(accessor, readyCondition, deploymentsAvailable)
+	manager2 := conditionstest.NewManager(accessor, readyCondition, deploymentsAvailable)
 	manager2.Reset()
 	manager2.MarkTrue(deploymentsAvailable)
 
 	manager2.CleanupStaleConditions()
-	manager2.RecomputeHappiness("")
+	manager2.RecomputeHappiness()
 
 	g.Expect(manager2.IsHappy()).To(BeTrue(), "should recover when dependent is set on next cycle")
 }
@@ -350,12 +366,14 @@ func TestManager_UnsetDependentRecoversOnNextCycle(t *testing.T) {
 func TestManager_MultipleDependentsPartiallySet(t *testing.T) {
 	g := NewWithT(t)
 
-	condA := "CondA"
-	condB := "CondB"
-	condC := "CondC"
+	const (
+		condA = "CondA"
+		condB = "CondB"
+		condC = "CondC"
+	)
 
 	accessor := &fakeAccessor{}
-	manager := conditions.NewManager(accessor, readyCondition, condA, condB, condC)
+	manager := conditionstest.NewManager(accessor, readyCondition, condA, condB, condC)
 
 	manager.Reset()
 
@@ -364,7 +382,7 @@ func TestManager_MultipleDependentsPartiallySet(t *testing.T) {
 	manager.MarkTrue(condC)
 
 	manager.CleanupStaleConditions()
-	manager.RecomputeHappiness("")
+	manager.RecomputeHappiness()
 
 	g.Expect(manager.IsHappy()).To(BeFalse(), "should be unhappy when any dependent is missing")
 
@@ -379,7 +397,7 @@ func TestManager_Sort(t *testing.T) {
 
 	accessor := &fakeAccessor{conditions: make([]common.Condition, 0)}
 
-	manager := conditions.NewManager(accessor, "Z", "A", "C")
+	manager := conditionstest.NewManager(accessor, "Z", "A", "C")
 	manager.MarkTrue("B")
 	manager.MarkTrue("D")
 	manager.MarkTrue("E")

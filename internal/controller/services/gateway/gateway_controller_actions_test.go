@@ -25,6 +25,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -192,7 +193,7 @@ func TestKubeAuthProxyCertificateProvider(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(&gatewayConfigConditionsAccessor{}, ReadyConditionType),
+		Conditions: conditionstest.NewManager(&gatewayConfigConditionsAccessor{}, ReadyConditionType),
 	}
 
 	err = createKubeAuthProxyInfrastructure(ctx, rr)
@@ -268,7 +269,7 @@ func TestGatewayReadinessRecoversAfterProxyStatusUpdate(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(gatewayConfig, ReadyConditionType),
+		Conditions: conditionstest.NewManager(gatewayConfig, ReadyConditionType),
 	}
 
 	g.Expect(syncGatewayConfigStatus(ctx, rr)).To(Succeed())
@@ -317,7 +318,7 @@ func TestCreateGatewayInfrastructureSkipsAdditionalGatewayOwnershipConflicts(t *
 			setGatewayConfigOwner(beta, config)
 			cli := newGatewayTestClient(t, config, existing, beta)
 			rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: config,
-				Conditions: conditions.NewManager(config, status.ConditionTypeReady, serviceApi.AdditionalGatewaysReadyConditionType)}
+				Conditions: conditionstest.NewManager(config, status.ConditionTypeReady, serviceApi.AdditionalGatewaysReadyConditionType)}
 			g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
 			ingressStatus := additionalIngressStatusByName(config, "alpha")
 			for _, conditionType := range []string{
@@ -389,7 +390,7 @@ func TestCreateGatewayInfrastructureSkipsManagedHostnameConflicts(t *testing.T) 
 			setGatewayConfigOwner(beta, config)
 			rr := &odhtypes.ReconciliationRequest{
 				Client: newGatewayTestClient(t, config, alpha, beta), Instance: config,
-				Conditions: conditions.NewManager(config, serviceApi.AdditionalGatewaysReadyConditionType),
+				Conditions: conditionstest.NewManager(config, serviceApi.AdditionalGatewaysReadyConditionType),
 			}
 			g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
 			g.Expect(createGatewayInfrastructure(t.Context(), rr)).To(Succeed())
@@ -471,7 +472,7 @@ func TestCreateGatewayInfrastructureValidatesAdditionalResourceOwnership(t *test
 				}))
 			g.Expect(err).NotTo(HaveOccurred())
 			rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: config,
-				Conditions: conditions.NewManager(config, serviceApi.AdditionalGatewaysReadyConditionType)}
+				Conditions: conditionstest.NewManager(config, serviceApi.AdditionalGatewaysReadyConditionType)}
 			g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
 			err = createGatewayInfrastructure(t.Context(), rr)
 			if test.lookupKind != "" {
@@ -598,7 +599,7 @@ func TestXKSReconcileWithoutDomainStopsCleanly(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+		Conditions: conditionstest.NewManager(accessor, ReadyConditionType),
 	}
 
 	g.Expect(createGatewayInfrastructure(ctx, rr)).To(Succeed())
@@ -651,7 +652,7 @@ func TestXKSReconcileRejectsOpenShiftOnlyValues(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+		Conditions: conditionstest.NewManager(accessor, ReadyConditionType),
 	}
 
 	g.Expect(createGatewayInfrastructure(ctx, rr)).To(Succeed())
@@ -718,7 +719,7 @@ func TestGetTemplateDataTLSCurvePreferences(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(gatewayConfig, ReadyConditionType),
+		Conditions: conditionstest.NewManager(gatewayConfig, ReadyConditionType),
 	}
 
 	templateData, err := getTemplateData(ctx, rr)
@@ -770,10 +771,73 @@ func TestGetTemplateDataTLSReadError(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(gatewayConfig, ReadyConditionType),
+		Conditions: conditionstest.NewManager(gatewayConfig, ReadyConditionType),
 	}
 
 	_, err = getTemplateData(ctx, rr)
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(ContainSubstring("failed to resolve APIServer TLS profile"))
+}
+
+// TestGetTemplateDataInvalidStrictProfileStopsBeforeRender verifies the
+// reconciliation safety boundary: an unusable Strict profile fails while
+// computing template data, so the render/deploy actions cannot modify the
+// existing proxy workload. A corrected profile can be rendered on the next
+// reconciliation.
+func TestGetTemplateDataInvalidStrictProfileStopsBeforeRender(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec:       serviceApi.GatewayConfigSpec{Domain: "apps.example.com"},
+	}
+
+	newClient := func(profile *configv1.TLSSecurityProfile) client.Client {
+		scheme, err := testscheme.New()
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(configv1.Install(scheme)).To(Succeed())
+		apiServer := &configv1.APIServer{
+			ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAPIServerObj},
+			Spec: configv1.APIServerSpec{
+				TLSAdherence:       configv1.TLSAdherencePolicyStrictAllComponents,
+				TLSSecurityProfile: profile,
+			},
+		}
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(gatewayConfig, apiServer),
+			fakeclient.WithScheme(scheme),
+		)
+		g.Expect(err).NotTo(HaveOccurred())
+		return cli
+	}
+
+	invalidProfile := &configv1.TLSSecurityProfile{
+		Type: configv1.TLSProfileCustomType,
+		Custom: &configv1.CustomTLSProfile{TLSProfileSpec: configv1.TLSProfileSpec{
+			MinTLSVersion: configv1.VersionTLS12,
+			Ciphers:       []string{"DHE-RSA-AES128-GCM-SHA256"},
+			Groups:        []configv1.TLSGroup{configv1.TLSGroupX25519},
+		}},
+	}
+	validProfile := invalidProfile.DeepCopy()
+	validProfile.Custom.Ciphers = []string{"ECDHE-RSA-AES128-GCM-SHA256"}
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:   newClient(invalidProfile),
+		Instance: gatewayConfig,
+	}
+	_, err := getTemplateData(ctx, rr)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("failed to resolve APIServer TLS profile"))
+
+	rr.Client = newClient(validProfile)
+	templateData, err := getTemplateData(ctx, rr)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(templateData).To(HaveKeyWithValue("TLSMinVersion", "TLS1.2"))
+	g.Expect(templateData).To(HaveKeyWithValue("TLSCipherSuite", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"))
 }

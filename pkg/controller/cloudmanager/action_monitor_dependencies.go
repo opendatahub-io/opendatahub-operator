@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	frameworkapi "github.com/opendatahub-io/odh-platform-utilities/framework/api"
+	fwsd "github.com/opendatahub-io/odh-platform-utilities/framework/controller/actions/status/deployments"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
@@ -33,9 +35,10 @@ func defaultDegradedConditionFilter(condType, condStatus string) bool {
 
 func monitorDependencies(ctx context.Context, rr *types.ReconciliationRequest, resourceID string, configs []ccmcharts.DependencyMonitorConfig) error {
 	for _, cfg := range configs {
+		conditionType := frameworkapi.ConditionType(cfg.ConditionType)
 		if cfg.Policy == ccmcommon.Unmanaged {
 			rr.Conditions.MarkTrue(
-				cfg.ConditionType,
+				conditionType,
 				conditions.WithReason(status.UnmanagedReason),
 			)
 
@@ -45,7 +48,7 @@ func monitorDependencies(ctx context.Context, rr *types.ReconciliationRequest, r
 		// Tier 1: operator deployment health
 		if cfg.HasDeployments {
 			depAction := deployments.NewAction(
-				deployments.WithConditionType(cfg.ConditionType),
+				fwsd.WithConditionType(frameworkapi.ConditionType(cfg.ConditionType)),
 				deployments.InNamespace(cfg.Namespace),
 				deployments.WithPartOfLabel(labels.InfrastructurePartOf),
 				deployments.WithSelectorLabel(labels.InfrastructurePartOf, resourceID),
@@ -57,7 +60,7 @@ func monitorDependencies(ctx context.Context, rr *types.ReconciliationRequest, r
 		}
 
 		// Tier 2: operator CR health (skip if Tier 1 already marked unhealthy)
-		cond := rr.Conditions.GetCondition(cfg.ConditionType)
+		cond := rr.Conditions.GetCondition(conditionType)
 		if cfg.OperatorCR != nil && (cond == nil || cond.Status != metav1.ConditionFalse) {
 			result, err := monitor.CheckOperatorHealth(ctx, rr.Client, monitor.OperatorConfig{
 				OperatorGVK: cfg.OperatorCR.GVK,
@@ -72,16 +75,16 @@ func monitorDependencies(ctx context.Context, rr *types.ReconciliationRequest, r
 
 			if !result.Pass {
 				rr.Conditions.MarkFalse(
-					cfg.ConditionType,
+					conditionType,
 					conditions.WithReason(dependencyDegradedReason),
-					conditions.WithMessage("%s", result.Message),
+					conditions.WithMessage(result.Message),
 				)
 			}
 		}
 
 		// No deployments and no CR (e.g. GatewayAPI): mark available after successful deploy
 		if !cfg.HasDeployments && cfg.OperatorCR == nil {
-			rr.Conditions.MarkTrue(cfg.ConditionType)
+			rr.Conditions.MarkTrue(conditionType)
 		}
 	}
 
@@ -92,7 +95,7 @@ func summarizeDependencyStatus(rr *types.ReconciliationRequest, configs []ccmcha
 	var notReady []string
 
 	for _, cfg := range configs {
-		c := rr.Conditions.GetCondition(cfg.ConditionType)
+		c := rr.Conditions.GetCondition(frameworkapi.ConditionType(cfg.ConditionType))
 		if c == nil || c.Status != metav1.ConditionTrue {
 			notReady = append(notReady, cfg.ReleaseName)
 		}
@@ -102,7 +105,7 @@ func summarizeDependencyStatus(rr *types.ReconciliationRequest, configs []ccmcha
 		rr.Conditions.MarkFalse(
 			status.ConditionDependenciesReady,
 			conditions.WithReason(status.NotReadyReason),
-			conditions.WithMessage("Dependencies not ready: %s", strings.Join(notReady, ", ")),
+			conditions.WithMessagef("Dependencies not ready: %s", strings.Join(notReady, ", ")),
 			conditions.WithSeverity(common.ConditionSeverityError),
 		)
 

@@ -200,7 +200,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(gc.NewAction()).
 		// declares the list of additional, controller specific conditions that are
 		// contributing to the controller readiness status
-		WithConditions(conditionTypes...)
+		WithConditions(reconciler.DependentConditions(conditionTypes...)...)
 
 	if _, err := b.Build(ctx); err != nil {
 		return err // no need customize error, it is done in the caller main

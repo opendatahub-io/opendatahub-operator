@@ -13,8 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
@@ -152,7 +152,7 @@ func TestMonitoredCRDs(t *testing.T) {
 			))
 
 			instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-			condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+			condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 			rr := &types.ReconciliationRequest{Client: envTest.Client(), Instance: instance, Conditions: condManager}
 
 			pcs := []precondition.PreCondition{precondition.MonitorCRDs(crdNames)}

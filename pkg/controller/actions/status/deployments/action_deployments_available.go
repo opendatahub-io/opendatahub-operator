@@ -18,7 +18,6 @@ var (
 	WithSelectorLabel             = fwsd.WithSelectorLabel
 	WithSelectorLabels            = fwsd.WithSelectorLabels
 	WithPartOfLabel               = fwsd.WithPartOfLabel
-	WithConditionType             = fwsd.WithConditionType
 	WithNotAvailableReason        = fwsd.WithNotAvailableReason
 	WithoutAutomaticPartOfDefault = fwsd.WithoutAutomaticPartOfDefault
 	InNamespace                   = fwsd.InNamespace

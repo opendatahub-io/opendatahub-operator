@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	frameworkapi "github.com/opendatahub-io/odh-platform-utilities/framework/api"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -16,6 +17,7 @@ import (
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
@@ -36,7 +38,7 @@ func (a *testConditionsAccessor) SetConditions(c []common.Condition) {
 
 func newTestRR() (*odhtype.ReconciliationRequest, *conditions.Manager) {
 	accessor := &testConditionsAccessor{}
-	mgr := conditions.NewManager(accessor, status.ConditionTypeModulesReady)
+	mgr := conditionstest.NewManager(accessor, status.ConditionTypeModulesReady)
 
 	return &odhtype.ReconciliationRequest{
 		Conditions: mgr,
@@ -531,7 +533,7 @@ func TestSetSubmodulesFallback_ParentDisabled(t *testing.T) {
 	setSubmodulesFallback(rr, pCtx, submodules, true, "", "")
 
 	for _, sm := range submodules {
-		cond := mgr.GetCondition(sm.DSCConditionType)
+		cond := mgr.GetCondition(frameworkapi.ConditionType(sm.DSCConditionType))
 		g.Expect(cond).ShouldNot(BeNil(), "condition %s should exist", sm.DSCConditionType)
 		g.Expect(cond.Reason).Should(Equal(status.RemovedReason),
 			"all submodules should be Removed when parent is disabled")
