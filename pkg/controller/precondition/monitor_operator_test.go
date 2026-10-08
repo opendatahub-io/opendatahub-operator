@@ -480,7 +480,7 @@ func TestMonitorOperator_MalformedConditions(t *testing.T) {
 		got := condManager.GetCondition(status.ConditionDependenciesAvailable)
 		g.Expect(got).NotTo(BeNil())
 		g.Expect(got.Status).To(Equal(metav1.ConditionUnknown))
-		g.Expect(got.Message).To(ContainSubstring("failed to parse conditions"))
+		g.Expect(got.Message).To(ContainSubstring("failed to parse status conditions"))
 	})
 }
 
@@ -526,7 +526,7 @@ func TestMonitorOperator_Severity(t *testing.T) {
 	g.Expect(got.Severity).To(Equal(common.ConditionSeverityInfo))
 }
 
-func TestMonitorOperator_NilFilter(t *testing.T) {
+func TestMonitorOperator_NoCriteria(t *testing.T) {
 	g := NewWithT(t)
 
 	envTest, err := envt.New()
@@ -564,7 +564,7 @@ func TestMonitorOperator_NilFilter(t *testing.T) {
 	got := condManager.GetCondition(status.ConditionDependenciesAvailable)
 	g.Expect(got).NotTo(BeNil())
 	g.Expect(got.Status).To(Equal(metav1.ConditionUnknown))
-	g.Expect(got.Message).To(ContainSubstring("Filter must not be nil"))
+	g.Expect(got.Message).To(ContainSubstring("at least one of Filter or RequiredConditions must be set"))
 }
 
 func TestMonitorOperator_EmptyGVK(t *testing.T) {
