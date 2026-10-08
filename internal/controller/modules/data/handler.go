@@ -103,12 +103,12 @@ func (h *handler) WriteDSCComponentStatus(
 	}
 }
 
-// BuildModuleCR constructs the FeastOperator CR with OIDC settings projected
-// from the platform context when the cluster uses external OIDC.
+// BuildModuleCR constructs the FeastOperator CR with OIDC settings and
+// capability projection from the platform context.
 func (h *handler) BuildModuleCR(
 	ctx context.Context,
 	cli client.Client,
-	_ *modules.DSCContext,
+	dscCtx *modules.DSCContext,
 	_ *modules.ModuleCRConfig,
 ) (*unstructured.Unstructured, error) {
 	if cli == nil {
@@ -117,6 +117,7 @@ func (h *handler) BuildModuleCR(
 
 	spec := map[string]any{}
 
+	// --- OIDC (existing) ---
 	oidcSpec, err := getGatewayOIDCSpec(ctx, cli)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve OIDC for FeastOperator CR: %w", err)
@@ -124,6 +125,29 @@ func (h *handler) BuildModuleCR(
 	if oidcSpec != nil {
 		spec["oidc"] = map[string]any{
 			"issuerURL": oidcSpec.IssuerURL,
+		}
+	}
+
+	// --- Capabilities ---
+	if dscCtx != nil && dscCtx.DSC != nil {
+		data := dscCtx.DSC.Spec.Components.Data
+
+		fsState := string(data.FeatureStore.ManagementState)
+		if fsState == "" {
+			fsState = string(operatorv1.Removed)
+		}
+		drState := string(data.DataRegistry.ManagementState)
+		if drState == "" {
+			drState = string(operatorv1.Removed)
+		}
+
+		spec["capabilities"] = map[string]any{
+			"featureStore": map[string]any{
+				"managementState": fsState,
+			},
+			"dataRegistry": map[string]any{
+				"managementState": drState,
+			},
 		}
 	}
 
