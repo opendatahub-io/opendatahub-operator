@@ -160,6 +160,8 @@ func TestConversionPreservesUnchangedFields(t *testing.T) {
 	kserveWire := expectedWire["spec"].(map[string]any)["components"].(map[string]any)["kserve"].(map[string]any)
 	delete(kserveWire, "modelsAsService")
 	kserveWire["wva"] = map[string]any{"managementState": "Removed"}
+	delete(expectedWire["spec"].(map[string]any)["components"].(map[string]any)["kserve"].(map[string]any), "modelsAsService")
+	delete(expectedWire["spec"].(map[string]any)["components"].(map[string]any)["kserve"].(map[string]any), "wva")
 	components := expectedWire["spec"].(map[string]any)["components"].(map[string]any)
 	delete(components, "trainingoperator")
 	delete(components, "llamastackoperator")
@@ -204,6 +206,7 @@ func TestConversionPreservesUnchangedFields(t *testing.T) {
 	expectedRoundTrip.Spec.Components.TrainingOperator.ManagementState = operatorv1.Removed
 	expectedRoundTrip.Spec.Components.LlamaStackOperator.ManagementState = operatorv1.Removed
 	expectedRoundTrip.Spec.Components.Kserve.WVA.ManagementState = operatorv1.Removed //nolint:staticcheck // SA1019
+	expectedRoundTrip.Spec.Components.Kserve.WVA.ManagementState = operatorv1.Removed
 	expectedRoundTrip.Status.Components.TrainingOperator.ManagementState = operatorv1.Removed
 	expectedRoundTrip.Status.Components.LlamaStackOperator.ManagementState = operatorv1.Removed
 	g.Expect(back).To(Equal(expectedRoundTrip))

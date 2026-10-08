@@ -16,7 +16,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	feastoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
+	dataModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/data"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
@@ -25,25 +25,25 @@ import (
 )
 
 const (
-	feastModuleOperatorDeployment = "opendatahub-feast-operator"
-	feastModuleCRName             = componentApi.FeastOperatorInstanceName
-	feastOperatorDeploymentName   = "feast-operator-controller-manager"
-	dataReadyCondition            = "DataReady"
+	dataModuleOperatorDeployment = "opendatahub-feast-operator"
+	dataModuleCRName             = componentApi.FeastOperatorInstanceName
+	feastOperatorDeploymentName  = "feast-operator-controller-manager"
+	dataReadyCondition           = "DataReady"
 )
 
-var feastModuleCRGVK = gvk.FeastOperator
+var dataModuleCRGVK = gvk.FeastOperator
 
-type FeastModuleTestCtx struct {
+type DataModuleTestCtx struct {
 	*ComponentTestCtx
 }
 
-func feastModuleTestSuite(t *testing.T) {
+func dataModuleTestSuite(t *testing.T) {
 	t.Helper()
 
-	baseCtx, err := NewModuleTestCtx(t, feastoperatorModule.NewHandler())
+	baseCtx, err := NewModuleTestCtx(t, dataModule.NewHandler())
 	require.NoError(t, err)
 
-	ctx := FeastModuleTestCtx{ComponentTestCtx: baseCtx}
+	ctx := DataModuleTestCtx{ComponentTestCtx: baseCtx}
 
 	testCases := []TestCase{
 		{"Validate upgrade from in-tree: selector migration", ctx.ValidateUpgradeSelectorMigration},
@@ -67,7 +67,7 @@ func feastModuleTestSuite(t *testing.T) {
 // ValidateV2DSCDataSelection proves that the v2 FeastOperator stanza still
 // drives the v3 FeatureStore runtime. DataRegistry is wire-mapped only here;
 // runtime projection for that child is covered by its owning integration work.
-func (ctx *FeastModuleTestCtx) ValidateV2DSCDataSelection(t *testing.T) {
+func (ctx *DataModuleTestCtx) ValidateV2DSCDataSelection(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Tier3)
 	if ctx.IsXKS() {
@@ -94,12 +94,12 @@ func (ctx *FeastModuleTestCtx) ValidateV2DSCDataSelection(t *testing.T) {
 		)),
 	)
 	ctx.EnsureResourceExists(
-		WithMinimalObject(feastModuleCRGVK, types.NamespacedName{Name: feastModuleCRName}),
+		WithMinimalObject(dataModuleCRGVK, types.NamespacedName{Name: dataModuleCRName}),
 		WithEventuallyTimeout(ctx.TestTimeouts.longEventuallyTimeout),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`)),
 	)
 	ctx.EnsureResourceExists(
-		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: ctx.AppsNamespace, Name: feastModuleOperatorDeployment}),
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: ctx.AppsNamespace, Name: dataModuleOperatorDeployment}),
 		WithEventuallyTimeout(ctx.TestTimeouts.longEventuallyTimeout),
 		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
 	)
@@ -120,7 +120,7 @@ func (ctx *FeastModuleTestCtx) ValidateV2DSCDataSelection(t *testing.T) {
 
 // ValidateComponentEnabled patches the DSC to set the Feature Store to Managed,
 // triggering the module controller to deploy the feast module operator.
-func (ctx *FeastModuleTestCtx) ValidateComponentEnabled(t *testing.T) {
+func (ctx *DataModuleTestCtx) ValidateComponentEnabled(t *testing.T) {
 	t.Helper()
 
 	ctx.EventuallyResourcePatched(
@@ -132,12 +132,12 @@ func (ctx *FeastModuleTestCtx) ValidateComponentEnabled(t *testing.T) {
 
 // ValidateModuleOperatorDeployed checks that the opendatahub-feast-operator
 // Deployment exists and is available (deployed by the platform's Helm action).
-func (ctx *FeastModuleTestCtx) ValidateModuleOperatorDeployed(t *testing.T) {
+func (ctx *DataModuleTestCtx) ValidateModuleOperatorDeployed(t *testing.T) {
 	t.Helper()
 	g := NewWithT(t)
 
 	nn := types.NamespacedName{
-		Name:      feastModuleOperatorDeployment,
+		Name:      dataModuleOperatorDeployment,
 		Namespace: ctx.AppsNamespace,
 	}
 
@@ -153,14 +153,14 @@ func (ctx *FeastModuleTestCtx) ValidateModuleOperatorDeployed(t *testing.T) {
 
 // ValidateModuleCRCreated checks that the FeastOperator CR (v1alpha1) was created
 // by the platform's provisionModules action.
-func (ctx *FeastModuleTestCtx) ValidateModuleCRCreated(t *testing.T) {
+func (ctx *DataModuleTestCtx) ValidateModuleCRCreated(t *testing.T) {
 	t.Helper()
 	g := NewWithT(t)
 
 	g.Eventually(func() error {
 		cr := &unstructured.Unstructured{}
-		cr.SetGroupVersionKind(feastModuleCRGVK)
-		return ctx.Client().Get(context.Background(), types.NamespacedName{Name: feastModuleCRName}, cr)
+		cr.SetGroupVersionKind(dataModuleCRGVK)
+		return ctx.Client().Get(context.Background(), types.NamespacedName{Name: dataModuleCRName}, cr)
 	}).
 		WithTimeout(2*time.Minute).
 		WithPolling(5*time.Second).
@@ -170,14 +170,14 @@ func (ctx *FeastModuleTestCtx) ValidateModuleCRCreated(t *testing.T) {
 // ValidateModuleCRReady checks that the FeastOperator CR reports Ready=True,
 // meaning the module operator has successfully reconciled and deployed the
 // feast-operator from bundled manifests.
-func (ctx *FeastModuleTestCtx) ValidateModuleCRReady(t *testing.T) {
+func (ctx *DataModuleTestCtx) ValidateModuleCRReady(t *testing.T) {
 	t.Helper()
 	g := NewWithT(t)
 
 	g.Eventually(func(g Gomega) {
 		cr := &unstructured.Unstructured{}
-		cr.SetGroupVersionKind(feastModuleCRGVK)
-		g.Expect(ctx.Client().Get(context.Background(), types.NamespacedName{Name: feastModuleCRName}, cr)).To(Succeed())
+		cr.SetGroupVersionKind(dataModuleCRGVK)
+		g.Expect(ctx.Client().Get(context.Background(), types.NamespacedName{Name: dataModuleCRName}, cr)).To(Succeed())
 
 		conditions, found, err := unstructured.NestedSlice(cr.Object, "status", "conditions")
 		g.Expect(err).NotTo(HaveOccurred())
@@ -204,7 +204,7 @@ func (ctx *FeastModuleTestCtx) ValidateModuleCRReady(t *testing.T) {
 
 // ValidateDataReadyCondition checks that the enabled Data module reports its
 // v3 readiness condition on the DataScienceCluster.
-func (ctx *FeastModuleTestCtx) ValidateDataReadyCondition(t *testing.T) {
+func (ctx *DataModuleTestCtx) ValidateDataReadyCondition(t *testing.T) {
 	t.Helper()
 
 	ctx.EnsureResourceExists(
@@ -217,7 +217,7 @@ func (ctx *FeastModuleTestCtx) ValidateDataReadyCondition(t *testing.T) {
 
 // ValidateFeastOperatorDeployed checks that the feast-operator-controller-manager
 // Deployment was created by the module operator from the bundled kustomize manifests.
-func (ctx *FeastModuleTestCtx) ValidateFeastOperatorDeployed(t *testing.T) {
+func (ctx *DataModuleTestCtx) ValidateFeastOperatorDeployed(t *testing.T) {
 	t.Helper()
 	g := NewWithT(t)
 
@@ -240,7 +240,7 @@ func (ctx *FeastModuleTestCtx) ValidateFeastOperatorDeployed(t *testing.T) {
 // It creates a Deployment with old-style selectors (missing app.kubernetes.io/name) to
 // verify that the module operator's selector migration logic handles the transition by
 // deleting and recreating the Deployment with the correct selector.
-func (ctx *FeastModuleTestCtx) ValidateUpgradeSelectorMigration(t *testing.T) {
+func (ctx *DataModuleTestCtx) ValidateUpgradeSelectorMigration(t *testing.T) {
 	t.Helper()
 	g := NewWithT(t)
 
@@ -299,7 +299,7 @@ func (ctx *FeastModuleTestCtx) ValidateUpgradeSelectorMigration(t *testing.T) {
 // ValidateUpgradeOperandsPreserved verifies that after the modular operator takes
 // over from the in-tree component, existing operand resources remain intact. This
 // validates the SSA-with-ForceOwnership adoption path.
-func (ctx *FeastModuleTestCtx) ValidateUpgradeOperandsPreserved(t *testing.T) {
+func (ctx *DataModuleTestCtx) ValidateUpgradeOperandsPreserved(t *testing.T) {
 	t.Helper()
 	g := NewWithT(t)
 
@@ -326,7 +326,7 @@ func (ctx *FeastModuleTestCtx) ValidateUpgradeOperandsPreserved(t *testing.T) {
 
 // ValidateDataRegistryAloneEnablesModule verifies how Feature Store and Data
 // Registry management states are projected to Platform and DSC status.
-func (ctx *FeastModuleTestCtx) ValidateDataRegistryAloneEnablesModule(t *testing.T) {
+func (ctx *DataModuleTestCtx) ValidateDataRegistryAloneEnablesModule(t *testing.T) {
 	t.Helper()
 
 	setStatesAndCheckProjection := func(featureStoreState, dataRegistryState, expectedState operatorv1.ManagementState) {
@@ -379,13 +379,13 @@ func (ctx *FeastModuleTestCtx) ValidateDataRegistryAloneEnablesModule(t *testing
 
 // ValidateModuleDisabledCleanup verifies the two-phase cleanup when the module
 // is disabled via ManagementState: Removed. This test is destructive and should run last.
-func (ctx *FeastModuleTestCtx) ValidateModuleDisabledCleanup(t *testing.T) {
+func (ctx *DataModuleTestCtx) ValidateModuleDisabledCleanup(t *testing.T) {
 	t.Helper()
 
-	moduleCRNN := types.NamespacedName{Name: feastModuleCRName}
+	moduleCRNN := types.NamespacedName{Name: dataModuleCRName}
 	controllerNN := types.NamespacedName{
 		Namespace: ctx.AppsNamespace,
-		Name:      feastModuleOperatorDeployment,
+		Name:      dataModuleOperatorDeployment,
 	}
 
 	// Transition FeastOperator to Removed via DSC patch
@@ -401,7 +401,7 @@ func (ctx *FeastModuleTestCtx) ValidateModuleDisabledCleanup(t *testing.T) {
 		)),
 	)
 	// Phase 1: Module CR should be deleted
-	ctx.EnsureResourceGone(WithMinimalObject(feastModuleCRGVK, moduleCRNN))
+	ctx.EnsureResourceGone(WithMinimalObject(dataModuleCRGVK, moduleCRNN))
 
 	// Phase 2: Module operator Deployment should be deleted
 	ctx.EnsureResourceGone(WithMinimalObject(gvk.Deployment, controllerNN))

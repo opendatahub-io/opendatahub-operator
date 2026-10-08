@@ -83,7 +83,7 @@ E2E_TEST_DSC_MANAGEMENT=true E2E_TEST_COMPONENTS=true \
   E2E_TEST_CONVERSION_WEBHOOK=false make e2e-test
 ```
 
-Repeat with `modelregistry`, `feastoperator`, or `aigateway` as the component.
+Repeat with `aihub`, `data`, or `aigateway` as the component.
 The explicit `E2E_TEST_COMPONENTS=true` overrides a local `.envrc` configured
 for conversion-only tests. On a clean cluster, enable `E2E_TEST_DSC_MANAGEMENT`
 for the first run so the suite creates `default-dsci` and `default-dsc` before

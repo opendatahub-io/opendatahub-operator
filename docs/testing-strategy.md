@@ -71,7 +71,7 @@ The operator's `make unit-test` runs against the full source tree including `pkg
 | Core framework | `base_test.go`, `base_delete_test.go`, `watch_test.go`, `readiness_test.go`, `registry_test.go`, `submodule_conditions_test.go`, `dsc_release_status_test.go`, `modules_controller_actions_test.go`, `modules_controller_actions_inject_env_test.go`, `modules_controller_actions_platform_config_test.go`, `modules_controller_actions_status_test.go`, `modules_controller_watch_test.go` | 71.9% |
 | `aigateway` | `aigateway/handler_test.go` | 73.7% |
 | `dashboard` | `dashboard/handler_test.go` | 97.1% |
-| `feastoperator` | `feastoperator/handler_test.go` | 82.5% |
+| `data` | `data/handler_test.go` | 82.5% |
 | `kserve` | `kserve/handler_test.go` | 81.5% |
 | `mcplifecycleoperator` | `mcplifecycleoperator/handler_test.go` | 95.5% |
 | `mlflowoperator` | `mlflowoperator/handler_test.go` | 79.4% |
@@ -85,7 +85,7 @@ Note: The core framework coverage of 71.9% is partially due to `manifests_compli
 
 E2E tests in `tests/e2e/` exercise the full module lifecycle (provision, update, removal) on a live cluster. These run via `make e2e-test` on OpenShift or `make e2e-test-xks` on KinD/AKS. Key module E2E test files:
 
-- `tests/e2e/feastoperator_module_test.go`
+- `tests/e2e/data_module_test.go`
 - `tests/e2e/aigateway_test.go`
 - `tests/e2e/dashboard_test.go`
 - `tests/e2e/kserve_test.go`

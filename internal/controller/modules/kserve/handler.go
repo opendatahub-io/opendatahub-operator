@@ -167,16 +167,15 @@ func (h *handler) BuildModuleCR(
 	}
 	delete(spec, "wva")
 
-	// Inject cross-component ModelRegistry state.
-	// ModelRegistry is a separate DSC component, not a Kserve sub-component.
+	// Inject AI Hub selection state for the external modelRegistry field.
 	// We forward its management state so kserve-module can propagate it
 	// to odh-model-controller's params.env as "modelregistry-state".
-	mrState := string(dscCtx.DSC.Spec.Components.AIHub.ManagementState)
-	if mrState == "" {
-		mrState = string(operatorv1.Removed)
+	aiHubState := string(dscCtx.DSC.Spec.Components.AIHub.ManagementState)
+	if aiHubState == "" {
+		aiHubState = string(operatorv1.Removed)
 	}
 	spec["modelRegistry"] = map[string]any{
-		"managementState": mrState,
+		"managementState": aiHubState,
 	}
 
 	u := &unstructured.Unstructured{

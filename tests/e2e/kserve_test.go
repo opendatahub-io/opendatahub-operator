@@ -87,7 +87,7 @@ func kserveTestSuite(t *testing.T) {
 
 	testCases = append(testCases,
 		TestCase{"Validate platform config ConfigMap", componentCtx.ValidatePlatformConfigMap},
-		TestCase{"Validate ModelRegistry state propagation", componentCtx.ValidateModelRegistryStatePropagation},
+		TestCase{"Validate AIHub state propagation", componentCtx.ValidateAIHubStatePropagation},
 		TestCase{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 		TestCase{"Validate module disabled", componentCtx.ValidateModuleDisabled},
@@ -148,6 +148,7 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 			// default the preserved compatibility field to Removed.
 			jq.Match(`(.spec.wva.managementState // "Removed") == "Removed"`),
 			// Validate ModelRegistry state is injected from DSC
+			// Validate AIHub state is injected from DSC
 			jq.Match(`.spec.modelRegistry.managementState == "%s"`,
 				func() string {
 					if dsc.Spec.Components.AIHub.ManagementState == "" {

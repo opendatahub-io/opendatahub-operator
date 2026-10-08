@@ -49,7 +49,7 @@ components:
       repo: red-hat-data-services/trustyai-service-operator
       ref: rhoai-3.6@4e9da3301772a71bda7aa4a0fea10f53f1275c8b
       sourcePath: trustyai-operator-module/config
-  modelregistry:
+  aihub:
     odh:
       repo: opendatahub-io/model-registry-operator
       ref: main@0b46e121f4775547cd73849d28d4749bd1b73c8b
@@ -177,7 +177,7 @@ componentCharts:
       repo: red-hat-data-services/workbenches-operator
       ref: rhoai-3.6@e9cfda2ee6f4a03131438405120e52608d8d1d95
       sourcePath: charts/operator
-  feastoperator:
+  data:
     odh:
       repo: opendatahub-io/feast-module-operator
       ref: main@d1c6cc51ef3519e4205559da41fef4b22ac0ba44
@@ -272,7 +272,7 @@ imageOverrides:
       base: "quay.io/rhoai/odh-trustyai-service-operator-rhel9"
       digest: "sha256:228659e5455ea5e2748ff050ae6089049519d05e0fb034ce255b701bf4908f39"
   RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE:
-    component: modelregistry
+    component: aihub
     paramsEnvKey: IMAGES_MODELREGISTRY_OPERATOR
     tagTemplate: "{SHA}"
     odh:
@@ -375,7 +375,7 @@ imageOverrides:
       base: "quay.io/rhoai/odh-workbenches-operator-rhel9"
       digest: "sha256:3ef8a0c061282fe934c6a0f6f7941e127fe9ed76e3956b813fee778597033744"
   RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE:
-    component: feastoperator
+    component: data
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-feast-module-operator"
@@ -403,7 +403,7 @@ imageOverrides:
       digest: "sha256:26954308f8f8ced39f30542fe5e4383e9b90c9da0d20acb44550b1ca9ce2419b"
   RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE:
     source: "csv"
-    component: feastoperator
+    component: data
     odh:
       base: "quay.io/opendatahub/feast-operator"
       digest: "sha256:0d821aeaadcd326c1320fa4f81ab8a4b05706dac9bac9c6f03dd4098fe22f4a6"

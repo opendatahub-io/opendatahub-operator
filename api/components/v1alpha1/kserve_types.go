@@ -120,6 +120,7 @@ type KserveCommonSpecV2 struct {
 	// Deprecated: workload-variant-autoscaler (WVA) is no longer supported.
 	// The field is preserved for backward compatibility, but the operator ignores it.
 	// WVA is treated as Removed regardless of this value.
+	// WVA is retained for v2 compatibility and is always treated as Removed.
 	// +kubebuilder:default={}
 	WVA WVASpec `json:"wva,omitempty"`
 	// Enables TLS for LLMInferenceService deployments.
@@ -151,8 +152,10 @@ type NimSpec struct {
 // Deprecated: workload-variant-autoscaler (WVA) is no longer supported.
 // The field is preserved for backward compatibility, but the operator ignores it.
 // WVA is treated as Removed regardless of this value.
+// WVASpec preserves the legacy WVA management state for v2 compatibility.
+// Only Removed is supported.
 type WVASpec struct {
-	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:validation:Enum=Removed
 	// +kubebuilder:default=Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }

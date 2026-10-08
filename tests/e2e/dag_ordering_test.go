@@ -91,12 +91,12 @@ var dagBatches = []componentBatch{
 					dsc.Spec.Components.AIPipelines.ManagementState = operatorv1.Removed
 				},
 			},
-			// ModelRegistry is an out-of-tree module whose CR is the shared
+			// AIHub is an out-of-tree module whose CR is the shared
 			// cluster-scoped AIHub singleton "default-aihub"; it is referenced
 			// directly via gvk.AIHub and routed through the module-readiness
 			// (Ready=True) path like the other modules (mlflow, spark).
 			{
-				name:     componentApi.ModelRegistryComponentName,
+				name:     componentApi.AIHubModuleName,
 				gvk:      gvk.AIHub,
 				internal: true,
 				Enable: func(dsc *dscApi.DataScienceCluster) {
@@ -185,7 +185,7 @@ var dagBatches = []componentBatch{
 		runlevel: 32,
 		components: []componentEntry{
 			{
-				name:     componentApi.FeastOperatorComponentName,
+				name:     componentApi.DataModuleName,
 				gvk:      gvk.FeastOperator,
 				internal: true,
 				Enable: func(dsc *dscApi.DataScienceCluster) {
@@ -270,7 +270,7 @@ var dscComponentsExcludedFromManagedDAGTests = []string{
 
 // extensionGVKs lists in-tree component CRs at RL 31+ whose controllers
 // write PlatformReady via RunlevelGateAction. Fully-modularized components
-// (Kserve, FeastOperator, MLflowOperator, SparkOperator, TrustyAI) are
+// (Kserve, Data, MLflowOperator, SparkOperator, TrustyAI) are
 // excluded — they have no in-tree controller to write PlatformReady.
 var extensionGVKs = []schema.GroupVersionKind{}
 
@@ -759,7 +759,7 @@ func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 		WithMutateFunc(testf.Mutate[*dscApi.DataScienceCluster](tc.Scheme(), func(dsc *dscApi.DataScienceCluster) error {
 			componentEntryByName(componentApi.DashboardComponentName).Enable(dsc)
 			componentEntryByName(componentApi.KserveComponentName).Enable(dsc)
-			componentEntryByName(componentApi.ModelRegistryComponentName).Enable(dsc)
+			componentEntryByName(componentApi.AIHubModuleName).Enable(dsc)
 			return nil
 		})),
 	)
@@ -771,7 +771,7 @@ func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Mutate[*dscApi.DataScienceCluster](tc.Scheme(), func(dsc *dscApi.DataScienceCluster) error {
-			componentEntryByName(componentApi.ModelRegistryComponentName).Disable(dsc)
+			componentEntryByName(componentApi.AIHubModuleName).Disable(dsc)
 			return nil
 		})),
 	)

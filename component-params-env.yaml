@@ -145,7 +145,7 @@ image_overrides_exceptions:
 - image: RELATED_IMAGE_PERSES_IMAGE
   reason: Used via module handler in monitoring, injected directly without params.env
 - image: RELATED_IMAGE_POSTGRESQL_16_IMAGE
-  reason: Used via module handler in dashboard and modelregistry, injected directly without params.env
+  reason: Used via module handler in dashboard and aihub, injected directly without params.env
 - image: RELATED_IMAGE_UBI_MINIMAL_IMAGE
   reason: Used via module handler in aigateway, injected directly without params.env
 - image: RELATED_IMAGE_RHAII_VLLM_CPU_IMAGE

@@ -452,6 +452,7 @@ _Appears in:_
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Deprecated: ModelsAsService is preserved for backward compatibility at least through 3.6.<br />MaaS is now configured via spec.components.aigateway.modelsAsAService.<br />Existing Managed values are still respected by the operator.<br />One-directional CEL: Managed→Removed (cleanup) is allowed; Removed→Managed is blocked. | \{ managementState:Removed \} |  |
 | `wva` _[WVASpec](#wvaspec)_ | Deprecated: workload-variant-autoscaler (WVA) is no longer supported.<br />The field is preserved for backward compatibility, but the operator ignores it.<br />WVA is treated as Removed regardless of this value. | \{  \} |  |
+| `wva` _[WVASpec](#wvaspec)_ | WVA is retained for v2 compatibility and is always treated as Removed. | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
@@ -1135,6 +1136,7 @@ _Appears in:_
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Deprecated: ModelsAsService is preserved for backward compatibility at least through 3.6.<br />MaaS is now configured via spec.components.aigateway.modelsAsAService.<br />Existing Managed values are still respected by the operator.<br />One-directional CEL: Managed→Removed (cleanup) is allowed; Removed→Managed is blocked. | \{ managementState:Removed \} |  |
 | `wva` _[WVASpec](#wvaspec)_ | Deprecated: workload-variant-autoscaler (WVA) is no longer supported.<br />The field is preserved for backward compatibility, but the operator ignores it.<br />WVA is treated as Removed regardless of this value. | \{  \} |  |
+| `wva` _[WVASpec](#wvaspec)_ | WVA is retained for v2 compatibility and is always treated as Removed. | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
@@ -1701,23 +1703,22 @@ _Appears in:_
 #### WVASpec
 
 
-
 WVASpec is preserved only for backward compatibility with existing workload-variant-autoscaler (WVA) configuration.
 Deprecated: workload-variant-autoscaler (WVA) is no longer supported.
 The field is preserved for backward compatibility, but the operator ignores it.
 WVA is treated as Removed regardless of this value.
+WVASpec preserves the legacy WVA management state for v2 compatibility.
+Only Removed is supported.
 
 
 
 _Appears in:_
-- [DSCKserve](#dsckserve)
 - [DSCKserveV2](#dsckservev2)
-- [KserveCommonSpec](#kservecommonspec)
 - [KserveCommonSpecV2](#kservecommonspecv2)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ |  | Removed | Enum: [Removed] <br /> |
 
 
 #### WorkbenchesCommonSpec
@@ -1904,8 +1905,6 @@ DataScienceCluster is not installed (xKS / vanilla Kubernetes).
 
 
 PlatformModules declares per-module management state for Platform mode.
-Fields aiHub and data are the public names for internal modelregistry and
-feastoperator modules, respectively. Other module field names are unchanged.
 Add new module fields here when onboarding additional modules.
 
 
@@ -1929,7 +1928,7 @@ _Appears in:_
 | `sparkoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | SparkOperator controls the Spark Operator module lifecycle. |  |  |
 | `ray` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Ray controls the Ray module lifecycle. |  |  |
 | `trustyai` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | TrustyAI controls the TrustyAI module operator lifecycle. |  |  |
-| `aiHub` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | AIHub controls the AI Hub module operator lifecycle. |  |  |
+| `aihub` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | AIHub controls the AI Hub module operator lifecycle. |  |  |
 
 
 #### PlatformSpec (v1alpha2)

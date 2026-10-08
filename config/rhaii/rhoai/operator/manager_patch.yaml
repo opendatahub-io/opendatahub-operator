@@ -25,13 +25,13 @@ spec:
           value: 'true'
         - name: RHAI_DISABLE_DASHBOARD_MODULE
           value: 'true'
-        - name: RHAI_DISABLE_FEASTOPERATOR_MODULE
+        - name: RHAI_DISABLE_DATA_MODULE
           value: 'true'
         - name: RHAI_DISABLE_MCPLIFECYCLEOPERATOR_MODULE
           value: 'true'
         - name: RHAI_DISABLE_MLFLOWOPERATOR_MODULE
           value: 'true'
-        - name: RHAI_DISABLE_MODELREGISTRY_MODULE
+        - name: RHAI_DISABLE_AIHUB_MODULE
           value: 'true'
         - name: RHAI_DISABLE_MONITORING_MODULE
           value: 'true'
