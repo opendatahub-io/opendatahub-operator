@@ -183,8 +183,11 @@ type OCPRouteConfig struct {
 	// and AuthProxyTimeout. It does not apply to additional ingress Routes or upgraded connections.
 	// Specify a positive integer with a unit of ms, s, m, or h (for example, "330s").
 	// The maximum is 2147483647ms, matching HAProxy's supported timeout range.
-	// When omitted, no timeout annotation is set and the OpenShift router's configuration is used.
-	// Removing this field removes the operator-managed timeout annotation.
+	// When omitted, the operator sets a 60s Route timeout if the default IngressController's
+	// server timeout is below 60s (OpenShift uses 30s when that field is unset).
+	// Otherwise, or if the default IngressController is unavailable, no timeout annotation is set.
+	// Automatic behavior reads openshift-ingress-operator/default.
+	// Removing this field restores automatic behavior; automatic values are not written to GatewayConfig.
 	// +optional
 	// +kubebuilder:validation:MaxLength=16
 	// +kubebuilder:validation:Pattern=`^[0-9]+(ms|s|m|h)$`

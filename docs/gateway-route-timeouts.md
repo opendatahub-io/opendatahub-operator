@@ -22,8 +22,14 @@ The setting applies to all components using the default shared Route, excludes
 additional ingress Routes, and is inactive in `LoadBalancer` mode. It does not
 change component HTTPRoute timeouts or `spec.authProxyTimeout`.
 
-Omitting or removing the setting leaves the Route without a timeout override,
-using the OpenShift router's configuration.
+When omitted or removed, the operator reads
+`IngressController/default` in `openshift-ingress-operator`. If its server timeout
+is below `60s`, the shared Route gets a `60s` override. An unset IngressController
+timeout uses OpenShift's `30s` default. At `60s` or higher, the annotation is left
+unset so the Route inherits the router's configuration. If the default
+IngressController or its API is unavailable, no automatic override is applied.
+Automatic values are not saved in GatewayConfig and are recalculated when the
+IngressController changes. An explicit value always takes precedence.
 
 See the [API reference](api-overview.md#ocprouteconfig) for the field's accepted
 duration format and limits. For router timeout behavior and Route annotations,

@@ -23,6 +23,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -1756,10 +1757,25 @@ func (tc *GatewayTestCtx) ValidateOCPRouteServerTimeout(t *testing.T) {
 		g.Eventually(func(g Gomega) {
 			route := &routev1.Route{}
 			g.Expect(tc.Client().Get(ctx, routeKey, route)).To(Succeed())
-			if config == nil || config.ServerTimeout == "" {
+			expectedTimeout := ""
+			if config != nil {
+				expectedTimeout = config.ServerTimeout
+			}
+			if expectedTimeout == "" {
+				ingress := &operatorv1.IngressController{}
+				err := tc.Client().Get(ctx, cluster.IngressControllerName, ingress)
+				if !k8serr.IsNotFound(err) && !meta.IsNoMatchError(err) {
+					g.Expect(err).NotTo(HaveOccurred())
+					configured := ingress.Spec.TuningOptions.ServerTimeout
+					if configured == nil || configured.Duration < time.Minute {
+						expectedTimeout = "60s"
+					}
+				}
+			}
+			if expectedTimeout == "" {
 				g.Expect(route.Annotations).NotTo(HaveKey(annotation))
 			} else {
-				g.Expect(route.Annotations).To(HaveKeyWithValue(annotation, config.ServerTimeout))
+				g.Expect(route.Annotations).To(HaveKeyWithValue(annotation, expectedTimeout))
 			}
 			g.Expect(route.UID).To(Equal(originalRoute.UID))
 			g.Expect(route.Spec).To(Equal(originalRoute.Spec))

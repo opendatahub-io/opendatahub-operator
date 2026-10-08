@@ -5,9 +5,12 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -777,4 +780,82 @@ func TestGetTemplateDataTLSReadError(t *testing.T) {
 	_, err = getTemplateData(ctx, rr)
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(ContainSubstring("failed to resolve APIServer TLS profile"))
+}
+
+func TestResolveOCPRouteServerTimeout(t *testing.T) {
+	forbidden := k8serr.NewForbidden(schema.GroupResource{Group: "operator.openshift.io", Resource: "ingresscontrollers"}, "default", nil)
+	for _, tc := range []struct {
+		name       string
+		mode       serviceApi.IngressMode
+		config     *serviceApi.OCPRouteConfig
+		router     *metav1.Duration
+		missing    bool
+		lookupErr  error
+		want       string
+		wantLookup bool
+		wantErr    bool
+	}{
+		{name: "unset router timeout", mode: serviceApi.IngressModeOcpRoute, want: "60s", wantLookup: true},
+		{name: "empty Route config", mode: serviceApi.IngressModeOcpRoute, config: &serviceApi.OCPRouteConfig{}, want: "60s", wantLookup: true},
+		{name: "shorter router timeout", mode: serviceApi.IngressModeOcpRoute, router: &metav1.Duration{Duration: 15 * time.Second}, want: "60s", wantLookup: true},
+		{name: "just below minimum", mode: serviceApi.IngressModeOcpRoute, router: &metav1.Duration{Duration: time.Minute - time.Millisecond}, want: "60s", wantLookup: true},
+		{name: "equal router timeout", mode: serviceApi.IngressModeOcpRoute, router: &metav1.Duration{Duration: time.Minute}, wantLookup: true},
+		{name: "longer router timeout", mode: serviceApi.IngressModeOcpRoute, router: &metav1.Duration{Duration: 2 * time.Minute}, wantLookup: true},
+		{name: "zero router timeout uses OpenShift default", mode: serviceApi.IngressModeOcpRoute, router: &metav1.Duration{}, want: "60s", wantLookup: true},
+		{name: "explicit short override", mode: serviceApi.IngressModeOcpRoute, config: &serviceApi.OCPRouteConfig{ServerTimeout: "10s"}, lookupErr: forbidden, want: "10s"},
+		{name: "explicit long override", mode: serviceApi.IngressModeOcpRoute, config: &serviceApi.OCPRouteConfig{ServerTimeout: "330s"}, missing: true, want: "330s"},
+		{name: "LoadBalancer without override", mode: serviceApi.IngressModeLoadBalancer},
+		{name: "LoadBalancer with override", mode: serviceApi.IngressModeLoadBalancer, config: &serviceApi.OCPRouteConfig{ServerTimeout: "330s"}},
+		{name: "missing default router", mode: serviceApi.IngressModeOcpRoute, missing: true, wantLookup: true},
+		{
+			name: "unsupported ingress API", mode: serviceApi.IngressModeOcpRoute,
+			lookupErr:  &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "operator.openshift.io", Kind: "IngressController"}},
+			wantLookup: true,
+		},
+		{name: "forbidden lookup", mode: serviceApi.IngressModeOcpRoute, lookupErr: forbidden, wantLookup: true, wantErr: true},
+		{name: "failed lookup", mode: serviceApi.IngressModeOcpRoute, lookupErr: errors.New("connection failed"), wantLookup: true, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			config := &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{IngressMode: tc.mode, OCPRoute: tc.config}}
+			original := config.DeepCopy()
+			// A custom router must not influence default-router automatic behavior.
+			objects := []client.Object{&operatorv1.IngressController{
+				ObjectMeta: metav1.ObjectMeta{Name: "custom", Namespace: cluster.IngressControllerName.Namespace},
+				Spec:       operatorv1.IngressControllerSpec{TuningOptions: operatorv1.IngressControllerTuningOptions{ServerTimeout: &metav1.Duration{Duration: 5 * time.Minute}}},
+			}}
+			if !tc.missing {
+				objects = append(objects, &operatorv1.IngressController{
+					ObjectMeta: metav1.ObjectMeta{Name: cluster.IngressControllerName.Name, Namespace: cluster.IngressControllerName.Namespace},
+					Spec:       operatorv1.IngressControllerSpec{TuningOptions: operatorv1.IngressControllerTuningOptions{ServerTimeout: tc.router}},
+				})
+			}
+			lookups := 0
+			cli, err := fakeclient.New(fakeclient.WithObjects(objects...), fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Get: func(ctx context.Context, clnt client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+					lookups++
+					g.Expect(key).To(Equal(cluster.IngressControllerName))
+					if tc.lookupErr != nil {
+						return tc.lookupErr
+					}
+					return clnt.Get(ctx, key, obj, opts...)
+				},
+			}))
+			g.Expect(err).NotTo(HaveOccurred())
+			timeout, err := resolveOCPRouteServerTimeout(t.Context(), cli, config)
+			if tc.wantErr {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(errors.Is(err, tc.lookupErr)).To(BeTrue())
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+			}
+			g.Expect(timeout).To(Equal(tc.want))
+			if tc.wantLookup {
+				g.Expect(lookups).To(Equal(1))
+			} else {
+				g.Expect(lookups).To(BeZero())
+			}
+			g.Expect(config).To(Equal(original))
+		})
+	}
 }

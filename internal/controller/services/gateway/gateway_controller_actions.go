@@ -446,9 +446,9 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		return nil, err
 	}
 
-	serverTimeout := ""
-	if gatewayConfig.Spec.IngressMode == serviceApi.IngressModeOcpRoute && gatewayConfig.Spec.OCPRoute != nil {
-		serverTimeout = gatewayConfig.Spec.OCPRoute.ServerTimeout
+	serverTimeout, err := resolveOCPRouteServerTimeout(ctx, rr.Client, gatewayConfig)
+	if err != nil {
+		return nil, err
 	}
 
 	templateData := map[string]any{
