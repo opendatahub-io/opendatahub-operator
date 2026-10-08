@@ -150,7 +150,7 @@ var (
 				componentApi.AIPipelinesComponentName:          aiPipelinesTestSuite,
 				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
 				componentApi.KserveComponentName:               kserveTestSuite,
-				componentApi.FeastOperatorComponentName:        feastModuleTestSuite,
+				componentApi.DataModuleName:                    dataModuleTestSuite,
 				componentApi.OGXComponentName:                  ogxTestSuite,
 				componentApi.SparkOperatorComponentName:        sparkOperatorTestSuite,
 				componentApi.AIGatewayComponentName:            aiGatewayTestSuite,
