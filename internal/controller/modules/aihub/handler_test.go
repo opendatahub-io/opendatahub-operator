@@ -172,7 +172,6 @@ func TestBuildModuleCR_WithoutGatewayDomain(t *testing.T) {
 
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, &modules.ModuleCRConfig{
 		ApplicationsNamespace: "test-apps-ns",
-		GatewayDomain:         "",
 	})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
