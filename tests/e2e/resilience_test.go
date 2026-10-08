@@ -171,7 +171,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// OGX is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// Trainer is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// SparkOperator is excluded because it is a module (reports SparkOperatorReady via ModulesReady, not ComponentsReady)
-	// FeastOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
+	// Data is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// AIPipelines is excluded because it is a module (reports AIPipelinesReady via ModulesReady, not ComponentsReady)
 	// Ray is excluded because it is a module (reports RayReady via ModulesReady, not ComponentsReady)
 	//nolint:mnd // explicit count of excluded components

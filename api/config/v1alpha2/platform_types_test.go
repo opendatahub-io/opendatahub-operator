@@ -16,11 +16,11 @@ var expectedPlatformModuleNames = []string{
 	"aigateway",
 	"aipipelines",
 	"dashboard",
-	"feastoperator",
+	"data",
 	"kserve",
 	"mcplifecycleoperator",
 	"mlflowoperator",
-	"modelregistry",
+	"aihub",
 	"monitoring",
 	"ogx",
 	"ray",
@@ -33,7 +33,7 @@ var expectedPlatformModuleNames = []string{
 func TestPlatformModulesModuleNames(t *testing.T) {
 	t.Parallel()
 
-	names := (PlatformModules{}).ModuleNames()
+	names := (&PlatformModules{}).ModuleNames()
 	assert.ElementsMatch(t, expectedPlatformModuleNames, names)
 }
 
@@ -44,7 +44,7 @@ func TestPlatformModulesModuleNamesMatchesStructFields(t *testing.T) {
 	require.Equal(t, len(expectedPlatformModuleNames), tType.NumField(),
 		"update expectedPlatformModuleNames when PlatformModules fields change")
 
-	names := (PlatformModules{}).ModuleNames()
+	names := (&PlatformModules{}).ModuleNames()
 	assert.True(t, sort.StringsAreSorted(names))
 }
 
@@ -59,7 +59,10 @@ func TestPlatformModulesEnabledModules(t *testing.T) {
 		Trainer:   common.ManagementSpec{ManagementState: operatorv1.Managed},
 	}
 
-	assert.Equal(t, []string{"dashboard", "feastoperator", "modelregistry", "trainer"}, pm.EnabledModules())
+	expected := []string{"dashboard", "data", "aihub", "trainer"}
+	sort.Strings(expected)
+
+	assert.Equal(t, expected, pm.EnabledModules())
 }
 
 func TestPlatformModulesEnabledModulesNilReceiver(t *testing.T) {
@@ -108,7 +111,7 @@ func TestPlatformModulesEnabledModulesAllManaged(t *testing.T) {
 		TrustyAI:             common.ManagementSpec{ManagementState: operatorv1.Managed},
 	}
 
-	assert.Equal(t, (PlatformModules{}).ModuleNames(), pm.EnabledModules())
+	assert.Equal(t, (&PlatformModules{}).ModuleNames(), pm.EnabledModules())
 }
 
 func TestPlatformModulesEnabledModulesSubsetOfModuleNames(t *testing.T) {
@@ -122,7 +125,7 @@ func TestPlatformModulesEnabledModulesSubsetOfModuleNames(t *testing.T) {
 	}
 
 	allNames := make(map[string]struct{}, len(expectedPlatformModuleNames))
-	for _, name := range (PlatformModules{}).ModuleNames() {
+	for _, name := range (&PlatformModules{}).ModuleNames() {
 		allNames[name] = struct{}{}
 	}
 

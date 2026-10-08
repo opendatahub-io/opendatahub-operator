@@ -115,9 +115,6 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 			ManagementState: operatorv1.Managed,
 			AirGapped:       true,
 		},
-		WVA: componentApi.WVASpec{
-			ManagementState: operatorv1.Removed,
-		},
 		OAuthProxy: &componentApi.OAuthProxyConfig{
 			Resources: &componentApi.OAuthProxyResourceRequirements{
 				Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")},
@@ -162,9 +159,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g.Expect(nim["managementState"]).Should(Equal("Managed"))
 	g.Expect(nim["airGapped"]).Should(BeTrue())
 
-	wva, ok := spec["wva"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec.wva missing")
-	g.Expect(wva["managementState"]).Should(Equal("Removed"))
+	g.Expect(spec).ShouldNot(HaveKey("wva"))
 
 	mr, ok := spec["modelRegistry"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.modelRegistry missing")
