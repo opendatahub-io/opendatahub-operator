@@ -62,9 +62,7 @@ const (
 	CertManagerIssuerCRDName             = "issuers.cert-manager.io"
 	CertManagerClusterIssuerCRDName      = "clusterissuers.cert-manager.io"
 
-	// CertManagerOperatorCRDName is the CRD backing [CertManagerV1Alpha1], the
-	// health CR of the OpenShift cert-manager operator. It is optional: community
-	// cert-manager installations do not provide it.
+	// CertManagerOperatorCRDName is optional because community cert-manager does not provide this OpenShift health API.
 	CertManagerOperatorCRDName = "certmanagers.operator.openshift.io"
 
 	// LeaderWorkerSet CRD.

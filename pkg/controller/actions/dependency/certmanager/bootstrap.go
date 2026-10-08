@@ -46,17 +46,14 @@ import (
 // No automatic renewal is configured; a renewal strategy is tracked as a follow-up.
 const caRootDuration = "876000h"
 
-// requiredAPIList declares the cert-manager APIs the bootstrap action creates.
-// Each entry carries the API version, so the required-API check also confirms
-// that the installed CRD still serves the version we call.
+// Versions are included so the monitor verifies the API version used below is served.
 var requiredAPIList = []monitor.RequiredAPI{
 	{CRDName: gvk.CertManagerCertificateCRDName, GVK: gvk.CertManagerCertificate},
 	{CRDName: gvk.CertManagerIssuerCRDName, GVK: gvk.CertManagerIssuer},
 	{CRDName: gvk.CertManagerClusterIssuerCRDName, GVK: gvk.CertManagerClusterIssuer},
 }
 
-// certManagerOperatorCRName is the singleton name of the OpenShift cert-manager
-// operator's health CR ([gvk.CertManagerV1Alpha1]).
+// certManagerOperatorCRName is the OpenShift operator health CR singleton.
 const certManagerOperatorCRName = "cluster"
 
 const (
@@ -68,9 +65,7 @@ const (
 	certManagerWebhookDegradedCondition     = "cert-manager-webhook-deploymentDegraded"
 )
 
-// certManagerRequiredConditions are the per-deployment health conditions emitted
-// by the OpenShift cert-manager operator. A missing condition is Unknown, and any
-// deployment that is not Available or is Degraded fails the dependency check.
+// The OpenShift operator reports health per deployment, not through generic conditions.
 var certManagerRequiredConditions = []monitor.RequiredCondition{
 	{Type: certManagerControllerAvailableCondition, Status: string(metav1.ConditionTrue)},
 	{Type: certManagerCainjectorAvailableCondition, Status: string(metav1.ConditionTrue)},
@@ -90,8 +85,7 @@ func certManagerConditionFilter(conditionType, conditionStatus string) bool {
 
 	switch conditionType {
 	case certManagerControllerDegradedCondition, certManagerCainjectorDegradedCondition, certManagerWebhookDegradedCondition:
-		// These are checked as required positive conditions, avoiding duplicate
-		// failure details for the same condition.
+		// RequiredConditions already reports these; filtering them would duplicate details.
 		return false
 	default:
 		return true
@@ -341,12 +335,8 @@ func createCABackedIssuer(config BootstrapConfig) (*unstructured.Unstructured, e
 	return u, nil
 }
 
-// watchedCRDs returns the CRD names whose events must trigger a reconciliation:
-// the three required cert-manager CRDs, plus the optional OpenShift health CRD.
-//
-// The optional one matters because it may be installed after the controller has
-// started. Without an event for it, the dynamic CertManager/cluster watch is
-// never registered and the health check stays skipped indefinitely.
+// watchedCRDs includes the optional health CRD so an operator installed after this
+// controller still registers its dynamic CertManager/cluster watch.
 func watchedCRDs() []string {
 	names := make([]string, 0, len(requiredAPIList)+1)
 	for _, api := range requiredAPIList {
@@ -356,10 +346,7 @@ func watchedCRDs() []string {
 	return append(names, gvk.CertManagerOperatorCRDName)
 }
 
-// operatorHealthPreCondition returns the check for the OpenShift cert-manager
-// operator's health CR. The CR is absent on community cert-manager installations,
-// so the check is skipped when its CRD is not registered rather than reported as
-// a failure.
+// operatorHealthPreCondition skips the OpenShift-only health API on community installs.
 func operatorHealthPreCondition() precondition.PreCondition {
 	return precondition.MonitorOperator(
 		precondition.OperatorConfig{
@@ -374,21 +361,16 @@ func operatorHealthPreCondition() precondition.PreCondition {
 	)
 }
 
-// preConditions returns the dependency checks that gate the bootstrap action.
 func preConditions() []precondition.PreCondition {
 	return []precondition.PreCondition{
-		// The APIs we create must exist, be established, and still serve v1.
 		precondition.MonitorAPIs(requiredAPIList),
 
 		operatorHealthPreCondition(),
 	}
 }
 
-// requeueIfDependenciesIndeterminate retries incomplete evidence when no watched
-// resource emits an event (for example after a transient read error). Definite
-// failures remain event-driven: the watched CRD or health CR will enqueue recovery.
-// RequeueAfterError does not stop later actions, so unrelated resources and the
-// final garbage-collection action can still run.
+// requeueIfDependenciesIndeterminate covers transient reads when no watched object
+// emits an event. It does not stop later actions, including garbage collection.
 func requeueIfDependenciesIndeterminate(_ context.Context, rr *types.ReconciliationRequest) error {
 	condition := rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
 	if condition != nil && condition.Status == metav1.ConditionUnknown {

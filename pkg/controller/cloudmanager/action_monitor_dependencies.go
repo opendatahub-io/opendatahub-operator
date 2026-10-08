@@ -73,9 +73,7 @@ func monitorDependencies(ctx context.Context, rr *types.ReconciliationRequest, r
 				return fmt.Errorf("operator CR check for %s failed: %w", cfg.ReleaseName, err)
 			}
 
-			// An indeterminate result (a missing or Unknown condition, or a status
-			// block we could not parse) is not evidence of failure, so it is reported
-			// as Unknown rather than marking the dependency degraded.
+			// Incomplete operator status is not evidence of a degraded dependency.
 			if resultStatus := result.ConditionStatus(); resultStatus != metav1.ConditionTrue {
 				reason := dependencyDegradedReason
 				if resultStatus == metav1.ConditionUnknown {

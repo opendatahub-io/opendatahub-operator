@@ -993,29 +993,7 @@ install-cert-manager: $(CERT_MANAGER_INSTALL_PREREQUISITES) ## Install cert-mana
 ifeq ($(SKIP_CERT_MANAGER_INSTALL),true)
 	@echo "SKIP_CERT_MANAGER_INSTALL is set, skipping cert-manager installation"
 else
-	@set -e; \
-	if kubectl get crd certificates.cert-manager.io >/dev/null 2>&1; then \
-		echo "cert-manager CRDs already present, skipping installation"; \
-	else \
-		tmpdir=$$(mktemp -d); \
-		trap 'rm -rf "$$tmpdir"' EXIT; \
-		go run -C ./cmd/manifest-tools main.go download \
-			--config "$(CURDIR)/hack/cert-manager-config.yaml" \
-			--charts-dir "$$tmpdir"; \
-		"$(HELM)" upgrade --install cert-manager-operator "$$tmpdir/cert-manager-operator" --create-namespace --take-ownership; \
-		kubectl rollout status deployment/cert-manager-operator-controller-manager -n cert-manager-operator --timeout=120s; \
-		for dep in cert-manager cert-manager-webhook cert-manager-cainjector; do \
-			echo "Waiting for deployment/$$dep in cert-manager namespace..."; \
-			end=$$(( $$(date +%s) + 300 )); \
-			while ! kubectl rollout status deployment/$$dep -n cert-manager --timeout=10s 2>/dev/null; do \
-				if [ $$(date +%s) -ge $$end ]; then \
-					echo "Timed out waiting for deployment/$$dep"; \
-					exit 1; \
-				fi; \
-				sleep 5; \
-			done; \
-		done; \
-	fi
+	@./hack/install-cert-manager.sh "$(HELM)"
 endif
 
 CCM_INSTALL_TARGETS := $(addprefix install-ccm-,$(CCM_PROVIDERS))

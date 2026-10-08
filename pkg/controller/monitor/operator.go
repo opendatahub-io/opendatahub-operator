@@ -29,42 +29,32 @@ type ConditionFilterFunc func(conditionType string, status string) bool
 // an operator that has never reported Available=True is not healthy just because
 // it has not reported Degraded=True either.
 type RequiredCondition struct {
-	// Type is the condition type, for example "Available". Required.
 	Type string
 
-	// Status is the value the condition must have, for example "True". Required.
 	Status string
 }
 
 // OperatorConfig defines the domain parameters for monitoring an external operator CR.
 type OperatorConfig struct {
-	// OperatorGVK is the GVK of the operator CR to monitor. Required.
 	OperatorGVK schema.GroupVersionKind
 
 	// CRName is the name of the operator CR to fetch. Optional: when empty,
 	// the first CR found via list is used (selection may be arbitrary if multiple exist).
 	CRName string
 
-	// CRNamespace is the namespace of the operator CR. Optional: leave empty
-	// for cluster-scoped resources.
+	// Leave CRNamespace empty for a cluster-scoped resource.
 	CRNamespace string
 
-	// Filter evaluates each status condition on the operator CR and returns true
-	// for conditions that should be reported as unhealthy.
-	// Optional when RequiredConditions is set; at least one of the two must be provided.
+	// Filter reports unhealthy conditions. At least one of Filter and
+	// RequiredConditions must be configured.
 	Filter ConditionFilterFunc
 
-	// RequiredConditions lists conditions that must be present on the CR with the
-	// declared status. A condition that is absent, reports "Unknown", or cannot be
-	// parsed yields an indeterminate result; a condition that reports a different
-	// definite status yields a failure. Optional.
+	// RequiredConditions require positive evidence; missing or Unknown conditions
+	// are indeterminate, while a different definite status is a failure.
 	RequiredConditions []RequiredCondition
 
-	// RequireCR controls behavior when the CRD is registered but no CR exists.
-	// When false (default), a missing CR is treated as healthy (operator not active).
-	// When true, a missing CR is reported as unhealthy.
-	// A missing CRD passes by default (operator not installed); callers that
-	// already confirmed CRD presence can set NoMatchAsUnknown instead.
+	// RequireCR reports a missing CR as unhealthy. A missing CRD passes by
+	// default; callers that already confirmed CRD presence can set NoMatchAsUnknown.
 	RequireCR bool
 
 	// NoMatchAsUnknown is for callers that have already confirmed the CRD exists
@@ -75,9 +65,7 @@ type OperatorConfig struct {
 
 var errOperatorCRNotFound = errors.New("operator CR not found")
 
-// CheckOperatorHealth checks an external operator's health by reading its CR's
-// status conditions and applying the configured Filter.
-// See [OperatorConfig] for configuration details including missing CRD/CR behavior.
+// CheckOperatorHealth evaluates an external operator CR against [OperatorConfig].
 func CheckOperatorHealth(ctx context.Context, cli client.Client, config OperatorConfig) (CheckResult, error) {
 	if config.OperatorGVK == (schema.GroupVersionKind{}) {
 		return CheckResult{}, errors.New("CheckOperatorHealth: OperatorGVK must not be empty")
@@ -196,18 +184,14 @@ func operatorIdentifier(config OperatorConfig) string {
 	return id
 }
 
-// crCondition is a parsed, well-formed entry of the CR's status.conditions.
 type crCondition struct {
 	status  string
 	reason  string
 	message string
 }
 
-// readConditions parses status.conditions into a type-keyed map. Entries that are
-// not objects, or that lack a type or a status, are skipped and logged: they carry
-// no usable signal. A status.conditions block that is not a list, or that contains
-// duplicate condition types, is an error because the monitor cannot safely choose
-// between conflicting states. An absent block yields an empty map.
+// readConditions ignores malformed entries that carry no usable signal. It rejects
+// duplicate types because choosing one conflicting state would be arbitrary.
 func readConditions(ctx context.Context, cr *unstructured.Unstructured, config OperatorConfig) (map[string]crCondition, error) {
 	conditions, found, err := unstructured.NestedSlice(cr.Object, "status", "conditions")
 	if err != nil {
@@ -254,8 +238,6 @@ func readConditions(ctx context.Context, cr *unstructured.Unstructured, config O
 	return parsed, nil
 }
 
-// collectDegradedConditions returns a detail line for every condition the
-// configured Filter reports as unhealthy.
 func collectDegradedConditions(cr *unstructured.Unstructured, config OperatorConfig, conditions map[string]crCondition) []string {
 	if config.Filter == nil {
 		return nil
@@ -277,9 +259,8 @@ func collectDegradedConditions(cr *unstructured.Unstructured, config OperatorCon
 	return degraded
 }
 
-// evaluateRequiredConditions checks the configured positive conditions and returns,
-// in order, the conditions that definitely do not hold and those whose state is
-// indeterminate.
+// evaluateRequiredConditions separates definite failures from indeterminate
+// findings so callers can give definite failures precedence.
 func evaluateRequiredConditions(
 	cr *unstructured.Unstructured,
 	config OperatorConfig,
@@ -311,7 +292,6 @@ func evaluateRequiredConditions(
 	return unmet, indeterminate
 }
 
-// crPrefix returns the "<Kind> <namespace>/<name>" identifier used to prefix messages.
 func crPrefix(cr *unstructured.Unstructured, config OperatorConfig) string {
 	crIdentifier := cr.GetName()
 	if config.CRNamespace != "" {
@@ -325,7 +305,6 @@ func crPrefix(cr *unstructured.Unstructured, config OperatorConfig) string {
 	return fmt.Sprintf("%s %s", config.OperatorGVK.Kind, crIdentifier)
 }
 
-// conditionDetail renders a condition as "<Kind> <id>: <Type>=<Status> (<reason>): <message>".
 func conditionDetail(cr *unstructured.Unstructured, config OperatorConfig, condType string, cond crCondition) string {
 	detail := fmt.Sprintf("%s: %s=%s", crPrefix(cr, config), condType, cond.status)
 	if cond.reason != "" {

@@ -422,8 +422,6 @@ func TestCheckOperatorHealth_MalformedConditions(t *testing.T) {
 	g.Expect(cli.Create(ctx, &ns)).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = cli.Delete(ctx, &ns) })
 
-	// A status block we cannot read is missing information, not proof of failure,
-	// so it is reported as Unknown rather than returned as an error.
 	t.Run("conditions field is not a slice", func(t *testing.T) {
 		g := NewWithT(t)
 
@@ -510,9 +508,6 @@ func TestCheckOperatorHealth_InvalidRequiredCondition(t *testing.T) {
 	}
 }
 
-// TestCheckOperatorHealth_RequiredConditions covers the positive-evidence model:
-// the absence of a negative condition is not health, only the declared condition
-// reporting the declared status is.
 func TestCheckOperatorHealth_RequiredConditions(t *testing.T) {
 	g := NewWithT(t)
 
@@ -569,7 +564,6 @@ func TestCheckOperatorHealth_RequiredConditions(t *testing.T) {
 			expectedMsgContains: []string{"Degraded=True", "reconcile failed", "expected Degraded=False"},
 		},
 		{
-			// Never having reported Available is not the same as being available.
 			name: "missing required condition is Unknown",
 			conditions: []metav1.Condition{
 				{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "AsExpected"},
@@ -606,7 +600,6 @@ func TestCheckOperatorHealth_RequiredConditions(t *testing.T) {
 			expectedMsgContains: []string{"Available=garbled"},
 		},
 		{
-			// A definite failure outranks an indeterminate one, but both are reported.
 			name: "failure and indeterminate together report False with both findings",
 			conditions: []metav1.Condition{
 				{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "Broken", Message: "reconcile failed"},
@@ -715,8 +708,6 @@ func TestCheckOperatorHealth_TransientAPIError(t *testing.T) {
 		})
 	}
 }
-
-// Test helpers
 
 func setOperatorCondition(g *WithT, cr *unstructured.Unstructured, cType, condStatus, reason, message string) {
 	g.THelper()

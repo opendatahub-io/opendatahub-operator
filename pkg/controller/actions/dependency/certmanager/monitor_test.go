@@ -54,8 +54,6 @@ func TestCRDPredicate(t *testing.T) {
 		{name: "Certificate CRD matches", crdName: "certificates.cert-manager.io", expected: true},
 		{name: "Issuer CRD matches", crdName: "issuers.cert-manager.io", expected: true},
 		{name: "ClusterIssuer CRD matches", crdName: "clusterissuers.cert-manager.io", expected: true},
-		// The OpenShift health CRD may appear after the controller started; without an
-		// event for it the dynamic CertManager/cluster watch is never registered.
 		{name: "OpenShift cert-manager operator CRD matches", crdName: "certmanagers.operator.openshift.io", expected: true},
 		{name: "unrelated CRD does not match", crdName: "widgets.other.io", expected: false},
 		{name: "other cert-manager CRD does not match", crdName: "certificaterequests.cert-manager.io", expected: false},
@@ -87,8 +85,6 @@ func TestWatchedCRDs(t *testing.T) {
 func TestRequiredAPIList(t *testing.T) {
 	g := NewWithT(t)
 
-	// Every required API must carry its version so the served-version check runs,
-	// and its CRD name must be in the Kubernetes "<plural>.<group>" form.
 	for _, api := range requiredAPIList {
 		g.Expect(api.CRDName).To(HaveSuffix("." + api.GVK.Group))
 		g.Expect(api.GVK.Version).NotTo(BeEmpty())
@@ -120,8 +116,6 @@ func TestCertManagerConditionFilter(t *testing.T) {
 	}
 }
 
-// Both probes contribute to DependenciesAvailable; dropping one silently would
-// leave a class of cert-manager breakage undetected.
 func TestPreConditions(t *testing.T) {
 	g := NewWithT(t)
 
@@ -261,8 +255,6 @@ func TestRequiredAPIsPreCondition(t *testing.T) {
 	}
 }
 
-// On a community cert-manager install the OpenShift health CRD does not exist.
-// The check must be skipped, not reported as a failure.
 func TestOperatorHealthPreConditionSkippedWithoutCRD(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
@@ -282,8 +274,6 @@ func TestOperatorHealthPreConditionSkippedWithoutCRD(t *testing.T) {
 	g.Expect(got.Status).To(Equal(metav1.ConditionTrue))
 }
 
-// On OpenShift the health CR is the signal a CRD-presence check cannot give:
-// it reports a cert-manager that is installed but not working.
 func TestOperatorHealthPreConditionWithCRD(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
@@ -335,8 +325,6 @@ func TestOperatorHealthPreConditionWithCRD(t *testing.T) {
 			expectedMsgContains: []string{"cert-manager-controller-deploymentDegraded=True", "controller crashlooping"},
 		},
 		{
-			// An operator that never reported Available is not healthy just because
-			// it never reported Degraded either.
 			name: "operator that never reported Available is Unknown",
 			conditions: []metav1.Condition{
 				{Type: "cert-manager-controller-deploymentDegraded", Status: metav1.ConditionFalse, Reason: "AsExpected"},
@@ -360,7 +348,6 @@ func TestOperatorHealthPreConditionWithCRD(t *testing.T) {
 			expectedMsgContains: []string{"cert-manager-cainjector-deploymentAvailable=False", "expected cert-manager-cainjector-deploymentAvailable=True"},
 		},
 		{
-			// The CRD is installed, so the operator is expected; a missing CR is a failure.
 			name:                "missing health CR fails",
 			createCR:            false,
 			expectedStatus:      metav1.ConditionFalse,

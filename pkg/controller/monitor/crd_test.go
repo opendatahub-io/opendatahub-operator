@@ -62,8 +62,6 @@ func TestCheckRequiredAPIs(t *testing.T) {
 			expectedStatus: metav1.ConditionTrue,
 		},
 		{
-			// A CRD under deletion keeps Established=True and is still readable, so
-			// reporting it as absent would hide the real reason the API is unusable.
 			name: "terminating CRD fails and is not reported as missing",
 			objects: []client.Object{newTestCRD(testRequiredCRDName,
 				[]apiextensionsv1.CustomResourceDefinitionCondition{
@@ -78,8 +76,6 @@ func TestCheckRequiredAPIs(t *testing.T) {
 			expectedMsgNotContains: []string{"not found"},
 		},
 		{
-			// Still installing or rejected outright cannot be told apart here, so the
-			// caller must requeue rather than declare the dependency broken.
 			name: "CRD without Established condition is indeterminate",
 			objects: []client.Object{newTestCRD(testRequiredCRDName,
 				nil,
@@ -120,8 +116,6 @@ func TestCheckRequiredAPIs(t *testing.T) {
 			expectedMsgContains: []string{testRequiredCRDName, "does not serve version v1"},
 		},
 		{
-			// served is a property of spec.versions, not a status condition: a version
-			// can be declared and still be unreachable.
 			name: "declared version present but not served fails",
 			objects: []client.Object{newTestCRD(testRequiredCRDName,
 				[]apiextensionsv1.CustomResourceDefinitionCondition{crdCondition(apiextensionsv1.Established, apiextensionsv1.ConditionTrue)},
@@ -141,7 +135,6 @@ func TestCheckRequiredAPIs(t *testing.T) {
 			expectedStatus: metav1.ConditionTrue,
 		},
 		{
-			// A definite failure outranks an indeterminate one, but both are reported.
 			name: "failure and indeterminate together report False with both findings",
 			objects: []client.Object{newTestCRD(testOtherRequiredCRDName,
 				nil,
@@ -196,9 +189,6 @@ func TestCheckRequiredAPIs(t *testing.T) {
 	}
 }
 
-// TestCheckRequiredAPIs_EstablishedByAPIServer exercises the check against a CRD
-// whose Established condition was set by a real EstablishingController rather than
-// hand-written into the object.
 func TestCheckRequiredAPIs_EstablishedByAPIServer(t *testing.T) {
 	g := NewWithT(t)
 
@@ -253,8 +243,6 @@ func TestCheckRequiredAPIs_InvalidInput(t *testing.T) {
 	}
 }
 
-// A read that fails is not evidence about the CRD, so it surfaces as an error the
-// caller can retry rather than as a False result.
 func TestCheckRequiredAPIs_TransientAPIError(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
@@ -317,8 +305,6 @@ func TestCheckRequiredAPIs_MultipleReadErrorsRemainErrors(t *testing.T) {
 	g.Expect(err.Error()).To(ContainSubstring("read failed for " + testRequiredCRDName))
 	g.Expect(err.Error()).To(ContainSubstring("read failed for " + testOtherRequiredCRDName))
 }
-
-// Test helpers
 
 func newTestCRD(
 	name string,

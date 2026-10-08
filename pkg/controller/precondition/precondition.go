@@ -18,12 +18,7 @@ import (
 
 const PreConditionFailedReason = "PreConditionFailed"
 
-// CheckResult holds the outcome of a check execution.
-//
-// It is an alias of [monitor.CheckResult] so that checks built on the shared
-// monitor helpers can be returned without conversion. See that type for the
-// True/False/Unknown contract; use [monitor.Passed], [monitor.Failed] and
-// [monitor.Indeterminate] to construct one.
+// CheckResult is an alias of [monitor.CheckResult], avoiding conversion at the package boundary.
 type CheckResult = monitor.CheckResult
 
 // CheckFunc is the function signature for a pre-reconciliation check.
@@ -204,8 +199,6 @@ func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions 
 			continue
 		}
 
-		// A check reports False for direct evidence of failure and Unknown when the
-		// evidence is incomplete. Both are recorded; only True is silent.
 		if resultStatus := result.ConditionStatus(); resultStatus != metav1.ConditionTrue {
 			l.Info("Pre-condition not met",
 				"conditionType", pc.conditionType,

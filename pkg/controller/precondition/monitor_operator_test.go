@@ -526,8 +526,6 @@ func TestMonitorOperator_Severity(t *testing.T) {
 	g.Expect(got.Severity).To(Equal(common.ConditionSeverityInfo))
 }
 
-// A config with neither a Filter nor RequiredConditions has nothing to check,
-// which is a programming error rather than a dependency failure.
 func TestMonitorOperator_NoCriteria(t *testing.T) {
 	g := NewWithT(t)
 

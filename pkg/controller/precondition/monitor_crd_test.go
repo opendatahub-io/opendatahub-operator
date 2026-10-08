@@ -155,7 +155,6 @@ func TestMonitorCRDs_EmptySlice(t *testing.T) {
 	g.Expect(result.Pass).To(BeFalse())
 }
 
-// MonitorAPIs additionally asserts the served version, which MonitorCRDs does not.
 func TestMonitorAPIs_ServedVersion(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
@@ -228,8 +227,6 @@ func TestSkipIfCRDAbsent(t *testing.T) {
 	})
 }
 
-// A precondition guarded by SkipIfCRDAbsent must leave the condition True when
-// the optional CRD is missing: an uninstallable check is not a failing check.
 func TestSkipIfCRDAbsent_IntegrationWithRunAll(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
@@ -244,10 +241,7 @@ func TestSkipIfCRDAbsent_IntegrationWithRunAll(t *testing.T) {
 	condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 	rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
 
-	pcs := []PreCondition{
-		// Would fail if it ran, but its CRD is absent so it must be skipped.
-		MonitorCRD(absentCRDName, WithSkipFunc(SkipIfCRDAbsent(absentCRDName))),
-	}
+	pcs := []PreCondition{MonitorCRD(absentCRDName, WithSkipFunc(SkipIfCRDAbsent(absentCRDName)))}
 
 	g.Expect(RunAll(ctx, rr, pcs)).To(BeFalse())
 
@@ -256,8 +250,6 @@ func TestSkipIfCRDAbsent_IntegrationWithRunAll(t *testing.T) {
 	g.Expect(got.Status).To(Equal(metav1.ConditionTrue))
 }
 
-// A CRD that exists but is not yet Established is indeterminate, not broken:
-// RunAll must record Unknown so the controller requeues.
 func TestMonitorCRD_NotEstablishedIsUnknown(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()

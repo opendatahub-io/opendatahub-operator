@@ -312,17 +312,8 @@ func TestAWSKubernetesEngineWithoutCertManager(t *testing.T) {
 	})
 }
 
-// TestAWSKubernetesEngineCertManagerOperatorHealth covers the OpenShift path, where
-// cert-manager is managed by an operator that publishes a health CR. Registering the
-// CRDs is not enough there: a cert-manager whose operator reports Degraded must be
-// surfaced as a failed dependency.
-//
-// It also exercises the wiring that makes that possible on a cluster where the health
-// CRD appears after the controller started — the CRD watch must trigger a reconcile,
-// and the dynamic watch on the health CR must then be registered.
-//
-// AWS exercises the full degraded-to-healthy status lifecycle. The Azure and
-// CoreWeave suites also cover the community-to-OpenShift health-CR transition.
+// This proves a health CRD installed after the controller starts registers its dynamic
+// watch, including recovery from a degraded health CR.
 func TestAWSKubernetesEngineCertManagerOperatorHealth(t *testing.T) {
 	ccmtest.RequireCharts(t)
 
@@ -344,14 +335,10 @@ func TestAWSKubernetesEngineCertManagerOperatorHealth(t *testing.T) {
 
 	ccmtest.CreateCR(t, wtC, awsCfg, ccmcommon.Dependencies{})
 
-	// Community cert-manager: no health CRD, so the health check must be skipped
-	// rather than reported as a missing dependency.
 	wtC.Get(gvk.AWSKubernetesEngine, nn).Eventually().Should(
 		jq.Match(`.status.conditions[] | select(.type == "DependenciesAvailable") | .status == "True"`),
 	)
 
-	// The operator is installed mid-flight. The CRD event must reach the reconciler,
-	// which now expects a health CR that does not exist yet.
 	_, err = et.RegisterCRD(ctx, gvk.CertManagerV1Alpha1, "certmanagers", "certmanager",
 		apiextensionsv1.ClusterScoped, envt.WithPermissiveSchema())
 	wtC.Expect(err).NotTo(HaveOccurred())
@@ -360,7 +347,6 @@ func TestAWSKubernetesEngineCertManagerOperatorHealth(t *testing.T) {
 		jq.Match(`.status.conditions[] | select(.type == "DependenciesAvailable") | .status == "False"`),
 	)
 
-	// A degraded operator means cert-manager is installed but not working.
 	healthCR := testf.NewUnstructuredCR("cluster", "", gvk.CertManagerV1Alpha1)
 	wtC.Expect(testf.SetTypedConditions(healthCR, []metav1.Condition{
 		{Type: "cert-manager-controller-deploymentAvailable", Status: metav1.ConditionTrue, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
@@ -377,8 +363,6 @@ func TestAWSKubernetesEngineCertManagerOperatorHealth(t *testing.T) {
 		jq.Match(`.status.conditions[] | select(.type == "DependenciesAvailable") | .message | contains("Degraded")`),
 	)
 
-	// Recovery: the health CR turning healthy must be observed, which only happens
-	// if the dynamic watch on it was registered when its CRD appeared.
 	wtC.Expect(et.Client().Get(ctx, client.ObjectKeyFromObject(healthCR), healthCR)).NotTo(HaveOccurred())
 	wtC.Expect(testf.SetTypedConditions(healthCR, []metav1.Condition{
 		{Type: "cert-manager-controller-deploymentAvailable", Status: metav1.ConditionTrue, Reason: "AsExpected", LastTransitionTime: metav1.Now()},

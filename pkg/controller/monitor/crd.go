@@ -17,42 +17,17 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
-// RequiredAPI declares an API resource that the operator will create or read.
-//
-// A required API is usable only when its CRD exists, is Established, is not
-// Terminating, and serves the version the operator calls. See [CheckRequiredAPIs].
+// RequiredAPI identifies an API that must be usable before an action runs.
 type RequiredAPI struct {
-	// CRDName is the metadata.name of the CustomResourceDefinition that serves
-	// the API, in "<plural>.<group>" form. Required.
 	CRDName string
 
-	// GVK is the group/version/kind the operator uses. Optional.
-	//
-	// When GVK.Version is set, the CRD must list that version in spec.versions
-	// with served: true. When it is empty, the served-version check is skipped
-	// and only existence, Established and Terminating are checked.
+	// GVK.Version enables the served-version check.
 	GVK schema.GroupVersionKind
 }
 
-// CheckRequiredAPIs verifies that every declared API is usable.
-//
-// For each API, the CRD must:
-//
-//   - exist;
-//   - not have Terminating=True in status.conditions;
-//   - have Established=True in status.conditions; and
-//   - serve the declared version, when one is declared: the entry in
-//     spec.versions whose name matches must have served: true.
-//
-// Established and Terminating are CRD status conditions; served is a property of
-// an entry in spec.versions, not a status condition.
-//
-// A missing, terminating, or non-serving CRD is direct evidence of absence and
-// yields a False result. A CRD that is not yet Established is genuinely
-// indeterminate — it can be transient (still installing) or permanent (the CRD was
-// rejected) — and yields an Unknown result so the caller requeues rather than
-// declaring the dependency broken. When both occur, the result is False and the
-// message reports every finding.
+// CheckRequiredAPIs verifies CRD presence, lifecycle, and an optional served version.
+// A CRD that is not yet Established is Unknown because it may still be installing.
+// Definite failures take precedence over Unknown results, while preserving all findings.
 //
 // The CRDs are read by name rather than through the RESTMapper, to avoid a race
 // where the discovery cache lags behind the EstablishingController and reports an
@@ -85,7 +60,6 @@ func CheckRequiredAPIs(ctx context.Context, cli client.Client, apis []RequiredAP
 		case metav1.ConditionUnknown:
 			indeterminate = append(indeterminate, result.Message)
 		case metav1.ConditionTrue:
-			// usable, nothing to report
 		}
 	}
 
@@ -96,7 +70,6 @@ func CheckRequiredAPIs(ctx context.Context, cli client.Client, apis []RequiredAP
 			}
 		}
 
-		// Report the indeterminate findings too, but the outcome is a definite failure.
 		return Failed("%s", strings.Join(append(unusable, indeterminate...), "; ")), nil
 	}
 	if readErrors != nil {
@@ -134,7 +107,6 @@ func checkRequiredAPI(ctx context.Context, cli client.Client, api RequiredAPI) (
 	return Passed(), nil
 }
 
-// servesVersion reports whether the CRD lists version with served: true.
 func servesVersion(crd *apiextensionsv1.CustomResourceDefinition, version string) bool {
 	for i := range crd.Spec.Versions {
 		if crd.Spec.Versions[i].Name == version {
