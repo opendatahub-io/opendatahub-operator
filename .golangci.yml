@@ -182,6 +182,7 @@ linters:
       - third_party$
       - builtin$
       - examples$
+      - testdata
 formatters:
   enable:
     - gci
@@ -203,3 +204,4 @@ formatters:
       - third_party$
       - builtin$
       - examples$
+      - testdata
