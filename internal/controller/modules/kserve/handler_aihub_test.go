@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestBuildModuleCR_ModelRegistryStateManaged(t *testing.T) {
+func TestBuildModuleCR_AIHubStateManaged(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
 	dscCtx := newDSCCtx(operatorv1.Managed)
@@ -28,7 +28,7 @@ func TestBuildModuleCR_ModelRegistryStateManaged(t *testing.T) {
 	g.Expect(mr["managementState"]).Should(Equal("Managed"))
 }
 
-func TestBuildModuleCR_ModelRegistryStateRemoved(t *testing.T) {
+func TestBuildModuleCR_AIHubStateRemoved(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
 	dscCtx := newDSCCtx(operatorv1.Managed)
@@ -45,11 +45,11 @@ func TestBuildModuleCR_ModelRegistryStateRemoved(t *testing.T) {
 	g.Expect(mr["managementState"]).Should(Equal("Removed"))
 }
 
-func TestBuildModuleCR_ModelRegistryStateDefaultsToRemoved(t *testing.T) {
+func TestBuildModuleCR_AIHubStateDefaultsToRemoved(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
 	dscCtx := newDSCCtx(operatorv1.Managed)
-	// ModelRegistry management state not set (empty string)
+	// AIHub management state not set (empty string)
 
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())

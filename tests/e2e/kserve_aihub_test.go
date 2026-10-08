@@ -11,10 +11,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 )
 
-// ValidateModelRegistryStatePropagation verifies that AI Hub management state
+// ValidateAIHubStatePropagation verifies that AI Hub management state
 // from the DSC is correctly injected into the Kserve module CR spec.
 // This tests the cross-component state injection implemented in handler.go BuildModuleCR.
-func (tc *KserveTestCtx) ValidateModelRegistryStatePropagation(t *testing.T) {
+func (tc *KserveTestCtx) ValidateAIHubStatePropagation(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Tier1)

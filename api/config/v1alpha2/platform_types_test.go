@@ -20,7 +20,7 @@ var expectedPlatformModuleNames = []string{
 	"kserve",
 	"mcplifecycleoperator",
 	"mlflowoperator",
-	"modelregistry",
+	"aihub",
 	"monitoring",
 	"ogx",
 	"ray",
@@ -59,7 +59,7 @@ func TestPlatformModulesEnabledModules(t *testing.T) {
 		Trainer:   common.ManagementSpec{ManagementState: operatorv1.Managed},
 	}
 
-	assert.Equal(t, []string{"dashboard", "feastoperator", "modelregistry", "trainer"}, pm.EnabledModules())
+	assert.Equal(t, []string{"aihub", "dashboard", "feastoperator", "trainer"}, pm.EnabledModules())
 }
 
 func TestPlatformModulesEnabledModulesNilReceiver(t *testing.T) {

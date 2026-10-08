@@ -159,8 +159,8 @@ var (
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
 				componentApi.KueueComponentName: kueueTestSuite,
-				// ModelRegistry and Kserve are coupled, so must not run with Kserve tests in parallel
-				componentApi.ModelRegistryComponentName: modelRegistryTestSuite,
+				// AIHub and Kserve are coupled, so must not run with Kserve tests in parallel
+				componentApi.AIHubModuleName: aihubTestSuite,
 			},
 			{
 				// TrustyAI tests depends on KServe, so must not run with Kserve tests in parallel
