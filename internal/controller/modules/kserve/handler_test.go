@@ -115,9 +115,6 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 			ManagementState: operatorv1.Managed,
 			AirGapped:       true,
 		},
-		WVA: componentApi.WVASpec{
-			ManagementState: operatorv1.Managed,
-		},
 		OAuthProxy: &componentApi.OAuthProxyConfig{
 			Resources: &componentApi.OAuthProxyResourceRequirements{
 				Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")},

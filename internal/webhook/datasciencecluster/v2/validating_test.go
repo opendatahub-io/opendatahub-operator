@@ -42,7 +42,7 @@ func TestDataScienceClusterV2_ValidatingWebhook(t *testing.T) {
 	}
 	withWVAState := func(state operatorv1.ManagementState) func(*dscv2.DataScienceCluster) {
 		return func(dsc *dscv2.DataScienceCluster) {
-			dsc.Spec.Components.Kserve.WVA.ManagementState = state //nolint:staticcheck // SA1019: testing the deprecated field
+			dsc.Spec.Components.Kserve.WVA.ManagementState = state
 		}
 	}
 
@@ -163,7 +163,7 @@ func TestDataScienceClusterV2_WVADeprecationWarning(t *testing.T) {
 
 	withWVA := func(state operatorv1.ManagementState) func(*dscv2.DataScienceCluster) {
 		return func(dsc *dscv2.DataScienceCluster) {
-			dsc.Spec.Components.Kserve.WVA = componentApi.WVASpec{ManagementState: state} //nolint:staticcheck // SA1019: testing the deprecated field
+			dsc.Spec.Components.Kserve.WVA = componentApi.WVASpec{ManagementState: state}
 		}
 	}
 

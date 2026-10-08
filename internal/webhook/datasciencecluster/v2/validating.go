@@ -124,7 +124,6 @@ func (v *Validator) denyUnsupportedWVA(ctx context.Context, _ client.Reader, req
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	//nolint:staticcheck // SA1019: field is kept so existing objects still decode; Managed is rejected
 	return dscwebhook.WVAUnsupportedResponse(dsc.Spec.Components.Kserve.WVA.ManagementState)
 }
 

@@ -75,11 +75,6 @@ type KserveCommonSpec struct {
 	// Configures and enables NVIDIA NIM integration
 	// +kubebuilder:default={}
 	NIM NimSpec `json:"nim,omitempty"`
-	// Deprecated: workload-variant-autoscaler (WVA) is no longer supported.
-	// The field is preserved for backward compatibility, but the operator ignores it.
-	// WVA is treated as Removed regardless of this value.
-	// +kubebuilder:default={}
-	WVA WVASpec `json:"wva,omitempty"`
 	// Enables TLS for LLMInferenceService deployments.
 	// When unset, the KServe default (TLS enabled) is preserved.
 	// +optional
@@ -117,9 +112,6 @@ type KserveCommonSpecV2 struct {
 	// +kubebuilder:validation:XValidation:rule="self.managementState != 'Managed' || (has(oldSelf.managementState) && oldSelf.managementState == 'Managed')",message="modelsAsService is deprecated; cannot re-enable once Removed. Use spec.components.aigateway.modelsAsAService instead"
 	// +kubebuilder:default={managementState: "Removed"}
 	ModelsAsService DSCModelsAsServiceSpec `json:"modelsAsService,omitempty"`
-	// Deprecated: workload-variant-autoscaler (WVA) is no longer supported.
-	// The field is preserved for backward compatibility, but the operator ignores it.
-	// WVA is treated as Removed regardless of this value.
 	// WVA is retained for v2 compatibility and is always treated as Removed.
 	// +kubebuilder:default={}
 	WVA WVASpec `json:"wva,omitempty"`
@@ -148,10 +140,6 @@ type NimSpec struct {
 	AirGapped bool `json:"airGapped,omitempty"`
 }
 
-// WVASpec is preserved only for backward compatibility with existing workload-variant-autoscaler (WVA) configuration.
-// Deprecated: workload-variant-autoscaler (WVA) is no longer supported.
-// The field is preserved for backward compatibility, but the operator ignores it.
-// WVA is treated as Removed regardless of this value.
 // WVASpec preserves the legacy WVA management state for v2 compatibility.
 // Only Removed is supported.
 type WVASpec struct {

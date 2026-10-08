@@ -191,11 +191,6 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 			Kserve: componentApi.DSCKserve{
 				ManagementSpec: src.Spec.Components.Kserve.ManagementSpec,
 				KserveCommonSpec: componentApi.KserveCommonSpec{
-					RawDeploymentServiceConfig: src.Spec.Components.Kserve.RawDeploymentServiceConfig,
-					OAuthProxy:                 src.Spec.Components.Kserve.OAuthProxy,
-					NIM:                        src.Spec.Components.Kserve.NIM,
-					// WVA is unsupported in 3.6; do not preserve leftover Managed across conversion.
-					WVA:                          componentApi.WVASpec{ManagementState: operatorv1.Removed},
 					RawDeploymentServiceConfig:   src.Spec.Components.Kserve.RawDeploymentServiceConfig,
 					OAuthProxy:                   src.Spec.Components.Kserve.OAuthProxy,
 					NIM:                          src.Spec.Components.Kserve.NIM,
@@ -295,9 +290,6 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 					OAuthProxy:                 src.Spec.Components.Kserve.OAuthProxy,
 					NIM:                        src.Spec.Components.Kserve.NIM,
 					// WVA is unsupported in 3.6; do not preserve leftover Managed across conversion.
-					RawDeploymentServiceConfig:   src.Spec.Components.Kserve.RawDeploymentServiceConfig,
-					OAuthProxy:                   src.Spec.Components.Kserve.OAuthProxy,
-					NIM:                          src.Spec.Components.Kserve.NIM,
 					WVA:                          componentApi.WVASpec{ManagementState: operatorv1.Removed},
 					EnableLLMInferenceServiceTLS: src.Spec.Components.Kserve.EnableLLMInferenceServiceTLS,
 					EnableLLMInferenceServiceConsoleDashboards: src.Spec.Components.Kserve.EnableLLMInferenceServiceConsoleDashboards,
