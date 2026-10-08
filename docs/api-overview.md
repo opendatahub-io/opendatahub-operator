@@ -1898,8 +1898,6 @@ DataScienceCluster is not installed (xKS / vanilla Kubernetes).
 
 
 PlatformModules declares per-module management state for Platform mode.
-The data field is the public name for the internal feastoperator module;
-all other fields use their internal module names.
 Add new module fields here when onboarding additional modules.
 
 

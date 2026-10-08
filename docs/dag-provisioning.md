@@ -15,7 +15,7 @@ batch and are provisioned together.
 |----------|---------|---------|
 | 20 | Dashboard, DataSciencePipelines, AI Hub, Ray, Trainer, Workbenches, MCPLifecycleOperator (module) | Core AI/ML and independent modules — no inter-entry dependencies |
 | 31 | Kserve, Kueue | Extension foundations |
-| 32 | FeastOperator, MLflowOperator, OGX, SparkOperator (module), AIGateway (module) | Independent extensions |
+| 32 | Data, MLflowOperator, OGX, SparkOperator (module), AIGateway (module) | Independent extensions |
 | 33 | ModelController, ModelsAsService, TrustyAI | Require Kserve Ready |
 
 SparkOperator remains at RL(32) to preserve the in-tree component runlevel and limit

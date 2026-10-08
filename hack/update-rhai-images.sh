@@ -31,7 +31,6 @@ SED_COMMAND="${SED_COMMAND:-sed}"
 declare -A RHAI_COMPONENT_PATHS=(
     ["dashboard"]="dashboard/rhoai/onprem dashboard/modular-architecture"
     ["datasciencepipelines"]="datasciencepipelines/base"
-    ["feastoperator"]="feastoperator/overlays/rhoai"
     ["kserve"]="kserve/overlays/odh"
     ["ogx"]="ogx/overlays/rhoai"
     ["mlflowoperator"]="mlflowoperator/base"

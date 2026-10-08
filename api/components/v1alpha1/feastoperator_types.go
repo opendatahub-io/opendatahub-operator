@@ -21,9 +21,8 @@ import (
 )
 
 const (
-	FeastOperatorComponentName = "feastoperator"
 	// FeastOperatorInstanceName is the singleton name for the FeastOperator instance.
-	FeastOperatorInstanceName = "default-" + FeastOperatorComponentName
+	FeastOperatorInstanceName = "default-feastoperator"
 	FeastOperatorKind         = "FeastOperator"
 )
 

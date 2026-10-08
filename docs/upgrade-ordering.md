@@ -215,7 +215,7 @@ Batch 2 — RL(31):
   kserve, kueue
 
 Batch 3 — RL(32):
-  feastoperator, mlflowoperator, ogx, sparkoperator (module), aigateway (module)
+  data, mlflowoperator, ogx, sparkoperator (module), aigateway (module)
 
 Batch 4 — RL(33):
   modelcontroller, modelsasservice, trustyai
@@ -234,7 +234,7 @@ Batch 4 — RL(33):
 | Infrastructure service | `dag.RL(0)` |
 
 Current module assignments: RL(20) — dashboard, workbenches, mcplifecycleoperator;
-RL(31) — kserve; RL(32) — aigateway, feastoperator, mlflowoperator, ogx, sparkoperator.
+RL(31) — kserve; RL(32) — aigateway, data, mlflowoperator, ogx, sparkoperator.
 
 ## Key files
 
