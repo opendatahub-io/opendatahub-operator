@@ -27,7 +27,9 @@ When omitted or removed, the operator reads
 is below `60s`, the shared Route gets a `60s` override. An unset IngressController
 timeout uses OpenShift's `30s` default. At `60s` or higher, the annotation is left
 unset so the Route inherits the router's configuration. If the default
-IngressController or its API is unavailable, no automatic override is applied.
+IngressController is missing or its API is unsupported, no automatic override is
+applied. Other lookup errors, including permission and connection failures, fail
+reconciliation.
 Automatic values are not saved in GatewayConfig and are recalculated when the
 IngressController changes. An explicit value always takes precedence.
 

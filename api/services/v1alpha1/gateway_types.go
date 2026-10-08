@@ -185,7 +185,9 @@ type OCPRouteConfig struct {
 	// The maximum is 2147483647ms, matching HAProxy's supported timeout range.
 	// When omitted, the operator sets a 60s Route timeout if the default IngressController's
 	// server timeout is below 60s (OpenShift uses 30s when that field is unset).
-	// Otherwise, or if the default IngressController is unavailable, no timeout annotation is set.
+	// Otherwise, or if the default IngressController is missing or its API is unsupported,
+	// no timeout annotation is set. Other lookup errors, including permission and connection
+	// failures, fail reconciliation.
 	// Automatic behavior reads openshift-ingress-operator/default.
 	// Removing this field restores automatic behavior; automatic values are not written to GatewayConfig.
 	// +optional
