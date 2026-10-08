@@ -54,15 +54,6 @@ func oauthSpecWithAuthProxyTimeout(d time.Duration) serviceApi.GatewayConfigSpec
 	return spec
 }
 
-// oauthSpecWithNetworkPolicyDisabled returns the default OAuth spec with ingress network policy disabled.
-func oauthSpecWithNetworkPolicyDisabled() serviceApi.GatewayConfigSpec {
-	spec := oauthSpec()
-	spec.NetworkPolicy = &serviceApi.NetworkPolicyConfig{
-		Ingress: &serviceApi.IngressPolicyConfig{Enabled: false},
-	}
-	return spec
-}
-
 // oauthSpecWithLoadBalancer returns the default OAuth spec with IngressMode LoadBalancer.
 func oauthSpecWithLoadBalancer() serviceApi.GatewayConfigSpec {
 	spec := oauthSpec()
@@ -190,6 +181,19 @@ func TestOAuthNetworkPolicyCreation(t *testing.T) {
 	RunNetworkPolicyCreationTest(t, GetOAuthTestSetup())
 }
 
+func TestOAuthNetworkPolicyReconciliation(t *testing.T) {
+	RunNetworkPolicyReconciliationTest(t, GetOAuthTestSetup())
+}
+
+// TestOAuthNetworkPolicyEgressDenyAllReconciliation validates that cluster-state changes alone re-render the egress rules (delegates to RunNetworkPolicyEgressDenyAllReconciliationTest).
+func TestOAuthNetworkPolicyEgressDenyAllReconciliation(t *testing.T) {
+	RunNetworkPolicyEgressDenyAllReconciliationTest(t, GetOAuthTestSetup())
+}
+
+func TestOAuthNetworkPolicyAuthModeLifecycle(t *testing.T) {
+	RunNetworkPolicyAuthModeLifecycleTest(t, GetOAuthTestSetup())
+}
+
 // TestOAuthNginxDashboardRedirectSkippedWithoutDashboard validates redirects are skipped when Dashboard is not deployed in OAuth mode.
 func TestOAuthNginxDashboardRedirectSkippedWithoutDashboard(t *testing.T) {
 	RunNginxDashboardRedirectSkippedWithoutDashboardTest(t, GetOAuthTestSetup())
@@ -272,9 +276,4 @@ func TestOAuthGatewayConfigStatusDomain(t *testing.T) {
 // TestOAuthLoadBalancerIngressMode validates LoadBalancer ingress mode in OAuth (delegates to RunLoadBalancerIngressModeTest).
 func TestOAuthLoadBalancerIngressMode(t *testing.T) {
 	RunLoadBalancerIngressModeTest(t, OAuthTestEnv, oauthSpecWithLoadBalancer())
-}
-
-// TestOAuthNetworkPolicyDisabled validates that no NetworkPolicy is created when ingress policy is disabled (delegates to RunNetworkPolicyDisabledTest).
-func TestOAuthNetworkPolicyDisabled(t *testing.T) {
-	RunNetworkPolicyDisabledTest(t, GetOAuthTestSetup(), oauthSpecWithNetworkPolicyDisabled())
 }

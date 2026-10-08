@@ -856,23 +856,7 @@ spec:
 
 This will use the cluster's default domain with your custom subdomain: `custom-gateway.apps.cluster.example.com`
 
-For an advanced example to disable NetworkPolicy creation for auth proxy:
-
-```yaml
-apiVersion: services.platform.opendatahub.io/v1alpha1
-kind: GatewayConfig
-metadata:
-  name: default-gateway
-spec:
-  cookie: {}
-  certificate:
-    type: SelfSigned
-  networkPolicy:
-    ingress:
-      enabled: false
-```
-
-**Note:** NetworkPolicy is enabled by default to restrict access to the kube-auth-proxy.
+The operator creates a NetworkPolicy whenever it deploys kube-auth-proxy. On upgrade, a previously stored `spec.networkPolicy.ingress.enabled: false` no longer suppresses policy creation; the upgraded controller creates the policy during reconciliation. The stored GatewayConfig needs no manual migration, but remove the obsolete `spec.networkPolicy` field from manifests before applying them again.
 
 **Important Notes:**
 - The GatewayConfig name must be exactly `default-gateway`
@@ -883,7 +867,21 @@ spec:
 - Certificate types can be `OpenshiftDefaultIngress`, `SelfSigned`, or `Provided`
 - If `subdomain` is not specified or is empty, the default value `rh-ai` is used.
 - If `domain` is not specified, the cluster's default domain is used.
-- **NetworkPolicy is enabled by default** to secure kube-auth-proxy traffic. It restricts ingress to Gateway pods and monitoring namespaces only.
+- **NetworkPolicy is enabled by default** to secure kube-auth-proxy traffic. It allows Gateway pods to reach the authentication port (TCP 8443). The Service still exposes the metrics port (TCP 9000), but this policy does not allow remote scrapers to reach it. Monitoring ingress rules can be added when kube-auth-proxy is actually configured as a metrics scrape target.
+
+On OpenShift, egress depends on the authentication mode. Integrated OAuth uses
+restricted egress to the cluster DNS Service, Kubernetes API Service and its
+current endpoints, and external HTTPS on TCP 443 outside the cluster Pod and
+Service CIDRs. OpenShift supplies those CIDRs through `Network/cluster`. If the
+CIDRs or required DNS/API destinations cannot be resolved, the operator applies
+an empty egress list and reports GatewayConfig as NotReady.
+
+OIDC retains allow-all egress on OpenShift. Issuer discovery can involve multiple
+hosts, ports, or in-cluster destinations, and standard NetworkPolicy cannot
+reliably express those destinations by DNS name. Other Kubernetes distributions
+also retain allow-all egress because the operator cannot reliably discover their
+cluster Pod and Service CIDRs, and GatewayConfig does not expose fields to
+configure them.
 
 ### Run functional Tests
 

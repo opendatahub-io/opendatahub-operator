@@ -132,7 +132,10 @@ type GatewayConfigSpec struct {
 	// +kubebuilder:validation:Maximum=10
 	AuthProxyMaxReplicas *int32 `json:"authProxyMaxReplicas,omitempty"`
 
-	// NetworkPolicy configuration for kube-auth-proxy
+	// NetworkPolicy configures NetworkPolicy behavior for kube-auth-proxy.
+	// It is retained for backward compatibility and has no effect; the operator
+	// always manages the kube-auth-proxy NetworkPolicy.
+	// Deprecated: This setting is ignored and will be removed in a future API version.
 	// +optional
 	NetworkPolicy *NetworkPolicyConfig `json:"networkPolicy,omitempty"`
 
@@ -299,22 +302,24 @@ type AdditionalIngressOIDCConfig struct {
 	SecretNamespace string `json:"secretNamespace,omitempty"`
 }
 
-// NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
-// When nil or when Ingress is nil, NetworkPolicy ingress rules are enabled by default
-// to restrict access to kube-auth-proxy pods.
+// NetworkPolicyConfig is retained only for backward compatibility.
+//
+// Deprecated: This configuration is ignored. The operator always manages the
+// kube-auth-proxy NetworkPolicy.
 type NetworkPolicyConfig struct {
-	// Ingress defines ingress NetworkPolicy rules.
-	// When nil, ingress rules are applied by default (allows traffic from Gateway pods and monitoring namespaces).
-	// When specified, Enabled must be set to true to apply rules or false to skip NetworkPolicy creation.
-	// Set Enabled=false only in development environments or when using alternative network security controls.
+	// Ingress is retained for backward compatibility and has no effect.
+	// Deprecated: This setting is ignored.
 	// +optional
 	Ingress *IngressPolicyConfig `json:"ingress,omitempty"`
 }
 
-// IngressPolicyConfig defines ingress NetworkPolicy rules
+// IngressPolicyConfig is retained only for backward compatibility.
+//
+// Deprecated: This configuration is ignored. The operator always manages the
+// kube-auth-proxy NetworkPolicy.
 type IngressPolicyConfig struct {
-	// Enabled determines whether ingress rules are applied.
-	// When true, creates NetworkPolicy allowing traffic only from Gateway pods and monitoring namespaces.
+	// Enabled is retained for backward compatibility and has no effect.
+	// Deprecated: This setting is ignored.
 	// +kubebuilder:validation:Required
 	Enabled bool `json:"enabled"`
 }

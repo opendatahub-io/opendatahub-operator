@@ -32,7 +32,11 @@ func (tc *TestContext) EnsureGatewayConfigForXKS(t *testing.T) {
 	t.Helper()
 
 	tc.ensureDexForXKS(t)
-
+	gatewayNS := gateway.GetGatewayNamespace()
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(CreateNamespaceWithLabels(gatewayNS, nil)),
+		WithEventuallyTimeout(tc.TestTimeouts.crCreationTimeout),
+	)
 	gatewayConfig := &serviceApi.GatewayConfig{}
 	err := tc.Client().Get(tc.Context(), types.NamespacedName{Name: serviceApi.GatewayConfigName}, gatewayConfig)
 	if err == nil {
@@ -47,14 +51,8 @@ func (tc *TestContext) EnsureGatewayConfigForXKS(t *testing.T) {
 		t.Fatalf("failed to check for existing GatewayConfig: %v", err)
 	}
 
-	gatewayNS := gateway.GetGatewayNamespace()
 	t.Logf("Bootstrapping GatewayConfig for xKS (namespace=%s, domain=%s, issuer=%s)",
 		gatewayNS, xksGatewayDomain, xksGatewayOIDCIssuerURL)
-
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(CreateNamespaceWithLabels(gatewayNS, nil)),
-		WithEventuallyTimeout(tc.TestTimeouts.crCreationTimeout),
-	)
 
 	oidcSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
