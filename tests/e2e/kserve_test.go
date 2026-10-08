@@ -42,7 +42,7 @@ type KserveTestCtx struct {
 func kserveTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewModuleTestCtx(t, gvk.Kserve, componentApi.KserveInstanceName)
+	ct, err := NewModuleTestCtx(t, kserve.NewHandler())
 	require.NoError(t, err)
 
 	componentCtx := KserveTestCtx{
@@ -65,9 +65,9 @@ func kserveTestSuite(t *testing.T) {
 	testCases := make([]TestCase, 0, 11)
 	testCases = append(testCases,
 		TestCase{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		TestCase{"Validate module enabled", componentCtx.ValidateModuleEnabled},
 		TestCase{"Validate component spec", componentCtx.ValidateSpec},
 		TestCase{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
-		TestCase{"Validate no Kserve FeatureTrackers", componentCtx.ValidateNoKserveFeatureTrackers},
 		TestCase{"Validate VAP created when kserve is enabled", componentCtx.ValidateS3SecretCheckBucketExist},
 		TestCase{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		TestCase{"Validate component releases", componentCtx.ValidateComponentReleases},
@@ -88,9 +88,10 @@ func kserveTestSuite(t *testing.T) {
 
 	testCases = append(testCases,
 		TestCase{"Validate platform config ConfigMap", componentCtx.ValidatePlatformConfigMap},
-		TestCase{"Validate ModelRegistry state propagation", componentCtx.ValidateModelRegistryStatePropagation},
+		TestCase{"Validate AIHub state propagation", componentCtx.ValidateAIHubStatePropagation},
 		TestCase{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+		TestCase{"Validate module disabled", componentCtx.ValidateModuleDisabled},
 	)
 
 	// Run the test suite.
@@ -101,7 +102,7 @@ func kserveTestSuite(t *testing.T) {
 func kserveDegradedMonitoringTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewModuleTestCtx(t, gvk.Kserve, componentApi.KserveInstanceName)
+	ct, err := NewModuleTestCtx(t, kserve.NewHandler())
 	require.NoError(t, err)
 
 	componentCtx := KserveTestCtx{
@@ -144,13 +145,13 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 		WithCondition(And(
 			// Validate management states of NIM and serving components.
 			jq.Match(`.spec.nim.managementState == "%s"`, dsc.Spec.Components.Kserve.NIM.ManagementState),
-			// Validate ModelRegistry state is injected from DSC
+			// Validate AIHub state is injected from DSC
 			jq.Match(`.spec.modelRegistry.managementState == "%s"`,
 				func() string {
-					if dsc.Spec.Components.ModelRegistry.ManagementState == "" {
+					if dsc.Spec.Components.AIHub.ManagementState == "" {
 						return "Removed"
 					}
-					return string(dsc.Spec.Components.ModelRegistry.ManagementState)
+					return string(dsc.Spec.Components.AIHub.ManagementState)
 				}()),
 		),
 		),
@@ -693,7 +694,7 @@ func (tc *KserveTestCtx) runXKSDegradedMonitoringTest(t *testing.T, kserveNN typ
 func kserveModelCacheTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewModuleTestCtx(t, gvk.Kserve, componentApi.KserveInstanceName)
+	ct, err := NewModuleTestCtx(t, kserve.NewHandler())
 	require.NoError(t, err)
 
 	componentCtx := KserveTestCtx{

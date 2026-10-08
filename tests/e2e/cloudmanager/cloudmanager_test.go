@@ -3,6 +3,7 @@ package cloudmanager_test
 import (
 	"strings"
 	"testing"
+	"time"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -595,6 +596,46 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			wt.List(gvk.Deployment,
 				client.MatchingLabels{labels.InfrastructurePartOf: getPartOfLabelValue()},
 			).Eventually().Should(BeEmpty())
+
+			t.Run("DoesNotDeployForAdministratorManagedCR", func(t *testing.T) {
+				wt := tc.NewWithT(t)
+
+				// Recreate the LWS operator CR after CCM has removed its own copy.
+				// An administrator-owned CR with the same identity must not keep
+				// the LWS chart active while the dependency is Unmanaged.
+				adminCR := &unstructured.Unstructured{}
+				adminCR.SetGroupVersionKind(ccmcommon.LWSOperatorCR.GVK)
+				adminCR.SetName(ccmcommon.LWSOperatorCR.Name)
+				adminCR.Object["spec"] = map[string]any{"managementState": "Unmanaged"}
+				adminCRName := client.ObjectKeyFromObject(adminCR)
+				wt.Create(adminCR, adminCRName).Eventually().Should(Not(BeNil()))
+				t.Cleanup(func() {
+					_ = wt.Client().Delete(wt.Context(), adminCR)
+				})
+
+				// An unowned CR may not trigger the KubernetesEngine's ownership
+				// watch, so change another policy to force a full reconciliation.
+				wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
+					return unstructured.SetNestedField(obj.Object, string(ccmapi.Managed),
+						"spec", "dependencies", "gatewayAPI", "managementPolicy")
+				}).Eventually().Should(Not(BeNil()))
+				wt.Get(provider.GVK, k8sEngineCrNn()).Eventually().Should(
+					jq.Match(`.status.observedGeneration == .metadata.generation`),
+				)
+
+				wt.Get(ccmcommon.LWSOperatorCR.GVK, adminCRName).Eventually().Should(And(
+					jq.Match(`.metadata.ownerReferences == null or (.metadata.ownerReferences | length == 0)`),
+					jq.Match(`.spec.managementState == "Unmanaged"`),
+				))
+				wt.Get(gvk.Deployment, lwsNN).Consistently().WithTimeout(10 * time.Second).Should(BeNil())
+				wt.List(gvk.ServiceAccount,
+					client.InNamespace(lwsNN.Namespace),
+					client.MatchingLabels{labels.InfrastructurePartOf: getPartOfLabelValue()},
+				).Consistently().WithTimeout(10 * time.Second).Should(BeEmpty())
+
+				wt.Expect(wt.Client().Delete(wt.Context(), adminCR)).To(Succeed())
+				wt.Get(ccmcommon.LWSOperatorCR.GVK, adminCRName).Eventually().Should(BeNil())
+			})
 
 			// Restore all to Managed for subsequent tests.
 			wt.Log("restoring all dependencies to Managed")

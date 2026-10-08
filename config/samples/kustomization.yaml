@@ -2,6 +2,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-- datasciencecluster_v2_datasciencecluster.yaml
+- datasciencecluster_v3_datasciencecluster.yaml
 - dscinitialization_v2_dscinitialization.yaml
 - services_v1alpha1_auth.yaml

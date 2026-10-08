@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"maps"
 	"os"
@@ -29,9 +30,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 )
@@ -90,6 +90,9 @@ type TestContextConfig struct {
 	operatorControllerTest           bool
 	operatorResilienceTest           bool
 	webhookTest                      bool
+	conversionWebhookTest            bool
+	conversionWebhookDSC             bool
+	conversionWebhookPlatform        bool
 	dagOrderingTest                  bool
 	v2tov3upgradeTest                bool
 	circuitBreakerEnabled            bool
@@ -147,7 +150,7 @@ var (
 				componentApi.AIPipelinesComponentName:          aiPipelinesTestSuite,
 				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
 				componentApi.KserveComponentName:               kserveTestSuite,
-				componentApi.FeastOperatorComponentName:        feastModuleTestSuite,
+				componentApi.DataModuleName:                    dataModuleTestSuite,
 				componentApi.OGXComponentName:                  ogxTestSuite,
 				componentApi.SparkOperatorComponentName:        sparkOperatorTestSuite,
 				componentApi.AIGatewayComponentName:            aiGatewayTestSuite,
@@ -156,8 +159,8 @@ var (
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
 				componentApi.KueueComponentName: kueueTestSuite,
-				// ModelRegistry and Kserve are coupled, so must not run with Kserve tests in parallel
-				componentApi.ModelRegistryComponentName: modelRegistryTestSuite,
+				// AIHub and Kserve are coupled, so must not run with Kserve tests in parallel
+				componentApi.AIHubModuleName: aihubTestSuite,
 			},
 			{
 				// TrustyAI tests depends on KServe, so must not run with Kserve tests in parallel
@@ -206,6 +209,46 @@ func (i *arrayFlags) Set(value string) error {
 
 func (tg *TestGroup) String() string {
 	return tg.name
+}
+
+func dumpResolvedFlags(w io.Writer, config *viper.Viper, flags *pflag.FlagSet) error {
+	var names []string
+	flags.VisitAll(func(flag *pflag.Flag) {
+		names = append(names, flag.Name)
+	})
+	slices.Sort(names)
+
+	if _, err := fmt.Fprintln(w, "Resolved E2E flags:"); err != nil {
+		return err
+	}
+	for _, name := range names {
+		value := config.Get(name)
+		if value == nil {
+			if flag := flags.Lookup(name); flag != nil {
+				value = flag.Value.String()
+			}
+		}
+		if isSensitiveFlag(name) {
+			value = "[REDACTED]"
+		}
+		if _, err := fmt.Fprintf(w, "  --%s=%v\n", name, value); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func isSensitiveFlag(name string) bool {
+	name = strings.ToLower(name)
+	for _, marker := range []string{
+		"token", "password", "secret", "credential", "private-key", "private_key", "api-key", "api_key", "access-key", "access_key",
+	} {
+		if strings.Contains(name, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func (tg *TestGroup) Names() []string {
@@ -504,9 +547,9 @@ func TestOdhOperator(t *testing.T) {
 		mustRun(t, "Operator Resilience E2E Tests", operatorResilienceTestSuite)
 	}
 
-	// Run V2 to V3 upgrade test suites
+	// Run DSCI deprecated-CRD regression tests.
 	if testOpts.v2tov3upgradeTest {
-		mustRun(t, "V2 to V3 upgrade E2E Tests", v2Tov3UpgradeTestSuite)
+		mustRun(t, "DSCI deprecated-CRD E2E Tests", dscInitializationDeprecatedCRDTestSuite)
 	}
 
 	// Run ConfigMap deletion test suite
@@ -515,9 +558,12 @@ func TestOdhOperator(t *testing.T) {
 		mustRun(t, "Deletion ConfigMap E2E Tests", cfgMapDeletionTestSuite)
 	}
 
-	// Run V2 to V3 upgrade test suites that needs to delete DSC and DSCI at the last position
-	if testOpts.v2tov3upgradeTest {
-		mustRun(t, "upgrade DSC and DSCI v1 API", v2Tov3UpgradeDeletingDscDsciTestSuite)
+	// Conversion scenarios delete the singleton DSC. Run them after functional tests.
+	if conversionWebhookSuiteSelected() {
+		mustRun(t, "webhooks", func(t *testing.T) {
+			t.Helper()
+			t.Run("conversion", webhookConversionTestSuite)
+		})
 	}
 
 	// Deletion logic based on deletionPolicy
@@ -613,6 +659,12 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-operator-v2tov3upgrade", viper.GetEnvPrefix()+"_OPERATOR_V2TOV3UPGRADE"))
 	pflag.Bool("test-webhook", true, "run webhook tests")
 	checkEnvVarBindingError(viper.BindEnv("test-webhook", viper.GetEnvPrefix()+"_WEBHOOK"))
+	pflag.Bool("test-conversion-webhook", true, "run conversion webhook tests")
+	checkEnvVarBindingError(viper.BindEnv("test-conversion-webhook", viper.GetEnvPrefix()+"_CONVERSION_WEBHOOK"))
+	pflag.Bool("test-conversion-webhook-dsc", true, "run DSC conversion webhook tests")
+	checkEnvVarBindingError(viper.BindEnv("test-conversion-webhook-dsc", viper.GetEnvPrefix()+"_CONVERSION_WEBHOOK_DSC"))
+	pflag.Bool("test-conversion-webhook-platform", true, "run Platform conversion webhook tests")
+	checkEnvVarBindingError(viper.BindEnv("test-conversion-webhook-platform", viper.GetEnvPrefix()+"_CONVERSION_WEBHOOK_PLATFORM"))
 	pflag.Bool("test-dag-ordering", true, "run DAG upgrade ordering tests")
 	checkEnvVarBindingError(viper.BindEnv("test-dag-ordering", viper.GetEnvPrefix()+"_DAG_ORDERING"))
 
@@ -627,6 +679,8 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-components", viper.GetEnvPrefix()+"_COMPONENTS"))
 	pflag.StringSlice("test-component", Components.Names(), "Run tests for the specified component. Valid names: "+componentNames)
 	checkEnvVarBindingError(viper.BindEnv("test-component", viper.GetEnvPrefix()+"_COMPONENT"))
+	pflag.Bool("test-components-parallel", Components.parallel, "Run component test suites in parallel")
+	checkEnvVarBindingError(viper.BindEnv("test-components-parallel", viper.GetEnvPrefix()+"_COMPONENTS_PARALLEL"))
 
 	// Service flags
 	serviceNames := strings.Join(Services.Names(), ", ")
@@ -634,6 +688,8 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-services", viper.GetEnvPrefix()+"_SERVICES"))
 	pflag.StringSlice("test-service", Services.Names(), "Run tests for the specified service. Valid names: "+serviceNames)
 	checkEnvVarBindingError(viper.BindEnv("test-service", viper.GetEnvPrefix()+"_SERVICE"))
+	pflag.Bool("test-services-parallel", Services.parallel, "Run service test suites in parallel")
+	checkEnvVarBindingError(viper.BindEnv("test-services-parallel", viper.GetEnvPrefix()+"_SERVICES_PARALLEL"))
 
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 
@@ -647,6 +703,9 @@ func TestMain(m *testing.M) {
 	if err := viper.BindPFlags(pflag.CommandLine); err != nil {
 		fmt.Printf("Error in binding tests flags: %s", err.Error())
 		os.Exit(1)
+	}
+	if err := dumpResolvedFlags(os.Stdout, viper.GetViper(), pflag.CommandLine); err != nil {
+		log.Printf("Failed to dump resolved E2E flags: %v", err)
 	}
 
 	testOpts.TestTimeouts = TestTimeouts{
@@ -690,13 +749,19 @@ func TestMain(m *testing.M) {
 	testOpts.operatorResilienceTest = viper.GetBool("test-operator-resilience")
 	testOpts.v2tov3upgradeTest = viper.GetBool("test-operator-v2tov3upgrade")
 	testOpts.webhookTest = viper.GetBool("test-webhook")
+	testOpts.conversionWebhookTest = viper.GetBool("test-conversion-webhook")
+	testOpts.conversionWebhookDSC = viper.GetBool("test-conversion-webhook-dsc")
+	testOpts.conversionWebhookPlatform = viper.GetBool("test-conversion-webhook-platform")
 	testOpts.dagOrderingTest = viper.GetBool("test-dag-ordering")
 	testOpts.circuitBreakerEnabled = viper.GetBool("circuit-breaker")
 	testOpts.circuitBreakerThreshold = viper.GetInt("circuit-breaker-threshold")
+
 	Components.enabled = viper.GetBool("test-components")
 	Components.flags = viper.GetStringSlice("test-component")
+	Components.parallel = viper.GetBool("test-components-parallel")
 	Services.enabled = viper.GetBool("test-services")
 	Services.flags = viper.GetStringSlice("test-service")
+	Services.parallel = viper.GetBool("test-services-parallel")
 
 	// Config validation
 	if err := Components.Validate(); err != nil {
@@ -721,8 +786,7 @@ func registerSchemes() {
 		apiextv1.AddToScheme,
 		autoscalingv1.AddToScheme,
 		dsciv2.AddToScheme,
-		dscv2.AddToScheme,
-		featurev1.AddToScheme,
+		dscApi.AddToScheme,
 		monitoringv1.AddToScheme,
 		ofapi.AddToScheme,
 		operatorv1.AddToScheme,

@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
@@ -24,8 +24,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
-	return &configv1alpha1.PlatformModules{
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configApi.PlatformModules {
+	return &configApi.PlatformModules{
 		Monitoring: common.ManagementSpec{
 			ManagementState: mgmtState,
 		},
@@ -85,7 +85,7 @@ func TestIsEnabled_Empty(t *testing.T) {
 func TestIsEnabled_EmptyModules(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
-	g.Expect(h.IsEnabled(&configv1alpha1.PlatformModules{})).Should(BeFalse())
+	g.Expect(h.IsEnabled(&configApi.PlatformModules{})).Should(BeFalse())
 }
 
 func TestIsEnabled_NilModules(t *testing.T) {
@@ -97,7 +97,7 @@ func TestIsEnabled_NilModules(t *testing.T) {
 func TestPopulatePlatformModule_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
-	pm := &configv1alpha1.PlatformModules{}
+	pm := &configApi.PlatformModules{}
 	h.PopulatePlatformModule(pm, &modules.DSCContext{DSCI: newDSCI(operatorv1.Managed)})
 	g.Expect(pm.Monitoring.ManagementState).Should(Equal(operatorv1.Managed))
 }
@@ -105,7 +105,7 @@ func TestPopulatePlatformModule_Managed(t *testing.T) {
 func TestPopulatePlatformModule_EmptyDefaultsToRemoved(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
-	pm := &configv1alpha1.PlatformModules{}
+	pm := &configApi.PlatformModules{}
 	h.PopulatePlatformModule(pm, &modules.DSCContext{DSCI: newDSCI("")})
 	g.Expect(pm.Monitoring.ManagementState).Should(Equal(operatorv1.Removed))
 }
@@ -113,8 +113,8 @@ func TestPopulatePlatformModule_EmptyDefaultsToRemoved(t *testing.T) {
 func TestPopulatePlatformModule_NilGuards(t *testing.T) {
 	h := monitoring.NewHandler()
 	h.PopulatePlatformModule(nil, nil)
-	h.PopulatePlatformModule(&configv1alpha1.PlatformModules{}, nil)
-	h.PopulatePlatformModule(&configv1alpha1.PlatformModules{}, &modules.DSCContext{})
+	h.PopulatePlatformModule(&configApi.PlatformModules{}, nil)
+	h.PopulatePlatformModule(&configApi.PlatformModules{}, &modules.DSCContext{})
 }
 
 func TestBuildModuleCR_NilDSCIReturnsError(t *testing.T) {
@@ -348,6 +348,123 @@ func TestBuildModuleCR_Mode2ExportersOnly(t *testing.T) {
 	g.Expect(traces).Should(HaveKey("exporters"))
 	g.Expect(traces).ShouldNot(HaveKey("storage"))
 	g.Expect(spec["collectorReplicas"]).Should(Equal(int64(2)))
+}
+
+func TestBuildModuleCR_ProjectsLogs(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.Logs = &serviceApi.Logs{
+		Storage: &serviceApi.LokiStorageConfig{
+			Type:             "s3",
+			SecretName:       "rhoai-logs-s3",
+			CredentialMode:   "static",
+			StorageClassName: "gp3-csi",
+		},
+		InferenceNamespaces: []string{"my-project"},
+	}
+
+	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+
+	logs, ok := spec["logs"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.logs missing")
+	storage, ok := logs["storage"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.logs.storage missing")
+	g.Expect(storage["type"]).Should(Equal("s3"))
+	g.Expect(storage["secretName"]).Should(Equal("rhoai-logs-s3"))
+	g.Expect(storage["credentialMode"]).Should(Equal("static"))
+	g.Expect(storage["storageClassName"]).Should(Equal("gp3-csi"))
+	g.Expect(logs["inferenceNamespaces"]).Should(Equal([]any{"my-project"}))
+}
+
+func TestBuildModuleCR_ProjectsUsageLogs(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.UsageLogs = &serviceApi.UsageLogs{
+		Storage: &serviceApi.LokiStorageConfig{
+			Type:             "s3",
+			SecretName:       "rhoai-logs-s3",
+			CredentialMode:   "static",
+			StorageClassName: "gp3-csi",
+		},
+	}
+
+	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).ShouldNot(HaveKey("logs"))
+
+	usageLogs, ok := spec["usageLogs"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.usageLogs missing")
+	storage, ok := usageLogs["storage"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.usageLogs.storage missing")
+	g.Expect(storage["type"]).Should(Equal("s3"))
+	g.Expect(storage["secretName"]).Should(Equal("rhoai-logs-s3"))
+	g.Expect(storage["credentialMode"]).Should(Equal("static"))
+	g.Expect(storage["storageClassName"]).Should(Equal("gp3-csi"))
+	g.Expect(spec).ShouldNot(HaveKey("collectorReplicas"))
+}
+
+func TestBuildModuleCR_UsageLogsWithoutStorageNulled(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.UsageLogs = &serviceApi.UsageLogs{}
+
+	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).ShouldNot(HaveKey("usageLogs"))
+}
+
+func TestBuildModuleCR_ProjectsLogsAndUsageLogsIndependently(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.Logs = &serviceApi.Logs{
+		Storage: &serviceApi.LokiStorageConfig{
+			Type:       "s3",
+			SecretName: "rhoai-logs-s3",
+		},
+	}
+	dsci.Spec.Monitoring.UsageLogs = &serviceApi.UsageLogs{
+		Storage: &serviceApi.LokiStorageConfig{
+			Type:       "s3",
+			SecretName: "rhoai-logs-s3",
+		},
+	}
+
+	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).Should(HaveKey("logs"))
+	g.Expect(spec).Should(HaveKey("usageLogs"))
+	g.Expect(spec).ShouldNot(HaveKey("collectorReplicas"))
+}
+
+func TestBuildModuleCR_LogsWithoutStorageNulled(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.Logs = &serviceApi.Logs{}
+
+	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).ShouldNot(HaveKey("logs"))
 }
 
 func TestBuildModuleCR_CollectorReplicasDefaulting(t *testing.T) {

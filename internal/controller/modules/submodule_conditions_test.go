@@ -13,8 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -45,7 +45,7 @@ func newTestRR() (*odhtype.ReconciliationRequest, *conditions.Manager) {
 
 func newTestDSCCtx() *DSCContext {
 	return &DSCContext{
-		DSC: &dscv2.DataScienceCluster{},
+		DSC: &dscApi.DataScienceCluster{},
 	}
 }
 
@@ -98,7 +98,7 @@ type submoduleTestHandler struct {
 	BaseHandler
 }
 
-func (h *submoduleTestHandler) IsEnabled(_ *configv1alpha1.PlatformModules) bool { return true }
+func (h *submoduleTestHandler) IsEnabled(_ *configApi.PlatformModules) bool { return true }
 func (h *submoduleTestHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext, _ *ModuleCRConfig) (*unstructured.Unstructured, error) {
 	return nil, nil
 }
@@ -456,16 +456,21 @@ func TestWriteDSCComponentStatus_FieldResolution(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
+	// Data uses a custom status writer to populate its v3 status field.
 	knownKinds := []string{
 		"AIPipelines", "Dashboard", "Workbenches", "Kserve", "Kueue", "Ray",
-		"TrustyAI", "ModelRegistry", "TrainingOperator", "FeastOperator",
+		"TrustyAI", "AIHub",
 		"OGX", "MLflowOperator", "Trainer", "SparkOperator", "AIGateway",
 		"MCPLifecycleOperator",
+	}
+	for _, retired := range []string{"TrainingOperator", "LlamaStackOperator"} {
+		field := reflect.ValueOf(&dscApi.ComponentsStatus{}).Elem().FieldByName(retired)
+		g.Expect(field.IsValid()).To(BeFalse(), "retired %s must have no v3 status field", retired)
 	}
 
 	for _, kind := range knownKinds {
 		h := &BaseHandler{Config: ModuleConfig{GVK: schema.GroupVersionKind{Kind: kind}}}
-		dsc := &dscv2.DataScienceCluster{}
+		dsc := &dscApi.DataScienceCluster{}
 		h.WriteDSCComponentStatus(dsc, true, nil)
 
 		field := reflect.ValueOf(&dsc.Status.Components).Elem().FieldByName(kind)

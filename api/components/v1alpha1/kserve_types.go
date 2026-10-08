@@ -59,8 +59,38 @@ type OAuthProxyConfig struct {
 	Resources *OAuthProxyResourceRequirements `json:"resources,omitempty"`
 }
 
-// KserveCommonSpec spec defines the shared desired state of Kserve
+// KserveCommonSpec defines the current KServe configuration exposed in DSC.
 type KserveCommonSpec struct {
+	// Configures the type of service that is created for InferenceServices using RawDeployment.
+	// The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".
+	// Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.
+	// Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve.
+	// +kubebuilder:default=Headless
+	RawDeploymentServiceConfig RawServiceConfig `json:"rawDeploymentServiceConfig,omitempty"`
+	// Configures the OAuth proxy sidecar container resources in the
+	// 'inferenceservice-config' ConfigMap for KServe. Only non-nil fields
+	// override the defaults shipped with the operator manifests.
+	// +optional
+	OAuthProxy *OAuthProxyConfig `json:"oauthProxy,omitempty"`
+	// Configures and enables NVIDIA NIM integration
+	// +kubebuilder:default={}
+	NIM NimSpec `json:"nim,omitempty"`
+	// Enables TLS for LLMInferenceService deployments.
+	// When unset, the KServe default (TLS enabled) is preserved.
+	// +optional
+	EnableLLMInferenceServiceTLS *bool `json:"enableLLMInferenceServiceTLS,omitempty"`
+	// Enables OpenShift Developer Console dashboards for LLMInferenceService.
+	// Enabled by default.
+	// +optional
+	EnableLLMInferenceServiceConsoleDashboards *bool `json:"enableLLMInferenceServiceConsoleDashboards,omitempty"`
+	// Configures and enables Model Cache integration
+	ModelCache *ModelCacheSpec `json:"modelCache,omitempty"`
+}
+
+// KserveCommonSpecV2 defines the legacy DSC v2 KServe configuration.
+// Keep its fields independent of KserveCommonSpec so future additions to the
+// current API do not also change the v2 API.
+type KserveCommonSpecV2 struct {
 	// Configures the type of service that is created for InferenceServices using RawDeployment.
 	// The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".
 	// Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.
@@ -82,7 +112,7 @@ type KserveCommonSpec struct {
 	// +kubebuilder:validation:XValidation:rule="self.managementState != 'Managed' || (has(oldSelf.managementState) && oldSelf.managementState == 'Managed')",message="modelsAsService is deprecated; cannot re-enable once Removed. Use spec.components.aigateway.modelsAsAService instead"
 	// +kubebuilder:default={managementState: "Removed"}
 	ModelsAsService DSCModelsAsServiceSpec `json:"modelsAsService,omitempty"`
-	// Configures and enables workload-variant-autoscaler (WVA) integration
+	// WVA is retained for v2 compatibility and is always treated as Removed.
 	// +kubebuilder:default={}
 	WVA WVASpec `json:"wva,omitempty"`
 	// Enables TLS for LLMInferenceService deployments.
@@ -110,9 +140,10 @@ type NimSpec struct {
 	AirGapped bool `json:"airGapped,omitempty"`
 }
 
-// WVASpec enables workload-variant-autoscaler integration
+// WVASpec preserves the legacy WVA management state for v2 compatibility.
+// Only Removed is supported.
 type WVASpec struct {
-	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:validation:Enum=Removed
 	// +kubebuilder:default=Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
@@ -147,12 +178,18 @@ type KserveCommonStatus struct {
 	common.ComponentReleaseStatus `json:",inline"`
 }
 
-// DSCKserve contains all the configuration exposed in DSC instance for Kserve component
+// DSCKserve contains the current KServe configuration exposed in DSC.
 type DSCKserve struct {
 	// configuration fields common across components
 	common.ManagementSpec `json:",inline"`
 	// Kserve specific fields
 	KserveCommonSpec `json:",inline"`
+}
+
+// DSCKserveV2 contains the legacy v2 KServe configuration exposed in DSC.
+type DSCKserveV2 struct {
+	common.ManagementSpec `json:",inline"`
+	KserveCommonSpecV2    `json:",inline"`
 }
 
 // DSCKserveStatus contains the observed state of the Kserve exposed in the DSC instance

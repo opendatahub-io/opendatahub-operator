@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -11,25 +12,31 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -118,7 +125,7 @@ func gatewayTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Validate GatewayConfig creation", gatewayCtx.ValidateGatewayConfig},
 		{"Validate Gateway infrastructure", gatewayCtx.ValidateGatewayInfrastructure},
-		{"Validate additional Gateway listeners", gatewayCtx.ValidateAdditionalGatewayListeners},
+		{"Validate additional Gateways", gatewayCtx.ValidateAdditionalGateways},
 		{"Validate XKS cert-manager certificates", gatewayCtx.ValidateXKSCertManagerCertificates},
 		{"Validate XKS certificate readiness recovery", gatewayCtx.ValidateXKSCertificateReadinessRecovery},
 		// IntegratedOAuth-specific tests (skipped on BYOIDC)
@@ -132,7 +139,7 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate OIDC unauthenticated access redirects to login", gatewayCtx.ValidateOIDCUnauthenticatedRedirect},
 		// Common tests (run on both)
 		{"Validate kube-auth-proxy TLS args match cluster APIServer", gatewayCtx.ValidateKubeAuthProxyTLSArgsMatchAPIServer},
-		{"Validate HorizontalPodAutoscaler creation", gatewayCtx.ValidateHPA},
+		{"Validate HorizontalPodAutoscaler configuration updates", gatewayCtx.ValidateHPA},
 		{"Validate NetworkPolicy creation", gatewayCtx.ValidateNetworkPolicy},
 		{"Validate OAuth callback HTTPRoute", gatewayCtx.ValidateOAuthCallbackRoute},
 		{"Validate EnvoyFilter creation", gatewayCtx.ValidateEnvoyFilter},
@@ -234,12 +241,12 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 	t.Log("Gateway infrastructure validation completed")
 }
 
-// ValidateAdditionalGatewayListeners validates add/remove reconciliation on the shared Gateway.
-func (tc *GatewayTestCtx) ValidateAdditionalGatewayListeners(t *testing.T) {
+// ValidateAdditionalGateways validates one Gateway and bridge Route per additional ingress.
+func (tc *GatewayTestCtx) ValidateAdditionalGateways(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Tier1)
 	if !tc.isOcpRouteMode(t) {
-		t.Skip("additional Gateway listeners require OcpRoute mode")
+		t.Skip("additional Gateways require OcpRoute mode")
 	}
 
 	g := NewWithT(t)
@@ -249,70 +256,72 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayListeners(t *testing.T) {
 	original := gatewayConfig.DeepCopy()
 	originalGateway, err := tc.getGateway(ctx)
 	require.NoError(t, err)
-	listenerSignatures := func(listeners []gwapiv1.Listener) []string {
-		signatures := make([]string, 0, len(listeners))
-		for _, listener := range listeners {
-			signatures = append(signatures, fmt.Sprintf("%s:%d", listener.Name, listener.Port))
-		}
-		return signatures
+	dsc := &dscv2.DataScienceCluster{}
+	require.NoError(t, tc.Client().Get(ctx, tc.DataScienceClusterNamespacedName, dsc))
+	originalDashboardState := dsc.Spec.Components.Dashboard.ManagementState
+	if originalDashboardState != operatorv1.Managed {
+		tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
+		t.Cleanup(func() {
+			tc.UpdateComponentStateInDataScienceClusterWithKind(originalDashboardState, componentApi.DashboardKind)
+		})
 	}
-	statusNames := func(entries []serviceApi.AdditionalIngressStatus) map[string]struct{} {
-		names := make(map[string]struct{}, len(entries))
-		for _, entry := range entries {
-			names[entry.Name] = struct{}{}
-		}
-		return names
+	tc.waitForDashboardHTTPRoute(t)
+	defaultRouteKey := types.NamespacedName{Name: tc.gatewayName(), Namespace: tc.gatewayNamespace()}
+	defaultRoute := &routev1.Route{}
+	require.NoError(t, tc.Client().Get(ctx, defaultRouteKey, defaultRoute))
+	defaultRouteUID := defaultRoute.UID
+	require.NotEmpty(t, defaultRoute.Spec.Host)
+	dashboardRouteKey := types.NamespacedName{
+		Name: getDashboardRouteNameByPlatform(tc.FetchPlatformRelease()), Namespace: tc.AppsNamespace,
 	}
-	waitListeners := func(expected []string) {
-		g.Eventually(func() []string {
-			current, err := tc.getGateway(ctx)
-			if err != nil {
-				return nil
-			}
-			return listenerSignatures(current.Spec.Listeners)
-		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Equal(expected))
+	dashboardHTTPRoute := &gwapiv1.HTTPRoute{}
+	require.NoError(t, tc.Client().Get(ctx, dashboardRouteKey, dashboardHTTPRoute))
+	authHTTPRouteKey := types.NamespacedName{Name: gateway.OAuthCallbackRouteName, Namespace: tc.gatewayNamespace()}
+	authHTTPRoute := &gwapiv1.HTTPRoute{}
+	require.NoError(t, tc.Client().Get(ctx, authHTTPRouteKey, authHTTPRoute))
+	checkDefault := func() {
+		tc.assertDefaultGatewayContinuity(ctx, t, originalGateway.UID, defaultRouteUID, defaultRoute.Spec.Host)
+		tc.waitForDashboardHTTPRoute(t)
+		currentRoute := &routev1.Route{}
+		g.Expect(tc.Client().Get(ctx, defaultRouteKey, currentRoute)).To(Succeed())
+		g.Expect(currentRoute.Spec).To(Equal(defaultRoute.Spec))
+		currentDashboardHTTPRoute := &gwapiv1.HTTPRoute{}
+		g.Expect(tc.Client().Get(ctx, dashboardRouteKey, currentDashboardHTTPRoute)).To(Succeed())
+		g.Expect(currentDashboardHTTPRoute.Spec).To(Equal(dashboardHTTPRoute.Spec))
+		currentAuthHTTPRoute := &gwapiv1.HTTPRoute{}
+		g.Expect(tc.Client().Get(ctx, authHTTPRouteKey, currentAuthHTTPRoute)).To(Succeed())
+		g.Expect(currentAuthHTTPRoute.Spec).To(Equal(authHTTPRoute.Spec))
 	}
-	validateAdditionalIngressStatus := func(expectedCount int, name, hostname string) {
-		tc.EnsureResourceExists(
-			WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
-			WithCondition(And(
-				jq.Match(`.status.additionalIngresses | length == %d`, expectedCount),
-				jq.Match(`.status.additionalIngresses[] | select(.name == "%s" and .hostname == "%s") | .conditions | length == 4`, name, hostname),
-				jq.Match(`.status.additionalIngresses[] | select(.name == "%s") | [.conditions[].type] | sort == ["AuthenticationReady", "ListenerReady", "Ready", "RouteAdmitted"]`, name),
-				jq.Match(`.status.additionalIngresses[] | select(.name == "%s") | all(.conditions[]; .status == "Unknown" and .reason == "ReconciliationPending")`, name),
-				jq.Match(`(.metadata.generation as $generation | .status.additionalIngresses[] | select(.name == "%s") | all(.conditions[]; .observedGeneration == $generation))`, name),
-			)),
-			WithCustomErrorMsg("GatewayConfig should report status for additional ingress %s", name),
-		)
+	ingressControllerName := fmt.Sprintf("e2e-alpha-shard-%x", time.Now().UnixNano())
+	ingressControllerKey := types.NamespacedName{
+		Name: ingressControllerName, Namespace: cluster.IngressControllerName.Namespace,
 	}
-
-	restore := func() {
-		if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-			current := &serviceApi.GatewayConfig{}
-			if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, current); err != nil {
-				return err
-			}
-			current.Spec.AdditionalIngresses = original.Spec.AdditionalIngresses
-			return tc.Client().Update(ctx, current)
-		}); err != nil {
-			t.Errorf("failed to restore GatewayConfig: %v", err)
-			return
-		}
-		g.Eventually(func() bool {
-			currentConfig := &serviceApi.GatewayConfig{}
-			if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, currentConfig); err != nil {
-				return false
-			}
-			currentGateway, err := tc.getGateway(ctx)
-			if err != nil {
-				return false
-			}
-			return reflect.DeepEqual(currentConfig.Spec.AdditionalIngresses, original.Spec.AdditionalIngresses) &&
-				reflect.DeepEqual(statusNames(currentConfig.Status.AdditionalIngresses), statusNames(original.Status.AdditionalIngresses)) &&
-				reflect.DeepEqual(currentGateway.Spec.Listeners, originalGateway.Spec.Listeners)
-		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
+	alpha := serviceApi.AdditionalIngress{
+		Name:                  "e2e-alpha",
+		Hostname:              ingressControllerName + ".e2e.invalid",
+		IngressControllerName: ingressControllerName,
+		RouteLabels:           map[string]string{"example.com/ingress": "e2e-alpha"},
 	}
-	t.Cleanup(restore)
+	beta := serviceApi.AdditionalIngress{
+		Name: "e2e-beta", Hostname: "e2e-beta.example.com",
+		IngressControllerName: "e2e-beta-shard",
+		RouteLabels:           map[string]string{"example.com/ingress": "e2e-beta"},
+	}
+	alphaDomain := ingressControllerName + ".e2e.invalid"
+	replicas := int32(1)
+	alphaIngressController := &operatorv1.IngressController{
+		ObjectMeta: metav1.ObjectMeta{Name: ingressControllerKey.Name, Namespace: ingressControllerKey.Namespace},
+		Spec: operatorv1.IngressControllerSpec{
+			Domain: alphaDomain, Replicas: &replicas,
+			EndpointPublishingStrategy: &operatorv1.EndpointPublishingStrategy{Type: operatorv1.PrivateStrategyType},
+			RouteSelector:              &metav1.LabelSelector{MatchLabels: alpha.RouteLabels},
+		},
+	}
+	require.NoError(t, tc.Client().Create(ctx, alphaIngressController), "create temporary private IngressController")
+	t.Cleanup(func() {
+		restoreAdditionalIngressGatewayTest(t, tc, original, originalGateway, ingressControllerKey)
+	})
+	t.Cleanup(func() { tc.logAdditionalIngressEvidence(t, ingressControllerKey) })
 
 	update := func(additional serviceApi.AdditionalIngresses) {
 		g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
@@ -324,62 +333,503 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayListeners(t *testing.T) {
 			return tc.Client().Update(ctx, current)
 		})).To(Succeed())
 	}
-
-	waitListeners(listenerSignatures(originalGateway.Spec.Listeners))
-
-	additional := serviceApi.AdditionalIngresses{
-		{
-			Name:                  "e2e-beta",
-			Hostname:              "e2e-beta.example.com",
-			ListenerPort:          18444,
-			IngressControllerName: "e2e-beta-shard",
-			RouteLabels:           map[string]string{"example.com/ingress": "e2e-beta"},
-		},
-		{
-			Name:                  "e2e-alpha",
-			Hostname:              "e2e-alpha.example.com",
-			ListenerPort:          18443,
-			IngressControllerName: "e2e-alpha-shard",
-			RouteLabels:           map[string]string{"example.com/ingress": "e2e-alpha"},
-		},
-	}
-	update(additional)
-	waitListeners([]string{
-		fmt.Sprintf("%s:%d", defaultGatewayListenerName, standardHTTPSPort),
-		"e2e-alpha:18443",
-		"e2e-beta:18444",
-	})
-	validateAdditionalIngressStatus(2, "e2e-alpha", "e2e-alpha.example.com")
-	validateAdditionalIngressStatus(2, "e2e-beta", "e2e-beta.example.com")
-
-	current, err := tc.getGateway(ctx)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(current.Spec.Listeners[0].Name).To(Equal(gwapiv1.SectionName(defaultGatewayListenerName)))
-	g.Expect(current.Spec.Listeners[1].Name).To(Equal(gwapiv1.SectionName("e2e-alpha")))
-	g.Expect(current.Spec.Listeners[1].Port).To(Equal(gwapiv1.PortNumber(18443)))
-	g.Expect(current.Spec.Listeners[2].Name).To(Equal(gwapiv1.SectionName("e2e-beta")))
-	g.Expect(current.Spec.Listeners[2].Port).To(Equal(gwapiv1.PortNumber(18444)))
-	for _, listener := range current.Spec.Listeners[1:] {
-		g.Expect(listener.Protocol).To(Equal(gwapiv1.HTTPSProtocolType))
-		g.Expect(listener.TLS).NotTo(BeNil())
-		g.Expect(listener.TLS.CertificateRefs).To(HaveLen(1))
-		g.Expect(listener.TLS.CertificateRefs[0].Name).To(Equal(gwapiv1.ObjectName(gatewayServiceTLSSecretName)))
-		g.Expect(listener.AllowedRoutes).NotTo(BeNil())
+	validateStatus := func(
+		expectedCount int,
+		name, hostname string,
+		expectedRouteStatus, expectedReadyStatus metav1.ConditionStatus,
+	) {
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+			WithCondition(And(
+				jq.Match(".status.additionalIngresses | length == %d", expectedCount),
+				jq.Match(`.metadata.generation as $generation | any(.status.conditions[];
+					.type == "AdditionalGatewaysReady" and .status == "True" and .observedGeneration == $generation)`),
+				jq.Match(".status.additionalIngresses[] | select(.name == \"%s\" and .hostname == \"%s\") | .conditions | length == 4", name, hostname),
+				jq.Match(`.status.additionalIngresses[] | select(.name == "%s") |
+					.gatewayRef == {name: "%s", namespace: "%s"}`,
+					name, name, tc.gatewayNamespace()),
+				jq.Match(`.status.additionalIngresses[] |
+					select(.name == "%s") |
+					[.conditions[].type] | sort == ["AuthenticationReady", "GatewayReady", "Ready", "RouteAdmitted"]`, name),
+				jq.Match(".status.additionalIngresses[] | select(.name == \"%s\") | any(.conditions[]; .type == \"GatewayReady\" and .status == \"True\")", name),
+				jq.Match(".status.additionalIngresses[] | select(.name == \"%s\") | any(.conditions[]; .type == \"RouteAdmitted\" and .status == \"%s\")", name, expectedRouteStatus),
+				jq.Match(`.status.additionalIngresses[] |
+					select(.name == "%s") |
+					any(.conditions[]; .type == "AuthenticationReady" and .status == "Unknown" and .reason == "StatusUnavailable")`, name),
+				jq.Match(".status.additionalIngresses[] | select(.name == \"%s\") | any(.conditions[]; .type == \"Ready\" and .status == \"%s\")", name, expectedReadyStatus),
+				jq.Match(`(.metadata.generation as $generation |
+					.status.additionalIngresses[] | select(.name == "%s") |
+					all(.conditions[]; .observedGeneration == $generation and .reason != "" and .message != ""))`, name),
+			)),
+			WithCustomErrorMsg("GatewayConfig should report status for additional ingress %s", name),
+		)
 	}
 
-	update(additional[1:])
-	waitListeners([]string{
-		fmt.Sprintf("%s:%d", defaultGatewayListenerName, standardHTTPSPort),
-		"e2e-alpha:18443",
-	})
-	validateAdditionalIngressStatus(1, "e2e-alpha", "e2e-alpha.example.com")
-	update(nil)
-	waitListeners(listenerSignatures(originalGateway.Spec.Listeners))
+	spec := original.Spec
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{alpha}
+	update(spec.AdditionalIngresses)
+	tc.validateAdditionalGatewayAndRoute(t, alpha)
+	validateStatus(1, alpha.Name, alpha.Hostname, metav1.ConditionTrue, metav1.ConditionTrue)
+	checkDefault()
+
+	g.Expect(authHTTPRoute.Spec.ParentRefs).NotTo(BeEmpty())
+	g.Expect(authHTTPRoute.Spec.ParentRefs[0].Name).To(Equal(gwapiv1.ObjectName(gateway.GetDefaultGatewayName())))
+	g.Expect(authHTTPRoute.Spec.ParentRefs[0].SectionName).To(BeNil())
+
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{alpha, beta}
+	update(spec.AdditionalIngresses)
+	tc.validateAdditionalGatewayAndRoute(t, alpha)
+	tc.validateAdditionalGatewayAndRoute(t, beta)
+	validateStatus(2, alpha.Name, alpha.Hostname, metav1.ConditionTrue, metav1.ConditionTrue)
+	validateStatus(2, beta.Name, beta.Hostname, metav1.ConditionFalse, metav1.ConditionFalse)
+	checkDefault()
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
-		WithCondition(jq.Match(`.status.additionalIngresses | length == 0`)),
+		WithCondition(jq.Match(".status.conditions[] | select(.type == \"Ready\") | .status == \"True\"")),
+		WithCustomErrorMsg("a missing additional IngressController must not block GatewayConfig readiness when all Gateways are accepted"),
+	)
+
+	alphaRouteKey := types.NamespacedName{
+		Name: alpha.Name, Namespace: tc.gatewayNamespace(),
+	}
+	validateAdditionalIngressRouteAdmissionStatus(t, tc, alphaRouteKey, alpha.Name, alpha.Hostname, ingressControllerName)
+	currentConfig := &serviceApi.GatewayConfig{}
+	g.Expect(tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, currentConfig)).To(Succeed())
+	validateAdditionalIngressRouteSelectorChange(t, tc, ingressControllerKey, alphaRouteKey,
+		alpha.Hostname, currentConfig.Generation, validateStatus)
+
+	defaultGateway, err := tc.getGateway(ctx)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(defaultGateway.UID).To(Equal(originalGateway.UID))
+	g.Expect(defaultGateway.Spec.Listeners).To(Equal(originalGateway.Spec.Listeners))
+	g.Expect(authHTTPRoute.Spec.ParentRefs[0].SectionName).To(BeNil())
+
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{beta}
+	update(spec.AdditionalIngresses)
+	validateStatus(1, beta.Name, beta.Hostname, metav1.ConditionFalse, metav1.ConditionFalse)
+	g.Eventually(func() bool {
+		return k8serr.IsNotFound(tc.Client().Get(ctx, types.NamespacedName{
+			Name: alpha.Name, Namespace: tc.gatewayNamespace(),
+		}, &gwapiv1.Gateway{}))
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
+	g.Eventually(func() bool {
+		return k8serr.IsNotFound(tc.Client().Get(ctx, alphaRouteKey, &routev1.Route{}))
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
+	checkDefault()
+
+	spec.AdditionalIngresses = nil
+	update(spec.AdditionalIngresses)
+	g.Eventually(func() bool {
+		return k8serr.IsNotFound(tc.Client().Get(ctx, types.NamespacedName{
+			Name: beta.Name, Namespace: tc.gatewayNamespace(),
+		}, &gwapiv1.Gateway{}))
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
+	g.Eventually(func() bool {
+		return k8serr.IsNotFound(tc.Client().Get(ctx, types.NamespacedName{
+			Name: beta.Name, Namespace: tc.gatewayNamespace(),
+		}, &routev1.Route{}))
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+		WithCondition(And(
+			jq.Match(".status.additionalIngresses | length == 0"),
+			jq.Match(`any(.status.conditions[]; .type == "AdditionalGatewaysReady" and .status == "True" and .reason == "NoAdditionalGateways")`),
+			jq.Match(`any(.status.conditions[]; .type == "Ready" and .status == "True")`),
+		)),
 		WithCustomErrorMsg("GatewayConfig should remove additional ingress status entries"),
 	)
+	checkDefault()
+}
+
+func (tc *GatewayTestCtx) validateAdditionalGatewayAndRoute(
+	t *testing.T,
+	ingress serviceApi.AdditionalIngress,
+) {
+	t.Helper()
+	g := NewWithT(t)
+	ctx := tc.Context()
+	g.Eventually(func() error {
+		additionalGateway := &gwapiv1.Gateway{}
+		if err := tc.Client().Get(ctx, types.NamespacedName{
+			Name: ingress.Name, Namespace: tc.gatewayNamespace(),
+		}, additionalGateway); err != nil {
+			return err
+		}
+		if additionalGateway.Spec.GatewayClassName != gwapiv1.ObjectName(gateway.GatewayClassName) {
+			return fmt.Errorf("additional Gateway has unexpected GatewayClass %q", additionalGateway.Spec.GatewayClassName)
+		}
+		if len(additionalGateway.Spec.Listeners) != 1 {
+			return fmt.Errorf("additional Gateway has %d listeners", len(additionalGateway.Spec.Listeners))
+		}
+		listener := additionalGateway.Spec.Listeners[0]
+		if listener.Name != gateway.DefaultGatewayListenerName ||
+			listener.Port != gwapiv1.PortNumber(gateway.StandardHTTPSPort) ||
+			listener.Protocol != gwapiv1.HTTPSProtocolType {
+			return fmt.Errorf("additional Gateway has unexpected listener %+v", listener)
+		}
+		secretName := additionalGateway.Name + "-service-tls"
+		if listener.TLS == nil || len(listener.TLS.CertificateRefs) != 1 ||
+			listener.TLS.CertificateRefs[0].Name != gwapiv1.ObjectName(secretName) ||
+			listener.AllowedRoutes == nil {
+			return errors.New("additional Gateway has no TLS certificate or allowed routes")
+		}
+		if additionalGateway.Spec.Infrastructure == nil || additionalGateway.Spec.Infrastructure.ParametersRef == nil {
+			return errors.New("additional Gateway has no infrastructure ConfigMap reference")
+		}
+		configMap := &corev1.ConfigMap{}
+		if err := tc.Client().Get(ctx, types.NamespacedName{
+			Name: additionalGateway.Spec.Infrastructure.ParametersRef.Name, Namespace: tc.gatewayNamespace(),
+		}, configMap); err != nil {
+			return err
+		}
+		if !strings.Contains(configMap.Data["service"], secretName) {
+			return errors.New("additional Gateway Service is not configured for a serving certificate")
+		}
+		if err := tc.Client().Get(ctx, types.NamespacedName{
+			Name: secretName, Namespace: tc.gatewayNamespace(),
+		}, &corev1.Secret{}); err != nil {
+			return err
+		}
+
+		service := &corev1.Service{}
+		if err := tc.Client().Get(ctx, types.NamespacedName{
+			Name: gateway.GetGatewayServiceFullName(ingress.Name), Namespace: tc.gatewayNamespace(),
+		}, service); err != nil {
+			return err
+		}
+		var endpointPort intstr.IntOrString
+		for _, port := range service.Spec.Ports {
+			if port.Port == gateway.StandardHTTPSPort && (port.Protocol == "" || port.Protocol == corev1.ProtocolTCP) {
+				endpointPort = port.TargetPort
+				if endpointPort == (intstr.IntOrString{}) {
+					endpointPort = intstr.FromInt32(port.Port)
+				}
+				break
+			}
+		}
+		if endpointPort == (intstr.IntOrString{}) {
+			return errors.New("additional Gateway Service has no HTTPS endpoint port")
+		}
+		route := &routev1.Route{}
+		err := tc.Client().Get(ctx, types.NamespacedName{
+			Name: ingress.Name, Namespace: tc.gatewayNamespace(),
+		}, route)
+		if err != nil {
+			return err
+		}
+		return validateAdditionalBridgeRoute(route, ingress, service.Name, endpointPort)
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+}
+
+func validateAdditionalBridgeRoute(
+	route *routev1.Route,
+	ingress serviceApi.AdditionalIngress,
+	serviceName string,
+	endpointPort intstr.IntOrString,
+) error {
+	if route.Spec.Host != ingress.Hostname || route.Spec.To.Name != serviceName {
+		return fmt.Errorf("bridge Route targets Service %q and host %q", route.Spec.To.Name, route.Spec.Host)
+	}
+	if route.Spec.Port == nil {
+		return errors.New("bridge Route has no target port")
+	}
+	if route.Spec.Port.TargetPort != endpointPort {
+		return fmt.Errorf("bridge Route targets %s, Service endpoint uses %s", route.Spec.Port.TargetPort.String(), endpointPort.String())
+	}
+	if route.Spec.TLS == nil || route.Spec.TLS.Termination != routev1.TLSTerminationReencrypt ||
+		route.Annotations["router.openshift.io/service-ca-certificate"] != "true" {
+		return errors.New("bridge Route has no reencrypt TLS or service CA annotation")
+	}
+	for key, value := range ingress.RouteLabels {
+		if route.Labels[key] != value {
+			return fmt.Errorf("bridge Route label %q is %q, expected %q", key, route.Labels[key], value)
+		}
+	}
+	return nil
+}
+
+func (tc *GatewayTestCtx) assertDefaultGatewayContinuity(
+	ctx context.Context, t *testing.T, gatewayUID, routeUID types.UID, hostname string,
+) {
+	t.Helper()
+	g := NewWithT(t)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`)),
+	)
+	currentGateway, err := tc.getGateway(ctx)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(currentGateway.UID).To(Equal(gatewayUID))
+	currentRoute := &routev1.Route{}
+	g.Expect(tc.Client().Get(ctx, types.NamespacedName{
+		Name: tc.gatewayName(), Namespace: tc.gatewayNamespace(),
+	}, currentRoute)).To(Succeed())
+	g.Expect(currentRoute.UID).To(Equal(routeUID))
+	httpClient := tc.createHTTPClient()
+	g.Eventually(func() error {
+		requestCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, "https://"+hostname, nil)
+		if err != nil {
+			return err
+		}
+		response, err := httpClient.Do(request)
+		if err != nil {
+			return err
+		}
+		defer response.Body.Close()
+		if response.StatusCode != http.StatusFound && response.StatusCode != http.StatusTemporaryRedirect {
+			return fmt.Errorf("default hostname returned %d, expected authentication redirect", response.StatusCode)
+		}
+		if response.Header.Get("Location") == "" {
+			return errors.New("default hostname redirect has no Location header")
+		}
+		return nil
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+}
+
+func (tc *GatewayTestCtx) logAdditionalIngressEvidence(t *testing.T, ingressControllerKey types.NamespacedName) {
+	t.Helper()
+	if !t.Failed() {
+		return
+	}
+	ctx := tc.Context()
+	logObject := func(name string, object any) {
+		data, err := json.MarshalIndent(object, "", "  ")
+		if err != nil {
+			t.Logf("%s: %v", name, err)
+			return
+		}
+		t.Logf("%s:\n%s", name, data)
+	}
+	currentConfig := &serviceApi.GatewayConfig{}
+	if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, currentConfig); err == nil {
+		logObject("GatewayConfig", currentConfig)
+	}
+	if current, err := tc.getGateway(ctx); err == nil {
+		logObject("Gateway", current)
+	}
+	services := &corev1.ServiceList{}
+	if err := tc.Client().List(ctx, services, client.InNamespace(tc.gatewayNamespace()),
+		client.MatchingLabels{labels.GatewayAPI.GatewayName: tc.gatewayName()}); err == nil {
+		logObject("Gateway Services", services.Items)
+	}
+	routes := &routev1.RouteList{}
+	if err := tc.Client().List(ctx, routes, client.InNamespace(tc.gatewayNamespace())); err == nil {
+		for _, route := range routes.Items {
+			logObject("Route "+route.Name, route)
+		}
+	}
+	controller := &operatorv1.IngressController{}
+	if err := tc.Client().Get(ctx, ingressControllerKey, controller); err == nil {
+		logObject("IngressController", controller)
+	}
+}
+
+func validateAdditionalIngressRouteAdmissionStatus(
+	t *testing.T,
+	tc *GatewayTestCtx,
+	routeKey types.NamespacedName,
+	ingressName, hostname, targetRouter string,
+) {
+	t.Helper()
+	g := NewWithT(t)
+	ctx := tc.Context()
+	g.Eventually(func() error {
+		route := &routev1.Route{}
+		if err := tc.Client().Get(ctx, routeKey, route); err != nil {
+			return err
+		}
+		admitted := make(map[string]struct{})
+		for _, router := range route.Status.Ingress {
+			if router.Host != hostname {
+				continue
+			}
+			for _, condition := range router.Conditions {
+				if condition.Type == routev1.RouteAdmitted && condition.Status == corev1.ConditionTrue && router.RouterName != "" {
+					admitted[router.RouterName] = struct{}{}
+				}
+			}
+		}
+		if _, found := admitted[targetRouter]; !found {
+			return fmt.Errorf("target IngressController %q has not admitted Route %q", targetRouter, routeKey.Name)
+		}
+		reason := "Ready"
+		severity := ""
+		if len(admitted) > 1 {
+			reason = "MultipleIngressControllers"
+			severity = "Info"
+		}
+		current := &serviceApi.GatewayConfig{}
+		if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, current); err != nil {
+			return err
+		}
+		for _, status := range current.Status.AdditionalIngresses {
+			if status.Name != ingressName {
+				continue
+			}
+			for _, condition := range status.Conditions {
+				if condition.Type == serviceApi.AdditionalIngressRouteAdmittedConditionType &&
+					condition.Status == metav1.ConditionTrue && condition.Reason == reason &&
+					string(condition.Severity) == severity {
+					return nil
+				}
+			}
+		}
+		return fmt.Errorf("RouteAdmitted condition does not reflect %d admitting IngressControllers", len(admitted))
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+}
+
+func restoreAdditionalIngressGatewayTest(
+	t *testing.T,
+	tc *GatewayTestCtx,
+	original *serviceApi.GatewayConfig,
+	originalGateway *gwapiv1.Gateway,
+	ingressControllerKey types.NamespacedName,
+) {
+	t.Helper()
+	g := NewWithT(t)
+	ctx := tc.Context()
+	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		current := &serviceApi.GatewayConfig{}
+		if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, current); err != nil {
+			return err
+		}
+		current.Spec.AdditionalIngresses = original.Spec.AdditionalIngresses
+		return tc.Client().Update(ctx, current)
+	})
+	if err != nil {
+		t.Errorf("failed to restore GatewayConfig: %v", err)
+	} else {
+		g.Eventually(func() bool {
+			currentConfig := &serviceApi.GatewayConfig{}
+			if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, currentConfig); err != nil {
+				return false
+			}
+			currentGateway, err := tc.getGateway(ctx)
+			if err != nil {
+				return false
+			}
+			return reflect.DeepEqual(currentConfig.Spec.AdditionalIngresses, original.Spec.AdditionalIngresses) &&
+				reflect.DeepEqual(additionalIngressStatusNames(currentConfig.Status.AdditionalIngresses), additionalIngressStatusNames(original.Status.AdditionalIngresses)) &&
+				reflect.DeepEqual(currentGateway.Spec.Listeners, originalGateway.Spec.Listeners)
+		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
+	}
+	if err := tc.Client().Delete(ctx, &operatorv1.IngressController{ObjectMeta: metav1.ObjectMeta{
+		Name: ingressControllerKey.Name, Namespace: ingressControllerKey.Namespace,
+	}}); err != nil && !k8serr.IsNotFound(err) {
+		t.Errorf("failed to delete test IngressController: %v", err)
+		return
+	}
+	g.Eventually(func() bool {
+		current := &operatorv1.IngressController{}
+		return k8serr.IsNotFound(tc.Client().Get(ctx, ingressControllerKey, current))
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
+}
+
+func additionalIngressStatusNames(entries []serviceApi.AdditionalIngressStatus) map[string]struct{} {
+	names := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		names[entry.Name] = struct{}{}
+	}
+	return names
+}
+
+func validateAdditionalIngressRouteSelectorChange(
+	t *testing.T,
+	tc *GatewayTestCtx,
+	ingressControllerKey types.NamespacedName,
+	routeKey types.NamespacedName,
+	expectedHostname string,
+	expectedGeneration int64,
+	validateStatus func(int, string, string, metav1.ConditionStatus, metav1.ConditionStatus),
+) {
+	t.Helper()
+	g := NewWithT(t)
+	ctx := tc.Context()
+	g.Eventually(func() error {
+		route := &routev1.Route{}
+		if err := tc.Client().Get(ctx, routeKey, route); err != nil {
+			return err
+		}
+		if route.Spec.Host != expectedHostname {
+			return fmt.Errorf("additional Route host is %q, expected %q", route.Spec.Host, expectedHostname)
+		}
+		return nil
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+	g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		current := &operatorv1.IngressController{}
+		if err := tc.Client().Get(ctx, ingressControllerKey, current); err != nil {
+			return err
+		}
+		current.Spec.RouteSelector = &metav1.LabelSelector{MatchLabels: map[string]string{
+			"example.com/ingress": "no-longer-e2e-alpha",
+		}}
+		return tc.Client().Update(ctx, current)
+	})).To(Succeed())
+	g.Eventually(func() error {
+		current := &serviceApi.GatewayConfig{}
+		if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, current); err != nil {
+			return err
+		}
+		if current.Generation != expectedGeneration {
+			return fmt.Errorf("GatewayConfig generation changed from %d to %d", expectedGeneration, current.Generation)
+		}
+		route := &routev1.Route{}
+		if err := tc.Client().Get(ctx, routeKey, route); err != nil {
+			return err
+		}
+		for _, router := range route.Status.Ingress {
+			if router.Host != expectedHostname || router.RouterName != ingressControllerKey.Name {
+				continue
+			}
+			for _, condition := range router.Conditions {
+				if condition.Type == routev1.RouteAdmitted && condition.Status == corev1.ConditionTrue {
+					return fmt.Errorf("IngressController %q still admits Route %q", ingressControllerKey.Name, routeKey.Name)
+				}
+			}
+		}
+		return nil
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+		WithCondition(jq.Match(
+			`.status.additionalIngresses[] | select(.name == "e2e-alpha") | `+
+				`any(.conditions[]; .type == "RouteAdmitted" and .status != "True")`)),
+		WithCustomErrorMsg("GatewayConfig should report that the target IngressController stopped admitting the retained Route"),
+	)
+	validateStatus(2, "e2e-beta", "e2e-beta.example.com", metav1.ConditionFalse, metav1.ConditionFalse)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`)),
+		WithCustomErrorMsg("additional Route admission failures must not block readiness when all Gateways are accepted"),
+	)
+	defaultRoute := &routev1.Route{}
+	g.Expect(tc.Client().Get(ctx, types.NamespacedName{
+		Name: tc.gatewayName(), Namespace: tc.gatewayNamespace(),
+	}, defaultRoute)).To(Succeed())
+	g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		current := &operatorv1.IngressController{}
+		if err := tc.Client().Get(ctx, ingressControllerKey, current); err != nil {
+			return err
+		}
+		current.Spec.RouteSelector = &metav1.LabelSelector{MatchLabels: map[string]string{
+			"example.com/ingress": "e2e-alpha",
+		}}
+		return tc.Client().Update(ctx, current)
+	})).To(Succeed())
+	g.Eventually(func() error {
+		route := &routev1.Route{}
+		if err := tc.Client().Get(ctx, routeKey, route); err != nil {
+			return err
+		}
+		if route.Spec.Host != expectedHostname {
+			return fmt.Errorf("additional Route host is %q, expected %q", route.Spec.Host, expectedHostname)
+		}
+		return nil
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+	validateStatus(2, "e2e-alpha", expectedHostname, metav1.ConditionTrue, metav1.ConditionTrue)
+	validateStatus(2, "e2e-beta", "e2e-beta.example.com", metav1.ConditionFalse, metav1.ConditionFalse)
 }
 
 // ValidateXKSCertManagerCertificates verifies that XKS gateway TLS certificates are issued by
@@ -775,55 +1225,85 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	t.Log("kube-auth-proxy deployment and service validation completed")
 }
 
-// ValidateHPA validates the HorizontalPodAutoscaler for kube-auth-proxy.
-//
-// The HPA automatically scales kube-auth-proxy pods based on CPU utilization to handle varying load.
-// This test verifies:
-// - HPA exists with correct target deployment reference
-// - Minimum replicas is set to 2 (matching deployment initial replica count)
-// - Maximum replicas allows scaling up to 10 pods
-// - CPU utilization target is set to 70%.
-// - Scaling behavior is configured for stable scale-down and rapid scale-up.
+// ValidateHPA checks HPA configuration and reconciliation of maximum replica updates.
 func (tc *GatewayTestCtx) ValidateHPA(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Tier1)
 	t.Log("Validating HorizontalPodAutoscaler for kube-auth-proxy")
 
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.HorizontalPodAutoscaler, types.NamespacedName{
-			Name:      kubeAuthProxyName,
-			Namespace: tc.gatewayNamespace(),
-		}),
-		WithCondition(And(
-			// Target deployment reference
-			jq.Match(`.spec.scaleTargetRef.apiVersion == "apps/v1"`),
-			jq.Match(`.spec.scaleTargetRef.kind == "Deployment"`),
-			jq.Match(`.spec.scaleTargetRef.name == "%s"`, kubeAuthProxyName),
+	ctx := tc.Context()
+	configKey := types.NamespacedName{Name: gatewayConfigName}
+	config := &serviceApi.GatewayConfig{}
+	require.NoError(t, tc.Client().Get(ctx, configKey, config))
+	originalMaximum := config.Spec.AuthProxyMaxReplicas
+	expectedMaximum := int32(10)
+	if originalMaximum != nil {
+		expectedMaximum = *originalMaximum
+	}
 
-			// Replica bounds
-			jq.Match(`.spec.minReplicas == 2`),
-			jq.Match(`.spec.maxReplicas == 10`),
+	validate := func(maximum int32) types.UID {
+		return tc.EnsureResourceExists(
+			WithMinimalObject(gvk.HorizontalPodAutoscaler, types.NamespacedName{
+				Name:      kubeAuthProxyName,
+				Namespace: tc.gatewayNamespace(),
+			}),
+			WithCondition(And(
+				// Target deployment reference
+				jq.Match(`.spec.scaleTargetRef.apiVersion == "apps/v1"`),
+				jq.Match(`.spec.scaleTargetRef.kind == "Deployment"`),
+				jq.Match(`.spec.scaleTargetRef.name == "%s"`, kubeAuthProxyName),
 
-			// Scale-down behavior: 5 min stabilization, 50% reduction per minute
-			jq.Match(`.spec.behavior.scaleDown.stabilizationWindowSeconds == 300`),
-			jq.Match(`.spec.behavior.scaleDown.policies[0].type == "Percent"`),
-			jq.Match(`.spec.behavior.scaleDown.policies[0].value == 50`),
-			jq.Match(`.spec.behavior.scaleDown.policies[0].periodSeconds == 60`),
+				// Replica bounds
+				jq.Match(`.spec.minReplicas == 2`),
+				jq.Match(`.spec.maxReplicas == %d`, maximum),
 
-			// Scale-up behavior: immediate, aggressive scaling
-			jq.Match(`.spec.behavior.scaleUp.stabilizationWindowSeconds == 0`),
-			jq.Match(`.spec.behavior.scaleUp.selectPolicy == "Max"`),
+				// Scale-down behavior: 5 min stabilization, 50% reduction per minute
+				jq.Match(`.spec.behavior.scaleDown.stabilizationWindowSeconds == 300`),
+				jq.Match(`.spec.behavior.scaleDown.policies[0].type == "Percent"`),
+				jq.Match(`.spec.behavior.scaleDown.policies[0].value == 50`),
+				jq.Match(`.spec.behavior.scaleDown.policies[0].periodSeconds == 60`),
 
-			// CPU utilization metric
-			jq.Match(`.spec.metrics | length == 1`),
-			jq.Match(`.spec.metrics[0].type == "Resource"`),
-			jq.Match(`.spec.metrics[0].resource.name == "cpu"`),
-			jq.Match(`.spec.metrics[0].resource.target.type == "Utilization"`),
-			jq.Match(`.spec.metrics[0].resource.target.averageUtilization == 70`),
-		)),
-		WithCustomErrorMsg("HPA should exist with correct scaling behavior and CPU target=70%%"),
-	)
+				// Scale-up behavior: immediate, aggressive scaling
+				jq.Match(`.spec.behavior.scaleUp.stabilizationWindowSeconds == 0`),
+				jq.Match(`.spec.behavior.scaleUp.selectPolicy == "Max"`),
+
+				// CPU utilization metric
+				jq.Match(`.spec.metrics | length == 1`),
+				jq.Match(`.spec.metrics[0].type == "Resource"`),
+				jq.Match(`.spec.metrics[0].resource.name == "cpu"`),
+				jq.Match(`.spec.metrics[0].resource.target.type == "Utilization"`),
+				jq.Match(`.spec.metrics[0].resource.target.averageUtilization == 70`),
+			)),
+			WithEventuallyTimeout(tc.TestTimeouts.authGatewayTimeout),
+			WithCustomErrorMsg("HPA should retain minimum 2 and reconcile maximum %d with CPU target=70%%", maximum),
+		).GetUID()
+	}
+
+	originalUID := validate(expectedMaximum)
+	setMaximum := func(maximum *int32) error {
+		return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			current := &serviceApi.GatewayConfig{}
+			if err := tc.Client().Get(ctx, configKey, current); err != nil {
+				return err
+			}
+			current.Spec.AuthProxyMaxReplicas = maximum
+			return tc.Client().Update(ctx, current)
+		})
+	}
+	t.Cleanup(func() {
+		if err := setMaximum(originalMaximum); err != nil {
+			t.Errorf("failed to restore GatewayConfig authProxyMaxReplicas: %v", err)
+			return
+		}
+		require.Equal(t, originalUID, validate(expectedMaximum), "restoration must update the existing HPA")
+	})
+
+	for _, maximum := range []int32{4, 2} {
+		t.Logf("Updating default auth proxy maximum replicas to %d", maximum)
+		require.NoError(t, setMaximum(&maximum))
+		require.Equal(t, originalUID, validate(maximum), "scaling configuration must update the existing HPA")
+	}
 
 	t.Log("HorizontalPodAutoscaler validation completed")
 }
@@ -1047,6 +1527,7 @@ func (tc *GatewayTestCtx) waitForDashboardHTTPRoute(t *testing.T) {
 		}),
 		WithCondition(And(
 			jq.Match(`.spec.parentRefs[] | select(.name == "%s") | .namespace == "%s"`, tc.gatewayName(), tc.gatewayNamespace()),
+			jq.Match(`.spec.parentRefs[] | select(.name == "%s") | .sectionName == null`, tc.gatewayName()),
 			jq.Match(`.status.parents[0].conditions[] | select(.type == "Accepted") | .status == "True"`),
 			jq.Match(`.status.parents[0].conditions[] | select(.type == "ResolvedRefs") | .status == "True"`),
 		)),
@@ -1198,7 +1679,7 @@ func (tc *GatewayTestCtx) validateOCPRoute(t *testing.T) {
 		WithCondition(And(
 			jq.Match(`.spec.host == "%s"`, expectedHostname),
 			jq.Match(`.spec.to.kind == "Service"`),
-			jq.Match(`.spec.to.name == "%s"`, gateway.GatewayServiceFullName),
+			jq.Match(`.spec.to.name == "%s"`, gateway.GetDefaultGatewayServiceFullName()),
 			jq.Match(`.spec.port.targetPort == %d`, standardHTTPSPort),
 			jq.Match(`.spec.tls.termination == "reencrypt"`),
 			jq.Match(`.spec.tls.insecureEdgeTerminationPolicy == "Redirect"`),
@@ -1579,7 +2060,9 @@ func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 			jq.Match(`.spec.ingress | length >= 1`),
 
 			// Verify ingress rule allows traffic from Gateway pods
-			jq.Match(`.spec.ingress[0].from[0].podSelector.matchLabels."%s" == "%s"`, labels.GatewayAPI.GatewayName, tc.gatewayName()),
+			jq.Match(`.spec.ingress[0].from[0].podSelector.matchExpressions[0].key == "%s"`, labels.GatewayAPI.GatewayName),
+			jq.Match(`.spec.ingress[0].from[0].podSelector.matchExpressions[0].operator == "In"`),
+			jq.Match(`.spec.ingress[0].from[0].podSelector.matchExpressions[0].values | any(. == "%s")`, tc.gatewayName()),
 			jq.Match(`.spec.ingress[0].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "%s"`, tc.gatewayNamespace()),
 
 			// Verify ingress ports using constants

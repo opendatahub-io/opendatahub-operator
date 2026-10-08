@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -31,7 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -103,20 +105,30 @@ type TestContext struct {
 //   - *TestContext: A fully initialized test context with Gomega and test options pre-configured.
 //   - error: An error if the internal test context fails to initialize.
 func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
-	tcf, err := testf.NewTestContext(
+	return newTestContext(t, nil)
+}
+
+func newTestContext(t *testing.T, ctx context.Context) (*TestContext, error) { //nolint:thelper
+	opts := []testf.TestContextOpt{
 		testf.WithTOptions(
 			testf.WithEventuallyTimeout(testOpts.TestTimeouts.defaultEventuallyTimeout),
 			testf.WithEventuallyPollingInterval(testOpts.TestTimeouts.defaultEventuallyPollInterval),
 			testf.WithConsistentlyDuration(testOpts.TestTimeouts.defaultConsistentlyTimeout),
 			testf.WithConsistentlyPollingInterval(testOpts.TestTimeouts.defaultConsistentlyPollInterval),
 		),
-	)
+	}
+	if ctx != nil {
+		opts = append(opts, testf.WithContext(ctx))
+	}
+
+	tcf, err := testf.NewTestContext(opts...)
 
 	if err != nil {
 		return nil, err
 	}
 
 	// Initialize the cluster config for detecting the platform
+	//nolint:contextcheck // A cleanup context intentionally survives t.Cleanup cancellation.
 	err = cluster.Init(tcf.Context(), tcf.Client(), operatorconfig.OperatorSettings{
 		OperatorNamespace: testOpts.operatorNamespace,
 	})
@@ -851,6 +863,19 @@ func (tc *TestContext) CheckComponentResourceExistsOrNotWithKind(shouldExist boo
 //   - kind (string): The component kind (e.g., "Dashboard", "Workbenches").
 func (tc *TestContext) UpdateComponentStateInDataScienceClusterWithKind(state operatorv1.ManagementState, kind string) {
 	componentName, conditionKind := getComponentNameFromKind(kind)
+	var specPath string
+	switch kind {
+	case componentApi.DashboardKind:
+		specPath = ".spec.components.dashboard.standard.managementState"
+	case gvk.AIHub.Kind:
+		specPath = ".spec.components.aiHub.managementState"
+		conditionKind = "AIHub"
+	case componentApi.FeastOperatorKind:
+		specPath = ".spec.components.data.featureStore.managementState"
+		conditionKind = "Data"
+	default:
+		specPath = ".spec.components." + componentName + ".managementState"
+	}
 
 	readyCondition := metav1.ConditionFalse
 	if state == operatorv1.Managed {
@@ -860,7 +885,7 @@ func (tc *TestContext) UpdateComponentStateInDataScienceClusterWithKind(state op
 	// Define common conditions to match.
 	conditions := []gTypes.GomegaMatcher{
 		// Validate that the component's management state is updated correctly
-		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, state),
+		jq.Match(`%s == "%s"`, specPath, state),
 
 		// Validate the "Ready" condition for the component
 		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, conditionKind, readyCondition),
@@ -869,7 +894,7 @@ func (tc *TestContext) UpdateComponentStateInDataScienceClusterWithKind(state op
 	// Update the management state of the component in the DataScienceCluster.
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state)),
+		WithMutateFunc(testf.Transform(`%s = "%s"`, specPath, state)),
 		WithCondition(And(conditions...)),
 	)
 }
@@ -1639,14 +1664,14 @@ func (tc *TestContext) FetchDSCInitialization() *dsciv2.DSCInitialization {
 //
 // Returns:
 //   - *dsciv2.DataScienceCluster: The retrieved DataScienceCluster object.
-func (tc *TestContext) FetchDataScienceCluster() *dscv2.DataScienceCluster {
+func (tc *TestContext) FetchDataScienceCluster() *dscApi.DataScienceCluster {
 	// In XKS, DataScienceCluster does not exist, so returning nil
 	if tc.IsXKS() {
 		return nil
 	}
 
 	// Ensure the DataScienceCluster exists and retrieve the object
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscApi.DataScienceCluster{}
 	tc.FetchTypedResource(dsc, WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName))
 
 	return dsc

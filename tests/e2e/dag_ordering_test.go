@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -21,7 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -29,6 +30,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -46,6 +48,8 @@ type componentBatch struct {
 type componentEntry struct {
 	name           string
 	gvk            schema.GroupVersionKind
+	Enable         func(*dscApi.DataScienceCluster)
+	Disable        func(*dscApi.DataScienceCluster)
 	internal       bool // components whose CR may not exist in the test (webhook-blocked, auto-created, etc.)
 	dsciConfigured bool // configured via DSCI spec, not DSC — cleanup requires patching DSCI
 }
@@ -57,77 +61,216 @@ var dagBatches = []componentBatch{
 		name:     "Batch20",
 		runlevel: 20,
 		components: []componentEntry{
-			{name: componentApi.DashboardComponentName, gvk: gvk.Dashboard, internal: true},
-			{name: serviceApi.MonitoringServiceName, gvk: gvk.Monitoring, internal: true, dsciConfigured: true},
-			{name: componentApi.AIPipelinesComponentName, gvk: gvk.AIPipelines, internal: true},
-			// ModelRegistry is an out-of-tree module whose CR is the shared
+			{
+				name:     componentApi.DashboardComponentName,
+				gvk:      gvk.Dashboard,
+				internal: true,
+				Enable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.Dashboard.Standard.ManagementState = operatorv1.Managed
+					dsc.Spec.Components.Dashboard.MaaSPortal.ManagementState = operatorv1.Removed
+				},
+				Disable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.Dashboard.Standard.ManagementState = operatorv1.Removed
+					dsc.Spec.Components.Dashboard.MaaSPortal.ManagementState = operatorv1.Removed
+				},
+			},
+			{
+				name:           serviceApi.MonitoringServiceName,
+				gvk:            gvk.Monitoring,
+				internal:       true,
+				dsciConfigured: true,
+			},
+			{
+				name:     componentApi.AIPipelinesComponentName,
+				gvk:      gvk.AIPipelines,
+				internal: true,
+				Enable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.AIPipelines.ManagementState = operatorv1.Managed
+				},
+				Disable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.AIPipelines.ManagementState = operatorv1.Removed
+				},
+			},
+			// AIHub is an out-of-tree module whose CR is the shared
 			// cluster-scoped AIHub singleton "default-aihub"; it is referenced
 			// directly via gvk.AIHub and routed through the module-readiness
 			// (Ready=True) path like the other modules (mlflow, spark).
-			{name: componentApi.ModelRegistryComponentName, gvk: gvk.AIHub, internal: true},
-			{name: componentApi.RayComponentName, gvk: gvk.Ray, internal: true},
-			{name: componentApi.TrainerComponentName, gvk: gvk.Trainer, internal: true},
-			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches, internal: true},
-			{name: componentApi.MCPLifecycleOperatorComponentName, gvk: gvk.MCPLifecycleOperator, internal: true},
+			{
+				name:     componentApi.AIHubModuleName,
+				gvk:      gvk.AIHub,
+				internal: true,
+				Enable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.AIHub.ManagementState = operatorv1.Managed
+				},
+				Disable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.AIHub.ManagementState = operatorv1.Removed
+				},
+			},
+			{
+				name:     componentApi.RayComponentName,
+				gvk:      gvk.Ray,
+				internal: true,
+				Enable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.Ray.ManagementState = operatorv1.Managed
+				},
+				Disable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.Ray.ManagementState = operatorv1.Removed
+				},
+			},
+			{
+				name:     componentApi.TrainerComponentName,
+				gvk:      gvk.Trainer,
+				internal: true,
+				Enable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.Trainer.ManagementState = operatorv1.Managed
+				},
+				Disable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.Trainer.ManagementState = operatorv1.Removed
+				},
+			},
+			{
+				name:     componentApi.WorkbenchesComponentName,
+				gvk:      gvk.Workbenches,
+				internal: true,
+				Enable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.Workbenches.ManagementState = operatorv1.Managed
+				},
+				Disable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.Workbenches.ManagementState = operatorv1.Removed
+				},
+			},
+			{
+				name:     componentApi.MCPLifecycleOperatorComponentName,
+				gvk:      gvk.MCPLifecycleOperator,
+				internal: true,
+				Enable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.MCPLifecycleOperator.ManagementState = operatorv1.Managed
+				},
+				Disable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.MCPLifecycleOperator.ManagementState = operatorv1.Removed
+				},
+			},
 		},
 	},
 	{
 		name:     "Batch31",
 		runlevel: 31,
 		components: []componentEntry{
-			{name: componentApi.KserveComponentName, gvk: gvk.Kserve, internal: true},
-			{name: componentApi.KueueComponentName, gvk: gvk.Kueue, internal: true},
+			{
+				name:     componentApi.KserveComponentName,
+				gvk:      gvk.Kserve,
+				internal: true,
+				Enable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.Kserve.ManagementState = operatorv1.Managed
+				},
+				Disable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.Kserve.ManagementState = operatorv1.Removed
+				},
+			},
+			{
+				name:     componentApi.KueueComponentName,
+				gvk:      gvk.Kueue,
+				internal: true,
+				Enable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.Kueue.ManagementState = operatorv1.Managed
+				},
+				Disable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.Kueue.ManagementState = operatorv1.Removed
+				},
+			},
 		},
 	},
 	{
 		name:     "Batch32",
 		runlevel: 32,
 		components: []componentEntry{
-			{name: componentApi.FeastOperatorComponentName, gvk: gvk.FeastOperator, internal: true},
-			{name: componentApi.MLflowOperatorComponentName, gvk: gvk.MLflowOperator, internal: true},
-			{name: componentApi.OGXComponentName, gvk: gvk.OGX, internal: true},
-			{name: componentApi.SparkOperatorComponentName, gvk: gvk.SparkOperator, internal: true},
-			{name: componentApi.AIGatewayComponentName, gvk: gvk.AIGateway, internal: true},
+			{
+				name:     componentApi.DataModuleName,
+				gvk:      gvk.FeastOperator,
+				internal: true,
+				Enable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.Data.FeatureStore.ManagementState = operatorv1.Managed
+					dsc.Spec.Components.Data.DataRegistry.ManagementState = operatorv1.Removed
+				},
+				Disable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.Data.FeatureStore.ManagementState = operatorv1.Removed
+					dsc.Spec.Components.Data.DataRegistry.ManagementState = operatorv1.Removed
+				},
+			},
+			{
+				name:     componentApi.MLflowOperatorComponentName,
+				gvk:      gvk.MLflowOperator,
+				internal: true,
+				Enable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.MLflowOperator.ManagementState = operatorv1.Managed
+				},
+				Disable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.MLflowOperator.ManagementState = operatorv1.Removed
+				},
+			},
+			{
+				name:     componentApi.OGXComponentName,
+				gvk:      gvk.OGX,
+				internal: true,
+				Enable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.OGX.ManagementState = operatorv1.Managed
+				},
+				Disable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.OGX.ManagementState = operatorv1.Removed
+				},
+			},
+			{
+				name:     componentApi.SparkOperatorComponentName,
+				gvk:      gvk.SparkOperator,
+				internal: true,
+				Enable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.SparkOperator.ManagementState = operatorv1.Managed
+				},
+				Disable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.SparkOperator.ManagementState = operatorv1.Removed
+				},
+			},
+			{
+				name:     componentApi.AIGatewayComponentName,
+				gvk:      gvk.AIGateway,
+				internal: true,
+				Enable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.AIGateway.ManagementState = operatorv1.Managed
+				},
+				Disable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.AIGateway.ManagementState = operatorv1.Removed
+				},
+			},
 		},
 	},
 	{
 		name:     "Batch33",
 		runlevel: 33,
 		components: []componentEntry{
-			{name: componentApi.TrustyAIComponentName, gvk: gvk.TrustyAI, internal: true},
+			{
+				name:     componentApi.TrustyAIComponentName,
+				gvk:      gvk.TrustyAI,
+				internal: true,
+				Enable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.TrustyAI.ManagementState = operatorv1.Managed
+				},
+				Disable: func(dsc *dscApi.DataScienceCluster) {
+					dsc.Spec.Components.TrustyAI.ManagementState = operatorv1.Removed
+				},
+			},
 		},
 	},
 }
 
-// dscComponentFieldsExcludedFromManagedDAGTests lists DSC spec.components keys
-// skipped when enabling all components during DAG tests.
-var dscComponentFieldsExcludedFromManagedDAGTests = []string{
-	"kueue", // validating webhook rejects managementState=Managed
-	"trainingoperator",
-	"llamastackoperator",
-}
-
-func managedDAGTestDSCComponentFields() []string {
-	all := (dscv2.Components{}).ComponentNames()
-	fields := make([]string, 0, len(all))
-	for _, name := range all {
-		if slices.Contains(dscComponentFieldsExcludedFromManagedDAGTests, name) {
-			continue
-		}
-		fields = append(fields, name)
-	}
-	return fields
-}
-
-func allDAGTestDSCComponentFields() []string {
-	all := slices.Clone((dscv2.Components{}).ComponentNames())
-	slices.Sort(all)
-	return slices.Compact(all)
+// dscComponentsExcludedFromManagedDAGTests lists component names skipped
+// when enabling all components during DAG tests.
+var dscComponentsExcludedFromManagedDAGTests = []string{
+	componentApi.KueueComponentName, // validating webhook rejects managementState=Managed
 }
 
 // extensionGVKs lists in-tree component CRs at RL 31+ whose controllers
 // write PlatformReady via RunlevelGateAction. Fully-modularized components
-// (Kserve, FeastOperator, MLflowOperator, SparkOperator, TrustyAI) are
+// (Kserve, Data, MLflowOperator, SparkOperator, TrustyAI) are
 // excluded — they have no in-tree controller to write PlatformReady.
 var extensionGVKs = []schema.GroupVersionKind{}
 
@@ -321,7 +464,7 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 	tc.setDSCIMonitoringState(t, operatorv1.Managed)
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(allComponentsManagedTransform()),
+		WithMutateFunc(testf.Mutate[*dscApi.DataScienceCluster](tc.Scheme(), allComponentsManagedMutation)),
 		WithCondition(And(
 			jq.Match(`.status.observedGeneration == .metadata.generation`),
 			jq.Match(
@@ -496,7 +639,11 @@ func (tc *DAGOrderingTestCtx) ValidateComponentStability(t *testing.T) {
 	t.Log("Ensuring KServe and SparkOperator are Managed")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(selectComponentsTransform(string(operatorv1.Managed), []string{"kserve", "sparkoperator"})),
+		WithMutateFunc(testf.Mutate[*dscApi.DataScienceCluster](tc.Scheme(), func(dsc *dscApi.DataScienceCluster) error {
+			componentEntryByName(componentApi.KserveComponentName).Enable(dsc)
+			componentEntryByName(componentApi.SparkOperatorComponentName).Enable(dsc)
+			return nil
+		})),
 	)
 
 	sparkInstanceName := tc.GetInstanceName(gvk.SparkOperator)
@@ -522,7 +669,10 @@ func (tc *DAGOrderingTestCtx) ValidateComponentStability(t *testing.T) {
 	t.Log("Setting KServe to Removed")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(selectComponentsTransform(string(operatorv1.Removed), []string{"kserve"})),
+		WithMutateFunc(testf.Mutate[*dscApi.DataScienceCluster](tc.Scheme(), func(dsc *dscApi.DataScienceCluster) error {
+			componentEntryByName(componentApi.KserveComponentName).Disable(dsc)
+			return nil
+		})),
 	)
 
 	t.Log("Waiting for KServe CR to be deleted")
@@ -545,7 +695,10 @@ func (tc *DAGOrderingTestCtx) ValidateComponentStability(t *testing.T) {
 	t.Log("Setting KServe back to Managed")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(selectComponentsTransform(string(operatorv1.Managed), []string{"kserve"})),
+		WithMutateFunc(testf.Mutate[*dscApi.DataScienceCluster](tc.Scheme(), func(dsc *dscApi.DataScienceCluster) error {
+			componentEntryByName(componentApi.KserveComponentName).Enable(dsc)
+			return nil
+		})),
 		WithCondition(jq.Match(
 			`.status.components.kserve.managementState == "%s"`,
 			string(operatorv1.Managed),
@@ -600,21 +753,27 @@ func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 
 	// Prior test (AdminAckGates) leaves all components Removed.
 
-	partialFields := []string{"dashboard", "kserve", "modelregistry"}
-
-	t.Log("Enabling partial set: dashboard (batch 20), kserve (batch 31), modelregistry (batch 20, AIHub module)")
+	t.Log("Enabling partial set: dashboard (batch 20), kserve (batch 31), AI Hub (batch 20)")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(selectComponentsTransform("Managed", partialFields)),
+		WithMutateFunc(testf.Mutate[*dscApi.DataScienceCluster](tc.Scheme(), func(dsc *dscApi.DataScienceCluster) error {
+			componentEntryByName(componentApi.DashboardComponentName).Enable(dsc)
+			componentEntryByName(componentApi.KserveComponentName).Enable(dsc)
+			componentEntryByName(componentApi.AIHubModuleName).Enable(dsc)
+			return nil
+		})),
 	)
 
 	// Regression check (RHOAIENG-93536): flipping a module's managementState
 	// Managed -> Removed again before it settles used to leave its CR (and
 	// operator resources) orphaned forever.
-	t.Log("Immediately disabling modelregistry again (fast Removed->Managed->Removed toggle)")
+	t.Log("Immediately disabling AI Hub again (fast Removed->Managed->Removed toggle)")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(selectComponentsTransform("Removed", []string{"modelregistry"})),
+		WithMutateFunc(testf.Mutate[*dscApi.DataScienceCluster](tc.Scheme(), func(dsc *dscApi.DataScienceCluster) error {
+			componentEntryByName(componentApi.AIHubModuleName).Disable(dsc)
+			return nil
+		})),
 	)
 
 	t.Log("Verifying enabled component CRs are created")
@@ -678,7 +837,11 @@ func (tc *DAGOrderingTestCtx) ValidateInTreeGates(t *testing.T) {
 	t.Log("Enabling dashboard and aigateway to trigger a reconcile (in-tree gates should be discovered)")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(selectComponentsTransform("Managed", []string{"dashboard", "aigateway"})),
+		WithMutateFunc(testf.Mutate[*dscApi.DataScienceCluster](tc.Scheme(), func(dsc *dscApi.DataScienceCluster) error {
+			componentEntryByName(componentApi.DashboardComponentName).Enable(dsc)
+			componentEntryByName(componentApi.AIGatewayComponentName).Enable(dsc)
+			return nil
+		})),
 	)
 
 	t.Log("Waiting for ProvisioningProgress=False with reason AdminAckRequired")
@@ -774,7 +937,11 @@ func (tc *DAGOrderingTestCtx) ValidateAdminAckGates(t *testing.T) {
 	t.Log("Enabling dashboard and aigateway to trigger a reconcile")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(selectComponentsTransform("Managed", []string{"dashboard", "aigateway"})),
+		WithMutateFunc(testf.Mutate[*dscApi.DataScienceCluster](tc.Scheme(), func(dsc *dscApi.DataScienceCluster) error {
+			componentEntryByName(componentApi.DashboardComponentName).Enable(dsc)
+			componentEntryByName(componentApi.AIGatewayComponentName).Enable(dsc)
+			return nil
+		})),
 	)
 
 	t.Log("Waiting for ProvisioningProgress=False with reason AdminAckRequired on Platform CR")
@@ -876,25 +1043,42 @@ func (tc *DAGOrderingTestCtx) deleteGateSourceCMs(t *testing.T, names ...string)
 
 // --- helpers ---
 
-func allComponentsManagedTransform() func(*unstructured.Unstructured) error {
-	return selectComponentsTransform("Managed", managedDAGTestDSCComponentFields())
-}
-
-func allComponentsRemovedTransform() func(*unstructured.Unstructured) error {
-	return selectComponentsTransform("Removed", allDAGTestDSCComponentFields())
-}
-
-func selectComponentsTransform(state string, fields []string) func(*unstructured.Unstructured) error {
-	return func(obj *unstructured.Unstructured) error {
-		for _, field := range fields {
-			if err := unstructured.SetNestedField(
-				obj.Object, state, "spec", "components", field, "managementState",
-			); err != nil {
-				return err
+func allComponentsManagedMutation(dsc *dscApi.DataScienceCluster) error {
+	for _, batch := range dagBatches {
+		for _, component := range batch.components {
+			switch {
+			case component.Enable == nil:
+				continue
+			case slices.Contains(dscComponentsExcludedFromManagedDAGTests, component.name):
+				continue
+			default:
+				component.Enable(dsc)
 			}
 		}
-		return nil
 	}
+	return nil
+}
+
+func allComponentsRemovedMutation(dsc *dscApi.DataScienceCluster) error {
+	for _, batch := range dagBatches {
+		for _, component := range batch.components {
+			if component.Disable != nil {
+				component.Disable(dsc)
+			}
+		}
+	}
+	return nil
+}
+
+func componentEntryByName(name string) componentEntry {
+	for _, batch := range dagBatches {
+		for _, component := range batch.components {
+			if component.name == name {
+				return component
+			}
+		}
+	}
+	panic(fmt.Sprintf("component %q not found in DAG test entries", name))
 }
 
 // setDSCIMonitoringState patches the DSCI to set monitoring management state.
@@ -946,7 +1130,7 @@ func (tc *DAGOrderingTestCtx) setAllRemoved(t *testing.T) {
 
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(allComponentsRemovedTransform()),
+		WithMutateFunc(testf.Mutate[*dscApi.DataScienceCluster](tc.Scheme(), allComponentsRemovedMutation)),
 	)
 
 	tc.EnsureResourceExists(
@@ -965,20 +1149,14 @@ func (tc *DAGOrderingTestCtx) setAllRemoved(t *testing.T) {
 // ensureAllRemovedComponentsGone verifies that every componentEntry actually
 // driven to Removed has its CR deleted. Monitoring is removed via the DSCI
 // (setDSCIMonitoringState), not the DSC spec.components fields below, so it
-// is checked explicitly by name. Components absent from the DSC field list
-// (e.g. Kueue, whose webhook blocks managementState=Managed) are never set
-// to Removed and are skipped rather than asserted gone.
+// is checked explicitly. Kueue is set to Removed during cleanup even though
+// its validation webhook prevents enabling it in the all-managed scenario.
 func (tc *DAGOrderingTestCtx) ensureAllRemovedComponentsGone(t *testing.T) {
 	t.Helper()
 
 	for _, batch := range dagBatches {
 		for _, comp := range batch.components {
-			name := comp.name
-			if name == dataSciencePipelinesComponentName {
-				name = aiPipelinesFieldName
-			}
-
-			removed := name == serviceApi.MonitoringServiceName || slices.Contains(allDAGTestDSCComponentFields(), name)
+			removed := comp.dsciConfigured || comp.Disable != nil
 			if !removed {
 				t.Logf("Skipping gone-check for %s: not meant to be Removed", comp.name)
 				continue
