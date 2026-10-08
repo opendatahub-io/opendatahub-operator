@@ -177,6 +177,12 @@ func TestGatewayCertManagerPreconditionPassesWhenCRDIsPresent(t *testing.T) {
 	}
 	certManagerCRD := &extv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{Name: gvk.CertManagerCertificateCRDName},
+		Status: extv1.CustomResourceDefinitionStatus{
+			Conditions: []extv1.CustomResourceDefinitionCondition{{
+				Type:   extv1.Established,
+				Status: extv1.ConditionTrue,
+			}},
+		},
 	}
 	cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig, certManagerCRD))
 	g.Expect(err).NotTo(HaveOccurred())
