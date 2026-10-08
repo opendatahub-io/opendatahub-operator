@@ -249,29 +249,6 @@ func (tc *KserveTestCtx) ValidateConfidentialContainerDependencyConditions(t *te
 	)
 }
 
-// ValidateNoKserveFeatureTrackers ensures there are no FeatureTrackers for Kserve.
-func (tc *KserveTestCtx) ValidateNoKserveFeatureTrackers(t *testing.T) {
-	t.Helper()
-
-	skipUnless(t, Smoke)
-
-	// FeatureTrackers are not supported on XKS platform (also CRD are not installed), skip the test
-	tc.SkipIfXKSCluster(t)
-
-	tc.EnsureResourcesDoNotExist(
-		WithMinimalObject(gvk.FeatureTracker, tc.NamespacedName),
-		WithListOptions(&client.ListOptions{
-			Namespace: tc.AppsNamespace,
-			LabelSelector: k8slabels.SelectorFromSet(
-				k8slabels.Set{
-					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
-				},
-			),
-		}),
-		WithCustomErrorMsg("Expected no KServe-related FeatureTracker resources to be present"),
-	)
-}
-
 // ValidateLLMInferenceServiceConfigVersioned validates that well-known LLMInferenceServiceConfig
 // resources (marked with serving.kserve.io/well-known-config annotation) in the system namespace
 // have names prefixed with a semver version.
