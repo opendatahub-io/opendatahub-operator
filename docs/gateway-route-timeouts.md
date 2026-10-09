@@ -18,8 +18,9 @@ Merge these settings into the existing resource, preserving its other settings.
 The operator manages the Route's `haproxy.router.openshift.io/timeout` annotation
 from this field; make changes through `GatewayConfig`.
 
-The setting applies to all components using the default shared Route, excludes
-additional ingress Routes, and is inactive in `LoadBalancer` mode. It does not
+The setting applies to all components using the default shared Route and excludes
+additional ingress Routes. `ocpRoute` is rejected in `LoadBalancer` mode; remove it
+when switching to that mode. It does not
 change component HTTPRoute timeouts or `spec.authProxyTimeout`.
 
 When omitted or removed, the operator reads

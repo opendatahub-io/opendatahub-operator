@@ -72,12 +72,6 @@ func TestOCPRouteServerTimeoutReconciliation(t *testing.T) {
 	}
 }
 
-func TestOCPRouteServerTimeoutInactiveInLoadBalancerMode(t *testing.T) {
-	spec := oauthSpecWithLoadBalancer()
-	spec.OCPRoute = &serviceApi.OCPRouteConfig{ServerTimeout: "330s"}
-	RunLoadBalancerIngressModeTest(t, OAuthTestEnv, spec)
-}
-
 func TestOCPRouteServerTimeoutFollowsDefaultIngressController(t *testing.T) {
 	for name, setup := range map[string]TestSetup{"OAuth": GetOAuthTestSetup(), "OIDC": GetOIDCTestSetup()} {
 		t.Run(name, func(t *testing.T) {

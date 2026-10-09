@@ -75,6 +75,7 @@ const (
 var _ common.PlatformObject = (*GatewayConfig)(nil)
 
 // GatewayConfigSpec defines the desired state of GatewayConfig
+// +kubebuilder:validation:XValidation:rule="!has(self.ingressMode) || self.ingressMode != 'LoadBalancer' || !has(self.ocpRoute)",message="ocpRoute is only valid in OcpRoute ingress mode"
 type GatewayConfigSpec struct {
 	// IngressMode specifies how the Gateway is exposed externally.
 	// "OcpRoute" uses ClusterIP with OpenShift Routes (OpenShift only).
@@ -83,7 +84,8 @@ type GatewayConfigSpec struct {
 	IngressMode IngressMode `json:"ingressMode,omitempty"`
 
 	// OCPRoute configures the OpenShift Route exposing the default shared Gateway.
-	// These settings are inactive in LoadBalancer mode and do not configure an external load balancer.
+	// These settings are only valid in OcpRoute mode and do not configure an external load balancer.
+	// Remove this field when switching to LoadBalancer mode.
 	// +optional
 	OCPRoute *OCPRouteConfig `json:"ocpRoute,omitempty"`
 
