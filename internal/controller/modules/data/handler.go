@@ -47,6 +47,7 @@ func NewHandler() *handler {
 				RelatedImages: []string{
 					"RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE",
 					"RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE",
+					"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 				},
 			},
 		},
