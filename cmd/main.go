@@ -46,7 +46,6 @@ import (
 	"github.com/spf13/viper"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
-	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -359,41 +358,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	cacheOptions := cache.Options{
-		Scheme: scheme,
-		ByObject: map[client.Object]cache.ByObject{
-			// Cannot find a label on various secrets, so we need to watch all secrets
-			// this includes, monitoring, dashboard, trustcabundle default cert etc for these NS
-			&corev1.Secret{}: {
-				Namespaces: secretCache,
-			},
-			// it is hard to find a label can be used for both trustCAbundle configmap and inferenceservice-config and deletionCM
-			&corev1.ConfigMap{}: {
-				Namespaces: oDHCache,
-			},
-			// for prometheus and black-box deployment and ones we owns
-			&appsv1.Deployment{}: {
-				Namespaces: oDHCache,
-			},
-			&networkingv1.NetworkPolicy{}: {
-				Namespaces: oDHCache,
-			},
-			&rbacv1.Role{}: {
-				Namespaces: oDHCache,
-			},
-			&rbacv1.RoleBinding{}: {
-				Namespaces: oDHCache,
-			},
-		},
-		DefaultTransform: func(in any) (any, error) {
-			// Nilcheck managed fields to avoid hitting https://github.com/kubernetes/kubernetes/issues/124337
-			if obj, err := meta.Accessor(in); err == nil && obj.GetManagedFields() != nil {
-				obj.SetManagedFields(nil)
-			}
-
-			return in, nil
-		},
-	}
+	cacheOptions := newCacheOptions(scheme, oDHCache, secretCache)
 
 	// OpenShift-specific cache filters: only register when running on OpenShift
 	if cluster.GetClusterInfo().Type == cluster.ClusterTypeOpenShift {
@@ -402,17 +367,33 @@ func main() { //nolint:funlen,maintidx,gocyclo
 				cluster.IngressControllerName.Namespace: {},
 			},
 		}
-		cacheOptions.ByObject[&configv1.Authentication{}] = cache.ByObject{
-			Field: fields.Set{"metadata.name": cluster.ClusterAuthenticationObj}.AsSelector(),
-		}
 		cacheOptions.ByObject[&routev1.Route{}] = cache.ByObject{
 			Namespaces: oDHCache,
+		}
+		// Authentication is a cluster-scoped config.openshift.io singleton read via
+		// typed cached Get (pkg/cluster GetClusterAuthenticationMode / IsIntegratedOAuth).
+		// Register a cluster-wide informer filtered to the single "cluster" object so the
+		// read is served from cache instead of bypassing it via cacheDisableFor(). For a
+		// cluster-scoped type ByObject.Namespaces MUST stay nil (controller-runtime errors
+		// out otherwise); the Field selector alone yields the cluster-wide, single-object
+		// watch — cheap (one object) and OpenShift-guarded like the entries above.
+		cacheOptions.ByObject[&configv1.Authentication{}] = cache.ByObject{
+			Field: fields.Set{"metadata.name": cluster.ClusterAuthenticationObj}.AsSelector(),
 		}
 	}
 
 	// Prometheus operator cache filters: only register when the API is available
 	addCacheIfAvailable(setupClient, cacheOptions.ByObject, &promv1.PrometheusRule{}, gvk.PrometheusRule, cache.ByObject{Namespaces: oDHCache})
 	addCacheIfAvailable(setupClient, cacheOptions.ByObject, &promv1.ServiceMonitor{}, gvk.ServiceMonitor, cache.ByObject{Namespaces: oDHCache})
+
+	// Istio types the gateway controller deploys and reads back (deploy action existence
+	// check) in the gateway namespace. Cache them scoped to that namespace when the CRDs
+	// are present, so the read is served from cache without a cluster-wide informer. When
+	// the CRDs are absent at startup the gateway's dynamic owned watch (OwnsGVK + CrdExists)
+	// handles them at runtime — same pattern as PrometheusRule/ServiceMonitor above.
+	gatewayNSCache := map[string]cache.Config{gateway.GetGatewayNamespace(): {}}
+	addCacheIfAvailable(setupClient, cacheOptions.ByObject, resources.GvkToUnstructured(gvk.DestinationRule), gvk.DestinationRule, cache.ByObject{Namespaces: gatewayNSCache})
+	addCacheIfAvailable(setupClient, cacheOptions.ByObject, resources.GvkToUnstructured(gvk.EnvoyFilter), gvk.EnvoyFilter, cache.ByObject{Namespaces: gatewayNSCache})
 
 	// Fetch the cluster TLS security profile for webhook and metrics servers
 	tlsOpts, tlsProfile, tlsAdherence, hasOpenShiftConfigAPI := fetchTLSProfile(ctx, scheme, oconfig.RestConfig)
@@ -460,16 +441,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		// LeaderElectionReleaseOnCancel: true,
 		Client: client.Options{
 			Cache: &client.CacheOptions{
-				DisableFor: []client.Object{
-					resources.GvkToUnstructured(gvk.OpenshiftIngress),
-					&ofapiv1alpha1.Subscription{},
-					&authorizationv1.SelfSubjectRulesReview{},
-					&corev1.Pod{},
-					&userv1.Group{},
-					&ofapiv1alpha1.CatalogSource{},
-				},
-				// Set it to true so the cache-backed client reads unstructured objects
-				// or lists from the cache instead of a live lookup.
+				DisableFor:   cacheDisableFor(),
 				Unstructured: true,
 			},
 		},
@@ -655,6 +627,75 @@ func createODHGeneralCacheConfig(platform common.Platform) (map[string]cache.Con
 	namespaceConfigs["kuadrant-system"] = cache.Config{}             // for kuadrant admin rolebinding
 
 	return namespaceConfigs, nil
+}
+
+func newCacheOptions(scheme *runtime.Scheme, oDHCache, secretCache map[string]cache.Config) cache.Options {
+	return cache.Options{
+		Scheme:            scheme,
+		DefaultNamespaces: oDHCache,
+		// Only types whose namespace scope differs from DefaultNamespaces need a
+		// ByObject entry: controller-runtime defaults ByObject.Namespaces to
+		// DefaultNamespaces for every other type (and applies DefaultTransform to
+		// them via the default cache), so listing them here with Namespaces: oDHCache
+		// would be redundant. Secret is scoped to secretCache, a strict subset of
+		// oDHCache (no openshift-operators/models-as-a-service/kuadrant-system), so
+		// it must stay.
+		ByObject: map[client.Object]cache.ByObject{
+			&corev1.Secret{}: {
+				Namespaces: secretCache,
+			},
+		},
+		DefaultTransform: func(in any) (any, error) {
+			if obj, err := meta.Accessor(in); err == nil && obj.GetManagedFields() != nil {
+				obj.SetManagedFields(nil)
+			}
+
+			return in, nil
+		},
+	}
+}
+
+func cacheDisableFor() []client.Object {
+	objs := []client.Object{
+		resources.GvkToUnstructured(gvk.OpenshiftIngress),
+		&configv1.Infrastructure{},
+		// APIServer is a cluster-scoped config.openshift.io singleton read via typed Get
+		// (pkg/cluster GetClusterServiceAccountIssuer, pkg/tls FromAPIServer). On OpenShift
+		// it is also watched typed by controller-runtime-common's SecurityProfileWatcher
+		// (For(&configv1.APIServer{}), registered above only when hasOpenShiftConfigAPI),
+		// so a cluster-scoped informer for it does exist there. We still bypass the cache
+		// for our own typed Gets rather than depend on that external watcher's informer
+		// being registered and synced first: its lifecycle is owned by an upstream library
+		// and gated on the OpenShift config API, and a direct read of a singleton is cheap.
+		// This keeps reads deterministic and avoids ErrResourceNotCached regressions.
+		// (Authentication, the other such singleton, instead gets a field-selected
+		// cluster-wide informer registered under the OpenShift guard above, so it is served
+		// from cache rather than listed here.)
+		&configv1.APIServer{},
+		&ofapiv1alpha1.Subscription{},
+		&corev1.Node{},
+		&userv1.Group{},
+		&ofapiv1alpha1.CatalogSource{},
+		&ofapiv1alpha1.ClusterServiceVersion{},
+		// OperatorCondition is listed cluster-wide by olm.OperatorExists to detect dependent
+		// operators (e.g. the kueue-operator) by name prefix, wherever the user installed them.
+		// Like the sibling OLM-discovery types above (Subscription/CatalogSource/CSV) it must
+		// bypass the scoped cache: a multi-namespace cached List only returns DefaultNamespaces,
+		// which would miss operators installed outside those namespaces and leave the component
+		// stuck not-Ready (RHOAIENG-83243). Read unstructured, matching olm.OperatorExists.
+		resources.GvkToUnstructured(gvk.OperatorCondition),
+		// LocalQueue (both served versions) is deployed by kueue's autoCreateQueues into every
+		// user namespace opted into kueue management (labelled kueue.openshift.io/managed). Those
+		// namespaces are created at runtime and are never in DefaultNamespaces, so the deploy
+		// action's cached existence-check Get fails with "unknown namespace for the cache" and the
+		// kueue component is stuck not-Ready (RHOAIENG-83243). Bypass the scoped cache so the read
+		// works in any managed namespace. ClusterQueue/ResourceFlavor are cluster-scoped and need
+		// no entry. Read unstructured, matching the kueue deploy path.
+		resources.GvkToUnstructured(gvk.LocalQueue),
+		resources.GvkToUnstructured(gvk.LocalQueueV1Beta1),
+	}
+
+	return objs
 }
 
 // addCacheIfAvailable adds obj to the ByObject cache map only when its API is
