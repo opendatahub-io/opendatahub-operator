@@ -66,6 +66,7 @@ func populatedV2DSC() *DataScienceCluster {
 	src.Spec.Components.SparkOperator.ManagementState = operatorv1.Managed
 	src.Spec.Components.AIGateway.ManagementState = operatorv1.Managed
 	src.Spec.Components.MCPLifecycleOperator.ManagementState = operatorv1.Managed
+	src.Spec.Components.DatabaseService.ManagementState = operatorv1.Managed
 	src.Status.Components.Dashboard.ManagementState = operatorv1.Managed
 	src.Status.Components.MaaSConsumerPortal.ManagementState = operatorv1.Managed
 	src.Status.Conditions = append(src.Status.Conditions, common.Condition{
@@ -105,6 +106,7 @@ func populatedV2DSC() *DataScienceCluster {
 	src.Status.Components.ModelsAsAService.ManagementState = operatorv1.Managed
 	src.Status.Components.BatchGateway.ManagementState = operatorv1.Managed
 	src.Status.Components.MCPLifecycleOperator.ManagementState = operatorv1.Managed
+	src.Status.Components.DatabaseService.ManagementState = operatorv1.Managed
 	src.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = operatorv1.Managed
 	src.Spec.Components.Kserve.ModelsAsService.ManagementState = operatorv1.Removed //nolint:staticcheck
 	src.Spec.Components.AIGateway.ModelsAsAService.ManagementState = operatorv1.Managed
