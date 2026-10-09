@@ -78,6 +78,8 @@ const (
 	ConnectionTypeProtocolS3 ConnectionType = "s3"
 	// ConnectionTypeProtocolOCI represents oci connections.
 	ConnectionTypeProtocolOCI ConnectionType = "oci"
+	// ConnectionTypeProtocolPostgres represents postgres connections.
+	ConnectionTypeProtocolPostgres ConnectionType = "postgres"
 )
 
 // ConnectionTypeRef constants are deprecated in favor of ConnectionTypeProtocol constants.
