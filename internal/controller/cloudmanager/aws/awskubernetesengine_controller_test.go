@@ -28,6 +28,7 @@ import (
 	ccmtest "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/cloudmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -309,6 +310,73 @@ func TestAWSKubernetesEngineWithoutCertManager(t *testing.T) {
 		wtC.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{Name: "opendatahub-ca-issuer"}).
 			Eventually().ShouldNot(BeNil())
 	})
+}
+
+// This proves a health CRD installed after the controller starts registers its dynamic
+// watch, including recovery from a degraded health CR.
+func TestAWSKubernetesEngineCertManagerOperatorHealth(t *testing.T) {
+	ccmtest.RequireCharts(t)
+
+	logf.SetLogger(zap.New(zap.WriteTo(io.Discard), zap.UseDevMode(true)))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	et, wtC := ccmtest.StartIsolatedController(t, ctx, awsCfg)
+	t.Cleanup(cancel) // stop the manager before the test environment (registered after et.Stop, so it runs first)
+
+	nn := types.NamespacedName{Name: ccmv1alpha1.AWSKubernetesEngineInstanceName}
+
+	_, err := et.RegisterCertManagerCRDs(ctx, envt.WithPermissiveSchema())
+	wtC.Expect(err).NotTo(HaveOccurred())
+
+	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "cert-manager"}}
+	if err := et.Client().Create(ctx, ns); err != nil && !k8serr.IsAlreadyExists(err) {
+		wtC.Expect(err).NotTo(HaveOccurred())
+	}
+
+	ccmtest.CreateCR(t, wtC, awsCfg, ccmcommon.Dependencies{})
+
+	wtC.Get(gvk.AWSKubernetesEngine, nn).Eventually().Should(
+		jq.Match(`.status.conditions[] | select(.type == "DependenciesAvailable") | .status == "True"`),
+	)
+
+	_, err = et.RegisterCRD(ctx, gvk.CertManagerV1Alpha1, "certmanagers", "certmanager",
+		apiextensionsv1.ClusterScoped, envt.WithPermissiveSchema())
+	wtC.Expect(err).NotTo(HaveOccurred())
+
+	wtC.Get(gvk.AWSKubernetesEngine, nn).Eventually().Should(
+		jq.Match(`.status.conditions[] | select(.type == "DependenciesAvailable") | .status == "False"`),
+	)
+
+	healthCR := testf.NewUnstructuredCR("cluster", "", gvk.CertManagerV1Alpha1)
+	wtC.Expect(testf.SetTypedConditions(healthCR, []metav1.Condition{
+		{Type: "cert-manager-controller-deploymentAvailable", Status: metav1.ConditionTrue, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+		{Type: "cert-manager-cainjector-deploymentAvailable", Status: metav1.ConditionTrue, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+		{Type: "cert-manager-webhook-deploymentAvailable", Status: metav1.ConditionTrue, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+		{Type: "cert-manager-controller-deploymentDegraded", Status: metav1.ConditionTrue, Reason: "Broken", Message: "webhook unavailable", LastTransitionTime: metav1.Now()},
+		{Type: "cert-manager-cainjector-deploymentDegraded", Status: metav1.ConditionFalse, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+		{Type: "cert-manager-webhook-deploymentDegraded", Status: metav1.ConditionFalse, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+	})).NotTo(HaveOccurred())
+	wtC.Expect(testf.CreateAndUpdateStatus(ctx, et.Client(), healthCR)).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Client().Delete(ctx, healthCR) })
+
+	wtC.Get(gvk.AWSKubernetesEngine, nn).Eventually().Should(
+		jq.Match(`.status.conditions[] | select(.type == "DependenciesAvailable") | .message | contains("Degraded")`),
+	)
+
+	wtC.Expect(et.Client().Get(ctx, client.ObjectKeyFromObject(healthCR), healthCR)).NotTo(HaveOccurred())
+	wtC.Expect(testf.SetTypedConditions(healthCR, []metav1.Condition{
+		{Type: "cert-manager-controller-deploymentAvailable", Status: metav1.ConditionTrue, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+		{Type: "cert-manager-cainjector-deploymentAvailable", Status: metav1.ConditionTrue, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+		{Type: "cert-manager-webhook-deploymentAvailable", Status: metav1.ConditionTrue, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+		{Type: "cert-manager-controller-deploymentDegraded", Status: metav1.ConditionFalse, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+		{Type: "cert-manager-cainjector-deploymentDegraded", Status: metav1.ConditionFalse, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+		{Type: "cert-manager-webhook-deploymentDegraded", Status: metav1.ConditionFalse, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+	})).NotTo(HaveOccurred())
+	wtC.Expect(et.Client().Status().Update(ctx, healthCR)).NotTo(HaveOccurred())
+
+	wtC.Get(gvk.AWSKubernetesEngine, nn).Eventually().Should(
+		jq.Match(`.status.conditions[] | select(.type == "DependenciesAvailable") | .status == "True"`),
+	)
 }
 
 // TestAWSKubernetesEngineCleanupAction verifies that the cleanup finalizer action

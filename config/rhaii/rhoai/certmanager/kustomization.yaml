@@ -14,6 +14,13 @@ patches:
     - op: add
       path: /metadata/annotations/cert-manager.io~1inject-ca-from
       value: redhat-ods-operator/rhai-operator-webhook-cert
+- target:
+    kind: ValidatingWebhookConfiguration
+  patch: |
+    - op: add
+      path: /metadata/annotations
+      value:
+        cert-manager.io/inject-ca-from: redhat-ods-operator/rhai-operator-webhook-cert
 # Patch service labels for RHOAI
 - target:
     kind: Service
