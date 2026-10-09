@@ -15,6 +15,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -136,15 +137,29 @@ func TestCacheDisableFor_ContainsExpectedTypes(t *testing.T) {
 			"%s must be in DisableFor — it has no scoped informer and would otherwise start an unfiltered cluster-wide one", typeName)
 	}
 
-	foundIngress := false
-	for _, d := range disabled {
-		if u, ok := d.(*unstructured.Unstructured); ok && u.GetObjectKind().GroupVersionKind() == gvk.OpenshiftIngress {
-			foundIngress = true
-			break
-		}
+	expectedUnstructured := []schema.GroupVersionKind{
+		gvk.OpenshiftIngress,
+		// OperatorCondition is listed cluster-wide by olm.OperatorExists to find dependent
+		// operators by name prefix in any install namespace; a scoped cached List would miss
+		// operators installed outside DefaultNamespaces (RHOAIENG-83243).
+		gvk.OperatorCondition,
+		// LocalQueue is deployed by kueue autoCreateQueues into runtime-created managed user
+		// namespaces outside DefaultNamespaces; a scoped cached Get fails there (RHOAIENG-83243).
+		gvk.LocalQueue,
+		gvk.LocalQueueV1Beta1,
 	}
-	assert.True(t, foundIngress,
-		"OpenshiftIngress (unstructured) must be in DisableFor — it has no scoped informer and would otherwise start an unfiltered cluster-wide one")
+
+	for _, want := range expectedUnstructured {
+		found := false
+		for _, d := range disabled {
+			if u, ok := d.(*unstructured.Unstructured); ok && u.GetObjectKind().GroupVersionKind() == want {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found,
+			"%s (unstructured) must be in DisableFor — it has no scoped informer and would otherwise start an unfiltered cluster-wide one", want.Kind)
+	}
 }
 
 func TestNewCacheOptions_ByObjectNamespacesNotEmpty(t *testing.T) {

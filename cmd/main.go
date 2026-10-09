@@ -677,6 +677,22 @@ func cacheDisableFor() []client.Object {
 		&userv1.Group{},
 		&ofapiv1alpha1.CatalogSource{},
 		&ofapiv1alpha1.ClusterServiceVersion{},
+		// OperatorCondition is listed cluster-wide by olm.OperatorExists to detect dependent
+		// operators (e.g. the kueue-operator) by name prefix, wherever the user installed them.
+		// Like the sibling OLM-discovery types above (Subscription/CatalogSource/CSV) it must
+		// bypass the scoped cache: a multi-namespace cached List only returns DefaultNamespaces,
+		// which would miss operators installed outside those namespaces and leave the component
+		// stuck not-Ready (RHOAIENG-83243). Read unstructured, matching olm.OperatorExists.
+		resources.GvkToUnstructured(gvk.OperatorCondition),
+		// LocalQueue (both served versions) is deployed by kueue's autoCreateQueues into every
+		// user namespace opted into kueue management (labelled kueue.openshift.io/managed). Those
+		// namespaces are created at runtime and are never in DefaultNamespaces, so the deploy
+		// action's cached existence-check Get fails with "unknown namespace for the cache" and the
+		// kueue component is stuck not-Ready (RHOAIENG-83243). Bypass the scoped cache so the read
+		// works in any managed namespace. ClusterQueue/ResourceFlavor are cluster-scoped and need
+		// no entry. Read unstructured, matching the kueue deploy path.
+		resources.GvkToUnstructured(gvk.LocalQueue),
+		resources.GvkToUnstructured(gvk.LocalQueueV1Beta1),
 	}
 
 	return objs
