@@ -168,6 +168,8 @@ components:
   data:
     aliases: [data_module]
 
+  databaseservice: {}
+
 services:
   auth: {}
   gateway: {}
