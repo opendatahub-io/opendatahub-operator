@@ -388,6 +388,12 @@ var (
 		Kind:    serviceApi.MonitoringKind,
 	}
 
+	DatabaseService = schema.GroupVersionKind{
+		Group:   serviceApi.GroupVersion.Group,
+		Version: serviceApi.GroupVersion.Version,
+		Kind:    componentApi.DatabaseServiceKind,
+	}
+
 	PlatformV1alpha1 = schema.GroupVersionKind{
 		Group:   configv1alpha1.GroupVersion.Group,
 		Version: configv1alpha1.GroupVersion.Version,
