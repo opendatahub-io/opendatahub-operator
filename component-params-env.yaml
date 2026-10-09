@@ -53,6 +53,7 @@ known_issues:
 - image: RELATED_IMAGE_ODH_MOD_ARCH_DATA_REGISTRY_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-95347
   reason: Validation failure due to RELATED_IMAGE_ODH_MOD_ARCH_DATA_REGISTRY_IMAGE offboarding in 3.6-EA.2 but staying in 3.6 GA; not in RHOAI-Build-Config for 3.6-EA.2
+
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
   reason: ppc64le/s390x only, not applicable to ODH
@@ -68,6 +69,15 @@ rhoai_exceptions:
   reason: ODH-only image, not applicable to RHOAI
 - image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_2_IMAGE
   reason: ODH-only image, not applicable to RHOAI
+- image: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_BASELINE_CPU_PY312_C9S_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHAIENG-6388
+  reason: ODH-only baseline image; present in ODH-Build-Config, not applicable to RHOAI
+- image: RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_BASELINE_CPU_PY312_C9S_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHAIENG-6388
+  reason: ODH-only baseline image; present in ODH-Build-Config, not applicable to RHOAI
+- image: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_BASELINE_CPU_PY312_C9S_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHAIENG-6388
+  reason: ODH-only baseline image; present in ODH-Build-Config, not applicable to RHOAI
 - image: RELATED_IMAGE_ODH_TRAINER_OPERATOR_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-62940
   reason: Trainer module operator image, not yet in RHOAI-Build-Config, delivering in RHOAI 3.6 EA1
@@ -86,6 +96,9 @@ rhoai_exceptions:
 - image: RELATED_IMAGE_ODH_WORKLOAD_VARIANT_AUTOSCALER_CONTROLLER_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-95514
   reason: RHOAI 3.6 bundle image was offboarded; remove this temporary exception when operator WVA cleanup in PR #4125 merges
+- image: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-97573
+  reason: RHOAI Konflux image offboarded (odh-trustyai-vllm-orchestrator-gateway); present in ODH-Build-Config, not in RHOAI-Build-Config
 
 image_overrides_exceptions:
 - image: RELATED_IMAGE_ODH_DB_OPERATOR_IMAGE
