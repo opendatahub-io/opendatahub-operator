@@ -7,6 +7,9 @@ metadata:
 {{ toYaml .RouteLabels | indent 4 }}
   annotations:
     router.openshift.io/service-ca-certificate: "true"
+    {{- if .RouteServerTimeout }}
+    haproxy.router.openshift.io/timeout: {{ printf "%q" .RouteServerTimeout }}
+    {{- end }}
 spec:
   host: {{.GatewayHostname}}
   to:
