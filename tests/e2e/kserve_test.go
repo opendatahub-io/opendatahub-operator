@@ -68,7 +68,7 @@ func kserveTestSuite(t *testing.T) {
 		TestCase{"Validate module enabled", componentCtx.ValidateModuleEnabled},
 		TestCase{"Validate component spec", componentCtx.ValidateSpec},
 		TestCase{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
-		TestCase{"Validate VAP created when kserve is enabled", componentCtx.ValidateS3SecretCheckBucketExist},
+		TestCase{"Validate Connection API VAPs created when kserve is enabled", componentCtx.ValidateConnectionAPIPoliciesExist},
 		TestCase{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		TestCase{"Validate component releases", componentCtx.ValidateComponentReleases},
 		TestCase{"Validate well-known LLMInferenceServiceConfig versioning", componentCtx.ValidateLLMInferenceServiceConfigVersioned},
