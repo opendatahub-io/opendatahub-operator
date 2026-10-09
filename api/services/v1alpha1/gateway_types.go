@@ -181,7 +181,7 @@ type OCPRouteConfig struct {
 	// ServerTimeout is the maximum server-side inactivity interval enforced by the OpenShift router.
 	// It applies to all traffic using the default shared Gateway Route, independently of HTTPRoute timeouts
 	// and AuthProxyTimeout. It does not apply to additional ingress Routes or upgraded connections.
-	// Specify a positive integer with a unit of ms, s, m, or h (for example, "330s").
+	// Specify a positive integer without leading zeros and with a unit of ms, s, m, or h (for example, "330s").
 	// The maximum is 2147483647ms, matching HAProxy's supported timeout range.
 	// When omitted, the operator sets a 60s Route timeout if the default IngressController's
 	// server timeout is below 60s (OpenShift uses 30s when that field is unset).
@@ -192,7 +192,7 @@ type OCPRouteConfig struct {
 	// Removing this field restores automatic behavior; automatic values are not written to GatewayConfig.
 	// +optional
 	// +kubebuilder:validation:MaxLength=16
-	// +kubebuilder:validation:Pattern=`^[0-9]+(ms|s|m|h)$`
+	// +kubebuilder:validation:Pattern=`^[1-9][0-9]*(ms|s|m|h)$`
 	// +kubebuilder:validation:XValidation:rule="duration(self) > duration('0s') && duration(self) <= duration('2147483647ms')",message="serverTimeout must be positive and no greater than 2147483647ms"
 	ServerTimeout string `json:"serverTimeout,omitempty"`
 }
