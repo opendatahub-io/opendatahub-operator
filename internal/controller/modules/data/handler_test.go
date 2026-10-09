@@ -15,6 +15,7 @@ import (
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/data"
 
 	. "github.com/onsi/gomega"
@@ -86,6 +87,47 @@ func TestBuildModuleCR_NonOIDCCluster(t *testing.T) {
 	g.Expect(u.GetName()).Should(Equal(componentApi.FeastOperatorInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(componentApi.FeastOperatorKind))
 	g.Expect(u.GetAPIVersion()).Should(Equal("components.platform.opendatahub.io/v1alpha1"))
+	spec, ok := unstructuredNestedMap(u.Object, "spec")
+	g.Expect(ok).To(BeTrue())
+	g.Expect(spec).NotTo(HaveKey("capabilities"))
+}
+
+func TestBuildModuleCR_CapabilitiesFromDSC(t *testing.T) {
+	tests := []struct {
+		name              string
+		featureStoreState operatorv1.ManagementState
+		dataRegistryState operatorv1.ManagementState
+		wantFeatureStore  string
+		wantDataRegistry  string
+	}{
+		{name: "feature store only", featureStoreState: operatorv1.Managed, dataRegistryState: operatorv1.Removed, wantFeatureStore: "Managed", wantDataRegistry: "Removed"},
+		{name: "data registry only", featureStoreState: operatorv1.Removed, dataRegistryState: operatorv1.Managed, wantFeatureStore: "Removed", wantDataRegistry: "Managed"},
+		{name: "both managed", featureStoreState: operatorv1.Managed, dataRegistryState: operatorv1.Managed, wantFeatureStore: "Managed", wantDataRegistry: "Managed"},
+		{name: "unset states default to removed", wantFeatureStore: "Removed", wantDataRegistry: "Removed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			dsc := &dscApi.DataScienceCluster{}
+			dsc.Spec.Components.Data.FeatureStore.ManagementState = tt.featureStoreState
+			dsc.Spec.Components.Data.DataRegistry.ManagementState = tt.dataRegistryState
+			cli := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
+
+			u, err := feastoperator.NewHandler().BuildModuleCR(
+				context.Background(), cli, &modules.DSCContext{DSC: dsc}, nil,
+			)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			featureStore, ok := unstructuredNestedMap(u.Object, "spec", "capabilities", "featureStore")
+			g.Expect(ok).To(BeTrue())
+			g.Expect(featureStore["managementState"]).To(Equal(tt.wantFeatureStore))
+
+			dataRegistry, ok := unstructuredNestedMap(u.Object, "spec", "capabilities", "dataRegistry")
+			g.Expect(ok).To(BeTrue())
+			g.Expect(dataRegistry["managementState"]).To(Equal(tt.wantDataRegistry))
+		})
+	}
 }
 
 func TestBuildModuleCR_OIDCIssuerProjected(t *testing.T) {
@@ -155,6 +197,7 @@ func TestImageHandling(t *testing.T) {
 	g.Expect(h.GetRelatedImages()).Should(ConsistOf(
 		"RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE",
 		"RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE",
+		"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 	))
 
 	g.Expect(h.GetRelatedImages()).ShouldNot(ContainElement("RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE"))
