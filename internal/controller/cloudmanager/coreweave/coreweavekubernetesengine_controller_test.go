@@ -8,6 +8,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -25,6 +26,7 @@ import (
 	ccmtest "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/cloudmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -109,6 +111,31 @@ func TestCoreWeaveKubernetesEngine(t *testing.T) {
 			Eventually().ShouldNot(BeNil())
 		wtC.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{Name: "opendatahub-ca-issuer"}).
 			Eventually().ShouldNot(BeNil())
+
+		wtC.Get(gvk.CoreWeaveKubernetesEngine, nn).Eventually().Should(
+			jq.Match(`.status.conditions[] | select(.type == "DependenciesAvailable") | .status == "True"`),
+		)
+
+		// The community path above passes without a health CRD. Once the
+		// OpenShift CRD appears, CertManager/cluster becomes required.
+		_, err = et.RegisterCRD(ctx, gvk.CertManagerV1Alpha1, "certmanagers", "certmanager",
+			apiextensionsv1.ClusterScoped, envt.WithPermissiveSchema())
+		wtC.Expect(err).NotTo(HaveOccurred())
+		wtC.Get(gvk.CoreWeaveKubernetesEngine, nn).Eventually().Should(
+			jq.Match(`.status.conditions[] | select(.type == "DependenciesAvailable") | .status == "False"`),
+		)
+
+		healthCR := testf.NewUnstructuredCR("cluster", "", gvk.CertManagerV1Alpha1)
+		wtC.Expect(testf.SetTypedConditions(healthCR, []metav1.Condition{
+			{Type: "cert-manager-controller-deploymentAvailable", Status: metav1.ConditionTrue, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+			{Type: "cert-manager-cainjector-deploymentAvailable", Status: metav1.ConditionTrue, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+			{Type: "cert-manager-webhook-deploymentAvailable", Status: metav1.ConditionTrue, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+			{Type: "cert-manager-controller-deploymentDegraded", Status: metav1.ConditionFalse, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+			{Type: "cert-manager-cainjector-deploymentDegraded", Status: metav1.ConditionFalse, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+			{Type: "cert-manager-webhook-deploymentDegraded", Status: metav1.ConditionFalse, Reason: "AsExpected", LastTransitionTime: metav1.Now()},
+		})).NotTo(HaveOccurred())
+		wtC.Expect(testf.CreateAndUpdateStatus(ctx, et.Client(), healthCR)).NotTo(HaveOccurred())
+		t.Cleanup(func() { _ = et.Client().Delete(ctx, healthCR) })
 
 		wtC.Get(gvk.CoreWeaveKubernetesEngine, nn).Eventually().Should(
 			jq.Match(`.status.conditions[] | select(.type == "DependenciesAvailable") | .status == "True"`),

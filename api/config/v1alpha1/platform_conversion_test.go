@@ -40,6 +40,7 @@ func TestPlatformConversionPreservesFieldsAndRenamesModules(t *testing.T) {
 			Ray:                  common.ManagementSpec{ManagementState: operatorv1.Removed},
 			TrustyAI:             common.ManagementSpec{ManagementState: operatorv1.Managed},
 			ModelRegistry:        common.ManagementSpec{},
+			DatabaseService:      common.ManagementSpec{ManagementState: operatorv1.Managed},
 		}},
 		Status: PlatformStatus{Status: common.Status{
 			Phase:              "Ready",
@@ -64,6 +65,7 @@ func TestPlatformConversionPreservesFieldsAndRenamesModules(t *testing.T) {
 	g.Expect(hub.Spec.Modules.Ray).To(Equal(legacy.Spec.Modules.Ray))
 	g.Expect(hub.Spec.Modules.TrustyAI).To(Equal(legacy.Spec.Modules.TrustyAI))
 	g.Expect(hub.Spec.Modules.Dashboard).To(Equal(legacy.Spec.Modules.Dashboard))
+	g.Expect(hub.Spec.Modules.DatabaseService).To(Equal(legacy.Spec.Modules.DatabaseService))
 	g.Expect(hub.Status.Status).To(Equal(legacy.Status.Status))
 
 	encoded, err := json.Marshal(hub.Spec.Modules)
@@ -101,6 +103,7 @@ func TestPlatformConversionPreservesHubManagementStates(t *testing.T) {
 		SparkOperator:        common.ManagementSpec{ManagementState: operatorv1.Removed},
 		Ray:                  common.ManagementSpec{ManagementState: operatorv1.Managed},
 		TrustyAI:             common.ManagementSpec{ManagementState: operatorv1.Removed},
+		DatabaseService:      common.ManagementSpec{ManagementState: operatorv1.Managed},
 	}}}
 
 	legacy := &Platform{}
@@ -111,6 +114,7 @@ func TestPlatformConversionPreservesHubManagementStates(t *testing.T) {
 	g.Expect(legacy.Spec.Modules.AIPipelines).To(Equal(hub.Spec.Modules.AIPipelines))
 	g.Expect(legacy.Spec.Modules.Ray).To(Equal(hub.Spec.Modules.Ray))
 	g.Expect(legacy.Spec.Modules.TrustyAI).To(Equal(hub.Spec.Modules.TrustyAI))
+	g.Expect(legacy.Spec.Modules.DatabaseService).To(Equal(hub.Spec.Modules.DatabaseService))
 
 	convertedHub := &v1alpha2.Platform{}
 	g.Expect(legacy.ConvertTo(convertedHub)).To(Succeed())
