@@ -169,8 +169,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				CRName:      KueueCRName,
 				Filter:      kueueDegradedConditionFilter,
 			}),
+			precondition.Custom(checkPreConditions, precondition.WithStopReconciliation()),
 		})).
-		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{precondition.Custom(checkPreConditions, precondition.WithStopReconciliation())})).
 		WithPostStatusFn(platformrelease.NewPostStatusFn()).
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
