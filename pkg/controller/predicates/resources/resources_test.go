@@ -17,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -25,6 +26,43 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+func TestGatewayConfigWorkbenchesInputsChanged(t *testing.T) {
+	base := &serviceApi.GatewayConfig{}
+	base.Status.AdditionalIngresses = []serviceApi.AdditionalIngressStatus{{
+		Name: "alpha", Hostname: "alpha.example.com",
+		GatewayRef: serviceApi.GatewayReference{Name: "alpha", Namespace: "gateway-ns"},
+	}}
+	for _, tc := range []struct {
+		name string
+		edit func(*serviceApi.GatewayConfig)
+		want bool
+	}{
+		{"unchanged", func(*serviceApi.GatewayConfig) {}, false},
+		{"domain", func(c *serviceApi.GatewayConfig) { c.Status.Domain = "apps.example.com" }, true},
+		{"add", func(c *serviceApi.GatewayConfig) {
+			c.Status.AdditionalIngresses = append(c.Status.AdditionalIngresses, serviceApi.AdditionalIngressStatus{Name: "beta"})
+		}, true},
+		{"edit", func(c *serviceApi.GatewayConfig) { c.Status.AdditionalIngresses[0].Hostname = "new.example.com" }, true},
+		{"gateway ref", func(c *serviceApi.GatewayConfig) { c.Status.AdditionalIngresses[0].GatewayRef.Name = "new-gateway" }, true},
+		{"remove", func(c *serviceApi.GatewayConfig) { c.Status.AdditionalIngresses = nil }, true},
+		{"spec only", func(c *serviceApi.GatewayConfig) {
+			c.Spec.AdditionalIngresses = serviceApi.AdditionalIngresses{{Name: "beta"}}
+		}, false},
+		{"conditions only", func(c *serviceApi.GatewayConfig) {
+			c.Status.AdditionalIngresses[0].Conditions = []common.Condition{{Type: "Ready"}}
+		}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			updated := base.DeepCopy()
+			tc.edit(updated)
+			got := resources.GatewayConfigWorkbenchesInputsChanged().Update(event.UpdateEvent{ObjectOld: base, ObjectNew: updated})
+			if got != tc.want {
+				t.Fatalf("reconcile = %t, want %t", got, tc.want)
+			}
+		})
+	}
+}
 
 func TestAnnotationChanged(t *testing.T) {
 	t.Parallel()

@@ -2,13 +2,11 @@ package resources
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	fwres "github.com/opendatahub-io/odh-platform-utilities/framework/resources"
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -72,21 +70,14 @@ func IngressHost(r routev1.Route) string {
 	return ""
 }
 
-// GetGatewayDomain retrieves the gateway domain from GatewayConfig.Status.Domain.
-func GetGatewayDomain(ctx context.Context, cli client.Client) (string, error) {
+// GetGatewayConfig retrieves the platform GatewayConfig, if it exists.
+func GetGatewayConfig(ctx context.Context, cli client.Client) (*serviceApi.GatewayConfig, error) {
 	gatewayConfig := &serviceApi.GatewayConfig{}
 	gatewayConfig.SetName(serviceApi.GatewayConfigName)
 
 	if err := cli.Get(ctx, client.ObjectKeyFromObject(gatewayConfig), gatewayConfig); err != nil {
-		if k8serr.IsNotFound(err) {
-			return "", errors.New("GatewayConfig not found")
-		}
-		return "", fmt.Errorf("failed to get GatewayConfig: %w", err)
+		return nil, fmt.Errorf("get GatewayConfig: %w", err)
 	}
 
-	if gatewayConfig.Status.Domain == "" {
-		return "", errors.New("GatewayConfig.Status.Domain is empty")
-	}
-
-	return gatewayConfig.Status.Domain, nil
+	return gatewayConfig, nil
 }

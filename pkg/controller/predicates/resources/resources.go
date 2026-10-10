@@ -3,6 +3,7 @@ package resources
 import (
 	"fmt"
 	"reflect"
+	"slices"
 
 	fwres "github.com/opendatahub-io/odh-platform-utilities/framework/controller/predicates/resources"
 	configv1 "github.com/openshift/api/config/v1"
@@ -197,9 +198,9 @@ func toGatewayConfig(obj client.Object) (*serviceApi.GatewayConfig, error) {
 	return nil, fmt.Errorf("object is neither typed GatewayConfig nor unstructured: %T", obj)
 }
 
-// GatewayConfigDomainChanged returns a predicate that triggers reconciliation only when GatewayConfig's
-// status.Domain field changes.
-func GatewayConfigDomainChanged() predicate.Predicate {
+// GatewayConfigWorkbenchesInputsChanged triggers projection when the gateway
+// domain or published additional ingress assignments change.
+func GatewayConfigWorkbenchesInputsChanged() predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
 			return true
@@ -218,7 +219,11 @@ func GatewayConfigDomainChanged() predicate.Predicate {
 				return false
 			}
 
-			return oldGC.Status.Domain != newGC.Status.Domain
+			return oldGC.Status.Domain != newGC.Status.Domain ||
+				!slices.EqualFunc(oldGC.Status.AdditionalIngresses, newGC.Status.AdditionalIngresses,
+					func(a, b serviceApi.AdditionalIngressStatus) bool {
+						return a.Name == b.Name && a.Hostname == b.Hostname && a.GatewayRef == b.GatewayRef
+					})
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
 			return false

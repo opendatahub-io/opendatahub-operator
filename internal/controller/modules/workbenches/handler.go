@@ -14,7 +14,9 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
@@ -116,7 +118,7 @@ func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 // DSC-level managementState and legacy workbenchNamespace are projected into the
 // module CR spec for API parity; notebook-controller operands deploy into
 // APPLICATIONS_NAMESPACE (injected separately). Orchestrator-only fields
-// (gatewayDomain, platform, mlflowEnabled) are derived from PlatformContext.
+// (gatewayDomain, platform, mlflowEnabled, ingresses) are derived from ModuleCRConfig and DSC.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
@@ -135,11 +137,15 @@ func (h *handler) BuildModuleCR(
 	}
 	spec["managementState"] = string(dscCtx.DSC.Spec.Components.Workbenches.ManagementState)
 	spec["mlflowEnabled"] = dscCtx.DSC.Spec.Components.MLflowOperator.ManagementState == operatorv1.Managed
-
+	ingresses := []map[string]any{}
 	if cfg != nil {
+		if cfg.GatewayIngresses != nil {
+			ingresses = gatewayStatusIngresses(cfg.GatewayDomain, cfg.GatewayIngresses)
+		}
 		spec["gatewayDomain"] = cfg.GatewayDomain
 		spec["platform"] = workbenchesPlatformType(cfg.Release.Name)
 	}
+	spec["ingresses"] = ingresses
 
 	u := &unstructured.Unstructured{
 		Object: map[string]any{
@@ -150,6 +156,33 @@ func (h *handler) BuildModuleCR(
 	u.SetName(h.Config.CRName)
 
 	return u, nil
+}
+
+func gatewayStatusIngresses(domain string, statuses []serviceApi.AdditionalIngressStatus) []map[string]any {
+	ingresses := make([]map[string]any, 0, len(statuses)+1)
+	defaultName := gateway.GetDefaultGatewayName()
+	gatewayNamespace := gateway.GetGatewayNamespace()
+	ingresses = append(ingresses, newIngress(defaultName, defaultName, gatewayNamespace, domain, true))
+	for _, status := range statuses {
+		if status.Name == "" || status.GatewayRef.Name == "" || status.GatewayRef.Namespace == "" {
+			continue
+		}
+		ingresses = append(ingresses, newIngress(status.Name, status.GatewayRef.Name, status.GatewayRef.Namespace, status.Hostname, false))
+	}
+	return ingresses
+}
+
+func newIngress(name, gatewayName, gatewayNamespace, hostname string, isDefault bool) map[string]any {
+	ingress := map[string]any{
+		"name": name, "gatewayName": gatewayName, "gatewayNamespace": gatewayNamespace,
+	}
+	if hostname != "" {
+		ingress["hostname"] = hostname
+	}
+	if isDefault {
+		ingress["isDefault"] = true
+	}
+	return ingress
 }
 
 // WriteLegacyStatusFields mirrors workbenchNamespace from the DSC spec into

@@ -74,7 +74,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
 				return watchDataScienceClusters(ctx, mgr.GetClient())
 			}),
-			reconciler.WithPredicates(resources.GatewayConfigDomainChanged())).
+			reconciler.WithPredicates(resources.GatewayConfigWorkbenchesInputsChanged())).
 		Watches(
 			&corev1.ConfigMap{},
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
