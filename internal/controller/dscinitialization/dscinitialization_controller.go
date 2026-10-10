@@ -331,6 +331,11 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			getObject(gvk.GatewayConfig),
 			handler.EnqueueRequestsFromMapFunc(r.watchGatewayConfigResource),
 		).
+		Watches(
+			getObject(gvk.Platform),
+			handler.EnqueueRequestsFromMapFunc(r.watchPlatformResource),
+			builder.WithPredicates(rp.PlatformDeletionPredicate()),
+		).
 		Watches( // HWP: temporary for VAP/VAPB, should be removed in v3.3.
 			getObject(gvk.CustomResourceDefinition),
 			handler.EnqueueRequestsFromMapFunc(r.reconcileOnCRDChange),
@@ -423,6 +428,14 @@ func (r *DSCInitializationReconciler) watchMonitoringResource(ctx context.Contex
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
 	}
 
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: dsci.Name}}}
+}
+
+func (r *DSCInitializationReconciler) watchPlatformResource(ctx context.Context, _ client.Object) []reconcile.Request {
+	dsci, err := cluster.GetDSCI(ctx, r.Client)
+	if err != nil {
+		return nil
+	}
 	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: dsci.Name}}}
 }
 
@@ -563,8 +576,8 @@ func (r *DSCInitializationReconciler) reconcileOnCRDChange(ctx context.Context, 
 // reconcileDSCIModules creates/updates DSCI-owned fields on the Platform CR
 // and provisions module CRs whose configuration comes from the DSCI spec
 // (e.g. Monitoring). SSA apply only includes ConfigFromDSCI fields so DSC-owned
-// modules are not overwritten. Platform ownership is merged separately because
-// the Platform is shared with the DSC controller.
+// modules are not overwritten. Platform ownership is updated separately so
+// DSCI remains its sole, stable lifecycle owner.
 func (r *DSCInitializationReconciler) reconcileDSCIModules(ctx context.Context, instance *dsciv2.DSCInitialization) error {
 	log := logf.FromContext(ctx)
 
@@ -576,8 +589,8 @@ func (r *DSCInitializationReconciler) reconcileDSCIModules(ctx context.Context, 
 	if err := resources.Apply(ctx, r.Client, platform, client.FieldOwner(fieldManager), client.ForceOwnership); err != nil {
 		return fmt.Errorf("failed to apply Platform CR: %w", err)
 	}
-	if err := modules.EnsurePlatformOwnerReference(ctx, r.Client, instance, r.Scheme); err != nil {
-		return fmt.Errorf("failed to update Platform owner reference: %w", err)
+	if err := modules.EnsurePlatformLifecycleOwnerReference(ctx, r.Client, instance, r.Scheme); err != nil {
+		return fmt.Errorf("failed to update Platform lifecycle owner reference: %w", err)
 	}
 
 	return modules.ForConfigSource(modules.ConfigFromDSCI, func(handler modules.ModuleHandler, _ bool) error {

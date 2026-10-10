@@ -5,16 +5,20 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/funcr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -90,6 +94,11 @@ func newCleanupMock(name string, crState CRState) *cleanupMockHandler {
 
 func setupCleanupTest(t *testing.T, handler *cleanupMockHandler) (*odhtype.ReconciliationRequest, func()) {
 	t.Helper()
+	return setupCleanupTestWithObjects(t, handler)
+}
+
+func setupCleanupTestWithObjects(t *testing.T, handler *cleanupMockHandler, controlPlaneObjects ...client.Object) (*odhtype.ReconciliationRequest, func()) {
+	t.Helper()
 	g := NewWithT(t)
 
 	oldR := r
@@ -104,13 +113,20 @@ func setupCleanupTest(t *testing.T, handler *cleanupMockHandler) (*odhtype.Recon
 	}
 
 	dsci := &dsciv2.DSCInitialization{
-		ObjectMeta: metav1.ObjectMeta{Name: "default-dsci"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "default-dsci",
+			DeletionTimestamp: &metav1.Time{Time: time.Now()},
+			Finalizers:        []string{"test.finalizer"},
+		},
 		Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: "test-ns",
 		},
 	}
 
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
+	if len(controlPlaneObjects) == 0 {
+		controlPlaneObjects = []client.Object{dsci}
+	}
+	cli, err := fakeclient.New(fakeclient.WithObjects(controlPlaneObjects...))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	cm := conditions.NewManager(platform, status.ConditionTypeReady, status.ConditionTypeModulesReady)
@@ -250,6 +266,78 @@ func TestWaitForModuleCRDeletion_CRAlive_DeletesAndWaits(t *testing.T) {
 	g.Expect(handler.deletedCR).Should(BeTrue())
 }
 
+func TestWaitForModuleCRDeletion_LiveDSCPreservesModuleCRs(t *testing.T) {
+	g := NewWithT(t)
+
+	handler := newCleanupMock("test-mod", CRStateAlive)
+	rr, cleanup := setupCleanupTest(t, handler)
+	defer cleanup()
+
+	dsc := &dscApi.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "default-dsc", UID: types.UID("dsc-uid")}}
+	g.Expect(rr.Client.Create(t.Context(), dsc)).Should(Succeed())
+
+	g.Expect(waitForModuleCRDeletion(t.Context(), rr)).Should(Succeed())
+	g.Expect(handler.deletedCR).Should(BeFalse())
+}
+
+func TestWaitForModuleCRDeletion_LiveDSCWaitsForDeletingModuleCR(t *testing.T) {
+	g := NewWithT(t)
+
+	handler := newCleanupMock("test-mod", CRStateDeleting)
+	rr, cleanup := setupCleanupTest(t, handler)
+	defer cleanup()
+
+	dsc := &dscApi.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "default-dsc", UID: types.UID("dsc-uid")}}
+	g.Expect(rr.Client.Create(t.Context(), dsc)).Should(Succeed())
+
+	err := waitForModuleCRDeletion(t.Context(), rr)
+	g.Expect(err).Should(MatchError(ContainSubstring("waiting for module CRs to be deleted: test-mod")))
+	g.Expect(handler.deletedCR).Should(BeFalse())
+}
+
+func TestWaitForModuleCRDeletion_LiveDSCIPreservesModuleCRs(t *testing.T) {
+	g := NewWithT(t)
+
+	handler := newCleanupMock("test-mod", CRStateAlive)
+	liveDSCI := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: "default-dsci", UID: types.UID("dsci-uid")}}
+	rr, cleanup := setupCleanupTestWithObjects(t, handler, liveDSCI)
+	defer cleanup()
+
+	g.Expect(waitForModuleCRDeletion(t.Context(), rr)).Should(Succeed())
+	g.Expect(handler.deletedCR).Should(BeFalse())
+}
+
+func TestWaitForModuleCRDeletion_XKSRetainsTeardownBehavior(t *testing.T) {
+	g := NewWithT(t)
+
+	handler := newCleanupMock("test-mod", CRStateAlive)
+	rr, cleanup := setupCleanupTest(t, handler)
+	defer cleanup()
+	rr.Release.Name = cluster.XKS
+
+	err := waitForModuleCRDeletion(t.Context(), rr)
+	g.Expect(err).Should(MatchError(ContainSubstring("waiting for module CRs to be deleted")))
+	g.Expect(handler.deletedCR).Should(BeTrue())
+}
+
+func TestPlatformDeletionClassificationReturnsControlPlaneLookupErrors(t *testing.T) {
+	g := NewWithT(t)
+
+	cli, err := fakeclient.New(fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+		List: func(_ context.Context, _ client.WithWatch, _ client.ObjectList, _ ...client.ListOption) error {
+			return context.DeadlineExceeded
+		},
+	}))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	replacement, err := platformDeletionIsControllerReplacement(t.Context(), &odhtype.ReconciliationRequest{
+		Client:  cli,
+		Release: common.Release{Name: cluster.OpenDataHub},
+	})
+	g.Expect(replacement).Should(BeFalse())
+	g.Expect(err).Should(MatchError(ContainSubstring("getting DataScienceCluster while finalizing Platform")))
+}
+
 func TestWaitForModuleCRDeletion_CRDeleting_WaitsWithoutDelete(t *testing.T) {
 	g := NewWithT(t)
 
@@ -290,7 +378,9 @@ func TestWaitForModuleCRDeletion_MultipleModules_ListsPending(t *testing.T) {
 	r.Add(deleting)
 	defer func() { r = oldR }()
 
-	err := waitForModuleCRDeletion(t.Context(), &odhtype.ReconciliationRequest{})
+	cli, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	err = waitForModuleCRDeletion(t.Context(), &odhtype.ReconciliationRequest{Client: cli})
 	g.Expect(err).Should(HaveOccurred())
 	g.Expect(err.Error()).Should(ContainSubstring("deleting-mod"))
 	g.Expect(err.Error()).ShouldNot(ContainSubstring("absent-mod"))

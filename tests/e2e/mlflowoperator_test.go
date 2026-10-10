@@ -49,6 +49,7 @@ func mlflowOperatorTestSuite(t *testing.T) {
 
 	testCases := []TestCase{
 		{mlflowValidateEnabledName, componentCtx.ValidateModuleEnabled},
+		{"Validate Platform replacement preserves MLflowOperator", componentCtx.ValidatePlatformReplacementPreservesModule},
 		{"Validate module enabled", componentCtx.ComponentTestCtx.ValidateModuleEnabled},
 		{mlflowValidateModuleOperatorDeployName, componentCtx.ValidateModuleOperatorDeployment},
 		{mlflowValidateModuleReleasesName, componentCtx.ValidateModuleReleases},
@@ -84,6 +85,23 @@ func (tc *MLflowOperatorTestCtx) ValidateModuleEnabled(t *testing.T) {
 			),
 		),
 	)
+}
+
+// ValidatePlatformReplacementPreservesModule exercises the controller handoff
+// with a live MLflowOperator CR. A Platform replacement must preserve the CR
+// while DSC ownership of the module CR remains intact.
+func (tc *MLflowOperatorTestCtx) ValidatePlatformReplacementPreservesModule(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier1)
+	tc.SkipIfXKSCluster(t)
+
+	module := tc.EnsureResourceExists(WithMinimalObject(tc.GVK, tc.NamespacedName))
+	tc.EnsureResourceDeletedThenRecreated(
+		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
+	)
+	found := tc.EnsureResourceExists(WithMinimalObject(tc.GVK, tc.NamespacedName))
+	tc.g.Expect(found.GetUID()).To(Equal(module.GetUID()), "MLflowOperator CR must survive Platform replacement")
+	tc.g.Expect(found.GetOwnerReferences()).To(Equal(module.GetOwnerReferences()), "MLflowOperator CR ownership must remain intact")
 }
 
 func (tc *MLflowOperatorTestCtx) ValidateModuleOperatorDeployment(t *testing.T) {

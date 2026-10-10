@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -45,8 +46,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		WithDynamicOwnership(
 			// Platform is shared with DSCI. DSC must not take controller
 			// ownership or Kubernetes GC would delete it (and monitoring)
-			// when DSC is removed. Owner refs are set explicitly as
-			// controller=false in syncPlatformCR.
+			// when DSC is removed. DSCI is the Platform lifecycle owner.
 			reconciler.ExcludeGVKs(gvk.Platform),
 			reconciler.WithDefaultPredicates(componentsPredicate),
 		)
@@ -69,6 +69,12 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
 				return watchDataScienceClusters(ctx, mgr.GetClient())
 			})).
+		Watches(
+			&configApi.Platform{},
+			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
+				return watchDataScienceClusters(ctx, mgr.GetClient())
+			}),
+			reconciler.WithPredicates(resources.PlatformDeletionPredicate())).
 		Watches(
 			&serviceApi.GatewayConfig{},
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
