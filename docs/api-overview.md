@@ -3390,6 +3390,8 @@ _Appears in:_
 | `clientID` _string_ | OIDC client ID |  | Required: \{\} <br /> |
 | `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | Reference to secret containing client secret |  | Required: \{\} <br /> |
 | `secretNamespace` _string_ | Namespace where the client secret is located.<br />If unset, defaults to the gateway namespace. |  |  |
+| `scope` _string_ | Scope is a complete replacement for kube-auth-proxy's default OIDC scope<br />("openid email profile"). When set, kube-auth-proxy requests exactly this<br />space-separated scope list instead of the default. Some identity<br />providers (e.g. Azure AD/AKS) require a resource-specific scope, such as<br />"openid profile email <app-id>/.default", to mint an access token for a<br />particular audience.<br />If unset, kube-auth-proxy uses its default scope. |  | MaxLength: 1024 <br />Pattern: `^[^\x00-\x1F\x7F]*$` <br /> |
+| `passAccessToken` _boolean_ | PassAccessToken controls whether kube-auth-proxy forwards the raw OIDC<br />access token to the Gateway (via the x-auth-request-access-token header)<br />for downstream services, in addition to the ID token.<br />If unset (false), only the ID token is forwarded, preserving existing<br />GatewayConfig behavior. |  |  |
 
 
 #### TokenReviewConfig

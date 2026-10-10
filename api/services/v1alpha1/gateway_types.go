@@ -343,6 +343,26 @@ type OIDCConfig struct {
 	// If unset, defaults to the gateway namespace.
 	// +optional
 	SecretNamespace string `json:"secretNamespace,omitempty"`
+
+	// Scope is a complete replacement for kube-auth-proxy's default OIDC scope
+	// ("openid email profile"). When set, kube-auth-proxy requests exactly this
+	// space-separated scope list instead of the default. Some identity
+	// providers (e.g. Azure AD/AKS) require a resource-specific scope, such as
+	// "openid profile email <app-id>/.default", to mint an access token for a
+	// particular audience.
+	// If unset, kube-auth-proxy uses its default scope.
+	// +optional
+	// +kubebuilder:validation:MaxLength=1024
+	// +kubebuilder:validation:Pattern=`^[^\x00-\x1F\x7F]*$`
+	Scope string `json:"scope,omitempty"`
+
+	// PassAccessToken controls whether kube-auth-proxy forwards the raw OIDC
+	// access token to the Gateway (via the x-auth-request-access-token header)
+	// for downstream services, in addition to the ID token.
+	// If unset (false), only the ID token is forwarded, preserving existing
+	// GatewayConfig behavior.
+	// +optional
+	PassAccessToken bool `json:"passAccessToken,omitempty"`
 }
 
 // CookieConfig defines cookie settings for OAuth2 proxy

@@ -886,6 +886,8 @@ func authProxyTemplateData() map[string]any {
 		"GatewayHostname":          testHostnameDefault,
 		"InsecureSkipVerify":       false,
 		"OIDCIssuerURL":            "https://example.com/realms/test",
+		"OIDCScope":                "",
+		"OIDCPassAccessToken":      false,
 		"TokenReviewQPS":           nil,
 		"TokenReviewBurst":         nil,
 		"TokenReviewCacheTTL":      nil,
