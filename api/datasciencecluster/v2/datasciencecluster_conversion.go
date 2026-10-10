@@ -288,9 +288,10 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 			Kserve: componentApi.DSCKserveV2{
 				ManagementSpec: src.Spec.Components.Kserve.ManagementSpec,
 				KserveCommonSpecV2: componentApi.KserveCommonSpecV2{
-					RawDeploymentServiceConfig:   src.Spec.Components.Kserve.RawDeploymentServiceConfig,
-					OAuthProxy:                   src.Spec.Components.Kserve.OAuthProxy,
-					NIM:                          src.Spec.Components.Kserve.NIM,
+					RawDeploymentServiceConfig: src.Spec.Components.Kserve.RawDeploymentServiceConfig,
+					OAuthProxy:                 src.Spec.Components.Kserve.OAuthProxy,
+					NIM:                        src.Spec.Components.Kserve.NIM,
+					// WVA is unsupported in 3.6; do not preserve leftover Managed across conversion.
 					WVA:                          componentApi.WVASpec{ManagementState: operatorv1.Removed},
 					EnableLLMInferenceServiceTLS: src.Spec.Components.Kserve.EnableLLMInferenceServiceTLS,
 					EnableLLMInferenceServiceConsoleDashboards: src.Spec.Components.Kserve.EnableLLMInferenceServiceConsoleDashboards,

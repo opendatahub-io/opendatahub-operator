@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
@@ -74,9 +75,9 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 
 	switch req.Operation {
 	case admissionv1.Create:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyRetiredOperatorManagedState, denyMultipleDsc}, allowMessage, v.Client, &req)
+		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyRetiredOperatorManagedState, v.denyUnsupportedWVA, denyMultipleDsc}, allowMessage, v.Client, &req)
 	case admissionv1.Update:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyRetiredOperatorManagedState}, allowMessage, v.Client, &req)
+		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyRetiredOperatorManagedState, v.denyUnsupportedWVA}, allowMessage, v.Client, &req)
 	default:
 		return admission.Allowed(allowMessage)
 	}
@@ -114,6 +115,16 @@ func (v *Validator) denyKueueManagedState(ctx context.Context, _ client.Reader, 
 	}
 
 	return admission.Allowed("")
+}
+
+func (v *Validator) denyUnsupportedWVA(ctx context.Context, _ client.Reader, req *admission.Request) admission.Response {
+	dsc := &dscv2.DataScienceCluster{}
+	if err := v.Decoder.DecodeRaw(req.Object, dsc); err != nil {
+		logf.FromContext(ctx).Error(err, "Error converting request object to "+gvk.DataScienceClusterV2.String())
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	return dscwebhook.WVAUnsupportedResponse(dsc.Spec.Components.Kserve.WVA.ManagementState)
 }
 
 // denyRetiredOperatorManagedState prevents enabling retired components while

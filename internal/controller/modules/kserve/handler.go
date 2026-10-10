@@ -76,7 +76,6 @@ func NewHandler() *handler {
 					"RELATED_IMAGE_ODH_VLLM_CPU_FAST_2_IMAGE_UPSTREAM_VERSION",
 					"RELATED_IMAGE_ODH_VLLM_CPU_IMAGE",
 					"RELATED_IMAGE_ODH_VLLM_CPU_IMAGE_UPSTREAM_VERSION",
-					"RELATED_IMAGE_ODH_WORKLOAD_VARIANT_AUTOSCALER_CONTROLLER_IMAGE",
 					"RELATED_IMAGE_RHAII_VLLM_CPU_FAST_1_IMAGE",
 					"RELATED_IMAGE_RHAII_VLLM_CPU_FAST_1_IMAGE_UPSTREAM_VERSION",
 					"RELATED_IMAGE_RHAII_VLLM_CPU_FAST_2_IMAGE",
@@ -166,6 +165,7 @@ func (h *handler) BuildModuleCR(
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert KserveCommonSpec to unstructured: %w", err)
 	}
+	delete(spec, "wva")
 
 	// Inject AI Hub selection state for the external modelRegistry field.
 	// We forward its management state so kserve-module can propagate it

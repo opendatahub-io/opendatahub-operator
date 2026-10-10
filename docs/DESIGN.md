@@ -185,8 +185,6 @@ spec:
     kserve:
       nim:
         managementState: Managed
-      wva:
-        managementState: Removed
       rawDeploymentServiceConfig: Headless
     modelregistry:
       managementState: Managed
