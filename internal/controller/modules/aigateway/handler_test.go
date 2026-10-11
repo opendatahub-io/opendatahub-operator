@@ -135,6 +135,7 @@ func TestCanonicalModelsAsAService(t *testing.T) {
 					dsc.Spec.Components.Kserve.ManagementState = kserve.state
 					dsc.Spec.Components.AIGateway.ModelsAsAService = tc.maas
 					dsc.Spec.Components.AIGateway.BatchGateway.ManagementState = operatorv1.Managed
+					dsc.Spec.Components.AIGateway.AIGrid.ManagementState = operatorv1.Managed
 					before := dsc.DeepCopy()
 					dscCtx := &modules.DSCContext{DSC: dsc}
 
@@ -143,18 +144,22 @@ func TestCanonicalModelsAsAService(t *testing.T) {
 					g.Expect(pm.AIGateway.ManagementState).Should(Equal(gateway.effective))
 
 					subs := h.GetSubmoduleConditions()
-					g.Expect(subs).Should(HaveLen(2))
+					g.Expect(subs).Should(HaveLen(3))
 					g.Expect(subs[0].SourceConditionType).Should(Equal("ModelsAsAServiceReady"))
 					g.Expect(subs[0].DSCConditionType).Should(Equal("ModelsAsAServiceReady"))
 					g.Expect(subs[0].StatusFieldName).Should(Equal("ModelsAsAService"))
 					g.Expect(subs[0].IsEnabled(dscCtx)).Should(Equal(tc.enabled))
 					g.Expect(subs[1].IsEnabled(dscCtx)).Should(BeTrue())
+					g.Expect(subs[2].SourceConditionType).Should(Equal("AIGridReady"))
+					g.Expect(subs[2].StatusFieldName).Should(Equal("AIGrid"))
+					g.Expect(subs[2].IsEnabled(dscCtx)).Should(BeTrue())
 
 					u, err := h.BuildModuleCR(t.Context(), nil, dscCtx, nil)
 					g.Expect(err).ShouldNot(HaveOccurred())
 					g.Expect(u.Object["spec"]).Should(Equal(map[string]any{
 						"modelsAsAService": tc.spec,
 						"batchGateway":     map[string]any{"managementState": "Managed"},
+						"aiGrid":           map[string]any{"managementState": "Managed"},
 					}))
 					g.Expect(dsc).Should(Equal(before), "projection must not mutate the DSC")
 				})
@@ -236,6 +241,7 @@ func TestImageHandling(t *testing.T) {
 		"RELATED_IMAGE_ODH_PYTHON_312_IMAGE",
 		"RELATED_IMAGE_ODH_AI_GATEWAY_CONTROLLER_IMAGE",
 		"RELATED_IMAGE_ODH_PRAXIS_EXTPROC_IMAGE",
+		"RELATED_IMAGE_ODH_PRAXIS_AI_GRID_OPERATOR_IMAGE",
 	))
 
 	// The operator image is handled by ControllerImage (image override), not

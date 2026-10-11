@@ -22,6 +22,23 @@ Package v1 contains API Schema definitions for the components v1 API group
 
 
 
+#### AIGatewayAIGridSpec
+
+
+
+AIGatewayAIGridSpec configures the AI Grid lifecycle: the grid CRDs and the grid operator.
+
+
+
+_Appears in:_
+- [AIGatewayCommonSpec](#aigatewaycommonspec)
+- [DSCAIGateway](#dscaigateway)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ |  |  | Enum: [Managed Removed] <br /> |
+
+
 #### AIGatewayBatchGatewaySpec
 
 
@@ -55,6 +72,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `modelsAsAService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | ModelsAsAService controls the Models as a Service sub-component.<br />Note: the field uses "AsA" (modelsAsAService) intentionally — this matches the<br />ai-gateway-operator CRD field name (spec.modelsAsAService). The type name<br />DSCModelsAsServiceSpec is shared with the deprecated kserve.modelsAsService field<br />and predates the rename; the JSON tag is the authoritative API surface. |  |  |
 | `batchGateway` _[AIGatewayBatchGatewaySpec](#aigatewaybatchgatewayspec)_ | BatchGateway controls the batch-gateway operator sub-component. |  |  |
+| `aiGrid` _[AIGatewayAIGridSpec](#aigatewayaigridspec)_ | AIGrid controls the AI Grid sub-component. |  |  |
 
 
 #### AIGatewayCommonStatus
@@ -137,6 +155,7 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `modelsAsAService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | ModelsAsAService controls the Models as a Service sub-component.<br />Note: the field uses "AsA" (modelsAsAService) intentionally — this matches the<br />ai-gateway-operator CRD field name (spec.modelsAsAService). The type name<br />DSCModelsAsServiceSpec is shared with the deprecated kserve.modelsAsService field<br />and predates the rename; the JSON tag is the authoritative API surface. |  |  |
 | `batchGateway` _[AIGatewayBatchGatewaySpec](#aigatewaybatchgatewayspec)_ | BatchGateway controls the batch-gateway operator sub-component. |  |  |
+| `aiGrid` _[AIGatewayAIGridSpec](#aigatewayaigridspec)_ | AIGrid controls the AI Grid sub-component. |  |  |
 
 
 #### DSCAIGatewayStatus
@@ -144,6 +163,24 @@ _Appears in:_
 
 
 DSCAIGatewayStatus struct holds the status for the AIGateway component exposed in the DSC.
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCAIGridStatus
+
+
+
+DSCAIGridStatus contains the observed state of the AIGrid submodule exposed
+in the DSC instance.
 
 
 
@@ -2100,6 +2137,7 @@ _Appears in:_
 | `aigateway` _[DSCAIGatewayStatus](#dscaigatewaystatus)_ | AIGateway component status. |  |  |
 | `modelsAsAService` _[DSCModelsAsServiceStatus](#dscmodelsasservicestatus)_ | ModelsAsAService submodule status (submodule of AIGateway). |  |  |
 | `batchGateway` _[DSCBatchGatewayStatus](#dscbatchgatewaystatus)_ | BatchGateway submodule status (submodule of AIGateway). |  |  |
+| `aiGrid` _[DSCAIGridStatus](#dscaigridstatus)_ | AIGrid submodule status (submodule of AIGateway). |  |  |
 | `mcplifecycleoperator` _[DSCMCPLifecycleOperatorStatus](#dscmcplifecycleoperatorstatus)_ | MCPLifecycleOperator component status. |  |  |
 | `databaseservice` _[DSCDatabaseServiceStatus](#dscdatabaseservicestatus)_ | DatabaseService module status.<br />Field name must match GVK.Kind so WriteDSCComponentStatus can find it. |  |  |
 
@@ -2232,6 +2270,7 @@ _Appears in:_
 | `aigateway` _[DSCAIGatewayStatus](#dscaigatewaystatus)_ | AIGateway component status. |  |  |
 | `modelsAsAService` _[DSCModelsAsServiceStatus](#dscmodelsasservicestatus)_ | ModelsAsAService submodule status (submodule of AIGateway). |  |  |
 | `batchGateway` _[DSCBatchGatewayStatus](#dscbatchgatewaystatus)_ | BatchGateway submodule status (submodule of AIGateway). |  |  |
+| `aiGrid` _[DSCAIGridStatus](#dscaigridstatus)_ | AIGrid submodule status (submodule of AIGateway). |  |  |
 | `mcplifecycleoperator` _[DSCMCPLifecycleOperatorStatus](#dscmcplifecycleoperatorstatus)_ | MCPLifecycleOperator component status. |  |  |
 | `databaseservice` _[DSCDatabaseServiceStatus](#dscdatabaseservicestatus)_ | DatabaseService module status. |  |  |
 

@@ -61,7 +61,7 @@ map:
     src: dc-controller/config
     dest: data-connect-hub
   odh-praxis-ai-grid-operator:
-    src: charts/grid-operator/templates
+    src: deploy/overlays/openshift
     dest: grid-operator
   odh-trustyai-module-operator:
     src: trustyai-operator-module/config
