@@ -64,6 +64,9 @@ func managedDSCContext() (*modules.DSCContext, *modules.ModuleCRConfig) {
 						MCPLifecycleOperator: componentApi.DSCMCPLifecycleOperator{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
+						DatabaseService: componentApi.DSCDatabaseService{
+							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+						},
 						OGX: componentApi.DSCOGX{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},

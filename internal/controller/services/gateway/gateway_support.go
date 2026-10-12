@@ -25,6 +25,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gatewayconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -314,10 +315,7 @@ func effectiveCertificateType(gatewayConfig *serviceApi.GatewayConfig, clusterTy
 	if gatewayConfig != nil && gatewayConfig.Spec.Certificate != nil && gatewayConfig.Spec.Certificate.Type != "" {
 		return gatewayConfig.Spec.Certificate.Type
 	}
-	if clusterType == cluster.ClusterTypeKubernetes {
-		return infrav1.SelfSigned
-	}
-	return infrav1.OpenshiftDefaultIngress
+	return cluster.DefaultGatewayCertificateType(clusterType)
 }
 
 func gatewayCertificateSecretName(gatewayConfig *serviceApi.GatewayConfig) string {
@@ -636,22 +634,6 @@ func validateGatewayConfig(rr *odhtypes.ReconciliationRequest) (*serviceApi.Gate
 	return gatewayConfig, nil
 }
 
-// kubernetesGatewayConfigErrors returns user-facing messages for OpenShift-only
-// GatewayConfig values that are invalid on vanilla Kubernetes (XKS).
-func kubernetesGatewayConfigErrors(gatewayConfig *serviceApi.GatewayConfig) []string {
-	if gatewayConfig == nil {
-		return nil
-	}
-	var msgs []string
-	if gatewayConfig.Spec.Certificate != nil && gatewayConfig.Spec.Certificate.Type == infrav1.OpenshiftDefaultIngress {
-		msgs = append(msgs, status.GatewayUnsupportedCertTypeOnKubernetesMessage)
-	}
-	if gatewayConfig.Spec.IngressMode == serviceApi.IngressModeOcpRoute {
-		msgs = append(msgs, status.GatewayUnsupportedIngressModeOnKubernetesMessage)
-	}
-	return msgs
-}
-
 // rejectUnsupportedKubernetesGatewaySpec sets Ready=False when GatewayConfig uses
 // OpenShift-only certificate.type or ingressMode on a Kubernetes cluster.
 // Returns true when reconciliation should stop (permanent user configuration error).
@@ -659,7 +641,7 @@ func rejectUnsupportedKubernetesGatewaySpec(rr *odhtypes.ReconciliationRequest, 
 	if cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes {
 		return false
 	}
-	msgs := kubernetesGatewayConfigErrors(gatewayConfig)
+	msgs := gatewayconfig.KubernetesValidationErrors(gatewayConfig)
 	if len(msgs) == 0 {
 		return false
 	}

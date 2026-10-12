@@ -186,6 +186,16 @@ componentCharts:
       repo: red-hat-data-services/feast-module-operator
       ref: rhoai-3.6@613f0eab969c9e577d9d31c9b82fc6c5f0deeb1a
       sourcePath: config/chart
+  databaseservice:
+    odh:
+      repo: opendatahub-io/opendatahub-db-operator
+      ref: main@4433e24ec0b921e753735ada10e2a0a62d7e619f
+      sourcePath: config/chart
+    # RHDS fork not published yet; pin the ODH chart for both platforms until it is.
+    rhoai:
+      repo: opendatahub-io/opendatahub-db-operator
+      ref: main@4433e24ec0b921e753735ada10e2a0a62d7e619f
+      sourcePath: config/chart
   odh-observability:
     odh:
       repo: opendatahub-io/odh-observability

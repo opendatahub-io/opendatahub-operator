@@ -601,7 +601,40 @@ func ensureLoadBalancerPrerequisites(ctx context.Context, cli client.Client) {
 }
 
 func getEnvtestCRDs() []*apiextensionsv1.CustomResourceDefinition {
-	return append(getIstioCRDs(), getDashboardCRD(), getClusterVersionCRD())
+	return append(getIstioCRDs(), getDashboardCRD(), getClusterVersionCRD(), getCertManagerCertificateCRD())
+}
+
+// getCertManagerCertificateCRD registers Certificate resources without running cert-manager.
+func getCertManagerCertificateCRD() *apiextensionsv1.CustomResourceDefinition {
+	preserveUnknown := true
+
+	return &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: gvk.CertManagerCertificateCRDName},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: gvk.CertManagerCertificate.Group,
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Kind:     gvk.CertManagerCertificate.Kind,
+				ListKind: gvk.CertManagerCertificate.Kind + "List",
+				Plural:   "certificates",
+				Singular: "certificate",
+			},
+			Scope: apiextensionsv1.NamespaceScoped,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    gvk.CertManagerCertificate.Version,
+				Served:  true,
+				Storage: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+						Type:                   "object",
+						XPreserveUnknownFields: &preserveUnknown,
+					},
+				},
+				Subresources: &apiextensionsv1.CustomResourceSubresources{
+					Status: &apiextensionsv1.CustomResourceSubresourceStatus{},
+				},
+			}},
+		},
+	}
 }
 
 // getClusterVersionCRD returns a minimal ClusterVersion CRD for envtest registration.
@@ -751,14 +784,14 @@ func deleteGatewayConfigDependents(t *testing.T, ctx context.Context, cli client
 	// Delete Gateway if it exists.
 	gw := &gwapiv1.Gateway{}
 	if err := cli.Get(ctx, types.NamespacedName{
-		Name:      gateway.DefaultGatewayName,
+		Name:      gateway.GetDefaultGatewayName(),
 		Namespace: ns,
 	}, gw); err == nil {
 		if err := cli.Delete(ctx, gw); err != nil {
 			t.Fatalf("Failed to delete Gateway: %v", err)
 		}
 		g.Eventually(func() bool {
-			err := cli.Get(ctx, types.NamespacedName{Name: gateway.DefaultGatewayName, Namespace: ns}, &gwapiv1.Gateway{})
+			err := cli.Get(ctx, types.NamespacedName{Name: gateway.GetDefaultGatewayName(), Namespace: ns}, &gwapiv1.Gateway{})
 			return err != nil && k8serr.IsNotFound(err)
 		}, TestTimeout, TestInterval).Should(BeTrue(), "Gateway should be deleted")
 	} else if !k8serr.IsNotFound(err) {

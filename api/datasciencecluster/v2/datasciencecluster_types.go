@@ -90,6 +90,9 @@ type Components struct {
 
 	// MCPLifecycleOperator component configuration.
 	MCPLifecycleOperator componentApi.DSCMCPLifecycleOperator `json:"mcplifecycleoperator,omitempty"`
+
+	// DatabaseService module configuration.
+	DatabaseService componentApi.DSCDatabaseService `json:"databaseservice,omitempty"`
 }
 
 // componentJSONName returns the DSC component key from a struct field json tag.
@@ -185,6 +188,10 @@ type ComponentsStatus struct {
 
 	// MCPLifecycleOperator component status.
 	MCPLifecycleOperator componentApi.DSCMCPLifecycleOperatorStatus `json:"mcplifecycleoperator,omitempty"`
+
+	// DatabaseService module status.
+	// Field name must match GVK.Kind so WriteDSCComponentStatus can find it.
+	DatabaseService componentApi.DSCDatabaseServiceStatus `json:"databaseservice,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.

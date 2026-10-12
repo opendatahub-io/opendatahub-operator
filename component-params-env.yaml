@@ -17,6 +17,9 @@ rhai_helm_components:
 #   jira: https://issues.redhat.com/browse/RHOAIENG-XXXXX
 #   reason: Deprecated image, removal tracked in Jira
 known_issues:
+- image: RELATED_IMAGE_ODH_DB_OPERATOR_IMAGE
+  jira: https://issues.redhat.com/browse/RHOAIENG-96276
+  reason: Not yet in imageOverrides / Build-Config until quay.io/opendatahub/opendatahub-db-operator publishes an immutable digest for the databaseservice chart pin
 - image: RELATED_IMAGE_ODH_ML_PIPELINES_RUNTIME_GENERIC_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
   reason: Removed with InstrutLab pipeline removal since RHOAI 3.0
@@ -85,6 +88,9 @@ rhoai_exceptions:
   reason: RHOAI 3.6 bundle image was offboarded; remove this temporary exception when operator WVA cleanup in PR #4125 merges
 
 image_overrides_exceptions:
+- image: RELATED_IMAGE_ODH_DB_OPERATOR_IMAGE
+  jira: https://issues.redhat.com/browse/RHOAIENG-96276
+  reason: Not yet in imageOverrides until quay.io/opendatahub/opendatahub-db-operator publishes an immutable digest for the databaseservice chart pin
 - image: RELATED_IMAGE_DSP_INSTRUCTLAB_NVIDIA_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
   reason: Removed with InstructLab pipeline removal since RHOAI 3.0

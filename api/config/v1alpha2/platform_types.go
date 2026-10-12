@@ -66,6 +66,10 @@ type PlatformModules struct {
 	// +optional
 	MCPLifecycleOperator common.ManagementSpec `json:"mcplifecycleoperator,omitempty"`
 
+	// DatabaseService controls the shared database module operator lifecycle.
+	// +optional
+	DatabaseService common.ManagementSpec `json:"databaseservice,omitempty"`
+
 	// Kserve controls the kserve module operator lifecycle.
 	// +optional
 	Kserve common.ManagementSpec `json:"kserve,omitempty"`
