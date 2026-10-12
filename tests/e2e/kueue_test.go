@@ -12,12 +12,14 @@ import (
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/mod/semver"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -132,7 +134,7 @@ func kueueTestSuite(t *testing.T) {
 // kueueDegradedMonitoringTestSuite runs only the external operator degraded monitoring tests.
 func kueueDegradedMonitoringTestSuite(t *testing.T) {
 	t.Helper()
-	t.Skip("Skipping: flaky due to namespace stuck in Terminating state. See RHOAIENG-46773 and RHOAIENG-46774.")
+	skipUnless(t, Tier1)
 
 	ct, err := NewComponentTestCtx(t, &componentApi.Kueue{
 		ObjectMeta: metav1.ObjectMeta{
@@ -626,8 +628,6 @@ func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T)
 
 	skipUnless(t, Tier1)
 
-	managedNS := "test-kueue-managed-" + xid.New().String()
-
 	// condition types monitored by the Kueue Component
 	testCases := []degradedConditionTestCase{
 		{
@@ -647,22 +647,8 @@ func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T)
 		},
 	}
 
-	t.Log("Resetting environment for external operator monitoring test (Component=Removed).")
-	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
-	tc.cleanupKueueTestResources(t)
-
-	tc.ensureKueueOperatorsInstalled(t)
-
-	t.Logf("Creating managed test namespace with Kueue management annotation (namespace=%s).", managedNS)
-	tc.setupNamespace(managedNS, KueueManagedLabels)
-
-	t.Logf("Creating Kueue ConfigMap required for component reconciliation (namespace=%s, name=%s).", tc.AppsNamespace, kueue.KueueConfigMapName)
-	tc.createKueueConfigMap(t)
-
-	t.Logf("Enabling Kueue component by setting to Unmanaged mode (namespace=%s, name=%s).", tc.AppsNamespace, componentApi.KueueInstanceName)
-	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Unmanaged)
-
-	// Kueue operator auto-creates its CR, so the component should be healthy initially
+	// EnsureKueueReady already enabled the component. Condition monitoring does not
+	// require test namespaces or deleting and recreating the external operator CR.
 	t.Logf("Verifying Kueue component is initially healthy (DependenciesAvailable=True) (namespace=%s, name=%s).", tc.AppsNamespace, componentApi.KueueInstanceName)
 	kueueNN := types.NamespacedName{Name: componentApi.KueueInstanceName}
 	tc.EnsureResourceExists(
@@ -681,8 +667,17 @@ func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T)
 		),
 	)
 
+	operatorDeployment := &appsv1.Deployment{}
+	require.NoError(t, tc.Client().Get(tc.Context(), kueueOperatorDeploymentNN, operatorDeployment))
+	originalReplicas := ptr.Deref(operatorDeployment.Spec.Replicas, 1)
+	// Register restoration before scaling: the wait for zero replicas can fail
+	// after the CSV has already been updated.
+	t.Cleanup(func() {
+		t.Logf("Restoring Kueue operator deployment (namespace=%s, name=%s).", kueueOcpOperatorNamespace, kueueOperatorDeploymentNN.Name)
+		tc.scaleKueueOperator(t, originalReplicas)
+	})
 	t.Logf("Scaling down Kueue operator deployment to prevent condition reset (namespace=%s, name=%s).", kueueOcpOperatorNamespace, kueueOperatorDeploymentNN.Name)
-	originalReplicas := tc.scaleKueueOperator(t, 0)
+	tc.scaleKueueOperator(t, 0)
 
 	// Run each test case (inject condition, verify, clear condition, verify recovery)
 	for _, testCase := range testCases {
@@ -690,9 +685,6 @@ func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T)
 			tc.runDegradedConditionTestCase(t, testCase)
 		})
 	}
-
-	t.Logf("Scaling Kueue operator deployment back up (namespace=%s, name=%s).", kueueOcpOperatorNamespace, kueueOperatorDeploymentNN.Name)
-	tc.scaleKueueOperator(t, originalReplicas)
 
 	t.Log("All external operator degraded condition monitoring tests passed successfully.")
 }
@@ -721,18 +713,17 @@ func (tc *KueueTestCtx) ensureKueueBaseline(t *testing.T) *unstructured.Unstruct
 
 // scaleKueueOperator scales the Kueue operator deployment by patching the CSV.
 // blocks until the deployment reaches the target replica count.
-func (tc *KueueTestCtx) scaleKueueOperator(t *testing.T, replicas int32) int32 {
+func (tc *KueueTestCtx) scaleKueueOperator(t *testing.T, replicas int32) {
 	t.Helper()
 
 	t.Logf("Scaling Kueue operator via CSV in namespace %s to %d replicas.", kueueOcpOperatorNamespace, replicas)
-	originalReplicas := tc.ScaleCSVDeploymentReplicas(
+	tc.ScaleCSVDeploymentReplicas(
 		kueueOcpOperatorNamespace,
 		"kueue",
 		kueueOperatorDeploymentNN.Name,
 		replicas,
 	)
 	t.Logf("Kueue operator deployment scaled to %d replicas in namespace %s.", replicas, kueueOcpOperatorNamespace)
-	return originalReplicas
 }
 
 // runDegradedConditionTestCase runs a single degraded condition test case.
@@ -747,6 +738,10 @@ func (tc *KueueTestCtx) runDegradedConditionTestCase(t *testing.T, testCase degr
 
 	// Establish baseline (clears conditions, asserts healthy)
 	kueueCR := tc.ensureKueueBaseline(t)
+	t.Cleanup(func() {
+		// Also clear the injected condition if an assertion aborts the test case.
+		tc.RemoveConditionFromResourceStatus(kueueCR, testCase.conditionType)
+	})
 
 	t.Logf("Simulating external operator degradation: Injecting %s=%s into operator CR.", testCase.conditionType, testCase.conditionStatus)
 	tc.InjectConditionIntoResourceStatus(
