@@ -50,7 +50,7 @@ map:
     src: config
     dest: mlflowoperator
     git.url: https://github.com/red-hat-data-services/mlflow-operator
-    git.commit: 80e61bb251916c18f604d10cdc30e84a4e55a187
+    git.commit: 56b2fb634dfd6e3c35836134a0d2d40f2938386c
   odh-spark-operator:
     src: config
     dest: sparkoperator
@@ -140,7 +140,7 @@ additional_meta:
     git.commit: 916ca2fdeeb784e77f8f802ae4399cb1b861f0a6
   odh-kserve-localmodel-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 916ca2fdeeb784e77f8f802ae4399cb1b861f0a6
+    git.commit: 651d595bafaba6c8d18bf97d95830ab78a4b4a0a
   odh-kserve-router:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 916ca2fdeeb784e77f8f802ae4399cb1b861f0a6
@@ -152,7 +152,7 @@ additional_meta:
     git.commit: 491e16431ce7028d9c8e8147216597d1b1b6fbcb
   odh-kube-rbac-proxy:
     git.url: https://github.com/red-hat-data-services/kube-rbac-proxy
-    git.commit: 6075197ffcc8ef8959155eacd6d6f5c94424a07b
+    git.commit: 003c93cbd5c1e41edf90aa85b6904292352d1401
   odh-latency-predictor-prediction:
     git.url: https://github.com/red-hat-data-services/llm-d-latency-predictor
     git.commit: 0abaaefe4397a98c98a48bccd95b6070d737cc7c
@@ -206,7 +206,7 @@ additional_meta:
     git.commit: f239112339a6056861087e5d6639e4273acc6faa
   odh-ml-pipelines-driver:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: f239112339a6056861087e5d6639e4273acc6faa
+    git.commit: 5aa850549787cea8ac99e724a6fb2c08f7c07323
   odh-ml-pipelines-launcher:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
     git.commit: 5aa850549787cea8ac99e724a6fb2c08f7c07323
