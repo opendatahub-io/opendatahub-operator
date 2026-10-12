@@ -114,7 +114,7 @@ func TestBuildModuleCR_CapabilitiesFromDSC(t *testing.T) {
 			dsc.Spec.Components.Data.DataRegistry.ManagementState = tt.dataRegistryState
 			cli := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
 
-			u, err := feastoperator.NewHandler().BuildModuleCR(
+			u, err := data.NewHandler().BuildModuleCR(
 				context.Background(), cli, &modules.DSCContext{DSC: dsc}, nil,
 			)
 			g.Expect(err).ShouldNot(HaveOccurred())

@@ -1141,9 +1141,6 @@ imageOverrides:
     odh:
       base: "quay.io/opendatahub/vllm-orchestrator-gateway"
       digest: "sha256:10789a3f024d520078e4d813d06fa1d0297d4cd4af87a2d271c44c132d8e39f2"
-    rhoai:
-      base: "quay.io/rhoai/odh-trustyai-vllm-orchestrator-gateway-rhel9"
-      digest: "sha256:61f0f9f756c24d3f8a7f008da827c120eaa050549062bfba61ed1ed3aa022484"
   RELATED_IMAGE_ODH_WORKBENCHES_CONTROLLER_IMAGE:
     source: "csv"
     odh:
