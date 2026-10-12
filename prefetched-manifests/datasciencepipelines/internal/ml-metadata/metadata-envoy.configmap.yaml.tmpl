@@ -58,6 +58,8 @@ data:
             - name: metadata-cluster
               connect_timeout: 30.0s
               type: logical_dns
+              # MLMD deployments use IPv4; avoid unnecessary AAAA lookups.
+              dns_lookup_family: V4_ONLY
               http2_protocol_options: {}
               lb_policy: round_robin
               load_assignment:
@@ -67,7 +69,8 @@ data:
                     - endpoint:
                         address:
                           socket_address:
-                            address: metadata-grpc-service
+                            # The trailing dot prevents DNS search domains and upstream queries.
+                            address: metadata-grpc-service.{{.Namespace}}.svc.cluster.local.
                             port_value: 8080
               {{ if .PodToPodTLS }}
               transport_socket:
