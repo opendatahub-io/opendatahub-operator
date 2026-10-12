@@ -19,7 +19,7 @@ map:
     src: ray-operator/config
     dest: ray
     git.url: https://github.com/red-hat-data-services/kuberay
-    git.commit: 8b3bb8c570763587e3eae3519f331d05386c4bdd
+    git.commit: 88a332cd7482220bd334219c03b3297fea0024b8
   odh-trustyai-service-operator:
     src: config
     dest: trustyai
@@ -263,7 +263,7 @@ additional_meta:
     git.commit: 2f68ab9978265d67fead05ea5eae72c2335f314b
   odh-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
-    git.commit: 4dc5970d1e894c8f941b8c3084747d22862060ca
+    git.commit: 20a8aa0334fd3354f16300d721b6e4e9155dd49f
   odh-ogx-core:
     git.url: https://github.com/red-hat-data-services/ogx-distribution
     git.commit: be0094600a355aa72e80718b92c863134541e944
