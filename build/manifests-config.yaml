@@ -320,10 +320,10 @@ additional_meta:
     git.commit: a42a70df6e9c450f92bb2abfa09d1e77668b6c7a
   odh-training-cuda128-torch28-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 2bca9437b648a808da42021a344f35a9b5656679
+    git.commit: 296a8a85a908ca9b79166b392c2279d160435966
   odh-training-cuda128-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: a613d262e5532c76d301e861a8b91f1e450a9445
+    git.commit: 296a8a85a908ca9b79166b392c2279d160435966
   odh-training-rocm64-torch28-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 2bca9437b648a808da42021a344f35a9b5656679
