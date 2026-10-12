@@ -235,3 +235,25 @@ metadata:
 		t.Fatalf("delete operator resources: %v", err)
 	}
 }
+
+func TestBaseHandlerDeleteOperatorResourcesMissingChart(t *testing.T) {
+	chartsRoot := t.TempDir()
+	handler := &BaseHandler{Config: ModuleConfig{
+		Name:        baseTestModuleName,
+		ChartDir:    baseTestModuleName,
+		ReleaseName: baseTestModuleName,
+	}}
+	platform := &PlatformContext{ChartsBasePath: chartsRoot}
+
+	if err := handler.DeleteOperatorResources(t.Context(), nil, platform); err != nil {
+		t.Fatalf("missing chart should not block disabled module cleanup: %v", err)
+	}
+
+	// A chart directory that exists but cannot be rendered must still fail.
+	if err := os.Mkdir(filepath.Join(chartsRoot, baseTestModuleName), 0o755); err != nil {
+		t.Fatalf("create invalid chart directory: %v", err)
+	}
+	if err := handler.DeleteOperatorResources(t.Context(), nil, platform); err == nil {
+		t.Fatal("expected rendering failure for an invalid chart")
+	}
+}

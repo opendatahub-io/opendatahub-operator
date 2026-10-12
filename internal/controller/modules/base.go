@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"os"
 	"path/filepath"
 	"reflect"
 	"time"
@@ -440,6 +441,14 @@ func (b *BaseHandler) DeleteOperatorResources(ctx context.Context, cli client.Cl
 	manifests := b.GetOperatorManifests(platform)
 
 	for _, chartInfo := range manifests.HelmCharts {
+		if _, err := os.Stat(chartInfo.Chart); err != nil {
+			if os.IsNotExist(err) {
+				log.V(1).Info("skipping cleanup for missing module chart", "module", b.Config.Name, "chart", chartInfo.Chart)
+				continue
+			}
+			return fmt.Errorf("checking chart for %s: %w", b.Config.Name, err)
+		}
+
 		renderer, err := helm.New([]helm.Source{chartInfo.Source})
 		if err != nil {
 			return fmt.Errorf("creating helm renderer for %s: %w", b.Config.Name, err)
