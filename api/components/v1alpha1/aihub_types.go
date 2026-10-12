@@ -20,9 +20,19 @@ import "github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 
 const AIHubModuleName = "aihub"
 
+// EffectiveInstancesNamespace returns InstancesNamespace, or the platform
+// default when it is empty. It does not consider management state.
+func (s AIHubCommonSpec) EffectiveInstancesNamespace() string {
+	if s.InstancesNamespace == "" {
+		return DefaultModelRegistriesNamespace
+	}
+	return s.InstancesNamespace
+}
+
 // AIHubCommonStatus defines the observed state shared by the public v3 AI Hub
 // component.
 type AIHubCommonStatus struct {
+	// Effective namespace projected into the AI Hub module CR; empty when Removed.
 	InstancesNamespace            string `json:"instancesNamespace,omitempty"`
 	common.ComponentReleaseStatus `json:",inline"`
 }

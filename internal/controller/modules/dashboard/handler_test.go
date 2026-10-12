@@ -366,7 +366,7 @@ func TestBuildModuleCR_OmitsAIHubNamespaceWhenNotManaged(t *testing.T) {
 	g.Expect(spec).ShouldNot(HaveKey("modelRegistryNamespace"))
 }
 
-func TestBuildModuleCR_OmitsAIHubNamespaceWhenEmpty(t *testing.T) {
+func TestBuildModuleCR_DefaultsAIHubNamespaceWhenEmpty(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Removed, "", operatorv1.Managed, "")
@@ -375,8 +375,8 @@ func TestBuildModuleCR_OmitsAIHubNamespaceWhenEmpty(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, _ := u.Object["spec"].(map[string]any)
-	g.Expect(spec).ShouldNot(HaveKey("modelRegistryNamespace"),
-		"empty RegistriesNamespace with Managed AI Hub should not project a namespace field")
+	g.Expect(spec["modelRegistryNamespace"]).Should(Equal(componentApi.DefaultModelRegistriesNamespace),
+		"empty InstancesNamespace with Managed AI Hub should project the platform default")
 }
 
 func TestBuildModuleCR_ProjectsNotebooksNamespace_ManagedRhoai(t *testing.T) {

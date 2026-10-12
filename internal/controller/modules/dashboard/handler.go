@@ -215,5 +215,5 @@ func resolveAIHubNamespace(dscCtx *modules.DSCContext) string {
 	if dscCtx.DSC.Spec.Components.AIHub.ManagementState != operatorv1.Managed {
 		return ""
 	}
-	return dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace
+	return dscCtx.DSC.Spec.Components.AIHub.EffectiveInstancesNamespace()
 }

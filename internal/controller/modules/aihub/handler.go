@@ -80,7 +80,7 @@ func (h *handler) WriteDSCComponentStatus(dsc *dscApi.DataScienceCluster, enable
 
 	instancesNamespace := ""
 	if enabled {
-		instancesNamespace = dsc.Spec.Components.AIHub.InstancesNamespace
+		instancesNamespace = dsc.Spec.Components.AIHub.EffectiveInstancesNamespace()
 	}
 
 	if dsc.Status.Components.AIHub.AIHubCommonStatus == nil && instancesNamespace != "" {
@@ -108,14 +108,9 @@ func (h *handler) BuildModuleCR(
 		appNS = cfg.ApplicationsNamespace
 	}
 
-	instNS := dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace
-	if instNS == "" {
-		instNS = appNS
-	}
-
 	spec := map[string]any{
 		"applicationNamespace": appNS,
-		"instancesNamespace":   instNS,
+		"instancesNamespace":   dscCtx.DSC.Spec.Components.AIHub.EffectiveInstancesNamespace(),
 	}
 	if cfg != nil && cfg.GatewayDomain != "" {
 		spec["gateway"] = map[string]any{"domain": cfg.GatewayDomain}
