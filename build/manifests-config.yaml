@@ -80,7 +80,7 @@ map:
 additional_meta:
   odh-ai-gateway-payload-processing:
     git.url: https://github.com/red-hat-data-services/ai-gateway-payload-processing
-    git.commit: 6add5be49af983f9801e7a453548b31577863feb
+    git.commit: d538ceeea11f3212b8606efa054340ecc18e7c44
   odh-automl:
     git.url: https://github.com/red-hat-data-services/pipelines-components
     git.commit: 4f4cb6795fc9548363b6688c285498b6528278ad
