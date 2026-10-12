@@ -274,8 +274,7 @@ func (i *Injector) performHardwareProfileInjection(ctx context.Context, req *adm
 	// CRITICAL: This validation must NEVER block admission to avoid breaking 2.x to 3.x upgrades.
 	// If validation fails, we admit with a warning and skip all HWP application.
 	if err := i.validateContainerNames(obj); err != nil {
-		var noContainerErr *NoMatchingContainerError
-		if errors.As(err, &noContainerErr) {
+		if noContainerErr, ok := errors.AsType[*NoMatchingContainerError](err); ok {
 			// Emit event for traceability (never blocks admission - see function implementation)
 			i.emitContainerNameWarningEvent(ctx, obj, noContainerErr, hwp.Name)
 

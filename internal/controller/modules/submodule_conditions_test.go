@@ -461,7 +461,7 @@ func TestWriteDSCComponentStatus_FieldResolution(t *testing.T) {
 		"AIPipelines", "Dashboard", "Workbenches", "Kserve", "Kueue", "Ray",
 		"TrustyAI", "AIHub",
 		"OGX", "MLflowOperator", "Trainer", "SparkOperator", "AIGateway",
-		"MCPLifecycleOperator",
+		"MCPLifecycleOperator", "DatabaseService",
 	}
 	for _, retired := range []string{"TrainingOperator", "LlamaStackOperator"} {
 		field := reflect.ValueOf(&dscApi.ComponentsStatus{}).Elem().FieldByName(retired)

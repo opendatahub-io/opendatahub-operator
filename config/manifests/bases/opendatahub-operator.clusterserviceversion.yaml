@@ -107,6 +107,7 @@ spec:
   - ogx
   - mlflow
   - sparkoperator
+  - databaseservice
   links:
   - name: Open Data Hub
     url: https://opendatahub.io
