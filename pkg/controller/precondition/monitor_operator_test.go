@@ -17,7 +17,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -238,7 +238,7 @@ func TestMonitorOperator(t *testing.T) {
 			}
 
 			instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-			condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+			condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 			rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
 
 			pcs := []PreCondition{MonitorOperator(config)}
@@ -286,7 +286,7 @@ func TestMonitorOperator_MissingCRD(t *testing.T) {
 			g := NewWithT(t)
 
 			instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-			condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+			condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 			rr := &types.ReconciliationRequest{Client: envTest.Client(), Instance: instance, Conditions: condManager}
 
 			pcs := []PreCondition{MonitorOperator(OperatorConfig{
@@ -307,7 +307,7 @@ func TestMonitorOperator_MissingCRD(t *testing.T) {
 		g := NewWithT(t)
 
 		instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-		condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+		condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 		rr := &types.ReconciliationRequest{Client: envTest.Client(), Instance: instance, Conditions: condManager}
 
 		pcs := []PreCondition{MonitorOperator(OperatorConfig{
@@ -356,7 +356,7 @@ func TestMonitorOperator_FirstCRDiscovery(t *testing.T) {
 		t.Cleanup(func() { _ = cli.Delete(ctx, cr) })
 
 		instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-		condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+		condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 		rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
 
 		pcs := []PreCondition{MonitorOperator(OperatorConfig{
@@ -382,7 +382,7 @@ func TestMonitorOperator_FirstCRDiscovery(t *testing.T) {
 		t.Cleanup(func() { _ = cli.Delete(ctx, cr) })
 
 		instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-		condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+		condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 		rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
 
 		// CRNamespace is intentionally empty — this exercises the cluster-scoped list path.
@@ -417,7 +417,7 @@ func TestMonitorOperator_FirstCRDiscovery(t *testing.T) {
 		t.Cleanup(func() { _ = cli.Delete(ctx, cr2) })
 
 		instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-		condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+		condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 		rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
 
 		pcs := []PreCondition{MonitorOperator(OperatorConfig{
@@ -466,7 +466,7 @@ func TestMonitorOperator_MalformedConditions(t *testing.T) {
 		g.Expect(cli.Status().Update(ctx, cr)).NotTo(HaveOccurred())
 
 		instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-		condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+		condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 		rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
 
 		pcs := []PreCondition{MonitorOperator(OperatorConfig{
@@ -509,7 +509,7 @@ func TestMonitorOperator_Severity(t *testing.T) {
 	t.Cleanup(func() { _ = cli.Delete(ctx, cr) })
 
 	instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-	condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+	condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 	rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
 
 	pcs := []PreCondition{MonitorOperator(OperatorConfig{
@@ -551,7 +551,7 @@ func TestMonitorOperator_NilFilter(t *testing.T) {
 	t.Cleanup(func() { _ = cli.Delete(ctx, cr) })
 
 	instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-	condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+	condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 	rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
 
 	pcs := []PreCondition{MonitorOperator(OperatorConfig{
@@ -575,7 +575,7 @@ func TestMonitorOperator_EmptyGVK(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 
 	instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-	condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+	condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 	rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
 
 	pcs := []PreCondition{MonitorOperator(OperatorConfig{
@@ -617,7 +617,7 @@ func TestMonitorOperator_TransientAPIError(t *testing.T) {
 			g := NewWithT(t)
 
 			instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-			condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+			condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 			rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
 
 			pcs := []PreCondition{MonitorOperator(OperatorConfig{

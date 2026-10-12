@@ -21,10 +21,10 @@ import (
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	ccmcharts "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/cloudmanager"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -74,7 +74,7 @@ func newTestReconciliationRequest(t *testing.T, cl client.Client) *types.Reconci
 		},
 	}
 
-	rr.Conditions = conditions.NewManager(instance, status.ConditionTypeReady)
+	rr.Conditions = conditionstest.NewManager(instance, status.ConditionTypeReady)
 
 	return rr
 }

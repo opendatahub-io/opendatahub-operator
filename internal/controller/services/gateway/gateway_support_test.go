@@ -17,8 +17,8 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
 	. "github.com/onsi/gomega"
@@ -711,7 +711,7 @@ func TestResolveGatewayHostnameMissingDomainOnXKS(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     client,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+		Conditions: conditionstest.NewManager(accessor, ReadyConditionType),
 	}
 
 	hostname, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
@@ -787,7 +787,7 @@ func TestRejectUnsupportedKubernetesGatewaySpec(t *testing.T) {
 	accessor := &gatewayConfigConditionsAccessor{}
 	rr := &odhtypes.ReconciliationRequest{
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+		Conditions: conditionstest.NewManager(accessor, ReadyConditionType),
 	}
 
 	g.Expect(rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig)).To(BeTrue())
@@ -815,7 +815,7 @@ func TestRejectUnsupportedKubernetesGatewaySpecIgnoredOnOpenShift(t *testing.T) 
 	accessor := &gatewayConfigConditionsAccessor{}
 	rr := &odhtypes.ReconciliationRequest{
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+		Conditions: conditionstest.NewManager(accessor, ReadyConditionType),
 	}
 
 	g.Expect(rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig)).To(BeFalse())

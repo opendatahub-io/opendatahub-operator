@@ -17,8 +17,8 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -79,7 +79,7 @@ func TestComputeComponentsStatus(t *testing.T) {
 
 		rr := &types.ReconciliationRequest{
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, status.ConditionTypeComponentsReady),
+			Conditions: conditionstest.NewManager(dsc, status.ConditionTypeComponentsReady),
 		}
 
 		err := computeComponentsStatus(t.Context(), rr, reg)
@@ -101,7 +101,7 @@ func TestComputeComponentsStatus(t *testing.T) {
 
 		rr := &types.ReconciliationRequest{
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, status.ConditionTypeComponentsReady),
+			Conditions: conditionstest.NewManager(dsc, status.ConditionTypeComponentsReady),
 		}
 
 		err := computeComponentsStatus(t.Context(), rr, reg)
@@ -125,7 +125,7 @@ func TestComputeComponentsStatus(t *testing.T) {
 
 		rr := &types.ReconciliationRequest{
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, status.ConditionTypeComponentsReady),
+			Conditions: conditionstest.NewManager(dsc, status.ConditionTypeComponentsReady),
 		}
 
 		err := computeComponentsStatus(t.Context(), rr, reg)
@@ -149,7 +149,7 @@ func TestComputeComponentsStatus(t *testing.T) {
 
 		rr := &types.ReconciliationRequest{
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, status.ConditionTypeComponentsReady),
+			Conditions: conditionstest.NewManager(dsc, status.ConditionTypeComponentsReady),
 		}
 
 		err := computeComponentsStatus(t.Context(), rr, reg)
@@ -173,7 +173,7 @@ func TestComputeComponentsStatus(t *testing.T) {
 
 		rr := &types.ReconciliationRequest{
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, status.ConditionTypeComponentsReady),
+			Conditions: conditionstest.NewManager(dsc, status.ConditionTypeComponentsReady),
 		}
 
 		err := computeComponentsStatus(t.Context(), rr, reg)
@@ -194,7 +194,7 @@ func TestComputeComponentsStatus(t *testing.T) {
 
 		rr := &types.ReconciliationRequest{
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, status.ConditionTypeComponentsReady),
+			Conditions: conditionstest.NewManager(dsc, status.ConditionTypeComponentsReady),
 		}
 
 		err := computeComponentsStatus(t.Context(), rr, reg)
@@ -220,7 +220,7 @@ func TestUpdateDeprecatedTrainingOperatorStatus(t *testing.T) {
 		dsc.Spec.Components.TrainingOperator.ManagementState = operatorv1.Managed
 		rr := &types.ReconciliationRequest{
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, deprecatedTOReadyType()),
+			Conditions: conditionstest.NewManager(dsc, deprecatedTOReadyType()),
 		}
 
 		g.Expect(updateDeprecatedTrainingOperatorStatus(rr)).Should(Succeed())
@@ -239,7 +239,7 @@ func TestUpdateDeprecatedTrainingOperatorStatus(t *testing.T) {
 		dsc.Spec.Components.TrainingOperator.ManagementState = operatorv1.Removed
 		rr := &types.ReconciliationRequest{
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, deprecatedTOReadyType()),
+			Conditions: conditionstest.NewManager(dsc, deprecatedTOReadyType()),
 		}
 
 		g.Expect(updateDeprecatedTrainingOperatorStatus(rr)).Should(Succeed())
@@ -257,7 +257,7 @@ func TestUpdateDeprecatedTrainingOperatorStatus(t *testing.T) {
 		dsc := newDSC()
 		rr := &types.ReconciliationRequest{
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, deprecatedTOReadyType()),
+			Conditions: conditionstest.NewManager(dsc, deprecatedTOReadyType()),
 		}
 
 		g.Expect(updateDeprecatedTrainingOperatorStatus(rr)).Should(Succeed())

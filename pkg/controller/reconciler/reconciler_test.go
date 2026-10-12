@@ -68,10 +68,7 @@ func registerTestPlatformObjectCRD(t *testing.T, g *WithT, et *envt.EnvT) {
 
 func createReconciler(t *testing.T, mgr ctrl.Manager, opts ...ReconcilerOpt) *Reconciler {
 	t.Helper()
-	defaults := []ReconcilerOpt{
-		WithConditionsManagerFactory(status.ConditionTypeReady),
-	}
-	cc, err := NewReconciler(mgr, "test", &scheme.TestPlatformObject{}, append(defaults, opts...)...)
+	cc, err := NewReconciler(mgr, "test", &scheme.TestPlatformObject{}, opts...)
 	if err != nil {
 		t.Fatalf("NewReconciler: %v", err)
 	}

@@ -389,6 +389,6 @@ func Bootstrap[T common.PlatformObject](instanceName string, config BootstrapCon
 				}),
 			})).
 			WithActionE(NewBootstrapAction(config)).
-			WithConditions(status.ConditionDependenciesAvailable)
+			WithConditions(reconciler.DependentConditions(status.ConditionDependenciesAvailable)...)
 	}
 }

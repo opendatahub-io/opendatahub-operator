@@ -617,7 +617,7 @@ func rejectUnsupportedKubernetesGatewaySpec(rr *odhtypes.ReconciliationRequest, 
 	rr.Conditions.MarkFalse(
 		ReadyConditionType,
 		conditions.WithReason(status.NotReadyReason),
-		conditions.WithMessage("%s", strings.Join(msgs, "; ")),
+		conditions.WithMessagef("%s", strings.Join(msgs, "; ")),
 	)
 	return true
 }

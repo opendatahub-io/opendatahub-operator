@@ -225,11 +225,11 @@ func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions 
 			opts = append(opts,
 				cond.WithReason(PreConditionFailedReason),
 				cond.WithSeverity(agg.severity),
-				cond.WithMessage("%s", strings.Join(agg.messages, "; ")),
+				cond.WithMessagef("%s", strings.Join(agg.messages, "; ")),
 			)
 		}
 
-		rr.Conditions.Mark(ct, agg.status, opts...)
+		rr.Conditions.Mark(common.ConditionType(ct), agg.status, opts...)
 
 		if agg.shouldStop {
 			shouldStop = true

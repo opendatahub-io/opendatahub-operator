@@ -11,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
+	odhcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
@@ -36,7 +37,7 @@ type chartDef struct {
 // monitorConfig holds per-dependency monitoring metadata embedded in chartDef.
 // Operator CR info (GVK, name, namespace) comes from chart.OperatorCR.
 type monitorConfig struct {
-	ConditionType  string
+	ConditionType  odhcommon.ConditionType
 	HasDeployments bool
 	Namespace      string
 	RequireCR      bool
@@ -176,7 +177,7 @@ func allChartDefs(deps ccmcommon.Dependencies, chartsPath string) []chartDef {
 // Operator CR info is derived from chartDef.operatorCR.
 type DependencyMonitorConfig struct {
 	ReleaseName    string
-	ConditionType  string
+	ConditionType  odhcommon.ConditionType
 	HasDeployments bool
 	Policy         ccmcommon.ManagementPolicy
 	Namespace      string
