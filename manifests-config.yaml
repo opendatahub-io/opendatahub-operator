@@ -222,10 +222,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "registry.redhat.io/cluster-observability-operator/korrel8r-rhel9"
-      digest: "sha256:90cc70741585b3a555888cc119c1ad630e988513dd2065158b26f6fa33dc8a22"
+      digest: "sha256:e3ebab37597e15fc58b989e7f3cf70f5561e96723f4f409333e8b99540386c8a"
     rhoai:
       base: "registry.redhat.io/cluster-observability-operator/korrel8r-rhel9"
-      digest: "sha256:90cc70741585b3a555888cc119c1ad630e988513dd2065158b26f6fa33dc8a22"
+      digest: "sha256:e3ebab37597e15fc58b989e7f3cf70f5561e96723f4f409333e8b99540386c8a"
   RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE:
     component: kserve-module-operator
     tagTemplate: "{SHA}"
