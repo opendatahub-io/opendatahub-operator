@@ -326,10 +326,10 @@ additional_meta:
     git.commit: 296a8a85a908ca9b79166b392c2279d160435966
   odh-training-rocm64-torch28-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 2bca9437b648a808da42021a344f35a9b5656679
+    git.commit: 296a8a85a908ca9b79166b392c2279d160435966
   odh-training-rocm64-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: a613d262e5532c76d301e861a8b91f1e450a9445
+    git.commit: 296a8a85a908ca9b79166b392c2279d160435966
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
     git.commit: 6b5ea7fbb270515b1bd9735adf343555060ce947
