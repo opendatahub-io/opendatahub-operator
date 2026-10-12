@@ -25,6 +25,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -193,7 +194,7 @@ func TestKubeAuthProxyCertificateProvider(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(&gatewayConfigConditionsAccessor{}, ReadyConditionType),
+		Conditions: conditionstest.NewManager(&gatewayConfigConditionsAccessor{}, ReadyConditionType),
 	}
 
 	err = createKubeAuthProxyInfrastructure(ctx, rr)
@@ -269,7 +270,7 @@ func TestGatewayReadinessRecoversAfterProxyStatusUpdate(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(gatewayConfig, ReadyConditionType),
+		Conditions: conditionstest.NewManager(gatewayConfig, ReadyConditionType),
 	}
 
 	g.Expect(syncGatewayConfigStatus(ctx, rr)).To(Succeed())
@@ -318,7 +319,7 @@ func TestCreateGatewayInfrastructureSkipsAdditionalGatewayOwnershipConflicts(t *
 			setGatewayConfigOwner(beta, config)
 			cli := newGatewayTestClient(t, config, existing, beta)
 			rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: config,
-				Conditions: conditions.NewManager(config, status.ConditionTypeReady, serviceApi.AdditionalGatewaysReadyConditionType)}
+				Conditions: conditionstest.NewManager(config, status.ConditionTypeReady, serviceApi.AdditionalGatewaysReadyConditionType)}
 			g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
 			ingressStatus := additionalIngressStatusByName(config, "alpha")
 			for _, conditionType := range []string{
@@ -390,7 +391,7 @@ func TestCreateGatewayInfrastructureSkipsManagedHostnameConflicts(t *testing.T) 
 			setGatewayConfigOwner(beta, config)
 			rr := &odhtypes.ReconciliationRequest{
 				Client: newGatewayTestClient(t, config, alpha, beta), Instance: config,
-				Conditions: conditions.NewManager(config, serviceApi.AdditionalGatewaysReadyConditionType),
+				Conditions: conditionstest.NewManager(config, serviceApi.AdditionalGatewaysReadyConditionType),
 			}
 			g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
 			g.Expect(createGatewayInfrastructure(t.Context(), rr)).To(Succeed())
@@ -472,7 +473,7 @@ func TestCreateGatewayInfrastructureValidatesAdditionalResourceOwnership(t *test
 				}))
 			g.Expect(err).NotTo(HaveOccurred())
 			rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: config,
-				Conditions: conditions.NewManager(config, serviceApi.AdditionalGatewaysReadyConditionType)}
+				Conditions: conditionstest.NewManager(config, serviceApi.AdditionalGatewaysReadyConditionType)}
 			g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
 			err = createGatewayInfrastructure(t.Context(), rr)
 			if test.lookupKind != "" {
@@ -599,7 +600,7 @@ func TestXKSReconcileWithoutDomainStopsCleanly(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+		Conditions: conditionstest.NewManager(accessor, ReadyConditionType),
 	}
 
 	g.Expect(createGatewayInfrastructure(ctx, rr)).To(Succeed())
@@ -652,7 +653,7 @@ func TestXKSReconcileRejectsOpenShiftOnlyValues(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+		Conditions: conditionstest.NewManager(accessor, ReadyConditionType),
 	}
 
 	g.Expect(createGatewayInfrastructure(ctx, rr)).To(Succeed())
@@ -719,7 +720,7 @@ func TestGetTemplateDataTLSCurvePreferences(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(gatewayConfig, ReadyConditionType),
+		Conditions: conditionstest.NewManager(gatewayConfig, ReadyConditionType),
 	}
 
 	templateData, err := getTemplateData(ctx, rr)
@@ -771,7 +772,7 @@ func TestGetTemplateDataTLSReadError(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(gatewayConfig, ReadyConditionType),
+		Conditions: conditionstest.NewManager(gatewayConfig, ReadyConditionType),
 	}
 
 	_, err = getTemplateData(ctx, rr)
