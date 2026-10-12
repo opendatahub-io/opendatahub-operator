@@ -60,12 +60,12 @@ map:
     src: config
     dest: aigateway
     git.url: https://github.com/red-hat-data-services/ai-gateway-operator
-    git.commit: 8ace72138e14d29364c43e20be9fe2b685ea7603
+    git.commit: eee94f0cf3245897ddcc0c9c02dd928d0c736a37
   odh-mcp-lifecycle-module-operator:
     src: config
     dest: mcplifecycleoperator
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-module-operator
-    git.commit: 0e7b101cb5b455a00a27b9f52e93e353d82ecca1
+    git.commit: 9f2922634d0ea8f22447ccc4214253959d5dd4ff
   odh-feast-module-operator:
     src: config/chart
     dest: feastoperator
@@ -188,7 +188,7 @@ additional_meta:
     git.commit: 133c779a2ef2ac7db2102d1cfdfba1f5ba666974
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
-    git.commit: fe012a2829693253e14a3bb975dc23636ecee134
+    git.commit: 4a2a3c503ffa53b2de698c7e4a0ec50bf94f0530
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
     git.commit: 6ee112179ec2d7ab9e977513be32f55c45d6d59d
