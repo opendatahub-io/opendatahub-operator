@@ -14,7 +14,7 @@ map:
     src: config
     dest: datasciencepipelines
     git.url: https://github.com/red-hat-data-services/data-science-pipelines-operator
-    git.commit: a3d18f9e019ba8cabaaddde464ba7af47b8e49f8
+    git.commit: 5b9627fc3493c8883577f3b3b017e90502420661
   odh-kuberay-operator-controller:
     src: ray-operator/config
     dest: ray
@@ -29,7 +29,7 @@ map:
     src: config
     dest: modelregistry
     git.url: https://github.com/red-hat-data-services/model-registry-operator
-    git.commit: d78aa967159bcea2682015b1709f33471a795693
+    git.commit: c997a7768f4a0bc07404ee3f317ae4cb4e0b8d26
   odh-dashboard-operator:
     src: dashboard-operator/charts/dashboard
     dest: dashboard-operator
@@ -134,7 +134,7 @@ additional_meta:
     git.commit: 916ca2fdeeb784e77f8f802ae4399cb1b861f0a6
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 916ca2fdeeb784e77f8f802ae4399cb1b861f0a6
+    git.commit: 651d595bafaba6c8d18bf97d95830ab78a4b4a0a
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 916ca2fdeeb784e77f8f802ae4399cb1b861f0a6
