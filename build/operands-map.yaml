@@ -176,11 +176,11 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE
   value: "quay.io/rhoai/odh-ta-lmes-job-rhel9@sha256:b4ee08d997ba417af7adb1845ecabab291c99820e757bc022bab375199946392"
 - name: RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE
-  value: "quay.io/rhoai/odh-th-torch-cpu-py312-rhel9@sha256:a6c449e8cd0df1dd0cb0b92340ac6cdfaebe582aaefd9978229f784db2bc379e"
+  value: "quay.io/rhoai/odh-th-torch-cpu-py312-rhel9@sha256:cdc07058ba0c01d004bf2f2481f875b7a121229550589f22f031ae562198d00b"
 - name: RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE
-  value: "quay.io/rhoai/odh-th-torch-cuda-py312-rhel9@sha256:c04f437878d1ed16df2660982ae68d5c07d43b79ccaa2743a530a497ea141e58"
+  value: "quay.io/rhoai/odh-th-torch-cuda-py312-rhel9@sha256:a8f02424b86751a9bbff00a0ba639478abfeecca593df1391af616076b82a932"
 - name: RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE
-  value: "quay.io/rhoai/odh-th-torch-rocm-py312-rhel9@sha256:e0a00656c09854596ecbc0d01f114663822657e164849a6b3c81c7b113cdcf8e"
+  value: "quay.io/rhoai/odh-th-torch-rocm-py312-rhel9@sha256:dda2133cafde6023f4eeda5b4ccb46606ee977bf7a086029509519a3991692e4"
 - name: RELATED_IMAGE_ODH_TRAINER_IMAGE
   value: "quay.io/rhoai/odh-trainer-rhel9@sha256:30ce9419ab632b699088cc5683c628b771bef082008ae4e0c32ce0c858c23e1c"
 - name: RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH28_PY312_IMAGE
