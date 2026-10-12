@@ -93,8 +93,6 @@ func setupScheme() *runtime.Scheme {
 // This is the primary security test ensuring that dangerous configurations like giving
 // admin access to all authenticated users cannot be created.
 func testAuthCELValidationCreation(t *testing.T, ctx context.Context, k8sClient client.Client) {
-	g := NewWithT(t)
-
 	testCases := []struct {
 		name          string
 		auth          *Auth
@@ -254,8 +252,6 @@ func testAuthCELValidationUpdate(t *testing.T, ctx context.Context, k8sClient cl
 // This is equally important as blocking invalid configs - we must ensure that valid
 // use cases continue to work properly.
 func testAuthCELValidationValid(t *testing.T, ctx context.Context, k8sClient client.Client) {
-	g := NewWithT(t)
-
 	testCases := []struct {
 		name string
 		spec AuthSpec

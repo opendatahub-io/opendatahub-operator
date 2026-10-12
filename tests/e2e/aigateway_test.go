@@ -3,12 +3,17 @@ package e2e_test
 import (
 	"testing"
 
+	gTypes "github.com/onsi/gomega/types"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -35,6 +40,7 @@ func aiGatewayTestSuite(t *testing.T) {
 		Namespace: tc.AppsNamespace,
 		Name:      aiGatewayControllerDeployment,
 	}
+	relatedImageEnvVars := aigatewayModule.NewHandler().GetRelatedImages()
 
 	testCases := []TestCase{
 		{"Validate component enabled", func(t *testing.T) {
@@ -83,17 +89,7 @@ func aiGatewayTestSuite(t *testing.T) {
 		{"Validate env var injection", func(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Tier1)
-
-			// The platform injects APPLICATIONS_NAMESPACE into every module operator
-			// deployment unconditionally. Verify it's present with the correct value.
-			tc.EnsureResourceExists(
-				WithMinimalObject(gvk.Deployment, controllerNN),
-				WithCondition(jq.Match(
-					`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "APPLICATIONS_NAMESPACE") | .value == "%s"`,
-					tc.AppsNamespace,
-				)),
-				WithCustomErrorMsg("ai-gateway-operator Deployment should have APPLICATIONS_NAMESPACE=%s injected", tc.AppsNamespace),
-			)
+			validateAIGatewayEnvVarInjection(t, tc, controllerNN, relatedImageEnvVars)
 		}},
 		{"Validate releases mirrored to DSC", func(t *testing.T) {
 			t.Helper()
@@ -231,6 +227,10 @@ func aiGatewayTestSuite(t *testing.T) {
 				WithCustomErrorMsg("DSC status.components.aigateway should show Removed"),
 			)
 		}},
+		{"Validate v2 DSC canonical MaaS selection", func(t *testing.T) {
+			t.Helper()
+			validateV2DSCCanonicalMaaSSelection(t, tc, moduleGVK, moduleCRNN, controllerNN)
+		}},
 		{"Validate component disabled", func(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Smoke, Tier1)
@@ -256,4 +256,126 @@ func aiGatewayTestSuite(t *testing.T) {
 	}
 
 	RunTestCases(t, testCases)
+}
+
+func validateAIGatewayEnvVarInjection(t *testing.T, tc *TestContext, controllerNN types.NamespacedName, relatedImageEnvVars []string) {
+	t.Helper()
+	require.NotEmpty(t, relatedImageEnvVars, "aigateway handler should declare related images for env injection")
+
+	relatedImageEnvVarSet := make(map[string]struct{}, len(relatedImageEnvVars))
+	for _, envVarName := range relatedImageEnvVars {
+		relatedImageEnvVarSet[envVarName] = struct{}{}
+	}
+
+	operatorDeploymentNN := types.NamespacedName{
+		Namespace: tc.OperatorNamespace,
+		Name:      tc.getControllerDeploymentName(),
+	}
+	operatorDeployment := &appsv1.Deployment{}
+	tc.FetchTypedResource(
+		operatorDeployment,
+		WithMinimalObject(gvk.Deployment, operatorDeploymentNN),
+		WithCustomErrorMsg("Failed to fetch operator Deployment %s in namespace %s", operatorDeploymentNN.Name, operatorDeploymentNN.Namespace),
+	)
+
+	expectedRelatedImageEnvVars := map[string]string{}
+	for _, container := range operatorDeployment.Spec.Template.Spec.Containers {
+		for _, envVar := range container.Env {
+			if _, shouldCheck := relatedImageEnvVarSet[envVar.Name]; !shouldCheck {
+				continue
+			}
+			if envVar.Value == "" {
+				continue
+			}
+			expectedRelatedImageEnvVars[envVar.Name] = envVar.Value
+		}
+	}
+	matchers := make([]gTypes.GomegaMatcher, 0, 1+len(expectedRelatedImageEnvVars))
+	// The platform injects APPLICATIONS_NAMESPACE into every module operator
+	// deployment unconditionally. Verify it's present with the correct value.
+	matchers = append(matchers, jq.Match(
+		`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "APPLICATIONS_NAMESPACE") | .value == "%s"`,
+		tc.AppsNamespace,
+	))
+
+	for envVarName, expectedValue := range expectedRelatedImageEnvVars {
+		matchers = append(matchers, jq.Match(
+			`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "%s") | .value == "%s"`,
+			envVarName,
+			expectedValue,
+		))
+	}
+
+	if len(expectedRelatedImageEnvVars) == 0 {
+		t.Logf(
+			"No non-empty AIGateway RELATED_IMAGE_* env vars configured on operator Deployment %s/%s; validating APPLICATIONS_NAMESPACE only",
+			operatorDeploymentNN.Namespace,
+			operatorDeploymentNN.Name,
+		)
+	}
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, controllerNN),
+		WithCondition(And(matchers...)),
+		WithCustomErrorMsg(
+			"ai-gateway-operator Deployment should have expected env var injection from operator Deployment %s/%s",
+			operatorDeploymentNN.Namespace,
+			operatorDeploymentNN.Name,
+		),
+	)
+}
+
+func validateV2DSCCanonicalMaaSSelection(t *testing.T, tc *TestContext, moduleGVK schema.GroupVersionKind, moduleCRNN, controllerNN types.NamespacedName) {
+	t.Helper()
+	skipUnless(t, Tier3)
+	if tc.IsXKS() {
+		t.Skip("v2 DSC conversion smoke is not supported on XKS")
+	}
+
+	snapshotV2DSCFields(t, tc, []string{"spec", "components", "aigateway"})
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceClusterV2, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.aigateway.managementState = "Managed"`),
+			testf.Transform(`.spec.components.aigateway.modelsAsAService.managementState = "Managed"`),
+		)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			jq.Match(`.spec.components.aigateway.managementState == "Managed"`),
+			jq.Match(`.spec.components.aigateway.modelsAsAService.managementState == "Managed"`),
+		)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(moduleGVK, moduleCRNN),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, controllerNN),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(And(
+			jq.Match(`.status.components.aigateway.managementState == "Managed"`),
+			jq.Match(`.status.components.modelsAsAService.managementState == "Managed"`),
+			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.AIGatewayKind, metav1.ConditionTrue),
+		)),
+	)
+
+	// DEC-024 preserves legacy KServe provenance: if it was already Managed,
+	// the v2 read normalizes canonical MaaS back to Removed.
+	v2Read := &dscv2.DataScienceCluster{}
+	require.NoError(t, tc.Client().Get(t.Context(), tc.DataScienceClusterNamespacedName, v2Read))
+	require.Equal(t, operatorv1.Managed, v2Read.Status.Components.ModelsAsAService.ManagementState)
+	//nolint:staticcheck // v2 compatibility read.
+	if v2Read.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed {
+		require.Equal(t, operatorv1.Removed, v2Read.Spec.Components.AIGateway.ModelsAsAService.ManagementState)
+	} else {
+		require.Equal(t, operatorv1.Managed, v2Read.Spec.Components.AIGateway.ModelsAsAService.ManagementState)
+	}
 }

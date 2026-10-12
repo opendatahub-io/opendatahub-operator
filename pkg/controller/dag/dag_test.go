@@ -127,7 +127,7 @@ func TestResolve_GranularRunlevels(t *testing.T) {
 	g := dag.NewGraph[testNode]()
 	g.Add(node("dashboard", dag.RL(21)))
 	g.Add(node("pipelines", dag.RL(21)))
-	g.Add(node("modelregistry", dag.RL(22)))
+	g.Add(node("aihub", dag.RL(22)))
 	g.Add(node("workbenches", dag.RL(23)))
 
 	batches, err := g.Resolve()
@@ -136,7 +136,7 @@ func TestResolve_GranularRunlevels(t *testing.T) {
 
 	names := batchNames(batches)
 	assert.Equal(t, []string{"dashboard", "pipelines"}, names[0])
-	assert.Equal(t, []string{"modelregistry"}, names[1])
+	assert.Equal(t, []string{"aihub"}, names[1])
 	assert.Equal(t, []string{"workbenches"}, names[2])
 }
 

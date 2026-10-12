@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -44,6 +44,7 @@ func NewHandler() *handler {
 					"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 					"RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE",
 					"RELATED_IMAGE_PERSES_IMAGE",
+					"RELATED_IMAGE_KORREL8R_IMAGE",
 				},
 			},
 		},
@@ -73,7 +74,7 @@ func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) module
 	return result
 }
 
-func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+func (h *handler) PopulatePlatformModule(pm *configApi.PlatformModules, dscCtx *modules.DSCContext) {
 	if pm == nil || dscCtx == nil || dscCtx.DSCI == nil {
 		return
 	}
@@ -84,14 +85,14 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 	pm.Monitoring.ManagementState = ms
 }
 
-func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 	return modules != nil && modules.Monitoring.ManagementState == operatorv1.Managed
 }
 
 // BuildModuleCR constructs the Monitoring CR from DSCI spec with
 // conditional field projection matching the monitoring domain rules:
 // collector replica defaulting, TLS nulling when disabled, and
-// metrics/traces omitted when storage/config is unset.
+// metrics/traces/logs/usageLogs omitted when storage/config is unset.
 func (h *handler) BuildModuleCR(
 	ctx context.Context,
 	cli client.Client,
@@ -105,7 +106,9 @@ func (h *handler) BuildModuleCR(
 	spec := dscCtx.DSCI.Spec.Monitoring.MonitoringCommonSpec.DeepCopy()
 
 	metricsEnabled := spec.Metrics != nil && (spec.Metrics.Storage != nil || len(spec.Metrics.Exporters) > 0)
-	tracesEnabled := spec.Traces != nil
+	tracesEnabled := spec.Traces != nil && (spec.Traces.Storage != nil || len(spec.Traces.Exporters) > 0)
+	logsEnabled := spec.Logs != nil && spec.Logs.Storage != nil
+	usageLogsEnabled := spec.UsageLogs != nil && spec.UsageLogs.Storage != nil
 
 	if !metricsEnabled {
 		spec.Metrics = nil
@@ -117,6 +120,14 @@ func (h *handler) BuildModuleCR(
 		}
 	} else {
 		spec.Traces = nil
+	}
+
+	if !logsEnabled {
+		spec.Logs = nil
+	}
+
+	if !usageLogsEnabled {
+		spec.UsageLogs = nil
 	}
 
 	if metricsEnabled || tracesEnabled {

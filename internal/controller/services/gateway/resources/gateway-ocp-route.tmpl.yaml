@@ -4,7 +4,7 @@ metadata:
   name: {{.GatewayName}}
   namespace: {{.GatewayNamespace}}
   labels:
-    {{.PartOfLabelKey}}: {{.PartOfGatewayConfig}}
+{{ toYaml .RouteLabels | indent 4 }}
   annotations:
     router.openshift.io/service-ca-certificate: "true"
 spec:

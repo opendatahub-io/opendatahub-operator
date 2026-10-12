@@ -8,52 +8,41 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
-	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
-	aipipelinesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aipipelines"
-	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
-	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
-	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
-	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
-	mlflowoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
-	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
-	rayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ray"
-	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
+	modulebuiltin "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/builtin"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
 	. "github.com/onsi/gomega"
 )
 
 // allHandlers returns every module handler the platform operator registers.
-// Keep in sync with existingModules in cmd/main.go. Monitoring is excluded
-// because it is currently commented out in registration.
 func allHandlers() []modules.ModuleHandler {
-	return []modules.ModuleHandler{
-		aigatewayModule.NewHandler(),
-		aipipelinesModule.NewHandler(),
-		dashboardModule.NewHandler(),
-		feastModule.NewHandler(),
-		kserveModule.NewHandler(),
-		mcplifecycleoperatorModule.NewHandler(),
-		mlflowoperatorModule.NewHandler(),
-		ogxModule.NewHandler(),
-		rayModule.NewHandler(),
-		workbenchesModule.NewHandler(),
+	registrations := modulebuiltin.Registrations()
+	handlers := make([]modules.ModuleHandler, 0, len(registrations))
+	for _, registration := range registrations {
+		handlers = append(handlers, registration.Handler)
 	}
+	return handlers
 }
 
 func managedDSCContext() (*modules.DSCContext, *modules.ModuleCRConfig) {
 	return &modules.DSCContext{
-			DSC: &dscv2.DataScienceCluster{
-				Spec: dscv2.DataScienceClusterSpec{
-					Components: dscv2.Components{
+			DSC: &dscApi.DataScienceCluster{
+				Spec: dscApi.DataScienceClusterSpec{
+					Components: dscApi.Components{
 						AIPipelines: componentApi.DSCDataSciencePipelines{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
 						Dashboard: componentApi.DSCDashboard{
-							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+							DashboardCommonSpec: componentApi.DashboardCommonSpec{
+								Standard: componentApi.DashboardStandardSpec{
+									ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+								},
+							},
 						},
 						AIGateway: componentApi.DSCAIGateway{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
@@ -64,13 +53,18 @@ func managedDSCContext() (*modules.DSCContext, *modules.ModuleCRConfig) {
 						Workbenches: componentApi.DSCWorkbenches{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
-						FeastOperator: componentApi.DSCFeastOperator{
-							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+						Data: componentApi.DSCData{
+							FeatureStore: componentApi.DSCFeatureStore{
+								ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+							},
 						},
 						MLflowOperator: componentApi.DSCMLflowOperator{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
 						MCPLifecycleOperator: componentApi.DSCMCPLifecycleOperator{
+							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+						},
+						DatabaseService: componentApi.DSCDatabaseService{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
 						OGX: componentApi.DSCOGX{
@@ -79,6 +73,16 @@ func managedDSCContext() (*modules.DSCContext, *modules.ModuleCRConfig) {
 						Ray: componentApi.DSCRay{
 							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 						},
+						TrustyAI: componentApi.DSCTrustyAI{
+							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+						},
+					},
+				},
+			},
+			DSCI: &dsciv2.DSCInitialization{
+				Spec: dsciv2.DSCInitializationSpec{
+					Monitoring: serviceApi.DSCIMonitoring{
+						ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 					},
 				},
 			},
@@ -189,7 +193,7 @@ func TestHandlerCompliance_IsEnabledFalseForEmptyPlatformModules(t *testing.T) {
 	for _, h := range allHandlers() {
 		t.Run(h.GetName(), func(t *testing.T) {
 			g := NewWithT(t)
-			empty := &configv1alpha1.PlatformModules{}
+			empty := &configApi.PlatformModules{}
 			g.Expect(h.IsEnabled(empty)).Should(BeFalse(),
 				"IsEnabled should return false when PlatformModules has no modules enabled")
 		})

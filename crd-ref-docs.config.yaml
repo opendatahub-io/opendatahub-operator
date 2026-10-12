@@ -1,7 +1,6 @@
 processor:
   # RE2 regular expressions describing Group.Version that should be excluded from the generated documentation.
   ignoreGroupVersions:
-    - "features.opendatahub.io/v1"
   # RE2 regular expressions describing types that should be excluded from the generated documentation.
   ignoreTypes:
     - ".*List$"

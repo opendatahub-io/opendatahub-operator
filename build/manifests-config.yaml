@@ -2,19 +2,19 @@ map:
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
-  odh-trustyai-module-operator:
-    src: trustyai-operator-module/config
+  odh-trustyai-service-operator:
+    src: config
     dest: trustyai
   odh-model-registry-operator:
     src: config
-    dest: modelregistry
+    dest: aihub
   odh-dashboard-operator:
     src: dashboard-operator/charts/dashboard
     dest: dashboard-operator
     type: chart
   odh-feast-module-operator:
     src: config/chart
-    dest: feastoperator
+    dest: data
     type: chart
   odh-observability:
     src: charts/odh-observability
@@ -63,3 +63,6 @@ map:
   odh-praxis-ai-grid-operator:
     src: charts/grid-operator/templates
     dest: grid-operator
+  odh-trustyai-module-operator:
+    src: trustyai-operator-module/config
+    dest: trustyai

@@ -21,8 +21,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers"
 	scheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/transformers"
 
 	. "github.com/onsi/gomega"
 )
@@ -94,7 +94,7 @@ func TestDeploymentsAvailableActionNotReady(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(rr.Instance).Should(
 		WithTransform(
-			matchers.ExtractStatusCondition(status.ConditionTypeReady),
+			transformers.ExtractStatusCondition(status.ConditionTypeReady),
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionFalse),
 			}),
@@ -102,7 +102,7 @@ func TestDeploymentsAvailableActionNotReady(t *testing.T) {
 	)
 	g.Expect(rr.Instance).Should(
 		WithTransform(
-			matchers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
+			transformers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionFalse),
 				"Reason": Equal(status.ConditionDeploymentsNotAvailableReason),
@@ -179,7 +179,7 @@ func TestDeploymentsAvailableActionReady(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(rr.Instance).Should(
 		WithTransform(
-			matchers.ExtractStatusCondition(status.ConditionTypeReady),
+			transformers.ExtractStatusCondition(status.ConditionTypeReady),
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionTrue),
 			}),
@@ -187,7 +187,7 @@ func TestDeploymentsAvailableActionReady(t *testing.T) {
 	)
 	g.Expect(rr.Instance).Should(
 		WithTransform(
-			matchers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
+			transformers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionTrue),
 			}),
@@ -261,7 +261,7 @@ func TestDeploymentsAvailableReadyAutoSelector(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(rr.Instance).Should(
 		WithTransform(
-			matchers.ExtractStatusCondition(status.ConditionTypeReady),
+			transformers.ExtractStatusCondition(status.ConditionTypeReady),
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionTrue),
 			}),
@@ -269,7 +269,7 @@ func TestDeploymentsAvailableReadyAutoSelector(t *testing.T) {
 	)
 	g.Expect(rr.Instance).Should(
 		WithTransform(
-			matchers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
+			transformers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionTrue),
 			}),
@@ -321,7 +321,7 @@ func TestDeploymentsAvailableActionWithPartOfLabel(t *testing.T) {
 
 	g.Expect(rr.Instance).Should(
 		WithTransform(
-			matchers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
+			transformers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionTrue),
 			}),
@@ -396,7 +396,7 @@ func TestDeploymentsAvailableActionWithCustomConditionType(t *testing.T) {
 
 			g.Expect(rr.Instance).Should(
 				WithTransform(
-					matchers.ExtractStatusCondition(customCondition),
+					transformers.ExtractStatusCondition(customCondition),
 					gstruct.MatchFields(gstruct.IgnoreExtras, fields),
 				),
 			)
@@ -470,7 +470,7 @@ func TestDeploymentsAvailableActionNotReadyNotFound(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(rr.Instance).Should(
 		WithTransform(
-			matchers.ExtractStatusCondition(status.ConditionTypeReady),
+			transformers.ExtractStatusCondition(status.ConditionTypeReady),
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionFalse),
 			}),
@@ -478,7 +478,7 @@ func TestDeploymentsAvailableActionNotReadyNotFound(t *testing.T) {
 	)
 	g.Expect(rr.Instance).Should(
 		WithTransform(
-			matchers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
+			transformers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionFalse),
 				"Reason": Equal(status.ConditionDeploymentsNotAvailableReason),
@@ -539,7 +539,7 @@ func TestDeploymentsAvailableActionReadyWithoutAutomaticPartOfUsesComponentLabel
 
 	g.Expect(rr.Instance).Should(
 		WithTransform(
-			matchers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
+			transformers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionTrue),
 			}),

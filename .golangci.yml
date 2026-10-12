@@ -1,11 +1,14 @@
 version: "2"
 linters:
   default: all
+  enable:
+    - gomodguard_v2
   disable:
     - cyclop
     - depguard
     - err113
     - exhaustruct
+    - exhaustruct_v5
     - forbidigo
     - funlen
     - gochecknoglobals
@@ -25,6 +28,7 @@ linters:
     - funcorder
     - godoclint
     - noinlineerr
+    - gomodguard
   settings:
     errcheck:
       check-type-assertions: true
@@ -77,6 +81,12 @@ linters:
           alias: dscv1
         - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2
           alias: dscv2
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3
+          alias: dscApi
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1
+          alias: configv1alpha1
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2
+          alias: configApi
         - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1
           alias: infrav1
         - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
@@ -150,6 +160,11 @@ linters:
       - legacy
       - std-error-handling
     rules:
+      # MaaS v2 compatibility tests intentionally exercise the deprecated field.
+      - linters:
+          - staticcheck
+        path: (tests/e2e/webhooks/conversion/dsc/ai_gateway|internal/webhook/datasciencecluster/v2/conversion/maas/.+_test)\.go
+        text: "SA1019"
       - linters:
           - dupl
         path: tests/*/(.+)_test\.go
@@ -166,6 +181,11 @@ linters:
           - gosec
         path: _test\.go
         text: "G101:"
+      # Test asset roots are intentionally configurable through an environment variable.
+      - linters:
+          - gosec
+        path: internal/controller/modules/manifests_compliance_test\.go
+        text: "G703:"
     paths:
       - api
       - third_party$

@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -23,7 +24,7 @@ const trainerControllerDeployment = "trainer-operator-controller-manager"
 func trainerTestSuite(t *testing.T) {
 	t.Helper()
 
-	tc, err := NewTestContext(t)
+	tc, err := NewModuleTestCtx(t, trainerModule.NewHandler())
 	require.NoError(t, err)
 
 	moduleGVK := schema.GroupVersionKind{
@@ -76,6 +77,7 @@ func trainerTestSuite(t *testing.T) {
 				WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to True", componentApi.TrainerKind),
 			)
 		}},
+		{"Validate module enabled", tc.ValidateModuleEnabled},
 		{"Validate module handler projects DSC config to Module CR", func(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Tier1)
@@ -126,6 +128,7 @@ func trainerTestSuite(t *testing.T) {
 				WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to False/Removed", componentApi.TrainerKind),
 			)
 		}},
+		{"Validate module disabled", tc.ValidateModuleDisabled},
 	}
 
 	RunTestCases(t, testCases)
@@ -141,7 +144,7 @@ type TrainerTestCtx struct {
 func trainerDegradedMonitoringTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewModuleTestCtx(t, gvk.Trainer, componentApi.TrainerInstanceName)
+	ct, err := NewModuleTestCtx(t, trainerModule.NewHandler())
 	require.NoError(t, err)
 
 	componentCtx := TrainerTestCtx{
@@ -151,6 +154,7 @@ func trainerDegradedMonitoringTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		// we must enable the component first since this suite runs isolated from other component tests
 		{"Validate component enabled", componentCtx.ValidateModuleEnabled},
+		{"Validate module enabled", componentCtx.ComponentTestCtx.ValidateModuleEnabled},
 		{"Validate external operator degraded condition monitoring", componentCtx.ValidateExternalOperatorDegradedMonitoring},
 	}
 	RunTestCases(t, testCases)

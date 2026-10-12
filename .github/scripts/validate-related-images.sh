@@ -97,7 +97,7 @@ fetch_and_extract() {
     local label="$3"
 
     local temp_file
-    temp_file=$(mktemp "${WORKDIR}/fetched.XXXXXX.yaml")
+    temp_file=$(mktemp "${WORKDIR}/fetched.XXXXXX")
 
     if ! curl -sfL --max-filesize 10485760 --connect-timeout 10 --max-time 30 \
             "$url" -o "$temp_file" 2>/dev/null; then
@@ -327,7 +327,7 @@ touch "$RHAI_HELM_CONFIG"
 echo ""
 echo "Fetching RHAI Helm chart values (${RHOAI_BUILD_CONFIG_BRANCH})..."
 RHAI_HELM_URL="${RHOAI_BASE_URL}/helm/rhai-on-xks-chart/values.yaml"
-rhai_temp=$(mktemp "${WORKDIR}/fetched.XXXXXX.yaml")
+rhai_temp=$(mktemp "${WORKDIR}/fetched.XXXXXX")
 if curl -sfL --max-filesize 10485760 --connect-timeout 10 --max-time 30 \
         "$RHAI_HELM_URL" -o "$rhai_temp" 2>/dev/null; then
     if ! $YQ -r '.rhaiOperator.relatedImages[].name' "$rhai_temp" 2>/dev/null | sort -u > "$RHAI_HELM_CONFIG"; then
@@ -367,7 +367,7 @@ fetch_sbom_metadata() {
     local label="$1"
     local url="$2"
     local sbom_temp
-    sbom_temp=$(mktemp "${WORKDIR}/fetched.XXXXXX.yaml")
+    sbom_temp=$(mktemp "${WORKDIR}/fetched.XXXXXX")
     echo ""
     echo "Fetching SBOM metadata config from ${label}..."
     if curl -sfL --max-filesize 10485760 --connect-timeout 10 --max-time 30 \

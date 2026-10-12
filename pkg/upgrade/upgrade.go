@@ -589,7 +589,7 @@ func MigrateGatewayConfigIngressMode(ctx context.Context, cli client.Client) err
 
 	gatewayService := &corev1.Service{}
 	err = cli.Get(ctx, client.ObjectKey{
-		Name:      gateway.GetGatewayServiceFullName(),
+		Name:      gateway.GetDefaultGatewayServiceFullName(),
 		Namespace: gateway.GetGatewayNamespace(),
 	}, gatewayService)
 	switch {

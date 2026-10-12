@@ -32,7 +32,7 @@ type WorkbenchesTestCtx struct {
 func workbenchesTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewModuleTestCtx(t, gvk.Workbenches, componentApi.WorkbenchesInstanceName)
+	ct, err := NewModuleTestCtx(t, workbenchesModule.NewHandler())
 	require.NoError(t, err)
 
 	componentCtx := WorkbenchesTestCtx{
@@ -41,6 +41,7 @@ func workbenchesTestSuite(t *testing.T) {
 
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate module enabled", componentCtx.ValidateModuleEnabled},
 		{"Validate module operator deployment", componentCtx.ValidateModuleOperatorDeployment},
 		{"Validate workbenches namespace configuration", componentCtx.ValidateWorkbenchesNamespaceConfiguration},
 		{"Validate module releases", componentCtx.ValidateModuleReleases},
@@ -49,6 +50,7 @@ func workbenchesTestSuite(t *testing.T) {
 		{"Validate WorkbenchesV2 default Removed", componentCtx.ValidateWorkbenchesV2DefaultRemoved},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+		{"Validate module disabled", componentCtx.ValidateModuleDisabled},
 		{"Validate WorkbenchesV2 when parent disabled", componentCtx.ValidateWorkbenchesV2ParentDisabled},
 	}
 

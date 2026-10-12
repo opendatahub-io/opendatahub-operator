@@ -20,8 +20,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -59,7 +59,8 @@ type ModuleConfig struct {
 	// deployment namespace (e.g. "operatorNamespace", "namespace"). When
 	// set, BaseHandler.GetOperatorManifests injects
 	// platform.ApplicationsNamespace under this key. Leave empty if the
-	// chart does not need a namespace override.
+	// chart templates use .Release.Namespace instead (that path is wired
+	// via helm.Source.ReleaseNamespace from ApplicationsNamespace).
 	NamespaceValueKey string
 
 	// Kustomize fields -- used when ManifestDir is set.
@@ -82,8 +83,9 @@ type ModuleConfig struct {
 	// Namespace overrides the default ApplicationsNamespace for Kustomize
 	// rendering. When empty, Kustomize uses ApplicationsNamespace. Set this
 	// for modules that deploy into a dedicated namespace. For Helm modules,
-	// use NamespaceValueKey or Values instead; this field is not wired into
-	// Helm rendering.
+	// ApplicationsNamespace is always passed as helm.Source.ReleaseNamespace
+	// (.Release.Namespace); use NamespaceValueKey or Values when the chart
+	// reads the namespace from .Values instead.
 	Namespace string
 
 	// ContainerName is the name of the primary operator container in the
@@ -141,11 +143,15 @@ type BaseHandler struct {
 	Config ModuleConfig
 }
 
-func (b *BaseHandler) PopulatePlatformModule(_ *configv1alpha1.PlatformModules, _ *DSCContext) {
+func (b *BaseHandler) PopulatePlatformModule(_ *configApi.PlatformModules, _ *DSCContext) {
 }
 
 func (b *BaseHandler) GetName() string {
 	return b.Config.Name
+}
+
+func (b *BaseHandler) GetCRName() string {
+	return b.Config.CRName
 }
 
 func (b *BaseHandler) GetGVK() schema.GroupVersionKind {
@@ -190,14 +196,14 @@ func (b *BaseHandler) GetSubmoduleConditions() []SubmoduleCondition {
 // The field is resolved via reflection using Config.GVK.Kind. Modules
 // without a matching field on ComponentsStatus (e.g. service modules) are
 // silently skipped.
-func (b *BaseHandler) WriteDSCComponentStatus(dsc *dscv2.DataScienceCluster, enabled bool, releases []common.ComponentRelease) {
+func (b *BaseHandler) WriteDSCComponentStatus(dsc *dscApi.DataScienceCluster, enabled bool, releases []common.ComponentRelease) {
 	setDSCComponentField(dsc, b.Config.GVK.Kind, enabled, releases)
 }
 
 // setDSCComponentField sets ManagementState and releases on a named field
 // of dsc.Status.Components using reflection. Used by both module-level
 // and submodule-level status writers.
-func setDSCComponentField(dsc *dscv2.DataScienceCluster, fieldName string, enabled bool, releases []common.ComponentRelease) {
+func setDSCComponentField(dsc *dscApi.DataScienceCluster, fieldName string, enabled bool, releases []common.ComponentRelease) {
 	if dsc == nil || fieldName == "" {
 		return
 	}
@@ -278,7 +284,11 @@ func (b *BaseHandler) GetOperatorManifests(platform *PlatformContext) OperatorMa
 			Source: helm.Source{
 				Chart:       filepath.Join(platform.ChartsBasePath, b.Config.ChartDir),
 				ReleaseName: b.Config.ReleaseName,
-				Values:      helm.Values(vals),
+				// Charts that template metadata.namespace from .Release.Namespace
+				// (e.g. databaseservice) need this; otherwise cleanup deletes
+				// namespaced objects with namespace="" and breaks Platform reconcile.
+				ReleaseNamespace: platform.ApplicationsNamespace,
+				Values:           helm.Values(vals),
 			},
 		}}
 	}

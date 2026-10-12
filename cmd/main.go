@@ -74,11 +74,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -87,21 +87,7 @@ import (
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
-	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
-	aipipelinesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aipipelines"
-	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
-	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
-	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
-	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
-	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
-	modelregistryModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/modelregistry"
-	monitoringModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/monitoring"
-	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
-	rayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ray"
-	sparkoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/sparkoperator"
-	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
-	trustyaiModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trustyai"
-	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
+	modulebuiltin "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/builtin"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -156,49 +142,6 @@ var (
 		serviceApi.GatewayServiceName:      gateway.NewHandler(),
 		setup.ServiceName:                  setup.NewHandler(),
 	}
-
-	existingModules = map[string]mr.ModuleHandler{
-		componentApi.AIPipelinesComponentName:          aipipelinesModule.NewHandler(),
-		componentApi.DashboardComponentName:            dashboardModule.NewHandler(),
-		serviceApi.MonitoringServiceName:               monitoringModule.NewHandler(),
-		componentApi.AIGatewayComponentName:            aigatewayModule.NewHandler(),
-		componentApi.MCPLifecycleOperatorComponentName: mcplifecycleoperatorModule.NewHandler(),
-		componentApi.MLflowOperatorComponentName:       mlflowOperatorModule.NewHandler(),
-		componentApi.ModelRegistryComponentName:        modelregistryModule.NewHandler(),
-		componentApi.KserveComponentName:               kserveModule.NewHandler(),
-		componentApi.OGXComponentName:                  ogxModule.NewHandler(),
-		componentApi.TrainerComponentName:              trainerModule.NewHandler(),
-		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
-		componentApi.FeastOperatorComponentName:        feastModule.NewHandler(),
-		componentApi.SparkOperatorComponentName:        sparkoperatorModule.NewHandler(),
-		componentApi.TrustyAIComponentName:             trustyaiModule.NewHandler(),
-		componentApi.RayComponentName:                  rayModule.NewHandler(),
-	}
-
-	// dsciConfiguredModules lists modules whose user-facing configuration
-	// lives in the DSCI spec. The DSCI controller creates their module CRs.
-	// All other modules default to DSC-configured.
-	dsciConfiguredModules = map[string]bool{
-		serviceApi.MonitoringServiceName: true,
-	}
-
-	moduleRunlevels = map[string]dag.Runlevel{
-		componentApi.AIPipelinesComponentName:          dag.RL(20),
-		serviceApi.MonitoringServiceName:               dag.RL(20),
-		componentApi.DashboardComponentName:            dag.RL(20),
-		componentApi.AIGatewayComponentName:            dag.RL(32),
-		componentApi.FeastOperatorComponentName:        dag.RL(32),
-		componentApi.MCPLifecycleOperatorComponentName: dag.RL(20),
-		componentApi.MLflowOperatorComponentName:       dag.RL(32),
-		componentApi.ModelRegistryComponentName:        dag.RL(20),
-		componentApi.KserveComponentName:               dag.RL(31),
-		componentApi.OGXComponentName:                  dag.RL(32),
-		componentApi.TrainerComponentName:              dag.RL(20),
-		componentApi.WorkbenchesComponentName:          dag.RL(20),
-		componentApi.SparkOperatorComponentName:        dag.RL(32),
-		componentApi.TrustyAIComponentName:             dag.RL(32),
-		componentApi.RayComponentName:                  dag.RL(20),
-	}
 )
 
 func init() { //nolint:gochecknoinits
@@ -210,9 +153,8 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dsciv1.AddToScheme(scheme))
 	utilruntime.Must(dsciv2.AddToScheme(scheme))
-	utilruntime.Must(dscv1.AddToScheme(scheme))
 	utilruntime.Must(dscv2.AddToScheme(scheme))
-	utilruntime.Must(featurev1.AddToScheme(scheme))
+	utilruntime.Must(dscApi.AddToScheme(scheme))
 	utilruntime.Must(networkingv1.AddToScheme(scheme))
 	utilruntime.Must(rbacv1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
@@ -228,6 +170,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 	utilruntime.Must(admissionregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(promv1.AddToScheme(scheme))
+	utilruntime.Must(configv1.Install(scheme))
 	utilruntime.Must(operatorv1.Install(scheme))
 	utilruntime.Must(consolev1.AddToScheme(scheme))
 	utilruntime.Must(securityv1.Install(scheme))
@@ -235,6 +178,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(gwapiv1.Install(scheme))
 	utilruntime.Must(maasv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(configv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(configApi.AddToScheme(scheme))
 }
 
 func initComponents(_ context.Context, p common.Platform, cfg operatorconfig.OperatorSettings) error {
@@ -276,19 +220,14 @@ func registerServices() {
 }
 
 func registerModules() {
-	for name, handler := range existingModules {
-		rl := dag.RL(99)
-		if r, ok := moduleRunlevels[name]; ok {
-			rl = r
+	for _, registration := range modulebuiltin.Registrations() {
+		name := registration.Handler.GetName()
+		opts := []mr.RegistrationOption{
+			mr.WithRunlevel(registration.Runlevel),
+			mr.WithConfigSource(registration.ConfigSource),
 		}
-
-		opts := []mr.RegistrationOption{mr.WithRunlevel(rl)}
-		if dsciConfiguredModules[name] {
-			opts = append(opts, mr.WithConfigSource(mr.ConfigFromDSCI))
-		}
-
-		mr.Add(handler, opts...)
-		provision.Add(name, provision.KindModule, rl)
+		mr.Add(registration.Handler, opts...)
+		provision.Add(name, provision.KindModule, registration.Runlevel)
 
 		if !flags.IsModuleEnabled(name) {
 			mr.Disable(name)
@@ -312,7 +251,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		fmt.Printf("Error registering service suppression flags: %s", err.Error())
 		os.Exit(1)
 	}
-	if err := flags.RegisterModuleSuppressionFlags(slices.Collect(maps.Keys(existingModules))); err != nil {
+	if err := flags.RegisterModuleSuppressionFlags(modulebuiltin.Names()); err != nil {
 		fmt.Printf("Error registering module suppression flags: %s", err.Error())
 		os.Exit(1)
 	}
@@ -459,7 +398,9 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// OpenShift-specific cache filters: only register when running on OpenShift
 	if cluster.GetClusterInfo().Type == cluster.ClusterTypeOpenShift {
 		cacheOptions.ByObject[&operatorv1.IngressController{}] = cache.ByObject{
-			Field: fields.Set{"metadata.name": "default"}.AsSelector(),
+			Namespaces: map[string]cache.Config{
+				cluster.IngressControllerName.Namespace: {},
+			},
 		}
 		cacheOptions.ByObject[&configv1.Authentication{}] = cache.ByObject{
 			Field: fields.Set{"metadata.name": cluster.ClusterAuthenticationObj}.AsSelector(),

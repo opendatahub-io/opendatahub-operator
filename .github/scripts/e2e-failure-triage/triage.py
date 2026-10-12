@@ -25,7 +25,7 @@ import yaml
 # Constants
 # ---------------------------------------------------------------------------
 
-GCSWEB_BASE = "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results"
+GCSWEB_BASE = "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs"
 
 JIRA_BASE_URL = "https://redhat.atlassian.net"
 TEMPLATE_ISSUE_KEY = "RHOAIENG-79740"
@@ -33,8 +33,8 @@ JIRA_PROJECT_KEY = "RHOAIENG"
 AUTO_BLOCKER_LABEL = "odh-operator-auto-e2e-blocker"
 
 PROW_URL_PATTERNS = [
-    re.compile(r"prow\.ci\.openshift\.org/view/gs/test-platform-results/(.+?)/?$"),
-    re.compile(r"gcsweb-ci\.apps\.ci\.l2s4\.p1\.openshiftapps\.com/gcs/test-platform-results/(.+?)/?$"),
+    re.compile(r"prow\.ci\.openshift\.org/view/gs/(test-platform-results(?:-public)?/.+?)/?$"),
+    re.compile(r"gcsweb-ci\.apps\.ci\.l2s4\.p1\.openshiftapps\.com/gcs/(test-platform-results(?:-public)?/.+?)/?$"),
 ]
 
 JOB_AS_NAME_PATTERN = re.compile(

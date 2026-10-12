@@ -233,7 +233,6 @@ oc get crd | grep -E 'istio.io|sailoperator.io'
 ```bash
 oc delete crd datascienceclusters.datasciencecluster.opendatahub.io
 oc delete crd dscinitializations.dscinitialization.opendatahub.io
-oc delete crd featuretrackers.features.opendatahub.io
 ```
 
 **Or delete all OpenDataHub CRDs:**

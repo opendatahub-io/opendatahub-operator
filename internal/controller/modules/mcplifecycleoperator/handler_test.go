@@ -8,26 +8,26 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 
 	. "github.com/onsi/gomega"
 )
 
-func newPlatformModules(mgmtState operatorv1.ManagementState) *configv1alpha1.PlatformModules {
-	return &configv1alpha1.PlatformModules{
+func newPlatformModules(mgmtState operatorv1.ManagementState) *configApi.PlatformModules {
+	return &configApi.PlatformModules{
 		MCPLifecycleOperator: common.ManagementSpec{
 			ManagementState: mgmtState,
 		},
 	}
 }
 
-func newDSC(mgmtState operatorv1.ManagementState) *dscv2.DataScienceCluster {
-	return &dscv2.DataScienceCluster{
-		Spec: dscv2.DataScienceClusterSpec{
-			Components: dscv2.Components{
+func newDSC(mgmtState operatorv1.ManagementState) *dscApi.DataScienceCluster {
+	return &dscApi.DataScienceCluster{
+		Spec: dscApi.DataScienceClusterSpec{
+			Components: dscApi.Components{
 				MCPLifecycleOperator: componentApi.DSCMCPLifecycleOperator{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: mgmtState,
@@ -59,7 +59,7 @@ func TestIsEnabled_Empty(t *testing.T) {
 func TestIsEnabled_EmptyModules(t *testing.T) {
 	g := NewWithT(t)
 	h := mcplifecycleoperator.NewHandler()
-	g.Expect(h.IsEnabled(&configv1alpha1.PlatformModules{})).Should(BeFalse())
+	g.Expect(h.IsEnabled(&configApi.PlatformModules{})).Should(BeFalse())
 }
 
 func TestIsEnabled_NilModules(t *testing.T) {
@@ -122,4 +122,52 @@ func TestGetName(t *testing.T) {
 	g := NewWithT(t)
 	h := mcplifecycleoperator.NewHandler()
 	g.Expect(h.GetName()).Should(Equal(componentApi.MCPLifecycleOperatorComponentName))
+}
+
+// TestPopulatePlatformModule_ExplicitValuesHonored verifies that any explicit,
+// non-empty managementState is copied through verbatim and never replaced by the
+// unset fallback (OCPMCP-382, FR-008 regression guard).
+//
+// Removed is included on its own because it happens to coincide with the fallback
+// value, so asserting it in isolation cannot prove the explicit value drove the
+// result. Unmanaged is a value the fallback can never emit: if the code ignored the
+// input and always defaulted, the Unmanaged case would fail. Together they prove the
+// explicit choice - including Removed - is honored rather than silently defaulted.
+func TestPopulatePlatformModule_ExplicitValuesHonored(t *testing.T) {
+	cases := map[string]operatorv1.ManagementState{
+		"explicit Managed":   operatorv1.Managed,
+		"explicit Removed":   operatorv1.Removed,
+		"explicit Unmanaged": operatorv1.Unmanaged,
+	}
+	for name, state := range cases {
+		t.Run(name, func(t *testing.T) {
+			g := NewWithT(t)
+			h := mcplifecycleoperator.NewHandler()
+			pm := &configApi.PlatformModules{}
+
+			h.PopulatePlatformModule(pm, &modules.DSCContext{DSC: newDSC(state)})
+			g.Expect(pm.MCPLifecycleOperator.ManagementState).Should(Equal(state))
+		})
+	}
+}
+
+// TestPopulatePlatformModule_UnsetDefaultsToRemoved documents the deliberate
+// unset fallback (FR-006): a DSC that omits managementState resolves to Removed.
+func TestPopulatePlatformModule_UnsetDefaultsToRemoved(t *testing.T) {
+	g := NewWithT(t)
+	h := mcplifecycleoperator.NewHandler()
+	pm := &configApi.PlatformModules{}
+
+	h.PopulatePlatformModule(pm, &modules.DSCContext{DSC: newDSC("")})
+	g.Expect(pm.MCPLifecycleOperator.ManagementState).Should(Equal(operatorv1.Removed))
+}
+
+// TestPopulatePlatformModule_NilGuards verifies nil inputs are handled without panic.
+func TestPopulatePlatformModule_NilGuards(t *testing.T) {
+	g := NewWithT(t)
+	h := mcplifecycleoperator.NewHandler()
+
+	g.Expect(func() { h.PopulatePlatformModule(nil, &modules.DSCContext{DSC: newDSC(operatorv1.Managed)}) }).ShouldNot(Panic())
+	g.Expect(func() { h.PopulatePlatformModule(&configApi.PlatformModules{}, nil) }).ShouldNot(Panic())
+	g.Expect(func() { h.PopulatePlatformModule(&configApi.PlatformModules{}, &modules.DSCContext{}) }).ShouldNot(Panic())
 }

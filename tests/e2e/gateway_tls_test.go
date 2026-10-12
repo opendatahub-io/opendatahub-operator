@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -14,18 +15,23 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
 )
 
 // kubeAuthProxyTLSDeploymentArgs is an independent test oracle: it computes the
-// expected --tls-min-version and --tls-cipher-suite deployment args for a given
-// TLS security profile without calling any production controller functions
-// (KubeAuthProxyTLSFromProfile, TLSCipherSuitesFromProfileSpec, etc.).
-func kubeAuthProxyTLSDeploymentArgs(profile *configv1.TLSSecurityProfile) (string, string) {
+// expected --tls-min-version, --tls-cipher-suite and --tls-curve-preferences
+// deployment args for a given TLS security profile without calling any
+// production controller functions (KubeAuthProxyTLSFromProfile,
+// TLSCipherSuitesFromProfileSpec, etc.). The curve preferences arg is empty
+// when the profile has no supported groups, in which case the flag is omitted
+// from the deployment.
+func kubeAuthProxyTLSDeploymentArgs(profile *configv1.TLSSecurityProfile) (string, string, string) {
 	spec := oracleProfileSpec(profile)
 	return fmt.Sprintf("--tls-min-version=%s", oracleMinVersion(spec.MinTLSVersion)),
-		fmt.Sprintf("--tls-cipher-suite=%s", oracleCipherSuites(spec.Ciphers))
+		fmt.Sprintf("--tls-cipher-suite=%s", oracleCipherSuites(spec.Ciphers)),
+		oracleCurvePreferences(spec.Groups)
 }
 
 // oracleProfileSpec resolves a TLSSecurityProfile to its TLSProfileSpec,
@@ -79,6 +85,21 @@ func oracleCipherSuites(ciphers []string) string {
 	return strings.Join(iana, ",")
 }
 
+// oracleCurvePreferences maps profile groups to numeric Go crypto/tls CurveID
+// values via the library-go utility. Returns an empty string when no group is
+// supported, matching the flag being omitted in the deployment.
+func oracleCurvePreferences(groups []configv1.TLSGroup) string {
+	curves, _ := ocpcrypto.TLSGroupsToCurveIDs(groups)
+	if len(curves) == 0 {
+		return ""
+	}
+	ids := make([]string, 0, len(curves))
+	for _, id := range curves {
+		ids = append(ids, strconv.FormatInt(int64(id), 10))
+	}
+	return fmt.Sprintf("--tls-curve-preferences=%s", strings.Join(ids, ","))
+}
+
 func (tc *GatewayTestCtx) fetchClusterAPIServer(t *testing.T) (*configv1.APIServer, bool) {
 	t.Helper()
 
@@ -94,7 +115,17 @@ func (tc *GatewayTestCtx) fetchClusterAPIServer(t *testing.T) (*configv1.APIServ
 	return nil, false
 }
 
-func (tc *GatewayTestCtx) expectedKubeAuthProxyTLSDeploymentArgs(t *testing.T) (string, string) {
+// kubeAuthProxyCurvePreferencesMatcher returns the jq matcher that asserts the
+// --tls-curve-preferences arg: a presence match when the profile resolves to
+// supported groups, an absence match otherwise.
+func kubeAuthProxyCurvePreferencesMatcher(curvePreferencesArg string) *jq.Matcher {
+	if curvePreferencesArg == "" {
+		return jq.Match(`.spec.template.spec.containers[0].args | map(select(startswith("--tls-curve-preferences="))) | length == 0`)
+	}
+	return jq.Match(`.spec.template.spec.containers[0].args | any(. == "%s")`, curvePreferencesArg)
+}
+
+func (tc *GatewayTestCtx) expectedKubeAuthProxyTLSDeploymentArgs(t *testing.T) (string, string, string) {
 	t.Helper()
 
 	apiServer, found := tc.fetchClusterAPIServer(t)
@@ -118,7 +149,7 @@ func oracleShouldHonorClusterTLSProfile(adherence configv1.TLSAdherencePolicy) b
 	}
 }
 
-func (tc *GatewayTestCtx) eventuallyKubeAuthProxyDeploymentHasTLSArgs(minVersionArg, cipherSuitesArg string) {
+func (tc *GatewayTestCtx) eventuallyKubeAuthProxyDeploymentHasTLSArgs(minVersionArg, cipherSuitesArg, curvePreferencesArg string) {
 	tc.g.Eventually(func(g Gomega) {
 		deployment := &appsv1.Deployment{}
 		g.Expect(tc.Client().Get(tc.Context(), types.NamespacedName{
@@ -132,6 +163,14 @@ func (tc *GatewayTestCtx) eventuallyKubeAuthProxyDeploymentHasTLSArgs(minVersion
 			ContainElement(minVersionArg),
 			ContainElement(cipherSuitesArg),
 		))
+		if curvePreferencesArg != "" {
+			g.Expect(args).To(ContainElement(curvePreferencesArg))
+		} else {
+			for _, a := range args {
+				g.Expect(strings.HasPrefix(a, "--tls-curve-preferences=")).
+					To(BeFalse(), "unexpected curve preferences flag %q", a)
+			}
+		}
 	}).WithTimeout(tc.TestTimeouts.defaultEventuallyTimeout).
 		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
 		Should(Succeed())
@@ -144,7 +183,7 @@ func (tc *GatewayTestCtx) ValidateKubeAuthProxyTLSArgsMatchAPIServer(t *testing.
 	skipUnless(t, Tier1)
 	t.Log("Validating kube-auth-proxy TLS args match cluster APIServer tlsSecurityProfile")
 
-	minArg, cipherArg := tc.expectedKubeAuthProxyTLSDeploymentArgs(t)
-	tc.eventuallyKubeAuthProxyDeploymentHasTLSArgs(minArg, cipherArg)
+	minArg, cipherArg, curveArg := tc.expectedKubeAuthProxyTLSDeploymentArgs(t)
+	tc.eventuallyKubeAuthProxyDeploymentHasTLSArgs(minArg, cipherArg, curveArg)
 	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: tc.gatewayNamespace()}, 2)
 }

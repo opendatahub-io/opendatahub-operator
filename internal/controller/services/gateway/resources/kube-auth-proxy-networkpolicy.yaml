@@ -18,8 +18,12 @@ spec:
     # Allow traffic from gateway/envoy pods for authentication
     - from:
       - podSelector:
-          matchLabels: # match whats applied on the pods by the kube-auth-proxy
-            {{.GatewayNameLabelKey}}: {{.GatewayName}}
+          matchExpressions: # match the gateway-name label added to gateway pods
+            - key: {{.GatewayNameLabelKey}}
+              operator: In
+              values:
+{{range .GatewayFilters}}                - {{.GatewayName}}
+{{end}}
         namespaceSelector:
           matchLabels:
             kubernetes.io/metadata.name: {{.GatewayNamespace}}

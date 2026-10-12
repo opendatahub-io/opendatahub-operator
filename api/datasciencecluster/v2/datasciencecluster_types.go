@@ -17,6 +17,10 @@ limitations under the License.
 package v2
 
 import (
+	"reflect"
+	"sort"
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -30,11 +34,10 @@ type DataScienceClusterSpec struct {
 	Components Components `json:"components,omitempty"`
 }
 
-// Note: the TrainingOperator re-enablement guard is an XValidation rule on
-// componentApi.DSCTrainingOperator, not here, so it applies to v1 too.
+// TrainingOperator and LlamaStackOperator retirement is enforced by the DSC v2 validating webhook.
 type Components struct {
 	// Dashboard component configuration.
-	Dashboard componentApi.DSCDashboard `json:"dashboard,omitempty"`
+	Dashboard componentApi.DSCDashboardV2 `json:"dashboard,omitempty"`
 
 	// Workbenches component configuration.
 	Workbenches componentApi.DSCWorkbenches `json:"workbenches,omitempty"`
@@ -44,7 +47,7 @@ type Components struct {
 
 	// Kserve component configuration.
 	// Only RawDeployment mode is supported.
-	Kserve componentApi.DSCKserve `json:"kserve,omitempty"`
+	Kserve componentApi.DSCKserveV2 `json:"kserve,omitempty"`
 
 	// Kueue component configuration.
 	Kueue componentApi.DSCKueue `json:"kueue,omitempty"`
@@ -87,6 +90,36 @@ type Components struct {
 
 	// MCPLifecycleOperator component configuration.
 	MCPLifecycleOperator componentApi.DSCMCPLifecycleOperator `json:"mcplifecycleoperator,omitempty"`
+
+	// DatabaseService module configuration.
+	DatabaseService componentApi.DSCDatabaseService `json:"databaseservice,omitempty"`
+}
+
+// componentJSONName returns the DSC component key from a struct field json tag.
+func componentJSONName(field reflect.StructField) (string, bool) {
+	tag := field.Tag.Get("json")
+	if tag == "" || tag == "-" {
+		return "", false
+	}
+	name, _, _ := strings.Cut(tag, ",")
+	if name == "" {
+		return "", false
+	}
+	return name, true
+}
+
+// ComponentNames returns spec.components keys declared on the DSC, derived
+// from Components struct json tags.
+func (Components) ComponentNames() []string {
+	t := reflect.TypeOf(Components{})
+	names := make([]string, 0, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		if name, ok := componentJSONName(t.Field(i)); ok {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.
@@ -155,6 +188,10 @@ type ComponentsStatus struct {
 
 	// MCPLifecycleOperator component status.
 	MCPLifecycleOperator componentApi.DSCMCPLifecycleOperatorStatus `json:"mcplifecycleoperator,omitempty"`
+
+	// DatabaseService module status.
+	// Field name must match GVK.Kind so WriteDSCComponentStatus can find it.
+	DatabaseService componentApi.DSCDatabaseServiceStatus `json:"databaseservice,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.
@@ -184,8 +221,8 @@ func (s *DataScienceClusterStatus) SetConditions(conditions []common.Condition) 
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:deprecatedversion:warning="datasciencecluster.opendatahub.io/v2 DataScienceCluster is deprecated; use datasciencecluster.opendatahub.io/v3 DataScienceCluster"
 // +kubebuilder:subresource:status
-// +kubebuilder:storageversion
 // +kubebuilder:resource:scope=Cluster,shortName=dsc
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"

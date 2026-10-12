@@ -20,14 +20,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 )
 
-const (
-	ModelRegistryComponentName = "modelregistry"
-	// ModelRegistryInstanceName the name of the ModelRegistry instance singleton.
-	// value should match what's set in the XValidation below
-	ModelRegistryInstanceName = "default-" + ModelRegistryComponentName
-	ModelRegistryKind         = "ModelRegistry"
-)
-
 // ModelRegistryCommonStatus defines the shared observed state of ModelRegistry
 type ModelRegistryCommonStatus struct {
 	RegistriesNamespace           string `json:"registriesNamespace,omitempty"`

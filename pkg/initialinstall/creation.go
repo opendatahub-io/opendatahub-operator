@@ -11,28 +11,43 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
 // CreateDefaultDSC creates a default instance of DSC.
 // Note: When the platform is not Managed, and a DSC instance already exists, the function doesn't re-create/update the resource.
 func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
-	// Set the default DSC name depending on the platform
-	releaseDataScienceCluster := &dscv2.DataScienceCluster{
+	// Build the default DSC; CreateWithRetry only creates it when one does not already exist.
+	releaseDataScienceCluster := buildDefaultDSC()
+	err := cluster.CreateWithRetry(ctx, cli, releaseDataScienceCluster) // 1 min timeout
+	if err != nil {
+		return fmt.Errorf("failed to create DataScienceCluster custom resource: %w", err)
+	}
+	return nil
+}
+
+// buildDefaultDSC returns the default DataScienceCluster CR created on a fresh install.
+func buildDefaultDSC() *dscApi.DataScienceCluster {
+	return &dscApi.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "DataScienceCluster",
-			APIVersion: "datasciencecluster.opendatahub.io/v2",
+			Kind:       gvk.DataScienceCluster.Kind,
+			APIVersion: gvk.DataScienceCluster.GroupVersion().String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "default-dsc",
 		},
-		Spec: dscv2.DataScienceClusterSpec{
-			Components: dscv2.Components{
+		Spec: dscApi.DataScienceClusterSpec{
+			Components: dscApi.Components{
 				Dashboard: componentApi.DSCDashboard{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+					DashboardCommonSpec: componentApi.DashboardCommonSpec{
+						Standard: componentApi.DashboardStandardSpec{
+							ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+						},
+					},
 				},
 				Workbenches: componentApi.DSCWorkbenches{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
@@ -62,14 +77,13 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 				TrustyAI: componentApi.DSCTrustyAI{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				ModelRegistry: componentApi.DSCModelRegistry{
+				AIHub: componentApi.DSCAIHub{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				FeastOperator: componentApi.DSCFeastOperator{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+				Data: componentApi.DSCData{
+					FeatureStore: componentApi.DSCFeatureStore{
+						ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+					},
 				},
 				OGX: componentApi.DSCOGX{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
@@ -92,16 +106,11 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 					},
 				},
 				MCPLifecycleOperator: componentApi.DSCMCPLifecycleOperator{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 			},
 		},
 	}
-	err := cluster.CreateWithRetry(ctx, cli, releaseDataScienceCluster) // 1 min timeout
-	if err != nil {
-		return fmt.Errorf("failed to create DataScienceCluster custom resource: %w", err)
-	}
-	return nil
 }
 
 // CreateDefaultDSCI creates a default instance of DSCI

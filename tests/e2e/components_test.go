@@ -1,6 +1,8 @@
 package e2e_test
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -14,6 +16,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -31,6 +35,7 @@ type ComponentTestCtx struct {
 	// Any additional fields specific to component tests
 	GVK            schema.GroupVersionKind
 	NamespacedName types.NamespacedName
+	ModuleHandler  modules.ModuleHandler
 
 	// Subcomponent information (optional, only set for subcomponents)
 	ParentKind            string // Kind of the parent component (e.g., "Kserve")
@@ -64,18 +69,25 @@ func NewComponentTestCtx(t *testing.T, object common.PlatformObject) (*Component
 	return &componentCtx, nil
 }
 
-// NewModuleTestCtx initializes a component test context for modules that
-// do not have a typed Go struct registered in the scheme.
-func NewModuleTestCtx(t *testing.T, moduleGVK schema.GroupVersionKind, instanceName string) (*ComponentTestCtx, error) { //nolint:thelper
+// NewModuleTestCtx initializes a component test context for a module handler.
+func NewModuleTestCtx(t *testing.T, handler modules.ModuleHandler) (*ComponentTestCtx, error) { //nolint:thelper
 	baseCtx, err := NewTestContext(t)
 	if err != nil {
 		return nil, err
 	}
+	if handler == nil {
+		return nil, errors.New("module handler is nil")
+	}
+	metadata, ok := handler.(interface{ GetCRName() string })
+	if !ok {
+		return nil, fmt.Errorf("module handler %q does not expose test metadata", handler.GetName())
+	}
 
 	return &ComponentTestCtx{
 		TestContext:    baseCtx,
-		GVK:            moduleGVK,
-		NamespacedName: types.NamespacedName{Name: instanceName},
+		GVK:            handler.GetGVK(),
+		NamespacedName: types.NamespacedName{Name: metadata.GetCRName()},
+		ModuleHandler:  handler,
 	}, nil
 }
 
@@ -98,12 +110,11 @@ func NewSubComponentTestCtx(t *testing.T, object common.PlatformObject, parentKi
 // that does not have a typed Go struct registered in the scheme.
 func NewSubModuleTestCtx( //nolint:thelper
 	t *testing.T,
-	moduleGVK schema.GroupVersionKind,
-	instanceName string,
+	handler modules.ModuleHandler,
 	parentKind string,
 	subComponentFieldName string,
 ) (*ComponentTestCtx, error) {
-	componentCtx, err := NewModuleTestCtx(t, moduleGVK, instanceName)
+	componentCtx, err := NewModuleTestCtx(t, handler)
 	if err != nil {
 		return nil, err
 	}
@@ -176,6 +187,55 @@ func (tc *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
 
 	// Ensure that the resources associated with the component do not exist
 	tc.EnsureResourcesGone(WithMinimalObject(tc.GVK, tc.NamespacedName))
+}
+
+// ValidateModuleEnabled checks that the Platform CR projects the enabled state
+// for this module. It is a separate case from ValidateComponentEnabled so the
+// module-level Platform contract is visible in E2E results.
+func (tc *ComponentTestCtx) ValidateModuleEnabled(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Smoke, Tier1)
+	tc.SkipIfXKSCluster(t)
+	if tc.ModuleHandler == nil {
+		t.Fatalf("module handler is not configured for %s", tc.GVK.Kind)
+	}
+
+	tc.NewWithT(t).GetObject(&configApi.Platform{
+		ObjectMeta: metav1.ObjectMeta{Name: tc.PlatformNamespacedName.Name},
+	}).Eventually().
+		WithContext(t.Context()).
+		WithTimeout(tc.TestTimeouts.longEventuallyTimeout).
+		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
+		Should(Satisfy(
+			func(p *configApi.Platform) bool {
+				return p != nil && tc.ModuleHandler.IsEnabled(&p.Spec.Modules)
+			}),
+			"Platform should report module %q as enabled", tc.ModuleHandler.GetName(),
+		)
+}
+
+// ValidateModuleDisabled checks that the Platform CR projects the removed state
+// for this module after ValidateComponentDisabled has disabled it.
+func (tc *ComponentTestCtx) ValidateModuleDisabled(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Smoke, Tier1)
+	tc.SkipIfXKSCluster(t)
+	if tc.ModuleHandler == nil {
+		t.Fatalf("module handler is not configured for %s", tc.GVK.Kind)
+	}
+
+	tc.NewWithT(t).GetObject(&configApi.Platform{
+		ObjectMeta: metav1.ObjectMeta{Name: tc.PlatformNamespacedName.Name},
+	}).Eventually().
+		WithContext(t.Context()).
+		WithTimeout(tc.TestTimeouts.longEventuallyTimeout).
+		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
+		Should(Satisfy(
+			func(p *configApi.Platform) bool {
+				return p != nil && !tc.ModuleHandler.IsEnabled(&p.Spec.Modules)
+			}),
+			"Platform should report module %q as disabled", tc.ModuleHandler.GetName(),
+		)
 }
 
 // ValidateOperandsOwnerReferences ensures that all deployment resources have the correct owner references.

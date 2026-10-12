@@ -1,9 +1,17 @@
 version: 2
 updates:
   - package-ecosystem: "gomod"
-    directory: "/"
+    directories:
+      - "**/*"
     schedule:
       interval: "weekly"
+    groups:
+      kubernetes:
+        patterns:
+          - "k8s.io/*"
+          - "sigs.k8s.io/*"
+      go-modules:
+        group-by: "dependency-name"
 
   - package-ecosystem: "github-actions"
     directory: "/"

@@ -12,8 +12,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -35,6 +35,8 @@ var relatedImages = []string{
 	"RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
 	"RELATED_IMAGE_ODH_WORKBENCHES_CONTROLLER_IMAGE",
 	"RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE",
+	"RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_BASELINE_CPU_PY312_C9S_IMAGE",
+	"RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_BASELINE_CPU_PY312_C9S_IMAGE",
 	"RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_DATASCIENCE_CPU_PY312_IMAGE",
 	"RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_CPU_PY312_IMAGE",
 	"RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_CUDA_PY312_IMAGE",
@@ -45,6 +47,7 @@ var relatedImages = []string{
 	"RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TENSORFLOW_ROCM_PY312_IMAGE",
 	"RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TRUSTYAI_CPU_PY312_IMAGE",
 	"RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_LLMCOMPRESSOR_CUDA_PY312_IMAGE",
+	"RELATED_IMAGE_ODH_PIPELINE_RUNTIME_BASELINE_CPU_PY312_C9S_IMAGE",
 	"RELATED_IMAGE_ODH_PIPELINE_RUNTIME_DATASCIENCE_CPU_PY312_IMAGE",
 	"RELATED_IMAGE_ODH_PIPELINE_RUNTIME_MINIMAL_CPU_PY312_IMAGE",
 	"RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_CUDA_PY312_IMAGE",
@@ -95,7 +98,7 @@ func NewHandler() *handler {
 	}
 }
 
-func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+func (h *handler) PopulatePlatformModule(pm *configApi.PlatformModules, dscCtx *modules.DSCContext) {
 	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
@@ -108,7 +111,7 @@ func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dsc
 
 // IsEnabled checks whether the Workbenches module should be deployed based on
 // PlatformModules.Workbenches.ManagementState.
-func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 	return modules != nil && modules.Workbenches.ManagementState == operatorv1.Managed
 }
 
@@ -162,7 +165,7 @@ func (h *handler) BuildModuleCR(
 func (h *handler) WriteLegacyStatusFields(
 	_ context.Context,
 	_ client.Client,
-	dsc *dscv2.DataScienceCluster,
+	dsc *dscApi.DataScienceCluster,
 	enabled bool,
 ) error {
 	if dsc == nil {
@@ -178,7 +181,7 @@ func (h *handler) WriteLegacyStatusFields(
 	return nil
 }
 
-func writeDSCWorkbenchNamespace(dsc *dscv2.DataScienceCluster, enabled bool, workbenchNamespace string) {
+func writeDSCWorkbenchNamespace(dsc *dscApi.DataScienceCluster, enabled bool, workbenchNamespace string) {
 	if dsc == nil {
 		return
 	}

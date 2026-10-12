@@ -7,8 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
@@ -19,7 +21,28 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-const testChartsPath = "/test/charts"
+const (
+	testChartsPath = "/test/charts"
+	testOwnerUID   = k8stypes.UID("test-kubernetes-engine")
+)
+
+var testOwnerGVK = gvk.AzureKubernetesEngine
+
+func newTestOwner() *unstructured.Unstructured {
+	owner := &unstructured.Unstructured{}
+	owner.SetGroupVersionKind(testOwnerGVK)
+	owner.SetUID(testOwnerUID)
+
+	return owner
+}
+
+func setTestOwner(cr *unstructured.Unstructured) {
+	cr.SetOwnerReferences([]metav1.OwnerReference{{
+		APIVersion: testOwnerGVK.GroupVersion().String(),
+		Kind:       testOwnerGVK.Kind,
+		UID:        testOwnerUID,
+	}})
+}
 
 func getAllUnmanagedDependencies() ccmcommon.Dependencies {
 	return ccmcommon.Dependencies{
@@ -55,7 +78,7 @@ func TestBuildHelmCharts(t *testing.T) {
 
 		// RHCL defaults to Unmanaged (unlike the others), so it must be set explicitly here.
 		deps := ccmcommon.Dependencies{RHCL: ccmcommon.RHCLDependency{ManagementPolicy: ccmcommon.Managed}}
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(HaveLen(len(expectedReleaseNames)))
@@ -72,7 +95,7 @@ func TestBuildHelmCharts(t *testing.T) {
 		deps := getAllUnmanagedDependencies()
 		deps.LWS.ManagementPolicy = ccmcommon.Managed
 
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(HaveLen(1))
@@ -88,7 +111,7 @@ func TestBuildHelmCharts(t *testing.T) {
 
 		deps := getAllUnmanagedDependencies()
 
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(BeEmpty())
@@ -105,7 +128,7 @@ func TestBuildHelmCharts(t *testing.T) {
 		deps := getAllUnmanagedDependencies()
 		deps.GatewayAPI.ManagementPolicy = ccmcommon.Managed
 
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.MonitorConfigs).To(HaveLen(4))
@@ -134,7 +157,7 @@ func TestBuildHelmCharts(t *testing.T) {
 			},
 		}
 
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		// RHCL defaults to Unmanaged (unlike the others), so it's excluded here.
@@ -171,7 +194,7 @@ func TestBuildHelmCharts(t *testing.T) {
 func TestBuildHelmChartsPhase1(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("single dep unmanaged with CR on cluster keeps chart and adds FilterCR", func(t *testing.T) {
+	t.Run("single dep unmanaged with CCM-owned CR keeps chart and adds FilterCR", func(t *testing.T) {
 		tests := []struct {
 			name        string
 			crGVK       schema.GroupVersionKind
@@ -208,11 +231,12 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 				cr.SetGroupVersionKind(tc.crGVK)
 				cr.SetName(tc.crName)
 				cr.SetNamespace(tc.crNamespace)
+				setTestOwner(cr)
 
 				cli := newFakeClient(t, fakeclient.WithObjects(cr))
 
 				deps := getAllUnmanagedDependencies()
-				result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+				result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 				g.Expect(err).NotTo(HaveOccurred())
 
 				g.Expect(result.Charts).To(HaveLen(1))
@@ -220,6 +244,49 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 				g.Expect(result.FilterCRs).To(HaveLen(1))
 				g.Expect(result.FilterCRs[0].GVK).To(Equal(tc.crGVK))
 				g.Expect(result.FilterCRs[0].Name).To(Equal(tc.crName))
+			})
+		}
+	})
+
+	t.Run("unmanaged with a preexisting CR excludes the chart", func(t *testing.T) {
+		tests := []struct {
+			name        string
+			crGVK       schema.GroupVersionKind
+			crName      string
+			crNamespace string
+		}{
+			{name: "sail-operator", crGVK: gvk.Istio, crName: "default"},
+			{name: "LWS", crGVK: gvk.LeaderWorkerSetOperatorV1, crName: "cluster"},
+			{name: "RHCL", crGVK: gvk.Kuadrantv1beta1, crName: "kuadrant", crNamespace: RHCLOperandNamespace},
+		}
+
+		owners := []struct {
+			name string
+			refs []metav1.OwnerReference
+		}{
+			{name: "without owner"},
+			{name: "owned by another resource", refs: []metav1.OwnerReference{{UID: "another-owner"}}},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				for _, owner := range owners {
+					t.Run(owner.name, func(t *testing.T) {
+						g := NewWithT(t)
+						cr := &unstructured.Unstructured{}
+						cr.SetGroupVersionKind(tc.crGVK)
+						cr.SetName(tc.crName)
+						cr.SetNamespace(tc.crNamespace)
+						cr.SetOwnerReferences(owner.refs)
+
+						cli := newFakeClient(t, fakeclient.WithObjects(cr))
+						result, err := BuildHelmCharts(ctx, cli, getAllUnmanagedDependencies(), testChartsPath, newTestOwner())
+						g.Expect(err).NotTo(HaveOccurred())
+						g.Expect(result.Charts).To(BeEmpty())
+						g.Expect(result.FilterCRs).To(BeEmpty())
+						g.Expect(result.CleanupCharts).To(HaveLen(3))
+					})
+				}
 			})
 		}
 	})
@@ -232,7 +299,7 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 			GatewayAPI: ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
 		}
 
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		// RHCL defaults to Unmanaged (unlike the others) and has no CR on cluster,
@@ -245,26 +312,29 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 		g.Expect(result.CleanupCharts[0].ReleaseName).To(Equal("rhcl-operator"))
 	})
 
-	t.Run("multiple deps unmanaged with CRs keeps charts with operatorCR", func(t *testing.T) {
+	t.Run("multiple deps unmanaged with CCM-owned CRs keep charts with operatorCR", func(t *testing.T) {
 		g := NewWithT(t)
 
 		istioCR := &unstructured.Unstructured{}
 		istioCR.SetGroupVersionKind(gvk.Istio)
 		istioCR.SetName("default")
+		setTestOwner(istioCR)
 
 		lwsCR := &unstructured.Unstructured{}
 		lwsCR.SetGroupVersionKind(gvk.LeaderWorkerSetOperatorV1)
 		lwsCR.SetName("cluster")
+		setTestOwner(lwsCR)
 
 		rhclCR := &unstructured.Unstructured{}
 		rhclCR.SetGroupVersionKind(gvk.Kuadrantv1beta1)
 		rhclCR.SetName("kuadrant")
 		rhclCR.SetNamespace(RHCLOperandNamespace)
+		setTestOwner(rhclCR)
 
 		cli := newFakeClient(t, fakeclient.WithObjects(istioCR, lwsCR, rhclCR))
 
 		deps := getAllUnmanagedDependencies()
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(HaveLen(3))
@@ -279,7 +349,7 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 		cli := newFakeClient(t)
 
 		deps := getAllUnmanagedDependencies()
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(BeEmpty())
@@ -302,7 +372,7 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 			SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
 		}
 
-		_, err = BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		_, err = BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).To(MatchError(getErr))
 	})
 
@@ -312,6 +382,7 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 		istioCR := &unstructured.Unstructured{}
 		istioCR.SetGroupVersionKind(gvk.Istio)
 		istioCR.SetName("default")
+		setTestOwner(istioCR)
 
 		cli := newFakeClient(t, fakeclient.WithObjects(istioCR))
 
@@ -322,7 +393,7 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 			RHCL:         ccmcommon.RHCLDependency{ManagementPolicy: ccmcommon.Unmanaged},
 		}
 
-		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath, newTestOwner())
 		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(HaveLen(2))

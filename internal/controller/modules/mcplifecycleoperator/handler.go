@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
@@ -48,18 +48,23 @@ func NewHandler() *handler {
 	}
 }
 
-func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+func (h *handler) PopulatePlatformModule(pm *configApi.PlatformModules, dscCtx *modules.DSCContext) {
 	if pm == nil || dscCtx == nil || dscCtx.DSC == nil {
 		return
 	}
 	ms := dscCtx.DSC.Spec.Components.MCPLifecycleOperator.ManagementState
+	// Default-on for GA (OCPMCP-382) is delivered by the default DSC, which sets
+	// managementState explicitly to Managed. This unset fallback only applies to a
+	// DSC that omits the field entirely; it is intentionally Removed so that an
+	// admin who deliberately trims the field is never surprised by an enabled
+	// module. Explicit choices (including Removed) are always honored as written.
 	if ms == "" {
 		ms = operatorv1.Removed
 	}
 	pm.MCPLifecycleOperator.ManagementState = ms
 }
 
-func (h *handler) IsEnabled(modules *configv1alpha1.PlatformModules) bool {
+func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 	return modules != nil && modules.MCPLifecycleOperator.ManagementState == operatorv1.Managed
 }
 

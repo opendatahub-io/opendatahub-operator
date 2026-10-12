@@ -61,9 +61,13 @@ type MetricsStorage struct {
 	Retention string `json:"retention,omitempty"`
 }
 
-// Traces enables and defines the configuration for traces collection
+// Traces enables and defines the configuration for traces collection.
+// Built-in Tempo requires storage; exporters-only configs (external backends) omit storage.
+// +kubebuilder:validation:XValidation:rule="has(self.storage) || (has(self.exporters) && size(self.exporters) > 0)",message="traces requires storage and/or at least one exporter"
 type Traces struct {
-	Storage TracesStorage `json:"storage"`
+	// Storage configures the built-in Tempo backend. Omit when using exporters only (external observability).
+	// +optional
+	Storage *TracesStorage `json:"storage,omitempty"`
 	// SampleRatio determines the sampling rate for traces
 	// Value should be between 0.0 (no sampling) and 1.0 (sample all traces)
 	// +kubebuilder:validation:Pattern="^(0(\\.[0-9]+)?|1(\\.0+)?)$"
@@ -126,6 +130,55 @@ type TracesStorage struct {
 
 // Alerting configuration for Prometheus
 type Alerting struct {
+}
+
+// Logs defines the configuration for cluster log forwarding via the ClusterLogForwarder operator.
+type Logs struct {
+	// Storage configures the LokiStack storage backend for log forwarding.
+	// Required: the operator deploys a shared LokiStack used by both log forwarding and usage logs.
+	// +kubebuilder:validation:Required
+	Storage *LokiStorageConfig `json:"storage"`
+
+	// InferenceNamespaces lists the namespaces whose application logs should be forwarded to Loki.
+	// +kubebuilder:validation:items:Pattern=`^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?$`
+	// +kubebuilder:validation:items:MaxLength=63
+	InferenceNamespaces []string `json:"inferenceNamespaces,omitempty"`
+}
+
+// UsageLogs defines the configuration for usage log collection.
+type UsageLogs struct {
+	// Storage configures the LokiStack storage backend (S3).
+	// When configured, the operator deploys a LokiStack instance and auto-configures the collector endpoint.
+	// +kubebuilder:validation:Required
+	Storage *LokiStorageConfig `json:"storage"`
+}
+
+// LokiStorageConfig defines storage configuration for LokiStack.
+type LokiStorageConfig struct {
+	// Type specifies the storage backend: "s3".
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=s3
+	Type string `json:"type"`
+
+	// SecretName is the name of the Secret containing storage credentials.
+	// For S3: must contain keys: access_key_id, access_key_secret, bucketnames, endpoint, region, insecure, s3ForcePathStyle
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
+	// +kubebuilder:validation:MaxLength=253
+	SecretName string `json:"secretName"`
+
+	// CredentialMode specifies how credentials are provided to LokiStack.
+	// Valid values: "static", "token", "token-cco".
+	// +optional
+	// +kubebuilder:default="static"
+	// +kubebuilder:validation:Enum=static;token;token-cco
+	CredentialMode string `json:"credentialMode,omitempty"`
+
+	// StorageClassName specifies the storage class for LokiStack PVCs.
+	// +optional
+	// +kubebuilder:default="gp3-csi"
+	// +kubebuilder:validation:MaxLength=253
+	StorageClassName string `json:"storageClassName,omitempty"`
 }
 
 type DSCIMonitoring struct {

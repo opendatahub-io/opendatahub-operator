@@ -251,8 +251,7 @@ func runActionChain(t *testing.T, g Gomega, chain []actions.Fn, rr *types.Reconc
 	for _, action := range chain {
 		err := action(t.Context(), rr)
 
-		var requeueErr odherrors.RequeueAfterError
-		if errors.As(err, &requeueErr) {
+		if _, ok := errors.AsType[odherrors.RequeueAfterError](err); ok {
 			continue
 		}
 

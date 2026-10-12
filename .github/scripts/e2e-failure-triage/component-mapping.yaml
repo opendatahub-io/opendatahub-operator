@@ -17,7 +17,7 @@ components:
     jira_component: "AI Core Dashboard"
   datasciencepipelines:
     jira_component: "AI Pipelines"
-  feastoperator:
+  data:
     jira_component: "Feature Store"
   kserve:
     jira_component: "Serving Orchestration"
@@ -29,7 +29,7 @@ components:
     jira_component: "OCPMCPLO"
   mlflowoperator:
     jira_component: "MLflow"
-  modelregistry:
+  aihub:
     jira_component: "AI Hub"
   modelsasservice:
     jira_component: "Model as a Service"

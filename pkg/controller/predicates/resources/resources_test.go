@@ -16,10 +16,11 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
+	metadatalabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	res "github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 
 	. "github.com/onsi/gomega"
@@ -588,26 +589,34 @@ func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		oldDSC *dscv2.DataScienceCluster
-		newDSC *dscv2.DataScienceCluster
+		oldDSC *dscApi.DataScienceCluster
+		newDSC *dscApi.DataScienceCluster
 		want   bool
 	}{
 		{
 			name: "components spec changed",
-			oldDSC: &dscv2.DataScienceCluster{
-				Spec: dscv2.DataScienceClusterSpec{
-					Components: dscv2.Components{
+			oldDSC: &dscApi.DataScienceCluster{
+				Spec: dscApi.DataScienceClusterSpec{
+					Components: dscApi.Components{
 						Dashboard: componentApi.DSCDashboard{
-							ManagementSpec: common.ManagementSpec{ManagementState: "Managed"},
+							DashboardCommonSpec: componentApi.DashboardCommonSpec{
+								Standard: componentApi.DashboardStandardSpec{
+									ManagementSpec: common.ManagementSpec{ManagementState: "Managed"},
+								},
+							},
 						},
 					},
 				},
 			},
-			newDSC: &dscv2.DataScienceCluster{
-				Spec: dscv2.DataScienceClusterSpec{
-					Components: dscv2.Components{
+			newDSC: &dscApi.DataScienceCluster{
+				Spec: dscApi.DataScienceClusterSpec{
+					Components: dscApi.Components{
 						Dashboard: componentApi.DSCDashboard{
-							ManagementSpec: common.ManagementSpec{ManagementState: "Removed"},
+							DashboardCommonSpec: componentApi.DashboardCommonSpec{
+								Standard: componentApi.DashboardStandardSpec{
+									ManagementSpec: common.ManagementSpec{ManagementState: "Removed"},
+								},
+							},
 						},
 					},
 				},
@@ -616,8 +625,8 @@ func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
 		},
 		{
 			name: "conditions count changed",
-			oldDSC: &dscv2.DataScienceCluster{
-				Status: dscv2.DataScienceClusterStatus{
+			oldDSC: &dscApi.DataScienceCluster{
+				Status: dscApi.DataScienceClusterStatus{
 					Status: common.Status{
 						Conditions: []common.Condition{
 							{Type: "Ready", Status: metav1.ConditionTrue},
@@ -625,8 +634,8 @@ func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
 					},
 				},
 			},
-			newDSC: &dscv2.DataScienceCluster{
-				Status: dscv2.DataScienceClusterStatus{
+			newDSC: &dscApi.DataScienceCluster{
+				Status: dscApi.DataScienceClusterStatus{
 					Status: common.Status{
 						Conditions: []common.Condition{
 							{Type: "Ready", Status: metav1.ConditionTrue},
@@ -639,8 +648,8 @@ func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
 		},
 		{
 			name: "condition status changed",
-			oldDSC: &dscv2.DataScienceCluster{
-				Status: dscv2.DataScienceClusterStatus{
+			oldDSC: &dscApi.DataScienceCluster{
+				Status: dscApi.DataScienceClusterStatus{
 					Status: common.Status{
 						Conditions: []common.Condition{
 							{Type: "Ready", Status: metav1.ConditionFalse},
@@ -648,8 +657,8 @@ func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
 					},
 				},
 			},
-			newDSC: &dscv2.DataScienceCluster{
-				Status: dscv2.DataScienceClusterStatus{
+			newDSC: &dscApi.DataScienceCluster{
+				Status: dscApi.DataScienceClusterStatus{
 					Status: common.Status{
 						Conditions: []common.Condition{
 							{Type: "Ready", Status: metav1.ConditionTrue},
@@ -661,15 +670,19 @@ func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
 		},
 		{
 			name: "no changes",
-			oldDSC: &dscv2.DataScienceCluster{
-				Spec: dscv2.DataScienceClusterSpec{
-					Components: dscv2.Components{
+			oldDSC: &dscApi.DataScienceCluster{
+				Spec: dscApi.DataScienceClusterSpec{
+					Components: dscApi.Components{
 						Dashboard: componentApi.DSCDashboard{
-							ManagementSpec: common.ManagementSpec{ManagementState: "Managed"},
+							DashboardCommonSpec: componentApi.DashboardCommonSpec{
+								Standard: componentApi.DashboardStandardSpec{
+									ManagementSpec: common.ManagementSpec{ManagementState: "Managed"},
+								},
+							},
 						},
 					},
 				},
-				Status: dscv2.DataScienceClusterStatus{
+				Status: dscApi.DataScienceClusterStatus{
 					Status: common.Status{
 						Conditions: []common.Condition{
 							{Type: "Ready", Status: metav1.ConditionTrue},
@@ -677,15 +690,19 @@ func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
 					},
 				},
 			},
-			newDSC: &dscv2.DataScienceCluster{
-				Spec: dscv2.DataScienceClusterSpec{
-					Components: dscv2.Components{
+			newDSC: &dscApi.DataScienceCluster{
+				Spec: dscApi.DataScienceClusterSpec{
+					Components: dscApi.Components{
 						Dashboard: componentApi.DSCDashboard{
-							ManagementSpec: common.ManagementSpec{ManagementState: "Managed"},
+							DashboardCommonSpec: componentApi.DashboardCommonSpec{
+								Standard: componentApi.DashboardStandardSpec{
+									ManagementSpec: common.ManagementSpec{ManagementState: "Managed"},
+								},
+							},
 						},
 					},
 				},
-				Status: dscv2.DataScienceClusterStatus{
+				Status: dscApi.DataScienceClusterStatus{
 					Status: common.Status{
 						Conditions: []common.Condition{
 							{Type: "Ready", Status: metav1.ConditionTrue},
@@ -697,7 +714,7 @@ func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
 		},
 	}
 
-	unstructuredDSC := func(t *testing.T, g *WithT, dsc *dscv2.DataScienceCluster) *unstructured.Unstructured {
+	unstructuredDSC := func(t *testing.T, g *WithT, dsc *dscApi.DataScienceCluster) *unstructured.Unstructured {
 		t.Helper()
 
 		u, err := res.ToUnstructured(dsc)
@@ -767,13 +784,13 @@ func TestDSCComponentUpdatePredicate_WrongType(t *testing.T) {
 	// old object is not a DSC
 	got := resources.DSCComponentUpdatePredicate.Update(event.UpdateEvent{
 		ObjectOld: &corev1.Pod{},
-		ObjectNew: &dscv2.DataScienceCluster{},
+		ObjectNew: &dscApi.DataScienceCluster{},
 	})
 	g.Expect(got).To(BeFalse())
 
 	// new object is not a DSC
 	got = resources.DSCComponentUpdatePredicate.Update(event.UpdateEvent{
-		ObjectOld: &dscv2.DataScienceCluster{},
+		ObjectOld: &dscApi.DataScienceCluster{},
 		ObjectNew: &corev1.Pod{},
 	})
 	g.Expect(got).To(BeFalse())
@@ -1258,6 +1275,38 @@ func TestHTTPRouteReferencesGateway_DefaultNamespace(t *testing.T) {
 	}
 
 	g.Expect(predicate.Create(event.CreateEvent{Object: routeWithoutNamespace})).To(BeTrue())
+}
+
+func TestGatewayProviderService(t *testing.T) {
+	t.Parallel()
+
+	predicate := resources.GatewayProviderService("my-gateway", "my-namespace")
+	matching := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "my-namespace",
+		Labels:    map[string]string{metadatalabels.GatewayAPI.GatewayName: "my-gateway"},
+	}}
+	otherGateway := matching.DeepCopy()
+	otherGateway.Labels[metadatalabels.GatewayAPI.GatewayName] = "other-gateway"
+
+	g := NewWithT(t)
+	g.Expect(predicate.Create(event.CreateEvent{Object: matching})).To(BeTrue())
+	g.Expect(predicate.Delete(event.DeleteEvent{Object: matching})).To(BeTrue())
+	g.Expect(predicate.Generic(event.GenericEvent{Object: matching})).To(BeTrue())
+	g.Expect(predicate.Create(event.CreateEvent{Object: otherGateway})).To(BeFalse())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: matching, ObjectNew: otherGateway})).To(BeTrue())
+
+	unlabeled := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Namespace: "my-namespace"}}
+	g.Expect(predicate.Create(event.CreateEvent{Object: unlabeled})).To(BeFalse())
+	g.Expect(predicate.Create(event.CreateEvent{})).To(BeFalse())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: matching, ObjectNew: unlabeled})).To(BeTrue())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: unlabeled, ObjectNew: matching})).To(BeTrue())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: unlabeled, ObjectNew: unlabeled})).To(BeFalse())
+	wrongNamespace := matching.DeepCopy()
+	wrongNamespace.Namespace = "other-namespace"
+	g.Expect(predicate.Create(event.CreateEvent{Object: wrongNamespace})).To(BeFalse())
+	emptyLabel := matching.DeepCopy()
+	emptyLabel.Labels[metadatalabels.GatewayAPI.GatewayName] = ""
+	g.Expect(predicate.Create(event.CreateEvent{Object: emptyLabel})).To(BeFalse())
 }
 
 func TestAPIServerTLSSecurityProfileChanged(t *testing.T) {

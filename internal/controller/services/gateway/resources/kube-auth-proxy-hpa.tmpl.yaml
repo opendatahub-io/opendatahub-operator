@@ -12,7 +12,7 @@ spec:
     kind: Deployment
     name: {{.KubeAuthProxyServiceName}}
   minReplicas: 2
-  maxReplicas: 10
+  maxReplicas: {{.AuthProxyMaxReplicas}}
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300

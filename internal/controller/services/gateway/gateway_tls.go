@@ -25,14 +25,14 @@ import (
 	pkgtls "github.com/opendatahub-io/opendatahub-operator/v2/pkg/tls"
 )
 
-// KubeAuthProxyTLSFromProfile resolves a TLSSecurityProfile to version and cipher strings
+// KubeAuthProxyTLSFromProfile resolves a TLSSecurityProfile to version, cipher, and curve strings
 // in the short format ("TLS1.2") used by kube-auth-proxy.
-func KubeAuthProxyTLSFromProfile(ctx context.Context, profile *configv1.TLSSecurityProfile) (string, string) {
-	return pkgtls.FromProfile(ctx, profile, pkgtls.FormatShort)
+func KubeAuthProxyTLSFromProfile(ctx context.Context, profile *configv1.TLSSecurityProfile) (string, string, string, error) {
+	return pkgtls.FromProfileWithCurvePreferences(ctx, profile, pkgtls.FormatShort)
 }
 
-// GetKubeAuthProxyTLSFromAPIServer fetches the cluster TLS profile and returns version and cipher strings
+// GetKubeAuthProxyTLSFromAPIServer fetches the cluster TLS profile and returns version, cipher, and curve strings
 // in the short format ("TLS1.2") used by kube-auth-proxy.
-func GetKubeAuthProxyTLSFromAPIServer(ctx context.Context, cli client.Reader) (string, string, error) {
-	return pkgtls.FromAPIServer(ctx, cli, pkgtls.FormatShort)
+func GetKubeAuthProxyTLSFromAPIServer(ctx context.Context, cli client.Reader) (string, string, string, error) {
+	return pkgtls.FromAPIServerWithCurvePreferences(ctx, cli, pkgtls.FormatShort)
 }

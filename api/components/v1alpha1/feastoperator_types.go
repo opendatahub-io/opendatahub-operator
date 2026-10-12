@@ -21,9 +21,8 @@ import (
 )
 
 const (
-	FeastOperatorComponentName = "feastoperator"
 	// FeastOperatorInstanceName is the singleton name for the FeastOperator instance.
-	FeastOperatorInstanceName = "default-" + FeastOperatorComponentName
+	FeastOperatorInstanceName = "default-feastoperator"
 	FeastOperatorKind         = "FeastOperator"
 )
 
@@ -41,6 +40,10 @@ type FeastOperatorCommonStatus struct {
 type DSCFeastOperator struct {
 	// Fields common across components
 	common.ManagementSpec `json:",inline"`
+
+	// DataRegistry configures the independent Data Registry lifecycle in the
+	// legacy v2 layout.
+	DataRegistry DSCDataRegistry `json:"dataRegistry,omitempty"`
 
 	// FeastOperator-specific fields
 	FeastOperatorCommonSpec `json:",inline"`

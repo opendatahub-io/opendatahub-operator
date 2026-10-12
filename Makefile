@@ -30,7 +30,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	ifeq ($(VERSION), )
-		VERSION = 3.6.0-ea.2
+		VERSION = 3.6.0
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
 	OPERATOR_NAMESPACE ?= opendatahub-operator-system
@@ -62,7 +62,7 @@ else
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	# NOTE: see also the git branches for RHOAI in manifests-config.yaml. This variable does NOT affect those
 	ifeq ($(VERSION), )
-		VERSION = 3.6.0-ea.2
+		VERSION = 3.6.0
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to redhat-ods-operator)
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
@@ -143,7 +143,7 @@ HELM ?= $(LOCALBIN)/helm
 KUSTOMIZE_VERSION ?= v5.8.1
 CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
-GOLANGCI_LINT_VERSION ?= v2.12.2
+GOLANGCI_LINT_VERSION ?= v2.14.0
 YQ_VERSION ?= v4.53.2
 HELM_VERSION ?= v4.1.1
 KUBE_LINTER_VERSION ?= v0.7.6
@@ -173,7 +173,14 @@ SHELL = /usr/bin/env bash -o pipefail
 
 # E2E tests additional flags
 # See README.md, default go test timeout 10m
-E2E_TEST_FLAGS = -timeout 80m
+E2E_TEST_FLAGS = -timeout 110m
+# Set USE_TEST_RETRY=false to run tests once without whole-test retries.
+USE_TEST_RETRY ?= true
+# Maximum retries after the initial E2E run; USE_TEST_RETRY=false forces zero.
+E2E_TESTING_MAX_RETRIES ?= 3
+ifneq ($(filter false 0,$(USE_TEST_RETRY)),)
+E2E_TESTING_MAX_RETRIES := 0
+endif
 
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead
@@ -284,8 +291,11 @@ endif
 	@mkdir -p config/rhaii/crd/bases
 	@cp "$(CONFIG_DIR)/crd/bases/config.opendatahub.io_platforms.yaml" config/rhaii/crd/bases/
 	@cp "$(CONFIG_DIR)/crd/bases/services.platform.opendatahub.io_gatewayconfigs.yaml" config/rhaii/crd/bases/
+	@cp "$(CONFIG_DIR)/crd/kustomizeconfig.yaml" config/rhaii/crd/kustomizeconfig.yaml
 	@$(call add-crd-to-kustomization,config/rhaii/crd/bases)
-MANIFEST_GENERATED_FILES = config/crd/bases config/rhoai/crd/bases config/rhaii/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
+	@# Generate the RHAII webhook manifest with only the GatewayConfig validator.
+	@"$(YQ)" eval 'select(.kind == "ValidatingWebhookConfiguration") | .webhooks = [.webhooks[] | select(.name == "gatewayconfig-validator.opendatahub.io")]' "$(CONFIG_DIR)/webhook/manifests.yaml" > config/rhaii/webhook/manifests.yaml
+MANIFEST_GENERATED_FILES = config/crd/bases config/rhoai/crd/bases config/rhaii/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml config/rhaii/webhook/manifests.yaml
 
 .PHONY: manifests-all
 manifests-all:
@@ -305,8 +315,8 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 GOLANGCI_TMP_FILE = .golangci.mktmp.yml
 .PHONY: fmt
 fmt: golangci-lint yq ## Formats code and imports.
-	go fmt ./...
-	$(GOLANGCI_LINT) fmt
+	go fmt $(GOLANGCI_LINT_PACKAGES)
+	$(GOLANGCI_LINT) fmt $(GOLANGCI_LINT_PACKAGES)
 CLEANFILES += $(GOLANGCI_TMP_FILE)
 
 .PHONY: vet
@@ -314,14 +324,16 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 GOLANGCI_LINT_TIMEOUT ?= 5m0s
+# Keep linting opt-in to source roots so fork-local prefetched artifacts are never loaded.
+GOLANGCI_LINT_PACKAGES ?= ./api/... ./cmd/... ./hack/... ./internal/... ./pkg/... ./tests/...
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint against code.
-	$(GOLANGCI_LINT) run --timeout=$(GOLANGCI_LINT_TIMEOUT)
+	$(GOLANGCI_LINT) run --timeout=$(GOLANGCI_LINT_TIMEOUT) $(GOLANGCI_LINT_PACKAGES)
 
 .PHONY: lint-fix
 lint-fix: golangci-lint ## Run golangci-lint against code.
-	$(GOLANGCI_LINT) run --fix
-	$(GOLANGCI_LINT) fmt
+	$(GOLANGCI_LINT) run --fix $(GOLANGCI_LINT_PACKAGES)
+	$(GOLANGCI_LINT) fmt $(GOLANGCI_LINT_PACKAGES)
 
 .PHONY: kube-lint
 kube-lint: prepare ## Run kube-linter against rendered manifests.
@@ -350,9 +362,12 @@ update-rhai-images: yq ## Locally update downloaded RHAI params.env files (not u
 	fi
 	MANIFESTS_DIR=./opt/manifests RHAI_BRANCH=$(RHAI_BRANCH) YQ=$(YQ) SED_COMMAND=$(SED_COMMAND) ./hack/update-rhai-images.sh
 .PHONY: validate-related-images
+# RHOAI Build Config branches use major.minor, while VERSION includes patch and
+# prerelease components.
+RHOAI_BUILD_CONFIG_BRANCH := rhoai-$(word 1,$(subst ., ,$(VERSION))).$(word 2,$(subst ., ,$(VERSION)))
+export RHOAI_BUILD_CONFIG_BRANCH
 validate-related-images: yq ## Validate RELATED_IMAGE_* names against build configs
-	@RHOAI_BUILD_CONFIG_BRANCH=rhoai-$(shell echo $(VERSION) | sed 's/\([0-9]*\.[0-9]*\)\.[0-9]*/\1/') \
-		YQ=$(YQ) ./.github/scripts/validate-related-images.sh
+	@YQ="$(YQ)" ./.github/scripts/validate-related-images.sh
 
 .PHONY: resolve-image-digests
 resolve-image-digests: ## Resolve image digests from Build-Config and update manifests-config.yaml
@@ -394,8 +409,9 @@ endif
 api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs, render managementstate with marker
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md && \
-	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api@$(call go-mod-version,github.com/openshift/api)/operator/v1#ManagementState)|g" ./docs/api-overview.md && \
-	$(SED_COMMAND) -i "s|](#managementspec)|](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)|g" ./docs/api-overview.md
+	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)|g" ./docs/api-overview.md && \
+	$(SED_COMMAND) -i "s|](#managementspec)|](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)|g" ./docs/api-overview.md && \
+	go run ./hack/disambiguate-api-doc-anchors.go ./docs/api-overview.md
 	$(CRD_REF_DOCS) --source-path ./api/cloudmanager/ --output-path ./docs/cloudmanager-api-overview.md --renderer markdown --config ./crd-ref-docs.cloudmanager.config.yaml
 
 .PHONY: ginkgo
@@ -532,8 +548,7 @@ $(OPERATOR_SDK): $(LOCALBIN)
 	chmod +x $(OPERATOR_SDK) ;\
 
 .PHONY: golangci-lint
-golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
-$(GOLANGCI_LINT): $(LOCALBIN)
+golangci-lint: $(LOCALBIN) ## Download golangci-lint locally if necessary.
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint,$(GOLANGCI_LINT_VERSION))
 
 OS=$(shell uname -s)
@@ -572,7 +587,7 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	# InstallPlan preflight (wrong service, no caBundle) and the CR-validation LIST hits an
 	# unreachable webhook -> 404 -> failed upgrade. Non-OLM installs (config/crd) keep their
 	# static conversion, so xKS/self-managed deployments are unaffected.
-	for f in $(BUNDLE_DIR)/manifests/datasciencecluster.opendatahub.io_datascienceclusters.yaml $(BUNDLE_DIR)/manifests/dscinitialization.opendatahub.io_dscinitializations.yaml; do \
+	for f in $(BUNDLE_DIR)/manifests/datasciencecluster.opendatahub.io_datascienceclusters.yaml $(BUNDLE_DIR)/manifests/dscinitialization.opendatahub.io_dscinitializations.yaml $(BUNDLE_DIR)/manifests/config.opendatahub.io_platforms.yaml; do \
 		[ -f "$$f" ] && $(YQ) -i 'del(.spec.conversion)' "$$f"; \
 	done
 CLEANFILES += rhoai-bundle odh-bundle
@@ -677,7 +692,7 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
 
 # Run tests.
-TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/... ./api/services/v1alpha1/... ./cmd/cloudmanager/...
+TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/... ./api/datasciencecluster/... ./api/services/v1alpha1/... ./cmd/cloudmanager/...
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
@@ -840,7 +855,7 @@ e2e-test:
 			echo "SELECTIVE-E2E: could not resolve affected components -- running full suite"; \
 		fi; \
 	fi; \
-	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}
+	go run -C ./cmd/test-retry main.go e2e --verbose --max-retries=$(E2E_TESTING_MAX_RETRIES) --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}
 
 .PHONY: e2e-test-single
 e2e-test-single:
@@ -860,6 +875,7 @@ e2e-setup-cluster:
 		-e E2E_TEST_COMPONENTS=false \
 		-e E2E_TEST_SERVICES=false \
 		-e E2E_TEST_WEBHOOK=false \
+		-e E2E_TEST_CONVERSION_WEBHOOK=false \
 		-e E2E_TEST_OPERATOR_RESILIENCE=false \
 		-e E2E_TEST_OPERATOR_V2TOV3UPGRADE=false \
 		-e E2E_TEST_DELETION_POLICY=never \
@@ -871,6 +887,7 @@ e2e-test-xks: ## Run e2e tests on external Kubernetes (KinD, AKS, CoreWeave, etc
 		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false \
 		-e E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT=false \
 		-e E2E_TEST_WEBHOOK=false \
+		-e E2E_TEST_CONVERSION_WEBHOOK=false \
 		-e E2E_TEST_COMPONENTS=true \
 		-e E2E_TEST_COMPONENT="kserve" \
 		-e E2E_TEST_SERVICES=true \
@@ -979,34 +996,19 @@ kind-setup-pull-secrets: ## Setup pull secrets for operator dependencies in the 
 	done
 	@echo "Pull secrets configured."
 
+ifeq ($(SKIP_CERT_MANAGER_INSTALL),true)
+CERT_MANAGER_INSTALL_PREREQUISITES :=
+else
+CERT_MANAGER_INSTALL_PREREQUISITES := helm
+endif
+
 .PHONY: install-cert-manager
-install-cert-manager: helm ## Install cert-manager operator (fetched from odh-gitops)
-	@if [ "$(SKIP_CERT_MANAGER_INSTALL)" = "true" ]; then \
-		echo "SKIP_CERT_MANAGER_INSTALL is set, skipping cert-manager installation"; \
-		exit 0; \
-	fi
-	@if kubectl get crd certificates.cert-manager.io >/dev/null 2>&1; then \
-		echo "cert-manager CRDs already present, skipping installation"; \
-		exit 0; \
-	fi
-	@tmpdir=$$(mktemp -d); \
-	trap "rm -rf $$tmpdir" EXIT; \
-	go run -C ./cmd/manifest-tools main.go download \
-		--config "$(CURDIR)/hack/cert-manager-config.yaml" \
-		--charts-dir $$tmpdir; \
-	"$(HELM)" upgrade --install cert-manager-operator $$tmpdir/cert-manager-operator --create-namespace --take-ownership; \
-	kubectl rollout status deployment/cert-manager-operator-controller-manager -n cert-manager-operator --timeout=120s; \
-	for dep in cert-manager cert-manager-webhook cert-manager-cainjector; do \
-		echo "Waiting for deployment/$$dep in cert-manager namespace..."; \
-		end=$$(( $$(date +%s) + 300 )); \
-		while ! kubectl rollout status deployment/$$dep -n cert-manager --timeout=10s 2>/dev/null; do \
-			if [ $$(date +%s) -ge $$end ]; then \
-				echo "Timed out waiting for deployment/$$dep"; \
-				exit 1; \
-			fi; \
-			sleep 5; \
-		done; \
-	done
+install-cert-manager: $(CERT_MANAGER_INSTALL_PREREQUISITES) ## Install cert-manager operator (fetched from odh-gitops)
+ifeq ($(SKIP_CERT_MANAGER_INSTALL),true)
+	@echo "SKIP_CERT_MANAGER_INSTALL is set, skipping cert-manager installation"
+else
+	@./hack/install-cert-manager.sh "$(HELM)"
+endif
 
 CCM_INSTALL_TARGETS := $(addprefix install-ccm-,$(CCM_PROVIDERS))
 .PHONY: $(CCM_INSTALL_TARGETS)

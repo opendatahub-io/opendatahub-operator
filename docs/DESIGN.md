@@ -29,8 +29,6 @@ In addition, each ODH component is represented by its own dedicated internal API
 Each component CR singleton instance and its sub-resources are managed by a dedicated component controller.
 More details on the supported ODH components are provided [here](#component-crs-and-controllers).
 
-The operator also watches [Feature Trackers](#feature-trackers) which are cluster-scoped resources, specifically designed for monitoring and managing objects created via the internal Features API.
-
 Furthermore, there are dedicated [service CRs and controllers](#service-crs-and-controllers) for configuring authentication and monitoring.
 
 Lastly, the ODH operator also manages [accessory controllers](#accessory-controllers) responsible for helper tasks, such as cleanup after uninstallation.
@@ -79,7 +77,7 @@ List of currently integrated ODH components:
 | Feature Store (Feast) | `FeastOperator` |
 | KServe | `Kserve` |
 | Kueue | `Kueue` |
-| Model Registry | `ModelRegistry` |
+| AI Hub | `AIHub` |
 | Ray | `Ray` |
 | TrustyAI | `TrustyAI` |
 | Workbenches (IDEs) | `Workbenches` |
@@ -87,13 +85,6 @@ List of currently integrated ODH components:
 
 Component reconciliation refactor introduced a generic component reconciler builder and a CLI tool for generating the necessary files, making it easier to integrate new components in the future.
 For more details, please refer to the [Component integration guide](https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/COMPONENT_INTEGRATION.md).
-
-### Feature Trackers
-
-A `FeatureTracker` represents a cluster-scoped resource, specifically designed for monitoring and managing objects created via the internal Features API.
-This resource serves a crucial role in cross-namespace resource management, acting as an owner reference for various resources.
-The primary purpose of the `FeatureTracker` is to enable efficient garbage collection by Kubernetes.
-This is essential for ensuring that resources are automatically cleaned up and reclaimed when they are no longer required.
 
 ### Service CRs and controllers
 

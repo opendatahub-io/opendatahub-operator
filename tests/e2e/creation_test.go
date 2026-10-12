@@ -114,6 +114,13 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 	operators := []Operator{
 		{nn: types.NamespacedName{Name: certManagerOpName, Namespace: certManagerOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: certManagerOpChannel},
 		{nn: types.NamespacedName{Name: kuadrantOpName, Namespace: kuadrantNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
+		{
+			nn:                  types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace},
+			skipOperatorGroup:   false,
+			globalOperatorGroup: false,
+			channel:             kueueOcpOperatorChannel,
+			useOLMv1:            true,
+		},
 		{nn: types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace}, skipOperatorGroup: false, globalOperatorGroup: false, channel: leaderWorkerSetChannel}, //nolint:lll
 		{nn: types.NamespacedName{Name: jobSetOpName, Namespace: jobSetOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: false, channel: jobSetOpChannel},
 	}

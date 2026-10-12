@@ -103,6 +103,9 @@ spec:
             - "--tls-key-file={{.TLSCertsMountPath}}/tls.key"
             - "--tls-min-version={{.TLSMinVersion}}"
             - "--tls-cipher-suite={{.TLSCipherSuite}}"
+            {{- if .TLSCurvePreferences }}
+            - "--tls-curve-preferences={{.TLSCurvePreferences}}"
+            {{- end }}
             - "--use-system-trust-store=true"
             {{- if .ProviderCASecret }}
             - "--provider-ca-file=/etc/provider-ca/ca.crt"

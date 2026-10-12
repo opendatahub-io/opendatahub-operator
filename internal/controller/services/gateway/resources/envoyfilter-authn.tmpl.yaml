@@ -1,16 +1,20 @@
+{{- range $index, $filter := .GatewayFilters }}
+{{- if $index }}
+---
+{{- end }}
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
 metadata:
-  name: {{.EnvoyFilter}}
-  namespace: {{.GatewayNamespace}}
+  name: {{$filter.Name}}
+  namespace: {{$.GatewayNamespace}}
   labels:
-    {{.PartOfLabelKey}}: {{.PartOfLabelValue}}
-    {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
-    {{.IstioRevisionLabel}}: {{.IstioRevisionValue}}
+    {{$.PartOfLabelKey}}: {{$.PartOfLabelValue}}
+    {{$.ComponentLabelKey}}: {{$.ComponentLabelValue}}
+    {{$.IstioRevisionLabel}}: {{$.IstioRevisionValue}}
 spec:
   workloadSelector:
     labels:
-      {{.GatewayNameLabelKey}}: {{.GatewayName}}
+      {{$.GatewayNameLabelKey}}: {{$filter.GatewayName}}
   configPatches:
   # ext_authz for authentication
   - applyTo: HTTP_FILTER
@@ -31,10 +35,10 @@ spec:
           transport_api_version: V3
           http_service:
             server_uri:
-              uri: https://{{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local:{{.GatewayHTTPSPort}}/oauth2/auth
+              uri: https://{{$.KubeAuthProxyServiceName}}.{{$.GatewayNamespace}}.svc.cluster.local:{{$.GatewayHTTPSPort}}/oauth2/auth
               # Use Istio's auto-created EDS cluster for better load balancing across all pods
-              cluster: outbound|{{.GatewayHTTPSPort}}||{{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local
-              timeout: {{.AuthProxyTimeout}}
+              cluster: outbound|{{$.GatewayHTTPSPort}}||{{$.KubeAuthProxyServiceName}}.{{$.GatewayNamespace}}.svc.cluster.local
+              timeout: {{$.AuthProxyTimeout}}
             authorization_request:
               allowed_headers:
                 patterns:
@@ -101,7 +105,7 @@ spec:
                 local cookie_header = request_handle:headers():get("cookie")
                 if cookie_header then
                   local filtered_cookies = {}
-                  local cookie_pattern = "^{{.AuthProxyCookieName}}"
+                  local cookie_pattern = "^{{$.AuthProxyCookieName}}"
 
                   -- Parse and filter cookies in a single pass
                   for cookie in cookie_header:gmatch("([^;]+)") do
@@ -126,3 +130,4 @@ spec:
               end
               -- If no auth indicators present, preserve cookies (needed for ext_authz authentication)
             end
+{{- end }}
