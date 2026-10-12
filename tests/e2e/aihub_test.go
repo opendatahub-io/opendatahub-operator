@@ -21,7 +21,7 @@ import (
 const (
 	aihubModuleOperatorDeployment = "aihub-controller-manager"
 	aihubModuleCRName             = "default-aihub"
-	aihubTestNamespace            = "e2e-model-registries"
+	aihubTestNamespace            = "e2e-aihub"
 	aiHubReadyCondition           = "AIHubReady"
 )
 
@@ -37,7 +37,7 @@ func aihubTestSuite(t *testing.T) {
 		Namespace: tc.AppsNamespace,
 		Name:      aihubModuleOperatorDeployment,
 	}
-	registriesNSNN := types.NamespacedName{Name: aihubTestNamespace}
+	aihubInstancesNSNN := types.NamespacedName{Name: aihubTestNamespace}
 
 	var originalInstancesNamespace string
 
@@ -104,10 +104,10 @@ func aihubTestSuite(t *testing.T) {
 			}
 
 			namespace := &corev1.Namespace{}
-			err := tc.Client().Get(t.Context(), registriesNSNN, namespace)
+			err := tc.Client().Get(t.Context(), aihubInstancesNSNN, namespace)
 			if k8serr.IsNotFound(err) {
 				t.Cleanup(func() {
-					tc.DeleteResource(WithMinimalObject(gvk.Namespace, registriesNSNN), WithIgnoreNotFound(true), WithWaitForDeletion(true))
+					tc.DeleteResource(WithMinimalObject(gvk.Namespace, aihubInstancesNSNN), WithIgnoreNotFound(true), WithWaitForDeletion(true))
 				})
 			} else {
 				require.NoError(t, err)
@@ -191,13 +191,13 @@ func aihubTestSuite(t *testing.T) {
 				)),
 			)
 		}},
-		{"Validate registries namespace created", func(t *testing.T) {
+		{"Validate AI Hub instances namespace created", func(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Tier1)
 
 			tc.EnsureResourceExists(
-				WithMinimalObject(gvk.Namespace, registriesNSNN),
-				WithCustomErrorMsg("non-default registries namespace %s should be auto-created", aihubTestNamespace),
+				WithMinimalObject(gvk.Namespace, aihubInstancesNSNN),
+				WithCustomErrorMsg("non-default AI Hub instances namespace %s should be auto-created", aihubTestNamespace),
 			)
 		}},
 		{"Validate releases mirrored to DSC", func(t *testing.T) {
@@ -253,7 +253,7 @@ func aihubTestSuite(t *testing.T) {
 
 			// Clean up the test namespace.
 			tc.DeleteResource(
-				WithMinimalObject(gvk.Namespace, registriesNSNN),
+				WithMinimalObject(gvk.Namespace, aihubInstancesNSNN),
 				WithIgnoreNotFound(true),
 				WithWaitForDeletion(true),
 			)
