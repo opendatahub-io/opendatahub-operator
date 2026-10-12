@@ -332,7 +332,7 @@ additional_meta:
     git.commit: a613d262e5532c76d301e861a8b91f1e450a9445
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
-    git.commit: 5bb2c7a3354664a555cfeafdc77ea20a6f0d632c
+    git.commit: 561ba155ade28db4127a724f1a2fcc7ec470e7e0
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: 99f0947b941b1b7467d84e45688716670825c41a
