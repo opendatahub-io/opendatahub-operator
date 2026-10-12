@@ -32,9 +32,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE
   value: "quay.io/rhoai/odh-feature-server-rhel9@sha256:01b98d79e73a3b346ce3e37c4c086c2c977c59a2942a1681902d5898d816d3b2"
 - name: RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE
-  value: "quay.io/rhoai/odh-fms-guardrails-orchestrator-rhel9@sha256:8b21c9c699945be492b48908efcf1f4cb67abf7b0414a7b6ea2fc0696aebd5fd"
+  value: "quay.io/rhoai/odh-fms-guardrails-orchestrator-rhel9@sha256:b8ddb759d20a055e1f0c9eb82b9ef3b46540d28716027220a098edbfb249a7f9"
 - name: RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE
-  value: "quay.io/rhoai/odh-guardrails-detector-huggingface-runtime-rhel9@sha256:e04efc361aaeecd965104321a5b930ed4ad8baa359b31acf2d9aa6ff77f6e38b"
+  value: "quay.io/rhoai/odh-guardrails-detector-huggingface-runtime-rhel9@sha256:1d591864831164d4941535c448b45235a395bd9eb5221bc3faa2fe7effb7c96f"
 - name: RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kf-notebook-controller-rhel9@sha256:7e5b7f0c212e26b91e818c45667df85da2cd735421f6ed38c3fc6e15d106f361"
 - name: RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE
@@ -234,6 +234,6 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TRUSTYAI_CPU_PY312_IMAGE
   value: "quay.io/rhoai/odh-workbench-jupyter-trustyai-cpu-py312-rhel9@sha256:8abdeaacb9202f64a730eb99ce89bdfe93bf85e15f80a8fac8f830756e7a7761"
 - name: RELATED_IMAGE_ODH_WORKLOAD_VARIANT_AUTOSCALER_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-workload-variant-autoscaler-controller-rhel9@sha256:46e947db5cd2a51cba4fb5c75c6a409425a98eee4c03ac896cdd19a2d52a397c"
+  value: "quay.io/rhoai/odh-workload-variant-autoscaler-controller-rhel9@sha256:c74398e41e65ebcd61a93b69ea554d1e09783285fe3160c1f8a9ec184dc7c286"
 - name: RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE
   value: "quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:8ce075528840d47296a069d4aa6282f4b80c5fb2e916eac42f13762bb268396d"

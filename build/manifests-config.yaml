@@ -116,10 +116,10 @@ additional_meta:
     git.commit: d815db6267502e3967d6f96c790b9543ca907767
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
-    git.commit: 79dc101c50bdbc5c0e72f6fe36e6df9aeeb25841
+    git.commit: 5a740465389907c6794b56c9d4d7b2b91a2ba920
   odh-guardrails-detector-huggingface-runtime:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
-    git.commit: 69b4c403742a37c08d84f728d7368bc35b6ea176
+    git.commit: 781004b34ca9331f24ba7afbc61a054c25695118
   odh-kf-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
     git.commit: 20a8aa0334fd3354f16300d721b6e4e9155dd49f
@@ -380,4 +380,4 @@ additional_meta:
     git.commit: 5a7d121db24b0f2f6265fff5e4fb3434e7e29eba
   odh-workload-variant-autoscaler-controller:
     git.url: https://github.com/red-hat-data-services/workload-variant-autoscaler
-    git.commit: 2aed2f0cd36a2c447b57ff53ad41f53f53b7a054
+    git.commit: 464bb3bc4aa2fa9137611dd215b279e18820c63e
