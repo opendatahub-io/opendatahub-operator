@@ -20,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -91,7 +92,7 @@ func TestAdditionalIngressGatewayReferenceSurvivesReadinessChanges(t *testing.T)
 	}
 	cli := setupTestClient().WithStatusSubresource(&gwapiv1.Gateway{}).WithObjects(config).Build()
 	rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: config,
-		Conditions: conditions.NewManager(config, status.ConditionTypeReady, ReadyConditionType, serviceApi.AdditionalGatewaysReadyConditionType)}
+		Conditions: conditionstest.NewManager(config, status.ConditionTypeReady, ReadyConditionType, serviceApi.AdditionalGatewaysReadyConditionType)}
 	rr.Conditions.MarkTrue(ReadyConditionType)
 	g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
 	reference := serviceApi.GatewayReference{Name: ingress.Name, Namespace: GetGatewayNamespace()}
@@ -145,7 +146,7 @@ func TestSyncAdditionalIngressReadinessUsesEachGateway(t *testing.T) {
 		managedGatewayForIngress(alpha.Name), managedGatewayForIngress(beta.Name),
 		alphaRoute)
 	rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: gatewayConfig,
-		Conditions: conditions.NewManager(gatewayConfig, status.ConditionTypeReady, serviceApi.AdditionalGatewaysReadyConditionType)}
+		Conditions: conditionstest.NewManager(gatewayConfig, status.ConditionTypeReady, serviceApi.AdditionalGatewaysReadyConditionType)}
 
 	g.Expect(syncAdditionalIngressReadiness(t.Context(), rr)).To(Succeed())
 	g.Expect(syncAdditionalIngressReadyStatuses(t.Context(), rr, false)).To(Succeed())
@@ -267,7 +268,7 @@ func TestSyncAdditionalIngressReadinessRetriesReadFailures(t *testing.T) {
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: gatewayConfig,
-		Conditions: conditions.NewManager(gatewayConfig, status.ConditionTypeReady, serviceApi.AdditionalGatewaysReadyConditionType)}
+		Conditions: conditionstest.NewManager(gatewayConfig, status.ConditionTypeReady, serviceApi.AdditionalGatewaysReadyConditionType)}
 
 	err = syncAdditionalIngressReadiness(t.Context(), rr)
 	var requeue odherrors.RequeueAfterError
@@ -321,7 +322,7 @@ func TestAdditionalGatewaysReadyAggregation(t *testing.T) {
 				Status:     serviceApi.GatewayConfigStatus{AdditionalIngresses: test.statuses},
 			}
 			rr := &odhtypes.ReconciliationRequest{Instance: config,
-				Conditions: conditions.NewManager(config, status.ConditionTypeReady, ReadyConditionType, serviceApi.AdditionalGatewaysReadyConditionType)}
+				Conditions: conditionstest.NewManager(config, status.ConditionTypeReady, ReadyConditionType, serviceApi.AdditionalGatewaysReadyConditionType)}
 			rr.Conditions.MarkTrue(ReadyConditionType)
 			updateAdditionalGatewaysReadyCondition(rr, config)
 			condition := rr.Conditions.GetCondition(serviceApi.AdditionalGatewaysReadyConditionType)

@@ -23,7 +23,6 @@ type PostStatusFn = fwreconciler.PostStatusFn
 
 var (
 	WithPostStatusFn              = fwreconciler.WithPostStatusFn
-	WithConditionsManagerFactory  = fwreconciler.WithConditionsManagerFactory
 	WithRelease                   = fwreconciler.WithRelease
 	WithFinalizerName             = fwreconciler.WithFinalizerName
 	WithProvisioningConditionType = fwreconciler.WithProvisioningConditionType

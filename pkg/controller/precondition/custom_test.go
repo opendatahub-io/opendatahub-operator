@@ -105,7 +105,7 @@ func TestCustom_AllOptions(t *testing.T) {
 
 	g.Expect(shouldStop).To(BeTrue())
 
-	got := rr.Conditions.GetCondition(customCondition)
+	got := rr.Conditions.GetCondition(common.ConditionType(customCondition))
 	g.Expect(got).NotTo(BeNil())
 	g.Expect(got.Status).To(Equal(metav1.ConditionFalse))
 	g.Expect(got.Severity).To(Equal(common.ConditionSeverityInfo))

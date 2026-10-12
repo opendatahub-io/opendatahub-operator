@@ -3,6 +3,7 @@ package reconciler
 import (
 	"context"
 
+	fwconditions "github.com/opendatahub-io/odh-platform-utilities/framework/controller/conditions"
 	fwreconciler "github.com/opendatahub-io/odh-platform-utilities/framework/controller/reconciler"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -19,6 +20,12 @@ type WatchOpts = fwreconciler.WatchOpts
 type ReconcilerBuilder[T common.PlatformObject] = fwreconciler.ReconcilerBuilder[T]
 
 type DynamicOwnershipOption = fwreconciler.DynamicOwnershipOption
+
+// DependentConditions converts operator condition names to the framework's
+// condition dependency definitions. Unspecified polarity defaults to healthy when True.
+func DependentConditions[T ~string](conditionTypes ...T) []fwconditions.DependentDefinition {
+	return fwreconciler.DependentConditions(conditionTypes...)
+}
 
 var (
 	WithPredicates    = fwreconciler.WithPredicates

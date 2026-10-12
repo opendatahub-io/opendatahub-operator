@@ -61,6 +61,8 @@ const PlatformReleaseName = "platform"
 
 type Condition = fwapi.Condition
 
+type ConditionType = fwapi.ConditionType
+
 type Status = fwapi.Status
 
 type ComponentRelease = fwapi.ComponentRelease

@@ -14,9 +14,9 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -137,7 +137,7 @@ func TestGatewayCertManagerPrecondition(t *testing.T) {
 			rr := &odhtypes.ReconciliationRequest{
 				Client:     cli,
 				Instance:   gatewayConfig,
-				Conditions: conditions.NewManager(gatewayConfig, ReadyConditionType),
+				Conditions: conditionstest.NewManager(gatewayConfig, ReadyConditionType),
 			}
 
 			stop := precondition.RunAll(t.Context(), rr, []precondition.PreCondition{gatewayCertManagerPrecondition()})
@@ -189,7 +189,7 @@ func TestGatewayCertManagerPreconditionPassesWhenCRDIsPresent(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(gatewayConfig, ReadyConditionType),
+		Conditions: conditionstest.NewManager(gatewayConfig, ReadyConditionType),
 	}
 
 	g.Expect(precondition.RunAll(t.Context(), rr, []precondition.PreCondition{gatewayCertManagerPrecondition()})).To(BeFalse())
@@ -213,7 +213,7 @@ func TestGatewayCertManagerPreconditionSkippedOnOpenShift(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(gatewayConfig, ReadyConditionType),
+		Conditions: conditionstest.NewManager(gatewayConfig, ReadyConditionType),
 	}
 
 	g.Expect(precondition.RunAll(t.Context(), rr, []precondition.PreCondition{gatewayCertManagerPrecondition()})).To(BeFalse())
@@ -237,7 +237,7 @@ func TestGatewayCertManagerPreconditionClearsDependencyAfterSwitchToProvided(t *
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(gatewayConfig, ReadyConditionType),
+		Conditions: conditionstest.NewManager(gatewayConfig, ReadyConditionType),
 	}
 	pc := gatewayCertManagerPrecondition()
 
