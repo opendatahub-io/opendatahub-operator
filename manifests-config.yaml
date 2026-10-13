@@ -226,6 +226,19 @@ imageOverrides:
     rhoai:
       base: "registry.redhat.io/cluster-observability-operator/korrel8r-rhel9"
       digest: "sha256:90cc70741585b3a555888cc119c1ad630e988513dd2065158b26f6fa33dc8a22"
+  # PostgreSQL 16 for the aiHub/model-registry model-catalog DB and the dashboard.
+  # Must be a digest-pinned, mirrorable, FIPS-capable (UBI/RHEL) image: the former
+  # quay.io/sclorg/postgresql-16-c10s:latest default is a mutable community tag that
+  # ImagePullBackOffs on disconnected+FIPS clusters (RHOAIENG-100377).
+  # NOTE: digest must be verified/refreshed via `make resolve-image-digests`.
+  RELATED_IMAGE_POSTGRESQL_16_IMAGE:
+    source: "csv"
+    odh:
+      base: "registry.redhat.io/rhel9/postgresql-16"
+      digest: "sha256:f7bf8c0071560f5f75ef96a20a3cdb04ef020eea92cb60d77a09871c58daa6d0"
+    rhoai:
+      base: "registry.redhat.io/rhel9/postgresql-16"
+      digest: "sha256:f7bf8c0071560f5f75ef96a20a3cdb04ef020eea92cb60d77a09871c58daa6d0"
   RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE:
     component: kserve-module-operator
     tagTemplate: "{SHA}"
