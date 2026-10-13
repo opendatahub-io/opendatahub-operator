@@ -3,6 +3,8 @@ package upgrade
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -10,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -37,6 +40,10 @@ const (
 // Subscription/CSV (OLM v0), and matching Catalog ClusterExtension (OLM v1).
 func OperatorUninstall(ctx context.Context, cli client.Client, platform common.Platform) error {
 	log := logf.FromContext(ctx)
+
+	if err := ensureLLMInferenceServicesFinalized(ctx, cli); err != nil {
+		return err
+	}
 
 	if err := removeDSC(ctx, cli); err != nil {
 		return err
@@ -107,6 +114,53 @@ func OperatorUninstall(ctx context.Context, cli client.Client, platform common.P
 
 	log.Info("All resources deleted as part of uninstall.")
 	return nil
+}
+
+// ensureLLMInferenceServicesFinalized blocks DSC deletion while
+// LLMInferenceServices remain. This keeps the KServe controller running while
+// users delete their services and normal finalization releases
+// LLMInferenceServiceConfig references. Configs are deliberately never
+// deleted here: their in-use finalizer remains the authority for deletion.
+func ensureLLMInferenceServicesFinalized(ctx context.Context, cli client.Client) error {
+	llmInferenceServiceGVKs := []schema.GroupVersionKind{
+		gvk.LLMInferenceServiceV1Alpha1,
+		gvk.LLMInferenceServiceV1Alpha2,
+	}
+
+	var remaining []string
+	for _, serviceGVK := range llmInferenceServiceGVKs {
+		services, err := listLLMInferenceServices(ctx, cli, serviceGVK)
+		if err != nil {
+			return err
+		}
+		for i := range services {
+			remaining = append(remaining, fmt.Sprintf("%s/%s", services[i].GetNamespace(), services[i].GetName()))
+		}
+	}
+
+	if len(remaining) == 0 {
+		return nil
+	}
+
+	sort.Strings(remaining)
+	return fmt.Errorf("LLMInferenceServices must be deleted and finalized before uninstall: %s", strings.Join(remaining, ", "))
+}
+
+func listLLMInferenceServices(
+	ctx context.Context,
+	cli client.Client,
+	serviceGVK schema.GroupVersionKind,
+) ([]unstructured.Unstructured, error) {
+	services := &unstructured.UnstructuredList{}
+	services.SetGroupVersionKind(serviceGVK)
+	if err := cli.List(ctx, services); err != nil {
+		if meta.IsNoMatchError(err) || k8serr.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("list LLMInferenceServices %s: %w", serviceGVK.GroupVersion(), err)
+	}
+
+	return services.Items, nil
 }
 
 func removeDSCI(ctx context.Context, cli client.Client) error {
