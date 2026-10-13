@@ -194,7 +194,7 @@ additional_meta:
     git.commit: 858b995badee1a47c301185ad3061f07c7f4ad67
   odh-mlmd-grpc-server:
     git.url: https://github.com/red-hat-data-services/ml-metadata
-    git.commit: 95631580f60fd3bff24a5578e44e631169a63a21
+    git.commit: e684dff888d0720f947dfe108f66cf23ea333c2d
   odh-mlserver-cuda:
     git.url: https://github.com/red-hat-data-services/MLServer
     git.commit: 55f45f37c42260ba846ce5ba7b1e2d0208132981
@@ -212,13 +212,13 @@ additional_meta:
     git.commit: bdda9e710fa6ac0902e6de147108b927c47bb5a3
   odh-ml-pipelines-persistenceagent-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: bdda9e710fa6ac0902e6de147108b927c47bb5a3
+    git.commit: d7f8668478d801431dd7d1317fbf154f7a432638
   odh-ml-pipelines-scheduledworkflow-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
     git.commit: bdda9e710fa6ac0902e6de147108b927c47bb5a3
   odh-model-controller:
     git.url: https://github.com/red-hat-data-services/odh-model-controller
-    git.commit: 482e4858981f9ac6dca5b18dd38874475e151703
+    git.commit: 7232f0edb6e22a3918d6a70ee7d56952417d04fb
   odh-model-metadata-collection:
     git.url: https://github.com/red-hat-data-services/model-metadata-collection
     git.commit: 95b41ac04a64c9d5304b1964318274ee5b0831c0
@@ -305,7 +305,7 @@ additional_meta:
     git.commit: 082cc32d9bbf2ad5c518b234923232d59c93d7e5
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
-    git.commit: 22159a8b753544ea98556c4cb77e363f5a2c2384
+    git.commit: 8595981e05288cb384c5e766167125701ae94511
   odh-ta-lmes-job:
     git.url: https://github.com/red-hat-data-services/lm-evaluation-harness
     git.commit: 1854d369390e60239976156efc9e2eaedc18621c
