@@ -41,7 +41,7 @@ const (
 func OperatorUninstall(ctx context.Context, cli client.Client, platform common.Platform) error {
 	log := logf.FromContext(ctx)
 
-	if err := ensureLLMInferenceServicesFinalized(ctx, cli); err != nil {
+	if err := ensureLLMISVCCleanupReady(ctx, cli); err != nil {
 		return err
 	}
 
@@ -116,51 +116,156 @@ func OperatorUninstall(ctx context.Context, cli client.Client, platform common.P
 	return nil
 }
 
-// ensureLLMInferenceServicesFinalized blocks DSC deletion while
-// LLMInferenceServices remain. This keeps the KServe controller running while
-// users delete their services and normal finalization releases
-// LLMInferenceServiceConfig references. Configs are deliberately never
-// deleted here: their in-use finalizer remains the authority for deletion.
-func ensureLLMInferenceServicesFinalized(ctx context.Context, cli client.Client) error {
+// ensureLLMISVCCleanupReady blocks DSC deletion while LLMInferenceServices
+// remain or their controller has not finished clearing config usage status.
+// This keeps the KServe controller running while users delete their services
+// and normal finalization releases LLMInferenceServiceConfig references.
+// Neither services nor configs are deleted here: their normal finalizers remain
+// authoritative and uninstall only observes their progress.
+func ensureLLMISVCCleanupReady(ctx context.Context, cli client.Client) error {
 	llmInferenceServiceGVKs := []schema.GroupVersionKind{
-		gvk.LLMInferenceServiceV1Alpha1,
 		gvk.LLMInferenceServiceV1Alpha2,
+		gvk.LLMInferenceServiceV1Alpha1,
 	}
 
-	var remaining []string
+	var blockers []string
+	seenServices := map[client.ObjectKey]struct{}{}
 	for _, serviceGVK := range llmInferenceServiceGVKs {
-		services, err := listLLMInferenceServices(ctx, cli, serviceGVK)
+		services, err := listLLMISVCResources(ctx, cli, serviceGVK)
 		if err != nil {
 			return err
 		}
 		for i := range services {
-			remaining = append(remaining, fmt.Sprintf("%s/%s", services[i].GetNamespace(), services[i].GetName()))
+			key := client.ObjectKeyFromObject(&services[i])
+			if _, seen := seenServices[key]; seen {
+				continue
+			}
+			seenServices[key] = struct{}{}
+			blockers = append(blockers, fmt.Sprintf("LLMInferenceService %s", key))
 		}
 	}
 
-	if len(remaining) == 0 {
+	configGVKs := []schema.GroupVersionKind{
+		gvk.LLMInferenceServiceConfigV1Alpha2,
+		gvk.LLMInferenceServiceConfigV1Alpha1,
+	}
+	seenConfigs := map[client.ObjectKey]struct{}{}
+	for _, configGVK := range configGVKs {
+		configs, err := listLLMISVCResources(ctx, cli, configGVK)
+		if err != nil {
+			return err
+		}
+		for i := range configs {
+			key := client.ObjectKeyFromObject(&configs[i])
+			if _, seen := seenConfigs[key]; seen {
+				continue
+			}
+			seenConfigs[key] = struct{}{}
+
+			blocker, err := llmISVCConfigCleanupBlocker(&configs[i])
+			if err != nil {
+				return fmt.Errorf("inspect LLMInferenceServiceConfig %s: %w", key, err)
+			}
+			if blocker != "" {
+				blockers = append(blockers, fmt.Sprintf("LLMInferenceServiceConfig %s (%s)", key, blocker))
+			}
+		}
+	}
+
+	if len(blockers) == 0 {
 		return nil
 	}
 
-	sort.Strings(remaining)
-	return fmt.Errorf("LLMInferenceServices must be deleted and finalized before uninstall: %s", strings.Join(remaining, ", "))
+	sort.Strings(blockers)
+	return fmt.Errorf("LLMInferenceService cleanup must complete before uninstall: %s", strings.Join(blockers, ", "))
 }
 
-func listLLMInferenceServices(
+func listLLMISVCResources(
 	ctx context.Context,
 	cli client.Client,
-	serviceGVK schema.GroupVersionKind,
+	resourceGVK schema.GroupVersionKind,
 ) ([]unstructured.Unstructured, error) {
-	services := &unstructured.UnstructuredList{}
-	services.SetGroupVersionKind(serviceGVK)
-	if err := cli.List(ctx, services); err != nil {
+	resources := &unstructured.UnstructuredList{}
+	resources.SetGroupVersionKind(resourceGVK)
+	if err := cli.List(ctx, resources); err != nil {
 		if meta.IsNoMatchError(err) || k8serr.IsNotFound(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("list LLMInferenceServices %s: %w", serviceGVK.GroupVersion(), err)
+		return nil, fmt.Errorf("list %s resources: %w", resourceGVK, err)
 	}
 
-	return services.Items, nil
+	return resources.Items, nil
+}
+
+func llmISVCConfigCleanupBlocker(config *unstructured.Unstructured) (string, error) {
+	if !config.GetDeletionTimestamp().IsZero() {
+		return "terminating", nil
+	}
+
+	observedGeneration, found, err := unstructured.NestedInt64(config.Object, "status", "observedGeneration")
+	if err != nil {
+		return "", err
+	}
+	if !found || observedGeneration != config.GetGeneration() {
+		return "waiting for llmisvc controller to observe the current generation", nil
+	}
+
+	references, found, err := unstructured.NestedSlice(config.Object, "status", "referencedBy")
+	if err != nil {
+		return "", err
+	}
+	if found && len(references) > 0 {
+		var names []string
+		for _, reference := range references {
+			ref, ok := reference.(map[string]any)
+			if !ok {
+				continue
+			}
+			name, _ := ref["name"].(string)
+			if name == "" {
+				continue
+			}
+			namespace, _ := ref["namespace"].(string)
+			if namespace == "" {
+				names = append(names, name)
+			} else {
+				names = append(names, namespace+"/"+name)
+			}
+		}
+		sort.Strings(names)
+		if len(names) == 0 {
+			return "status.referencedBy is not empty", nil
+		}
+		return "referenced by " + strings.Join(names, ", "), nil
+	}
+
+	conditions, found, err := unstructured.NestedSlice(config.Object, "status", "conditions")
+	if err != nil {
+		return "", err
+	}
+	if !found {
+		return "waiting for ConfigInUse condition", nil
+	}
+	for _, condition := range conditions {
+		conditionMap, ok := condition.(map[string]any)
+		if !ok {
+			return "", fmt.Errorf("ConfigInUse condition has invalid type %T", condition)
+		}
+		conditionType, _ := conditionMap["type"].(string)
+		if conditionType != "ConfigInUse" {
+			continue
+		}
+		status, ok := conditionMap["status"].(string)
+		if !ok {
+			return "", fmt.Errorf("ConfigInUse condition has invalid status type %T", conditionMap["status"])
+		}
+		if status == "False" {
+			return "", nil
+		}
+		return "ConfigInUse=" + status, nil
+	}
+
+	return "waiting for ConfigInUse condition", nil
 }
 
 func removeDSCI(ctx context.Context, cli client.Client) error {

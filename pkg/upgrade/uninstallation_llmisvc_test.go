@@ -58,7 +58,7 @@ func TestOperatorUninstallBlocksOnLLMInferenceServicesBeforeDeletingDSC(t *testi
 	g.Expect(err).NotTo(HaveOccurred())
 
 	err = OperatorUninstall(t.Context(), cli, "")
-	g.Expect(err).To(MatchError(ContainSubstring("LLMInferenceServices must be deleted and finalized before uninstall: apps/llm")))
+	g.Expect(err).To(MatchError(ContainSubstring("LLMInferenceService apps/llm")))
 	g.Expect(dscDeleteAttempted).To(BeFalse(), "DSC deletion must wait for the user to delete LLMInferenceServices")
 	g.Expect(configDeleteAttempted).To(BeFalse(), "LLMInferenceServiceConfig finalizers must remain authoritative")
 
@@ -84,8 +84,8 @@ func TestEnsureLLMInferenceServicesFinalizedBlocksOnBothVersionsAndLeavesConfigs
 	)
 	g.Expect(err).NotTo(HaveOccurred())
 
-	g.Expect(ensureLLMInferenceServicesFinalized(t.Context(), cli)).To(
-		MatchError(ContainSubstring("LLMInferenceServices must be deleted and finalized before uninstall: apps/current, apps/old")),
+	g.Expect(ensureLLMISVCCleanupReady(t.Context(), cli)).To(
+		MatchError(And(ContainSubstring("LLMInferenceService apps/current"), ContainSubstring("LLMInferenceService apps/old"))),
 	)
 
 	for _, serviceGVK := range []schema.GroupVersionKind{gvk.LLMInferenceServiceV1Alpha1, gvk.LLMInferenceServiceV1Alpha2} {
@@ -100,10 +100,101 @@ func TestEnsureLLMInferenceServicesFinalizedBlocksOnBothVersionsAndLeavesConfigs
 	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(config), remainingConfig)).To(Succeed())
 }
 
+func TestEnsureLLMISVCCleanupReadyWaitsForConfigStatus(t *testing.T) {
+	tests := []struct {
+		name        string
+		configure   func(*unstructured.Unstructured)
+		errContains string
+	}{
+		{
+			name: "allows current unused config",
+			configure: func(config *unstructured.Unstructured) {
+				setLLMISVCConfigStatus(config, "False")
+			},
+		},
+		{
+			name: "blocks stale referencedBy after service deletion",
+			configure: func(config *unstructured.Unstructured) {
+				setLLMISVCConfigStatus(config, "False", map[string]any{"namespace": "apps", "name": "deleted-service"})
+			},
+			errContains: "referenced by apps/deleted-service",
+		},
+		{
+			name: "blocks config not observed at current generation",
+			configure: func(config *unstructured.Unstructured) {
+				setLLMISVCConfigStatus(config, "False")
+				config.SetGeneration(2)
+			},
+			errContains: "waiting for llmisvc controller to observe the current generation",
+		},
+		{
+			name: "blocks ConfigInUse",
+			configure: func(config *unstructured.Unstructured) {
+				setLLMISVCConfigStatus(config, "True")
+			},
+			errContains: "ConfigInUse=True",
+		},
+		{
+			name: "blocks terminating config until absent",
+			configure: func(config *unstructured.Unstructured) {
+				setLLMISVCConfigStatus(config, "False")
+				config.SetFinalizers([]string{"serving.kserve.io/llmisvcconfig-finalizer"})
+				now := metav1.Now()
+				config.SetDeletionTimestamp(&now)
+			},
+			errContains: "terminating",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			config := newLLMInferenceServiceForUninstall(gvk.LLMInferenceServiceConfigV1Alpha2, "preset")
+			config.SetGeneration(1)
+			tt.configure(config)
+
+			cli, err := fakeclient.New(
+				fakeclient.WithObjects(config),
+				fakeclient.WithGVKs(
+					fakeclient.GVKMapping{GVK: gvk.LLMInferenceServiceV1Alpha1, Scope: meta.RESTScopeNamespace},
+					fakeclient.GVKMapping{GVK: gvk.LLMInferenceServiceV1Alpha2, Scope: meta.RESTScopeNamespace},
+					fakeclient.GVKMapping{GVK: gvk.LLMInferenceServiceConfigV1Alpha1, Scope: meta.RESTScopeNamespace},
+					fakeclient.GVKMapping{GVK: gvk.LLMInferenceServiceConfigV1Alpha2, Scope: meta.RESTScopeNamespace},
+				),
+			)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			err = ensureLLMISVCCleanupReady(t.Context(), cli)
+			if tt.errContains == "" {
+				g.Expect(err).NotTo(HaveOccurred())
+			} else {
+				g.Expect(err).To(MatchError(ContainSubstring(tt.errContains)))
+			}
+		})
+	}
+}
+
 func newLLMInferenceServiceForUninstall(gvk schema.GroupVersionKind, name string) *unstructured.Unstructured {
 	resource := &unstructured.Unstructured{}
 	resource.SetGroupVersionKind(gvk)
 	resource.SetNamespace("apps")
 	resource.SetName(name)
 	return resource
+}
+
+func setLLMISVCConfigStatus(config *unstructured.Unstructured, configInUse string, refs ...map[string]any) {
+	status := map[string]any{
+		"observedGeneration": config.GetGeneration(),
+		"conditions": []any{
+			map[string]any{"type": "ConfigInUse", "status": configInUse},
+		},
+	}
+	if len(refs) > 0 {
+		referencedBy := make([]any, len(refs))
+		for i := range refs {
+			referencedBy[i] = refs[i]
+		}
+		status["referencedBy"] = referencedBy
+	}
+	config.Object["status"] = status
 }
