@@ -453,6 +453,6 @@ func Bootstrap[T common.PlatformObject](instanceName string, config BootstrapCon
 			WithReconcilerOpts(reconciler.WithPreConditions(preConditions())).
 			WithActionE(NewBootstrapAction(config)).
 			WithAction(requeueIfDependenciesIndeterminate).
-			WithConditions(status.ConditionDependenciesAvailable)
+			WithConditions(reconciler.DependentConditions(status.ConditionDependenciesAvailable)...)
 	}
 }

@@ -22,9 +22,9 @@ import (
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -49,7 +49,7 @@ func TestCheckPreConditions_Unknown_State(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   &kueue,
-		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+		Conditions: conditionstest.NewManager(&kueue, status.ConditionTypeReady),
 	}
 
 	result, err := checkPreConditions(ctx, &rr)
@@ -92,7 +92,7 @@ func TestCheckPreConditions_Managed_KueueOperatorAlreadyInstalled(t *testing.T) 
 	rr := types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   &kueue,
-		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+		Conditions: conditionstest.NewManager(&kueue, status.ConditionTypeReady),
 	}
 
 	result, err := checkPreConditions(ctx, &rr)
@@ -122,7 +122,7 @@ func TestCheckPreConditions_Unmanaged_KueueOperatorInstalledViaClusterExtension(
 	rr := types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   &kueue,
-		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+		Conditions: conditionstest.NewManager(&kueue, status.ConditionTypeReady),
 	}
 
 	result, err := checkPreConditions(ctx, &rr)
@@ -148,7 +148,7 @@ func TestCheckPreConditions_Unmanaged_KueueOperatorNotInstalled(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   &kueue,
-		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+		Conditions: conditionstest.NewManager(&kueue, status.ConditionTypeReady),
 	}
 
 	result, err := checkPreConditions(ctx, &rr)
@@ -169,7 +169,7 @@ func TestConfigureClusterQueueViewerRoleAction_RoleNotFound(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   &ks,
-		Conditions: conditions.NewManager(&ks, status.ConditionTypeReady),
+		Conditions: conditionstest.NewManager(&ks, status.ConditionTypeReady),
 	}
 
 	err = configureClusterQueueViewerRoleAction(ctx, &rr)
@@ -223,7 +223,7 @@ func TestConfigureClusterQueueViewerRoleAction(t *testing.T) {
 			rr := types.ReconciliationRequest{
 				Client:     cli,
 				Instance:   &ks,
-				Conditions: conditions.NewManager(&ks, status.ConditionTypeReady),
+				Conditions: conditionstest.NewManager(&ks, status.ConditionTypeReady),
 			}
 
 			err = configureClusterQueueViewerRoleAction(ctx, &rr)
@@ -253,7 +253,7 @@ func TestInitializeAction_Managed(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   &kueue,
-		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+		Conditions: conditionstest.NewManager(&kueue, status.ConditionTypeReady),
 	}
 
 	err = initialize(ctx, &rr)
@@ -279,7 +279,7 @@ func TestInitializeAction_Unmanaged(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   &kueue,
-		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+		Conditions: conditionstest.NewManager(&kueue, status.ConditionTypeReady),
 	}
 
 	err = initialize(ctx, &rr)
@@ -299,7 +299,7 @@ func TestManageKueueAdminRoleBinding_AuthCRNotFound(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   &kueue,
-		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+		Conditions: conditionstest.NewManager(&kueue, status.ConditionTypeReady),
 	}
 
 	err = manageKueueAdminRoleBinding(ctx, &rr)
@@ -330,7 +330,7 @@ func TestManageKueueAdminRoleBinding_WithValidAdminGroups(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   &kueue,
-		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+		Conditions: conditionstest.NewManager(&kueue, status.ConditionTypeReady),
 	}
 
 	err = manageKueueAdminRoleBinding(ctx, &rr)
@@ -379,7 +379,7 @@ func TestManageKueueAdminRoleBinding_WithFilteredAdminGroups(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   &kueue,
-		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+		Conditions: conditionstest.NewManager(&kueue, status.ConditionTypeReady),
 	}
 
 	err = manageKueueAdminRoleBinding(ctx, &rr)
@@ -420,7 +420,7 @@ func TestManageKueueAdminRoleBinding_WithOnlyInvalidAdminGroups(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   &kueue,
-		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+		Conditions: conditionstest.NewManager(&kueue, status.ConditionTypeReady),
 	}
 
 	err = manageKueueAdminRoleBinding(ctx, &rr)
@@ -462,7 +462,7 @@ func TestManageKueueAdminRoleBinding_WithEmptyAdminGroups(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   &kueue,
-		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+		Conditions: conditionstest.NewManager(&kueue, status.ConditionTypeReady),
 	}
 
 	err = manageKueueAdminRoleBinding(ctx, &rr)
