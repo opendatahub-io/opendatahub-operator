@@ -18,9 +18,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
-	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/monitor"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -135,7 +135,7 @@ func TestRequeueIfDependenciesIndeterminate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
 			instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: "test"}}
-			manager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+			manager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 			manager.Mark(status.ConditionDependenciesAvailable, tc.status)
 			rr := &types.ReconciliationRequest{Instance: instance, Conditions: manager}
 
@@ -169,7 +169,7 @@ func TestOperatorHealthPreCondition_CRDFoundDuringDiscoveryLag(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 
 	instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: "test"}}
-	manager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+	manager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 	rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: manager}
 	precondition.RunAll(t.Context(), rr, []precondition.PreCondition{operatorHealthPreCondition()})
 
@@ -236,7 +236,7 @@ func TestRequiredAPIsPreCondition(t *testing.T) {
 			}
 
 			instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-			condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+			condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 			rr := &types.ReconciliationRequest{Client: envTest.Client(), Instance: instance, Conditions: condManager}
 
 			precondition.RunAll(ctx, rr, []precondition.PreCondition{precondition.MonitorAPIs(requiredAPIList)})
@@ -264,7 +264,7 @@ func TestOperatorHealthPreConditionSkippedWithoutCRD(t *testing.T) {
 	t.Cleanup(func() { _ = envTest.Stop() })
 
 	instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-	condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+	condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 	rr := &types.ReconciliationRequest{Client: envTest.Client(), Instance: instance, Conditions: condManager}
 
 	precondition.RunAll(ctx, rr, []precondition.PreCondition{operatorHealthPreCondition()})
@@ -367,7 +367,7 @@ func TestOperatorHealthPreConditionWithCRD(t *testing.T) {
 			}
 
 			instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-			condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+			condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 			rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
 
 			precondition.RunAll(ctx, rr, []precondition.PreCondition{operatorHealthPreCondition()})

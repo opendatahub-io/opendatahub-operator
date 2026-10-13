@@ -24,6 +24,7 @@ import (
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
@@ -312,7 +313,7 @@ func TestProvisionModulesAddsResourcesAndEnvInjection(t *testing.T) {
 		Client:     cli,
 		Instance:   dsc,
 		Release:    common.Release{Name: common.Platform("Open Data Hub"), Version: ofversion.OperatorVersion{Version: semver.MustParse(testProvisioningVersion)}},
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+		Conditions: conditionstest.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
 	if err := provisionModules(context.Background(), rr); err != nil {
@@ -408,7 +409,7 @@ func TestComputeModulesStatusMarksNotReadyModules(t *testing.T) {
 	rr := &types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+		Conditions: conditionstest.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
 	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
@@ -456,7 +457,7 @@ func TestComputeModulesStatusPreservesWorkbenchNamespaceOnGetModuleStatusError(t
 	rr := &types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+		Conditions: conditionstest.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
 	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
@@ -509,7 +510,7 @@ func TestComputeModulesStatusInfoDependencyKeepsModulesReady(t *testing.T) {
 	rr := &types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+		Conditions: conditionstest.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
 	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
@@ -576,7 +577,7 @@ func TestComputeModulesStatusRequeuesOnCRDAbsent(t *testing.T) {
 	rr := &types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+		Conditions: conditionstest.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
 	err = ComputeModulesStatusDetailed(context.Background(), rr)
@@ -633,7 +634,7 @@ func TestComputeModulesStatusNoRequeueOnRegularError(t *testing.T) {
 	rr := &types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+		Conditions: conditionstest.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
 	err = ComputeModulesStatusDetailed(context.Background(), rr)
@@ -729,7 +730,7 @@ func TestProvisionModulesMonitoringNamespaceInjected(t *testing.T) {
 		Client:     cli,
 		Instance:   dsc,
 		Release:    common.Release{Name: common.Platform("Open Data Hub"), Version: ofversion.OperatorVersion{Version: semver.MustParse(testProvisioningVersion)}},
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+		Conditions: conditionstest.NewManager(dsc, status.ConditionTypeModulesReady),
 	}
 
 	if err := provisionModules(context.Background(), rr); err != nil {
