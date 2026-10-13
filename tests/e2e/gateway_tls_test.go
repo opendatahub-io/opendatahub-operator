@@ -36,8 +36,11 @@ func kubeAuthProxyTLSDeploymentArgs(profile *configv1.TLSSecurityProfile) (strin
 		oracleCurvePreferences(spec.Groups)
 }
 
-func TestKubeAuthProxyTLSDeploymentArgsFiltersTLS13CiphersForTLS12(t *testing.T) {
-	t.Parallel()
+// ValidateKubeAuthProxyTLSOracleCipherFiltering checks the TLS args oracle
+// drops TLS 1.3-only cipher suites when the profile minimum is TLS 1.2. It is
+// a pure computation over the oracle helpers and needs no cluster interaction.
+func (tc *GatewayTestCtx) ValidateKubeAuthProxyTLSOracleCipherFiltering(t *testing.T) {
+	t.Helper()
 
 	ciphers := append([]string(nil), configv1.TLSProfiles[configv1.TLSProfileModernType].Ciphers...)
 	ciphers = append(ciphers, configv1.TLSProfiles[configv1.TLSProfileIntermediateType].Ciphers...)
