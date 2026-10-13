@@ -212,8 +212,8 @@ func (tc *KserveTestCtx) ValidateSubscriptionDependencyConditions(t *testing.T) 
 }
 
 // ValidateConfidentialContainerDependencyConditions verifies that optional CoCo
-// dependencies are surfaced as unavailable when Trustee and a CoCo RuntimeClass
-// are not installed, without making KServe's required dependencies unavailable.
+// dependencies are surfaced as unavailable when a CoCo RuntimeClass is not
+// installed, without making KServe's required dependencies unavailable.
 func (tc *KserveTestCtx) ValidateConfidentialContainerDependencyConditions(t *testing.T) {
 	t.Helper()
 
@@ -228,12 +228,14 @@ func (tc *KserveTestCtx) ValidateConfidentialContainerDependencyConditions(t *te
 		WithCondition(And(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
 				kserve.ConfidentialContainerDependencies, metav1.ConditionFalse),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`,
-				kserve.ConfidentialContainerDependencies, "Trustee"),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`,
+				kserve.ConfidentialContainerDependencies, "Info"),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`,
 				kserve.ConfidentialContainerDependencies, "RuntimeClass"),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
 				status.ConditionDependenciesAvailable, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				status.ConditionTypeReady, metav1.ConditionTrue),
 		)),
 		WithCustomErrorMsg("Expected Kserve to report missing optional confidential container dependencies while remaining available"),
 	)
@@ -241,10 +243,16 @@ func (tc *KserveTestCtx) ValidateConfidentialContainerDependencyConditions(t *te
 	t.Log("Verifying DSC surfaces the Kserve confidential container dependency condition.")
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(
+		WithCondition(And(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
 				kserve.ConfidentialContainerDependencies, metav1.ConditionFalse),
-		),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`,
+				kserve.ConfidentialContainerDependencies, "Info"),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`,
+				kserve.ConfidentialContainerDependencies, "RuntimeClass"),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
 		WithCustomErrorMsg("Expected DSC to surface Kserve's missing confidential container dependencies"),
 	)
 }
