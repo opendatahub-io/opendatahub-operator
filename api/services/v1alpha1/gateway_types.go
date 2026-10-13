@@ -75,12 +75,19 @@ const (
 var _ common.PlatformObject = (*GatewayConfig)(nil)
 
 // GatewayConfigSpec defines the desired state of GatewayConfig
+// +kubebuilder:validation:XValidation:rule="!has(self.ingressMode) || self.ingressMode != 'LoadBalancer' || !has(self.ocpRoute)",message="ocpRoute is only valid in OcpRoute ingress mode"
 type GatewayConfigSpec struct {
 	// IngressMode specifies how the Gateway is exposed externally.
 	// "OcpRoute" uses ClusterIP with OpenShift Routes (OpenShift only).
 	// "LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB).
 	// +optional
 	IngressMode IngressMode `json:"ingressMode,omitempty"`
+
+	// OCPRoute configures the OpenShift Route exposing the default shared Gateway.
+	// These settings are only valid in OcpRoute mode and do not configure an external load balancer.
+	// Remove this field when switching to LoadBalancer mode.
+	// +optional
+	OCPRoute *OCPRouteConfig `json:"ocpRoute,omitempty"`
 
 	// OIDC configuration (used when cluster is in OIDC authentication mode)
 	// +optional
@@ -169,6 +176,27 @@ type GatewayConfigSpec struct {
 	// Component controllers manage the HTTPRoutes attached to these Gateways.
 	// +optional
 	AdditionalIngresses AdditionalIngresses `json:"additionalIngresses,omitempty"`
+}
+
+// OCPRouteConfig configures the default shared Gateway's OpenShift Route.
+type OCPRouteConfig struct {
+	// ServerTimeout is the maximum server-side inactivity interval enforced by the OpenShift router.
+	// It applies to all traffic using the default shared Gateway Route, independently of HTTPRoute timeouts
+	// and AuthProxyTimeout. It does not apply to additional ingress Routes or upgraded connections.
+	// Specify a positive integer without leading zeros and with a unit of ms, s, m, or h (for example, "330s").
+	// The maximum is 2147483647ms, matching HAProxy's supported timeout range.
+	// When omitted, the operator sets a 60s Route timeout if the default IngressController's
+	// server timeout is below 60s (OpenShift uses 30s when that field is unset).
+	// Otherwise, or if the default IngressController is missing or its API is unsupported,
+	// no timeout annotation is set. Other lookup errors, including permission and connection
+	// failures, fail reconciliation.
+	// Automatic behavior reads openshift-ingress-operator/default.
+	// Removing this field restores automatic behavior; automatic values are not written to GatewayConfig.
+	// +optional
+	// +kubebuilder:validation:MaxLength=16
+	// +kubebuilder:validation:Pattern=`^[1-9][0-9]*(ms|s|m|h)$`
+	// +kubebuilder:validation:XValidation:rule="duration(self) > duration('0s') && duration(self) <= duration('2147483647ms')",message="serverTimeout must be positive and no greater than 2147483647ms"
+	ServerTimeout string `json:"serverTimeout,omitempty"`
 }
 
 // ValidateAdditionalIngresses checks additional ingress topology and Route labels.
