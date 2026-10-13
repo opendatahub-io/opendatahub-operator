@@ -134,7 +134,7 @@ additional_meta:
     git.commit: 41230764eaa3e9d4be2b32a9918156983f450688
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 41230764eaa3e9d4be2b32a9918156983f450688
+    git.commit: 024d4015351b17efddcea2c1b3ae38ab7cc7d102
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 41230764eaa3e9d4be2b32a9918156983f450688
