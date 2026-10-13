@@ -24,7 +24,7 @@ map:
     src: config
     dest: trustyai
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
-    git.commit: 22159a8b753544ea98556c4cb77e363f5a2c2384
+    git.commit: 8595981e05288cb384c5e766167125701ae94511
   odh-model-registry-operator:
     src: config
     dest: modelregistry
@@ -188,7 +188,7 @@ additional_meta:
     git.commit: b8a9c332fec7fee3a943864456f1ad228c818c6e
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
-    git.commit: 4a2a3c503ffa53b2de698c7e4a0ec50bf94f0530
+    git.commit: 6fd89c7bb644aa2e36115bcc39d05609639ad94f
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
     git.commit: 858b995badee1a47c301185ad3061f07c7f4ad67
@@ -203,19 +203,19 @@ additional_meta:
     git.commit: 55f45f37c42260ba846ce5ba7b1e2d0208132981
   odh-ml-pipelines-api-server-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: 5aa850549787cea8ac99e724a6fb2c08f7c07323
+    git.commit: d7f8668478d801431dd7d1317fbf154f7a432638
   odh-ml-pipelines-driver:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: 5aa850549787cea8ac99e724a6fb2c08f7c07323
+    git.commit: d7f8668478d801431dd7d1317fbf154f7a432638
   odh-ml-pipelines-launcher:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: 5aa850549787cea8ac99e724a6fb2c08f7c07323
+    git.commit: bdda9e710fa6ac0902e6de147108b927c47bb5a3
   odh-ml-pipelines-persistenceagent-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: 5aa850549787cea8ac99e724a6fb2c08f7c07323
+    git.commit: bdda9e710fa6ac0902e6de147108b927c47bb5a3
   odh-ml-pipelines-scheduledworkflow-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: 5aa850549787cea8ac99e724a6fb2c08f7c07323
+    git.commit: bdda9e710fa6ac0902e6de147108b927c47bb5a3
   odh-model-controller:
     git.url: https://github.com/red-hat-data-services/odh-model-controller
     git.commit: 482e4858981f9ac6dca5b18dd38874475e151703
