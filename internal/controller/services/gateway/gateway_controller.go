@@ -207,6 +207,9 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(createOCPRoutes).
 		WithAction(createDashboardRedirectsAction).
 		WithAction(template.NewAction(
+			// Template data depends on watched resources such as the default
+			// IngressController, which can change without a new GatewayConfig generation.
+			template.WithCache(false),
 			template.WithDataFn(getTemplateData),
 		)).
 		WithAction(deploy.NewAction(
@@ -216,7 +219,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(syncGatewayConfigStatus).
 		WithAction(gc.NewAction()).
 		WithPostStatusFn(syncAdditionalIngressReadyStatuses).
-		WithConditions(ReadyConditionType, serviceApi.AdditionalGatewaysReadyConditionType)
+		WithConditions(reconciler.DependentConditions(ReadyConditionType, serviceApi.AdditionalGatewaysReadyConditionType)...)
 
 	if _, err := gw.Build(ctx); err != nil {
 		return fmt.Errorf("could not create the GatewayConfig controller: %w", err)

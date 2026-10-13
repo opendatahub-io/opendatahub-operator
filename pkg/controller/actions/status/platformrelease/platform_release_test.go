@@ -37,9 +37,9 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		err := fn(ctx, &rr, true)
 
 		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(instance.GetReleaseStatus()).To(HaveValue(ConsistOf(
+		g.Expect(instance.GetReleaseStatus().Releases).To(ConsistOf(
 			common.ComponentRelease{Name: common.PlatformReleaseName, Version: "2.5.0"},
-		)))
+		))
 	})
 
 	t.Run("should not stamp when not happy", func(t *testing.T) {
@@ -53,7 +53,7 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		err := fn(ctx, &rr, false)
 
 		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(instance.GetReleaseStatus()).To(HaveValue(BeEmpty()))
+		g.Expect(instance.GetReleaseStatus().Releases).To(BeEmpty())
 	})
 
 	t.Run("should not stamp when deploy is skipped", func(t *testing.T) {
@@ -67,18 +67,18 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		err := fn(ctx, &rr, true)
 
 		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(instance.GetReleaseStatus()).To(HaveValue(BeEmpty()))
+		g.Expect(instance.GetReleaseStatus().Releases).To(BeEmpty())
 	})
 
-	t.Run("should update existing platform release entry and move it to first position", func(t *testing.T) {
+	t.Run("should update existing platform release entry in place", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
 		instance := &componentApi.Kueue{ObjectMeta: metav1.ObjectMeta{Name: "default-kueue"}}
-		instance.SetReleaseStatus([]common.ComponentRelease{
+		instance.SetReleaseStatus(common.ComponentReleaseStatus{Releases: []common.ComponentRelease{
 			{Name: "ray", Version: "1.0.0"},
 			{Name: common.PlatformReleaseName, Version: "2.0.0"},
-		})
+		}})
 
 		rr := newReconciliationRequest(instance, false)
 
@@ -86,20 +86,20 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		err := fn(ctx, &rr, true)
 
 		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(instance.GetReleaseStatus()).To(HaveValue(HaveExactElements(
-			common.ComponentRelease{Name: common.PlatformReleaseName, Version: "2.5.0"},
+		g.Expect(instance.GetReleaseStatus().Releases).To(HaveExactElements(
 			common.ComponentRelease{Name: "ray", Version: "1.0.0"},
-		)))
+			common.ComponentRelease{Name: common.PlatformReleaseName, Version: "2.5.0"},
+		))
 	})
 
-	t.Run("should prepend platform release when other releases exist", func(t *testing.T) {
+	t.Run("should append platform release when other releases exist", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
 		instance := &componentApi.Kueue{ObjectMeta: metav1.ObjectMeta{Name: "default-kueue"}}
-		instance.SetReleaseStatus([]common.ComponentRelease{
+		instance.SetReleaseStatus(common.ComponentReleaseStatus{Releases: []common.ComponentRelease{
 			{Name: "ray", Version: "1.0.0"},
-		})
+		}})
 
 		rr := newReconciliationRequest(instance, false)
 
@@ -107,9 +107,9 @@ func TestPlatformReleasePostStatusFn(t *testing.T) {
 		err := fn(ctx, &rr, true)
 
 		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(instance.GetReleaseStatus()).To(HaveValue(HaveExactElements(
-			common.ComponentRelease{Name: common.PlatformReleaseName, Version: "2.5.0"},
+		g.Expect(instance.GetReleaseStatus().Releases).To(HaveExactElements(
 			common.ComponentRelease{Name: "ray", Version: "1.0.0"},
-		)))
+			common.ComponentRelease{Name: common.PlatformReleaseName, Version: "2.5.0"},
+		))
 	})
 }

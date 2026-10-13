@@ -250,7 +250,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
 			conditions.WithReason(status.NotReadyReason),
-			conditions.WithMessage("%s: %v", status.AuthProxyFailedGenerateSecretMessage, err),
+			conditions.WithMessagef("%s: %v", status.AuthProxyFailedGenerateSecretMessage, err),
 		)
 		return fmt.Errorf("failed to create auth proxy secret: %w", err)
 	}
@@ -261,7 +261,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 			rr.Conditions.MarkFalse(
 				ReadyConditionType,
 				conditions.WithReason(status.NotReadyReason),
-				conditions.WithMessage("%s: %v", status.AuthProxyFailedOAuthClientMessage, err),
+				conditions.WithMessagef("%s: %v", status.AuthProxyFailedOAuthClientMessage, err),
 			)
 			return fmt.Errorf("failed to create OAuth client: %w", err)
 		}
@@ -446,6 +446,11 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		return nil, err
 	}
 
+	serverTimeout, err := resolveOCPRouteServerTimeout(ctx, rr.Client, gatewayConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	templateData := map[string]any{
 		"IsOpenShift":              cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes,
 		"GatewayNamespace":         GetGatewayNamespace(),
@@ -484,6 +489,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"LegacySubdomain":          legacyInfo.LegacySubdomain,
 		"LegacyHostname":           legacyInfo.LegacyHostname,
 		"RouteLabels":              gatewayRouteLabels(nil),
+		"RouteServerTimeout":       serverTimeout,
 	}
 
 	// Add dashboard redirect template variables
@@ -671,7 +677,7 @@ func markGatewayNotReady(rr *odhtypes.ReconciliationRequest, message string) {
 	rr.Conditions.MarkFalse(
 		ReadyConditionType,
 		conditions.WithReason(status.NotReadyReason),
-		conditions.WithMessage("%s", message),
+		conditions.WithMessagef("%s", message),
 	)
 }
 

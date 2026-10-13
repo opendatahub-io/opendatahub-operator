@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -238,7 +238,7 @@ func TestSkipIfCRDAbsent_IntegrationWithRunAll(t *testing.T) {
 	cli := envTest.Client()
 
 	instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-	condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+	condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 	rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
 
 	pcs := []PreCondition{MonitorCRD(absentCRDName, WithSkipFunc(SkipIfCRDAbsent(absentCRDName)))}
@@ -266,7 +266,7 @@ func TestMonitorCRD_NotEstablishedIsUnknown(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 
 	instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-	condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+	condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 	rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
 
 	g.Expect(RunAll(ctx, rr, []PreCondition{MonitorCRD(testCRDName)})).To(BeFalse())
@@ -292,7 +292,7 @@ func TestMonitorCRD_IntegrationWithRunAll(t *testing.T) {
 	envt.CleanupDelete(t, g, ctx, cli, crd)
 
 	instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
-	condManager := cond.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
+	condManager := conditionstest.NewManager(instance, status.ConditionTypeReady, status.ConditionDependenciesAvailable)
 	rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
 
 	pcs := []PreCondition{

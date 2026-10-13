@@ -1,7 +1,6 @@
 package v1alpha1
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -37,31 +36,8 @@ import (
 // are valid URIs and are accepted. Downstream consumers must still treat the issuer URL
 // as untrusted input.
 func TestGatewayIssuerURLValidationEnvtest(t *testing.T) {
-	logf.SetLogger(zap.New(zap.WriteTo(os.Stdout), zap.UseDevMode(true)))
-
-	g := NewWithT(t)
-	ctx := context.Background()
-
-	projectDir, err := envtestutil.FindProjectRoot()
-	g.Expect(err).NotTo(HaveOccurred())
-
-	testEnv := &envtest.Environment{
-		CRDDirectoryPaths: []string{
-			filepath.Join(projectDir, "config", "crd", "bases"),
-		},
-		ErrorIfCRDPathMissing: true,
-	}
-
-	cfg, err := testEnv.Start()
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(cfg).ToNot(BeNil())
-	defer func() {
-		g.Expect(testEnv.Stop()).To(Succeed())
-	}()
-
-	k8sClient, err := client.New(cfg, client.Options{Scheme: gatewayTestScheme()})
-	g.Expect(err).ToNot(HaveOccurred())
-
+	k8sClient := newGatewayValidationClient(t)
+	ctx := t.Context()
 	t.Run("certificate issuer kind is not defaulted by admission", func(t *testing.T) {
 		g := NewWithT(t)
 		gw := validGatewayWithIssuerURL("https://auth.example.com")
@@ -213,31 +189,8 @@ func TestGatewayIssuerURLValidationEnvtest(t *testing.T) {
 }
 
 func TestGatewayAdditionalIngressValidationEnvtest(t *testing.T) {
-	logf.SetLogger(zap.New(zap.WriteTo(os.Stdout), zap.UseDevMode(true)))
-
-	g := NewWithT(t)
-	ctx := context.Background()
-
-	projectDir, err := envtestutil.FindProjectRoot()
-	g.Expect(err).NotTo(HaveOccurred())
-
-	testEnv := &envtest.Environment{
-		CRDDirectoryPaths: []string{
-			filepath.Join(projectDir, "config", "crd", "bases"),
-		},
-		ErrorIfCRDPathMissing: true,
-	}
-
-	cfg, err := testEnv.Start()
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(cfg).ToNot(BeNil())
-	defer func() {
-		g.Expect(testEnv.Stop()).To(Succeed())
-	}()
-
-	k8sClient, err := client.New(cfg, client.Options{Scheme: gatewayTestScheme()})
-	g.Expect(err).ToNot(HaveOccurred())
-
+	k8sClient := newGatewayValidationClient(t)
+	ctx := t.Context()
 	authCases := []struct {
 		name    string
 		auth    string
@@ -327,6 +280,124 @@ func TestGatewayAdditionalIngressValidationEnvtest(t *testing.T) {
 		}
 
 	}
+}
+
+func TestGatewayOCPRouteServerTimeoutValidationEnvtest(t *testing.T) {
+	k8sClient := newGatewayValidationClient(t)
+	ctx := t.Context()
+	for _, test := range []struct {
+		name    string
+		config  map[string]any
+		invalid bool
+	}{
+		{name: "omitted"},
+		{name: "empty configuration", config: map[string]any{}},
+		{name: "seconds", config: map[string]any{"serverTimeout": "330s"}},
+		{name: "milliseconds", config: map[string]any{"serverTimeout": "1ms"}},
+		{name: "minutes", config: map[string]any{"serverTimeout": "10m"}},
+		{name: "hours", config: map[string]any{"serverTimeout": "1h"}},
+		{name: "maximum", config: map[string]any{"serverTimeout": "2147483647ms"}},
+		{name: "empty timeout", config: map[string]any{"serverTimeout": ""}, invalid: true},
+		{name: "zero", config: map[string]any{"serverTimeout": "0s"}, invalid: true},
+		{name: "zero with leading zeros", config: map[string]any{"serverTimeout": "000ms"}, invalid: true},
+		{name: "seconds with leading zero", config: map[string]any{"serverTimeout": "0330s"}, invalid: true},
+		{name: "milliseconds with leading zeros", config: map[string]any{"serverTimeout": "001ms"}, invalid: true},
+		{name: "minutes with leading zero", config: map[string]any{"serverTimeout": "010m"}, invalid: true},
+		{name: "hours with leading zero", config: map[string]any{"serverTimeout": "01h"}, invalid: true},
+		{name: "negative", config: map[string]any{"serverTimeout": "-30s"}, invalid: true},
+		{name: "missing unit", config: map[string]any{"serverTimeout": "330"}, invalid: true},
+		{name: "unsupported unit", config: map[string]any{"serverTimeout": "1ns"}, invalid: true},
+		{name: "fractional", config: map[string]any{"serverTimeout": "0.5s"}, invalid: true},
+		{name: "compound", config: map[string]any{"serverTimeout": "5m30s"}, invalid: true},
+		{name: "above maximum", config: map[string]any{"serverTimeout": "2147483648ms"}, invalid: true},
+		{name: "overflow", config: map[string]any{"serverTimeout": "999999999999999h"}, invalid: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			g := NewWithT(t)
+			for _, mode := range []IngressMode{"", IngressModeOcpRoute, IngressModeLoadBalancer} {
+				gatewayConfig := &unstructured.Unstructured{Object: map[string]any{
+					"apiVersion": GroupVersion.String(),
+					"kind":       GatewayConfigKind,
+					"metadata":   map[string]any{"name": GatewayConfigName},
+					"spec":       map[string]any{},
+				}}
+				if mode != "" {
+					g.Expect(unstructured.SetNestedField(gatewayConfig.Object, string(mode), "spec", "ingressMode")).To(Succeed())
+				}
+				if test.config != nil {
+					g.Expect(unstructured.SetNestedMap(gatewayConfig.Object, test.config, "spec", "ocpRoute")).To(Succeed())
+				}
+				err := k8sClient.Create(t.Context(), gatewayConfig)
+				if err == nil {
+					g.Expect(k8sClient.Delete(t.Context(), gatewayConfig)).To(Succeed())
+				}
+				if test.invalid {
+					g.Expect(k8serrors.IsInvalid(err)).To(BeTrue(), "mode %s: %v", mode, err)
+					g.Expect(err.Error()).To(ContainSubstring("serverTimeout"))
+				} else if mode == IngressModeLoadBalancer && test.config != nil {
+					g.Expect(k8serrors.IsInvalid(err)).To(BeTrue(), "mode %s: %v", mode, err)
+					g.Expect(err.Error()).To(ContainSubstring("ocpRoute is only valid in OcpRoute ingress mode"))
+				} else {
+					g.Expect(err).NotTo(HaveOccurred(), "mode %s", mode)
+				}
+			}
+		})
+	}
+
+	t.Run("switching to LoadBalancer requires removing ocpRoute", func(t *testing.T) {
+		g := NewWithT(t)
+		config := &GatewayConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: GatewayConfigName},
+			Spec: GatewayConfigSpec{
+				IngressMode: IngressModeOcpRoute,
+				OCPRoute:    &OCPRouteConfig{ServerTimeout: "330s"},
+			},
+		}
+		g.Expect(k8sClient.Create(t.Context(), config)).To(Succeed())
+		t.Cleanup(func() { g.Expect(k8sClient.Delete(ctx, config)).To(Succeed()) })
+		config.Spec.IngressMode = IngressModeLoadBalancer
+		err := k8sClient.Update(t.Context(), config)
+		g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
+		g.Expect(err.Error()).To(ContainSubstring("ocpRoute is only valid in OcpRoute ingress mode"))
+		g.Expect(k8sClient.Get(t.Context(), client.ObjectKeyFromObject(config), config)).To(Succeed())
+		g.Expect(config.Spec.IngressMode).To(Equal(IngressModeOcpRoute))
+		config.Spec.IngressMode = IngressModeLoadBalancer
+		config.Spec.OCPRoute = nil
+		g.Expect(k8sClient.Update(t.Context(), config)).To(Succeed())
+		g.Expect(k8sClient.Get(t.Context(), client.ObjectKeyFromObject(config), config)).To(Succeed())
+		g.Expect(config.Spec.IngressMode).To(Equal(IngressModeLoadBalancer))
+		g.Expect(config.Spec.OCPRoute).To(BeNil())
+	})
+}
+
+// newGatewayValidationClient starts an independent API server for each validation
+// group and stops it after the group's subtests and their cleanup have completed.
+func newGatewayValidationClient(t *testing.T) client.Client {
+	t.Helper()
+
+	logf.SetLogger(zap.New(zap.WriteTo(os.Stdout), zap.UseDevMode(true)))
+
+	g := NewWithT(t)
+
+	projectDir, err := envtestutil.FindProjectRoot()
+	g.Expect(err).NotTo(HaveOccurred())
+
+	testEnv := &envtest.Environment{
+		CRDDirectoryPaths: []string{
+			filepath.Join(projectDir, "config", "crd", "bases"),
+		},
+		ErrorIfCRDPathMissing: true,
+	}
+
+	cfg, err := testEnv.Start()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(cfg).ToNot(BeNil())
+	t.Cleanup(func() { g.Expect(testEnv.Stop()).To(Succeed()) })
+
+	k8sClient, err := client.New(cfg, client.Options{Scheme: gatewayTestScheme()})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	return k8sClient
 }
 
 func gatewayTestScheme() *runtime.Scheme {
