@@ -86,7 +86,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MCP_LIFECYCLE_MODULE_OPERATOR_IMAGE
   value: quay.io/rhoai/odh-mcp-lifecycle-module-operator-rhel9@sha256:4068d0fa74063797ee31cbdabd818f8848aa2cfaedaa49426feaa0c708005fa1
 - name: RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_IMAGE
-  value: quay.io/rhoai/odh-mcp-lifecycle-operator-rhel9@sha256:93563acd8c0b4d710962267aac95021b3acd1c981330e7aca82f7de29c4c3cbf
+  value: quay.io/rhoai/odh-mcp-lifecycle-operator-rhel9@sha256:b90533f298dfd8a0efba8ba02aeb00a69023b7a010b7917cce7c1b6ecb9f6dc1
 - name: RELATED_IMAGE_ODH_MLFLOW_IMAGE
   value: quay.io/rhoai/odh-mlflow-rhel9@sha256:3eb77cce802db2b72b35e28c83ae101b365f7113c8bdd4796b7e7dc1706aa04f
 - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
