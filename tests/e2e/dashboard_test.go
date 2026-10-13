@@ -7,6 +7,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -108,6 +109,7 @@ func dashboardTestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate data registry image env var injection", componentCtx.ValidateDataRegistryImageEnvVarInjection},
 		{"Validate data connect hub image env var injection", componentCtx.ValidateDataConnectHubImageEnvVarInjection},
+		{"Validate OCI base image env var injection", componentCtx.ValidateOCIBaseImageEnvVarInjection},
 		{"Validate dynamically watches operands", componentCtx.ValidateOperandsDynamicallyWatchedResources},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
 		{"Validate VAP blocks dashboard HardwareProfile and AcceleratorProfile creation", componentCtx.ValidateVAPBlocksDashboardCRCreation},
@@ -293,6 +295,49 @@ func (tc *DashboardTestCtx) ValidateDataConnectHubImageEnvVarInjection(t *testin
 			`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "RELATED_IMAGE_ODH_MOD_ARCH_DATA_CONNECT_HUB_IMAGE") | .value != null and .value != ""`,
 		)),
 		WithCustomErrorMsg("dashboard-operator Deployment should have a non-empty data connect hub image reference injected"),
+	)
+}
+
+// ValidateOCIBaseImageEnvVarInjection verifies that a configured OCI base image
+// is forwarded unchanged from the platform operator to dashboard-operator.
+func (tc *DashboardTestCtx) ValidateOCIBaseImageEnvVarInjection(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	const envName = "RELATED_IMAGE_ODH_MODEL_REGISTRY_OCI_BASE_IMAGE"
+	operatorDeployment := &appsv1.Deployment{}
+	tc.FetchTypedResource(
+		operatorDeployment,
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.OperatorNamespace,
+			Name:      tc.getControllerDeploymentName(),
+		}),
+	)
+
+	var baseImage string
+	for _, container := range operatorDeployment.Spec.Template.Spec.Containers {
+		for _, env := range container.Env {
+			if env.Name == envName {
+				baseImage = env.Value
+			}
+		}
+	}
+	if baseImage == "" {
+		t.Skipf("platform operator does not supply %s in this installation", envName)
+	}
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.AppsNamespace,
+			Name:      dashboardControllerDeployment,
+		}),
+		WithCondition(jq.Match(
+			`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "%s") | .value == "%s"`,
+			envName,
+			baseImage,
+		)),
+		WithCustomErrorMsg("dashboard-operator Deployment should receive the configured OCI base image unchanged"),
 	)
 }
 
