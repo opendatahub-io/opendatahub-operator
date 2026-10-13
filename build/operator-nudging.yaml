@@ -116,7 +116,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE
   value: quay.io/rhoai/odh-model-registry-rhel9@sha256:0b18cb580b26d7124f3f2b70a8c13dfd53ea02f63117f9793c11679ed1435aa7
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE
-  value: quay.io/rhoai/odh-model-registry-job-async-upload-rhel9@sha256:7b7eb86c0f8ab17c9933d3cc2360edacaeb07ab7258797b95dc2c752355d9082
+  value: quay.io/rhoai/odh-model-registry-job-async-upload-rhel9@sha256:5eb9c85e50ab23db0548052f609299bd98f449313cd7ed69b58c7fcdbbc5d2fa
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE
   value: quay.io/rhoai/odh-model-registry-operator-rhel9@sha256:cc45d6120871debb5d0299818e3c2fc1ccc523702b11433dae72a1cf74a913d6
 - name: RELATED_IMAGE_ODH_MODEL_SERVING_API_IMAGE
