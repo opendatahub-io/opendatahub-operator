@@ -185,7 +185,7 @@ additional_meta:
     git.commit: 9e123e39d2c1625333e29dd1efa98f1c8dbe9660
   odh-maas-controller:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: b8a9c332fec7fee3a943864456f1ad228c818c6e
+    git.commit: 9e123e39d2c1625333e29dd1efa98f1c8dbe9660
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
     git.commit: 6fd89c7bb644aa2e36115bcc39d05609639ad94f
@@ -194,7 +194,7 @@ additional_meta:
     git.commit: 62b32d8bf0ec8d0fa69e31009e187692b19c95bf
   odh-mlmd-grpc-server:
     git.url: https://github.com/red-hat-data-services/ml-metadata
-    git.commit: e684dff888d0720f947dfe108f66cf23ea333c2d
+    git.commit: 673127d79ab462e3df90797bcff23ea5e8a6a918
   odh-mlserver-cuda:
     git.url: https://github.com/red-hat-data-services/MLServer
     git.commit: 55f45f37c42260ba846ce5ba7b1e2d0208132981
@@ -233,7 +233,7 @@ additional_meta:
     git.commit: 87ea17d6141639be33d9691484291c83a4487fe6
   odh-model-serving-api:
     git.url: https://github.com/red-hat-data-services/odh-model-controller
-    git.commit: 7232f0edb6e22a3918d6a70ee7d56952417d04fb
+    git.commit: a359716e3b916b50ad3e489bd828e662a6c87a8e
   odh-mod-arch-agent-ops:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 301bed356d03b22b61ccee75fdedcb9341e37237
@@ -317,10 +317,10 @@ additional_meta:
     git.commit: 0da57c788f7baa78d772901545db778ea3dcf5ba
   odh-th-torch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 0da57c788f7baa78d772901545db778ea3dcf5ba
+    git.commit: ad4fa6409b9751e0830c6af8f32f9ed9f3763b46
   odh-training-cuda128-torch28-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 0da57c788f7baa78d772901545db778ea3dcf5ba
+    git.commit: ad4fa6409b9751e0830c6af8f32f9ed9f3763b46
   odh-training-cuda128-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 296a8a85a908ca9b79166b392c2279d160435966
