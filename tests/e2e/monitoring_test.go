@@ -2432,8 +2432,8 @@ func (tc *MonitoringTestCtx) ValidateThanosQuerierDeployment(t *testing.T) {
 		WithMinimalObject(gvk.Route, types.NamespacedName{Name: ThanosQuerierRouteName, Namespace: tc.MonitoringNamespace}),
 		WithCondition(And(
 			// Validate route points to correct service
-			jq.Match(`.spec.to.name == "thanos-querier-data-science-thanos-querier"`),
-			jq.Match(`.spec.tls.termination == "edge"`),
+			jq.Match(`.spec.to.name == "data-science-thanos-querier-proxy"`),
+			jq.Match(`.spec.tls.termination == "reencrypt"`),
 			jq.Match(`.spec.tls.insecureEdgeTerminationPolicy == "Redirect"`),
 			jq.Match(`.metadata.labels.app == "thanos-querier"`),
 			jq.Match(`.metadata.labels."app.kubernetes.io/name" == "thanos-querier"`),
@@ -2520,8 +2520,9 @@ func (tc *MonitoringTestCtx) ValidatePrometheusNetworkPolicyAllowsThanosQuerier(
 			jq.Match(`.spec.podSelector.matchLabels["app.kubernetes.io/instance"] == "data-science-monitoringstack"`),
 			jq.Match(`.spec.policyTypes[0] == "Ingress"`),
 			// Validate proxy ingress rule (port 9090)
-			jq.Match(`.spec.ingress[0].from[0].podSelector.matchLabels.app == "data-science-prometheus-namespace-proxy"`),
-			jq.Match(`.spec.ingress[0].from[1].podSelector.matchLabels.app == "data-science-prometheus-cluster-proxy"`),
+			jq.Match(`.spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/name"] == "prometheus"`),
+			jq.Match(`.spec.ingress[0].from[1].podSelector.matchLabels.app == "data-science-prometheus-namespace-proxy"`),
+			jq.Match(`.spec.ingress[0].from[2].podSelector.matchLabels.app == "data-science-prometheus-cluster-proxy"`),
 			jq.Match(`.spec.ingress[0].ports[0].protocol == "TCP"`),
 			jq.Match(`.spec.ingress[0].ports[0].port == 9090`),
 			// Validate Thanos Querier ingress rule (gRPC port 10901)
