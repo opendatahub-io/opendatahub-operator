@@ -38,6 +38,7 @@ func TestBuildAdditionalIngressRouteUsesHTTPSPort(t *testing.T) {
 	g.Expect(route.Spec.TLS.Termination).To(Equal(routev1.TLSTerminationReencrypt))
 	g.Expect(route.Spec.TLS.InsecureEdgeTerminationPolicy).To(Equal(routev1.InsecureEdgeTerminationPolicyRedirect))
 	g.Expect(route.Annotations).To(HaveKeyWithValue(serviceCAAnnotation, "true"))
+	g.Expect(route.Annotations).NotTo(HaveKey("haproxy.router.openshift.io/timeout"))
 }
 
 func TestCreateAdditionalIngressRoutesUsePerIngressGatewayServices(t *testing.T) {
