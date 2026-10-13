@@ -230,7 +230,7 @@ additional_meta:
     git.commit: 87ea17d6141639be33d9691484291c83a4487fe6
   odh-model-registry-job-async-upload:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: 7c83500dc0a25d43f32eeedf94c16cdaf67bd4f1
+    git.commit: 87ea17d6141639be33d9691484291c83a4487fe6
   odh-model-serving-api:
     git.url: https://github.com/red-hat-data-services/odh-model-controller
     git.commit: 7232f0edb6e22a3918d6a70ee7d56952417d04fb
@@ -269,7 +269,7 @@ additional_meta:
     git.commit: be0094600a355aa72e80718b92c863134541e944
   odh-ogx-k8s-operator:
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
-    git.commit: 7af41a18d7db65082e24faf78e0ecf56c8f51944
+    git.commit: d9718a439989bdd934b422878287c73e5968d5b9
   odh-openvino-model-server:
     git.url: https://github.com/red-hat-data-services/openvino_model_server
     git.commit: c624ca398fd8ee0d43d27934463d99cce8a54376
