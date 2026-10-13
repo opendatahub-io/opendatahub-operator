@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -91,6 +92,44 @@ func TestPopulatePlatformModule_NilDSC(t *testing.T) {
 	var pm configApi.PlatformModules
 	h.PopulatePlatformModule(&pm, nil)
 	g.Expect(pm.AIGateway.ManagementState).Should(BeEmpty())
+}
+
+func TestAIGridProjectionAndCondition(t *testing.T) {
+	for _, state := range []operatorv1.ManagementState{"", operatorv1.Managed, operatorv1.Removed} {
+		t.Run(string(state), func(t *testing.T) {
+			g := NewWithT(t)
+			h := aigateway.NewHandler()
+			dsc := newDSC(operatorv1.Managed)
+			dsc.Spec.Components.AIGateway.AIGrid.ManagementState = state
+			before := dsc.DeepCopy()
+			dscCtx := &modules.DSCContext{DSC: dsc}
+
+			u, err := h.BuildModuleCR(t.Context(), nil, dscCtx, nil)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			gridSpec, found, err := unstructured.NestedMap(u.Object, "spec", "aiGrid")
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(found).Should(BeTrue())
+			if state == "" {
+				g.Expect(gridSpec).Should(BeEmpty())
+			} else {
+				g.Expect(gridSpec).Should(Equal(map[string]any{"managementState": string(state)}))
+			}
+			g.Expect(dsc).Should(Equal(before), "projection must not mutate the DSC")
+
+			var gridCondition *modules.SubmoduleCondition
+			for _, condition := range h.GetSubmoduleConditions() {
+				if condition.SourceConditionType == "AIGridReady" {
+					gridCondition = &condition
+				}
+			}
+			g.Expect(gridCondition).ShouldNot(BeNil())
+			g.Expect(gridCondition.DSCConditionType).Should(Equal("AIGridReady"))
+			g.Expect(gridCondition.StatusFieldName).Should(Equal("AIGrid"))
+			g.Expect(gridCondition.IsEnabled(dscCtx)).Should(Equal(state == operatorv1.Managed))
+			g.Expect(gridCondition.IsEnabled(nil)).Should(BeFalse())
+			g.Expect(gridCondition.IsEnabled(&modules.DSCContext{})).Should(BeFalse())
+		})
+	}
 }
 
 func TestCanonicalModelsAsAService(t *testing.T) {
