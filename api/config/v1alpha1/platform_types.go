@@ -107,6 +107,10 @@ type PlatformModules struct {
 	// TrustyAI controls the TrustyAI module operator lifecycle.
 	// +optional
 	TrustyAI common.ManagementSpec `json:"trustyai,omitempty"`
+
+	// DatabaseService controls the shared database module operator lifecycle.
+	// +optional
+	DatabaseService common.ManagementSpec `json:"databaseservice,omitempty"`
 }
 
 // PlatformStatus defines the observed state of Platform.

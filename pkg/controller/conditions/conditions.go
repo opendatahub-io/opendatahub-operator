@@ -11,9 +11,9 @@ type Option = fwcond.Option
 type Manager = fwcond.Manager
 
 var (
-	NewManager                       = fwcond.NewManager
 	WithReason                       = fwcond.WithReason
 	WithMessage                      = fwcond.WithMessage
+	WithMessagef                     = fwcond.WithMessagef
 	WithObservedGeneration           = fwcond.WithObservedGeneration
 	WithSeverity                     = fwcond.WithSeverity
 	WithError                        = fwcond.WithError

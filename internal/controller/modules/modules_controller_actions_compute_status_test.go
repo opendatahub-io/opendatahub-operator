@@ -17,8 +17,8 @@ import (
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
@@ -103,7 +103,7 @@ func setupStatusTest(t *testing.T, handlers ...*statusTestHandler) (*odhtype.Rec
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	cm := conditions.NewManager(dsc, status.ConditionTypeReady, condTypes...)
+	cm := conditionstest.NewManager(dsc, status.ConditionTypeReady, condTypes...)
 
 	rr := &odhtype.ReconciliationRequest{
 		Client:     cli,
@@ -142,7 +142,7 @@ func setupStatusTestAggregateOnly(t *testing.T, handlers ...*statusTestHandler) 
 	cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	cm := conditions.NewManager(platform, status.ConditionTypeReady, status.ConditionTypeModulesReady)
+	cm := conditionstest.NewManager(platform, status.ConditionTypeReady, status.ConditionTypeModulesReady)
 
 	rr := &odhtype.ReconciliationRequest{
 		Client:     cli,
@@ -210,7 +210,7 @@ func TestComputeModulesStatusDetailed_SkipsDSCIConfiguredModules(t *testing.T) {
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	cm := conditions.NewManager(dsc, status.ConditionTypeReady,
+	cm := conditionstest.NewManager(dsc, status.ConditionTypeReady,
 		"AIGatewayReady", status.ConditionTypeModulesReady)
 
 	rr := &odhtype.ReconciliationRequest{

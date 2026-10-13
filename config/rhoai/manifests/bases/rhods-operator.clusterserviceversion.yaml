@@ -96,6 +96,9 @@ metadata:
             },
             "mcplifecycleoperator": {
               "managementState": "Managed"
+            },
+            "databaseservice": {
+              "managementState": "Removed"
             }
           }
         }
@@ -216,6 +219,7 @@ spec:
   - ogx
   - mlflow
   - sparkoperator
+  - databaseservice
   links:
   - name: Red Hat OpenShift AI
     url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.0

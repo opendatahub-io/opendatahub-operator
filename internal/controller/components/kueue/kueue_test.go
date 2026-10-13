@@ -14,8 +14,8 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -127,7 +127,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+			Conditions: conditionstest.NewManager(dsc, ReadyConditionType),
 		})
 
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -154,7 +154,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+			Conditions: conditionstest.NewManager(dsc, ReadyConditionType),
 		})
 
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -181,7 +181,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+			Conditions: conditionstest.NewManager(dsc, ReadyConditionType),
 		})
 
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -211,7 +211,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+			Conditions: conditionstest.NewManager(dsc, ReadyConditionType),
 		})
 
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -236,7 +236,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+			Conditions: conditionstest.NewManager(dsc, ReadyConditionType),
 		})
 
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -262,7 +262,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+			Conditions: conditionstest.NewManager(dsc, ReadyConditionType),
 		})
 
 		g.Expect(err).ShouldNot(HaveOccurred())

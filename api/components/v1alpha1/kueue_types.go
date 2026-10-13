@@ -32,6 +32,9 @@ const (
 // Check that the component implements common.PlatformObject.
 var _ common.PlatformObject = (*Kueue)(nil)
 
+// Check that the component implements common.WithReleases.
+var _ common.WithReleases = (*Kueue)(nil)
+
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // +kubebuilder:object:root=true
@@ -94,10 +97,12 @@ func (c *Kueue) SetConditions(conditions []common.Condition) {
 	c.Status.SetConditions(conditions)
 }
 
-func (c *Kueue) GetReleaseStatus() *[]common.ComponentRelease { return &c.Status.Releases }
+func (c *Kueue) GetReleaseStatus() *common.ComponentReleaseStatus {
+	return &c.Status.ComponentReleaseStatus
+}
 
-func (c *Kueue) SetReleaseStatus(releases []common.ComponentRelease) {
-	c.Status.Releases = releases
+func (c *Kueue) SetReleaseStatus(status common.ComponentReleaseStatus) {
+	c.Status.ComponentReleaseStatus = status
 }
 
 // KueueManagementSpec struct defines the component's management configuration.

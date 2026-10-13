@@ -11,8 +11,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
@@ -40,7 +40,7 @@ func newRR(conditionTypes ...string) *types.ReconciliationRequest {
 
 	return &types.ReconciliationRequest{
 		Instance:   instance,
-		Conditions: cond.NewManager(instance, status.ConditionTypeReady, conditionTypes...),
+		Conditions: conditionstest.NewManager(instance, status.ConditionTypeReady, conditionTypes...),
 	}
 }
 
@@ -470,7 +470,7 @@ func TestRunAll_MultipleConditionTypes(t *testing.T) {
 	g.Expect(defaultCond).NotTo(BeNil())
 	g.Expect(defaultCond.Status).To(Equal(metav1.ConditionTrue))
 
-	customCond := rr.Conditions.GetCondition(customCondition)
+	customCond := rr.Conditions.GetCondition(common.ConditionType(customCondition))
 	g.Expect(customCond).NotTo(BeNil())
 	g.Expect(customCond.Status).To(Equal(metav1.ConditionFalse))
 	g.Expect(customCond.Message).To(ContainSubstring("custom failed"))

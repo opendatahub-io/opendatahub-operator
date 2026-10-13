@@ -215,6 +215,7 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 			SparkOperator:        src.Spec.Components.SparkOperator,
 			AIGateway:            src.Spec.Components.AIGateway,
 			MCPLifecycleOperator: src.Spec.Components.MCPLifecycleOperator,
+			DatabaseService:      src.Spec.Components.DatabaseService,
 		},
 	}
 	dst.Status = dscApi.DataScienceClusterStatus{
@@ -245,6 +246,7 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 			ModelsAsAService:     src.Status.Components.ModelsAsAService,
 			BatchGateway:         src.Status.Components.BatchGateway,
 			MCPLifecycleOperator: src.Status.Components.MCPLifecycleOperator,
+			DatabaseService:      src.Status.Components.DatabaseService,
 		},
 		Release: src.Status.Release,
 	}
@@ -310,6 +312,7 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 			SparkOperator:        src.Spec.Components.SparkOperator,
 			AIGateway:            src.Spec.Components.AIGateway,
 			MCPLifecycleOperator: src.Spec.Components.MCPLifecycleOperator,
+			DatabaseService:      src.Spec.Components.DatabaseService,
 		},
 	}
 	dst.Status = DataScienceClusterStatus{
@@ -340,6 +343,7 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 			ModelsAsAService:     src.Status.Components.ModelsAsAService,
 			BatchGateway:         src.Status.Components.BatchGateway,
 			MCPLifecycleOperator: src.Status.Components.MCPLifecycleOperator,
+			DatabaseService:      src.Status.Components.DatabaseService,
 		},
 		Release: src.Status.Release,
 	}

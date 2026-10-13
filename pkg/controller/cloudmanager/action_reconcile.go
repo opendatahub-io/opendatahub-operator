@@ -14,13 +14,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-var ConditionsTypes = []string{
-	status.ConditionDependenciesReady,
-}
+var ConditionsTypes = reconciler.DependentConditions(status.ConditionDependenciesReady)
 
 // reconcileAction holds the configuration for the combined reconcile action.
 type reconcileAction struct {

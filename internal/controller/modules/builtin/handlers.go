@@ -9,6 +9,7 @@ import (
 	aipipelinesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aipipelines"
 	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 	dataModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/data"
+	databaseserviceModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/databaseservice"
 	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
@@ -38,6 +39,10 @@ var registrations = []ModuleRegistration{
 	},
 	{
 		Handler:  dashboardModule.NewHandler(),
+		Runlevel: dag.RL(20),
+	},
+	{
+		Handler:  databaseserviceModule.NewHandler(),
 		Runlevel: dag.RL(20),
 	},
 	{

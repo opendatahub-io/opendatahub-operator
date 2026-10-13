@@ -19,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -55,10 +56,7 @@ const (
 )
 
 var (
-	conditionTypes = []string{
-		status.ConditionDeploymentsAvailable,
-		status.ConditionDependenciesAvailable,
-	}
+	conditionTypes = reconciler.DependentConditions(status.ConditionDeploymentsAvailable, status.ConditionDependenciesAvailable)
 
 	supportedGPUMap = map[string]string{
 		NvidiaGPUResourceKey: NvidiaFlavorName,

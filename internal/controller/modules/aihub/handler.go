@@ -76,26 +76,19 @@ func (h *handler) WriteDSCComponentStatus(dsc *dscApi.DataScienceCluster, enable
 		return
 	}
 
-	ms := operatorv1.Removed
-	if enabled {
-		ms = operatorv1.Managed
-	}
-	dsc.Status.Components.AIHub.ManagementState = ms
+	h.BaseHandler.WriteDSCComponentStatus(dsc, enabled, releases)
 
 	instancesNamespace := ""
 	if enabled {
 		instancesNamespace = dsc.Spec.Components.AIHub.InstancesNamespace
 	}
 
-	componentStatus := &dsc.Status.Components.AIHub
-	if componentStatus.AIHubCommonStatus == nil {
-		if instancesNamespace == "" && len(releases) == 0 {
-			return
-		}
-		componentStatus.AIHubCommonStatus = &componentApi.AIHubCommonStatus{}
+	if dsc.Status.Components.AIHub.AIHubCommonStatus == nil && instancesNamespace != "" {
+		dsc.Status.Components.AIHub.AIHubCommonStatus = new(componentApi.AIHubCommonStatus)
 	}
-	componentStatus.InstancesNamespace = instancesNamespace
-	componentStatus.Releases = releases
+	if dsc.Status.Components.AIHub.AIHubCommonStatus != nil {
+		dsc.Status.Components.AIHub.InstancesNamespace = instancesNamespace
+	}
 }
 
 func (h *handler) BuildModuleCR(

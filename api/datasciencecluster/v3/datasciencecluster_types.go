@@ -76,6 +76,9 @@ type Components struct {
 
 	// MCPLifecycleOperator component configuration.
 	MCPLifecycleOperator componentApi.DSCMCPLifecycleOperator `json:"mcplifecycleoperator,omitempty"`
+
+	// DatabaseService module configuration.
+	DatabaseService componentApi.DSCDatabaseService `json:"databaseservice,omitempty"`
 }
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.
@@ -136,6 +139,10 @@ type ComponentsStatus struct {
 
 	// MCPLifecycleOperator component status.
 	MCPLifecycleOperator componentApi.DSCMCPLifecycleOperatorStatus `json:"mcplifecycleoperator,omitempty"`
+
+	// DatabaseService module status.
+	// +optional
+	DatabaseService componentApi.DSCDatabaseServiceStatus `json:"databaseservice,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.

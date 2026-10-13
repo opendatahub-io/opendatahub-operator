@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	fwsd "github.com/opendatahub-io/odh-platform-utilities/framework/controller/actions/status/deployments"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
@@ -18,7 +19,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-const dependencyDegradedReason = "DependencyDegraded"
+const (
+	dependencyDegradedReason = "DependencyDegraded"
+	dependencyUnknownReason  = "DependencyHealthUnknown"
+)
 
 func defaultDegradedConditionFilter(condType, condStatus string) bool {
 	if condType == "Degraded" && condStatus == string(metav1.ConditionTrue) {
@@ -45,7 +49,7 @@ func monitorDependencies(ctx context.Context, rr *types.ReconciliationRequest, r
 		// Tier 1: operator deployment health
 		if cfg.HasDeployments {
 			depAction := deployments.NewAction(
-				deployments.WithConditionType(cfg.ConditionType),
+				fwsd.WithConditionType(cfg.ConditionType),
 				deployments.InNamespace(cfg.Namespace),
 				deployments.WithPartOfLabel(labels.InfrastructurePartOf),
 				deployments.WithSelectorLabel(labels.InfrastructurePartOf, resourceID),
@@ -70,11 +74,18 @@ func monitorDependencies(ctx context.Context, rr *types.ReconciliationRequest, r
 				return fmt.Errorf("operator CR check for %s failed: %w", cfg.ReleaseName, err)
 			}
 
-			if !result.Pass {
-				rr.Conditions.MarkFalse(
+			// Incomplete operator status is not evidence of a degraded dependency.
+			if resultStatus := result.ConditionStatus(); resultStatus != metav1.ConditionTrue {
+				reason := dependencyDegradedReason
+				if resultStatus == metav1.ConditionUnknown {
+					reason = dependencyUnknownReason
+				}
+
+				rr.Conditions.Mark(
 					cfg.ConditionType,
-					conditions.WithReason(dependencyDegradedReason),
-					conditions.WithMessage("%s", result.Message),
+					resultStatus,
+					conditions.WithReason(reason),
+					conditions.WithMessagef("%s", result.Message),
 				)
 			}
 		}
@@ -102,7 +113,7 @@ func summarizeDependencyStatus(rr *types.ReconciliationRequest, configs []ccmcha
 		rr.Conditions.MarkFalse(
 			status.ConditionDependenciesReady,
 			conditions.WithReason(status.NotReadyReason),
-			conditions.WithMessage("Dependencies not ready: %s", strings.Join(notReady, ", ")),
+			conditions.WithMessagef("Dependencies not ready: %s", strings.Join(notReady, ", ")),
 			conditions.WithSeverity(common.ConditionSeverityError),
 		)
 

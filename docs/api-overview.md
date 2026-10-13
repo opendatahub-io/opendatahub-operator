@@ -344,6 +344,40 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
+#### DSCDatabaseService
+
+
+
+DSCDatabaseService is the configuration exposed on DataScienceCluster.
+
+
+
+_Appears in:_
+- [Components](#components)
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCDatabaseServiceStatus
+
+
+
+DSCDatabaseServiceStatus is the observed state exposed on DataScienceCluster.
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
 #### DSCFeastOperator
 
 
@@ -1063,6 +1097,33 @@ DataSciencePipelinesCommonStatus defines the shared observed state of DataScienc
 
 _Appears in:_
 - [DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)
+
+
+
+#### DatabaseServiceCommonSpec
+
+
+
+DatabaseServiceCommonSpec is empty: the DatabaseService module CR has no
+configurable desired state. Do not add DSC-only fields here.
+
+
+
+_Appears in:_
+- [DSCDatabaseService](#dscdatabaseservice)
+
+
+
+#### DatabaseServiceCommonStatus
+
+
+
+DatabaseServiceCommonStatus is the shared observed state mirrored onto DSC.
+
+
+
+_Appears in:_
+- [DSCDatabaseServiceStatus](#dscdatabaseservicestatus)
 
 
 
@@ -1829,6 +1890,7 @@ _Appears in:_
 | `ray` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Ray controls the Ray module lifecycle. |  |  |
 | `modelregistry` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | ModelRegistry controls the model-registry (AIHub) module operator lifecycle. |  |  |
 | `trustyai` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | TrustyAI controls the TrustyAI module operator lifecycle. |  |  |
+| `databaseservice` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | DatabaseService controls the shared database module operator lifecycle. |  |  |
 
 
 #### PlatformSpec
@@ -1912,6 +1974,7 @@ _Appears in:_
 | `mlflowoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | MLflowOperator controls the MLflow module operator lifecycle. |  |  |
 | `monitoring` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Monitoring controls the monitoring module operator lifecycle. |  |  |
 | `mcplifecycleoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | MCPLifecycleOperator controls the MCP Lifecycle Operator module lifecycle. |  |  |
+| `databaseservice` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | DatabaseService controls the shared database module operator lifecycle. |  |  |
 | `kserve` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Kserve controls the kserve module operator lifecycle. |  |  |
 | `trainer` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Trainer controls the Trainer module operator lifecycle. |  |  |
 | `workbenches` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Workbenches controls the workbenches module operator lifecycle. |  |  |
@@ -2001,6 +2064,7 @@ _Appears in:_
 | `sparkoperator` _[DSCSparkOperator](#dscsparkoperator)_ | SparkOperator component configuration. |  |  |
 | `aigateway` _[DSCAIGateway](#dscaigateway)_ | AIGateway component configuration. |  |  |
 | `mcplifecycleoperator` _[DSCMCPLifecycleOperator](#dscmcplifecycleoperator)_ | MCPLifecycleOperator component configuration. |  |  |
+| `databaseservice` _[DSCDatabaseService](#dscdatabaseservice)_ | DatabaseService module configuration. |  |  |
 
 
 #### ComponentsStatus
@@ -2037,6 +2101,7 @@ _Appears in:_
 | `modelsAsAService` _[DSCModelsAsServiceStatus](#dscmodelsasservicestatus)_ | ModelsAsAService submodule status (submodule of AIGateway). |  |  |
 | `batchGateway` _[DSCBatchGatewayStatus](#dscbatchgatewaystatus)_ | BatchGateway submodule status (submodule of AIGateway). |  |  |
 | `mcplifecycleoperator` _[DSCMCPLifecycleOperatorStatus](#dscmcplifecycleoperatorstatus)_ | MCPLifecycleOperator component status. |  |  |
+| `databaseservice` _[DSCDatabaseServiceStatus](#dscdatabaseservicestatus)_ | DatabaseService module status.<br />Field name must match GVK.Kind so WriteDSCComponentStatus can find it. |  |  |
 
 
 #### DataScienceCluster
@@ -2133,6 +2198,7 @@ _Appears in:_
 | `sparkoperator` _[DSCSparkOperator](#dscsparkoperator)_ | SparkOperator component configuration. |  |  |
 | `aigateway` _[DSCAIGateway](#dscaigateway)_ | AIGateway component configuration. |  |  |
 | `mcplifecycleoperator` _[DSCMCPLifecycleOperator](#dscmcplifecycleoperator)_ | MCPLifecycleOperator component configuration. |  |  |
+| `databaseservice` _[DSCDatabaseService](#dscdatabaseservice)_ | DatabaseService module configuration. |  |  |
 
 
 #### ComponentsStatus (v3)
@@ -2167,6 +2233,7 @@ _Appears in:_
 | `modelsAsAService` _[DSCModelsAsServiceStatus](#dscmodelsasservicestatus)_ | ModelsAsAService submodule status (submodule of AIGateway). |  |  |
 | `batchGateway` _[DSCBatchGatewayStatus](#dscbatchgatewaystatus)_ | BatchGateway submodule status (submodule of AIGateway). |  |  |
 | `mcplifecycleoperator` _[DSCMCPLifecycleOperatorStatus](#dscmcplifecycleoperatorstatus)_ | MCPLifecycleOperator component status. |  |  |
+| `databaseservice` _[DSCDatabaseServiceStatus](#dscdatabaseservicestatus)_ | DatabaseService module status. |  |  |
 
 
 #### DataScienceCluster (v3)

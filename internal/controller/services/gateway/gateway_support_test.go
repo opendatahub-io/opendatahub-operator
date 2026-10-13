@@ -24,9 +24,10 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gatewayconfig"
 
 	. "github.com/onsi/gomega"
 )
@@ -146,6 +147,7 @@ func TestGetCertificateTypeXKSDefault(t *testing.T) {
 	originalClusterInfo := cluster.GetClusterInfo()
 	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
 	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+	g.Expect(cluster.DefaultGatewayCertificateType(cluster.ClusterTypeKubernetes)).To(Equal(infrav1.SelfSigned))
 
 	// nil gatewayConfig, nil certificate, and empty type all resolve to the XKS default.
 	g.Expect(getCertificateType(nil)).To(Equal(string(infrav1.SelfSigned)))
@@ -740,7 +742,7 @@ func TestResolveGatewayHostnameMissingDomainOnXKS(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:     client,
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+		Conditions: conditionstest.NewManager(accessor, ReadyConditionType),
 	}
 
 	hostname, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
@@ -770,33 +772,33 @@ func TestKubernetesGatewayConfigErrors(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	g.Expect(kubernetesGatewayConfigErrors(nil)).To(BeEmpty())
-	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{})).To(BeEmpty())
-	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+	g.Expect(gatewayconfig.KubernetesValidationErrors(nil)).To(BeEmpty())
+	g.Expect(gatewayconfig.KubernetesValidationErrors(&serviceApi.GatewayConfig{})).To(BeEmpty())
+	g.Expect(gatewayconfig.KubernetesValidationErrors(&serviceApi.GatewayConfig{
 		Spec: serviceApi.GatewayConfigSpec{
 			IngressMode: serviceApi.IngressModeLoadBalancer,
 			Certificate: &infrav1.CertificateSpec{Type: infrav1.SelfSigned},
 		},
 	})).To(BeEmpty())
 
-	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+	g.Expect(gatewayconfig.KubernetesValidationErrors(&serviceApi.GatewayConfig{
 		Spec: serviceApi.GatewayConfigSpec{
 			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
 		},
-	})).To(ConsistOf(status.GatewayUnsupportedCertTypeOnKubernetesMessage))
+	})).To(ConsistOf(gatewayconfig.GatewayUnsupportedCertTypeOnKubernetesMessage))
 
-	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+	g.Expect(gatewayconfig.KubernetesValidationErrors(&serviceApi.GatewayConfig{
 		Spec: serviceApi.GatewayConfigSpec{IngressMode: serviceApi.IngressModeOcpRoute},
-	})).To(ConsistOf(status.GatewayUnsupportedIngressModeOnKubernetesMessage))
+	})).To(ConsistOf(gatewayconfig.GatewayUnsupportedIngressModeOnKubernetesMessage))
 
-	g.Expect(kubernetesGatewayConfigErrors(&serviceApi.GatewayConfig{
+	g.Expect(gatewayconfig.KubernetesValidationErrors(&serviceApi.GatewayConfig{
 		Spec: serviceApi.GatewayConfigSpec{
 			IngressMode: serviceApi.IngressModeOcpRoute,
 			Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
 		},
 	})).To(ConsistOf(
-		status.GatewayUnsupportedCertTypeOnKubernetesMessage,
-		status.GatewayUnsupportedIngressModeOnKubernetesMessage,
+		gatewayconfig.GatewayUnsupportedCertTypeOnKubernetesMessage,
+		gatewayconfig.GatewayUnsupportedIngressModeOnKubernetesMessage,
 	))
 }
 
@@ -816,7 +818,7 @@ func TestRejectUnsupportedKubernetesGatewaySpec(t *testing.T) {
 	accessor := &gatewayConfigConditionsAccessor{}
 	rr := &odhtypes.ReconciliationRequest{
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+		Conditions: conditionstest.NewManager(accessor, ReadyConditionType),
 	}
 
 	g.Expect(rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig)).To(BeTrue())
@@ -824,8 +826,8 @@ func TestRejectUnsupportedKubernetesGatewaySpec(t *testing.T) {
 	g.Expect(ready).NotTo(BeNil())
 	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
 	g.Expect(ready.Reason).To(Equal(status.NotReadyReason))
-	g.Expect(ready.Message).To(ContainSubstring(status.GatewayUnsupportedCertTypeOnKubernetesMessage))
-	g.Expect(ready.Message).To(ContainSubstring(status.GatewayUnsupportedIngressModeOnKubernetesMessage))
+	g.Expect(ready.Message).To(ContainSubstring(gatewayconfig.GatewayUnsupportedCertTypeOnKubernetesMessage))
+	g.Expect(ready.Message).To(ContainSubstring(gatewayconfig.GatewayUnsupportedIngressModeOnKubernetesMessage))
 }
 
 func TestRejectUnsupportedKubernetesGatewaySpecIgnoredOnOpenShift(t *testing.T) {
@@ -844,7 +846,7 @@ func TestRejectUnsupportedKubernetesGatewaySpecIgnoredOnOpenShift(t *testing.T) 
 	accessor := &gatewayConfigConditionsAccessor{}
 	rr := &odhtypes.ReconciliationRequest{
 		Instance:   gatewayConfig,
-		Conditions: conditions.NewManager(accessor, ReadyConditionType),
+		Conditions: conditionstest.NewManager(accessor, ReadyConditionType),
 	}
 
 	g.Expect(rejectUnsupportedKubernetesGatewaySpec(rr, gatewayConfig)).To(BeFalse())

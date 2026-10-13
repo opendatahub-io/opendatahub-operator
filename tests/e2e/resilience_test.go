@@ -174,8 +174,9 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// Data is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// AIPipelines is excluded because it is a module (reports AIPipelinesReady via ModulesReady, not ComponentsReady)
 	// Ray is excluded because it is a module (reports RayReady via ModulesReady, not ComponentsReady)
+	// DatabaseService is excluded because it is a module so it does not report DSC ComponentsReady condition
 	//nolint:mnd // explicit count of excluded components
-	excludedComponents := 15
+	excludedComponents := 16
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+

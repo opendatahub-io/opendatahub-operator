@@ -17,8 +17,8 @@ import (
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -113,7 +113,7 @@ func setupCleanupTest(t *testing.T, handler *cleanupMockHandler) (*odhtype.Recon
 	cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	cm := conditions.NewManager(platform, status.ConditionTypeReady, status.ConditionTypeModulesReady)
+	cm := conditionstest.NewManager(platform, status.ConditionTypeReady, status.ConditionTypeModulesReady)
 
 	rr := &odhtype.ReconciliationRequest{
 		Client:     cli,

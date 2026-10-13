@@ -12,16 +12,14 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/monitor"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
 const PreConditionFailedReason = "PreConditionFailed"
 
-// CheckResult holds the outcome of a check execution.
-type CheckResult struct {
-	Pass    bool
-	Message string
-}
+// CheckResult is an alias of [monitor.CheckResult], avoiding conversion at the package boundary.
+type CheckResult = monitor.CheckResult
 
 // CheckFunc is the function signature for a pre-reconciliation check.
 type CheckFunc func(ctx context.Context, rr *types.ReconciliationRequest) (CheckResult, error)
@@ -201,15 +199,18 @@ func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions 
 			continue
 		}
 
-		if !result.Pass {
-			l.Info("Pre-condition not met", "conditionType", pc.conditionType, "message", result.Message)
+		if resultStatus := result.ConditionStatus(); resultStatus != metav1.ConditionTrue {
+			l.Info("Pre-condition not met",
+				"conditionType", pc.conditionType,
+				"status", resultStatus,
+				"message", result.Message)
 
 			msg := result.Message
 			if pc.message != "" {
 				msg = pc.message
 			}
 
-			agg.record(metav1.ConditionFalse, msg, pc)
+			agg.record(resultStatus, msg, pc)
 		}
 	}
 
@@ -225,11 +226,11 @@ func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions 
 			opts = append(opts,
 				cond.WithReason(PreConditionFailedReason),
 				cond.WithSeverity(agg.severity),
-				cond.WithMessage("%s", strings.Join(agg.messages, "; ")),
+				cond.WithMessagef("%s", strings.Join(agg.messages, "; ")),
 			)
 		}
 
-		rr.Conditions.Mark(ct, agg.status, opts...)
+		rr.Conditions.Mark(common.ConditionType(ct), agg.status, opts...)
 
 		if agg.shouldStop {
 			shouldStop = true

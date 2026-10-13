@@ -216,7 +216,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(syncGatewayConfigStatus).
 		WithAction(gc.NewAction()).
 		WithPostStatusFn(syncAdditionalIngressReadyStatuses).
-		WithConditions(ReadyConditionType, serviceApi.AdditionalGatewaysReadyConditionType)
+		WithConditions(reconciler.DependentConditions(ReadyConditionType, serviceApi.AdditionalGatewaysReadyConditionType)...)
 
 	if _, err := gw.Build(ctx); err != nil {
 		return fmt.Errorf("could not create the GatewayConfig controller: %w", err)

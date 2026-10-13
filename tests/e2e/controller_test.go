@@ -155,6 +155,7 @@ var (
 				componentApi.SparkOperatorComponentName:        sparkOperatorTestSuite,
 				componentApi.AIGatewayComponentName:            aiGatewayTestSuite,
 				componentApi.MCPLifecycleOperatorComponentName: mcpLifecycleOperatorTestSuite,
+				componentApi.DatabaseServiceComponentName:      databaseServiceTestSuite,
 			},
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel

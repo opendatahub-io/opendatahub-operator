@@ -62,6 +62,9 @@ const (
 	CertManagerIssuerCRDName             = "issuers.cert-manager.io"
 	CertManagerClusterIssuerCRDName      = "clusterissuers.cert-manager.io"
 
+	// CertManagerOperatorCRDName is optional because community cert-manager does not provide this OpenShift health API.
+	CertManagerOperatorCRDName = "certmanagers.operator.openshift.io"
+
 	// LeaderWorkerSet CRD.
 	LeaderWorkerSetCRDName = "leaderworkersets.leaderworkerset.x-k8s.io"
 
@@ -383,6 +386,12 @@ var (
 		Group:   serviceApi.GroupVersion.Group,
 		Version: serviceApi.GroupVersion.Version,
 		Kind:    serviceApi.MonitoringKind,
+	}
+
+	DatabaseService = schema.GroupVersionKind{
+		Group:   serviceApi.GroupVersion.Group,
+		Version: serviceApi.GroupVersion.Version,
+		Kind:    componentApi.DatabaseServiceKind,
 	}
 
 	PlatformV1alpha1 = schema.GroupVersionKind{

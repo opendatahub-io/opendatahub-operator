@@ -25,6 +25,8 @@ spec:
           value: 'true'
         - name: RHAI_DISABLE_DASHBOARD_MODULE
           value: 'true'
+        - name: RHAI_DISABLE_DATABASESERVICE_MODULE
+          value: 'true'
         - name: RHAI_DISABLE_DATA_MODULE
           value: 'true'
         - name: RHAI_DISABLE_MCPLIFECYCLEOPERATOR_MODULE

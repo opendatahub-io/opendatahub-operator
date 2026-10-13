@@ -59,7 +59,8 @@ type ModuleConfig struct {
 	// deployment namespace (e.g. "operatorNamespace", "namespace"). When
 	// set, BaseHandler.GetOperatorManifests injects
 	// platform.ApplicationsNamespace under this key. Leave empty if the
-	// chart does not need a namespace override.
+	// chart templates use .Release.Namespace instead (that path is wired
+	// via helm.Source.ReleaseNamespace from ApplicationsNamespace).
 	NamespaceValueKey string
 
 	// Kustomize fields -- used when ManifestDir is set.
@@ -82,8 +83,9 @@ type ModuleConfig struct {
 	// Namespace overrides the default ApplicationsNamespace for Kustomize
 	// rendering. When empty, Kustomize uses ApplicationsNamespace. Set this
 	// for modules that deploy into a dedicated namespace. For Helm modules,
-	// use NamespaceValueKey or Values instead; this field is not wired into
-	// Helm rendering.
+	// ApplicationsNamespace is always passed as helm.Source.ReleaseNamespace
+	// (.Release.Namespace); use NamespaceValueKey or Values when the chart
+	// reads the namespace from .Values instead.
 	Namespace string
 
 	// ContainerName is the name of the primary operator container in the
@@ -282,7 +284,11 @@ func (b *BaseHandler) GetOperatorManifests(platform *PlatformContext) OperatorMa
 			Source: helm.Source{
 				Chart:       filepath.Join(platform.ChartsBasePath, b.Config.ChartDir),
 				ReleaseName: b.Config.ReleaseName,
-				Values:      helm.Values(vals),
+				// Charts that template metadata.namespace from .Release.Namespace
+				// (e.g. databaseservice) need this; otherwise cleanup deletes
+				// namespaced objects with namespace="" and breaks Platform reconcile.
+				ReleaseNamespace: platform.ApplicationsNamespace,
+				Values:           helm.Values(vals),
 			},
 		}}
 	}

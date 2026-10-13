@@ -49,6 +49,7 @@ func componentStates(c dscApi.Components) map[string]operatorv1.ManagementState 
 		"mlflowoperator":       c.MLflowOperator.ManagementState,
 		"sparkoperator":        c.SparkOperator.ManagementState,
 		"mcplifecycleoperator": c.MCPLifecycleOperator.ManagementState,
+		"databaseservice":      c.DatabaseService.ManagementState,
 	}
 }
 

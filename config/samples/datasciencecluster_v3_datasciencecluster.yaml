@@ -50,3 +50,5 @@ spec:
       managementState: "Removed"
     mcplifecycleoperator:
       managementState: "Managed"
+    databaseservice:
+      managementState: "Removed"

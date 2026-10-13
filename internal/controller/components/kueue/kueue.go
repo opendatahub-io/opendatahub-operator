@@ -124,7 +124,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
 			conditions.WithReason(string(ms)),
-			conditions.WithMessage("Component ManagementState is set to %s", string(ms)),
+			conditions.WithMessagef("Component ManagementState is set to %s", string(ms)),
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
 	}

@@ -17,6 +17,7 @@ import (
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
@@ -114,7 +115,7 @@ func lifecycleRR(t *testing.T) (*types.ReconciliationRequest, *dscApi.DataScienc
 			Name:    common.Platform("Open Data Hub"),
 			Version: ofversion.OperatorVersion{Version: semver.MustParse(lifecycleTestVersion)},
 		},
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
+		Conditions: conditionstest.NewManager(dsc, status.ConditionTypeModulesReady),
 	}, dsc
 }
 
@@ -212,7 +213,7 @@ func TestLifecycle_ProvisionThenDisableThenCleanup(t *testing.T) {
 	// Verify status computation reflects the final state.
 	rr5, _ := lifecycleRR(t)
 	rr5.Instance = dsc
-	rr5.Conditions = conditions.NewManager(dsc, status.ConditionTypeModulesReady)
+	rr5.Conditions = conditionstest.NewManager(dsc, status.ConditionTypeModulesReady)
 	if err := ComputeModulesStatusDetailed(context.Background(), rr5); err != nil {
 		t.Fatalf("status computation: %v", err)
 	}
@@ -299,7 +300,7 @@ func TestLifecycle_MultiModuleStatusAggregation(t *testing.T) {
 	DefaultRegistry().Add(disabledModule, WithRunlevel(dag.RL(20)))
 
 	rr, dsc := lifecycleRR(t)
-	rr.Conditions = conditions.NewManager(dsc, status.ConditionTypeModulesReady)
+	rr.Conditions = conditionstest.NewManager(dsc, status.ConditionTypeModulesReady)
 
 	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
 		t.Fatalf("compute status: %v", err)
@@ -345,7 +346,7 @@ func TestLifecycle_AllDisabledReportsNoManagedModules(t *testing.T) {
 	DefaultRegistry().Add(mod, WithRunlevel(dag.RL(20)))
 
 	rr, dsc := lifecycleRR(t)
-	rr.Conditions = conditions.NewManager(dsc, status.ConditionTypeModulesReady)
+	rr.Conditions = conditionstest.NewManager(dsc, status.ConditionTypeModulesReady)
 
 	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
 		t.Fatalf("compute status: %v", err)
@@ -384,7 +385,7 @@ func TestLifecycle_StaleModuleStatusMarksNotReady(t *testing.T) {
 	DefaultRegistry().Add(mod, WithRunlevel(dag.RL(20)))
 
 	rr, dsc := lifecycleRR(t)
-	rr.Conditions = conditions.NewManager(dsc, status.ConditionTypeModulesReady)
+	rr.Conditions = conditionstest.NewManager(dsc, status.ConditionTypeModulesReady)
 
 	if err := ComputeModulesStatusDetailed(context.Background(), rr); err != nil {
 		t.Fatalf("compute status: %v", err)

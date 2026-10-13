@@ -26,28 +26,8 @@ func NewPostStatusFn() reconciler.PostStatusFn {
 			return nil
 		}
 
-		setPlatformRelease(obj, rr.Release.Version.String())
+		obj.GetReleaseStatus().SetPlatformRelease(rr.Release.Version.String())
 
 		return nil
 	}
-}
-
-func setPlatformRelease(wr common.WithReleases, version string) {
-	releases := wr.GetReleaseStatus()
-	for i, r := range *releases {
-		if r.Name == common.PlatformReleaseName {
-			(*releases)[i].Version = version
-
-			if i != 0 {
-				entry := (*releases)[i]
-				*releases = append([]common.ComponentRelease{entry}, append((*releases)[:i], (*releases)[i+1:]...)...)
-			}
-			return
-		}
-	}
-
-	*releases = append([]common.ComponentRelease{{
-		Name:    common.PlatformReleaseName,
-		Version: version,
-	}}, *releases...)
 }

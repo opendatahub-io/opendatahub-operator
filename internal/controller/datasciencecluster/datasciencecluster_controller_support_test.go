@@ -15,8 +15,8 @@ import (
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -77,7 +77,7 @@ func TestComputeComponentsStatus(t *testing.T) {
 
 		rr := &types.ReconciliationRequest{
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, status.ConditionTypeComponentsReady),
+			Conditions: conditionstest.NewManager(dsc, status.ConditionTypeComponentsReady),
 		}
 
 		err := computeComponentsStatus(t.Context(), rr, reg)
@@ -99,7 +99,7 @@ func TestComputeComponentsStatus(t *testing.T) {
 
 		rr := &types.ReconciliationRequest{
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, status.ConditionTypeComponentsReady),
+			Conditions: conditionstest.NewManager(dsc, status.ConditionTypeComponentsReady),
 		}
 
 		err := computeComponentsStatus(t.Context(), rr, reg)
@@ -123,7 +123,7 @@ func TestComputeComponentsStatus(t *testing.T) {
 
 		rr := &types.ReconciliationRequest{
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, status.ConditionTypeComponentsReady),
+			Conditions: conditionstest.NewManager(dsc, status.ConditionTypeComponentsReady),
 		}
 
 		err := computeComponentsStatus(t.Context(), rr, reg)
@@ -147,7 +147,7 @@ func TestComputeComponentsStatus(t *testing.T) {
 
 		rr := &types.ReconciliationRequest{
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, status.ConditionTypeComponentsReady),
+			Conditions: conditionstest.NewManager(dsc, status.ConditionTypeComponentsReady),
 		}
 
 		err := computeComponentsStatus(t.Context(), rr, reg)
@@ -171,7 +171,7 @@ func TestComputeComponentsStatus(t *testing.T) {
 
 		rr := &types.ReconciliationRequest{
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, status.ConditionTypeComponentsReady),
+			Conditions: conditionstest.NewManager(dsc, status.ConditionTypeComponentsReady),
 		}
 
 		err := computeComponentsStatus(t.Context(), rr, reg)
@@ -192,7 +192,7 @@ func TestComputeComponentsStatus(t *testing.T) {
 
 		rr := &types.ReconciliationRequest{
 			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, status.ConditionTypeComponentsReady),
+			Conditions: conditionstest.NewManager(dsc, status.ConditionTypeComponentsReady),
 		}
 
 		err := computeComponentsStatus(t.Context(), rr, reg)

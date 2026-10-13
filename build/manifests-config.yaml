@@ -66,3 +66,7 @@ map:
   odh-trustyai-module-operator:
     src: trustyai-operator-module/config
     dest: trustyai
+  odh-db-operator:
+    src: config
+    dest: odh-db-operator
+    type: chart

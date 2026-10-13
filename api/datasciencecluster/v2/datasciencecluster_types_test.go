@@ -14,6 +14,7 @@ var expectedDSCComponentNames = []string{
 	"aigateway",
 	"aipipelines",
 	"dashboard",
+	"databaseservice",
 	"feastoperator",
 	"kserve",
 	"kueue",

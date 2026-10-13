@@ -143,7 +143,7 @@ HELM ?= $(LOCALBIN)/helm
 KUSTOMIZE_VERSION ?= v5.8.1
 CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
-GOLANGCI_LINT_VERSION ?= v2.12.2
+GOLANGCI_LINT_VERSION ?= v2.14.0
 YQ_VERSION ?= v4.53.2
 HELM_VERSION ?= v4.1.1
 KUBE_LINTER_VERSION ?= v0.7.6
@@ -293,7 +293,9 @@ endif
 	@cp "$(CONFIG_DIR)/crd/bases/services.platform.opendatahub.io_gatewayconfigs.yaml" config/rhaii/crd/bases/
 	@cp "$(CONFIG_DIR)/crd/kustomizeconfig.yaml" config/rhaii/crd/kustomizeconfig.yaml
 	@$(call add-crd-to-kustomization,config/rhaii/crd/bases)
-MANIFEST_GENERATED_FILES = config/crd/bases config/rhoai/crd/bases config/rhaii/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
+	@# Generate the RHAII webhook manifest with only the GatewayConfig validator.
+	@"$(YQ)" eval 'select(.kind == "ValidatingWebhookConfiguration") | .webhooks = [.webhooks[] | select(.name == "gatewayconfig-validator.opendatahub.io")]' "$(CONFIG_DIR)/webhook/manifests.yaml" > config/rhaii/webhook/manifests.yaml
+MANIFEST_GENERATED_FILES = config/crd/bases config/rhoai/crd/bases config/rhaii/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml config/rhaii/webhook/manifests.yaml
 
 .PHONY: manifests-all
 manifests-all:
@@ -313,8 +315,8 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 GOLANGCI_TMP_FILE = .golangci.mktmp.yml
 .PHONY: fmt
 fmt: golangci-lint yq ## Formats code and imports.
-	go fmt ./...
-	$(GOLANGCI_LINT) fmt
+	go fmt $(GOLANGCI_LINT_PACKAGES)
+	$(GOLANGCI_LINT) fmt $(GOLANGCI_LINT_PACKAGES)
 CLEANFILES += $(GOLANGCI_TMP_FILE)
 
 .PHONY: vet
@@ -322,14 +324,16 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 GOLANGCI_LINT_TIMEOUT ?= 5m0s
+# Keep linting opt-in to source roots so fork-local prefetched artifacts are never loaded.
+GOLANGCI_LINT_PACKAGES ?= ./api/... ./cmd/... ./hack/... ./internal/... ./pkg/... ./tests/...
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint against code.
-	$(GOLANGCI_LINT) run --timeout=$(GOLANGCI_LINT_TIMEOUT)
+	$(GOLANGCI_LINT) run --timeout=$(GOLANGCI_LINT_TIMEOUT) $(GOLANGCI_LINT_PACKAGES)
 
 .PHONY: lint-fix
 lint-fix: golangci-lint ## Run golangci-lint against code.
-	$(GOLANGCI_LINT) run --fix
-	$(GOLANGCI_LINT) fmt
+	$(GOLANGCI_LINT) run --fix $(GOLANGCI_LINT_PACKAGES)
+	$(GOLANGCI_LINT) fmt $(GOLANGCI_LINT_PACKAGES)
 
 .PHONY: kube-lint
 kube-lint: prepare ## Run kube-linter against rendered manifests.
@@ -544,8 +548,7 @@ $(OPERATOR_SDK): $(LOCALBIN)
 	chmod +x $(OPERATOR_SDK) ;\
 
 .PHONY: golangci-lint
-golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
-$(GOLANGCI_LINT): $(LOCALBIN)
+golangci-lint: $(LOCALBIN) ## Download golangci-lint locally if necessary.
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint,$(GOLANGCI_LINT_VERSION))
 
 OS=$(shell uname -s)
@@ -993,34 +996,19 @@ kind-setup-pull-secrets: ## Setup pull secrets for operator dependencies in the 
 	done
 	@echo "Pull secrets configured."
 
+ifeq ($(SKIP_CERT_MANAGER_INSTALL),true)
+CERT_MANAGER_INSTALL_PREREQUISITES :=
+else
+CERT_MANAGER_INSTALL_PREREQUISITES := helm
+endif
+
 .PHONY: install-cert-manager
-install-cert-manager: helm ## Install cert-manager operator (fetched from odh-gitops)
-	@if [ "$(SKIP_CERT_MANAGER_INSTALL)" = "true" ]; then \
-		echo "SKIP_CERT_MANAGER_INSTALL is set, skipping cert-manager installation"; \
-		exit 0; \
-	fi
-	@if kubectl get crd certificates.cert-manager.io >/dev/null 2>&1; then \
-		echo "cert-manager CRDs already present, skipping installation"; \
-		exit 0; \
-	fi
-	@tmpdir=$$(mktemp -d); \
-	trap "rm -rf $$tmpdir" EXIT; \
-	go run -C ./cmd/manifest-tools main.go download \
-		--config "$(CURDIR)/hack/cert-manager-config.yaml" \
-		--charts-dir $$tmpdir; \
-	"$(HELM)" upgrade --install cert-manager-operator $$tmpdir/cert-manager-operator --create-namespace --take-ownership; \
-	kubectl rollout status deployment/cert-manager-operator-controller-manager -n cert-manager-operator --timeout=120s; \
-	for dep in cert-manager cert-manager-webhook cert-manager-cainjector; do \
-		echo "Waiting for deployment/$$dep in cert-manager namespace..."; \
-		end=$$(( $$(date +%s) + 300 )); \
-		while ! kubectl rollout status deployment/$$dep -n cert-manager --timeout=10s 2>/dev/null; do \
-			if [ $$(date +%s) -ge $$end ]; then \
-				echo "Timed out waiting for deployment/$$dep"; \
-				exit 1; \
-			fi; \
-			sleep 5; \
-		done; \
-	done
+install-cert-manager: $(CERT_MANAGER_INSTALL_PREREQUISITES) ## Install cert-manager operator (fetched from odh-gitops)
+ifeq ($(SKIP_CERT_MANAGER_INSTALL),true)
+	@echo "SKIP_CERT_MANAGER_INSTALL is set, skipping cert-manager installation"
+else
+	@./hack/install-cert-manager.sh "$(HELM)"
+endif
 
 CCM_INSTALL_TARGETS := $(addprefix install-ccm-,$(CCM_PROVIDERS))
 .PHONY: $(CCM_INSTALL_TARGETS)
