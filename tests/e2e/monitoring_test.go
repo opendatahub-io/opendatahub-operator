@@ -32,7 +32,8 @@ const (
 	ObservabilityDeploymentName              = "odh-observability"
 	OpenTelemetryCollectorName               = "data-science-collector"
 	TargetAllocatorDeploymentName            = "data-science-collector-targetallocator"
-	TargetAllocatorServiceAccount            = "data-science-collector-collector"
+	CollectorServiceAccount                  = "data-science-collector-collector"
+	TargetAllocatorServiceAccount            = "data-science-collector-targetallocator"
 	TempoMonolithicName                      = "data-science-tempomonolithic"
 	TempoStackName                           = "data-science-tempostack"
 	InstrumentationName                      = "data-science-instrumentation"
@@ -3404,10 +3405,23 @@ func (tc *MonitoringTestCtx) ValidateTargetAllocatorRBACConfiguration(t *testing
 		}),
 		WithCondition(And(
 			jq.Match(`.roleRef.name == "generate-processors-role"`),
+			jq.Match(`.subjects[0].name == "%s"`, CollectorServiceAccount),
+			jq.Match(`.subjects[0].namespace == "%s"`, tc.MonitoringNamespace),
+		)),
+		WithCustomErrorMsg("ClusterRoleBinding should bind collector ClusterRole to collector ServiceAccount"),
+	)
+
+	// Verify Target Allocator has its own ClusterRoleBinding
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "generate-processors-targetallocator-rolebinding",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "generate-processors-role"`),
 			jq.Match(`.subjects[0].name == "%s"`, TargetAllocatorServiceAccount),
 			jq.Match(`.subjects[0].namespace == "%s"`, tc.MonitoringNamespace),
 		)),
-		WithCustomErrorMsg("ClusterRoleBinding should bind Target Allocator ClusterRole to ServiceAccount"),
+		WithCustomErrorMsg("ClusterRoleBinding should bind Target Allocator ClusterRole to Target Allocator ServiceAccount"),
 	)
 }
 
@@ -3449,7 +3463,7 @@ func (tc *MonitoringTestCtx) ValidateCollectorMLflowIntegrationRBAC(t *testing.T
 			jq.Match(`.roleRef.name == "data-science-collector-mlflow-trace-export"`),
 			jq.Match(`(.subjects | length) == 1`),
 			jq.Match(`.subjects[0].kind == "ServiceAccount"`),
-			jq.Match(`.subjects[0].name == "%s"`, TargetAllocatorServiceAccount),
+			jq.Match(`.subjects[0].name == "%s"`, CollectorServiceAccount),
 			jq.Match(`.subjects[0].namespace == "%s"`, tc.MonitoringNamespace),
 		)),
 		WithCustomErrorMsg("ClusterRoleBinding should bind collector SA to mlflow trace export ClusterRole"),
@@ -3514,7 +3528,7 @@ func (tc *MonitoringTestCtx) ValidateCollectorTempoTraceExportRBAC(t *testing.T)
 			jq.Match(`.roleRef.name == "data-science-collector-tempo-trace-export"`),
 			jq.Match(`(.subjects | length) == 1`),
 			jq.Match(`.subjects[0].kind == "ServiceAccount"`),
-			jq.Match(`.subjects[0].name == "%s"`, TargetAllocatorServiceAccount),
+			jq.Match(`.subjects[0].name == "%s"`, CollectorServiceAccount),
 			jq.Match(`.subjects[0].namespace == "%s"`, tc.MonitoringNamespace),
 		)),
 		WithCustomErrorMsg("ClusterRoleBinding should bind collector SA to Tempo trace export ClusterRole"),
