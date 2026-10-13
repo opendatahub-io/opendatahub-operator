@@ -28,6 +28,7 @@ import (
 
 	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	frameworkmanager "github.com/opendatahub-io/odh-platform-utilities/framework/manager"
+	tlspkg "github.com/opendatahub-io/odh-platform-utilities/framework/tls"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
 	configv1 "github.com/openshift/api/config/v1"
@@ -39,7 +40,7 @@ import (
 	securityv1 "github.com/openshift/api/security/v1"
 	templatev1 "github.com/openshift/api/template/v1"
 	userv1 "github.com/openshift/api/user/v1"
-	tlspkg "github.com/openshift/controller-runtime-common/pkg/tls"
+	commonTLS "github.com/openshift/controller-runtime-common/pkg/tls"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -51,7 +52,6 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -102,7 +102,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-	operatortls "github.com/opendatahub-io/opendatahub-operator/v2/pkg/tls"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
@@ -415,7 +414,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	addCacheIfAvailable(setupClient, cacheOptions.ByObject, &promv1.ServiceMonitor{}, gvk.ServiceMonitor, cache.ByObject{Namespaces: oDHCache})
 
 	// Fetch the cluster TLS security profile for webhook and metrics servers
-	tlsOpts, tlsProfile, tlsAdherence, hasOpenShiftConfigAPI := fetchTLSProfile(ctx, scheme, oconfig.RestConfig)
+	tlsOpts, tlsProfile, tlsAdherence, hasOpenShiftConfigAPI, err := fetchTLSProfile(ctx, scheme, oconfig.RestConfig)
+	if err != nil {
+		setupLog.Error(err, "unable to establish manager TLS configuration")
+		os.Exit(1)
+	}
 
 	ctrlMgr, err := ctrl.NewManager(oconfig.RestConfig, ctrl.Options{ // single pod does not need to have LeaderElection
 		Scheme: scheme,
@@ -666,87 +669,57 @@ func addCacheIfAvailable(cli client.Client, byObject map[client.Object]cache.ByO
 	}
 }
 
-func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.Config) ([]func(*tls.Config), configv1.TLSProfileSpec, configv1.TLSAdherencePolicy, bool) {
-	var tlsOpts []func(*tls.Config)
-	var profile configv1.TLSProfileSpec
-	var adherence configv1.TLSAdherencePolicy
-	hasAPI := false
-	nextProtos := []string{"h2", "http/1.1"}
-
+func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.Config) ([]func(*tls.Config), configv1.TLSProfileSpec, configv1.TLSAdherencePolicy, bool, error) {
 	bootstrapClient, err := client.New(restCfg, client.Options{Scheme: scheme})
 	if err != nil {
-		setupLog.Error(err, "unable to create bootstrap client for TLS profile, using hardened defaults")
-		tlsOpts = append(tlsOpts, func(c *tls.Config) {
-			c.MinVersion = tls.VersionTLS12
-			c.CipherSuites = intermediateCiphers
-			c.NextProtos = nextProtos
-		})
-		return tlsOpts, *configv1.TLSProfiles[configv1.TLSProfileIntermediateType], adherence, false
+		// Refuse to start: the TLS posture cannot be determined and the same
+		// rest.Config would fail manager construction anyway.
+		return nil, configv1.TLSProfileSpec{}, "", false, fmt.Errorf("unable to create bootstrap client for TLS profile: %w", err)
 	}
 
-	profile, err = tlspkg.FetchAPIServerTLSProfile(ctx, bootstrapClient)
+	return fetchTLSProfileWithClient(ctx, bootstrapClient)
+}
+
+func fetchTLSProfileWithClient(ctx context.Context, bootstrapClient client.Client) ([]func(*tls.Config), configv1.TLSProfileSpec, configv1.TLSAdherencePolicy, bool, error) {
+	result, err := tlspkg.LoadWithAdherence(ctx, bootstrapClient)
 	if err != nil {
-		switch {
-		case meta.IsNoMatchError(err):
-			setupLog.Info("TLS profile not available, using hardened defaults (non-OpenShift cluster)")
-		case k8serr.IsNotFound(err):
-			setupLog.Info("APIServer resource not found, using hardened defaults")
-		case k8serr.IsServiceUnavailable(err),
-			k8serr.IsTimeout(err),
-			k8serr.IsServerTimeout(err),
-			k8serr.IsTooManyRequests(err),
-			errors.Is(err, context.DeadlineExceeded):
-			setupLog.Info("Transient API error reading TLS profile, using hardened defaults", "error", err)
-			hasAPI = true // watcher self-heals when the API recovers
-		default:
-			setupLog.Error(err, "unable to read APIServer TLS profile, refusing to start with unknown TLS posture")
-			os.Exit(1)
-		}
-		tlsOpts = append(tlsOpts, func(c *tls.Config) {
-			c.MinVersion = tls.VersionTLS12
-			c.CipherSuites = intermediateCiphers
-			c.NextProtos = nextProtos
-		})
-	} else {
-		hasAPI = true
-		adherence, err = tlspkg.FetchAPIServerTLSAdherencePolicy(ctx, bootstrapClient)
-		if err != nil {
-			switch {
-			case meta.IsNoMatchError(err):
-				setupLog.Info("TLS adherence API not available (non-OpenShift or pre-4.22 cluster)")
-			case k8serr.IsNotFound(err):
-				setupLog.Info("APIServer resource not found for adherence, skipping")
-			case k8serr.IsServiceUnavailable(err),
-				k8serr.IsTimeout(err),
-				k8serr.IsServerTimeout(err),
-				k8serr.IsTooManyRequests(err),
-				k8serr.IsInternalError(err),
-				errors.Is(err, context.DeadlineExceeded):
-				setupLog.Info("Transient error fetching TLS adherence policy, watcher will retry", "error", err)
-			default:
-				setupLog.Error(err, "unable to read TLS adherence policy, refusing to start with unknown adherence posture")
-				os.Exit(1)
-			}
-		}
-
-		if operatortls.ShouldHonorClusterTLSProfile(adherence) {
-			tlsConfigFn, unsupportedCiphers := tlspkg.NewTLSConfigFromProfile(profile)
-			if len(unsupportedCiphers) > 0 {
-				setupLog.Info("some ciphers from TLS profile are not supported by Go", "unsupported", unsupportedCiphers)
-			}
-			tlsOpts = append(tlsOpts, tlsConfigFn)
-		} else {
-			tlsOpts = append(tlsOpts, func(c *tls.Config) {
-				c.MinVersion = tls.VersionTLS12
-				c.CipherSuites = intermediateCiphers
-			})
-		}
-		tlsOpts = append(tlsOpts, func(c *tls.Config) {
-			c.NextProtos = nextProtos
-		})
+		return nil, configv1.TLSProfileSpec{}, "", false,
+			fmt.Errorf("unable to load APIServer TLS profile and adherence: %w", err)
 	}
 
-	return tlsOpts, profile, adherence, hasAPI
+	if result.UsedFallback {
+		if result.Watchable {
+			setupLog.Info("transient API error loading TLS settings; using hardened defaults and waiting for watcher recovery")
+		} else {
+			setupLog.Info("APIServer TLS API or resource unavailable; using hardened defaults")
+		}
+	}
+
+	tlsOpts, unsupported, err := buildManagerTLSOpts(result.Spec, result.AdherencePolicy)
+	if err != nil {
+		return nil, result.Spec, result.AdherencePolicy, result.Watchable,
+			fmt.Errorf("unable to apply APIServer TLS profile to manager: %w", err)
+	}
+	if len(unsupported) > 0 {
+		setupLog.Info("some TLS settings from profile are not supported by Go", "unsupported", unsupported)
+	}
+	return tlsOpts, result.Spec, result.AdherencePolicy, result.Watchable, nil
+}
+
+func buildManagerTLSOpts(profile configv1.TLSProfileSpec, adherence configv1.TLSAdherencePolicy) ([]func(*tls.Config), []string, error) {
+	setNextProtos := commonTLS.SetNextProtos(commonTLS.HTTP2NextProtos...)
+	if !tlspkg.ShouldHonorClusterTLSProfile(adherence) {
+		return []func(*tls.Config){func(c *tls.Config) {
+			c.MinVersion = tls.VersionTLS12
+			c.CipherSuites = intermediateCiphers
+		}, setNextProtos}, nil, nil
+	}
+
+	if err := tlspkg.ValidateStrictTLSProfile(profile); err != nil {
+		return nil, nil, err
+	}
+	tlsConfigFn, unsupported := tlspkg.ConfigFromProfile(profile)
+	return []func(*tls.Config){tlsConfigFn, setNextProtos}, unsupported, nil
 }
 
 func CreateComponentReconcilers(ctx context.Context, mgr *frameworkmanager.Manager) error {

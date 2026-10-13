@@ -19,10 +19,9 @@ package gateway
 import (
 	"context"
 
+	pkgtls "github.com/opendatahub-io/odh-platform-utilities/framework/tls"
 	configv1 "github.com/openshift/api/config/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	pkgtls "github.com/opendatahub-io/opendatahub-operator/v2/pkg/tls"
 )
 
 // KubeAuthProxyTLSFromProfile resolves a TLSSecurityProfile to version, cipher, and curve strings

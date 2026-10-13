@@ -6,6 +6,7 @@ package gateway
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"os"
 	"strings"
 	"testing"
@@ -878,7 +879,7 @@ func authProxyTemplateData() map[string]any {
 		"EnableK8sTokenValidation": true,
 		"RedirectURL":              "https://" + testHostnameDefault + OAuthCallbackPath,
 		"TLSMinVersion":            "VersionTLS12",
-		"TLSCipherSuite":           "TLS_AES_128_GCM_SHA256",
+		"TLSCipherSuite":           tls.CipherSuiteName(tls.TLS_AES_128_GCM_SHA256),
 		"TLSCurvePreferences":      "",
 		"CookieExpire":             testCookieExpireDefault,
 		"CookieRefresh":            testCookieRefreshDefault,

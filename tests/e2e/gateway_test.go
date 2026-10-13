@@ -142,6 +142,7 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate OIDC token forwarding to dashboard", gatewayCtx.ValidateOIDCTokenForwarding},
 		{"Validate OIDC unauthenticated access redirects to login", gatewayCtx.ValidateOIDCUnauthenticatedRedirect},
 		// Common tests (run on both)
+		{"Validate kube-auth-proxy TLS oracle cipher filtering", gatewayCtx.ValidateKubeAuthProxyTLSOracleCipherFiltering},
 		{"Validate kube-auth-proxy TLS args match cluster APIServer", gatewayCtx.ValidateKubeAuthProxyTLSArgsMatchAPIServer},
 		{"Validate HorizontalPodAutoscaler configuration updates", gatewayCtx.ValidateHPA},
 		{"Validate NetworkPolicy creation", gatewayCtx.ValidateNetworkPolicy},

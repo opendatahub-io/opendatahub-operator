@@ -106,16 +106,20 @@ const (
 	updatedCookieExpireArg  = "--cookie-expire=48h0m0s"
 	updatedCookieRefreshArg = "--cookie-refresh=2h0m0s"
 
-	// testTLSMinVersion, testTLSCipherSuites, and testTLSCurvePreferences are the hardcoded expected values that
-	// correspond to the explicit Custom TLS profile set on the APIServer in
-	// setupClusterPrerequisitesForMain. They are kept in sync with that profile definition
-	// and intentionally not derived from the production TLS helper functions so that
-	// assertions in RunDeploymentWithAllArgsTest act as independent oracles.
-	testTLSMinVersion   = "--tls-min-version=TLS1.2"
-	testTLSCipherSuites = "--tls-cipher-suite=" +
-		"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256," +
-		"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
-	testTLSCurvePreferences = "--tls-curve-preferences=23,29"
+	// testTLSMinVersion corresponds to the explicit Custom TLS profile set on
+	// the APIServer in setupClusterPrerequisitesForMain.
+	testTLSMinVersion = "--tls-min-version=TLS1.2"
+)
+
+// The custom TLS profile configured on the APIServer in
+// setupClusterPrerequisitesForMain. The expected proxy args below are derived
+// from these values via the test helpers in gateway_tls_test.go, so the
+// fixture and the assertions cannot drift apart.
+var (
+	integrationTLSGroups    = []configv1.TLSGroup{configv1.TLSGroupSecP256r1, configv1.TLSGroupX25519}
+	integrationTLSCiphers   = []string{"ECDHE-RSA-AES128-GCM-SHA256", "ECDHE-RSA-AES256-GCM-SHA384"}
+	testTLSCipherSuites     = "--tls-cipher-suite=" + ianaCiphersBelowTLS13(integrationTLSCiphers)
+	testTLSCurvePreferences = "--tls-curve-preferences=" + expectedCurvePreferences(integrationTLSGroups)
 )
 
 // EnvoyFilter filter names (canonical names from Envoy proto).
@@ -517,9 +521,8 @@ func setupClusterPrerequisitesForMain(ctx context.Context, cli client.Client, au
 	}
 
 	// Use an explicit Custom TLS profile so that the expected TLS args in
-	// RunDeploymentWithAllArgsTest (testTLSMinVersion / testTLSCipherSuites) are
-	// tied to a known, intentional configuration rather than the implicit default.
-	// The OpenSSL cipher names here map 1:1 to the IANA names in testTLSCipherSuites.
+	// RunDeploymentWithAllArgsTest are tied to a known, intentional
+	// configuration rather than the implicit default.
 	apiServer := &configv1.APIServer{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: cluster.ClusterAPIServerObj,
@@ -531,14 +534,8 @@ func setupClusterPrerequisitesForMain(ctx context.Context, cli client.Client, au
 				Custom: &configv1.CustomTLSProfile{
 					TLSProfileSpec: configv1.TLSProfileSpec{
 						MinTLSVersion: configv1.VersionTLS12,
-						Groups: []configv1.TLSGroup{
-							configv1.TLSGroupSecP256r1,
-							configv1.TLSGroupX25519,
-						},
-						Ciphers: []string{
-							"ECDHE-RSA-AES128-GCM-SHA256",
-							"ECDHE-RSA-AES256-GCM-SHA384",
-						},
+						Groups:        integrationTLSGroups,
+						Ciphers:       integrationTLSCiphers,
 					},
 				},
 			},
@@ -1855,7 +1852,7 @@ func RunDeploymentWithAllArgsTest(t *testing.T, setup TestSetup, expectedHostnam
 	g.Expect(args).To(ContainElement(fmt.Sprintf("--redirect-url=https://%s/oauth2/callback", expectedHostname)))
 	g.Expect(args).To(ContainElement(fmt.Sprintf("--tls-cert-file=%s/tls.crt", gateway.TLSCertsMountPath)))
 	g.Expect(args).To(ContainElement(fmt.Sprintf("--tls-key-file=%s/tls.key", gateway.TLSCertsMountPath)))
-	// testTLSMinVersion, testTLSCipherSuites, and testTLSCurvePreferences are constants derived from the explicit
+	// testTLSMinVersion, testTLSCipherSuites, and testTLSCurvePreferences are derived from the explicit
 	// Custom TLS profile set on the APIServer in setupClusterPrerequisitesForMain.
 	g.Expect(args).To(ContainElement(testTLSMinVersion))
 	g.Expect(args).To(ContainElement(testTLSCipherSuites))

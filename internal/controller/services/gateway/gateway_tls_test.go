@@ -18,10 +18,12 @@ package gateway_test
 
 import (
 	"context"
+	"crypto/tls"
 	"strconv"
 	"strings"
 	"testing"
 
+	pkgtls "github.com/opendatahub-io/odh-platform-utilities/framework/tls"
 	configv1 "github.com/openshift/api/config/v1"
 	ocpcrypto "github.com/openshift/library-go/pkg/crypto"
 	"github.com/stretchr/testify/assert"
@@ -32,16 +34,13 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	pkgtls "github.com/opendatahub-io/opendatahub-operator/v2/pkg/tls"
 )
 
 // expectedCurvePreferences computes the expected --tls-curve-preferences value
 // for a set of TLS groups. The numbers are Go crypto/tls CurveID values, mapped
-// from OpenShift's TLSGroup names by library-go's TLSGroupsToCurveIDs (the same
-// mapping production uses via pkgtls.CurvePreferencesFromSpec). They are stable
-// per the Go stdlib and IANA registry; they only change if Go or library-go
-// reassigns a curve ID, in which case this expectation and pkg/tls/profile_test.go
-// move together.
+// from OpenShift's TLSGroup names by library-go's TLSGroupsToCurveIDs. Production
+// resolves the same Go CurveID values through odh-platform-utilities/framework/tls.
+// They are stable per the Go stdlib and IANA registry.
 func expectedCurvePreferences(groups []configv1.TLSGroup) string {
 	curves, _ := ocpcrypto.TLSGroupsToCurveIDs(groups)
 	ids := make([]string, 0, len(curves))
@@ -132,44 +131,32 @@ func TestTlsProfileSpecFromSecurityProfile(t *testing.T) {
 	}
 }
 
-// intermediateIANACiphers is the expected comma-joined IANA cipher string for the
-// Intermediate TLS profile. Derived directly from the openshift/api TLSProfileIntermediateType
-// cipher list passed through the openshift/library-go OpenSSL->IANA mapping.
-// It is intentionally NOT computed from the production CipherSuitesFromSpec
-// so that it serves as an independent oracle.
-const intermediateIANACiphers = "TLS_AES_128_GCM_SHA256," +
-	"TLS_AES_256_GCM_SHA384," +
-	"TLS_CHACHA20_POLY1305_SHA256," +
-	"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256," +
-	"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256," +
-	"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384," +
-	"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384," +
-	"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256," +
-	"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
+// ianaCiphersBelowTLS13 converts OpenSSL cipher names to their IANA
+// equivalents via library-go, dropping TLS 1.3-only suites and names Go
+// cannot negotiate. Expected cipher strings are derived from the
+// openshift/api profile data instead of hand-maintained literals; the
+// resolver rules under test (fallback, flooring, filtering) are still
+// asserted against these derived values.
+func ianaCiphersBelowTLS13(ciphers []string) string {
+	names := make([]string, 0, len(ciphers))
+	for _, iana := range ocpcrypto.OpenSSLToIANACipherSuites(ciphers) {
+		if code, err := ocpcrypto.CipherSuite(iana); err == nil && code&0xff00 != 0x1300 {
+			names = append(names, iana)
+		}
+	}
+	return strings.Join(names, ",")
+}
 
-// oldIANACiphers is the expected comma-joined IANA cipher string for the Old TLS profile,
-// derived with the same methodology as intermediateIANACiphers.
-const oldIANACiphers = "TLS_AES_128_GCM_SHA256," +
-	"TLS_AES_256_GCM_SHA384," +
-	"TLS_CHACHA20_POLY1305_SHA256," +
-	"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256," +
-	"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256," +
-	"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384," +
-	"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384," +
-	"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256," +
-	"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256," +
-	"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256," +
-	"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256," +
-	"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA," +
-	"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA," +
-	"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA," +
-	"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA," +
-	"TLS_RSA_WITH_AES_128_GCM_SHA256," +
-	"TLS_RSA_WITH_AES_256_GCM_SHA384," +
-	"TLS_RSA_WITH_AES_128_CBC_SHA256," +
-	"TLS_RSA_WITH_AES_128_CBC_SHA," +
-	"TLS_RSA_WITH_AES_256_CBC_SHA," +
-	"TLS_RSA_WITH_3DES_EDE_CBC_SHA"
+var (
+	// Expected IANA cipher strings for the named profiles, derived from the
+	// openshift/api TLSProfiles data.
+	intermediateIANACiphers = ianaCiphersBelowTLS13(configv1.TLSProfiles[configv1.TLSProfileIntermediateType].Ciphers)
+	oldIANACiphers          = ianaCiphersBelowTLS13(configv1.TLSProfiles[configv1.TLSProfileOldType].Ciphers)
+
+	// ecdheRSAWithAES128GCM is the expected IANA name of the custom-cipher
+	// fixture used in these tests, from the Go stdlib suite table.
+	ecdheRSAWithAES128GCM = tls.CipherSuiteName(tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)
+)
 
 func TestKubeAuthProxyTLSFromProfile(t *testing.T) {
 	t.Parallel()
@@ -214,13 +201,13 @@ func TestKubeAuthProxyTLSFromProfile(t *testing.T) {
 	minVersion, cipherSuites, curvePreferences, err = gateway.KubeAuthProxyTLSFromProfile(context.Background(), customProfile)
 	require.NoError(t, err)
 	assert.Equal(t, "TLS1.2", minVersion)
-	assert.Equal(t, "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", cipherSuites)
+	assert.Equal(t, ecdheRSAWithAES128GCM, cipherSuites)
 	assert.Equal(t, expectedCurvePreferences(customGroups), curvePreferences)
 
 	minVersion, cipherSuites, curvePreferences, err = gateway.KubeAuthProxyTLSFromProfile(context.Background(), &configv1.TLSSecurityProfile{Type: configv1.TLSProfileModernType})
 	require.NoError(t, err)
 	assert.Equal(t, "TLS1.3", minVersion)
-	assert.Equal(t, "TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384,TLS_CHACHA20_POLY1305_SHA256", cipherSuites)
+	assert.Equal(t, strings.Join(configv1.TLSProfiles[configv1.TLSProfileModernType].Ciphers, ","), cipherSuites)
 	assert.Equal(t, modernCurves, curvePreferences)
 }
 
@@ -329,7 +316,7 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		minVersion, cipherSuites, curvePreferences, err := gateway.GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
 		require.NoError(t, err)
 		assert.Equal(t, "TLS1.2", minVersion)
-		assert.Equal(t, "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", cipherSuites)
+		assert.Equal(t, ecdheRSAWithAES128GCM, cipherSuites)
 		assert.Equal(t, expectedCurvePreferences(customGroups), curvePreferences)
 	})
 }
@@ -374,7 +361,7 @@ func TestTLSCipherSuitesFromSpec(t *testing.T) {
 			MinTLSVersion: configv1.VersionTLS12,
 		}
 		got := pkgtls.CipherSuitesFromSpec(ctx, spec)
-		assert.Equal(t, "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", got,
+		assert.Equal(t, ecdheRSAWithAES128GCM, got,
 			"only the mappable cipher should remain; no fallback when at least one cipher maps")
 	})
 
