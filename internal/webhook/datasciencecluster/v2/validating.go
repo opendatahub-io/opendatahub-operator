@@ -75,7 +75,12 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 
 	switch req.Operation {
 	case admissionv1.Create:
-		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyRetiredOperatorManagedState, v.denyUnsupportedWVA, denyMultipleDsc}, allowMessage, v.Client, &req)
+		return validate(ctx, []validationCheck{
+			denyMultipleDsc,
+			v.denyKueueManagedState,
+			v.denyRetiredOperatorManagedState,
+			v.denyUnsupportedWVA,
+		}, allowMessage, v.Client, &req)
 	case admissionv1.Update:
 		return validate(ctx, []validationCheck{v.denyKueueManagedState, v.denyRetiredOperatorManagedState, v.denyUnsupportedWVA}, allowMessage, v.Client, &req)
 	default:
