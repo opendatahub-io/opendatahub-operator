@@ -165,17 +165,22 @@ func TestAzureKubernetesEngineGC(t *testing.T) {
 	ccmtest.RequireCharts(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	et, wt := ccmtest.StartIsolatedController(t, ctx, azureCfg)
+	et, _ := ccmtest.StartIsolatedController(t, ctx, azureCfg)
 	t.Cleanup(cancel)
+	gcTC, err := ccmtest.NewTestContext(ctx, et)
+	NewWithT(t).Expect(err).NotTo(HaveOccurred())
 
 	t.Run("deletes resources of dependency that transitions to Unmanaged", func(t *testing.T) {
 		t.Skip("two-phase cleanup requires real GC and dynamic watch infrastructure unavailable in envtest")
 	})
 
 	t.Run("GC deletes stale resources with mismatched generation", func(t *testing.T) {
+		wt := gcTC.NewWithT(t)
+
 		// Create the AKE CR — after the first reconcile, the CR gets a real UID and generation.
 		ccmtest.CreateCR(t, wt, azureCfg, ccmcommon.Dependencies{
-			LWS: ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Managed},
+			LWS:        ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Managed},
+			GatewayAPI: ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
 		})
 
 		// Wait for the CR to be reconciled (LWS deployment appears, which means
@@ -217,9 +222,10 @@ func TestAzureKubernetesEngineGC(t *testing.T) {
 			_ = wt.Client().Delete(wt.Context(), staleCM)
 		})
 
-		// Trigger a spec change to cause a cache miss → GC runs.
-		ake.Spec.Dependencies.LWS.ManagementPolicy = ccmcommon.Managed
-		wt.Expect(wt.Client().Update(wt.Context(), ake)).To(Succeed())
+		// Enable a dependency to change the render; Update retries concurrent status writes.
+		wt.Update(gvk.AzureKubernetesEngine, client.ObjectKeyFromObject(ake), func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, string(ccmcommon.Managed), "spec", "dependencies", "gatewayAPI", "managementPolicy")
+		}).Eventually().Should(Succeed())
 
 		// GC should delete the stale resource. In envtest there is no garbage collector
 		// process, so Foreground deletion marks the object with a deletionTimestamp but
@@ -231,8 +237,11 @@ func TestAzureKubernetesEngineGC(t *testing.T) {
 	})
 
 	t.Run("GC keeps protected resources regardless of generation mismatch", func(t *testing.T) {
+		wt := gcTC.NewWithT(t)
+
 		ccmtest.CreateCR(t, wt, azureCfg, ccmcommon.Dependencies{
-			LWS: ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Managed},
+			LWS:        ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Managed},
+			GatewayAPI: ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
 		})
 
 		wt.Get(gvk.Deployment, types.NamespacedName{
@@ -252,17 +261,16 @@ func TestAzureKubernetesEngineGC(t *testing.T) {
 		wt.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{Name: "opendatahub-selfsigned-issuer"}).
 			Eventually().ShouldNot(BeNil())
 
-		// Trigger a spec change → cache miss → GC runs.
-		ake := &ccmv1alpha1.AzureKubernetesEngine{}
-		wt.Expect(wt.Client().Get(wt.Context(),
-			types.NamespacedName{Name: ccmv1alpha1.AzureKubernetesEngineInstanceName}, ake)).To(Succeed())
-		ake.Spec.Dependencies.LWS.ManagementPolicy = ccmcommon.Managed
-		wt.Expect(wt.Client().Update(wt.Context(), ake)).To(Succeed())
+		// Enable a dependency to change the render; Update retries concurrent status writes.
+		updated := wt.Update(gvk.AzureKubernetesEngine, types.NamespacedName{Name: ccmv1alpha1.AzureKubernetesEngineInstanceName}, func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, string(ccmcommon.Managed), "spec", "dependencies", "gatewayAPI", "managementPolicy")
+		}).Eventually().Should(Succeed())
 
-		// Wait for LWS deployment to confirm the reconcile (and GC) completed.
+		// Wait for the Deployment to reflect the changed generation before checking protection.
 		wt.Get(gvk.Deployment, types.NamespacedName{
 			Name: "openshift-lws-operator", Namespace: "openshift-lws-operator",
-		}).Eventually().Should(Not(BeNil()))
+		}).Eventually().Should(jq.Match(`.metadata.annotations."%s" == "%d"`,
+			labels.ODHInfrastructurePrefix+annotations.SuffixInstanceGeneration, updated.GetGeneration()))
 
 		// The protected PKI resources must survive across GC runs.
 		NewWithT(t).Consistently(func() error {
