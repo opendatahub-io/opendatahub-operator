@@ -293,7 +293,7 @@ additional_meta:
     git.commit: 3319d27e0c5b535a01bc5a53c78192f73b269ce3
   odh-pipeline-runtime-tensorflow-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 3319d27e0c5b535a01bc5a53c78192f73b269ce3
+    git.commit: 470fd97e2dbc6334bcc13965dec886c6eaa8003a
   odh-pipeline-runtime-tensorflow-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 3319d27e0c5b535a01bc5a53c78192f73b269ce3
@@ -317,7 +317,7 @@ additional_meta:
     git.commit: eb1a7d3e1ebceea1858ce048769965b47e6045ed
   odh-th-torch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 7c1a51d194e35c64c29205c7b78d89f22c390cf0
+    git.commit: 8fa3f37c3f349cb64eb7cd0a215067532ab14a30
   odh-training-cuda128-torch28-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: ad4fa6409b9751e0830c6af8f32f9ed9f3763b46
