@@ -24,6 +24,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -37,11 +38,9 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
@@ -49,8 +48,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
-
-const gatewayResourceApplyFailedReason = "GatewayResourceApplyFailed"
 
 // gatewayCRDWatchPredicate matches CRD events that must re-trigger a GatewayConfig reconcile:
 //
@@ -104,6 +101,20 @@ func gatewayAuthenticationWatchPredicate() predicate.Predicate {
 	}
 }
 
+func gatewayAPIEndpointSliceWatchPredicate() predicate.Predicate {
+	isAPIEndpointSlice := func(obj client.Object) bool {
+		return obj != nil && obj.GetNamespace() == apiServiceNamespace &&
+			obj.GetLabels()[discoveryv1.LabelServiceName] == apiServiceName
+	}
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool { return isAPIEndpointSlice(e.Object) },
+		DeleteFunc: func(e event.DeleteEvent) bool { return isAPIEndpointSlice(e.Object) },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return isAPIEndpointSlice(e.ObjectOld) || isAPIEndpointSlice(e.ObjectNew)
+		},
+	}
+}
+
 // The default GC predicate only sees GatewayConfig generation changes. Authentication/cluster
 // can change the desired proxy resources without changing that generation.
 func gatewayGCObjectPredicate(rr *odhtypes.ReconciliationRequest, obj unstructured.Unstructured) (bool, error) {
@@ -116,6 +127,12 @@ func gatewayGCObjectPredicate(rr *odhtypes.ReconciliationRequest, obj unstructur
 				wanted.GetNamespace() == obj.GetNamespace() && wanted.GetName() == obj.GetName() {
 				return defaultPredicate(rr, obj)
 			}
+		}
+		// The proxy resources could not be rendered because the cluster
+		// authentication mode was unreadable; failing closed on egress must
+		// not collect the running proxy.
+		if undetermined, ok := rr.Extensions[authProxyModeUndeterminedKey].(bool); ok && undetermined {
+			return false, nil
 		}
 		return true, nil
 	}
@@ -166,23 +183,6 @@ func gatewayCertManagerPrecondition() precondition.PreCondition {
 		precondition.WithStopReconciliation(),
 		precondition.WithMessage("cert-manager Certificate CRD is required for XKS certificate issuance"),
 	)
-}
-
-// gatewayDeployAction records apply failures on ReadyConditionType because the
-// reconciler skips syncGatewayConfigStatus after a deployment error.
-func gatewayDeployAction(opts ...deploy.ActionOpts) actions.Fn {
-	deployAction := deploy.NewAction(opts...)
-	return func(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-		if err := deployAction(ctx, rr); err != nil {
-			rr.Conditions.MarkFalse(
-				ReadyConditionType,
-				conditions.WithReason(gatewayResourceApplyFailedReason),
-				conditions.WithMessagef("Failed to apply GatewayConfig resources: %v", err),
-			)
-			return err
-		}
-		return nil
-	}
 }
 
 func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
@@ -284,6 +284,29 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(gatewayAuthenticationWatchPredicate()),
 		).
+		// OpenShift policy egress uses the current Pod/Service ranges, DNS Service
+		// target ports, and exact Kubernetes API endpoint addresses and ports.
+		Watches(
+			&configv1.Network{},
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed("cluster")),
+		).
+		Watches(
+			&corev1.Service{},
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(predicate.Or(
+				resources.CreatedOrUpdatedOrDeletedNamedInNamespace(apiServiceName, apiServiceNamespace),
+				resources.CreatedOrUpdatedOrDeletedNamedInNamespace(openshiftDNSServiceName, openshiftDNSNamespace),
+			)),
+		).
+		Watches(
+			&discoveryv1.EndpointSlice{},
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(gatewayAPIEndpointSliceWatchPredicate()),
+		).
 		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
 			gatewayCertManagerPrecondition(),
 		})).
@@ -300,10 +323,13 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			// IngressController, which can change without a new GatewayConfig generation.
 			template.WithCache(false),
 			template.WithDataFn(getTemplateData),
+			// The gateway templates depend on cluster state resolved during
+			// reconciliation (auth-proxy egress rules from Network/DNS/EndpointSlices,
+			// gateway filters), which can change without a GatewayConfig generation
+			// bump, so the render cache must not skip re-rendering.
+			template.WithCache(false),
 		)).
-		WithAction(gatewayDeployAction(
-			deploy.WithCache(),
-		)).
+		WithAction(deploy.NewAction(deploy.WithCache())).
 		WithAction(syncAdditionalIngressReadiness).
 		WithAction(syncGatewayConfigStatus).
 		WithAction(gc.NewAction(gc.WithObjectPredicate(gatewayGCObjectPredicate))).

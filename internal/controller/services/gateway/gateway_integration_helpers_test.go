@@ -54,6 +54,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -489,6 +490,7 @@ func setupClusterPrerequisitesForMain(ctx context.Context, cli client.Client, au
 	if err := cli.Create(ctx, ingress); err != nil {
 		panic(fmt.Sprintf("Failed to create Ingress: %v", err))
 	}
+	setupNetworkPolicyPrerequisitesForMain(ctx, cli)
 
 	// ClusterVersion enables OpenShift auto-detection in getClusterInfo (envtest has no real OCP API server).
 	clusterVersion := &configv1.ClusterVersion{
@@ -567,6 +569,83 @@ func setupClusterPrerequisitesForMain(ctx context.Context, cli client.Client, au
 	ensureLoadBalancerPrerequisites(ctx, cli)
 }
 
+func setupNetworkPolicyPrerequisitesForMain(ctx context.Context, cli client.Client) {
+	for _, name := range []string{"openshift-dns", "default"} {
+		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}}
+		if err := cli.Create(ctx, ns); err != nil && !k8serr.IsAlreadyExists(err) {
+			panic(fmt.Sprintf("Failed to create namespace %s: %v", name, err))
+		}
+	}
+
+	network := &configv1.Network{ObjectMeta: metav1.ObjectMeta{Name: "cluster"}}
+	if err := cli.Create(ctx, network); err != nil {
+		panic(fmt.Sprintf("Failed to create Network: %v", err))
+	}
+	network.Status.ClusterNetwork = []configv1.ClusterNetworkEntry{{CIDR: "10.244.0.0/16"}}
+	// envtest allocates Service IPs from its own range. This test range covers
+	// those allocated addresses without prescribing a production cluster range.
+	network.Status.ServiceNetwork = []string{"10.0.0.0/24"}
+	if err := cli.Status().Update(ctx, network); err != nil {
+		panic(fmt.Sprintf("Failed to update Network status: %v", err))
+	}
+
+	dnsService := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "dns-default", Namespace: "openshift-dns"},
+		Spec: corev1.ServiceSpec{
+			Selector: map[string]string{"dns.operator.openshift.io/daemonset-dns": "default"},
+			Ports: []corev1.ServicePort{
+				{Name: "dns", Port: 53, Protocol: corev1.ProtocolUDP, TargetPort: intstr.FromString("dns")},
+				{Name: "dns-tcp", Port: 53, Protocol: corev1.ProtocolTCP, TargetPort: intstr.FromString("dns-tcp")},
+			},
+		},
+	}
+	if err := cli.Create(ctx, dnsService); err != nil {
+		panic(fmt.Sprintf("Failed to create DNS Service: %v", err))
+	}
+
+	apiService := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "kubernetes", Namespace: "default"},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{{Name: "https", Port: 443, Protocol: corev1.ProtocolTCP, TargetPort: intstr.FromInt32(6443)}},
+		},
+	}
+	if err := cli.Create(ctx, apiService); err != nil && !k8serr.IsAlreadyExists(err) {
+		panic(fmt.Sprintf("Failed to create Kubernetes API Service: %v", err))
+	}
+	// envtest's apiserver maintains the real default/kubernetes Service with a
+	// randomly assigned secure port, so the Create above may be a no-op. The
+	// fixture EndpointSlice must mirror the port the Service actually exposes,
+	// otherwise it is (correctly) rejected by the Service cross-reference in
+	// authProxyAPIRules.
+	if err := cli.Get(ctx, types.NamespacedName{Name: "kubernetes", Namespace: "default"}, apiService); err != nil {
+		panic(fmt.Sprintf("Failed to get Kubernetes API Service: %v", err))
+	}
+	endpointPort := int32(6443)
+	endpointPortName := "https"
+	for _, servicePort := range apiService.Spec.Ports {
+		if servicePort.Protocol == corev1.ProtocolTCP && servicePort.Port == 443 &&
+			servicePort.TargetPort.Type == intstr.Int && servicePort.TargetPort.IntVal > 0 {
+			endpointPort = servicePort.TargetPort.IntVal
+			endpointPortName = servicePort.Name
+			break
+		}
+	}
+	endpointProtocol := corev1.ProtocolTCP
+	apiEndpoints := &discoveryv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kubernetes-test",
+			Namespace: "default",
+			Labels:    map[string]string{discoveryv1.LabelServiceName: "kubernetes"},
+		},
+		AddressType: discoveryv1.AddressTypeIPv4,
+		Ports:       []discoveryv1.EndpointPort{{Name: &endpointPortName, Port: &endpointPort, Protocol: &endpointProtocol}},
+		Endpoints:   []discoveryv1.Endpoint{{Addresses: []string{"192.0.2.1"}}},
+	}
+	if err := cli.Create(ctx, apiEndpoints); err != nil {
+		panic(fmt.Sprintf("Failed to create Kubernetes API EndpointSlice: %v", err))
+	}
+}
+
 // ensureLoadBalancerPrerequisites creates namespaces, default IngressController, and router-certs-default
 // secret so the controller can propagate the default ingress cert in LoadBalancer mode.
 func ensureLoadBalancerPrerequisites(ctx context.Context, cli client.Client) {
@@ -598,7 +677,28 @@ func ensureLoadBalancerPrerequisites(ctx context.Context, cli client.Client) {
 }
 
 func getEnvtestCRDs() []*apiextensionsv1.CustomResourceDefinition {
-	return append(getIstioCRDs(), getDashboardCRD(), getClusterVersionCRD(), getCertManagerCertificateCRD())
+	return append(getIstioCRDs(), getDashboardCRD(), getClusterVersionCRD(), getNetworkCRD(), getCertManagerCertificateCRD())
+}
+
+func getNetworkCRD() *apiextensionsv1.CustomResourceDefinition {
+	preserveUnknown := true
+	return &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "networks.config.openshift.io"},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: "config.openshift.io",
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Kind: "Network", ListKind: "NetworkList", Plural: "networks", Singular: "network",
+			},
+			Scope: apiextensionsv1.ClusterScoped,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name: "v1", Served: true, Storage: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+					Type: "object", XPreserveUnknownFields: &preserveUnknown,
+				}},
+				Subresources: &apiextensionsv1.CustomResourceSubresources{Status: &apiextensionsv1.CustomResourceSubresourceStatus{}},
+			}},
+		},
+	}
 }
 
 // getCertManagerCertificateCRD registers Certificate resources without running cert-manager.
@@ -2241,8 +2341,49 @@ func RunNetworkPolicyCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(np.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeIngress))
 	g.Expect(np.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeEgress))
 	g.Expect(np.Spec.Ingress).To(HaveLen(1))
-	g.Expect(np.Spec.Egress).To(HaveLen(1))
-	g.Expect(np.Spec.Egress[0]).To(Equal(networkingv1.NetworkPolicyEgressRule{}))
+	if setup.Spec.OIDC != nil {
+		// OIDC needs unrestricted egress because NetworkPolicy cannot represent its IdP FQDN.
+		g.Expect(np.Spec.Egress).To(Equal([]networkingv1.NetworkPolicyEgressRule{{}}))
+	} else {
+		g.Expect(np.Spec.Egress).NotTo(BeEmpty())
+		g.Expect(np.Spec.Egress).NotTo(ContainElement(networkingv1.NetworkPolicyEgressRule{}))
+		tcp := corev1.ProtocolTCP
+		port443 := intstr.FromInt32(443)
+		g.Expect(np.Spec.Egress).To(ContainElement(networkingv1.NetworkPolicyEgressRule{
+			To: []networkingv1.NetworkPolicyPeer{{IPBlock: &networkingv1.IPBlock{
+				CIDR: "0.0.0.0/0", Except: []string{"10.0.0.0/24", "10.244.0.0/16"},
+			}}},
+			Ports: []networkingv1.NetworkPolicyPort{{Protocol: &tcp, Port: &port443}},
+		}))
+		// The endpoint rule must use the port the API Service actually exposes:
+		// envtest's apiserver maintains default/kubernetes with a randomly
+		// assigned secure port, and the fixture EndpointSlice mirrors it.
+		apiService := &corev1.Service{}
+		g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{Name: "kubernetes", Namespace: "default"}, apiService)).To(Succeed())
+		apiTargetPort := int32(443)
+		for _, servicePort := range apiService.Spec.Ports {
+			if servicePort.Protocol == corev1.ProtocolTCP && servicePort.Port == 443 &&
+				servicePort.TargetPort.Type == intstr.Int && servicePort.TargetPort.IntVal > 0 {
+				apiTargetPort = servicePort.TargetPort.IntVal
+			}
+		}
+		apiPort := intstr.FromInt32(apiTargetPort)
+		g.Expect(np.Spec.Egress).To(ContainElement(networkingv1.NetworkPolicyEgressRule{
+			To:    []networkingv1.NetworkPolicyPeer{{IPBlock: &networkingv1.IPBlock{CIDR: "192.0.2.1/32"}}},
+			Ports: []networkingv1.NetworkPolicyPort{{Protocol: &tcp, Port: &apiPort}},
+		}))
+		dnsPort := intstr.FromString("dns")
+		udp := corev1.ProtocolUDP
+		g.Expect(np.Spec.Egress).To(ContainElement(networkingv1.NetworkPolicyEgressRule{
+			To: []networkingv1.NetworkPolicyPeer{{
+				NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"kubernetes.io/metadata.name": "openshift-dns"}},
+				PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
+					"dns.operator.openshift.io/daemonset-dns": "default",
+				}},
+			}},
+			Ports: []networkingv1.NetworkPolicyPort{{Protocol: &udp, Port: &dnsPort}},
+		}))
+	}
 	assertOwnedByGatewayConfig(g, np)
 }
 
@@ -2263,6 +2404,7 @@ func RunNetworkPolicyReconciliationTest(t *testing.T, setup TestSetup) {
 	// Simulate a policy from before GatewayConfig owned NetworkPolicies, with
 	// the former broad monitoring ingress rules still present.
 	policy.OwnerReferences = nil
+	policy.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{{}}
 	metricsPort := intstr.FromInt(gateway.AuthProxyMetricsPort)
 	protocol := corev1.ProtocolTCP
 	for _, namespace := range []string{"openshift-monitoring", "openshift-user-workload-monitoring"} {
@@ -2284,7 +2426,15 @@ func RunNetworkPolicyReconciliationTest(t *testing.T, setup TestSetup) {
 		if err := cli.Get(ctx, key, current); err != nil {
 			return false
 		}
-		return len(current.Spec.Ingress) == 1 && len(current.OwnerReferences) == 1 &&
+		egressRestored := len(current.Spec.Egress) > 0
+		if setup.Spec.OIDC != nil {
+			// OIDC needs unrestricted egress because NetworkPolicy cannot represent its IdP FQDN.
+			egressRestored = len(current.Spec.Egress) == 1 &&
+				len(current.Spec.Egress[0].To) == 0 && len(current.Spec.Egress[0].Ports) == 0
+		} else {
+			egressRestored = egressRulesResolved(current.Spec.Egress)
+		}
+		return len(current.Spec.Ingress) == 1 && egressRestored && len(current.OwnerReferences) == 1 &&
 			current.OwnerReferences[0].Kind == serviceApi.GatewayConfigKind &&
 			current.OwnerReferences[0].Name == serviceApi.GatewayConfigName
 	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfig should adopt the policy and remove legacy monitoring ingress")
@@ -2316,6 +2466,117 @@ func RunNetworkPolicyReconciliationTest(t *testing.T, setup TestSetup) {
 		return current.UID != deletedUID && len(current.OwnerReferences) == 1 &&
 			current.OwnerReferences[0].Kind == serviceApi.GatewayConfigKind
 	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfig should recreate a deleted NetworkPolicy")
+}
+
+// egressRulesResolved reports whether the egress rules represent resolved
+// destinations: at least one rule and no empty (allow-all) rule.
+func egressRulesResolved(rules []networkingv1.NetworkPolicyEgressRule) bool {
+	if len(rules) == 0 {
+		return false
+	}
+	for _, rule := range rules {
+		if len(rule.To) == 0 && len(rule.Ports) == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// envtest has no Gateway provider; report acceptance as that controller would.
+func setDefaultGatewayAcceptance(t *testing.T, g *WithT, ctx context.Context, cli client.Client, accepted metav1.ConditionStatus) {
+	t.Helper()
+	g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		obj := &gwapiv1.Gateway{}
+		if err := cli.Get(ctx, types.NamespacedName{
+			Name: gateway.GetDefaultGatewayName(), Namespace: gateway.GetGatewayNamespace(),
+		}, obj); err != nil {
+			return err
+		}
+		obj.Status.Conditions = []metav1.Condition{{
+			Type:               string(gwapiv1.GatewayConditionAccepted),
+			Status:             accepted,
+			ObservedGeneration: obj.Generation,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "TestAcceptance",
+		}}
+		return cli.Status().Update(ctx, obj)
+	})).To(Succeed())
+}
+
+// RunNetworkPolicyEgressDenyAllReconciliationTest verifies that cluster-state
+// changes alone re-render the policy: losing the cluster Network must replace
+// the egress rules with deny-all, report the failure on GatewayConfigReady, and
+// restoring it must bring the resolved rules and readiness back, without any
+// GatewayConfig spec change.
+func RunNetworkPolicyEgressDenyAllReconciliationTest(t *testing.T, setup TestSetup) {
+	t.Helper()
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+
+	ctx := setup.TC.Ctx
+	cli := setup.TC.K8sClient
+	key := types.NamespacedName{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()}
+	configKey := types.NamespacedName{Name: serviceApi.GatewayConfigName}
+
+	policy := &networkingv1.NetworkPolicy{}
+	g.Eventually(func() error { return cli.Get(ctx, key, policy) }, TestTimeout, TestInterval).Should(Succeed())
+	g.Expect(egressRulesResolved(policy.Spec.Egress)).To(BeTrue())
+
+	setDefaultGatewayAcceptance(t, g, ctx, cli, metav1.ConditionTrue)
+
+	g.Eventually(func() bool {
+		gc := &serviceApi.GatewayConfig{}
+		if err := cli.Get(ctx, configKey, gc); err != nil {
+			return false
+		}
+		ready := conditions.FindStatusCondition(gc, gateway.ReadyConditionType)
+		return ready != nil && ready.Status == metav1.ConditionTrue
+	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfigReady should be ready before the Network is lost")
+
+	network := &configv1.Network{}
+	g.Expect(cli.Get(ctx, types.NamespacedName{Name: "cluster"}, network)).To(Succeed())
+	originalNetwork := network.DeepCopy()
+	g.Expect(cli.Delete(ctx, network)).To(Succeed())
+
+	g.Eventually(func() bool {
+		current := &networkingv1.NetworkPolicy{}
+		if err := cli.Get(ctx, key, current); err != nil {
+			return false
+		}
+		return len(current.Spec.Egress) == 0
+	}, TestTimeout, TestInterval).Should(BeTrue(), "losing Network/cluster should apply deny-all egress without a GatewayConfig spec change")
+
+	g.Eventually(func() bool {
+		gc := &serviceApi.GatewayConfig{}
+		if err := cli.Get(ctx, configKey, gc); err != nil {
+			return false
+		}
+		ready := conditions.FindStatusCondition(gc, gateway.ReadyConditionType)
+		return ready != nil && ready.Status == metav1.ConditionFalse &&
+			ready.Reason == "AuthProxyEgressUnavailable"
+	}, TestTimeout, TestInterval).Should(BeTrue(), "the egress failure should be reported on GatewayConfigReady")
+
+	restoredNetwork := &configv1.Network{ObjectMeta: metav1.ObjectMeta{Name: originalNetwork.Name}}
+	g.Expect(cli.Create(ctx, restoredNetwork)).To(Succeed())
+	restoredNetwork.Status = originalNetwork.Status
+	g.Expect(cli.Status().Update(ctx, restoredNetwork)).To(Succeed())
+
+	g.Eventually(func() bool {
+		current := &networkingv1.NetworkPolicy{}
+		if err := cli.Get(ctx, key, current); err != nil {
+			return false
+		}
+		return egressRulesResolved(current.Spec.Egress)
+	}, TestTimeout, TestInterval).Should(BeTrue(), "restoring Network/cluster should restore the resolved egress rules")
+
+	g.Eventually(func() bool {
+		gc := &serviceApi.GatewayConfig{}
+		if err := cli.Get(ctx, configKey, gc); err != nil {
+			return false
+		}
+		ready := conditions.FindStatusCondition(gc, gateway.ReadyConditionType)
+		return ready != nil && ready.Status == metav1.ConditionTrue
+	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfigReady should recover once destinations resolve")
 }
 
 // Envtest has no kube-controller-manager to complete foreground deletion of

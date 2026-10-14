@@ -24,6 +24,7 @@ import (
 	"html"
 	"maps"
 	"strings"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -40,6 +41,7 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -51,6 +53,8 @@ var gatewayResources embed.FS
 const (
 	deprecatedNetworkPolicyConfigConditionType = "GatewayConfigNetworkPolicyDeprecated"
 	deprecatedNetworkPolicyConfigReason        = "DeprecatedConfigurationIgnored"
+	authProxyEgressUnavailableReason           = "AuthProxyEgressUnavailable"
+	authProxyEgressRequeueDelay                = 30 * time.Second
 )
 
 // reportDeprecatedNetworkPolicyConfig informs users that the legacy setting is
@@ -209,7 +213,16 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 
 	authMode, err := getGatewayAuthenticationMode(ctx, rr, gatewayConfig)
 	if err != nil {
-		return err
+		// Fail closed: the proxy cannot be rendered while the mode is unknown,
+		// but the action chain must keep running so createNetworkPolicy can
+		// replace any previously applied egress rules with deny-all. The
+		// marker keeps the GC predicate from collecting the running proxy.
+		l.Error(err, "cannot detect cluster authentication mode; failing closed until it is readable")
+		if rr.Extensions == nil {
+			rr.Extensions = make(map[string]any)
+		}
+		rr.Extensions[authProxyModeUndeterminedKey] = true
+		return odherrors.NewRequeueAfterError(authProxyEgressRequeueDelay)
 	}
 	l.V(1).Info("detected cluster authentication mode", "mode", authMode)
 
@@ -403,7 +416,27 @@ func createNetworkPolicy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 
 	authMode, err := getGatewayAuthenticationMode(ctx, rr, gatewayConfig)
 	if err != nil {
-		return err
+		// Unknown mode must fail closed: queue the policy with deny-all egress
+		// so a previously applied allow-all policy cannot survive an
+		// unreadable Authentication/cluster, and report the failure on the
+		// service-specific Ready condition. The reason matches the egress
+		// resolution failure so the existing recovery logic releases it once
+		// the mode becomes readable and destinations resolve.
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(authProxyEgressUnavailableReason),
+			conditions.WithMessagef("Cannot detect cluster authentication mode: %v", err),
+		)
+		l.Error(err, "auth proxy egress denied until the authentication mode is readable")
+		if rr.Extensions == nil {
+			rr.Extensions = make(map[string]any)
+		}
+		rr.Extensions[authProxyEgressRulesKey] = make([]networkingv1.NetworkPolicyEgressRule, 0)
+		rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{
+			FS:   gatewayResources,
+			Path: networkPolicyTemplate,
+		})
+		return odherrors.NewRequeueAfterError(authProxyEgressRequeueDelay)
 	}
 	if authMode == cluster.AuthModeNone || (authMode == cluster.AuthModeOIDC && gatewayConfig.Spec.OIDC == nil) {
 		l.V(1).Info("Auth proxy not desired, skipping NetworkPolicy creation", "authMode", authMode)
@@ -420,11 +453,49 @@ func createNetworkPolicy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	}
 
 	l.V(1).Info("Creating NetworkPolicy for kube-auth-proxy")
+	// Queue the policy even when discovery fails so an existing allow-all egress
+	// rule is replaced by deny-all egress on the next successful apply.
+	rules := make([]networkingv1.NetworkPolicyEgressRule, 0)
+	resolvedRules, resolveErr := resolveAuthProxyEgress(ctx, rr.Client, authMode)
+	if resolveErr != nil {
+		// Record the egress failure on GatewayConfig's service-specific Ready condition.
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(authProxyEgressUnavailableReason),
+			conditions.WithMessagef("Cannot configure kube-auth-proxy egress: %v", resolveErr),
+		)
+		l.Error(resolveErr, "auth proxy egress denied until destinations are resolved")
+	} else {
+		rules = resolvedRules
+		// Destinations resolved again after a previous failure: release the
+		// recorded failure so syncGatewayConfigStatus can mark the condition
+		// ready again, otherwise the persisted False would never recover.
+		if existing := rr.Conditions.GetCondition(ReadyConditionType); existing != nil &&
+			existing.Status == metav1.ConditionFalse &&
+			existing.Reason == authProxyEgressUnavailableReason {
+			rr.Conditions.MarkTrue(
+				ReadyConditionType,
+				conditions.WithReason(status.ReadyReason),
+				conditions.WithMessage("kube-auth-proxy egress destinations resolved"),
+			)
+		}
+	}
+	if rr.Extensions == nil {
+		rr.Extensions = make(map[string]any)
+	}
+	rr.Extensions[authProxyEgressRulesKey] = rules
 
 	rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{
 		FS:   gatewayResources,
 		Path: networkPolicyTemplate,
 	})
+
+	if resolveErr != nil {
+		// Fail closed with a bounded retry: the deny-all policy queued above is
+		// still applied by the rest of the action chain, and the controller
+		// retries on a timer instead of waiting for a dependency watch event.
+		return odherrors.NewRequeueAfterError(authProxyEgressRequeueDelay)
+	}
 
 	return nil
 }
@@ -542,6 +613,10 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"LegacyHostname":           legacyInfo.LegacyHostname,
 		"RouteLabels":              gatewayRouteLabels(nil),
 		"RouteServerTimeout":       serverTimeout,
+		"AuthProxyEgressRules":     make([]networkingv1.NetworkPolicyEgressRule, 0),
+	}
+	if rules, ok := rr.Extensions[authProxyEgressRulesKey].([]networkingv1.NetworkPolicyEgressRule); ok {
+		templateData["AuthProxyEgressRules"] = rules
 	}
 
 	// Add dashboard redirect template variables

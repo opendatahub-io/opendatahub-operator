@@ -871,6 +871,20 @@ The operator creates a NetworkPolicy whenever it deploys kube-auth-proxy. On upg
 - If `domain` is not specified, the cluster's default domain is used.
 - **NetworkPolicy is enabled by default** to secure kube-auth-proxy traffic. It allows only Gateway pods to reach the authentication port (TCP 8443). kube-auth-proxy serves metrics on TCP 9000, but nothing scrapes that port today: the OpenShift monitoring stack only scrapes what a PodMonitor tells it to scrape (defaulting to port 8080), and kube-auth-proxy has no PodMonitor. The monitoring ingress rules are therefore omitted to keep the policy least-privileged; they can be reintroduced together with a PodMonitor when kube-auth-proxy becomes a metrics scrape target.
 
+On OpenShift, egress depends on the authentication mode. Integrated OAuth uses
+restricted egress to the cluster DNS Service, Kubernetes API Service and its
+current endpoints, and external HTTPS on TCP 443 outside the cluster Pod and
+Service CIDRs. OpenShift supplies those CIDRs through `Network/cluster`. If the
+CIDRs or required DNS/API destinations cannot be resolved, the operator applies
+an empty egress list and reports GatewayConfig as NotReady.
+
+OIDC retains allow-all egress on OpenShift. Issuer discovery can involve multiple
+hosts, ports, or in-cluster destinations, and standard NetworkPolicy cannot
+reliably express those destinations by DNS name. Other Kubernetes distributions
+also retain allow-all egress because the operator cannot reliably discover their
+cluster Pod and Service CIDRs, and GatewayConfig does not expose fields to
+configure them.
+
 ### Run functional Tests
 
 The functional tests are writted based on [ginkgo](https://onsi.github.io/ginkgo/) and [gomega](https://onsi.github.io/gomega/). In order to run the tests, the user needs to setup the envtest which provides a mocked kubernetes cluster. A detailed explanation on how to configure envtest is provided [here](https://book.kubebuilder.io/reference/envtest.html#configuring-envtest-for-integration-tests).

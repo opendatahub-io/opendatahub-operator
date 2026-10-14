@@ -31,7 +31,7 @@ spec:
         - protocol: TCP
           port: {{.GatewayHTTPSPort}}
 
-  # Allow all egress: kube-auth-proxy needs to reach the Kubernetes API server
-  # for OAuth discovery, external OIDC providers at dynamic IPs, and DNS.
-  egress:
-    - {}
+  # OpenShift OAuth uses restricted DNS/API/HTTPS destinations. OpenShift OIDC
+  # and other Kubernetes clusters retain allow-all egress; an empty list denies
+  # egress if OpenShift OAuth destination resolution fails.
+  egress:{{toYaml .AuthProxyEgressRules | nindent 4}}
