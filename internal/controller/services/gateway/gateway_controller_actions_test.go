@@ -982,10 +982,10 @@ func TestKubeAuthProxySecretCreateFailure(t *testing.T) {
 	g.Expect(ready.Message).To(ContainSubstring(status.AuthProxyFailedGenerateSecretMessage))
 }
 
-// TestKubeAuthProxyOAuthClientFailure covers the createKubeAuthProxyInfrastructure
-// branch where OAuth client creation fails in IntegratedOAuth mode: the action marks
-// the GatewayConfig not ready with the OAuth client failure message and propagates the error.
-func TestKubeAuthProxyOAuthClientFailure(t *testing.T) {
+// TestKubeAuthProxyOAuthClientPreparationFailure verifies that an OAuthClient
+// normalization error from rr.AddResources is propagated and marks Ready=False.
+// The incomplete scheme injects this failure before the deployment action runs.
+func TestKubeAuthProxyOAuthClientPreparationFailure(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
@@ -1005,23 +1005,13 @@ func TestKubeAuthProxyOAuthClientFailure(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
 	}
 
-	cli, err := fakeclient.New(
-		fakeclient.WithObjects(gatewayConfig, authentication),
-		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
-			// Fail the kube-auth-proxy-creds read only once the secret exists:
-			// getAuthProxySecretValues and createSecret read it while absent (NotFound),
-			// createOAuthClient reads it after createSecret has created it.
-			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-				err := c.Get(ctx, key, obj, opts...)
-				if err == nil {
-					if _, ok := obj.(*corev1.Secret); ok && key.Name == KubeAuthProxySecretsName {
-						return errors.New("injected kube-auth-proxy-creds get failure")
-					}
-				}
-				return err
-			},
-		}),
-	)
+	// Register the types needed to create credentials, but omit OAuthClient so
+	// rr.AddResources fails when resolving its GroupVersionKind.
+	scheme := runtime.NewScheme()
+	g.Expect(corev1.AddToScheme(scheme)).To(Succeed())
+	g.Expect(configv1.AddToScheme(scheme)).To(Succeed())
+	g.Expect(serviceApi.AddToScheme(scheme)).To(Succeed())
+	cli, err := fakeclient.New(fakeclient.WithScheme(scheme), fakeclient.WithObjects(gatewayConfig, authentication))
 	g.Expect(err).NotTo(HaveOccurred())
 
 	rr := &odhtypes.ReconciliationRequest{
@@ -1031,10 +1021,12 @@ func TestKubeAuthProxyOAuthClientFailure(t *testing.T) {
 	}
 
 	err = createKubeAuthProxyInfrastructure(ctx, rr)
-	g.Expect(err).To(MatchError(ContainSubstring("failed to create OAuth client")))
+	g.Expect(err).To(MatchError(ContainSubstring("failed to create OAuth client: cannot normalize object")))
+	g.Expect(err).To(MatchError(ContainSubstring("no kind is registered for the type v1.OAuthClient")))
 
 	ready := rr.Conditions.GetCondition(ReadyConditionType)
 	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
 	g.Expect(ready.Reason).To(Equal(status.NotReadyReason))
 	g.Expect(ready.Message).To(ContainSubstring(status.AuthProxyFailedOAuthClientMessage))
+	g.Expect(ready.Message).To(ContainSubstring("no kind is registered for the type v1.OAuthClient"))
 }
