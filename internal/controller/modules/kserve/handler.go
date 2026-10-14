@@ -165,7 +165,6 @@ func (h *handler) BuildModuleCR(
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert KserveCommonSpec to unstructured: %w", err)
 	}
-	delete(spec, "wva")
 
 	// Inject AI Hub selection state for the external modelRegistry field.
 	// We forward its management state so kserve-module can propagate it
