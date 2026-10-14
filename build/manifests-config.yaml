@@ -14,7 +14,7 @@ map:
     src: config
     dest: datasciencepipelines
     git.url: https://github.com/red-hat-data-services/data-science-pipelines-operator
-    git.commit: 0ed1bb742b74ad5ae88e73c360836e4cb21445ff
+    git.commit: ca3c69582ff0b99893ad82b1c928c10241b250bf
   odh-kuberay-operator-controller:
     src: ray-operator/config
     dest: ray
@@ -71,7 +71,7 @@ map:
     dest: feastoperator
     type: chart
     git.url: https://github.com/red-hat-data-services/feast-module-operator
-    git.commit: da1ebf72192da9bed6c298f4ac82200aaed696a3
+    git.commit: 9facc299f0ec1a26aaf08cb08cea5f582f19b752
   odh-ogx-module-operator:
     src: ogx-module/config
     dest: ogx
@@ -80,7 +80,7 @@ map:
 additional_meta:
   odh-ai-gateway-payload-processing:
     git.url: https://github.com/red-hat-data-services/ai-gateway-payload-processing
-    git.commit: 33cd2e4d0996a84383ba5747ed2ea62b78aec9e4
+    git.commit: 63f8c50960affdb7edcc7a0a7c3d9b9a92bb7e64
   odh-automl:
     git.url: https://github.com/red-hat-data-services/pipelines-components
     git.commit: 6ea67fed448bd1779fa5af4d18bb11d1c4c26577
@@ -329,7 +329,7 @@ additional_meta:
     git.commit: ad4fa6409b9751e0830c6af8f32f9ed9f3763b46
   odh-training-rocm64-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 296a8a85a908ca9b79166b392c2279d160435966
+    git.commit: eb1a7d3e1ebceea1858ce048769965b47e6045ed
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
     git.commit: 6b5ea7fbb270515b1bd9735adf343555060ce947
