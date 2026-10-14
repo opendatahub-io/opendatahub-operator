@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	fwgc "github.com/opendatahub-io/odh-platform-utilities/framework/controller/actions/gc"
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -36,9 +37,11 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
@@ -46,6 +49,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
+
+const gatewayResourceApplyFailedReason = "GatewayResourceApplyFailed"
 
 // gatewayCRDWatchPredicate matches CRD events that must re-trigger a GatewayConfig reconcile:
 //
@@ -57,6 +62,64 @@ func gatewayCRDWatchPredicate() predicate.Predicate {
 		resources.CreatedOrUpdatedOrDeletedNamed(gvk.DashboardComponentCRDName),
 		resources.CreatedOrUpdatedOrDeletedNamed(gvk.CertManagerCertificateCRDName),
 	)
+}
+
+// Only changes to the cluster authentication type alter whether the proxy is desired.
+// The watch is registered for typed &configv1.Authentication, while reconciler.Dynamic
+// may deliver unstructured forms; both are filtered on spec.type.
+func gatewayAuthenticationWatchPredicate() predicate.Predicate {
+	isClusterAuthentication := func(obj client.Object) bool {
+		return obj != nil && obj.GetName() == cluster.ClusterAuthenticationObj
+	}
+	authType := func(obj client.Object) (string, bool) {
+		switch auth := obj.(type) {
+		case *configv1.Authentication:
+			return string(auth.Spec.Type), true
+		case *unstructured.Unstructured:
+			value, found, err := unstructured.NestedString(auth.Object, "spec", "type")
+			if err != nil || !found {
+				return "", false
+			}
+			return value, true
+		default:
+			return "", false
+		}
+	}
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return isClusterAuthentication(e.Object)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return isClusterAuthentication(e.Object)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			if !isClusterAuthentication(e.ObjectNew) {
+				return false
+			}
+			oldType, oldOK := authType(e.ObjectOld)
+			newType, newOK := authType(e.ObjectNew)
+			// Unknown or unreadable forms fail safe and trigger reconciliation.
+			return !oldOK || !newOK || oldType != newType
+		},
+	}
+}
+
+// The default GC predicate only sees GatewayConfig generation changes. Authentication/cluster
+// can change the desired proxy resources without changing that generation.
+func gatewayGCObjectPredicate(rr *odhtypes.ReconciliationRequest, obj unstructured.Unstructured) (bool, error) {
+	defaultPredicate := fwgc.DefaultObjectPredicate(fwgc.DefaultAnnotationPrefix)
+	if obj.GetName() == KubeAuthProxyName && obj.GetNamespace() == GetGatewayNamespace() &&
+		(obj.GroupVersionKind() == gvk.Deployment || obj.GroupVersionKind() == gvk.NetworkPolicy) {
+		for i := range rr.Resources {
+			wanted := &rr.Resources[i]
+			if wanted.GroupVersionKind() == obj.GroupVersionKind() &&
+				wanted.GetNamespace() == obj.GetNamespace() && wanted.GetName() == obj.GetName() {
+				return defaultPredicate(rr, obj)
+			}
+		}
+		return true, nil
+	}
+	return defaultPredicate(rr, obj)
 }
 
 // gatewayDeploymentWatchPredicate also observes proxy availability, which changes in the
@@ -105,6 +168,23 @@ func gatewayCertManagerPrecondition() precondition.PreCondition {
 	)
 }
 
+// gatewayDeployAction records apply failures on ReadyConditionType because the
+// reconciler skips syncGatewayConfigStatus after a deployment error.
+func gatewayDeployAction(opts ...deploy.ActionOpts) actions.Fn {
+	deployAction := deploy.NewAction(opts...)
+	return func(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+		if err := deployAction(ctx, rr); err != nil {
+			rr.Conditions.MarkFalse(
+				ReadyConditionType,
+				conditions.WithReason(gatewayResourceApplyFailedReason),
+				conditions.WithMessagef("Failed to apply GatewayConfig resources: %v", err),
+			)
+			return err
+		}
+		return nil
+	}
+}
+
 func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	gw := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{})
 	// special for ROSA: auth is defined in day0 and OAuth not registered in apiserver
@@ -117,6 +197,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.Secret).
 		OwnsGVK(gvk.ConfigMap).
 		OwnsGVK(gvk.Service).
+		OwnsGVK(gvk.NetworkPolicy).
 		OwnsGVK(gvk.Deployment, reconciler.WithPredicates(gatewayDeploymentWatchPredicate())).
 		OwnsGVK(gvk.HorizontalPodAutoscaler).
 		OwnsGVK(gvk.HTTPRoute).
@@ -196,9 +277,17 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(resources.APIServerTLSSecurityProfileChanged()),
 		).
+		// Reconcile when the cluster authentication type changes, including to or from external auth.
+		Watches(
+			&configv1.Authentication{},
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(gatewayAuthenticationWatchPredicate()),
+		).
 		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
 			gatewayCertManagerPrecondition(),
 		})).
+		WithAction(reportDeprecatedNetworkPolicyConfig).
 		WithAction(syncAdditionalIngressStatus).
 		WithAction(createGatewayInfrastructure).
 		WithAction(createKubeAuthProxyInfrastructure). //  include destinationrule
@@ -212,12 +301,12 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			template.WithCache(false),
 			template.WithDataFn(getTemplateData),
 		)).
-		WithAction(deploy.NewAction(
+		WithAction(gatewayDeployAction(
 			deploy.WithCache(),
 		)).
 		WithAction(syncAdditionalIngressReadiness).
 		WithAction(syncGatewayConfigStatus).
-		WithAction(gc.NewAction()).
+		WithAction(gc.NewAction(gc.WithObjectPredicate(gatewayGCObjectPredicate))).
 		WithPostStatusFn(syncAdditionalIngressReadyStatuses).
 		WithConditions(reconciler.DependentConditions(ReadyConditionType, serviceApi.AdditionalGatewaysReadyConditionType)...)
 

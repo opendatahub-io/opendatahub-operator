@@ -27,6 +27,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -34,6 +35,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -45,6 +47,32 @@ import (
 
 //go:embed resources
 var gatewayResources embed.FS
+
+const (
+	deprecatedNetworkPolicyConfigConditionType = "GatewayConfigNetworkPolicyDeprecated"
+	deprecatedNetworkPolicyConfigReason        = "DeprecatedConfigurationIgnored"
+)
+
+// reportDeprecatedNetworkPolicyConfig informs users that the legacy setting is
+// accepted for compatibility but does not control the operator-managed policy.
+func reportDeprecatedNetworkPolicyConfig(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	gatewayConfig, err := validateGatewayConfig(rr)
+	if err != nil {
+		return err
+	}
+	if gatewayConfig.Spec.NetworkPolicy == nil {
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(
+		deprecatedNetworkPolicyConfigConditionType,
+		conditions.WithSeverity(common.ConditionSeverityInfo),
+		conditions.WithReason(deprecatedNetworkPolicyConfigReason),
+		conditions.WithMessage("spec.networkPolicy is deprecated and ignored; the operator always manages the kube-auth-proxy NetworkPolicy"),
+		conditions.WithObservedGeneration(gatewayConfig.Generation),
+	)
+	return nil
+}
 
 func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createGatewayInfrastructure")
@@ -179,20 +207,9 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return err
 	}
 
-	var authMode cluster.AuthenticationMode
-	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
-		// On XKS (vanilla K8s), no OpenShift Authentication CR exists.
-		// Auth mode is determined by GatewayConfig spec: OIDC if configured, else None.
-		if gatewayConfig.Spec.OIDC != nil {
-			authMode = cluster.AuthModeOIDC
-		} else {
-			authMode = cluster.AuthModeNone
-		}
-	} else {
-		authMode, err = cluster.GetClusterAuthenticationMode(ctx, rr.Client)
-		if err != nil {
-			return fmt.Errorf("failed to detect cluster authentication mode: %w", err)
-		}
+	authMode, err := getGatewayAuthenticationMode(ctx, rr, gatewayConfig)
+	if err != nil {
+		return err
 	}
 	l.V(1).Info("detected cluster authentication mode", "mode", authMode)
 
@@ -327,6 +344,22 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	return nil
 }
 
+func getGatewayAuthenticationMode(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) (cluster.AuthenticationMode, error) {
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		// On XKS, GatewayConfig OIDC determines whether a proxy is needed.
+		if gatewayConfig.Spec.OIDC != nil {
+			return cluster.AuthModeOIDC, nil
+		}
+		return cluster.AuthModeNone, nil
+	}
+
+	authMode, err := cluster.GetClusterAuthenticationMode(ctx, rr.Client)
+	if err != nil {
+		return "", fmt.Errorf("failed to detect cluster authentication mode: %w", err)
+	}
+	return authMode, nil
+}
+
 func createEnvoyFilter(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createEnvoyFilter")
 	gatewayConfig, err := validateGatewayConfig(rr)
@@ -368,17 +401,13 @@ func createNetworkPolicy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return nil
 	}
 
-	// Ingress is enabled by default (when NetworkPolicy is nil or Ingress is nil)
-	// If Ingress is specified, use the explicit Enabled value
-	ingressEnabled := true
-	if gatewayConfig.Spec.NetworkPolicy != nil && gatewayConfig.Spec.NetworkPolicy.Ingress != nil {
-		ingressEnabled = gatewayConfig.Spec.NetworkPolicy.Ingress.Enabled
+	authMode, err := getGatewayAuthenticationMode(ctx, rr, gatewayConfig)
+	if err != nil {
+		return err
 	}
-
-	// Only skip NetworkPolicy creation if ingress is explicitly disabled
-	if !ingressEnabled {
-		l.V(1).Info("Ingress disabled, skipping NetworkPolicy creation")
-		return nil
+	if authMode == cluster.AuthModeNone || (authMode == cluster.AuthModeOIDC && gatewayConfig.Spec.OIDC == nil) {
+		l.V(1).Info("Auth proxy not desired, skipping NetworkPolicy creation", "authMode", authMode)
+		return deleteLegacyNetworkPolicy(ctx, rr)
 	}
 
 	unresolved, err := isGatewayDomainUnresolved(ctx, rr, gatewayConfig)
@@ -387,16 +416,39 @@ func createNetworkPolicy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	}
 	if unresolved {
 		l.V(1).Info("Gateway domain not configured, skipping NetworkPolicy creation")
-		return nil
+		return deleteLegacyNetworkPolicy(ctx, rr)
 	}
 
-	l.V(1).Info("Creating NetworkPolicy for kube-auth-proxy", "ingress", ingressEnabled)
+	l.V(1).Info("Creating NetworkPolicy for kube-auth-proxy")
 
 	rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{
 		FS:   gatewayResources,
 		Path: networkPolicyTemplate,
 	})
 
+	return nil
+}
+
+// Policies created before GatewayConfig owned NetworkPolicies cannot be collected by GC.
+// Remove only the known gateway policy when it is no longer desired.
+func deleteLegacyNetworkPolicy(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	policy := &networkingv1.NetworkPolicy{}
+	err := rr.Client.Get(ctx, types.NamespacedName{Name: KubeAuthProxyName, Namespace: GetGatewayNamespace()}, policy)
+	if k8serr.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get legacy auth proxy NetworkPolicy: %w", err)
+	}
+	if len(policy.OwnerReferences) != 0 ||
+		policy.Labels[labels.PlatformPartOf] != labels.NormalizePartOfValue(serviceApi.GatewayConfigKind) ||
+		policy.Labels[labels.K8SCommon.Component] != ComponentLabelValue ||
+		policy.Annotations["opendatahub.io/managed"] == "false" {
+		return nil
+	}
+	if err := rr.Client.Delete(ctx, policy); err != nil && !k8serr.IsNotFound(err) {
+		return fmt.Errorf("failed to delete legacy auth proxy NetworkPolicy: %w", err)
+	}
 	return nil
 }
 
