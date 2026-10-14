@@ -278,7 +278,7 @@ additional_meta:
     git.commit: 6ea67fed448bd1779fa5af4d18bb11d1c4c26577
   odh-pipeline-runtime-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 3319d27e0c5b535a01bc5a53c78192f73b269ce3
+    git.commit: 470fd97e2dbc6334bcc13965dec886c6eaa8003a
   odh-pipeline-runtime-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 3319d27e0c5b535a01bc5a53c78192f73b269ce3
@@ -347,10 +347,10 @@ additional_meta:
     git.commit: fd6617e8d86061de3887db97f8336281346ac189
   odh-workbench-codeserver-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: bb5095157db006d2393754e2a51fb1494349e5dc
+    git.commit: 3319d27e0c5b535a01bc5a53c78192f73b269ce3
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 3319d27e0c5b535a01bc5a53c78192f73b269ce3
+    git.commit: 470fd97e2dbc6334bcc13965dec886c6eaa8003a
   odh-workbench-jupyter-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 3319d27e0c5b535a01bc5a53c78192f73b269ce3
@@ -377,7 +377,7 @@ additional_meta:
     git.commit: 470fd97e2dbc6334bcc13965dec886c6eaa8003a
   odh-workbench-jupyter-trustyai-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 3319d27e0c5b535a01bc5a53c78192f73b269ce3
+    git.commit: 470fd97e2dbc6334bcc13965dec886c6eaa8003a
   odh-workload-variant-autoscaler-controller:
     git.url: https://github.com/red-hat-data-services/workload-variant-autoscaler
     git.commit: 69d4bc1425435ef05e17ef89f007603e5e08def6
