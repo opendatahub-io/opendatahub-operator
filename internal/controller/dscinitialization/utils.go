@@ -104,8 +104,9 @@ func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, ns
 		labels.SecurityEnforce: "baseline",
 	}
 
-	// label only for managed cluster
-	if platform == cluster.ManagedRhoai {
+	// label for RHOAI platforms so OpenShift cluster monitoring can discover
+	// ServiceMonitors deployed in the applications namespace.
+	if platform == cluster.ManagedRhoai || platform == cluster.SelfManagedRhoai {
 		labelList[labels.ClusterMonitoring] = labels.True
 	}
 

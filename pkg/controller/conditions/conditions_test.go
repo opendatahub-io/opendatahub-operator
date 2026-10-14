@@ -21,6 +21,22 @@ const (
 	dependenciesAvailable = "DependenciesAvailable"
 )
 
+func TestWithMessageKeepsPercentLiteral(t *testing.T) {
+	g := NewWithT(t)
+	condition := &common.Condition{}
+	conditions.WithMessage("literal %s")(condition)
+
+	g.Expect(condition.Message).To(Equal("literal %s"))
+}
+
+func TestWithMessagefFormatsArguments(t *testing.T) {
+	g := NewWithT(t)
+	condition := &common.Condition{}
+	conditions.WithMessagef("item %s: %d", "a", 2)(condition)
+
+	g.Expect(condition.Message).To(Equal("item a: 2"))
+}
+
 type fakeAccessor struct {
 	conditions []common.Condition
 }

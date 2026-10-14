@@ -5,9 +5,13 @@ package gateway
 
 import (
 	"context"
+	"crypto/tls"
+	"errors"
 	"testing"
+	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -727,7 +731,7 @@ func TestGetTemplateDataTLSCurvePreferences(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(templateData).To(HaveKeyWithValue("AuthProxyMaxReplicas", maximum))
 	g.Expect(templateData).To(HaveKeyWithValue("TLSMinVersion", "TLS1.2"))
-	g.Expect(templateData).To(HaveKeyWithValue("TLSCipherSuite", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"))
+	g.Expect(templateData).To(HaveKeyWithValue("TLSCipherSuite", tls.CipherSuiteName(tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)))
 	g.Expect(templateData).To(HaveKeyWithValue("TLSCurvePreferences", "29,23"))
 }
 
@@ -778,4 +782,259 @@ func TestGetTemplateDataTLSReadError(t *testing.T) {
 	_, err = getTemplateData(ctx, rr)
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(ContainSubstring("failed to resolve APIServer TLS profile"))
+}
+
+func TestResolveOCPRouteServerTimeout(t *testing.T) {
+	forbidden := k8serr.NewForbidden(schema.GroupResource{Group: "operator.openshift.io", Resource: "ingresscontrollers"}, "default", nil)
+	for _, tc := range []struct {
+		name       string
+		mode       serviceApi.IngressMode
+		config     *serviceApi.OCPRouteConfig
+		router     *metav1.Duration
+		missing    bool
+		lookupErr  error
+		want       string
+		wantLookup bool
+		wantErr    bool
+	}{
+		{name: "unset router timeout", mode: serviceApi.IngressModeOcpRoute, want: "60s", wantLookup: true},
+		{name: "empty Route config", mode: serviceApi.IngressModeOcpRoute, config: &serviceApi.OCPRouteConfig{}, want: "60s", wantLookup: true},
+		{name: "shorter router timeout", mode: serviceApi.IngressModeOcpRoute, router: &metav1.Duration{Duration: 15 * time.Second}, want: "60s", wantLookup: true},
+		{name: "just below minimum", mode: serviceApi.IngressModeOcpRoute, router: &metav1.Duration{Duration: time.Minute - time.Millisecond}, want: "60s", wantLookup: true},
+		{name: "equal router timeout", mode: serviceApi.IngressModeOcpRoute, router: &metav1.Duration{Duration: time.Minute}, wantLookup: true},
+		{name: "longer router timeout", mode: serviceApi.IngressModeOcpRoute, router: &metav1.Duration{Duration: 2 * time.Minute}, wantLookup: true},
+		{name: "zero router timeout uses OpenShift default", mode: serviceApi.IngressModeOcpRoute, router: &metav1.Duration{}, want: "60s", wantLookup: true},
+		{name: "explicit short override", mode: serviceApi.IngressModeOcpRoute, config: &serviceApi.OCPRouteConfig{ServerTimeout: "10s"}, lookupErr: forbidden, want: "10s"},
+		{name: "explicit long override", mode: serviceApi.IngressModeOcpRoute, config: &serviceApi.OCPRouteConfig{ServerTimeout: "330s"}, missing: true, want: "330s"},
+		{name: "LoadBalancer without override", mode: serviceApi.IngressModeLoadBalancer},
+		{name: "LoadBalancer with override", mode: serviceApi.IngressModeLoadBalancer, config: &serviceApi.OCPRouteConfig{ServerTimeout: "330s"}},
+		{name: "missing default router", mode: serviceApi.IngressModeOcpRoute, missing: true, wantLookup: true},
+		{
+			name: "unsupported ingress API", mode: serviceApi.IngressModeOcpRoute,
+			lookupErr:  &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "operator.openshift.io", Kind: "IngressController"}},
+			wantLookup: true,
+		},
+		{name: "forbidden lookup", mode: serviceApi.IngressModeOcpRoute, lookupErr: forbidden, wantLookup: true, wantErr: true},
+		{name: "failed lookup", mode: serviceApi.IngressModeOcpRoute, lookupErr: errors.New("connection failed"), wantLookup: true, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			config := &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{IngressMode: tc.mode, OCPRoute: tc.config}}
+			original := config.DeepCopy()
+			// A custom router must not influence default-router automatic behavior.
+			objects := []client.Object{&operatorv1.IngressController{
+				ObjectMeta: metav1.ObjectMeta{Name: "custom", Namespace: cluster.IngressControllerName.Namespace},
+				Spec:       operatorv1.IngressControllerSpec{TuningOptions: operatorv1.IngressControllerTuningOptions{ServerTimeout: &metav1.Duration{Duration: 5 * time.Minute}}},
+			}}
+			if !tc.missing {
+				objects = append(objects, &operatorv1.IngressController{
+					ObjectMeta: metav1.ObjectMeta{Name: cluster.IngressControllerName.Name, Namespace: cluster.IngressControllerName.Namespace},
+					Spec:       operatorv1.IngressControllerSpec{TuningOptions: operatorv1.IngressControllerTuningOptions{ServerTimeout: tc.router}},
+				})
+			}
+			lookups := 0
+			cli, err := fakeclient.New(fakeclient.WithObjects(objects...), fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Get: func(ctx context.Context, clnt client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+					lookups++
+					g.Expect(key).To(Equal(cluster.IngressControllerName))
+					if tc.lookupErr != nil {
+						return tc.lookupErr
+					}
+					return clnt.Get(ctx, key, obj, opts...)
+				},
+			}))
+			g.Expect(err).NotTo(HaveOccurred())
+			timeout, err := resolveOCPRouteServerTimeout(t.Context(), cli, config)
+			if tc.wantErr {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(errors.Is(err, tc.lookupErr)).To(BeTrue())
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+			}
+			g.Expect(timeout).To(Equal(tc.want))
+			if tc.wantLookup {
+				g.Expect(lookups).To(Equal(1))
+			} else {
+				g.Expect(lookups).To(BeZero())
+			}
+			g.Expect(config).To(Equal(original))
+		})
+	}
+}
+
+// TestGetTemplateDataInvalidStrictProfileStopsBeforeRender verifies the
+// reconciliation safety boundary: an unusable Strict profile fails while
+// computing template data, so the render/deploy actions cannot modify the
+// existing proxy workload. A corrected profile can be rendered on the next
+// reconciliation.
+func TestGetTemplateDataInvalidStrictProfileStopsBeforeRender(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec:       serviceApi.GatewayConfigSpec{Domain: "apps.example.com"},
+	}
+
+	newClient := func(profile *configv1.TLSSecurityProfile) client.Client {
+		scheme, err := testscheme.New()
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(configv1.Install(scheme)).To(Succeed())
+		apiServer := &configv1.APIServer{
+			ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAPIServerObj},
+			Spec: configv1.APIServerSpec{
+				TLSAdherence:       configv1.TLSAdherencePolicyStrictAllComponents,
+				TLSSecurityProfile: profile,
+			},
+		}
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(gatewayConfig, apiServer),
+			fakeclient.WithScheme(scheme),
+		)
+		g.Expect(err).NotTo(HaveOccurred())
+		return cli
+	}
+
+	invalidProfile := &configv1.TLSSecurityProfile{
+		Type: configv1.TLSProfileCustomType,
+		Custom: &configv1.CustomTLSProfile{TLSProfileSpec: configv1.TLSProfileSpec{
+			MinTLSVersion: configv1.VersionTLS12,
+			Ciphers:       []string{"DHE-RSA-AES128-GCM-SHA256"},
+			Groups:        []configv1.TLSGroup{configv1.TLSGroupX25519},
+		}},
+	}
+	validProfile := invalidProfile.DeepCopy()
+	validProfile.Custom.Ciphers = []string{"ECDHE-RSA-AES128-GCM-SHA256"}
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:   newClient(invalidProfile),
+		Instance: gatewayConfig,
+	}
+	_, err := getTemplateData(ctx, rr)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("failed to resolve APIServer TLS profile"))
+
+	rr.Client = newClient(validProfile)
+	templateData, err := getTemplateData(ctx, rr)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(templateData).To(HaveKeyWithValue("TLSMinVersion", "TLS1.2"))
+	g.Expect(templateData).To(HaveKeyWithValue("TLSCipherSuite", tls.CipherSuiteName(tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)))
+}
+
+// TestKubeAuthProxySecretCreateFailure covers the createKubeAuthProxyInfrastructure
+// branch where secret creation fails: the action marks the GatewayConfig not ready
+// with the auth-proxy secret failure message and propagates the error.
+func TestKubeAuthProxySecretCreateFailure(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+
+	issuerRef := testIssuerRef
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: "apps.example.com",
+			OIDC: &serviceApi.OIDCConfig{
+				IssuerURL: "https://oidc.example.com",
+				ClientID:  "odh-gateway",
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "oidc-client-secret"},
+					Key:                  "clientSecret",
+				},
+			},
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.SelfSigned, IssuerRef: &issuerRef},
+		},
+	}
+	oidcSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "oidc-client-secret", Namespace: GetGatewayNamespace()},
+		Data:       map[string][]byte{"clientSecret": []byte("oidc-secret-value")},
+	}
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(gatewayConfig, oidcSecret),
+		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			Create: func(_ context.Context, _ client.WithWatch, _ client.Object, _ ...client.CreateOption) error {
+				return errors.New("injected secret create failure")
+			},
+		}),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     cli,
+		Instance:   gatewayConfig,
+		Conditions: conditionstest.NewManager(gatewayConfig, ReadyConditionType),
+	}
+
+	err = createKubeAuthProxyInfrastructure(ctx, rr)
+	g.Expect(err).To(MatchError(ContainSubstring("failed to create auth proxy secret")))
+
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(ready.Reason).To(Equal(status.NotReadyReason))
+	g.Expect(ready.Message).To(ContainSubstring(status.AuthProxyFailedGenerateSecretMessage))
+}
+
+// TestKubeAuthProxyOAuthClientFailure covers the createKubeAuthProxyInfrastructure
+// branch where OAuth client creation fails in IntegratedOAuth mode: the action marks
+// the GatewayConfig not ready with the OAuth client failure message and propagates the error.
+func TestKubeAuthProxyOAuthClientFailure(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain:      "apps.example.com",
+			IngressMode: serviceApi.IngressModeOcpRoute,
+		},
+	}
+	// Empty spec.type selects IntegratedOAuth.
+	authentication := &configv1.Authentication{
+		ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
+	}
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(gatewayConfig, authentication),
+		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			// Fail the kube-auth-proxy-creds read only once the secret exists:
+			// getAuthProxySecretValues and createSecret read it while absent (NotFound),
+			// createOAuthClient reads it after createSecret has created it.
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				err := c.Get(ctx, key, obj, opts...)
+				if err == nil {
+					if _, ok := obj.(*corev1.Secret); ok && key.Name == KubeAuthProxySecretsName {
+						return errors.New("injected kube-auth-proxy-creds get failure")
+					}
+				}
+				return err
+			},
+		}),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     cli,
+		Instance:   gatewayConfig,
+		Conditions: conditionstest.NewManager(gatewayConfig, ReadyConditionType),
+	}
+
+	err = createKubeAuthProxyInfrastructure(ctx, rr)
+	g.Expect(err).To(MatchError(ContainSubstring("failed to create OAuth client")))
+
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(ready.Reason).To(Equal(status.NotReadyReason))
+	g.Expect(ready.Message).To(ContainSubstring(status.AuthProxyFailedOAuthClientMessage))
 }
