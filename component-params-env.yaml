@@ -70,6 +70,7 @@ odh_exceptions:
 
 rhoai_exceptions:
 - image: RELATED_IMAGE_ODH_PRAXIS_AI_GRID_OPERATOR_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHAISTRAT-2845
   reason: AI Grid operator is currently published in ODH only; remove this exception when RHOAI-Build-Config and the RHAI Helm payload onboard the image
 - image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE
   reason: ODH-only image, not applicable to RHOAI

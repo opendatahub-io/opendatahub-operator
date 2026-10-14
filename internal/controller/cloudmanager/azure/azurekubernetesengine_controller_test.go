@@ -24,7 +24,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	ccmtest "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/cloudmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -266,27 +265,28 @@ func TestAzureKubernetesEngineGC(t *testing.T) {
 			return unstructured.SetNestedField(obj.Object, string(ccmcommon.Managed), "spec", "dependencies", "gatewayAPI", "managementPolicy")
 		}).Eventually().Should(Succeed())
 
-		// Wait for the Deployment to reflect the changed generation before checking protection.
-		wt.Get(gvk.Deployment, types.NamespacedName{
-			Name: "openshift-lws-operator", Namespace: "openshift-lws-operator",
-		}).Eventually().Should(jq.Match(`.metadata.annotations."%s" == "%d"`,
-			labels.ODHInfrastructurePrefix+annotations.SuffixInstanceGeneration, updated.GetGeneration()))
+		// ProvisioningSucceeded is written after all actions, including GC, complete.
+		// Overall readiness is not required: dependency workloads do not run in envtest.
+		wt.Get(gvk.AzureKubernetesEngine, client.ObjectKeyFromObject(updated)).Eventually().Should(
+			jq.Match(`.status.conditions[] | select(.type == "ProvisioningSucceeded") | .status == "True" and .observedGeneration == %d`, updated.GetGeneration()),
+		)
 
-		// The protected PKI resources must survive across GC runs.
-		NewWithT(t).Consistently(func() error {
-			return wt.Client().Get(wt.Context(), types.NamespacedName{Name: "opendatahub-selfsigned-issuer"},
-				resources.GvkToPartial(gvk.CertManagerClusterIssuer))
-		}).WithTimeout(5 * time.Second).WithPolling(250 * time.Millisecond).Should(Succeed())
+		// Foreground deletion leaves objects present in envtest, so also check that
+		// GC has not marked any protected PKI resource for deletion.
+		wt.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{Name: "opendatahub-selfsigned-issuer"}).
+			Consistently().WithTimeout(5 * time.Second).WithPolling(250 * time.Millisecond).Should(
+			And(Not(BeNil()), jq.Match(`.metadata.deletionTimestamp == null`)),
+		)
 
-		NewWithT(t).Consistently(func() error {
-			return wt.Client().Get(wt.Context(), types.NamespacedName{Name: "opendatahub-ca", Namespace: "cert-manager"},
-				resources.GvkToPartial(gvk.CertManagerCertificate))
-		}).WithTimeout(5 * time.Second).WithPolling(250 * time.Millisecond).Should(Succeed())
+		wt.Get(gvk.CertManagerCertificate, types.NamespacedName{Name: "opendatahub-ca", Namespace: "cert-manager"}).
+			Consistently().WithTimeout(5 * time.Second).WithPolling(250 * time.Millisecond).Should(
+			And(Not(BeNil()), jq.Match(`.metadata.deletionTimestamp == null`)),
+		)
 
-		NewWithT(t).Consistently(func() error {
-			return wt.Client().Get(wt.Context(), types.NamespacedName{Name: "opendatahub-ca-issuer"},
-				resources.GvkToPartial(gvk.CertManagerClusterIssuer))
-		}).WithTimeout(5 * time.Second).WithPolling(250 * time.Millisecond).Should(Succeed())
+		wt.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{Name: "opendatahub-ca-issuer"}).
+			Consistently().WithTimeout(5 * time.Second).WithPolling(250 * time.Millisecond).Should(
+			And(Not(BeNil()), jq.Match(`.metadata.deletionTimestamp == null`)),
+		)
 	})
 }
 
