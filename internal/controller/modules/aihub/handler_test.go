@@ -35,6 +35,9 @@ func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
 						ManagementSpec: common.ManagementSpec{
 							ManagementState: mgmtState,
 						},
+						AIHubCommonSpec: componentApi.AIHubCommonSpec{
+							InstancesNamespace: componentApi.DefaultModelRegistriesNamespace,
+						},
 					},
 				},
 			},
@@ -178,12 +181,11 @@ func TestBuildModuleCR_WithoutGatewayDomain(t *testing.T) {
 	g.Expect(spec).ShouldNot(HaveKey("gateway"))
 }
 
-func TestBuildModuleCR_InstancesNamespaceDefaultsToRegistryNamespace(t *testing.T) {
+func TestBuildModuleCR_ProjectsDefaultedInstancesNamespace(t *testing.T) {
 	g := NewWithT(t)
 	h := aihub.NewHandler()
 
 	dscCtx := newDSCCtx(operatorv1.Managed)
-	// The registry namespace must agree with admission defaults, even before defaulting.
 
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, &modules.ModuleCRConfig{
 		ApplicationsNamespace: "fallback-ns",
@@ -194,7 +196,7 @@ func TestBuildModuleCR_InstancesNamespaceDefaultsToRegistryNamespace(t *testing.
 	g.Expect(ok).Should(BeTrue())
 	g.Expect(spec["applicationNamespace"]).Should(Equal("fallback-ns"))
 	g.Expect(spec["instancesNamespace"]).Should(Equal(componentApi.DefaultModelRegistriesNamespace))
-	g.Expect(dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace).Should(BeEmpty())
+	g.Expect(dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace).Should(Equal(componentApi.DefaultModelRegistriesNamespace))
 }
 
 func TestBuildModuleCR_NilCfg(t *testing.T) {
@@ -229,7 +231,7 @@ func TestWriteDSCComponentStatus_Enabled(t *testing.T) {
 	g := NewWithT(t)
 	h := aihub.NewHandler()
 
-	dsc := &dscApi.DataScienceCluster{}
+	dsc := newDSCCtx(operatorv1.Managed).DSC
 	releases := []common.ComponentRelease{
 		{Name: "platform", Version: "1.0.0"},
 	}
@@ -310,7 +312,7 @@ func TestWriteDSCComponentStatus_ClearsNamespaceWhenDisabled(t *testing.T) {
 	g.Expect(dsc.Status.Components.AIHub.Releases).Should(BeEmpty())
 }
 
-func TestWriteDSCComponentStatus_DefaultsNamespaceWhenSpecEmpty(t *testing.T) {
+func TestWriteDSCComponentStatus_ClearsNamespaceWhenSpecEmpty(t *testing.T) {
 	g := NewWithT(t)
 	h := aihub.NewHandler()
 	dsc := &dscApi.DataScienceCluster{
@@ -330,7 +332,7 @@ func TestWriteDSCComponentStatus_DefaultsNamespaceWhenSpecEmpty(t *testing.T) {
 
 	dsc.Spec.Components.AIHub.InstancesNamespace = ""
 	h.WriteDSCComponentStatus(dsc, true, nil)
-	g.Expect(dsc.Status.Components.AIHub.InstancesNamespace).Should(Equal(componentApi.DefaultModelRegistriesNamespace))
+	g.Expect(dsc.Status.Components.AIHub.InstancesNamespace).Should(BeEmpty())
 	g.Expect(dsc.Spec.Components.AIHub.InstancesNamespace).Should(BeEmpty())
 }
 
