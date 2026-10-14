@@ -215,7 +215,7 @@ additional_meta:
     git.commit: be4cd7b7cd9de6e288239f6be433fbc8266a860a
   odh-ml-pipelines-scheduledworkflow-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: 06449e38ff8cb04a2de9c209982db1ecdb64872d
+    git.commit: be4cd7b7cd9de6e288239f6be433fbc8266a860a
   odh-model-controller:
     git.url: https://github.com/red-hat-data-services/odh-model-controller
     git.commit: a359716e3b916b50ad3e489bd828e662a6c87a8e
@@ -260,7 +260,7 @@ additional_meta:
     git.commit: 4d6753d923c78577dc721ed2294a310664eef720
   odh-must-gather:
     git.url: https://github.com/red-hat-data-services/must-gather
-    git.commit: 2f68ab9978265d67fead05ea5eae72c2335f314b
+    git.commit: 9de2a9efbe89a2c5e3760f90eb8bab09692c875c
   odh-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
     git.commit: 98fc579b38c89a0a52fcee25031fca19b9fab9af
