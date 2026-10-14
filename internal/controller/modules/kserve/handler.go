@@ -24,6 +24,7 @@ const (
 
 	LLMInferenceServiceDependencies       = componentApi.KserveKind + "LLMInferenceServiceDependencies"
 	LLMInferenceServiceWideEPDependencies = componentApi.KserveKind + "LLMInferenceServiceWideEPDependencies"
+	ConfidentialContainerDependencies     = componentApi.KserveKind + "ConfidentialContainerDependencies"
 )
 
 type handler struct {
@@ -48,6 +49,10 @@ func NewHandler() *handler {
 					{
 						SourceConditionType: LLMInferenceServiceWideEPDependencies,
 						DSCConditionType:    LLMInferenceServiceWideEPDependencies,
+					},
+					{
+						SourceConditionType: ConfidentialContainerDependencies,
+						DSCConditionType:    ConfidentialContainerDependencies,
 					},
 				},
 				// Keep in sync with kserve-module/pkg/kservemodule/images.go
