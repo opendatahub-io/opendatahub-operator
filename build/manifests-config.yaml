@@ -164,7 +164,7 @@ additional_meta:
     git.commit: c5c090319d5bddc6428398d71ccf3a67e2a35661
   odh-llm-d-batch-gateway-apiserver:
     git.url: https://github.com/red-hat-data-services/batch-gateway
-    git.commit: e8bb692653785c1308c8e91843de58cb0d527886
+    git.commit: 16695a01086d39035d149898ba4c7f8cde7f8361
   odh-llm-d-batch-gateway-gc:
     git.url: https://github.com/red-hat-data-services/batch-gateway
     git.commit: 16695a01086d39035d149898ba4c7f8cde7f8361
@@ -173,7 +173,7 @@ additional_meta:
     git.commit: e826a326345d10f3c9f0c84e35f1cc4f54450fc0
   odh-llm-d-batch-gateway-processor:
     git.url: https://github.com/red-hat-data-services/batch-gateway
-    git.commit: e8bb692653785c1308c8e91843de58cb0d527886
+    git.commit: 16695a01086d39035d149898ba4c7f8cde7f8361
   odh-llm-d-router-disagg-sidecar:
     git.url: https://github.com/red-hat-data-services/llm-d-router
     git.commit: 5647c049f723df1353645c905924d3e7b3f0dfe5
