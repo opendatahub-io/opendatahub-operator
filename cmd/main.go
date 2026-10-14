@@ -26,7 +26,6 @@ import (
 	"slices"
 	"strings"
 
-	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	frameworkmanager "github.com/opendatahub-io/odh-platform-utilities/framework/manager"
 	tlspkg "github.com/opendatahub-io/odh-platform-utilities/framework/tls"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
@@ -175,7 +174,6 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(securityv1.Install(scheme))
 	utilruntime.Must(templatev1.Install(scheme))
 	utilruntime.Must(gwapiv1.Install(scheme))
-	utilruntime.Must(maasv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(configv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(configApi.AddToScheme(scheme))
 }

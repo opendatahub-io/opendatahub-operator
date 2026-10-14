@@ -188,8 +188,6 @@ github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8
 github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3IKzErnv2BNG4W4MAM=
 github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040=
 github.com/opencontainers/image-spec v1.1.1/go.mod h1:qpqAh3Dmcf36wStyyWU+kCeDgrGnAve2nCC8+7h8Q0M=
-github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a h1:MQWRo9YDTNsJh+82XWkDhqxQEJcd0I4vScIArwVIDCU=
-github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a/go.mod h1:uMYnqqPwy+1ub8me0YMZRZ1vrUQY9jS9nMcUXLBp88k=
 github.com/opendatahub-io/odh-platform-utilities v0.4.0 h1:2owyFN/cv6xoqvXCcweQPGN4FXmAh/xJ6Kbxp9E/s7w=
 github.com/opendatahub-io/odh-platform-utilities v0.4.0/go.mod h1:9fZ0sf6jCU8GTSViHUGAbFLHG3PYJ4/nG4QFLZEhYaE=
 github.com/opendatahub-io/odh-platform-utilities/framework v0.0.0-20261012121829-3163630a4c27 h1:bFRin/NoDos4mbsB4N8aKo9zpzwIu4ZPUWY5wC0U+ME=
