@@ -5,6 +5,7 @@ package gateway
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"testing"
 	"time"
@@ -730,7 +731,7 @@ func TestGetTemplateDataTLSCurvePreferences(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(templateData).To(HaveKeyWithValue("AuthProxyMaxReplicas", maximum))
 	g.Expect(templateData).To(HaveKeyWithValue("TLSMinVersion", "TLS1.2"))
-	g.Expect(templateData).To(HaveKeyWithValue("TLSCipherSuite", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"))
+	g.Expect(templateData).To(HaveKeyWithValue("TLSCipherSuite", tls.CipherSuiteName(tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)))
 	g.Expect(templateData).To(HaveKeyWithValue("TLSCurvePreferences", "29,23"))
 }
 
@@ -859,4 +860,181 @@ func TestResolveOCPRouteServerTimeout(t *testing.T) {
 			g.Expect(config).To(Equal(original))
 		})
 	}
+}
+
+// TestGetTemplateDataInvalidStrictProfileStopsBeforeRender verifies the
+// reconciliation safety boundary: an unusable Strict profile fails while
+// computing template data, so the render/deploy actions cannot modify the
+// existing proxy workload. A corrected profile can be rendered on the next
+// reconciliation.
+func TestGetTemplateDataInvalidStrictProfileStopsBeforeRender(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec:       serviceApi.GatewayConfigSpec{Domain: "apps.example.com"},
+	}
+
+	newClient := func(profile *configv1.TLSSecurityProfile) client.Client {
+		scheme, err := testscheme.New()
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(configv1.Install(scheme)).To(Succeed())
+		apiServer := &configv1.APIServer{
+			ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAPIServerObj},
+			Spec: configv1.APIServerSpec{
+				TLSAdherence:       configv1.TLSAdherencePolicyStrictAllComponents,
+				TLSSecurityProfile: profile,
+			},
+		}
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(gatewayConfig, apiServer),
+			fakeclient.WithScheme(scheme),
+		)
+		g.Expect(err).NotTo(HaveOccurred())
+		return cli
+	}
+
+	invalidProfile := &configv1.TLSSecurityProfile{
+		Type: configv1.TLSProfileCustomType,
+		Custom: &configv1.CustomTLSProfile{TLSProfileSpec: configv1.TLSProfileSpec{
+			MinTLSVersion: configv1.VersionTLS12,
+			Ciphers:       []string{"DHE-RSA-AES128-GCM-SHA256"},
+			Groups:        []configv1.TLSGroup{configv1.TLSGroupX25519},
+		}},
+	}
+	validProfile := invalidProfile.DeepCopy()
+	validProfile.Custom.Ciphers = []string{"ECDHE-RSA-AES128-GCM-SHA256"}
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:   newClient(invalidProfile),
+		Instance: gatewayConfig,
+	}
+	_, err := getTemplateData(ctx, rr)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("failed to resolve APIServer TLS profile"))
+
+	rr.Client = newClient(validProfile)
+	templateData, err := getTemplateData(ctx, rr)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(templateData).To(HaveKeyWithValue("TLSMinVersion", "TLS1.2"))
+	g.Expect(templateData).To(HaveKeyWithValue("TLSCipherSuite", tls.CipherSuiteName(tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)))
+}
+
+// TestKubeAuthProxySecretCreateFailure covers the createKubeAuthProxyInfrastructure
+// branch where secret creation fails: the action marks the GatewayConfig not ready
+// with the auth-proxy secret failure message and propagates the error.
+func TestKubeAuthProxySecretCreateFailure(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+
+	issuerRef := testIssuerRef
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: "apps.example.com",
+			OIDC: &serviceApi.OIDCConfig{
+				IssuerURL: "https://oidc.example.com",
+				ClientID:  "odh-gateway",
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "oidc-client-secret"},
+					Key:                  "clientSecret",
+				},
+			},
+			Certificate: &infrav1.CertificateSpec{Type: infrav1.SelfSigned, IssuerRef: &issuerRef},
+		},
+	}
+	oidcSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "oidc-client-secret", Namespace: GetGatewayNamespace()},
+		Data:       map[string][]byte{"clientSecret": []byte("oidc-secret-value")},
+	}
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(gatewayConfig, oidcSecret),
+		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			Create: func(_ context.Context, _ client.WithWatch, _ client.Object, _ ...client.CreateOption) error {
+				return errors.New("injected secret create failure")
+			},
+		}),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     cli,
+		Instance:   gatewayConfig,
+		Conditions: conditionstest.NewManager(gatewayConfig, ReadyConditionType),
+	}
+
+	err = createKubeAuthProxyInfrastructure(ctx, rr)
+	g.Expect(err).To(MatchError(ContainSubstring("failed to create auth proxy secret")))
+
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(ready.Reason).To(Equal(status.NotReadyReason))
+	g.Expect(ready.Message).To(ContainSubstring(status.AuthProxyFailedGenerateSecretMessage))
+}
+
+// TestKubeAuthProxyOAuthClientFailure covers the createKubeAuthProxyInfrastructure
+// branch where OAuth client creation fails in IntegratedOAuth mode: the action marks
+// the GatewayConfig not ready with the OAuth client failure message and propagates the error.
+func TestKubeAuthProxyOAuthClientFailure(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain:      "apps.example.com",
+			IngressMode: serviceApi.IngressModeOcpRoute,
+		},
+	}
+	// Empty spec.type selects IntegratedOAuth.
+	authentication := &configv1.Authentication{
+		ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
+	}
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(gatewayConfig, authentication),
+		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			// Fail the kube-auth-proxy-creds read only once the secret exists:
+			// getAuthProxySecretValues and createSecret read it while absent (NotFound),
+			// createOAuthClient reads it after createSecret has created it.
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				err := c.Get(ctx, key, obj, opts...)
+				if err == nil {
+					if _, ok := obj.(*corev1.Secret); ok && key.Name == KubeAuthProxySecretsName {
+						return errors.New("injected kube-auth-proxy-creds get failure")
+					}
+				}
+				return err
+			},
+		}),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     cli,
+		Instance:   gatewayConfig,
+		Conditions: conditionstest.NewManager(gatewayConfig, ReadyConditionType),
+	}
+
+	err = createKubeAuthProxyInfrastructure(ctx, rr)
+	g.Expect(err).To(MatchError(ContainSubstring("failed to create OAuth client")))
+
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(ready.Reason).To(Equal(status.NotReadyReason))
+	g.Expect(ready.Message).To(ContainSubstring(status.AuthProxyFailedOAuthClientMessage))
 }

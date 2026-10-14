@@ -2,6 +2,7 @@ package scheme
 
 import (
 	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
+	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -36,6 +37,7 @@ import (
 var (
 	DefaultAddToSchemes = []func(*runtime.Scheme) error{
 		clientgoscheme.AddToScheme,
+		configv1.AddToScheme,
 		routev1.AddToScheme,
 		dsciv2.AddToScheme,
 		dscv2.AddToScheme,
