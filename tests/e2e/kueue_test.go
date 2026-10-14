@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -53,6 +54,11 @@ const (
 	// kueueTestNamespaceLabel is used to discover test namespaces during cleanup.
 	kueueTestNamespaceLabel      = "opendatahub.io/e2e-test"
 	kueueTestNamespaceLabelValue = "kueue"
+
+	// kueueWebhookServiceName is the OCP Kueue operator's conversion/validating webhook
+	// service. Its endpoints must be serving before the operator can create Kueue resources
+	// (ClusterQueue/LocalQueue) without hitting "service not found" (RHOAIENG-61489).
+	kueueWebhookServiceName = "kueue-webhook-service"
 )
 
 var (
@@ -269,9 +275,30 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 			testf.Transform(`.spec.components.%s.autoCreateQueues = true`, componentName),
 		)),
 		WithCondition(And(conditionsUnmanagedNotReady...)),
+		WithCustomErrorMsg(
+			"kueue should report %sReady=False while the OCP Kueue operator is not yet installed", tc.GVK.Kind),
 	)
 
 	tc.ensureKueueOperatorsInstalled(t)
+
+	// RHOAIENG-61489: the OCP Kueue operator reaching CSV=Succeeded does not mean its
+	// conversion/validating webhook is serving yet. Wait for kueue-webhook-service to have
+	// ready endpoints before expecting the component to reconcile to Ready, so this step
+	// waits on the genuine precondition instead of racing it (the race otherwise surfaces as
+	// a transient, hard-to-diagnose failure). This does not mask a product defect: if the
+	// webhook never serves, the wait still fails.
+	t.Logf("Waiting for the OCP Kueue operator webhook service (%s/%s) to have ready endpoints.",
+		kueueOcpOperatorNamespace, kueueWebhookServiceName)
+	tc.EnsureResourceExists(
+		WithMinimalObject(
+			schema.GroupVersionKind{Version: "v1", Kind: "Endpoints"},
+			types.NamespacedName{Name: kueueWebhookServiceName, Namespace: kueueOcpOperatorNamespace},
+		),
+		WithCondition(jq.Match(`[.subsets[]?.addresses[]?] | length > 0`)),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithCustomErrorMsg(
+			"OCP Kueue operator webhook service %q never reported ready endpoints", kueueWebhookServiceName),
+	)
 
 	conditionsUnmanagedReady := []gTypes.GomegaMatcher{
 		// Validate that the component's management state is updated correctly
@@ -284,6 +311,9 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithCondition(And(conditionsUnmanagedReady...)),
+		WithCustomErrorMsg(
+			"kueue did not transition to %sReady=True after the OCP Kueue operator and its webhook became available",
+			tc.GVK.Kind),
 	)
 
 	t.Logf("Verifying Kueue configuration (%s) is created with all expected frameworks.", kueue.KueueCRName)
@@ -294,7 +324,9 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 		WithCondition(And(
 			jq.Match(`([%s] - .spec.config.integrations.frameworks) | length == 0`, expectedFrameworks),
 		)),
-		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
+		WithEventuallyTimeout(tc.TestTimeouts.defaultEventuallyTimeout),
+		WithCustomErrorMsg(
+			"KueueConfig %q is missing one or more expected integration frameworks", kueue.KueueCRName),
 	)
 
 	t.Logf("Verifying default ClusterQueue and LocalQueue resources are created in namespace %s.", managedNS)
