@@ -10,7 +10,6 @@ require (
 	github.com/k8s-manifest-kit/renderer-helm v0.4.0
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.42.1
-	github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a
 	github.com/opendatahub-io/odh-platform-utilities v0.4.0
 	github.com/opendatahub-io/odh-platform-utilities/framework v0.0.0-20261012121829-3163630a4c27
 	github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth v0.0.0
