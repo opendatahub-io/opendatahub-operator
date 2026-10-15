@@ -158,14 +158,21 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}),
 		WithCondition(And(
 			// Validate management states of NIM and serving components.
-			jq.Match(`.spec.nim.managementState == "%s"`, nimState),
-			// Validate modelRegistry state is injected from DSC (AIHub).
-			jq.Match(`.spec.modelRegistry.managementState == "%s"`, modelRegistryState),
-		)),
-		WithCustomErrorMsg(
-			"Kserve CR spec mismatch: expected .spec.nim.managementState=%q, "+
-				".spec.modelRegistry.managementState=%q (snapshotted from DSC)",
-			nimState, modelRegistryState),
+			jq.Match(`.spec.nim.managementState == "%s"`, dsc.Spec.Components.Kserve.NIM.ManagementState),
+			// WVA is deprecated and must not be enabled. The Kserve API may still
+			// default the preserved compatibility field to Removed.
+			jq.Match(`(.spec.wva.managementState // "Removed") == "Removed"`),
+			// Validate ModelRegistry state is injected from DSC
+			// Validate AIHub state is injected from DSC
+			jq.Match(`.spec.modelRegistry.managementState == "%s"`,
+				func() string {
+					if dsc.Spec.Components.AIHub.ManagementState == "" {
+						return "Removed"
+					}
+					return string(dsc.Spec.Components.AIHub.ManagementState)
+				}()),
+		),
+		),
 	)
 }
 

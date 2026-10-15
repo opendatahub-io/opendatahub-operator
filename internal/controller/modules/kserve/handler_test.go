@@ -158,7 +158,6 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g.Expect(ok).Should(BeTrue(), "spec.nim missing")
 	g.Expect(nim["managementState"]).Should(Equal("Managed"))
 	g.Expect(nim["airGapped"]).Should(BeTrue())
-
 	g.Expect(spec).ShouldNot(HaveKey("wva"))
 
 	mr, ok := spec["modelRegistry"].(map[string]any)
@@ -188,7 +187,6 @@ func TestGetRelatedImages(t *testing.T) {
 	g.Expect(images).Should(ContainElements(
 		"RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
 		"RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
-		"RELATED_IMAGE_ODH_WORKLOAD_VARIANT_AUTOSCALER_CONTROLLER_IMAGE",
 		"RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE",
 		"RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_IMAGE",
 	))

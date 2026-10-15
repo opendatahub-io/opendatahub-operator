@@ -594,6 +594,10 @@ metadata:
 spec: {}
 ```
 
+**WVA compatibility note:**
+
+The `spec.wva` field is deprecated and preserved only for backward compatibility. Workload Variant Autoscaler (WVA) is no longer supported, and the operator treats WVA as removed regardless of whether an existing resource previously set it to `Managed`.
+
 ### Test with customized manifests
 
 There are 2 ways to test your changes with modification:
@@ -703,8 +707,6 @@ spec:
       managementState: Managed
       nim:
         managementState: Managed
-      wva:
-        managementState: Removed
       rawDeploymentServiceConfig: Headed
     kueue:
       managementState: Removed
