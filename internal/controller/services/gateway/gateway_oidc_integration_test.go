@@ -169,7 +169,7 @@ func oidcSpecWithIssuerURL(issuerURL string) serviceApi.GatewayConfigSpec {
 // forwards it downstream).
 func oidcSpecWithScopeAndPassAccessToken() serviceApi.GatewayConfigSpec {
 	spec := getOIDCGatewayConfigSpec()
-	spec.OIDC.Scope = "openid profile email 6dae42f8-4368-4678-94ff-3960e28e3630/.default"
+	spec.OIDC.Scope = "openid 6dae42f8-4368-4678-94ff-3960e28e3630/.default"
 	spec.OIDC.PassAccessToken = true
 	return spec
 }
@@ -348,7 +348,7 @@ func TestOIDCDeploymentWithScopeAndPassAccessToken(t *testing.T) {
 		[]string{
 			"--provider=oidc",
 			fmt.Sprintf("--oidc-issuer-url=%s", OIDCIssuerURL),
-			"--scope=openid profile email 6dae42f8-4368-4678-94ff-3960e28e3630/.default",
+			"--scope=openid 6dae42f8-4368-4678-94ff-3960e28e3630/.default",
 			"--pass-access-token=true",
 		},
 		nil)

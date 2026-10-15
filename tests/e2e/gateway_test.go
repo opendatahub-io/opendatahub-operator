@@ -2380,7 +2380,7 @@ func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
 // ValidateOIDCScopeAndPassAccessTokenDeployment validates that setting
 // GatewayConfig.spec.oidc.scope and .passAccessToken adds the corresponding
 // --scope/--pass-access-token=true args to the kube-auth-proxy Deployment,
-// and that restoring the original config removes them again.
+// and that restoring the original config restores its arguments.
 func (tc *GatewayTestCtx) ValidateOIDCScopeAndPassAccessTokenDeployment(t *testing.T) {
 	t.Helper()
 
@@ -2388,7 +2388,7 @@ func (tc *GatewayTestCtx) ValidateOIDCScopeAndPassAccessTokenDeployment(t *testi
 	tc.SkipUnlessBYOIDC(t)
 	t.Log("Validating kube-auth-proxy deployment args for OIDC scope/passAccessToken")
 
-	const testScope = "openid profile email aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/.default"
+	const testScope = "openid aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/.default"
 
 	g := NewWithT(t)
 	ctx := tc.Context()
@@ -2415,8 +2415,13 @@ func (tc *GatewayTestCtx) ValidateOIDCScopeAndPassAccessTokenDeployment(t *testi
 		tc.EnsureResourceExists(
 			WithMinimalObject(gvk.Deployment, types.NamespacedName{Name: kubeAuthProxyName, Namespace: tc.gatewayNamespace()}),
 			WithCondition(And(
-				jq.Match(`.spec.template.spec.containers[0].args | all(. != "--scope=%s")`, testScope),
-				jq.Match(`.spec.template.spec.containers[0].args | all(. != "--pass-access-token=true")`),
+				jq.Match(`.spec.template.spec.containers[0].args | any(. == "--scope=%s") == %t`, originalScope, originalScope != ""),
+				jq.Match(`.spec.template.spec.containers[0].args | any(. == "--scope=%s") == %t`, testScope, originalScope == testScope),
+				jq.Match(`.spec.template.spec.containers[0].args | any(. == "--pass-access-token=true") == %t`, originalPassAccessToken),
+				jq.Match(`.status.observedGeneration == .metadata.generation`),
+				jq.Match(`.status.updatedReplicas == .spec.replicas`),
+				jq.Match(`.status.readyReplicas == .spec.replicas`),
+				jq.Match(`.status.availableReplicas == .spec.replicas`),
 			)),
 			WithEventuallyTimeout(tc.TestTimeouts.authGatewayTimeout),
 			WithCustomErrorMsg("kube-auth-proxy deployment should revert after restoring original OIDC scope/passAccessToken"),
