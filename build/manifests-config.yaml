@@ -368,13 +368,13 @@ additional_meta:
     git.commit: 9334cc79db540dd5881db94b66d3fe0a566d2fae
   odh-workbench-jupyter-pytorch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 9334cc79db540dd5881db94b66d3fe0a566d2fae
+    git.commit: 634a025977789a0812f28823441f9694169cce0a
   odh-workbench-jupyter-tensorflow-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 634a025977789a0812f28823441f9694169cce0a
   odh-workbench-jupyter-tensorflow-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 9334cc79db540dd5881db94b66d3fe0a566d2fae
+    git.commit: 634a025977789a0812f28823441f9694169cce0a
   odh-workbench-jupyter-trustyai-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 634a025977789a0812f28823441f9694169cce0a
