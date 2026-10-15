@@ -399,6 +399,12 @@ type OIDCConfig struct {
 	// GatewayConfig behavior.
 	// +optional
 	PassAccessToken bool `json:"passAccessToken,omitempty"`
+
+	// SkipClaimsFromProfileURL disables querying the IdP profile/userinfo URL for missing claims.
+	// Set to true when the access token is scoped to an external resource (e.g. AKS)
+	// rather than the IdP's userinfo endpoint.
+	// +optional
+	SkipClaimsFromProfileURL *bool `json:"skipClaimsFromProfileURL,omitempty"`
 }
 
 // CookieConfig defines cookie settings for OAuth2 proxy

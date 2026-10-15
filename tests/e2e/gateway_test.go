@@ -2378,7 +2378,7 @@ func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
 }
 
 // ValidateOIDCScopeAndPassAccessTokenDeployment validates that setting
-// GatewayConfig.spec.oidc.scope and .passAccessToken adds the corresponding 
+// GatewayConfig.spec.oidc.scope and .passAccessToken adds the corresponding
 // --scope/--pass-access-token=true args to the kube-auth-proxy Deployment,
 // and that restoring the original config removes them again.
 func (tc *GatewayTestCtx) ValidateOIDCScopeAndPassAccessTokenDeployment(t *testing.T) {

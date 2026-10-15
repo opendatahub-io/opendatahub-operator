@@ -322,7 +322,17 @@ func TestOIDCServiceCreation(t *testing.T) {
 func TestOIDCDeploymentWithAllArgs(t *testing.T) {
 	RunDeploymentWithAllArgsTest(t, GetOIDCTestSetup(), DefaultGatewayHost(OIDCClusterDomain),
 		[]string{"--provider=oidc", fmt.Sprintf("--oidc-issuer-url=%s", OIDCIssuerURL), "--skip-oidc-discovery=false", "--ssl-insecure-skip-verify=false", "--pass-authorization-header=true", "--set-authorization-header=true"},
-		[]string{"--provider=openshift", "--scope=user:full", "--pass-access-token=true"})
+		[]string{"--provider=openshift", "--scope=user:full", "--pass-access-token=true", "--skip-claims-from-profile-url=true"})
+}
+
+func TestOIDCDeploymentWithSkipClaimsFromProfileURL(t *testing.T) {
+	spec := getOIDCGatewayConfigSpec()
+	skip := true
+	spec.OIDC.SkipClaimsFromProfileURL = &skip
+	RunDeploymentWithAllArgsTest(t, TestSetup{
+		TC: OIDCTestEnv, Spec: spec, SetupFunc: ensureOIDCClientSecret,
+	}, DefaultGatewayHost(OIDCClusterDomain),
+		[]string{"--skip-claims-from-profile-url=true"}, nil)
 }
 
 // TestOIDCDeploymentWithScopeAndPassAccessToken validates that --scope and --pass-access-token=true

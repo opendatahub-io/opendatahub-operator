@@ -664,12 +664,16 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	// forwarding only the ID token.
 	templateData["OIDCScope"] = ""
 	templateData["OIDCPassAccessToken"] = false
+	templateData["SkipClaimsFromProfileURL"] = false
 
 	// Add OIDC-specific fields only if OIDC config is present
 	if gatewayConfig.Spec.OIDC != nil {
 		templateData["OIDCIssuerURL"] = gatewayConfig.Spec.OIDC.IssuerURL
 		templateData["OIDCScope"] = gatewayConfig.Spec.OIDC.Scope
 		templateData["OIDCPassAccessToken"] = gatewayConfig.Spec.OIDC.PassAccessToken
+		if gatewayConfig.Spec.OIDC.SkipClaimsFromProfileURL != nil {
+			templateData["SkipClaimsFromProfileURL"] = *gatewayConfig.Spec.OIDC.SkipClaimsFromProfileURL
+		}
 	}
 
 	// Add provider CA certificate configuration if specified
