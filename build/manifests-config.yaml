@@ -35,7 +35,7 @@ map:
     dest: dashboard-operator
     type: chart
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 4d6753d923c78577dc721ed2294a310664eef720
+    git.commit: 46beba01e6d333d7f2cc3087e74ba8b3323a8889
   odh-training-operator:
     src: manifests
     dest: trainingoperator
@@ -98,7 +98,7 @@ additional_meta:
     git.commit: 4d6753d923c78577dc721ed2294a310664eef720
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 4d6753d923c78577dc721ed2294a310664eef720
+    git.commit: 46beba01e6d333d7f2cc3087e74ba8b3323a8889
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: 2ce1702796f676546d4f2b535eecaa8e6d35da88
@@ -239,7 +239,7 @@ additional_meta:
     git.commit: 4d6753d923c78577dc721ed2294a310664eef720
   odh-mod-arch-automl:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 4d6753d923c78577dc721ed2294a310664eef720
+    git.commit: 46beba01e6d333d7f2cc3087e74ba8b3323a8889
   odh-mod-arch-autorag:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 4d6753d923c78577dc721ed2294a310664eef720
@@ -353,13 +353,13 @@ additional_meta:
     git.commit: 470fd97e2dbc6334bcc13965dec886c6eaa8003a
   odh-workbench-jupyter-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 3319d27e0c5b535a01bc5a53c78192f73b269ce3
+    git.commit: ab5f6aa93b3a8bc5071edde285c42f531c6f5aec
   odh-workbench-jupyter-minimal-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: ab5f6aa93b3a8bc5071edde285c42f531c6f5aec
   odh-workbench-jupyter-minimal-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 3319d27e0c5b535a01bc5a53c78192f73b269ce3
+    git.commit: ab5f6aa93b3a8bc5071edde285c42f531c6f5aec
   odh-workbench-jupyter-pytorch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 470fd97e2dbc6334bcc13965dec886c6eaa8003a
