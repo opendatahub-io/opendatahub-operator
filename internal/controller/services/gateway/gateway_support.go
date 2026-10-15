@@ -857,7 +857,7 @@ func getAuthProxySecretValues(
 		if secretValue, exists := externalSecret.Data[key]; exists && len(secretValue) != 0 {
 			clientSecretValue = string(secretValue)
 		} else {
-			return "", "", "", fmt.Errorf("key '%s' not found in OIDC secret %s/%s", key, secretNamespace, oidcConfig.ClientSecretRef.Name)
+			return "", "", "", fmt.Errorf("key '%s' is missing or empty in OIDC secret %s/%s", key, secretNamespace, oidcConfig.ClientSecretRef.Name)
 		}
 
 	case cluster.AuthModeIntegratedOAuth:

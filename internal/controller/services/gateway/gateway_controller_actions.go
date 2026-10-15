@@ -267,7 +267,7 @@ func prepareAuthProxy(
 	if rr.Extensions == nil {
 		rr.Extensions = make(map[string]any)
 	}
-	rr.Extensions[authConfigHashKey] = calculateAuthConfigHash(authSecret)
+	rr.Extensions[target.extensionsKey()] = calculateAuthConfigHash(authSecret)
 
 	// For IntegratedOAuth mode, create OAuth client after secret is created
 	if authMode == cluster.AuthModeIntegratedOAuth {
@@ -434,10 +434,11 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	// Calculate auth config hash for triggering pod restarts on secret changes
-	authConfigHash, prepared := rr.Extensions[authConfigHashKey].(string)
+	target := defaultAuthProxyTarget(hostname, gatewayConfig)
+	authConfigHash, prepared := rr.Extensions[target.extensionsKey()].(string)
 	if !prepared {
 		authSecret := &corev1.Secret{}
-		if err := rr.Client.Get(ctx, types.NamespacedName{Name: KubeAuthProxySecretsName, Namespace: GetGatewayNamespace()}, authSecret); err != nil && !k8serr.IsNotFound(err) {
+		if err := rr.Client.Get(ctx, types.NamespacedName{Name: target.SecretName, Namespace: GetGatewayNamespace()}, authSecret); err != nil && !k8serr.IsNotFound(err) {
 			return nil, fmt.Errorf("failed to get auth proxy secret: %w", err)
 		}
 		if authSecret.Name != "" {

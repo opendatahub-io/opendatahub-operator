@@ -2,7 +2,7 @@ package gateway
 
 import serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 
-const authConfigHashKey = "gateway.opendatahub.io/auth-config-hash"
+const authConfigHashKeyPrefix = "gateway.opendatahub.io/auth-config-hash"
 
 type authProxyTarget struct {
 	Hostname   string
@@ -11,6 +11,10 @@ type authProxyTarget struct {
 	TLSName    string
 	ClientID   string
 	OIDC       *serviceApi.OIDCConfig
+}
+
+func (t authProxyTarget) extensionsKey() string {
+	return authConfigHashKeyPrefix + "/" + t.SecretName
 }
 
 func defaultAuthProxyTarget(hostname string, config *serviceApi.GatewayConfig) authProxyTarget {

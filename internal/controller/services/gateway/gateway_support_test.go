@@ -1257,6 +1257,74 @@ func TestOAuthClientUsesPreparedCredentials(t *testing.T) {
 	g.Expect(rr.Resources[0].Object["secret"]).To(Equal("rotated"))
 }
 
+func TestPreparedAuthHashesRemainIndependentPerTarget(t *testing.T) {
+	g := NewWithT(t)
+	original := cluster.GetClusterInfo()
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+	t.Cleanup(func() { cluster.SetClusterInfo(original) })
+	config := &serviceApi.GatewayConfig{ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		Spec: serviceApi.GatewayConfigSpec{Domain: testDomain}}
+	defaultTarget := defaultAuthProxyTarget(testHostnameDefault, config)
+	secondTarget := defaultTarget
+	secondTarget.Hostname, secondTarget.ProxyName, secondTarget.SecretName = "second.example.com", "second-proxy", "second-creds"
+	secondTarget.ClientID = "second-client"
+	cli := newGatewayTestClient(t, config,
+		&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: defaultTarget.SecretName, Namespace: GetGatewayNamespace()},
+			Data: map[string][]byte{EnvClientSecret: []byte("first-secret"), EnvCookieSecret: []byte("first-cookie")}},
+		&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: secondTarget.SecretName, Namespace: GetGatewayNamespace()},
+			Data: map[string][]byte{EnvClientSecret: []byte("second-secret"), EnvCookieSecret: []byte("second-cookie")}})
+	rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: config, Conditions: conditionstest.NewManager(config, ReadyConditionType)}
+	g.Expect(prepareAuthProxy(t.Context(), rr, config, defaultTarget, cluster.AuthModeIntegratedOAuth, kubeAuthProxyDeploymentOauthTemplate)).To(Succeed())
+	defaultKey := "gateway.opendatahub.io/auth-config-hash/" + KubeAuthProxySecretsName
+	defaultHash := rr.Extensions[defaultKey]
+	g.Expect(defaultHash).NotTo(BeNil())
+	g.Expect(prepareAuthProxy(t.Context(), rr, config, secondTarget, cluster.AuthModeIntegratedOAuth, kubeAuthProxyDeploymentOauthTemplate)).To(Succeed())
+	g.Expect(rr.Extensions[defaultKey]).To(Equal(defaultHash))
+	g.Expect(rr.Extensions["gateway.opendatahub.io/auth-config-hash/second-creds"]).NotTo(BeNil())
+	g.Expect(rr.Extensions["gateway.opendatahub.io/auth-config-hash/second-creds"]).NotTo(Equal(defaultHash))
+	data, err := getTemplateData(t.Context(), rr)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(data["AuthConfigHash"]).To(Equal(defaultHash), "a second target must not replace the default deployment's rollout hash")
+}
+
+func TestDefaultAuthHashFallsBackToStoredSecret(t *testing.T) {
+	for _, present := range []bool{true, false} {
+		t.Run(map[bool]string{true: "stored Secret", false: "Secret absent"}[present], func(t *testing.T) {
+			g := NewWithT(t)
+			config := &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{Domain: testDomain}}
+			objects := []client.Object{config}
+			if present {
+				objects = append(objects, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: KubeAuthProxySecretsName, Namespace: GetGatewayNamespace()},
+					Data: map[string][]byte{EnvClientID: []byte("client"), EnvClientSecret: []byte("rotated"), EnvCookieSecret: []byte("persistent-cookie-key")}})
+			}
+			rr := &odhtypes.ReconciliationRequest{Client: newGatewayTestClient(t, objects...), Instance: config}
+			data, err := getTemplateData(t.Context(), rr)
+			g.Expect(err).NotTo(HaveOccurred())
+			if present {
+				g.Expect(data["AuthConfigHash"]).To(Equal("529d6b32cb1cd764f83fb4fd4c3819452294115ada45afd668560d7e816cb5ef"))
+			} else {
+				g.Expect(data["AuthConfigHash"]).To(Equal(""))
+			}
+		})
+	}
+}
+
+func TestOIDCClientSecretRejectsMissingOrEmptyKey(t *testing.T) {
+	for _, data := range []map[string][]byte{{}, {"credentials": {}}} {
+		t.Run(map[bool]string{true: "empty", false: "missing"}[data["credentials"] != nil], func(t *testing.T) {
+			g := NewWithT(t)
+			config := &serviceApi.OIDCConfig{ClientID: "client", SecretNamespace: "identity",
+				ClientSecretRef: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "source"}, Key: "credentials"}}
+			rr := &odhtypes.ReconciliationRequest{Client: newGatewayTestClient(t,
+				&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "source", Namespace: "identity"}, Data: data})}
+			id, secret, cookie, err := getAuthProxySecretValues(t.Context(), rr, cluster.AuthModeOIDC, config,
+				defaultAuthProxyTarget("", &serviceApi.GatewayConfig{}))
+			g.Expect(err).To(MatchError("key 'credentials' is missing or empty in OIDC secret identity/source"))
+			g.Expect([]string{id, secret, cookie}).To(Equal([]string{"", "", ""}))
+		})
+	}
+}
+
 func TestPreparedOIDCCredentialsAreWrittenWithoutBeingRedeployed(t *testing.T) {
 	g := NewWithT(t)
 	original := cluster.GetClusterInfo()
