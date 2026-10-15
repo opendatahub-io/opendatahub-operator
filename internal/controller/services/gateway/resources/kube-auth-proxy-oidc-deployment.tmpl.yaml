@@ -127,6 +127,9 @@ spec:
             {{- if .OIDCPassAccessToken }}
             - "--pass-access-token=true"
             {{- end }}
+            {{- if .SkipClaimsFromProfileURL }}
+            - "--skip-claims-from-profile-url=true"
+            {{- end }}
             {{- if .TokenReviewQPS }}
             - "--kube-api-qps={{.TokenReviewQPS}}"
             {{- end }}
