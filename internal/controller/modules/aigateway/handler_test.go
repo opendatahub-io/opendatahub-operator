@@ -193,14 +193,10 @@ func TestCanonicalModelsAsAService(t *testing.T) {
 					g.Expect(subs[2].StatusFieldName).Should(Equal("AIGrid"))
 					g.Expect(subs[2].IsEnabled(dscCtx)).Should(BeTrue())
 
-					u, err := h.BuildModuleCR(t.Context(), nil, dscCtx, nil)
-					g.Expect(err).ShouldNot(HaveOccurred())
-					g.Expect(u.Object["spec"]).Should(Equal(map[string]any{
-						"modelsAsAService": tc.spec,
-						"batchGateway":     map[string]any{"managementState": "Managed"},
-						"aiGrid":           map[string]any{"managementState": "Managed"},
-					}))
-					g.Expect(dsc).Should(Equal(before), "projection must not mutate the DSC")
+					// The projection itself is covered by
+					// TestBuildModuleCRProjection in handler_projection_test.go;
+					// these operations must not mutate the DSC either.
+					g.Expect(dsc).Should(Equal(before), "platform-module population must not mutate the DSC")
 				})
 			}
 		}
@@ -214,22 +210,6 @@ func TestSubmoduleIsEnabled_NilDSC(t *testing.T) {
 		g.Expect(sub.IsEnabled(nil)).Should(BeFalse())
 		g.Expect(sub.IsEnabled(&modules.DSCContext{})).Should(BeFalse())
 	}
-}
-
-func TestBuildModuleCR_BasicProjection(t *testing.T) {
-	g := NewWithT(t)
-	h := aigateway.NewHandler()
-	dsc := newDSC(operatorv1.Managed)
-
-	u, err := h.BuildModuleCR(t.Context(), nil, &modules.DSCContext{DSC: dsc}, nil)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(u.GetName()).Should(Equal(componentApi.AIGatewayInstanceName))
-	g.Expect(u.GetKind()).Should(Equal(componentApi.AIGatewayKind))
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec).ShouldNot(HaveKey("managementState"),
-		"managementState is a DSC-level field and must not be projected into the component CR")
 }
 
 func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {

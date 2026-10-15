@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -25,15 +23,13 @@ func newPlatformModules(mgmtState operatorv1.ManagementState) *configApi.Platfor
 	}
 }
 
-func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
-	return &modules.DSCContext{
-		DSC: &dscApi.DataScienceCluster{
-			Spec: dscApi.DataScienceClusterSpec{
-				Components: dscApi.Components{
-					Kserve: componentApi.DSCKserve{
-						ManagementSpec: common.ManagementSpec{
-							ManagementState: mgmtState,
-						},
+func newDSC(mgmtState operatorv1.ManagementState) *dscApi.DataScienceCluster {
+	return &dscApi.DataScienceCluster{
+		Spec: dscApi.DataScienceClusterSpec{
+			Components: dscApi.Components{
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: mgmtState,
 					},
 				},
 			},
@@ -103,80 +99,6 @@ func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 
 	_, err := h.BuildModuleCR(t.Context(), nil, dscCtx, nil)
 	g.Expect(err).Should(HaveOccurred())
-}
-
-func TestBuildModuleCR_BasicProjection(t *testing.T) {
-	g := NewWithT(t)
-	h := kserve.NewHandler()
-	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.Kserve.KserveCommonSpec = componentApi.KserveCommonSpec{
-		RawDeploymentServiceConfig: componentApi.KserveRawHeaded,
-		NIM: componentApi.NimSpec{
-			ManagementState: operatorv1.Managed,
-			AirGapped:       true,
-		},
-		OAuthProxy: &componentApi.OAuthProxyConfig{
-			Resources: &componentApi.OAuthProxyResourceRequirements{
-				Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")},
-			},
-		},
-		EnableLLMInferenceServiceTLS:               new(false),
-		EnableLLMInferenceServiceConsoleDashboards: new(true),
-		ModelCache: &componentApi.ModelCacheSpec{
-			ManagementState: operatorv1.Managed,
-			CacheSize:       new(resource.MustParse("100Gi")),
-			NodeNames:       []string{"worker-0"},
-		},
-	}
-	dscCtx.DSC.Spec.Components.AIGateway.ModelsAsAService = componentApi.DSCModelsAsServiceSpec{
-		ManagementState: operatorv1.Managed,
-	}
-
-	u, err := h.BuildModuleCR(t.Context(), nil, dscCtx, nil)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(u.GetName()).Should(Equal(componentApi.KserveInstanceName))
-	g.Expect(u.GetKind()).Should(Equal(componentApi.KserveKind))
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec).ShouldNot(HaveKey("managementState"))
-	g.Expect(spec).ShouldNot(HaveKey("modelsAsService"))
-	g.Expect(spec).ShouldNot(HaveKey("modelsAsAService"))
-	g.Expect(spec["rawDeploymentServiceConfig"]).Should(Equal("Headed"))
-	g.Expect(spec["oauthProxy"]).Should(Equal(map[string]any{
-		"resources": map[string]any{"requests": map[string]any{"cpu": "100m"}},
-	}))
-	g.Expect(spec["enableLLMInferenceServiceTLS"]).Should(BeFalse())
-	g.Expect(spec["enableLLMInferenceServiceConsoleDashboards"]).Should(BeTrue())
-	g.Expect(spec["modelCache"]).Should(Equal(map[string]any{
-		"managementState": "Managed",
-		"cacheSize":       "100Gi",
-		"nodeNames":       []any{"worker-0"},
-	}))
-
-	nim, ok := spec["nim"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec.nim missing")
-	g.Expect(nim["managementState"]).Should(Equal("Managed"))
-	g.Expect(nim["airGapped"]).Should(BeTrue())
-	g.Expect(spec).ShouldNot(HaveKey("wva"))
-
-	mr, ok := spec["modelRegistry"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec.modelRegistry missing")
-	g.Expect(mr["managementState"]).Should(Equal("Removed"))
-}
-
-func TestBuildModuleCR_HeadedRawServiceConfig(t *testing.T) {
-	g := NewWithT(t)
-	h := kserve.NewHandler()
-	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.Kserve.RawDeploymentServiceConfig = componentApi.KserveRawHeaded
-
-	u, err := h.BuildModuleCR(t.Context(), nil, dscCtx, nil)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue())
-	g.Expect(spec["rawDeploymentServiceConfig"]).Should(Equal("Headed"))
 }
 
 func TestGetRelatedImages(t *testing.T) {

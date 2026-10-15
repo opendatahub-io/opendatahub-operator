@@ -20,13 +20,13 @@ import (
 
 const testAppsNS = "opendatahub"
 
-func newDSCContext(mgmtState operatorv1.ManagementState) *modules.DSCContext {
+func newDSC(mgmtState operatorv1.ManagementState) *dscApi.DataScienceCluster {
 	dsc := &dscApi.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
 	}
 	dsc.Spec.Components.SparkOperator.ManagementState = mgmtState
 
-	return &modules.DSCContext{DSC: dsc}
+	return dsc
 }
 
 func newModuleCRConfig() *modules.ModuleCRConfig {
@@ -73,7 +73,7 @@ func TestPopulatePlatformModule(t *testing.T) {
 	h := sparkoperator.NewHandler()
 
 	pm := &configApi.PlatformModules{}
-	h.PopulatePlatformModule(pm, newDSCContext(operatorv1.Managed))
+	h.PopulatePlatformModule(pm, &modules.DSCContext{DSC: newDSC(operatorv1.Managed)})
 
 	g.Expect(pm.SparkOperator.ManagementState).Should(Equal(operatorv1.Managed))
 }
@@ -84,21 +84,6 @@ func TestPopulatePlatformModule_NilSafe(t *testing.T) {
 	h.PopulatePlatformModule(nil, nil)
 	h.PopulatePlatformModule(&configApi.PlatformModules{}, nil)
 	h.PopulatePlatformModule(&configApi.PlatformModules{}, &modules.DSCContext{})
-}
-
-func TestBuildModuleCR_BasicProjection(t *testing.T) {
-	g := NewWithT(t)
-	h := sparkoperator.NewHandler()
-
-	u, err := h.BuildModuleCR(context.Background(), nil, newDSCContext(operatorv1.Managed), newModuleCRConfig())
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(u.GetName()).Should(Equal(componentApi.SparkOperatorInstanceName))
-	g.Expect(u.GetKind()).Should(Equal(componentApi.SparkOperatorKind))
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec).ShouldNot(HaveKey("managementState"),
-		"managementState is a DSC-level field and must not be projected into the component CR")
 }
 
 func TestBuildModuleCR_NilDSCContextReturnsError(t *testing.T) {
