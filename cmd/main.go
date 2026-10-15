@@ -25,6 +25,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	frameworkmanager "github.com/opendatahub-io/odh-platform-utilities/framework/manager"
 	tlspkg "github.com/opendatahub-io/odh-platform-utilities/framework/tls"
@@ -412,7 +413,12 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	addCacheIfAvailable(setupClient, cacheOptions.ByObject, &promv1.ServiceMonitor{}, gvk.ServiceMonitor, cache.ByObject{Namespaces: oDHCache})
 
 	// Fetch the cluster TLS security profile for webhook and metrics servers
-	tlsOpts, tlsProfile, tlsAdherence, hasOpenShiftConfigAPI, err := fetchTLSProfile(ctx, scheme, oconfig.RestConfig)
+	// Bound the read: a deadline is transient-classified, so a nonresponding
+	// API server falls back to hardened defaults with watcher recovery instead
+	// of hanging startup.
+	loadCtx, loadCancel := context.WithTimeout(ctx, 10*time.Second)
+	tlsOpts, tlsProfile, tlsAdherence, hasOpenShiftConfigAPI, err := fetchTLSProfile(loadCtx, scheme, oconfig.RestConfig)
+	loadCancel()
 	if err != nil {
 		setupLog.Error(err, "unable to establish manager TLS configuration")
 		os.Exit(1)
@@ -668,7 +674,11 @@ func addCacheIfAvailable(cli client.Client, byObject map[client.Object]cache.ByO
 }
 
 func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.Config) ([]func(*tls.Config), configv1.TLSProfileSpec, configv1.TLSAdherencePolicy, bool, error) {
-	bootstrapClient, err := client.New(restCfg, client.Options{Scheme: scheme})
+	// Bound the bootstrap client's requests, including REST mapper discovery,
+	// which the caller's context does not cover.
+	bootstrapCfg := rest.CopyConfig(restCfg)
+	bootstrapCfg.Timeout = 10 * time.Second
+	bootstrapClient, err := client.New(bootstrapCfg, client.Options{Scheme: scheme})
 	if err != nil {
 		// Refuse to start: the TLS posture cannot be determined and the same
 		// rest.Config would fail manager construction anyway.

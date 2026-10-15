@@ -86,13 +86,14 @@ func TestBuildManagerTLSOpts(t *testing.T) {
 			wantCiphers: true,
 		},
 		{
-			name: "strict rejects unsupported version",
+			name: "strict honors the Old profile minimum",
 			profile: configv1.TLSProfileSpec{
 				MinTLSVersion: configv1.VersionTLS10,
 				Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
 			},
-			adherence: configv1.TLSAdherencePolicyStrictAllComponents,
-			wantError: true,
+			adherence:   configv1.TLSAdherencePolicyStrictAllComponents,
+			wantMin:     tls.VersionTLS10,
+			wantCiphers: true,
 		},
 		{
 			name: "strict rejects all unsupported ciphers",
