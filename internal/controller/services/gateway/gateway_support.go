@@ -767,7 +767,7 @@ func getKubeAuthProxyImage() string {
 	// This build must support the TLS startup flags the gateway emits (--tls-min-version,
 	// --tls-cipher-suite and --tls-curve-preferences); it matches the ODH e2e image in
 	// manifests-config.yaml so the fallback stays compatible with the rendered proxy args.
-	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:d90930380151490d5516eeb95840eecc743e9005fc02733dec6fe79e1a00e035" // latest as of 2026-09-17
+	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:e0c749a29554d7c53d9a01afa4dbcc204dc141ce8466b5977ab4cd2ed30242a9" // latest as of 2026-10-14
 }
 
 // getDashboardRedirectImage returns the nginx image for dashboard redirects.

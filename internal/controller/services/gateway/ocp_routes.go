@@ -27,15 +27,19 @@ import (
 	"context"
 	"fmt"
 	gotemplate "text/template"
+	"time"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	templateutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/template"
 )
@@ -43,6 +47,38 @@ import (
 const (
 	serviceCAAnnotation = "router.openshift.io/service-ca-certificate"
 )
+
+// resolveOCPRouteServerTimeout preserves explicit overrides and otherwise applies
+// a 60s minimum based on the default IngressController. Automatic values are only
+// rendered onto the shared Route, so later router changes can restore inheritance.
+func resolveOCPRouteServerTimeout(ctx context.Context, cli client.Client, config *serviceApi.GatewayConfig) (string, error) {
+	if config.Spec.IngressMode != serviceApi.IngressModeOcpRoute {
+		return "", nil
+	}
+	if config.Spec.OCPRoute != nil && config.Spec.OCPRoute.ServerTimeout != "" {
+		return config.Spec.OCPRoute.ServerTimeout, nil
+	}
+
+	ingress := &operatorv1.IngressController{}
+	err := cli.Get(ctx, cluster.IngressControllerName, ingress)
+	switch {
+	case k8serr.IsNotFound(err), meta.IsNoMatchError(err):
+		logf.FromContext(ctx).V(1).Info("Default IngressController unavailable; leaving Route timeout unset")
+		return "", nil
+	case err != nil:
+		return "", fmt.Errorf("failed to read default IngressController server timeout: %w", err)
+	}
+
+	// OpenShift uses 30s when serverTimeout is unset or non-positive.
+	serverTimeout := 30 * time.Second
+	if configured := ingress.Spec.TuningOptions.ServerTimeout; configured != nil && configured.Duration > 0 {
+		serverTimeout = configured.Duration
+	}
+	if serverTimeout < time.Minute {
+		return "60s", nil
+	}
+	return "", nil
+}
 
 // createOCPRoutes adds OCP Route template when in OcpRoute mode.
 func createOCPRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -165,6 +201,7 @@ func buildAdditionalIngressRoute(ingress serviceApi.AdditionalIngress) (*routev1
 		"GatewayServiceName": GetGatewayServiceFullName(ingress.Name),
 		"StandardHTTPSPort":  StandardHTTPSPort,
 		"RouteLabels":        gatewayRouteLabels(ingress.RouteLabels),
+		"RouteServerTimeout": "",
 	}
 
 	content, err := gatewayResources.ReadFile(ocpRouteTemplate)

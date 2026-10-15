@@ -594,6 +594,10 @@ metadata:
 spec: {}
 ```
 
+**WVA compatibility note:**
+
+The `spec.wva` field is deprecated and preserved only for backward compatibility. Workload Variant Autoscaler (WVA) is no longer supported, and the operator treats WVA as removed regardless of whether an existing resource previously set it to `Managed`.
+
 ### Test with customized manifests
 
 There are 2 ways to test your changes with modification:
@@ -703,8 +707,6 @@ spec:
       managementState: Managed
       nim:
         managementState: Managed
-      wva:
-        managementState: Removed
       rawDeploymentServiceConfig: Headed
     kueue:
       managementState: Removed
@@ -770,6 +772,8 @@ spec:
 The GatewayConfig custom resource is used to configure gateway settings for OpenDataHub, including OIDC authentication and ingress gateway configuration. This CR is cluster-scoped and must be named `default-gateway`.
 
 **Automatic Creation**: The GatewayConfig CR is automatically created when a DSCInitialization CR is applied to the cluster. Users typically don't need to create this CR manually unless they want to configure OIDC authentication mode or customize ingress gateway settings.
+
+In `OcpRoute` mode, the operator applies a `60s` timeout to the default shared Gateway Route when the default IngressController's server timeout is shorter. Administrators can override this through `spec.ocpRoute.serverTimeout`. See [Configure the shared Gateway Route timeout](docs/gateway-route-timeouts.md) for examples and how this setting interacts with component HTTPRoute timeouts.
 
 Here's an example of the default GatewayConfig CR (automatically created):
 
