@@ -327,8 +327,13 @@ GOLANGCI_LINT_TIMEOUT ?= 5m0s
 # Keep linting opt-in to source roots so fork-local prefetched artifacts are never loaded.
 GOLANGCI_LINT_PACKAGES ?= ./api/... ./cmd/... ./hack/... ./internal/... ./pkg/... ./tests/...
 .PHONY: lint
-lint: golangci-lint ## Run golangci-lint against code.
+lint: golangci-lint lint-logs ## Run golangci-lint and structured-log analyzer tests.
 	$(GOLANGCI_LINT) run --timeout=$(GOLANGCI_LINT_TIMEOUT) $(GOLANGCI_LINT_PACKAGES)
+
+.PHONY: lint-logs
+lint-logs: ## Run structured log convention analyzer tests and the analyzer itself.
+	go test ./cmd/loglint/...
+	go run ./cmd/loglint ./...
 
 .PHONY: lint-fix
 lint-fix: golangci-lint ## Run golangci-lint against code.

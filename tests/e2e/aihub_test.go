@@ -71,6 +71,8 @@ func aihubTestSuite(t *testing.T) {
 				WithMinimalObject(moduleGVK, moduleCRNN),
 				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 				WithCondition(And(
+					jq.Match(`.spec.applicationNamespace == "%s"`, tc.AppsNamespace),
+					jq.Match(`.spec.instancesNamespace == "%s"`, aihubTestNamespace),
 					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
 				)),
@@ -151,6 +153,7 @@ func aihubTestSuite(t *testing.T) {
 				WithMinimalObject(moduleGVK, moduleCRNN),
 				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 				WithCondition(And(
+					jq.Match(`.spec.applicationNamespace == "%s"`, tc.AppsNamespace),
 					jq.Match(`.spec.instancesNamespace == "%s"`, aihubTestNamespace),
 					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 				)),

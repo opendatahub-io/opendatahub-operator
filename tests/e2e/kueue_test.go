@@ -153,6 +153,10 @@ func kueueDegradedMonitoringTestSuite(t *testing.T) {
 		ComponentTestCtx: ct,
 	}
 
+	t.Cleanup(func() {
+		componentCtx.ValidateKueueComponentDisabled(t)
+	})
+
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.EnsureKueueReady},
 		{"Validate external operator degraded condition monitoring", componentCtx.ValidateExternalOperatorDegradedMonitoring},
