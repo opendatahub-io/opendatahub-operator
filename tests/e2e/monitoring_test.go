@@ -32,7 +32,8 @@ const (
 	ObservabilityDeploymentName              = "odh-observability"
 	OpenTelemetryCollectorName               = "data-science-collector"
 	TargetAllocatorDeploymentName            = "data-science-collector-targetallocator"
-	TargetAllocatorServiceAccount            = "data-science-collector-collector"
+	CollectorServiceAccount                  = "data-science-collector-collector"
+	TargetAllocatorServiceAccount            = "data-science-collector-targetallocator"
 	TempoMonolithicName                      = "data-science-tempomonolithic"
 	TempoStackName                           = "data-science-tempostack"
 	InstrumentationName                      = "data-science-instrumentation"
@@ -2431,8 +2432,8 @@ func (tc *MonitoringTestCtx) ValidateThanosQuerierDeployment(t *testing.T) {
 		WithMinimalObject(gvk.Route, types.NamespacedName{Name: ThanosQuerierRouteName, Namespace: tc.MonitoringNamespace}),
 		WithCondition(And(
 			// Validate route points to correct service
-			jq.Match(`.spec.to.name == "thanos-querier-data-science-thanos-querier"`),
-			jq.Match(`.spec.tls.termination == "edge"`),
+			jq.Match(`.spec.to.name == "data-science-thanos-querier-proxy"`),
+			jq.Match(`.spec.tls.termination == "reencrypt"`),
 			jq.Match(`.spec.tls.insecureEdgeTerminationPolicy == "Redirect"`),
 			jq.Match(`.metadata.labels.app == "thanos-querier"`),
 			jq.Match(`.metadata.labels."app.kubernetes.io/name" == "thanos-querier"`),
@@ -2519,8 +2520,9 @@ func (tc *MonitoringTestCtx) ValidatePrometheusNetworkPolicyAllowsThanosQuerier(
 			jq.Match(`.spec.podSelector.matchLabels["app.kubernetes.io/instance"] == "data-science-monitoringstack"`),
 			jq.Match(`.spec.policyTypes[0] == "Ingress"`),
 			// Validate proxy ingress rule (port 9090)
-			jq.Match(`.spec.ingress[0].from[0].podSelector.matchLabels.app == "data-science-prometheus-namespace-proxy"`),
-			jq.Match(`.spec.ingress[0].from[1].podSelector.matchLabels.app == "data-science-prometheus-cluster-proxy"`),
+			jq.Match(`.spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/name"] == "prometheus"`),
+			jq.Match(`.spec.ingress[0].from[1].podSelector.matchLabels.app == "data-science-prometheus-namespace-proxy"`),
+			jq.Match(`.spec.ingress[0].from[2].podSelector.matchLabels.app == "data-science-prometheus-cluster-proxy"`),
 			jq.Match(`.spec.ingress[0].ports[0].protocol == "TCP"`),
 			jq.Match(`.spec.ingress[0].ports[0].port == 9090`),
 			// Validate Thanos Querier ingress rule (gRPC port 10901)
@@ -3404,10 +3406,23 @@ func (tc *MonitoringTestCtx) ValidateTargetAllocatorRBACConfiguration(t *testing
 		}),
 		WithCondition(And(
 			jq.Match(`.roleRef.name == "generate-processors-role"`),
+			jq.Match(`.subjects[0].name == "%s"`, CollectorServiceAccount),
+			jq.Match(`.subjects[0].namespace == "%s"`, tc.MonitoringNamespace),
+		)),
+		WithCustomErrorMsg("ClusterRoleBinding should bind collector ClusterRole to collector ServiceAccount"),
+	)
+
+	// Verify Target Allocator has its own ClusterRoleBinding
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "generate-processors-targetallocator-rolebinding",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "generate-processors-role"`),
 			jq.Match(`.subjects[0].name == "%s"`, TargetAllocatorServiceAccount),
 			jq.Match(`.subjects[0].namespace == "%s"`, tc.MonitoringNamespace),
 		)),
-		WithCustomErrorMsg("ClusterRoleBinding should bind Target Allocator ClusterRole to ServiceAccount"),
+		WithCustomErrorMsg("ClusterRoleBinding should bind Target Allocator ClusterRole to Target Allocator ServiceAccount"),
 	)
 }
 
@@ -3449,7 +3464,7 @@ func (tc *MonitoringTestCtx) ValidateCollectorMLflowIntegrationRBAC(t *testing.T
 			jq.Match(`.roleRef.name == "data-science-collector-mlflow-trace-export"`),
 			jq.Match(`(.subjects | length) == 1`),
 			jq.Match(`.subjects[0].kind == "ServiceAccount"`),
-			jq.Match(`.subjects[0].name == "%s"`, TargetAllocatorServiceAccount),
+			jq.Match(`.subjects[0].name == "%s"`, CollectorServiceAccount),
 			jq.Match(`.subjects[0].namespace == "%s"`, tc.MonitoringNamespace),
 		)),
 		WithCustomErrorMsg("ClusterRoleBinding should bind collector SA to mlflow trace export ClusterRole"),
@@ -3514,7 +3529,7 @@ func (tc *MonitoringTestCtx) ValidateCollectorTempoTraceExportRBAC(t *testing.T)
 			jq.Match(`.roleRef.name == "data-science-collector-tempo-trace-export"`),
 			jq.Match(`(.subjects | length) == 1`),
 			jq.Match(`.subjects[0].kind == "ServiceAccount"`),
-			jq.Match(`.subjects[0].name == "%s"`, TargetAllocatorServiceAccount),
+			jq.Match(`.subjects[0].name == "%s"`, CollectorServiceAccount),
 			jq.Match(`.subjects[0].namespace == "%s"`, tc.MonitoringNamespace),
 		)),
 		WithCustomErrorMsg("ClusterRoleBinding should bind collector SA to Tempo trace export ClusterRole"),
