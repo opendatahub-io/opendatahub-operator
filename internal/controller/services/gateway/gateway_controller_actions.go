@@ -239,14 +239,23 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return nil
 	}
 
+	return prepareAuthProxy(ctx, rr, gatewayConfig, defaultAuthProxyTarget(hostname, gatewayConfig), authMode, kubeAuthProxyDeploymentTemplates.Path)
+}
+
+func prepareAuthProxy(
+	ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig,
+	target authProxyTarget, authMode cluster.AuthenticationMode, deploymentTemplate string,
+) error {
+	l := logf.FromContext(ctx).WithName("prepareAuthProxy")
 	// Get secret values for both OIDC and IntegratedOAuth modes
-	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, authMode, oidcConfig)
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, authMode, target.OIDC, target)
 	if err != nil {
 		return fmt.Errorf("failed to get secret values: %w", err)
 	}
 
 	// Create the secret dynamically first
-	if err := createSecret(ctx, rr, clientID, clientSecret, cookieSecret); err != nil {
+	authSecret, err := createSecret(ctx, rr, clientID, clientSecret, cookieSecret, target)
+	if err != nil {
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
 			conditions.WithReason(status.NotReadyReason),
@@ -254,10 +263,15 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		)
 		return fmt.Errorf("failed to create auth proxy secret: %w", err)
 	}
+	// Carry only the rollout hash to the template action, using the credentials just written.
+	if rr.Extensions == nil {
+		rr.Extensions = make(map[string]any)
+	}
+	rr.Extensions[target.extensionsKey()] = calculateAuthConfigHash(authSecret)
 
 	// For IntegratedOAuth mode, create OAuth client after secret is created
 	if authMode == cluster.AuthModeIntegratedOAuth {
-		if err := createOAuthClient(ctx, rr, hostname); err != nil {
+		if err := createOAuthClient(rr, target.Hostname, target, authSecret); err != nil {
 			rr.Conditions.MarkFalse(
 				ReadyConditionType,
 				conditions.WithReason(status.NotReadyReason),
@@ -271,9 +285,9 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	// On XKS, cert-manager is a required dependency for the kube-auth-proxy TLS
 	// certificate (OCP uses the serving-cert annotation instead).
 	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
-		kapServiceDNS := fmt.Sprintf("%s.%s.svc.cluster.local", KubeAuthProxyName, GetGatewayNamespace())
+		kapServiceDNS := fmt.Sprintf("%s.%s.svc.cluster.local", target.ProxyName, GetGatewayNamespace())
 		issuerName, issuerKind := resolveIssuerRef(gatewayConfig.Spec.Certificate)
-		cert, err := buildCertManagerCertificate(KubeAuthProxyTLSName, GetGatewayNamespace(), KubeAuthProxyTLSName, []string{kapServiceDNS}, issuerName, issuerKind)
+		cert, err := buildCertManagerCertificate(target.TLSName, GetGatewayNamespace(), target.TLSName, []string{kapServiceDNS}, issuerName, issuerKind)
 		if err != nil {
 			return err
 		}
@@ -281,13 +295,13 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 			return fmt.Errorf("failed to add kube-auth-proxy Certificate: %w", err)
 		}
 		l.V(1).Info("Created cert-manager Certificate for kube-auth-proxy",
-			"secret", KubeAuthProxyTLSName,
+			"secret", target.TLSName,
 			"issuerName", issuerName,
 			"issuerKind", issuerKind,
 		)
 	}
 
-	rr.Templates = append(rr.Templates, kubeAuthProxyDeploymentTemplates)
+	rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{FS: gatewayResources, Path: deploymentTemplate})
 	// Add other KubeAuthProxy templates to the reconciliation request
 	kubeAuthProxyCommonTemplates := []odhtypes.TemplateInfo{
 		{
@@ -420,19 +434,16 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	// Calculate auth config hash for triggering pod restarts on secret changes
-	authConfigHash := ""
-	authSecret := &corev1.Secret{}
-	if err := rr.Client.Get(ctx, types.NamespacedName{
-		Name:      KubeAuthProxySecretsName,
-		Namespace: GetGatewayNamespace(),
-	}, authSecret); err != nil {
-		// secret doesn't exist yet, use empty hash
-		if !k8serr.IsNotFound(err) {
-			return nil, fmt.Errorf("failed to get auth secret for hash calculation: %w", err)
+	target := defaultAuthProxyTarget(hostname, gatewayConfig)
+	authConfigHash, prepared := rr.Extensions[target.extensionsKey()].(string)
+	if !prepared {
+		authSecret := &corev1.Secret{}
+		if err := rr.Client.Get(ctx, types.NamespacedName{Name: target.SecretName, Namespace: GetGatewayNamespace()}, authSecret); err != nil && !k8serr.IsNotFound(err) {
+			return nil, fmt.Errorf("failed to get auth proxy secret: %w", err)
 		}
-	} else {
-		// Secret exists, calculate hash from its value
-		authConfigHash = calculateAuthConfigHash(authSecret)
+		if authSecret.Name != "" {
+			authConfigHash = calculateAuthConfigHash(authSecret)
+		}
 	}
 
 	// Get cookie settings with defaults
@@ -629,23 +640,13 @@ func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationReq
 			}
 		}
 
-		if gatewayConfig.Spec.OIDC != nil {
-			message, err := checkCertManagerCertificate(ctx, rr.Client, KubeAuthProxyTLSName)
-			if err != nil {
-				return err
-			}
-			if message != "" {
-				markGatewayNotReady(rr, message)
-				return nil
-			}
-			message, err = checkKubeAuthProxyDeployment(ctx, rr.Client)
-			if err != nil {
-				return err
-			}
-			if message != "" {
-				markGatewayNotReady(rr, message)
-				return nil
-			}
+		message, err := checkGatewayAuthentication(ctx, rr.Client, defaultAuthProxyTarget("", gatewayConfig))
+		if err != nil {
+			return err
+		}
+		if message != "" {
+			markGatewayNotReady(rr, message)
+			return nil
 		}
 	}
 
@@ -681,9 +682,9 @@ func markGatewayNotReady(rr *odhtypes.ReconciliationRequest, message string) {
 	)
 }
 
-func checkKubeAuthProxyDeployment(ctx context.Context, cli client.Client) (string, error) {
+func checkKubeAuthProxyDeployment(ctx context.Context, cli client.Client, name string) (string, error) {
 	deployment := &appsv1.Deployment{}
-	key := types.NamespacedName{Name: KubeAuthProxyName, Namespace: GetGatewayNamespace()}
+	key := types.NamespacedName{Name: name, Namespace: GetGatewayNamespace()}
 	if err := cli.Get(ctx, key, deployment); err != nil {
 		if k8serr.IsNotFound(err) {
 			return fmt.Sprintf("waiting for kube-auth-proxy Deployment %s/%s", key.Namespace, key.Name), nil
