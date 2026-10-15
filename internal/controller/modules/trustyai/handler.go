@@ -14,10 +14,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
-// permitAllow is the DSC-facing enum value that maps to the module CRD's
-// boolean permit fields. Any other value (including empty) maps to false.
-const permitAllow = "allow"
-
 const (
 	moduleName = componentApi.TrustyAIComponentName
 	crName     = componentApi.TrustyAIInstanceName
@@ -89,10 +85,11 @@ func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 // BuildModuleCR projects the DSC TrustyAI component spec onto the module CR.
 // TrustyAI is DSC-mode only for now; Platform mode (xKS) is not yet supported.
 //
-// The DSC-facing spec and the module CRD share field names/paths under
-// eval.lmeval but declare different types for the permit fields (DSC:
-// string enum "allow"/"deny", module CRD: bool), so fields are mapped
-// explicitly here rather than converted wholesale.
+// The DSC-facing spec and the module CR share field names, paths, and types
+// under eval.lmeval (the permit fields are the "allow"/"deny" string enum on
+// both sides), so those values are projected as-is. Fields are still mapped
+// explicitly rather than wholesale because only a subset of the DSC component
+// spec belongs on the module CR.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
@@ -111,8 +108,8 @@ func (h *handler) BuildModuleCR(
 				"mcpGuardrailsMode": dscCtx.DSC.Spec.Components.TrustyAI.MCPGuardrailsMode,
 				"eval": map[string]any{
 					"lmeval": map[string]any{
-						"permitCodeExecution": lmeval.PermitCodeExecution == permitAllow,
-						"permitOnline":        lmeval.PermitOnline == permitAllow,
+						"permitCodeExecution": lmeval.PermitCodeExecution,
+						"permitOnline":        lmeval.PermitOnline,
 					},
 				},
 			},
