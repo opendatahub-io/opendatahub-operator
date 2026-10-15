@@ -75,9 +75,7 @@ func run(pass *analysis.Pass) (any, error) {
 
 		if msg, ok := messageMarker(pass, call.Args[1]); ok {
 			if embeddedNamespace.MatchString(msg) || embeddedName.MatchString(msg) {
-				{
-					report(call.Args[1].Pos(), "odhlog: message embeds resource name or namespace; use structured keys \"name\" and \"namespace\"")
-				}
+				report(call.Args[1].Pos(), "odhlog: message embeds resource name or namespace; use structured keys \"name\" and \"namespace\"")
 			}
 		}
 
@@ -212,6 +210,7 @@ func hasNolint(pass *analysis.Pass, pos token.Pos) bool {
 func nolintMatches(text string) bool {
 	text = strings.TrimPrefix(text, "//")
 	text = strings.TrimPrefix(text, "/*")
+	text = strings.TrimSuffix(text, "*/")
 	text = strings.TrimSpace(text)
 
 	const prefix = "nolint"

@@ -92,4 +92,9 @@ func Test() {
 	log.Error(err, "failed in namespace foo") //nolint:gosec,odhlog
 	log.Error(err, "failed in namespace foo") //nolint
 	log.Error(err, "failed in namespace foo") // prose mentioning nolint:odhlog // want `message embeds resource name or namespace`
+
+	// Block-comment nolint directives must also be supported.
+	log.Error(err, "failed in namespace foo") /* nolint:odhlog */
+	log.Error(err, "failed in namespace foo") /*nolint:odhlog*/
+	log.Error(err, "failed in namespace foo") /* nolint:odhlogfoo */ // want `message embeds resource name or namespace`
 }
