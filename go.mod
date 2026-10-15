@@ -11,7 +11,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.42.1
 	github.com/opendatahub-io/odh-platform-utilities v0.4.0
-	github.com/opendatahub-io/odh-platform-utilities/framework v0.0.0-20261012121829-3163630a4c27
+	github.com/opendatahub-io/odh-platform-utilities/framework v0.2.0
 	github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth v0.0.0
 	github.com/opendatahub-io/opendatahub-operator/pkg/failureclassifier v0.0.0-00010101000000-000000000000
 	github.com/opendatahub-io/opendatahub-operator/pkg/scoperules v0.0.0
