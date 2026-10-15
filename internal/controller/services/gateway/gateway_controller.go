@@ -20,9 +20,11 @@ import (
 	"context"
 	"fmt"
 
+	fwgc "github.com/opendatahub-io/odh-platform-utilities/framework/controller/actions/gc"
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -57,6 +59,84 @@ func gatewayCRDWatchPredicate() predicate.Predicate {
 		resources.CreatedOrUpdatedOrDeletedNamed(gvk.DashboardComponentCRDName),
 		resources.CreatedOrUpdatedOrDeletedNamed(gvk.CertManagerCertificateCRDName),
 	)
+}
+
+// Only changes to the cluster authentication type alter whether the proxy is desired.
+// The watch is registered for typed &configv1.Authentication, while reconciler.Dynamic
+// may deliver unstructured forms; both are filtered on spec.type.
+func gatewayAuthenticationWatchPredicate() predicate.Predicate {
+	isClusterAuthentication := func(obj client.Object) bool {
+		return obj != nil && obj.GetName() == cluster.ClusterAuthenticationObj
+	}
+	authType := func(obj client.Object) (string, bool) {
+		switch auth := obj.(type) {
+		case *configv1.Authentication:
+			return string(auth.Spec.Type), true
+		case *unstructured.Unstructured:
+			value, found, err := unstructured.NestedString(auth.Object, "spec", "type")
+			if err != nil || !found {
+				return "", false
+			}
+			return value, true
+		default:
+			return "", false
+		}
+	}
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return isClusterAuthentication(e.Object)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return isClusterAuthentication(e.Object)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			if !isClusterAuthentication(e.ObjectNew) {
+				return false
+			}
+			oldType, oldOK := authType(e.ObjectOld)
+			newType, newOK := authType(e.ObjectNew)
+			// Unknown or unreadable forms fail safe and trigger reconciliation.
+			return !oldOK || !newOK || oldType != newType
+		},
+	}
+}
+
+func gatewayAPIEndpointSliceWatchPredicate() predicate.Predicate {
+	isAPIEndpointSlice := func(obj client.Object) bool {
+		return obj != nil && obj.GetNamespace() == apiServiceNamespace &&
+			obj.GetLabels()[discoveryv1.LabelServiceName] == apiServiceName
+	}
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool { return isAPIEndpointSlice(e.Object) },
+		DeleteFunc: func(e event.DeleteEvent) bool { return isAPIEndpointSlice(e.Object) },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return isAPIEndpointSlice(e.ObjectOld) || isAPIEndpointSlice(e.ObjectNew)
+		},
+	}
+}
+
+// The default GC predicate only sees GatewayConfig generation changes. Authentication/cluster
+// can change the desired proxy resources without changing that generation.
+func gatewayGCObjectPredicate(rr *odhtypes.ReconciliationRequest, obj unstructured.Unstructured) (bool, error) {
+	defaultPredicate := fwgc.DefaultObjectPredicate(fwgc.DefaultAnnotationPrefix)
+	if obj.GetName() == KubeAuthProxyName && obj.GetNamespace() == GetGatewayNamespace() &&
+		(obj.GroupVersionKind() == gvk.Deployment || obj.GroupVersionKind() == gvk.NetworkPolicy) {
+		for i := range rr.Resources {
+			wanted := &rr.Resources[i]
+			if wanted.GroupVersionKind() == obj.GroupVersionKind() &&
+				wanted.GetNamespace() == obj.GetNamespace() && wanted.GetName() == obj.GetName() {
+				return defaultPredicate(rr, obj)
+			}
+		}
+		// The proxy resources could not be rendered because the cluster
+		// authentication mode was unreadable; failing closed on egress must
+		// not collect the running proxy.
+		if undetermined, ok := rr.Extensions[authProxyModeUndeterminedKey].(bool); ok && undetermined {
+			return false, nil
+		}
+		return true, nil
+	}
+	return defaultPredicate(rr, obj)
 }
 
 // gatewayDeploymentWatchPredicate also observes proxy availability, which changes in the
@@ -117,6 +197,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.Secret).
 		OwnsGVK(gvk.ConfigMap).
 		OwnsGVK(gvk.Service).
+		OwnsGVK(gvk.NetworkPolicy).
 		OwnsGVK(gvk.Deployment, reconciler.WithPredicates(gatewayDeploymentWatchPredicate())).
 		OwnsGVK(gvk.HorizontalPodAutoscaler).
 		OwnsGVK(gvk.HTTPRoute).
@@ -196,9 +277,40 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(resources.APIServerTLSSecurityProfileChanged()),
 		).
+		// Reconcile when the cluster authentication type changes, including to or from external auth.
+		Watches(
+			&configv1.Authentication{},
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(gatewayAuthenticationWatchPredicate()),
+		).
+		// OpenShift policy egress uses the current Pod/Service ranges, DNS Service
+		// target ports, and exact Kubernetes API endpoint addresses and ports.
+		Watches(
+			&configv1.Network{},
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed("cluster")),
+		).
+		Watches(
+			&corev1.Service{},
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(predicate.Or(
+				resources.CreatedOrUpdatedOrDeletedNamedInNamespace(apiServiceName, apiServiceNamespace),
+				resources.CreatedOrUpdatedOrDeletedNamedInNamespace(openshiftDNSServiceName, openshiftDNSNamespace),
+			)),
+		).
+		Watches(
+			&discoveryv1.EndpointSlice{},
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(gatewayAPIEndpointSliceWatchPredicate()),
+		).
 		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
 			gatewayCertManagerPrecondition(),
 		})).
+		WithAction(reportDeprecatedNetworkPolicyConfig).
 		WithAction(syncAdditionalIngressStatus).
 		WithAction(createGatewayInfrastructure).
 		WithAction(createKubeAuthProxyInfrastructure). //  include destinationrule
@@ -211,13 +323,16 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			// IngressController, which can change without a new GatewayConfig generation.
 			template.WithCache(false),
 			template.WithDataFn(getTemplateData),
+			// The gateway templates depend on cluster state resolved during
+			// reconciliation (auth-proxy egress rules from Network/DNS/EndpointSlices,
+			// gateway filters), which can change without a GatewayConfig generation
+			// bump, so the render cache must not skip re-rendering.
+			template.WithCache(false),
 		)).
-		WithAction(deploy.NewAction(
-			deploy.WithCache(),
-		)).
+		WithAction(deploy.NewAction(deploy.WithCache())).
 		WithAction(syncAdditionalIngressReadiness).
 		WithAction(syncGatewayConfigStatus).
-		WithAction(gc.NewAction()).
+		WithAction(gc.NewAction(gc.WithObjectPredicate(gatewayGCObjectPredicate))).
 		WithPostStatusFn(syncAdditionalIngressReadyStatuses).
 		WithConditions(reconciler.DependentConditions(ReadyConditionType, serviceApi.AdditionalGatewaysReadyConditionType)...)
 

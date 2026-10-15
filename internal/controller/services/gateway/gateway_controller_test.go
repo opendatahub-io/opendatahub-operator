@@ -6,6 +6,7 @@ package gateway
 import (
 	"testing"
 
+	configv1 "github.com/openshift/api/config/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -52,6 +53,83 @@ func TestGatewayCRDWatchPredicate(t *testing.T) {
 			g.Expect(pred.Update(event.UpdateEvent{ObjectOld: crd, ObjectNew: crd})).To(Equal(tc.wantMatch))
 			g.Expect(pred.Delete(event.DeleteEvent{Object: crd})).To(Equal(tc.wantMatch))
 		})
+	}
+}
+
+func TestGatewayAuthenticationWatchPredicate(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	newAuth := func(name, authType string) *unstructured.Unstructured {
+		auth := &unstructured.Unstructured{}
+		auth.SetName(name)
+		g.Expect(unstructured.SetNestedField(auth.Object, authType, "spec", "type")).To(Succeed())
+		return auth
+	}
+	newTypedAuth := func(name string, authType configv1.AuthenticationType) *configv1.Authentication {
+		return &configv1.Authentication{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Spec:       configv1.AuthenticationSpec{Type: authType},
+		}
+	}
+
+	pred := gatewayAuthenticationWatchPredicate()
+	oldAuth := newAuth(cluster.ClusterAuthenticationObj, "IntegratedOAuth")
+	g.Expect(pred.Create(event.CreateEvent{Object: oldAuth})).To(BeTrue())
+	g.Expect(pred.Delete(event.DeleteEvent{Object: oldAuth})).To(BeTrue())
+	g.Expect(pred.Update(event.UpdateEvent{ObjectOld: oldAuth, ObjectNew: newAuth(cluster.ClusterAuthenticationObj, "None")})).To(BeTrue())
+	g.Expect(pred.Update(event.UpdateEvent{ObjectOld: oldAuth, ObjectNew: newAuth(cluster.ClusterAuthenticationObj, "IntegratedOAuth")})).To(BeFalse())
+	g.Expect(pred.Update(event.UpdateEvent{ObjectOld: oldAuth, ObjectNew: newAuth("other", "None")})).To(BeFalse())
+	g.Expect(pred.Create(event.CreateEvent{Object: newAuth("other", "None")})).To(BeFalse())
+
+	// The watch is registered for typed &configv1.Authentication, so typed events must
+	// be filtered on spec.type exactly like the unstructured (Dynamic) form.
+	typedAuth := newTypedAuth(cluster.ClusterAuthenticationObj, configv1.AuthenticationTypeIntegratedOAuth)
+
+	// A typed update that changes only metadata must not trigger reconciliation.
+	typedUnchanged := typedAuth.DeepCopy()
+	typedUnchanged.ResourceVersion = "2"
+	g.Expect(pred.Update(event.UpdateEvent{ObjectOld: typedAuth, ObjectNew: typedUnchanged})).To(BeFalse())
+
+	// A change to the authentication type must trigger reconciliation.
+	typedChanged := typedAuth.DeepCopy()
+	typedChanged.Spec.Type = configv1.AuthenticationTypeNone
+	g.Expect(pred.Update(event.UpdateEvent{ObjectOld: typedAuth, ObjectNew: typedChanged})).To(BeTrue())
+
+	// Create and delete work for the typed object too.
+	g.Expect(pred.Create(event.CreateEvent{Object: typedAuth})).To(BeTrue())
+	g.Expect(pred.Delete(event.DeleteEvent{Object: typedAuth})).To(BeTrue())
+
+	// A malformed unstructured type still triggers the fail-safe path.
+	malformedAuth := &unstructured.Unstructured{}
+	malformedAuth.SetName(cluster.ClusterAuthenticationObj)
+	g.Expect(unstructured.SetNestedField(malformedAuth.Object, int64(1), "spec", "type")).To(Succeed())
+	g.Expect(pred.Update(event.UpdateEvent{ObjectOld: oldAuth, ObjectNew: malformedAuth})).To(BeTrue())
+}
+
+func TestGatewayGCObjectPredicate(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	newResource := func(kind metav1.TypeMeta) unstructured.Unstructured {
+		obj := unstructured.Unstructured{}
+		obj.SetAPIVersion(kind.APIVersion)
+		obj.SetKind(kind.Kind)
+		obj.SetName(KubeAuthProxyName)
+		obj.SetNamespace(GetGatewayNamespace())
+		return obj
+	}
+
+	for _, resourceGVK := range []metav1.TypeMeta{
+		{APIVersion: gvk.Deployment.GroupVersion().String(), Kind: gvk.Deployment.Kind},
+		{APIVersion: gvk.NetworkPolicy.GroupVersion().String(), Kind: gvk.NetworkPolicy.Kind},
+	} {
+		obj := newResource(resourceGVK)
+		remove, err := gatewayGCObjectPredicate(&odhtypes.ReconciliationRequest{}, obj)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(remove).To(BeTrue(), "an omitted proxy resource should be collected")
+
+		remove, err = gatewayGCObjectPredicate(&odhtypes.ReconciliationRequest{Resources: []unstructured.Unstructured{obj}}, obj)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(remove).To(BeFalse(), "a desired proxy resource should stay")
 	}
 }
 

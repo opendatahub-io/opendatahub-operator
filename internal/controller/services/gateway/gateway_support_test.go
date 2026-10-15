@@ -29,6 +29,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gatewayconfig"
+	templateutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/template"
 
 	. "github.com/onsi/gomega"
 )
@@ -897,7 +898,7 @@ func renderAuthProxyTemplate(g Gomega, path string, data map[string]any) string 
 	content, err := gatewayResources.ReadFile(path)
 	g.Expect(err).NotTo(HaveOccurred(), path)
 
-	tmpl, err := template.New(path).Option("missingkey=error").Parse(string(content))
+	tmpl, err := template.New(path).Funcs(templateutils.TextTemplateFuncMap()).Option("missingkey=error").Parse(string(content))
 	g.Expect(err).NotTo(HaveOccurred(), path)
 
 	var buf bytes.Buffer
@@ -919,6 +920,7 @@ func TestAuthTemplatesCoverEveryManagedGateway(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	data["GatewayFilters"] = productionData["GatewayFilters"]
 	data["GatewayNameLabelKey"] = productionData["GatewayNameLabelKey"]
+	data["AuthProxyEgressRules"] = productionData["AuthProxyEgressRules"]
 	data["GatewayNamespace"] = GetGatewayNamespace()
 	data["GatewayHTTPSPort"] = GatewayHTTPSPort
 	data["AuthProxyTimeout"] = "5s"

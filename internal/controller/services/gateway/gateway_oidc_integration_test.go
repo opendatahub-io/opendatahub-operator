@@ -27,6 +27,7 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -77,15 +78,6 @@ func getOIDCGatewayConfigSpec() serviceApi.GatewayConfigSpec {
 func oidcSpecWithLoadBalancer() serviceApi.GatewayConfigSpec {
 	spec := getOIDCGatewayConfigSpec()
 	spec.IngressMode = serviceApi.IngressModeLoadBalancer
-	return spec
-}
-
-// oidcSpecWithNetworkPolicyDisabled returns the OIDC spec with ingress network policy disabled.
-func oidcSpecWithNetworkPolicyDisabled() serviceApi.GatewayConfigSpec {
-	spec := getOIDCGatewayConfigSpec()
-	spec.NetworkPolicy = &serviceApi.NetworkPolicyConfig{
-		Ingress: &serviceApi.IngressPolicyConfig{Enabled: false},
-	}
 	return spec
 }
 
@@ -255,6 +247,36 @@ func TestOIDCNetworkPolicyCreation(t *testing.T) {
 	RunNetworkPolicyCreationTest(t, GetOIDCTestSetup())
 }
 
+func TestOIDCNetworkPolicyReconciliation(t *testing.T) {
+	RunNetworkPolicyReconciliationTest(t, GetOIDCTestSetup())
+}
+
+func TestOIDCNetworkPolicyMissingConfig(t *testing.T) {
+	RunNetworkPolicyMissingOIDCConfigTest(t, GetOIDCTestSetup())
+}
+
+func TestOIDCNetworkPolicyAllowsAllEgress(t *testing.T) {
+	setup := GetOIDCTestSetup()
+	defer setup.Setup(t)()
+	g := NewWithT(t)
+	key := types.NamespacedName{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()}
+	egressRules := func() []networkingv1.NetworkPolicyEgressRule {
+		policy := &networkingv1.NetworkPolicy{}
+		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, key, policy); err != nil {
+			return nil
+		}
+		return policy.Spec.Egress
+	}
+	g.Eventually(func() string {
+		deployment, err := getAuthProxyDeployment(setup.TC.Ctx, setup.TC.K8sClient)
+		if err != nil {
+			return "deployment not found"
+		}
+		return deployment.Spec.Template.Labels["opendatahub.io/auth-mode"]
+	}, TestTimeout, TestInterval).Should(BeEmpty())
+	g.Eventually(egressRules, TestTimeout, TestInterval).Should(Equal([]networkingv1.NetworkPolicyEgressRule{{}}))
+}
+
 // TestOIDCNginxDashboardRedirectSkippedWithoutDashboard validates redirects are skipped when Dashboard is not deployed in OIDC mode.
 func TestOIDCNginxDashboardRedirectSkippedWithoutDashboard(t *testing.T) {
 	RunNginxDashboardRedirectSkippedWithoutDashboardTest(t, GetOIDCTestSetup())
@@ -263,12 +285,6 @@ func TestOIDCNginxDashboardRedirectSkippedWithoutDashboard(t *testing.T) {
 // TestOIDCNginxDashboardRedirectCreation validates nginx-based dashboard redirect resources (ConfigMap, Deployment, Service, Routes) in OIDC mode.
 func TestOIDCNginxDashboardRedirectCreation(t *testing.T) {
 	RunNginxDashboardRedirectCreationTest(t, GetOIDCTestSetup())
-}
-
-// TestOIDCNetworkPolicyDisabled validates that no NetworkPolicy is created when ingress policy is disabled in OIDC mode (delegates to RunNetworkPolicyDisabledTest).
-func TestOIDCNetworkPolicyDisabled(t *testing.T) {
-	ensureOIDCClientSecret(t, OIDCTestEnv)
-	RunNetworkPolicyDisabledTest(t, GetOIDCTestSetup(), oidcSpecWithNetworkPolicyDisabled())
 }
 
 // TestOIDCWithProviderCASecret validates that Deployment gets provider CA volume, mount, and --provider-ca-file arg when ProviderCASecretName is set.
