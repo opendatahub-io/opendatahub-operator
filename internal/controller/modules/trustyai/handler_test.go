@@ -100,10 +100,12 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
 	g.Expect(spec).ShouldNot(HaveKey("managementState"),
 		"managementState is a DSC-level field and must not be projected into the component CR")
-	mcpMode, found, err := unstructured.NestedBool(u.Object, "spec", "mcpGuardrailsMode")
+	g.Expect(spec).ShouldNot(HaveKey("mcpGuardrailsMode"),
+		"mcpGuardrailsMode is omitempty and must be omitted when unset so the module CRD default applies")
+	_, found, err := unstructured.NestedString(u.Object, "spec", "eval", "lmeval", "permitCodeExecution")
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(found).Should(BeTrue())
-	g.Expect(mcpMode).Should(BeFalse())
+	g.Expect(found).Should(BeFalse(),
+		"unset permit fields must be omitted instead of projected as empty strings, which the module CRD enum rejects")
 }
 
 func TestBuildModuleCR_ProjectsMCPGuardrailsMode(t *testing.T) {

@@ -3,9 +3,11 @@ package trustyai
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -85,11 +87,12 @@ func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 // BuildModuleCR projects the DSC TrustyAI component spec onto the module CR.
 // TrustyAI is DSC-mode only for now; Platform mode (xKS) is not yet supported.
 //
+// TrustyAICommonSpec is exactly the subset of the DSC component spec that
+// belongs on the module CR (the DSC-level ManagementSpec is projected through
+// PlatformModules instead), so it is converted wholesale like the OGX handler.
 // The DSC-facing spec and the module CR share field names, paths, and types
-// under eval.lmeval (the permit fields are the "allow"/"deny" string enum on
-// both sides), so those values are projected as-is. Fields are still mapped
-// explicitly rather than wholesale because only a subset of the DSC component
-// spec belongs on the module CR.
+// (the permit fields are the "allow"/"deny" string enum on both sides), and
+// zero-valued fields are omitted so the module CRD defaults apply.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
@@ -100,19 +103,16 @@ func (h *handler) BuildModuleCR(
 		return nil, errors.New("DSC is nil, cannot build TrustyAI CR")
 	}
 
-	lmeval := dscCtx.DSC.Spec.Components.TrustyAI.Eval.LMEval
+	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(
+		&dscCtx.DSC.Spec.Components.TrustyAI.TrustyAICommonSpec,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert TrustyAICommonSpec to unstructured: %w", err)
+	}
 
 	u := &unstructured.Unstructured{
 		Object: map[string]any{
-			"spec": map[string]any{
-				"mcpGuardrailsMode": dscCtx.DSC.Spec.Components.TrustyAI.MCPGuardrailsMode,
-				"eval": map[string]any{
-					"lmeval": map[string]any{
-						"permitCodeExecution": lmeval.PermitCodeExecution,
-						"permitOnline":        lmeval.PermitOnline,
-					},
-				},
-			},
+			"spec": spec,
 		},
 	}
 	u.SetGroupVersionKind(h.Config.GVK)
