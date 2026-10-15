@@ -122,7 +122,7 @@ func TestBuildModuleCR_ProjectsMCPGuardrailsMode(t *testing.T) {
 	g.Expect(mcpMode).Should(BeTrue())
 }
 
-func TestBuildModuleCR_PermitFieldsConvertedToBool(t *testing.T) {
+func TestBuildModuleCR_PermitFieldsProjectedAsStringEnum(t *testing.T) {
 	g := NewWithT(t)
 	h := trustyai.NewHandler()
 
@@ -133,15 +133,33 @@ func TestBuildModuleCR_PermitFieldsConvertedToBool(t *testing.T) {
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig())
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	permitCodeExecution, found, err := unstructured.NestedBool(u.Object, "spec", "eval", "lmeval", "permitCodeExecution")
+	permitCodeExecution, found, err := unstructured.NestedString(u.Object, "spec", "eval", "lmeval", "permitCodeExecution")
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(found).Should(BeTrue())
-	g.Expect(permitCodeExecution).Should(BeTrue())
+	g.Expect(permitCodeExecution).Should(Equal("allow"))
 
-	permitOnline, found, err := unstructured.NestedBool(u.Object, "spec", "eval", "lmeval", "permitOnline")
+	permitOnline, found, err := unstructured.NestedString(u.Object, "spec", "eval", "lmeval", "permitOnline")
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(found).Should(BeTrue())
-	g.Expect(permitOnline).Should(BeFalse())
+	g.Expect(permitOnline).Should(Equal("deny"))
+}
+
+func TestBuildModuleCR_PermitFieldsDefaultDenyWhenEmpty(t *testing.T) {
+	g := NewWithT(t)
+	h := trustyai.NewHandler()
+
+	u, err := h.BuildModuleCR(context.Background(), nil, newDSCContext(operatorv1.Managed), newModuleCRConfig())
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	permitCodeExecution, found, err := unstructured.NestedString(u.Object, "spec", "eval", "lmeval", "permitCodeExecution")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+	g.Expect(permitCodeExecution).Should(Equal("deny"))
+
+	permitOnline, found, err := unstructured.NestedString(u.Object, "spec", "eval", "lmeval", "permitOnline")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+	g.Expect(permitOnline).Should(Equal("deny"))
 }
 
 func TestBuildModuleCR_NilDSCContextReturnsError(t *testing.T) {

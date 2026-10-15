@@ -14,10 +14,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
-// permitAllow is the DSC-facing enum value that maps to the module CRD's
-// boolean permit fields. Any other value (including empty) maps to false.
-const permitAllow = "allow"
-
 const (
 	moduleName = componentApi.TrustyAIComponentName
 	crName     = componentApi.TrustyAIInstanceName
@@ -25,6 +21,9 @@ const (
 	deploymentName = "trustyai-operator-module-controller-manager"
 
 	controllerImage = "RELATED_IMAGE_ODH_TRUSTYAI_MODULE_OPERATOR_IMAGE"
+
+	// permitDeny matches the DSC / module CRD default for LMEval permit fields.
+	permitDeny = "deny"
 )
 
 // relatedImages lists the operand images the TrustyAI module operator needs
@@ -89,10 +88,9 @@ func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 // BuildModuleCR projects the DSC TrustyAI component spec onto the module CR.
 // TrustyAI is DSC-mode only for now; Platform mode (xKS) is not yet supported.
 //
-// The DSC-facing spec and the module CRD share field names/paths under
-// eval.lmeval but declare different types for the permit fields (DSC:
-// string enum "allow"/"deny", module CRD: bool), so fields are mapped
-// explicitly here rather than converted wholesale.
+// DSC and the TrustyAI module CRD both use the string enum allow/deny for
+// eval.lmeval.permit* (restored for 3.5→3.6 upgrade compatibility). Values
+// are projected as-is; empty defaults to "deny" to match the CRD default.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
@@ -111,8 +109,8 @@ func (h *handler) BuildModuleCR(
 				"mcpGuardrailsMode": dscCtx.DSC.Spec.Components.TrustyAI.MCPGuardrailsMode,
 				"eval": map[string]any{
 					"lmeval": map[string]any{
-						"permitCodeExecution": lmeval.PermitCodeExecution == permitAllow,
-						"permitOnline":        lmeval.PermitOnline == permitAllow,
+						"permitCodeExecution": permitValue(lmeval.PermitCodeExecution),
+						"permitOnline":        permitValue(lmeval.PermitOnline),
 					},
 				},
 			},
@@ -122,4 +120,12 @@ func (h *handler) BuildModuleCR(
 	u.SetName(h.Config.CRName)
 
 	return u, nil
+}
+
+// permitValue returns the DSC permit enum value, defaulting empty to "deny".
+func permitValue(v string) string {
+	if v == "" {
+		return permitDeny
+	}
+	return v
 }
