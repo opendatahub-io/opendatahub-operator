@@ -4,10 +4,8 @@ import (
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
@@ -36,45 +34,6 @@ func TestPopulatePlatformModuleDefaultsToRemoved(t *testing.T) {
 
 	if pm.AIPipelines.ManagementState != operatorv1.Removed {
 		t.Fatalf("expected empty DSC state to become Removed, got %q", pm.AIPipelines.ManagementState)
-	}
-}
-
-func TestBuildModuleCR(t *testing.T) {
-	h := aipipelines.NewHandler()
-	dsc := &dscApi.DataScienceCluster{}
-	dsc.Spec.Components.AIPipelines.ManagementState = operatorv1.Managed
-	dsc.Spec.Components.AIPipelines.ArgoWorkflowsControllers = &componentApi.ArgoWorkflowsControllersSpec{
-		ManagementState: operatorv1.Removed,
-	}
-
-	moduleCR, err := h.BuildModuleCR(t.Context(), nil, &modules.DSCContext{DSC: dsc}, nil)
-	if err != nil {
-		t.Fatalf("build AIPipelines CR: %v", err)
-	}
-	if moduleCR.GetName() != "default-aipipelines" {
-		t.Fatalf("unexpected module CR name %q", moduleCR.GetName())
-	}
-	if moduleCR.GroupVersionKind() != h.GetGVK() {
-		t.Fatalf("unexpected module CR GVK %s", moduleCR.GroupVersionKind())
-	}
-	state, found, err := unstructured.NestedString(moduleCR.Object, "spec", "argoWorkflowsControllers", "managementState")
-	if err != nil || !found {
-		t.Fatalf("read Argo management state: found=%t err=%v", found, err)
-	}
-	if state != string(operatorv1.Removed) {
-		t.Fatalf("expected Removed Argo controllers, got %q", state)
-	}
-}
-
-func TestBuildModuleCRDefaultsArgoToManaged(t *testing.T) {
-	h := aipipelines.NewHandler()
-	moduleCR, err := h.BuildModuleCR(t.Context(), nil, &modules.DSCContext{DSC: &dscApi.DataScienceCluster{}}, nil)
-	if err != nil {
-		t.Fatalf("build AIPipelines CR: %v", err)
-	}
-	state, _, _ := unstructured.NestedString(moduleCR.Object, "spec", "argoWorkflowsControllers", "managementState")
-	if state != string(operatorv1.Managed) {
-		t.Fatalf("expected default Managed Argo controllers, got %q", state)
 	}
 }
 

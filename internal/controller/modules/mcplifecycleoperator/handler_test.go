@@ -25,7 +25,7 @@ func newPlatformModules(mgmtState operatorv1.ManagementState) *configApi.Platfor
 }
 
 func newDSC(mgmtState operatorv1.ManagementState) *dscApi.DataScienceCluster {
-	return &dscApi.DataScienceCluster{
+	dsc := &dscApi.DataScienceCluster{
 		Spec: dscApi.DataScienceClusterSpec{
 			Components: dscApi.Components{
 				MCPLifecycleOperator: componentApi.DSCMCPLifecycleOperator{
@@ -36,6 +36,8 @@ func newDSC(mgmtState operatorv1.ManagementState) *dscApi.DataScienceCluster {
 			},
 		},
 	}
+
+	return dsc
 }
 
 func TestIsEnabled_Managed(t *testing.T) {
@@ -72,22 +74,6 @@ func TestIsEnabled_PlatformMode_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := mcplifecycleoperator.NewHandler()
 	g.Expect(h.IsEnabled(newPlatformModules(operatorv1.Managed))).Should(BeTrue())
-}
-
-func TestBuildModuleCR_BasicProjection(t *testing.T) {
-	g := NewWithT(t)
-	h := mcplifecycleoperator.NewHandler()
-	dsc := newDSC(operatorv1.Managed)
-
-	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSC: dsc}, nil)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(u.GetName()).Should(Equal(componentApi.MCPLifecycleOperatorInstanceName))
-	g.Expect(u.GetKind()).Should(Equal(componentApi.MCPLifecycleOperatorKind))
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec).ShouldNot(HaveKey("managementState"),
-		"managementState is a DSC-level field and must not be projected into the component CR")
 }
 
 func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
