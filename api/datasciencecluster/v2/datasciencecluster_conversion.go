@@ -17,6 +17,7 @@ limitations under the License.
 package v2
 
 import (
+	"fmt"
 	"slices"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -177,6 +178,12 @@ func dashboardV3ToV2(src componentApi.DSCDashboard) componentApi.DSCDashboardV2 
 	}
 }
 
+// ModelExpressV3StateAnnotation carries v3-only ModelExpress enablement through
+// the v2 view, which has no modelExpress field. It is conversion-owned metadata.
+const ModelExpressV3StateAnnotation = "conversion.opendatahub.io/modelexpress-v3-state"
+
+const modelExpressManaged = "managed"
+
 // ConvertTo copies the DSC into v3, moving legacy MaaS selection into the canonical stanza.
 func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 	dst := dstRaw.(*dscApi.DataScienceCluster)
@@ -271,6 +278,17 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 
 	dst.PreserveMaaSV2State(canonical.ManagementState, legacy)
 
+	if value, found := dst.Annotations[ModelExpressV3StateAnnotation]; found {
+		if value != modelExpressManaged {
+			return fmt.Errorf("invalid ModelExpress v3 state marker %q", value)
+		}
+		dst.Spec.Components.Kserve.ModelExpress.ManagementState = operatorv1.Managed
+		delete(dst.Annotations, ModelExpressV3StateAnnotation)
+		if len(dst.Annotations) == 0 {
+			dst.Annotations = nil
+		}
+	}
+
 	return nil
 }
 
@@ -364,6 +382,13 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 	}
 
 	delete(dst.Annotations, dscApi.MaaSV2StateAnnotation)
+	delete(dst.Annotations, ModelExpressV3StateAnnotation)
+	if src.Spec.Components.Kserve.ModelExpress.ManagementState == operatorv1.Managed {
+		if dst.Annotations == nil {
+			dst.Annotations = make(map[string]string)
+		}
+		dst.Annotations[ModelExpressV3StateAnnotation] = modelExpressManaged
+	}
 	if len(dst.Annotations) == 0 {
 		dst.Annotations = nil
 	}
