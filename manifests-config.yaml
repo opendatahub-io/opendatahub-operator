@@ -1391,8 +1391,13 @@ imageOverrides:
     rhoai:
       base: "quay.io/rhoai/odh-openshell-supervisor-rhel9"
       digest: "sha256:d092826474b26b42eed61391b2a1e35f1e90bc48f5b926d1d0db0bd938b99f7f"
+  RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_UNIVERSAL_CPU_PY312_C9S_IMAGE:
+    source: "csv"
+    odh:
+      base: "quay.io/opendatahub/odh-workbench-jupyter-universal-cpu-py312-c9s"
+      digest: "sha256:d1bb49699abd25c226125a3ffed1717f10fe4e1a112429b95d8f34bb2a5fad39"
   RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_UNIVERSAL_CPU_PY312_IMAGE:
     source: "csv"
     rhoai:
       base: "quay.io/rhoai/odh-workbench-jupyter-universal-cpu-py312-rhel9"
-      digest: "sha256:732feae6bb09998b7619c90794f4595845a3ac919ae11a0740b61e2e5115a026"
+      digest: "sha256:eecf69e99707d449ce8ded572c8a05fdaef88f2e5fc5b9978fd8f714b9990a39"
