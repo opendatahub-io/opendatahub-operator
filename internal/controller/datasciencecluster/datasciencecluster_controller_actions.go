@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
@@ -318,19 +319,26 @@ func provisionComponentsWith(ctx context.Context, rr *odhtype.ReconciliationRequ
 }
 
 func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	return provisionModuleCRsWith(ctx, rr, modules.DefaultRegistry())
+}
+
+func provisionModuleCRsWith(ctx context.Context, rr *odhtype.ReconciliationRequest, moduleReg *modules.Registry) error {
 	instance, ok := rr.Instance.(*dscApi.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscApi.DataScienceCluster)", rr.Instance)
 	}
 
-	moduleReg := modules.DefaultRegistry()
 	if !moduleReg.HasEntries() {
 		return nil
 	}
 
 	dscCtx := buildDSCContext(instance)
 
-	pm := modules.BuildPlatformModulesForSource(dscCtx, modules.ConfigFromDSC)
+	var pm configApi.PlatformModules
+	_ = moduleReg.ForConfigSource(modules.ConfigFromDSC, func(handler modules.ModuleHandler, _ bool) error {
+		handler.PopulatePlatformModule(&pm, dscCtx)
+		return nil
+	})
 	enabledModules := make(map[string]bool)
 	for _, name := range pm.EnabledModules() {
 		enabledModules[name] = true
@@ -341,10 +349,14 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		return fmt.Errorf("failed to resolve application namespace: %w", err)
 	}
 
-	gatewayDomain, _ := resources.GetGatewayDomain(ctx, rr.Client)
+	gatewayConfig, err := resources.GetGatewayConfig(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("get GatewayConfig for module CRs: %w", err)
+	}
+
 	crCfg := &modules.ModuleCRConfig{
 		ApplicationsNamespace: appNS,
-		GatewayDomain:         gatewayDomain,
+		GatewayConfig:         gatewayConfig,
 		Release:               rr.Release,
 	}
 
