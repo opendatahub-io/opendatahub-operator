@@ -175,7 +175,7 @@ componentCharts:
       sourcePath: charts/operator
     rhoai:
       repo: red-hat-data-services/workbenches-operator
-      ref: rhoai-3.6@920595d054b7077e0b07eafd72ee92a81f6c5ac6
+      ref: rhoai-3.6@3956b4466d97d1adb2bafa40abeb2f220dd061b4
       sourcePath: charts/operator
   data:
     odh:
@@ -383,7 +383,7 @@ imageOverrides:
       digest: "sha256:8e636e90e51d2d1361429985b8b4e5f6cfd78b1588618def13c82bc52f02d30f"
     rhoai:
       base: "quay.io/rhoai/odh-workbenches-operator-rhel9"
-      digest: "sha256:b230f305f8146bdd4d0ea09ee705dbd8d8730fb1e91c8a3596a784542c695f50"
+      digest: "sha256:5c93c8c5b8983442a2716bcfb572cff2ecb98b9367f1dd917501bdee3c32d117"
   RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE:
     component: data
     tagTemplate: "{SHA}"
