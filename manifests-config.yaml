@@ -162,11 +162,11 @@ componentCharts:
   dashboard-operator:
     odh:
       repo: opendatahub-io/odh-dashboard
-      ref: main@9a44aa54cefa659f2d310569898288e0051a08bb
+      ref: main@8eff5034184f24c22974d1baf57d73971e088e93
       sourcePath: dashboard-operator/charts/dashboard
     rhoai:
       repo: red-hat-data-services/odh-dashboard
-      ref: rhoai-3.6@4bb520b51ea0684c348a309bc48cfa86cd98e07f
+      ref: rhoai-3.6@b9551ff30db924b7e59bd175832fd896280d68bb
       sourcePath: dashboard-operator/charts/dashboard
   workbenches:
     odh:
@@ -362,19 +362,19 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-dashboard-operator"
-      digest: "sha256:5a5d1b88375c79e101a0b86e8b71e3aae1ccb27a94fe821c25e89fb4befcbd15"
+      digest: "sha256:c4edb4faa836341984cb780e146e7644c0c2c38e69ccfc512dd682e8f45b40bb"
     rhoai:
       base: "quay.io/rhoai/odh-dashboard-operator-rhel9"
-      digest: "sha256:756743f3fbfbfe13972496f10035f7aa2937b9d62ab44f0d4d322049ee56e4a2"
+      digest: "sha256:461609d0b0f1857e278940c02bd6c91a3853677633bfb6448944c41379d21095"
   RELATED_IMAGE_ODH_DASHBOARD_IMAGE:
     component: dashboard-operator
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-dashboard"
-      digest: "sha256:35daae78acc01f9a516f6326167fc2230e0ba368f22890c3abdc87cc03c3a8aa"
+      digest: "sha256:4af5b51a8eee18a0186e16c72daa72f86a2f918c85b458e841dabc6d1cec3c97"
     rhoai:
       base: "quay.io/rhoai/odh-dashboard-rhel9"
-      digest: "sha256:65333a8c4f1de6d6a26763d8443cc06982c1fe89dff3b5c27d9a61be38e9735a"
+      digest: "sha256:6b39814156756ab1bb23322588983109b0ebc96239c4a629340caabcb512cdc0"
   RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE:
     component: workbenches
     tagTemplate: "{SHA}"
@@ -591,7 +591,7 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-kube-auth-proxy"
-      digest: "sha256:59a374debaf7294c374a679c7b142ea2eb0c897d8eb2e2d9eb038b2536f99c38"
+      digest: "sha256:e0c749a29554d7c53d9a01afa4dbcc204dc141ce8466b5977ab4cd2ed30242a9"
     rhoai:
       base: "quay.io/rhoai/odh-kube-auth-proxy-rhel9"
       digest: "sha256:8d2847f8560fc7f0efa550cf7cffabe4b4587cd239f8263918e0eb7f50aea532"
@@ -1245,7 +1245,7 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-kube-auth-proxy"
-      digest: "sha256:59a374debaf7294c374a679c7b142ea2eb0c897d8eb2e2d9eb038b2536f99c38"
+      digest: "sha256:e0c749a29554d7c53d9a01afa4dbcc204dc141ce8466b5977ab4cd2ed30242a9"
     rhoai:
       base: "quay.io/rhoai/odh-kube-auth-proxy-rhel9"
       digest: "sha256:8d2847f8560fc7f0efa550cf7cffabe4b4587cd239f8263918e0eb7f50aea532"

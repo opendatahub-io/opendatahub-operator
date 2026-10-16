@@ -40,9 +40,12 @@ const (
 
 	// maasPortalConditionType is the v3 DSC condition mirrored from the
 	// dashboard-operator for the MaaS Consumer Portal submodule.
-	maasPortalConditionType     = "MaaSPortalAvailable"
-	dashboardReadyConditionType = "DashboardReady"
-	monitoringViewClusterRole   = "cluster-monitoring-view"
+	maasPortalConditionType = "MaaSPortalAvailable"
+	// maasConsumerPortalConditionType is the v2 spelling of the same condition,
+	// produced by the v2<->v3 conversion webhook.
+	maasConsumerPortalConditionType = "MaaSConsumerPortalAvailable"
+	dashboardReadyConditionType     = "DashboardReady"
+	monitoringViewClusterRole       = "cluster-monitoring-view"
 )
 
 func dashboardTestSuite(t *testing.T) {
@@ -608,7 +611,10 @@ func (tc *DashboardTestCtx) ValidateV2DSCDashboardSelection(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Dashboard, types.NamespacedName{Name: componentApi.DashboardInstanceName}),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
-		WithCondition(jq.Match(`.spec.managementState == "Managed"`)),
+		WithCondition(And(
+			jq.Match(`.spec.managementState == "Removed"`),
+			jq.Match(`.spec.maasPortal.managementState == "Managed"`),
+		)),
 	)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -628,6 +634,9 @@ func (tc *DashboardTestCtx) ValidateV2DSCDashboardSelection(t *testing.T) {
 			jq.Match(`.status.components.dashboard.managementState == "Managed"`),
 			jq.Match(`.status.components.maasConsumerPortal.managementState == "Managed"`),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, dashboardReadyConditionType, metav1.ConditionTrue),
+			// The v3 MaaSPortalAvailable condition must surface under its v2
+			// spelling through the conversion webhook.
+			jq.Match(`any(.status.conditions[]; .type == "%s")`, maasConsumerPortalConditionType),
 		)),
 	)
 }
@@ -663,15 +672,20 @@ func (tc *DashboardTestCtx) ValidatePortalOnlyKeepsOperatorUp(t *testing.T) {
 		WithMinimalObject(gvk.Deployment, controllerNN),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
-		WithCustomErrorMsg("dashboard-operator Deployment should stay up when only maasConsumerPortal is Managed"),
+		WithCustomErrorMsg("dashboard-operator Deployment should stay up when only the MaaS Portal is Managed"),
 	)
 
-	// The Dashboard module CR must remain Managed while the portal is enabled.
+	// The Dashboard module CR stays alive with the core Removed and the portal
+	// Managed: the CR projects the standard state on spec.managementState and
+	// the portal state on spec.maasPortal.managementState.
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Dashboard, moduleCRNN),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
-		WithCondition(jq.Match(`.spec.managementState == "Managed"`)),
-		WithCustomErrorMsg("Dashboard module CR should remain Managed when only maasConsumerPortal is Managed"),
+		WithCondition(And(
+			jq.Match(`.spec.managementState == "Removed"`),
+			jq.Match(`.spec.maasPortal.managementState == "Managed"`),
+		)),
+		WithCustomErrorMsg("Dashboard module CR should project standard Removed and maasPortal Managed"),
 	)
 
 	// DSC status must reflect the active Dashboard module and its Managed portal submodule.
@@ -701,6 +715,7 @@ func (tc *DashboardTestCtx) ValidatePortalDisabledWhileDashboardEnabled(t *testi
 	skipUnless(t, Tier1)
 
 	controllerNN := types.NamespacedName{Namespace: tc.AppsNamespace, Name: dashboardControllerDeployment}
+	moduleCRNN := types.NamespacedName{Name: componentApi.DashboardInstanceName}
 
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -720,6 +735,18 @@ func (tc *DashboardTestCtx) ValidatePortalDisabledWhileDashboardEnabled(t *testi
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
 		WithCustomErrorMsg("dashboard-operator Deployment should stay up for the core Dashboard"),
+	)
+
+	// The Dashboard module CR projects the standard state on spec.managementState
+	// and the removed portal on spec.maasPortal.managementState.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Dashboard, moduleCRNN),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(And(
+			jq.Match(`.spec.managementState == "Managed"`),
+			jq.Match(`.spec.maasPortal.managementState == "Removed"`),
+		)),
+		WithCustomErrorMsg("Dashboard module CR should project standard Managed and maasPortal Removed"),
 	)
 
 	// Portal submodule condition and status must report Removed.

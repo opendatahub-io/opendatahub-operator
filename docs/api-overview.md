@@ -83,7 +83,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `instancesNamespace` _string_ | Namespace for AI Hub registries, configurable only once when AI Hub is enabled. | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `instancesNamespace` _string_ | Namespace for AI Hub registries and the model catalog service.<br />Defaults to "odh-model-registries" when omitted, or when empty and Managed.<br />It may equal the platform applications namespace. A non-empty namespace<br />cannot change while AI Hub remains Managed; set Removed before changing it. | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### AIHubCommonStatus
@@ -100,7 +100,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `instancesNamespace` _string_ |  |  |  |
+| `instancesNamespace` _string_ | Effective namespace projected into the AI Hub module CR; empty when Removed. |  |  |
 
 
 #### ArgoWorkflowsControllersSpec
@@ -170,7 +170,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `instancesNamespace` _string_ | Namespace for AI Hub registries, configurable only once when AI Hub is enabled. | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `instancesNamespace` _string_ | Namespace for AI Hub registries and the model catalog service.<br />Defaults to "odh-model-registries" when omitted, or when empty and Managed.<br />It may equal the platform applications namespace. A non-empty namespace<br />cannot change while AI Hub remains Managed; set Removed before changing it. | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### DSCAIHubStatus
