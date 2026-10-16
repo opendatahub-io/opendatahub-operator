@@ -40,7 +40,7 @@ map:
     src: manifests
     dest: trainingoperator
     git.url: https://github.com/red-hat-data-services/training-operator
-    git.commit: f875b6fa43f9073f752da7e9e845d9bbeb3b35e7
+    git.commit: 121592ac1a8a77421a6ffc5ba3a86db0789198c5
   odh-trainer:
     src: manifests
     dest: trainer
