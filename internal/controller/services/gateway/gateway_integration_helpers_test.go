@@ -2370,6 +2370,76 @@ func RunNetworkPolicyAuthModeLifecycleTest(t *testing.T, setup TestSetup) {
 	}, TestTimeout, TestInterval).Should(BeTrue(), "auth mode change should remove the proxy and its policy")
 }
 
+// RunDashboardRedirectNetworkPolicyTest verifies the dashboard-redirect NetworkPolicy
+// lifecycle against the running gateway controller: the policy is created while the
+// Dashboard CR exists, manual drift and deletion are restored without a GatewayConfig
+// edit through the shared NetworkPolicy watch, and removing the Dashboard CR removes
+// the policy together with the other redirect resources.
+func RunDashboardRedirectNetworkPolicyTest(t *testing.T, setup TestSetup) {
+	t.Helper()
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+
+	ctx := setup.TC.Ctx
+	cli := setup.TC.K8sClient
+	key := types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: cluster.GetApplicationNamespace()}
+
+	// Redirect resources render only while the Dashboard CR exists; creating
+	// it triggers reconciliation through the Dashboard watch.
+	dashboard := resources.GvkToUnstructured(gvk.Dashboard)
+	dashboard.SetName(componentApi.DashboardInstanceName)
+	g.Expect(cli.Create(ctx, dashboard)).To(Succeed())
+	defer func() {
+		_ = cli.Delete(ctx, dashboard)
+	}()
+
+	policy := &networkingv1.NetworkPolicy{}
+	g.Eventually(func() error {
+		return cli.Get(ctx, key, policy)
+	}, TestTimeout, TestInterval).Should(Succeed(), "the redirect NetworkPolicy should be created while the Dashboard CR exists")
+	assertOwnedByGatewayConfig(g, policy)
+	g.Expect(policy.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue("app", gateway.DashboardRedirectName),
+		"the policy must select redirect pods via the stable app label contract")
+	g.Expect(policy.Spec.PolicyTypes).To(Equal([]networkingv1.PolicyType{networkingv1.PolicyTypeIngress}))
+	g.Expect(policy.Spec.Egress).To(BeEmpty(), "the redirect policy must not introduce egress isolation")
+	g.Expect(policy.Spec.Ingress).To(HaveLen(1), "exactly one ingress rule is allowed")
+	g.Expect(policy.Spec.Ingress[0].From).To(HaveLen(2), "two alternative allowed namespace peers")
+
+	// Manual drift must be restored without a GatewayConfig edit.
+	g.Expect(cli.Get(ctx, key, policy)).To(Succeed())
+	wrongPort := intstr.FromInt(9443)
+	policy.Spec.Ingress[0].Ports[0].Port = &wrongPort
+	g.Expect(cli.Update(ctx, policy)).To(Succeed())
+	g.Eventually(func() bool {
+		current := &networkingv1.NetworkPolicy{}
+		if err := cli.Get(ctx, key, current); err != nil {
+			return false
+		}
+		return len(current.Spec.Ingress) == 1 && len(current.Spec.Ingress[0].Ports) == 1 &&
+			current.Spec.Ingress[0].Ports[0].Port != nil &&
+			current.Spec.Ingress[0].Ports[0].Port.IntValue() == 8080
+	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfig should restore the drifted redirect NetworkPolicy")
+
+	// Deleting the policy must trigger recreation through the NetworkPolicy watch.
+	g.Expect(cli.Get(ctx, key, policy)).To(Succeed())
+	deletedUID := policy.UID
+	g.Expect(cli.Delete(ctx, policy)).To(Succeed())
+	g.Eventually(func() bool {
+		current := &networkingv1.NetworkPolicy{}
+		if err := cli.Get(ctx, key, current); err != nil {
+			return false
+		}
+		return current.UID != deletedUID && len(current.OwnerReferences) == 1 &&
+			current.OwnerReferences[0].Kind == serviceApi.GatewayConfigKind
+	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfig should recreate the deleted redirect NetworkPolicy")
+
+	// Deleting the Dashboard CR must remove the redirect NetworkPolicy.
+	g.Expect(cli.Delete(ctx, dashboard)).To(Succeed())
+	g.Eventually(func() bool {
+		return deletionRequestedOrComplete(ctx, cli, key, &networkingv1.NetworkPolicy{})
+	}, TestTimeout, TestInterval).Should(BeTrue(), "deleting the Dashboard CR should remove the redirect NetworkPolicy")
+}
+
 // RunNetworkPolicyMissingOIDCConfigTest verifies that a missing OIDC configuration
 // removes a previously deployed proxy and policy.
 func RunNetworkPolicyMissingOIDCConfigTest(t *testing.T, setup TestSetup) {
