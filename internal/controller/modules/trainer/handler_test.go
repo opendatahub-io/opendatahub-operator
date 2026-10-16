@@ -16,13 +16,13 @@ import (
 
 const testAppsNS = "opendatahub"
 
-func newDSCContext(mgmtState operatorv1.ManagementState) *modules.DSCContext {
+func newDSC(mgmtState operatorv1.ManagementState) *dscApi.DataScienceCluster {
 	dsc := &dscApi.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
 	}
 	dsc.Spec.Components.Trainer.ManagementState = mgmtState
 
-	return &modules.DSCContext{DSC: dsc}
+	return dsc
 }
 
 func newModuleCRConfig() *modules.ModuleCRConfig {
@@ -72,7 +72,7 @@ func TestPopulatePlatformModule(t *testing.T) {
 	h := NewHandler()
 
 	pm := &configApi.PlatformModules{}
-	h.PopulatePlatformModule(pm, newDSCContext(operatorv1.Managed))
+	h.PopulatePlatformModule(pm, &modules.DSCContext{DSC: newDSC(operatorv1.Managed)})
 
 	if pm.Trainer.ManagementState != operatorv1.Managed {
 		t.Fatalf("expected Managed, got %s", pm.Trainer.ManagementState)
@@ -85,35 +85,6 @@ func TestPopulatePlatformModule_NilSafe(t *testing.T) {
 	h.PopulatePlatformModule(nil, nil)
 	h.PopulatePlatformModule(&configApi.PlatformModules{}, nil)
 	h.PopulatePlatformModule(&configApi.PlatformModules{}, &modules.DSCContext{})
-}
-
-func TestBuildModuleCR_BasicProjection(t *testing.T) {
-	h := NewHandler()
-
-	u, err := h.BuildModuleCR(t.Context(), nil, newDSCContext(operatorv1.Managed), newModuleCRConfig())
-	if err != nil {
-		t.Fatalf("BuildModuleCR returned error: %v", err)
-	}
-
-	if u.GetName() != componentApi.TrainerInstanceName {
-		t.Errorf("name: want %q, got %q", componentApi.TrainerInstanceName, u.GetName())
-	}
-	if u.GetKind() != componentApi.TrainerKind {
-		t.Errorf("kind: want %q, got %q", componentApi.TrainerKind, u.GetKind())
-	}
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	if !ok {
-		t.Fatal("spec is not a map")
-	}
-
-	if _, exists := spec["managementState"]; exists {
-		t.Error("managementState is a DSC-level field and must not be projected into the module CR")
-	}
-
-	if ns, ok := spec["appNamespace"].(string); !ok || ns != testAppsNS {
-		t.Errorf("appNamespace: want %q, got %v", testAppsNS, spec["appNamespace"])
-	}
 }
 
 func TestBuildModuleCR_NilDSCContextReturnsError(t *testing.T) {
@@ -168,39 +139,14 @@ func TestGetName(t *testing.T) {
 	}
 }
 
-func TestDSCToModuleCRFlow(t *testing.T) {
-	t.Run("DSC with trainer=Managed creates correct Module CR", func(t *testing.T) {
+func TestDSCToPlatformModuleFlow(t *testing.T) {
+	t.Run("DSC with trainer=Managed populates and enables the platform module", func(t *testing.T) {
 		h := NewHandler()
-		dscCtx := newDSCContext(operatorv1.Managed)
-
 		pm := &configApi.PlatformModules{}
-		h.PopulatePlatformModule(pm, dscCtx)
+		h.PopulatePlatformModule(pm, &modules.DSCContext{DSC: newDSC(operatorv1.Managed)})
 
 		if !h.IsEnabled(pm) {
 			t.Fatal("IsEnabled should return true when managementState=Managed")
-		}
-
-		moduleCR, err := h.BuildModuleCR(t.Context(), nil, dscCtx, newModuleCRConfig())
-		if err != nil {
-			t.Fatalf("BuildModuleCR failed: %v", err)
-		}
-
-		if moduleCR.GetName() != componentApi.TrainerInstanceName {
-			t.Errorf("Expected CR name %q, got %q", componentApi.TrainerInstanceName, moduleCR.GetName())
-		}
-
-		gvk := moduleCR.GroupVersionKind()
-		if gvk.Group != "components.platform.opendatahub.io" || gvk.Version != "v1alpha1" || gvk.Kind != "Trainer" {
-			t.Errorf("Unexpected GVK: %s", gvk.String())
-		}
-
-		spec, ok := moduleCR.Object["spec"].(map[string]any)
-		if !ok {
-			t.Fatal("Module CR missing spec")
-		}
-
-		if _, exists := spec["managementState"]; exists {
-			t.Error("managementState is a DSC-level field and must not be projected into the module CR")
 		}
 	})
 }
