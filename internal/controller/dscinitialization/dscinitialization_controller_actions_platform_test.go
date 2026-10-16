@@ -19,7 +19,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestReconcileDSCIModulesPreservesExistingOwner(t *testing.T) {
+func TestReconcileDSCIModulesReplacesStaleDSCOwner(t *testing.T) {
 	g := NewWithT(t)
 
 	s, err := testscheme.New()
@@ -47,8 +47,7 @@ func TestReconcileDSCIModulesPreservesExistingOwner(t *testing.T) {
 
 	foundPlatform := &configApi.Platform{}
 	g.Expect(cli.Get(t.Context(), client.ObjectKey{Name: configApi.PlatformInstanceName}, foundPlatform)).Should(Succeed())
-	g.Expect(foundPlatform.GetOwnerReferences()).Should(ContainElements(
+	g.Expect(foundPlatform.GetOwnerReferences()).Should(ConsistOf(
 		WithTransform(func(ref metav1.OwnerReference) types.UID { return ref.UID }, Equal(dsci.UID)),
-		WithTransform(func(ref metav1.OwnerReference) types.UID { return ref.UID }, Equal(dsc.UID)),
 	))
 }

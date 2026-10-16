@@ -56,7 +56,7 @@ func TestSetPlatformMetadata(t *testing.T) {
 	g.Expect(platform.GetAnnotations()).Should(HaveKeyWithValue("platform.opendatahub.io/version", "1.2.3"))
 }
 
-func TestEnsurePlatformOwnerReferenceMergesOwners(t *testing.T) {
+func TestEnsurePlatformLifecycleOwnerReferenceRemovesStaleDSCOwner(t *testing.T) {
 	g := NewWithT(t)
 
 	s, err := scheme.New()
@@ -66,42 +66,43 @@ func TestEnsurePlatformOwnerReferenceMergesOwners(t *testing.T) {
 	dsc := &dscApi.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "default-dsc", UID: types.UID("dsc-uid")}}
 	platform := &configApi.Platform{ObjectMeta: metav1.ObjectMeta{Name: configApi.PlatformInstanceName}}
 	g.Expect(controllerutil.SetOwnerReference(dsci, platform, s)).Should(Succeed())
+	g.Expect(controllerutil.SetOwnerReference(dsc, platform, s)).Should(Succeed())
 
 	cli, err := fakeclient.New(fakeclient.WithScheme(s), fakeclient.WithObjects(platform))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	g.Expect(EnsurePlatformOwnerReference(t.Context(), cli, dsc, s)).Should(Succeed())
+	g.Expect(EnsurePlatformLifecycleOwnerReference(t.Context(), cli, dsci, s)).Should(Succeed())
 
 	updated := &configApi.Platform{}
 	g.Expect(cli.Get(t.Context(), client.ObjectKey{Name: configApi.PlatformInstanceName}, updated)).Should(Succeed())
-	g.Expect(updated.GetOwnerReferences()).Should(HaveLen(2))
+	g.Expect(updated.GetOwnerReferences()).Should(HaveLen(1))
 	g.Expect(updated.GetOwnerReferences()).Should(ContainElements(
 		WithTransform(func(ref metav1.OwnerReference) types.UID { return ref.UID }, Equal(dsci.UID)),
-		WithTransform(func(ref metav1.OwnerReference) types.UID { return ref.UID }, Equal(dsc.UID)),
 	))
+	g.Expect(updated.GetOwnerReferences()).ShouldNot(ContainElement(WithTransform(func(ref metav1.OwnerReference) types.UID { return ref.UID }, Equal(dsc.UID))))
 }
 
-func TestEnsurePlatformOwnerReferencePropagatesGetErrors(t *testing.T) {
+func TestEnsurePlatformLifecycleOwnerReferencePropagatesGetErrors(t *testing.T) {
 	g := NewWithT(t)
 
 	s, err := scheme.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dsc := &dscApi.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "default-dsc", UID: types.UID("dsc-uid")}}
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: "default-dsci", UID: types.UID("dsci-uid")}}
 	cli, err := fakeclient.New(fakeclient.WithScheme(s))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	err = EnsurePlatformOwnerReference(t.Context(), cli, dsc, s)
+	err = EnsurePlatformLifecycleOwnerReference(t.Context(), cli, dsci, s)
 	g.Expect(k8serr.IsNotFound(err)).Should(BeTrue())
 }
 
-func TestEnsurePlatformOwnerReferenceRetriesConflicts(t *testing.T) {
+func TestEnsurePlatformLifecycleOwnerReferenceRetriesConflicts(t *testing.T) {
 	g := NewWithT(t)
 
 	s, err := scheme.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dsc := &dscApi.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "default-dsc", UID: types.UID("dsc-uid")}}
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: "default-dsci", UID: types.UID("dsci-uid")}}
 	platform := &configApi.Platform{ObjectMeta: metav1.ObjectMeta{Name: configApi.PlatformInstanceName}}
 	updates := 0
 	cli, err := fakeclient.New(
@@ -119,6 +120,6 @@ func TestEnsurePlatformOwnerReferenceRetriesConflicts(t *testing.T) {
 	)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	g.Expect(EnsurePlatformOwnerReference(t.Context(), cli, dsc, s)).Should(Succeed())
+	g.Expect(EnsurePlatformLifecycleOwnerReference(t.Context(), cli, dsci, s)).Should(Succeed())
 	g.Expect(updates).Should(Equal(2))
 }
