@@ -49,11 +49,16 @@ func checkPreConditions(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 
 	instance, ok := rr.Instance.(*dscApi.DataScienceCluster)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a dscApi.DataScienceCluster)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a dscApi.DataScienceCluster", rr.Instance)
 	}
 
 	ready := conditions.FindStatusCondition(instance, status.ConditionTypeReady)
 	if ready != nil && ready.Status == metav1.ConditionFalse && ready.Reason == status.UninstallInProgressReason {
+		rr.Conditions.MarkFalse(
+			status.ConditionTypeComponentsReady,
+			conditions.WithReason(status.UninstallInProgressReason),
+			conditions.WithMessage(status.UninstallInProgressMessage),
+		)
 		return odherrors.NewStopError(status.UninstallInProgressMessage).
 			WithRequeueAfter(30 * time.Second)
 	}

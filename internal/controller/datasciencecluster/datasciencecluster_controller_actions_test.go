@@ -62,12 +62,6 @@ func TestCheckPreConditionsStopsDuringUninstall(t *testing.T) {
 	g := NewWithT(t)
 
 	dsc := newDSC()
-	dsc.Status.Conditions = []common.Condition{{
-		Type:    status.ConditionTypeReady,
-		Status:  metav1.ConditionFalse,
-		Reason:  status.UninstallInProgressReason,
-		Message: status.UninstallInProgressMessage,
-	}}
 	dsci := &dsciv2.DSCInitialization{}
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
@@ -77,18 +71,31 @@ func TestCheckPreConditionsStopsDuringUninstall(t *testing.T) {
 		Client:   cli,
 		Instance: dsc,
 	}
+	rr.Conditions = conditionstest.NewManager(
+		dsc,
+		status.ConditionTypeReady,
+		status.ConditionTypeComponentsReady,
+		status.ConditionTypeModulesReady,
+	)
+	dsc.Status.Conditions = []common.Condition{{
+		Type:    status.ConditionTypeReady,
+		Status:  metav1.ConditionFalse,
+		Reason:  status.UninstallInProgressReason,
+		Message: status.UninstallInProgressMessage,
+	}}
 
 	err = checkPreConditions(t.Context(), rr)
 
 	var stopErr odherrors.StopError
 	g.Expect(errors.As(err, &stopErr)).To(BeTrue())
 	g.Expect(stopErr.RequeueAfter()).To(BeNumerically(">", 0))
-	g.Expect(dsc.Status.Conditions).To(ConsistOf(common.Condition{
-		Type:    status.ConditionTypeReady,
-		Status:  metav1.ConditionFalse,
-		Reason:  status.UninstallInProgressReason,
-		Message: status.UninstallInProgressMessage,
-	}))
+	rr.Conditions.CleanupStaleConditions()
+	rr.Conditions.RecomputeHappiness()
+
+	ready := rr.Conditions.GetTopLevelCondition()
+	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(ready.Reason).To(Equal(status.UninstallInProgressReason))
+	g.Expect(ready.Message).To(Equal(status.UninstallInProgressMessage))
 }
 
 func TestCheckPreConditionsAllowsNonUninstallReadyCondition(t *testing.T) {
