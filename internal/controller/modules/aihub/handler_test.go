@@ -10,6 +10,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aihub"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -152,7 +153,9 @@ func TestBuildModuleCR_WithGatewayDomain(t *testing.T) {
 
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, &modules.ModuleCRConfig{
 		ApplicationsNamespace: "test-apps-ns",
-		GatewayDomain:         "apps.example.com",
+		GatewayConfig: &serviceApi.GatewayConfig{
+			Status: serviceApi.GatewayConfigStatus{Domain: "apps.example.com"},
+		},
 	})
 	g.Expect(err).ShouldNot(HaveOccurred())
 

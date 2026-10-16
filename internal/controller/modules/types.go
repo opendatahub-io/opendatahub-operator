@@ -237,12 +237,8 @@ type ModuleCRConfig struct {
 	// ApplicationsNamespace is the namespace where module operands deploy.
 	ApplicationsNamespace string
 
-	// GatewayDomain is the computed domain from GatewayConfig status.
-	GatewayDomain string
-
-	// GatewayIngresses are additional assignments from GatewayConfig status.
-	// Nil omits the default ingress; an empty slice includes only the default.
-	GatewayIngresses []serviceApi.AdditionalIngressStatus
+	// GatewayConfig is a shared, read-only snapshot.
+	GatewayConfig *serviceApi.GatewayConfig
 
 	// Release identifies the platform (ODH/RHOAI) and version.
 	Release common.Release

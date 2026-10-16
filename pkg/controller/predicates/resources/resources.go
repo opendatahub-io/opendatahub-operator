@@ -198,9 +198,9 @@ func toGatewayConfig(obj client.Object) (*serviceApi.GatewayConfig, error) {
 	return nil, fmt.Errorf("object is neither typed GatewayConfig nor unstructured: %T", obj)
 }
 
-// GatewayConfigWorkbenchesInputsChanged triggers projection when the gateway
+// GatewayConfigModuleInputsChanged triggers projection when the gateway
 // domain or published additional ingress assignments change.
-func GatewayConfigWorkbenchesInputsChanged() predicate.Predicate {
+func GatewayConfigModuleInputsChanged() predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
 			return true

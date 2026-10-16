@@ -66,8 +66,9 @@ func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
 
 func newModuleCRConfig() *modules.ModuleCRConfig {
 	return &modules.ModuleCRConfig{
-		GatewayDomain:    "apps.example.com",
-		GatewayIngresses: []serviceApi.AdditionalIngressStatus{},
+		GatewayConfig: &serviceApi.GatewayConfig{
+			Status: serviceApi.GatewayConfigStatus{Domain: "apps.example.com"},
+		},
 		Release: common.Release{
 			Name: cluster.OpenDataHub,
 		},
@@ -136,8 +137,12 @@ func TestBuildModuleCR_ProjectsIngresses(t *testing.T) {
 	t.Cleanup(func() { cluster.SetClusterInfo(previousCluster) })
 	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
 	cfg := newModuleCRConfig()
-	cfg.GatewayIngresses = []serviceApi.AdditionalIngressStatus{
-		{Name: "beta", Hostname: "beta.example.com", GatewayRef: serviceApi.GatewayReference{Name: "beta-parent", Namespace: gateway.GatewayNamespace}},
+	cfg.GatewayConfig.Status.AdditionalIngresses = []serviceApi.AdditionalIngressStatus{
+		{
+			Name: "beta", Hostname: "beta.example.com",
+			GatewayRef: serviceApi.GatewayReference{Name: "beta-parent", Namespace: gateway.GatewayNamespace},
+			Conditions: []common.Condition{{Type: "Ready", Status: "False"}},
+		},
 		{Name: "alpha", Hostname: "alpha.example.com", GatewayRef: serviceApi.GatewayReference{Name: "alpha", Namespace: gateway.GatewayNamespace}},
 		{Name: "pending", Hostname: "pending.example.com"},
 	}
@@ -156,7 +161,7 @@ func TestBuildModuleCR_ProjectsIngresses(t *testing.T) {
 	}))
 	validateModuleCRAgainstBundledSchema(t, u.Object)
 
-	cfg.GatewayIngresses = []serviceApi.AdditionalIngressStatus{}
+	cfg.GatewayConfig.Status.AdditionalIngresses = nil
 	u, err = build()
 	g.Expect(err).NotTo(HaveOccurred())
 	spec, ok = u.Object["spec"].(map[string]any)
@@ -165,7 +170,7 @@ func TestBuildModuleCR_ProjectsIngresses(t *testing.T) {
 		{"name": gateway.DefaultGatewayName, "gatewayName": gateway.DefaultGatewayName, "gatewayNamespace": gateway.GatewayNamespace, "hostname": "apps.example.com", "isDefault": true},
 	}))
 
-	cfg.GatewayIngresses = nil
+	cfg.GatewayConfig = nil
 	u, err = build()
 	g.Expect(err).NotTo(HaveOccurred())
 	spec, ok = u.Object["spec"].(map[string]any)
@@ -173,7 +178,7 @@ func TestBuildModuleCR_ProjectsIngresses(t *testing.T) {
 	g.Expect(spec["ingresses"]).To(Equal([]map[string]any{}))
 
 	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
-	cfg.GatewayIngresses = []serviceApi.AdditionalIngressStatus{}
+	cfg.GatewayConfig = newModuleCRConfig().GatewayConfig
 	u, err = build()
 	g.Expect(err).NotTo(HaveOccurred())
 	spec, ok = u.Object["spec"].(map[string]any)

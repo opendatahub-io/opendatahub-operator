@@ -142,10 +142,11 @@ func (h *handler) BuildModuleCR(
 	spec["mlflowEnabled"] = dscCtx.DSC.Spec.Components.MLflowOperator.ManagementState == operatorv1.Managed
 	ingresses := []map[string]any{}
 	if cfg != nil {
-		if cfg.GatewayIngresses != nil {
-			ingresses = gatewayStatusIngresses(cfg.GatewayDomain, cfg.GatewayIngresses)
+		spec["gatewayDomain"] = ""
+		if cfg.GatewayConfig != nil {
+			ingresses = gatewayStatusIngresses(cfg.GatewayConfig.Status.Domain, cfg.GatewayConfig.Status.AdditionalIngresses)
+			spec["gatewayDomain"] = cfg.GatewayConfig.Status.Domain
 		}
-		spec["gatewayDomain"] = cfg.GatewayDomain
 		spec["platform"] = workbenchesPlatformType(cfg.Release.Name)
 	}
 	spec["ingresses"] = ingresses

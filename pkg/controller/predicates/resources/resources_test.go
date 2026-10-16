@@ -27,7 +27,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestGatewayConfigWorkbenchesInputsChanged(t *testing.T) {
+func TestGatewayConfigModuleInputsChanged(t *testing.T) {
 	base := &serviceApi.GatewayConfig{}
 	base.Status.AdditionalIngresses = []serviceApi.AdditionalIngressStatus{{
 		Name: "alpha", Hostname: "alpha.example.com",
@@ -45,6 +45,8 @@ func TestGatewayConfigWorkbenchesInputsChanged(t *testing.T) {
 		}, true},
 		{"edit", func(c *serviceApi.GatewayConfig) { c.Status.AdditionalIngresses[0].Hostname = "new.example.com" }, true},
 		{"gateway ref", func(c *serviceApi.GatewayConfig) { c.Status.AdditionalIngresses[0].GatewayRef.Name = "new-gateway" }, true},
+		{"gateway namespace", func(c *serviceApi.GatewayConfig) { c.Status.AdditionalIngresses[0].GatewayRef.Namespace = "new-ns" }, true},
+		{"ingress name", func(c *serviceApi.GatewayConfig) { c.Status.AdditionalIngresses[0].Name = "renamed" }, true},
 		{"remove", func(c *serviceApi.GatewayConfig) { c.Status.AdditionalIngresses = nil }, true},
 		{"spec only", func(c *serviceApi.GatewayConfig) {
 			c.Spec.AdditionalIngresses = serviceApi.AdditionalIngresses{{Name: "beta"}}
@@ -52,16 +54,36 @@ func TestGatewayConfigWorkbenchesInputsChanged(t *testing.T) {
 		{"conditions only", func(c *serviceApi.GatewayConfig) {
 			c.Status.AdditionalIngresses[0].Conditions = []common.Condition{{Type: "Ready"}}
 		}, false},
+		{"gateway conditions only", func(c *serviceApi.GatewayConfig) {
+			c.Status.Conditions = []common.Condition{{Type: "Ready", Status: metav1.ConditionTrue}}
+		}, false},
+		{"metadata only", func(c *serviceApi.GatewayConfig) { c.SetResourceVersion("2") }, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			updated := base.DeepCopy()
 			tc.edit(updated)
-			got := resources.GatewayConfigWorkbenchesInputsChanged().Update(event.UpdateEvent{ObjectOld: base, ObjectNew: updated})
-			if got != tc.want {
-				t.Fatalf("reconcile = %t, want %t", got, tc.want)
+			for _, unstructuredObjects := range []bool{false, true} {
+				var oldObj, newObj client.Object = base, updated
+				if unstructuredObjects {
+					g := NewWithT(t)
+					var err error
+					oldObj, err = res.ToUnstructured(base)
+					g.Expect(err).NotTo(HaveOccurred())
+					newObj, err = res.ToUnstructured(updated)
+					g.Expect(err).NotTo(HaveOccurred())
+				}
+				got := resources.GatewayConfigModuleInputsChanged().Update(event.UpdateEvent{ObjectOld: oldObj, ObjectNew: newObj})
+				if got != tc.want {
+					t.Fatalf("unstructured=%t: reconcile = %t, want %t", unstructuredObjects, got, tc.want)
+				}
 			}
 		})
 	}
+	g := NewWithT(t)
+	p := resources.GatewayConfigModuleInputsChanged()
+	g.Expect(p.Create(event.CreateEvent{Object: base})).To(BeTrue())
+	g.Expect(p.Delete(event.DeleteEvent{Object: base})).To(BeTrue())
+	g.Expect(p.Generic(event.GenericEvent{Object: base})).To(BeFalse())
 }
 
 func TestAnnotationChanged(t *testing.T) {
