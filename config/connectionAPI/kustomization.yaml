@@ -3,3 +3,4 @@ kind: Kustomization
 
 resources:
 - secret_s3_validation.yaml
+- secret_postgres_validation.yaml
