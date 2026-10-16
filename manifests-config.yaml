@@ -591,7 +591,7 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-kube-auth-proxy"
-      digest: "sha256:e0c749a29554d7c53d9a01afa4dbcc204dc141ce8466b5977ab4cd2ed30242a9"
+      digest: "sha256:1a5f6e220362aa2077026bb7e3091c38f80aac861fa060b08045e58e783d5bc5"
     rhoai:
       base: "quay.io/rhoai/odh-kube-auth-proxy-rhel9"
       digest: "sha256:8d2847f8560fc7f0efa550cf7cffabe4b4587cd239f8263918e0eb7f50aea532"
@@ -1245,7 +1245,7 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-kube-auth-proxy"
-      digest: "sha256:e0c749a29554d7c53d9a01afa4dbcc204dc141ce8466b5977ab4cd2ed30242a9"
+      digest: "sha256:1a5f6e220362aa2077026bb7e3091c38f80aac861fa060b08045e58e783d5bc5"
     rhoai:
       base: "quay.io/rhoai/odh-kube-auth-proxy-rhel9"
       digest: "sha256:8d2847f8560fc7f0efa550cf7cffabe4b4587cd239f8263918e0eb7f50aea532"
