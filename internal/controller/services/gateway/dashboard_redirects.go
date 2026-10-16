@@ -66,6 +66,7 @@ const (
 	DashboardRedirectsDisabledValue = "disabled"
 
 	dashboardRedirectConfigMapTemplate          = "resources/dashboard-redirect-configmap.tmpl.yaml"
+	dashboardRedirectNetworkPolicyTemplate      = "resources/dashboard-redirect-networkpolicy.tmpl.yaml"
 	dashboardRedirectDeploymentTemplate         = "resources/dashboard-redirect-deployment.tmpl.yaml"
 	dashboardRedirectServiceTemplate            = "resources/dashboard-redirect-service.tmpl.yaml"
 	dashboardRedirectDashboardRouteTemplate     = "resources/dashboard-redirect-dashboard-route.tmpl.yaml"
@@ -144,8 +145,11 @@ func createDashboardRedirects(
 
 	// Add templates to reconciliation request
 	// Note: Legacy gateway redirect template uses {{- if .LegacyHostname }} to conditionally render
+	// Include the NetworkPolicy alongside the redirect workload resources.
+	// Template order does not determine apply order; the deploy action sorts resources.
 	templates := []odhtypes.TemplateInfo{
 		{FS: gatewayResources, Path: dashboardRedirectConfigMapTemplate},
+		{FS: gatewayResources, Path: dashboardRedirectNetworkPolicyTemplate},
 		{FS: gatewayResources, Path: dashboardRedirectDeploymentTemplate},
 		{FS: gatewayResources, Path: dashboardRedirectServiceTemplate},
 		{FS: gatewayResources, Path: dashboardRedirectDashboardRouteTemplate},
@@ -168,6 +172,7 @@ func deleteDashboardRedirectResources(ctx context.Context, cli client.Client) er
 		{gvk: gvk.Deployment, name: DashboardRedirectName},
 		{gvk: gvk.Service, name: DashboardRedirectName},
 		{gvk: gvk.ConfigMap, name: DashboardRedirectConfigName},
+		{gvk: gvk.NetworkPolicy, name: DashboardRedirectName},
 		{gvk: gvk.Route, name: GetDashboardRouteName()},
 		{gvk: gvk.Route, name: LegacyGatewaySubdomain},
 	}

@@ -17,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -118,6 +119,14 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundNetworkPolicy.Name).To(Equal(applicationNamespace))
 			Expect(foundNetworkPolicy.Namespace).To(Equal(applicationNamespace))
 			Expect(foundNetworkPolicy.Spec.PolicyTypes[0]).To(Equal(networkingv1.PolicyTypeIngress))
+			// The broad baseline must not select the dashboard-redirect pods, which
+			// carry their own narrow policy reconciled by the gateway controller.
+			Expect(foundNetworkPolicy.Spec.PodSelector.MatchLabels).To(BeEmpty())
+			Expect(foundNetworkPolicy.Spec.PodSelector.MatchExpressions).To(Equal([]metav1.LabelSelectorRequirement{{
+				Key:      "app",
+				Operator: metav1.LabelSelectorOpNotIn,
+				Values:   []string{gateway.DashboardRedirectName},
+			}}))
 		})
 
 		It("Should not create user group when we do not have authentications CR in the cluster", func(ctx context.Context) {

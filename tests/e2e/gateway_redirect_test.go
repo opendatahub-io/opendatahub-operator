@@ -37,10 +37,14 @@ func (tc *GatewayTestCtx) DashboardRedirectTestSuite(t *testing.T) {
 
 	testCases := []TestCase{
 		{"Validate dashboard redirect ConfigMap", tc.ValidateDashboardRedirectConfigMap},
+		{"Validate dashboard redirect NetworkPolicy", tc.ValidateDashboardRedirectNetworkPolicy},
+		{"Validate DSCI default policy excludes redirect pods", tc.ValidateDSCIDefaultPolicyExcludesRedirectPods},
 		{"Validate dashboard redirect Deployment", tc.ValidateDashboardRedirectDeployment},
 		{"Validate dashboard redirect Service", tc.ValidateDashboardRedirectService},
 		{"Validate dashboard redirect Routes", tc.ValidateDashboardRedirectRoutes},
 		{"Validate dashboard redirect HTTP functionality", tc.ValidateDashboardRedirectHTTP},
+		{"Validate dashboard redirect NetworkPolicy self-healing", tc.ValidateDashboardRedirectNetworkPolicySelfHealing},
+		{"Validate dashboard redirect NetworkPolicy traffic isolation", tc.ValidateDashboardRedirectNetworkPolicyTraffic},
 		{"Validate dashboard redirect annotation opt-out", tc.ValidateDashboardRedirectAnnotationOptOut},
 	}
 
@@ -423,6 +427,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectAnnotationOptOut(t *testing.T
 		{resourceGVK: gvk.Deployment, nn: types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: appNamespace}},
 		{resourceGVK: gvk.Service, nn: types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: appNamespace}},
 		{resourceGVK: gvk.ConfigMap, nn: types.NamespacedName{Name: gateway.DashboardRedirectConfigName, Namespace: appNamespace}},
+		{resourceGVK: gvk.NetworkPolicy, nn: types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: appNamespace}},
 		{resourceGVK: gvk.Route, nn: types.NamespacedName{Name: dashboardRouteName, Namespace: appNamespace}},
 	}
 	if gatewaySubdomain != gateway.LegacyGatewaySubdomain {

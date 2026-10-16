@@ -23,3 +23,6 @@ package gateway
 
 // Cert-manager resources (for certificate creation on XKS)
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
+
+// NetworkPolicy for the kube-auth-proxy and the dashboard-redirect proxy
+// +kubebuilder:rbac:groups="networking.k8s.io",resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete

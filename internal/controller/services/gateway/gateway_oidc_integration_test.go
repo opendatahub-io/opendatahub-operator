@@ -627,6 +627,13 @@ func TestOIDCSecretNamespace(t *testing.T) {
 	g.Expect(secret.Data).To(HaveKey(gateway.EnvClientSecret))
 }
 
+// TestOIDCDashboardRedirectNetworkPolicy validates the dashboard-redirect NetworkPolicy
+// lifecycle (creation while the Dashboard CR exists, drift and deletion restoration,
+// cleanup on Dashboard CR removal) in OIDC mode (delegates to RunDashboardRedirectNetworkPolicyTest).
+func TestOIDCDashboardRedirectNetworkPolicy(t *testing.T) {
+	RunDashboardRedirectNetworkPolicyTest(t, GetOIDCTestSetup())
+}
+
 // TestOIDCMissingConfigSetsReadyFalse verifies Ready=False when OIDC is required but not configured.
 // Keep this test last in the OIDC test list: it deletes GatewayConfig at the end; a test running after could race with the controller.
 func TestOIDCMissingConfigSetsReadyFalse(t *testing.T) {
