@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr/funcr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -15,11 +16,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -53,6 +57,68 @@ func (m *mockModuleHandler) DeleteModuleCR(_ context.Context, _ client.Client) e
 }
 
 var _ modules.ModuleHandler = (*mockModuleHandler)(nil)
+
+func TestCheckPreConditionsStopsDuringUninstall(t *testing.T) {
+	g := NewWithT(t)
+
+	dsc := newDSC()
+	dsci := &dsciv2.DSCInitialization{}
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := &types.ReconciliationRequest{
+		Client:   cli,
+		Instance: dsc,
+	}
+	rr.Conditions = conditionstest.NewManager(
+		dsc,
+		status.ConditionTypeReady,
+		status.ConditionTypeComponentsReady,
+		status.ConditionTypeModulesReady,
+	)
+	dsc.Status.Conditions = []common.Condition{{
+		Type:    status.ConditionTypeReady,
+		Status:  metav1.ConditionFalse,
+		Reason:  status.UninstallInProgressReason,
+		Message: status.UninstallInProgressMessage,
+	}}
+
+	err = checkPreConditions(t.Context(), rr)
+
+	var stopErr odherrors.StopError
+	g.Expect(errors.As(err, &stopErr)).To(BeTrue())
+	g.Expect(stopErr.RequeueAfter()).To(BeNumerically(">", 0))
+	rr.Conditions.CleanupStaleConditions()
+	rr.Conditions.RecomputeHappiness()
+
+	ready := rr.Conditions.GetTopLevelCondition()
+	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(ready.Reason).To(Equal(status.UninstallInProgressReason))
+	g.Expect(ready.Message).To(Equal(status.UninstallInProgressMessage))
+}
+
+func TestCheckPreConditionsAllowsNonUninstallReadyCondition(t *testing.T) {
+	g := NewWithT(t)
+
+	dsc := newDSC()
+	dsc.Status.Conditions = []common.Condition{{
+		Type:   status.ConditionTypeReady,
+		Status: metav1.ConditionFalse,
+		Reason: status.NotReadyReason,
+	}}
+	dsci := &dsciv2.DSCInitialization{}
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := &types.ReconciliationRequest{
+		Client:   cli,
+		Instance: dsc,
+	}
+
+	g.Expect(checkPreConditions(t.Context(), rr)).Should(Succeed())
+}
 
 func TestProvisionComponentsErrorLogs(t *testing.T) {
 	tests := []struct {
