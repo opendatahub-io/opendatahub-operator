@@ -35,6 +35,9 @@ func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
 						ManagementSpec: common.ManagementSpec{
 							ManagementState: mgmtState,
 						},
+						AIHubCommonSpec: componentApi.AIHubCommonSpec{
+							InstancesNamespace: componentApi.DefaultModelRegistriesNamespace,
+						},
 					},
 				},
 			},
@@ -178,12 +181,11 @@ func TestBuildModuleCR_WithoutGatewayDomain(t *testing.T) {
 	g.Expect(spec).ShouldNot(HaveKey("gateway"))
 }
 
-func TestBuildModuleCR_InstancesNamespaceDefaultsToAppNS(t *testing.T) {
+func TestBuildModuleCR_ProjectsDefaultedInstancesNamespace(t *testing.T) {
 	g := NewWithT(t)
 	h := aihub.NewHandler()
 
 	dscCtx := newDSCCtx(operatorv1.Managed)
-	// ApplicationNamespace left empty
 
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, &modules.ModuleCRConfig{
 		ApplicationsNamespace: "fallback-ns",
@@ -192,7 +194,9 @@ func TestBuildModuleCR_InstancesNamespaceDefaultsToAppNS(t *testing.T) {
 
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue())
-	g.Expect(spec["instancesNamespace"]).Should(Equal("fallback-ns"))
+	g.Expect(spec["applicationNamespace"]).Should(Equal("fallback-ns"))
+	g.Expect(spec["instancesNamespace"]).Should(Equal(componentApi.DefaultModelRegistriesNamespace))
+	g.Expect(dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace).Should(Equal(componentApi.DefaultModelRegistriesNamespace))
 }
 
 func TestBuildModuleCR_NilCfg(t *testing.T) {
@@ -227,7 +231,7 @@ func TestWriteDSCComponentStatus_Enabled(t *testing.T) {
 	g := NewWithT(t)
 	h := aihub.NewHandler()
 
-	dsc := &dscApi.DataScienceCluster{}
+	dsc := newDSCCtx(operatorv1.Managed).DSC
 	releases := []common.ComponentRelease{
 		{Name: "platform", Version: "1.0.0"},
 	}
@@ -236,6 +240,7 @@ func TestWriteDSCComponentStatus_Enabled(t *testing.T) {
 
 	g.Expect(dsc.Status.Components.AIHub.ManagementState).Should(Equal(operatorv1.Managed))
 	g.Expect(dsc.Status.Components.AIHub.AIHubCommonStatus).ShouldNot(BeNil())
+	g.Expect(dsc.Status.Components.AIHub.InstancesNamespace).Should(Equal(componentApi.DefaultModelRegistriesNamespace))
 	g.Expect(dsc.Status.Components.AIHub.AIHubCommonStatus.Releases).Should(HaveLen(1))
 	g.Expect(dsc.Status.Components.AIHub.AIHubCommonStatus.Releases[0].Version).Should(Equal("1.0.0"))
 }
@@ -298,10 +303,13 @@ func TestWriteDSCComponentStatus_ClearsNamespaceWhenDisabled(t *testing.T) {
 		},
 	}
 
-	h.WriteDSCComponentStatus(dsc, true, nil)
+	releases := []common.ComponentRelease{{Name: "model-registry", Version: "1.0.0"}}
+	h.WriteDSCComponentStatus(dsc, true, releases)
 
 	h.WriteDSCComponentStatus(dsc, false, nil)
 	g.Expect(dsc.Status.Components.AIHub.InstancesNamespace).Should(BeEmpty())
+	g.Expect(dsc.Status.Components.AIHub.ManagementState).Should(Equal(operatorv1.Removed))
+	g.Expect(dsc.Status.Components.AIHub.Releases).Should(BeEmpty())
 }
 
 func TestWriteDSCComponentStatus_ClearsNamespaceWhenSpecEmpty(t *testing.T) {
@@ -325,4 +333,27 @@ func TestWriteDSCComponentStatus_ClearsNamespaceWhenSpecEmpty(t *testing.T) {
 	dsc.Spec.Components.AIHub.InstancesNamespace = ""
 	h.WriteDSCComponentStatus(dsc, true, nil)
 	g.Expect(dsc.Status.Components.AIHub.InstancesNamespace).Should(BeEmpty())
+	g.Expect(dsc.Spec.Components.AIHub.InstancesNamespace).Should(BeEmpty())
+}
+
+func TestWriteDSCComponentStatus_DefaultNamespaceAllocatesStatus(t *testing.T) {
+	g := NewWithT(t)
+	dsc := newDSCCtx(operatorv1.Managed).DSC
+
+	aihub.NewHandler().WriteDSCComponentStatus(dsc, true, nil)
+
+	g.Expect(dsc.Status.Components.AIHub.AIHubCommonStatus).ShouldNot(BeNil())
+	g.Expect(dsc.Status.Components.AIHub.InstancesNamespace).Should(Equal(componentApi.DefaultModelRegistriesNamespace))
+}
+
+func TestBuildModuleCR_InstancesNamespaceMayEqualApplicationsNamespace(t *testing.T) {
+	g := NewWithT(t)
+	dscCtx := newDSCCtx(operatorv1.Managed)
+	dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace = "shared-apps"
+
+	u, err := aihub.NewHandler().BuildModuleCR(t.Context(), nil, dscCtx, &modules.ModuleCRConfig{
+		ApplicationsNamespace: "shared-apps",
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(u.Object["spec"]).Should(HaveKeyWithValue("instancesNamespace", "shared-apps"))
 }

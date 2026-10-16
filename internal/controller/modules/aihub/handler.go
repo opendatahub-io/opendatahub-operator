@@ -108,14 +108,9 @@ func (h *handler) BuildModuleCR(
 		appNS = cfg.ApplicationsNamespace
 	}
 
-	instNS := dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace
-	if instNS == "" {
-		instNS = appNS
-	}
-
 	spec := map[string]any{
 		"applicationNamespace": appNS,
-		"instancesNamespace":   instNS,
+		"instancesNamespace":   dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace,
 	}
 	if cfg != nil && cfg.GatewayDomain != "" {
 		spec["gateway"] = map[string]any{"domain": cfg.GatewayDomain}

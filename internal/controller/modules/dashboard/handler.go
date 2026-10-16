@@ -56,8 +56,8 @@ func NewHandler() *handler {
 				RelatedImages:   relatedImages(),
 				SubmoduleConditions: []modules.SubmoduleCondition{
 					{
-						// Aligned with dashboard-operator's MaaSConsumerPortalAvailable condition.
-						SourceConditionType: "MaaSConsumerPortalAvailable",
+						// Aligned with dashboard-operator's MaaSPortalAvailable condition.
+						SourceConditionType: "MaaSPortalAvailable",
 						DSCConditionType:    "MaaSPortalAvailable",
 						StatusFieldName:     "MaaSPortal",
 						IsEnabled: func(dscCtx *modules.DSCContext) bool {
@@ -139,24 +139,25 @@ func (h *handler) BuildModuleCR(
 
 func dashboardModuleSpec(dashboard componentApi.DSCDashboard) map[string]any {
 	spec := make(map[string]any, 2)
-	if dashboard.Standard.ManagementState != "" || dashboard.MaaSPortal.ManagementState != "" {
-		// The Dashboard CR must stay Managed while either workload is enabled.
-		// Until the dashboard-operator supports portal-only mode, projecting the
-		// core state here would remove the module CR when only the portal is Managed.
-		managementState := operatorv1.Removed
-		switch {
-		case dashboard.Standard.ManagementState == operatorv1.Managed:
-			managementState = operatorv1.Managed
-		case dashboard.MaaSPortal.ManagementState == operatorv1.Managed:
-			managementState = operatorv1.Managed
-		}
-		spec["managementState"] = string(managementState)
+
+	switch dashboard.Standard.ManagementState {
+	case operatorv1.Managed:
+		spec["managementState"] = string(operatorv1.Managed)
+	default:
+		spec["managementState"] = string(operatorv1.Removed)
 	}
-	if dashboard.MaaSPortal.ManagementState != "" {
-		spec["maasConsumerPortal"] = map[string]any{
-			"managementState": string(dashboard.MaaSPortal.ManagementState),
+
+	switch dashboard.MaaSPortal.ManagementState {
+	case operatorv1.Managed:
+		spec["maasPortal"] = map[string]any{
+			"managementState": string(operatorv1.Managed),
+		}
+	default:
+		spec["maasPortal"] = map[string]any{
+			"managementState": string(operatorv1.Removed),
 		}
 	}
+
 	return spec
 }
 

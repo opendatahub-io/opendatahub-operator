@@ -52,6 +52,13 @@ func (tc *DeletionTestCtx) TestDSCDeletion(t *testing.T) {
 
 	skipUnless(t, Tier3)
 
+	// Create DSC if not exists
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(CreateDSC(tc.DataScienceClusterNamespacedName.Name, tc.WorkbenchesNamespace)),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
+		WithCustomErrorMsg("Failed to create DataScienceCluster resource %s", tc.DataScienceClusterNamespacedName.Name),
+	)
+
 	t.Log("Enable DSCI-managed monitoring")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),

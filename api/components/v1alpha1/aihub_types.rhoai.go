@@ -20,7 +20,10 @@ package v1alpha1
 
 // AIHubCommonSpec defines the public v3 AI Hub configuration.
 type AIHubCommonSpec struct {
-	// Namespace for AI Hub registries, configurable only once when AI Hub is enabled.
+	// Namespace for AI Hub registries and the model catalog service.
+	// Defaults to "rhoai-model-registries" when omitted, or when empty and Managed.
+	// It may equal the platform applications namespace. A non-empty namespace
+	// cannot change while AI Hub remains Managed; set Removed before changing it.
 	// +kubebuilder:default="rhoai-model-registries"
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
