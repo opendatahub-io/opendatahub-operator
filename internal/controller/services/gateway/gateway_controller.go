@@ -161,7 +161,6 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.NetworkPolicy).
 		OwnsGVK(gvk.Deployment, reconciler.WithPredicates(gatewayDeploymentWatchPredicate())).
 		OwnsGVK(gvk.HorizontalPodAutoscaler).
-		OwnsGVK(gvk.NetworkPolicy).
 		OwnsGVK(gvk.ServiceAccount).
 		OwnsGVK(gvk.HTTPRoute).
 		OwnsGVK(gvk.Route,

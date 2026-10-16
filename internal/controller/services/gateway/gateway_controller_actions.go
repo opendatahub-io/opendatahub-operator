@@ -202,7 +202,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	hostname, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
 	if err != nil {
 		if errors.Is(err, ErrDomainRequired) {
-			return nil
+			return deleteLegacyNetworkPolicy(ctx, rr)
 		}
 		return err
 	}
@@ -225,7 +225,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 				conditions.WithMessage(status.AuthProxyOIDCModeWithoutConfigMessage),
 			)
 			if len(gatewayConfig.Spec.AdditionalIngresses) == 0 {
-				// Preserve the default policies without preparing an incomplete OIDC proxy.
+				// Preserve the default filter without preparing an incomplete OIDC proxy.
 				return prepareAuthProxies(ctx, rr, gatewayConfig, cluster.AuthModeNone, deploymentTemplate,
 					[]authProxyTarget{defaultAuthProxyTarget(hostname, gatewayConfig)})
 			}
@@ -509,12 +509,18 @@ func cleanupKubeAuthProxyResources(ctx context.Context, rr *odhtypes.Reconciliat
 
 	l.V(1).Info("Auth proxy not desired, removing kube-auth-proxy resources", "authMode", authMode)
 
-	for _, obj := range []client.Object{
-		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: KubeAuthProxyName, Namespace: GetGatewayNamespace()}},
-		&networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{Name: KubeAuthProxyName, Namespace: GetGatewayNamespace()}},
-	} {
-		if err := deleteKubeAuthProxyResource(ctx, rr, obj, gatewayConfig); err != nil {
-			return err
+	proxyNames := []string{KubeAuthProxyName}
+	for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
+		proxyNames = append(proxyNames, additionalAuthProxyTarget(ingress, gatewayConfig).ProxyName)
+	}
+	for _, name := range proxyNames {
+		for _, obj := range []client.Object{
+			&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: GetGatewayNamespace()}},
+			&networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: GetGatewayNamespace()}},
+		} {
+			if err := deleteKubeAuthProxyResource(ctx, rr, obj, gatewayConfig); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -531,7 +537,7 @@ func deleteKubeAuthProxyResource(
 	obj client.Object,
 	gatewayConfig *serviceApi.GatewayConfig,
 ) error {
-	if err := rr.Client.Get(ctx, types.NamespacedName{Name: KubeAuthProxyName, Namespace: GetGatewayNamespace()}, obj); err != nil {
+	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
 		if k8serr.IsNotFound(err) {
 			return nil
 		}

@@ -270,18 +270,26 @@ func TestCleanupKubeAuthProxyResources(t *testing.T) {
 			gatewayConfig := &serviceApi.GatewayConfig{
 				ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName, UID: gatewayUID},
 			}
+			gatewayConfig.Spec.AdditionalIngresses = serviceApi.AdditionalIngresses{
+				additionalIngress("alpha", "alpha.example.com", "alpha"),
+			}
 			if tc.withOIDC {
 				gatewayConfig.Spec.OIDC = &serviceApi.OIDCConfig{IssuerURL: "https://issuer.example.com"}
 			}
 
-			cli, err := fakeclient.New(fakeclient.WithObjects(tc.objects()...))
+			objects := tc.objects()
+			for _, obj := range tc.objects() {
+				obj.SetName("kube-auth-proxy-alpha")
+				objects = append(objects, obj)
+			}
+			cli, err := fakeclient.New(fakeclient.WithObjects(objects...))
 			g.Expect(err).NotTo(HaveOccurred())
 
 			rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: gatewayConfig}
 			g.Expect(cleanupKubeAuthProxyResources(t.Context(), rr)).To(Succeed())
 
 			assert := func(obj client.Object, kind string) {
-				err := cli.Get(t.Context(), types.NamespacedName{Name: KubeAuthProxyName, Namespace: gatewayNamespace}, obj)
+				err := cli.Get(t.Context(), client.ObjectKeyFromObject(obj), obj)
 				if slices.Contains(tc.removed, kind) {
 					g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "the proxy %s should be removed", kind)
 				} else {
@@ -289,20 +297,13 @@ func TestCleanupKubeAuthProxyResources(t *testing.T) {
 				}
 			}
 
-			var seededDeployment, seededPolicy bool
-			for _, obj := range tc.objects() {
+			for _, obj := range objects {
 				switch obj.(type) {
 				case *appsv1.Deployment:
-					seededDeployment = true
+					assert(obj, gvk.Deployment.Kind)
 				case *networkingv1.NetworkPolicy:
-					seededPolicy = true
+					assert(obj, gvk.NetworkPolicy.Kind)
 				}
-			}
-			if seededDeployment {
-				assert(&appsv1.Deployment{}, "Deployment")
-			}
-			if seededPolicy {
-				assert(&networkingv1.NetworkPolicy{}, "NetworkPolicy")
 			}
 		})
 	}
@@ -406,7 +407,7 @@ func TestGatewayCertManagerPrecondition(t *testing.T) {
 			g.Expect(dependency.Status).To(Equal(metav1.ConditionTrue))
 			g.Expect(createGatewayInfrastructure(t.Context(), rr)).To(Succeed())
 			g.Expect(createKubeAuthProxyInfrastructure(t.Context(), rr)).To(Succeed())
-			g.Expect(rr.Resources).To(HaveLen(4), "Gateway infrastructure plus the existing default auth policies")
+			g.Expect(rr.Resources).To(HaveLen(3), "Gateway infrastructure plus the default auth filter")
 			g.Expect(rr.Resources[0].GroupVersionKind()).To(Equal(gvk.GatewayClass))
 			g.Expect(rr.Resources[1].GroupVersionKind()).To(Equal(gvk.KubernetesGateway))
 			g.Expect(rr.Resources[1].GetName()).To(Equal(GetDefaultGatewayName()))

@@ -5,6 +5,7 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -99,9 +100,8 @@ func TestAdditionalIngressWithoutAuthentication(t *testing.T) {
 	rr := newGatewayAuthTestRequest(t, config, authentication)
 	g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
 	g.Expect(createKubeAuthProxyInfrastructure(t.Context(), rr)).To(Succeed())
-	g.Expect(rr.Resources).To(HaveLen(2), "None preserves only the default filter and NetworkPolicy")
+	g.Expect(rr.Resources).To(HaveLen(1), "None preserves only the default filter")
 	g.Expect(rr.Resources[0].GetName()).To(Equal(AuthnFilterName))
-	g.Expect(rr.Resources[1].GetName()).To(Equal(KubeAuthProxyName))
 	g.Expect(rr.Templates).To(BeEmpty())
 	g.Expect(rr.Client.Get(t.Context(), types.NamespacedName{
 		Name:      "alpha-auth-creds",
@@ -113,8 +113,8 @@ func TestAdditionalIngressWithoutAuthentication(t *testing.T) {
 	g.Expect(condition.Status).To(Equal(metav1.ConditionTrue))
 	g.Expect(condition.Reason).To(Equal("AuthenticationDisabled"))
 	g.Expect(createAdditionalIngressRoutes(t.Context(), rr, config)).To(Succeed())
-	g.Expect(rr.Resources).To(HaveLen(3))
-	g.Expect(rr.Resources[2].GetKind()).To(Equal(gvk.Route.Kind))
+	g.Expect(rr.Resources).To(HaveLen(2))
+	g.Expect(rr.Resources[1].GetKind()).To(Equal(gvk.Route.Kind))
 }
 
 func TestMissingOIDCConfigKeepsAuthenticationFilter(t *testing.T) {
@@ -135,11 +135,11 @@ func TestMissingOIDCConfigKeepsAuthenticationFilter(t *testing.T) {
 	rr := newGatewayAuthTestRequest(t, config, authentication)
 	g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
 	g.Expect(createKubeAuthProxyInfrastructure(t.Context(), rr)).To(MatchError(ContainSubstring("requeue after")))
-	g.Expect(rr.Resources).To(HaveLen(3), "default policies and the additional fail-closed filter remain")
-	g.Expect(rr.Resources[2].GetKind()).To(Equal(gvk.EnvoyFilter.Kind))
+	g.Expect(rr.Resources).To(HaveLen(2), "default and additional fail-closed filters remain")
+	g.Expect(rr.Resources[1].GetKind()).To(Equal(gvk.EnvoyFilter.Kind))
 	g.Expect(rr.Templates).To(BeEmpty())
 	g.Expect(createAdditionalIngressRoutes(t.Context(), rr, config)).To(Succeed())
-	g.Expect(rr.Resources).To(HaveLen(4))
+	g.Expect(rr.Resources).To(HaveLen(3))
 	g.Expect(conditions.FindStatusCondition(additionalIngressStatusByName(config, "alpha"),
 		serviceApi.AdditionalIngressAuthenticationReadyConditionType).Reason).To(Equal(additionalIngressReasonInvalidAuthenticationConfig))
 }
@@ -295,12 +295,13 @@ func TestForeignAuthenticationDependenciesStopReconciliation(t *testing.T) {
 	original := cluster.GetClusterInfo()
 	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
 	t.Cleanup(func() { cluster.SetClusterInfo(original) })
-	for _, kind := range []schema.GroupVersionKind{gvk.EnvoyFilter, gvk.Service, gvk.Deployment, gvk.ServiceAccount, gvk.DestinationRule} {
+	for _, kind := range []schema.GroupVersionKind{gvk.EnvoyFilter, gvk.Service, gvk.Deployment, gvk.ServiceAccount, gvk.DestinationRule, gvk.NetworkPolicy} {
 		for _, missingCredentials := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/fallback=%t", kind.Kind, missingCredentials), func(t *testing.T) {
 				g := NewWithT(t)
 				ingress := additionalIngress("alpha", "alpha.example.com", "alpha")
 				config := newGatewayAuthTestConfig(ingress)
+				g.Expect(json.Unmarshal([]byte(`{"networkPolicy":{"ingress":{"enabled":false}}}`), &config.Spec)).To(Succeed())
 				target := additionalAuthProxyTarget(ingress, config)
 				foreign := &unstructured.Unstructured{}
 				foreign.SetGroupVersionKind(kind)
@@ -461,6 +462,10 @@ func TestAuthenticationResourcesAreIndependentPerGateway(t *testing.T) {
 }
 
 func TestGatewayDeployRejectsBridgeRoutesWhenAuthenticationFilterFails(t *testing.T) {
+	original := cluster.GetClusterInfo()
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+	t.Cleanup(func() { cluster.SetClusterInfo(original) })
+
 	for _, failure := range []string{"credentials", "filter"} {
 		t.Run(failure, func(t *testing.T) {
 			g := NewWithT(t)
@@ -469,7 +474,11 @@ func TestGatewayDeployRejectsBridgeRoutesWhenAuthenticationFilterFails(t *testin
 				additionalIngress("beta", "beta.example.com", "beta"),
 			)
 			var attempted []string
-			cli, err := fakeclient.New(fakeclient.WithObjects(config), fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			authentication := &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
+				Spec:       configv1.AuthenticationSpec{Type: configv1.AuthenticationTypeIntegratedOAuth},
+			}
+			cli, err := fakeclient.New(fakeclient.WithObjects(config, authentication), fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 				Apply: func(_ context.Context, _ client.WithWatch, obj runtime.ApplyConfiguration, _ ...client.ApplyOption) error {
 					// Reject a target filter before any bridge Route can be applied.
 					u, ok := obj.(client.Object)
@@ -559,9 +568,7 @@ func TestDefaultAuthenticationPoliciesWithoutProxy(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/network-policy=%t", mode, enabled), func(t *testing.T) {
 				g := NewWithT(t)
 				config := newGatewayAuthTestConfig()
-				config.Spec.NetworkPolicy = &serviceApi.NetworkPolicyConfig{
-					Ingress: &serviceApi.IngressPolicyConfig{Enabled: enabled},
-				}
+				g.Expect(json.Unmarshal(fmt.Appendf(nil, `{"networkPolicy":{"ingress":{"enabled":%t}}}`, enabled), &config.Spec)).To(Succeed())
 				rr := newGatewayAuthTestRequest(t, config, &configv1.Authentication{
 					ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
 					Spec:       configv1.AuthenticationSpec{Type: mode},
@@ -570,12 +577,7 @@ func TestDefaultAuthenticationPoliciesWithoutProxy(t *testing.T) {
 				g.Expect(rr.Templates).To(BeEmpty())
 				g.Expect(rr.Resources[0].GroupVersionKind()).To(Equal(gvk.EnvoyFilter))
 				g.Expect(rr.Resources[0].GetName()).To(Equal(AuthnFilterName))
-				if enabled {
-					g.Expect(rr.Resources).To(HaveLen(2))
-					g.Expect(rr.Resources[1].GroupVersionKind()).To(Equal(gvk.NetworkPolicy))
-				} else {
-					g.Expect(rr.Resources).To(HaveLen(1))
-				}
+				g.Expect(rr.Resources).To(HaveLen(1), "the deprecated setting does not create a policy without a proxy")
 				ready := rr.Conditions.GetCondition(ReadyConditionType)
 				if mode == configv1.AuthenticationTypeNone {
 					g.Expect(ready.Status).To(Equal(metav1.ConditionTrue))

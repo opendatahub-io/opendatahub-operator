@@ -2264,8 +2264,6 @@ func RunNetworkPolicyAuthModeLifecycleTest(t *testing.T, setup TestSetup) {
 	g := NewWithT(t)
 	ctx := setup.TC.Ctx
 	cli := setup.TC.K8sClient
-	key := types.NamespacedName{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()}
-
 	auth := &configv1.Authentication{}
 	g.Expect(cli.Get(ctx, types.NamespacedName{Name: cluster.ClusterAuthenticationObj}, auth)).To(Succeed())
 	originalType := auth.Spec.Type
@@ -2279,10 +2277,32 @@ func RunNetworkPolicyAuthModeLifecycleTest(t *testing.T, setup TestSetup) {
 			return cli.Update(ctx, current)
 		})).To(Succeed())
 	}()
-	defer setup.Setup(t)()
+	cleanup := setup.Setup(t)
+	defer func() {
+		cleanup()
+		for _, obj := range additionalOAuthIngressResources("auth-lifecycle") {
+			g.Expect(client.IgnoreNotFound(cli.Delete(ctx, obj))).To(Succeed())
+		}
+		waitForGatewayResourcesRemoved(t, setup.TC, additionalOAuthIngressResources("auth-lifecycle")...)
+	}()
+	spec := setup.Spec
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{{
+		Name: "auth-lifecycle", Hostname: "auth-lifecycle.example.com", IngressControllerName: "shard-auth-lifecycle",
+		RouteLabels: map[string]string{"example.com/ingress": "auth-lifecycle"},
+	}}
+	UpdateGatewayConfig(t, ctx, cli, spec)
 
-	g.Eventually(func() error { return cli.Get(ctx, key, &appsv1.Deployment{}) }, TestTimeout, TestInterval).Should(Succeed())
-	g.Eventually(func() error { return cli.Get(ctx, key, &networkingv1.NetworkPolicy{}) }, TestTimeout, TestInterval).Should(Succeed())
+	keys := []types.NamespacedName{
+		{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()},
+		{Name: gateway.KubeAuthProxyName + "-auth-lifecycle", Namespace: gateway.GetGatewayNamespace()},
+	}
+	for _, key := range keys {
+		g.Eventually(func() error { return cli.Get(ctx, key, &appsv1.Deployment{}) }, TestTimeout, TestInterval).Should(Succeed())
+		g.Eventually(func() error { return cli.Get(ctx, key, &networkingv1.NetworkPolicy{}) }, TestTimeout, TestInterval).Should(Succeed())
+	}
+	config, err := getGatewayConfig(ctx, cli)
+	g.Expect(err).NotTo(HaveOccurred())
+	generation := config.Generation
 
 	g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		current := &configv1.Authentication{}
@@ -2293,10 +2313,15 @@ func RunNetworkPolicyAuthModeLifecycleTest(t *testing.T, setup TestSetup) {
 		return cli.Update(ctx, current)
 	})).To(Succeed())
 
-	g.Eventually(func() bool {
-		return deletionRequestedOrComplete(ctx, cli, key, &appsv1.Deployment{}) &&
-			deletionRequestedOrComplete(ctx, cli, key, &networkingv1.NetworkPolicy{})
-	}, TestTimeout, TestInterval).Should(BeTrue(), "auth mode change should remove the proxy and its policy")
+	for _, key := range keys {
+		g.Eventually(func() bool {
+			return deletionRequestedOrComplete(ctx, cli, key, &appsv1.Deployment{}) &&
+				deletionRequestedOrComplete(ctx, cli, key, &networkingv1.NetworkPolicy{})
+		}, TestTimeout, TestInterval).Should(BeTrue(), "auth mode change should remove proxy %s and its policy", key.Name)
+	}
+	config, err = getGatewayConfig(ctx, cli)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(config.Generation).To(Equal(generation), "authentication changes must not require a GatewayConfig spec update")
 }
 
 // RunNetworkPolicyMissingOIDCConfigTest verifies that a missing OIDC configuration
@@ -2307,18 +2332,46 @@ func RunNetworkPolicyMissingOIDCConfigTest(t *testing.T, setup TestSetup) {
 	defer setup.Setup(t)()
 	ctx := setup.TC.Ctx
 	cli := setup.TC.K8sClient
-	key := types.NamespacedName{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()}
-
-	g.Eventually(func() error { return cli.Get(ctx, key, &appsv1.Deployment{}) }, TestTimeout, TestInterval).Should(Succeed())
-	g.Eventually(func() error { return cli.Get(ctx, key, &networkingv1.NetworkPolicy{}) }, TestTimeout, TestInterval).Should(Succeed())
-
 	spec := setup.Spec
+	source := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "auth-lifecycle-oidc-source", Namespace: gateway.GetGatewayNamespace()},
+		Data:       map[string][]byte{OIDCSecretKey: []byte("additional-client-secret")},
+	}
+	g.Expect(cli.Create(ctx, source)).To(Succeed())
+	defer func() { g.Expect(cli.Delete(ctx, source)).To(Succeed()) }()
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{{
+		Name: "auth-lifecycle", Hostname: "auth-lifecycle.example.com", IngressControllerName: "shard-auth-lifecycle",
+		RouteLabels: map[string]string{"example.com/ingress": "auth-lifecycle"},
+		Auth: serviceApi.AdditionalIngressAuth{OIDC: &serviceApi.AdditionalIngressOIDCConfig{
+			ClientID: "auth-lifecycle-client",
+			ClientSecretRef: corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: source.Name},
+				Key:                  OIDCSecretKey,
+			},
+		}},
+	}}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	defer func() {
+		UpdateGatewayConfig(t, ctx, cli, setup.Spec)
+		waitForGatewayResourcesRemoved(t, setup.TC, additionalOAuthIngressResources("auth-lifecycle")...)
+	}()
+	keys := []types.NamespacedName{
+		{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()},
+		{Name: gateway.KubeAuthProxyName + "-auth-lifecycle", Namespace: gateway.GetGatewayNamespace()},
+	}
+	for _, key := range keys {
+		g.Eventually(func() error { return cli.Get(ctx, key, &appsv1.Deployment{}) }, TestTimeout, TestInterval).Should(Succeed())
+		g.Eventually(func() error { return cli.Get(ctx, key, &networkingv1.NetworkPolicy{}) }, TestTimeout, TestInterval).Should(Succeed())
+	}
+
 	spec.OIDC = nil
 	UpdateGatewayConfig(t, ctx, cli, spec)
-	g.Eventually(func() bool {
-		return deletionRequestedOrComplete(ctx, cli, key, &appsv1.Deployment{}) &&
-			deletionRequestedOrComplete(ctx, cli, key, &networkingv1.NetworkPolicy{})
-	}, TestTimeout, TestInterval).Should(BeTrue(), "missing OIDC configuration should remove the proxy and its policy")
+	for _, key := range keys {
+		g.Eventually(func() bool {
+			return deletionRequestedOrComplete(ctx, cli, key, &appsv1.Deployment{}) &&
+				deletionRequestedOrComplete(ctx, cli, key, &networkingv1.NetworkPolicy{})
+		}, TestTimeout, TestInterval).Should(BeTrue(), "missing OIDC configuration should remove proxy %s and its policy", key.Name)
+	}
 }
 
 // RunGatewayConfigStatusConditionsTest validates that GatewayConfig status gets conditions set (e.g. Ready).

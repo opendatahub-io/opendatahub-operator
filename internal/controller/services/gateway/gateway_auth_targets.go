@@ -93,9 +93,6 @@ func checkAuthProxyDependencies(ctx context.Context, rr *odhtypes.Reconciliation
 		if kind == gvk.Secret || kind == gvk.OAuthClient || kind == gvk.CertManagerCertificate {
 			continue
 		}
-		if kind == gvk.NetworkPolicy && config.Spec.NetworkPolicy != nil && config.Spec.NetworkPolicy.Ingress != nil && !config.Spec.NetworkPolicy.Ingress.Enabled {
-			continue
-		}
 		resource := &unstructured.Unstructured{}
 		resource.SetGroupVersionKind(kind)
 		resource.SetName(name)

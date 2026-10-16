@@ -53,7 +53,11 @@ var testIssuerRef = infrav1.IssuerRef{
 	Kind: "Issuer",
 }
 
-func TestDeleteLegacyNetworkPolicy(t *testing.T) {
+func TestLegacyNetworkPolicyCleanupWithoutDomain(t *testing.T) {
+	original := cluster.GetClusterInfo()
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+	t.Cleanup(func() { cluster.SetClusterInfo(original) })
+
 	for _, tc := range []struct {
 		name        string
 		ownerRefs   []metav1.OwnerReference
@@ -80,7 +84,15 @@ func TestDeleteLegacyNetworkPolicy(t *testing.T) {
 			}}
 			cli, err := fakeclient.New(fakeclient.WithObjects(policy))
 			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(deleteLegacyNetworkPolicy(t.Context(), &odhtypes.ReconciliationRequest{Client: cli})).To(Succeed())
+			config := newGatewayAuthTestConfig()
+			config.Spec.Domain = ""
+			config.Spec.IngressMode = serviceApi.IngressModeLoadBalancer
+			config.Spec.OIDC = &serviceApi.OIDCConfig{}
+			rr := &odhtypes.ReconciliationRequest{
+				Client: cli, Instance: config, Conditions: conditionstest.NewManager(config, ReadyConditionType),
+			}
+			g.Expect(createKubeAuthProxyInfrastructure(t.Context(), rr)).To(Succeed())
+			g.Expect(cleanupKubeAuthProxyResources(t.Context(), rr)).To(Succeed())
 			err = cli.Get(t.Context(), types.NamespacedName{Name: KubeAuthProxyName, Namespace: GetGatewayNamespace()}, &networkingv1.NetworkPolicy{})
 			g.Expect(k8serr.IsNotFound(err)).To(Equal(tc.wantDeleted))
 		})
