@@ -735,6 +735,15 @@ func calculateAuthConfigHash(authSecret *corev1.Secret) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// extendAuthConfigHash folds the provider CA bundle into the auth config hash so
+// that rotating the CA in the spec.providerCASecretName secret rolls the
+// kube-auth-proxy pods. The base hash is kept verbatim when no provider CA is
+// configured, so upgrades do not trigger a spurious rollout.
+func extendAuthConfigHash(authConfigHash string, providerCA []byte) string {
+	sum := sha256.Sum256([]byte(authConfigHash + "\x00" + string(providerCA)))
+	return hex.EncodeToString(sum[:])
+}
+
 // CalculateRedirectConfigHash hashes the hostname and embedded redirect configuration.
 // The pod annotation changes when an upgrade updates the ConfigMap template, so Nginx
 // reloads its subPath mounts even if the gateway hostname stays the same.
@@ -763,7 +772,8 @@ func getKubeAuthProxyImage() string {
 	// This build must support the TLS startup flags the gateway emits (--tls-min-version,
 	// --tls-cipher-suite and --tls-curve-preferences); it matches the ODH e2e image in
 	// manifests-config.yaml so the fallback stays compatible with the rendered proxy args.
-	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:e0c749a29554d7c53d9a01afa4dbcc204dc141ce8466b5977ab4cd2ed30242a9" // latest as of 2026-10-14
+	// The pinned build includes the provider CA client-cache fix (kube-auth-proxy#119).
+	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:1a5f6e220362aa2077026bb7e3091c38f80aac861fa060b08045e58e783d5bc5" // latest as of 2026-10-16
 }
 
 // getDashboardRedirectImage returns the nginx image for dashboard redirects.
