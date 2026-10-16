@@ -80,15 +80,6 @@ func oidcSpecWithLoadBalancer() serviceApi.GatewayConfigSpec {
 	return spec
 }
 
-// oidcSpecWithNetworkPolicyDisabled returns the OIDC spec with ingress network policy disabled.
-func oidcSpecWithNetworkPolicyDisabled() serviceApi.GatewayConfigSpec {
-	spec := getOIDCGatewayConfigSpec()
-	spec.NetworkPolicy = &serviceApi.NetworkPolicyConfig{
-		Ingress: &serviceApi.IngressPolicyConfig{Enabled: false},
-	}
-	return spec
-}
-
 // oidcSpecWithProviderCA returns the OIDC spec with ProviderCASecretName set.
 func oidcSpecWithProviderCA(secretName string) serviceApi.GatewayConfigSpec {
 	spec := getOIDCGatewayConfigSpec()
@@ -255,6 +246,14 @@ func TestOIDCNetworkPolicyCreation(t *testing.T) {
 	RunNetworkPolicyCreationTest(t, GetOIDCTestSetup())
 }
 
+func TestOIDCNetworkPolicyReconciliation(t *testing.T) {
+	RunNetworkPolicyReconciliationTest(t, GetOIDCTestSetup())
+}
+
+func TestOIDCNetworkPolicyMissingConfig(t *testing.T) {
+	RunNetworkPolicyMissingOIDCConfigTest(t, GetOIDCTestSetup())
+}
+
 // TestOIDCNginxDashboardRedirectSkippedWithoutDashboard validates redirects are skipped when Dashboard is not deployed in OIDC mode.
 func TestOIDCNginxDashboardRedirectSkippedWithoutDashboard(t *testing.T) {
 	RunNginxDashboardRedirectSkippedWithoutDashboardTest(t, GetOIDCTestSetup())
@@ -263,12 +262,6 @@ func TestOIDCNginxDashboardRedirectSkippedWithoutDashboard(t *testing.T) {
 // TestOIDCNginxDashboardRedirectCreation validates nginx-based dashboard redirect resources (ConfigMap, Deployment, Service, Routes) in OIDC mode.
 func TestOIDCNginxDashboardRedirectCreation(t *testing.T) {
 	RunNginxDashboardRedirectCreationTest(t, GetOIDCTestSetup())
-}
-
-// TestOIDCNetworkPolicyDisabled validates that no NetworkPolicy is created when ingress policy is disabled in OIDC mode (delegates to RunNetworkPolicyDisabledTest).
-func TestOIDCNetworkPolicyDisabled(t *testing.T) {
-	ensureOIDCClientSecret(t, OIDCTestEnv)
-	RunNetworkPolicyDisabledTest(t, GetOIDCTestSetup(), oidcSpecWithNetworkPolicyDisabled())
 }
 
 // TestOIDCWithProviderCASecret validates that Deployment gets provider CA volume, mount, and --provider-ca-file arg when ProviderCASecretName is set.
