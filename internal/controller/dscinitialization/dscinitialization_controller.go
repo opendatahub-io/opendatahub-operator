@@ -45,6 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -83,6 +84,19 @@ type DSCInitializationCondition struct {
 	ReadyReason  string
 	ReadyMessage string
 	ReadyStatus  metav1.ConditionStatus
+}
+
+func isUninstallInProgress(conditions []common.Condition) bool {
+	for i := range conditions {
+		condition := &conditions[i]
+		if condition.Type == status.ConditionTypeReady &&
+			condition.Status == metav1.ConditionFalse &&
+			condition.Reason == status.UninstallInProgressReason {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
@@ -149,6 +163,10 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return ctrl.Result{}, err
 		}
 
+		return ctrl.Result{}, nil
+	}
+
+	if isUninstallInProgress(instance.Status.Conditions) {
 		return ctrl.Result{}, nil
 	}
 

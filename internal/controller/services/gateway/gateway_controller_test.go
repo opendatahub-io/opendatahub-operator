@@ -4,12 +4,23 @@
 package gateway
 
 import (
+	"context"
+	"errors"
+	"slices"
 	"testing"
 
+	configv1 "github.com/openshift/api/config/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -17,12 +28,83 @@ import (
 	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
 
 	. "github.com/onsi/gomega"
 )
+
+// TestGatewayDeployFailurePropagatesAndReadinessRecovers pins the standard deploy
+// action contract the gateway relies on: an apply failure must propagate as an
+// error so the reconciler records it on ProvisioningSucceeded (and hence the
+// top-level Ready condition), and a recovered apply followed by
+// syncGatewayConfigStatus must return GatewayConfigReady to True.
+func TestGatewayDeployFailurePropagatesAndReadinessRecovers(t *testing.T) {
+	g := NewWithT(t)
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+
+	blocked := true
+	proxyPolicyError := errors.New("networkpolicies.networking.k8s.io \"kube-auth-proxy\" is forbidden")
+	gatewayConfig := &serviceApi.GatewayConfig{ObjectMeta: metav1.ObjectMeta{
+		Name: serviceApi.GatewayConfigName, UID: types.UID("gateway-config-uid"),
+	}}
+	hostname := gwapiv1.Hostname("gateway.example.com")
+	gateway := &gwapiv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{Name: GetDefaultGatewayName(), Namespace: GetGatewayNamespace()},
+		Spec:       gwapiv1.GatewaySpec{Listeners: []gwapiv1.Listener{{Hostname: &hostname}}},
+		Status: gwapiv1.GatewayStatus{Conditions: []metav1.Condition{{
+			Type: string(gwapiv1.GatewayConditionAccepted), Status: metav1.ConditionTrue,
+		}}},
+	}
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(gatewayConfig, gateway),
+		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			Create: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+				if blocked && obj.GetObjectKind().GroupVersionKind() == gvk.NetworkPolicy {
+					return proxyPolicyError
+				}
+				return cl.Create(ctx, obj, opts...)
+			},
+		}),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     cli,
+		Instance:   gatewayConfig,
+		Conditions: conditionstest.NewManager(gatewayConfig, ReadyConditionType),
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", gvk.NetworkPolicy).Return(true)
+		}),
+	}
+	g.Expect(rr.AddResources(&networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{
+		Name: KubeAuthProxyName, Namespace: GetGatewayNamespace(),
+	}})).To(Succeed())
+	deployAction := deploy.NewAction(deploy.WithMode(deploy.ModePatch))
+	rr.Conditions.MarkTrue(ReadyConditionType, conditions.WithReason(status.ReadyReason))
+
+	// The apply failure must surface as an error; the reconciler marks
+	// ProvisioningSucceeded (and the top-level Ready condition) False with it.
+	err = deployAction(t.Context(), rr)
+	g.Expect(err).To(MatchError(ContainSubstring(proxyPolicyError.Error())))
+
+	blocked = false
+	rr.Conditions.MarkUnknown(ReadyConditionType) // The proxy action resets readiness on retry.
+	g.Expect(deployAction(t.Context(), rr)).To(Succeed())
+	g.Expect(syncGatewayConfigStatus(t.Context(), rr)).To(Succeed())
+	ready := rr.Conditions.GetCondition(ReadyConditionType)
+	g.Expect(ready.Status).To(Equal(metav1.ConditionTrue))
+	g.Expect(ready.Reason).To(Equal(status.ReadyReason))
+	g.Expect(cli.Get(t.Context(), types.NamespacedName{
+		Name: KubeAuthProxyName, Namespace: GetGatewayNamespace(),
+	}, &networkingv1.NetworkPolicy{})).To(Succeed())
+}
 
 // TestGatewayCRDWatchPredicate pins the set of CRDs whose installation or removal re-triggers a
 // GatewayConfig reconcile. The cert-manager Certificate CRD matters because XKS certificate
@@ -51,6 +133,177 @@ func TestGatewayCRDWatchPredicate(t *testing.T) {
 			g.Expect(pred.Create(event.CreateEvent{Object: crd})).To(Equal(tc.wantMatch))
 			g.Expect(pred.Update(event.UpdateEvent{ObjectOld: crd, ObjectNew: crd})).To(Equal(tc.wantMatch))
 			g.Expect(pred.Delete(event.DeleteEvent{Object: crd})).To(Equal(tc.wantMatch))
+		})
+	}
+}
+
+func TestGatewayAuthenticationWatchPredicate(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	newAuth := func(name, authType string) *unstructured.Unstructured {
+		auth := &unstructured.Unstructured{}
+		auth.SetName(name)
+		g.Expect(unstructured.SetNestedField(auth.Object, authType, "spec", "type")).To(Succeed())
+		return auth
+	}
+	newTypedAuth := func(name string, authType configv1.AuthenticationType) *configv1.Authentication {
+		return &configv1.Authentication{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Spec:       configv1.AuthenticationSpec{Type: authType},
+		}
+	}
+
+	pred := gatewayAuthenticationWatchPredicate()
+	oldAuth := newAuth(cluster.ClusterAuthenticationObj, "IntegratedOAuth")
+	g.Expect(pred.Create(event.CreateEvent{Object: oldAuth})).To(BeTrue())
+	g.Expect(pred.Delete(event.DeleteEvent{Object: oldAuth})).To(BeTrue())
+	g.Expect(pred.Update(event.UpdateEvent{ObjectOld: oldAuth, ObjectNew: newAuth(cluster.ClusterAuthenticationObj, "None")})).To(BeTrue())
+	g.Expect(pred.Update(event.UpdateEvent{ObjectOld: oldAuth, ObjectNew: newAuth(cluster.ClusterAuthenticationObj, "IntegratedOAuth")})).To(BeFalse())
+	g.Expect(pred.Update(event.UpdateEvent{ObjectOld: oldAuth, ObjectNew: newAuth("other", "None")})).To(BeFalse())
+	g.Expect(pred.Create(event.CreateEvent{Object: newAuth("other", "None")})).To(BeFalse())
+
+	// The watch is registered for typed &configv1.Authentication, so typed events must
+	// be filtered on spec.type exactly like the unstructured (Dynamic) form.
+	typedAuth := newTypedAuth(cluster.ClusterAuthenticationObj, configv1.AuthenticationTypeIntegratedOAuth)
+
+	// A typed update that changes only metadata must not trigger reconciliation.
+	typedUnchanged := typedAuth.DeepCopy()
+	typedUnchanged.ResourceVersion = "2"
+	g.Expect(pred.Update(event.UpdateEvent{ObjectOld: typedAuth, ObjectNew: typedUnchanged})).To(BeFalse())
+
+	// A change to the authentication type must trigger reconciliation.
+	typedChanged := typedAuth.DeepCopy()
+	typedChanged.Spec.Type = configv1.AuthenticationTypeNone
+	g.Expect(pred.Update(event.UpdateEvent{ObjectOld: typedAuth, ObjectNew: typedChanged})).To(BeTrue())
+
+	// Create and delete work for the typed object too.
+	g.Expect(pred.Create(event.CreateEvent{Object: typedAuth})).To(BeTrue())
+	g.Expect(pred.Delete(event.DeleteEvent{Object: typedAuth})).To(BeTrue())
+
+	// A malformed unstructured type still triggers the fail-safe path.
+	malformedAuth := &unstructured.Unstructured{}
+	malformedAuth.SetName(cluster.ClusterAuthenticationObj)
+	g.Expect(unstructured.SetNestedField(malformedAuth.Object, int64(1), "spec", "type")).To(Succeed())
+	g.Expect(pred.Update(event.UpdateEvent{ObjectOld: oldAuth, ObjectNew: malformedAuth})).To(BeTrue())
+}
+
+func TestCleanupKubeAuthProxyResources(t *testing.T) {
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	// On Kubernetes clusters the auth mode comes from the GatewayConfig OIDC
+	// spec, so the test controls whether the proxy is desired without setting
+	// up an Authentication CR.
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+
+	gatewayUID := types.UID("gateway-config-uid")
+	partOf := map[string]string{labels.PlatformPartOf: labels.NormalizePartOfValue(serviceApi.GatewayConfigKind)}
+	gatewayNamespace := GetGatewayNamespace()
+
+	newManagedDeployment := func() *appsv1.Deployment {
+		return &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxyName,
+			Namespace: gatewayNamespace,
+			Labels:    partOf,
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: serviceApi.GroupVersion.String(), Kind: serviceApi.GatewayConfigKind, UID: gatewayUID,
+			}},
+		}}
+	}
+	newLegacyPolicy := func() *networkingv1.NetworkPolicy {
+		return &networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{
+			Name: KubeAuthProxyName, Namespace: gatewayNamespace, Labels: partOf,
+		}}
+	}
+	newUnmanagedPolicy := func() *networkingv1.NetworkPolicy {
+		return &networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{
+			Name:        KubeAuthProxyName,
+			Namespace:   gatewayNamespace,
+			Labels:      partOf,
+			Annotations: map[string]string{"opendatahub.io/managed": "false"},
+		}}
+	}
+	newForeignDeployment := func() *appsv1.Deployment {
+		return &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+			Name: KubeAuthProxyName, Namespace: gatewayNamespace, Labels: map[string]string{"app": "foreign"},
+		}}
+	}
+
+	for _, tc := range []struct {
+		name     string
+		withOIDC bool
+		objects  func() []client.Object
+		removed  []string
+	}{
+		{
+			name:     "proxy not desired removes managed and legacy resources",
+			withOIDC: false,
+			objects: func() []client.Object {
+				return []client.Object{newManagedDeployment(), newLegacyPolicy()}
+			},
+			removed: []string{"Deployment", "NetworkPolicy"},
+		},
+		{
+			name:     "explicitly unmanaged policy is kept",
+			withOIDC: false,
+			objects: func() []client.Object {
+				return []client.Object{newUnmanagedPolicy()}
+			},
+		},
+		{
+			name:     "foreign deployment sharing the name is kept",
+			withOIDC: false,
+			objects: func() []client.Object {
+				return []client.Object{newForeignDeployment()}
+			},
+		},
+		{
+			name:     "proxy desired keeps everything",
+			withOIDC: true,
+			objects: func() []client.Object {
+				return []client.Object{newManagedDeployment(), newLegacyPolicy()}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			gatewayConfig := &serviceApi.GatewayConfig{
+				ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName, UID: gatewayUID},
+			}
+			if tc.withOIDC {
+				gatewayConfig.Spec.OIDC = &serviceApi.OIDCConfig{IssuerURL: "https://issuer.example.com"}
+			}
+
+			cli, err := fakeclient.New(fakeclient.WithObjects(tc.objects()...))
+			g.Expect(err).NotTo(HaveOccurred())
+
+			rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: gatewayConfig}
+			g.Expect(cleanupKubeAuthProxyResources(t.Context(), rr)).To(Succeed())
+
+			assert := func(obj client.Object, kind string) {
+				err := cli.Get(t.Context(), types.NamespacedName{Name: KubeAuthProxyName, Namespace: gatewayNamespace}, obj)
+				if slices.Contains(tc.removed, kind) {
+					g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "the proxy %s should be removed", kind)
+				} else {
+					g.Expect(err).NotTo(HaveOccurred(), "the proxy %s should be kept", kind)
+				}
+			}
+
+			var seededDeployment, seededPolicy bool
+			for _, obj := range tc.objects() {
+				switch obj.(type) {
+				case *appsv1.Deployment:
+					seededDeployment = true
+				case *networkingv1.NetworkPolicy:
+					seededPolicy = true
+				}
+			}
+			if seededDeployment {
+				assert(&appsv1.Deployment{}, "Deployment")
+			}
+			if seededPolicy {
+				assert(&networkingv1.NetworkPolicy{}, "NetworkPolicy")
+			}
 		})
 	}
 }

@@ -13,6 +13,7 @@ import (
 	apiextensions "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsvalidation "k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/yaml"
 
@@ -20,7 +21,9 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 
 	. "github.com/onsi/gomega"
@@ -63,7 +66,9 @@ func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
 
 func newModuleCRConfig() *modules.ModuleCRConfig {
 	return &modules.ModuleCRConfig{
-		GatewayDomain: "apps.example.com",
+		GatewayConfig: &serviceApi.GatewayConfig{
+			Status: serviceApi.GatewayConfigStatus{Domain: "apps.example.com"},
+		},
 		Release: common.Release{
 			Name: cluster.OpenDataHub,
 		},
@@ -124,6 +129,97 @@ func TestBuildModuleCR_ProjectsMLflowEnabled(t *testing.T) {
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
 	g.Expect(spec["mlflowEnabled"]).Should(BeTrue())
+}
+
+func TestBuildModuleCR_IngressesSupportDeepCopy(t *testing.T) {
+	withAdditionalIngress := newModuleCRConfig()
+	withAdditionalIngress.GatewayConfig.Status.AdditionalIngresses = []serviceApi.AdditionalIngressStatus{
+		{Name: "alpha", Hostname: "alpha.example.com", GatewayRef: serviceApi.GatewayReference{Name: "alpha", Namespace: gateway.GatewayNamespace}},
+	}
+
+	for _, tc := range []struct {
+		name string
+		cfg  *modules.ModuleCRConfig
+	}{
+		{name: "additional ingress", cfg: withAdditionalIngress},
+		{name: "default ingress only", cfg: newModuleCRConfig()},
+		{name: "no gateway config", cfg: &modules.ModuleCRConfig{}},
+		{name: "no module config"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			moduleCR, err := NewHandler().BuildModuleCR(context.Background(), nil, newDSCCtx(operatorv1.Managed), tc.cfg)
+			g.Expect(err).NotTo(HaveOccurred())
+			// The deployment cache deep-copies the unstructured CR before hashing it.
+			g.Expect(func() { moduleCR.DeepCopy() }).NotTo(Panic())
+		})
+	}
+}
+
+func TestBuildModuleCR_ProjectsIngresses(t *testing.T) {
+	g := NewWithT(t)
+	previousCluster := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(previousCluster) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+	cfg := newModuleCRConfig()
+	cfg.GatewayConfig.Status.AdditionalIngresses = []serviceApi.AdditionalIngressStatus{
+		{
+			Name: "beta", Hostname: "beta.example.com",
+			GatewayRef: serviceApi.GatewayReference{Name: "beta-parent", Namespace: gateway.GatewayNamespace},
+			Conditions: []common.Condition{{Type: "Ready", Status: "False"}},
+		},
+		{Name: "alpha", Hostname: "alpha.example.com", GatewayRef: serviceApi.GatewayReference{Name: "alpha", Namespace: gateway.GatewayNamespace}},
+		{Name: "pending", Hostname: "pending.example.com"},
+	}
+	build := func() (*unstructured.Unstructured, error) {
+		return NewHandler().BuildModuleCR(context.Background(), nil, newDSCCtx(operatorv1.Managed), cfg)
+	}
+	u, err := build()
+	g.Expect(err).NotTo(HaveOccurred())
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).To(BeTrue())
+	g.Expect(spec).NotTo(HaveKey("additionalIngressNames"))
+	g.Expect(spec["ingresses"]).To(Equal([]any{
+		map[string]any{
+			"name": gateway.DefaultGatewayName, "gatewayName": gateway.DefaultGatewayName,
+			"gatewayNamespace": gateway.GatewayNamespace, "hostname": "apps.example.com", "isDefault": true,
+		},
+		map[string]any{"name": "beta", "gatewayName": "beta-parent", "gatewayNamespace": gateway.GatewayNamespace, "hostname": "beta.example.com"},
+		map[string]any{"name": "alpha", "gatewayName": "alpha", "gatewayNamespace": gateway.GatewayNamespace, "hostname": "alpha.example.com"},
+	}))
+	validateModuleCRAgainstBundledSchema(t, u.Object)
+
+	cfg.GatewayConfig.Status.AdditionalIngresses = nil
+	u, err = build()
+	g.Expect(err).NotTo(HaveOccurred())
+	spec, ok = u.Object["spec"].(map[string]any)
+	g.Expect(ok).To(BeTrue())
+	g.Expect(spec["ingresses"]).To(Equal([]any{
+		map[string]any{
+			"name": gateway.DefaultGatewayName, "gatewayName": gateway.DefaultGatewayName,
+			"gatewayNamespace": gateway.GatewayNamespace, "hostname": "apps.example.com", "isDefault": true,
+		},
+	}))
+
+	cfg.GatewayConfig = nil
+	u, err = build()
+	g.Expect(err).NotTo(HaveOccurred())
+	spec, ok = u.Object["spec"].(map[string]any)
+	g.Expect(ok).To(BeTrue())
+	g.Expect(spec["ingresses"]).To(Equal([]any{}))
+
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+	cfg.GatewayConfig = newModuleCRConfig().GatewayConfig
+	u, err = build()
+	g.Expect(err).NotTo(HaveOccurred())
+	spec, ok = u.Object["spec"].(map[string]any)
+	g.Expect(ok).To(BeTrue())
+	g.Expect(spec["ingresses"]).To(Equal([]any{
+		map[string]any{
+			"name": gateway.XKSDefaultGatewayName, "gatewayName": gateway.XKSDefaultGatewayName,
+			"gatewayNamespace": gateway.XKSGatewayNamespace, "hostname": "apps.example.com", "isDefault": true,
+		},
+	}))
 }
 
 func TestBuildModuleCR_ProjectsWorkbenchesV2Submodule(t *testing.T) {

@@ -23,6 +23,7 @@ const AIHubModuleName = "aihub"
 // AIHubCommonStatus defines the observed state shared by the public v3 AI Hub
 // component.
 type AIHubCommonStatus struct {
+	// Effective namespace projected into the AI Hub module CR; empty when Removed.
 	InstancesNamespace            string `json:"instancesNamespace,omitempty"`
 	common.ComponentReleaseStatus `json:",inline"`
 }

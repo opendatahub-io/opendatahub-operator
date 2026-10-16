@@ -105,8 +105,8 @@ func (h *handler) BuildModuleCR(
 	}
 	if cfg != nil {
 		spec["sectionTitle"] = sectionTitle(cfg.Release.Name)
-		if cfg.GatewayDomain != "" {
-			spec["gateway"] = map[string]any{"domain": cfg.GatewayDomain}
+		if cfg.GatewayConfig != nil && cfg.GatewayConfig.Status.Domain != "" {
+			spec["gateway"] = map[string]any{"domain": cfg.GatewayConfig.Status.Domain}
 		}
 	}
 

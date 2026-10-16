@@ -161,6 +161,8 @@ func TestHandlerCompliance_BuildModuleCR_ValidGVK(t *testing.T) {
 				"CR GroupVersionKind must match handler GVK")
 			g.Expect(cr.GetName()).ShouldNot(BeEmpty(),
 				"CR must have a non-empty name")
+			g.Expect(func() { cr.DeepCopy() }).ShouldNot(Panic(),
+				"module CR must support Kubernetes deep-copying before deployment")
 		})
 	}
 }

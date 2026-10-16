@@ -16,7 +16,9 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
@@ -34,6 +36,57 @@ func logCapturingContext(t *testing.T) (context.Context, *[]string) {
 		logged = append(logged, args)
 	}, funcr.Options{})
 	return logf.IntoContext(t.Context(), logger), &logged
+}
+
+func TestReconcilePreservesUninstallStatus(t *testing.T) {
+	g := NewWithT(t)
+
+	s, err := scheme.New()
+	g.Expect(err).NotTo(HaveOccurred())
+
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "default-dsci",
+			Finalizers: []string{finalizerName},
+		},
+		Status: dsciv2.DSCInitializationStatus{
+			Phase: status.PhaseNotReady,
+			Conditions: []common.Condition{{
+				Type:    status.ConditionTypeReady,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.UninstallInProgressReason,
+				Message: status.UninstallInProgressMessage,
+			}},
+		},
+	}
+
+	cli, err := fakeclient.New(
+		fakeclient.WithScheme(s),
+		fakeclient.WithObjects(dsci),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	reconciler := &DSCInitializationReconciler{
+		Client:   cli,
+		Scheme:   s,
+		Recorder: &noopRecorder{},
+	}
+
+	result, err := reconciler.Reconcile(t.Context(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: dsci.Name},
+	})
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(result).To(Equal(ctrl.Result{}))
+
+	updated := &dsciv2.DSCInitialization{}
+	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(dsci), updated)).To(Succeed())
+	g.Expect(updated.Status.Phase).To(Equal(status.PhaseNotReady))
+	g.Expect(updated.Status.Conditions).To(ContainElement(common.Condition{
+		Type:    status.ConditionTypeReady,
+		Status:  metav1.ConditionFalse,
+		Reason:  status.UninstallInProgressReason,
+		Message: status.UninstallInProgressMessage,
+	}))
 }
 
 // TestReconcileLogsStructuredFinalizerField reconciles a real DSCInitialization

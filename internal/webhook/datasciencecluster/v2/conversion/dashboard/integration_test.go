@@ -18,7 +18,10 @@ import (
 	v2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
 	v3webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -134,6 +137,62 @@ func TestDashboardVersionedConversion(t *testing.T) {
 				g.Expect(resource.Delete(ctx, name, metav1.DeleteOptions{})).To(Succeed())
 			}
 		}
+	})
+	t.Run("status conditions map between portal spellings", func(t *testing.T) {
+		deleteDashboardDSC(t, cli, key)
+
+		g := NewWithT(t)
+		g.Expect(cli.Create(ctx, &dscApi.DataScienceCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: dashboardIntegrationDSCName},
+			Spec: dscApi.DataScienceClusterSpec{
+				Components: dscApi.Components{
+					Dashboard: componentApi.DSCDashboard{
+						DashboardCommonSpec: componentApi.DashboardCommonSpec{
+							Standard: componentApi.DashboardStandardSpec{
+								ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+							},
+							MaaSPortal: componentApi.DashboardMaaSPortalSpec{
+								ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+							},
+						},
+					},
+				},
+			},
+		})).To(Succeed())
+
+		testContext, err := testf.NewTestContext(
+			testf.WithContext(ctx),
+			testf.WithRestConfig(env.Config()),
+			testf.WithScheme(env.Scheme()),
+		)
+		g.Expect(err).NotTo(HaveOccurred())
+		wt := testContext.NewWithT(t)
+
+		// Status written through the v3 API: the v2 view must show the legacy spelling.
+		wt.UpdateStatus(
+			gvk.DataScienceClusterV3, key,
+			jq.Transform(`.status.conditions = [{"type": "MaaSPortalAvailable", "status": "True", "reason": "Available", "lastTransitionTime": "2026-10-15T00:00:00Z"}]`+
+				` | .status.components.maasPortal.managementState = "Managed"`),
+		).Should(Succeed())
+
+		wt.Get(gvk.DataScienceClusterV2, key).Should(And(
+			jq.Match(`any(.status.conditions[]; .type == "MaaSConsumerPortalAvailable" and .status == "True")`),
+			jq.Match(`all(.status.conditions[]; .type != "MaaSPortalAvailable")`),
+			jq.Match(`.status.components.maasConsumerPortal.managementState == "Managed"`),
+		))
+
+		// Status written through the v2 API: the v3 view must show the new spelling.
+		wt.UpdateStatus(
+			gvk.DataScienceClusterV2, key,
+			jq.Transform(`.status.conditions = [{"type": "MaaSConsumerPortalAvailable", "status": "False", "reason": "Removed", "lastTransitionTime": "2026-10-15T00:00:00Z"}]`+
+				` | .status.components.maasConsumerPortal.managementState = "Removed"`),
+		).Should(Succeed())
+
+		wt.Get(gvk.DataScienceClusterV3, key).Should(And(
+			jq.Match(`any(.status.conditions[]; .type == "MaaSPortalAvailable" and .status == "False")`),
+			jq.Match(`all(.status.conditions[]; .type != "MaaSConsumerPortalAvailable")`),
+			jq.Match(`.status.components.maasPortal.managementState == "Removed"`),
+		))
 	})
 }
 

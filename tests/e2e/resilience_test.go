@@ -189,9 +189,13 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	t.Log("Ensuring clean initial state - disabling all components")
 	moduleNames := slices.Collect(maps.Keys(moduleToControllerMap))
 	managedNames := slices.Concat(components, moduleNames)
-	tc.EventuallyResourcePatched(
+	// Set everything to Removed
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(updateAllComponentsTransform(managedNames, operatorv1.Removed)),
+		WithMutateFunc(testf.Mutate[*dscApi.DataScienceCluster](tc.Scheme(), func(dsc *dscApi.DataScienceCluster) error {
+			dsc.Spec = CreateDSC(tc.DataScienceClusterNamespacedName.Name, tc.WorkbenchesNamespace).Spec
+			return nil
+		})),
 	)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
