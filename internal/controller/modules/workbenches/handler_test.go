@@ -131,6 +131,31 @@ func TestBuildModuleCR_ProjectsMLflowEnabled(t *testing.T) {
 	g.Expect(spec["mlflowEnabled"]).Should(BeTrue())
 }
 
+func TestBuildModuleCR_IngressesSupportDeepCopy(t *testing.T) {
+	withAdditionalIngress := newModuleCRConfig()
+	withAdditionalIngress.GatewayConfig.Status.AdditionalIngresses = []serviceApi.AdditionalIngressStatus{
+		{Name: "alpha", Hostname: "alpha.example.com", GatewayRef: serviceApi.GatewayReference{Name: "alpha", Namespace: gateway.GatewayNamespace}},
+	}
+
+	for _, tc := range []struct {
+		name string
+		cfg  *modules.ModuleCRConfig
+	}{
+		{name: "additional ingress", cfg: withAdditionalIngress},
+		{name: "default ingress only", cfg: newModuleCRConfig()},
+		{name: "no gateway config", cfg: &modules.ModuleCRConfig{}},
+		{name: "no module config"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			moduleCR, err := NewHandler().BuildModuleCR(context.Background(), nil, newDSCCtx(operatorv1.Managed), tc.cfg)
+			g.Expect(err).NotTo(HaveOccurred())
+			// The deployment cache deep-copies the unstructured CR before hashing it.
+			g.Expect(func() { moduleCR.DeepCopy() }).NotTo(Panic())
+		})
+	}
+}
+
 func TestBuildModuleCR_ProjectsIngresses(t *testing.T) {
 	g := NewWithT(t)
 	previousCluster := cluster.GetClusterInfo()
@@ -154,10 +179,13 @@ func TestBuildModuleCR_ProjectsIngresses(t *testing.T) {
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).To(BeTrue())
 	g.Expect(spec).NotTo(HaveKey("additionalIngressNames"))
-	g.Expect(spec["ingresses"]).To(Equal([]map[string]any{
-		{"name": gateway.DefaultGatewayName, "gatewayName": gateway.DefaultGatewayName, "gatewayNamespace": gateway.GatewayNamespace, "hostname": "apps.example.com", "isDefault": true},
-		{"name": "beta", "gatewayName": "beta-parent", "gatewayNamespace": gateway.GatewayNamespace, "hostname": "beta.example.com"},
-		{"name": "alpha", "gatewayName": "alpha", "gatewayNamespace": gateway.GatewayNamespace, "hostname": "alpha.example.com"},
+	g.Expect(spec["ingresses"]).To(Equal([]any{
+		map[string]any{
+			"name": gateway.DefaultGatewayName, "gatewayName": gateway.DefaultGatewayName,
+			"gatewayNamespace": gateway.GatewayNamespace, "hostname": "apps.example.com", "isDefault": true,
+		},
+		map[string]any{"name": "beta", "gatewayName": "beta-parent", "gatewayNamespace": gateway.GatewayNamespace, "hostname": "beta.example.com"},
+		map[string]any{"name": "alpha", "gatewayName": "alpha", "gatewayNamespace": gateway.GatewayNamespace, "hostname": "alpha.example.com"},
 	}))
 	validateModuleCRAgainstBundledSchema(t, u.Object)
 
@@ -166,8 +194,11 @@ func TestBuildModuleCR_ProjectsIngresses(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	spec, ok = u.Object["spec"].(map[string]any)
 	g.Expect(ok).To(BeTrue())
-	g.Expect(spec["ingresses"]).To(Equal([]map[string]any{
-		{"name": gateway.DefaultGatewayName, "gatewayName": gateway.DefaultGatewayName, "gatewayNamespace": gateway.GatewayNamespace, "hostname": "apps.example.com", "isDefault": true},
+	g.Expect(spec["ingresses"]).To(Equal([]any{
+		map[string]any{
+			"name": gateway.DefaultGatewayName, "gatewayName": gateway.DefaultGatewayName,
+			"gatewayNamespace": gateway.GatewayNamespace, "hostname": "apps.example.com", "isDefault": true,
+		},
 	}))
 
 	cfg.GatewayConfig = nil
@@ -175,7 +206,7 @@ func TestBuildModuleCR_ProjectsIngresses(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	spec, ok = u.Object["spec"].(map[string]any)
 	g.Expect(ok).To(BeTrue())
-	g.Expect(spec["ingresses"]).To(Equal([]map[string]any{}))
+	g.Expect(spec["ingresses"]).To(Equal([]any{}))
 
 	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
 	cfg.GatewayConfig = newModuleCRConfig().GatewayConfig
@@ -183,8 +214,8 @@ func TestBuildModuleCR_ProjectsIngresses(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	spec, ok = u.Object["spec"].(map[string]any)
 	g.Expect(ok).To(BeTrue())
-	g.Expect(spec["ingresses"]).To(Equal([]map[string]any{
-		{
+	g.Expect(spec["ingresses"]).To(Equal([]any{
+		map[string]any{
 			"name": gateway.XKSDefaultGatewayName, "gatewayName": gateway.XKSDefaultGatewayName,
 			"gatewayNamespace": gateway.XKSGatewayNamespace, "hostname": "apps.example.com", "isDefault": true,
 		},

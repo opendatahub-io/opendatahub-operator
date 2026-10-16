@@ -140,7 +140,7 @@ func (h *handler) BuildModuleCR(
 	}
 	spec["managementState"] = string(dscCtx.DSC.Spec.Components.Workbenches.ManagementState)
 	spec["mlflowEnabled"] = dscCtx.DSC.Spec.Components.MLflowOperator.ManagementState == operatorv1.Managed
-	ingresses := []map[string]any{}
+	ingresses := []any{}
 	if cfg != nil {
 		spec["gatewayDomain"] = ""
 		if cfg.GatewayConfig != nil {
@@ -162,8 +162,8 @@ func (h *handler) BuildModuleCR(
 	return u, nil
 }
 
-func gatewayStatusIngresses(domain string, statuses []serviceApi.AdditionalIngressStatus) []map[string]any {
-	ingresses := make([]map[string]any, 0, len(statuses)+1)
+func gatewayStatusIngresses(domain string, statuses []serviceApi.AdditionalIngressStatus) []any {
+	ingresses := make([]any, 0, len(statuses)+1)
 	defaultName := gateway.GetDefaultGatewayName()
 	gatewayNamespace := gateway.GetGatewayNamespace()
 	ingresses = append(ingresses, newIngress(defaultName, defaultName, gatewayNamespace, domain, true))
