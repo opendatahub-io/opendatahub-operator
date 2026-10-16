@@ -255,6 +255,7 @@ func TestOIDCDefaultPreparationFailurePreservesResources(t *testing.T) {
 			g.Expect(resource.object.GetDeletionTimestamp()).To(BeNil())
 		}
 	}, 5*time.Second, TestInterval).Should(Succeed())
+	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(deployment), deployment)).To(Succeed())
 	g.Expect(deployment.Spec.Template).To(Equal(*podTemplate))
 }
 

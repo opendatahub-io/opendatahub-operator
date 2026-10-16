@@ -225,7 +225,9 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 				conditions.WithMessage(status.AuthProxyOIDCModeWithoutConfigMessage),
 			)
 			if len(gatewayConfig.Spec.AdditionalIngresses) == 0 {
-				return nil
+				// Preserve the default policies without preparing an incomplete OIDC proxy.
+				return prepareAuthProxies(ctx, rr, gatewayConfig, cluster.AuthModeNone, deploymentTemplate,
+					[]authProxyTarget{defaultAuthProxyTarget(hostname, gatewayConfig)})
 			}
 		} else {
 			oidcConfig = gatewayConfig.Spec.OIDC
@@ -252,7 +254,8 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 					metav1.ConditionTrue, additionalIngressReasonAuthenticationDisabled, status.AuthProxyExternalAuthNoDeploymentMessage)
 			}
 		}
-		return nil
+		return prepareAuthProxies(ctx, rr, gatewayConfig, authMode, deploymentTemplate,
+			[]authProxyTarget{defaultAuthProxyTarget(hostname, gatewayConfig)})
 	}
 
 	targets := []authProxyTarget{defaultAuthProxyTarget(hostname, gatewayConfig)}
@@ -269,14 +272,14 @@ func prepareAuthProxy(
 	target authProxyTarget,
 	authMode cluster.AuthenticationMode,
 	deploymentTemplate string,
-) error {
+) (string, error) {
 	l := logf.FromContext(ctx).WithName("prepareAuthProxy")
 	// Only the default target updates GatewayConfig.Ready here. The caller reports
 	// additional targets through their own AuthenticationReady conditions.
 	// Get secret values for both OIDC and IntegratedOAuth modes
 	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, authMode, target.OIDC, target)
 	if err != nil {
-		return fmt.Errorf("failed to get secret values: %w", err)
+		return "", fmt.Errorf("failed to get secret values: %w", err)
 	}
 
 	// Create the secret dynamically first
@@ -289,18 +292,13 @@ func prepareAuthProxy(
 				conditions.WithMessagef("%s: %v", status.AuthProxyFailedGenerateSecretMessage, err),
 			)
 		}
-		return fmt.Errorf("failed to create auth proxy secret: %w", err)
+		return "", fmt.Errorf("failed to create auth proxy secret: %w", err)
 	}
 	// The Secret is already persisted. Include it in deployment so its lifecycle
 	// annotations are refreshed and GC can distinguish active from removed targets.
 	if err := rr.AddResources(authSecret); err != nil {
-		return fmt.Errorf("failed to add auth proxy secret: %w", err)
+		return "", fmt.Errorf("failed to add auth proxy secret: %w", err)
 	}
-	// Carry only the rollout hash to the template action, using the credentials just written.
-	if rr.Extensions == nil {
-		rr.Extensions = make(map[string]any)
-	}
-	rr.Extensions[target.extensionsKey()] = calculateAuthConfigHash(authSecret)
 
 	// For IntegratedOAuth mode, create OAuth client after secret is created
 	if authMode == cluster.AuthModeIntegratedOAuth {
@@ -312,7 +310,7 @@ func prepareAuthProxy(
 					conditions.WithMessagef("%s: %v", status.AuthProxyFailedOAuthClientMessage, err),
 				)
 			}
-			return fmt.Errorf("failed to create OAuth client: %w", err)
+			return "", fmt.Errorf("failed to create OAuth client: %w", err)
 		}
 		l.V(1).Info("OAuth client created successfully")
 	}
@@ -324,10 +322,10 @@ func prepareAuthProxy(
 		issuerName, issuerKind := resolveIssuerRef(gatewayConfig.Spec.Certificate)
 		cert, err := buildCertManagerCertificate(target.TLSName, GetGatewayNamespace(), target.TLSName, []string{kapServiceDNS}, issuerName, issuerKind)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if err := rr.AddResources(cert); err != nil {
-			return fmt.Errorf("failed to add kube-auth-proxy Certificate: %w", err)
+			return "", fmt.Errorf("failed to add kube-auth-proxy Certificate: %w", err)
 		}
 		l.V(1).Info("Created cert-manager Certificate for kube-auth-proxy",
 			"secret", target.TLSName,
@@ -374,7 +372,7 @@ func prepareAuthProxy(
 			conditions.WithMessage("Auth proxy resources are being deployed"),
 		)
 	}
-	return nil
+	return calculateAuthConfigHash(authSecret), nil
 }
 
 func getGatewayAuthenticationMode(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) (cluster.AuthenticationMode, error) {
@@ -579,7 +577,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 	const templateDataKey = "gateway.template-data"
 	if data, ok := rr.Extensions[templateDataKey].(map[string]any); ok {
-		return authTargetTemplateData(ctx, data, defaultAuthProxyTarget(hostname, gatewayConfig), rr)
+		return data, nil
 	}
 
 	// Fold the provider CA bundle into the rollout hash so rotating the CA in
@@ -624,6 +622,8 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	templateData := map[string]any{
+		"GatewayName":          GetDefaultGatewayName(),
+		"GatewayHostname":      hostname,
 		"IsOpenShift":          cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes,
 		"GatewayNamespace":     GetGatewayNamespace(),
 		"GatewayServiceName":   GetDefaultGatewayServiceFullName(),
@@ -724,7 +724,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 	rr.Extensions[templateDataKey] = templateData
 
-	return authTargetTemplateData(ctx, templateData, defaultAuthProxyTarget(hostname, gatewayConfig), rr)
+	return templateData, nil
 }
 
 func gatewayRouteLabels(additional map[string]string) map[string]string {

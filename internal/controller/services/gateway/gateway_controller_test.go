@@ -406,7 +406,7 @@ func TestGatewayCertManagerPrecondition(t *testing.T) {
 			g.Expect(dependency.Status).To(Equal(metav1.ConditionTrue))
 			g.Expect(createGatewayInfrastructure(t.Context(), rr)).To(Succeed())
 			g.Expect(createKubeAuthProxyInfrastructure(t.Context(), rr)).To(Succeed())
-			g.Expect(rr.Resources).To(HaveLen(2))
+			g.Expect(rr.Resources).To(HaveLen(4), "Gateway infrastructure plus the existing default auth policies")
 			g.Expect(rr.Resources[0].GroupVersionKind()).To(Equal(gvk.GatewayClass))
 			g.Expect(rr.Resources[1].GroupVersionKind()).To(Equal(gvk.KubernetesGateway))
 			g.Expect(rr.Resources[1].GetName()).To(Equal(GetDefaultGatewayName()))

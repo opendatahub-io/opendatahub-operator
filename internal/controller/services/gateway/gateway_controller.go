@@ -255,9 +255,6 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(createGatewayInfrastructure).
 		WithAction(createKubeAuthProxyInfrastructure).
 		WithAction(cleanupKubeAuthProxyResources).
-		// Default Gateway filter; additional-ingress filters are rendered during auth preparation.
-		WithAction(createEnvoyFilter).
-		WithAction(createNetworkPolicy).
 		WithAction(createOCPRoutes).
 		WithAction(createDashboardRedirectsAction).
 		WithAction(template.NewAction(

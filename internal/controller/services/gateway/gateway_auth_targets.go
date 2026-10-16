@@ -9,11 +9,9 @@ import (
 
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	corev1 "k8s.io/api/core/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -24,8 +22,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
-
-const authConfigHashKeyPrefix = "gateway.opendatahub.io/auth-config-hash"
 
 // Only targets configured in this reconciliation can be protected from GC.
 func gatewayAuthState(rr *odhtypes.ReconciliationRequest) map[string]authProxyTarget {
@@ -71,10 +67,6 @@ type authProxyTarget struct {
 
 func (t authProxyTarget) isDefault() bool {
 	return t.IngressName == ""
-}
-
-func (t authProxyTarget) extensionsKey() string {
-	return authConfigHashKeyPrefix + "/" + t.SecretName
 }
 
 func (t authProxyTarget) resourceNames() map[schema.GroupVersionKind]string {
@@ -215,7 +207,7 @@ func recordAuthFailure(config *serviceApi.GatewayConfig, name, reason, message s
 	}
 }
 
-func authTargetTemplateData(ctx context.Context, base map[string]any, target authProxyTarget, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
+func authTargetTemplateData(base map[string]any, target authProxyTarget, authConfigHash string) map[string]any {
 	// Keep shared provider settings, overriding target-specific values on a copy.
 	// Rendering an additional ingress must not mutate the default Gateway's data.
 	data := maps.Clone(base)
@@ -234,24 +226,8 @@ func authTargetTemplateData(ctx context.Context, base map[string]any, target aut
 		Name:        target.FilterName,
 		GatewayName: target.GatewayName,
 	}}
-	authConfigHash, prepared := rr.Extensions[target.extensionsKey()].(string)
-	// getTemplateData can run before the default proxy is prepared, so fall back
-	// to its stored Secret. Additional proxy Deployments are rendered only after
-	// successful preparation supplies their hash.
-	if !prepared && target.isDefault() {
-		secret := &corev1.Secret{}
-		if err := rr.Client.Get(ctx, types.NamespacedName{
-			Name:      target.SecretName,
-			Namespace: GetGatewayNamespace(),
-		}, secret); err != nil && !k8serr.IsNotFound(err) {
-			return nil, fmt.Errorf("failed to get auth proxy secret: %w", err)
-		}
-		if secret.Name != "" {
-			authConfigHash = calculateAuthConfigHash(secret)
-		}
-	}
 	data["AuthConfigHash"] = authConfigHash
-	return data, nil
+	return data
 }
 
 func prepareAuthProxies(
@@ -276,18 +252,20 @@ func prepareAuthProxies(
 				recordAuthFailure(config, target.IngressName, additionalIngressReasonOwnershipConflict, err.Error())
 				return err
 			}
-		} else if mode != cluster.AuthModeOIDC || target.OIDC != nil {
+		} else if mode != cluster.AuthModeNone && (mode != cluster.AuthModeOIDC || target.OIDC != nil) {
 			rr.Conditions.MarkUnknown(ReadyConditionType)
 		}
 		// Check credentials before prepareAuthProxy writes its Secret immediately.
-		var reason, message string
+		var reason, message, authConfigHash string
 		if err := checkAuthProxyCredentials(ctx, rr, config, target, mode); err != nil {
 			reason, message = additionalIngressReasonOwnershipConflict, err.Error()
 		}
 		sub := *rr
 		sub.Templates, sub.Resources = nil, nil
-		if message == "" {
-			if err := prepareAuthProxy(ctx, &sub, config, target, mode, deploymentTemplate); err != nil {
+		if message == "" && mode != cluster.AuthModeNone {
+			var err error
+			authConfigHash, err = prepareAuthProxy(ctx, &sub, config, target, mode, deploymentTemplate)
+			if err != nil {
 				reason = additionalIngressReasonAuthenticationUnavailable
 				message = "Authentication credentials could not be reconciled for " + target.SecretName + ": " + err.Error()
 				if mode == cluster.AuthModeOIDC && target.OIDC == nil {
@@ -303,43 +281,28 @@ func prepareAuthProxies(
 				}
 			}
 		}
-		if target.isDefault() {
-			if message == "" {
-				rr.Resources = append(rr.Resources, sub.Resources...)
-				rr.Templates = append(rr.Templates, sub.Templates...)
-			} else {
-				// Protect the existing default auth resources from GC until preparation
-				// succeeds; the nonempty state also schedules a retry below.
-				state[target.GatewayName] = target
-			}
-			continue // Default templates are rendered by the main action chain.
-		}
 		if message != "" {
-			// Keep only a fail-closed filter when preparation is incomplete.
-			sub.Resources = nil
-			sub.Templates = []odhtypes.TemplateInfo{{
-				FS:   gatewayResources,
-				Path: envoyFilterTemplate,
-			}}
-		} else {
-			if err := createEnvoyFilter(ctx, &sub); err != nil {
-				return err
-			}
+			// Keep existing resources; render only policies when preparation fails.
+			sub.Resources, sub.Templates = nil, nil
+		}
+		if err := createEnvoyFilter(ctx, &sub); err != nil {
+			return err
+		}
+		// The default Gateway keeps its NetworkPolicy even when preparation fails.
+		if message == "" || target.isDefault() {
 			if err := createNetworkPolicy(ctx, &sub); err != nil {
 				return err
 			}
-			if status := additionalIngressStatusByName(config, target.IngressName); status != nil {
-				setAdditionalIngressCondition(status, config.Generation, serviceApi.AdditionalIngressAuthenticationReadyConditionType, metav1.ConditionUnknown,
-					serviceApi.AdditionalIngressReconciliationPendingReason, "Authentication resources are being deployed")
-			}
 		}
-		data, err := authTargetTemplateData(ctx, base, target, &sub)
-		if err == nil {
-			err = template.NewAction(template.WithData(data),
-				template.WithNamespaceFn(func(context.Context, *odhtypes.ReconciliationRequest) (string, error) {
-					return GetGatewayNamespace(), nil
-				}))(ctx, &sub)
+		if status := additionalIngressStatusByName(config, target.IngressName); message == "" && status != nil {
+			setAdditionalIngressCondition(status, config.Generation, serviceApi.AdditionalIngressAuthenticationReadyConditionType, metav1.ConditionUnknown,
+				serviceApi.AdditionalIngressReconciliationPendingReason, "Authentication resources are being deployed")
 		}
+		data := authTargetTemplateData(base, target, authConfigHash)
+		err := template.NewAction(template.WithData(data),
+			template.WithNamespaceFn(func(context.Context, *odhtypes.ReconciliationRequest) (string, error) {
+				return GetGatewayNamespace(), nil
+			}))(ctx, &sub)
 		if err != nil {
 			return fmt.Errorf("failed to render authentication resources for %s: %w", target.GatewayName, err)
 		}

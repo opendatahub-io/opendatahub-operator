@@ -99,7 +99,9 @@ func TestAdditionalIngressWithoutAuthentication(t *testing.T) {
 	rr := newGatewayAuthTestRequest(t, config, authentication)
 	g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
 	g.Expect(createKubeAuthProxyInfrastructure(t.Context(), rr)).To(Succeed())
-	g.Expect(rr.Resources).To(BeEmpty(), "None must not render an auth proxy or filter")
+	g.Expect(rr.Resources).To(HaveLen(2), "None preserves only the default filter and NetworkPolicy")
+	g.Expect(rr.Resources[0].GetName()).To(Equal(AuthnFilterName))
+	g.Expect(rr.Resources[1].GetName()).To(Equal(KubeAuthProxyName))
 	g.Expect(rr.Templates).To(BeEmpty())
 	g.Expect(rr.Client.Get(t.Context(), types.NamespacedName{
 		Name:      "alpha-auth-creds",
@@ -111,8 +113,8 @@ func TestAdditionalIngressWithoutAuthentication(t *testing.T) {
 	g.Expect(condition.Status).To(Equal(metav1.ConditionTrue))
 	g.Expect(condition.Reason).To(Equal("AuthenticationDisabled"))
 	g.Expect(createAdditionalIngressRoutes(t.Context(), rr, config)).To(Succeed())
-	g.Expect(rr.Resources).To(HaveLen(1))
-	g.Expect(rr.Resources[0].GetKind()).To(Equal(gvk.Route.Kind))
+	g.Expect(rr.Resources).To(HaveLen(3))
+	g.Expect(rr.Resources[2].GetKind()).To(Equal(gvk.Route.Kind))
 }
 
 func TestMissingOIDCConfigKeepsAuthenticationFilter(t *testing.T) {
@@ -133,11 +135,11 @@ func TestMissingOIDCConfigKeepsAuthenticationFilter(t *testing.T) {
 	rr := newGatewayAuthTestRequest(t, config, authentication)
 	g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
 	g.Expect(createKubeAuthProxyInfrastructure(t.Context(), rr)).To(MatchError(ContainSubstring("requeue after")))
-	g.Expect(rr.Resources).To(HaveLen(1))
-	g.Expect(rr.Resources[0].GetKind()).To(Equal(gvk.EnvoyFilter.Kind))
+	g.Expect(rr.Resources).To(HaveLen(3), "default policies and the additional fail-closed filter remain")
+	g.Expect(rr.Resources[2].GetKind()).To(Equal(gvk.EnvoyFilter.Kind))
 	g.Expect(rr.Templates).To(BeEmpty())
 	g.Expect(createAdditionalIngressRoutes(t.Context(), rr, config)).To(Succeed())
-	g.Expect(rr.Resources).To(HaveLen(2))
+	g.Expect(rr.Resources).To(HaveLen(4))
 	g.Expect(conditions.FindStatusCondition(additionalIngressStatusByName(config, "alpha"),
 		serviceApi.AdditionalIngressAuthenticationReadyConditionType).Reason).To(Equal(additionalIngressReasonInvalidAuthenticationConfig))
 }
@@ -270,8 +272,9 @@ func TestPreparedAuthSecretSurvivesDeploymentUntilIngressRemoval(t *testing.T) {
 			m.On("Owns", mock.Anything).Return(true)
 		}),
 	}
-	g.Expect(prepareAuthProxy(t.Context(), rr, config, additionalAuthProxyTarget(ingress, config),
-		cluster.AuthModeIntegratedOAuth, kubeAuthProxyDeploymentOauthTemplate)).To(Succeed())
+	_, err := prepareAuthProxy(t.Context(), rr, config, additionalAuthProxyTarget(ingress, config),
+		cluster.AuthModeIntegratedOAuth, kubeAuthProxyDeploymentOauthTemplate)
+	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(deploy.NewAction(deploy.WithMode(deploy.ModePatch))(t.Context(), rr)).To(Succeed())
 	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(secret), secret)).To(Succeed())
 	g.Expect(secret.Data).To(Equal(credentials), "deployment must preserve the persisted client and cookie credentials")
@@ -361,8 +364,7 @@ func TestAuthenticationResourcesAreIndependentPerGateway(t *testing.T) {
 			cli := rr.Client
 			g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
 			g.Expect(createKubeAuthProxyInfrastructure(t.Context(), rr)).To(Succeed())
-			g.Expect(createEnvoyFilter(t.Context(), rr)).To(Succeed())
-			g.Expect(createNetworkPolicy(t.Context(), rr)).To(Succeed())
+			g.Expect(rr.Templates).To(BeEmpty())
 
 			g.Expect(template.NewAction(template.WithDataFn(getTemplateData), template.WithNamespaceFn(func(context.Context, *odhtypes.ReconciliationRequest) (string, error) {
 				return GetGatewayNamespace(), nil
@@ -370,7 +372,11 @@ func TestAuthenticationResourcesAreIndependentPerGateway(t *testing.T) {
 			deployments := map[string]*appsv1.Deployment{}
 			hpas := map[string]*autoscalingv2.HorizontalPodAutoscaler{}
 			credentials := 0
+			seen := map[string]bool{}
 			for _, obj := range rr.Resources {
+				key := obj.GroupVersionKind().String() + "/" + obj.GetNamespace() + "/" + obj.GetName()
+				g.Expect(seen[key]).To(BeFalse(), "duplicate resource %s", key)
+				seen[key] = true
 				switch obj.GetKind() {
 				case gvk.Deployment.Kind:
 					dep := &appsv1.Deployment{}
@@ -404,6 +410,17 @@ func TestAuthenticationResourcesAreIndependentPerGateway(t *testing.T) {
 					}
 				case gvk.EnvoyFilter.Kind:
 					g.Expect(fmt.Sprint(obj.Object)).NotTo(ContainSubstring("failure_mode_allow"))
+					gatewayName, _, err := unstructured.NestedString(obj.Object, "spec", "workloadSelector", "labels", "gateway.networking.k8s.io/gateway-name")
+					g.Expect(err).NotTo(HaveOccurred())
+					proxyName := KubeAuthProxyName
+					if gatewayName != GetDefaultGatewayName() {
+						proxyName += "-" + gatewayName
+					}
+					g.Expect(fmt.Sprint(obj.Object)).To(ContainSubstring("https://" + proxyName + "." + GetGatewayNamespace() + ".svc.cluster.local:"))
+				case gvk.Service.Kind:
+					selector, _, err := unstructured.NestedString(obj.Object, "spec", "selector", "app")
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(selector).To(Equal(obj.GetName()))
 				}
 			}
 			g.Expect(deployments).To(HaveLen(4))
@@ -422,10 +439,6 @@ func TestAuthenticationResourcesAreIndependentPerGateway(t *testing.T) {
 				}, secret)).To(Succeed())
 				g.Expect(deployments[target.ProxyName].Spec.Template.Annotations["opendatahub.io/secret-hash"]).To(Equal(calculateAuthConfigHash(secret)),
 					"each proxy must roll out using its own freshly persisted credentials")
-				if name == "" {
-					g.Expect(rr.Extensions[target.extensionsKey()]).To(Equal(calculateAuthConfigHash(secret)),
-						"additional proxy preparation must preserve the default proxy hash")
-				}
 			}
 			for _, name := range []string{"alpha", "beta", "gamma"} {
 				dep := deployments["kube-auth-proxy-"+name]
@@ -513,5 +526,64 @@ func TestGatewayDeployRejectsBridgeRoutesWhenAuthenticationFilterFails(t *testin
 			g.Expect(attempted).To(ContainElement(gvk.EnvoyFilter.Kind + "/alpha-authn"))
 			g.Expect(attempted).NotTo(ContainElement(HavePrefix(gvk.Route.Kind+"/")), "bridge Routes must follow successful filter application")
 		})
+	}
+}
+
+func TestDefaultAuthenticationRendersDuringPreparation(t *testing.T) {
+	g := NewWithT(t)
+	original := cluster.GetClusterInfo()
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+	t.Cleanup(func() { cluster.SetClusterInfo(original) })
+	config := newGatewayAuthTestConfig()
+	rr := newGatewayAuthTestRequest(t, config, &configv1.Authentication{
+		ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
+		Spec:       configv1.AuthenticationSpec{Type: configv1.AuthenticationTypeIntegratedOAuth},
+	})
+	g.Expect(createKubeAuthProxyInfrastructure(t.Context(), rr)).To(Succeed())
+	g.Expect(rr.Templates).To(BeEmpty(), "all auth targets must be rendered by the same preparation action")
+	counts := map[schema.GroupVersionKind]int{}
+	for _, resource := range rr.Resources {
+		counts[resource.GroupVersionKind()]++
+	}
+	for _, kind := range []schema.GroupVersionKind{gvk.Deployment, gvk.Service, gvk.Secret, gvk.OAuthClient, gvk.HTTPRoute, gvk.EnvoyFilter, gvk.NetworkPolicy} {
+		g.Expect(counts[kind]).To(Equal(1), "expected one %s", kind.Kind)
+	}
+}
+
+func TestDefaultAuthenticationPoliciesWithoutProxy(t *testing.T) {
+	original := cluster.GetClusterInfo()
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+	t.Cleanup(func() { cluster.SetClusterInfo(original) })
+	for _, mode := range []configv1.AuthenticationType{configv1.AuthenticationTypeNone, "OIDC"} {
+		for _, enabled := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/network-policy=%t", mode, enabled), func(t *testing.T) {
+				g := NewWithT(t)
+				config := newGatewayAuthTestConfig()
+				config.Spec.NetworkPolicy = &serviceApi.NetworkPolicyConfig{
+					Ingress: &serviceApi.IngressPolicyConfig{Enabled: enabled},
+				}
+				rr := newGatewayAuthTestRequest(t, config, &configv1.Authentication{
+					ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
+					Spec:       configv1.AuthenticationSpec{Type: mode},
+				})
+				g.Expect(createKubeAuthProxyInfrastructure(t.Context(), rr)).To(Succeed())
+				g.Expect(rr.Templates).To(BeEmpty())
+				g.Expect(rr.Resources[0].GroupVersionKind()).To(Equal(gvk.EnvoyFilter))
+				g.Expect(rr.Resources[0].GetName()).To(Equal(AuthnFilterName))
+				if enabled {
+					g.Expect(rr.Resources).To(HaveLen(2))
+					g.Expect(rr.Resources[1].GroupVersionKind()).To(Equal(gvk.NetworkPolicy))
+				} else {
+					g.Expect(rr.Resources).To(HaveLen(1))
+				}
+				ready := rr.Conditions.GetCondition(ReadyConditionType)
+				if mode == configv1.AuthenticationTypeNone {
+					g.Expect(ready.Status).To(Equal(metav1.ConditionTrue))
+				} else {
+					g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+					g.Expect(ready.Message).To(Equal("Cluster is in OIDC mode but GatewayConfig has no OIDC configuration"))
+				}
+			})
+		}
 	}
 }

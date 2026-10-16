@@ -300,7 +300,7 @@ func TestKubeAuthProxyCertificateProvider(t *testing.T) {
 	err = createKubeAuthProxyInfrastructure(ctx, rr)
 	g.Expect(err).NotTo(HaveOccurred())
 
-	g.Expect(rr.Templates).NotTo(BeEmpty(), "auth proxy resources must be queued")
+	g.Expect(rr.Templates).To(BeEmpty(), "auth proxy resources must already be rendered")
 	g.Expect(rr.Conditions.GetCondition(ReadyConditionType).Status).To(Equal(metav1.ConditionUnknown),
 		"readiness is decided after the Certificate and Deployment become available")
 
@@ -309,7 +309,7 @@ func TestKubeAuthProxyCertificateProvider(t *testing.T) {
 
 	g.Expect(k8serr.IsNotFound(err)).To(BeTrue(),
 		"cert-manager owns the Secret; the operator must not pre-create it")
-	g.Expect(rr.Resources).To(HaveLen(2))
+	g.Expect(rr.Resources).To(HaveLen(11))
 	// The Certificate must name the Secret the kube-auth-proxy Deployment mounts, and
 	// carry the in-cluster Service DNS name the EnvoyFilter dials for ext_authz.
 	expectCertManagerCertificate(t, g, rr.Resources[1],
@@ -721,8 +721,6 @@ func TestXKSReconcileWithoutDomainStopsCleanly(t *testing.T) {
 
 	g.Expect(createGatewayInfrastructure(ctx, rr)).To(Succeed())
 	g.Expect(createKubeAuthProxyInfrastructure(ctx, rr)).To(Succeed())
-	g.Expect(createEnvoyFilter(ctx, rr)).To(Succeed())
-	g.Expect(createNetworkPolicy(ctx, rr)).To(Succeed())
 	g.Expect(syncGatewayConfigStatus(ctx, rr)).To(Succeed())
 
 	ready := rr.Conditions.GetCondition(ReadyConditionType)
@@ -774,8 +772,6 @@ func TestXKSReconcileRejectsOpenShiftOnlyValues(t *testing.T) {
 
 	g.Expect(createGatewayInfrastructure(ctx, rr)).To(Succeed())
 	g.Expect(createKubeAuthProxyInfrastructure(ctx, rr)).To(Succeed())
-	g.Expect(createEnvoyFilter(ctx, rr)).To(Succeed())
-	g.Expect(createNetworkPolicy(ctx, rr)).To(Succeed())
 	g.Expect(syncGatewayConfigStatus(ctx, rr)).To(Succeed())
 
 	ready := rr.Conditions.GetCondition(ReadyConditionType)
@@ -841,7 +837,7 @@ func TestGetTemplateDataTLSCurvePreferences(t *testing.T) {
 
 	templateData, err := getTemplateData(ctx, rr)
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(templateData).To(HaveKeyWithValue("AuthProxyMaxReplicas", maximum))
+	g.Expect(authTargetTemplateData(templateData, defaultAuthProxyTarget("rh-ai.apps.example.com", gatewayConfig), "")).To(HaveKeyWithValue("AuthProxyMaxReplicas", maximum))
 	g.Expect(templateData).To(HaveKeyWithValue("TLSMinVersion", "TLS1.2"))
 	g.Expect(templateData).To(HaveKeyWithValue("TLSCipherSuite", tls.CipherSuiteName(tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)))
 	g.Expect(templateData).To(HaveKeyWithValue("TLSCurvePreferences", "29,23"))
