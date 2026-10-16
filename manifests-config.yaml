@@ -171,11 +171,11 @@ componentCharts:
   workbenches:
     odh:
       repo: opendatahub-io/workbenches-operator
-      ref: main@9411a2043375ccb20be30345136708cc3b7bd51c
+      ref: main@b050cbc7f1efc9ac842cf62a70ce33d198bef5a9
       sourcePath: charts/operator
     rhoai:
       repo: red-hat-data-services/workbenches-operator
-      ref: rhoai-3.6@ea919f0689e8c826e8ad6c2002ec374a46fdbc96
+      ref: rhoai-3.6@3956b4466d97d1adb2bafa40abeb2f220dd061b4
       sourcePath: charts/operator
   data:
     odh:
@@ -380,10 +380,10 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-workbenches-operator"
-      digest: "sha256:cfd72c3980d9692bbd8efbe33734cbbc866e24dd914e92107c250b84502706bf"
+      digest: "sha256:8e636e90e51d2d1361429985b8b4e5f6cfd78b1588618def13c82bc52f02d30f"
     rhoai:
       base: "quay.io/rhoai/odh-workbenches-operator-rhel9"
-      digest: "sha256:213ca3326fd6d07d27899be68b2f93248c729681d5a2acbb86858b6c16d09300"
+      digest: "sha256:5c93c8c5b8983442a2716bcfb572cff2ecb98b9367f1dd917501bdee3c32d117"
   RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE:
     component: data
     tagTemplate: "{SHA}"
@@ -868,10 +868,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-notebook-controller"
-      digest: "sha256:ed1be99e914043400e7516fd44109bfbda9447e9d2cd9f6bf98fbbcfe02f9743"
+      digest: "sha256:d4b063277229ae904954664e283738f0829517ee983edab041b55ff19985bc4e"
     rhoai:
       base: "quay.io/rhoai/odh-notebook-controller-rhel9"
-      digest: "sha256:4b796f19bcb112eda8da3db1a181f296ac46f9a8bdb575360788becd55c76533"
+      digest: "sha256:00629770656dea7e87e6351cd2d87a29481632e6658fd57be2c8910b822cf306"
   RELATED_IMAGE_ODH_OBSERVABILITY_IMAGE:
     source: "csv"
     odh:

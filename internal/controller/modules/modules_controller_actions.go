@@ -30,7 +30,6 @@ import (
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhan "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	odhl "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
@@ -402,12 +401,6 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 	if err != nil {
 		return err
 	}
-
-	gatewayDomain, err := resources.GetGatewayDomain(ctx, rr.Client)
-	if err != nil {
-		log.V(1).Info("gateway domain not available, modules needing it should handle empty value", "error", err)
-	}
-	platformCtx.GatewayDomain = gatewayDomain
 
 	checker := provision.NewCompositeChecker(
 		cr.NewReadinessChecker(cr.DefaultRegistry(), rr.Client, rr.Release.Version.String()),
