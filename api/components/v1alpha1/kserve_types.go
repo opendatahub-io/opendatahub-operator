@@ -75,6 +75,10 @@ type KserveCommonSpec struct {
 	// Configures and enables NVIDIA NIM integration
 	// +kubebuilder:default={}
 	NIM NimSpec `json:"nim,omitempty"`
+	// Configures and enables the ModelExpress operator, a model cache and
+	// GPU-to-GPU weight transfer service for distributed model serving
+	// +kubebuilder:default={}
+	ModelExpress ModelExpressSpec `json:"modelExpress,omitempty"`
 	// Enables TLS for LLMInferenceService deployments.
 	// When unset, the KServe default (TLS enabled) is preserved.
 	// +optional
@@ -138,6 +142,13 @@ type NimSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
 	AirGapped bool `json:"airGapped,omitempty"`
+}
+
+// ModelExpressSpec enables the ModelExpress operator
+type ModelExpressSpec struct {
+	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:default=Removed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
 // WVASpec preserves the legacy WVA management state for v2 compatibility.

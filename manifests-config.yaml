@@ -1297,11 +1297,13 @@ imageOverrides:
       base: "quay.io/rhoai/odh-trustyai-module-operator-rhel9"
       digest: "sha256:8cf5027508a92f080ebaaf55cf966dd32c7c88709906acbf81059bc2cf8abed6"
   RELATED_IMAGE_ODH_MODELEXPRESS_IMAGE:
+    component: kserve-module-operator
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-modelexpress"
       digest: "sha256:9abd61a94f8e3f8f26e97a708bfb79685ef5bed2eb93b27c0b30b7208b0ee09a"
   RELATED_IMAGE_ODH_MODELEXPRESS_OPERATOR_IMAGE:
+    component: kserve-module-operator
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-modelexpress-operator"

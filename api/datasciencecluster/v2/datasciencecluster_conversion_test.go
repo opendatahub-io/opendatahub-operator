@@ -162,6 +162,7 @@ func TestConversionPreservesUnchangedFields(t *testing.T) {
 	delete(expectedWire["spec"].(map[string]any)["components"].(map[string]any)["kserve"].(map[string]any), "modelsAsService")
 	delete(expectedWire["spec"].(map[string]any)["components"].(map[string]any)["kserve"].(map[string]any), "wva")
 	components := expectedWire["spec"].(map[string]any)["components"].(map[string]any)
+	components["kserve"].(map[string]any)["modelExpress"] = map[string]any{}
 	delete(components, "trainingoperator")
 	delete(components, "llamastackoperator")
 	components["dashboard"] = map[string]any{
