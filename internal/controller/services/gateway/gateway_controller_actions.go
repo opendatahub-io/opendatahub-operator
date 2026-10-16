@@ -40,9 +40,11 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 //go:embed resources
@@ -131,6 +133,20 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 						conflictReason = additionalIngressReasonOwnershipConflict
 						conflictMessage = fmt.Sprintf("additional Gateway infrastructure ConfigMap %q already exists and is not owned by GatewayConfig %q", configMapName, gatewayConfig.Name)
 					}
+				}
+			}
+			if conflictReason == "" {
+				filter := resources.GvkToUnstructured(gvk.EnvoyFilter)
+				filter.SetName(additionalGatewayEnvoyFilterName(ingress.Name))
+				filter.SetNamespace(GetGatewayNamespace())
+				manageable, err := canManageGatewayResource(ctx, rr.Client, gatewayConfig, filter)
+				if err != nil {
+					return fmt.Errorf("failed to validate additional Gateway EnvoyFilter %q ownership: %w", filter.GetName(), err)
+				}
+				if !manageable {
+					conflictReason = additionalIngressReasonOwnershipConflict
+					conflictMessage = fmt.Sprintf("authentication resource EnvoyFilter/%s is not controlled by this GatewayConfig", filter.GetName())
+					recordAuthFailure(gatewayConfig, ingress.Name, conflictReason, conflictMessage)
 				}
 			}
 			if conflictReason != "" {

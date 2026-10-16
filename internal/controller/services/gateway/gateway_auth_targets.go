@@ -86,7 +86,7 @@ func (t authProxyTarget) resourceNames() map[schema.GroupVersionKind]string {
 	}
 }
 
-func checkAuthProxyDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest, config *serviceApi.GatewayConfig, target authProxyTarget) error {
+func checkAuthProxyDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest, config *serviceApi.GatewayConfig, target authProxyTarget) (string, error) {
 	for kind, name := range target.resourceNames() {
 		// Credentials have a fail-closed preparation path below. Additional ingresses
 		// use OpenShift serving certificates, rather than cert-manager Certificates.
@@ -101,13 +101,13 @@ func checkAuthProxyDependencies(ctx context.Context, rr *odhtypes.Reconciliation
 		}
 		manageable, err := canManageGatewayResource(ctx, rr.Client, config, resource)
 		if err != nil {
-			return fmt.Errorf("failed to check authentication resource %s/%s: %w", kind.Kind, name, err)
+			return "", fmt.Errorf("failed to check authentication resource %s/%s: %w", kind.Kind, name, err)
 		}
 		if !manageable {
-			return fmt.Errorf("authentication resource %s/%s is not controlled by this GatewayConfig", kind.Kind, name)
+			return fmt.Sprintf("authentication resource %s/%s is not controlled by this GatewayConfig", kind.Kind, name), nil
 		}
 	}
-	return nil
+	return "", nil
 }
 
 func checkAuthProxyCredentials(
@@ -245,9 +245,13 @@ func prepareAuthProxies(
 			continue
 		}
 		if !target.isDefault() {
-			if err := checkAuthProxyDependencies(ctx, rr, config, target); err != nil {
-				recordAuthFailure(config, target.IngressName, additionalIngressReasonOwnershipConflict, err.Error())
+			message, err := checkAuthProxyDependencies(ctx, rr, config, target)
+			if err != nil {
 				return err
+			}
+			if message != "" {
+				recordAuthFailure(config, target.IngressName, additionalIngressReasonOwnershipConflict, message)
+				continue
 			}
 		} else if mode != cluster.AuthModeNone && (mode != cluster.AuthModeOIDC || target.OIDC != nil) {
 			rr.Conditions.MarkUnknown(ReadyConditionType)
@@ -263,6 +267,8 @@ func prepareAuthProxies(
 			var err error
 			authConfigHash, err = prepareAuthProxy(ctx, &sub, config, target, mode, deploymentTemplate)
 			if err != nil {
+				// Keep existing resources; render only policies when preparation fails.
+				sub.Resources, sub.Templates = nil, nil
 				reason = additionalIngressReasonAuthenticationUnavailable
 				message = "Authentication credentials could not be reconciled for " + target.SecretName + ": " + err.Error()
 				if mode == cluster.AuthModeOIDC && target.OIDC == nil {
@@ -277,10 +283,6 @@ func prepareAuthProxies(
 					}
 				}
 			}
-		}
-		if message != "" {
-			// Keep existing resources; render only policies when preparation fails.
-			sub.Resources, sub.Templates = nil, nil
 		}
 		if err := createEnvoyFilter(ctx, &sub); err != nil {
 			return err

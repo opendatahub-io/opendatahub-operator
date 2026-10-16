@@ -40,6 +40,7 @@ import (
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	templateutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/template"
 )
@@ -138,6 +139,13 @@ func createAdditionalIngressRoutes(
 	for _, ingress := range ingresses {
 		if additionalIngressHasGatewayConflict(gatewayConfig, ingress.Name) {
 			continue
+		}
+		if status := additionalIngressStatusByName(gatewayConfig, ingress.Name); status != nil {
+			condition := conditions.FindStatusCondition(status, serviceApi.AdditionalIngressAuthenticationReadyConditionType)
+			if condition != nil && condition.ObservedGeneration == gatewayConfig.Generation &&
+				condition.Status == metav1.ConditionFalse && condition.Reason == additionalIngressReasonOwnershipConflict {
+				continue
+			}
 		}
 		route, err := buildAdditionalIngressRoute(ingress)
 		if err != nil {

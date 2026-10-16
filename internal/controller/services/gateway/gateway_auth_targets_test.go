@@ -144,7 +144,7 @@ func TestMissingOIDCConfigKeepsAuthenticationFilter(t *testing.T) {
 		serviceApi.AdditionalIngressAuthenticationReadyConditionType).Reason).To(Equal(additionalIngressReasonInvalidAuthenticationConfig))
 }
 
-func TestForeignAuthenticationCredentialsKeepFilterAndBridgeRoute(t *testing.T) {
+func TestForeignAuthenticationCredentialsKeepFilterAndOmitBridgeRoute(t *testing.T) {
 	g := NewWithT(t)
 	original := cluster.GetClusterInfo()
 	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
@@ -164,7 +164,7 @@ func TestForeignAuthenticationCredentialsKeepFilterAndBridgeRoute(t *testing.T) 
 	g.Expect(rr.Resources).To(HaveLen(1))
 	g.Expect(rr.Resources[0].GetKind()).To(Equal(gvk.EnvoyFilter.Kind))
 	g.Expect(createAdditionalIngressRoutes(t.Context(), rr, config)).To(Succeed())
-	g.Expect(rr.Resources).To(HaveLen(2))
+	g.Expect(rr.Resources).To(HaveLen(1))
 	g.Expect(conditions.FindStatusCondition(additionalIngressStatusByName(config, "alpha"),
 		serviceApi.AdditionalIngressAuthenticationReadyConditionType).Reason).To(Equal(additionalIngressReasonOwnershipConflict))
 }
@@ -291,7 +291,7 @@ func TestPreparedAuthSecretSurvivesDeploymentUntilIngressRemoval(t *testing.T) {
 	g.Expect(gatewayAuthResourceCollectable(rr, *obj)).To(BeTrue(), "removed ingress credentials must be collectable")
 }
 
-func TestForeignAuthenticationDependenciesStopReconciliation(t *testing.T) {
+func TestForeignAuthenticationDependenciesIsolateTarget(t *testing.T) {
 	original := cluster.GetClusterInfo()
 	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
 	t.Cleanup(func() { cluster.SetClusterInfo(original) })
@@ -300,23 +300,44 @@ func TestForeignAuthenticationDependenciesStopReconciliation(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/fallback=%t", kind.Kind, missingCredentials), func(t *testing.T) {
 				g := NewWithT(t)
 				ingress := additionalIngress("alpha", "alpha.example.com", "alpha")
-				config := newGatewayAuthTestConfig(ingress)
+				beta := additionalIngress("beta", "beta.example.com", "beta")
+				config := newGatewayAuthTestConfig(ingress, beta)
 				g.Expect(json.Unmarshal([]byte(`{"networkPolicy":{"ingress":{"enabled":false}}}`), &config.Spec)).To(Succeed())
 				target := additionalAuthProxyTarget(ingress, config)
 				foreign := &unstructured.Unstructured{}
 				foreign.SetGroupVersionKind(kind)
 				foreign.SetName(target.resourceNames()[kind])
 				foreign.SetNamespace(GetGatewayNamespace())
-				objects := []client.Object{foreign}
+				objects := []client.Object{foreign, &configv1.Authentication{
+					ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
+					Spec:       configv1.AuthenticationSpec{Type: configv1.AuthenticationTypeIntegratedOAuth},
+				}}
 				if missingCredentials {
 					objects = append(objects, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: target.SecretName, Namespace: GetGatewayNamespace()}})
 				}
 				rr := newGatewayAuthTestRequest(t, config, objects...)
 				g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
-				err := prepareAuthProxies(t.Context(), rr, config, cluster.AuthModeIntegratedOAuth, kubeAuthProxyDeploymentOauthTemplate, []authProxyTarget{target})
-				g.Expect(err).To(MatchError(ContainSubstring("not controlled by this GatewayConfig")))
-				var requeue actionerrors.RequeueAfterError
-				g.Expect(errors.As(err, &requeue)).To(BeFalse(), "a deferred retry would continue to bridge Route deployment")
+				g.Expect(createGatewayInfrastructure(t.Context(), rr)).To(Succeed())
+				g.Expect(prepareAuthProxies(t.Context(), rr, config, cluster.AuthModeIntegratedOAuth, kubeAuthProxyDeploymentOauthTemplate,
+					[]authProxyTarget{target, defaultAuthProxyTarget("rh-ai.apps.example.com", config), additionalAuthProxyTarget(beta, config)})).To(Succeed())
+				g.Expect(createAdditionalIngressRoutes(t.Context(), rr, config)).To(Succeed())
+				auth := conditions.FindStatusCondition(additionalIngressStatusByName(config, ingress.Name), serviceApi.AdditionalIngressAuthenticationReadyConditionType)
+				g.Expect(auth.Status).To(Equal(metav1.ConditionFalse))
+				g.Expect(auth.Reason).To(Equal(additionalIngressReasonOwnershipConflict))
+				g.Expect(auth.ObservedGeneration).To(Equal(config.Generation))
+				g.Expect(rr.Resources).NotTo(ContainElement(WithTransform(func(obj unstructured.Unstructured) string {
+					return obj.GetKind() + "/" + obj.GetName()
+				}, Equal("Route/"+ingress.Name))))
+				for _, name := range []string{KubeAuthProxyName, KubeAuthProxyName + "-beta"} {
+					g.Expect(rr.Resources).To(ContainElement(WithTransform(func(obj unstructured.Unstructured) string {
+						return obj.GetKind() + "/" + obj.GetName()
+					}, Equal("Deployment/"+name))))
+				}
+				if kind == gvk.EnvoyFilter {
+					g.Expect(rr.Resources).NotTo(ContainElement(WithTransform(func(obj unstructured.Unstructured) string {
+						return obj.GetKind() + "/" + obj.GetName()
+					}, Equal("Gateway/"+ingress.Name))))
+				}
 			})
 		}
 	}
