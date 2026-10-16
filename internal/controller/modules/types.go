@@ -328,3 +328,15 @@ func WithConfigSource(source ConfigSource) RegistrationOption {
 		e.configSource = source
 	}
 }
+
+// ModuleCRDeprecatedFieldCleaner is an optional interface for modules that
+// need to remove deprecated fields from their live module CR after the
+// canonical configuration has been applied. It runs after the deploy action,
+// so canonical fields are guaranteed to be present before any legacy field is
+// removed; legacy-only configurations are left untouched until then.
+//
+// Implementations must be idempotent: once the deprecated field is absent,
+// subsequent reconciliations must not issue another write.
+type ModuleCRDeprecatedFieldCleaner interface {
+	CleanupDeprecatedModuleCRFields(ctx context.Context, cli client.Client) error
+}

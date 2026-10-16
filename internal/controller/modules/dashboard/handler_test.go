@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -16,6 +19,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func newPlatformModules(mgmtState operatorv1.ManagementState) *configApi.PlatformModules {
@@ -615,4 +620,165 @@ func TestGetRelatedImages(t *testing.T) {
 		"RELATED_IMAGE_POSTGRESQL_16_IMAGE",
 		"RELATED_IMAGE_ODH_OGX_CORE_IMAGE",
 	))
+}
+
+// newDashboardCleanupCR builds a Dashboard CR with the given spec for cleanup tests.
+func newDashboardCleanupCR(gvk schema.GroupVersionKind, spec map[string]any) *unstructured.Unstructured {
+	u := &unstructured.Unstructured{}
+	u.SetGroupVersionKind(gvk)
+	u.SetName(componentApi.DashboardInstanceName)
+	u.Object["spec"] = spec
+	return u
+}
+
+// newDashboardCleanupScheme registers the Dashboard GVK for the fake client.
+func newDashboardCleanupScheme(gvk schema.GroupVersionKind) *runtime.Scheme {
+	scheme := runtime.NewScheme()
+	scheme.AddKnownTypeWithName(gvk, &unstructured.Unstructured{})
+	scheme.AddKnownTypeWithName(gvk.GroupVersion().WithKind(gvk.Kind+"List"), &unstructured.UnstructuredList{})
+	return scheme
+}
+
+func portalSpec(legacy, canonical string) map[string]any {
+	spec := map[string]any{
+		"managementState": string(operatorv1.Managed),
+	}
+	if legacy != "" {
+		spec["maasConsumerPortal"] = map[string]any{"managementState": legacy}
+	}
+	if canonical != "" {
+		spec["maasPortal"] = map[string]any{"managementState": canonical}
+	}
+	return spec
+}
+
+func TestCleanupDeprecatedModuleCRFields_RemovesConflictingLegacyValue(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+
+	// Legacy says Managed, canonical says Removed: the canonical value is
+	// authoritative and the legacy field must be removed.
+	cli := fake.NewClientBuilder().
+		WithScheme(newDashboardCleanupScheme(h.GetGVK())).
+		WithObjects(newDashboardCleanupCR(h.GetGVK(), portalSpec("Managed", "Removed"))).
+		Build()
+
+	g.Expect(h.CleanupDeprecatedModuleCRFields(context.Background(), cli)).Should(Succeed())
+
+	u := &unstructured.Unstructured{}
+	u.SetGroupVersionKind(h.GetGVK())
+	g.Expect(cli.Get(context.Background(), clientObjectKey(), u)).Should(Succeed())
+	_, legacy, err := unstructured.NestedMap(u.Object, "spec", "maasConsumerPortal")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(legacy).Should(BeFalse(), "deprecated maasConsumerPortal must be removed")
+	canonical, found, err := unstructured.NestedString(u.Object, "spec", "maasPortal", "managementState")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+	g.Expect(canonical).Should(Equal("Removed"), "canonical maasPortal must remain authoritative")
+}
+
+func TestCleanupDeprecatedModuleCRFields_RemovesRedundantLegacyValue(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+
+	// Matching values in both fields: the redundant legacy field is still removed.
+	cli := fake.NewClientBuilder().
+		WithScheme(newDashboardCleanupScheme(h.GetGVK())).
+		WithObjects(newDashboardCleanupCR(h.GetGVK(), portalSpec("Managed", "Managed"))).
+		Build()
+
+	g.Expect(h.CleanupDeprecatedModuleCRFields(context.Background(), cli)).Should(Succeed())
+
+	u := &unstructured.Unstructured{}
+	u.SetGroupVersionKind(h.GetGVK())
+	g.Expect(cli.Get(context.Background(), clientObjectKey(), u)).Should(Succeed())
+	_, legacy, err := unstructured.NestedMap(u.Object, "spec", "maasConsumerPortal")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(legacy).Should(BeFalse())
+}
+
+func TestCleanupDeprecatedModuleCRFields_PreservesLegacyOnlyConfiguration(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+
+	// Legacy-only (no canonical field yet): existing behavior must be supported,
+	// the legacy field must not be removed.
+	cli := fake.NewClientBuilder().
+		WithScheme(newDashboardCleanupScheme(h.GetGVK())).
+		WithObjects(newDashboardCleanupCR(h.GetGVK(), portalSpec("Managed", ""))).
+		Build()
+
+	g.Expect(h.CleanupDeprecatedModuleCRFields(context.Background(), cli)).Should(Succeed())
+
+	u := &unstructured.Unstructured{}
+	u.SetGroupVersionKind(h.GetGVK())
+	g.Expect(cli.Get(context.Background(), clientObjectKey(), u)).Should(Succeed())
+	legacy, found, err := unstructured.NestedString(u.Object, "spec", "maasConsumerPortal", "managementState")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue(), "legacy-only configuration must be preserved")
+	g.Expect(legacy).Should(Equal("Managed"))
+}
+
+func TestCleanupDeprecatedModuleCRFields_IdempotentOnCanonicalOnly(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+
+	// Canonical-only CR: repeated reconciliation must succeed without writes.
+	cli := fake.NewClientBuilder().
+		WithScheme(newDashboardCleanupScheme(h.GetGVK())).
+		WithObjects(newDashboardCleanupCR(h.GetGVK(), portalSpec("", "Removed"))).
+		Build()
+
+	before := &unstructured.Unstructured{}
+	before.SetGroupVersionKind(h.GetGVK())
+	g.Expect(cli.Get(context.Background(), clientObjectKey(), before)).Should(Succeed())
+
+	g.Expect(h.CleanupDeprecatedModuleCRFields(context.Background(), cli)).Should(Succeed())
+	g.Expect(h.CleanupDeprecatedModuleCRFields(context.Background(), cli)).Should(Succeed())
+
+	after := &unstructured.Unstructured{}
+	after.SetGroupVersionKind(h.GetGVK())
+	g.Expect(cli.Get(context.Background(), clientObjectKey(), after)).Should(Succeed())
+	g.Expect(after.GetResourceVersion()).Should(Equal(before.GetResourceVersion()),
+		"no cleanup write should be issued when the legacy field is absent")
+}
+
+func TestCleanupDeprecatedModuleCRFields_AbsentCRIsNotAnError(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+
+	cli := fake.NewClientBuilder().
+		WithScheme(newDashboardCleanupScheme(h.GetGVK())).
+		Build()
+
+	g.Expect(h.CleanupDeprecatedModuleCRFields(context.Background(), cli)).Should(Succeed())
+}
+
+func TestCleanupDeprecatedModuleCRFields_ManagedRemovedSwitching(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+
+	// Switching between Managed and Removed: after cleanup, only the canonical
+	// field is maintained across repeated reconciliations.
+	cli := fake.NewClientBuilder().
+		WithScheme(newDashboardCleanupScheme(h.GetGVK())).
+		WithObjects(newDashboardCleanupCR(h.GetGVK(), portalSpec("Removed", "Managed"))).
+		Build()
+
+	g.Expect(h.CleanupDeprecatedModuleCRFields(context.Background(), cli)).Should(Succeed())
+
+	u := &unstructured.Unstructured{}
+	u.SetGroupVersionKind(h.GetGVK())
+	g.Expect(cli.Get(context.Background(), clientObjectKey(), u)).Should(Succeed())
+	_, legacy, err := unstructured.NestedMap(u.Object, "spec", "maasConsumerPortal")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(legacy).Should(BeFalse())
+	canonical, found, err := unstructured.NestedString(u.Object, "spec", "maasPortal", "managementState")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+	g.Expect(canonical).Should(Equal("Managed"))
+}
+
+func clientObjectKey() client.ObjectKey {
+	return client.ObjectKey{Name: componentApi.DashboardInstanceName}
 }

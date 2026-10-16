@@ -358,3 +358,34 @@ func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error 
 	}
 	return modules.ComputeModulesStatusDetailed(ctx, rr)
 }
+
+// cleanupDeprecatedModuleCRFields removes deprecated fields from live module
+// CRs after the deploy action has applied the canonical configuration.
+// Modules opt in by implementing the optional
+// modules.ModuleCRDeprecatedFieldCleaner interface; handlers that do not are
+// skipped. Errors abort the reconcile so the cleanup is retried; it is
+// idempotent, so re-running is safe.
+func cleanupDeprecatedModuleCRFields(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	return cleanupDeprecatedModuleCRFieldsWith(ctx, rr, modules.DefaultRegistry())
+}
+
+func cleanupDeprecatedModuleCRFieldsWith(
+	ctx context.Context,
+	rr *odhtype.ReconciliationRequest,
+	moduleReg *modules.Registry,
+) error {
+	if !moduleReg.HasEntries() {
+		return nil
+	}
+
+	return moduleReg.ForConfigSource(modules.ConfigFromDSC, func(handler modules.ModuleHandler, _ bool) error {
+		cleaner, ok := handler.(modules.ModuleCRDeprecatedFieldCleaner)
+		if !ok {
+			return nil
+		}
+		if err := cleaner.CleanupDeprecatedModuleCRFields(ctx, rr.Client); err != nil {
+			return fmt.Errorf("cleanup of deprecated module CR fields failed for module %s: %w", handler.GetName(), err)
+		}
+		return nil
+	})
+}

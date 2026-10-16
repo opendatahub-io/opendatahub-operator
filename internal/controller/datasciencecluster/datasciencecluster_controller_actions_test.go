@@ -40,7 +40,8 @@ func logCapturingContext(t *testing.T) (context.Context, *[]string) {
 type mockModuleHandler struct {
 	modules.BaseHandler
 
-	deleteErr error
+	deleteErr  error
+	cleanupErr error
 }
 
 func (m *mockModuleHandler) IsEnabled(_ *configApi.PlatformModules) bool { return false }
@@ -51,6 +52,18 @@ func (m *mockModuleHandler) BuildModuleCR(_ context.Context, _ client.Client, _ 
 func (m *mockModuleHandler) DeleteModuleCR(_ context.Context, _ client.Client) error {
 	return m.deleteErr
 }
+
+type mockNoCleanupHandler struct {
+	modules.BaseHandler
+}
+
+func (m *mockNoCleanupHandler) IsEnabled(_ *configApi.PlatformModules) bool { return false }
+
+func (m *mockNoCleanupHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *modules.DSCContext, _ *modules.ModuleCRConfig) (*unstructured.Unstructured, error) {
+	return nil, nil
+}
+
+var _ modules.ModuleHandler = (*mockNoCleanupHandler)(nil)
 
 var _ modules.ModuleHandler = (*mockModuleHandler)(nil)
 
@@ -192,4 +205,60 @@ func TestCleanupDisabledModuleCRsLogsDeleteFailure(t *testing.T) {
 		ContainSubstring(`"msg"="DeleteModuleCR failed"`),
 		ContainSubstring(`"module"="`+name+`"`),
 	)))
+}
+
+func (m *mockModuleHandler) CleanupDeprecatedModuleCRFields(_ context.Context, _ client.Client) error {
+	return m.cleanupErr
+}
+
+func TestCleanupDeprecatedModuleCRFieldsPropagatesError(t *testing.T) {
+	g := NewWithT(t)
+	dsc := newDSC()
+
+	const name = "module-cleanup-fail"
+	mod := &mockModuleHandler{cleanupErr: errors.New("cleanup module cr failed")}
+	mod.Config = modules.ModuleConfig{
+		Name:   name,
+		CRName: "default",
+		GVK:    schema.GroupVersionKind{Group: "test.io", Version: "v1", Kind: "MockModule"},
+	}
+
+	modReg := &modules.Registry{}
+	modReg.Add(mod)
+
+	cli, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := &types.ReconciliationRequest{Instance: dsc, Client: cli}
+
+	err = cleanupDeprecatedModuleCRFieldsWith(t.Context(), rr, modReg)
+
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring(name))
+	g.Expect(err.Error()).To(ContainSubstring("cleanup module cr failed"))
+}
+
+func TestCleanupDeprecatedModuleCRFieldsSkipsHandlersWithoutInterface(t *testing.T) {
+	g := NewWithT(t)
+	dsc := newDSC()
+
+	const name = "module-without-cleanup"
+	mod := &mockNoCleanupHandler{}
+	mod.Config = modules.ModuleConfig{
+		Name:   name,
+		CRName: "default",
+		GVK:    schema.GroupVersionKind{Group: "test.io", Version: "v1", Kind: "MockNoCleanup"},
+	}
+
+	modReg := &modules.Registry{}
+	modReg.Add(mod)
+
+	cli, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := &types.ReconciliationRequest{Instance: dsc, Client: cli}
+
+	err = cleanupDeprecatedModuleCRFieldsWith(t.Context(), rr, modReg)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
 }
