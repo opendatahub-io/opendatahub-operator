@@ -8,13 +8,14 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -231,11 +232,6 @@ func resolveAIHubNamespace(dscCtx *modules.DSCContext) string {
 	return dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace
 }
 
-// maasConsumerPortalPatch removes the deprecated spec.maasConsumerPortal field
-// from the Dashboard CR. A JSON merge patch with a null value deletes the
-// stored key; omitting the field from the applied configuration would not.
-var maasConsumerPortalPatch = []byte(`{"spec":{"maasConsumerPortal":null}}`)
-
 // CleanupDeprecatedModuleCRFields removes the deprecated spec.maasConsumerPortal
 // field from the live Dashboard CR once the canonical spec.maasPortal field has
 // been applied. The dashboard-operator gives maasPortal precedence, so the
@@ -245,9 +241,18 @@ var maasConsumerPortalPatch = []byte(`{"spec":{"maasConsumerPortal":null}}`)
 // The cleanup is guarded and idempotent:
 //   - a missing CR (module not deployed or CRD absent) is not an error;
 //   - a CR being deleted is left for the deletion flow;
+//   - only CRs controlled by the given DSC are cleaned, so user-managed CRs
+//     are never touched;
 //   - legacy-only configurations are preserved until spec.maasPortal is present;
+//   - the patch is applied with optimistic locking, so a concurrent change to
+//     the CR between the read and the write surfaces as a conflict and the
+//     cleanup retries against fresh state on the next reconcile;
 //   - once the legacy field is absent, no further writes are issued.
-func (h *handler) CleanupDeprecatedModuleCRFields(ctx context.Context, cli client.Client) error {
+func (h *handler) CleanupDeprecatedModuleCRFields(ctx context.Context, cli client.Client, dsc *dscApi.DataScienceCluster) error {
+	if dsc == nil {
+		return nil
+	}
+
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(h.Config.GVK)
 
@@ -259,6 +264,12 @@ func (h *handler) CleanupDeprecatedModuleCRFields(ctx context.Context, cli clien
 	}
 
 	if !u.GetDeletionTimestamp().IsZero() {
+		return nil
+	}
+
+	// Only clean up CRs this DSC controls: a same-name CR without the owner
+	// reference is user-managed and must not be touched.
+	if !metav1.IsControlledBy(u, dsc) {
 		return nil
 	}
 
@@ -276,7 +287,14 @@ func (h *handler) CleanupDeprecatedModuleCRFields(ctx context.Context, cli clien
 		return nil
 	}
 
-	if err := cli.Patch(ctx, u, client.RawPatch(k8stypes.MergePatchType, maasConsumerPortalPatch)); err != nil {
+	patched := u.DeepCopy()
+	if patchedSpec, ok := patched.Object["spec"].(map[string]any); ok {
+		delete(patchedSpec, maasConsumerPortalField)
+	}
+
+	// Optimistic locking: if the CR changed between the read above and this
+	// write, the patch conflicts and the reconcile retries with fresh state.
+	if err := cli.Patch(ctx, patched, client.MergeFromWithOptions(u, client.MergeFromWithOptimisticLock{})); err != nil {
 		return fmt.Errorf("removing deprecated %s from Dashboard CR %s: %w", maasConsumerPortalField, h.Config.CRName, err)
 	}
 

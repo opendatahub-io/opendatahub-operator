@@ -335,8 +335,10 @@ func WithConfigSource(source ConfigSource) RegistrationOption {
 // so canonical fields are guaranteed to be present before any legacy field is
 // removed; legacy-only configurations are left untouched until then.
 //
-// Implementations must be idempotent: once the deprecated field is absent,
-// subsequent reconciliations must not issue another write.
+// The owning DataScienceCluster is passed so implementations can restrict the
+// cleanup to CRs controlled by that instance: user-managed CRs are never
+// touched. Implementations must be idempotent: once the deprecated field is
+// absent, subsequent reconciliations must not issue another write.
 type ModuleCRDeprecatedFieldCleaner interface {
-	CleanupDeprecatedModuleCRFields(ctx context.Context, cli client.Client) error
+	CleanupDeprecatedModuleCRFields(ctx context.Context, cli client.Client, dsc *dscApi.DataScienceCluster) error
 }

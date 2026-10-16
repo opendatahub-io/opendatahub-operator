@@ -17,6 +17,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
@@ -207,7 +208,7 @@ func TestCleanupDisabledModuleCRsLogsDeleteFailure(t *testing.T) {
 	)))
 }
 
-func (m *mockModuleHandler) CleanupDeprecatedModuleCRFields(_ context.Context, _ client.Client) error {
+func (m *mockModuleHandler) CleanupDeprecatedModuleCRFields(_ context.Context, _ client.Client, _ *dscApi.DataScienceCluster) error {
 	return m.cleanupErr
 }
 

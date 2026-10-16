@@ -374,6 +374,11 @@ func cleanupDeprecatedModuleCRFieldsWith(
 	rr *odhtype.ReconciliationRequest,
 	moduleReg *modules.Registry,
 ) error {
+	instance, ok := rr.Instance.(*dscApi.DataScienceCluster)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a dscApi.DataScienceCluster)", rr.Instance)
+	}
+
 	if !moduleReg.HasEntries() {
 		return nil
 	}
@@ -383,7 +388,7 @@ func cleanupDeprecatedModuleCRFieldsWith(
 		if !ok {
 			return nil
 		}
-		if err := cleaner.CleanupDeprecatedModuleCRFields(ctx, rr.Client); err != nil {
+		if err := cleaner.CleanupDeprecatedModuleCRFields(ctx, rr.Client, instance); err != nil {
 			return fmt.Errorf("cleanup of deprecated module CR fields failed for module %s: %w", handler.GetName(), err)
 		}
 		return nil
