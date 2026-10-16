@@ -112,8 +112,8 @@ func (h *handler) BuildModuleCR(
 		"applicationNamespace": appNS,
 		"instancesNamespace":   dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace,
 	}
-	if cfg != nil && cfg.GatewayDomain != "" {
-		spec["gateway"] = map[string]any{"domain": cfg.GatewayDomain}
+	if cfg != nil && cfg.GatewayConfig != nil && cfg.GatewayConfig.Status.Domain != "" {
+		spec["gateway"] = map[string]any{"domain": cfg.GatewayConfig.Status.Domain}
 	}
 
 	u := &unstructured.Unstructured{
