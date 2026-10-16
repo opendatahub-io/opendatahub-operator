@@ -118,6 +118,7 @@ func dashboardTestSuite(t *testing.T) {
 		{"Validate portal-only keeps dashboard-operator up", componentCtx.ValidatePortalOnlyKeepsOperatorUp},
 		{"Validate portal disabled while dashboard enabled", componentCtx.ValidatePortalDisabledWhileDashboardEnabled},
 		{"Validate v2 DSC dashboard selection", componentCtx.ValidateV2DSCDashboardSelection},
+		{"Validate deprecated maasConsumerPortal field cleanup", componentCtx.ValidateDeprecatedLegacyPortalFieldCleanup},
 		{"Validate both removed tears down dashboard-operator", componentCtx.ValidateBothRemovedTearsDown},
 		{"Validate module disabled", componentCtx.ValidateModuleDisabled},
 	}
@@ -614,6 +615,9 @@ func (tc *DashboardTestCtx) ValidateV2DSCDashboardSelection(t *testing.T) {
 		WithCondition(And(
 			jq.Match(`.spec.managementState == "Removed"`),
 			jq.Match(`.spec.maasPortal.managementState == "Managed"`),
+			// The deprecated legacy field must not linger beside the
+			// canonical projection (RHOAIENG-100941).
+			jq.Match(`.spec.maasConsumerPortal == null`),
 		)),
 	)
 	tc.EnsureResourceExists(
@@ -761,6 +765,62 @@ func (tc *DashboardTestCtx) ValidatePortalDisabledWhileDashboardEnabled(t *testi
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, maasPortalConditionType, status.RemovedReason),
 		)),
 		WithCustomErrorMsg("DSC %s should be False/Removed when the portal submodule is disabled", maasPortalConditionType),
+	)
+}
+
+// ValidateDeprecatedLegacyPortalFieldCleanup seeds the deprecated
+// spec.maasConsumerPortal field on the Dashboard CR — the state a pre-rename
+// operator revision leaves behind — and verifies the operator removes it once
+// the canonical spec.maasPortal field is projected (RHOAIENG-100941): the
+// stale legacy value must not survive reconciliations, and the canonical
+// value must stay authoritative.
+func (tc *DashboardTestCtx) ValidateDeprecatedLegacyPortalFieldCleanup(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	moduleCRNN := types.NamespacedName{Name: componentApi.DashboardInstanceName}
+
+	// Standard Dashboard and portal both Managed.
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.dashboard.standard.managementState = "Managed"`),
+			testf.Transform(`.spec.components.dashboard.maasPortal.managementState = "Managed"`),
+		)),
+		WithCondition(And(
+			jq.Match(`.spec.components.dashboard.standard.managementState == "Managed"`),
+			jq.Match(`.spec.components.dashboard.maasPortal.managementState == "Managed"`),
+		)),
+	)
+
+	// The canonical projection must be present on the Dashboard CR.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Dashboard, moduleCRNN),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(jq.Match(`.spec.maasPortal.managementState == "Managed"`)),
+		WithCustomErrorMsg("Dashboard module CR should project maasPortal Managed"),
+	)
+
+	// Seed the deprecated field with a stale value that contradicts the
+	// canonical one, mimicking a Dashboard CR written by a pre-rename
+	// operator revision.
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.Dashboard, moduleCRNN),
+		WithMutateFunc(testf.Transform(`.spec.maasConsumerPortal = {"managementState": "Removed"}`)),
+		WithCondition(jq.Match(`.spec.maasConsumerPortal.managementState == "Removed"`)),
+	)
+
+	// The operator must remove the deprecated field while the canonical
+	// field stays authoritative.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Dashboard, moduleCRNN),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(And(
+			jq.Match(`.spec.maasConsumerPortal == null`),
+			jq.Match(`.spec.maasPortal.managementState == "Managed"`),
+		)),
+		WithCustomErrorMsg("operator should remove the deprecated maasConsumerPortal field once maasPortal is projected"),
 	)
 }
 
