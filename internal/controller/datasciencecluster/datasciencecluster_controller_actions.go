@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -21,6 +22,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -42,6 +45,22 @@ func checkPreConditions(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 
 	if _, err := cluster.GetDSC(ctx, rr.Client); err != nil {
 		return fmt.Errorf("failed to get a valid DSCInitialization instance, %w", err)
+	}
+
+	instance, ok := rr.Instance.(*dscApi.DataScienceCluster)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a dscApi.DataScienceCluster", rr.Instance)
+	}
+
+	ready := conditions.FindStatusCondition(instance, status.ConditionTypeReady)
+	if ready != nil && ready.Status == metav1.ConditionFalse && ready.Reason == status.UninstallInProgressReason {
+		rr.Conditions.MarkFalse(
+			status.ConditionTypeComponentsReady,
+			conditions.WithReason(status.UninstallInProgressReason),
+			conditions.WithMessage(status.UninstallInProgressMessage),
+		)
+		return odherrors.NewStopError(status.UninstallInProgressMessage).
+			WithRequeueAfter(30 * time.Second)
 	}
 
 	return nil
