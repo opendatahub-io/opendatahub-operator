@@ -50,6 +50,18 @@ func TestKubernetesCertManagerCertificateFallback(t *testing.T) {
 		g.Expect(err).NotTo(HaveOccurred())
 	}
 
+	// Earlier tests may leave a GatewayClass behind (envtest has no garbage
+	// collector). spec.controllerName is immutable, so a leftover class with the
+	// OpenShift/istio controller name would fail every apply in Kubernetes mode.
+	// Remove it before creating the GatewayConfig so this test starts clean.
+	gatewayClass := &gwapiv1.GatewayClass{ObjectMeta: metav1.ObjectMeta{Name: gateway.GatewayClassName}}
+	if err := tc.K8sClient.Delete(tc.Ctx, gatewayClass); !k8serr.IsNotFound(err) {
+		g.Expect(err).NotTo(HaveOccurred())
+	}
+	g.Eventually(func() bool {
+		return k8serr.IsNotFound(tc.K8sClient.Get(tc.Ctx, types.NamespacedName{Name: gateway.GatewayClassName}, gatewayClass))
+	}, TestTimeout, TestInterval).Should(BeTrue(), "leftover GatewayClass should be deleted before the test starts")
+
 	CreateGatewayConfig(t, tc.Ctx, tc.K8sClient, serviceApi.GatewayConfigSpec{
 		IngressMode: serviceApi.IngressModeLoadBalancer,
 		Domain:      "apps.kubernetes.example.com",

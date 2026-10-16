@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{.DashboardRedirectName}}
+  namespace: {{.DashboardRedirectNamespace}}
+  labels:
+    app: {{.DashboardRedirectName}}
+    {{.PartOfLabelKey}}: {{.PartOfGatewayConfig}}
+spec:
+  podSelector:
+    matchLabels:
+      app: {{.DashboardRedirectName}}
+  policyTypes:
+    - Ingress
+  ingress:
+    # The two from entries are alternative allowed namespace peers (OR):
+    # - policy-group=ingress matches the OpenShift router pods on
+    #   LoadBalancerService IngressControllers, the verified router source.
+    # - openshift-host-network documents intent for HostNetwork
+    #   IngressControllers, whose router traffic is node-sourced and bypasses
+    #   ingress NetworkPolicy enforcement on OVN-Kubernetes; the peer
+    #   accommodates CNI versions that do enforce host traffic.
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            network.openshift.io/policy-group: ingress
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: openshift-host-network
+      ports:
+        - protocol: TCP
+          port: 8080
