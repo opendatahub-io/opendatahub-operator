@@ -105,6 +105,7 @@ func populatedV2DSC() *DataScienceCluster {
 	src.Status.Components.AIGateway.ManagementState = operatorv1.Managed
 	src.Status.Components.ModelsAsAService.ManagementState = operatorv1.Managed
 	src.Status.Components.BatchGateway.ManagementState = operatorv1.Managed
+	src.Status.Components.AIGrid.ManagementState = operatorv1.Managed
 	src.Status.Components.MCPLifecycleOperator.ManagementState = operatorv1.Managed
 	src.Status.Components.DatabaseService.ManagementState = operatorv1.Managed
 	src.Spec.Components.Dashboard.MaaSConsumerPortal.ManagementState = operatorv1.Managed
@@ -114,6 +115,7 @@ func populatedV2DSC() *DataScienceCluster {
 	src.Spec.Components.AIPipelines.ArgoWorkflowsControllers = &componentApi.ArgoWorkflowsControllersSpec{ManagementState: operatorv1.Removed}
 	src.Spec.Components.ModelRegistry.RegistriesNamespace = "custom-registries"
 	src.Spec.Components.AIGateway.BatchGateway.ManagementState = operatorv1.Managed
+	src.Spec.Components.AIGateway.AIGrid.ManagementState = operatorv1.Managed
 	src.Spec.Components.Kserve.RawDeploymentServiceConfig = componentApi.KserveRawHeaded
 	src.Spec.Components.Kserve.OAuthProxy = &componentApi.OAuthProxyConfig{
 		Resources: &componentApi.OAuthProxyResourceRequirements{

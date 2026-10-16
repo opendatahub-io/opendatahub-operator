@@ -501,6 +501,8 @@ while IFS= read -r related_image; do
     if is_rhoai_exception "$related_image"; then
         record_rhoai_exception_match "$related_image"
         in_rhoai=true
+        # RHAI Helm is another RHOAI payload, so the same platform exclusion applies.
+        needs_rhai_helm=false
     fi
 
     # Skip if everything is OK

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -93,6 +94,44 @@ func TestPopulatePlatformModule_NilDSC(t *testing.T) {
 	g.Expect(pm.AIGateway.ManagementState).Should(BeEmpty())
 }
 
+func TestAIGridProjectionAndCondition(t *testing.T) {
+	for _, state := range []operatorv1.ManagementState{"", operatorv1.Managed, operatorv1.Removed} {
+		t.Run(string(state), func(t *testing.T) {
+			g := NewWithT(t)
+			h := aigateway.NewHandler()
+			dsc := newDSC(operatorv1.Managed)
+			dsc.Spec.Components.AIGateway.AIGrid.ManagementState = state
+			before := dsc.DeepCopy()
+			dscCtx := &modules.DSCContext{DSC: dsc}
+
+			u, err := h.BuildModuleCR(t.Context(), nil, dscCtx, nil)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			gridSpec, found, err := unstructured.NestedMap(u.Object, "spec", "aiGrid")
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(found).Should(BeTrue())
+			if state == "" {
+				g.Expect(gridSpec).Should(BeEmpty())
+			} else {
+				g.Expect(gridSpec).Should(Equal(map[string]any{"managementState": string(state)}))
+			}
+			g.Expect(dsc).Should(Equal(before), "projection must not mutate the DSC")
+
+			var gridCondition *modules.SubmoduleCondition
+			for _, condition := range h.GetSubmoduleConditions() {
+				if condition.SourceConditionType == "AIGridReady" {
+					gridCondition = &condition
+				}
+			}
+			g.Expect(gridCondition).ShouldNot(BeNil())
+			g.Expect(gridCondition.DSCConditionType).Should(Equal("AIGridReady"))
+			g.Expect(gridCondition.StatusFieldName).Should(Equal("AIGrid"))
+			g.Expect(gridCondition.IsEnabled(dscCtx)).Should(Equal(state == operatorv1.Managed))
+			g.Expect(gridCondition.IsEnabled(nil)).Should(BeFalse())
+			g.Expect(gridCondition.IsEnabled(&modules.DSCContext{})).Should(BeFalse())
+		})
+	}
+}
+
 func TestCanonicalModelsAsAService(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -135,6 +174,7 @@ func TestCanonicalModelsAsAService(t *testing.T) {
 					dsc.Spec.Components.Kserve.ManagementState = kserve.state
 					dsc.Spec.Components.AIGateway.ModelsAsAService = tc.maas
 					dsc.Spec.Components.AIGateway.BatchGateway.ManagementState = operatorv1.Managed
+					dsc.Spec.Components.AIGateway.AIGrid.ManagementState = operatorv1.Managed
 					before := dsc.DeepCopy()
 					dscCtx := &modules.DSCContext{DSC: dsc}
 
@@ -143,18 +183,22 @@ func TestCanonicalModelsAsAService(t *testing.T) {
 					g.Expect(pm.AIGateway.ManagementState).Should(Equal(gateway.effective))
 
 					subs := h.GetSubmoduleConditions()
-					g.Expect(subs).Should(HaveLen(2))
+					g.Expect(subs).Should(HaveLen(3))
 					g.Expect(subs[0].SourceConditionType).Should(Equal("ModelsAsAServiceReady"))
 					g.Expect(subs[0].DSCConditionType).Should(Equal("ModelsAsAServiceReady"))
 					g.Expect(subs[0].StatusFieldName).Should(Equal("ModelsAsAService"))
 					g.Expect(subs[0].IsEnabled(dscCtx)).Should(Equal(tc.enabled))
 					g.Expect(subs[1].IsEnabled(dscCtx)).Should(BeTrue())
+					g.Expect(subs[2].SourceConditionType).Should(Equal("AIGridReady"))
+					g.Expect(subs[2].StatusFieldName).Should(Equal("AIGrid"))
+					g.Expect(subs[2].IsEnabled(dscCtx)).Should(BeTrue())
 
 					u, err := h.BuildModuleCR(t.Context(), nil, dscCtx, nil)
 					g.Expect(err).ShouldNot(HaveOccurred())
 					g.Expect(u.Object["spec"]).Should(Equal(map[string]any{
 						"modelsAsAService": tc.spec,
 						"batchGateway":     map[string]any{"managementState": "Managed"},
+						"aiGrid":           map[string]any{"managementState": "Managed"},
 					}))
 					g.Expect(dsc).Should(Equal(before), "projection must not mutate the DSC")
 				})
@@ -236,6 +280,7 @@ func TestImageHandling(t *testing.T) {
 		"RELATED_IMAGE_ODH_PYTHON_312_IMAGE",
 		"RELATED_IMAGE_ODH_AI_GATEWAY_CONTROLLER_IMAGE",
 		"RELATED_IMAGE_ODH_PRAXIS_EXTPROC_IMAGE",
+		"RELATED_IMAGE_ODH_PRAXIS_AI_GRID_OPERATOR_IMAGE",
 	))
 
 	// The operator image is handled by ControllerImage (image override), not
