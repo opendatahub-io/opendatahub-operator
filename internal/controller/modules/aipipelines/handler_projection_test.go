@@ -36,9 +36,9 @@ func (s aipipelinesSuite) nilArgoConfigProjectsManaged(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.argoWorkflowsControllers.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aipipelinesSuite) presentArgoConfigWithEmptyStateProjectsManaged(t *testing.T) {
@@ -50,9 +50,9 @@ func (s aipipelinesSuite) presentArgoConfigWithEmptyStateProjectsManaged(t *test
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.argoWorkflowsControllers.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aipipelinesSuite) explicitManaged(t *testing.T) {
@@ -66,9 +66,9 @@ func (s aipipelinesSuite) explicitManaged(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.argoWorkflowsControllers.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aipipelinesSuite) explicitRemoved(t *testing.T) {
@@ -82,9 +82,9 @@ func (s aipipelinesSuite) explicitRemoved(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.argoWorkflowsControllers.managementState == %q`, operatorv1.Removed),
-	))
+	)))
 }
 
 // TestBuildModuleCRProjection validates AI Pipelines projections against the

@@ -36,9 +36,9 @@ func (s databaseserviceSuite) minimalDSCWithEmptyManagementState(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: newModuleCRConfig(),
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec == {}`),
-	))
+	)))
 }
 
 func (s databaseserviceSuite) managedDSC(t *testing.T) {
@@ -49,9 +49,9 @@ func (s databaseserviceSuite) managedDSC(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: newModuleCRConfig(),
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec == {}`),
-	))
+	)))
 }
 
 func (s databaseserviceSuite) removedDSC(t *testing.T) {
@@ -63,9 +63,9 @@ func (s databaseserviceSuite) removedDSC(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: newModuleCRConfig(),
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec == {}`),
-	))
+	)))
 }
 
 // TestBuildModuleCRProjection validates the intentionally empty

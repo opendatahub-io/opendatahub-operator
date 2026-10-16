@@ -40,14 +40,20 @@ func (s kserveSuite) minimalDefaults(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		// The handler always projects the AI Hub selection, defaulting an
 		// empty state to Removed; no model cache is emitted. An omitted
 		// rawDeploymentServiceConfig is defaulted by the CRD (Headless) and
 		// not asserted.
 		jq.Match(`.spec.modelRegistry.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.modelCache == null`),
-	))
+		// managementState and the DSC-level modelsAsService stanza are not
+		// part of the projection; the CRD accepts the fields, so admission
+		// cannot catch a leak.
+		jq.Match(`.spec.managementState == null`),
+		jq.Match(`.spec.modelsAsService == null`),
+		jq.Match(`.spec.modelsAsAService == null`),
+	)))
 }
 
 func (s kserveSuite) headedRawServiceConfig(t *testing.T) {
@@ -61,10 +67,10 @@ func (s kserveSuite) headedRawServiceConfig(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.rawDeploymentServiceConfig == "Headed"`),
 		jq.Match(`.spec.modelRegistry.managementState == %q`, operatorv1.Removed),
-	))
+	)))
 }
 
 func (s kserveSuite) populatedCommonSpec(t *testing.T) {
@@ -98,11 +104,11 @@ func (s kserveSuite) populatedCommonSpec(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.rawDeploymentServiceConfig == "Headed"`),
 		jq.Match(`.spec.nim.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.nim.airGapped == true`),
-		jq.Match(`.spec.oauthProxy.resources.requests.cpu == "100m"`),
+		jq.Match(`.spec.oauthProxy == {resources: {requests: {cpu: "100m"}}}`),
 		jq.Match(`.spec.enableLLMInferenceServiceTLS == false`),
 		jq.Match(`.spec.enableLLMInferenceServiceConsoleDashboards == true`),
 		jq.Match(`.spec.modelCache.managementState == %q`, operatorv1.Managed),
@@ -112,7 +118,7 @@ func (s kserveSuite) populatedCommonSpec(t *testing.T) {
 		jq.Match(`.spec.modelRegistry.managementState == %q`, operatorv1.Removed),
 		// The WVA submodule is not part of the projection.
 		jq.Match(`.spec.wva == null`),
-	))
+	)))
 }
 
 func (s kserveSuite) complementaryOptionalToggles(t *testing.T) {
@@ -127,10 +133,10 @@ func (s kserveSuite) complementaryOptionalToggles(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.enableLLMInferenceServiceTLS == true`),
 		jq.Match(`.spec.enableLLMInferenceServiceConsoleDashboards == false`),
-	))
+	)))
 }
 
 func (s kserveSuite) modelCacheWithNodeSelector(t *testing.T) {
@@ -155,7 +161,7 @@ func (s kserveSuite) modelCacheWithNodeSelector(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelCache.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.modelCache.cacheSize == "50Gi"`),
 		// nodeNames and nodeSelector are mutually exclusive per the CRD
@@ -166,7 +172,7 @@ func (s kserveSuite) modelCacheWithNodeSelector(t *testing.T) {
 		jq.Match(`.spec.modelCache.nodeSelector.matchExpressions[0].key == "kubernetes.io/arch"`),
 		jq.Match(`.spec.modelCache.nodeSelector.matchExpressions[0].operator == "In"`),
 		jq.Match(`.spec.modelCache.nodeSelector.matchExpressions[0].values == ["amd64"]`),
-	))
+	)))
 }
 
 func (s kserveSuite) aihubManaged(t *testing.T) {
@@ -177,9 +183,9 @@ func (s kserveSuite) aihubManaged(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelRegistry.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s kserveSuite) aihubRemoved(t *testing.T) {
@@ -190,9 +196,9 @@ func (s kserveSuite) aihubRemoved(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelRegistry.managementState == %q`, operatorv1.Removed),
-	))
+	)))
 }
 
 func (s kserveSuite) aihubEmptyDefaultsToRemoved(t *testing.T) {
@@ -203,10 +209,10 @@ func (s kserveSuite) aihubEmptyDefaultsToRemoved(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelRegistry.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.modelCache == null`),
-	))
+	)))
 }
 
 // TestBuildModuleCRProjection validates KServe projections against the real

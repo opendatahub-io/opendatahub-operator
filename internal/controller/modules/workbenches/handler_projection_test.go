@@ -38,7 +38,7 @@ func (s workbenchesSuite) minimalManagedSelectionWithNilConfig(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.mlflowEnabled == false`),
 		jq.Match(`.spec.workbenchNamespace == "my-workbenches"`),
@@ -46,7 +46,7 @@ func (s workbenchesSuite) minimalManagedSelectionWithNilConfig(t *testing.T) {
 		// Orchestrator-only fields stay unprojected without a config.
 		jq.Match(`.spec.gatewayDomain == null`),
 		jq.Match(`.spec.platform == null`),
-	))
+	)))
 }
 
 func (s workbenchesSuite) populatedConfigWithGateway(t *testing.T) {
@@ -57,7 +57,7 @@ func (s workbenchesSuite) populatedConfigWithGateway(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: newModuleCRConfig(),
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.mlflowEnabled == false`),
 		jq.Match(`.spec.workbenchNamespace == "my-workbenches"`),
@@ -65,7 +65,7 @@ func (s workbenchesSuite) populatedConfigWithGateway(t *testing.T) {
 		jq.Match(`.spec.gatewayDomain == "apps.example.com"`),
 		jq.Match(`.spec.platform == "OpenDataHub"`),
 		jq.Match(`.spec.notebooksV1 == null`),
-	))
+	)))
 }
 
 func (s workbenchesSuite) mlflowEnabled(t *testing.T) {
@@ -77,9 +77,9 @@ func (s workbenchesSuite) mlflowEnabled(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: newModuleCRConfig(),
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.mlflowEnabled == true`),
-	))
+	)))
 }
 
 func (s workbenchesSuite) workbenchesV2Managed(t *testing.T) {
@@ -91,9 +91,9 @@ func (s workbenchesSuite) workbenchesV2Managed(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: newModuleCRConfig(),
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.workbenchesV2.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s workbenchesSuite) selfManagedRhoaiPlatformMapping(t *testing.T) {
@@ -107,9 +107,9 @@ func (s workbenchesSuite) selfManagedRhoaiPlatformMapping(t *testing.T) {
 			GatewayDomain: "apps.example.com",
 			Release:       common.Release{Name: cluster.SelfManagedRhoai},
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.platform == "SelfManagedRhoai"`),
-	))
+	)))
 }
 
 func (s workbenchesSuite) managedRhoaiPlatformMapping(t *testing.T) {
@@ -123,9 +123,9 @@ func (s workbenchesSuite) managedRhoaiPlatformMapping(t *testing.T) {
 			GatewayDomain: "apps.example.com",
 			Release:       common.Release{Name: cluster.ManagedRhoai},
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.platform == "SelfManagedRhoai"`),
-	))
+	)))
 }
 
 func (s workbenchesSuite) unknownReleaseFallsBackToODH(t *testing.T) {
@@ -139,9 +139,9 @@ func (s workbenchesSuite) unknownReleaseFallsBackToODH(t *testing.T) {
 			GatewayDomain: "apps.example.com",
 			Release:       common.Release{Name: "unknown-platform"},
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.platform == "OpenDataHub"`),
-	))
+	)))
 }
 
 func (s workbenchesSuite) removedSelection(t *testing.T) {
@@ -152,9 +152,9 @@ func (s workbenchesSuite) removedSelection(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.managementState == %q`, operatorv1.Removed),
-	))
+	)))
 }
 
 // TestBuildModuleCRProjection validates Workbenches projections against the

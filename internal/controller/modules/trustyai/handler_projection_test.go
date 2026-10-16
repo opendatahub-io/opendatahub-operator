@@ -39,11 +39,15 @@ func (s trustyAISuite) minimalPermitDefaults(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: newModuleCRConfig(),
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.mcpGuardrailsMode == false`),
 		jq.Match(`.spec.eval.lmeval.permitCodeExecution == false`),
 		jq.Match(`.spec.eval.lmeval.permitOnline == false`),
-	))
+		// managementState is a DSC-level field and must not be projected
+		// into the module CR (the CRD accepts it, so admission cannot catch
+		// it).
+		jq.Match(`.spec.managementState == null`),
+	)))
 }
 
 func (s trustyAISuite) bothPermitsAllowed(t *testing.T) {
@@ -56,10 +60,10 @@ func (s trustyAISuite) bothPermitsAllowed(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: newModuleCRConfig(),
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.eval.lmeval.permitCodeExecution == true`),
 		jq.Match(`.spec.eval.lmeval.permitOnline == true`),
-	))
+	)))
 }
 
 func (s trustyAISuite) codeExecutionAllowedOnly(t *testing.T) {
@@ -72,10 +76,10 @@ func (s trustyAISuite) codeExecutionAllowedOnly(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: newModuleCRConfig(),
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.eval.lmeval.permitCodeExecution == true`),
 		jq.Match(`.spec.eval.lmeval.permitOnline == false`),
-	))
+	)))
 }
 
 func (s trustyAISuite) onlineAllowedOnly(t *testing.T) {
@@ -88,10 +92,10 @@ func (s trustyAISuite) onlineAllowedOnly(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: newModuleCRConfig(),
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.eval.lmeval.permitCodeExecution == false`),
 		jq.Match(`.spec.eval.lmeval.permitOnline == true`),
-	))
+	)))
 }
 
 func (s trustyAISuite) mcpGuardrailsModeEnabled(t *testing.T) {
@@ -103,11 +107,11 @@ func (s trustyAISuite) mcpGuardrailsModeEnabled(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: newModuleCRConfig(),
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.mcpGuardrailsMode == true`),
 		jq.Match(`.spec.eval.lmeval.permitCodeExecution == false`),
 		jq.Match(`.spec.eval.lmeval.permitOnline == false`),
-	))
+	)))
 }
 
 // TestBuildModuleCRProjection validates TrustyAI projections against the real

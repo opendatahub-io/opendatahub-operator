@@ -27,8 +27,9 @@ const crdPath = "crds/services.platform.opendatahub.io_monitorings.yaml"
 // DSC context explicitly from newDSCI with a monitoring namespace that
 // differs from the CRD default (proving verbatim projection) and amending
 // only the fields under test. The client feeds the single-node
-// Infrastructure lookups; DSCI-level managementState is unknown to the module
-// schema, so any leak is rejected by strict admission.
+// Infrastructure lookups; DSCI-level managementState must not be projected
+// into the module CR — the CRD defines (and defaults) the field, so only a
+// pre-admission check can catch a leak.
 type monitoringSuite struct {
 	*projection.Runner
 }
@@ -41,14 +42,15 @@ func (s monitoringSuite) namespaceOnly(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSCI: dsci,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.namespace == "odh-monitoring"`),
 		jq.Match(`.spec.metrics == null`),
 		jq.Match(`.spec.traces == null`),
 		jq.Match(`.spec.logs == null`),
 		jq.Match(`.spec.usageLogs == null`),
 		jq.Match(`.spec.collectorReplicas == null`),
-	))
+		jq.Match(`.spec.managementState == null`),
+	)))
 }
 
 func (s monitoringSuite) storageBackedMetricsWithEmptyAlertingObject(t *testing.T) {
@@ -67,7 +69,7 @@ func (s monitoringSuite) storageBackedMetricsWithEmptyAlertingObject(t *testing.
 		DSCCtx: modules.DSCContext{
 			DSCI: dsci,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.metrics.storage.size == "10Gi"`),
 		jq.Match(`.spec.metrics.storage.retention == "7d"`),
 		jq.Match(`.spec.metrics.replicas == 2`),
@@ -75,7 +77,7 @@ func (s monitoringSuite) storageBackedMetricsWithEmptyAlertingObject(t *testing.
 		// key; the cross-field CEL rule is satisfied by metrics.storage.
 		jq.Match(`.spec.alerting == {}`),
 		jq.Match(`.spec.collectorReplicas == 2`),
-	))
+	)))
 }
 
 func (s monitoringSuite) snoDefaultsCollectorReplicasToOne(t *testing.T) {
@@ -91,9 +93,9 @@ func (s monitoringSuite) snoDefaultsCollectorReplicasToOne(t *testing.T) {
 			DSCI: dsci,
 		},
 		Client: client,
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.collectorReplicas == 1`),
-	))
+	)))
 }
 
 func (s monitoringSuite) explicitCollectorReplicasPreservedOnSNO(t *testing.T) {
@@ -110,9 +112,9 @@ func (s monitoringSuite) explicitCollectorReplicasPreservedOnSNO(t *testing.T) {
 			DSCI: dsci,
 		},
 		Client: client,
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.collectorReplicas == 5`),
-	))
+	)))
 }
 
 func (s monitoringSuite) exporterOnlyMetrics(t *testing.T) {
@@ -128,11 +130,63 @@ func (s monitoringSuite) exporterOnlyMetrics(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSCI: dsci,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.metrics.exporters.custom.endpoint == "http://example.com"`),
 		jq.Match(`.spec.metrics.storage == null`),
 		jq.Match(`.spec.collectorReplicas == 2`),
-	))
+	)))
+}
+
+// exporterOnlyMetricsAndTraces ports main's Mode2ExportersOnly: both signal
+// stanzas configured with exporters only, so both storage stanzas stay
+// absent while the collector defaults to two replicas.
+func (s monitoringSuite) exporterOnlyMetricsAndTraces(t *testing.T) {
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.Namespace = "odh-monitoring"
+	dsci.Spec.Monitoring.Metrics = &serviceApi.Metrics{
+		Exporters: map[string]runtime.RawExtension{
+			"debug": {Raw: []byte(`{"verbosity":"detailed"}`)},
+		},
+	}
+	dsci.Spec.Monitoring.Traces = &serviceApi.Traces{
+		Exporters: map[string]runtime.RawExtension{
+			"debug": {Raw: []byte(`{"verbosity":"detailed"}`)},
+		},
+	}
+
+	s.Validate(t, projection.ModuleCRSpec{
+		DSCCtx: modules.DSCContext{
+			DSCI: dsci,
+		},
+	}, projection.WithPreAdmissionValidation(And(
+		jq.Match(`.spec.metrics.exporters.debug.verbosity == "detailed"`),
+		jq.Match(`.spec.metrics.storage == null`),
+		jq.Match(`.spec.traces.exporters.debug.verbosity == "detailed"`),
+		jq.Match(`.spec.traces.storage == null`),
+		jq.Match(`.spec.collectorReplicas == 2`),
+	)))
+}
+
+// highlyAvailableInfrastructureDefaultsCollectorReplicasToTwo ports main's
+// multi-node Infrastructure lookup branch: without an explicit
+// collectorReplicas, a HighlyAvailable topology defaults to two replicas
+// (the single-node branch is covered by snoDefaultsCollectorReplicasToOne).
+func (s monitoringSuite) highlyAvailableInfrastructureDefaultsCollectorReplicasToTwo(t *testing.T) {
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.Namespace = "odh-monitoring"
+	dsci.Spec.Monitoring.Metrics = &serviceApi.Metrics{
+		Storage: &serviceApi.MetricsStorage{Size: resource.MustParse("5Gi")},
+	}
+	client := newFakeClient(newInfrastructure(configv1.HighlyAvailableTopologyMode))
+
+	s.Validate(t, projection.ModuleCRSpec{
+		DSCCtx: modules.DSCContext{
+			DSCI: dsci,
+		},
+		Client: client,
+	}, projection.WithPreAdmissionValidation(And(
+		jq.Match(`.spec.collectorReplicas == 2`),
+	)))
 }
 
 func (s monitoringSuite) storageBackedTracesWithTLSEnabled(t *testing.T) {
@@ -158,7 +212,7 @@ func (s monitoringSuite) storageBackedTracesWithTLSEnabled(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSCI: dsci,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.traces.storage.backend == "s3"`),
 		jq.Match(`.spec.traces.storage.secret == "my-s3-creds"`),
 		jq.Match(`.spec.traces.storage.retention == "1h0m0s"`),
@@ -167,7 +221,7 @@ func (s monitoringSuite) storageBackedTracesWithTLSEnabled(t *testing.T) {
 		jq.Match(`.spec.traces.tls.certificateSecret == "tls-secret"`),
 		jq.Match(`.spec.traces.tls.caConfigMap == "ca-cm"`),
 		jq.Match(`.spec.collectorReplicas == 2`),
-	))
+	)))
 }
 
 func (s monitoringSuite) pvBackedTracesWithTLSDisabled(t *testing.T) {
@@ -185,13 +239,13 @@ func (s monitoringSuite) pvBackedTracesWithTLSDisabled(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSCI: dsci,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.traces.storage.backend == "pv"`),
 		jq.Match(`.spec.traces.storage.size == "50Gi"`),
 		// A disabled TLS stanza is nulled in the projection.
 		jq.Match(`.spec.traces.tls == null`),
 		jq.Match(`.spec.collectorReplicas == 2`),
-	))
+	)))
 }
 
 func (s monitoringSuite) exporterOnlyTraces(t *testing.T) {
@@ -207,11 +261,11 @@ func (s monitoringSuite) exporterOnlyTraces(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSCI: dsci,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.traces.exporters["otlp/external"].endpoint == "https://traces.example.com:4317"`),
 		jq.Match(`.spec.traces.storage == null`),
 		jq.Match(`.spec.collectorReplicas == 2`),
-	))
+	)))
 }
 
 func (s monitoringSuite) tracesWithoutStorageOrExportersOmitted(t *testing.T) {
@@ -223,10 +277,10 @@ func (s monitoringSuite) tracesWithoutStorageOrExportersOmitted(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSCI: dsci,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.traces == null`),
 		jq.Match(`.spec.collectorReplicas == null`),
-	))
+	)))
 }
 
 func (s monitoringSuite) metricsWithoutStorageOrExportersOmitted(t *testing.T) {
@@ -238,10 +292,10 @@ func (s monitoringSuite) metricsWithoutStorageOrExportersOmitted(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSCI: dsci,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.metrics == null`),
 		jq.Match(`.spec.collectorReplicas == null`),
-	))
+	)))
 }
 
 func (s monitoringSuite) storageBackedLogs(t *testing.T) {
@@ -261,7 +315,7 @@ func (s monitoringSuite) storageBackedLogs(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSCI: dsci,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.logs.storage.type == "s3"`),
 		jq.Match(`.spec.logs.storage.secretName == "rhoai-logs-s3"`),
 		jq.Match(`.spec.logs.storage.credentialMode == "static"`),
@@ -269,7 +323,7 @@ func (s monitoringSuite) storageBackedLogs(t *testing.T) {
 		jq.Match(`.spec.logs.inferenceNamespaces == ["my-project"]`),
 		jq.Match(`.spec.usageLogs == null`),
 		jq.Match(`.spec.collectorReplicas == null`),
-	))
+	)))
 }
 
 func (s monitoringSuite) storageBackedUsageLogsWithoutLogs(t *testing.T) {
@@ -288,14 +342,14 @@ func (s monitoringSuite) storageBackedUsageLogsWithoutLogs(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSCI: dsci,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.usageLogs.storage.type == "s3"`),
 		jq.Match(`.spec.usageLogs.storage.secretName == "rhoai-logs-s3"`),
 		jq.Match(`.spec.usageLogs.storage.credentialMode == "static"`),
 		jq.Match(`.spec.usageLogs.storage.storageClassName == "gp3-csi"`),
 		jq.Match(`.spec.logs == null`),
 		jq.Match(`.spec.collectorReplicas == null`),
-	))
+	)))
 }
 
 func (s monitoringSuite) logsAndUsageLogsIndependently(t *testing.T) {
@@ -312,11 +366,11 @@ func (s monitoringSuite) logsAndUsageLogsIndependently(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSCI: dsci,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.logs.storage.secretName == "rhoai-logs-s3"`),
 		jq.Match(`.spec.usageLogs.storage.secretName == "rhoai-logs-s3"`),
 		jq.Match(`.spec.collectorReplicas == null`),
-	))
+	)))
 }
 
 func (s monitoringSuite) logsWithoutStorageOmitted(t *testing.T) {
@@ -328,9 +382,9 @@ func (s monitoringSuite) logsWithoutStorageOmitted(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSCI: dsci,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.logs == null`),
-	))
+	)))
 }
 
 func (s monitoringSuite) usageLogsWithoutStorageOmitted(t *testing.T) {
@@ -342,9 +396,9 @@ func (s monitoringSuite) usageLogsWithoutStorageOmitted(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSCI: dsci,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.usageLogs == null`),
-	))
+	)))
 }
 
 // TestBuildModuleCRProjection validates the Monitoring DSCI projection against
@@ -362,6 +416,8 @@ func TestBuildModuleCRProjection(t *testing.T) {
 	t.Run("sno defaults collector replicas to one", s.snoDefaultsCollectorReplicasToOne)
 	t.Run("explicit collector replicas preserved on sno", s.explicitCollectorReplicasPreservedOnSNO)
 	t.Run("exporter only metrics", s.exporterOnlyMetrics)
+	t.Run("exporter only metrics and traces", s.exporterOnlyMetricsAndTraces)
+	t.Run("highly available infrastructure defaults collector replicas to two", s.highlyAvailableInfrastructureDefaultsCollectorReplicasToTwo)
 	t.Run("storage backed traces with tls enabled", s.storageBackedTracesWithTLSEnabled)
 	t.Run("pv backed traces with tls disabled", s.pvBackedTracesWithTLSDisabled)
 	t.Run("exporter only traces", s.exporterOnlyTraces)

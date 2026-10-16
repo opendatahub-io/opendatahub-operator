@@ -39,7 +39,7 @@ func (s dashboardSuite) standardManagedWithGatewayAndComponentReferences(t *test
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{GatewayDomain: "dashboard.example.com"},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.gateway.domain == "dashboard.example.com"`),
 		jq.Match(`.spec.components | length == 4`),
@@ -47,7 +47,7 @@ func (s dashboardSuite) standardManagedWithGatewayAndComponentReferences(t *test
 		jq.Match(`.spec.components.mlflowoperator.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.components.trustyai.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.components.aipipelines.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s dashboardSuite) gatewayOmittedWhenDomainEmpty(t *testing.T) {
@@ -58,9 +58,9 @@ func (s dashboardSuite) gatewayOmittedWhenDomainEmpty(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.gateway == null`),
-	))
+	)))
 }
 
 func (s dashboardSuite) emptyManagementStateProjectsRemoved(t *testing.T) {
@@ -73,12 +73,12 @@ func (s dashboardSuite) emptyManagementStateProjectsRemoved(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.maasPortal.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.components.modelregistry.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.components.aipipelines.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s dashboardSuite) componentReferencesDefaultToRemovedWhenEmpty(t *testing.T) {
@@ -90,10 +90,10 @@ func (s dashboardSuite) componentReferencesDefaultToRemovedWhenEmpty(t *testing.
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.components.modelregistry.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.components.aipipelines.managementState == %q`, operatorv1.Removed),
-	))
+	)))
 }
 
 func (s dashboardSuite) notebooksNamespaceFallsBackToRHOAIDefault(t *testing.T) {
@@ -112,10 +112,10 @@ func (s dashboardSuite) notebooksNamespaceFallsBackToRHOAIDefault(t *testing.T) 
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{Release: common.Release{Name: cluster.SelfManagedRhoai}},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.notebooksNamespace == %q`, cluster.DefaultNotebooksNamespaceRHOAI),
 		jq.Match(`.spec.modelRegistryNamespace == null`),
-	))
+	)))
 }
 
 func (s dashboardSuite) notebooksNamespaceFallsBackToODHDefault(t *testing.T) {
@@ -134,9 +134,9 @@ func (s dashboardSuite) notebooksNamespaceFallsBackToODHDefault(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{Release: common.Release{Name: cluster.OpenDataHub}},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.notebooksNamespace == %q`, cluster.DefaultNotebooksNamespaceODH),
-	))
+	)))
 }
 
 func (s dashboardSuite) customNotebooksNamespace(t *testing.T) {
@@ -155,9 +155,9 @@ func (s dashboardSuite) customNotebooksNamespace(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{Release: common.Release{Name: cluster.SelfManagedRhoai}},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.notebooksNamespace == "custom-notebooks"`),
-	))
+	)))
 }
 
 func (s dashboardSuite) notebooksNamespaceOmittedWhenWorkbenchesNotManaged(t *testing.T) {
@@ -176,9 +176,9 @@ func (s dashboardSuite) notebooksNamespaceOmittedWhenWorkbenchesNotManaged(t *te
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{Release: common.Release{Name: cluster.SelfManagedRhoai}},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.notebooksNamespace == null`),
-	))
+	)))
 }
 
 func (s dashboardSuite) modelRegistryNamespaceProjectedFromAIHub(t *testing.T) {
@@ -197,10 +197,10 @@ func (s dashboardSuite) modelRegistryNamespaceProjectedFromAIHub(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{Release: common.Release{Name: cluster.SelfManagedRhoai}},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelRegistryNamespace == "rhoai-model-registries"`),
 		jq.Match(`.spec.notebooksNamespace == null`),
-	))
+	)))
 }
 
 func (s dashboardSuite) modelRegistryNamespaceOmittedWhenAIHubNotManaged(t *testing.T) {
@@ -219,9 +219,9 @@ func (s dashboardSuite) modelRegistryNamespaceOmittedWhenAIHubNotManaged(t *test
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{Release: common.Release{Name: cluster.SelfManagedRhoai}},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelRegistryNamespace == null`),
-	))
+	)))
 }
 
 func (s dashboardSuite) modelRegistryNamespaceOmittedWhenEmpty(t *testing.T) {
@@ -240,9 +240,9 @@ func (s dashboardSuite) modelRegistryNamespaceOmittedWhenEmpty(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{Release: common.Release{Name: cluster.SelfManagedRhoai}},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelRegistryNamespace == null`),
-	))
+	)))
 }
 
 func (s dashboardSuite) notebooksNamespaceFallsBackToRHOAIDefaultOnManagedRhoai(t *testing.T) {
@@ -261,9 +261,9 @@ func (s dashboardSuite) notebooksNamespaceFallsBackToRHOAIDefaultOnManagedRhoai(
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{Release: common.Release{Name: cluster.ManagedRhoai}},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.notebooksNamespace == %q`, cluster.DefaultNotebooksNamespaceRHOAI),
-	))
+	)))
 }
 
 func (s dashboardSuite) bothNamespacesProjected(t *testing.T) {
@@ -282,10 +282,10 @@ func (s dashboardSuite) bothNamespacesProjected(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{Release: common.Release{Name: cluster.SelfManagedRhoai}},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.notebooksNamespace == "rhods-notebooks"`),
 		jq.Match(`.spec.modelRegistryNamespace == "rhoai-model-registries"`),
-	))
+	)))
 }
 
 func (s dashboardSuite) nilCfgNotebooksFallbackDefaultsToODH(t *testing.T) {
@@ -303,9 +303,9 @@ func (s dashboardSuite) nilCfgNotebooksFallbackDefaultsToODH(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.notebooksNamespace == %q`, cluster.DefaultNotebooksNamespaceODH),
-	))
+	)))
 }
 
 func (s dashboardSuite) maasPortalProjectedManaged(t *testing.T) {
@@ -317,11 +317,11 @@ func (s dashboardSuite) maasPortalProjectedManaged(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{GatewayDomain: "dashboard.example.com"},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.maasPortal.managementState == %q`, operatorv1.Managed),
 		// No legacy maasConsumerPortal key (renamed to maasPortal in #4208).
 		jq.Match(`.spec.maasConsumerPortal == null`),
-	))
+	)))
 }
 
 func (s dashboardSuite) maasPortalProjectedRemoved(t *testing.T) {
@@ -333,10 +333,10 @@ func (s dashboardSuite) maasPortalProjectedRemoved(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{GatewayDomain: "dashboard.example.com"},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.maasPortal.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.maasConsumerPortal == null`),
-	))
+	)))
 }
 
 func (s dashboardSuite) effectiveStateBothManaged(t *testing.T) {
@@ -347,10 +347,10 @@ func (s dashboardSuite) effectiveStateBothManaged(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.maasPortal.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s dashboardSuite) effectiveStateStandardOnly(t *testing.T) {
@@ -361,10 +361,10 @@ func (s dashboardSuite) effectiveStateStandardOnly(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.maasPortal.managementState == %q`, operatorv1.Removed),
-	))
+	)))
 }
 
 // effectiveStatePortalOnly documents the #4208 decoupling: the CR core
@@ -380,10 +380,10 @@ func (s dashboardSuite) effectiveStatePortalOnly(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.maasPortal.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s dashboardSuite) effectiveStatePortalWithAbsentStandard(t *testing.T) {
@@ -395,10 +395,10 @@ func (s dashboardSuite) effectiveStatePortalWithAbsentStandard(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.maasPortal.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s dashboardSuite) effectiveStateBothRemoved(t *testing.T) {
@@ -410,10 +410,10 @@ func (s dashboardSuite) effectiveStateBothRemoved(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.maasPortal.managementState == %q`, operatorv1.Removed),
-	))
+	)))
 }
 
 // TestBuildModuleCRProjection validates Dashboard projections against the real

@@ -36,9 +36,9 @@ func (s trainerSuite) populatedAppNamespace(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{ApplicationsNamespace: testAppsNS},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.appNamespace == %q`, testAppsNS),
-	))
+	)))
 }
 
 func (s trainerSuite) emptyAppNamespace(t *testing.T) {
@@ -49,9 +49,9 @@ func (s trainerSuite) emptyAppNamespace(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.appNamespace == ""`),
-	))
+	)))
 }
 
 func (s trainerSuite) nilConfigMinimalOutput(t *testing.T) {
@@ -61,9 +61,9 @@ func (s trainerSuite) nilConfigMinimalOutput(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec == {}`),
-	))
+	)))
 }
 
 // TestBuildModuleCRProjection validates Trainer projections against the real

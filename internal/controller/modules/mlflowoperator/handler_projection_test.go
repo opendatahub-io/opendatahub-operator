@@ -41,12 +41,12 @@ func (s mlflowOperatorSuite) nilConfigMinimalOutput(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.gatewayName == "data-science-gateway"`),
 		jq.Match(`.spec.sectionTitle == null`),
 		jq.Match(`.spec.gateway == null`),
 		jq.Match(`.metadata.annotations[%q] == %q`, annotations.ManagementStateAnnotation, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s mlflowOperatorSuite) configWithoutGatewayDomain(t *testing.T) {
@@ -58,11 +58,11 @@ func (s mlflowOperatorSuite) configWithoutGatewayDomain(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{Release: common.Release{Name: cluster.SelfManagedRhoai}},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.gatewayName == "data-science-gateway"`),
 		jq.Match(`.spec.sectionTitle == "OpenShift Self Managed Services"`),
 		jq.Match(`.spec.gateway == null`),
-	))
+	)))
 }
 
 func (s mlflowOperatorSuite) configWithGatewayDomain(t *testing.T) {
@@ -77,11 +77,11 @@ func (s mlflowOperatorSuite) configWithGatewayDomain(t *testing.T) {
 			GatewayDomain: mlflowTestGatewayURL,
 			Release:       common.Release{Name: cluster.SelfManagedRhoai},
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.gatewayName == "data-science-gateway"`),
 		jq.Match(`.spec.sectionTitle == "OpenShift Self Managed Services"`),
 		jq.Match(`.spec.gateway.domain == %q`, mlflowTestGatewayURL),
-	))
+	)))
 }
 
 func (s mlflowOperatorSuite) odhPlatformTitle(t *testing.T) {
@@ -93,9 +93,9 @@ func (s mlflowOperatorSuite) odhPlatformTitle(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{Release: common.Release{Name: cluster.OpenDataHub}},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.sectionTitle == "OpenShift Open Data Hub"`),
-	))
+	)))
 }
 
 func (s mlflowOperatorSuite) managedRhoaiPlatformTitle(t *testing.T) {
@@ -107,9 +107,13 @@ func (s mlflowOperatorSuite) managedRhoaiPlatformTitle(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{Release: common.Release{Name: cluster.ManagedRhoai}},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.sectionTitle == "OpenShift Self Managed Services"`),
-	))
+		// The management state annotation is set from the DSC even with a
+		// fully configured platform-mode input (ported from main's
+		// TestBuildModuleCR_PlatformMode).
+		jq.Match(`.metadata.annotations[%q] == %q`, annotations.ManagementStateAnnotation, operatorv1.Managed),
+	)))
 }
 
 func (s mlflowOperatorSuite) unknownPlatformTitleFallback(t *testing.T) {
@@ -121,9 +125,9 @@ func (s mlflowOperatorSuite) unknownPlatformTitleFallback(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{Release: common.Release{Name: "unknown-platform"}},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.sectionTitle == "MLflow"`),
-	))
+	)))
 }
 
 func (s mlflowOperatorSuite) removedStateAnnotation(t *testing.T) {
@@ -134,9 +138,9 @@ func (s mlflowOperatorSuite) removedStateAnnotation(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.metadata.annotations[%q] == %q`, annotations.ManagementStateAnnotation, operatorv1.Removed),
-	))
+	)))
 }
 
 func (s mlflowOperatorSuite) emptyStateNormalizedToRemoved(t *testing.T) {
@@ -147,9 +151,9 @@ func (s mlflowOperatorSuite) emptyStateNormalizedToRemoved(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.metadata.annotations[%q] == %q`, annotations.ManagementStateAnnotation, operatorv1.Removed),
-	))
+	)))
 }
 
 // TestBuildModuleCRProjection validates MLflow projections against the real

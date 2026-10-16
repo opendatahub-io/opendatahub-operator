@@ -37,9 +37,10 @@ func (s raySuite) populatedApplicationsNamespace(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{ApplicationsNamespace: testAppsNS},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.applicationsNamespace == %q`, testAppsNS),
-	))
+		jq.Match(`.spec.managementState == null`),
+	)))
 }
 
 func (s raySuite) emptyApplicationsNamespace(t *testing.T) {
@@ -50,9 +51,10 @@ func (s raySuite) emptyApplicationsNamespace(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.applicationsNamespace == ""`),
-	))
+		jq.Match(`.spec.managementState == null`),
+	)))
 }
 
 func (s raySuite) nilConfigMinimalOutput(t *testing.T) {
@@ -62,9 +64,10 @@ func (s raySuite) nilConfigMinimalOutput(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.applicationsNamespace == null`),
-	))
+		jq.Match(`.spec.managementState == null`),
+	)))
 }
 
 // TestBuildModuleCRProjection validates Ray projections against the real

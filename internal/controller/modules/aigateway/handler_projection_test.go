@@ -46,10 +46,10 @@ func (s aigatewaySuite) maasEmptyAigatewayEmptyKserveEmptyBatchManaged(t *testin
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService != null`),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasEmptyAigatewayEmptyKserveManagedBatchManaged(t *testing.T) {
@@ -63,10 +63,10 @@ func (s aigatewaySuite) maasEmptyAigatewayEmptyKserveManagedBatchManaged(t *test
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService != null`),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasEmptyAigatewayEmptyKserveRemovedBatchManaged(t *testing.T) {
@@ -80,10 +80,10 @@ func (s aigatewaySuite) maasEmptyAigatewayEmptyKserveRemovedBatchManaged(t *test
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService != null`),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasEmptyAigatewayManagedKserveEmptyBatchManaged(t *testing.T) {
@@ -97,10 +97,10 @@ func (s aigatewaySuite) maasEmptyAigatewayManagedKserveEmptyBatchManaged(t *test
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService != null`),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasEmptyAigatewayManagedKserveManagedBatchManaged(t *testing.T) {
@@ -114,10 +114,10 @@ func (s aigatewaySuite) maasEmptyAigatewayManagedKserveManagedBatchManaged(t *te
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService != null`),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasEmptyAigatewayManagedKserveRemovedBatchManaged(t *testing.T) {
@@ -131,10 +131,10 @@ func (s aigatewaySuite) maasEmptyAigatewayManagedKserveRemovedBatchManaged(t *te
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService != null`),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasEmptyAigatewayRemovedKserveEmptyBatchManaged(t *testing.T) {
@@ -148,10 +148,10 @@ func (s aigatewaySuite) maasEmptyAigatewayRemovedKserveEmptyBatchManaged(t *test
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService != null`),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasEmptyAigatewayRemovedKserveManagedBatchManaged(t *testing.T) {
@@ -165,10 +165,10 @@ func (s aigatewaySuite) maasEmptyAigatewayRemovedKserveManagedBatchManaged(t *te
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService != null`),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasEmptyAigatewayRemovedKserveRemovedBatchManaged(t *testing.T) {
@@ -182,10 +182,10 @@ func (s aigatewaySuite) maasEmptyAigatewayRemovedKserveRemovedBatchManaged(t *te
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService != null`),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasManagedAigatewayEmptyKserveEmptyBatchManaged(t *testing.T) {
@@ -199,10 +199,10 @@ func (s aigatewaySuite) maasManagedAigatewayEmptyKserveEmptyBatchManaged(t *test
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasManagedAigatewayEmptyKserveManagedBatchManaged(t *testing.T) {
@@ -216,10 +216,10 @@ func (s aigatewaySuite) maasManagedAigatewayEmptyKserveManagedBatchManaged(t *te
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasManagedAigatewayEmptyKserveRemovedBatchManaged(t *testing.T) {
@@ -233,10 +233,10 @@ func (s aigatewaySuite) maasManagedAigatewayEmptyKserveRemovedBatchManaged(t *te
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasManagedAigatewayManagedKserveEmptyBatchManaged(t *testing.T) {
@@ -250,10 +250,10 @@ func (s aigatewaySuite) maasManagedAigatewayManagedKserveEmptyBatchManaged(t *te
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasManagedAigatewayManagedKserveManagedBatchManaged(t *testing.T) {
@@ -267,10 +267,10 @@ func (s aigatewaySuite) maasManagedAigatewayManagedKserveManagedBatchManaged(t *
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasManagedAigatewayManagedKserveRemovedBatchManaged(t *testing.T) {
@@ -284,10 +284,10 @@ func (s aigatewaySuite) maasManagedAigatewayManagedKserveRemovedBatchManaged(t *
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasManagedAigatewayRemovedKserveEmptyBatchManaged(t *testing.T) {
@@ -301,10 +301,10 @@ func (s aigatewaySuite) maasManagedAigatewayRemovedKserveEmptyBatchManaged(t *te
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasManagedAigatewayRemovedKserveManagedBatchManaged(t *testing.T) {
@@ -318,10 +318,10 @@ func (s aigatewaySuite) maasManagedAigatewayRemovedKserveManagedBatchManaged(t *
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasManagedAigatewayRemovedKserveRemovedBatchManaged(t *testing.T) {
@@ -335,10 +335,10 @@ func (s aigatewaySuite) maasManagedAigatewayRemovedKserveRemovedBatchManaged(t *
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasRemovedAigatewayEmptyKserveEmptyBatchManaged(t *testing.T) {
@@ -352,10 +352,10 @@ func (s aigatewaySuite) maasRemovedAigatewayEmptyKserveEmptyBatchManaged(t *test
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasRemovedAigatewayEmptyKserveManagedBatchManaged(t *testing.T) {
@@ -369,10 +369,10 @@ func (s aigatewaySuite) maasRemovedAigatewayEmptyKserveManagedBatchManaged(t *te
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasRemovedAigatewayEmptyKserveRemovedBatchManaged(t *testing.T) {
@@ -386,10 +386,10 @@ func (s aigatewaySuite) maasRemovedAigatewayEmptyKserveRemovedBatchManaged(t *te
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasRemovedAigatewayManagedKserveEmptyBatchManaged(t *testing.T) {
@@ -403,10 +403,10 @@ func (s aigatewaySuite) maasRemovedAigatewayManagedKserveEmptyBatchManaged(t *te
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasRemovedAigatewayManagedKserveManagedBatchManaged(t *testing.T) {
@@ -420,10 +420,10 @@ func (s aigatewaySuite) maasRemovedAigatewayManagedKserveManagedBatchManaged(t *
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasRemovedAigatewayManagedKserveRemovedBatchManaged(t *testing.T) {
@@ -437,10 +437,10 @@ func (s aigatewaySuite) maasRemovedAigatewayManagedKserveRemovedBatchManaged(t *
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasRemovedAigatewayRemovedKserveEmptyBatchManaged(t *testing.T) {
@@ -454,10 +454,10 @@ func (s aigatewaySuite) maasRemovedAigatewayRemovedKserveEmptyBatchManaged(t *te
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasRemovedAigatewayRemovedKserveManagedBatchManaged(t *testing.T) {
@@ -471,10 +471,10 @@ func (s aigatewaySuite) maasRemovedAigatewayRemovedKserveManagedBatchManaged(t *
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasRemovedAigatewayRemovedKserveRemovedBatchManaged(t *testing.T) {
@@ -488,10 +488,10 @@ func (s aigatewaySuite) maasRemovedAigatewayRemovedKserveRemovedBatchManaged(t *
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasEmptyBatchEmptyAigatewayManaged(t *testing.T) {
@@ -505,10 +505,10 @@ func (s aigatewaySuite) maasEmptyBatchEmptyAigatewayManaged(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService != null`),
 		jq.Match(`.spec.batchGateway != null`),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasEmptyBatchRemovedAigatewayManaged(t *testing.T) {
@@ -522,10 +522,10 @@ func (s aigatewaySuite) maasEmptyBatchRemovedAigatewayManaged(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService != null`),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Removed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasManagedBatchEmptyAigatewayManaged(t *testing.T) {
@@ -539,10 +539,10 @@ func (s aigatewaySuite) maasManagedBatchEmptyAigatewayManaged(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.batchGateway != null`),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasManagedBatchRemovedAigatewayManaged(t *testing.T) {
@@ -556,10 +556,10 @@ func (s aigatewaySuite) maasManagedBatchRemovedAigatewayManaged(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Managed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Removed),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasRemovedBatchEmptyAigatewayManaged(t *testing.T) {
@@ -573,10 +573,10 @@ func (s aigatewaySuite) maasRemovedBatchEmptyAigatewayManaged(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.batchGateway != null`),
-	))
+	)))
 }
 
 func (s aigatewaySuite) maasRemovedBatchRemovedAigatewayManaged(t *testing.T) {
@@ -590,10 +590,29 @@ func (s aigatewaySuite) maasRemovedBatchRemovedAigatewayManaged(t *testing.T) {
 		DSCCtx: modules.DSCContext{
 			DSC: dsc,
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.modelsAsAService.managementState == %q`, operatorv1.Removed),
 		jq.Match(`.spec.batchGateway.managementState == %q`, operatorv1.Removed),
-	))
+	)))
+}
+
+// basicProjectionInputs ports main's TestBuildModuleCR_BasicProjection: the
+// gateway Managed with every other selection left empty. The matrix and
+// mixed cases always pin either the batch gateway (Managed) or KServe
+// (Removed), so this input combination is unique to this case. Main also
+// asserted managementState is not projected; the CRD accepts the field, so
+// only a pre-admission check can catch a leak.
+func (s aigatewaySuite) basicProjectionInputs(t *testing.T) {
+	dsc := &dscApi.DataScienceCluster{}
+	dsc.Spec.Components.AIGateway.ManagementState = operatorv1.Managed
+
+	s.Validate(t, projection.ModuleCRSpec{
+		DSCCtx: modules.DSCContext{
+			DSC: dsc,
+		},
+	}, projection.WithPreAdmissionValidation(And(
+		jq.Match(`.spec.managementState == null`),
+	)))
 }
 
 // TestBuildModuleCRProjection validates the AI Gateway projection against the
@@ -637,4 +656,5 @@ func TestBuildModuleCRProjection(t *testing.T) {
 	t.Run("maas=managed/batch=removed/aigateway=managed", s.maasManagedBatchRemovedAigatewayManaged)
 	t.Run("maas=removed/batch=empty/aigateway=managed", s.maasRemovedBatchEmptyAigatewayManaged)
 	t.Run("maas=removed/batch=removed/aigateway=managed", s.maasRemovedBatchRemovedAigatewayManaged)
+	t.Run("basic projection inputs (all other selections empty)", s.basicProjectionInputs)
 }

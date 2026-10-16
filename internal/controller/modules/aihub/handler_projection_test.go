@@ -40,11 +40,11 @@ func (s aihubSuite) webhookDefaultedInstancesNamespace(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{ApplicationsNamespace: "test-apps-ns"},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.applicationNamespace == "test-apps-ns"`),
 		jq.Match(`.spec.instancesNamespace == %q`, componentApi.DefaultModelRegistriesNamespace),
 		jq.Match(`.metadata.annotations[%q] == %q`, annotations.ManagementStateAnnotation, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aihubSuite) customInstancesNamespaceWithGatewayDomain(t *testing.T) {
@@ -59,12 +59,12 @@ func (s aihubSuite) customInstancesNamespaceWithGatewayDomain(t *testing.T) {
 			ApplicationsNamespace: "test-apps-ns",
 			GatewayDomain:         "apps.example.com",
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.applicationNamespace == "test-apps-ns"`),
 		jq.Match(`.spec.instancesNamespace == "my-registries"`),
 		jq.Match(`.spec.gateway.domain == "apps.example.com"`),
 		jq.Match(`.metadata.annotations[%q] == %q`, annotations.ManagementStateAnnotation, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aihubSuite) omittedGateway(t *testing.T) {
@@ -79,12 +79,12 @@ func (s aihubSuite) omittedGateway(t *testing.T) {
 			ApplicationsNamespace: "test-apps-ns",
 			GatewayDomain:         "",
 		},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.applicationNamespace == "test-apps-ns"`),
 		jq.Match(`.spec.instancesNamespace == %q`, componentApi.DefaultModelRegistriesNamespace),
 		jq.Match(`.spec.gateway == null`),
 		jq.Match(`.metadata.annotations[%q] == %q`, annotations.ManagementStateAnnotation, operatorv1.Managed),
-	))
+	)))
 }
 
 func (s aihubSuite) emptyManagementStateNormalizedToRemoved(t *testing.T) {
@@ -97,11 +97,11 @@ func (s aihubSuite) emptyManagementStateNormalizedToRemoved(t *testing.T) {
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{ApplicationsNamespace: "test-apps-ns"},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.applicationNamespace == "test-apps-ns"`),
 		jq.Match(`.spec.instancesNamespace == %q`, componentApi.DefaultModelRegistriesNamespace),
 		jq.Match(`.metadata.annotations[%q] == %q`, annotations.ManagementStateAnnotation, operatorv1.Removed),
-	))
+	)))
 }
 
 // instancesNamespaceMayEqualApplicationsNamespace admits the case where the
@@ -117,11 +117,29 @@ func (s aihubSuite) instancesNamespaceMayEqualApplicationsNamespace(t *testing.T
 			DSC: dsc,
 		},
 		Cfg: &modules.ModuleCRConfig{ApplicationsNamespace: "test-apps-ns"},
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.applicationNamespace == "test-apps-ns"`),
 		jq.Match(`.spec.instancesNamespace == "test-apps-ns"`),
 		jq.Match(`.metadata.annotations[%q] == %q`, annotations.ManagementStateAnnotation, operatorv1.Managed),
-	))
+	)))
+}
+
+// customInstancesNamespaceWithoutGateway ports the no-gateway half of main's
+// TestBuildModuleCR_BasicProjection: a custom instances namespace with no
+// gateway domain configured, so the gateway stanza stays absent.
+func (s aihubSuite) customInstancesNamespaceWithoutGateway(t *testing.T) {
+	dsc := newDSC(operatorv1.Managed)
+	dsc.Spec.Components.AIHub.InstancesNamespace = "my-registries"
+
+	s.Validate(t, projection.ModuleCRSpec{
+		DSCCtx: modules.DSCContext{
+			DSC: dsc,
+		},
+		Cfg: &modules.ModuleCRConfig{ApplicationsNamespace: "test-apps-ns"},
+	}, projection.WithPreAdmissionValidation(And(
+		jq.Match(`.spec.instancesNamespace == "my-registries"`),
+		jq.Match(`.spec.gateway == null`),
+	)))
 }
 
 // TestBuildModuleCRProjection validates AI Hub projections against the real
@@ -134,6 +152,7 @@ func TestBuildModuleCRProjection(t *testing.T) {
 
 	t.Run("webhook defaulted instances namespace", s.webhookDefaultedInstancesNamespace)
 	t.Run("custom instances namespace with gateway domain", s.customInstancesNamespaceWithGatewayDomain)
+	t.Run("custom instances namespace without gateway", s.customInstancesNamespaceWithoutGateway)
 	t.Run("omitted gateway", s.omittedGateway)
 	t.Run("empty management state normalized to removed", s.emptyManagementStateNormalizedToRemoved)
 	t.Run("instances namespace may equal applications namespace", s.instancesNamespaceMayEqualApplicationsNamespace)

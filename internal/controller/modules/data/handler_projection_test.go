@@ -34,9 +34,9 @@ func (s dataSuite) noAuthenticationResource(t *testing.T) {
 
 	s.Validate(t, projection.ModuleCRSpec{
 		Client: client,
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.oidc == null`),
-	))
+	)))
 }
 
 func (s dataSuite) nonOIDCAuthentication(t *testing.T) {
@@ -49,9 +49,9 @@ func (s dataSuite) nonOIDCAuthentication(t *testing.T) {
 
 	s.Validate(t, projection.ModuleCRSpec{
 		Client: client,
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.oidc == null`),
-	))
+	)))
 }
 
 func (s dataSuite) oidcWithoutGatewayConfig(t *testing.T) {
@@ -64,9 +64,9 @@ func (s dataSuite) oidcWithoutGatewayConfig(t *testing.T) {
 
 	s.Validate(t, projection.ModuleCRSpec{
 		Client: client,
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.oidc == null`),
-	))
+	)))
 }
 
 func (s dataSuite) oidcWithUnsetIssuer(t *testing.T) {
@@ -85,9 +85,9 @@ func (s dataSuite) oidcWithUnsetIssuer(t *testing.T) {
 
 	s.Validate(t, projection.ModuleCRSpec{
 		Client: client,
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.oidc == null`),
-	))
+	)))
 }
 
 func (s dataSuite) oidcWithValidHTTPSIssuer(t *testing.T) {
@@ -106,9 +106,9 @@ func (s dataSuite) oidcWithValidHTTPSIssuer(t *testing.T) {
 
 	s.Validate(t, projection.ModuleCRSpec{
 		Client: client,
-	}, And(
+	}, projection.WithPreAdmissionValidation(And(
 		jq.Match(`.spec.oidc.issuerURL == "https://keycloak.example.com/realms/odh"`),
-	))
+	)))
 }
 
 // TestBuildModuleCRProjection validates FeastOperator projections against the

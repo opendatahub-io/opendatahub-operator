@@ -157,35 +157,70 @@ func NewRunner(t *testing.T, handler ModuleCRHandler, crdRelativePath string) *R
 	}
 }
 
-// AdmissionOnly is the check for cases whose projection has no value to
-// assert on the admitted response (any matcher would pin CRD schema
-// defaults): it always succeeds, and admission itself — which Validate
-// always runs — is the validation.
-var AdmissionOnly types.GomegaMatcher = &admissionOnlyMatcher{}
-
-type admissionOnlyMatcher struct{}
-
-func (*admissionOnlyMatcher) Match(any) (bool, error) {
-	return true, nil
+// ValidateOptions configures the value assertions of one projection case.
+// Pre is applied to the raw BuildModuleCR output and Post to the admitted
+// API-server response, so a Pre assertion proves the handler projected the
+// value while a Post assertion may also be satisfied by CRD schema
+// defaulting.
+type ValidateOptions struct {
+	Pre  types.GomegaMatcher
+	Post types.GomegaMatcher
 }
 
-func (*admissionOnlyMatcher) FailureMessage(any) string {
-	return "admission-only check must never fail"
+// AdmissionValidation is the call-site spelling of ValidateOptions: a
+// partial literal can be passed to Validate directly, bundling both phases
+// in one option.
+type AdmissionValidation = ValidateOptions
+
+// ValidateOption is a single configuration for a Validate call.
+type ValidateOption interface {
+	ApplyTo(target *ValidateOptions)
 }
 
-func (*admissionOnlyMatcher) NegatedFailureMessage(any) string {
-	return "admission-only check must never fail"
+type validateOptionFunc func(*ValidateOptions)
+
+func (f validateOptionFunc) ApplyTo(o *ValidateOptions) { f(o) }
+
+// ApplyTo sets only the matchers it carries, so a partial AdmissionValidation
+// literal composes with other options instead of clobbering them.
+func (o ValidateOptions) ApplyTo(target *ValidateOptions) {
+	if o.Pre != nil {
+		target.Pre = o.Pre
+	}
+	if o.Post != nil {
+		target.Post = o.Post
+	}
+}
+
+// WithPreAdmissionValidation returns an option applying m to the raw
+// BuildModuleCR output, before admission: such assertions cannot be
+// satisfied by CRD schema defaulting.
+func WithPreAdmissionValidation(m types.GomegaMatcher) ValidateOption { //nolint:ireturn // Functional-options idiom
+	return validateOptionFunc(func(o *ValidateOptions) { o.Pre = m })
+}
+
+// WithPostAdmissionValidation returns an option applying m to the admitted
+// API-server response, after schema defaulting.
+func WithPostAdmissionValidation(m types.GomegaMatcher) ValidateOption { //nolint:ireturn // Functional-options idiom
+	return validateOptionFunc(func(o *ValidateOptions) { o.Post = m })
 }
 
 // Validate runs one projection case: it builds the module CR from spec,
 // asserts the configured identity (GVK, CR name, cluster scope) and the
-// input nonmutation on the raw output, admits that output against the real
-// CRD as a strict dry-run create, and applies check to the admitted
-// response. Use AdmissionOnly when the case has no value assertion —
-// admission itself is the validation.
-func (r *Runner) Validate(t *testing.T, spec ModuleCRSpec, check types.GomegaMatcher) {
+// input nonmutation on the raw output, applies the Pre matcher to that raw
+// output, admits it against the real CRD as a strict dry-run create, and
+// applies the Post matcher to the admitted response. With no options the
+// case is admission-only: the strict dry-run create is the validation.
+func (r *Runner) Validate(t *testing.T, spec ModuleCRSpec, opts ...ValidateOption) {
 	t.Helper()
 	g := gomega.NewWithT(t)
+
+	var o ValidateOptions
+	for _, opt := range opts {
+		if opt != nil {
+			opt.ApplyTo(&o)
+		}
+	}
 
 	// Snapshot both inputs before the call and compare them unconditionally
 	// afterward: a handler clearing or replacing its DSC/DSCI must fail the
@@ -212,10 +247,14 @@ func (r *Runner) Validate(t *testing.T, spec ModuleCRSpec, check types.GomegaMat
 		g.Expect(spec.DSCCtx.DSCI).Should(gomega.Equal(dsciBefore), "BuildModuleCR must not mutate the DSCI")
 	}
 
+	if o.Pre != nil {
+		g.Expect(raw).Should(o.Pre, "pre-admission check (raw projection)")
+	}
+
 	admitted, err := r.Admit(t.Context(), raw)
 	g.Expect(err).ShouldNot(gomega.HaveOccurred())
-	if check != nil {
-		g.Expect(admitted).Should(check)
+	if o.Post != nil {
+		g.Expect(admitted).Should(o.Post, "post-admission check (schema defaults applied)")
 	}
 }
 

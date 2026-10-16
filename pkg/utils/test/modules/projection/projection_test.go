@@ -576,10 +576,62 @@ func TestRunnerValidate(t *testing.T) {
 
 	dscCtx := &modules.DSCContext{}
 
-	// A bare matcher applies to the admitted response, which carries the
-	// schema defaults the raw output lacks.
-	r.Validate(t, projection.ModuleCRSpec{DSCCtx: *dscCtx}, jq.Match(`.spec.mode == "fast"`))
+	// No options: admission-only. The strict dry-run create is the whole
+	// validation; no value assertion runs.
+	r.Validate(t, projection.ModuleCRSpec{DSCCtx: *dscCtx})
 
-	// AdmissionOnly applies no value assertion; admission still runs.
-	r.Validate(t, projection.ModuleCRSpec{DSCCtx: *dscCtx}, projection.AdmissionOnly)
+	// Pre applies to the raw projection: the builder emits only spec.name,
+	// so the schema-defaulted mode is absent before admission.
+	r.Validate(t, projection.ModuleCRSpec{DSCCtx: *dscCtx},
+		projection.WithPreAdmissionValidation(jq.Match(`.spec.mode == null`)))
+
+	// Post applies to the admitted response, which carries the schema
+	// defaults the raw output lacks.
+	r.Validate(t, projection.ModuleCRSpec{DSCCtx: *dscCtx},
+		projection.WithPostAdmissionValidation(jq.Match(`.spec.mode == "fast"`)))
+
+	// Both phases compose in one case: the handler omits mode and the CRD
+	// defaults it to fast.
+	r.Validate(t, projection.ModuleCRSpec{DSCCtx: *dscCtx},
+		projection.AdmissionValidation{
+			Pre:  jq.Match(`.spec.mode == null`),
+			Post: jq.Match(`.spec.mode == "fast"`),
+		})
+
+	// An AdmissionValidation literal composes with With* options instead of
+	// clobbering them (ApplyTo skips the matchers it does not carry).
+	r.Validate(t, projection.ModuleCRSpec{DSCCtx: *dscCtx},
+		projection.WithPostAdmissionValidation(jq.Match(`.spec.mode == "fast"`)),
+		projection.AdmissionValidation{Pre: jq.Match(`.spec.mode == null`)},
+	)
+}
+
+func TestValidateOptionsApplyTo(t *testing.T) {
+	pre := jq.Match(`.spec.pre == true`)
+	post := jq.Match(`.spec.post == true`)
+
+	t.Run("empty literal sets nothing", func(t *testing.T) {
+		g := NewWithT(t)
+		var o projection.ValidateOptions
+		projection.AdmissionValidation{}.ApplyTo(&o)
+		g.Expect(o.Pre).Should(BeNil())
+		g.Expect(o.Post).Should(BeNil())
+	})
+
+	t.Run("partial literal skips nil matchers", func(t *testing.T) {
+		g := NewWithT(t)
+		o := projection.ValidateOptions{Pre: pre}
+		projection.AdmissionValidation{Post: post}.ApplyTo(&o)
+		g.Expect(o.Pre).Should(Equal(pre))
+		g.Expect(o.Post).Should(Equal(post))
+	})
+
+	t.Run("With options set their own phase", func(t *testing.T) {
+		g := NewWithT(t)
+		var o projection.ValidateOptions
+		projection.WithPreAdmissionValidation(pre).ApplyTo(&o)
+		projection.WithPostAdmissionValidation(post).ApplyTo(&o)
+		g.Expect(o.Pre).Should(Equal(pre))
+		g.Expect(o.Post).Should(Equal(post))
+	})
 }
