@@ -213,10 +213,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	}
 	l.V(1).Info("detected cluster authentication mode", "mode", authMode)
 
-	kubeAuthProxyDeploymentTemplates := odhtypes.TemplateInfo{
-		FS:   gatewayResources,
-		Path: kubeAuthProxyDeploymentOauthTemplate,
-	}
+	deploymentTemplate := kubeAuthProxyDeploymentOauthTemplate
 
 	var oidcConfig *serviceApi.OIDCConfig
 	switch authMode {
@@ -227,21 +224,17 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 				conditions.WithReason(status.NotReadyReason),
 				conditions.WithMessage(status.AuthProxyOIDCModeWithoutConfigMessage),
 			)
-			// Return nil (not error) because this is a permanent user configuration error.
-			// Returning an error would cause infinite reconciliation for something only the
-			// user can fix. Users must check GatewayConfig status conditions to see this error.
-			// Reconciliation will retry when the user updates the GatewayConfig with OIDC config.
-			return nil
+			if len(gatewayConfig.Spec.AdditionalIngresses) == 0 {
+				return nil
+			}
+		} else {
+			oidcConfig = gatewayConfig.Spec.OIDC
+			l.V(1).Info("configuring "+KubeAuthProxyName+" for external OIDC",
+				"issuerURL", oidcConfig.IssuerURL,
+				"clientID", oidcConfig.ClientID,
+				"secretRef", oidcConfig.ClientSecretRef.Name)
 		}
-		oidcConfig = gatewayConfig.Spec.OIDC
-		l.V(1).Info("configuring "+KubeAuthProxyName+" for external OIDC",
-			"issuerURL", oidcConfig.IssuerURL,
-			"clientID", oidcConfig.ClientID,
-			"secretRef", oidcConfig.ClientSecretRef.Name)
-		kubeAuthProxyDeploymentTemplates = odhtypes.TemplateInfo{
-			FS:   gatewayResources,
-			Path: kubeAuthProxyDeploymentOidcTemplate,
-		}
+		deploymentTemplate = kubeAuthProxyDeploymentOidcTemplate
 	case cluster.AuthModeIntegratedOAuth: // default mode.
 		l.V(1).Info("configuring " + KubeAuthProxyName + " for OpenShift OAuth")
 
@@ -253,17 +246,33 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 			conditions.WithReason(status.ReadyReason),
 			conditions.WithMessage(status.AuthProxyExternalAuthNoDeploymentMessage),
 		)
+		for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
+			if ingressStatus := additionalIngressStatusByName(gatewayConfig, ingress.Name); ingressStatus != nil {
+				setAdditionalIngressCondition(ingressStatus, gatewayConfig.Generation, serviceApi.AdditionalIngressAuthenticationReadyConditionType,
+					metav1.ConditionTrue, additionalIngressReasonAuthenticationDisabled, status.AuthProxyExternalAuthNoDeploymentMessage)
+			}
+		}
 		return nil
 	}
 
-	return prepareAuthProxy(ctx, rr, gatewayConfig, defaultAuthProxyTarget(hostname, gatewayConfig), authMode, kubeAuthProxyDeploymentTemplates.Path)
+	targets := []authProxyTarget{defaultAuthProxyTarget(hostname, gatewayConfig)}
+	for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
+		targets = append(targets, additionalAuthProxyTarget(ingress, gatewayConfig))
+	}
+	return prepareAuthProxies(ctx, rr, gatewayConfig, authMode, deploymentTemplate, targets)
 }
 
 func prepareAuthProxy(
-	ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig,
-	target authProxyTarget, authMode cluster.AuthenticationMode, deploymentTemplate string,
+	ctx context.Context,
+	rr *odhtypes.ReconciliationRequest,
+	gatewayConfig *serviceApi.GatewayConfig,
+	target authProxyTarget,
+	authMode cluster.AuthenticationMode,
+	deploymentTemplate string,
 ) error {
 	l := logf.FromContext(ctx).WithName("prepareAuthProxy")
+	// Only the default target updates GatewayConfig.Ready here. The caller reports
+	// additional targets through their own AuthenticationReady conditions.
 	// Get secret values for both OIDC and IntegratedOAuth modes
 	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, authMode, target.OIDC, target)
 	if err != nil {
@@ -273,12 +282,19 @@ func prepareAuthProxy(
 	// Create the secret dynamically first
 	authSecret, err := createSecret(ctx, rr, clientID, clientSecret, cookieSecret, target)
 	if err != nil {
-		rr.Conditions.MarkFalse(
-			ReadyConditionType,
-			conditions.WithReason(status.NotReadyReason),
-			conditions.WithMessagef("%s: %v", status.AuthProxyFailedGenerateSecretMessage, err),
-		)
+		if target.isDefault() {
+			rr.Conditions.MarkFalse(
+				ReadyConditionType,
+				conditions.WithReason(status.NotReadyReason),
+				conditions.WithMessagef("%s: %v", status.AuthProxyFailedGenerateSecretMessage, err),
+			)
+		}
 		return fmt.Errorf("failed to create auth proxy secret: %w", err)
+	}
+	// The Secret is already persisted. Include it in deployment so its lifecycle
+	// annotations are refreshed and GC can distinguish active from removed targets.
+	if err := rr.AddResources(authSecret); err != nil {
+		return fmt.Errorf("failed to add auth proxy secret: %w", err)
 	}
 	// Carry only the rollout hash to the template action, using the credentials just written.
 	if rr.Extensions == nil {
@@ -289,11 +305,13 @@ func prepareAuthProxy(
 	// For IntegratedOAuth mode, create OAuth client after secret is created
 	if authMode == cluster.AuthModeIntegratedOAuth {
 		if err := createOAuthClient(rr, target.Hostname, target, authSecret); err != nil {
-			rr.Conditions.MarkFalse(
-				ReadyConditionType,
-				conditions.WithReason(status.NotReadyReason),
-				conditions.WithMessagef("%s: %v", status.AuthProxyFailedOAuthClientMessage, err),
-			)
+			if target.isDefault() {
+				rr.Conditions.MarkFalse(
+					ReadyConditionType,
+					conditions.WithReason(status.NotReadyReason),
+					conditions.WithMessagef("%s: %v", status.AuthProxyFailedOAuthClientMessage, err),
+				)
+			}
 			return fmt.Errorf("failed to create OAuth client: %w", err)
 		}
 		l.V(1).Info("OAuth client created successfully")
@@ -347,14 +365,15 @@ func prepareAuthProxy(
 		},
 	}
 	rr.Templates = append(rr.Templates, kubeAuthProxyCommonTemplates...)
-	// Clear a previous readiness failure. The status action checks the deployed
-	// resources before it can mark this condition true.
-	rr.Conditions.MarkUnknown(
-		ReadyConditionType,
-		conditions.WithReason(status.NotReadyReason),
-		conditions.WithMessage("Auth proxy resources are being deployed"),
-	)
-
+	if target.isDefault() {
+		// Clear a previous readiness failure. The status action checks the deployed
+		// resources before it can mark this condition true.
+		rr.Conditions.MarkUnknown(
+			ReadyConditionType,
+			conditions.WithReason(status.NotReadyReason),
+			conditions.WithMessage("Auth proxy resources are being deployed"),
+		)
+	}
 	return nil
 }
 
@@ -558,18 +577,9 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		}
 		return nil, err
 	}
-
-	// Calculate auth config hash for triggering pod restarts on secret changes
-	target := defaultAuthProxyTarget(hostname, gatewayConfig)
-	authConfigHash, prepared := rr.Extensions[target.extensionsKey()].(string)
-	if !prepared {
-		authSecret := &corev1.Secret{}
-		if err := rr.Client.Get(ctx, types.NamespacedName{Name: target.SecretName, Namespace: GetGatewayNamespace()}, authSecret); err != nil && !k8serr.IsNotFound(err) {
-			return nil, fmt.Errorf("failed to get auth proxy secret: %w", err)
-		}
-		if authSecret.Name != "" {
-			authConfigHash = calculateAuthConfigHash(authSecret)
-		}
+	const templateDataKey = "gateway.template-data"
+	if data, ok := rr.Extensions[templateDataKey].(map[string]any); ok {
+		return authTargetTemplateData(ctx, data, defaultAuthProxyTarget(hostname, gatewayConfig), rr)
 	}
 
 	// Fold the provider CA bundle into the rollout hash so rotating the CA in
@@ -603,7 +613,6 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 	// Compute legacy redirect info for template
 	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
-	gatewayFilters := gatewayEnvoyFilterTargets(gatewayConfig)
 	redirectConfigHash, err := CalculateRedirectConfigHash(hostname)
 	if err != nil {
 		return nil, err
@@ -615,44 +624,32 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	templateData := map[string]any{
-		"IsOpenShift":              cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes,
-		"GatewayNamespace":         GetGatewayNamespace(),
-		"GatewayName":              GetDefaultGatewayName(),
-		"GatewayHostname":          hostname,
-		"GatewayServiceName":       GetDefaultGatewayServiceFullName(),
-		"KubeAuthProxyServiceName": KubeAuthProxyName,
-		"KubeAuthProxySecretsName": KubeAuthProxySecretsName,
-		"KubeAuthProxyTLSName":     KubeAuthProxyTLSName,
-		"OAuthCallbackRouteName":   OAuthCallbackRouteName,
-		"KubeAuthProxyImage":       getKubeAuthProxyImage(),
-		"AuthProxyHTTPPort":        AuthProxyHTTPPort,
-		"AuthProxyMetricsPort":     AuthProxyMetricsPort,
-		"StandardHTTPSPort":        StandardHTTPSPort,
-		"GatewayHTTPSPort":         GatewayHTTPSPort,
-		"AuthProxyOAuth2Path":      AuthProxyOAuth2Path,
-		"AuthProxyCookieName":      AuthProxyCookieName,
-		"TLSCertsVolumeName":       TLSCertsVolumeName,
-		"TLSCertsMountPath":        TLSCertsMountPath,
-		"RedirectURL":              fmt.Sprintf("https://%s%s", hostname, OAuthCallbackPath),
-		"DestinationRuleName":      DestinationRuleName,
-		"CookieExpire":             cookieExpire,
-		"CookieRefresh":            cookieRefresh,
-		"AuthConfigHash":           authConfigHash,
-		"AuthProxyTimeout":         getGatewayAuthProxyTimeout(gatewayConfig),
-		"AuthProxyMaxReplicas":     getGatewayAuthProxyMaxReplicas(gatewayConfig),
-		"ComponentLabelKey":        labels.K8SCommon.Component,
-		"ComponentLabelValue":      ComponentLabelValue,
-		"PartOfLabelKey":           labels.K8SCommon.PartOf,
-		"PartOfLabelValue":         PartOfLabelValue,
-		"IstioRevisionLabel":       IstioRevisionLabel,
-		"IstioRevisionValue":       GetIstioRevisionValue(),
-		"PartOfGatewayConfig":      PartOfGatewayConfig,
-		"GatewayNameLabelKey":      labels.GatewayAPI.GatewayName,
-		"GatewayFilters":           gatewayFilters,
-		"LegacySubdomain":          legacyInfo.LegacySubdomain,
-		"LegacyHostname":           legacyInfo.LegacyHostname,
-		"RouteLabels":              gatewayRouteLabels(nil),
-		"RouteServerTimeout":       serverTimeout,
+		"IsOpenShift":          cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes,
+		"GatewayNamespace":     GetGatewayNamespace(),
+		"GatewayServiceName":   GetDefaultGatewayServiceFullName(),
+		"KubeAuthProxyImage":   getKubeAuthProxyImage(),
+		"AuthProxyHTTPPort":    AuthProxyHTTPPort,
+		"AuthProxyMetricsPort": AuthProxyMetricsPort,
+		"StandardHTTPSPort":    StandardHTTPSPort,
+		"GatewayHTTPSPort":     GatewayHTTPSPort,
+		"AuthProxyOAuth2Path":  AuthProxyOAuth2Path,
+		"TLSCertsVolumeName":   TLSCertsVolumeName,
+		"TLSCertsMountPath":    TLSCertsMountPath,
+		"CookieExpire":         cookieExpire,
+		"CookieRefresh":        cookieRefresh,
+		"AuthProxyTimeout":     getGatewayAuthProxyTimeout(gatewayConfig),
+		"ComponentLabelKey":    labels.K8SCommon.Component,
+		"ComponentLabelValue":  ComponentLabelValue,
+		"PartOfLabelKey":       labels.K8SCommon.PartOf,
+		"PartOfLabelValue":     PartOfLabelValue,
+		"IstioRevisionLabel":   IstioRevisionLabel,
+		"IstioRevisionValue":   GetIstioRevisionValue(),
+		"PartOfGatewayConfig":  PartOfGatewayConfig,
+		"GatewayNameLabelKey":  labels.GatewayAPI.GatewayName,
+		"LegacySubdomain":      legacyInfo.LegacySubdomain,
+		"LegacyHostname":       legacyInfo.LegacyHostname,
+		"RouteLabels":          gatewayRouteLabels(nil),
+		"RouteServerTimeout":   serverTimeout,
 	}
 
 	// Add dashboard redirect template variables
@@ -722,8 +719,12 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData["TLSMinVersion"] = tlsMinVersion
 	templateData["TLSCipherSuite"] = tlsCipherSuites
 	templateData["TLSCurvePreferences"] = tlsCurvePreferences
+	if rr.Extensions == nil {
+		rr.Extensions = map[string]any{}
+	}
+	rr.Extensions[templateDataKey] = templateData
 
-	return templateData, nil
+	return authTargetTemplateData(ctx, templateData, defaultAuthProxyTarget(hostname, gatewayConfig), rr)
 }
 
 func gatewayRouteLabels(additional map[string]string) map[string]string {
@@ -791,15 +792,15 @@ func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationReq
 				return nil
 			}
 		}
+	}
 
-		message, err := checkGatewayAuthentication(ctx, rr.Client, defaultAuthProxyTarget("", gatewayConfig))
-		if err != nil {
-			return err
-		}
-		if message != "" {
-			markGatewayNotReady(rr, message)
-			return nil
-		}
+	message, err := checkGatewayAuthentication(ctx, rr.Client, defaultAuthProxyTarget("", gatewayConfig))
+	if err != nil {
+		return err
+	}
+	if message != "" {
+		markGatewayNotReady(rr, message)
+		return nil
 	}
 
 	// Check if Gateway infrastructure is ready after reporting any XKS certificate failure.

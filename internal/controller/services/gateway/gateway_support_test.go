@@ -30,6 +30,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gatewayconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -513,14 +514,6 @@ func TestAdditionalGatewayNamesAreStableAndServiceSafe(t *testing.T) {
 	longName := strings.Repeat("a", serviceApi.MaxAdditionalGatewayNameLength)
 	g.Expect(GetGatewayServiceFullName(longName)).To(Equal(longName + "-" + GatewayClassName))
 	g.Expect(GetGatewayServiceFullName(longName)).To(HaveLen(63))
-
-	ingresses := []serviceApi.AdditionalIngress{{Name: "alpha"}, {Name: "beta"}}
-	config := &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{AdditionalIngresses: ingresses}}
-	g.Expect(gatewayEnvoyFilterTargets(config)).To(Equal([]gatewayEnvoyFilterTarget{
-		{Name: AuthnFilterName, GatewayName: GetDefaultGatewayName()},
-		{Name: additionalGatewayEnvoyFilterName("alpha"), GatewayName: "alpha"},
-		{Name: additionalGatewayEnvoyFilterName("beta"), GatewayName: "beta"},
-	}))
 }
 
 func TestValidateAdditionalIngressesRejectsNonOcpRouteMode(t *testing.T) {
@@ -900,6 +893,7 @@ func authProxyTemplateData() map[string]any {
 		"ProviderCASecret":         false,
 		"KubeAuthProxyImage":       "example.com/kube-auth-proxy:latest",
 		"KubeAuthProxySecretsName": KubeAuthProxySecretsName,
+		"DestinationRuleHost":      "*",
 		"AuthProxyHTTPPort":        AuthProxyHTTPPort,
 		"GatewayHTTPSPort":         GatewayHTTPSPort,
 		"AuthProxyMetricsPort":     AuthProxyMetricsPort,
@@ -933,56 +927,40 @@ func renderAuthProxyTemplate(g Gomega, path string, data map[string]any) string 
 	return buf.String()
 }
 
-func TestAuthTemplatesCoverEveryManagedGateway(t *testing.T) {
-	g := NewWithT(t)
-	config := &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{
-		Domain:              "apps.example.com",
-		AdditionalIngresses: serviceApi.AdditionalIngresses{{Name: "alpha"}, {Name: "beta"}},
-	}}
-	config.Generation = 1
-	data := authProxyTemplateData()
-	productionData, err := getTemplateData(t.Context(), &odhtypes.ReconciliationRequest{
-		Client: newGatewayTestClient(t, config), Instance: config,
-	})
-	g.Expect(err).NotTo(HaveOccurred())
-	data["GatewayFilters"] = productionData["GatewayFilters"]
-	data["GatewayNameLabelKey"] = productionData["GatewayNameLabelKey"]
-	data["GatewayNamespace"] = GetGatewayNamespace()
-	data["GatewayHTTPSPort"] = GatewayHTTPSPort
-	data["AuthProxyTimeout"] = "5s"
-	data["PartOfLabelKey"] = "app.kubernetes.io/part-of"
-	data["PartOfLabelValue"] = PartOfLabelValue
-	data["IstioRevisionLabel"] = IstioRevisionLabel
-	data["IstioRevisionValue"] = GetIstioRevisionValue()
+func TestDefaultAuthTemplatesExcludeAdditionalGateways(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		conflict bool
+	}{
+		{name: "no conflict"},
+		{name: "ownership conflict", conflict: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			g := NewWithT(t)
+			config := newGatewayAuthTestConfig(
+				additionalIngress("alpha", "alpha.example.com", "alpha"),
+				additionalIngress("beta", "beta.example.com", "beta"),
+			)
+			if test.conflict {
+				config.Status.AdditionalIngresses = buildAdditionalIngressStatuses(config.Spec.AdditionalIngresses, nil, config.Generation)
+				setAdditionalIngressCondition(&config.Status.AdditionalIngresses[0], config.Generation,
+					serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionFalse,
+					additionalIngressReasonOwnershipConflict, "Gateway belongs to another owner")
+			}
+			data, err := getTemplateData(t.Context(), newGatewayAuthTestRequest(t, config))
+			g.Expect(err).NotTo(HaveOccurred())
 
-	envoyFilters := renderAuthProxyTemplate(g, envoyFilterTemplate, data)
-	g.Expect(strings.Count(envoyFilters, "kind: EnvoyFilter")).To(Equal(3))
-	for _, ingressName := range []string{"alpha", "beta"} {
-		g.Expect(envoyFilters).To(ContainSubstring("name: " + additionalGatewayEnvoyFilterName(ingressName)))
-		g.Expect(envoyFilters).To(ContainSubstring("gateway.networking.k8s.io/gateway-name: " + ingressName))
+			envoyFilters := renderAuthProxyTemplate(g, envoyFilterTemplate, data)
+			g.Expect(strings.Count(envoyFilters, "kind: "+gvk.EnvoyFilter.Kind)).To(Equal(1))
+			networkPolicy := renderAuthProxyTemplate(g, networkPolicyTemplate, data)
+			g.Expect(networkPolicy).To(ContainSubstring("- " + GetDefaultGatewayName()))
+			for _, ingress := range config.Spec.AdditionalIngresses {
+				g.Expect(envoyFilters).NotTo(ContainSubstring("name: " + additionalGatewayEnvoyFilterName(ingress.Name)))
+				g.Expect(envoyFilters).NotTo(ContainSubstring("gateway.networking.k8s.io/gateway-name: " + ingress.Name))
+				g.Expect(networkPolicy).NotTo(ContainSubstring("- " + ingress.Name))
+			}
+		})
 	}
-
-	networkPolicy := renderAuthProxyTemplate(g, networkPolicyTemplate, data)
-	for _, name := range []string{GetDefaultGatewayName(), "alpha", "beta"} {
-		g.Expect(networkPolicy).To(ContainSubstring("- " + name))
-	}
-
-	config.Status.AdditionalIngresses = []serviceApi.AdditionalIngressStatus{{Name: "alpha"}, {Name: "beta"}}
-	setAdditionalIngressCondition(&config.Status.AdditionalIngresses[0], config.Generation,
-		serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionFalse,
-		additionalIngressReasonOwnershipConflict, "Gateway belongs to another owner")
-	productionData, err = getTemplateData(t.Context(), &odhtypes.ReconciliationRequest{
-		Client: newGatewayTestClient(t, config), Instance: config,
-	})
-	g.Expect(err).NotTo(HaveOccurred())
-	data["GatewayFilters"] = productionData["GatewayFilters"]
-	envoyFilters = renderAuthProxyTemplate(g, envoyFilterTemplate, data)
-	g.Expect(strings.Count(envoyFilters, "kind: EnvoyFilter")).To(Equal(2))
-	g.Expect(envoyFilters).NotTo(ContainSubstring("name: " + additionalGatewayEnvoyFilterName("alpha")))
-	g.Expect(envoyFilters).To(ContainSubstring("name: " + additionalGatewayEnvoyFilterName("beta")))
-	networkPolicy = renderAuthProxyTemplate(g, networkPolicyTemplate, data)
-	g.Expect(networkPolicy).NotTo(ContainSubstring("- alpha"))
-	g.Expect(networkPolicy).To(ContainSubstring("- beta"))
 }
 
 func TestDefaultAuthProxyScaling(t *testing.T) {
@@ -1349,7 +1327,7 @@ func TestOIDCClientSecretRejectsMissingOrEmptyKey(t *testing.T) {
 	}
 }
 
-func TestPreparedOIDCCredentialsAreWrittenWithoutBeingRedeployed(t *testing.T) {
+func TestPreparedOIDCCredentialsUseFreshValuesForHashAndDeployment(t *testing.T) {
 	g := NewWithT(t)
 	original := cluster.GetClusterInfo()
 	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
@@ -1382,7 +1360,9 @@ func TestPreparedOIDCCredentialsAreWrittenWithoutBeingRedeployed(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: config, Conditions: conditionstest.NewManager(config, ReadyConditionType)}
 	g.Expect(prepareAuthProxy(t.Context(), rr, config, defaultAuthProxyTarget(config.Spec.Domain, config), cluster.AuthModeOIDC, kubeAuthProxyDeploymentOidcTemplate)).To(Succeed())
-	g.Expect(rr.Resources).To(BeEmpty(), "the credentials must be written immediately, without being queued for another deployment")
+	g.Expect(rr.Resources).To(HaveLen(1), "credentials must receive normal deployment metadata")
+	g.Expect(rr.Resources[0].GetName()).To(Equal(KubeAuthProxySecretsName))
+	g.Expect(rr.Resources[0].Object["data"]).To(HaveKeyWithValue(EnvClientSecret, "cm90YXRlZA=="))
 	data, err := getTemplateData(t.Context(), rr)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(data["AuthConfigHash"]).To(Equal("529d6b32cb1cd764f83fb4fd4c3819452294115ada45afd668560d7e816cb5ef"))

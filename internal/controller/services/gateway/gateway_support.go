@@ -185,22 +185,6 @@ type gatewayEnvoyFilterTarget struct {
 	GatewayName string
 }
 
-func gatewayEnvoyFilterTargets(gatewayConfig *serviceApi.GatewayConfig) []gatewayEnvoyFilterTarget {
-	targets := []gatewayEnvoyFilterTarget{{Name: AuthnFilterName, GatewayName: GetDefaultGatewayName()}}
-	if gatewayConfig != nil {
-		for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
-			if additionalIngressHasGatewayConflict(gatewayConfig, ingress.Name) {
-				continue
-			}
-			targets = append(targets, gatewayEnvoyFilterTarget{
-				Name:        additionalGatewayEnvoyFilterName(ingress.Name),
-				GatewayName: ingress.Name,
-			})
-		}
-	}
-	return targets
-}
-
 // ErrDomainRequired is returned by GetFQDN when spec.domain is not set on non-OpenShift clusters.
 var ErrDomainRequired = errors.New("spec.domain is required on non-OpenShift clusters")
 
@@ -843,6 +827,11 @@ func getAuthProxySecretValues(
 	switch authMode {
 	case cluster.AuthModeOIDC:
 		// OIDC mode: get client secret from external secret
+		// With additional ingresses, reconciliation continues past the top-level
+		// OIDC check so each target can report its own configuration failure.
+		if oidcConfig == nil {
+			return "", "", "", fmt.Errorf("OIDC configuration is required for gateway %q", target.GatewayName)
+		}
 		clientID = oidcConfig.ClientID
 
 		// Determine which namespace to use for the secret
@@ -905,12 +894,20 @@ func getAuthProxySecretValues(
 // that creating or updating these Secrets triggers GatewayConfig re-reconciliation.
 func IsGatewayReferencedSecret(ctx context.Context, cli client.Client, obj client.Object, gatewayNamespace string) bool {
 	gatewayConfig := &serviceApi.GatewayConfig{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayConfigName}, gatewayConfig); err != nil {
+	if err := cli.Get(ctx, client.ObjectKey{
+		Name: serviceApi.GatewayConfigName,
+	}, gatewayConfig); err != nil {
 		return false
 	}
 
 	secretName := obj.GetName()
 	secretNamespace := obj.GetNamespace()
+
+	for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
+		if ingress.Auth.OIDC != nil && secretName == ingress.Auth.OIDC.ClientSecretRef.Name && secretNamespace == authSecretNamespace(ingress.Auth.OIDC.SecretNamespace) {
+			return true
+		}
+	}
 
 	if gatewayConfig.Spec.OIDC != nil {
 		oidcSecretNamespace := gatewayConfig.Spec.OIDC.SecretNamespace
