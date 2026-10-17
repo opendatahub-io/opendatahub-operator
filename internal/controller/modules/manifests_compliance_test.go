@@ -8,11 +8,14 @@ import (
 
 	helmRenderer "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	modulebuiltin "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/builtin"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
@@ -20,28 +23,30 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var allowedChartResourceKinds = map[string]bool{
-	"Deployment":                     true,
-	"Service":                        true,
-	"ServiceAccount":                 true,
-	"ClusterRole":                    true,
-	"ClusterRoleBinding":             true,
-	"Role":                           true,
-	"RoleBinding":                    true,
-	"ConfigMap":                      true,
-	"CustomResourceDefinition":       true,
-	"MutatingWebhookConfiguration":   true,
-	"ValidatingWebhookConfiguration": true,
-	"Issuer":                         true,
-	"Certificate":                    true,
-	"NetworkPolicy":                  true,
-}
+var allowedChartResourceKinds = sets.New(
+	gvk.Deployment.GroupKind(),
+	gvk.Service.GroupKind(),
+	gvk.ServiceAccount.GroupKind(),
+	gvk.ClusterRole.GroupKind(),
+	gvk.ClusterRoleBinding.GroupKind(),
+	gvk.Role.GroupKind(),
+	gvk.RoleBinding.GroupKind(),
+	gvk.ConfigMap.GroupKind(),
+	gvk.CustomResourceDefinition.GroupKind(),
+	gvk.MutatingWebhookConfiguration.GroupKind(),
+	gvk.ValidatingWebhookConfiguration.GroupKind(),
+	gvk.ValidatingAdmissionPolicy.GroupKind(),
+	gvk.ValidatingAdmissionPolicyBinding.GroupKind(),
+	gvk.CertManagerIssuer.GroupKind(),
+	gvk.CertManagerCertificate.GroupKind(),
+	gvk.NetworkPolicy.GroupKind(),
+)
 
 // allowedResourceKindsByModule contains resource kinds that are valid only for
 // specific module manifests. Keep exceptions scoped to the module that owns
 // the resource instead of weakening the allowlist for every module.
-var allowedResourceKindsByModule = map[string]map[string]bool{
-	"ray": {"SecurityContextConstraints": true},
+var allowedResourceKindsByModule = map[string]sets.Set[schema.GroupKind]{
+	"ray": sets.New(gvk.SecurityContextConstraints.GroupKind()),
 }
 
 func TestModuleChartCompliance(t *testing.T) {
@@ -79,7 +84,7 @@ func TestModuleChartCompliance(t *testing.T) {
 				g.Expect(err).ShouldNot(HaveOccurred(), "failed to render chart for %s", name)
 				g.Expect(resources).ShouldNot(BeEmpty(), "chart %s rendered zero resources", name)
 
-				assertOperatorManifestCompliance(g, name, name, toRenderedResources(resources))
+				assertOperatorManifestCompliance(g, name, name, resources)
 			})
 		}
 
@@ -137,7 +142,7 @@ func TestModuleManifestCompliance(t *testing.T) {
 				g.Expect(err).ShouldNot(HaveOccurred(), "failed to render manifest for %s", name)
 				g.Expect(resources).ShouldNot(BeEmpty(), "manifest %s rendered zero resources", name)
 
-				assertOperatorManifestCompliance(g, handler.GetName(), name, toRenderedResources(resources))
+				assertOperatorManifestCompliance(g, handler.GetName(), name, resources)
 			})
 		}
 
@@ -186,27 +191,14 @@ func requireBuiltinRegistry(t *testing.T) *modules.Registry {
 	return reg
 }
 
-type renderedResource struct {
-	kind string
-	name string
-}
-
-func toRenderedResources(resources []unstructured.Unstructured) []renderedResource {
-	out := make([]renderedResource, len(resources))
-	for i, res := range resources {
-		out[i] = renderedResource{kind: res.GetKind(), name: res.GetName()}
-	}
-	return out
-}
-
-func assertOperatorManifestCompliance(g Gomega, moduleName, source string, resources []renderedResource) {
+func assertOperatorManifestCompliance(g Gomega, moduleName, source string, resources []unstructured.Unstructured) {
 	deploymentCount := 0
 	for _, res := range resources {
-		g.Expect(resourceKindAllowed(moduleName, res.kind)).Should(BeTrue(),
-			"%s contains disallowed resource kind %q (name: %s)",
-			source, res.kind, res.name)
+		g.Expect(resourceKindAllowed(moduleName, res.GroupVersionKind())).Should(BeTrue(),
+			"%s contains disallowed resource %s (name: %s)",
+			source, res.GroupVersionKind(), res.GetName())
 
-		if res.kind == "Deployment" {
+		if res.GroupVersionKind().GroupKind() == gvk.Deployment.GroupKind() {
 			deploymentCount++
 		}
 	}
@@ -216,12 +208,14 @@ func assertOperatorManifestCompliance(g Gomega, moduleName, source string, resou
 		source, deploymentCount)
 }
 
-func resourceKindAllowed(moduleName, kind string) bool {
-	if allowedChartResourceKinds[kind] {
+func resourceKindAllowed(moduleName string, resourceGVK schema.GroupVersionKind) bool {
+	groupKind := resourceGVK.GroupKind()
+	if allowedChartResourceKinds.Has(groupKind) {
 		return true
 	}
 
-	return allowedResourceKindsByModule[moduleName][kind]
+	// A missing module entry yields a nil set, whose Has call safely returns false.
+	return allowedResourceKindsByModule[moduleName].Has(groupKind)
 }
 
 func TestModuleSpecificResourceKindAllowlist(t *testing.T) {
@@ -229,21 +223,21 @@ func TestModuleSpecificResourceKindAllowlist(t *testing.T) {
 
 	tests := map[string]struct {
 		moduleName string
-		kind       string
+		gvk        schema.GroupVersionKind
 		allowed    bool
 	}{
 		"Ray allows SCC": {
 			moduleName: "ray",
-			kind:       "SecurityContextConstraints",
+			gvk:        gvk.SecurityContextConstraints,
 			allowed:    true,
 		},
 		"other module rejects SCC": {
 			moduleName: "aipipelines",
-			kind:       "SecurityContextConstraints",
+			gvk:        gvk.SecurityContextConstraints,
 			allowed:    false,
 		},
 		"unknown module rejects SCC": {
-			kind:    "SecurityContextConstraints",
+			gvk:     gvk.SecurityContextConstraints,
 			allowed: false,
 		},
 	}
@@ -253,7 +247,7 @@ func TestModuleSpecificResourceKindAllowlist(t *testing.T) {
 			t.Parallel()
 
 			g := NewWithT(t)
-			g.Expect(resourceKindAllowed(tc.moduleName, tc.kind)).Should(Equal(tc.allowed))
+			g.Expect(resourceKindAllowed(tc.moduleName, tc.gvk)).Should(Equal(tc.allowed))
 		})
 	}
 }
