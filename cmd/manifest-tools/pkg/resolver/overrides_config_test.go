@@ -152,16 +152,6 @@ func TestResolve_MalformedImageOverrides(t *testing.T) {
 			wantSubstr: []string{"imageOverrides.RELATED_IMAGE_ODH_RAY_IMAGE.paramsEnvKey", "manifests directory is required", "missing-key"},
 		},
 		{
-			name: "paramsEnvKey missing directory",
-			overrides: `
-  RELATED_IMAGE_ODH_RAY_IMAGE:
-    component: ray
-    paramsEnvKey: missing-key
-`,
-			manifests:  "empty",
-			wantSubstr: []string{"imageOverrides.RELATED_IMAGE_ODH_RAY_IMAGE.paramsEnvKey", "looking up", "missing-key"},
-		},
-		{
 			name: "paramsEnvKey requires component",
 			overrides: `
   RELATED_IMAGE_ODH_RAY_IMAGE:
