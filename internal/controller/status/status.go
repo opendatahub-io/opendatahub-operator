@@ -123,12 +123,14 @@ const (
 	NoRegisteredModulesReason        = "NoRegisteredModules"
 	NoManagedModulesReason           = "NoManagedModules"
 
-	AvailableReason          = "Available"
-	NotReadyReason           = "NotReady"
-	ProvisioningFailedReason = "ProvisioningFailed"
-	ReadyReason              = "Ready"
-	DeletingReason           = "Deleting"
-	DeletingMessage          = "Component CR is being deleted"
+	AvailableReason            = "Available"
+	NotReadyReason             = "NotReady"
+	ProvisioningFailedReason   = "ProvisioningFailed"
+	ReadyReason                = "Ready"
+	DeletingReason             = "Deleting"
+	DeletingMessage            = "Component CR is being deleted"
+	UninstallInProgressReason  = "UninstallInProgress"
+	UninstallInProgressMessage = "Operator uninstall is in progress"
 
 	// DAG ordering reasons.
 	AwaitingReadinessReason       = "AwaitingReadiness"

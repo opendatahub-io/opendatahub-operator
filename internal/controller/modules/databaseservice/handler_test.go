@@ -163,15 +163,3 @@ func TestGetOperatorManifests(t *testing.T) {
 	g.Expect(m.HelmCharts[0].ReleaseNamespace).Should(Equal(testAppsNS))
 	g.Expect(m.Manifests).Should(BeEmpty())
 }
-
-// TODO: Remove after DatabaseService is onboarded in downstream Konflux and its chart is packaged in the operator image.
-func TestDeleteOperatorResources_SkipsMissingChart(t *testing.T) {
-	g := NewWithT(t)
-	h := databaseservice.NewHandler()
-	platform := &modules.PlatformContext{
-		ChartsBasePath: t.TempDir(),
-	}
-
-	err := h.DeleteOperatorResources(context.Background(), nil, platform)
-	g.Expect(err).NotTo(HaveOccurred())
-}

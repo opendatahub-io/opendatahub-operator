@@ -11,6 +11,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -68,7 +69,9 @@ func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
 
 func newModuleCRConfig(gatewayDomain string) *modules.ModuleCRConfig {
 	return &modules.ModuleCRConfig{
-		GatewayDomain: gatewayDomain,
+		GatewayConfig: &serviceApi.GatewayConfig{
+			Status: serviceApi.GatewayConfigStatus{Domain: gatewayDomain},
+		},
 	}
 }
 
@@ -247,7 +250,6 @@ func TestGetOperatorManifests(t *testing.T) {
 	platform := &modules.PlatformContext{
 		ApplicationsNamespace: "opendatahub",
 		ChartsBasePath:        "/opt/charts",
-		GatewayDomain:         "dashboard.example.com",
 	}
 
 	manifests := h.GetOperatorManifests(platform)

@@ -139,32 +139,23 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 	// Retrieve the DataScienceCluster instance.
 	dsc := tc.FetchDataScienceCluster()
 
-	// These DSC values are snapshotted once, here, OUTSIDE the Eventually inside
-	// EnsureResourceExists. A transiently-unset managementState must therefore not be baked
-	// into a strict equality: default an empty NIM state to its kubebuilder default
-	// ("Managed"), mirroring the empty-AIHub -> "Removed" handling used for modelRegistry.
-	// Otherwise an empty snapshot produces a permanent `== ""` expectation that the Kserve
-	// CR (always "Managed") can never satisfy, and the check hangs until timeout.
-	nimState := string(dsc.Spec.Components.Kserve.NIM.ManagementState)
-	if nimState == "" {
-		nimState = "Managed"
-	}
-	modelRegistryState := string(dsc.Spec.Components.AIHub.ManagementState)
-	if modelRegistryState == "" {
-		modelRegistryState = "Removed"
-	}
-
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}),
 		WithCondition(And(
 			// Validate management states of NIM and serving components.
-			jq.Match(`.spec.nim.managementState == "%s"`, nimState),
+			jq.Match(`.spec.nim.managementState == "%s"`, dsc.Spec.Components.Kserve.NIM.ManagementState),
 			// WVA is deprecated and must not be enabled. The Kserve API may still
 			// default the preserved compatibility field to Removed.
 			jq.Match(`(.spec.wva.managementState // "Removed") == "Removed"`),
 			// Validate ModelRegistry state is injected from DSC
 			// Validate AIHub state is injected from DSC
-			jq.Match(`.spec.modelRegistry.managementState == "%s"`, modelRegistryState),
+			jq.Match(`.spec.modelRegistry.managementState == "%s"`,
+				func() string {
+					if dsc.Spec.Components.AIHub.ManagementState == "" {
+						return "Removed"
+					}
+					return string(dsc.Spec.Components.AIHub.ManagementState)
+				}()),
 		),
 		),
 	)

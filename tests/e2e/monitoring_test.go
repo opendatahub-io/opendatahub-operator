@@ -1592,8 +1592,6 @@ func (tc *MonitoringTestCtx) validateTempoStackCreation(t *testing.T, backend, s
 		tc.configureFakeGCSTempoStack(tc.MonitoringNamespace)
 	}
 
-	raiseTempoStackLimits(t, tc, tempoStackNN)
-
 	t.Logf("Waiting for TempoStack to become Ready with backend=%s", backend)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.TempoStack, tempoStackNN),
@@ -1608,31 +1606,6 @@ func (tc *MonitoringTestCtx) validateTempoStackCreation(t *testing.T, backend, s
 		WithEventuallyTimeout(tc.TestTimeouts.monitoringStackTimeout),
 		WithCustomErrorMsg("TempoStack should become Ready with %s backend but did not", backend),
 	)
-}
-
-func raiseTempoStackLimits(t *testing.T, tc *MonitoringTestCtx, tempoStackNN types.NamespacedName) {
-	t.Helper()
-
-	t.Logf("Raising TempoStack resource limits to avoid OOM under the operator's default limits")
-	raiseTempoStackLimits := testf.Transform(`.spec.resources.total.limits.memory = "1Gi" | .spec.resources.total.limits.cpu = "1"`)
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.TempoStack, tempoStackNN),
-		WithMutateFunc(raiseTempoStackLimits),
-	)
-
-	// The operator's reconcile loop can race with this patch and revert the limits back to its
-	// own defaults shortly after. Check once the dust settles and re-apply only if that happened.
-	time.Sleep(5 * time.Second)
-	limitsStillSet, err := jq.Match(`.spec.resources.total.limits.memory == "1Gi" and .spec.resources.total.limits.cpu == "1"`).
-		Match(tc.FetchResource(WithMinimalObject(gvk.TempoStack, tempoStackNN)))
-	tc.g.Expect(err).NotTo(HaveOccurred())
-	if !limitsStillSet {
-		t.Logf("TempoStack resource limits were reverted by the operator, re-applying")
-		tc.EventuallyResourcePatched(
-			WithMinimalObject(gvk.TempoStack, tempoStackNN),
-			WithMutateFunc(raiseTempoStackLimits),
-		)
-	}
 }
 
 // validatePersesDatasourceTLS enables TLS on the existing traces configuration and validates

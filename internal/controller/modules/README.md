@@ -254,7 +254,6 @@ to every handler's `BuildModuleCR`. It exposes:
 |---|---|---|
 | `ApplicationsNamespace` | `DSCI.Spec.ApplicationsNamespace` | Namespace where module operands deploy |
 | `MonitoringNamespace` | `DSCI.Spec.Monitoring.Namespace` | Namespace for the monitoring stack (empty when monitoring is unset or in xKS mode with no DSCI) |
-| `GatewayDomain` | `GatewayConfig.Status.Domain` | Cluster ingress domain (empty if not yet provisioned) |
 | `Release` | `rr.Release` | Platform identity (ODH/RHOAI) and version |
 | `DSC` | reconcile instance | The `DataScienceCluster` instance for reading module-specific component stanzas |
 

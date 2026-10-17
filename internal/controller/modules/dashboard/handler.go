@@ -120,9 +120,9 @@ func (h *handler) BuildModuleCR(
 		spec["modelRegistryNamespace"] = ns
 	}
 
-	if cfg != nil && cfg.GatewayDomain != "" {
+	if cfg != nil && cfg.GatewayConfig != nil && cfg.GatewayConfig.Status.Domain != "" {
 		spec["gateway"] = map[string]any{
-			"domain": cfg.GatewayDomain,
+			"domain": cfg.GatewayConfig.Status.Domain,
 		}
 	}
 

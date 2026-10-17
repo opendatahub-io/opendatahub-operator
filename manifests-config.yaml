@@ -43,11 +43,11 @@ components:
   trustyai:
     odh:
       repo: opendatahub-io/trustyai-service-operator
-      ref: main@b4e177cc0eabca4b4fc7e9aa6f1618564730b405
+      ref: main@c517af62634a2c388df406994dede74f3ca95398
       sourcePath: trustyai-operator-module/config
     rhoai:
       repo: red-hat-data-services/trustyai-service-operator
-      ref: rhoai-3.6@661e43926f8f65110d67a9539b8cc18837e59174
+      ref: rhoai-3.6@d9a5998a6aa2bedbb07054ef21ce8198422d47f5
       sourcePath: trustyai-operator-module/config
   aihub:
     odh:
@@ -171,11 +171,11 @@ componentCharts:
   workbenches:
     odh:
       repo: opendatahub-io/workbenches-operator
-      ref: main@9411a2043375ccb20be30345136708cc3b7bd51c
+      ref: main@b050cbc7f1efc9ac842cf62a70ce33d198bef5a9
       sourcePath: charts/operator
     rhoai:
       repo: red-hat-data-services/workbenches-operator
-      ref: rhoai-3.6@ea919f0689e8c826e8ad6c2002ec374a46fdbc96
+      ref: rhoai-3.6@3956b4466d97d1adb2bafa40abeb2f220dd061b4
       sourcePath: charts/operator
   data:
     odh:
@@ -277,10 +277,10 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/trustyai-service-operator"
-      digest: "sha256:ac0b89e5a3486dbae4e071d7e8100fc8251a62adb1cdad4aa9cc79dcc00bb4e2"
+      digest: "sha256:869948bb461987caef2435991424e2080345790824d6e23daca66d191a59dbe9"
     rhoai:
       base: "quay.io/rhoai/odh-trustyai-service-operator-rhel9"
-      digest: "sha256:2cea2060d06c0893d2d8a8e303749ad6d98d056dfc67d6b548ba408703a0edde"
+      digest: "sha256:17ea3b89b3600c85b272d71abea5f8063dbcd664bb4374b0c035bb438d93264d"
   RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE:
     component: aihub
     paramsEnvKey: IMAGES_MODELREGISTRY_OPERATOR
@@ -380,10 +380,10 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-workbenches-operator"
-      digest: "sha256:cfd72c3980d9692bbd8efbe33734cbbc866e24dd914e92107c250b84502706bf"
+      digest: "sha256:8e636e90e51d2d1361429985b8b4e5f6cfd78b1588618def13c82bc52f02d30f"
     rhoai:
       base: "quay.io/rhoai/odh-workbenches-operator-rhel9"
-      digest: "sha256:213ca3326fd6d07d27899be68b2f93248c729681d5a2acbb86858b6c16d09300"
+      digest: "sha256:5c93c8c5b8983442a2716bcfb572cff2ecb98b9367f1dd917501bdee3c32d117"
   RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE:
     component: data
     tagTemplate: "{SHA}"
@@ -591,7 +591,7 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-kube-auth-proxy"
-      digest: "sha256:e0c749a29554d7c53d9a01afa4dbcc204dc141ce8466b5977ab4cd2ed30242a9"
+      digest: "sha256:1a5f6e220362aa2077026bb7e3091c38f80aac861fa060b08045e58e783d5bc5"
     rhoai:
       base: "quay.io/rhoai/odh-kube-auth-proxy-rhel9"
       digest: "sha256:8d2847f8560fc7f0efa550cf7cffabe4b4587cd239f8263918e0eb7f50aea532"
@@ -868,10 +868,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-notebook-controller"
-      digest: "sha256:ed1be99e914043400e7516fd44109bfbda9447e9d2cd9f6bf98fbbcfe02f9743"
+      digest: "sha256:d4b063277229ae904954664e283738f0829517ee983edab041b55ff19985bc4e"
     rhoai:
       base: "quay.io/rhoai/odh-notebook-controller-rhel9"
-      digest: "sha256:4b796f19bcb112eda8da3db1a181f296ac46f9a8bdb575360788becd55c76533"
+      digest: "sha256:00629770656dea7e87e6351cd2d87a29481632e6658fd57be2c8910b822cf306"
   RELATED_IMAGE_ODH_OBSERVABILITY_IMAGE:
     source: "csv"
     odh:
@@ -1245,7 +1245,7 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-kube-auth-proxy"
-      digest: "sha256:e0c749a29554d7c53d9a01afa4dbcc204dc141ce8466b5977ab4cd2ed30242a9"
+      digest: "sha256:1a5f6e220362aa2077026bb7e3091c38f80aac861fa060b08045e58e783d5bc5"
     rhoai:
       base: "quay.io/rhoai/odh-kube-auth-proxy-rhel9"
       digest: "sha256:8d2847f8560fc7f0efa550cf7cffabe4b4587cd239f8263918e0eb7f50aea532"
@@ -1292,10 +1292,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-trustyai-module-operator"
-      digest: "sha256:d58107342c5a97edf564dbc12faf23033368a0961137919a251eccaa4af54f6d"
+      digest: "sha256:7684d1912117c92998a27e65ea837eee4be1a60781a11654aa4e9f0176f094b0"
     rhoai:
       base: "quay.io/rhoai/odh-trustyai-module-operator-rhel9"
-      digest: "sha256:8cf5027508a92f080ebaaf55cf966dd32c7c88709906acbf81059bc2cf8abed6"
+      digest: "sha256:7642dd251b40233839e2c6cb88a1cdf106e7afe69f21e7b1f7eddea00b17f01d"
   RELATED_IMAGE_ODH_MODELEXPRESS_IMAGE:
     source: "csv"
     odh:

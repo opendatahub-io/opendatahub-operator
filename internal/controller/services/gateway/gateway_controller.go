@@ -59,6 +59,46 @@ func gatewayCRDWatchPredicate() predicate.Predicate {
 	)
 }
 
+// Only changes to the cluster authentication type alter whether the proxy is desired.
+// The watch is registered for typed &configv1.Authentication, while reconciler.Dynamic
+// may deliver unstructured forms; both are filtered on spec.type.
+func gatewayAuthenticationWatchPredicate() predicate.Predicate {
+	isClusterAuthentication := func(obj client.Object) bool {
+		return obj != nil && obj.GetName() == cluster.ClusterAuthenticationObj
+	}
+	authType := func(obj client.Object) (string, bool) {
+		switch auth := obj.(type) {
+		case *configv1.Authentication:
+			return string(auth.Spec.Type), true
+		case *unstructured.Unstructured:
+			value, found, err := unstructured.NestedString(auth.Object, "spec", "type")
+			if err != nil || !found {
+				return "", false
+			}
+			return value, true
+		default:
+			return "", false
+		}
+	}
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return isClusterAuthentication(e.Object)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return isClusterAuthentication(e.Object)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			if !isClusterAuthentication(e.ObjectNew) {
+				return false
+			}
+			oldType, oldOK := authType(e.ObjectOld)
+			newType, newOK := authType(e.ObjectNew)
+			// Unknown or unreadable forms fail safe and trigger reconciliation.
+			return !oldOK || !newOK || oldType != newType
+		},
+	}
+}
+
 // gatewayDeploymentWatchPredicate also observes proxy availability, which changes in the
 // Deployment status without changing its generation, labels, or annotations.
 func gatewayDeploymentWatchPredicate() predicate.Predicate {
@@ -117,6 +157,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.Secret).
 		OwnsGVK(gvk.ConfigMap).
 		OwnsGVK(gvk.Service).
+		OwnsGVK(gvk.NetworkPolicy).
 		OwnsGVK(gvk.Deployment, reconciler.WithPredicates(gatewayDeploymentWatchPredicate())).
 		OwnsGVK(gvk.HorizontalPodAutoscaler).
 		OwnsGVK(gvk.HTTPRoute).
@@ -196,12 +237,21 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(resources.APIServerTLSSecurityProfileChanged()),
 		).
+		// Reconcile when the cluster authentication type changes, including to or from external auth.
+		Watches(
+			&configv1.Authentication{},
+			reconciler.Dynamic(reconciler.ClusterIsOpenShift()),
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(gatewayAuthenticationWatchPredicate()),
+		).
 		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
 			gatewayCertManagerPrecondition(),
 		})).
+		WithAction(reportDeprecatedNetworkPolicyConfig).
 		WithAction(syncAdditionalIngressStatus).
 		WithAction(createGatewayInfrastructure).
 		WithAction(createKubeAuthProxyInfrastructure). //  include destinationrule
+		WithAction(cleanupKubeAuthProxyResources).
 		WithAction(createEnvoyFilter).
 		WithAction(createNetworkPolicy).
 		WithAction(createOCPRoutes).
