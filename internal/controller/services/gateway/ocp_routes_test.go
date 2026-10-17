@@ -17,7 +17,6 @@ import (
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
 	. "github.com/onsi/gomega"
@@ -66,7 +65,7 @@ func TestCreateAdditionalIngressRoutesUsePerIngressGatewayServices(t *testing.T)
 	cli := newGatewayTestClient(t, gatewayConfig, defaultHTTPRoute)
 	rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: gatewayConfig}
 
-	g.Expect(createAdditionalIngressRoutes(t.Context(), rr, gatewayConfig)).To(Succeed())
+	g.Expect(createAdditionalIngressRoutes(rr, gatewayConfig)).To(Succeed())
 	g.Expect(rr.Resources).To(HaveLen(2))
 
 	routesByName := make(map[string]unstructured.Unstructured, len(rr.Resources))
@@ -85,31 +84,6 @@ func TestCreateAdditionalIngressRoutesUsePerIngressGatewayServices(t *testing.T)
 	g.Expect(observedHTTPRoute.Spec.ParentRefs).To(HaveLen(1))
 	g.Expect(observedHTTPRoute.Spec.ParentRefs[0].Name).To(Equal(gwapiv1.ObjectName(GetDefaultGatewayName())))
 	g.Expect(observedHTTPRoute.Spec.ParentRefs[0].SectionName).To(BeNil())
-}
-
-func TestCreateAdditionalIngressRoutesDoesNotAdoptUnownedRoute(t *testing.T) {
-	g := NewWithT(t)
-	ingress := additionalIngress("alpha", "alpha.apps.example.com", "alpha")
-	gatewayConfig := &serviceApi.GatewayConfig{
-		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName, UID: types.UID("config-uid"), Generation: 1},
-		Spec:       serviceApi.GatewayConfigSpec{AdditionalIngresses: serviceApi.AdditionalIngresses{ingress}},
-	}
-	gatewayConfig.Status.AdditionalIngresses = buildAdditionalIngressStatuses(
-		gatewayConfig.Spec.AdditionalIngresses, nil, gatewayConfig.Generation,
-	)
-	existing, err := buildAdditionalIngressRoute(ingress)
-	g.Expect(err).NotTo(HaveOccurred())
-	cli := newGatewayTestClient(t, gatewayConfig, existing)
-	rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: gatewayConfig}
-
-	g.Expect(createAdditionalIngressRoutes(t.Context(), rr, gatewayConfig)).To(Succeed())
-	g.Expect(rr.Resources).To(BeEmpty())
-	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(existing), &routev1.Route{})).To(Succeed())
-	condition := conditions.FindStatusCondition(
-		additionalIngressStatusByName(gatewayConfig, ingress.Name), serviceApi.AdditionalIngressRouteAdmittedConditionType,
-	)
-	g.Expect(condition.Status).To(Equal(metav1.ConditionFalse))
-	g.Expect(condition.Reason).To(Equal(additionalIngressReasonOwnershipConflict))
 }
 
 func TestIsGatewayCertificateOrReferencedSecret(t *testing.T) {

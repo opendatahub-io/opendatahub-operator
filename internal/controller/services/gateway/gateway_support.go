@@ -36,6 +36,9 @@ const (
 	ReadyConditionType = serviceApi.GatewayConfigKind + status.ReadySuffix
 )
 
+// Configuration failures affect one target; client failures must stop before deployment and GC.
+var errInvalidAuthenticationConfig = errors.New("invalid authentication configuration")
+
 const (
 	// Gateway infrastructure constants.
 	GatewayNamespace           = "openshift-ingress"                  // Namespace where Gateway resources are deployed on OpenShift
@@ -830,7 +833,7 @@ func getAuthProxySecretValues(
 		// With additional ingresses, reconciliation continues past the top-level
 		// OIDC check so each target can report its own configuration failure.
 		if oidcConfig == nil {
-			return "", "", "", fmt.Errorf("OIDC configuration is required for gateway %q", target.GatewayName)
+			return "", "", "", fmt.Errorf("%w: OIDC configuration is required for gateway %q", errInvalidAuthenticationConfig, target.GatewayName)
 		}
 		clientID = oidcConfig.ClientID
 
@@ -845,6 +848,9 @@ func getAuthProxySecretValues(
 			Name:      oidcConfig.ClientSecretRef.Name,
 			Namespace: secretNamespace,
 		}, externalSecret); err != nil {
+			if k8serr.IsNotFound(err) {
+				err = fmt.Errorf("%w: %w", errInvalidAuthenticationConfig, err)
+			}
 			return "", "", "", fmt.Errorf("failed to get OIDC client secret %s/%s: %w",
 				secretNamespace, oidcConfig.ClientSecretRef.Name, err)
 		}
@@ -857,7 +863,8 @@ func getAuthProxySecretValues(
 		if secretValue, exists := externalSecret.Data[key]; exists && len(secretValue) != 0 {
 			clientSecretValue = string(secretValue)
 		} else {
-			return "", "", "", fmt.Errorf("key '%s' is missing or empty in OIDC secret %s/%s", key, secretNamespace, oidcConfig.ClientSecretRef.Name)
+			return "", "", "", fmt.Errorf("%w: key '%s' is missing or empty in OIDC secret %s/%s",
+				errInvalidAuthenticationConfig, key, secretNamespace, oidcConfig.ClientSecretRef.Name)
 		}
 
 	case cluster.AuthModeIntegratedOAuth:

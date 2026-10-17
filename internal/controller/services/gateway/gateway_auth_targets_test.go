@@ -17,6 +17,7 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/validate/content"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -65,6 +66,102 @@ func newGatewayAuthTestRequest(t *testing.T, config *serviceApi.GatewayConfig, o
 	}
 }
 
+func TestAdditionalIngressResourcesUseStandardDeployment(t *testing.T) {
+	g := NewWithT(t)
+	original := cluster.GetClusterInfo()
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+	t.Cleanup(func() { cluster.SetClusterInfo(original) })
+	ingress := additionalIngress("alpha", "alpha.example.com", "alpha")
+	config := newGatewayAuthTestConfig(ingress)
+	gateway := managedGatewayForIngress("alpha")
+	setGatewayConfigOwner(gateway, config)
+	gateway.OwnerReferences[0].UID = "other-owner"
+	filter := resources.GvkToUnstructured(gvk.EnvoyFilter)
+	filter.SetName("alpha-authn")
+	filter.SetNamespace(GetGatewayNamespace())
+	filter.SetOwnerReferences(gateway.OwnerReferences)
+	route, err := buildAdditionalIngressRoute(ingress)
+	g.Expect(err).NotTo(HaveOccurred())
+	rr := newGatewayAuthTestRequest(t, config, gateway, filter, route,
+		&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "alpha-config", Namespace: GetGatewayNamespace()}},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "alpha-auth-creds", Namespace: GetGatewayNamespace()},
+			Data: map[string][]byte{
+				EnvClientSecret: []byte("existing-client-secret"), EnvCookieSecret: []byte("existing-cookie-secret"),
+			},
+		},
+		&configv1.Authentication{
+			ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
+			Spec:       configv1.AuthenticationSpec{Type: configv1.AuthenticationTypeIntegratedOAuth},
+		})
+	g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
+	setAdditionalIngressCondition(additionalIngressStatusByName(config, "alpha"), config.Generation,
+		serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionFalse,
+		additionalIngressReasonOwnershipConflict, "Conflict reported by an earlier operator version")
+	g.Expect(createGatewayInfrastructure(t.Context(), rr)).To(Succeed())
+	g.Expect(createKubeAuthProxyInfrastructure(t.Context(), rr)).To(Succeed())
+	g.Expect(createAdditionalIngressRoutes(rr, config)).To(Succeed())
+	rendered := make([]string, 0, len(rr.Resources))
+	for _, obj := range rr.Resources {
+		rendered = append(rendered, obj.GetKind()+"/"+obj.GetName())
+	}
+	g.Expect(rendered).To(ContainElements("Gateway/alpha", "ConfigMap/alpha-config", "Route/alpha",
+		"EnvoyFilter/alpha-authn", "Deployment/kube-auth-proxy-alpha", "Secret/alpha-auth-creds", "OAuthClient/"+AuthClientID+"-alpha"))
+	secret := &corev1.Secret{}
+	g.Expect(rr.Client.Get(t.Context(), client.ObjectKey{Name: "alpha-auth-creds", Namespace: GetGatewayNamespace()}, secret)).To(Succeed())
+	g.Expect(string(secret.Data[EnvClientSecret])).To(Equal("existing-client-secret"))
+	g.Expect(string(secret.Data[EnvCookieSecret])).To(Equal("existing-cookie-secret"))
+}
+
+func TestProviderCARotationChangesAuthProxyDeploymentHashes(t *testing.T) {
+	g := NewWithT(t)
+	original := cluster.GetClusterInfo()
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+	t.Cleanup(func() { cluster.SetClusterInfo(original) })
+	config := newGatewayAuthTestConfig(additionalIngress("alpha", "alpha.example.com", "alpha"))
+	config.Spec.ProviderCASecretName = "provider-ca"
+	caSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "provider-ca", Namespace: GetGatewayNamespace()},
+		Data:       map[string][]byte{"ca.crt": []byte("ca-v1")},
+	}
+	rr := newGatewayAuthTestRequest(t, config, caSecret, &configv1.Authentication{
+		ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
+		Spec:       configv1.AuthenticationSpec{Type: configv1.AuthenticationTypeIntegratedOAuth},
+	})
+	renderHashes := func() map[string]string {
+		rr.Resources, rr.Templates, rr.Extensions = nil, nil, nil
+		g.Expect(createKubeAuthProxyInfrastructure(t.Context(), rr)).To(Succeed())
+		hashes := map[string]string{}
+		for _, obj := range rr.Resources {
+			if obj.GetKind() != gvk.Deployment.Kind {
+				continue
+			}
+			deployment := &appsv1.Deployment{}
+			g.Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, deployment)).To(Succeed())
+			hashes[deployment.Name] = deployment.Spec.Template.Annotations["opendatahub.io/secret-hash"]
+		}
+		g.Expect(hashes).To(HaveLen(2))
+		return hashes
+	}
+	before := renderHashes()
+	g.Expect(before[KubeAuthProxyName]).NotTo(Equal(before[KubeAuthProxyName+"-alpha"]), "each proxy must retain its own credential hash")
+	g.Expect(renderHashes()).To(Equal(before), "unchanged CA and credentials must keep the rollout hashes stable")
+	g.Expect(rr.Client.Get(t.Context(), client.ObjectKeyFromObject(caSecret), caSecret)).To(Succeed())
+	caSecret.Data["ca.crt"] = []byte("ca-v2")
+	g.Expect(rr.Client.Update(t.Context(), caSecret)).To(Succeed())
+	after := renderHashes()
+	for _, name := range []string{KubeAuthProxyName, KubeAuthProxyName + "-alpha"} {
+		g.Expect(before[name]).NotTo(BeEmpty(), name)
+		g.Expect(after[name]).NotTo(BeEmpty(), name)
+		g.Expect(after[name]).NotTo(Equal(before[name]), "CA rotation must roll out %s", name)
+	}
+	g.Expect(rr.Client.Get(t.Context(), client.ObjectKeyFromObject(caSecret), caSecret)).To(Succeed())
+	g.Expect(caSecret.Data["ca.crt"]).To(Equal([]byte("ca-v2")), "the supplied CA must not be reverted")
+	caSecret.Data["ca.crt"] = []byte("ca-v1")
+	g.Expect(rr.Client.Update(t.Context(), caSecret)).To(Succeed())
+	g.Expect(renderHashes()).To(Equal(before), "restoring the original CA must restore both rollout hashes")
+}
+
 func TestAdditionalAuthNamesFitMaximumIngressName(t *testing.T) {
 	name := strings.Repeat("a", serviceApi.MaxAdditionalGatewayNameLength)
 	target := additionalAuthProxyTarget(serviceApi.AdditionalIngress{
@@ -100,21 +197,62 @@ func TestAdditionalIngressWithoutAuthentication(t *testing.T) {
 	rr := newGatewayAuthTestRequest(t, config, authentication)
 	g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
 	g.Expect(createKubeAuthProxyInfrastructure(t.Context(), rr)).To(Succeed())
-	g.Expect(rr.Resources).To(HaveLen(1), "None preserves only the default filter")
-	g.Expect(rr.Resources[0].GetName()).To(Equal(AuthnFilterName))
+	g.Expect(rr.Resources).To(HaveLen(2), "None preserves a filter for each Gateway without deploying a proxy")
+	for i, name := range []string{AuthnFilterName, "alpha-authn"} {
+		g.Expect(rr.Resources[i].GroupVersionKind()).To(Equal(gvk.EnvoyFilter))
+		g.Expect(rr.Resources[i].GetName()).To(Equal(name))
+	}
 	g.Expect(rr.Templates).To(BeEmpty())
 	g.Expect(rr.Client.Get(t.Context(), types.NamespacedName{
 		Name:      "alpha-auth-creds",
 		Namespace: GetGatewayNamespace(),
 	}, &corev1.Secret{})).To(MatchError(ContainSubstring("not found")))
 	status := additionalIngressStatusByName(config, ingress.Name)
-	g.Expect(syncAdditionalIngressAuthReadiness(t.Context(), rr, config, ingress, status)).To(BeFalse())
+	g.Expect(syncAdditionalIngressAuthReadiness(t.Context(), rr, config, ingress)).To(BeFalse())
+	updateAdditionalGatewaysReadyCondition(rr, config)
 	condition := conditions.FindStatusCondition(status, serviceApi.AdditionalIngressAuthenticationReadyConditionType)
 	g.Expect(condition.Status).To(Equal(metav1.ConditionTrue))
 	g.Expect(condition.Reason).To(Equal("AuthenticationDisabled"))
-	g.Expect(createAdditionalIngressRoutes(t.Context(), rr, config)).To(Succeed())
-	g.Expect(rr.Resources).To(HaveLen(2))
-	g.Expect(rr.Resources[1].GetKind()).To(Equal(gvk.Route.Kind))
+	g.Expect(createAdditionalIngressRoutes(rr, config)).To(Succeed())
+	g.Expect(rr.Resources).To(HaveLen(3))
+	g.Expect(rr.Resources[2].GetKind()).To(Equal(gvk.Route.Kind))
+}
+
+func TestAdditionalAuthReconciliationPreservesTransitionTime(t *testing.T) {
+	g := NewWithT(t)
+	original := cluster.GetClusterInfo()
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+	t.Cleanup(func() { cluster.SetClusterInfo(original) })
+	ingress := additionalIngress("alpha", "alpha.example.com", "alpha")
+	config := newGatewayAuthTestConfig(ingress)
+	proxy := readyAuthProxyForIngress("alpha")
+	setGatewayConfigOwner(proxy, config)
+	rr := newGatewayAuthTestRequest(t, config, proxy, &configv1.Authentication{
+		ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
+		Spec:       configv1.AuthenticationSpec{Type: configv1.AuthenticationTypeIntegratedOAuth},
+	})
+	g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
+	status := additionalIngressStatusByName(config, "alpha")
+	for _, kind := range []string{serviceApi.AdditionalIngressGatewayReadyConditionType, serviceApi.AdditionalIngressRouteAdmittedConditionType} {
+		setAdditionalIngressCondition(status, config.Generation, kind, metav1.ConditionTrue, "Ready", "Ready")
+	}
+	g.Expect(syncAdditionalIngressAuthReadiness(t.Context(), rr, config, ingress)).To(BeFalse())
+	updateAdditionalGatewaysReadyCondition(rr, config)
+	previous := metav1.Unix(100, 0)
+	for i := range status.Conditions {
+		status.Conditions[i].LastTransitionTime = previous
+	}
+	// A new pass must not publish a temporary Pending condition before observing
+	// that the existing proxy is still available.
+	rr.Extensions = nil
+	g.Expect(createKubeAuthProxyInfrastructure(t.Context(), rr)).To(Succeed())
+	g.Expect(syncAdditionalIngressAuthReadiness(t.Context(), rr, config, ingress)).To(BeFalse())
+	updateAdditionalGatewaysReadyCondition(rr, config)
+	for _, kind := range []string{serviceApi.AdditionalIngressAuthenticationReadyConditionType, serviceApi.AdditionalIngressReadyConditionType} {
+		condition := conditions.FindStatusCondition(status, kind)
+		g.Expect(condition.Status).To(Equal(metav1.ConditionTrue))
+		g.Expect(condition.LastTransitionTime).To(Equal(previous), kind)
+	}
 }
 
 func TestMissingOIDCConfigKeepsAuthenticationFilter(t *testing.T) {
@@ -138,35 +276,62 @@ func TestMissingOIDCConfigKeepsAuthenticationFilter(t *testing.T) {
 	g.Expect(rr.Resources).To(HaveLen(2), "default and additional fail-closed filters remain")
 	g.Expect(rr.Resources[1].GetKind()).To(Equal(gvk.EnvoyFilter.Kind))
 	g.Expect(rr.Templates).To(BeEmpty())
-	g.Expect(createAdditionalIngressRoutes(t.Context(), rr, config)).To(Succeed())
+	g.Expect(createAdditionalIngressRoutes(rr, config)).To(Succeed())
 	g.Expect(rr.Resources).To(HaveLen(3))
+	g.Expect(syncAdditionalIngressReadyStatuses(t.Context(), rr, false)).To(Succeed())
 	g.Expect(conditions.FindStatusCondition(additionalIngressStatusByName(config, "alpha"),
 		serviceApi.AdditionalIngressAuthenticationReadyConditionType).Reason).To(Equal(additionalIngressReasonInvalidAuthenticationConfig))
 }
 
-func TestForeignAuthenticationCredentialsKeepFilterAndOmitBridgeRoute(t *testing.T) {
-	g := NewWithT(t)
+func TestAuthenticationCredentialReadErrorRetriesBeforeRendering(t *testing.T) {
 	original := cluster.GetClusterInfo()
 	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
 	t.Cleanup(func() { cluster.SetClusterInfo(original) })
-	ingress := additionalIngress("alpha", "alpha.example.com", "alpha")
-	config := newGatewayAuthTestConfig(ingress)
-	foreign := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "alpha-auth-creds",
-			Namespace: GetGatewayNamespace(),
-		},
+	for name, readErr := range map[string]error{
+		"API":       k8serr.NewServiceUnavailable("temporary API outage"),
+		"transport": fmt.Errorf("read secret: %w", context.DeadlineExceeded),
+	} {
+		t.Run(name, func(t *testing.T) {
+			g := NewWithT(t)
+			ingress := additionalIngress("alpha", "alpha.example.com", "alpha")
+			config := newGatewayAuthTestConfig(ingress)
+			fail := true
+			authentication := &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
+				Spec:       configv1.AuthenticationSpec{Type: configv1.AuthenticationTypeIntegratedOAuth},
+			}
+			cli, err := fakeclient.New(fakeclient.WithObjects(config, authentication), fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+					if fail && key.Name == "alpha-auth-creds" {
+						return readErr
+					}
+					return c.Get(ctx, key, obj, opts...)
+				},
+			}))
+			g.Expect(err).NotTo(HaveOccurred())
+			rr := newGatewayAuthTestRequest(t, config)
+			rr.Client = cli
+			g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
+			targets := []authProxyTarget{additionalAuthProxyTarget(ingress, config)}
+			err = prepareAuthProxies(t.Context(), rr, config, cluster.AuthModeIntegratedOAuth, kubeAuthProxyDeploymentOauthTemplate, targets)
+			g.Expect(errors.Is(err, readErr)).To(BeTrue(), "client errors must reach the reconciler's normal retry path: %v", err)
+			g.Expect(rr.Resources).To(BeEmpty(), "a read error must not select a fallback authentication policy")
+			g.Expect(syncAdditionalIngressReadyStatuses(t.Context(), rr, false)).To(Succeed())
+			condition := conditions.FindStatusCondition(additionalIngressStatusByName(config, "alpha"), serviceApi.AdditionalIngressAuthenticationReadyConditionType)
+			g.Expect(condition.Status).To(Equal(metav1.ConditionUnknown))
+			g.Expect(condition.Reason).To(Equal(additionalIngressReasonStatusReadFailed))
+
+			fail = false
+			rr.Resources, rr.Templates, rr.Extensions = nil, nil, nil
+			g.Expect(prepareAuthProxies(t.Context(), rr, config, cluster.AuthModeIntegratedOAuth, kubeAuthProxyDeploymentOauthTemplate, targets)).To(Succeed())
+			g.Expect(rr.Resources).To(ContainElement(WithTransform(func(obj unstructured.Unstructured) string {
+				return obj.GetKind() + "/" + obj.GetName()
+			}, Equal("Deployment/kube-auth-proxy-alpha"))))
+			g.Expect(syncAdditionalIngressReadyStatuses(t.Context(), rr, false)).To(Succeed())
+			condition = conditions.FindStatusCondition(additionalIngressStatusByName(config, "alpha"), serviceApi.AdditionalIngressAuthenticationReadyConditionType)
+			g.Expect(condition.Reason).To(Equal(serviceApi.AdditionalIngressReconciliationPendingReason))
+		})
 	}
-	rr := newGatewayAuthTestRequest(t, config, foreign)
-	g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
-	g.Expect(prepareAuthProxies(t.Context(), rr, config, cluster.AuthModeIntegratedOAuth,
-		kubeAuthProxyDeploymentOauthTemplate, []authProxyTarget{additionalAuthProxyTarget(ingress, config)})).To(MatchError(ContainSubstring("requeue after")))
-	g.Expect(rr.Resources).To(HaveLen(1))
-	g.Expect(rr.Resources[0].GetKind()).To(Equal(gvk.EnvoyFilter.Kind))
-	g.Expect(createAdditionalIngressRoutes(t.Context(), rr, config)).To(Succeed())
-	g.Expect(rr.Resources).To(HaveLen(1))
-	g.Expect(conditions.FindStatusCondition(additionalIngressStatusByName(config, "alpha"),
-		serviceApi.AdditionalIngressAuthenticationReadyConditionType).Reason).To(Equal(additionalIngressReasonOwnershipConflict))
 }
 
 func TestOIDCPreparationFailureDoesNotBlockOtherGateways(t *testing.T) {
@@ -207,6 +372,7 @@ func TestOIDCPreparationFailureDoesNotBlockOtherGateways(t *testing.T) {
 			g.Expect(rr.Resources).To(ContainElement(WithTransform(func(obj unstructured.Unstructured) string {
 				return obj.GetName()
 			}, Equal("kube-auth-proxy-beta"))))
+			g.Expect(syncAdditionalIngressReadyStatuses(t.Context(), rr, false)).To(Succeed())
 			if failure == "default-source" {
 				g.Expect(rr.Conditions.GetCondition(ReadyConditionType).Status).To(Equal(metav1.ConditionFalse))
 				g.Expect(rr.Conditions.GetCondition(ReadyConditionType).Message).To(ContainSubstring("default-source"))
@@ -225,7 +391,8 @@ func TestAuthenticationCleanupProtectsOnlyFailedTargets(t *testing.T) {
 		AdditionalIngresses: serviceApi.AdditionalIngresses{additionalIngress("alpha", "alpha.example.com", "alpha")},
 	}}
 	rr := &odhtypes.ReconciliationRequest{Instance: config}
-	gatewayAuthState(rr)["alpha"] = additionalAuthProxyTarget(config.Spec.AdditionalIngresses[0], config)
+	recordAuthResult(rr, additionalAuthProxyTarget(config.Spec.AdditionalIngresses[0], config), metav1.ConditionFalse,
+		additionalIngressReasonAuthenticationUnavailable, "Credential preparation failed")
 	for kind, name := range map[schema.GroupVersionKind]string{
 		gvk.Secret: "alpha-auth-creds", gvk.Deployment: "kube-auth-proxy-alpha",
 		gvk.ClusterRoleBinding: "kube-auth-proxy-alpha-tokenreview", gvk.OAuthClient: AuthClientID + "-alpha", gvk.EnvoyFilter: "alpha-authn",
@@ -247,6 +414,22 @@ func TestAuthenticationCleanupProtectsOnlyFailedTargets(t *testing.T) {
 	obj.SetName("alpha-auth-creds")
 	obj.SetAnnotations(map[string]string{"platform.opendatahub.io/instance.generation": "old"})
 	g.Expect(gatewayAuthResourceCollectable(rr, obj)).To(BeTrue(), "a removed Gateway must not be protected by a failed target's Secret name")
+	obj.SetGroupVersionKind(gvk.Secret)
+	obj.SetName("alpha-auth-creds")
+	rr.Extensions = nil
+	g.Expect(gatewayAuthResourceCollectable(rr, obj)).To(BeTrue(), "a removed target must return to normal garbage collection")
+	for _, test := range []struct {
+		status metav1.ConditionStatus
+		reason string
+	}{
+		{metav1.ConditionUnknown, serviceApi.AdditionalIngressReconciliationPendingReason},
+		{metav1.ConditionTrue, additionalIngressReasonAuthenticationDisabled},
+		{metav1.ConditionTrue, "Ready"},
+		{metav1.ConditionFalse, "NotReady"},
+	} {
+		recordAuthResult(rr, additionalAuthProxyTarget(config.Spec.AdditionalIngresses[0], config), test.status, test.reason, "Readiness result")
+		g.Expect(gatewayAuthResourceCollectable(rr, obj)).To(BeTrue(), "only preparation failures should prevent collection: %s", test.reason)
+	}
 }
 
 func TestPreparedAuthSecretSurvivesDeploymentUntilIngressRemoval(t *testing.T) {
@@ -289,58 +472,6 @@ func TestPreparedAuthSecretSurvivesDeploymentUntilIngressRemoval(t *testing.T) {
 	config.Spec.AdditionalIngresses = nil
 	config.Generation++
 	g.Expect(gatewayAuthResourceCollectable(rr, *obj)).To(BeTrue(), "removed ingress credentials must be collectable")
-}
-
-func TestForeignAuthenticationDependenciesIsolateTarget(t *testing.T) {
-	original := cluster.GetClusterInfo()
-	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
-	t.Cleanup(func() { cluster.SetClusterInfo(original) })
-	for _, kind := range []schema.GroupVersionKind{gvk.EnvoyFilter, gvk.Service, gvk.Deployment, gvk.ServiceAccount, gvk.DestinationRule, gvk.NetworkPolicy} {
-		for _, missingCredentials := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s/fallback=%t", kind.Kind, missingCredentials), func(t *testing.T) {
-				g := NewWithT(t)
-				ingress := additionalIngress("alpha", "alpha.example.com", "alpha")
-				beta := additionalIngress("beta", "beta.example.com", "beta")
-				config := newGatewayAuthTestConfig(ingress, beta)
-				g.Expect(json.Unmarshal([]byte(`{"networkPolicy":{"ingress":{"enabled":false}}}`), &config.Spec)).To(Succeed())
-				target := additionalAuthProxyTarget(ingress, config)
-				foreign := &unstructured.Unstructured{}
-				foreign.SetGroupVersionKind(kind)
-				foreign.SetName(target.resourceNames()[kind])
-				foreign.SetNamespace(GetGatewayNamespace())
-				objects := []client.Object{foreign, &configv1.Authentication{
-					ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
-					Spec:       configv1.AuthenticationSpec{Type: configv1.AuthenticationTypeIntegratedOAuth},
-				}}
-				if missingCredentials {
-					objects = append(objects, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: target.SecretName, Namespace: GetGatewayNamespace()}})
-				}
-				rr := newGatewayAuthTestRequest(t, config, objects...)
-				g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
-				g.Expect(createGatewayInfrastructure(t.Context(), rr)).To(Succeed())
-				g.Expect(prepareAuthProxies(t.Context(), rr, config, cluster.AuthModeIntegratedOAuth, kubeAuthProxyDeploymentOauthTemplate,
-					[]authProxyTarget{target, defaultAuthProxyTarget("rh-ai.apps.example.com", config), additionalAuthProxyTarget(beta, config)})).To(Succeed())
-				g.Expect(createAdditionalIngressRoutes(t.Context(), rr, config)).To(Succeed())
-				auth := conditions.FindStatusCondition(additionalIngressStatusByName(config, ingress.Name), serviceApi.AdditionalIngressAuthenticationReadyConditionType)
-				g.Expect(auth.Status).To(Equal(metav1.ConditionFalse))
-				g.Expect(auth.Reason).To(Equal(additionalIngressReasonOwnershipConflict))
-				g.Expect(auth.ObservedGeneration).To(Equal(config.Generation))
-				g.Expect(rr.Resources).NotTo(ContainElement(WithTransform(func(obj unstructured.Unstructured) string {
-					return obj.GetKind() + "/" + obj.GetName()
-				}, Equal("Route/"+ingress.Name))))
-				for _, name := range []string{KubeAuthProxyName, KubeAuthProxyName + "-beta"} {
-					g.Expect(rr.Resources).To(ContainElement(WithTransform(func(obj unstructured.Unstructured) string {
-						return obj.GetKind() + "/" + obj.GetName()
-					}, Equal("Deployment/"+name))))
-				}
-				if kind == gvk.EnvoyFilter {
-					g.Expect(rr.Resources).NotTo(ContainElement(WithTransform(func(obj unstructured.Unstructured) string {
-						return obj.GetKind() + "/" + obj.GetName()
-					}, Equal("Gateway/"+ingress.Name))))
-				}
-			})
-		}
-	}
 }
 
 func TestAuthenticationResourcesAreIndependentPerGateway(t *testing.T) {
@@ -523,13 +654,11 @@ func TestGatewayDeployRejectsBridgeRoutesWhenAuthenticationFilterFails(t *testin
 			g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
 			// Preparation failures still render the fallback filter for the standard deploy action.
 			if failure == "credentials" {
-				// Existing credentials owned outside GatewayConfig block preparation.
-				g.Expect(cli.Create(t.Context(), &corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "alpha-auth-creds",
-						Namespace: GetGatewayNamespace(),
-					},
-				})).To(Succeed())
+				secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "alpha-auth-creds", Namespace: GetGatewayNamespace()}}
+				setGatewayConfigOwner(secret, config)
+				secret.OwnerReferences[0].Name = "other-gateway-config"
+				secret.OwnerReferences[0].UID = "other-owner"
+				g.Expect(cli.Create(t.Context(), secret)).To(Succeed())
 			}
 			prepareErr := prepareAuthProxies(t.Context(), rr, config, cluster.AuthModeIntegratedOAuth,
 				kubeAuthProxyDeploymentOauthTemplate, []authProxyTarget{
@@ -541,20 +670,30 @@ func TestGatewayDeployRejectsBridgeRoutesWhenAuthenticationFilterFails(t *testin
 			} else {
 				g.Expect(prepareErr).NotTo(HaveOccurred())
 			}
-			g.Expect(createAdditionalIngressRoutes(t.Context(), rr, config)).To(Succeed())
+			g.Expect(createAdditionalIngressRoutes(rr, config)).To(Succeed())
 			for _, name := range []string{"alpha", "beta"} {
 				gateway := managedGatewayForIngress(name)
 				gateway.SetGroupVersionKind(gvk.KubernetesGateway)
 				g.Expect(rr.AddResources(gateway)).To(Succeed())
 			}
 			// A previously reported readiness failure must not become a lifecycle gate.
-			recordAuthFailure(config, "beta", additionalIngressReasonAuthenticationUnavailable, "Rollout pending")
+			setAdditionalIngressCondition(additionalIngressStatusByName(config, "beta"), config.Generation,
+				serviceApi.AdditionalIngressAuthenticationReadyConditionType, metav1.ConditionFalse,
+				additionalIngressReasonAuthenticationUnavailable, "Rollout pending")
 			err = deploy.NewAction(deploy.WithCache())(t.Context(), rr)
 			var requeue actionerrors.RequeueAfterError
 			g.Expect(err).To(HaveOccurred())
 			g.Expect(errors.As(err, &requeue)).To(BeFalse(), "deployment errors must be reported for reconciliation to retry")
 			g.Expect(attempted).To(ContainElement(gvk.EnvoyFilter.Kind + "/alpha-authn"))
 			g.Expect(attempted).NotTo(ContainElement(HavePrefix(gvk.Route.Kind+"/")), "bridge Routes must follow successful filter application")
+			g.Expect(syncAdditionalIngressReadyStatuses(t.Context(), rr, false)).To(Succeed())
+			condition := conditions.FindStatusCondition(additionalIngressStatusByName(config, "alpha"), serviceApi.AdditionalIngressAuthenticationReadyConditionType)
+			if failure == "credentials" {
+				g.Expect(condition.Reason).To(Equal(additionalIngressReasonAuthenticationUnavailable))
+			} else {
+				g.Expect(condition.Status).To(Equal(metav1.ConditionUnknown))
+				g.Expect(condition.Reason).To(Equal(serviceApi.AdditionalIngressReconciliationPendingReason))
+			}
 		})
 	}
 }

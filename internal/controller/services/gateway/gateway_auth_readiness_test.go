@@ -232,7 +232,8 @@ func TestGatewayAuthenticationReadiness(t *testing.T) {
 			rr.Conditions.MarkUnknown(ReadyConditionType)
 			var got *common.Condition
 			if test.additional {
-				syncAdditionalIngressAuthReadiness(t.Context(), rr, config, ingress, &config.Status.AdditionalIngresses[0])
+				syncAdditionalIngressAuthReadiness(t.Context(), rr, config, ingress)
+				g.Expect(syncAdditionalIngressReadyStatuses(t.Context(), rr, false)).To(Succeed())
 				got = conditions.FindStatusCondition(&config.Status.AdditionalIngresses[0], serviceApi.AdditionalIngressAuthenticationReadyConditionType)
 			} else {
 				g.Expect(syncGatewayConfigStatus(t.Context(), rr)).To(Succeed())
@@ -253,8 +254,10 @@ func TestAdditionalAuthReadinessPreservesPreparationFailure(t *testing.T) {
 	config := newGatewayAuthTestConfig(ingress)
 	config.Status.AdditionalIngresses = buildAdditionalIngressStatuses(config.Spec.AdditionalIngresses, nil, config.Generation)
 	rr := newGatewayAuthTestRequest(t, config)
-	recordAuthFailure(config, ingress.Name, additionalIngressReasonInvalidAuthenticationConfig, "OIDC configuration is not supported in integrated OAuth mode")
-	syncAdditionalIngressAuthReadiness(t.Context(), rr, config, ingress, &config.Status.AdditionalIngresses[0])
+	recordAuthResult(rr, additionalAuthProxyTarget(ingress, config), metav1.ConditionFalse,
+		additionalIngressReasonInvalidAuthenticationConfig, "OIDC configuration is not supported in integrated OAuth mode")
+	syncAdditionalIngressAuthReadiness(t.Context(), rr, config, ingress)
+	g.Expect(syncAdditionalIngressReadyStatuses(t.Context(), rr, false)).To(Succeed())
 	condition := conditions.FindStatusCondition(&config.Status.AdditionalIngresses[0], serviceApi.AdditionalIngressAuthenticationReadyConditionType)
 	g.Expect(condition).NotTo(BeNil())
 	g.Expect(condition.Status).To(Equal(metav1.ConditionFalse))
@@ -286,9 +289,29 @@ func TestAdditionalAuthReadinessRecovers(t *testing.T) {
 	proxy := readyAuthProxyForIngress(ingress.Name)
 	proxy.Status.AvailableReplicas = 0
 	rr := newGatewayAuthTestRequest(t, config, proxy)
-	status := &config.Status.AdditionalIngresses[0]
-	g.Expect(syncAdditionalIngressAuthReadiness(t.Context(), rr, config, ingress, status)).To(BeTrue(), "unavailable proxy must request a retry")
+	g.Expect(syncAdditionalIngressAuthReadiness(t.Context(), rr, config, ingress)).To(BeTrue(), "unavailable proxy must request a retry")
 	proxy.Status.AvailableReplicas = 1
 	g.Expect(rr.Client.Status().Update(t.Context(), proxy)).To(Succeed())
-	g.Expect(syncAdditionalIngressAuthReadiness(t.Context(), rr, config, ingress, status)).To(BeFalse(), "available proxy must recover")
+	g.Expect(syncAdditionalIngressAuthReadiness(t.Context(), rr, config, ingress)).To(BeFalse(), "available proxy must recover")
+}
+
+func TestAdditionalAuthReadinessIgnoresPersistedFailure(t *testing.T) {
+	for _, reason := range []string{additionalIngressReasonInvalidAuthenticationConfig,
+		additionalIngressReasonAuthenticationUnavailable, additionalIngressReasonAuthenticationDisabled} {
+		t.Run(reason, func(t *testing.T) {
+			g := NewWithT(t)
+			ingress := additionalIngress("alpha", "alpha.example.com", "alpha")
+			config := newGatewayAuthTestConfig(ingress)
+			rr := newGatewayAuthTestRequest(t, config, readyAuthProxyForIngress("alpha"))
+			g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
+			status := additionalIngressStatusByName(config, "alpha")
+			setAdditionalIngressCondition(status, config.Generation, serviceApi.AdditionalIngressAuthenticationReadyConditionType,
+				metav1.ConditionFalse, reason, "Result from a previous reconciliation")
+			g.Expect(syncAdditionalIngressAuthReadiness(t.Context(), rr, config, ingress)).To(BeFalse())
+			updateAdditionalGatewaysReadyCondition(rr, config)
+			condition := conditions.FindStatusCondition(status, serviceApi.AdditionalIngressAuthenticationReadyConditionType)
+			g.Expect(condition.Status).To(Equal(metav1.ConditionTrue))
+			g.Expect(condition.Reason).To(Equal("Ready"))
+		})
+	}
 }

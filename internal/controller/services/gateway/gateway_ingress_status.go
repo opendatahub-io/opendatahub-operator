@@ -63,6 +63,7 @@ func syncAdditionalIngressStatus(_ context.Context, rr *odhtypes.ReconciliationR
 // updateAdditionalGatewaysReadyCondition includes Gateway, bridge Route and authentication readiness,
 // before the reconciler computes overall Ready and phase.
 func updateAdditionalGatewaysReadyCondition(rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) {
+	publishAdditionalIngressAuthConditions(rr, gatewayConfig)
 	var failed, pending []string
 	for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
 		status := additionalIngressStatusByName(gatewayConfig, ingress.Name)
@@ -132,6 +133,7 @@ func syncAdditionalIngressReadyStatuses(_ context.Context, rr *odhtypes.Reconcil
 	if err != nil {
 		return err
 	}
+	publishAdditionalIngressAuthConditions(rr, gatewayConfig)
 	for i := range gatewayConfig.Status.AdditionalIngresses {
 		updateAdditionalIngressReadyCondition(&gatewayConfig.Status.AdditionalIngresses[i], gatewayConfig.Generation)
 	}
@@ -191,7 +193,7 @@ func syncAdditionalIngressReadiness(ctx context.Context, rr *odhtypes.Reconcilia
 			l.Error(err, "Failed to read additional ingress Route status", "ingress", ingress.Name)
 			retry = true
 		}
-		if syncAdditionalIngressAuthReadiness(ctx, rr, gatewayConfig, ingress, status) {
+		if syncAdditionalIngressAuthReadiness(ctx, rr, gatewayConfig, ingress) {
 			retry = true
 		}
 	}
@@ -318,10 +320,6 @@ func additionalIngressRouteCondition(
 	}
 
 	severity := common.ConditionSeverityError
-	if len(admittedRouters) > 0 && status != metav1.ConditionTrue {
-		status, reason, severity = metav1.ConditionTrue, additionalIngressReasonPlacementMismatch, common.ConditionSeverityInfo
-		message = fmt.Sprintf("Bridge Route is admitted, but not by configured IngressController %q", ingress.IngressControllerName)
-	}
 	if len(admittedRouters) > 1 {
 		routers := make([]string, 0, len(admittedRouters))
 		for router := range admittedRouters {

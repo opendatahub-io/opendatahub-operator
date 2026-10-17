@@ -933,7 +933,7 @@ func TestDefaultAuthTemplatesExcludeAdditionalGateways(t *testing.T) {
 		conflict bool
 	}{
 		{name: "no conflict"},
-		{name: "ownership conflict", conflict: true},
+		{name: "hostname conflict", conflict: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			g := NewWithT(t)
@@ -945,7 +945,7 @@ func TestDefaultAuthTemplatesExcludeAdditionalGateways(t *testing.T) {
 				config.Status.AdditionalIngresses = buildAdditionalIngressStatuses(config.Spec.AdditionalIngresses, nil, config.Generation)
 				setAdditionalIngressCondition(&config.Status.AdditionalIngresses[0], config.Generation,
 					serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionFalse,
-					additionalIngressReasonOwnershipConflict, "Gateway belongs to another owner")
+					additionalIngressReasonHostnameConflict, "Gateway hostname conflicts with the default")
 			}
 			data, err := getTemplateData(t.Context(), newGatewayAuthTestRequest(t, config))
 			g.Expect(err).NotTo(HaveOccurred())
@@ -1296,7 +1296,7 @@ func TestOIDCClientSecretRejectsMissingOrEmptyKey(t *testing.T) {
 				&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "source", Namespace: "identity"}, Data: data})}
 			id, secret, cookie, err := getAuthProxySecretValues(t.Context(), rr, cluster.AuthModeOIDC, config,
 				defaultAuthProxyTarget("", &serviceApi.GatewayConfig{}))
-			g.Expect(err).To(MatchError("key 'credentials' is missing or empty in OIDC secret identity/source"))
+			g.Expect(err).To(MatchError("invalid authentication configuration: key 'credentials' is missing or empty in OIDC secret identity/source"))
 			g.Expect([]string{id, secret, cookie}).To(Equal([]string{"", "", ""}))
 		})
 	}

@@ -396,98 +396,6 @@ func TestGatewayReadinessRecoversAfterProxyStatusUpdate(t *testing.T) {
 	g.Expect(rr.Conditions.GetCondition(ReadyConditionType).Status).To(Equal(metav1.ConditionTrue))
 }
 
-func TestCreateGatewayInfrastructureSkipsAdditionalGatewayOwnershipConflicts(t *testing.T) {
-	originalClusterInfo := cluster.GetClusterInfo()
-	cluster.SetClusterInfo(cluster.ClusterInfo{
-		Type: cluster.ClusterTypeOpenShift,
-	})
-	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
-	for _, test := range []struct {
-		name     string
-		ownerUID types.UID
-		allowed  bool
-	}{
-		{
-			name: "unowned Gateway",
-		},
-		{
-			name:     "foreign GatewayConfig",
-			ownerUID: "other-config-uid",
-		},
-		{
-			name:     "current GatewayConfig",
-			ownerUID: "config-uid",
-			allowed:  true,
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			g := NewWithT(t)
-			config := newGatewayAuthTestConfig(
-				additionalIngress("alpha", "alpha.example.com", "alpha"),
-				additionalIngress("beta", "beta.example.com", "beta"),
-			)
-			config.UID = "config-uid"
-			existing := managedGatewayForIngress("alpha")
-			if test.ownerUID != "" {
-				setGatewayConfigOwner(existing, config)
-				existing.OwnerReferences[0].UID = test.ownerUID
-			}
-			before := existing.DeepCopy()
-			beta := managedGatewayForIngress("beta")
-			setGatewayConfigOwner(beta, config)
-			cli := newGatewayTestClient(t, config, existing, beta, readyAuthProxyForIngress("beta"))
-			rr := &odhtypes.ReconciliationRequest{
-				Client:     cli,
-				Instance:   config,
-				Conditions: conditionstest.NewManager(config, status.ConditionTypeReady, serviceApi.AdditionalGatewaysReadyConditionType),
-			}
-			g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
-			ingressStatus := additionalIngressStatusByName(config, "alpha")
-			for _, conditionType := range []string{
-				serviceApi.AdditionalIngressGatewayReadyConditionType, serviceApi.AdditionalIngressRouteAdmittedConditionType,
-			} {
-				setAdditionalIngressCondition(ingressStatus, config.Generation, conditionType,
-					metav1.ConditionTrue, additionalIngressReasonReady, "Previously ready")
-			}
-			updateAdditionalIngressReadyCondition(ingressStatus, config.Generation)
-			g.Expect(createGatewayInfrastructure(t.Context(), rr)).To(Succeed())
-			g.Expect(createOCPRoutes(t.Context(), rr)).To(Succeed())
-			g.Expect(rr.Templates).NotTo(BeEmpty())
-			resourceNames := make([]string, 0, len(rr.Resources))
-			for _, resource := range rr.Resources {
-				resourceNames = append(resourceNames, resource.GetName())
-			}
-			g.Expect(resourceNames).To(ContainElements(GetDefaultGatewayName(), "beta", additionalGatewayInfrastructureConfigMapName("beta")))
-			if test.allowed {
-				g.Expect(resourceNames).To(ContainElements("alpha", additionalGatewayInfrastructureConfigMapName("alpha")))
-			} else {
-				g.Expect(resourceNames).NotTo(ContainElement("alpha"))
-				g.Expect(resourceNames).NotTo(ContainElement(additionalGatewayInfrastructureConfigMapName("alpha")))
-				g.Expect(syncAdditionalIngressReadiness(t.Context(), rr)).To(Succeed())
-				g.Expect(syncAdditionalIngressReadyStatuses(t.Context(), rr, false)).To(Succeed())
-				g.Expect(conditions.FindStatusCondition(additionalIngressStatusByName(config, "beta"), serviceApi.AdditionalIngressGatewayReadyConditionType).Status).
-					To(Equal(metav1.ConditionTrue))
-				g.Expect(conditions.FindStatusCondition(ingressStatus, serviceApi.AdditionalIngressGatewayReadyConditionType).Reason).
-					To(Equal(additionalIngressReasonOwnershipConflict))
-				// The ownership conflict makes GatewayReady false, overriding the previous ready status and both aggregates.
-				g.Expect(conditions.FindStatusCondition(ingressStatus, serviceApi.AdditionalIngressReadyConditionType).Status).
-					To(Equal(metav1.ConditionFalse))
-				g.Expect(rr.Conditions.GetCondition(serviceApi.AdditionalGatewaysReadyConditionType).Status).To(Equal(metav1.ConditionFalse))
-			}
-			g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(existing), existing)).To(Succeed())
-			g.Expect(existing.Spec).To(Equal(before.Spec))
-			g.Expect(existing.OwnerReferences).To(Equal(before.OwnerReferences))
-			if !test.allowed {
-				g.Expect(cli.Delete(t.Context(), existing)).To(Succeed())
-				rr.Resources = nil
-				g.Expect(createGatewayInfrastructure(t.Context(), rr)).To(Succeed())
-				g.Expect(additionalIngressHasGatewayConflict(config, "alpha")).To(BeFalse())
-				g.Expect(rr.Resources).To(ContainElement(HaveField("Object", HaveKeyWithValue("metadata", HaveKeyWithValue("name", "alpha")))))
-			}
-		})
-	}
-}
-
 func TestCreateGatewayInfrastructureSkipsManagedHostnameConflicts(t *testing.T) {
 	originalClusterInfo := cluster.GetClusterInfo()
 	cluster.SetClusterInfo(cluster.ClusterInfo{
@@ -503,10 +411,15 @@ func TestCreateGatewayInfrastructureSkipsManagedHostnameConflicts(t *testing.T) 
 			)
 			config.UID = "config-uid"
 			alpha, beta := managedGatewayForIngress("alpha"), managedGatewayForIngress("beta")
-			setGatewayConfigOwner(alpha, config)
-			setGatewayConfigOwner(beta, config)
+			alphaProxy, betaProxy := readyAuthProxyForIngress("alpha"), readyAuthProxyForIngress("beta")
+			for _, obj := range []client.Object{alpha, beta, alphaProxy, betaProxy} {
+				setGatewayConfigOwner(obj, config)
+			}
 			rr := &odhtypes.ReconciliationRequest{
-				Client:     newGatewayTestClient(t, config, alpha, beta, readyAuthProxyForIngress("alpha"), readyAuthProxyForIngress("beta")),
+				Client: newGatewayTestClient(t, config, alpha, beta, alphaProxy, betaProxy, &configv1.Authentication{
+					ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
+					Spec:       configv1.AuthenticationSpec{Type: configv1.AuthenticationTypeIntegratedOAuth},
+				}),
 				Instance:   config,
 				Conditions: conditionstest.NewManager(config, ReadyConditionType, serviceApi.AdditionalGatewaysReadyConditionType),
 			}
@@ -541,111 +454,6 @@ func TestCreateGatewayInfrastructureSkipsManagedHostnameConflicts(t *testing.T) 
 	}
 }
 
-func TestCreateGatewayInfrastructureValidatesAdditionalResourceOwnership(t *testing.T) {
-	originalClusterInfo := cluster.GetClusterInfo()
-	cluster.SetClusterInfo(cluster.ClusterInfo{
-		Type: cluster.ClusterTypeOpenShift,
-	})
-	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
-	for _, test := range []struct {
-		name       string
-		ownerUID   types.UID
-		lookupKind string
-		allowed    bool
-	}{
-		{
-			name: "unowned ConfigMap",
-		},
-		{
-			name:     "foreign ConfigMap",
-			ownerUID: "other-config-uid",
-		},
-		{
-			name:     "owned ConfigMap",
-			ownerUID: "config-uid",
-			allowed:  true,
-		},
-		{
-			name:       "ConfigMap lookup failure",
-			lookupKind: gvk.ConfigMap.Kind,
-		},
-		{
-			name:       "Gateway lookup failure",
-			lookupKind: gvk.KubernetesGateway.Kind,
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			g := NewWithT(t)
-			config := newGatewayAuthTestConfig(
-				additionalIngress("alpha", "alpha.example.com", "alpha"),
-				additionalIngress("beta", "beta.example.com", "beta"),
-			)
-			config.UID = "config-uid"
-			configMap := &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      additionalGatewayInfrastructureConfigMapName("alpha"),
-					Namespace: GetGatewayNamespace(),
-				},
-				Data: map[string]string{"service": "existing configuration"},
-			}
-			if test.ownerUID != "" {
-				setGatewayConfigOwner(configMap, config)
-				configMap.OwnerReferences[0].UID = test.ownerUID
-			}
-			before := configMap.DeepCopy()
-			lookupErr := k8serr.NewForbidden(schema.GroupResource{
-				Resource: test.lookupKind,
-			}, "alpha", nil)
-			cli, err := fakeclient.New(fakeclient.WithObjects(config, configMap),
-				fakeclient.WithInterceptorFuncs(interceptor.Funcs{
-					Get: func(ctx context.Context, clnt client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-						if (test.lookupKind == gvk.ConfigMap.Kind && key.Name == configMap.Name) ||
-							(test.lookupKind == gvk.KubernetesGateway.Kind && key.Name == "alpha") {
-							return lookupErr
-						}
-						return clnt.Get(ctx, key, obj, opts...)
-					},
-				}))
-			g.Expect(err).NotTo(HaveOccurred())
-			rr := &odhtypes.ReconciliationRequest{
-				Client:     cli,
-				Instance:   config,
-				Conditions: conditionstest.NewManager(config, serviceApi.AdditionalGatewaysReadyConditionType),
-			}
-			g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
-			err = createGatewayInfrastructure(t.Context(), rr)
-			if test.lookupKind != "" {
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(err).To(MatchError(lookupErr))
-			} else {
-				g.Expect(err).NotTo(HaveOccurred())
-				resourceNames := make([]string, 0, len(rr.Resources))
-				for _, resource := range rr.Resources {
-					resourceNames = append(resourceNames, resource.GetName())
-				}
-				g.Expect(resourceNames).To(ContainElements(GetDefaultGatewayName(), "beta", additionalGatewayInfrastructureConfigMapName("beta")))
-				if test.allowed {
-					g.Expect(resourceNames).To(ContainElements("alpha", configMap.Name))
-				} else {
-					g.Expect(resourceNames).NotTo(ContainElement("alpha"))
-					g.Expect(resourceNames).NotTo(ContainElement(configMap.Name))
-					g.Expect(conditions.FindStatusCondition(additionalIngressStatusByName(config, "alpha"),
-						serviceApi.AdditionalIngressGatewayReadyConditionType).Reason).To(Equal(additionalIngressReasonOwnershipConflict))
-
-					g.Expect(syncAdditionalIngressReadyStatuses(t.Context(), rr, false)).To(Succeed())
-					g.Expect(conditions.FindStatusCondition(additionalIngressStatusByName(config, "alpha"),
-						serviceApi.AdditionalIngressReadyConditionType).Status).To(Equal(metav1.ConditionFalse))
-				}
-			}
-			if test.lookupKind != gvk.ConfigMap.Kind {
-				g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(configMap), configMap)).To(Succeed())
-				g.Expect(configMap.Data).To(Equal(before.Data))
-				g.Expect(configMap.OwnerReferences).To(Equal(before.OwnerReferences))
-			}
-		})
-	}
-}
-
 func TestCreateGatewayInfrastructureCreatesOneGatewayPerAdditionalIngress(t *testing.T) {
 	g := NewWithT(t)
 	originalClusterInfo := cluster.GetClusterInfo()
@@ -658,7 +466,10 @@ func TestCreateGatewayInfrastructureCreatesOneGatewayPerAdditionalIngress(t *tes
 		additionalIngress("alpha", "alpha.apps.example.com", "alpha"),
 		additionalIngress("beta", "beta.apps.example.com", "beta"),
 	)
-	rr := newGatewayAuthTestRequest(t, config)
+	rr := newGatewayAuthTestRequest(t, config, &configv1.Authentication{
+		ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
+		Spec:       configv1.AuthenticationSpec{Type: configv1.AuthenticationTypeIntegratedOAuth},
+	})
 
 	g.Expect(createGatewayInfrastructure(t.Context(), rr)).To(Succeed())
 	gateways := make(map[string]*gwapiv1.Gateway, 3)
@@ -904,25 +715,12 @@ func TestGetTemplateDataTLSReadError(t *testing.T) {
 	g.Expect(err.Error()).To(ContainSubstring("failed to resolve APIServer TLS profile"))
 }
 
-// TestGetTemplateDataProviderCAHash covers the provider CA folding in
-// getTemplateData: the rollout hash must be extended with the CA bundle
-// contents when the referenced secret carries a ca.crt, keep the base hash
-// when the secret is missing or its ca.crt is empty, and surface real read
-// errors instead of silently deploying without the CA.
-func TestGetTemplateDataProviderCAHash(t *testing.T) {
+// Shared template data retains the CA bundle for each target's rollout hash.
+// Missing or empty bundles and read errors must stop deployment.
+func TestGetTemplateDataProviderCA(t *testing.T) {
 	originalClusterInfo := cluster.GetClusterInfo()
 	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
 	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
-
-	authSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: KubeAuthProxySecretsName, Namespace: GetGatewayNamespace()},
-		Data: map[string][]byte{
-			"OAUTH2_PROXY_CLIENT_ID":     []byte("client-id"),
-			"OAUTH2_PROXY_CLIENT_SECRET": []byte("client-secret"),
-			"OAUTH2_PROXY_COOKIE_SECRET": []byte("cookie-secret"),
-		},
-	}
-	baseHash := calculateAuthConfigHash(authSecret)
 
 	providerCA := []byte("-----BEGIN CERTIFICATE-----\nprovider-ca-bundle\n-----END CERTIFICATE-----\n")
 	caSecret := &corev1.Secret{
@@ -939,26 +737,22 @@ func TestGetTemplateDataProviderCAHash(t *testing.T) {
 		objects     []client.Object
 		wantErrText string
 		failGet     bool
-		wantHash    string
 	}{
 		{
-			name:     "secret with ca.crt extends the rollout hash",
-			objects:  []client.Object{authSecret, caSecret},
-			wantHash: extendAuthConfigHash(baseHash, providerCA),
+			name:    "secret with ca.crt retains the CA bundle",
+			objects: []client.Object{caSecret},
 		},
 		{
 			name:        "missing secret fails the reconcile",
-			objects:     []client.Object{authSecret},
 			wantErrText: "provider CA secret provider-ca not found in namespace",
 		},
 		{
 			name:        "empty ca.crt fails the reconcile",
-			objects:     []client.Object{authSecret, emptyCASecret},
+			objects:     []client.Object{emptyCASecret},
 			wantErrText: "provider CA secret provider-ca has no ca.crt data",
 		},
 		{
 			name:        "read error surfaces",
-			objects:     []client.Object{authSecret},
 			wantErrText: "failed to get provider CA secret for hash calculation",
 			failGet:     true,
 		},
@@ -1007,7 +801,7 @@ func TestGetTemplateDataProviderCAHash(t *testing.T) {
 				return
 			}
 			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(templateData).To(HaveKeyWithValue("AuthConfigHash", tc.wantHash))
+			g.Expect(templateData).To(HaveKeyWithValue("ProviderCA", providerCA))
 			g.Expect(templateData).To(HaveKeyWithValue("ProviderCASecretName", "provider-ca"))
 			g.Expect(templateData).To(HaveKeyWithValue("ProviderCASecret", true))
 		})

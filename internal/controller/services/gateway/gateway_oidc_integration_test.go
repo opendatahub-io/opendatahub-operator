@@ -475,7 +475,9 @@ func TestOIDCProviderCASecretRotationRollsDeployment(t *testing.T) {
 	g.Expect(hashBefore).NotTo(BeEmpty(), "secret-hash annotation should be set with a provider CA configured")
 
 	// Rotate the CA bundle inside the same secret
-	caSecret.Data["ca.crt"] = []byte("-----BEGIN CERTIFICATE-----\nca-v2\n-----END CERTIFICATE-----")
+	originalCA := caSecret.Data["ca.crt"]
+	rotatedCA := []byte("-----BEGIN CERTIFICATE-----\nca-v2\n-----END CERTIFICATE-----")
+	caSecret.Data["ca.crt"] = rotatedCA
 	g.Expect(tc.K8sClient.Update(tc.Ctx, caSecret)).To(Succeed())
 
 	g.Eventually(func() bool {
@@ -485,6 +487,18 @@ func TestOIDCProviderCASecretRotationRollsDeployment(t *testing.T) {
 		}
 		return updated.Spec.Template.Annotations["opendatahub.io/secret-hash"] != hashBefore
 	}, TestTimeout, TestInterval).Should(BeTrue(), "secret-hash annotation must change when the provider CA secret is rotated")
+
+	g.Expect(tc.K8sClient.Get(tc.Ctx, client.ObjectKeyFromObject(caSecret), caSecret)).To(Succeed())
+	g.Expect(caSecret.Data["ca.crt"]).To(Equal(rotatedCA), "reconciliation must retain the administrator-supplied CA")
+	caSecret.Data["ca.crt"] = originalCA
+	g.Expect(tc.K8sClient.Update(tc.Ctx, caSecret)).To(Succeed())
+	g.Eventually(func() string {
+		updated, err := getAuthProxyDeployment(tc.Ctx, tc.K8sClient)
+		if err != nil {
+			return ""
+		}
+		return updated.Spec.Template.Annotations["opendatahub.io/secret-hash"]
+	}, TestTimeout, TestInterval).Should(Equal(hashBefore), "restoring the original CA must roll back the deployment hash")
 }
 
 // TestOIDCWithInsecureSkipVerify validates that VerifyProviderCertificate=false results in --ssl-insecure-skip-verify=true in the deployment.

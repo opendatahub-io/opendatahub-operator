@@ -412,11 +412,6 @@ func (tc *GatewayTestCtx) ValidateAdditionalGateways(t *testing.T) {
 	validateAdditionalIngressRouteSelectorChange(t, tc, ingressControllerKey, alphaRouteKey,
 		alpha.Hostname, currentConfig.Generation)
 
-	t.Run("authenticated ingress invocations", func(t *testing.T) {
-		tc.validateAdditionalIngressAuthentication(t, ingressControllerKey, original,
-			serviceApi.AdditionalIngresses{alpha, beta})
-	})
-	updateAdditionalIngressRouteSelector(t, tc, ingressControllerKey, &metav1.LabelSelector{MatchLabels: alpha.RouteLabels})
 	checkDefault()
 
 	defaultGateway, err := tc.getGateway(ctx)
@@ -473,10 +468,10 @@ func (tc *GatewayTestCtx) validateAdditionalGatewayStatus(t *testing.T, expected
 		for _, ingress := range current.Spec.AdditionalIngresses {
 			route := &routev1.Route{}
 			g.Expect(tc.Client().Get(ctx, types.NamespacedName{Name: ingress.Name, Namespace: tc.gatewayNamespace()}, route)).To(Succeed())
-			// Any router admission makes the Route usable; placement mismatches are informational.
+			// Readiness requires admission by the configured IngressController.
 			admitted := metav1.ConditionFalse
 			for _, router := range route.Status.Ingress {
-				if router.Host == ingress.Hostname && router.RouterName != "" {
+				if router.Host == ingress.Hostname && router.RouterName == ingress.IngressControllerName {
 					for _, condition := range router.Conditions {
 						if condition.Type == routev1.RouteAdmitted && condition.Status == corev1.ConditionTrue {
 							admitted = metav1.ConditionTrue

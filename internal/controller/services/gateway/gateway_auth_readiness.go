@@ -36,16 +36,13 @@ func syncAdditionalIngressAuthReadiness(
 	rr *odhtypes.ReconciliationRequest,
 	config *serviceApi.GatewayConfig,
 	ingress serviceApi.AdditionalIngress,
-	status *serviceApi.AdditionalIngressStatus,
 ) bool {
-	previous := conditions.FindStatusCondition(status, serviceApi.AdditionalIngressAuthenticationReadyConditionType)
-	if previous != nil && previous.ObservedGeneration == config.Generation && previous.Reason == additionalIngressReasonAuthenticationDisabled {
+	result := gatewayAuthState(rr)[ingress.Name]
+	if result.Condition.Reason == additionalIngressReasonAuthenticationDisabled {
 		return false
 	}
-	if previous != nil && previous.ObservedGeneration == config.Generation && previous.Status == metav1.ConditionFalse &&
-		(previous.Reason == additionalIngressReasonInvalidAuthenticationConfig || previous.Reason == additionalIngressReasonOwnershipConflict ||
-			previous.Reason == additionalIngressReasonAuthenticationUnavailable) {
-		return previous.Reason != additionalIngressReasonInvalidAuthenticationConfig
+	if result.failedPreparation() {
+		return result.Condition.Reason != additionalIngressReasonInvalidAuthenticationConfig
 	}
 	state, reason, message := metav1.ConditionTrue, controllerstatus.ReadyReason, "Authentication resources are ready for "+ingress.Name
 	target := additionalAuthProxyTarget(ingress, config)
@@ -56,6 +53,16 @@ func syncAdditionalIngressAuthReadiness(
 	case pending != "":
 		state, reason, message = metav1.ConditionFalse, controllerstatus.NotReadyReason, pending
 	}
-	setAdditionalIngressCondition(status, config.Generation, serviceApi.AdditionalIngressAuthenticationReadyConditionType, state, reason, message)
+	recordAuthResult(rr, target, state, reason, message)
 	return state != metav1.ConditionTrue
+}
+
+// Publish current results at aggregation time, avoiding temporary Pending -> Ready
+// transitions in successful passes. The post-status hook also publishes on errors.
+func publishAdditionalIngressAuthConditions(rr *odhtypes.ReconciliationRequest, config *serviceApi.GatewayConfig) {
+	for _, result := range gatewayAuthState(rr) {
+		if status := additionalIngressStatusByName(config, result.Target.IngressName); status != nil {
+			conditions.SetStatusCondition(status, result.Condition)
+		}
+	}
 }

@@ -281,36 +281,35 @@ func TestAdditionalIngressRouteConditionReportsMultipleRouters(t *testing.T) {
 	g.Expect(condition.Severity).To(Equal(common.ConditionSeverityInfo))
 }
 
-func TestAdditionalIngressRouteConditionTreatsUnexpectedAdmissionAsWarning(t *testing.T) {
-	for _, targetStatus := range []corev1.ConditionStatus{corev1.ConditionFalse, corev1.ConditionUnknown} {
-		g := NewWithT(t)
-		ingress := additionalIngress("alpha", "alpha.apps.example.com", "alpha")
-		route := &routev1.Route{
-			Status: routev1.RouteStatus{
-				Ingress: []routev1.RouteIngress{
-					{
-						Host:       ingress.Hostname,
-						RouterName: "alpha",
-						Conditions: []routev1.RouteIngressCondition{{
-							Type:   routev1.RouteAdmitted,
-							Status: targetStatus,
-						}},
-					},
-					{
-						Host:       ingress.Hostname,
-						RouterName: "other",
-						Conditions: []routev1.RouteIngressCondition{{
-							Type:   routev1.RouteAdmitted,
-							Status: corev1.ConditionTrue,
-						}},
-					},
-				},
-			},
-		}
-		condition := additionalIngressRouteCondition(route, ingress, 4)
-		g.Expect(condition.Status).To(Equal(metav1.ConditionTrue))
-		g.Expect(condition.Reason).To(Equal("PlacementMismatch"))
-		g.Expect(condition.Severity).To(Equal(common.ConditionSeverityInfo))
+func TestAdditionalIngressRouteConditionRequiresConfiguredController(t *testing.T) {
+	for _, test := range []struct {
+		name         string
+		targetStatus corev1.ConditionStatus
+		wantStatus   metav1.ConditionStatus
+		wantReason   string
+	}{
+		{name: "missing", wantStatus: metav1.ConditionFalse, wantReason: additionalIngressReasonNotReady},
+		{name: "rejected", targetStatus: corev1.ConditionFalse, wantStatus: metav1.ConditionFalse, wantReason: additionalIngressReasonNotReady},
+		{name: "pending", targetStatus: corev1.ConditionUnknown, wantStatus: metav1.ConditionUnknown, wantReason: serviceApi.AdditionalIngressReconciliationPendingReason},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			g := NewWithT(t)
+			ingress := additionalIngress("alpha", "alpha.apps.example.com", "alpha")
+			route := &routev1.Route{Status: routev1.RouteStatus{Ingress: []routev1.RouteIngress{{
+				Host: ingress.Hostname, RouterName: "other",
+				Conditions: []routev1.RouteIngressCondition{{Type: routev1.RouteAdmitted, Status: corev1.ConditionTrue}},
+			}}}}
+			if test.targetStatus != "" {
+				route.Status.Ingress = append(route.Status.Ingress, routev1.RouteIngress{
+					Host: ingress.Hostname, RouterName: ingress.IngressControllerName,
+					Conditions: []routev1.RouteIngressCondition{{Type: routev1.RouteAdmitted, Status: test.targetStatus}},
+				})
+			}
+			condition := additionalIngressRouteCondition(route, ingress, 4)
+			g.Expect(condition.Status).To(Equal(test.wantStatus))
+			g.Expect(condition.Reason).To(Equal(test.wantReason))
+			g.Expect(condition.Severity).To(Equal(common.ConditionSeverityError))
+		})
 	}
 }
 

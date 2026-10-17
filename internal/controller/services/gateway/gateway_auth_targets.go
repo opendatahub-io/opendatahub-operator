@@ -2,19 +2,20 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"strings"
 	"time"
 
-	oauthv1 "github.com/openshift/api/oauth/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	actionerrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
@@ -23,25 +24,39 @@ import (
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-// Only targets configured in this reconciliation can be protected from GC.
-func gatewayAuthState(rr *odhtypes.ReconciliationRequest) map[string]authProxyTarget {
+// Results belong to this reconciliation; persisted conditions are status output only.
+type authProxyResult struct {
+	Target    authProxyTarget
+	Condition common.Condition
+}
+
+func (r authProxyResult) failedPreparation() bool {
+	return r.Condition.Status == metav1.ConditionFalse &&
+		(r.Condition.Reason == additionalIngressReasonAuthenticationUnavailable ||
+			r.Condition.Reason == additionalIngressReasonInvalidAuthenticationConfig)
+}
+
+func gatewayAuthState(rr *odhtypes.ReconciliationRequest) map[string]authProxyResult {
 	const key = "gateway.authentication"
 	if rr.Extensions == nil {
 		rr.Extensions = map[string]any{}
 	}
-	state, ok := rr.Extensions[key].(map[string]authProxyTarget)
+	state, ok := rr.Extensions[key].(map[string]authProxyResult)
 	if !ok {
-		state = map[string]authProxyTarget{}
+		state = map[string]authProxyResult{}
 		rr.Extensions[key] = state
 	}
 	return state
 }
 
-// Preserve existing auth resources when a target's preparation failed this pass.
+// Preserve the existing ingress stack when authentication preparation failed this pass.
 // Match kind and name so unrelated resources and removed targets still use normal GC.
 func gatewayAuthResourceCollectable(rr *odhtypes.ReconciliationRequest, resource unstructured.Unstructured) (bool, error) {
-	for _, target := range gatewayAuthState(rr) {
-		if name, found := target.resourceNames()[resource.GroupVersionKind()]; found && name == resource.GetName() {
+	for _, result := range gatewayAuthState(rr) {
+		if !result.failedPreparation() {
+			continue
+		}
+		if name, found := result.Target.gcResourceNames()[resource.GroupVersionKind()]; found && name == resource.GetName() {
 			return false, nil
 		}
 	}
@@ -69,7 +84,7 @@ func (t authProxyTarget) isDefault() bool {
 	return t.IngressName == ""
 }
 
-func (t authProxyTarget) resourceNames() map[schema.GroupVersionKind]string {
+func (t authProxyTarget) gcResourceNames() map[schema.GroupVersionKind]string {
 	return map[schema.GroupVersionKind]string{
 		gvk.Deployment:              t.ProxyName,
 		gvk.Service:                 t.ProxyName,
@@ -84,65 +99,6 @@ func (t authProxyTarget) resourceNames() map[schema.GroupVersionKind]string {
 		gvk.ClusterRoleBinding:      t.ProxyName + "-tokenreview",
 		gvk.CertManagerCertificate:  t.TLSName,
 	}
-}
-
-func checkAuthProxyDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest, config *serviceApi.GatewayConfig, target authProxyTarget) (string, error) {
-	for kind, name := range target.resourceNames() {
-		// Credentials have a fail-closed preparation path below. Additional ingresses
-		// use OpenShift serving certificates, rather than cert-manager Certificates.
-		if kind == gvk.Secret || kind == gvk.OAuthClient || kind == gvk.CertManagerCertificate {
-			continue
-		}
-		resource := &unstructured.Unstructured{}
-		resource.SetGroupVersionKind(kind)
-		resource.SetName(name)
-		if kind != gvk.ClusterRoleBinding {
-			resource.SetNamespace(GetGatewayNamespace())
-		}
-		manageable, err := canManageGatewayResource(ctx, rr.Client, config, resource)
-		if err != nil {
-			return "", fmt.Errorf("failed to check authentication resource %s/%s: %w", kind.Kind, name, err)
-		}
-		if !manageable {
-			return fmt.Sprintf("authentication resource %s/%s is not controlled by this GatewayConfig", kind.Kind, name), nil
-		}
-	}
-	return "", nil
-}
-
-func checkAuthProxyCredentials(
-	ctx context.Context,
-	rr *odhtypes.ReconciliationRequest,
-	config *serviceApi.GatewayConfig,
-	target authProxyTarget,
-	mode cluster.AuthenticationMode,
-) error {
-	if target.isDefault() {
-		return nil // Preserve the default Gateway's ownership behavior.
-	}
-	credentials := []client.Object{
-		&corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      target.SecretName,
-				Namespace: GetGatewayNamespace(),
-			},
-		},
-	}
-	if mode == cluster.AuthModeIntegratedOAuth {
-		credentials = append(credentials, &oauthv1.OAuthClient{
-			ObjectMeta: metav1.ObjectMeta{Name: target.ClientID},
-		})
-	}
-	for _, resource := range credentials {
-		manageable, err := canManageGatewayResource(ctx, rr.Client, config, resource)
-		if err != nil {
-			return fmt.Errorf("failed to check authentication credential %s: %w", client.ObjectKeyFromObject(resource), err)
-		}
-		if !manageable {
-			return fmt.Errorf("generated authentication credential %s is not controlled by this GatewayConfig", client.ObjectKeyFromObject(resource))
-		}
-	}
-	return nil
 }
 
 func defaultAuthProxyTarget(hostname string, config *serviceApi.GatewayConfig) authProxyTarget {
@@ -197,10 +153,16 @@ func authSecretNamespace(namespace string) string {
 	return namespace
 }
 
-func recordAuthFailure(config *serviceApi.GatewayConfig, name, reason, message string) {
-	if status := additionalIngressStatusByName(config, name); status != nil {
-		setAdditionalIngressCondition(status, config.Generation, serviceApi.AdditionalIngressAuthenticationReadyConditionType,
-			metav1.ConditionFalse, reason, message)
+func recordAuthResult(rr *odhtypes.ReconciliationRequest, target authProxyTarget, state metav1.ConditionStatus, reason, message string) {
+	gatewayAuthState(rr)[target.GatewayName] = authProxyResult{
+		Target: target,
+		Condition: common.Condition{
+			Type:               serviceApi.AdditionalIngressAuthenticationReadyConditionType,
+			Status:             state,
+			ObservedGeneration: rr.Instance.GetGeneration(),
+			Reason:             reason,
+			Message:            message,
+		},
 	}
 }
 
@@ -223,6 +185,9 @@ func authTargetTemplateData(base map[string]any, target authProxyTarget, authCon
 		Name:        target.FilterName,
 		GatewayName: target.GatewayName,
 	}}
+	if providerCA, _ := base["ProviderCA"].([]byte); len(providerCA) > 0 {
+		authConfigHash = extendAuthConfigHash(authConfigHash, providerCA)
+	}
 	data["AuthConfigHash"] = authConfigHash
 	return data
 }
@@ -241,32 +206,28 @@ func prepareAuthProxies(
 		return err
 	}
 	for _, target := range targets {
-		if !target.isDefault() && additionalIngressHasGatewayConflict(config, target.IngressName) {
-			continue
-		}
 		if !target.isDefault() {
-			message, err := checkAuthProxyDependencies(ctx, rr, config, target)
-			if err != nil {
-				return err
+			if mode == cluster.AuthModeNone {
+				recordAuthResult(rr, target, metav1.ConditionTrue, additionalIngressReasonAuthenticationDisabled, status.AuthProxyExternalAuthNoDeploymentMessage)
 			}
-			if message != "" {
-				recordAuthFailure(config, target.IngressName, additionalIngressReasonOwnershipConflict, message)
+			if additionalIngressHasGatewayConflict(config, target.IngressName) {
 				continue
 			}
 		} else if mode != cluster.AuthModeNone && (mode != cluster.AuthModeOIDC || target.OIDC != nil) {
 			rr.Conditions.MarkUnknown(ReadyConditionType)
 		}
-		// Check credentials before prepareAuthProxy writes its Secret immediately.
-		var reason, message, authConfigHash string
-		if err := checkAuthProxyCredentials(ctx, rr, config, target, mode); err != nil {
-			reason, message = additionalIngressReasonOwnershipConflict, err.Error()
-		}
+		var authConfigHash, reason, message string
 		sub := *rr
 		sub.Templates, sub.Resources = nil, nil
-		if message == "" && mode != cluster.AuthModeNone {
+		if mode != cluster.AuthModeNone {
 			var err error
 			authConfigHash, err = prepareAuthProxy(ctx, &sub, config, target, mode, deploymentTemplate)
 			if err != nil {
+				var ownershipErr *controllerutil.AlreadyOwnedError
+				if !errors.Is(err, errInvalidAuthenticationConfig) && !errors.As(err, &ownershipErr) {
+					recordAuthResult(rr, target, metav1.ConditionUnknown, additionalIngressReasonStatusReadFailed, err.Error())
+					return err // Stop before deployment and GC; retry through the normal error path.
+				}
 				// Keep existing resources; render only policies when preparation fails.
 				sub.Resources, sub.Templates = nil, nil
 				reason = additionalIngressReasonAuthenticationUnavailable
@@ -282,6 +243,9 @@ func prepareAuthProxies(
 						return err
 					}
 				}
+			} else if !target.isDefault() {
+				recordAuthResult(rr, target, metav1.ConditionUnknown, serviceApi.AdditionalIngressReconciliationPendingReason,
+					"Authentication resources are being deployed")
 			}
 		}
 		if err := createEnvoyFilter(ctx, &sub); err != nil {
@@ -293,12 +257,8 @@ func prepareAuthProxies(
 				return err
 			}
 		}
-		if status := additionalIngressStatusByName(config, target.IngressName); message == "" && status != nil {
-			setAdditionalIngressCondition(status, config.Generation, serviceApi.AdditionalIngressAuthenticationReadyConditionType, metav1.ConditionUnknown,
-				serviceApi.AdditionalIngressReconciliationPendingReason, "Authentication resources are being deployed")
-		}
 		data := authTargetTemplateData(base, target, authConfigHash)
-		err := template.NewAction(template.WithData(data),
+		err = template.NewAction(template.WithData(data),
 			template.WithNamespaceFn(func(context.Context, *odhtypes.ReconciliationRequest) (string, error) {
 				return GetGatewayNamespace(), nil
 			}))(ctx, &sub)
@@ -307,12 +267,13 @@ func prepareAuthProxies(
 		}
 		rr.Resources = append(rr.Resources, sub.Resources...)
 		if message != "" {
-			state[target.GatewayName] = target
-			recordAuthFailure(config, target.IngressName, reason, message)
+			recordAuthResult(rr, target, metav1.ConditionFalse, reason, message)
 		}
 	}
-	if len(state) != 0 {
-		return actionerrors.NewRequeueAfterError(30 * time.Second)
+	for _, result := range state {
+		if result.failedPreparation() {
+			return actionerrors.NewRequeueAfterError(30 * time.Second)
+		}
 	}
 	return nil
 }

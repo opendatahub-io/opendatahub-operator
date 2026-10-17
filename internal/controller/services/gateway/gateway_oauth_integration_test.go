@@ -213,7 +213,9 @@ func TestOAuthAdditionalAuthenticationResources(t *testing.T) {
 	}
 	g.Expect(cli.Get(ctx, credentialsKey, credentials)).To(Succeed())
 	owners := credentials.OwnerReferences
-	credentials.OwnerReferences = nil
+	credentials.OwnerReferences = append([]metav1.OwnerReference(nil), owners...)
+	credentials.OwnerReferences[0].Name = "another-gateway-config"
+	credentials.OwnerReferences[0].UID = "another-gateway-config"
 	g.Expect(cli.Update(ctx, credentials)).To(Succeed())
 	spec.AdditionalIngresses[0].Hostname = "updated-auth-check.example.com"
 	spec.AdditionalIngresses = spec.AdditionalIngresses[:1]

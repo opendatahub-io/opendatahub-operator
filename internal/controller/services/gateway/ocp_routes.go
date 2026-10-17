@@ -40,7 +40,6 @@ import (
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	templateutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/template"
 )
@@ -118,15 +117,10 @@ func createOCPRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		},
 	)
 
-	if err := createAdditionalIngressRoutes(ctx, rr, gatewayConfig); err != nil {
-		return err
-	}
-
-	return nil
+	return createAdditionalIngressRoutes(rr, gatewayConfig)
 }
 
 func createAdditionalIngressRoutes(
-	ctx context.Context,
 	rr *odhtypes.ReconciliationRequest,
 	gatewayConfig *serviceApi.GatewayConfig,
 ) error {
@@ -135,35 +129,15 @@ func createAdditionalIngressRoutes(
 		return nil
 	}
 
-	l := logf.FromContext(ctx).WithName("createAdditionalIngressRoutes")
 	for _, ingress := range ingresses {
 		if additionalIngressHasGatewayConflict(gatewayConfig, ingress.Name) {
 			continue
-		}
-		if status := additionalIngressStatusByName(gatewayConfig, ingress.Name); status != nil {
-			condition := conditions.FindStatusCondition(status, serviceApi.AdditionalIngressAuthenticationReadyConditionType)
-			if condition != nil && condition.ObservedGeneration == gatewayConfig.Generation &&
-				condition.Status == metav1.ConditionFalse && condition.Reason == additionalIngressReasonOwnershipConflict {
-				continue
-			}
 		}
 		route, err := buildAdditionalIngressRoute(ingress)
 		if err != nil {
 			recordAdditionalIngressRouteCondition(rr, ingress.Name, metav1.ConditionUnknown,
 				additionalIngressReasonNotReady, "The bridge Route could not be rendered")
 			return fmt.Errorf("failed to render additional ingress Route for %q: %w", ingress.Name, err)
-		}
-		manageable, err := canManageGatewayResource(ctx, rr.Client, gatewayConfig, route)
-		if err != nil {
-			return fmt.Errorf("failed to verify additional ingress Route %q ownership: %w", route.Name, err)
-		}
-		if !manageable {
-			l.Info("Skipping additional ingress Route because existing Route is not owned by GatewayConfig",
-				"ingress", ingress.Name, "route", route.Name)
-			recordAdditionalIngressRouteCondition(rr, ingress.Name, metav1.ConditionFalse,
-				additionalIngressReasonOwnershipConflict,
-				fmt.Sprintf("Route %q is not controlled by this GatewayConfig", route.Name))
-			continue
 		}
 		if err := rr.AddResources(route); err != nil {
 			recordAdditionalIngressRouteCondition(rr, ingress.Name, metav1.ConditionUnknown,
@@ -172,27 +146,6 @@ func createAdditionalIngressRoutes(
 		}
 	}
 	return nil
-}
-
-func canManageGatewayResource(
-	ctx context.Context,
-	cli client.Client,
-	gatewayConfig *serviceApi.GatewayConfig,
-	desired client.Object,
-) (bool, error) {
-	existing, ok := desired.DeepCopyObject().(client.Object)
-	if !ok {
-		return false, fmt.Errorf("cannot copy resource %T", desired)
-	}
-	err := cli.Get(ctx, client.ObjectKeyFromObject(desired), existing)
-	if k8serr.IsNotFound(err) {
-		return true, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("failed to get existing resource %s: %w", client.ObjectKeyFromObject(desired), err)
-	}
-
-	return isOwnedByGatewayConfig(existing, gatewayConfig), nil
 }
 
 func isOwnedByGatewayConfig(obj client.Object, gatewayConfig *serviceApi.GatewayConfig) bool {
