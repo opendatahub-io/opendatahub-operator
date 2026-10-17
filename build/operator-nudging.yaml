@@ -72,7 +72,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE
   value: quay.io/rhoai/odh-llm-d-batch-gateway-gc-rhel9@sha256:4396e6bfb8bcb6a1c8b102eecc45c42a3eb148a1e0bb027901190ea793768714
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_OPERATOR_IMAGE
-  value: quay.io/rhoai/odh-llm-d-batch-gateway-operator-rhel9@sha256:d9e20031bfd32f123060148e39f3d84311f167a11f372af484ea0de9f414a2b3
+  value: quay.io/rhoai/odh-llm-d-batch-gateway-operator-rhel9@sha256:26296def4ac2d6a339a0d8114964c0331b6b9d5129100ee0becae95e63470130
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE
   value: quay.io/rhoai/odh-llm-d-batch-gateway-processor-rhel9@sha256:b0662e96671dcd11b57e69842a1e09f1a67beb92403b2a0ee04f08c94f2756f0
 - name: RELATED_IMAGE_ODH_LLM_D_ROUTER_DISAGG_SIDECAR_IMAGE
