@@ -57,9 +57,6 @@ known_issues:
 - image: RELATED_IMAGE_ODH_WORKLOAD_VARIANT_AUTOSCALER_CONTROLLER_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-95647
   reason: Image offboarded & removed from helm chart; will be removed from operator in https://github.com/opendatahub-io/opendatahub-operator/pull/4125
-- image: RELATED_IMAGE_ODH_LLM_D_KV_PVC_EVICTOR_IMAGE"
-  jira: https://redhat.atlassian.net/browse/RHAISTRAT-2134
-  reason: We are not ready
 
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
@@ -115,9 +112,6 @@ rhoai_exceptions:
 - image: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-97573
   reason: RHOAI Konflux image offboarded (odh-trustyai-vllm-orchestrator-gateway); present in ODH-Build-Config, not in RHOAI-Build-Config
-- image: RELATED_IMAGE_ODH_LLM_D_KV_PVC_EVICTOR_IMAGE"
-  jira: https://redhat.atlassian.net/browse/RHAISTRAT-2134
-  reason: We are not ready
 
 image_overrides_exceptions:
 - image: RELATED_IMAGE_ODH_DB_OPERATOR_IMAGE
