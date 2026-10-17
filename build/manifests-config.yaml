@@ -155,10 +155,10 @@ additional_meta:
     git.commit: 45dfd6074eefe19d377875aa565ceb54c8946473
   odh-latency-predictor-prediction:
     git.url: https://github.com/red-hat-data-services/llm-d-latency-predictor
-    git.commit: 3c2b2450e2adceb172c75d56062986532d0c2ee0
+    git.commit: fcf347164865d44c21395241c618f72a6114cc41
   odh-latency-predictor-training:
     git.url: https://github.com/red-hat-data-services/llm-d-latency-predictor
-    git.commit: 3c2b2450e2adceb172c75d56062986532d0c2ee0
+    git.commit: fcf347164865d44c21395241c618f72a6114cc41
   odh-llm-d-async:
     git.url: https://github.com/red-hat-data-services/llm-d-async
     git.commit: c5c090319d5bddc6428398d71ccf3a67e2a35661
@@ -176,10 +176,10 @@ additional_meta:
     git.commit: 7ee82747f6353c61300c3c95302acbfee46e465f
   odh-llm-d-router-disagg-sidecar:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: 5647c049f723df1353645c905924d3e7b3f0dfe5
+    git.commit: 79b82136fd1424f53c3214d0a1b8b8c387bb8c5e
   odh-llm-d-router-endpoint-picker:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: 5647c049f723df1353645c905924d3e7b3f0dfe5
+    git.commit: e53aa85b0c75e2d7326332a2227efd5a9b6b9981
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
     git.commit: 64b8e46b776893989b87ec9c85a0962bd44635f2
