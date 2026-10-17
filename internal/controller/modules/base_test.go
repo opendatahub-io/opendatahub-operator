@@ -158,6 +158,66 @@ func TestBaseHandlerGetModuleStatusAndCRLifecycle(t *testing.T) {
 	}
 }
 
+func TestDeleteOperatorResourcesSkipsNonExistentManifestDir(t *testing.T) {
+	handler := &BaseHandler{
+		Config: ModuleConfig{
+			Name:                 baseTestModuleName,
+			CRName:               baseTestModuleCRName,
+			GVK:                  schema.GroupVersionKind{Group: baseTestModuleGroup, Version: baseTestModuleVersion, Kind: baseTestModuleKind},
+			ManifestDir:          baseTestModuleName,
+			ContextDir:           "default",
+			SourcePathByPlatform: map[common.Platform]string{cluster.OpenDataHub: baseTestOverlayODH},
+		},
+	}
+
+	cli, err := fakeclient.New()
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	// Point ManifestsBasePath at a directory that does NOT contain the module's
+	// manifest subdirectory. This simulates the trainer module scenario where
+	// /opt/manifests/trainer does not exist inside the container image.
+	platformCtx := &PlatformContext{
+		ApplicationsNamespace: testApplicationsNamespace,
+		Release:               common.Release{Name: cluster.OpenDataHub},
+		ManifestsBasePath:     t.TempDir(),
+	}
+
+	// Must succeed as a no-op rather than crashing.
+	if err := handler.DeleteOperatorResources(context.Background(), cli, platformCtx); err != nil {
+		t.Fatalf("expected DeleteOperatorResources to succeed when manifest dir is absent, got: %v", err)
+	}
+}
+
+func TestDeleteOperatorResourcesSkipsNonExistentChartDir(t *testing.T) {
+	handler := &BaseHandler{
+		Config: ModuleConfig{
+			Name:        baseTestModuleName,
+			CRName:      baseTestModuleCRName,
+			GVK:         schema.GroupVersionKind{Group: baseTestModuleGroup, Version: baseTestModuleVersion, Kind: baseTestModuleKind},
+			ChartDir:    baseTestModuleName,
+			ReleaseName: baseTestModuleName,
+		},
+	}
+
+	cli, err := fakeclient.New()
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+
+	platformCtx := &PlatformContext{
+		ApplicationsNamespace: testApplicationsNamespace,
+		Release:               common.Release{Name: cluster.OpenDataHub},
+		ChartsBasePath:        t.TempDir(),
+	}
+
+	// Must succeed as a no-op rather than crashing.
+	if err := handler.DeleteOperatorResources(context.Background(), cli, platformCtx); err != nil {
+		t.Fatalf("expected DeleteOperatorResources to succeed when chart dir is absent, got: %v", err)
+	}
+}
+
 func TestBaseHandlerDeleteRenderedResourcesAndOperatorResources(t *testing.T) {
 	tmpDir := t.TempDir()
 	moduleDir := filepath.Join(tmpDir, baseTestModuleName, "overlays", "odh")
