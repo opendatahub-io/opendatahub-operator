@@ -22,7 +22,7 @@ import (
 
 const (
 	sparkVersion = "4.0.1"
-	sparkImage   = "quay.io/opendatahub/data-processing:Spark-v" + sparkVersion
+	sparkImage   = "quay.io/vivek7974/data-processing:Spark-v4.0.1"
 
 	sparkOperatorModuleControllerDeployment = "spark-operator-module-controller-manager"
 	sparkOperatorModuleServiceAccount       = "spark-operator-module-controller-manager"
