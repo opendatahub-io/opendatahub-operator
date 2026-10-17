@@ -161,16 +161,16 @@ additional_meta:
     git.commit: fcf347164865d44c21395241c618f72a6114cc41
   odh-llm-d-async:
     git.url: https://github.com/red-hat-data-services/llm-d-async
-    git.commit: c5c090319d5bddc6428398d71ccf3a67e2a35661
+    git.commit: 594bdca928e9ad5bf37b94b2d22c035f3f80ef81
   odh-llm-d-batch-gateway-apiserver:
     git.url: https://github.com/red-hat-data-services/batch-gateway
-    git.commit: 7ee82747f6353c61300c3c95302acbfee46e465f
+    git.commit: 2a8fbb621f51d839b9be21627e164679db69c6f3
   odh-llm-d-batch-gateway-gc:
     git.url: https://github.com/red-hat-data-services/batch-gateway
     git.commit: 2a8fbb621f51d839b9be21627e164679db69c6f3
   odh-llm-d-batch-gateway-operator:
     git.url: https://github.com/red-hat-data-services/llm-d-batch-gateway-operator
-    git.commit: d28053ad6d891d7e9c7a7b4d44fb3e890ca60467
+    git.commit: 6d63e2f6ff7aa64c5fbf49b81dd9e661d4fe471d
   odh-llm-d-batch-gateway-processor:
     git.url: https://github.com/red-hat-data-services/batch-gateway
     git.commit: 2a8fbb621f51d839b9be21627e164679db69c6f3
