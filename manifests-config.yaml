@@ -1357,7 +1357,7 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-praxis-ai-grid-operator"
-      digest: "sha256:8e1e0374d471bfec1b607e98dd0d3959959323c36bdea67264e9e09f20c33bd3"
+      digest: "sha256:b3d6341a03446675a728fe18aab439c51eb4089b738656303d283a76ff6bf79a"
   RELATED_IMAGE_ODH_CLI_IMAGE:
     source: "csv"
     rhoai:
