@@ -169,6 +169,51 @@ func TestRenderResourcesAction(t *testing.T) {
 	}
 }
 
+func TestRenderResourcesActionManifestNamespace(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	appNs := xid.New().String()
+	manifestNs := xid.New().String()
+	id := xid.New().String()
+	fs := filesys.MakeFsInMemory()
+
+	dir := path.Join(id, "component", "overlays")
+	_ = fs.MkdirAll(dir)
+	_ = fs.WriteFile(path.Join(dir, mk.DefaultKustomizationFileName), []byte(testRenderResourcesWithCacheKustomization))
+	_ = fs.WriteFile(path.Join(dir, "test-resources-deployment.yaml"), []byte(testRenderResourcesWithCacheDeployment))
+
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-dsci"},
+		Spec:       dsciv2.DSCInitializationSpec{ApplicationsNamespace: appNs},
+	}
+	cl, err := fakeclient.New(fakeclient.WithObjects(dsci))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := kustomize.NewAction(
+		kustomize.WithCache(false),
+		kustomize.WithManifestsOptions(mk.WithEngineFS(fs)),
+	)
+
+	rr := types.ReconciliationRequest{
+		Client:   cl,
+		Instance: &scheme.TestPlatformObject{},
+		Release:  common.Release{Name: cluster.OpenDataHub},
+		Manifests: []types.ManifestInfo{{
+			Path:       id,
+			ContextDir: "component",
+			SourcePath: "overlays",
+			Namespace:  manifestNs,
+		}},
+	}
+
+	g.Expect(action(ctx, &rr)).Should(Succeed())
+	g.Expect(rr.Resources).Should(And(
+		HaveLen(1),
+		HaveEach(jq.Match(`.metadata.namespace == "%s"`, manifestNs)),
+	))
+}
+
 const testRenderResourcesWithCacheKustomization = `
 apiVersion: kustomize.config.k8s.io/v1beta1
 resources:
