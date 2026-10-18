@@ -134,6 +134,43 @@ func aiGatewayTestSuite(t *testing.T) {
 				WithCustomErrorMsg("DSC AIGatewayReady should recover to True after module CR recreation"),
 			)
 		}},
+		{"Validate AI Grid enabled", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.TransformPipeline(
+					testf.Transform(`.spec.components.aigateway.managementState = "Managed"`),
+					testf.Transform(`.spec.components.aigateway.aiGrid.managementState = "Managed"`),
+				)),
+				WithCondition(And(
+					jq.Match(`.spec.components.aigateway.managementState == "Managed"`),
+					jq.Match(`.spec.components.aigateway.aiGrid.managementState == "Managed"`),
+				)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(And(
+					jq.Match(`.spec.aiGrid.managementState == "Managed"`),
+					jq.Match(`.status.observedGeneration == .metadata.generation`),
+					jq.Match(`.status.conditions[] | select(.type == "AIGridReady") | .status == "%s"`, metav1.ConditionTrue),
+				)),
+				WithCustomErrorMsg("AIGateway should receive aiGrid Managed from DSC and report AIGridReady=True"),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "AIGridReady") | .status == "%s"`, metav1.ConditionTrue),
+					jq.Match(`.status.components.aiGrid.managementState == "Managed"`),
+				)),
+				WithCustomErrorMsg("DSC should mirror AIGridReady=True and aiGrid managementState Managed"),
+			)
+		}},
 		{"Validate submodule conditions with mixed enablement", func(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Tier1)
@@ -216,6 +253,9 @@ func aiGatewayTestSuite(t *testing.T) {
 					jq.Match(`.status.conditions[] | select(.type == "ModelsAsAServiceReady") | .reason == "%s"`, status.RemovedReason),
 					jq.Match(`.status.conditions[] | select(.type == "BatchGatewayReady") | .status == "False"`),
 					jq.Match(`.status.conditions[] | select(.type == "BatchGatewayReady") | .reason == "%s"`, status.RemovedReason),
+					jq.Match(`.status.conditions[] | select(.type == "AIGridReady") | .status == "%s"`, metav1.ConditionFalse),
+					jq.Match(`.status.conditions[] | select(.type == "AIGridReady") | .reason == "%s"`, status.RemovedReason),
+					jq.Match(`.status.components.aiGrid.managementState == "Removed"`),
 				)),
 				WithCustomErrorMsg("All submodule conditions should show Removed when parent AIGateway is disabled"),
 			)
