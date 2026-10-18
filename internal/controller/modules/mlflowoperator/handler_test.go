@@ -19,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -113,8 +114,10 @@ func TestBuildModuleCR(t *testing.T) {
 	moduleCR, err := handler.BuildModuleCR(t.Context(), nil,
 		&modules.DSCContext{DSC: dsc},
 		&modules.ModuleCRConfig{
-			GatewayDomain: mlflowTestGatewayURL,
-			Release:       common.Release{Name: cluster.SelfManagedRhoai},
+			GatewayConfig: &serviceApi.GatewayConfig{
+				Status: serviceApi.GatewayConfigStatus{Domain: mlflowTestGatewayURL},
+			},
+			Release: common.Release{Name: cluster.SelfManagedRhoai},
 		},
 	)
 	if err != nil {
@@ -194,8 +197,10 @@ func TestBuildModuleCRMatchesVendoredCRDSchema(t *testing.T) {
 	moduleCR, err := handler.BuildModuleCR(t.Context(), nil,
 		&modules.DSCContext{DSC: dsc},
 		&modules.ModuleCRConfig{
-			GatewayDomain: mlflowTestGatewayURL,
-			Release:       common.Release{Name: cluster.SelfManagedRhoai},
+			GatewayConfig: &serviceApi.GatewayConfig{
+				Status: serviceApi.GatewayConfigStatus{Domain: mlflowTestGatewayURL},
+			},
+			Release: common.Release{Name: cluster.SelfManagedRhoai},
 		},
 	)
 	if err != nil {

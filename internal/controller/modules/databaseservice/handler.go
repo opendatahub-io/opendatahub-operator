@@ -3,13 +3,10 @@ package databaseservice
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
@@ -65,21 +62,6 @@ func (h *handler) PopulatePlatformModule(pm *configApi.PlatformModules, dscCtx *
 
 func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 	return modules != nil && modules.DatabaseService.ManagementState == operatorv1.Managed
-}
-
-// TODO: Remove after DatabaseService is onboarded in downstream Konflux and its chart is packaged in the operator image.
-func (h *handler) DeleteOperatorResources(ctx context.Context, cli client.Client, platform *modules.PlatformContext) error {
-	for _, chartInfo := range h.GetOperatorManifests(platform).HelmCharts {
-		if _, err := os.Stat(chartInfo.Chart); err != nil {
-			if os.IsNotExist(err) {
-				logf.FromContext(ctx).V(1).Info("skipping cleanup for missing DatabaseService chart", "chart", chartInfo.Chart)
-				return nil
-			}
-			return fmt.Errorf("checking DatabaseService chart %q: %w", chartInfo.Chart, err)
-		}
-	}
-
-	return h.BaseHandler.DeleteOperatorResources(ctx, cli, platform)
 }
 
 func (h *handler) BuildModuleCR(

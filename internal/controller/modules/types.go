@@ -11,6 +11,7 @@ import (
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
@@ -72,7 +73,7 @@ type ModuleHandler interface {
 	// manually and this method is not called.
 	// ConfigFromDSC handlers read dscCtx.DSC; ConfigFromDSCI handlers read
 	// dscCtx.DSCI.
-	// ModuleCRConfig carries platform-level fields (GatewayDomain, Release)
+	// ModuleCRConfig carries platform-level fields (gateway status, Release)
 	// that are not part of DSC/DSCI but needed for CR construction.
 	BuildModuleCR(ctx context.Context, cli client.Client, dscCtx *DSCContext, cfg *ModuleCRConfig) (*unstructured.Unstructured, error)
 
@@ -236,8 +237,8 @@ type ModuleCRConfig struct {
 	// ApplicationsNamespace is the namespace where module operands deploy.
 	ApplicationsNamespace string
 
-	// GatewayDomain is the cluster ingress domain from GatewayConfig.Status.Domain.
-	GatewayDomain string
+	// GatewayConfig is a shared, read-only snapshot.
+	GatewayConfig *serviceApi.GatewayConfig
 
 	// Release identifies the platform (ODH/RHOAI) and version.
 	Release common.Release
@@ -269,10 +270,6 @@ type PlatformContext struct {
 	// MonitoringNamespace is the namespace from DSCI.Spec.Monitoring.Namespace.
 	// Empty when monitoring is not set on main process or no DSCI(xKS).
 	MonitoringNamespace string
-
-	// GatewayDomain is the cluster ingress domain from GatewayConfig.Status.Domain.
-	// Empty if GatewayConfig is not yet provisioned.
-	GatewayDomain string
 
 	// Release identifies the platform (ODH/RHOAI) and version.
 	Release common.Release
