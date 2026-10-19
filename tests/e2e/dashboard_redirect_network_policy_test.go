@@ -323,16 +323,20 @@ echo 'API control connected; redirect port denied' > /dev/termination-log
 	httpClient := tc.createHTTPClient()
 
 	requestURI := "/some/test/path?tab=models"
-	requestCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(requestCtx, http.MethodGet, "https://"+routeHost+requestURI, nil)
-	tc.g.Expect(err).NotTo(HaveOccurred())
-	req.Header.Set("Accept", "application/json")
-	resp, err := httpClient.Do(req)
-	tc.g.Expect(err).NotTo(HaveOccurred())
-	defer func() { tc.g.Expect(resp.Body.Close()).To(Succeed()) }()
-	tc.g.Expect(resp.StatusCode).To(Equal(http.StatusMovedPermanently))
-	tc.g.Expect(resp.Header.Get("Location")).To(Equal("https://" + expectedGatewayHostname + requestURI))
+	// Retry until the redirect is served: the router can briefly return 503
+	// while it absorbs the Service backends (see ValidateDashboardRedirectHTTP).
+	tc.g.Eventually(func(g Gomega) {
+		requestCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		req, err := http.NewRequestWithContext(requestCtx, http.MethodGet, "https://"+routeHost+requestURI, nil)
+		g.Expect(err).NotTo(HaveOccurred())
+		req.Header.Set("Accept", "application/json")
+		resp, err := httpClient.Do(req)
+		g.Expect(err).NotTo(HaveOccurred())
+		defer resp.Body.Close()
+		g.Expect(resp.StatusCode).To(Equal(http.StatusMovedPermanently))
+		g.Expect(resp.Header.Get("Location")).To(Equal("https://" + expectedGatewayHostname + requestURI))
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
 
 	t.Log("Dashboard redirect NetworkPolicy traffic validation completed")
 }
