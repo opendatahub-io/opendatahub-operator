@@ -115,6 +115,9 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 			ManagementState: operatorv1.Managed,
 			AirGapped:       true,
 		},
+		ModelExpress: componentApi.ModelExpressSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		OAuthProxy: &componentApi.OAuthProxyConfig{
 			Resources: &componentApi.OAuthProxyResourceRequirements{
 				Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")},
@@ -160,6 +163,10 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g.Expect(nim["airGapped"]).Should(BeTrue())
 	g.Expect(spec).ShouldNot(HaveKey("wva"))
 
+	modelExpress, ok := spec["modelExpress"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.modelExpress missing")
+	g.Expect(modelExpress["managementState"]).Should(Equal("Managed"))
+
 	mr, ok := spec["modelRegistry"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.modelRegistry missing")
 	g.Expect(mr["managementState"]).Should(Equal("Removed"))
@@ -188,6 +195,8 @@ func TestGetRelatedImages(t *testing.T) {
 		"RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
 		"RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_KV_PVC_EVICTOR_IMAGE",
+		"RELATED_IMAGE_ODH_MODELEXPRESS_IMAGE",
+		"RELATED_IMAGE_ODH_MODELEXPRESS_OPERATOR_IMAGE",
 		"RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE",
 		"RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_IMAGE",
 	))

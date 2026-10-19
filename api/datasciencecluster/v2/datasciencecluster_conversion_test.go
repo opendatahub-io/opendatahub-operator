@@ -164,6 +164,7 @@ func TestConversionPreservesUnchangedFields(t *testing.T) {
 	delete(expectedWire["spec"].(map[string]any)["components"].(map[string]any)["kserve"].(map[string]any), "modelsAsService")
 	delete(expectedWire["spec"].(map[string]any)["components"].(map[string]any)["kserve"].(map[string]any), "wva")
 	components := expectedWire["spec"].(map[string]any)["components"].(map[string]any)
+	components["kserve"].(map[string]any)["modelExpress"] = map[string]any{}
 	delete(components, "trainingoperator")
 	delete(components, "llamastackoperator")
 	components["dashboard"] = map[string]any{
@@ -279,6 +280,43 @@ func TestConvertFromMapsMaaSPortalToV2(t *testing.T) {
 		g.Expect(condition.Type).ToNot(Equal("MaaSPortalAvailable"),
 			"v3 condition spelling must not leak into the v2 view")
 	}
+}
+
+// TestModelExpressSurvivesV3ToV2ToV3 covers the v3-only modelExpress field,
+// which v2 cannot represent and must carry in a conversion annotation.
+func TestModelExpressSurvivesV3ToV2ToV3(t *testing.T) {
+	for _, state := range []operatorv1.ManagementState{operatorv1.Managed, operatorv1.Removed} {
+		t.Run(string(state), func(t *testing.T) {
+			g := NewWithT(t)
+
+			hub := &dscApi.DataScienceCluster{}
+			hub.Annotations = map[string]string{"example": "kept"}
+			hub.Spec.Components.Kserve.ManagementState = operatorv1.Managed
+			hub.Spec.Components.Kserve.ModelExpress.ManagementState = state
+
+			v2 := &DataScienceCluster{}
+			g.Expect(v2.ConvertFrom(hub)).To(Succeed())
+			_, marked := v2.Annotations[ModelExpressV3StateAnnotation]
+			g.Expect(marked).To(Equal(state == operatorv1.Managed))
+
+			back := &dscApi.DataScienceCluster{}
+			g.Expect(v2.ConvertTo(back)).To(Succeed())
+			if state == operatorv1.Managed {
+				g.Expect(back.Spec.Components.Kserve.ModelExpress.ManagementState).To(Equal(operatorv1.Managed))
+			} else {
+				g.Expect(back.Spec.Components.Kserve.ModelExpress.ManagementState).To(BeEmpty())
+			}
+			g.Expect(back.Annotations).To(Equal(map[string]string{"example": "kept"}))
+		})
+	}
+}
+
+func TestConvertToRejectsUnknownModelExpressMarker(t *testing.T) {
+	g := NewWithT(t)
+
+	v2 := &DataScienceCluster{}
+	v2.Annotations = map[string]string{ModelExpressV3StateAnnotation: "bogus"}
+	g.Expect(v2.ConvertTo(&dscApi.DataScienceCluster{})).ToNot(Succeed())
 }
 
 // TestDashboardSpecConversionCombinations covers all four standard/portal
