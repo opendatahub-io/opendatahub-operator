@@ -191,10 +191,9 @@ componentCharts:
       repo: opendatahub-io/opendatahub-db-operator
       ref: main@ef2091409c2a9b70ac289df6dc40ffe0908458f9
       sourcePath: config/chart
-    # RHDS fork not published yet; pin the ODH chart for both platforms until it is.
     rhoai:
-      repo: opendatahub-io/opendatahub-db-operator
-      ref: main@ef2091409c2a9b70ac289df6dc40ffe0908458f9
+      repo: red-hat-data-services/rhai-db-operator
+      ref: rhoai-3.6@e1b856101cff526f1f6631fe9dc00297c5ca42fd
       sourcePath: config/chart
   odh-observability:
     odh:
