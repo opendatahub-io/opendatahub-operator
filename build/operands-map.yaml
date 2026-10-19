@@ -44,7 +44,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:75fc6333e1bd6a1a8aefb067738149f3c47ba8e409dc9b8ec9f67e2d405af253"
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:7ecc67a1cebbfcc69fd3aa25fb73b5b643d651a10c8ceaa387642a324a96c3fc"
+  value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:c7c23ad80c9f625dc3f85c4591009103ee624e3eca678401053ea3ce6db8ef92"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
   value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:3b5543d5c8b5db4dd8dcd09f1f2beb5a7b46168da3e01438f54b2d11de63cf41"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
@@ -98,7 +98,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
   value: "quay.io/rhoai/odh-mlserver-rhel9@sha256:00e7adb823dc1edb2c3dc1f51dfa5a8745876c7756cbcaae5c118f4fd9ecbaa0"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_V2_IMAGE
-  value: "quay.io/rhoai/odh-ml-pipelines-api-server-v2-rhel9@sha256:5a45f26f185eadd78041500c060049b1865f8dc048d20fbac45790f22edcb837"
+  value: "quay.io/rhoai/odh-ml-pipelines-api-server-v2-rhel9@sha256:830dd211fc9cf6fc7ae98b8d100afce4a086bd1383d97b6b2bf74fc849ad6d4f"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_DRIVER_IMAGE
   value: "quay.io/rhoai/odh-ml-pipelines-driver-rhel9@sha256:ff717c7fac8128986b10a5a2793c131114776548eb67838429a27390646c9a55"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_LAUNCHER_IMAGE

@@ -134,7 +134,7 @@ additional_meta:
     git.commit: 422a097732f5d4526230d552e27999e2fc5f2a95
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 422a097732f5d4526230d552e27999e2fc5f2a95
+    git.commit: 9566863b8a6692ab31b2c6e9889367c711d3c0b0
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 422a097732f5d4526230d552e27999e2fc5f2a95
@@ -203,7 +203,7 @@ additional_meta:
     git.commit: 55f45f37c42260ba846ce5ba7b1e2d0208132981
   odh-ml-pipelines-api-server-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: d7148d9d774a751942cd13f25153deb01782f549
+    git.commit: beebba98ba4f01c29e9cdc048fea619329bd6b23
   odh-ml-pipelines-driver:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
     git.commit: beebba98ba4f01c29e9cdc048fea619329bd6b23
