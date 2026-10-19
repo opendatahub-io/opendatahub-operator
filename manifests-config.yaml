@@ -1402,3 +1402,8 @@ imageOverrides:
     rhoai:
       base: "quay.io/rhoai/odh-workbench-jupyter-universal-cpu-py312-rhel9"
       digest: "sha256:eecf69e99707d449ce8ded572c8a05fdaef88f2e5fc5b9978fd8f714b9990a39"
+  RELATED_IMAGE_ODH_LLM_D_KV_PVC_EVICTOR_IMAGE:
+    source: "csv"
+    odh:
+      base: "quay.io/opendatahub/odh-llm-d-kv-pvc-evictor"
+      digest: "sha256:d2acaa31c6c184968f4d16d468987ee83bfea7ddead124295dde8f397223cbc7"
