@@ -77,6 +77,7 @@ func (in *ComponentsStatus) DeepCopyInto(out *ComponentsStatus) {
 	in.AIGateway.DeepCopyInto(&out.AIGateway)
 	out.ModelsAsAService = in.ModelsAsAService
 	out.BatchGateway = in.BatchGateway
+	out.AIGrid = in.AIGrid
 	in.MCPLifecycleOperator.DeepCopyInto(&out.MCPLifecycleOperator)
 	in.DatabaseService.DeepCopyInto(&out.DatabaseService)
 }
