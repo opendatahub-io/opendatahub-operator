@@ -40,7 +40,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE
   value: "quay.io/rhoai/odh-kserve-agent-rhel9@sha256:76f4e4b94d9021a30205bde1f9984420e880151ecd3dd90ac762130ebbbb4294"
 - name: RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:bbd20a80ed4d2683ed75ce42913c3c6eaddd970d736686c48cfca26428105e73"
+  value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:f0651be0c06447546d140266c34a7a9d5fc3e62b4804dcdb83c821795b95716c"
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:04fc6c669fafefc89646c7b582da192d949b430a2b2879b01d9d0ff58fc6f77b"
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
@@ -48,7 +48,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
   value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:f912f996158913d189bbc61085bbd79d3cc84bf4d8b4ecedf9884ba92f2c26ee"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9@sha256:bf69456def9ef3c4569758c19e8957efad3df7155adb3e403dc09b31d476e703"
+  value: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9@sha256:9517d783ab18865cf55b47e6fab5f5508cca7cda2d7217a25d542d8175ad3279"
 - name: RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-kserve-module-operator-rhel9@sha256:83da7fa89f5edff16c041f85f303b1f0eea59887e55a587211c69c42701febae"
 - name: RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE
