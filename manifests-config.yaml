@@ -389,7 +389,7 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-feast-module-operator"
-      digest: "sha256:7ccaf62e11a9ca6a6d95a2afc5073d9e9104eb9d6175f0a0666eebe103cca2d0"
+      digest: "sha256:a4a39003628293c0240ddcec648522b48a21e4c420674ba5f6d5b4c4876e250e"
     rhoai:
       base: "quay.io/rhoai/odh-feast-module-operator-rhel9"
       digest: "sha256:27e3451cef327638a9f2a57c3712a2260b76195a981da01751850958f19e155f"
@@ -416,7 +416,7 @@ imageOverrides:
     component: data
     odh:
       base: "quay.io/opendatahub/feast-operator"
-      digest: "sha256:0d821aeaadcd326c1320fa4f81ab8a4b05706dac9bac9c6f03dd4098fe22f4a6"
+      digest: "sha256:0af8556c26fdb47c125bba3090096ebd488e3ba81a1d44d3937dbb76175e0292"
     rhoai:
       base: "quay.io/rhoai/odh-feast-operator-rhel9"
       digest: "sha256:88d3406d3ba4021dc87a7a8bddf69ce642cbc0908ce2609a484041d2c49fc454"
@@ -519,7 +519,7 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/feature-server"
-      digest: "sha256:98672911c37cad76859d38c5ec3c8c26f62147bccaea33f2b4dfb7c50b2f0d40"
+      digest: "sha256:9201e72321dc6aa0f47e1ee2fe425fd7b8e09a2124626119138498bd847508bf"
     rhoai:
       base: "quay.io/rhoai/odh-feature-server-rhel9"
       digest: "sha256:a9e9b38b6778ff1a7ce55d04627fb24f4470075cbea9d0525889465c0f025c5e"
