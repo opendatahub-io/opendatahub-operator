@@ -180,7 +180,7 @@ componentCharts:
   data:
     odh:
       repo: opendatahub-io/feast-module-operator
-      ref: main@d1c6cc51ef3519e4205559da41fef4b22ac0ba44
+      ref: main@b0de0e833e1ac574eace27894d1079dc2dab6cc8
       sourcePath: config/chart
     rhoai:
       repo: red-hat-data-services/feast-module-operator
