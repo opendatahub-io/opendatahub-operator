@@ -206,16 +206,16 @@ additional_meta:
     git.commit: d7148d9d774a751942cd13f25153deb01782f549
   odh-ml-pipelines-driver:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: d7148d9d774a751942cd13f25153deb01782f549
+    git.commit: beebba98ba4f01c29e9cdc048fea619329bd6b23
   odh-ml-pipelines-launcher:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: d7148d9d774a751942cd13f25153deb01782f549
+    git.commit: beebba98ba4f01c29e9cdc048fea619329bd6b23
   odh-ml-pipelines-persistenceagent-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
     git.commit: beebba98ba4f01c29e9cdc048fea619329bd6b23
   odh-ml-pipelines-scheduledworkflow-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: d7148d9d774a751942cd13f25153deb01782f549
+    git.commit: beebba98ba4f01c29e9cdc048fea619329bd6b23
   odh-model-controller:
     git.url: https://github.com/red-hat-data-services/odh-model-controller
     git.commit: 4fe90225769830b890bd0e36b13b8ee724924273
@@ -299,10 +299,10 @@ additional_meta:
     git.commit: 634a025977789a0812f28823441f9694169cce0a
   odh-rhaii-cluster-validator:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: dcb70f88ecbbefa77fd9452f33a09865b097ac80
+    git.commit: 34fc04e2fb297b6287d3b1a9e596fe2c6cf3fd3c
   odh-rhaii-validator-tools:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: dcb70f88ecbbefa77fd9452f33a09865b097ac80
+    git.commit: 34fc04e2fb297b6287d3b1a9e596fe2c6cf3fd3c
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
     git.commit: 78cfec72f2336cb29a40bffd4a86a1420d909e2a
