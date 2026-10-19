@@ -767,10 +767,12 @@ func (tc *DashboardTestCtx) ValidatePortalDisabledWhileDashboardEnabled(t *testi
 // ValidateBothRemovedTearsDown verifies that when both the core Dashboard and the
 // portal are Removed, the shared dashboard-operator Deployment and the Dashboard
 // module CR are torn down.
+// Must run on Smoke as well as Tier1: ValidateModuleDisabled (next case) only
+// asserts Platform projection and does not disable the module itself.
 func (tc *DashboardTestCtx) ValidateBothRemovedTearsDown(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, Tier1)
+	skipUnless(t, Smoke, Tier1)
 
 	moduleCRNN := types.NamespacedName{Name: componentApi.DashboardInstanceName}
 
