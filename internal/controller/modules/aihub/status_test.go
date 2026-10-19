@@ -42,7 +42,10 @@ func TestComputeAIHubStatus(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
-			dscCtx := newDSCCtx(tc.state)
+			dscCtx := &modules.DSCContext{DSC: newDSC(tc.state)}
+			// Simulate the DSC v3 defaulting webhook: the instances
+			// namespace default lives on the spec, not in the handler.
+			dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace = componentApi.DefaultModelRegistriesNamespace
 			dsc := dscCtx.DSC
 			// Disabled components must clear status left by a previous deployment.
 			dsc.Status.Components.AIHub.AIHubCommonStatus = &componentApi.AIHubCommonStatus{

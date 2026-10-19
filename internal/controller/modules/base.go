@@ -158,6 +158,11 @@ func (b *BaseHandler) GetGVK() schema.GroupVersionKind {
 	return b.Config.GVK
 }
 
+// GetModuleConfig returns the module's static configuration.
+func (b *BaseHandler) GetModuleConfig() ModuleConfig {
+	return b.Config
+}
+
 func (b *BaseHandler) GetReadyConditionType() string {
 	return b.Config.GVK.Kind + status.ReadySuffix
 }

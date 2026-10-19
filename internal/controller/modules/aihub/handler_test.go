@@ -10,10 +10,8 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
-	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aihub"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 
 	. "github.com/onsi/gomega"
@@ -27,18 +25,13 @@ func newPlatformModules(mgmtState operatorv1.ManagementState) *configApi.Platfor
 	}
 }
 
-func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
-	return &modules.DSCContext{
-		DSC: &dscApi.DataScienceCluster{
-			Spec: dscApi.DataScienceClusterSpec{
-				Components: dscApi.Components{
-					AIHub: componentApi.DSCAIHub{
-						ManagementSpec: common.ManagementSpec{
-							ManagementState: mgmtState,
-						},
-						AIHubCommonSpec: componentApi.AIHubCommonSpec{
-							InstancesNamespace: componentApi.DefaultModelRegistriesNamespace,
-						},
+func newDSC(mgmtState operatorv1.ManagementState) *dscApi.DataScienceCluster {
+	return &dscApi.DataScienceCluster{
+		Spec: dscApi.DataScienceClusterSpec{
+			Components: dscApi.Components{
+				AIHub: componentApi.DSCAIHub{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: mgmtState,
 					},
 				},
 			},
@@ -75,8 +68,7 @@ func TestPopulatePlatformModule_Managed(t *testing.T) {
 	h := aihub.NewHandler()
 
 	pm := &configApi.PlatformModules{}
-	dscCtx := newDSCCtx(operatorv1.Managed)
-	h.PopulatePlatformModule(pm, dscCtx)
+	h.PopulatePlatformModule(pm, &modules.DSCContext{DSC: newDSC(operatorv1.Managed)})
 
 	g.Expect(pm.AIHub.ManagementState).Should(Equal(operatorv1.Managed))
 }
@@ -86,8 +78,7 @@ func TestPopulatePlatformModule_EmptyDefaultsToRemoved(t *testing.T) {
 	h := aihub.NewHandler()
 
 	pm := &configApi.PlatformModules{}
-	dscCtx := newDSCCtx("")
-	h.PopulatePlatformModule(pm, dscCtx)
+	h.PopulatePlatformModule(pm, &modules.DSCContext{DSC: newDSC("")})
 
 	g.Expect(pm.AIHub.ManagementState).Should(Equal(operatorv1.Removed))
 }
@@ -121,94 +112,19 @@ func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 	g.Expect(err).Should(HaveOccurred())
 }
 
-func TestBuildModuleCR_BasicProjection(t *testing.T) {
-	g := NewWithT(t)
-	h := aihub.NewHandler()
-
-	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace = "my-registries"
-
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, &modules.ModuleCRConfig{
-		ApplicationsNamespace: "test-apps-ns",
-	})
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	g.Expect(u.GetName()).Should(Equal("default-aihub"))
-	g.Expect(u.GroupVersionKind()).Should(Equal(gvk.AIHub))
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec["applicationNamespace"]).Should(Equal("test-apps-ns"))
-	g.Expect(spec["instancesNamespace"]).Should(Equal("my-registries"))
-	g.Expect(spec).ShouldNot(HaveKey("gateway"))
-
-	g.Expect(u.GetAnnotations()[annotations.ManagementStateAnnotation]).Should(Equal(string(operatorv1.Managed)))
-}
-
-func TestBuildModuleCR_WithGatewayDomain(t *testing.T) {
-	g := NewWithT(t)
-	h := aihub.NewHandler()
-
-	dscCtx := newDSCCtx(operatorv1.Managed)
-
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, &modules.ModuleCRConfig{
-		ApplicationsNamespace: "test-apps-ns",
-		GatewayConfig: &serviceApi.GatewayConfig{
-			Status: serviceApi.GatewayConfigStatus{Domain: "apps.example.com"},
-		},
-	})
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-
-	gateway, ok := spec["gateway"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "gateway is not a map")
-	g.Expect(gateway["domain"]).Should(Equal("apps.example.com"))
-}
-
-func TestBuildModuleCR_WithoutGatewayDomain(t *testing.T) {
-	g := NewWithT(t)
-	h := aihub.NewHandler()
-
-	dscCtx := newDSCCtx(operatorv1.Managed)
-
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, &modules.ModuleCRConfig{
-		ApplicationsNamespace: "test-apps-ns",
-	})
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec).ShouldNot(HaveKey("gateway"))
-}
-
-func TestBuildModuleCR_ProjectsDefaultedInstancesNamespace(t *testing.T) {
-	g := NewWithT(t)
-	h := aihub.NewHandler()
-
-	dscCtx := newDSCCtx(operatorv1.Managed)
-
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, &modules.ModuleCRConfig{
-		ApplicationsNamespace: "fallback-ns",
-	})
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue())
-	g.Expect(spec["applicationNamespace"]).Should(Equal("fallback-ns"))
-	g.Expect(spec["instancesNamespace"]).Should(Equal(componentApi.DefaultModelRegistriesNamespace))
-	g.Expect(dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace).Should(Equal(componentApi.DefaultModelRegistriesNamespace))
-}
-
+// Off-contract behavior tests retained per the user-approved exception: with
+// a nil cfg the handler emits an empty applicationNamespace, which the module
+// CRD rejects (minLength: 1). They assert the handler's input contract only;
+// schema-valid projections are covered by TestBuildModuleCRProjection in
+// handler_projection_test.go.
 func TestBuildModuleCR_NilCfg(t *testing.T) {
 	g := NewWithT(t)
 	h := aihub.NewHandler()
 
-	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace = "my-registries"
+	dsc := newDSC(operatorv1.Managed)
+	dsc.Spec.Components.AIHub.InstancesNamespace = "my-registries"
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
+	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSC: dsc}, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -217,13 +133,16 @@ func TestBuildModuleCR_NilCfg(t *testing.T) {
 	g.Expect(spec["instancesNamespace"]).Should(Equal("my-registries"))
 }
 
+// EmptyManagementStateNormalized is the nil-cfg variant retained per the
+// user-approved exception (see TestBuildModuleCR_NilCfg); a valid-cfg
+// empty-management-state projection is covered in handler_projection_test.go.
 func TestBuildModuleCR_EmptyManagementStateNormalized(t *testing.T) {
 	g := NewWithT(t)
 	h := aihub.NewHandler()
 
-	dscCtx := newDSCCtx("") // empty management state
+	dsc := newDSC("") // empty management state
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
+	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSC: dsc}, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(u.GetAnnotations()[annotations.ManagementStateAnnotation]).Should(Equal(string(operatorv1.Removed)))
@@ -233,7 +152,8 @@ func TestWriteDSCComponentStatus_Enabled(t *testing.T) {
 	g := NewWithT(t)
 	h := aihub.NewHandler()
 
-	dsc := newDSCCtx(operatorv1.Managed).DSC
+	dsc := newDSC(operatorv1.Managed)
+	dsc.Spec.Components.AIHub.InstancesNamespace = componentApi.DefaultModelRegistriesNamespace
 	releases := []common.ComponentRelease{
 		{Name: "platform", Version: "1.0.0"},
 	}
@@ -338,24 +258,16 @@ func TestWriteDSCComponentStatus_ClearsNamespaceWhenSpecEmpty(t *testing.T) {
 	g.Expect(dsc.Spec.Components.AIHub.InstancesNamespace).Should(BeEmpty())
 }
 
+// TestWriteDSCComponentStatus_DefaultNamespaceAllocatesStatus covers the
+// webhook-defaulted namespace path: a DSC carrying the defaulted
+// InstancesNamespace must get a status entry on first write.
 func TestWriteDSCComponentStatus_DefaultNamespaceAllocatesStatus(t *testing.T) {
 	g := NewWithT(t)
-	dsc := newDSCCtx(operatorv1.Managed).DSC
+	dsc := newDSC(operatorv1.Managed)
+	dsc.Spec.Components.AIHub.InstancesNamespace = componentApi.DefaultModelRegistriesNamespace
 
 	aihub.NewHandler().WriteDSCComponentStatus(dsc, true, nil)
 
 	g.Expect(dsc.Status.Components.AIHub.AIHubCommonStatus).ShouldNot(BeNil())
 	g.Expect(dsc.Status.Components.AIHub.InstancesNamespace).Should(Equal(componentApi.DefaultModelRegistriesNamespace))
-}
-
-func TestBuildModuleCR_InstancesNamespaceMayEqualApplicationsNamespace(t *testing.T) {
-	g := NewWithT(t)
-	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.AIHub.InstancesNamespace = "shared-apps"
-
-	u, err := aihub.NewHandler().BuildModuleCR(t.Context(), nil, dscCtx, &modules.ModuleCRConfig{
-		ApplicationsNamespace: "shared-apps",
-	})
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(u.Object["spec"]).Should(HaveKeyWithValue("instancesNamespace", "shared-apps"))
 }

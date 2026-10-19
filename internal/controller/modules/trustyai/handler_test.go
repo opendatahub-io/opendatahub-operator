@@ -6,7 +6,6 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -21,13 +20,13 @@ import (
 
 const testAppsNS = "opendatahub"
 
-func newDSCContext(mgmtState operatorv1.ManagementState) *modules.DSCContext {
+func newDSC(mgmtState operatorv1.ManagementState) *dscApi.DataScienceCluster {
 	dsc := &dscApi.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
 	}
 	dsc.Spec.Components.TrustyAI.ManagementState = mgmtState
 
-	return &modules.DSCContext{DSC: dsc}
+	return dsc
 }
 
 func newModuleCRConfig() *modules.ModuleCRConfig {
@@ -74,7 +73,7 @@ func TestPopulatePlatformModule(t *testing.T) {
 	h := trustyai.NewHandler()
 
 	pm := &configApi.PlatformModules{}
-	h.PopulatePlatformModule(pm, newDSCContext(operatorv1.Managed))
+	h.PopulatePlatformModule(pm, &modules.DSCContext{DSC: newDSC(operatorv1.Managed)})
 
 	g.Expect(pm.TrustyAI.ManagementState).Should(Equal(operatorv1.Managed))
 }
@@ -85,65 +84,6 @@ func TestPopulatePlatformModule_NilSafe(t *testing.T) {
 	h.PopulatePlatformModule(nil, nil)
 	h.PopulatePlatformModule(&configApi.PlatformModules{}, nil)
 	h.PopulatePlatformModule(&configApi.PlatformModules{}, &modules.DSCContext{})
-}
-
-func TestBuildModuleCR_BasicProjection(t *testing.T) {
-	g := NewWithT(t)
-	h := trustyai.NewHandler()
-
-	u, err := h.BuildModuleCR(context.Background(), nil, newDSCContext(operatorv1.Managed), newModuleCRConfig())
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(u.GetName()).Should(Equal(componentApi.TrustyAIInstanceName))
-	g.Expect(u.GetKind()).Should(Equal(componentApi.TrustyAIKind))
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec).ShouldNot(HaveKey("managementState"),
-		"managementState is a DSC-level field and must not be projected into the component CR")
-	g.Expect(spec).ShouldNot(HaveKey("mcpGuardrailsMode"),
-		"mcpGuardrailsMode is omitempty and must be omitted when unset so the module CRD default applies")
-	_, found, err := unstructured.NestedString(u.Object, "spec", "eval", "lmeval", "permitCodeExecution")
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(found).Should(BeFalse(),
-		"unset permit fields must be omitted instead of projected as empty strings, which the module CRD enum rejects")
-}
-
-func TestBuildModuleCR_ProjectsMCPGuardrailsMode(t *testing.T) {
-	g := NewWithT(t)
-	h := trustyai.NewHandler()
-
-	dscCtx := newDSCContext(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.TrustyAI.MCPGuardrailsMode = true
-
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig())
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	mcpMode, found, err := unstructured.NestedBool(u.Object, "spec", "mcpGuardrailsMode")
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(found).Should(BeTrue())
-	g.Expect(mcpMode).Should(BeTrue())
-}
-
-func TestBuildModuleCR_PermitFieldsPassedThrough(t *testing.T) {
-	g := NewWithT(t)
-	h := trustyai.NewHandler()
-
-	dscCtx := newDSCContext(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.TrustyAI.Eval.LMEval.PermitCodeExecution = "allow"
-	dscCtx.DSC.Spec.Components.TrustyAI.Eval.LMEval.PermitOnline = "deny"
-
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig())
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	permitCodeExecution, found, err := unstructured.NestedString(u.Object, "spec", "eval", "lmeval", "permitCodeExecution")
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(found).Should(BeTrue())
-	g.Expect(permitCodeExecution).Should(Equal("allow"))
-
-	permitOnline, found, err := unstructured.NestedString(u.Object, "spec", "eval", "lmeval", "permitOnline")
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(found).Should(BeTrue())
-	g.Expect(permitOnline).Should(Equal("deny"))
 }
 
 func TestBuildModuleCR_NilDSCContextReturnsError(t *testing.T) {

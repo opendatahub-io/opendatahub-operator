@@ -6,6 +6,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 
 	. "github.com/onsi/gomega"
@@ -14,10 +15,10 @@ import (
 func TestBuildModuleCR_AIHubStateManaged(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.AIHub.ManagementState = operatorv1.Managed
+	dsc := newDSC(operatorv1.Managed)
+	dsc.Spec.Components.AIHub.ManagementState = operatorv1.Managed
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
+	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSC: dsc}, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -31,10 +32,10 @@ func TestBuildModuleCR_AIHubStateManaged(t *testing.T) {
 func TestBuildModuleCR_AIHubStateRemoved(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.AIHub.ManagementState = operatorv1.Removed
+	dsc := newDSC(operatorv1.Managed)
+	dsc.Spec.Components.AIHub.ManagementState = operatorv1.Removed
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
+	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSC: dsc}, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -48,10 +49,10 @@ func TestBuildModuleCR_AIHubStateRemoved(t *testing.T) {
 func TestBuildModuleCR_AIHubStateDefaultsToRemoved(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
-	dscCtx := newDSCCtx(operatorv1.Managed)
+	dsc := newDSC(operatorv1.Managed)
 	// AIHub management state not set (empty string)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
+	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSC: dsc}, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)

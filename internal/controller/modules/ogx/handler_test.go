@@ -17,15 +17,13 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
-	return &modules.DSCContext{
-		DSC: &dscApi.DataScienceCluster{
-			Spec: dscApi.DataScienceClusterSpec{
-				Components: dscApi.Components{
-					OGX: componentApi.DSCOGX{
-						ManagementSpec: common.ManagementSpec{
-							ManagementState: mgmtState,
-						},
+func newDSC(mgmtState operatorv1.ManagementState) *dscApi.DataScienceCluster {
+	return &dscApi.DataScienceCluster{
+		Spec: dscApi.DataScienceClusterSpec{
+			Components: dscApi.Components{
+				OGX: componentApi.DSCOGX{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: mgmtState,
 					},
 				},
 			},
@@ -75,22 +73,6 @@ func TestIsEnabled_NilModules(t *testing.T) {
 	g := NewWithT(t)
 	h := ogxModule.NewHandler()
 	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
-}
-
-func TestBuildModuleCR_BasicProjection(t *testing.T) {
-	g := NewWithT(t)
-	h := ogxModule.NewHandler()
-	dscCtx := newDSCCtx(operatorv1.Managed)
-
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(u.GetName()).Should(Equal(componentApi.OGXInstanceName))
-	g.Expect(u.GetKind()).Should(Equal(componentApi.OGXKind))
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec).ShouldNot(HaveKey("managementState"),
-		"managementState is a DSC-level field and must not be projected into the component CR")
 }
 
 func TestBuildModuleCR_NilPlatformContextReturnsError(t *testing.T) {
