@@ -23,10 +23,18 @@ type AIGatewayCommonSpec struct {
 	ModelsAsAService DSCModelsAsServiceSpec `json:"modelsAsAService,omitempty"`
 	// BatchGateway controls the batch-gateway operator sub-component.
 	BatchGateway AIGatewayBatchGatewaySpec `json:"batchGateway,omitempty"`
+	// AIGrid controls the AI Grid sub-component.
+	AIGrid AIGatewayAIGridSpec `json:"aiGrid,omitempty"`
 }
 
 // AIGatewayBatchGatewaySpec configures the batch-gateway operator lifecycle.
 type AIGatewayBatchGatewaySpec struct {
+	// +kubebuilder:validation:Enum=Managed;Removed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+}
+
+// AIGatewayAIGridSpec configures the AI Grid lifecycle: the grid CRDs and the grid operator.
+type AIGatewayAIGridSpec struct {
 	// +kubebuilder:validation:Enum=Managed;Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
@@ -50,5 +58,11 @@ type DSCAIGatewayStatus struct {
 // DSCBatchGatewayStatus contains the observed state of the BatchGateway
 // submodule exposed in the DSC instance.
 type DSCBatchGatewayStatus struct {
+	common.ManagementSpec `json:",inline"`
+}
+
+// DSCAIGridStatus contains the observed state of the AIGrid submodule exposed
+// in the DSC instance.
+type DSCAIGridStatus struct {
 	common.ManagementSpec `json:",inline"`
 }
