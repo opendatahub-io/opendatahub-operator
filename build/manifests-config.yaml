@@ -1,9 +1,19 @@
 map:
+  odh-workbenches-operator:
+    src: charts/operator
+    dest: workbenches
+    type: chart
+  odh-kserve-module-operator:
+    src: kserve-module/config
+    dest: kserve-module-operator
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
-  odh-trustyai-service-operator:
+  odh-ray-module-operator:
     src: config
+    dest: ray
+  odh-trustyai-module-operator:
+    src: trustyai-operator-module/config
     dest: trustyai
   odh-model-registry-operator:
     src: config
@@ -11,14 +21,6 @@ map:
   odh-dashboard-operator:
     src: dashboard-operator/charts/dashboard
     dest: dashboard-operator
-    type: chart
-  odh-feast-module-operator:
-    src: config/chart
-    dest: data
-    type: chart
-  odh-observability:
-    src: charts/odh-observability
-    dest: odh-observability
     type: chart
   odh-trainer-operator:
     src: config
@@ -29,44 +31,24 @@ map:
   odh-spark-operator-module:
     src: spark-operator-module/config
     dest: sparkoperator
-  odh-kserve-module-operator:
-    src: kserve-module/config
-    dest: kserve-module-operator
-  odh-agents-operator:
-    src: kagenti-operator/config
-    dest: kagenti-operator
   odh-ai-gateway-operator:
     src: config
     dest: aigateway
-  odh-batch-gateway-operator:
-    src: config/
-    dest: batch-gateway-operator
-  odh-workbenches-operator:
-    src: charts/operator
-    dest: workbenches
-    type: chart
-    git.url: https://github.com/opendatahub-io/workbenches-operator
-    ref_type: branch
-    branch: main
   odh-mcp-lifecycle-module-operator:
     src: config
     dest: mcplifecycleoperator
+  odh-feast-module-operator:
+    src: config/chart
+    dest: data
+    type: chart
   odh-ogx-module-operator:
     src: ogx-module/config
     dest: ogx
-  odh-ray-module-operator:
-    src: config
-    dest: ray
-  odh-data-connect-hub-controller:
-    src: dc-controller/config
-    dest: data-connect-hub
-  odh-praxis-ai-grid-operator:
-    src: charts/grid-operator/templates
-    dest: grid-operator
-  odh-trustyai-module-operator:
-    src: trustyai-operator-module/config
-    dest: trustyai
+  odh-observability:
+    src: charts/odh-observability
+    dest: odh-observability
+    type: chart
   odh-db-operator:
-    src: config
-    dest: odh-db-operator
+    src: config/chart
+    dest: databaseservice
     type: chart
