@@ -770,7 +770,7 @@ func getIstioCRDs() []*apiextensionsv1.CustomResourceDefinition {
 }
 
 // deleteGatewayConfigDependents deletes resources that would be cascade-deleted by Kubernetes GC in a real cluster
-// (Gateway, gateway OCP Routes, kube-auth-proxy Deployment and NetworkPolicy). Envtest does not run kube-controller-manager, so GC
+// (Gateway, GatewayClass, gateway OCP Routes, kube-auth-proxy Deployment and NetworkPolicy). Envtest does not run kube-controller-manager, so GC
 // never runs; this cleanup runs from DeleteGatewayConfig after GatewayConfig is gone. Extend this function if more
 // dependent resource types need explicit deletion in envtest.
 func deleteGatewayConfigDependents(t *testing.T, ctx context.Context, cli client.Client) {
@@ -793,6 +793,22 @@ func deleteGatewayConfigDependents(t *testing.T, ctx context.Context, cli client
 		}, TestTimeout, TestInterval).Should(BeTrue(), "Gateway should be deleted")
 	} else if !k8serr.IsNotFound(err) {
 		t.Fatalf("Failed to get Gateway: %v", err)
+	}
+
+	// Delete the cluster-scoped GatewayClass. spec.controllerName is immutable
+	// and platform-mode dependent, so a leftover class would fail every apply
+	// in the other platform mode (envtest has no GC to remove it with the
+	// GatewayConfig).
+	gatewayClass := &gwapiv1.GatewayClass{}
+	if err := cli.Get(ctx, types.NamespacedName{Name: gateway.GatewayClassName}, gatewayClass); err == nil {
+		if err := cli.Delete(ctx, gatewayClass); err != nil {
+			t.Fatalf("Failed to delete GatewayClass: %v", err)
+		}
+		g.Eventually(func() bool {
+			return k8serr.IsNotFound(cli.Get(ctx, types.NamespacedName{Name: gateway.GatewayClassName}, gatewayClass))
+		}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayClass should be deleted")
+	} else if !k8serr.IsNotFound(err) {
+		t.Fatalf("Failed to get GatewayClass: %v", err)
 	}
 
 	// Delete gateway OCP Route if it exists. We do not wait for it to be gone—envtest deletion can be slow;

@@ -10,7 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
-	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -32,35 +31,12 @@ func TestKubernetesCertManagerCertificateFallback(t *testing.T) {
 	kubernetesClusterInfo.Type = cluster.ClusterTypeKubernetes
 	cluster.SetClusterInfo(kubernetesClusterInfo)
 	t.Cleanup(func() { cluster.SetClusterInfo(previousClusterInfo) })
-	t.Cleanup(func() {
-		// envtest has no garbage collector; do not leave the Kubernetes controller
-		// name on the shared GatewayClass for subsequent OpenShift tests.
-		gatewayClass := &gwapiv1.GatewayClass{ObjectMeta: metav1.ObjectMeta{Name: gateway.GatewayClassName}}
-		if err := tc.K8sClient.Delete(tc.Ctx, gatewayClass); !k8serr.IsNotFound(err) {
-			g.Expect(err).NotTo(HaveOccurred())
-		}
-		g.Eventually(func() bool {
-			return k8serr.IsNotFound(tc.K8sClient.Get(tc.Ctx, types.NamespacedName{Name: gateway.GatewayClassName}, gatewayClass))
-		}, TestTimeout, TestInterval).Should(BeTrue(), "Kubernetes GatewayClass should be deleted")
-	})
 
 	// The shared OAuth environment only creates the OpenShift gateway namespace.
 	namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: gateway.GetGatewayNamespace()}}
 	if err := tc.K8sClient.Create(tc.Ctx, namespace); !k8serr.IsAlreadyExists(err) {
 		g.Expect(err).NotTo(HaveOccurred())
 	}
-
-	// Earlier tests may leave a GatewayClass behind (envtest has no garbage
-	// collector). spec.controllerName is immutable, so a leftover class with the
-	// OpenShift/istio controller name would fail every apply in Kubernetes mode.
-	// Remove it before creating the GatewayConfig so this test starts clean.
-	gatewayClass := &gwapiv1.GatewayClass{ObjectMeta: metav1.ObjectMeta{Name: gateway.GatewayClassName}}
-	if err := tc.K8sClient.Delete(tc.Ctx, gatewayClass); !k8serr.IsNotFound(err) {
-		g.Expect(err).NotTo(HaveOccurred())
-	}
-	g.Eventually(func() bool {
-		return k8serr.IsNotFound(tc.K8sClient.Get(tc.Ctx, types.NamespacedName{Name: gateway.GatewayClassName}, gatewayClass))
-	}, TestTimeout, TestInterval).Should(BeTrue(), "leftover GatewayClass should be deleted before the test starts")
 
 	CreateGatewayConfig(t, tc.Ctx, tc.K8sClient, serviceApi.GatewayConfigSpec{
 		IngressMode: serviceApi.IngressModeLoadBalancer,
