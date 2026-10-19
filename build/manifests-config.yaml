@@ -149,7 +149,7 @@ additional_meta:
     git.commit: 9b5c0f072c5c1fee2b2527424259c6cc830735f4
   odh-kube-auth-proxy:
     git.url: https://github.com/red-hat-data-services/kube-auth-proxy
-    git.commit: 35ca3755eb496cbbb05010c113b2f7ec99cf8b89
+    git.commit: 26cd1042d428753a3a74c3a0caa6af65333d1349
   odh-kube-rbac-proxy:
     git.url: https://github.com/red-hat-data-services/kube-rbac-proxy
     git.commit: 45dfd6074eefe19d377875aa565ceb54c8946473
