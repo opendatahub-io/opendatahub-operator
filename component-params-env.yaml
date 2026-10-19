@@ -3,6 +3,7 @@
 # rhai_helm_components: components whose RELATED_IMAGE_* must also be present
 #   in RHOAI-Build-Config helm/rhai-on-xks-chart/values.yaml (rhaiOperator.relatedImages).
 # odh_exceptions / rhoai_exceptions: RELATED_IMAGE entries exempt from platform validation.
+#   RHOAI exceptions also apply to the RHAI Helm payload.
 #   When no explicit imageOverrides mapping exists, these also prevent automatic CSV import
 #   for that platform (e.g. architecture-specific or ODH-only images).
 # known_issues: RELATED_IMAGE errors to downgrade to warnings.
@@ -68,9 +69,9 @@ odh_exceptions:
   reason: RHOAI-only image, not applicable to ODH
 
 rhoai_exceptions:
-- image: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-97573
-  reason: Gateway image was offboarded from the RHOAI 3.6 bundle; it remains in the ODH bundle
+- image: RELATED_IMAGE_ODH_PRAXIS_AI_GRID_OPERATOR_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHAISTRAT-2845
+  reason: AI Grid operator is currently published in ODH only; remove this exception when RHOAI-Build-Config and the RHAI Helm payload onboard the image
 - image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE
   reason: ODH-only image, not applicable to RHOAI
 - image: RELATED_IMAGE_ODH_VLLM_CPU_FAST_2_IMAGE

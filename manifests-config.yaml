@@ -106,7 +106,7 @@ components:
   aigateway:
     odh:
       repo: opendatahub-io/ai-gateway-operator
-      ref: stable@e26358897af111db6d7af25c183a5f4ed6cdf8db
+      ref: main@1eb2f672677fb8565234615371b6d81cabfd7238
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/ai-gateway-operator
@@ -344,7 +344,7 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-ai-gateway-operator"
-      digest: "sha256:d0e588a292b3dd3e34f04c4648208798a42a8c4a73357259ce0ad7fa5a4a2727"
+      digest: "sha256:01794b566eece42b17df2680aa08fa965dc09cc5e3e34c96a4c6095f92776994"
     rhoai:
       base: "quay.io/rhoai/odh-ai-gateway-operator-rhel9"
       digest: "sha256:b815b362240c6e9e68e5efbdd460e7a3d8b05ee4aea0d29cae5538c2f5829611"
@@ -1357,7 +1357,7 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-praxis-ai-grid-operator"
-      digest: "sha256:62d799465f7acfc7489ba5671ebef836fae43d1fd27c1a6ea35b4dab5ca78cda"
+      digest: "sha256:b3d6341a03446675a728fe18aab439c51eb4089b738656303d283a76ff6bf79a"
   RELATED_IMAGE_ODH_CLI_IMAGE:
     source: "csv"
     rhoai:
