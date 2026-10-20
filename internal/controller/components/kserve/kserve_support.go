@@ -55,10 +55,14 @@ var isRequiredOperators = predicate.Funcs{
 		return false
 	},
 	CreateFunc: func(e event.CreateEvent) bool {
-		return strings.HasPrefix(e.Object.GetName(), serverlessOperator) || strings.HasPrefix(e.Object.GetName(), serviceMeshOperator) || strings.HasPrefix(e.Object.GetName(), authorinoOperator)
+		return strings.HasPrefix(e.Object.GetName(), serverlessOperator) ||
+			strings.HasPrefix(e.Object.GetName(), serviceMeshOperator) ||
+			strings.HasPrefix(e.Object.GetName(), authorinoOperator)
 	},
 	DeleteFunc: func(e event.DeleteEvent) bool {
-		return strings.HasPrefix(e.Object.GetName(), serverlessOperator) || strings.HasPrefix(e.Object.GetName(), serviceMeshOperator) || strings.HasPrefix(e.Object.GetName(), authorinoOperator)
+		return strings.HasPrefix(e.Object.GetName(), serverlessOperator) ||
+			strings.HasPrefix(e.Object.GetName(), serviceMeshOperator) ||
+			strings.HasPrefix(e.Object.GetName(), authorinoOperator)
 	},
 	GenericFunc: func(e event.GenericEvent) bool {
 		return false
@@ -169,7 +173,7 @@ func authorinoExtAuthzSupported(ctx context.Context, cli client.Client) (bool, e
 			return false, err
 		}
 
-		return csv.Spec.Version.Version.GTE(authorinoExtAuthzMinVersion), nil
+		return csv.Spec.Version.GTE(authorinoExtAuthzMinVersion), nil
 	}
 
 	return false, nil

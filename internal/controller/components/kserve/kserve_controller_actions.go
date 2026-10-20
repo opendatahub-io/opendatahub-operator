@@ -293,12 +293,8 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 		return fmt.Errorf("failed to list subscriptions %w", err)
 	}
 
-	authorinoExtAuthzEnabled := false
-	if authorinoInstalled {
-		authorinoExtAuthzEnabled, err = authorinoExtAuthzSupported(ctx, rr.Client)
-		if err != nil {
-			return fmt.Errorf("failed to determine Authorino version %w", err)
-		}
+	if err := cleanUpAuthorinoExtAuthz(ctx, rr, authorinoInstalled); err != nil {
+		return err
 	}
 
 	if rr.DSCI.Spec.ServiceMesh == nil {
@@ -327,24 +323,6 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 					}
 					logger.Info("Deleted", "kind", res.GetKind(), "name", res.GetName(), "namespace", res.GetNamespace())
 				}
-			}
-		}
-
-		// Remove the custom transport when an older Authorino version is
-		// installed; those versions use the original ClusterIP Service behavior.
-		if authorinoInstalled && !authorinoExtAuthzEnabled {
-			for _, res := range rr.Resources {
-				if !isAuthorinoExtAuthzResource(&res) {
-					continue
-				}
-				err := rr.Client.Delete(ctx, &res, client.PropagationPolicy(metav1.DeletePropagationForeground))
-				if err != nil && !k8serr.IsNotFound(err) {
-					return odherrors.NewStopErrorW(err)
-				}
-				logger.Info("Deleted", "kind", res.GetKind(), "name", res.GetName(), "namespace", res.GetNamespace())
-			}
-			if err := rr.RemoveResources(isAuthorinoExtAuthzResource); err != nil {
-				return odherrors.NewStopErrorW(err)
 			}
 		}
 
@@ -385,6 +363,36 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 		}
 	}
 
+	return nil
+}
+
+func cleanUpAuthorinoExtAuthz(ctx context.Context, rr *odhtypes.ReconciliationRequest, authorinoInstalled bool) error {
+	if !authorinoInstalled {
+		return nil
+	}
+
+	enabled, err := authorinoExtAuthzSupported(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to determine Authorino version %w", err)
+	}
+	if enabled {
+		return nil
+	}
+
+	logger := logf.FromContext(ctx)
+	for _, res := range rr.Resources {
+		if !isAuthorinoExtAuthzResource(&res) {
+			continue
+		}
+		err := rr.Client.Delete(ctx, &res, client.PropagationPolicy(metav1.DeletePropagationForeground))
+		if err != nil && !k8serr.IsNotFound(err) {
+			return odherrors.NewStopErrorW(err)
+		}
+		logger.Info("Deleted", "kind", res.GetKind(), "name", res.GetName(), "namespace", res.GetNamespace())
+	}
+	if err := rr.RemoveResources(isAuthorinoExtAuthzResource); err != nil {
+		return odherrors.NewStopErrorW(err)
+	}
 	return nil
 }
 

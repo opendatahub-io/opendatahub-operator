@@ -452,19 +452,44 @@ func TestCleanUpTemplatedResources_withAuthorino(t *testing.T) {
 				jq.Match(`.spec.configPatches[0].patch.value.name == "odhai-authorino-ext-authz"`),
 				jq.Match(`.spec.configPatches[0].patch.value.type == "STRICT_DNS"`),
 				jq.Match(`.spec.configPatches[0].patch.value.load_assignment.cluster_name == "odhai-authorino-ext-authz"`),
-				jq.Match(`.spec.configPatches[0].patch.value.load_assignment.endpoints[0].lb_endpoints[0].endpoint.address.socket_address.address == "authorino-authorino-authorization.custom-authorino.svc.cluster.local"`),
+				jq.Match(
+					`.spec.configPatches[0].patch.value.load_assignment.endpoints[0].lb_endpoints[0].endpoint.address.socket_address.address == `+
+						`"authorino-authorino-authorization.custom-authorino.svc.cluster.local"`,
+				),
 				jq.Match(`.spec.configPatches[0].patch.value.load_assignment.endpoints[0].lb_endpoints[0].endpoint.address.socket_address.port_value == 50051`),
 				jq.Match(`.spec.configPatches[0].patch.value.http2_protocol_options == {}`),
 				jq.Match(`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.tls_certificate_sds_secret_configs[0].name == "default"`),
-				jq.Match(`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.combined_validation_context.validation_context_sds_secret_config.name == "ROOTCA"`),
-				jq.Match(`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.tls_certificate_sds_secret_configs[0].sds_config.api_config_source.grpc_services[0].envoy_grpc.cluster_name == "sds-grpc"`),
-				jq.Match(`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.tls_certificate_sds_secret_configs[0].sds_config.api_config_source.transport_api_version == "V3"`),
+				jq.Match(
+					`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.`+
+						`combined_validation_context.validation_context_sds_secret_config.name == "ROOTCA"`,
+				),
+				jq.Match(
+					`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.`+
+						`tls_certificate_sds_secret_configs[0].sds_config.api_config_source.grpc_services[0].envoy_grpc.cluster_name == "sds-grpc"`,
+				),
+				jq.Match(
+					`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.`+
+						`tls_certificate_sds_secret_configs[0].sds_config.api_config_source.transport_api_version == "V3"`,
+				),
 				jq.Match(`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.tls_certificate_sds_secret_configs[0].sds_config.resource_api_version == "V3"`),
-				jq.Match(`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.combined_validation_context.validation_context_sds_secret_config.sds_config.api_config_source.grpc_services[0].envoy_grpc.cluster_name == "sds-grpc"`),
-				jq.Match(`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.combined_validation_context.validation_context_sds_secret_config.sds_config.api_config_source.transport_api_version == "V3"`),
-				jq.Match(`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.combined_validation_context.validation_context_sds_secret_config.sds_config.resource_api_version == "V3"`),
+				jq.Match(
+					`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.`+
+						`combined_validation_context.validation_context_sds_secret_config.sds_config.api_config_source.grpc_services[0].envoy_grpc.cluster_name == "sds-grpc"`,
+				),
+				jq.Match(
+					`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.`+
+						`combined_validation_context.validation_context_sds_secret_config.sds_config.api_config_source.transport_api_version == "V3"`,
+				),
+				jq.Match(
+					`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.`+
+						`combined_validation_context.validation_context_sds_secret_config.sds_config.resource_api_version == "V3"`,
+				),
 				jq.Match(`.spec.configPatches[0].patch.value.transport_socket.typed_config.sni == "outbound_.50051_._.authorino-authorino-authorization.custom-authorino.svc.cluster.local"`),
-				jq.Match(`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.combined_validation_context.default_validation_context.match_typed_subject_alt_names[0].matcher.exact == "spiffe://cluster.local/ns/custom-authorino/sa/authorino-authorino"`),
+				jq.Match(
+					`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.`+
+						`combined_validation_context.default_validation_context.match_typed_subject_alt_names[0].matcher.exact == `+
+						`"spiffe://cluster.local/ns/custom-authorino/sa/authorino-authorino"`,
+				),
 				jq.Match(`.spec.configPatches[1].applyTo == "HTTP_FILTER"`),
 				jq.Match(`.spec.configPatches[1].match.context == "SIDECAR_INBOUND"`),
 				jq.Match(`.spec.configPatches[1].match.listener.filterChain.filter.subFilter.name == "envoy.filters.http.ext_authz"`),
