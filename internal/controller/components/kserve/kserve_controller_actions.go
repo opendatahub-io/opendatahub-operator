@@ -248,6 +248,16 @@ func addTemplateFiles(ctx context.Context, rr *odhtypes.ReconciliationRequest) e
 		},
 	}
 
+	// The custom Authorino transport is only managed when Service Mesh is
+	// explicitly managed by the DSCI. Unmanaged and removed meshes must not
+	// receive an operator-created EnvoyFilter.
+	if rr.DSCI.Spec.ServiceMesh != nil && rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
+		templates = append(templates, odhtypes.TemplateInfo{
+			FS:   resourcesFS,
+			Path: "resources/servicemesh/kserve-authorino-ext-authz.tmpl.yaml",
+		})
+	}
+
 	rr.Templates = append(rr.Templates, templates...)
 	return nil
 }
@@ -281,6 +291,12 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 	authorinoInstalled, err := cluster.SubscriptionExists(ctx, rr.Client, "authorino-operator")
 	if err != nil {
 		return fmt.Errorf("failed to list subscriptions %w", err)
+	}
+
+	if rr.DSCI.Spec.ServiceMesh == nil {
+		if err := rr.RemoveResources(isForDependency("servicemesh")); err != nil {
+			return odherrors.NewStopErrorW(err)
+		}
 	}
 
 	if rr.DSCI.Spec.ServiceMesh != nil {

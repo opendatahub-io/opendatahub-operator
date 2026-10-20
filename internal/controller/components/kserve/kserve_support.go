@@ -97,14 +97,31 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 	knativeIngressDomain := getKnativeDomain(ctx, rr.Client, k)
 	knativeCertificateSecret := getKnativeCertSecretName(k)
+	authorinoNamespace := getAuthorinoNamespace(rr)
+	controlPlane := infrav1.ControlPlaneSpec{}
+	if rr.DSCI.Spec.ServiceMesh != nil {
+		controlPlane = rr.DSCI.Spec.ServiceMesh.ControlPlane
+	}
 
 	return map[string]any{
-		"AuthExtensionName":        rr.DSCI.Spec.ApplicationsNamespace + "-auth-provider",
-		"ControlPlane":             rr.DSCI.Spec.ServiceMesh.ControlPlane,
+		"AuthExtensionName":        authorinoNamespace,
+		"AuthNamespace":            authorinoNamespace,
+		"AuthProviderName":         authorinoProviderName,
+		"TrustDomain":              "cluster.local",
+		"ControlPlane":             controlPlane,
 		"KnativeCertificateSecret": knativeCertificateSecret,
 		"KnativeIngressDomain":     knativeIngressDomain,
 		"Serving":                  k.Spec.Serving,
 	}, nil
+}
+
+// getAuthorinoNamespace returns the configured Authorino namespace, falling
+// back to the historical applications namespace suffix when it is omitted.
+func getAuthorinoNamespace(rr *odhtypes.ReconciliationRequest) string {
+	if rr.DSCI.Spec.ServiceMesh != nil && strings.TrimSpace(rr.DSCI.Spec.ServiceMesh.Auth.Namespace) != "" {
+		return rr.DSCI.Spec.ServiceMesh.Auth.Namespace
+	}
+	return rr.DSCI.Spec.ApplicationsNamespace + "-auth-provider"
 }
 
 func getKnativeDomain(ctx context.Context, cli client.Client, k *componentApi.Kserve) string {
