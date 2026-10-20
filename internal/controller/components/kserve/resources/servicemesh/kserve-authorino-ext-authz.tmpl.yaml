@@ -47,6 +47,8 @@ spec:
                     grpc_services:
                     - envoy_grpc:
                         cluster_name: sds-grpc
+                    transport_api_version: V3
+                  resource_api_version: V3
               combined_validation_context:
                 default_validation_context:
                   match_typed_subject_alt_names:
@@ -61,6 +63,8 @@ spec:
                       grpc_services:
                       - envoy_grpc:
                           cluster_name: sds-grpc
+                      transport_api_version: V3
+                    resource_api_version: V3
   - applyTo: HTTP_FILTER
     match:
       context: SIDECAR_INBOUND
