@@ -254,7 +254,7 @@ additional_meta:
     git.commit: 46beba01e6d333d7f2cc3087e74ba8b3323a8889
   odh-mod-arch-mlflow:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 46beba01e6d333d7f2cc3087e74ba8b3323a8889
+    git.commit: 1d82a019700c13e804055cc687a7aad5a6c2984a
   odh-mod-arch-model-registry:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 46beba01e6d333d7f2cc3087e74ba8b3323a8889
