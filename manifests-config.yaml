@@ -343,7 +343,7 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-ai-gateway-operator"
-      digest: "sha256:c26bdf16104a82a2ebbc583b9813614ef23ec6eb610a8b1edca2efa434be8f82"
+      digest: "sha256:01794b566eece42b17df2680aa08fa965dc09cc5e3e34c96a4c6095f92776994"
     rhoai:
       base: "quay.io/rhoai/odh-ai-gateway-operator-rhel9"
       digest: "sha256:a73f2a20432c535f62193f432be82bf511f3fcf8865915034ec93c6c9c19645d"
