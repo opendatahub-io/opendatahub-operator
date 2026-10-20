@@ -31,12 +31,14 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
@@ -447,9 +449,10 @@ func (tc *DAGOrderingTestCtx) ValidateXKSRunlevelGating(t *testing.T) {
 // a platform release mismatch on component CRs (old version != new
 // operator version), blocking DAG advancement. The quota prevents
 // batch-20 components from reconciling at the new version, keeping them
-// stuck. The Platform gate event and the unchanged Workbenches release
-// prove the DAG stopped while batch 20 is blocked. Removing the quota
-// lets components reconcile, proving convergence.
+// stuck. The Platform gate event, unchanged Workbenches release, and
+// unchanged KServe operator Deployment version prove that runlevel 31
+// cannot advance while batch 20 is blocked. Removing the quota lets
+// both runlevels reconcile, proving convergence.
 //
 // The test leaves the operator at version 99.0.0-dag-test for
 // subsequent tests (BatchOrdering). The suite restores the original
@@ -490,6 +493,12 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 			`any(.status.releases[]?; .name == "%s" and .version == "%s")`,
 			common.PlatformReleaseName, originalVersion,
 		)),
+		WithEventuallyTimeout(2*time.Minute),
+	)
+	kserveDeploymentNN := types.NamespacedName{Namespace: tc.AppsNamespace, Name: kserveModule.NewHandler().GetDeploymentName()}
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, kserveDeploymentNN),
+		WithCondition(jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformVersion, originalVersion)),
 		WithEventuallyTimeout(2*time.Minute),
 	)
 	platform := tc.EnsureResourceExists(
@@ -539,6 +548,13 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 		WithConsistentlyDuration(20*time.Second),
 		WithConsistentlyPollingInterval(5*time.Second),
 	)
+	t.Log("Verifying the runlevel-31 KServe operator Deployment is not updated while batch 20 is blocked")
+	tc.EnsureResourceExistsConsistently(
+		WithMinimalObject(gvk.Deployment, kserveDeploymentNN),
+		WithCondition(jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformVersion, originalVersion)),
+		WithConsistentlyDuration(20*time.Second),
+		WithConsistentlyPollingInterval(5*time.Second),
+	)
 
 	// Step 4: Remove quota and verify convergence at new version.
 	t.Log("Removing quota to unblock deployments")
@@ -555,6 +571,13 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 			`any(.status.releases[]?; .name == "%s" and .version == "%s")`,
 			common.PlatformReleaseName, dagTestVersion,
 		)),
+		WithEventuallyTimeout(15*time.Minute),
+		WithEventuallyPollingInterval(15*time.Second),
+	)
+	t.Log("Waiting for the runlevel-31 KServe operator Deployment to advance to the new version")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, kserveDeploymentNN),
+		WithCondition(jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformVersion, dagTestVersion)),
 		WithEventuallyTimeout(15*time.Minute),
 		WithEventuallyPollingInterval(15*time.Second),
 	)
