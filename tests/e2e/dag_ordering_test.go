@@ -783,7 +783,7 @@ func (tc *DAGOrderingTestCtx) startRunlevelGateWatch(t *testing.T, resourceVersi
 					}
 					options.ResourceVersion = bookmark.GetResourceVersion()
 					continue
-			}
+				}
 				platform, isPlatform := event.Object.(*unstructured.Unstructured)
 				if !isPlatform {
 					result <- fmt.Errorf("unexpected Platform watch object %T", event.Object)
