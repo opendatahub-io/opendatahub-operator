@@ -248,6 +248,13 @@ func addTemplateFiles(ctx context.Context, rr *odhtypes.ReconciliationRequest) e
 		},
 	}
 
+	// Always render the custom Authorino transport so cleanup can delete an
+	// existing filter when Service Mesh leaves the Managed state.
+	templates = append(templates, odhtypes.TemplateInfo{
+		FS:   resourcesFS,
+		Path: "resources/servicemesh/kserve-authorino-ext-authz.tmpl.yaml",
+	})
+
 	rr.Templates = append(rr.Templates, templates...)
 	return nil
 }
@@ -281,6 +288,16 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 	authorinoInstalled, err := cluster.SubscriptionExists(ctx, rr.Client, "authorino-operator")
 	if err != nil {
 		return fmt.Errorf("failed to list subscriptions %w", err)
+	}
+
+	if err := cleanUpAuthorinoExtAuthz(ctx, rr, authorinoInstalled); err != nil {
+		return err
+	}
+
+	if rr.DSCI.Spec.ServiceMesh == nil {
+		if err := rr.RemoveResources(isForDependency("servicemesh")); err != nil {
+			return odherrors.NewStopErrorW(err)
+		}
 	}
 
 	if rr.DSCI.Spec.ServiceMesh != nil {
@@ -343,6 +360,46 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 		}
 	}
 
+	return nil
+}
+
+func cleanUpAuthorinoExtAuthz(ctx context.Context, rr *odhtypes.ReconciliationRequest, authorinoInstalled bool) error {
+	serviceMeshManaged := rr.DSCI.Spec.ServiceMesh != nil &&
+		rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Managed
+	if serviceMeshManaged {
+		if !authorinoInstalled {
+			return nil
+		}
+
+		enabled, err := authorinoExtAuthzSupported(ctx, rr.Client)
+		if err != nil {
+			return fmt.Errorf("failed to determine Authorino version %w", err)
+		}
+		if enabled {
+			return nil
+		}
+	}
+
+	logger := logf.FromContext(ctx)
+	for _, res := range rr.Resources {
+		if !isAuthorinoExtAuthzResource(&res) {
+			continue
+		}
+		err := rr.Client.Delete(ctx, &res, client.PropagationPolicy(metav1.DeletePropagationForeground))
+		if err != nil {
+			if k8serr.IsNotFound(err) {
+				continue
+			}
+			if errors.Is(err, &meta.NoKindMatchError{}) {
+				continue
+			}
+			return odherrors.NewStopErrorW(err)
+		}
+		logger.Info("Deleted", "kind", res.GetKind(), "name", res.GetName(), "namespace", res.GetNamespace())
+	}
+	if err := rr.RemoveResources(isAuthorinoExtAuthzResource); err != nil {
+		return odherrors.NewStopErrorW(err)
+	}
 	return nil
 }
 

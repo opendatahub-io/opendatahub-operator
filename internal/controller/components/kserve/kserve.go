@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/blang/semver/v4"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,12 +25,14 @@ import (
 )
 
 const (
-	componentName            = componentApi.KserveComponentName
-	authorinoOperator        = "authorino-operator"
-	serviceMeshOperator      = "servicemeshoperator"
-	serverlessOperator       = "serverless-operator"
-	kserveConfigMapName      = "inferenceservice-config"
-	kserveManifestSourcePath = "overlays/odh"
+	componentName               = componentApi.KserveComponentName
+	authorinoOperator           = "authorino-operator"
+	authorinoProviderName       = "authorino"
+	authorinoExtAuthzFilterName = "kserve-authorino-ext-authz"
+	serviceMeshOperator         = "servicemeshoperator"
+	serverlessOperator          = "serverless-operator"
+	kserveConfigMapName         = "inferenceservice-config"
+	kserveManifestSourcePath    = "overlays/odh"
 
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
@@ -40,6 +43,8 @@ const (
 )
 
 var (
+	authorinoExtAuthzMinVersion = semver.MustParse("1.4.4")
+
 	conditionTypes = []string{
 		status.ConditionServingAvailable,
 		status.ConditionDeploymentsAvailable,

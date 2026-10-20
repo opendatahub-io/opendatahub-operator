@@ -4,11 +4,16 @@ package kserve
 import (
 	"testing"
 
+	"github.com/blang/semver/v4"
 	"github.com/onsi/gomega/gstruct"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	operatorversion "github.com/operator-framework/api/pkg/lib/version"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -367,9 +372,24 @@ func TestCleanUpTemplatedResources_withAuthorino(t *testing.T) {
 			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
 				Name: serverlessOperator,
 			}},
-			&ofapiv1alpha1.Subscription{ObjectMeta: metav1.ObjectMeta{
-				Name: authorinoOperator,
-			}},
+			&ofapiv1alpha1.Subscription{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      authorinoOperator,
+					Namespace: "openshift-operators",
+				},
+				Status: ofapiv1alpha1.SubscriptionStatus{
+					InstalledCSV: "authorino-operator.v1.4.4",
+				},
+			},
+			&ofapiv1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "authorino-operator.v1.4.4",
+					Namespace: "openshift-operators",
+				},
+				Spec: ofapiv1alpha1.ClusterServiceVersionSpec{
+					Version: operatorversion.OperatorVersion{Version: semver.MustParse("1.4.4")},
+				},
+			},
 		),
 	)
 
@@ -382,6 +402,12 @@ func TestCleanUpTemplatedResources_withAuthorino(t *testing.T) {
 	dsci := dsciv1.DSCInitialization{}
 	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
 		ManagementState: operatorv1.Managed,
+		ControlPlane: infrav1.ControlPlaneSpec{
+			Namespace: "istio-system",
+		},
+		Auth: infrav1.AuthSpec{
+			Namespace: "custom-authorino",
+		},
 	}
 
 	rrHeaded := types.ReconciliationRequest{
@@ -404,7 +430,7 @@ func TestCleanUpTemplatedResources_withAuthorino(t *testing.T) {
 
 	g.Expect(rrHeaded.Resources).Should(
 		And(
-			HaveLen(11),
+			HaveLen(12),
 			ContainElement(gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Object": And(
 					HaveKeyWithValue("kind", gvk.AuthorizationPolicy.Kind),
@@ -415,8 +441,138 @@ func TestCleanUpTemplatedResources_withAuthorino(t *testing.T) {
 					HaveKeyWithValue("kind", gvk.EnvoyFilter.Kind),
 				),
 			})),
+			ContainElement(WithTransform(func(obj unstructured.Unstructured) map[string]any {
+				return obj.Object
+			}, And(
+				jq.Match(`.metadata.name == "kserve-authorino-ext-authz"`),
+				jq.Match(`.metadata.namespace == "istio-system"`),
+				jq.Match(`.metadata.labels["platform.opendatahub.io/dependency"] == "servicemesh"`),
+				jq.Match(`.spec.workloadSelector.labels.component == "predictor"`),
+				jq.Match(`.spec.configPatches[0].applyTo == "CLUSTER"`),
+				jq.Match(`.spec.configPatches[0].match.context == "SIDECAR_OUTBOUND"`),
+				jq.Match(`.spec.configPatches[0].patch.operation == "ADD"`),
+				jq.Match(`.spec.configPatches[0].patch.value.name == "odhai-authorino-ext-authz"`),
+				jq.Match(`.spec.configPatches[0].patch.value.type == "STRICT_DNS"`),
+				jq.Match(`.spec.configPatches[0].patch.value.load_assignment.cluster_name == "odhai-authorino-ext-authz"`),
+				jq.Match(
+					`.spec.configPatches[0].patch.value.load_assignment.endpoints[0].lb_endpoints[0].endpoint.address.socket_address.address == `+
+						`"authorino-authorino-authorization.custom-authorino.svc.cluster.local"`,
+				),
+				jq.Match(`.spec.configPatches[0].patch.value.load_assignment.endpoints[0].lb_endpoints[0].endpoint.address.socket_address.port_value == 50051`),
+				jq.Match(`.spec.configPatches[0].patch.value.http2_protocol_options == {}`),
+				jq.Match(`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.tls_certificate_sds_secret_configs[0].name == "default"`),
+				jq.Match(
+					`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.`+
+						`combined_validation_context.validation_context_sds_secret_config.name == "ROOTCA"`,
+				),
+				jq.Match(
+					`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.`+
+						`tls_certificate_sds_secret_configs[0].sds_config.api_config_source.grpc_services[0].envoy_grpc.cluster_name == "sds-grpc"`,
+				),
+				jq.Match(
+					`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.`+
+						`tls_certificate_sds_secret_configs[0].sds_config.api_config_source.transport_api_version == "V3"`,
+				),
+				jq.Match(`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.tls_certificate_sds_secret_configs[0].sds_config.resource_api_version == "V3"`),
+				jq.Match(
+					`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.`+
+						`combined_validation_context.validation_context_sds_secret_config.sds_config.api_config_source.grpc_services[0].envoy_grpc.cluster_name == "sds-grpc"`,
+				),
+				jq.Match(
+					`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.`+
+						`combined_validation_context.validation_context_sds_secret_config.sds_config.api_config_source.transport_api_version == "V3"`,
+				),
+				jq.Match(
+					`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.`+
+						`combined_validation_context.validation_context_sds_secret_config.sds_config.resource_api_version == "V3"`,
+				),
+				jq.Match(`.spec.configPatches[0].patch.value.transport_socket.typed_config.sni == "outbound_.50051_._.authorino-authorino-authorization.custom-authorino.svc.cluster.local"`),
+				jq.Match(
+					`.spec.configPatches[0].patch.value.transport_socket.typed_config.common_tls_context.`+
+						`combined_validation_context.default_validation_context.match_typed_subject_alt_names[0].matcher.exact == `+
+						`"spiffe://cluster.local/ns/custom-authorino/sa/authorino-authorino"`,
+				),
+				jq.Match(`.spec.configPatches[1].applyTo == "HTTP_FILTER"`),
+				jq.Match(`.spec.configPatches[1].match.context == "SIDECAR_INBOUND"`),
+				jq.Match(`.spec.configPatches[1].match.listener.filterChain.filter.subFilter.name == "envoy.filters.http.ext_authz"`),
+				jq.Match(`.spec.configPatches[1].patch.operation == "MERGE"`),
+				jq.Match(`.spec.configPatches[1].patch.value.typed_config.grpc_service.envoy_grpc.cluster_name == "odhai-authorino-ext-authz"`),
+			))),
 		),
 	)
+}
+
+func TestCleanUpTemplatedResources_withOldAuthorino(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serviceMeshOperator,
+			}},
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serverlessOperator,
+			}},
+			&ofapiv1alpha1.Subscription{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      authorinoOperator,
+					Namespace: "openshift-operators",
+				},
+				Status: ofapiv1alpha1.SubscriptionStatus{
+					InstalledCSV: "authorino-operator.v1.4.3",
+				},
+			},
+			&ofapiv1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "authorino-operator.v1.4.3",
+					Namespace: "openshift-operators",
+				},
+				Spec: ofapiv1alpha1.ClusterServiceVersionSpec{
+					Version: operatorversion.OperatorVersion{Version: semver.MustParse("1.4.3")},
+				},
+			},
+		),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ks := componentApi.Kserve{}
+	ks.Spec.DefaultDeploymentMode = componentApi.Serverless
+	ks.Spec.Serving.ManagementState = operatorv1.Managed
+
+	dsci := dsciv1.DSCInitialization{}
+	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
+		ManagementState: operatorv1.Managed,
+		ControlPlane: infrav1.ControlPlaneSpec{
+			Namespace: "istio-system",
+		},
+		Auth: infrav1.AuthSpec{
+			Namespace: "custom-authorino",
+		},
+	}
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &ks,
+		DSCI:       &dsci,
+		Conditions: conditions.NewManager(&ks, status.ConditionTypeReady),
+	}
+
+	supported, err := authorinoExtAuthzSupported(ctx, cli)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(supported).To(BeFalse())
+
+	g.Expect(addTemplateFiles(ctx, &rr)).ShouldNot(HaveOccurred())
+	g.Expect(template.NewAction(template.WithDataFn(getTemplateData))(ctx, &rr)).ShouldNot(HaveOccurred())
+	g.Expect(cleanUpTemplatedResources(ctx, &rr)).ShouldNot(HaveOccurred())
+
+	g.Expect(rr.Resources).Should(And(
+		HaveLen(11),
+		Not(ContainElement(WithTransform(func(obj unstructured.Unstructured) map[string]any {
+			return obj.Object
+		}, jq.Match(`.metadata.name == "kserve-authorino-ext-authz"`))),
+		),
+	))
 }
 
 func TestCleanUpTemplatedResources_withoutAuthorino(t *testing.T) {
@@ -478,4 +634,86 @@ func TestCleanUpTemplatedResources_withoutAuthorino(t *testing.T) {
 			}))),
 		),
 	)
+}
+
+func TestCleanUpTemplatedResources_withServiceMeshUnmanaged(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serviceMeshOperator,
+			}},
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serverlessOperator,
+			}},
+			&ofapiv1alpha1.Subscription{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      authorinoOperator,
+					Namespace: "openshift-operators",
+				},
+				Status: ofapiv1alpha1.SubscriptionStatus{
+					InstalledCSV: "authorino-operator.v1.4.4",
+				},
+			},
+			&ofapiv1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "authorino-operator.v1.4.4",
+					Namespace: "openshift-operators",
+				},
+				Spec: ofapiv1alpha1.ClusterServiceVersionSpec{
+					Version: operatorversion.OperatorVersion{Version: semver.MustParse("1.4.4")},
+				},
+			},
+		),
+	)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ks := componentApi.Kserve{}
+	ks.Spec.DefaultDeploymentMode = componentApi.Serverless
+	ks.Spec.Serving.ManagementState = operatorv1.Managed
+
+	dsci := dsciv1.DSCInitialization{}
+	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
+		ManagementState: operatorv1.Unmanaged,
+		ControlPlane: infrav1.ControlPlaneSpec{
+			Namespace: "istio-system",
+		},
+	}
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &ks,
+		DSCI:       &dsci,
+		Conditions: conditions.NewManager(&ks, status.ConditionTypeReady),
+	}
+
+	g.Expect(addTemplateFiles(ctx, &rr)).ShouldNot(HaveOccurred())
+	g.Expect(template.NewAction(template.WithDataFn(getTemplateData))(ctx, &rr)).ShouldNot(HaveOccurred())
+
+	var extAuthzFilter *unstructured.Unstructured
+	for i := range rr.Resources {
+		if isAuthorinoExtAuthzResource(&rr.Resources[i]) {
+			extAuthzFilter = rr.Resources[i].DeepCopy()
+			break
+		}
+	}
+	g.Expect(extAuthzFilter).NotTo(BeNil())
+	g.Expect(cli.Create(ctx, extAuthzFilter)).ShouldNot(HaveOccurred())
+
+	g.Expect(cleanUpTemplatedResources(ctx, &rr)).ShouldNot(HaveOccurred())
+
+	deletedFilter := &unstructured.Unstructured{}
+	deletedFilter.SetGroupVersionKind(gvk.EnvoyFilter)
+	err = cli.Get(ctx, client.ObjectKeyFromObject(extAuthzFilter), deletedFilter)
+	g.Expect(k8serr.IsNotFound(err)).To(BeTrue())
+
+	g.Expect(rr.Resources).Should(And(
+		HaveLen(7),
+		Not(ContainElement(gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+			"Object": And(HaveKeyWithValue("kind", gvk.EnvoyFilter.Kind)),
+		}))),
+	))
 }
