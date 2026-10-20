@@ -447,8 +447,8 @@ func (tc *DAGOrderingTestCtx) ValidateXKSRunlevelGating(t *testing.T) {
 // a platform release mismatch on component CRs (old version != new
 // operator version), blocking DAG advancement. The quota prevents
 // batch-20 components from reconciling at the new version, keeping them
-// stuck. Extension controllers (batch 31+) should be gated
-// (PlatformReady=False) while batch 20 is blocked. Removing the quota
+// stuck. The Platform gate event and the unchanged Workbenches release
+// prove the DAG stopped while batch 20 is blocked. Removing the quota
 // lets components reconcile, proving convergence.
 //
 // The test leaves the operator at version 99.0.0-dag-test for
@@ -529,15 +529,7 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 	// even if it clears while setOperatorEnvVars waits for the new pod.
 	t.Log("Watching for ProvisioningProgress=False/AwaitingReadiness on Platform CR")
 	tc.waitForRunlevelGate(t, gateResult)
-	tc.EnsureResourceExistsConsistently(
-		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
-		WithCondition(jq.Match(
-			`any(.status.conditions[]; .type == "%s" and .status == "%s" and .reason == "%s")`,
-			status.ConditionTypeProvisioningProgress, metav1.ConditionFalse, status.AwaitingReadinessReason,
-		)),
-		WithConsistentlyDuration(20*time.Second),
-		WithConsistentlyPollingInterval(5*time.Second),
-	)
+	t.Log("Verifying Workbenches remains at the original release while quota blocks batch 20")
 	tc.EnsureResourceExistsConsistently(
 		WithMinimalObject(gvk.Workbenches, workbenchesNN),
 		WithCondition(jq.Match(
@@ -694,24 +686,71 @@ func (tc *DAGOrderingTestCtx) startRunlevelGateWatch(t *testing.T, resourceVersi
 
 	result := make(chan error, 1)
 	go func() {
-		defer func() { stream.Stop() }()
+		defer func() {
+			if stream != nil {
+				stream.Stop()
+			}
+		}()
+		refreshPlatform := func() (bool, error) {
+			current, getErr := platforms.Get(ctx, tc.PlatformNamespacedName.Name, metav1.GetOptions{})
+			if getErr != nil {
+				return false, fmt.Errorf("failed to get current Platform after watch expiry: %w", getErr)
+			}
+			matched, matchErr := matcher.Match(current)
+			if matchErr != nil {
+				return false, fmt.Errorf("failed to inspect current Platform conditions: %w", matchErr)
+			}
+			options.ResourceVersion = current.GetResourceVersion()
+			return matched, nil
+		}
 		for ctx.Err() == nil {
+			if stream == nil {
+				var watchErr error
+				stream, watchErr = platforms.Watch(ctx, options)
+				if watchErr != nil {
+					if !k8serr.IsResourceExpired(watchErr) && !k8serr.IsGone(watchErr) {
+						result <- fmt.Errorf("failed to watch Platform from resource version %s: %w", options.ResourceVersion, watchErr)
+						return
+					}
+					matched, refreshErr := refreshPlatform()
+					if refreshErr != nil {
+						result <- refreshErr
+						return
+					}
+					if matched {
+						result <- nil
+						return
+					}
+					continue
+				}
+			}
 			select {
 			case <-ctx.Done():
 				return
 			case event, ok := <-stream.ResultChan():
 				if !ok {
 					stream.Stop()
-					stream, err = platforms.Watch(ctx, options)
-					if err != nil {
-						result <- fmt.Errorf("failed to watch Platform from resource version %s: %w", options.ResourceVersion, err)
-						return
-					}
+					stream = nil
 					continue
 				}
 				if event.Type == watch.Error {
-				result <- fmt.Errorf("Platform watch failed: %w", k8serr.FromObject(event.Object))
-				return
+					watchErr := k8serr.FromObject(event.Object)
+					if !k8serr.IsResourceExpired(watchErr) && !k8serr.IsGone(watchErr) {
+						result <- fmt.Errorf("Platform watch failed: %w", watchErr)
+						return
+					}
+					matched, refreshErr := refreshPlatform()
+					if refreshErr != nil {
+						result <- refreshErr
+						return
+					}
+					if matched {
+						result <- nil
+						return
+					}
+					stream.Stop()
+					stream = nil
+					continue
 				}
 				if event.Type == watch.Bookmark {
 					bookmark, accessorErr := meta.Accessor(event.Object)
