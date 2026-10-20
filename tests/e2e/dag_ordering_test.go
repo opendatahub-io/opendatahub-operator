@@ -501,6 +501,7 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 		WithEventuallyTimeout(2*time.Minute),
 	)
 	platformResourceVersion := platform.GetResourceVersion()
+	gateResult := tc.startRunlevelGateWatch(t, platformResourceVersion)
 
 	// Step 2: Apply quota and simulate version upgrade.
 	// Quota blocks new pod creation. Version change triggers readiness
@@ -523,11 +524,11 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 		corev1.EnvVar{Name: "RHAI_VERSION", Value: dagTestVersion},
 	)
 
-	// Step 3: Verify the DAG stopped at an earlier runlevel. Watch from
-	// before the upgrade so a short-lived condition is still observed even
-	// if it clears while setOperatorEnvVars waits for the new pod.
+	// Step 3: Verify the DAG stopped at an earlier runlevel. The watch
+	// started before the upgrade, so it catches a short-lived condition
+	// even if it clears while setOperatorEnvVars waits for the new pod.
 	t.Log("Watching for ProvisioningProgress=False/AwaitingReadiness on Platform CR")
-	tc.waitForRunlevelGate(t, platformResourceVersion)
+	tc.waitForRunlevelGate(t, gateResult)
 	tc.EnsureResourceExistsConsistently(
 		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
 		WithCondition(jq.Match(
@@ -667,7 +668,7 @@ func (tc *DAGOrderingTestCtx) deleteDeploymentPods(t *testing.T, nn types.Namesp
 	)
 }
 
-func (tc *DAGOrderingTestCtx) waitForRunlevelGate(t *testing.T, resourceVersion string) {
+func (tc *DAGOrderingTestCtx) startRunlevelGateWatch(t *testing.T, resourceVersion string) <-chan error {
 	t.Helper()
 
 	config, err := ctrlcfg.GetConfig()
@@ -675,55 +676,83 @@ func (tc *DAGOrderingTestCtx) waitForRunlevelGate(t *testing.T, resourceVersion 
 	dynamicClient, err := dynamic.NewForConfig(config)
 	require.NoError(t, err, "failed to create client for Platform watch")
 
-	ctx, cancel := context.WithTimeout(tc.Context(), 5*time.Minute)
-	defer cancel()
+	ctx, cancel := context.WithCancel(tc.Context())
+	t.Cleanup(cancel)
 
 	options := metav1.ListOptions{
-		FieldSelector:   fields.OneTermEqualSelector("metadata.name", tc.PlatformNamespacedName.Name).String(),
-		ResourceVersion: resourceVersion,
+		FieldSelector:       fields.OneTermEqualSelector("metadata.name", tc.PlatformNamespacedName.Name).String(),
+		ResourceVersion:     resourceVersion,
+		AllowWatchBookmarks: true,
 	}
 	matcher := jq.Match(
 		`any(.status.conditions[]; .type == "%s" and .status == "%s" and .reason == "%s")`,
 		status.ConditionTypeProvisioningProgress, metav1.ConditionFalse, status.AwaitingReadinessReason,
 	)
 	platforms := dynamicClient.Resource(gvk.Platform.GroupVersion().WithResource("platforms"))
+	stream, err := platforms.Watch(ctx, options)
+	require.NoError(t, err, "failed to watch Platform from resource version %s", resourceVersion)
 
-	for ctx.Err() == nil {
-		stream, watchErr := platforms.Watch(ctx, options)
-		require.NoError(t, watchErr, "failed to watch Platform from resource version %s", options.ResourceVersion)
-
-		watchClosed := false
-		for !watchClosed {
+	result := make(chan error, 1)
+	go func() {
+		defer func() { stream.Stop() }()
+		for ctx.Err() == nil {
 			select {
 			case <-ctx.Done():
-				stream.Stop()
-				t.Fatalf("timed out waiting for Platform runlevel gate: %v", ctx.Err())
+				return
 			case event, ok := <-stream.ResultChan():
 				if !ok {
-					watchClosed = true
-					break
-				}
-				if event.Type == watch.Error {
 					stream.Stop()
-					t.Fatalf("Platform watch failed: %v", k8serr.FromObject(event.Object))
-				}
-				if event.Type == watch.Bookmark {
+					stream, err = platforms.Watch(ctx, options)
+					if err != nil {
+						result <- fmt.Errorf("failed to watch Platform from resource version %s: %w", options.ResourceVersion, err)
+						return
+					}
 					continue
 				}
+				if event.Type == watch.Error {
+				result <- fmt.Errorf("Platform watch failed: %w", k8serr.FromObject(event.Object))
+				return
+				}
+				if event.Type == watch.Bookmark {
+					bookmark, accessorErr := meta.Accessor(event.Object)
+					if accessorErr != nil {
+						result <- fmt.Errorf("failed to inspect Platform watch bookmark: %w", accessorErr)
+						return
+					}
+					options.ResourceVersion = bookmark.GetResourceVersion()
+					continue
+			}
 				platform, isPlatform := event.Object.(*unstructured.Unstructured)
-				require.True(t, isPlatform, "unexpected Platform watch object %T", event.Object)
+				if !isPlatform {
+					result <- fmt.Errorf("unexpected Platform watch object %T", event.Object)
+					return
+				}
 				options.ResourceVersion = platform.GetResourceVersion()
 				matched, matchErr := matcher.Match(platform)
-				require.NoError(t, matchErr, "failed to inspect Platform conditions")
+				if matchErr != nil {
+					result <- fmt.Errorf("failed to inspect Platform conditions: %w", matchErr)
+					return
+				}
 				if matched {
-					stream.Stop()
+					result <- nil
 					return
 				}
 			}
 		}
-		stream.Stop()
+	}()
+	return result
+}
+
+func (tc *DAGOrderingTestCtx) waitForRunlevelGate(t *testing.T, result <-chan error) {
+	t.Helper()
+	select {
+	case err := <-result:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Minute):
+		t.Fatal("timed out waiting for Platform runlevel gate")
+	case <-tc.Context().Done():
+		t.Fatalf("timed out waiting for Platform runlevel gate: %v", tc.Context().Err())
 	}
-	t.Fatalf("timed out waiting for Platform runlevel gate: %v", ctx.Err())
 }
 
 // ValidatePlatformReady verifies that every component CR has the
