@@ -133,6 +133,7 @@ func dashboardTestSuite(t *testing.T) {
 func (tc *DashboardTestCtx) ValidateIndependentDataComponentProjection(t *testing.T) {
 	t.Helper()
 
+	tc.SkipIfXKSCluster(t)
 	t.Cleanup(func() {
 		tc.EventuallyResourcePatched(
 			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
