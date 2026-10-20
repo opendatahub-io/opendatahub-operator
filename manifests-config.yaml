@@ -43,11 +43,11 @@ components:
   trustyai:
     odh:
       repo: opendatahub-io/trustyai-service-operator
-      ref: main@c517af62634a2c388df406994dede74f3ca95398
+      ref: main@5b6456173224a3f9da4d3f3f916433e4c92c41a8
       sourcePath: trustyai-operator-module/config
     rhoai:
       repo: red-hat-data-services/trustyai-service-operator
-      ref: rhoai-3.6@d9a5998a6aa2bedbb07054ef21ce8198422d47f5
+      ref: rhoai-3.6@b0fcb9757cbd82380bb3371e496b612ccd05a8b3
       sourcePath: trustyai-operator-module/config
   aihub:
     odh:
