@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,6 +25,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -53,13 +55,28 @@ var isRequiredOperators = predicate.Funcs{
 		return false
 	},
 	CreateFunc: func(e event.CreateEvent) bool {
-		return strings.HasPrefix(e.Object.GetName(), serverlessOperator) || strings.HasPrefix(e.Object.GetName(), serviceMeshOperator)
+		return strings.HasPrefix(e.Object.GetName(), serverlessOperator) || strings.HasPrefix(e.Object.GetName(), serviceMeshOperator) || strings.HasPrefix(e.Object.GetName(), authorinoOperator)
 	},
 	DeleteFunc: func(e event.DeleteEvent) bool {
-		return strings.HasPrefix(e.Object.GetName(), serverlessOperator) || strings.HasPrefix(e.Object.GetName(), serviceMeshOperator)
+		return strings.HasPrefix(e.Object.GetName(), serverlessOperator) || strings.HasPrefix(e.Object.GetName(), serviceMeshOperator) || strings.HasPrefix(e.Object.GetName(), authorinoOperator)
 	},
 	GenericFunc: func(e event.GenericEvent) bool {
 		return false
+	},
+}
+
+var isAuthorinoCSV = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		return strings.HasPrefix(e.ObjectNew.GetName(), authorinoOperator) || strings.HasPrefix(e.ObjectOld.GetName(), authorinoOperator)
+	},
+	CreateFunc: func(e event.CreateEvent) bool {
+		return strings.HasPrefix(e.Object.GetName(), authorinoOperator)
+	},
+	DeleteFunc: func(e event.DeleteEvent) bool {
+		return strings.HasPrefix(e.Object.GetName(), authorinoOperator)
+	},
+	GenericFunc: func(e event.GenericEvent) bool {
+		return strings.HasPrefix(e.Object.GetName(), authorinoOperator)
 	},
 }
 
@@ -122,6 +139,40 @@ func getAuthorinoNamespace(rr *odhtypes.ReconciliationRequest) string {
 		return rr.DSCI.Spec.ServiceMesh.Auth.Namespace
 	}
 	return rr.DSCI.Spec.ApplicationsNamespace + "-auth-provider"
+}
+
+// authorinoExtAuthzSupported reports whether the installed Authorino operator
+// uses the headless Service behavior that requires the custom Envoy cluster.
+func authorinoExtAuthzSupported(ctx context.Context, cli client.Client) (bool, error) {
+	subscriptions := &ofapiv1alpha1.SubscriptionList{}
+	if err := cli.List(ctx, subscriptions); err != nil {
+		return false, err
+	}
+
+	for i := range subscriptions.Items {
+		subscription := &subscriptions.Items[i]
+		if subscription.Name != authorinoOperator {
+			continue
+		}
+		if subscription.Status.InstalledCSV == "" {
+			return false, nil
+		}
+
+		csv := &ofapiv1alpha1.ClusterServiceVersion{}
+		if err := cli.Get(ctx, client.ObjectKey{
+			Namespace: subscription.Namespace,
+			Name:      subscription.Status.InstalledCSV,
+		}, csv); err != nil {
+			if errors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		return csv.Spec.Version.Version.GTE(authorinoExtAuthzMinVersion), nil
+	}
+
+	return false, nil
 }
 
 func getKnativeDomain(ctx context.Context, cli client.Client, k *componentApi.Kserve) string {
@@ -302,6 +353,10 @@ func getAndRemoveOwnerReferences(
 	current.SetLabels(ls)
 
 	return resources.RemoveOwnerReferences(ctx, cli, current, predicate)
+}
+
+func isAuthorinoExtAuthzResource(u *unstructured.Unstructured) bool {
+	return u.GroupVersionKind() == gvk.EnvoyFilter && u.GetName() == authorinoExtAuthzFilterName
 }
 
 func isForDependency(s string) func(u *unstructured.Unstructured) bool {

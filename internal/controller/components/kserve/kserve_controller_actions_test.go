@@ -4,8 +4,10 @@ package kserve
 import (
 	"testing"
 
+	"github.com/blang/semver/v4"
 	"github.com/onsi/gomega/gstruct"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	operatorversion "github.com/operator-framework/api/pkg/lib/version"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -368,9 +370,24 @@ func TestCleanUpTemplatedResources_withAuthorino(t *testing.T) {
 			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
 				Name: serverlessOperator,
 			}},
-			&ofapiv1alpha1.Subscription{ObjectMeta: metav1.ObjectMeta{
-				Name: authorinoOperator,
-			}},
+			&ofapiv1alpha1.Subscription{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      authorinoOperator,
+					Namespace: "openshift-operators",
+				},
+				Status: ofapiv1alpha1.SubscriptionStatus{
+					InstalledCSV: "authorino-operator.v1.4.4",
+				},
+			},
+			&ofapiv1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "authorino-operator.v1.4.4",
+					Namespace: "openshift-operators",
+				},
+				Spec: ofapiv1alpha1.ClusterServiceVersionSpec{
+					Version: operatorversion.OperatorVersion{Version: semver.MustParse("1.4.4")},
+				},
+			},
 		),
 	)
 
@@ -458,6 +475,79 @@ func TestCleanUpTemplatedResources_withAuthorino(t *testing.T) {
 	)
 }
 
+func TestCleanUpTemplatedResources_withOldAuthorino(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serviceMeshOperator,
+			}},
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serverlessOperator,
+			}},
+			&ofapiv1alpha1.Subscription{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      authorinoOperator,
+					Namespace: "openshift-operators",
+				},
+				Status: ofapiv1alpha1.SubscriptionStatus{
+					InstalledCSV: "authorino-operator.v1.4.3",
+				},
+			},
+			&ofapiv1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "authorino-operator.v1.4.3",
+					Namespace: "openshift-operators",
+				},
+				Spec: ofapiv1alpha1.ClusterServiceVersionSpec{
+					Version: operatorversion.OperatorVersion{Version: semver.MustParse("1.4.3")},
+				},
+			},
+		),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ks := componentApi.Kserve{}
+	ks.Spec.DefaultDeploymentMode = componentApi.Serverless
+	ks.Spec.Serving.ManagementState = operatorv1.Managed
+
+	dsci := dsciv1.DSCInitialization{}
+	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
+		ManagementState: operatorv1.Managed,
+		ControlPlane: infrav1.ControlPlaneSpec{
+			Namespace: "istio-system",
+		},
+		Auth: infrav1.AuthSpec{
+			Namespace: "custom-authorino",
+		},
+	}
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &ks,
+		DSCI:       &dsci,
+		Conditions: conditions.NewManager(&ks, status.ConditionTypeReady),
+	}
+
+	supported, err := authorinoExtAuthzSupported(ctx, cli)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(supported).To(BeFalse())
+
+	g.Expect(addTemplateFiles(ctx, &rr)).ShouldNot(HaveOccurred())
+	g.Expect(template.NewAction(template.WithDataFn(getTemplateData))(ctx, &rr)).ShouldNot(HaveOccurred())
+	g.Expect(cleanUpTemplatedResources(ctx, &rr)).ShouldNot(HaveOccurred())
+
+	g.Expect(rr.Resources).Should(And(
+		HaveLen(11),
+		Not(ContainElement(WithTransform(func(obj unstructured.Unstructured) map[string]any {
+			return obj.Object
+		}, jq.Match(`.metadata.name == "kserve-authorino-ext-authz"`))),
+		),
+	))
+}
+
 func TestCleanUpTemplatedResources_withoutAuthorino(t *testing.T) {
 	ctx := t.Context()
 	g := NewWithT(t)
@@ -531,9 +621,24 @@ func TestCleanUpTemplatedResources_withServiceMeshUnmanaged(t *testing.T) {
 			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
 				Name: serverlessOperator,
 			}},
-			&ofapiv1alpha1.Subscription{ObjectMeta: metav1.ObjectMeta{
-				Name: authorinoOperator,
-			}},
+			&ofapiv1alpha1.Subscription{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      authorinoOperator,
+					Namespace: "openshift-operators",
+				},
+				Status: ofapiv1alpha1.SubscriptionStatus{
+					InstalledCSV: "authorino-operator.v1.4.4",
+				},
+			},
+			&ofapiv1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "authorino-operator.v1.4.4",
+					Namespace: "openshift-operators",
+				},
+				Spec: ofapiv1alpha1.ClusterServiceVersionSpec{
+					Version: operatorversion.OperatorVersion{Version: semver.MustParse("1.4.4")},
+				},
+			},
 		),
 	)
 

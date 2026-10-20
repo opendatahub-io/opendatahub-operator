@@ -124,6 +124,11 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(handlers.ToNamed(componentApi.KserveInstanceName)),
 			reconciler.WithPredicates(isRequiredOperators),
 		).
+		WatchesGVK(
+			gvk.ClusterServiceVersion,
+			reconciler.WithEventHandler(handlers.ToNamed(componentApi.KserveInstanceName)),
+			reconciler.WithPredicates(isAuthorinoCSV),
+		).
 
 		// actions
 		WithAction(checkPreConditions).
