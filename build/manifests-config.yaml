@@ -299,10 +299,10 @@ additional_meta:
     git.commit: 634a025977789a0812f28823441f9694169cce0a
   odh-rhaii-cluster-validator:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: 34fc04e2fb297b6287d3b1a9e596fe2c6cf3fd3c
+    git.commit: 006d974c7a0eb041cda2f6cb94ff6e0ec6426ebb
   odh-rhaii-validator-tools:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: 34fc04e2fb297b6287d3b1a9e596fe2c6cf3fd3c
+    git.commit: 006d974c7a0eb041cda2f6cb94ff6e0ec6426ebb
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
     git.commit: 504f84beec9f161092caa206673d0817f031f23f

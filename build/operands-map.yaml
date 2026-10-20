@@ -166,9 +166,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_ROCM_PY312_IMAGE
   value: "quay.io/rhoai/odh-pipeline-runtime-tensorflow-rocm-py312-rhel9@sha256:6b76b2b1f78ade2932241a2192e3c2fcc1743ab4a99805bd01f3139a6a55ad59"
 - name: RELATED_IMAGE_ODH_RHAII_CLUSTER_VALIDATOR_IMAGE
-  value: "quay.io/rhoai/odh-rhaii-cluster-validator-rhel9@sha256:dcf452567529792a597e1443256353c6159b417d9642d5301eae7bffd92e3d22"
+  value: "quay.io/rhoai/odh-rhaii-cluster-validator-rhel9@sha256:7f2246b21a0ecc5acd5ee0a400fd3722b148fb857d862e372b5dbb053f30bc4d"
 - name: RELATED_IMAGE_ODH_RHAII_VALIDATOR_TOOLS_IMAGE
-  value: "quay.io/rhoai/odh-rhaii-validator-tools-rhel9@sha256:2076f94d6e4d6f9e73a3ee4c1629ef37d66cf3b03a14bdcd40bf6bccceec073e"
+  value: "quay.io/rhoai/odh-rhaii-validator-tools-rhel9@sha256:fc2a1bd7ccc68413e1f7eda62c5e24821503ba42e4ca82978ced71b90c5c13ae"
 - name: RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-spark-operator-rhel9@sha256:c81cb9dba4c196ba922a74effb0fa4e8d4af1f1d5f368cdbb83ac3746dd57401"
 - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
