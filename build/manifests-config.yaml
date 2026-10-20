@@ -24,7 +24,7 @@ map:
     src: config
     dest: trustyai
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
-    git.commit: 78cfec72f2336cb29a40bffd4a86a1420d909e2a
+    git.commit: 504f84beec9f161092caa206673d0817f031f23f
   odh-model-registry-operator:
     src: config
     dest: modelregistry
@@ -83,7 +83,7 @@ additional_meta:
     git.commit: be453874de849ca27d41e7fb4a7f3f345c6c83a4
   odh-automl:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 4f81cfd2419949cfe02696b061a1cc7decad076b
+    git.commit: fb26226a0b2ff22232021ce5ccf198ed6629cd53
   odh-autorag:
     git.url: https://github.com/red-hat-data-services/pipelines-components
     git.commit: 4f81cfd2419949cfe02696b061a1cc7decad076b
@@ -212,10 +212,10 @@ additional_meta:
     git.commit: beebba98ba4f01c29e9cdc048fea619329bd6b23
   odh-ml-pipelines-persistenceagent-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: beebba98ba4f01c29e9cdc048fea619329bd6b23
+    git.commit: 2fc75b613ab2f6788b34b091739d852346d7a95e
   odh-ml-pipelines-scheduledworkflow-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: beebba98ba4f01c29e9cdc048fea619329bd6b23
+    git.commit: 2fc75b613ab2f6788b34b091739d852346d7a95e
   odh-model-controller:
     git.url: https://github.com/red-hat-data-services/odh-model-controller
     git.commit: 52e42fa187da57bfd31498ad74f102af40e86b59
@@ -275,7 +275,7 @@ additional_meta:
     git.commit: c624ca398fd8ee0d43d27934463d99cce8a54376
   odh-pipelines-components:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 4f81cfd2419949cfe02696b061a1cc7decad076b
+    git.commit: fb26226a0b2ff22232021ce5ccf198ed6629cd53
   odh-pipeline-runtime-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 634a025977789a0812f28823441f9694169cce0a

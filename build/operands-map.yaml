@@ -4,7 +4,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE
   value: "quay.io/rhoai/odh-ai-gateway-payload-processing-rhel9@sha256:1c4b79bba9f7da61edd7b8585f8e034aa2f6aafd0c6e3237057b8a14bf999444"
 - name: RELATED_IMAGE_ODH_AUTOML_IMAGE
-  value: "quay.io/rhoai/odh-automl-rhel9@sha256:556cab6dcfd30716b039859a02224d9594cb2d67e95aa312b2fa29994bc795e2"
+  value: "quay.io/rhoai/odh-automl-rhel9@sha256:ff44940bd72d98c900ca377b542c56962cbaa8b56a1c41596b0e03ed2615c57c"
 - name: RELATED_IMAGE_ODH_AUTORAG_IMAGE
   value: "quay.io/rhoai/odh-autorag-rhel9@sha256:530fb4f492c7f2838b90d9ba3a55c983d3f6907add7676de8c2244f41a3926c9"
 - name: RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE
@@ -58,7 +58,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kuberay-operator-controller-rhel9@sha256:1d1ad597d4ac6bb99a1d0c60b897de76f2eb2929a5c923c08b03ec048c921384"
 - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
-  value: "quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:e09b240ec191664651c86b0880221775ac5ac8f0558b9d630bc7b0cf66f9eece"
+  value: "quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:8cfbc573c5b9a5e619f150f858e85da50be0907ee4623aac46dea10a49c85b51"
 - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
   value: "quay.io/rhoai/odh-kube-rbac-proxy-rhel9@sha256:179c24e53b3f7d5d96043be8ab469b5279fa3f5c6014f21fea1312c136abb5bb"
 - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_PREDICTION_IMAGE
@@ -104,9 +104,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_LAUNCHER_IMAGE
   value: "quay.io/rhoai/odh-ml-pipelines-launcher-rhel9@sha256:69a25c20fd2fa7d3a48efcd08d384e827a9f83e1b73862ce52da943fecc884fc"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_PERSISTENCEAGENT_V2_IMAGE
-  value: "quay.io/rhoai/odh-ml-pipelines-persistenceagent-v2-rhel9@sha256:bbfbffffebd82b2725c97c77b4c036b8b648863cc62ebdb87aba77324d6c64ad"
+  value: "quay.io/rhoai/odh-ml-pipelines-persistenceagent-v2-rhel9@sha256:f672f526393c34492606cfad3f18610141047d0eaff2eb503ffcb2d3651b112f"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_SCHEDULEDWORKFLOW_V2_IMAGE
-  value: "quay.io/rhoai/odh-ml-pipelines-scheduledworkflow-v2-rhel9@sha256:651e5f823b363a5ed1241d5bbfddf7ab7e940b9cc369f0db42b19886e3313227"
+  value: "quay.io/rhoai/odh-ml-pipelines-scheduledworkflow-v2-rhel9@sha256:3f5cb015cbfbea9f40155e7f0101acf6b37242cc2ca15ab7cbe5c9ec27c43eed"
 - name: RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-model-controller-rhel9@sha256:80d2483d21a925792291113d7f7f86ca69058e8bd77ae429db9287820396d0dc"
 - name: RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE
@@ -150,7 +150,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE
   value: "quay.io/rhoai/odh-openvino-model-server-rhel9@sha256:0d36cf373c78768fb10c295cb7496f7c22160c8528a8c4613338035c04d72a3d"
 - name: RELATED_IMAGE_ODH_PIPELINES_COMPONENTS_IMAGE
-  value: "quay.io/rhoai/odh-pipelines-components-rhel9@sha256:f3b49b3d44c331e1b93eeff447d9ada4ef6ffe6fd92a860bfa5a4a8bdef6b6a2"
+  value: "quay.io/rhoai/odh-pipelines-components-rhel9@sha256:a95f81770395f5e83c8794ba4fa998e723ff90ed0bb6eaa6564efe2a06908e91"
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_DATASCIENCE_CPU_PY312_IMAGE
   value: "quay.io/rhoai/odh-pipeline-runtime-datascience-cpu-py312-rhel9@sha256:1304cda5818a025f1091e2cc4ee37266c867b33ab462bfab7980f18f468e7f72"
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_MINIMAL_CPU_PY312_IMAGE
@@ -200,7 +200,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE
   value: "quay.io/rhoai/odh-trustyai-service-rhel9@sha256:29b7e7ec7bfe8babdef8b2b626ec405c03004078759948387c19f47e3f59771e"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-trustyai-service-operator-rhel9@sha256:783679bf5dce6a47a2019f5d10206327edce31e75fabcf6e12ee36f6dbffd4be"
+  value: "quay.io/rhoai/odh-trustyai-service-operator-rhel9@sha256:7bca1fbf265ff4748f5e87a444a1b583c10559f394174d6dcf046cab5b116e59"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
   value: "quay.io/rhoai/odh-trustyai-vllm-orchestrator-gateway-rhel9@sha256:7587d3f1996d5d99cd56244e4c6b024500e9a6aa97c3ff8ebe8079c17b90110c"
 - name: RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE
