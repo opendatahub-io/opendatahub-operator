@@ -1,6 +1,6 @@
 relatedImages:
 - name: RELATED_IMAGE_ODH_AI_GATEWAY_OPERATOR_IMAGE
-  value: quay.io/rhoai/odh-ai-gateway-operator-rhel9@sha256:491effdfacc2b7d4dbd5a478b780e95a77459f92e2f7abeca6fa6f67030b3c6f
+  value: quay.io/rhoai/odh-ai-gateway-operator-rhel9@sha256:4e001c0d859d267c01bc1504507a0da6e0ca8d29902a0a2bd6240cee7a9f0c01
 - name: RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE
   value: quay.io/rhoai/odh-ai-gateway-payload-processing-rhel9@sha256:fd6ceac6f2791c33d55272dd9b20977f19ea157ec4b9acfd8c066b83bf30fea1
 - name: RELATED_IMAGE_ODH_AUTOML_IMAGE
