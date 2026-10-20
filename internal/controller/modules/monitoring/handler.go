@@ -19,9 +19,10 @@ import (
 )
 
 const (
-	moduleName                 = serviceApi.MonitoringServiceName
-	crName                     = serviceApi.MonitoringInstanceName
-	monitoringNamespaceHelmKey = "monitoringNamespace"
+	moduleName                   = serviceApi.MonitoringServiceName
+	crName                       = serviceApi.MonitoringInstanceName
+	monitoringNamespaceHelmKey   = "monitoringNamespace"
+	otelOperatorNamespaceHelmKey = "otelOperatorNamespace"
 )
 
 type handler struct {
@@ -58,7 +59,7 @@ func NewHandler() *handler {
 // ModuleConfig field.
 func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) modules.OperatorManifests {
 	result := h.BaseHandler.GetOperatorManifests(platform)
-	if platform == nil || platform.MonitoringNamespace == "" || len(result.HelmCharts) == 0 {
+	if platform == nil || len(result.HelmCharts) == 0 {
 		return result
 	}
 
@@ -69,7 +70,12 @@ func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) module
 	if vals == nil {
 		vals = map[string]any{}
 	}
-	vals[monitoringNamespaceHelmKey] = platform.MonitoringNamespace
+	if platform.MonitoringNamespace != "" {
+		vals[monitoringNamespaceHelmKey] = platform.MonitoringNamespace
+	}
+	// Always pass this value, including empty, so a chart cannot bind cert-manager
+	// permissions to a stale or guessed namespace before OTel is installed.
+	vals[otelOperatorNamespaceHelmKey] = platform.OTelOperatorNamespace
 	result.HelmCharts[0].Values = helm.Values(vals)
 	return result
 }
