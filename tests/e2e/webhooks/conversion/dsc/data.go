@@ -53,7 +53,7 @@ func (m DataSuite) v2ToV3(t *testing.T) {
 	w.Get(gvk.DataScienceClusterV2, dscKey).Should(And(
 		jq.Match(`.spec.components.feastoperator.managementState == "Removed"`),
 		jq.Match(`.spec.components.feastoperator.dataRegistry.managementState == "Managed"`),
-		jq.Match(`.status.components.feastoperator.managementState == "Managed"`),
+		jq.Match(`.status.components.feastoperator.managementState == "Removed"`),
 	))
 }
 
@@ -83,7 +83,7 @@ func (m DataSuite) v3ToV2(t *testing.T) {
 	w.Get(gvk.DataScienceClusterV2, dscKey).Should(And(
 		jq.Match(`.spec.components.feastoperator.managementState == "Removed"`),
 		jq.Match(`.spec.components.feastoperator.dataRegistry.managementState == "Managed"`),
-		jq.Match(`.status.components.feastoperator.managementState == "Managed"`),
+		jq.Match(`.status.components.feastoperator.managementState == "Removed"`),
 	))
 
 	w.Get(gvk.DataScienceClusterV3, dscKey).Should(And(

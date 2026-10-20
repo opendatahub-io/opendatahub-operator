@@ -107,6 +107,7 @@ func dashboardTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate module enabled", componentCtx.ValidateModuleEnabled},
+		{"Validate independent Data component projection", componentCtx.ValidateIndependentDataComponentProjection},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate data registry image env var injection", componentCtx.ValidateDataRegistryImageEnvVarInjection},
@@ -124,6 +125,64 @@ func dashboardTestSuite(t *testing.T) {
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
+}
+
+// ValidateIndependentDataComponentProjection verifies that the Dashboard CR
+// receives Data Registry availability from the Data Registry child only. The
+// aggregate Data state and the Feature Store child must not affect this gate.
+func (tc *DashboardTestCtx) ValidateIndependentDataComponentProjection(t *testing.T) {
+	t.Helper()
+
+	t.Cleanup(func() {
+		tc.EventuallyResourcePatched(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithMutateFunc(testf.TransformPipeline(
+				testf.Transform(`.spec.components.data.featureStore.managementState = %q`, operatorv1.Removed),
+				testf.Transform(`.spec.components.data.dataRegistry.managementState = %q`, operatorv1.Removed),
+			)),
+			WithCondition(And(
+				jq.Match(`.spec.components.data.featureStore.managementState == %q`, operatorv1.Removed),
+				jq.Match(`.spec.components.data.dataRegistry.managementState == %q`, operatorv1.Removed),
+			)),
+		)
+	})
+
+	tests := []struct {
+		name              string
+		featureStoreState operatorv1.ManagementState
+		dataRegistryState operatorv1.ManagementState
+	}{
+		{name: "Data Registry managed, Feature Store removed", featureStoreState: operatorv1.Removed, dataRegistryState: operatorv1.Managed},
+		{name: "Data Registry removed, Feature Store managed", featureStoreState: operatorv1.Managed, dataRegistryState: operatorv1.Removed},
+		{name: "both removed", featureStoreState: operatorv1.Removed, dataRegistryState: operatorv1.Removed},
+		{name: "both managed", featureStoreState: operatorv1.Managed, dataRegistryState: operatorv1.Managed},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.TransformPipeline(
+					testf.Transform(`.spec.components.data.featureStore.managementState = %q`, tt.featureStoreState),
+					testf.Transform(`.spec.components.data.dataRegistry.managementState = %q`, tt.dataRegistryState),
+				)),
+				WithCondition(And(
+					jq.Match(`.spec.components.data.featureStore.managementState == %q`, tt.featureStoreState),
+					jq.Match(`.spec.components.data.dataRegistry.managementState == %q`, tt.dataRegistryState),
+				)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Dashboard, tc.NamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(And(
+					jq.Match(`.spec.components.dataRegistry.managementState == %q`, tt.dataRegistryState),
+					jq.Match(`.spec.components | has("data") | not`),
+				)),
+				WithCustomErrorMsg("Dashboard Data Registry availability must follow only the Data Registry child"),
+			)
+		})
+	}
 }
 
 // TODO(RHOAIENG-96914): Remove this fake role once https://redhat.atlassian.net/browse/RHOAIENG-96914 is resolved and integrated.
