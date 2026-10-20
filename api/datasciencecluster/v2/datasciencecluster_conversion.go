@@ -140,8 +140,14 @@ func feastOperatorStatusToData(src componentApi.DSCFeastOperatorStatus) componen
 	return dst
 }
 
-func dataStatusToFeastOperator(src componentApi.DSCDataStatus) componentApi.DSCFeastOperatorStatus {
-	dst := componentApi.DSCFeastOperatorStatus{ManagementSpec: src.ManagementSpec}
+func dataStatusToFeastOperator(
+	src componentApi.DSCDataStatus,
+	featureStore common.ManagementSpec,
+) componentApi.DSCFeastOperatorStatus {
+	// The v3 Data status is aggregate because Feature Store and Data Registry share
+	// the Data operand. The legacy v2 FeastOperator status is consumed as the
+	// Feature Store availability signal, so preserve that child's independent state.
+	dst := componentApi.DSCFeastOperatorStatus{ManagementSpec: featureStore}
 	if src.DataCommonStatus == nil {
 		return dst
 	}
@@ -344,17 +350,20 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 		RelatedObjects: src.Status.RelatedObjects,
 		ErrorMessage:   src.Status.ErrorMessage,
 		Components: ComponentsStatus{
-			Dashboard:            src.Status.Components.Dashboard,
-			MaaSConsumerPortal:   src.Status.Components.MaaSPortal,
-			Workbenches:          src.Status.Components.Workbenches,
-			WorkbenchesV2:        src.Status.Components.WorkbenchesV2,
-			AIPipelines:          src.Status.Components.AIPipelines,
-			Kserve:               src.Status.Components.Kserve,
-			Kueue:                src.Status.Components.Kueue,
-			Ray:                  src.Status.Components.Ray,
-			TrustyAI:             src.Status.Components.TrustyAI,
-			ModelRegistry:        aiHubStatusToModelRegistry(src.Status.Components.AIHub),
-			FeastOperator:        dataStatusToFeastOperator(src.Status.Components.Data),
+			Dashboard:          src.Status.Components.Dashboard,
+			MaaSConsumerPortal: src.Status.Components.MaaSPortal,
+			Workbenches:        src.Status.Components.Workbenches,
+			WorkbenchesV2:      src.Status.Components.WorkbenchesV2,
+			AIPipelines:        src.Status.Components.AIPipelines,
+			Kserve:             src.Status.Components.Kserve,
+			Kueue:              src.Status.Components.Kueue,
+			Ray:                src.Status.Components.Ray,
+			TrustyAI:           src.Status.Components.TrustyAI,
+			ModelRegistry:      aiHubStatusToModelRegistry(src.Status.Components.AIHub),
+			FeastOperator: dataStatusToFeastOperator(
+				src.Status.Components.Data,
+				src.Spec.Components.Data.FeatureStore.ManagementSpec,
+			),
 			OGX:                  src.Status.Components.OGX,
 			MLflowOperator:       src.Status.Components.MLflowOperator,
 			Trainer:              src.Status.Components.Trainer,
