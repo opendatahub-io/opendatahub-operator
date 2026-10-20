@@ -1,6 +1,6 @@
 relatedImages:
 - name: RELATED_IMAGE_ODH_AI_GATEWAY_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-ai-gateway-operator-rhel9@sha256:491effdfacc2b7d4dbd5a478b780e95a77459f92e2f7abeca6fa6f67030b3c6f"
+  value: "quay.io/rhoai/odh-ai-gateway-operator-rhel9@sha256:4e001c0d859d267c01bc1504507a0da6e0ca8d29902a0a2bd6240cee7a9f0c01"
 - name: RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE
   value: "quay.io/rhoai/odh-ai-gateway-payload-processing-rhel9@sha256:fd6ceac6f2791c33d55272dd9b20977f19ea157ec4b9acfd8c066b83bf30fea1"
 - name: RELATED_IMAGE_ODH_AUTOML_IMAGE
@@ -26,7 +26,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_EVAL_HUB_IMAGE
   value: "quay.io/rhoai/odh-eval-hub-rhel9@sha256:eafb47fbd6cbcb1ee5da6982b2ad116d208ff6e22ea28c133e0046863eb86d9f"
 - name: RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-feast-module-operator-rhel9@sha256:c021895be6c2ddb94f913a0a9ef5deaf0a2fbd0f642a6853f90547893e7a4776"
+  value: "quay.io/rhoai/odh-feast-module-operator-rhel9@sha256:e19f75c6f5c26effec27cebd17b614a2d9817eae1583b729738bf566427b1fb7"
 - name: RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-feast-operator-rhel9@sha256:378089679237fa5af59eae5bcbc4de201db12db3ce0dabee030ec650c2d22c71"
 - name: RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE
@@ -44,7 +44,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:04fc6c669fafefc89646c7b582da192d949b430a2b2879b01d9d0ff58fc6f77b"
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:c7c23ad80c9f625dc3f85c4591009103ee624e3eca678401053ea3ce6db8ef92"
+  value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:6f62488c519ff8a5ad86cd18dd90c4224c0a0f5034ab20dc1fd658e2ec7d89bb"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
   value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:f912f996158913d189bbc61085bbd79d3cc84bf4d8b4ecedf9884ba92f2c26ee"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
@@ -86,7 +86,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MCP_LIFECYCLE_MODULE_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-mcp-lifecycle-module-operator-rhel9@sha256:bc042afd6ff89da735fea2917e189155f4308a7726c4e0c9a1cfdbfcc2679d7b"
 - name: RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-mcp-lifecycle-operator-rhel9@sha256:81e220e13959d5feb4355fae8cc9c70540de2ef02bcee069293acc0f664b08c0"
+  value: "quay.io/rhoai/odh-mcp-lifecycle-operator-rhel9@sha256:429667801df9d83982326f138604a3fefcbcec8b9ca0ea29a52f2e52b458e28b"
 - name: RELATED_IMAGE_ODH_MLFLOW_IMAGE
   value: "quay.io/rhoai/odh-mlflow-rhel9@sha256:0be528dc82781989d7d3fcddbf1f9825946c5ae5693c88106037c931f0a7120f"
 - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE

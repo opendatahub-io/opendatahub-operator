@@ -60,7 +60,7 @@ map:
     src: config
     dest: aigateway
     git.url: https://github.com/red-hat-data-services/ai-gateway-operator
-    git.commit: dafcc298eaf9754d08d3f66ad9fcaf985fb42ddb
+    git.commit: 5992b7cb79de3aa6aa099e5256c909f44cf67687
   odh-mcp-lifecycle-module-operator:
     src: config
     dest: mcplifecycleoperator
@@ -71,7 +71,7 @@ map:
     dest: feastoperator
     type: chart
     git.url: https://github.com/red-hat-data-services/feast-module-operator
-    git.commit: 30e5efbb743e4b8d8b0124b93844aef61a17da19
+    git.commit: f6dd16a908ce83a352e1227535e295dd12294aa8
   odh-ogx-module-operator:
     src: ogx-module/config
     dest: ogx
@@ -134,7 +134,7 @@ additional_meta:
     git.commit: 9566863b8a6692ab31b2c6e9889367c711d3c0b0
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 9566863b8a6692ab31b2c6e9889367c711d3c0b0
+    git.commit: e1aab810eccdf810b32c22edc869f6e88795e867
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 9566863b8a6692ab31b2c6e9889367c711d3c0b0
@@ -188,7 +188,7 @@ additional_meta:
     git.commit: 64b8e46b776893989b87ec9c85a0962bd44635f2
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
-    git.commit: 4ace07c2ce58f9e980029721d253fb4042a1fbb9
+    git.commit: 7c97547d1589fda53027a02617978a03ca92f339
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
     git.commit: 3719eba2dfd856d6eaa3b2f6ab1fac162ffea9cc
