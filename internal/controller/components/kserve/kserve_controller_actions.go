@@ -386,7 +386,13 @@ func cleanUpAuthorinoExtAuthz(ctx context.Context, rr *odhtypes.ReconciliationRe
 			continue
 		}
 		err := rr.Client.Delete(ctx, &res, client.PropagationPolicy(metav1.DeletePropagationForeground))
-		if err != nil && !k8serr.IsNotFound(err) {
+		if err != nil {
+			if k8serr.IsNotFound(err) {
+				continue
+			}
+			if errors.Is(err, &meta.NoKindMatchError{}) {
+				continue
+			}
 			return odherrors.NewStopErrorW(err)
 		}
 		logger.Info("Deleted", "kind", res.GetKind(), "name", res.GetName(), "namespace", res.GetNamespace())
