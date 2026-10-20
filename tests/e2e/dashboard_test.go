@@ -133,6 +133,8 @@ func dashboardTestSuite(t *testing.T) {
 func (tc *DashboardTestCtx) ValidateIndependentDataComponentProjection(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, Smoke, Tier1)
+
 	tc.SkipIfXKSCluster(t)
 	t.Cleanup(func() {
 		tc.EventuallyResourcePatched(
