@@ -10,8 +10,10 @@ import (
 	operatorversion "github.com/operator-framework/api/pkg/lib/version"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -676,6 +678,9 @@ func TestCleanUpTemplatedResources_withServiceMeshUnmanaged(t *testing.T) {
 	dsci := dsciv1.DSCInitialization{}
 	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
 		ManagementState: operatorv1.Unmanaged,
+		ControlPlane: infrav1.ControlPlaneSpec{
+			Namespace: "istio-system",
+		},
 	}
 
 	rr := types.ReconciliationRequest{
@@ -687,7 +692,23 @@ func TestCleanUpTemplatedResources_withServiceMeshUnmanaged(t *testing.T) {
 
 	g.Expect(addTemplateFiles(ctx, &rr)).ShouldNot(HaveOccurred())
 	g.Expect(template.NewAction(template.WithDataFn(getTemplateData))(ctx, &rr)).ShouldNot(HaveOccurred())
+
+	var extAuthzFilter *unstructured.Unstructured
+	for i := range rr.Resources {
+		if isAuthorinoExtAuthzResource(&rr.Resources[i]) {
+			extAuthzFilter = rr.Resources[i].DeepCopy()
+			break
+		}
+	}
+	g.Expect(extAuthzFilter).NotTo(BeNil())
+	g.Expect(cli.Create(ctx, extAuthzFilter)).ShouldNot(HaveOccurred())
+
 	g.Expect(cleanUpTemplatedResources(ctx, &rr)).ShouldNot(HaveOccurred())
+
+	deletedFilter := &unstructured.Unstructured{}
+	deletedFilter.SetGroupVersionKind(gvk.EnvoyFilter)
+	err = cli.Get(ctx, client.ObjectKeyFromObject(extAuthzFilter), deletedFilter)
+	g.Expect(k8serr.IsNotFound(err)).To(BeTrue())
 
 	g.Expect(rr.Resources).Should(And(
 		HaveLen(7),
