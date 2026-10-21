@@ -150,12 +150,16 @@ var (
 				componentApi.AIPipelinesComponentName:          aiPipelinesTestSuite,
 				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
 				componentApi.KserveComponentName:               kserveTestSuite,
-				componentApi.DataModuleName:                    dataModuleTestSuite,
 				componentApi.OGXComponentName:                  ogxTestSuite,
 				componentApi.SparkOperatorComponentName:        sparkOperatorTestSuite,
 				componentApi.AIGatewayComponentName:            aiGatewayTestSuite,
 				componentApi.MCPLifecycleOperatorComponentName: mcpLifecycleOperatorTestSuite,
 				componentApi.DatabaseServiceComponentName:      databaseServiceTestSuite,
+			},
+			{
+				// Dashboard and Data mutate the singleton DSC's data lifecycle fields.
+				// Keep Data in a later scenario group so their cleanups cannot race.
+				componentApi.DataModuleName: dataModuleTestSuite,
 			},
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
