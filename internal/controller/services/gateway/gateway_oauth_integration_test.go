@@ -104,6 +104,21 @@ func TestOAuthAdditionalGateways(t *testing.T) {
 	RunAdditionalGatewaysTest(t, GetOAuthTestSetup())
 }
 
+// TestOAuthAdditionalIngressRouteLabelsUpdate validates routeLabels updates in OAuth mode.
+func TestOAuthAdditionalIngressRouteLabelsUpdate(t *testing.T) {
+	RunAdditionalIngressRouteLabelsUpdateTest(t, GetOAuthTestSetup())
+}
+
+// TestOAuthAdditionalIngressReorder validates that reordering additionalIngresses does not churn resources.
+func TestOAuthAdditionalIngressReorder(t *testing.T) {
+	RunAdditionalIngressReorderTest(t, GetOAuthTestSetup())
+}
+
+// TestOAuthAdditionalIngressIdempotency validates that repeated reconciliation leaves resources untouched.
+func TestOAuthAdditionalIngressIdempotency(t *testing.T) {
+	RunAdditionalIngressIdempotencyTest(t, GetOAuthTestSetup())
+}
+
 func additionalOAuthIngressResources(name string) []client.Object {
 	proxyName := gateway.KubeAuthProxyName + "-" + name
 	objects := make([]client.Object, 0, 14)
