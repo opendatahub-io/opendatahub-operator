@@ -248,11 +248,15 @@ func addTemplateFiles(ctx context.Context, rr *odhtypes.ReconciliationRequest) e
 		},
 	}
 
-	// Always render the custom Authorino transport so cleanup can delete an
-	// existing filter when Service Mesh leaves the Managed state.
+	// Always render the custom Authorino transport filters so cleanup can delete
+	// existing filters when Service Mesh leaves the Managed state.
 	templates = append(templates, odhtypes.TemplateInfo{
 		FS:   resourcesFS,
 		Path: "resources/servicemesh/kserve-authorino-ext-authz.tmpl.yaml",
+	})
+	templates = append(templates, odhtypes.TemplateInfo{
+		FS:   resourcesFS,
+		Path: "resources/servicemesh/kserve-authorino-ext-authz-inferencegraph.tmpl.yaml",
 	})
 
 	rr.Templates = append(rr.Templates, templates...)

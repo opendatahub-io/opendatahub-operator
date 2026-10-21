@@ -1,0 +1,85 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: kserve-authorino-ext-authz-inferencegraph
+  namespace: {{ .ControlPlane.Namespace }}
+  labels:
+    app.opendatahub.io/kserve: "true"
+    app.kubernetes.io/part-of: kserve
+    platform.opendatahub.io/dependency: servicemesh
+spec:
+  priority: 20
+  workloadSelector:
+    labels:
+      serving.kserve.io/kind: InferenceGraph
+  configPatches:
+  - applyTo: CLUSTER
+    match:
+      context: SIDECAR_OUTBOUND
+    patch:
+      operation: ADD
+      value:
+        name: odhai-authorino-ext-authz
+        type: STRICT_DNS
+        connect_timeout: 1s
+        lb_policy: ROUND_ROBIN
+        load_assignment:
+          cluster_name: odhai-authorino-ext-authz
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: {{ .AuthProviderName }}-authorino-authorization.{{ .AuthNamespace }}.svc.{{ .TrustDomain }}
+                    port_value: 50051
+        http2_protocol_options: {}
+        transport_socket:
+          name: envoy.transport_sockets.tls
+          typed_config:
+            '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+            sni: outbound_.50051_._.{{ .AuthProviderName }}-authorino-authorization.{{ .AuthNamespace }}.svc.{{ .TrustDomain }}
+            common_tls_context:
+              tls_certificate_sds_secret_configs:
+              - name: default
+                sds_config:
+                  api_config_source:
+                    api_type: GRPC
+                    grpc_services:
+                    - envoy_grpc:
+                        cluster_name: sds-grpc
+                    transport_api_version: V3
+                  resource_api_version: V3
+              combined_validation_context:
+                default_validation_context:
+                  match_typed_subject_alt_names:
+                  - san_type: URI
+                    matcher:
+                      exact: spiffe://{{ .TrustDomain }}/ns/{{ .AuthNamespace }}/sa/{{ .AuthProviderName }}-authorino
+                validation_context_sds_secret_config:
+                  name: ROOTCA
+                  sds_config:
+                    api_config_source:
+                      api_type: GRPC
+                      grpc_services:
+                      - envoy_grpc:
+                          cluster_name: sds-grpc
+                      transport_api_version: V3
+                    resource_api_version: V3
+  - applyTo: HTTP_FILTER
+    match:
+      context: SIDECAR_INBOUND
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+            subFilter:
+              name: envoy.filters.http.ext_authz
+    patch:
+      operation: MERGE
+      value:
+        name: envoy.filters.http.ext_authz
+        typed_config:
+          '@type': type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+          grpc_service:
+            envoy_grpc:
+              cluster_name: odhai-authorino-ext-authz

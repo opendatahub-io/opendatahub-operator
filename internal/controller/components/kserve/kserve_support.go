@@ -360,7 +360,11 @@ func getAndRemoveOwnerReferences(
 }
 
 func isAuthorinoExtAuthzResource(u *unstructured.Unstructured) bool {
-	return u.GroupVersionKind() == gvk.EnvoyFilter && u.GetName() == authorinoExtAuthzFilterName
+	if u.GroupVersionKind() != gvk.EnvoyFilter {
+		return false
+	}
+	return u.GetName() == authorinoExtAuthzFilterName ||
+		u.GetName() == authorinoExtAuthzInferenceGraphFilterName
 }
 
 func isForDependency(s string) func(u *unstructured.Unstructured) bool {
