@@ -40,7 +40,7 @@ map:
     src: manifests
     dest: trainingoperator
     git.url: https://github.com/red-hat-data-services/training-operator
-    git.commit: 0cd8b195683dc21f4fbca15e23599bea315dbfcf
+    git.commit: ba2bc9856ff8a6ce51c976ea414f5d909bc85768
   odh-trainer:
     src: manifests
     dest: trainer
@@ -110,7 +110,7 @@ additional_meta:
     git.commit: 467f8d08335695b1c8c4ae5d16367fc5cf6b5815
   odh-feast-operator:
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: e6b56af21c6dde1c1fc18c5378af020725c4da0c
+    git.commit: 1fd73bcbd7e695d40eec610752f8097091a6708a
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: 70a02577c7b89a1b12c5b9b6d941746053ad928f
@@ -299,10 +299,10 @@ additional_meta:
     git.commit: 634a025977789a0812f28823441f9694169cce0a
   odh-rhaii-cluster-validator:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: 006d974c7a0eb041cda2f6cb94ff6e0ec6426ebb
+    git.commit: 9c3356fab9518314afde89cf08587446d0af5700
   odh-rhaii-validator-tools:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: 006d974c7a0eb041cda2f6cb94ff6e0ec6426ebb
+    git.commit: 9c3356fab9518314afde89cf08587446d0af5700
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
     git.commit: 504f84beec9f161092caa206673d0817f031f23f
