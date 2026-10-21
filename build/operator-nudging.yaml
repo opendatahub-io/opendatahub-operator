@@ -172,7 +172,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE
   value: quay.io/rhoai/odh-spark-operator-rhel9@sha256:c81cb9dba4c196ba922a74effb0fa4e8d4af1f1d5f368cdbb83ac3746dd57401
 - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
-  value: quay.io/rhoai/odh-ta-lmes-driver-rhel9@sha256:6c51ba3c8ec6dd1925b4ff034c024f714f6567d9f453f9464fd1e491873dcec9
+  value: quay.io/rhoai/odh-ta-lmes-driver-rhel9@sha256:08905a39b86b91394293393d53dd8e74bb115f564784b0735f6331266f7c853a
 - name: RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE
   value: quay.io/rhoai/odh-ta-lmes-job-rhel9@sha256:5f7f9537d51e64f38a9b2bd79461ba5328fc54b5fc51640ae7b2378b414d7fba
 - name: RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE
