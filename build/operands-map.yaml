@@ -38,7 +38,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kf-notebook-controller-rhel9@sha256:4d3fab73195fa67c72b84748d709d773aa400821419f9777182cbf07d701ee63"
 - name: RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE
-  value: "quay.io/rhoai/odh-kserve-agent-rhel9@sha256:f572cb2f73b17ab504ec035b069c829e37ded4592496491c3a4862543f4e0e33"
+  value: "quay.io/rhoai/odh-kserve-agent-rhel9@sha256:348fcba64d9d333eb36b5e1e9297753caeba55d121c0946d598f1184029c64db"
 - name: RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE
   value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:3b1dc4181cfca3e460279fe8a3e95c0d406711e0593f834d3bbbfbc024d73f0b"
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
@@ -46,11 +46,11 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:892b33f1141662ca9796c420f35ba5ad3cede4a874d56baecfc536cd45ad79f5"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
-  value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:5d82daecee85c91bd856e6bf967a9beef36caa97a59f2186d007c5702bc7d9d0"
+  value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:cfb3f726b0f1c07d3024fadd4891956787848a1c0f8fd92f8197161db83155e2"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9@sha256:7e43934e9a84f252ae0d7d8a909b5cdd019bf423ccbe67a6c21531275ca246a3"
+  value: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9@sha256:5b474d633bc5708d1af17d9336f40cf721f640a8075039705c8a9f4a455b057c"
 - name: RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-kserve-module-operator-rhel9@sha256:73e454f576c7dd30b84414be637561ecaa6e4894ad286d6083d49ef17b29b9f5"
+  value: "quay.io/rhoai/odh-kserve-module-operator-rhel9@sha256:b154d442f30c7a5580778bac1f733826844b72644f210cec535965dd8931a81f"
 - name: RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE
   value: "quay.io/rhoai/odh-kserve-router-rhel9@sha256:016114982d12c465a7b57d4a03baab37b7f70e39e3652e31384fc05805a0868a"
 - name: RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE
