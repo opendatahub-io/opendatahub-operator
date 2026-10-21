@@ -197,6 +197,12 @@ func TestOIDCAdditionalGateways(t *testing.T) {
 	RunAdditionalGatewaysTest(t, GetOIDCTestSetup())
 }
 
+// TestOIDCAdditionalIngressSourceSecretPreserved validates that the admin-supplied OIDC
+// client secret is never adopted, mutated or deleted by the operator.
+func TestOIDCAdditionalIngressSourceSecretPreserved(t *testing.T) {
+	RunAdditionalIngressOIDCSourceSecretPreservedTest(t, GetOIDCTestSetup())
+}
+
 // Missing credentials during a spec update must not delete or roll out default auth resources.
 func TestOIDCDefaultPreparationFailurePreservesResources(t *testing.T) {
 	setup := GetOIDCTestSetup()
