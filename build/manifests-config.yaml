@@ -80,7 +80,7 @@ map:
 additional_meta:
   odh-ai-gateway-payload-processing:
     git.url: https://github.com/red-hat-data-services/ai-gateway-payload-processing
-    git.commit: be453874de849ca27d41e7fb4a7f3f345c6c83a4
+    git.commit: 92643aec8287a59922a4ed76fe1045dbb9f88f78
   odh-automl:
     git.url: https://github.com/red-hat-data-services/pipelines-components
     git.commit: fb26226a0b2ff22232021ce5ccf198ed6629cd53
@@ -92,7 +92,7 @@ additional_meta:
     git.commit: 781004b34ca9331f24ba7afbc61a054c25695118
   odh-cli:
     git.url: https://github.com/red-hat-data-services/odh-cli
-    git.commit: 3f7b4eadf233c1819c91512fd2c297db3cce2e88
+    git.commit: 796c4d40c33d96d699e20dfd1224d5e297c395db
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 1d82a019700c13e804055cc687a7aad5a6c2984a
@@ -134,7 +134,7 @@ additional_meta:
     git.commit: e1aab810eccdf810b32c22edc869f6e88795e867
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 764748bdd6d2b94247eaa4c83e8f260bfec60b7b
+    git.commit: 849eda63951bd2886b7b243450c71b63d8a4f430
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: e1aab810eccdf810b32c22edc869f6e88795e867
