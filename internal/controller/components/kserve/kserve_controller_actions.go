@@ -254,10 +254,6 @@ func addTemplateFiles(ctx context.Context, rr *odhtypes.ReconciliationRequest) e
 		FS:   resourcesFS,
 		Path: "resources/servicemesh/kserve-authorino-ext-authz.tmpl.yaml",
 	})
-	templates = append(templates, odhtypes.TemplateInfo{
-		FS:   resourcesFS,
-		Path: "resources/servicemesh/kserve-authorino-ext-authz-inferencegraph.tmpl.yaml",
-	})
 
 	rr.Templates = append(rr.Templates, templates...)
 	return nil

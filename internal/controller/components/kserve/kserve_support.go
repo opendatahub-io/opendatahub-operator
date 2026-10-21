@@ -128,6 +128,20 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"AuthExtensionName":        authorinoNamespace,
 		"AuthNamespace":            authorinoNamespace,
 		"AuthProviderName":         authorinoProviderName,
+		"AuthorinoExtAuthzFilters": []map[string]any{
+			{
+				"Name": authorinoExtAuthzFilterName,
+				"Selector": map[string]string{
+					"component": "predictor",
+				},
+			},
+			{
+				"Name": authorinoExtAuthzInferenceGraphFilterName,
+				"Selector": map[string]string{
+					"serving.kserve.io/kind": "InferenceGraph",
+				},
+			},
+		},
 		"TrustDomain":              "cluster.local",
 		"ControlPlane":             controlPlane,
 		"KnativeCertificateSecret": knativeCertificateSecret,
