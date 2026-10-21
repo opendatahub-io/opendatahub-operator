@@ -30,7 +30,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE
   value: quay.io/rhoai/odh-feast-operator-rhel9@sha256:b1ba68810661e08f95e11e43f6d3b5005a0fc8cb603ca1d1886ddcdcb7360f55
 - name: RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE
-  value: quay.io/rhoai/odh-feature-server-rhel9@sha256:2ade2df8856f05a38b1b780c724033039fcd3d30bd77a09add82aeb7b16b42e8
+  value: quay.io/rhoai/odh-feature-server-rhel9@sha256:4552c7e5834abcfb90442f4c9eb20c59d70cea2c78ed420564c016e46dfc4fbd
 - name: RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE
   value: quay.io/rhoai/odh-fms-guardrails-orchestrator-rhel9@sha256:138dd33e24272a55bb4fbec8027e04b9d8a96ed5ce7b991fc64cf08c58205bfc
 - name: RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE
