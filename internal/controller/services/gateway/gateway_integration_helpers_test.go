@@ -43,6 +43,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -1289,6 +1290,352 @@ func RunAdditionalGatewaysTest(t *testing.T, setup TestSetup) {
 		}
 		return config.Status.AdditionalIngresses
 	}, TestTimeout, TestInterval).Should(BeEmpty())
+}
+
+// RunAdditionalIngressRouteLabelsUpdateTest validates that changing routeLabels on an
+// existing additional ingress retargets its bridge Route in place.
+//
+// routeLabels are what an IngressController's routeSelector matches, so this field
+// decides which shard admits the Route. Two properties matter and neither is implied
+// by creation-time coverage: labels removed from the spec must be pruned from the live
+// Route (a stale key could leave the Route admitted by the previous shard), and the
+// Route must be mutated rather than recreated (a recreated Route loses its admission
+// status and takes the ingress briefly offline).
+func RunAdditionalIngressRouteLabelsUpdateTest(t *testing.T, setup TestSetup) {
+	t.Helper()
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+	ctx, cli := setup.TC.Ctx, setup.TC.K8sClient
+
+	const (
+		ingressName  = "label-update"
+		initialKey   = "example.com/ingress"
+		initialValue = "label-update-shard-a"
+		updatedKey   = "example.com/shard"
+		updatedValue = "label-update-shard-b"
+	)
+
+	spec := setup.Spec
+	spec.IngressMode = serviceApi.IngressModeOcpRoute
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{{
+		Name:                  ingressName,
+		Hostname:              ingressName + ".example.com",
+		IngressControllerName: "shard-" + ingressName,
+		RouteLabels:           map[string]string{initialKey: initialValue},
+	}}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	defer func() {
+		spec.AdditionalIngresses = nil
+		UpdateGatewayConfig(t, ctx, cli, spec)
+		meta := metav1.ObjectMeta{Name: ingressName, Namespace: gateway.GetGatewayNamespace()}
+		waitForGatewayResourcesRemoved(t, setup.TC,
+			&gwapiv1.Gateway{ObjectMeta: meta},
+			&routev1.Route{ObjectMeta: meta},
+		)
+	}()
+
+	key := types.NamespacedName{Name: ingressName, Namespace: gateway.GetGatewayNamespace()}
+	route := &routev1.Route{}
+	g.Eventually(func(g Gomega) {
+		g.Expect(cli.Get(ctx, key, route)).To(Succeed())
+		g.Expect(route.Labels).To(HaveKeyWithValue(initialKey, initialValue))
+	}, TestTimeout, TestInterval).Should(Succeed())
+	routeUID := route.UID
+
+	additionalGateway := &gwapiv1.Gateway{}
+	g.Expect(cli.Get(ctx, key, additionalGateway)).To(Succeed())
+	gatewayUID := additionalGateway.UID
+
+	// Retarget the ingress at a different shard by replacing its route label.
+	spec.AdditionalIngresses[0].RouteLabels = map[string]string{updatedKey: updatedValue}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+
+	g.Eventually(func(g Gomega) {
+		g.Expect(cli.Get(ctx, key, route)).To(Succeed())
+		g.Expect(route.Labels).To(HaveKeyWithValue(updatedKey, updatedValue))
+		g.Expect(route.Labels).NotTo(HaveKey(initialKey), "superseded route labels must be pruned")
+	}, TestTimeout, TestInterval).Should(Succeed())
+
+	// The operator's own part-of label is independent of routeLabels and must survive.
+	g.Expect(route.Labels).To(HaveKeyWithValue(metadatalabels.K8SCommon.PartOf, gateway.PartOfGatewayConfig))
+
+	g.Expect(route.UID).To(Equal(routeUID), "the bridge Route must be updated in place, not recreated")
+	g.Expect(cli.Get(ctx, key, additionalGateway)).To(Succeed())
+	g.Expect(additionalGateway.UID).To(Equal(gatewayUID), "a routeLabels change must not recreate the Gateway")
+
+	g.Eventually(func(g Gomega) {
+		config, err := getGatewayConfig(ctx, cli)
+		g.Expect(err).NotTo(HaveOccurred())
+		condition := conditions.FindStatusCondition(config, serviceApi.AdditionalGatewaysReadyConditionType)
+		g.Expect(condition).NotTo(BeNil())
+		g.Expect(condition.ObservedGeneration).To(Equal(config.Generation),
+			"readiness must be republished at the generation that changed the labels")
+	}, TestTimeout, TestInterval).Should(Succeed())
+}
+
+// additionalIngressCoreResourceUIDs returns the UIDs of the three resources the
+// operator renders per additional ingress: the Gateway, the bridge Route, and the
+// infrastructure ConfigMap. Comparing these across a reconciliation distinguishes an
+// in-place update from a delete-and-recreate.
+func additionalIngressCoreResourceUIDs(
+	g Gomega, ctx context.Context, cli client.Client, name string,
+) map[string]types.UID {
+	namespace := gateway.GetGatewayNamespace()
+	key := types.NamespacedName{Name: name, Namespace: namespace}
+	uids := make(map[string]types.UID, 3)
+
+	additionalGateway := &gwapiv1.Gateway{}
+	g.Expect(cli.Get(ctx, key, additionalGateway)).To(Succeed())
+	uids["Gateway"] = additionalGateway.UID
+
+	route := &routev1.Route{}
+	g.Expect(cli.Get(ctx, key, route)).To(Succeed())
+	uids["Route"] = route.UID
+
+	configMap := &corev1.ConfigMap{}
+	g.Expect(cli.Get(ctx, types.NamespacedName{Name: name + "-config", Namespace: namespace}, configMap)).To(Succeed())
+	uids["ConfigMap"] = configMap.UID
+
+	return uids
+}
+
+// RunAdditionalIngressReorderTest validates that reordering spec.additionalIngresses
+// does not churn resources.
+//
+// Resources are keyed by ingress name, so list order carries no meaning and reordering
+// must be a no-op. Nothing proves that today: a controller that keyed off slice index,
+// or that diffed the list as a whole, would silently delete and recreate every ingress
+// on reorder, dropping Route admission in the process.
+func RunAdditionalIngressReorderTest(t *testing.T, setup TestSetup) {
+	t.Helper()
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+	ctx, cli := setup.TC.Ctx, setup.TC.K8sClient
+
+	first := serviceApi.AdditionalIngress{
+		Name:                  "reorder-first",
+		Hostname:              "reorder-first.example.com",
+		IngressControllerName: "shard-reorder-first",
+		RouteLabels:           map[string]string{"example.com/ingress": "reorder-first"},
+	}
+	second := serviceApi.AdditionalIngress{
+		Name:                  "reorder-second",
+		Hostname:              "reorder-second.example.com",
+		IngressControllerName: "shard-reorder-second",
+		RouteLabels:           map[string]string{"example.com/ingress": "reorder-second"},
+	}
+
+	spec := setup.Spec
+	spec.IngressMode = serviceApi.IngressModeOcpRoute
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{first, second}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	defer func() {
+		spec.AdditionalIngresses = nil
+		UpdateGatewayConfig(t, ctx, cli, spec)
+		for _, name := range []string{first.Name, second.Name} {
+			meta := metav1.ObjectMeta{Name: name, Namespace: gateway.GetGatewayNamespace()}
+			waitForGatewayResourcesRemoved(t, setup.TC,
+				&gwapiv1.Gateway{ObjectMeta: meta},
+				&routev1.Route{ObjectMeta: meta},
+			)
+		}
+	}()
+
+	before := make(map[string]map[string]types.UID, 2)
+	for _, name := range []string{first.Name, second.Name} {
+		g.Eventually(func(g Gomega) {
+			before[name] = additionalIngressCoreResourceUIDs(g, ctx, cli, name)
+		}, TestTimeout, TestInterval).Should(Succeed())
+	}
+
+	// Swap the entries; the set of ingresses is unchanged.
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{second, first}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+
+	g.Eventually(func(g Gomega) {
+		config, err := getGatewayConfig(ctx, cli)
+		g.Expect(err).NotTo(HaveOccurred())
+		condition := conditions.FindStatusCondition(config, serviceApi.AdditionalGatewaysReadyConditionType)
+		g.Expect(condition).NotTo(BeNil())
+		g.Expect(condition.ObservedGeneration).To(Equal(config.Generation))
+		g.Expect(config.Status.AdditionalIngresses).To(HaveLen(2))
+	}, TestTimeout, TestInterval).Should(Succeed())
+
+	for _, name := range []string{first.Name, second.Name} {
+		after := additionalIngressCoreResourceUIDs(g, ctx, cli, name)
+		g.Expect(after).To(Equal(before[name]), "reordering additionalIngresses must not recreate %q resources", name)
+	}
+}
+
+// RunAdditionalIngressIdempotencyTest validates that repeated reconciliation leaves an
+// unchanged additional ingress untouched.
+//
+// Only the default Gateway's resources carry UID assertions today, so recreation churn
+// on the additional Gateway, bridge Route or infrastructure ConfigMap would go
+// unnoticed. resourceVersion is asserted as well as UID: UID alone proves the object
+// was not replaced, while a stable resourceVersion proves no write was issued at all,
+// which is what makes the reconcile loop safe to run continuously.
+func RunAdditionalIngressIdempotencyTest(t *testing.T, setup TestSetup) {
+	t.Helper()
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+	ctx, cli := setup.TC.Ctx, setup.TC.K8sClient
+
+	const ingressName = "idempotent"
+	ingress := serviceApi.AdditionalIngress{
+		Name:                  ingressName,
+		Hostname:              ingressName + ".example.com",
+		IngressControllerName: "shard-" + ingressName,
+		RouteLabels:           map[string]string{"example.com/ingress": ingressName},
+	}
+
+	spec := setup.Spec
+	spec.IngressMode = serviceApi.IngressModeOcpRoute
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{ingress}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	defer func() {
+		spec.AdditionalIngresses = nil
+		UpdateGatewayConfig(t, ctx, cli, spec)
+		meta := metav1.ObjectMeta{Name: ingressName, Namespace: gateway.GetGatewayNamespace()}
+		waitForGatewayResourcesRemoved(t, setup.TC,
+			&gwapiv1.Gateway{ObjectMeta: meta},
+			&routev1.Route{ObjectMeta: meta},
+		)
+	}()
+
+	namespace := gateway.GetGatewayNamespace()
+	key := types.NamespacedName{Name: ingressName, Namespace: namespace}
+	configMapKey := types.NamespacedName{Name: ingressName + "-config", Namespace: namespace}
+
+	var before map[string]types.UID
+	g.Eventually(func(g Gomega) {
+		before = additionalIngressCoreResourceUIDs(g, ctx, cli, ingressName)
+	}, TestTimeout, TestInterval).Should(Succeed())
+
+	readVersions := func() map[string]string {
+		versions := make(map[string]string, 3)
+		additionalGateway := &gwapiv1.Gateway{}
+		g.Expect(cli.Get(ctx, key, additionalGateway)).To(Succeed())
+		versions["Gateway"] = additionalGateway.ResourceVersion
+		route := &routev1.Route{}
+		g.Expect(cli.Get(ctx, key, route)).To(Succeed())
+		versions["Route"] = route.ResourceVersion
+		configMap := &corev1.ConfigMap{}
+		g.Expect(cli.Get(ctx, configMapKey, configMap)).To(Succeed())
+		versions["ConfigMap"] = configMap.ResourceVersion
+		return versions
+	}
+
+	// Let the initial reconciliations settle before sampling the baseline, so the
+	// comparison covers steady state rather than the tail of resource creation.
+	// Record the sample before asserting on it: a failed assertion aborts the
+	// polled function, so assigning afterwards would never update the baseline.
+	var settled map[string]string
+	g.Eventually(func(g Gomega) {
+		previous := settled
+		settled = readVersions()
+		g.Expect(settled).To(Equal(previous), "waiting for resource versions to stop changing")
+	}, TestTimeout, TestInterval).Should(Succeed())
+
+	// Re-trigger reconciliation twice without changing anything the ingress depends on.
+	for range 2 {
+		g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			config, err := getGatewayConfig(ctx, cli)
+			if err != nil {
+				return err
+			}
+			annotations := config.GetAnnotations()
+			if annotations == nil {
+				annotations = map[string]string{}
+			}
+			annotations["test.opendatahub.io/reconcile-nonce"] = strconv.FormatInt(time.Now().UnixNano(), 10)
+			config.SetAnnotations(annotations)
+			return cli.Update(ctx, config)
+		})).To(Succeed())
+	}
+
+	g.Consistently(func(g Gomega) {
+		g.Expect(additionalIngressCoreResourceUIDs(g, ctx, cli, ingressName)).To(Equal(before),
+			"repeated reconciliation must not recreate additional ingress resources")
+		g.Expect(readVersions()).To(Equal(settled),
+			"repeated reconciliation must not rewrite unchanged additional ingress resources")
+	}, 10*time.Second, TestInterval).Should(Succeed())
+}
+
+// RunAdditionalIngressOIDCSourceSecretPreservedTest validates that the admin-supplied
+// OIDC client secret referenced by an additional ingress is never adopted, mutated or
+// deleted by the operator.
+//
+// <name>-oidc-source is customer input, not an operator-rendered resource: the operator
+// reads it to build the ingress's own credentials Secret. If it were ever given an
+// ownerReference to the GatewayConfig, removing the ingress — or deleting the
+// GatewayConfig — would garbage-collect a credential the operator did not create and
+// cannot recreate.
+func RunAdditionalIngressOIDCSourceSecretPreservedTest(t *testing.T, setup TestSetup) {
+	t.Helper()
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+	ctx, cli := setup.TC.Ctx, setup.TC.K8sClient
+
+	const ingressName = "oidc-source"
+	sourceSecretName := ingressName + "-oidc-source"
+	sourceKey := types.NamespacedName{Name: sourceSecretName, Namespace: gateway.GetGatewayNamespace()}
+	sourceData := []byte("admin-managed-client-secret")
+
+	source := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: sourceKey.Name, Namespace: sourceKey.Namespace},
+		Data:       map[string][]byte{OIDCSecretKey: sourceData},
+	}
+	g.Expect(cli.Create(ctx, source)).To(Succeed())
+	defer func() {
+		g.Expect(client.IgnoreNotFound(cli.Delete(ctx, source))).To(Succeed())
+	}()
+
+	spec := setup.Spec
+	spec.IngressMode = serviceApi.IngressModeOcpRoute
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{{
+		Name:                  ingressName,
+		Hostname:              ingressName + ".example.com",
+		IngressControllerName: "shard-" + ingressName,
+		RouteLabels:           map[string]string{"example.com/ingress": ingressName},
+		Auth: serviceApi.AdditionalIngressAuth{OIDC: &serviceApi.AdditionalIngressOIDCConfig{
+			ClientID: ingressName + "-client",
+			ClientSecretRef: corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: sourceSecretName},
+				Key:                  OIDCSecretKey,
+			},
+		}},
+	}}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+
+	// The operator consumes the source Secret to render the ingress's own credentials.
+	credentialsKey := types.NamespacedName{Name: ingressName + "-auth-creds", Namespace: sourceKey.Namespace}
+	g.Eventually(func() error {
+		return cli.Get(ctx, credentialsKey, &corev1.Secret{})
+	}, TestTimeout, TestInterval).Should(Succeed())
+
+	assertSourceUntouched := func(stage string) {
+		t.Helper()
+		current := &corev1.Secret{}
+		g.Expect(cli.Get(ctx, sourceKey, current)).To(Succeed(), "admin OIDC source Secret must survive %s", stage)
+		g.Expect(current.OwnerReferences).To(BeEmpty(),
+			"the operator must not take ownership of the admin-supplied OIDC source Secret (%s)", stage)
+		g.Expect(current.Data).To(HaveKeyWithValue(OIDCSecretKey, sourceData),
+			"the admin-supplied OIDC source Secret must not be rewritten (%s)", stage)
+		g.Expect(current.DeletionTimestamp).To(BeNil())
+	}
+	assertSourceUntouched("reconciliation")
+
+	// Removing the ingress must reap the operator's own resources only.
+	spec.AdditionalIngresses = nil
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	meta := metav1.ObjectMeta{Name: ingressName, Namespace: gateway.GetGatewayNamespace()}
+	waitForGatewayResourcesRemoved(t, setup.TC,
+		&gwapiv1.Gateway{ObjectMeta: meta},
+		&routev1.Route{ObjectMeta: meta},
+		&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: credentialsKey.Name, Namespace: credentialsKey.Namespace}},
+	)
+	assertSourceUntouched("ingress removal")
 }
 
 // RunHTTPRouteCreationTest validates that the HTTPRoute exists with the expected parentRef, path match, and backend.
