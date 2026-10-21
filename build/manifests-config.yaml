@@ -116,7 +116,7 @@ additional_meta:
     git.commit: 70a02577c7b89a1b12c5b9b6d941746053ad928f
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
-    git.commit: 7a5f04e3caed7e40e9634e8aeb14f3b4aaa89ceb
+    git.commit: 9b6144c6532b7a34806af9ba31054b366fbfe114
   odh-guardrails-detector-huggingface-runtime:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: 781004b34ca9331f24ba7afbc61a054c25695118
@@ -206,16 +206,16 @@ additional_meta:
     git.commit: 2fc75b613ab2f6788b34b091739d852346d7a95e
   odh-ml-pipelines-driver:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: 2fc75b613ab2f6788b34b091739d852346d7a95e
+    git.commit: cd90592da2a21f95a125ffab5383ca8762577737
   odh-ml-pipelines-launcher:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: 2fc75b613ab2f6788b34b091739d852346d7a95e
+    git.commit: cd90592da2a21f95a125ffab5383ca8762577737
   odh-ml-pipelines-persistenceagent-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: 2fc75b613ab2f6788b34b091739d852346d7a95e
+    git.commit: cd90592da2a21f95a125ffab5383ca8762577737
   odh-ml-pipelines-scheduledworkflow-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: 2fc75b613ab2f6788b34b091739d852346d7a95e
+    git.commit: cd90592da2a21f95a125ffab5383ca8762577737
   odh-model-controller:
     git.url: https://github.com/red-hat-data-services/odh-model-controller
     git.commit: 52e42fa187da57bfd31498ad74f102af40e86b59
@@ -260,7 +260,7 @@ additional_meta:
     git.commit: 1d82a019700c13e804055cc687a7aad5a6c2984a
   odh-must-gather:
     git.url: https://github.com/red-hat-data-services/must-gather
-    git.commit: 7dec60a6cc442a2e77186fdce5fe63be48a202f3
+    git.commit: c466412526ae7f5e2f76d3c0d20cfe0e14096e1f
   odh-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
     git.commit: a9461f0b3ea56b7b9375297e96a46638520b0d3f
