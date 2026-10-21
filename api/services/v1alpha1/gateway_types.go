@@ -61,7 +61,7 @@ const (
 )
 
 const (
-	// AdditionalGatewaysReadyConditionType summarizes the per-ingress GatewayReady conditions
+	// AdditionalGatewaysReadyConditionType summarizes the per-ingress Gateway, bridge Route and authentication readiness
 	// and contributes to GatewayConfig's overall Ready condition.
 	AdditionalGatewaysReadyConditionType              = "AdditionalGatewaysReady"
 	AdditionalIngressGatewayReadyConditionType        = "GatewayReady"
@@ -300,7 +300,7 @@ type AdditionalIngressAuth struct {
 
 	// MaxReplicas is the maximum number of replicas for this ingress's auth proxy.
 	// The minimum remains fixed at 2. This does not configure the default proxy.
-	// A value of 2 requests two fixed replicas without an HPA; larger values enable autoscaling.
+	// A value of 2 fixes the HPA minimum and maximum at two replicas.
 	// +optional
 	// +kubebuilder:default=10
 	// +kubebuilder:validation:Minimum=2
