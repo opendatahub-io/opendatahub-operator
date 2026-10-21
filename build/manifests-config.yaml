@@ -113,7 +113,7 @@ additional_meta:
     git.commit: 1fd73bcbd7e695d40eec610752f8097091a6708a
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: 70a02577c7b89a1b12c5b9b6d941746053ad928f
+    git.commit: 85c1b0b737cb204ccd81642107af3d1792cb5205
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
     git.commit: 9b6144c6532b7a34806af9ba31054b366fbfe114
@@ -227,7 +227,7 @@ additional_meta:
     git.commit: 6b0cd391518573e114f5a4c44c5fd6ee144f0c3b
   odh-model-registry:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: b710148a453ba896fe6672e9633a9e961b32d72b
+    git.commit: 055eb05c8fd249688f9edc626ce09f77d9349bcc
   odh-model-registry-job-async-upload:
     git.url: https://github.com/red-hat-data-services/model-registry
     git.commit: 055eb05c8fd249688f9edc626ce09f77d9349bcc
@@ -311,19 +311,19 @@ additional_meta:
     git.commit: 9e19789901a89abac8b89d13986c0e6bdc11a568
   odh-th-torch-cpu-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 1820e0750f21179bfcd5d0073dc767ca87c6d7c4
+    git.commit: 3de96e44c120301096bf14c2b2bc35286a6b4f5d
   odh-th-torch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: d359fe3086e4597e4930b909d83d95de75e5159d
   odh-th-torch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: c56b39645d360bd8c3c5cf06162ee1465f8c51a1
+    git.commit: 1820e0750f21179bfcd5d0073dc767ca87c6d7c4
   odh-training-cuda128-torch28-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 26b5416bdb3f581a06e4cc0fc582bd9d9de94629
   odh-training-cuda128-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 26b5416bdb3f581a06e4cc0fc582bd9d9de94629
+    git.commit: 3de96e44c120301096bf14c2b2bc35286a6b4f5d
   odh-training-rocm64-torch28-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: ad4fa6409b9751e0830c6af8f32f9ed9f3763b46
