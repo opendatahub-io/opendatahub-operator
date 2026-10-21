@@ -56,7 +56,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE
   value: quay.io/rhoai/odh-kserve-storage-initializer-rhel9@sha256:61939206f89384f832ef35a4cb44e061a1fc8305f199b54bd32c6fcce54cf1cf
 - name: RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE
-  value: quay.io/rhoai/odh-kuberay-operator-controller-rhel9@sha256:138e0ea7c03a15d9e5d82af4fffe6fda732856b7cb640c6f8b2c9b7d8e212e09
+  value: quay.io/rhoai/odh-kuberay-operator-controller-rhel9@sha256:40148503abee063ba3668fe3923bf856c1b512d097d430c8949ee0421e1e4bc3
 - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
   value: quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:e09b240ec191664651c86b0880221775ac5ac8f0558b9d630bc7b0cf66f9eece
 - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
