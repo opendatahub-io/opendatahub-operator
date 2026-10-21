@@ -60,6 +60,67 @@ func TestIsEnabled_EmptyModules(t *testing.T) {
 	g.Expect(h.IsEnabled(&configApi.PlatformModules{})).Should(BeFalse())
 }
 
+func TestPopulatePlatformModuleUsesEitherIndependentDataChild(t *testing.T) {
+	tests := []struct {
+		name              string
+		featureStoreState operatorv1.ManagementState
+		dataRegistryState operatorv1.ManagementState
+		want              operatorv1.ManagementState
+	}{
+		{
+			name:              "feature store managed and data registry removed",
+			featureStoreState: operatorv1.Managed,
+			dataRegistryState: operatorv1.Removed,
+			want:              operatorv1.Managed,
+		},
+		{
+			name:              "feature store removed and data registry managed",
+			featureStoreState: operatorv1.Removed,
+			dataRegistryState: operatorv1.Managed,
+			want:              operatorv1.Managed,
+		},
+		{
+			name:              "both removed",
+			featureStoreState: operatorv1.Removed,
+			dataRegistryState: operatorv1.Removed,
+			want:              operatorv1.Removed,
+		},
+		{
+			name:              "both managed",
+			featureStoreState: operatorv1.Managed,
+			dataRegistryState: operatorv1.Managed,
+			want:              operatorv1.Managed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			platformModules := &configApi.PlatformModules{}
+			dscCtx := &modules.DSCContext{
+				DSC: &dscApi.DataScienceCluster{
+					Spec: dscApi.DataScienceClusterSpec{
+						Components: dscApi.Components{
+							Data: componentApi.DSCData{
+								FeatureStore: componentApi.DSCFeatureStore{
+									ManagementSpec: common.ManagementSpec{ManagementState: tt.featureStoreState},
+								},
+								DataRegistry: componentApi.DSCDataRegistry{
+									ManagementSpec: common.ManagementSpec{ManagementState: tt.dataRegistryState},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			data.NewHandler().PopulatePlatformModule(platformModules, dscCtx)
+
+			g.Expect(platformModules.Data.ManagementState).Should(Equal(tt.want))
+		})
+	}
+}
+
 func TestBuildModuleCR_NilClientReturnsError_BothNil(t *testing.T) {
 	g := NewWithT(t)
 	h := data.NewHandler()
