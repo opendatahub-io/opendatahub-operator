@@ -174,6 +174,7 @@ func buildComponentsMap(dscCtx *modules.DSCContext) map[string]any {
 		{componentApi.MLflowOperatorComponentName, c.MLflowOperator.ManagementState},
 		{componentApi.TrustyAIComponentName, c.TrustyAI.ManagementState},
 		{dashboardAIPipelinesName, c.AIPipelines.ManagementState},
+		{componentApi.DataModuleName, c.Data.DataRegistry.ManagementState},
 	}
 
 	result := make(map[string]any, len(refs))

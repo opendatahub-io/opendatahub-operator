@@ -61,6 +61,13 @@ func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
 							ManagementState: operatorv1.Managed,
 						},
 					},
+					Data: componentApi.DSCData{
+						DataRegistry: componentApi.DSCDataRegistry{
+							ManagementSpec: common.ManagementSpec{
+								ManagementState: operatorv1.Managed,
+							},
+						},
+					},
 				},
 			},
 		},
@@ -153,7 +160,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 
 	components, ok := spec["components"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.components missing")
-	g.Expect(components).Should(HaveLen(4))
+	g.Expect(components).Should(HaveLen(5))
 
 	mrComp, ok := components["modelregistry"].(map[string]any)
 	g.Expect(ok).Should(BeTrue())
@@ -170,6 +177,30 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	pipComp, ok := components["aipipelines"].(map[string]any)
 	g.Expect(ok).Should(BeTrue())
 	g.Expect(pipComp["managementState"]).Should(Equal("Managed"))
+
+	dataComp, ok := components["data"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(dataComp["managementState"]).Should(Equal("Managed"))
+}
+
+func TestBuildModuleCR_ProjectsDataRegistryState(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtx(operatorv1.Managed)
+	dscCtx.DSC.Spec.Components.Data.FeatureStore.ManagementState = operatorv1.Managed
+	dscCtx.DSC.Spec.Components.Data.DataRegistry.ManagementState = operatorv1.Removed
+
+	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	components, ok := spec["components"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	dataComp, ok := components["data"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(dataComp["managementState"]).Should(Equal("Removed"),
+		"Dashboard data availability must follow data.dataRegistry, not featureStore")
 }
 
 func TestBuildModuleCR_OmitsGatewayWhenDomainEmpty(t *testing.T) {
