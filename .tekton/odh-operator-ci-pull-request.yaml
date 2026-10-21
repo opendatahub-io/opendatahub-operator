@@ -48,7 +48,7 @@ spec:
     - name: url
       value: https://github.com/opendatahub-io/odh-konflux-central.git
     - name: revision
-      value: 'main'
+      value: 'rhai-12821-nonblocking-metadata-push'
     - name: pathInRepo
       value: pipeline/multi-arch-operator-build.yaml
   taskRunTemplate:
