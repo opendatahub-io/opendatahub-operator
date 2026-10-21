@@ -30,6 +30,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gatewayconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -358,6 +359,24 @@ func TestCalculateAuthConfigHash(t *testing.T) {
 	g.Expect(hash5).To(Equal(hash1), "same secret values should produce same hash")
 }
 
+func TestCalculateAuthConfigHashSeparatesSecretFields(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	first := calculateAuthConfigHash(&corev1.Secret{Data: map[string][]byte{
+		"OAUTH2_PROXY_CLIENT_ID":     []byte("ab"),
+		"OAUTH2_PROXY_CLIENT_SECRET": []byte("cd"),
+		"OAUTH2_PROXY_COOKIE_SECRET": []byte("cookie"),
+	}})
+	second := calculateAuthConfigHash(&corev1.Secret{Data: map[string][]byte{
+		"OAUTH2_PROXY_CLIENT_ID":     []byte("a"),
+		"OAUTH2_PROXY_CLIENT_SECRET": []byte("bcd"),
+		"OAUTH2_PROXY_COOKIE_SECRET": []byte("cookie"),
+	}})
+
+	g.Expect(second).NotTo(Equal(first), "different secret field boundaries must produce different hashes")
+}
+
 // TestExtendAuthConfigHash verifies that folding the provider CA bundle into the
 // auth config hash changes the rollout hash when the CA rotates, while staying
 // deterministic for identical CA contents.
@@ -513,14 +532,6 @@ func TestAdditionalGatewayNamesAreStableAndServiceSafe(t *testing.T) {
 	longName := strings.Repeat("a", serviceApi.MaxAdditionalGatewayNameLength)
 	g.Expect(GetGatewayServiceFullName(longName)).To(Equal(longName + "-" + GatewayClassName))
 	g.Expect(GetGatewayServiceFullName(longName)).To(HaveLen(63))
-
-	ingresses := []serviceApi.AdditionalIngress{{Name: "alpha"}, {Name: "beta"}}
-	config := &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{AdditionalIngresses: ingresses}}
-	g.Expect(gatewayEnvoyFilterTargets(config)).To(Equal([]gatewayEnvoyFilterTarget{
-		{Name: AuthnFilterName, GatewayName: GetDefaultGatewayName()},
-		{Name: additionalGatewayEnvoyFilterName("alpha"), GatewayName: "alpha"},
-		{Name: additionalGatewayEnvoyFilterName("beta"), GatewayName: "beta"},
-	}))
 }
 
 func TestValidateAdditionalIngressesRejectsNonOcpRouteMode(t *testing.T) {
@@ -730,6 +741,15 @@ func TestCreateOAuthClientUsesResolvedHostname(t *testing.T) {
 	oauthClient := &oauthv1.OAuthClient{}
 	g.Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, oauthClient)).To(Succeed())
 	g.Expect(oauthClient.RedirectURIs).To(ConsistOf("https://" + hostname + OAuthCallbackPath))
+	g.Expect(oauthClient.GrantMethod).To(Equal(oauthv1.GrantHandlerAuto))
+
+	rr = &odhtypes.ReconciliationRequest{Client: newGatewayTestClient(t)}
+	additional := additionalAuthProxyTarget(additionalIngress("alpha", hostname, "alpha"), &serviceApi.GatewayConfig{})
+	g.Expect(createOAuthClient(rr, hostname, additional, secret)).To(Succeed())
+	g.Expect(rr.Resources).To(HaveLen(1))
+	oauthClient = &oauthv1.OAuthClient{}
+	g.Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, oauthClient)).To(Succeed())
+	g.Expect(oauthClient.GrantMethod).To(Equal(oauthv1.GrantHandlerPrompt))
 }
 
 // TestHPATemplateConstant tests that the HPA template constant is correctly defined.
@@ -900,6 +920,7 @@ func authProxyTemplateData() map[string]any {
 		"ProviderCASecret":         false,
 		"KubeAuthProxyImage":       "example.com/kube-auth-proxy:latest",
 		"KubeAuthProxySecretsName": KubeAuthProxySecretsName,
+		"DestinationRuleHost":      "*",
 		"AuthProxyHTTPPort":        AuthProxyHTTPPort,
 		"GatewayHTTPSPort":         GatewayHTTPSPort,
 		"AuthProxyMetricsPort":     AuthProxyMetricsPort,
@@ -933,56 +954,41 @@ func renderAuthProxyTemplate(g Gomega, path string, data map[string]any) string 
 	return buf.String()
 }
 
-func TestAuthTemplatesCoverEveryManagedGateway(t *testing.T) {
-	g := NewWithT(t)
-	config := &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{
-		Domain:              "apps.example.com",
-		AdditionalIngresses: serviceApi.AdditionalIngresses{{Name: "alpha"}, {Name: "beta"}},
-	}}
-	config.Generation = 1
-	data := authProxyTemplateData()
-	productionData, err := getTemplateData(t.Context(), &odhtypes.ReconciliationRequest{
-		Client: newGatewayTestClient(t, config), Instance: config,
-	})
-	g.Expect(err).NotTo(HaveOccurred())
-	data["GatewayFilters"] = productionData["GatewayFilters"]
-	data["GatewayNameLabelKey"] = productionData["GatewayNameLabelKey"]
-	data["GatewayNamespace"] = GetGatewayNamespace()
-	data["GatewayHTTPSPort"] = GatewayHTTPSPort
-	data["AuthProxyTimeout"] = "5s"
-	data["PartOfLabelKey"] = "app.kubernetes.io/part-of"
-	data["PartOfLabelValue"] = PartOfLabelValue
-	data["IstioRevisionLabel"] = IstioRevisionLabel
-	data["IstioRevisionValue"] = GetIstioRevisionValue()
+func TestDefaultAuthTemplatesExcludeAdditionalGateways(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		conflict bool
+	}{
+		{name: "no conflict"},
+		{name: "hostname conflict", conflict: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			g := NewWithT(t)
+			config := newGatewayAuthTestConfig(
+				additionalIngress("alpha", "alpha.example.com", "alpha"),
+				additionalIngress("beta", "beta.example.com", "beta"),
+			)
+			if test.conflict {
+				config.Status.AdditionalIngresses = buildAdditionalIngressStatuses(config.Spec.AdditionalIngresses, nil, config.Generation)
+				setAdditionalIngressCondition(&config.Status.AdditionalIngresses[0], config.Generation,
+					serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionFalse,
+					additionalIngressReasonHostnameConflict, "Gateway hostname conflicts with the default")
+			}
+			data, err := getTemplateData(t.Context(), newGatewayAuthTestRequest(t, config))
+			g.Expect(err).NotTo(HaveOccurred())
+			data = authTargetTemplateData(data, defaultAuthProxyTarget(testHostnameDefault, config), "")
 
-	envoyFilters := renderAuthProxyTemplate(g, envoyFilterTemplate, data)
-	g.Expect(strings.Count(envoyFilters, "kind: EnvoyFilter")).To(Equal(3))
-	for _, ingressName := range []string{"alpha", "beta"} {
-		g.Expect(envoyFilters).To(ContainSubstring("name: " + additionalGatewayEnvoyFilterName(ingressName)))
-		g.Expect(envoyFilters).To(ContainSubstring("gateway.networking.k8s.io/gateway-name: " + ingressName))
+			envoyFilters := renderAuthProxyTemplate(g, envoyFilterTemplate, data)
+			g.Expect(strings.Count(envoyFilters, "kind: "+gvk.EnvoyFilter.Kind)).To(Equal(1))
+			networkPolicy := renderAuthProxyTemplate(g, networkPolicyTemplate, data)
+			g.Expect(networkPolicy).To(ContainSubstring("- " + GetDefaultGatewayName()))
+			for _, ingress := range config.Spec.AdditionalIngresses {
+				g.Expect(envoyFilters).NotTo(ContainSubstring("name: " + additionalGatewayEnvoyFilterName(ingress.Name)))
+				g.Expect(envoyFilters).NotTo(ContainSubstring("gateway.networking.k8s.io/gateway-name: " + ingress.Name))
+				g.Expect(networkPolicy).NotTo(ContainSubstring("- " + ingress.Name))
+			}
+		})
 	}
-
-	networkPolicy := renderAuthProxyTemplate(g, networkPolicyTemplate, data)
-	for _, name := range []string{GetDefaultGatewayName(), "alpha", "beta"} {
-		g.Expect(networkPolicy).To(ContainSubstring("- " + name))
-	}
-
-	config.Status.AdditionalIngresses = []serviceApi.AdditionalIngressStatus{{Name: "alpha"}, {Name: "beta"}}
-	setAdditionalIngressCondition(&config.Status.AdditionalIngresses[0], config.Generation,
-		serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionFalse,
-		additionalIngressReasonOwnershipConflict, "Gateway belongs to another owner")
-	productionData, err = getTemplateData(t.Context(), &odhtypes.ReconciliationRequest{
-		Client: newGatewayTestClient(t, config), Instance: config,
-	})
-	g.Expect(err).NotTo(HaveOccurred())
-	data["GatewayFilters"] = productionData["GatewayFilters"]
-	envoyFilters = renderAuthProxyTemplate(g, envoyFilterTemplate, data)
-	g.Expect(strings.Count(envoyFilters, "kind: EnvoyFilter")).To(Equal(2))
-	g.Expect(envoyFilters).NotTo(ContainSubstring("name: " + additionalGatewayEnvoyFilterName("alpha")))
-	g.Expect(envoyFilters).To(ContainSubstring("name: " + additionalGatewayEnvoyFilterName("beta")))
-	networkPolicy = renderAuthProxyTemplate(g, networkPolicyTemplate, data)
-	g.Expect(networkPolicy).NotTo(ContainSubstring("- alpha"))
-	g.Expect(networkPolicy).To(ContainSubstring("- beta"))
 }
 
 func TestDefaultAuthProxyScaling(t *testing.T) {
@@ -1281,56 +1287,30 @@ func TestOAuthClientUsesPreparedCredentials(t *testing.T) {
 	g.Expect(rr.Resources[0].Object["secret"]).To(Equal("rotated"))
 }
 
-func TestPreparedAuthHashesRemainIndependentPerTarget(t *testing.T) {
+func TestTemplateDataDoesNotReadGeneratedAuthSecrets(t *testing.T) {
 	g := NewWithT(t)
-	original := cluster.GetClusterInfo()
-	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
-	t.Cleanup(func() { cluster.SetClusterInfo(original) })
-	config := &serviceApi.GatewayConfig{ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
-		Spec: serviceApi.GatewayConfigSpec{Domain: testDomain}}
-	defaultTarget := defaultAuthProxyTarget(testHostnameDefault, config)
-	secondTarget := defaultTarget
-	secondTarget.Hostname, secondTarget.ProxyName, secondTarget.SecretName = "second.example.com", "second-proxy", "second-creds"
-	secondTarget.ClientID = "second-client"
-	cli := newGatewayTestClient(t, config,
-		&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: defaultTarget.SecretName, Namespace: GetGatewayNamespace()},
-			Data: map[string][]byte{EnvClientSecret: []byte("first-secret"), EnvCookieSecret: []byte("first-cookie")}},
-		&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: secondTarget.SecretName, Namespace: GetGatewayNamespace()},
-			Data: map[string][]byte{EnvClientSecret: []byte("second-secret"), EnvCookieSecret: []byte("second-cookie")}})
-	rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: config, Conditions: conditionstest.NewManager(config, ReadyConditionType)}
-	g.Expect(prepareAuthProxy(t.Context(), rr, config, defaultTarget, cluster.AuthModeIntegratedOAuth, kubeAuthProxyDeploymentOauthTemplate)).To(Succeed())
-	defaultKey := "gateway.opendatahub.io/auth-config-hash/" + KubeAuthProxySecretsName
-	defaultHash := rr.Extensions[defaultKey]
-	g.Expect(defaultHash).NotTo(BeNil())
-	g.Expect(prepareAuthProxy(t.Context(), rr, config, secondTarget, cluster.AuthModeIntegratedOAuth, kubeAuthProxyDeploymentOauthTemplate)).To(Succeed())
-	g.Expect(rr.Extensions[defaultKey]).To(Equal(defaultHash))
-	g.Expect(rr.Extensions["gateway.opendatahub.io/auth-config-hash/second-creds"]).NotTo(BeNil())
-	g.Expect(rr.Extensions["gateway.opendatahub.io/auth-config-hash/second-creds"]).NotTo(Equal(defaultHash))
-	data, err := getTemplateData(t.Context(), rr)
+	config := newGatewayAuthTestConfig()
+	rr := newGatewayAuthTestRequest(t, config)
+	cli, err := fakeclient.New(fakeclient.WithObjects(config), fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if _, secret := obj.(*corev1.Secret); secret && key.Name == KubeAuthProxySecretsName {
+				t.Fatal("shared template data must not read generated authentication credentials")
+			}
+			return c.Get(ctx, key, obj, opts...)
+		},
+	}))
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(data["AuthConfigHash"]).To(Equal(defaultHash), "a second target must not replace the default deployment's rollout hash")
-}
-
-func TestDefaultAuthHashFallsBackToStoredSecret(t *testing.T) {
-	for _, present := range []bool{true, false} {
-		t.Run(map[bool]string{true: "stored Secret", false: "Secret absent"}[present], func(t *testing.T) {
-			g := NewWithT(t)
-			config := &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{Domain: testDomain}}
-			objects := []client.Object{config}
-			if present {
-				objects = append(objects, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: KubeAuthProxySecretsName, Namespace: GetGatewayNamespace()},
-					Data: map[string][]byte{EnvClientID: []byte("client"), EnvClientSecret: []byte("rotated"), EnvCookieSecret: []byte("persistent-cookie-key")}})
-			}
-			rr := &odhtypes.ReconciliationRequest{Client: newGatewayTestClient(t, objects...), Instance: config}
-			data, err := getTemplateData(t.Context(), rr)
-			g.Expect(err).NotTo(HaveOccurred())
-			if present {
-				g.Expect(data["AuthConfigHash"]).To(Equal("529d6b32cb1cd764f83fb4fd4c3819452294115ada45afd668560d7e816cb5ef"))
-			} else {
-				g.Expect(data["AuthConfigHash"]).To(Equal(""))
-			}
-		})
-	}
+	rr.Client = cli
+	base, err := getTemplateData(t.Context(), rr)
+	g.Expect(err).NotTo(HaveOccurred())
+	first := authTargetTemplateData(base, defaultAuthProxyTarget(testHostnameDefault, config), "default-hash")
+	second := authTargetTemplateData(base, additionalAuthProxyTarget(additionalIngress("alpha", "alpha.example.com", "alpha"), config), "alpha-hash")
+	g.Expect(first["AuthConfigHash"]).To(Equal("default-hash"))
+	g.Expect(second["AuthConfigHash"]).To(Equal("alpha-hash"))
+	g.Expect(base).NotTo(HaveKey("AuthConfigHash"))
+	g.Expect(base["GatewayHostname"]).To(Equal(testHostnameDefault))
+	g.Expect(first["GatewayName"]).To(Equal(GetDefaultGatewayName()))
+	g.Expect(second["GatewayName"]).To(Equal("alpha"))
 }
 
 func TestOIDCClientSecretRejectsMissingOrEmptyKey(t *testing.T) {
@@ -1343,13 +1323,13 @@ func TestOIDCClientSecretRejectsMissingOrEmptyKey(t *testing.T) {
 				&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "source", Namespace: "identity"}, Data: data})}
 			id, secret, cookie, err := getAuthProxySecretValues(t.Context(), rr, cluster.AuthModeOIDC, config,
 				defaultAuthProxyTarget("", &serviceApi.GatewayConfig{}))
-			g.Expect(err).To(MatchError("key 'credentials' is missing or empty in OIDC secret identity/source"))
+			g.Expect(err).To(MatchError("invalid authentication configuration: key 'credentials' is missing or empty in OIDC secret identity/source"))
 			g.Expect([]string{id, secret, cookie}).To(Equal([]string{"", "", ""}))
 		})
 	}
 }
 
-func TestPreparedOIDCCredentialsAreWrittenWithoutBeingRedeployed(t *testing.T) {
+func TestPreparedOIDCCredentialsUseFreshValuesForHashAndDeployment(t *testing.T) {
 	g := NewWithT(t)
 	original := cluster.GetClusterInfo()
 	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
@@ -1381,11 +1361,16 @@ func TestPreparedOIDCCredentialsAreWrittenWithoutBeingRedeployed(t *testing.T) {
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: config, Conditions: conditionstest.NewManager(config, ReadyConditionType)}
-	g.Expect(prepareAuthProxy(t.Context(), rr, config, defaultAuthProxyTarget(config.Spec.Domain, config), cluster.AuthModeOIDC, kubeAuthProxyDeploymentOidcTemplate)).To(Succeed())
-	g.Expect(rr.Resources).To(BeEmpty(), "the credentials must be written immediately, without being queued for another deployment")
+	authHash, err := prepareAuthProxy(t.Context(), rr, config, defaultAuthProxyTarget(config.Spec.Domain, config), cluster.AuthModeOIDC, kubeAuthProxyDeploymentOidcTemplate)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(rr.Resources).To(HaveLen(1), "credentials must receive normal deployment metadata")
+	g.Expect(rr.Resources[0].GetName()).To(Equal(KubeAuthProxySecretsName))
+	g.Expect(rr.Resources[0].Object["data"]).To(HaveKeyWithValue(EnvClientSecret, "cm90YXRlZA=="))
 	data, err := getTemplateData(t.Context(), rr)
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(data["AuthConfigHash"]).To(Equal("529d6b32cb1cd764f83fb4fd4c3819452294115ada45afd668560d7e816cb5ef"))
+	data = authTargetTemplateData(data, defaultAuthProxyTarget(config.Spec.Domain, config), authHash)
+	g.Expect(data["AuthConfigHash"]).To(Equal(authHash))
+	g.Expect(renderAuthProxyTemplate(g, kubeAuthProxyDeploymentOidcTemplate, data)).To(ContainSubstring("opendatahub.io/secret-hash: \"" + authHash + "\""))
 	stored := &unstructured.Unstructured{}
 	stored.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("Secret"))
 	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(cached), stored)).To(Succeed())

@@ -3032,7 +3032,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `oidc` _[AdditionalIngressOIDCConfig](#additionalingressoidcconfig)_ | OIDC supplies this ingress's distinct client identity in OIDC mode.<br />Required in OIDC mode; omit in integrated OpenShift OAuth mode, where the<br />operator generates a distinct OAuthClient. The issuer comes from spec.oidc. |  |  |
-| `maxReplicas` _integer_ | MaxReplicas is the maximum number of replicas for this ingress's auth proxy.<br />The minimum remains fixed at 2. This does not configure the default proxy.<br />A value of 2 requests two fixed replicas without an HPA; larger values enable autoscaling. | 10 | Maximum: 10 <br />Minimum: 2 <br /> |
+| `maxReplicas` _integer_ | MaxReplicas is the maximum number of replicas for this ingress's auth proxy.<br />The minimum remains fixed at 2. This does not configure the default proxy.<br />A value of 2 fixes the HPA minimum and maximum at two replicas. | 10 | Maximum: 10 <br />Minimum: 2 <br /> |
 
 
 #### AdditionalIngressOIDCConfig
