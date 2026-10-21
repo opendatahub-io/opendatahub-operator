@@ -519,6 +519,15 @@ func calculateAuthConfigHash(authSecret *corev1.Secret) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// extendAuthConfigHash folds the provider CA bundle into the auth config hash so
+// that rotating the CA in the spec.providerCASecretName secret rolls the
+// kube-auth-proxy pods. The base hash is kept verbatim when no provider CA is
+// configured, so upgrades do not trigger a spurious rollout.
+func extendAuthConfigHash(authConfigHash string, providerCA []byte) string {
+	sum := sha256.Sum256([]byte(authConfigHash + "\x00" + string(providerCA)))
+	return hex.EncodeToString(sum[:])
+}
+
 // CalculateRedirectConfigHash returns a hash of the gateway hostname.
 // Used as a pod annotation so deployment rollout triggers when subdomain/domain changes.
 // Hash is fixed-length (64 chars) to avoid annotation size limits from long hostnames.
@@ -736,4 +745,44 @@ func reconcileGatewayForModeChange(ctx context.Context, rr *odhtypes.Reconciliat
 
 	// Return error to requeue and let the Gateway fully terminate before recreating
 	return errors.New("gateway deleted for mode change, requeuing to recreate")
+}
+
+// IsGatewayReferencedSecret reports whether the given object is a Secret the
+// GatewayConfig references: the OIDC client secret or the provider CA secret.
+// Rotating either must re-render the kube-auth-proxy Deployment, so updates to
+// these secrets need to enqueue a GatewayConfig reconcile.
+func IsGatewayReferencedSecret(ctx context.Context, cli client.Client, obj client.Object, gatewayNamespace string) bool {
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayConfigName}, gatewayConfig); err != nil {
+		return false
+	}
+
+	secretName := obj.GetName()
+	secretNamespace := obj.GetNamespace()
+
+	if gatewayConfig.Spec.OIDC != nil {
+		oidcSecretNamespace := gatewayConfig.Spec.OIDC.SecretNamespace
+		if oidcSecretNamespace == "" {
+			oidcSecretNamespace = gatewayNamespace
+		}
+		if secretName == gatewayConfig.Spec.OIDC.ClientSecretRef.Name && secretNamespace == oidcSecretNamespace {
+			return true
+		}
+	}
+
+	if gatewayConfig.Spec.ProviderCASecretName != "" {
+		if secretName == gatewayConfig.Spec.ProviderCASecretName && secretNamespace == gatewayNamespace {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isGatewayCertificateOrReferencedSecret matches the Gateway certificate
+// secrets as well as the secrets the GatewayConfig references (OIDC client
+// secret, provider CA secret) so the Secret watch covers both.
+func isGatewayCertificateOrReferencedSecret(ctx context.Context, cli client.Client, obj client.Object, gatewayNamespace string) bool {
+	return cluster.IsGatewayCertificateSecret(ctx, cli, obj, gatewayNamespace) ||
+		IsGatewayReferencedSecret(ctx, cli, obj, gatewayNamespace)
 }

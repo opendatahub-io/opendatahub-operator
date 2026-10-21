@@ -64,13 +64,15 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithPredicates(
 				resources.CreatedOrUpdatedOrDeletedNamed(gvk.DashboardComponentCRDName)),
 		).
-		// Watch for certificate secrets (both OpenShift default ingress and provided).
+		// Watch Gateway certificate secrets (both OpenShift default ingress and provided)
+		// and referenced secrets (OIDC client secret, provider CA secret) so rotating
+		// any of them re-renders the kube-auth-proxy Deployment.
 		Watches(
 			&corev1.Secret{},
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(
 				resources.GatewayCertificateSecret(func(obj client.Object) bool {
-					return cluster.IsGatewayCertificateSecret(ctx, mgr.GetClient(), obj, GatewayNamespace)
+					return isGatewayCertificateOrReferencedSecret(ctx, mgr.GetClient(), obj, GatewayNamespace)
 				}),
 			),
 		).
@@ -101,6 +103,10 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(createOCPRoutes).
 		WithAction(createDashboardRedirectsAction).
 		WithAction(template.NewAction(
+			// Template data depends on watched resources such as referenced
+			// secrets (OIDC client secret, provider CA secret), which can
+			// change without a new GatewayConfig generation.
+			template.WithCache(false),
 			template.WithDataFn(getTemplateData),
 		)).
 		WithAction(deploy.NewAction(

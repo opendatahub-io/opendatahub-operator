@@ -96,6 +96,50 @@ func oidcSpecWithProviderCA(secretName string) serviceApi.GatewayConfigSpec {
 	return spec
 }
 
+// createProviderCASecret creates a provider CA secret in the gateway
+// namespace and removes it when the test finishes. It returns the secret so
+// tests can rotate its ca.crt and update it. If the secret already exists
+// (for example after an aborted run), it is fetched instead so later updates
+// carry a resource version, reset to the requested CA so tests start from a
+// known state, and its original data is restored on cleanup rather than
+// deleting an object this test did not create.
+func createProviderCASecret(t *testing.T, tc *TestEnvContext, name string, caPEM []byte) *corev1.Secret {
+	caSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: gateway.GatewayNamespace,
+		},
+		Data: map[string][]byte{"ca.crt": caPEM},
+	}
+	err := tc.K8sClient.Create(tc.Ctx, caSecret)
+	switch {
+	case err == nil:
+		t.Cleanup(func() {
+			if err := tc.K8sClient.Delete(tc.Ctx, caSecret); err != nil && !k8serr.IsNotFound(err) {
+				t.Logf("Failed to delete provider CA secret %s: %v", name, err)
+			}
+		})
+	case k8serr.IsAlreadyExists(err):
+		if err := tc.K8sClient.Get(tc.Ctx, types.NamespacedName{Name: name, Namespace: gateway.GatewayNamespace}, caSecret); err != nil {
+			t.Fatalf("Failed to fetch existing provider CA secret %s: %v", name, err)
+		}
+		originalData := caSecret.Data
+		caSecret.Data = map[string][]byte{"ca.crt": caPEM}
+		if err := tc.K8sClient.Update(tc.Ctx, caSecret); err != nil {
+			t.Fatalf("Failed to reset existing provider CA secret %s: %v", name, err)
+		}
+		t.Cleanup(func() {
+			caSecret.Data = originalData
+			if err := tc.K8sClient.Update(tc.Ctx, caSecret); err != nil {
+				t.Logf("Failed to restore provider CA secret %s: %v", name, err)
+			}
+		})
+	default:
+		t.Fatalf("Failed to create provider CA secret: %v", err)
+	}
+	return caSecret
+}
+
 // oidcSpecWithVerifyProviderCertificate returns the OIDC spec with VerifyProviderCertificate set.
 func oidcSpecWithVerifyProviderCertificate(verify bool) serviceApi.GatewayConfigSpec {
 	spec := getOIDCGatewayConfigSpec()
@@ -276,18 +320,7 @@ func TestOIDCWithProviderCASecret(t *testing.T) {
 
 	// Create provider CA secret (idempotent)
 	caSecretName := "oidc-provider-ca"
-	caSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      caSecretName,
-			Namespace: gateway.GatewayNamespace,
-		},
-		Data: map[string][]byte{
-			"ca.crt": []byte("-----BEGIN CERTIFICATE-----\ntest-ca\n-----END CERTIFICATE-----"),
-		},
-	}
-	if err := tc.K8sClient.Create(tc.Ctx, caSecret); err != nil && !k8serr.IsAlreadyExists(err) {
-		t.Fatalf("Failed to create provider CA secret: %v", err)
-	}
+	createProviderCASecret(t, tc, caSecretName, []byte("-----BEGIN CERTIFICATE-----\ntest-ca\n-----END CERTIFICATE-----"))
 
 	CreateGatewayConfig(t, tc.Ctx, tc.K8sClient, oidcSpecWithProviderCA(caSecretName))
 
@@ -301,7 +334,7 @@ func TestOIDCWithProviderCASecret(t *testing.T) {
 			return false
 		}
 		for _, vol := range deployment.Spec.Template.Spec.Volumes {
-			if vol.Name == "provider-ca-cert" {
+			if vol.Name == "provider-ca-cert" && vol.Secret.SecretName == caSecretName {
 				return true
 			}
 		}
@@ -338,6 +371,55 @@ func TestOIDCWithProviderCASecret(t *testing.T) {
 	// Verify --provider-ca-file arg
 	args := deployment.Spec.Template.Spec.Containers[0].Args
 	g.Expect(args).To(ContainElement("--provider-ca-file=/etc/provider-ca/ca.crt"))
+}
+
+// TestOIDCProviderCASecretRotationRollsDeployment validates that rotating the CA
+// inside the provider CA secret changes the secret-hash pod annotation so
+// kube-auth-proxy pods roll with the new trust pool.
+func TestOIDCProviderCASecretRotationRollsDeployment(t *testing.T) {
+	tc := OIDCTestEnv
+	g := NewWithT(t)
+
+	ensureOIDCClientSecret(t, tc)
+	defer DeleteGatewayConfig(t, tc.Ctx, tc.K8sClient)
+
+	caSecretName := "oidc-provider-ca-rotation"
+	caSecret := createProviderCASecret(t, tc, caSecretName, []byte("-----BEGIN CERTIFICATE-----\nca-v1\n-----END CERTIFICATE-----"))
+
+	CreateGatewayConfig(t, tc.Ctx, tc.K8sClient, oidcSpecWithProviderCA(caSecretName))
+
+	// Wait for Deployment with this provider CA secret's volume (controller
+	// must update it); matching the secret name guards against recording a
+	// baseline from a Deployment still configured for a previous test's CA.
+	g.Eventually(func() bool {
+		deployment, err := getAuthProxyDeployment(tc.Ctx, tc.K8sClient)
+		if err != nil {
+			return false
+		}
+		for _, vol := range deployment.Spec.Template.Spec.Volumes {
+			if vol.Name == "provider-ca-cert" && vol.Secret.SecretName == caSecretName {
+				return true
+			}
+		}
+		return false
+	}, TestTimeout, TestInterval).Should(BeTrue(), "Deployment should have provider CA volume")
+
+	deployment, err := getAuthProxyDeployment(tc.Ctx, tc.K8sClient)
+	g.Expect(err).To(Succeed())
+	hashBefore := deployment.Spec.Template.Annotations["opendatahub.io/secret-hash"]
+	g.Expect(hashBefore).NotTo(BeEmpty(), "secret-hash annotation should be set with a provider CA configured")
+
+	// Rotate the CA bundle inside the same secret
+	caSecret.Data["ca.crt"] = []byte("-----BEGIN CERTIFICATE-----\nca-v2\n-----END CERTIFICATE-----")
+	g.Expect(tc.K8sClient.Update(tc.Ctx, caSecret)).To(Succeed())
+
+	g.Eventually(func() bool {
+		updated, err := getAuthProxyDeployment(tc.Ctx, tc.K8sClient)
+		if err != nil {
+			return false
+		}
+		return updated.Spec.Template.Annotations["opendatahub.io/secret-hash"] != hashBefore
+	}, TestTimeout, TestInterval).Should(BeTrue(), "secret-hash annotation must change when the provider CA secret is rotated")
 }
 
 // TestOIDCWithInsecureSkipVerify validates that VerifyProviderCertificate=false results in --ssl-insecure-skip-verify=true in the deployment.

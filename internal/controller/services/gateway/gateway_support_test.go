@@ -275,6 +275,30 @@ func TestCalculateAuthConfigHash(t *testing.T) {
 	g.Expect(hash5).To(Equal(hash1), "same secret values should produce same hash")
 }
 
+// TestExtendAuthConfigHash verifies that folding the provider CA bundle into the
+// auth config hash changes the rollout hash when the CA rotates, while staying
+// deterministic for identical CA contents.
+func TestExtendAuthConfigHash(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	base := calculateAuthConfigHash(&corev1.Secret{
+		Data: map[string][]byte{
+			"OAUTH2_PROXY_CLIENT_ID":     []byte(testAuthClientID),
+			"OAUTH2_PROXY_CLIENT_SECRET": []byte(testAuthClientSecret),
+			"OAUTH2_PROXY_COOKIE_SECRET": []byte(testAuthCookieSecret),
+		},
+	})
+
+	extendedV1 := extendAuthConfigHash(base, []byte("ca-bundle-v1"))
+	extendedV2 := extendAuthConfigHash(base, []byte("ca-bundle-v2"))
+
+	g.Expect(extendedV1).NotTo(Equal(base), "provider CA must change the rollout hash")
+	g.Expect(extendedV1).NotTo(Equal(extendedV2), "rotated provider CA must change the rollout hash")
+	g.Expect(extendAuthConfigHash(base, []byte("ca-bundle-v1"))).To(Equal(extendedV1), "same CA contents must produce the same hash")
+	g.Expect(extendAuthConfigHash("", []byte("ca-bundle-v1"))).NotTo(BeEmpty(), "extension must work when the auth secret is absent")
+}
+
 // TestCalculateRedirectConfigHash tests the CalculateRedirectConfigHash function.
 func TestCalculateRedirectConfigHash(t *testing.T) {
 	t.Parallel()

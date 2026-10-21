@@ -301,6 +301,32 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		authConfigHash = calculateAuthConfigHash(authSecret)
 	}
 
+	// Fold the provider CA bundle into the rollout hash so rotating the CA in
+	// spec.providerCASecretName restarts kube-auth-proxy pods. Kubelet updates
+	// the mounted secret file in place, but the proxy caches its trust pool, so
+	// without a rollout it keeps validating with the old CA. A referenced
+	// secret that is missing or carries an empty ca.crt is a configuration
+	// error: the rendered Deployment keeps the secret volume, so applying the
+	// hash fallback would roll pods that cannot mount it. Fail the reconcile
+	// instead, leaving the last good revision deployed; the secret watch
+	// requeues once the secret appears.
+	if gatewayConfig.Spec.ProviderCASecretName != "" {
+		providerCASecret := &corev1.Secret{}
+		if err := rr.Client.Get(ctx, types.NamespacedName{
+			Name:      gatewayConfig.Spec.ProviderCASecretName,
+			Namespace: GatewayNamespace,
+		}, providerCASecret); err != nil {
+			if k8serr.IsNotFound(err) {
+				return nil, fmt.Errorf("provider CA secret %s not found in namespace %s: %w", gatewayConfig.Spec.ProviderCASecretName, GatewayNamespace, err)
+			}
+			return nil, fmt.Errorf("failed to get provider CA secret for hash calculation: %w", err)
+		}
+		if len(providerCASecret.Data["ca.crt"]) == 0 {
+			return nil, fmt.Errorf("provider CA secret %s has no ca.crt data", gatewayConfig.Spec.ProviderCASecretName)
+		}
+		authConfigHash = extendAuthConfigHash(authConfigHash, providerCASecret.Data["ca.crt"])
+	}
+
 	// Get cookie settings with defaults
 	cookieExpire, cookieRefresh := getCookieSettings(&gatewayConfig.Spec.Cookie)
 
