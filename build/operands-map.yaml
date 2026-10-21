@@ -44,15 +44,15 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:547d6976bf43425418212f885a68156202650feb5f38fe47a524c5f65891b1da"
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:46fc1710883bba8c65575ae3686be91ea924f68c1f3c42efe8227877a98d16c1"
+  value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:892b33f1141662ca9796c420f35ba5ad3cede4a874d56baecfc536cd45ad79f5"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
-  value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:2b62f64e9eeeb8a4a46af0995d694353e10677d0b74d2921447b70976a613d2d"
+  value: "quay.io/rhoai/odh-kserve-localmodelnode-agent-rhel9@sha256:5d82daecee85c91bd856e6bf967a9beef36caa97a59f2186d007c5702bc7d9d0"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9@sha256:14adc32cb17215c390e4369639c54c8dd6587d59b65d57883efad829c23e51ed"
+  value: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9@sha256:7e43934e9a84f252ae0d7d8a909b5cdd019bf423ccbe67a6c21531275ca246a3"
 - name: RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-kserve-module-operator-rhel9@sha256:befb6fb74df7d8581cbfa77ef83733138bd71dd6f8cd8da4ef9eb226fbd12e2e"
+  value: "quay.io/rhoai/odh-kserve-module-operator-rhel9@sha256:73e454f576c7dd30b84414be637561ecaa6e4894ad286d6083d49ef17b29b9f5"
 - name: RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-router-rhel9@sha256:1c9802fdbf4480043f23f1f858d0b45feafdf5f7272658194ab30343d8784a1b"
+  value: "quay.io/rhoai/odh-kserve-router-rhel9@sha256:28fb15b99c817edd62d7a32c7f45a6d0dd57efa0fa89c35d823bdcb71f565129"
 - name: RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE
   value: "quay.io/rhoai/odh-kserve-storage-initializer-rhel9@sha256:61939206f89384f832ef35a4cb44e061a1fc8305f199b54bd32c6fcce54cf1cf"
 - name: RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE
