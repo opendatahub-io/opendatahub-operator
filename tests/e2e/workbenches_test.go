@@ -111,7 +111,9 @@ func (tc *WorkbenchesTestCtx) ValidateRelatedImageInjection(t *testing.T) {
 			Name:      workbenchesModule.ControllerDeploymentName,
 		}),
 		WithCondition(jq.Match(
-			`.spec.template.spec.containers[] | select(.env != null) | .env[] | select(.name == "RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_MINIMAL_CPU_PY312_IMAGE") | .value != null and .value != ""`,
+			`.spec.template.spec.containers[] | select(.env != null) | .env[] | `+
+				`select(.name == "RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_MINIMAL_CPU_PY312_IMAGE") | `+
+				`.value != null and .value != ""`,
 		)),
 		WithCustomErrorMsg("Workbenches module operator Deployment should have RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_MINIMAL_CPU_PY312_IMAGE injected"),
 	)
