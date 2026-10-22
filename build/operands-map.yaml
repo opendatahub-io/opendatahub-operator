@@ -10,7 +10,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE
   value: "quay.io/rhoai/odh-built-in-detector-rhel9@sha256:06d7602d6f0aa5f22c4daaa744baf627f24a136a7ba1d3bc23720b0267d45cc8"
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
-  value: "quay.io/rhoai/odh-cli-rhel9@sha256:e5753cc3ca108f2c87203eb3b3e5a349efdca1b26cb052de069bc896f91c071a"
+  value: "quay.io/rhoai/odh-cli-rhel9@sha256:b5f750a052e6a4cdc06e84220abe1a58065de28faa6dce280fe7f338e2b0f1cc"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
   value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:15b8da9adb0270f509b2efd586956ccd1f6c4442484a0af038d46f95adaccec1"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
@@ -60,7 +60,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
   value: "quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:867bbe8fc8175c3ab6d79b61e06329c936196e88553b27ee4afa8117c7cfe327"
 - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
-  value: "quay.io/rhoai/odh-kube-rbac-proxy-rhel9@sha256:f77a19045a8ee389b63dfdf918d88b76dc835dd63a1e29ecc8976dd4641a93fc"
+  value: "quay.io/rhoai/odh-kube-rbac-proxy-rhel9@sha256:48d1b36bd13ad30b38f8f08563d6ea2c6a451b7b49aaddf0f263d653001532bc"
 - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_PREDICTION_IMAGE
   value: "quay.io/rhoai/odh-latency-predictor-prediction-rhel9@sha256:524e9e95b9a2b841f28d5c8ac5e2aa7520ca6091bb0c8ce3ab2e2f0f6d54c6ae"
 - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TRAINING_IMAGE
@@ -128,7 +128,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MOD_ARCH_AUTORAG_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-autorag-rhel9@sha256:45f004fda6a5af33f89d674c1319f33d3ad8c57d10a90ff4d7e67dfde523de2d"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE
-  value: "quay.io/rhoai/odh-mod-arch-eval-hub-rhel9@sha256:47ae88e86fa9c584d541ddacabf31dfa7d4b7612b545ab573a0c2d24ab14abb5"
+  value: "quay.io/rhoai/odh-mod-arch-eval-hub-rhel9@sha256:a260f3b8f9553811ed94033ad768291077acdd669c09868705044c0125d4ea81"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-gen-ai-rhel9@sha256:fb46b2aea4f31734c8df6b4e52a3f462b48632a3f8a20b2725c7e0ee7870ae87"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE

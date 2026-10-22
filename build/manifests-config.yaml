@@ -92,7 +92,7 @@ additional_meta:
     git.commit: 781004b34ca9331f24ba7afbc61a054c25695118
   odh-cli:
     git.url: https://github.com/red-hat-data-services/odh-cli
-    git.commit: 796c4d40c33d96d699e20dfd1224d5e297c395db
+    git.commit: 02f97a0c05c04200ae5eb4aeef05241631d058e9
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 0422180f524b26ac101a7c802266900ce4988e44
@@ -152,7 +152,7 @@ additional_meta:
     git.commit: f5aac3a3ed74cd5f2df4a0e5b31003c8ac72672d
   odh-kube-rbac-proxy:
     git.url: https://github.com/red-hat-data-services/kube-rbac-proxy
-    git.commit: b449ac2a2ab2a66a5286aaff5f92e9272c7224de
+    git.commit: 093f798f21622f2962c684473655b44018e110b8
   odh-latency-predictor-prediction:
     git.url: https://github.com/red-hat-data-services/llm-d-latency-predictor
     git.commit: fcf347164865d44c21395241c618f72a6114cc41
@@ -245,7 +245,7 @@ additional_meta:
     git.commit: 0422180f524b26ac101a7c802266900ce4988e44
   odh-mod-arch-eval-hub:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 0422180f524b26ac101a7c802266900ce4988e44
+    git.commit: e90428e0d3a981b1b4cba6d89b13472b7fb12ca0
   odh-mod-arch-gen-ai:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 0422180f524b26ac101a7c802266900ce4988e44
