@@ -160,6 +160,10 @@ var (
 				// Dashboard and Data mutate the singleton DSC's data lifecycle fields.
 				// Keep Data in a later scenario group so their cleanups cannot race.
 				componentApi.DataModuleName: dataModuleTestSuite,
+				// Kserve propagates AIHub state to the module CR, so it needs to manipulate the DSC's AIHub state to test.
+				// This triggers Dashboard AIHub state propagation, interfering with Dashboard tests by deploying model registry UI resources
+				// Keep it in a later scenario so it does not race with Dashboard tests.
+				componentApi.KserveComponentName: kserveAIHubStatePropagationTestSuite,
 			},
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
