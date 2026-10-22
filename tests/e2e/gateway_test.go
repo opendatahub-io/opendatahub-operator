@@ -529,6 +529,15 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayLifecycle(t *testing.T) {
 		IngressControllerName: betaControllerName,
 		RouteLabels:           map[string]string{"example.com/ingress": "e2e-life-beta"},
 	}
+	// Register the cleanups before creating the IngressControllers: if the second
+	// create fails, the first controller must still be deleted. The restore tolerates
+	// resources that were never created, so an aborted setup cleans up as a no-op.
+	t.Cleanup(func() {
+		restoreAdditionalIngressGatewayTest(t, tc, original, originalGateway,
+			[]string{alpha.Name, beta.Name}, alphaControllerKey, betaControllerKey)
+	})
+	t.Cleanup(func() { tc.logAdditionalIngressEvidence(t, alphaControllerKey, betaControllerKey) })
+
 	replicas := int32(1)
 	for _, controller := range []struct {
 		name   string
@@ -547,11 +556,6 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayLifecycle(t *testing.T) {
 			},
 		}), "create temporary private IngressController %s", controller.name)
 	}
-	t.Cleanup(func() {
-		restoreAdditionalIngressGatewayTest(t, tc, original, originalGateway,
-			[]string{alpha.Name, beta.Name}, alphaControllerKey, betaControllerKey)
-	})
-	t.Cleanup(func() { tc.logAdditionalIngressEvidence(t, alphaControllerKey, betaControllerKey) })
 
 	update := func(additional serviceApi.AdditionalIngresses) {
 		g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
