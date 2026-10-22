@@ -125,7 +125,7 @@ additional_meta:
     git.commit: 1cff3101ae742f9abf56a875c39341575f6b9a24
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: e03849cb7796c1c0e75088a6f183efd77452ba86
+    git.commit: 4810d0d2af89377a0c4a86e0ef7939a13345d79b
   odh-kserve-autogluon-server:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: e03849cb7796c1c0e75088a6f183efd77452ba86
@@ -137,7 +137,7 @@ additional_meta:
     git.commit: 4810d0d2af89377a0c4a86e0ef7939a13345d79b
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: e03849cb7796c1c0e75088a6f183efd77452ba86
+    git.commit: 4810d0d2af89377a0c4a86e0ef7939a13345d79b
   odh-kserve-localmodel-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 4810d0d2af89377a0c4a86e0ef7939a13345d79b
