@@ -176,17 +176,17 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE
   value: "quay.io/rhoai/odh-ta-lmes-job-rhel9@sha256:5f7f9537d51e64f38a9b2bd79461ba5328fc54b5fc51640ae7b2378b414d7fba"
 - name: RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE
-  value: "quay.io/rhoai/odh-th-torch-cpu-py312-rhel9@sha256:c54adba98c7248950927d5669c296dc3b73315ce053b8d6947f4e9b59ae5a6d0"
+  value: "quay.io/rhoai/odh-th-torch-cpu-py312-rhel9@sha256:37024faa46c75f5e2903d34d2f8c898841db79fab72d4cc2301b91b9ca6eb281"
 - name: RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE
   value: "quay.io/rhoai/odh-th-torch-cuda-py312-rhel9@sha256:cd5a15540eef8aa889e3b91b328abd7834ad497bd5911e26f9c65903ce6bc7f2"
 - name: RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE
-  value: "quay.io/rhoai/odh-th-torch-rocm-py312-rhel9@sha256:4b853ad3011851a7c7d86b75d451c8538c25152c52c730dda108eb15f08fd7ea"
+  value: "quay.io/rhoai/odh-th-torch-rocm-py312-rhel9@sha256:6a6c01bc8bda6dd482f23f990010e268ff89e5b58ed334c06652951a59cb88d2"
 - name: RELATED_IMAGE_ODH_TRAINER_IMAGE
   value: "quay.io/rhoai/odh-trainer-rhel9@sha256:b788e0cf7aa1e59a64b17fd6e5a5aeef0eec0b46326642304ac7f9d9b9e95932"
 - name: RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH28_PY312_IMAGE
-  value: "quay.io/rhoai/odh-training-cuda128-torch28-py312-rhel9@sha256:4276f240e423e511e3b0fab9bb78d80ff6275c8a748949be01baa4db8bea577e"
+  value: "quay.io/rhoai/odh-training-cuda128-torch28-py312-rhel9@sha256:897826dbcb5277d3211094fecd929bb32652e238955cddf1611c38b3bb57904f"
 - name: RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH29_PY312_IMAGE
-  value: "quay.io/rhoai/odh-training-cuda128-torch29-py312-rhel9@sha256:d9a01343ace2f42ecdd6b695cf665721bed812a59ecb162dfdefdad76bab3e2e"
+  value: "quay.io/rhoai/odh-training-cuda128-torch29-py312-rhel9@sha256:e87ab67eaf071cb18b37a46df1334fc84a427b6d1b505ac2c96a14731df27b6c"
 - name: RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-training-operator-rhel9@sha256:53bd3f261cce23e3ca9fb557841047a0c721c7eff54b6678ccc233a0baf8aa80"
 - name: RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH28_PY312_IMAGE
