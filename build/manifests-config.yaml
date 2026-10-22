@@ -311,13 +311,13 @@ additional_meta:
     git.commit: 9e19789901a89abac8b89d13986c0e6bdc11a568
   odh-th-torch-cpu-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: afb1271f8d911f794e7f89eef21ed1efeebe8e15
+    git.commit: 3673316c304af1d1b51417fa128e8e139ac54b5e
   odh-th-torch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: afb1271f8d911f794e7f89eef21ed1efeebe8e15
   odh-th-torch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: afb1271f8d911f794e7f89eef21ed1efeebe8e15
+    git.commit: 3673316c304af1d1b51417fa128e8e139ac54b5e
   odh-training-cuda128-torch28-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: afb1271f8d911f794e7f89eef21ed1efeebe8e15
@@ -326,13 +326,13 @@ additional_meta:
     git.commit: afb1271f8d911f794e7f89eef21ed1efeebe8e15
   odh-training-rocm64-torch28-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 3de96e44c120301096bf14c2b2bc35286a6b4f5d
+    git.commit: afb1271f8d911f794e7f89eef21ed1efeebe8e15
   odh-training-rocm64-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 3de96e44c120301096bf14c2b2bc35286a6b4f5d
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
-    git.commit: a41c213b07036c26448030b1f96957486a1f1ced
+    git.commit: 02d8abb04639a909b58cfcc36730cb95ae399f26
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: 99f0947b941b1b7467d84e45688716670825c41a
