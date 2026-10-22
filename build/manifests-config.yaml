@@ -326,13 +326,13 @@ additional_meta:
     git.commit: 3de96e44c120301096bf14c2b2bc35286a6b4f5d
   odh-training-rocm64-torch28-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 26b5416bdb3f581a06e4cc0fc582bd9d9de94629
+    git.commit: 3de96e44c120301096bf14c2b2bc35286a6b4f5d
   odh-training-rocm64-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 3de96e44c120301096bf14c2b2bc35286a6b4f5d
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
-    git.commit: c51cc761e21a3ec2dd63bad9f8e23e4444f91af7
+    git.commit: a41c213b07036c26448030b1f96957486a1f1ced
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: 99f0947b941b1b7467d84e45688716670825c41a
