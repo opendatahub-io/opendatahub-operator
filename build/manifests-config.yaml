@@ -40,7 +40,7 @@ map:
     src: manifests
     dest: trainingoperator
     git.url: https://github.com/red-hat-data-services/training-operator
-    git.commit: ba2bc9856ff8a6ce51c976ea414f5d909bc85768
+    git.commit: 760b5bb037bd258de5b4fb11feeb703053cfe028
   odh-trainer:
     src: manifests
     dest: trainer
@@ -299,10 +299,10 @@ additional_meta:
     git.commit: 736b275ee4bb9474dc8d0b70039745a88a842fc3
   odh-rhaii-cluster-validator:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: 9c3356fab9518314afde89cf08587446d0af5700
+    git.commit: 595173ea342cd019146d2030ae48f80eb92b3c31
   odh-rhaii-validator-tools:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: 9c3356fab9518314afde89cf08587446d0af5700
+    git.commit: 595173ea342cd019146d2030ae48f80eb92b3c31
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
     git.commit: 73a313dcd087bb6f6b6f266615c61663186be904
@@ -311,7 +311,7 @@ additional_meta:
     git.commit: 9e19789901a89abac8b89d13986c0e6bdc11a568
   odh-th-torch-cpu-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 3de96e44c120301096bf14c2b2bc35286a6b4f5d
+    git.commit: 12ac43391eabcb56e987cb7e4a9b5bed105734ea
   odh-th-torch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 3de96e44c120301096bf14c2b2bc35286a6b4f5d
