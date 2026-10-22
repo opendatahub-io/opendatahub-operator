@@ -991,7 +991,7 @@ func restoreAdditionalIngressGatewayTest(
 	t.Helper()
 	g := NewWithT(t)
 	ctx := tc.Context()
-	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+	restoreErr := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		current := &serviceApi.GatewayConfig{}
 		if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, current); err != nil {
 			return err
@@ -999,8 +999,8 @@ func restoreAdditionalIngressGatewayTest(
 		current.Spec.AdditionalIngresses = original.Spec.AdditionalIngresses
 		return tc.Client().Update(ctx, current)
 	})
-	if err != nil {
-		t.Errorf("failed to restore GatewayConfig: %v", err)
+	if restoreErr != nil {
+		t.Errorf("failed to restore GatewayConfig: %v", restoreErr)
 	} else {
 		g.Eventually(func() bool {
 			currentConfig := &serviceApi.GatewayConfig{}
@@ -1027,6 +1027,13 @@ func restoreAdditionalIngressGatewayTest(
 			current := &operatorv1.IngressController{}
 			return k8serr.IsNotFound(tc.Client().Get(ctx, ingressControllerKey, current))
 		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
+	}
+
+	if restoreErr != nil {
+		// The leftover-resource checks below cannot pass without a restored spec:
+		// the operator never received the removal signal, so the per-ingress
+		// resources still exist. The root cause is already reported above.
+		return
 	}
 
 	// Cleanup verification: removing the test ingresses must leave none of their
