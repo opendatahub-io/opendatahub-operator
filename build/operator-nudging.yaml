@@ -142,7 +142,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE
   value: quay.io/rhoai/odh-notebook-controller-rhel9@sha256:26a3abe99147e740c7d96431454284e741fcd2b1f7182653e8d35915c2cb1939
 - name: RELATED_IMAGE_ODH_OGX_CORE_IMAGE
-  value: quay.io/rhoai/odh-ogx-core-rhel9@sha256:d704b0264feb24331691460cb790cc5c810fb06223d14a1cb993fe3e5dbd0f48
+  value: quay.io/rhoai/odh-ogx-core-rhel9@sha256:55b1ed218f9501d02a45971d0054b8a6f78eca6a87151fc4af44ed9cfb148b04
 - name: RELATED_IMAGE_ODH_OGX_K8S_OPERATOR_IMAGE
   value: quay.io/rhoai/odh-ogx-k8s-operator-rhel9@sha256:fdd0ab3db7f2d1522039cef67db828edcc7a5274305aa023449953c44fb5d8ac
 - name: RELATED_IMAGE_ODH_OGX_MODULE_OPERATOR_IMAGE
