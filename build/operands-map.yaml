@@ -192,7 +192,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH28_PY312_IMAGE
   value: "quay.io/rhoai/odh-training-rocm64-torch28-py312-rhel9@sha256:2a1a159e561aadfeff7c56f4bfe5ba8699230c6f5921018f20da29e347dc3c10"
 - name: RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH29_PY312_IMAGE
-  value: "quay.io/rhoai/odh-training-rocm64-torch29-py312-rhel9@sha256:334392f107b0407b299959ac94e8a8d9b602396ee87e74c688b3be6b35adcf2e"
+  value: "quay.io/rhoai/odh-training-rocm64-torch29-py312-rhel9@sha256:3fefeb645a7df5350ca72b6f99f62b8db66bb3f2dac13b54e89883da6fda3851"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE
   value: "quay.io/rhoai/odh-trustyai-garak-lls-provider-dsp-rhel9@sha256:7ff714436ed6a64998c8ad3c7e060a0ff865c0f095c2c36a12167c11a54cb351"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE
@@ -212,7 +212,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-workbenches-operator-rhel9@sha256:7404ad816595837767470e96180977526c68509ebfb6e4d1d2032a52ed9d6ca6"
 - name: RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE
-  value: "quay.io/rhoai/odh-workbench-codeserver-datascience-cpu-py312-rhel9@sha256:473f8aaf2bce7d3ad69a6d701567e1bd8eed22fd9d74feaeaf3561da2fd40123"
+  value: "quay.io/rhoai/odh-workbench-codeserver-datascience-cpu-py312-rhel9@sha256:30abea794d101b089bc5838981b9d31e6f91cb695fe228052a0d7a0f152bf0a1"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_DATASCIENCE_CPU_PY312_IMAGE
   value: "quay.io/rhoai/odh-workbench-jupyter-datascience-cpu-py312-rhel9@sha256:cfa652489ba6af0a720f78d2d96d3a88013d871e271d0d83ebc04332206b5000"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_CPU_PY312_IMAGE
