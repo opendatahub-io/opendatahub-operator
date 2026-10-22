@@ -127,6 +127,7 @@ func gatewayTestSuite(t *testing.T) {
 	// Define test cases.
 	testCases := []TestCase{
 		{"Validate GatewayConfig creation", gatewayCtx.ValidateGatewayConfig},
+		{"Validate additional ingress admission", gatewayCtx.ValidateAdditionalIngressAdmission},
 		{"Validate XKS GatewayConfig admission", gatewayCtx.ValidateXKSGatewayConfigAdmission},
 		{"Validate Gateway infrastructure", gatewayCtx.ValidateGatewayInfrastructure},
 		{"Validate additional Gateways", gatewayCtx.ValidateAdditionalGateways},
@@ -156,6 +157,109 @@ func gatewayTestSuite(t *testing.T) {
 	}
 
 	RunTestCases(t, testCases)
+}
+
+// ValidateAdditionalIngressAdmission verifies that the deployed GatewayConfig
+// validating webhook rejects cross-entry and mode-dependent additional-ingress
+// configurations before reconciliation can create child resources.
+func (tc *GatewayTestCtx) ValidateAdditionalIngressAdmission(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Smoke)
+
+	validIngress := func(name, hostname, label string) string {
+		return fmt.Sprintf(`{name: %q, hostname: %q, ingressControllerName: %q, routeLabels: {"example.com/ingress": %q}}`, name, hostname, "shard-"+name, label)
+	}
+	validOIDC := func(clientID, secretName, key, namespace string) string {
+		oidc := fmt.Sprintf(`{clientID: %q, clientSecretRef: {name: %q, key: %q}`, clientID, secretName, key)
+		if namespace != "" {
+			oidc += fmt.Sprintf(`, secretNamespace: %q`, namespace)
+		}
+		return oidc + "}"
+	}
+	const defaultOIDC = `.spec.oidc = {
+  issuerURL: "https://issuer.example.com",
+  clientID: "default-client",
+  clientSecretRef: {name: "default-secret", key: "clientSecret"}
+}`
+	defaultSharedSecretOIDC := fmt.Sprintf(`.spec.oidc = {
+  issuerURL: "https://issuer.example.com",
+  clientID: "default-client",
+  clientSecretRef: {name: "shared-secret", key: "default-key"},
+  secretNamespace: %q
+}`, gateway.GetGatewayNamespace())
+
+	tests := []struct {
+		name         string
+		transform    string
+		field        string
+		invalidValue string
+	}{
+		{
+			name: "additional ingress requires OcpRoute",
+			transform: fmt.Sprintf(`.spec.ingressMode = "LoadBalancer" | .spec.additionalIngresses = [%s]`,
+				validIngress("alpha", "alpha.example.com", "alpha")),
+			field:        "ingress mode",
+			invalidValue: "additional ingresses require OcpRoute ingress mode",
+		},
+		{
+			name: "duplicate hostnames",
+			transform: fmt.Sprintf(`.spec.ingressMode = "OcpRoute" | .spec.additionalIngresses = [%s, %s]`,
+				validIngress("alpha", "shared.example.com", "alpha"),
+				validIngress("beta", "shared.example.com", "beta")),
+			field:        "additionalIngresses",
+			invalidValue: "shared.example.com",
+		},
+		{
+			name: "duplicate route labels",
+			transform: fmt.Sprintf(`.spec.ingressMode = "OcpRoute" | .spec.additionalIngresses = [%s, %s]`,
+				validIngress("alpha", "alpha.example.com", "shared"),
+				validIngress("beta", "beta.example.com", "shared")),
+			field:        "additionalIngresses",
+			invalidValue: "routeLabels",
+		},
+		{
+			name: "mixed authentication modes",
+			transform: fmt.Sprintf(`.spec.ingressMode = "OcpRoute" | %s | .spec.additionalIngresses = [%s]`, defaultOIDC,
+				validIngress("alpha", "alpha.example.com", "alpha")),
+			field:        "additionalIngresses",
+			invalidValue: "auth.oidc",
+		},
+		{
+			name: "duplicate OIDC client IDs",
+			transform: fmt.Sprintf(`.spec.ingressMode = "OcpRoute" | %s | .spec.additionalIngresses = [%s, %s]`, defaultOIDC,
+				validIngressWithOIDC("alpha", "alpha.example.com", "alpha", validOIDC("shared-client", "alpha-secret", "clientSecret", "")),
+				validIngressWithOIDC("beta", "beta.example.com", "beta", validOIDC("shared-client", "beta-secret", "clientSecret", ""))),
+			field:        "additionalIngresses",
+			invalidValue: "clientID",
+		},
+		{
+			name: "duplicate OIDC Secret references",
+			transform: fmt.Sprintf(`.spec.ingressMode = "OcpRoute" | %s | .spec.additionalIngresses = [%s, %s]`, defaultSharedSecretOIDC,
+				validIngressWithOIDC("alpha", "alpha.example.com", "alpha", validOIDC("alpha-client", "shared-secret", "additional-key", "")),
+				validIngressWithOIDC("beta", "beta.example.com", "beta", validOIDC("beta-client", "other-secret", "clientSecret", ""))),
+			field:        "additionalIngresses",
+			invalidValue: "clientSecretRef",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			options := []ResourceOpts{
+				WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
+				WithMutateFunc(testf.Transform("%s", test.transform)),
+				WithFieldName(test.field),
+				WithCustomErrorMsg("GatewayConfig admission should reject %s", test.name),
+			}
+			if test.invalidValue != "" {
+				options = append(options, WithInvalidValue(test.invalidValue))
+			}
+			tc.EnsureWebhookBlocksResourceUpdate(options...)
+		})
+	}
+}
+
+func validIngressWithOIDC(name, hostname, label, oidc string) string {
+	return fmt.Sprintf(`{name: %q, hostname: %q, ingressControllerName: %q, routeLabels: {"example.com/ingress": %q}, auth: {oidc: %s}}`, name, hostname, "shard-"+name, label, oidc)
 }
 
 // makeRedirectURL constructs the OAuth redirect URL for the authentication proxy.

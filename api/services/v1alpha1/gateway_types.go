@@ -214,7 +214,7 @@ type AdditionalIngresses []AdditionalIngress
 
 // Validate performs runtime validation for additional ingress definitions.
 func (ingresses AdditionalIngresses) Validate(ingressMode IngressMode) error {
-	if len(ingresses) > 0 && ingressMode != IngressModeOcpRoute {
+	if len(ingresses) > 0 && ingressMode != "" && ingressMode != IngressModeOcpRoute {
 		return fmt.Errorf("additional ingresses require %s ingress mode", IngressModeOcpRoute)
 	}
 
@@ -268,6 +268,7 @@ type AdditionalIngress struct {
 	// Hostname is the externally visible hostname for this ingress.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)(\.([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?))*$`
 	Hostname string `json:"hostname"`
 
 	// IngressControllerName is the IngressController whose Route admission is used for readiness.
@@ -327,6 +328,8 @@ type AdditionalIngressOIDCConfig struct {
 
 	// SecretNamespace is the source Secret's namespace; defaults to the gateway namespace.
 	// +optional
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	SecretNamespace string `json:"secretNamespace,omitempty"`
 }
 
