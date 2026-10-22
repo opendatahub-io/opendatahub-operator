@@ -125,9 +125,9 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	return map[string]any{
-		"AuthExtensionName":        authorinoNamespace,
-		"AuthNamespace":            authorinoNamespace,
-		"AuthProviderName":         authorinoProviderName,
+		"AuthExtensionName": authorinoNamespace,
+		"AuthNamespace":     authorinoNamespace,
+		"AuthProviderName":  authorinoProviderName,
 		"AuthorinoExtAuthzFilters": []map[string]any{
 			{
 				"Name": authorinoExtAuthzFilterName,
