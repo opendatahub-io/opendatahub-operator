@@ -41,6 +41,10 @@ map:
     src: config/chart
     dest: data
     type: chart
+  odh-db-operator:
+    src: config/chart
+    dest: databaseservice
+    type: chart
   odh-ogx-module-operator:
     src: ogx-module/config
     dest: ogx
