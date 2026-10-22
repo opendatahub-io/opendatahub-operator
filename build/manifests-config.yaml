@@ -122,7 +122,7 @@ additional_meta:
     git.commit: 781004b34ca9331f24ba7afbc61a054c25695118
   odh-kf-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
-    git.commit: 59c3f418aad272e80f1366c13d437c1b2fa69ceb
+    git.commit: 2fbb516f6539cf737329ad1f7103a4c7761cb977
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 4810d0d2af89377a0c4a86e0ef7939a13345d79b
@@ -263,7 +263,7 @@ additional_meta:
     git.commit: c466412526ae7f5e2f76d3c0d20cfe0e14096e1f
   odh-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
-    git.commit: 59c3f418aad272e80f1366c13d437c1b2fa69ceb
+    git.commit: 2fbb516f6539cf737329ad1f7103a4c7761cb977
   odh-ogx-core:
     git.url: https://github.com/red-hat-data-services/ogx-distribution
     git.commit: ee4c26cb948d9a3c629511cc415ac60ce8af21c4
