@@ -71,12 +71,12 @@ map:
     dest: feastoperator
     type: chart
     git.url: https://github.com/red-hat-data-services/feast-module-operator
-    git.commit: f6dd16a908ce83a352e1227535e295dd12294aa8
+    git.commit: e98f510032158e37a51bccd9713a7e99d15dd0c8
   odh-ogx-module-operator:
     src: ogx-module/config
     dest: ogx
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
-    git.commit: 93b34b078ecb37a09796927d804baabc9ede8f26
+    git.commit: 0de31dd623f27a87778df6ce1f927a88acf0482d
 additional_meta:
   odh-ai-gateway-payload-processing:
     git.url: https://github.com/red-hat-data-services/ai-gateway-payload-processing
@@ -110,7 +110,7 @@ additional_meta:
     git.commit: 138cc472163e6b3aa4b0150cc0c0b941017f3c8d
   odh-feast-operator:
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: 1fd73bcbd7e695d40eec610752f8097091a6708a
+    git.commit: a4f76c820a3029e4e48a367fc014cad3f94730c8
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: 85c1b0b737cb204ccd81642107af3d1792cb5205
@@ -188,7 +188,7 @@ additional_meta:
     git.commit: d64ee813f15458332725d5455e8b6e234b4fc7bf
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
-    git.commit: 7c97547d1589fda53027a02617978a03ca92f339
+    git.commit: 28ac76ed80dd389ab000a9ec3a3f8da53a039f54
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
     git.commit: 3719eba2dfd856d6eaa3b2f6ab1fac162ffea9cc
@@ -263,13 +263,13 @@ additional_meta:
     git.commit: c466412526ae7f5e2f76d3c0d20cfe0e14096e1f
   odh-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
-    git.commit: 1cff3101ae742f9abf56a875c39341575f6b9a24
+    git.commit: 59c3f418aad272e80f1366c13d437c1b2fa69ceb
   odh-ogx-core:
     git.url: https://github.com/red-hat-data-services/ogx-distribution
     git.commit: ee4c26cb948d9a3c629511cc415ac60ce8af21c4
   odh-ogx-k8s-operator:
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
-    git.commit: 93b34b078ecb37a09796927d804baabc9ede8f26
+    git.commit: 0de31dd623f27a87778df6ce1f927a88acf0482d
   odh-openvino-model-server:
     git.url: https://github.com/red-hat-data-services/openvino_model_server
     git.commit: c624ca398fd8ee0d43d27934463d99cce8a54376
