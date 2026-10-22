@@ -176,7 +176,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE
   value: quay.io/rhoai/odh-ta-lmes-job-rhel9@sha256:5f7f9537d51e64f38a9b2bd79461ba5328fc54b5fc51640ae7b2378b414d7fba
 - name: RELATED_IMAGE_ODH_TH_TORCH_CPU_PY312_IMAGE
-  value: quay.io/rhoai/odh-th-torch-cpu-py312-rhel9@sha256:be635f4cbb975fcc2edfdfa3eb75e751513f94dc9afaae38fc128de680d4dbc6
+  value: quay.io/rhoai/odh-th-torch-cpu-py312-rhel9@sha256:c54adba98c7248950927d5669c296dc3b73315ce053b8d6947f4e9b59ae5a6d0
 - name: RELATED_IMAGE_ODH_TH_TORCH_CUDA_PY312_IMAGE
   value: quay.io/rhoai/odh-th-torch-cuda-py312-rhel9@sha256:fdfdde6426010e6b8865b6398624ecbcd44c6962da6fc9fb1e96c70111c78021
 - name: RELATED_IMAGE_ODH_TH_TORCH_ROCM_PY312_IMAGE
