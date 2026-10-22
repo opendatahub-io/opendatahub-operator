@@ -125,9 +125,23 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	return map[string]any{
-		"AuthExtensionName":        authorinoNamespace,
-		"AuthNamespace":            authorinoNamespace,
-		"AuthProviderName":         authorinoProviderName,
+		"AuthExtensionName": authorinoNamespace,
+		"AuthNamespace":     authorinoNamespace,
+		"AuthProviderName":  authorinoProviderName,
+		"AuthorinoExtAuthzFilters": []map[string]any{
+			{
+				"Name": authorinoExtAuthzFilterName,
+				"Selector": map[string]string{
+					"component": "predictor",
+				},
+			},
+			{
+				"Name": authorinoExtAuthzInferenceGraphFilterName,
+				"Selector": map[string]string{
+					"serving.kserve.io/kind": "InferenceGraph",
+				},
+			},
+		},
 		"TrustDomain":              "cluster.local",
 		"ControlPlane":             controlPlane,
 		"KnativeCertificateSecret": knativeCertificateSecret,
@@ -360,7 +374,11 @@ func getAndRemoveOwnerReferences(
 }
 
 func isAuthorinoExtAuthzResource(u *unstructured.Unstructured) bool {
-	return u.GroupVersionKind() == gvk.EnvoyFilter && u.GetName() == authorinoExtAuthzFilterName
+	if u.GroupVersionKind() != gvk.EnvoyFilter {
+		return false
+	}
+	return u.GetName() == authorinoExtAuthzFilterName ||
+		u.GetName() == authorinoExtAuthzInferenceGraphFilterName
 }
 
 func isForDependency(s string) func(u *unstructured.Unstructured) bool {

@@ -430,7 +430,7 @@ func TestCleanUpTemplatedResources_withAuthorino(t *testing.T) {
 
 	g.Expect(rrHeaded.Resources).Should(
 		And(
-			HaveLen(12),
+			HaveLen(13),
 			ContainElement(gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Object": And(
 					HaveKeyWithValue("kind", gvk.AuthorizationPolicy.Kind),
@@ -441,6 +441,16 @@ func TestCleanUpTemplatedResources_withAuthorino(t *testing.T) {
 					HaveKeyWithValue("kind", gvk.EnvoyFilter.Kind),
 				),
 			})),
+			ContainElement(WithTransform(func(obj unstructured.Unstructured) map[string]any {
+				return obj.Object
+			}, And(
+				jq.Match(`.metadata.name == "kserve-authorino-ext-authz-inferencegraph"`),
+				jq.Match(`.metadata.namespace == "istio-system"`),
+				jq.Match(`.spec.workloadSelector.labels["serving.kserve.io/kind"] == "InferenceGraph"`),
+				jq.Match(`.spec.configPatches[0].patch.value.name == "odhai-authorino-ext-authz"`),
+				jq.Match(`.spec.configPatches[0].patch.value.type == "STRICT_DNS"`),
+				jq.Match(`.spec.configPatches[1].patch.value.typed_config.grpc_service.envoy_grpc.cluster_name == "odhai-authorino-ext-authz"`),
+			))),
 			ContainElement(WithTransform(func(obj unstructured.Unstructured) map[string]any {
 				return obj.Object
 			}, And(
@@ -572,6 +582,10 @@ func TestCleanUpTemplatedResources_withOldAuthorino(t *testing.T) {
 			return obj.Object
 		}, jq.Match(`.metadata.name == "kserve-authorino-ext-authz"`))),
 		),
+		Not(ContainElement(WithTransform(func(obj unstructured.Unstructured) map[string]any {
+			return obj.Object
+		}, jq.Match(`.metadata.name == "kserve-authorino-ext-authz-inferencegraph"`))),
+		),
 	))
 }
 
@@ -693,22 +707,24 @@ func TestCleanUpTemplatedResources_withServiceMeshUnmanaged(t *testing.T) {
 	g.Expect(addTemplateFiles(ctx, &rr)).ShouldNot(HaveOccurred())
 	g.Expect(template.NewAction(template.WithDataFn(getTemplateData))(ctx, &rr)).ShouldNot(HaveOccurred())
 
-	var extAuthzFilter *unstructured.Unstructured
+	var extAuthzFilters []*unstructured.Unstructured
 	for i := range rr.Resources {
 		if isAuthorinoExtAuthzResource(&rr.Resources[i]) {
-			extAuthzFilter = rr.Resources[i].DeepCopy()
-			break
+			extAuthzFilter := rr.Resources[i].DeepCopy()
+			extAuthzFilters = append(extAuthzFilters, extAuthzFilter)
+			g.Expect(cli.Create(ctx, extAuthzFilter)).ShouldNot(HaveOccurred())
 		}
 	}
-	g.Expect(extAuthzFilter).NotTo(BeNil())
-	g.Expect(cli.Create(ctx, extAuthzFilter)).ShouldNot(HaveOccurred())
+	g.Expect(extAuthzFilters).To(HaveLen(2))
 
 	g.Expect(cleanUpTemplatedResources(ctx, &rr)).ShouldNot(HaveOccurred())
 
-	deletedFilter := &unstructured.Unstructured{}
-	deletedFilter.SetGroupVersionKind(gvk.EnvoyFilter)
-	err = cli.Get(ctx, client.ObjectKeyFromObject(extAuthzFilter), deletedFilter)
-	g.Expect(k8serr.IsNotFound(err)).To(BeTrue())
+	for _, extAuthzFilter := range extAuthzFilters {
+		deletedFilter := &unstructured.Unstructured{}
+		deletedFilter.SetGroupVersionKind(gvk.EnvoyFilter)
+		err = cli.Get(ctx, client.ObjectKeyFromObject(extAuthzFilter), deletedFilter)
+		g.Expect(k8serr.IsNotFound(err)).To(BeTrue())
+	}
 
 	g.Expect(rr.Resources).Should(And(
 		HaveLen(7),

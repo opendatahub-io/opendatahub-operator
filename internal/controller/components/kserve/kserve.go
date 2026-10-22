@@ -25,14 +25,15 @@ import (
 )
 
 const (
-	componentName               = componentApi.KserveComponentName
-	authorinoOperator           = "authorino-operator"
-	authorinoProviderName       = "authorino"
-	authorinoExtAuthzFilterName = "kserve-authorino-ext-authz"
-	serviceMeshOperator         = "servicemeshoperator"
-	serverlessOperator          = "serverless-operator"
-	kserveConfigMapName         = "inferenceservice-config"
-	kserveManifestSourcePath    = "overlays/odh"
+	componentName                             = componentApi.KserveComponentName
+	authorinoOperator                         = "authorino-operator"
+	authorinoProviderName                     = "authorino"
+	authorinoExtAuthzFilterName               = "kserve-authorino-ext-authz"
+	authorinoExtAuthzInferenceGraphFilterName = "kserve-authorino-ext-authz-inferencegraph"
+	serviceMeshOperator                       = "servicemeshoperator"
+	serverlessOperator                        = "serverless-operator"
+	kserveConfigMapName                       = "inferenceservice-config"
+	kserveManifestSourcePath                  = "overlays/odh"
 
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
