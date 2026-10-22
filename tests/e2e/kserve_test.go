@@ -87,7 +87,6 @@ func kserveTestSuite(t *testing.T) {
 
 	testCases = append(testCases,
 		TestCase{"Validate platform config ConfigMap", componentCtx.ValidatePlatformConfigMap},
-		TestCase{"Validate AIHub state propagation", componentCtx.ValidateAIHubStatePropagation},
 		TestCase{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 		TestCase{"Validate module disabled", componentCtx.ValidateModuleDisabled},

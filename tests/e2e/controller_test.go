@@ -81,6 +81,7 @@ type TestContextConfig struct {
 	workbenchesNamespace string
 	monitoringNamespace  string
 	deletionPolicy       DeletionPolicy
+	kueueOperatorChannel string
 
 	backupAndRestoreDSCIandDSC       bool
 	cleanUpPreviousResources         bool
@@ -160,6 +161,10 @@ var (
 				// Dashboard and Data mutate the singleton DSC's data lifecycle fields.
 				// Keep Data in a later scenario group so their cleanups cannot race.
 				componentApi.DataModuleName: dataModuleTestSuite,
+				// Kserve propagates AIHub state to the module CR, so it needs to manipulate the DSC's AIHub state to test.
+				// This triggers Dashboard AIHub state propagation, interfering with Dashboard tests by deploying model registry UI resources
+				// Keep it in a later scenario so it does not race with Dashboard tests.
+				componentApi.KserveComponentName: kserveAIHubStatePropagationTestSuite,
 			},
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
@@ -635,6 +640,8 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("workbenches-namespace", viper.GetEnvPrefix()+"_WORKBENCHES_NAMESPACE"))
 	pflag.String("dsc-monitoring-namespace", "opendatahub", "Namespace where the odh monitoring is deployed")
 	checkEnvVarBindingError(viper.BindEnv("dsc-monitoring-namespace", viper.GetEnvPrefix()+"_DSC_MONITORING_NAMESPACE"))
+	pflag.String("kueue-operator-channel", kueueOcpOperatorDefaultChannel, "OLM channel for the OCP Kueue operator")
+	checkEnvVarBindingError(viper.BindEnv("kueue-operator-channel", viper.GetEnvPrefix()+"_KUEUE_OPERATOR_CHANNEL"))
 	pflag.String("deletion-policy", "always",
 		"Specify when to delete DataScienceCluster, DSCInitialization, and controllers. Options: always, on-failure, never.")
 	checkEnvVarBindingError(viper.BindEnv("deletion-policy", viper.GetEnvPrefix()+"_DELETION_POLICY"))
@@ -741,6 +748,7 @@ func TestMain(m *testing.M) {
 	testOpts.appsNamespace = viper.GetString("applications-namespace")
 	testOpts.workbenchesNamespace = viper.GetString("workbenches-namespace")
 	testOpts.monitoringNamespace = viper.GetString("dsc-monitoring-namespace")
+	testOpts.kueueOperatorChannel = viper.GetString("kueue-operator-channel")
 	var err error
 	if testOpts.deletionPolicy, err = ParseDeletionPolicy(viper.GetString("deletion-policy")); err != nil {
 		fmt.Print(err.Error())
