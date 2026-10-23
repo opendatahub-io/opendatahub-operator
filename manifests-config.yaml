@@ -1449,6 +1449,9 @@ imageOverrides:
       digest: "sha256:c8c2efb2f18f5c486f3dc1e7b8137344345b7d12ae4ba4d8d51400bf478ec9ee"
   RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_MINIMAL_CPU_PY312_IMAGE:
     source: "csv"
+    odh:
+      base: "quay.io/opendatahub/odh-workbench-codeserver-minimal-cpu-py312"
+      digest: "sha256:f75ef237a126ac51cc925ed90a02464a3474cfb88ec083740cccaa296fcaa526"
     rhoai:
       base: "quay.io/rhoai/odh-workbench-codeserver-minimal-cpu-py312-rhel9"
       digest: "sha256:97f47dffa1e75e68d36c05a99731e39d9e0ae3318a4ec567f3d1407e2b04b064"
