@@ -669,8 +669,9 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 			monitoringCondition: jq.Match(`.spec.metrics != null`),
 			validation: jq.Match(`
 				(.spec.config.exporters | has("prometheus") and has("debug") and has("%s")) and
-				(.spec.config.service.pipelines.metrics.exporters | length == 3 and contains(["prometheus", "debug", "%s"]))
-			`, OtlpCustomExporter, OtlpCustomExporter),
+				(.spec.config.service.pipelines."metrics/scrape".exporters | length == 3 and contains(["prometheus", "debug", "%s"])) and
+				(.spec.config.service.pipelines."metrics/otlp".exporters | length == 3 and contains(["prometheus", "debug", "%s"]))
+			`, OtlpCustomExporter, OtlpCustomExporter, OtlpCustomExporter),
 		},
 		{
 			name: "Custom Traces Exporters",

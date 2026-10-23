@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"sort"
 
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -114,6 +116,21 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
 				resources.CreatedOrUpdatedOrDeletedLabeled(gates.UpgradeGateLabel, "true"),
 			)))
+
+	// The OpenTelemetry Operator may be installed after Monitoring. Its active
+	// Collector webhook identifies the namespace for the cert-manager binding.
+	b = b.Watches(&admissionregistrationv1.ValidatingWebhookConfiguration{},
+		reconciler.WithEventMapper(func(_ context.Context, _ client.Object) []reconcile.Request {
+			return platformRequest
+		}),
+		reconciler.WithPredicates(predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool { return isOTelCollectorWebhookConfiguration(e.Object) },
+			DeleteFunc: func(e event.DeleteEvent) bool { return isOTelCollectorWebhookConfiguration(e.Object) },
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				return isOTelCollectorWebhookConfiguration(e.ObjectOld) || isOTelCollectorWebhookConfiguration(e.ObjectNew)
+			},
+		}),
+	)
 
 	b = addModuleCRWatches(b)
 	b = addModuleCRDWatches(b, func(ctx context.Context, _ client.Object) []reconcile.Request {

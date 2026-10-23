@@ -228,9 +228,18 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 		return nil, err
 	}
 
+	var otelOperatorNS string
+	if modules.Monitoring.ManagementState == operatorv1.Managed {
+		otelOperatorNS, err = resolveOTelOperatorNamespace(ctx, rr.Client)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve OpenTelemetry Operator namespace: %w", err)
+		}
+	}
+
 	return &PlatformContext{
 		ApplicationsNamespace: appNS,
 		MonitoringNamespace:   monitoringNS,
+		OTelOperatorNamespace: otelOperatorNS,
 		Release:               rr.Release,
 		Modules:               modules,
 		ChartsBasePath:        rr.ChartsBasePath,
