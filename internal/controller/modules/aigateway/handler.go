@@ -72,6 +72,8 @@ var (
 		// AI Gateway Controller images
 		"RELATED_IMAGE_ODH_AI_GATEWAY_CONTROLLER_IMAGE",
 		"RELATED_IMAGE_ODH_PRAXIS_EXTPROC_IMAGE",
+		// Consumer portal auth proxy, deployed by the AI Gateway Controller
+		"RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE",
 		// AI Grid operator image
 		"RELATED_IMAGE_ODH_PRAXIS_AI_GRID_OPERATOR_IMAGE",
 	}
