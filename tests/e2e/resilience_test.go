@@ -11,18 +11,26 @@ import (
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -64,6 +72,7 @@ func operatorResilienceTestSuite(t *testing.T) {
 		{"Validate components deployment failure", resilienceTestCtx.ValidateComponentsDeploymentFailure},
 		{"Validate missing CRD handling", resilienceTestCtx.ValidateMissingComponentsCRDHandling},
 		{"Validate RBAC restriction handling", resilienceTestCtx.ValidateRBACRestrictionHandling},
+		{"Validate additional ingress resilience across operator restart", resilienceTestCtx.ValidateAdditionalIngressRestartResilience},
 	}
 
 	// Run the test suite.
@@ -460,6 +469,177 @@ func (tc *OperatorResilienceTestCtx) ValidateRBACRestrictionHandling(t *testing.
 	// Verify operator recovers
 	tc.validateDeploymentHealth(t)
 	tc.validateSystemHealth(t)
+}
+
+// ValidateAdditionalIngressRestartResilience verifies that an operator restart does not
+// churn additional-ingress resources and that drift introduced while the operator
+// restarts converges once it is back: the additional Gateway, bridge Route, TLS Secret
+// and provider Service keep their UIDs, an infrastructure ConfigMap deleted during the
+// restart is recreated, and the ingress returns to Ready at the same generation.
+//
+// It lives in the resilience suite rather than the gateway suite because restarting the
+// operator inside a services spec would disturb every later spec of that suite.
+func (tc *OperatorResilienceTestCtx) ValidateAdditionalIngressRestartResilience(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier1)
+
+	// The per-ingress validation helpers are methods on GatewayTestCtx; reuse them over
+	// the shared TestContext instead of duplicating them in this suite.
+	gtc := &GatewayTestCtx{TestContext: tc.TestContext}
+	if !gtc.isOcpRouteMode(t) {
+		t.Skip("additional Gateways require OcpRoute mode")
+	}
+	gtc.SkipIfBYOIDC(t)
+
+	g := NewWithT(t)
+	ctx := gtc.Context()
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	require.NoError(t, gtc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, gatewayConfig))
+	original := gatewayConfig.DeepCopy()
+	originalGateway, err := gtc.getGateway(ctx)
+	require.NoError(t, err)
+	// The default-host redirect is only served while the dashboard HTTPRoute is attached
+	// to the Gateway; the services suites typically leave the dashboard Removed.
+	dsc := &dscv2.DataScienceCluster{}
+	require.NoError(t, gtc.Client().Get(ctx, gtc.DataScienceClusterNamespacedName, dsc))
+	originalDashboardState := dsc.Spec.Components.Dashboard.ManagementState
+	if originalDashboardState != operatorv1.Managed {
+		gtc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
+		t.Cleanup(func() {
+			gtc.UpdateComponentStateInDataScienceClusterWithKind(originalDashboardState, componentApi.DashboardKind)
+		})
+	}
+	gtc.waitForDashboardHTTPRoute(t)
+	defaultRoute := &routev1.Route{}
+	defaultRouteKey := types.NamespacedName{Name: gtc.gatewayName(), Namespace: gtc.gatewayNamespace()}
+	require.NoError(t, gtc.Client().Get(ctx, defaultRouteKey, defaultRoute))
+	require.NotEmpty(t, defaultRoute.Spec.Host)
+	checkDefault := func() {
+		gtc.assertDefaultGatewayContinuity(ctx, t, originalGateway.UID, defaultRoute.UID, defaultRoute.Spec.Host)
+	}
+
+	controllerName := fmt.Sprintf("e2e-restart-shard-%x", time.Now().UnixNano())
+	controllerKey := types.NamespacedName{Name: controllerName, Namespace: cluster.IngressControllerName.Namespace}
+	alpha := serviceApi.AdditionalIngress{
+		Name:                  "e2e-restart-alpha",
+		Hostname:              controllerName + ".e2e.invalid",
+		IngressControllerName: controllerName,
+		RouteLabels:           map[string]string{"example.com/ingress": "e2e-restart-alpha"},
+	}
+	// Register the cleanups before creating the IngressController so an aborted setup
+	// still removes it, and so the evidence dump runs before the restore mutates state.
+	t.Cleanup(func() {
+		restoreAdditionalIngressGatewayTest(t, gtc, original, originalGateway, []string{alpha.Name}, controllerKey)
+	})
+	t.Cleanup(func() { gtc.logAdditionalIngressEvidence(t, controllerKey) })
+
+	replicas := int32(1)
+	require.NoError(t, gtc.Client().Create(ctx, &operatorv1.IngressController{
+		ObjectMeta: metav1.ObjectMeta{Name: controllerName, Namespace: controllerKey.Namespace},
+		Spec: operatorv1.IngressControllerSpec{
+			Domain: alpha.Hostname, Replicas: &replicas,
+			EndpointPublishingStrategy: &operatorv1.EndpointPublishingStrategy{Type: operatorv1.PrivateStrategyType},
+			RouteSelector:              &metav1.LabelSelector{MatchLabels: alpha.RouteLabels},
+		},
+	}), "create temporary private IngressController %s", controllerName)
+
+	update := func(additional serviceApi.AdditionalIngresses) {
+		g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			current := &serviceApi.GatewayConfig{}
+			if err := gtc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, current); err != nil {
+				return err
+			}
+			current.Spec.AdditionalIngresses = additional
+			return gtc.Client().Update(ctx, current)
+		})).To(Succeed())
+	}
+
+	update(serviceApi.AdditionalIngresses{alpha})
+	gtc.validateAdditionalGatewayAndRoute(t, alpha)
+	gtc.validateAdditionalGatewayStatus(t, 1, alpha.Name, alpha.Hostname)
+	alphaRouteKey := types.NamespacedName{Name: alpha.Name, Namespace: gtc.gatewayNamespace()}
+	validateAdditionalIngressRouteAdmissionStatus(t, gtc, alphaRouteKey, alpha.Name, alpha.Hostname, controllerName)
+	checkDefault()
+
+	// Snapshot the resources that must survive the restart in place. Only resources whose
+	// existence validateAdditionalGatewayAndRoute already asserts are included. The
+	// Gateway and the bridge Route share their name and namespace, so the pairs are kept
+	// in a slice rather than a map keyed by NamespacedName, where they would collide.
+	type stableResource struct {
+		obj client.Object
+		uid types.UID
+	}
+	namespace := gtc.gatewayNamespace()
+	stableResources := []stableResource{
+		{obj: &gwapiv1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: alpha.Name, Namespace: namespace}}},
+		{obj: &routev1.Route{ObjectMeta: metav1.ObjectMeta{Name: alpha.Name, Namespace: namespace}}},
+		{obj: &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: alpha.Name + "-service-tls", Namespace: namespace}}},
+		{obj: &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: gateway.GetGatewayServiceFullName(alpha.Name), Namespace: namespace}}},
+	}
+	for i, resource := range stableResources {
+		key := client.ObjectKeyFromObject(resource.obj)
+		require.NoError(t, gtc.Client().Get(ctx, key, resource.obj), "snapshot %T %s", resource.obj, key)
+		stableResources[i].uid = resource.obj.GetUID()
+	}
+
+	// Restart the operator. Wait until every pre-restart pod is gone before asserting
+	// anything, so the assertions run against the restarted operator and not against a
+	// gracefully terminating one (the deployment reports ready replicas during the
+	// termination grace period).
+	deploymentName := tc.getControllerDeploymentName()
+	deployment := tc.getDeployment(t, types.NamespacedName{Namespace: tc.OperatorNamespace, Name: deploymentName})
+	require.NotNil(t, deployment, "operator deployment not found")
+	matchLabels, found, err := unstructured.NestedStringMap(deployment.Object, "spec", "selector", "matchLabels")
+	require.NoError(t, err)
+	require.True(t, found && len(matchLabels) > 0, "operator deployment has no pod selector")
+	oldPods := tc.FetchResources(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{Namespace: tc.OperatorNamespace}),
+		WithListOptions(&client.ListOptions{
+			Namespace:     tc.OperatorNamespace,
+			LabelSelector: labels.SelectorFromSet(matchLabels),
+		}),
+	)
+	oldPodKeys := make([]types.NamespacedName, 0, len(oldPods))
+	for _, pod := range oldPods {
+		oldPodKeys = append(oldPodKeys, types.NamespacedName{Namespace: pod.GetNamespace(), Name: pod.GetName()})
+	}
+	tc.deletePodsForDeployment(t, types.NamespacedName{Namespace: tc.OperatorNamespace, Name: deploymentName})
+	g.Eventually(func() bool {
+		for _, key := range oldPodKeys {
+			if err := gtc.Client().Get(ctx, key, &corev1.Pod{}); !k8serr.IsNotFound(err) {
+				return false
+			}
+		}
+		return true
+	}, gtc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue(),
+		"every pre-restart operator pod should be replaced")
+
+	// With the old operator gone, delete the infrastructure ConfigMap out of band: the
+	// converged state must come back, not merely be preserved.
+	configMapKey := types.NamespacedName{Name: alpha.Name + "-config", Namespace: namespace}
+	require.NoError(t, gtc.Client().Delete(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+		Name: configMapKey.Name, Namespace: configMapKey.Namespace,
+	}}), "delete the infrastructure ConfigMap after the restart")
+
+	// Wait for the operator to be back before asserting convergence.
+	tc.validateDeploymentHealth(t)
+
+	for _, resource := range stableResources {
+		key := client.ObjectKeyFromObject(resource.obj)
+		require.NoError(t, gtc.Client().Get(ctx, key, resource.obj), "refetch %T %s after restart", resource.obj, key)
+		g.Expect(resource.obj.GetUID()).To(Equal(resource.uid), "operator restart must not recreate %T %s", resource.obj, key)
+	}
+	g.Eventually(func(g Gomega) {
+		configMap := &corev1.ConfigMap{}
+		g.Expect(gtc.Client().Get(ctx, configMapKey, configMap)).To(Succeed())
+		g.Expect(configMap.Data).To(HaveKey("service"), "recreated ConfigMap must restore the gateway service definition")
+	}, gtc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+	gtc.validateAdditionalGatewayAndRoute(t, alpha)
+	gtc.validateAdditionalGatewayStatus(t, 1, alpha.Name, alpha.Hostname)
+	validateAdditionalIngressRouteAdmissionStatus(t, gtc, alphaRouteKey, alpha.Name, alpha.Hostname, controllerName)
+	checkDefault()
+
+	// Removal and orphan verification run in the restore cleanup.
 }
 
 // findLeaderPodFromLeases finds current leader pod name from lease resources.
