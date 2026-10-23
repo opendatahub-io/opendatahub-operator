@@ -71,6 +71,10 @@ func TestAdditionalIngressesValidate(t *testing.T) {
 			mode:      IngressModeOcpRoute,
 		},
 		{
+			name:      "mode is detected later",
+			ingresses: AdditionalIngresses{valid("alpha", "alpha.example.com")},
+		},
+		{
 			name:      "additional ingress requires OcpRoute",
 			ingresses: AdditionalIngresses{valid("alpha", "alpha.example.com")},
 			mode:      IngressModeLoadBalancer,
