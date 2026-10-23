@@ -11,11 +11,14 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -189,8 +192,29 @@ func (tc *MonitoringTestCtx) runBaseConfigurationTests(t *testing.T) {
 		t.Run("Auto creation of Monitoring CR", tc.ValidateMonitoringCRCreation)
 		t.Run("Test MonitoringReady condition propagated to DSCI", tc.ValidateMonitoringReadyConditionOnDSCI)
 		t.Run("Test Traces default content", tc.ValidateMonitoringCRDefaultTracesContent)
+		t.Run("Reject conflicting shared LokiStack storage", tc.ValidateSharedLokiStackStorage)
 		t.Run("Test Korrel8r image env var injection", tc.ValidateKorrel8rImageEnvVarInjection)
 	})
+}
+
+// ValidateSharedLokiStackStorage verifies that DSCI admission rejects storage
+// settings that would silently select logs.storage over usageLogs.storage.
+func (tc *MonitoringTestCtx) ValidateSharedLokiStackStorage(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization().DeepCopy()
+	dsci.Spec.Monitoring.Logs = &serviceApi.Logs{
+		Storage: &serviceApi.LokiStorageConfig{Type: "s3", SecretName: "logs-s3"},
+	}
+	dsci.Spec.Monitoring.UsageLogs = &serviceApi.UsageLogs{
+		Storage: &serviceApi.LokiStorageConfig{Type: "s3", SecretName: "usage-s3"},
+	}
+
+	// Dry-run exercises real CRD admission without changing the shared test DSCI.
+	err := tc.Client().Update(tc.Context(), dsci, client.DryRunAll)
+	require.Error(t, err)
+	require.True(t, k8serr.IsInvalid(err), "expected CRD validation error, got %v", err)
+	require.ErrorContains(t, err, "logs.storage and usageLogs.storage must match")
 }
 
 // ValidateKorrel8rImageEnvVarInjection verifies that the Korrel8r image
