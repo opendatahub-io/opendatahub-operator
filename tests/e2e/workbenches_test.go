@@ -46,6 +46,7 @@ func workbenchesTestSuite(t *testing.T) {
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate module enabled", componentCtx.ValidateModuleEnabled},
 		{"Validate module operator deployment", componentCtx.ValidateModuleOperatorDeployment},
+		{"Validate related image injection", componentCtx.ValidateRelatedImageInjection},
 		{"Validate workbenches namespace configuration", componentCtx.ValidateWorkbenchesNamespaceConfiguration},
 		{"Validate ingress projection", componentCtx.ValidateIngressProjection},
 		{"Validate module releases", componentCtx.ValidateModuleReleases},
@@ -96,6 +97,25 @@ func (tc *WorkbenchesTestCtx) ValidateModuleOperatorDeployment(t *testing.T) {
 			Name:      workbenchesModule.ControllerDeploymentName,
 		}),
 		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+	)
+}
+
+func (tc *WorkbenchesTestCtx) ValidateRelatedImageInjection(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.AppsNamespace,
+			Name:      workbenchesModule.ControllerDeploymentName,
+		}),
+		WithCondition(jq.Match(
+			`.spec.template.spec.containers[] | select(.env != null) | .env[] | `+
+				`select(.name == "RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_MINIMAL_CPU_PY312_IMAGE") | `+
+				`.value != null and .value != ""`,
+		)),
+		WithCustomErrorMsg("Workbenches module operator Deployment should have RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_MINIMAL_CPU_PY312_IMAGE injected"),
 	)
 }
 
