@@ -130,6 +130,7 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate XKS GatewayConfig admission", gatewayCtx.ValidateXKSGatewayConfigAdmission},
 		{"Validate Gateway infrastructure", gatewayCtx.ValidateGatewayInfrastructure},
 		{"Validate additional Gateways", gatewayCtx.ValidateAdditionalGateways},
+		{"Validate additional Gateway lifecycle", gatewayCtx.ValidateAdditionalGatewayLifecycle},
 		{"Validate OpenShift Route server timeout updates", gatewayCtx.ValidateOCPRouteServerTimeout},
 		{"Validate XKS cert-manager certificates", gatewayCtx.ValidateXKSCertManagerCertificates},
 		{"Validate XKS certificate readiness recovery", gatewayCtx.ValidateXKSCertificateReadinessRecovery},
@@ -369,7 +370,8 @@ func (tc *GatewayTestCtx) ValidateAdditionalGateways(t *testing.T) {
 	}
 	require.NoError(t, tc.Client().Create(ctx, alphaIngressController), "create temporary private IngressController")
 	t.Cleanup(func() {
-		restoreAdditionalIngressGatewayTest(t, tc, original, originalGateway, ingressControllerKey)
+		restoreAdditionalIngressGatewayTest(t, tc, original, originalGateway,
+			[]string{alpha.Name, beta.Name}, ingressControllerKey)
 	})
 	t.Cleanup(func() { tc.logAdditionalIngressEvidence(t, ingressControllerKey) })
 
@@ -383,6 +385,11 @@ func (tc *GatewayTestCtx) ValidateAdditionalGateways(t *testing.T) {
 			return tc.Client().Update(ctx, current)
 		})).To(Succeed())
 	}
+
+	// Default-only baseline: the redirect and default resource identity must hold before
+	// any additional ingress exists, so a pre-existing default-path failure is not
+	// misattributed to the first ingress.
+	checkDefault()
 
 	spec := original.Spec
 	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{alpha}
@@ -455,6 +462,220 @@ func (tc *GatewayTestCtx) ValidateAdditionalGateways(t *testing.T) {
 		WithCustomErrorMsg("GatewayConfig should remove additional ingress status entries"),
 	)
 	checkDefault()
+}
+
+// ValidateAdditionalGatewayLifecycle exercises mutation and recovery of additional ingresses
+// against two real selector-isolated IngressControllers: a healthy and a rejected sibling
+// coexist (failure isolation), a hostname update retargets the bridge Route in place, and
+// out-of-band deletion of operator-owned children converges back to the desired state.
+//
+// It is a sibling of ValidateAdditionalGateways rather than an extension of it: each spec
+// keeps its own e2e-test-single timeout budget, and this spec's phases would otherwise push
+// the combined spec past the 10-minute single-test limit.
+func (tc *GatewayTestCtx) ValidateAdditionalGatewayLifecycle(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier1)
+	if !tc.isOcpRouteMode(t) {
+		t.Skip("additional Gateways require OcpRoute mode")
+	}
+
+	g := NewWithT(t)
+	ctx := tc.Context()
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	require.NoError(t, tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, gatewayConfig))
+	original := gatewayConfig.DeepCopy()
+	tc.SkipIfBYOIDC(t)
+	originalGateway, err := tc.getGateway(ctx)
+	require.NoError(t, err)
+	// The default-host redirect is only served while the dashboard HTTPRoute is attached
+	// to the Gateway: with the dashboard Removed (for example after the DAG suite's
+	// cleanup), the gateway answers 404 and checkDefault below cannot pass. Manage the
+	// dashboard for the duration of this spec, like ValidateAdditionalGateways does.
+	dsc := &dscv2.DataScienceCluster{}
+	require.NoError(t, tc.Client().Get(ctx, tc.DataScienceClusterNamespacedName, dsc))
+	originalDashboardState := dsc.Spec.Components.Dashboard.ManagementState
+	if originalDashboardState != operatorv1.Managed {
+		tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
+		t.Cleanup(func() {
+			tc.UpdateComponentStateInDataScienceClusterWithKind(originalDashboardState, componentApi.DashboardKind)
+		})
+	}
+	tc.waitForDashboardHTTPRoute(t)
+	defaultRouteKey := types.NamespacedName{Name: tc.gatewayName(), Namespace: tc.gatewayNamespace()}
+	defaultRoute := &routev1.Route{}
+	require.NoError(t, tc.Client().Get(ctx, defaultRouteKey, defaultRoute))
+	defaultRouteUID := defaultRoute.UID
+	require.NotEmpty(t, defaultRoute.Spec.Host)
+	checkDefault := func() {
+		tc.assertDefaultGatewayContinuity(ctx, t, originalGateway.UID, defaultRouteUID, defaultRoute.Spec.Host)
+	}
+	// Default-only baseline before any additional ingress exists.
+	checkDefault()
+
+	suffix := fmt.Sprintf("%x", time.Now().UnixNano())
+	alphaControllerName := "e2e-life-alpha-" + suffix
+	betaControllerName := "e2e-life-beta-" + suffix
+	alphaControllerKey := types.NamespacedName{Name: alphaControllerName, Namespace: cluster.IngressControllerName.Namespace}
+	betaControllerKey := types.NamespacedName{Name: betaControllerName, Namespace: cluster.IngressControllerName.Namespace}
+	alpha := serviceApi.AdditionalIngress{
+		Name:                  "e2e-life-alpha",
+		Hostname:              alphaControllerName + ".e2e.invalid",
+		IngressControllerName: alphaControllerName,
+		RouteLabels:           map[string]string{"example.com/ingress": "e2e-life-alpha"},
+	}
+	beta := serviceApi.AdditionalIngress{
+		Name:                  "e2e-life-beta",
+		Hostname:              betaControllerName + ".e2e.invalid",
+		IngressControllerName: betaControllerName,
+		RouteLabels:           map[string]string{"example.com/ingress": "e2e-life-beta"},
+	}
+	// Register the cleanups before creating the IngressControllers: if the second
+	// create fails, the first controller must still be deleted. The restore tolerates
+	// resources that were never created, so an aborted setup cleans up as a no-op.
+	t.Cleanup(func() {
+		restoreAdditionalIngressGatewayTest(t, tc, original, originalGateway,
+			[]string{alpha.Name, beta.Name}, alphaControllerKey, betaControllerKey)
+	})
+	t.Cleanup(func() { tc.logAdditionalIngressEvidence(t, alphaControllerKey, betaControllerKey) })
+
+	replicas := int32(1)
+	for _, controller := range []struct {
+		name   string
+		domain string
+		labels map[string]string
+	}{
+		{alphaControllerName, alpha.Hostname, alpha.RouteLabels},
+		{betaControllerName, beta.Hostname, beta.RouteLabels},
+	} {
+		require.NoError(t, tc.Client().Create(ctx, &operatorv1.IngressController{
+			ObjectMeta: metav1.ObjectMeta{Name: controller.name, Namespace: cluster.IngressControllerName.Namespace},
+			Spec: operatorv1.IngressControllerSpec{
+				Domain: controller.domain, Replicas: &replicas,
+				EndpointPublishingStrategy: &operatorv1.EndpointPublishingStrategy{Type: operatorv1.PrivateStrategyType},
+				RouteSelector:              &metav1.LabelSelector{MatchLabels: controller.labels},
+			},
+		}), "create temporary private IngressController %s", controller.name)
+	}
+
+	update := func(additional serviceApi.AdditionalIngresses) {
+		g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			current := &serviceApi.GatewayConfig{}
+			if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, current); err != nil {
+				return err
+			}
+			current.Spec.AdditionalIngresses = additional
+			return tc.Client().Update(ctx, current)
+		})).To(Succeed())
+	}
+	alphaRouteKey := types.NamespacedName{Name: alpha.Name, Namespace: tc.gatewayNamespace()}
+	betaRouteKey := types.NamespacedName{Name: beta.Name, Namespace: tc.gatewayNamespace()}
+
+	// Both shards are real, so both ingresses are admitted by their own router.
+	spec := original.Spec
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{alpha, beta}
+	update(spec.AdditionalIngresses)
+	tc.validateAdditionalGatewayAndRoute(t, alpha)
+	tc.validateAdditionalGatewayAndRoute(t, beta)
+	tc.validateAdditionalGatewayStatus(t, 2, alpha.Name, alpha.Hostname)
+	tc.validateAdditionalGatewayStatus(t, 2, beta.Name, beta.Hostname)
+	validateAdditionalIngressRouteAdmissionStatus(t, tc, alphaRouteKey, alpha.Name, alpha.Hostname, alphaControllerName)
+	validateAdditionalIngressRouteAdmissionStatus(t, tc, betaRouteKey, beta.Name, beta.Hostname, betaControllerName)
+	checkDefault()
+
+	// A hostname update retargets the bridge Route in place: same Route object, new host,
+	// status reconverges, and the default path is untouched.
+	route := &routev1.Route{}
+	require.NoError(t, tc.Client().Get(ctx, alphaRouteKey, route))
+	routeUID := route.UID
+	renamed := alpha
+	renamed.Hostname = "renamed." + alpha.Hostname
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{renamed, beta}
+	update(spec.AdditionalIngresses)
+	g.Eventually(func() error {
+		current := &routev1.Route{}
+		if err := tc.Client().Get(ctx, alphaRouteKey, current); err != nil {
+			return err
+		}
+		if current.Spec.Host != renamed.Hostname {
+			return fmt.Errorf("additional Route host is %q, expected %q", current.Spec.Host, renamed.Hostname)
+		}
+		return nil
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+	require.NoError(t, tc.Client().Get(ctx, alphaRouteKey, route))
+	g.Expect(route.UID).To(Equal(routeUID), "a hostname update must not recreate the bridge Route")
+	tc.validateAdditionalGatewayAndRoute(t, renamed)
+	tc.validateAdditionalGatewayStatus(t, 2, renamed.Name, renamed.Hostname)
+	validateAdditionalIngressRouteAdmissionStatus(t, tc, alphaRouteKey, renamed.Name, renamed.Hostname, alphaControllerName)
+	checkDefault()
+
+	// Failure isolation: alpha's shard stops matching its Route, so alpha is rejected
+	// while beta stays admitted and the default hostname keeps redirecting.
+	// Precondition: alpha's router admits the Route right now, so the de-admission
+	// observed below is attributable to the selector flip and not to a status that was
+	// never reported.
+	preFlip := &routev1.Route{}
+	require.NoError(t, tc.Client().Get(ctx, alphaRouteKey, preFlip))
+	require.True(t, routeAdmittedByRouter(preFlip, renamed.Hostname, alphaControllerName),
+		"precondition: IngressController %q must admit Route %q before the selector flip",
+		alphaControllerName, alphaRouteKey.Name)
+	updateAdditionalIngressRouteSelector(t, tc, alphaControllerKey, &metav1.LabelSelector{MatchLabels: map[string]string{
+		"example.com/ingress": "no-longer-e2e-life-alpha",
+	}})
+	g.Eventually(func() error {
+		current := &routev1.Route{}
+		if err := tc.Client().Get(ctx, alphaRouteKey, current); err != nil {
+			return err
+		}
+		// A missing status entry also counts as de-admitted: the gateway controller
+		// reports "not admitted" for both an absent router entry and a False
+		// RouteAdmitted condition.
+		if routeAdmittedByRouter(current, renamed.Hostname, alphaControllerName) {
+			return fmt.Errorf("IngressController %q still admits Route %q", alphaControllerName, alphaRouteKey.Name)
+		}
+		return nil
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+	tc.validateAdditionalGatewayStatus(t, 2, renamed.Name, renamed.Hostname)
+	tc.validateAdditionalGatewayStatus(t, 2, beta.Name, beta.Hostname)
+	checkDefault()
+
+	// Restoring the selector brings alpha back.
+	updateAdditionalIngressRouteSelector(t, tc, alphaControllerKey, &metav1.LabelSelector{MatchLabels: alpha.RouteLabels})
+	validateAdditionalIngressRouteAdmissionStatus(t, tc, alphaRouteKey, renamed.Name, renamed.Hostname, alphaControllerName)
+	tc.validateAdditionalGatewayStatus(t, 2, renamed.Name, renamed.Hostname)
+
+	// Interrupted cleanup: deleting an operator-owned child out of band must converge
+	// back to the desired state. The infrastructure ConfigMap first.
+	configMapKey := types.NamespacedName{Name: renamed.Name + "-config", Namespace: tc.gatewayNamespace()}
+	g.Expect(tc.Client().Delete(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+		Name: configMapKey.Name, Namespace: configMapKey.Namespace,
+	}})).To(Succeed())
+	g.Eventually(func(g Gomega) {
+		configMap := &corev1.ConfigMap{}
+		g.Expect(tc.Client().Get(ctx, configMapKey, configMap)).To(Succeed())
+		g.Expect(configMap.Data).To(HaveKey("service"), "recreated ConfigMap must restore the gateway service definition")
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+	tc.validateAdditionalGatewayStatus(t, 2, renamed.Name, renamed.Hostname)
+
+	// Then the bridge Route itself: recreated with the same host, backend and labels.
+	g.Expect(tc.Client().Delete(ctx, &routev1.Route{ObjectMeta: metav1.ObjectMeta{
+		Name: alphaRouteKey.Name, Namespace: alphaRouteKey.Namespace,
+	}})).To(Succeed())
+	g.Eventually(func(g Gomega) {
+		recreated := &routev1.Route{}
+		g.Expect(tc.Client().Get(ctx, alphaRouteKey, recreated)).To(Succeed())
+		g.Expect(recreated.Spec.Host).To(Equal(renamed.Hostname))
+		g.Expect(recreated.Spec.To.Name).To(Equal(gateway.GetGatewayServiceFullName(renamed.Name)))
+		g.Expect(recreated.Spec.TLS).NotTo(BeNil())
+		g.Expect(recreated.Spec.TLS.Termination).To(Equal(routev1.TLSTerminationReencrypt))
+		for key, value := range renamed.RouteLabels {
+			g.Expect(recreated.Labels).To(HaveKeyWithValue(key, value))
+		}
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+	validateAdditionalIngressRouteAdmissionStatus(t, tc, alphaRouteKey, renamed.Name, renamed.Hostname, alphaControllerName)
+	tc.validateAdditionalGatewayStatus(t, 2, renamed.Name, renamed.Hostname)
+	checkDefault()
+
+	// Removal and orphan verification run in the restore cleanup.
 }
 
 func (tc *GatewayTestCtx) validateAdditionalGatewayStatus(t *testing.T, expectedCount int, name, hostname string) {
@@ -570,6 +791,8 @@ func (tc *GatewayTestCtx) validateAdditionalGatewayAndRoute(t *testing.T, ingres
 		for key, value := range ingress.RouteLabels {
 			g.Expect(route.Labels).To(HaveKeyWithValue(key, value))
 		}
+		assertGatewayConfigOwnership(g, additionalGateway)
+		assertGatewayConfigOwnership(g, route)
 	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
 }
 
@@ -613,7 +836,7 @@ func (tc *GatewayTestCtx) assertDefaultGatewayContinuity(
 	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
 }
 
-func (tc *GatewayTestCtx) logAdditionalIngressEvidence(t *testing.T, ingressControllerKey types.NamespacedName) {
+func (tc *GatewayTestCtx) logAdditionalIngressEvidence(t *testing.T, ingressControllerKeys ...types.NamespacedName) {
 	t.Helper()
 	if !t.Failed() {
 		return
@@ -631,13 +854,32 @@ func (tc *GatewayTestCtx) logAdditionalIngressEvidence(t *testing.T, ingressCont
 	if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, currentConfig); err == nil {
 		logObject("GatewayConfig", currentConfig)
 	}
-	if current, err := tc.getGateway(ctx); err == nil {
-		logObject("Gateway", current)
+	// Dump every Gateway in the namespace (default and additional alike) and the
+	// per-gateway resources named after it. The provider Services must not be filtered
+	// by the default gateway name: additional Gateways have their own Services and
+	// would otherwise be excluded from the dump.
+	gateways := &gwapiv1.GatewayList{}
+	if err := tc.Client().List(ctx, gateways, client.InNamespace(tc.gatewayNamespace())); err == nil {
+		for _, additionalGateway := range gateways.Items {
+			logObject("Gateway "+additionalGateway.Name, additionalGateway)
+			services := &corev1.ServiceList{}
+			if err := tc.Client().List(ctx, services, client.InNamespace(tc.gatewayNamespace()),
+				client.MatchingLabels{labels.GatewayAPI.GatewayName: additionalGateway.Name}); err == nil {
+				logObject("Gateway Services "+additionalGateway.Name, services.Items)
+			}
+		}
 	}
-	services := &corev1.ServiceList{}
-	if err := tc.Client().List(ctx, services, client.InNamespace(tc.gatewayNamespace()),
-		client.MatchingLabels{labels.GatewayAPI.GatewayName: tc.gatewayName()}); err == nil {
-		logObject("Gateway Services", services.Items)
+	for _, status := range currentConfig.Status.AdditionalIngresses {
+		name := status.Name
+		configMap := &corev1.ConfigMap{}
+		if err := tc.Client().Get(ctx, types.NamespacedName{Name: name + "-config", Namespace: tc.gatewayNamespace()}, configMap); err == nil {
+			logObject("ConfigMap "+name, configMap)
+		}
+		// Log only metadata: the TLS Secret's data must not end up in test logs.
+		tlsSecret := &corev1.Secret{}
+		if err := tc.Client().Get(ctx, types.NamespacedName{Name: name + "-service-tls", Namespace: tc.gatewayNamespace()}, tlsSecret); err == nil {
+			logObject("TLS Secret "+name, tlsSecret.ObjectMeta)
+		}
 	}
 	routes := &routev1.RouteList{}
 	if err := tc.Client().List(ctx, routes, client.InNamespace(tc.gatewayNamespace())); err == nil {
@@ -645,9 +887,11 @@ func (tc *GatewayTestCtx) logAdditionalIngressEvidence(t *testing.T, ingressCont
 			logObject("Route "+route.Name, route)
 		}
 	}
-	controller := &operatorv1.IngressController{}
-	if err := tc.Client().Get(ctx, ingressControllerKey, controller); err == nil {
-		logObject("IngressController", controller)
+	for _, ingressControllerKey := range ingressControllerKeys {
+		controller := &operatorv1.IngressController{}
+		if err := tc.Client().Get(ctx, ingressControllerKey, controller); err == nil {
+			logObject("IngressController "+ingressControllerKey.Name, controller)
+		}
 	}
 }
 
@@ -705,17 +949,49 @@ func validateAdditionalIngressRouteAdmissionStatus(
 	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
 }
 
+// assertGatewayConfigOwnership verifies the object carries a controller ownerReference to
+// the GatewayConfig singleton. This is what makes Kubernetes garbage collection reap
+// per-ingress children with the config, so it is asserted on a real cluster rather than
+// only in envtest. It must be called with the Gomega of the surrounding Eventually poll:
+// require or NewWithT here would abort the test instead of failing the poll attempt.
+func assertGatewayConfigOwnership(g Gomega, obj client.Object) {
+	controller := metav1.GetControllerOf(obj)
+	g.Expect(controller).NotTo(BeNil(), "%T %s/%s has no controller ownerReference", obj, obj.GetNamespace(), obj.GetName())
+	g.Expect(controller.Kind).To(Equal(serviceApi.GatewayConfigKind))
+	g.Expect(controller.Name).To(Equal(gatewayConfigName))
+	g.Expect(controller.APIVersion).To(Equal(gvk.GatewayConfig.GroupVersion().String()))
+}
+
+// routeAdmittedByRouter reports whether the given router has a status entry for the Route
+// host with a true RouteAdmitted condition. A missing entry or a missing condition both
+// count as not admitted, mirroring how the gateway controller derives its RouteAdmitted
+// status (a nil target admission is reported as not admitted).
+func routeAdmittedByRouter(route *routev1.Route, hostname, routerName string) bool {
+	for _, router := range route.Status.Ingress {
+		if router.Host != hostname || router.RouterName != routerName {
+			continue
+		}
+		for _, condition := range router.Conditions {
+			if condition.Type == routev1.RouteAdmitted {
+				return condition.Status == corev1.ConditionTrue
+			}
+		}
+	}
+	return false
+}
+
 func restoreAdditionalIngressGatewayTest(
 	t *testing.T,
 	tc *GatewayTestCtx,
 	original *serviceApi.GatewayConfig,
 	originalGateway *gwapiv1.Gateway,
-	ingressControllerKey types.NamespacedName,
+	ingressNames []string,
+	ingressControllerKeys ...types.NamespacedName,
 ) {
 	t.Helper()
 	g := NewWithT(t)
 	ctx := tc.Context()
-	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+	restoreErr := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		current := &serviceApi.GatewayConfig{}
 		if err := tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, current); err != nil {
 			return err
@@ -723,8 +999,8 @@ func restoreAdditionalIngressGatewayTest(
 		current.Spec.AdditionalIngresses = original.Spec.AdditionalIngresses
 		return tc.Client().Update(ctx, current)
 	})
-	if err != nil {
-		t.Errorf("failed to restore GatewayConfig: %v", err)
+	if restoreErr != nil {
+		t.Errorf("failed to restore GatewayConfig: %v", restoreErr)
 	} else {
 		g.Eventually(func() bool {
 			currentConfig := &serviceApi.GatewayConfig{}
@@ -740,16 +1016,47 @@ func restoreAdditionalIngressGatewayTest(
 				reflect.DeepEqual(currentGateway.Spec.Listeners, originalGateway.Spec.Listeners)
 		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
 	}
-	if err := tc.Client().Delete(ctx, &operatorv1.IngressController{ObjectMeta: metav1.ObjectMeta{
-		Name: ingressControllerKey.Name, Namespace: ingressControllerKey.Namespace,
-	}}); err != nil && !k8serr.IsNotFound(err) {
-		t.Errorf("failed to delete test IngressController: %v", err)
+	for _, ingressControllerKey := range ingressControllerKeys {
+		if err := tc.Client().Delete(ctx, &operatorv1.IngressController{ObjectMeta: metav1.ObjectMeta{
+			Name: ingressControllerKey.Name, Namespace: ingressControllerKey.Namespace,
+		}}); err != nil && !k8serr.IsNotFound(err) {
+			t.Errorf("failed to delete test IngressController: %v", err)
+			continue
+		}
+		g.Eventually(func() bool {
+			current := &operatorv1.IngressController{}
+			return k8serr.IsNotFound(tc.Client().Get(ctx, ingressControllerKey, current))
+		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
+	}
+
+	if restoreErr != nil {
+		// The leftover-resource checks below cannot pass without a restored spec:
+		// the operator never received the removal signal, so the per-ingress
+		// resources still exist. The root cause is already reported above.
 		return
 	}
-	g.Eventually(func() bool {
-		current := &operatorv1.IngressController{}
-		return k8serr.IsNotFound(tc.Client().Get(ctx, ingressControllerKey, current))
-	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
+
+	// Cleanup verification: removing the test ingresses must leave none of their
+	// operator-rendered resources behind. A leftover Service, ConfigMap or TLS Secret
+	// would leak into every suite that runs after this one.
+	for _, name := range ingressNames {
+		namespace := tc.gatewayNamespace()
+		resources := []client.Object{
+			&gwapiv1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}},
+			&routev1.Route{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}},
+			&corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: gateway.GetGatewayServiceFullName(name), Namespace: namespace}},
+			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: name + "-config", Namespace: namespace}},
+			&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name + "-service-tls", Namespace: namespace}},
+			&corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: gateway.KubeAuthProxyName + "-" + name, Namespace: namespace}},
+		}
+		for _, obj := range resources {
+			key := client.ObjectKeyFromObject(obj)
+			g.Eventually(func() bool {
+				return k8serr.IsNotFound(tc.Client().Get(ctx, key, obj))
+			}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue(),
+				"cleanup must remove %T %s", obj, key)
+		}
+	}
 }
 
 func additionalIngressStatusNames(entries []serviceApi.AdditionalIngressStatus) map[string]struct{} {
