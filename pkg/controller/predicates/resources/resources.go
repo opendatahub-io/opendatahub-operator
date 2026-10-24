@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -55,6 +56,31 @@ var DSCDeletionPredicate = predicate.Funcs{
 	DeleteFunc: func(e event.DeleteEvent) bool {
 		return true
 	},
+}
+
+// PlatformDeletionPredicate admits only the singleton Platform deletion
+// transition and final delete event. Controllers use it to recreate Platform
+// promptly without reconciling on ordinary spec or status writes.
+func PlatformDeletionPredicate() predicate.Predicate {
+	isPlatform := func(obj client.Object) bool {
+		return obj != nil && obj.GetName() == configApi.PlatformInstanceName
+	}
+
+	return predicate.Funcs{
+		CreateFunc: func(event.CreateEvent) bool {
+			return false
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return isPlatform(e.ObjectOld) && isPlatform(e.ObjectNew) &&
+				e.ObjectOld.GetDeletionTimestamp().IsZero() && !e.ObjectNew.GetDeletionTimestamp().IsZero()
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return isPlatform(e.Object)
+		},
+		GenericFunc: func(event.GenericEvent) bool {
+			return false
+		},
+	}
 }
 
 func getDSC(obj client.Object) (*dscApi.DataScienceCluster, bool) {
