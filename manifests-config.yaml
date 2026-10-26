@@ -586,6 +586,14 @@ imageOverrides:
     rhoai:
       base: "quay.io/rhoai/odh-kserve-storage-initializer-rhel9"
       digest: "sha256:fc3acbc0cba7b34fb9fc422effc019ed14ee2b6e0a9fef53bac9b2acdb5c2cac"
+  RELATED_IMAGE_OSC_STORAGE_HELPER_IMAGE:
+    source: "csv"
+    odh:
+      base: "registry.redhat.io/openshift-sandboxed-containers/osc-storage-helper"
+      digest: "sha256:c65fb8f12888705d4989d6b8f0e4e3f144224b43f72b609d5f496e77b3b73917"
+    rhoai:
+      base: "registry.redhat.io/openshift-sandboxed-containers/osc-storage-helper"
+      digest: "sha256:c65fb8f12888705d4989d6b8f0e4e3f144224b43f72b609d5f496e77b3b73917"
   RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE:
     source: "csv"
     odh:
