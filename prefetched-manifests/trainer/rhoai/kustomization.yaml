@@ -1,7 +1,7 @@
 # RHOAI configuration for Kubeflow Training Operator (KFTO)
 
 # Adds namespace to all resources.
-namespace: opendatahub
+namespace: redhat-ods-applications
 
 sortOptions:
   order: legacy

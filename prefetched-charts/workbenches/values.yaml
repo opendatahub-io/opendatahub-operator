@@ -104,6 +104,19 @@ webhooks:
       kind: ClusterIssuer
       name: ""           # auto-derived from namePrefix when empty
 
+# Operator controller-manager pod NetworkPolicy.
+# Creates a least-privilege Ingress policy for the metrics, health-probe,
+# and webhook ports.  Metrics ingress is restricted to monitoring namespaces;
+# health-probe and webhook ports use port-only rules because kubelet and
+# kube-apiserver traffic originate from the host network and cannot be
+# reliably constrained by NetworkPolicy peer selectors.
+networkPolicy:
+  enabled: true
+  # Namespace selector applied to the metrics (TCP 8443) ingress rule.
+  # Default matches OpenShift cluster-monitoring namespaces.
+  metricsSourceNamespaceSelector:
+    network.openshift.io/policy-group: monitoring
+
 # Additional container environment variables (merged before APPLICATIONS_NAMESPACE).
 extraEnv: []
 

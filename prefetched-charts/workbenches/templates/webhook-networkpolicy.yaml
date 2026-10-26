@@ -1,0 +1,43 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "workbenches-operator.prefixed" (list . "allow-ingress") }}
+  namespace: {{ .Values.operatorNamespace | quote }}
+  labels:
+    {{- include "workbenches-operator.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "workbenches-operator.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  ingress:
+  # Metrics (TCP 8443): restrict to cluster-monitoring namespaces.
+  # On OpenShift the network.openshift.io/policy-group=monitoring label covers
+  # openshift-monitoring and openshift-user-workload-monitoring.
+  - ports:
+    - port: 8443
+      protocol: TCP
+    from:
+    - namespaceSelector:
+        matchLabels:
+          {{- toYaml .Values.networkPolicy.metricsSourceNamespaceSelector | nindent 10 }}
+  # Health/readiness probes (TCP 8081): port-scoped, no peer restriction.
+  # Rationale: kubelet health probes originate from the node host network.
+  # NetworkPolicy peer selectors cannot reliably match node-sourced traffic
+  # because it does not carry pod identity.  A port-only rule is the most
+  # restrictive policy that preserves probe reachability.
+  - ports:
+    - port: 8081
+      protocol: TCP
+  {{- if .Values.webhooks.enabled }}
+  # Webhook server (TCP {{ .Values.webhooks.port }}): port-scoped, no peer restriction.
+  # Rationale: the kube-apiserver sends admission review requests from the
+  # host network.  Like kubelet probes, this traffic lacks pod identity and
+  # cannot be constrained by NetworkPolicy peer selectors.
+  - ports:
+    - port: {{ .Values.webhooks.port }}
+      protocol: TCP
+  {{- end }}
+{{- end }}
