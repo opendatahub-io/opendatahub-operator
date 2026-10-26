@@ -435,9 +435,23 @@ func (b *BaseHandler) DeleteModuleCR(ctx context.Context, cli client.Client) err
 // DeleteOperatorResources renders the module's operator manifests (Helm and/or
 // Kustomize) and deletes each resource from the cluster. NotFound errors are
 // silently ignored so the operation is idempotent.
+//
+// Handlers that override GetOperatorManifests (e.g. to inject chart values)
+// must also override DeleteOperatorResources: this default re-renders via the
+// embedded BaseHandler, which bypasses outer-handler overrides (Go embedding
+// has no virtual dispatch), and delegate to DeleteOperatorManifests with the
+// override-built manifests so install and cleanup render identically.
 func (b *BaseHandler) DeleteOperatorResources(ctx context.Context, cli client.Client, platform *PlatformContext) error {
+	return b.DeleteOperatorManifests(ctx, cli, platform, b.GetOperatorManifests(platform))
+}
+
+// DeleteOperatorManifests renders the given operator manifests (Helm and/or
+// Kustomize) and deletes each resource from the cluster. NotFound errors are
+// silently ignored so the operation is idempotent. Unlike
+// DeleteOperatorResources, it accepts pre-built manifests so callers can render
+// through a ModuleHandler's GetOperatorManifests override.
+func (b *BaseHandler) DeleteOperatorManifests(ctx context.Context, cli client.Client, platform *PlatformContext, manifests OperatorManifests) error {
 	log := logf.FromContext(ctx)
-	manifests := b.GetOperatorManifests(platform)
 
 	for _, chartInfo := range manifests.HelmCharts {
 		renderer, err := helm.New([]helm.Source{chartInfo.Source})

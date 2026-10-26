@@ -2,11 +2,16 @@ package databaseservice_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -16,6 +21,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/databaseservice"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/gomega"
 )
@@ -200,5 +207,88 @@ func TestGetOperatorManifests_SCCValuesByPlatform(t *testing.T) {
 			vals := getValues(t, release)
 			g.Expect(vals).ShouldNot(HaveKey("openshift"))
 		}
+	})
+}
+
+func TestDeleteOperatorResources_RemovesSCC(t *testing.T) {
+	g := NewWithT(t)
+
+	chartsRoot, err := envtestutil.FindProjectRoot()
+	if err != nil {
+		t.Skipf("failed to resolve project root: %v", err)
+	}
+	chartsRoot = filepath.Join(chartsRoot, "opt", "charts")
+	if _, err := os.Stat(filepath.Join(chartsRoot, "databaseservice")); err != nil {
+		t.Skipf("databaseservice chart not found under %s (run make get-manifests first)", chartsRoot)
+	}
+
+	newPlatform := func(release common.Platform) *modules.PlatformContext {
+		return &modules.PlatformContext{
+			ApplicationsNamespace: testAppsNS,
+			ChartsBasePath:        chartsRoot,
+			Release:               common.Release{Name: release},
+		}
+	}
+
+	seedCluster := func(t *testing.T) client.Client {
+		t.Helper()
+		scc := &unstructured.Unstructured{}
+		scc.SetGroupVersionKind(gvk.SecurityContextConstraints)
+		scc.SetName("odh-db-internal-postgres")
+
+		role := &unstructured.Unstructured{}
+		role.SetGroupVersionKind(gvk.ClusterRole)
+		role.SetName("odh-db-internal-postgres")
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(scc, role),
+			fakeclient.WithGVKs(
+				fakeclient.GVKMapping{GVK: gvk.SecurityContextConstraints, Scope: meta.RESTScopeRoot},
+				fakeclient.GVKMapping{GVK: gvk.ClusterRole, Scope: meta.RESTScopeRoot},
+			),
+		)
+		if err != nil {
+			t.Fatalf("create fake client: %v", err)
+		}
+		return cli
+	}
+
+	assertSCCExists := func(t *testing.T, cli client.Client, wantExists bool) {
+		t.Helper()
+		scc := &unstructured.Unstructured{}
+		scc.SetGroupVersionKind(gvk.SecurityContextConstraints)
+		err := cli.Get(t.Context(), client.ObjectKey{Name: "odh-db-internal-postgres"}, scc)
+		if wantExists {
+			g.Expect(err).ShouldNot(HaveOccurred(), "SCC should still exist")
+		} else {
+			g.Expect(k8serr.IsNotFound(err)).Should(BeTrue(), "SCC should be deleted, got: %v", err)
+		}
+	}
+
+	t.Run("OpenShift platform deletes the SCC and ClusterRole", func(t *testing.T) {
+		h := databaseservice.NewHandler()
+		cli := seedCluster(t)
+
+		err := h.DeleteOperatorResources(t.Context(), cli, newPlatform(cluster.OpenDataHub))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		assertSCCExists(t, cli, false)
+
+		role := &unstructured.Unstructured{}
+		role.SetGroupVersionKind(gvk.ClusterRole)
+		g.Expect(cli.Get(t.Context(), client.ObjectKey{Name: "odh-db-internal-postgres"}, role).Error()).
+			Should(ContainSubstring("not found"), "ClusterRole should be deleted")
+	})
+
+	t.Run("XKS platform leaves the SCC untouched", func(t *testing.T) {
+		h := databaseservice.NewHandler()
+		cli := seedCluster(t)
+
+		// Install on XKS never rendered the SCC, so cleanup must not delete
+		// a same-named object it does not own.
+		err := h.DeleteOperatorResources(t.Context(), cli, newPlatform(cluster.XKS))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		assertSCCExists(t, cli, true)
 	})
 }

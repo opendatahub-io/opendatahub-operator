@@ -14,6 +14,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	modulebuiltin "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/builtin"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/databaseservice"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -98,6 +99,64 @@ func TestModuleChartCompliance(t *testing.T) {
 	if testedCount == 0 {
 		t.Fatal("no module handlers have Helm charts to test")
 	}
+}
+
+// TestModuleChartCompliance_DatabaseServiceSCCGate covers the platform-gated
+// SCC render that TestModuleChartCompliance cannot exercise: its shared
+// PlatformContext has no Release, and the databaseservice handler fails closed
+// for unknown/empty platform names.
+func TestModuleChartCompliance_DatabaseServiceSCCGate(t *testing.T) {
+	chartsRoot := requireAssetsRoot(t, "DEFAULT_CHARTS_PATH", filepath.Join("opt", "charts"))
+	h := databaseservice.NewHandler()
+
+	render := func(t *testing.T, release common.Platform) []unstructured.Unstructured {
+		t.Helper()
+		g := NewWithT(t)
+
+		m := h.GetOperatorManifests(&modules.PlatformContext{
+			ApplicationsNamespace: "test-ns",
+			ChartsBasePath:        chartsRoot,
+			Release:               common.Release{Name: release},
+		})
+		g.Expect(m.HelmCharts).Should(HaveLen(1))
+
+		renderer, err := helmRenderer.New([]helmRenderer.Source{{
+			Chart:       m.HelmCharts[0].Chart,
+			ReleaseName: m.HelmCharts[0].ReleaseName,
+			Values:      m.HelmCharts[0].Values,
+		}})
+		if err != nil {
+			t.Fatalf("failed to create helm renderer: %v", err)
+		}
+
+		resources, err := renderer.Process(t.Context(), nil)
+		if err != nil {
+			t.Fatalf("failed to render chart: %v", err)
+		}
+		return resources
+	}
+
+	hasSCC := func(resources []unstructured.Unstructured) bool {
+		for _, res := range resources {
+			if res.GroupVersionKind() == gvk.SecurityContextConstraints &&
+				res.GetName() == "odh-db-internal-postgres" {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("OpenShift release renders the Internal Postgres SCC", func(t *testing.T) {
+		g := NewWithT(t)
+		g.Expect(hasSCC(render(t, cluster.OpenDataHub))).Should(BeTrue(),
+			"chart should render SecurityContextConstraints/odh-db-internal-postgres for ODH")
+	})
+
+	t.Run("XKS release omits the SCC", func(t *testing.T) {
+		g := NewWithT(t)
+		g.Expect(hasSCC(render(t, cluster.XKS))).Should(BeFalse(),
+			"chart must not render the SCC for XKS (vanilla Kubernetes)")
+	})
 }
 
 func TestModuleManifestCompliance(t *testing.T) {

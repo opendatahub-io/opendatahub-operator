@@ -3,8 +3,9 @@ package databaseservice
 import (
 	"context"
 	"errors"
+	"fmt"
 
-	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
+	fwtypes "github.com/k8s-manifest-kit/engine/pkg/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -68,20 +69,38 @@ func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) module
 		return result
 	}
 
-	// Inject even on error: omitting the flag on OpenShift would skip the SCC
-	// and break Internal providers at reconcile time.
-	vals, err := result.HelmCharts[0].Values(context.Background())
-	if err != nil || vals == nil {
-		vals = map[string]any{}
+	// Wrap the chart's Values func so the flag is injected at render time with
+	// the renderer's context instead of eagerly with a detached one.
+	base := result.HelmCharts[0].Values
+	result.HelmCharts[0].Values = func(ctx context.Context) (fwtypes.Values, error) {
+		vals := map[string]any{}
+		if base != nil {
+			v, err := base(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("evaluating databaseservice chart values: %w", err)
+			}
+			if v != nil {
+				vals = v
+			}
+		}
+		// Merge instead of overwriting so base values under openshift.* survive.
+		openshift, _ := vals["openshift"].(map[string]any)
+		if openshift == nil {
+			openshift = map[string]any{}
+		}
+		openshift["securityContextConstraints"] = true
+		vals["openshift"] = openshift
+		return vals, nil
 	}
-	openshift, _ := vals["openshift"].(map[string]any)
-	if openshift == nil {
-		openshift = map[string]any{}
-	}
-	openshift["securityContextConstraints"] = true
-	vals["openshift"] = openshift
-	result.HelmCharts[0].Values = helm.Values(vals)
 	return result
+}
+
+// DeleteOperatorResources cleans up with the same platform-gated values used at
+// install. The BaseHandler default re-renders via the embedded handler, which
+// bypasses the GetOperatorManifests override (no virtual dispatch in Go
+// embedding) and would skip the SCC, leaving odh-db-internal-postgres behind.
+func (h *handler) DeleteOperatorResources(ctx context.Context, cli client.Client, platform *modules.PlatformContext) error {
+	return h.BaseHandler.DeleteOperatorManifests(ctx, cli, platform, h.GetOperatorManifests(platform))
 }
 
 func (h *handler) PopulatePlatformModule(pm *configApi.PlatformModules, dscCtx *modules.DSCContext) {
