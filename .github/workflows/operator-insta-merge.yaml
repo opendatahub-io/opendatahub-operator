@@ -96,7 +96,7 @@ jobs:
 
       - uses: Wandalen/wretry.action@6feedb7dedadeb826de0f45ff482b53b379a7844 # v3.5.0
         with:
-          action: red-hat-data-services/insta-merge@47b53270117978bb95afa0ce4ccd4d80fe08644c # main
+          action: red-hat-data-services/insta-merge@d5a235a825db7830227d5e48bc1e3cc4f37dc491 # main (amd64 gh CLI; RHAI-15286)
           retry_condition: steps._this.outputs.code == 0
           attempt_limit: 5
           github_token: ${{ steps.app-token.outputs.token }}
