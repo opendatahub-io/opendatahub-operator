@@ -47,6 +47,8 @@ var allowedChartResourceKinds = sets.New(
 // the resource instead of weakening the allowlist for every module.
 var allowedResourceKindsByModule = map[string]sets.Set[schema.GroupKind]{
 	"ray": sets.New(gvk.SecurityContextConstraints.GroupKind()),
+	// The db-operator chart ships the Internal Postgres SCC for OpenShift installs.
+	"databaseservice": sets.New(gvk.SecurityContextConstraints.GroupKind()),
 }
 
 func TestModuleChartCompliance(t *testing.T) {
@@ -228,6 +230,11 @@ func TestModuleSpecificResourceKindAllowlist(t *testing.T) {
 	}{
 		"Ray allows SCC": {
 			moduleName: "ray",
+			gvk:        gvk.SecurityContextConstraints,
+			allowed:    true,
+		},
+		"DatabaseService allows SCC": {
+			moduleName: "databaseservice",
 			gvk:        gvk.SecurityContextConstraints,
 			allowed:    true,
 		},

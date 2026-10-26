@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -11,6 +12,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
@@ -47,6 +49,39 @@ func NewHandler() *handler {
 			},
 		},
 	}
+}
+
+// GetOperatorManifests sets Values.openshift.securityContextConstraints on
+// OpenShift platforms so the db-operator chart renders the Internal Postgres
+// SCC: the offline render lacks Capabilities, and the SCC API is absent on
+// XKS (vanilla Kubernetes). Unknown platforms fail closed (no SCC) since
+// rendering it on a non-OpenShift cluster fails the reconcile at apply time.
+func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) modules.OperatorManifests {
+	result := h.BaseHandler.GetOperatorManifests(platform)
+	if platform == nil || len(result.HelmCharts) == 0 {
+		return result
+	}
+
+	switch platform.Release.Name {
+	case cluster.OpenDataHub, cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+	default:
+		return result
+	}
+
+	// Inject even on error: omitting the flag on OpenShift would skip the SCC
+	// and break Internal providers at reconcile time.
+	vals, err := result.HelmCharts[0].Values(context.Background())
+	if err != nil || vals == nil {
+		vals = map[string]any{}
+	}
+	openshift, _ := vals["openshift"].(map[string]any)
+	if openshift == nil {
+		openshift = map[string]any{}
+	}
+	openshift["securityContextConstraints"] = true
+	vals["openshift"] = openshift
+	result.HelmCharts[0].Values = helm.Values(vals)
+	return result
 }
 
 func (h *handler) PopulatePlatformModule(pm *configApi.PlatformModules, dscCtx *modules.DSCContext) {

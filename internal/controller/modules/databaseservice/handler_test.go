@@ -14,6 +14,7 @@ import (
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/databaseservice"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 
 	. "github.com/onsi/gomega"
@@ -162,4 +163,42 @@ func TestGetOperatorManifests(t *testing.T) {
 	// disabled-module cleanup delete Role/ServiceAccount/etc. with namespace="".
 	g.Expect(m.HelmCharts[0].ReleaseNamespace).Should(Equal(testAppsNS))
 	g.Expect(m.Manifests).Should(BeEmpty())
+}
+
+func TestGetOperatorManifests_SCCValuesByPlatform(t *testing.T) {
+	g := NewWithT(t)
+	h := databaseservice.NewHandler()
+
+	getValues := func(t *testing.T, release common.Platform) map[string]any {
+		t.Helper()
+		m := h.GetOperatorManifests(&modules.PlatformContext{
+			ApplicationsNamespace: testAppsNS,
+			ChartsBasePath:        "/opt/charts",
+			Release:               common.Release{Name: release},
+		})
+		g.Expect(m.HelmCharts).Should(HaveLen(1))
+		vals, err := m.HelmCharts[0].Values(t.Context())
+		g.Expect(err).ShouldNot(HaveOccurred())
+		return vals
+	}
+
+	t.Run("OpenShift platforms force-include the Internal Postgres SCC", func(t *testing.T) {
+		for _, release := range []common.Platform{cluster.OpenDataHub, cluster.SelfManagedRhoai, cluster.ManagedRhoai} {
+			vals := getValues(t, release)
+			g.Expect(vals).Should(HaveKey("openshift"))
+			g.Expect(vals["openshift"]).Should(HaveKeyWithValue("securityContextConstraints", true))
+		}
+	})
+
+	t.Run("XKS omits the SCC gate", func(t *testing.T) {
+		vals := getValues(t, cluster.XKS)
+		g.Expect(vals).ShouldNot(HaveKey("openshift"))
+	})
+
+	t.Run("Empty or unknown platforms fail closed", func(t *testing.T) {
+		for _, release := range []common.Platform{"", "unknown-platform"} {
+			vals := getValues(t, release)
+			g.Expect(vals).ShouldNot(HaveKey("openshift"))
+		}
+	})
 }

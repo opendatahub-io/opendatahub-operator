@@ -189,11 +189,11 @@ componentCharts:
   databaseservice:
     odh:
       repo: opendatahub-io/opendatahub-db-operator
-      ref: main@5574ea2983b0502d399a966d46cf2ea91b6d5020
+      ref: main@2062c7f53adbcf294821dececf5b9a0e61518b2a
       sourcePath: config/chart
     rhoai:
       repo: red-hat-data-services/rhai-db-operator
-      ref: rhoai-3.6@4aacc8ba8c2edae75759d09df1e8500214711c0e
+      ref: rhoai-3.6@001ac78af40c571fc35944a7f0ba5500d5cb2353
       sourcePath: config/chart
   odh-observability:
     odh:
