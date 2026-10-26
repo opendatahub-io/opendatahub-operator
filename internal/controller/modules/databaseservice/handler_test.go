@@ -2,6 +2,7 @@ package databaseservice_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,7 +12,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -210,38 +214,240 @@ func TestGetOperatorManifests_SCCValuesByPlatform(t *testing.T) {
 	})
 }
 
-func TestDeleteOperatorResources_RemovesSCC(t *testing.T) {
-	g := NewWithT(t)
+const (
+	testPlatformUID = "11111111-2222-3333-4444-555555555555"
+	testSCCName     = "odh-db-internal-postgres"
+)
 
-	chartsRoot, err := envtestutil.FindProjectRoot()
+// sccSeed configures the cluster objects seeded for DeleteOperatorResources
+// ownership tests.
+type sccSeed struct {
+	ownedLabel   bool
+	ownerRefUID  string // ownerReference UID on the SCC/ClusterRole; "" = none
+	withPlatform bool   // seed the Platform CR
+	platformUID  string
+}
+
+func requireDatabaseserviceChartsRoot(t *testing.T) string {
+	t.Helper()
+
+	root, err := envtestutil.FindProjectRoot()
 	if err != nil {
 		t.Skipf("failed to resolve project root: %v", err)
 	}
-	chartsRoot = filepath.Join(chartsRoot, "opt", "charts")
-	if _, err := os.Stat(filepath.Join(chartsRoot, "databaseservice")); err != nil {
-		t.Skipf("databaseservice chart not found under %s (run make get-manifests first)", chartsRoot)
+	root = filepath.Join(root, "opt", "charts")
+	if _, err := os.Stat(filepath.Join(root, "databaseservice")); err != nil {
+		t.Skipf("databaseservice chart not found under %s (run make get-manifests first)", root)
 	}
+	return root
+}
 
-	newPlatform := func(release common.Platform) *modules.PlatformContext {
-		return &modules.PlatformContext{
-			ApplicationsNamespace: testAppsNS,
-			ChartsBasePath:        chartsRoot,
-			Release:               common.Release{Name: release},
+func newDeleteTestPlatform(t *testing.T, release common.Platform) *modules.PlatformContext {
+	t.Helper()
+
+	return &modules.PlatformContext{
+		ApplicationsNamespace: testAppsNS,
+		ChartsBasePath:        requireDatabaseserviceChartsRoot(t),
+		Release:               common.Release{Name: release},
+	}
+}
+
+func seedSCCCluster(t *testing.T, seed sccSeed) client.Client {
+	t.Helper()
+
+	ownedLabels := map[string]string{}
+	if seed.ownedLabel {
+		ownedLabels = map[string]string{
+			"db.infrastructure.opendatahub.io/internal-postgres-scc": "owned",
 		}
 	}
 
-	seedCluster := func(t *testing.T) client.Client {
-		t.Helper()
-		scc := &unstructured.Unstructured{}
-		scc.SetGroupVersionKind(gvk.SecurityContextConstraints)
-		scc.SetName("odh-db-internal-postgres")
+	newSeeded := func(gvkToUse schema.GroupVersionKind) *unstructured.Unstructured {
+		obj := &unstructured.Unstructured{}
+		obj.SetGroupVersionKind(gvkToUse)
+		obj.SetName("odh-db-internal-postgres")
+		obj.SetLabels(ownedLabels)
+		if seed.ownerRefUID != "" {
+			obj.SetOwnerReferences([]metav1.OwnerReference{{
+				APIVersion: configApi.GroupVersion.String(),
+				Kind:       "Platform",
+				Name:       configApi.PlatformInstanceName,
+				UID:        k8stypes.UID(seed.ownerRefUID),
+			}})
+		}
+		return obj
+	}
 
-		role := &unstructured.Unstructured{}
-		role.SetGroupVersionKind(gvk.ClusterRole)
-		role.SetName("odh-db-internal-postgres")
+	objs := []client.Object{
+		newSeeded(gvk.SecurityContextConstraints),
+		newSeeded(gvk.ClusterRole),
+	}
+	if seed.withPlatform {
+		objs = append(objs, &configApi.Platform{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: configApi.PlatformInstanceName,
+				UID:  k8stypes.UID(seed.platformUID),
+			},
+		})
+	}
 
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(objs...),
+		fakeclient.WithGVKs(
+			fakeclient.GVKMapping{GVK: gvk.SecurityContextConstraints, Scope: meta.RESTScopeRoot},
+			fakeclient.GVKMapping{GVK: gvk.ClusterRole, Scope: meta.RESTScopeRoot},
+		),
+	)
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+	return cli
+}
+
+func assertSCCResourceExists(t *testing.T, cli client.Client, gvkToCheck schema.GroupVersionKind, wantExists bool) {
+	t.Helper()
+	g := NewWithT(t)
+
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvkToCheck)
+	err := cli.Get(t.Context(), client.ObjectKey{Name: testSCCName}, obj)
+	if wantExists {
+		g.Expect(err).ShouldNot(HaveOccurred(), "%s should still exist", testSCCName)
+	} else {
+		g.Expect(k8serr.IsNotFound(err)).Should(BeTrue(), "%s should be deleted, got: %v", testSCCName, err)
+	}
+}
+
+func TestDeleteOperatorResources_RemovesSCC(t *testing.T) {
+	t.Run("OpenShift platform deletes the owned SCC and ClusterRole", func(t *testing.T) {
+		g := NewWithT(t)
+		h := databaseservice.NewHandler()
+		cli := seedSCCCluster(t, sccSeed{
+			ownedLabel:   true,
+			ownerRefUID:  testPlatformUID,
+			withPlatform: true,
+			platformUID:  testPlatformUID,
+		})
+
+		err := h.DeleteOperatorResources(t.Context(), cli, newDeleteTestPlatform(t, cluster.OpenDataHub))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		assertSCCResourceExists(t, cli, gvk.SecurityContextConstraints, false)
+		assertSCCResourceExists(t, cli, gvk.ClusterRole, false)
+	})
+
+	t.Run("standalone install without Platform ownerReference is left untouched", func(t *testing.T) {
+		g := NewWithT(t)
+		h := databaseservice.NewHandler()
+		cli := seedSCCCluster(t, sccSeed{
+			// Same chart, same ownership label, but applied by a standalone
+			// install: no Platform ownerReference.
+			ownedLabel:   true,
+			ownerRefUID:  "",
+			withPlatform: true,
+			platformUID:  testPlatformUID,
+		})
+
+		err := h.DeleteOperatorResources(t.Context(), cli, newDeleteTestPlatform(t, cluster.OpenDataHub))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		assertSCCResourceExists(t, cli, gvk.SecurityContextConstraints, true)
+		assertSCCResourceExists(t, cli, gvk.ClusterRole, true)
+	})
+
+	t.Run("stale Platform ownerReference is left untouched", func(t *testing.T) {
+		g := NewWithT(t)
+		h := databaseservice.NewHandler()
+		cli := seedSCCCluster(t, sccSeed{
+			// Applied by a previous Platform incarnation (UID differs).
+			ownedLabel:   true,
+			ownerRefUID:  "stale-uid-from-old-platform",
+			withPlatform: true,
+			platformUID:  testPlatformUID,
+		})
+
+		err := h.DeleteOperatorResources(t.Context(), cli, newDeleteTestPlatform(t, cluster.OpenDataHub))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		assertSCCResourceExists(t, cli, gvk.SecurityContextConstraints, true)
+		assertSCCResourceExists(t, cli, gvk.ClusterRole, true)
+	})
+
+	t.Run("foreign unlabeled SCC is left untouched", func(t *testing.T) {
+		g := NewWithT(t)
+		h := databaseservice.NewHandler()
+		cli := seedSCCCluster(t, sccSeed{
+			// Admin-created object: no label, no ownerReference.
+			ownedLabel:   false,
+			ownerRefUID:  "",
+			withPlatform: true,
+			platformUID:  testPlatformUID,
+		})
+
+		err := h.DeleteOperatorResources(t.Context(), cli, newDeleteTestPlatform(t, cluster.OpenDataHub))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		assertSCCResourceExists(t, cli, gvk.SecurityContextConstraints, true)
+		assertSCCResourceExists(t, cli, gvk.ClusterRole, true)
+	})
+
+	t.Run("absent Platform leaves the SCC to garbage collection", func(t *testing.T) {
+		g := NewWithT(t)
+		h := databaseservice.NewHandler()
+		cli := seedSCCCluster(t, sccSeed{
+			// Platform CR deleted: K8s GC owns teardown via the controller
+			// ownerReference, so cleanup must not act.
+			ownedLabel:   true,
+			ownerRefUID:  testPlatformUID,
+			withPlatform: false,
+		})
+
+		err := h.DeleteOperatorResources(t.Context(), cli, newDeleteTestPlatform(t, cluster.OpenDataHub))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		assertSCCResourceExists(t, cli, gvk.SecurityContextConstraints, true)
+		assertSCCResourceExists(t, cli, gvk.ClusterRole, true)
+	})
+
+	t.Run("XKS platform leaves the SCC untouched", func(t *testing.T) {
+		g := NewWithT(t)
+		h := databaseservice.NewHandler()
+		cli := seedSCCCluster(t, sccSeed{
+			ownedLabel:   true,
+			ownerRefUID:  testPlatformUID,
+			withPlatform: true,
+			platformUID:  testPlatformUID,
+		})
+
+		// Install on XKS never rendered the SCC, so cleanup must not delete
+		// a same-named object it does not own.
+		err := h.DeleteOperatorResources(t.Context(), cli, newDeleteTestPlatform(t, cluster.XKS))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		assertSCCResourceExists(t, cli, gvk.SecurityContextConstraints, true)
+	})
+}
+
+func TestDeleteOperatorResources_OwnershipLookupFailsClosed(t *testing.T) {
+	t.Run("ownership lookup failure fails closed", func(t *testing.T) {
+		g := NewWithT(t)
+		h := databaseservice.NewHandler()
+
+		var deleted []string
 		cli, err := fakeclient.New(
-			fakeclient.WithObjects(scc, role),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+					if key.Name == "odh-db-internal-postgres" {
+						// Transient lookup failure: Delete below would succeed.
+						return k8serr.NewInternalError(errors.New("transient apiserver error"))
+					}
+					return c.Get(ctx, key, obj, opts...)
+				},
+				Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+					deleted = append(deleted, obj.GetName())
+					return c.Delete(ctx, obj, opts...)
+				},
+			}),
 			fakeclient.WithGVKs(
 				fakeclient.GVKMapping{GVK: gvk.SecurityContextConstraints, Scope: meta.RESTScopeRoot},
 				fakeclient.GVKMapping{GVK: gvk.ClusterRole, Scope: meta.RESTScopeRoot},
@@ -250,45 +456,57 @@ func TestDeleteOperatorResources_RemovesSCC(t *testing.T) {
 		if err != nil {
 			t.Fatalf("create fake client: %v", err)
 		}
-		return cli
-	}
 
-	assertSCCExists := func(t *testing.T, cli client.Client, wantExists bool) {
-		t.Helper()
-		scc := &unstructured.Unstructured{}
-		scc.SetGroupVersionKind(gvk.SecurityContextConstraints)
-		err := cli.Get(t.Context(), client.ObjectKey{Name: "odh-db-internal-postgres"}, scc)
-		if wantExists {
-			g.Expect(err).ShouldNot(HaveOccurred(), "SCC should still exist")
-		} else {
-			g.Expect(k8serr.IsNotFound(err)).Should(BeTrue(), "SCC should be deleted, got: %v", err)
-		}
-	}
-
-	t.Run("OpenShift platform deletes the SCC and ClusterRole", func(t *testing.T) {
-		h := databaseservice.NewHandler()
-		cli := seedCluster(t)
-
-		err := h.DeleteOperatorResources(t.Context(), cli, newPlatform(cluster.OpenDataHub))
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		assertSCCExists(t, cli, false)
-
-		role := &unstructured.Unstructured{}
-		role.SetGroupVersionKind(gvk.ClusterRole)
-		g.Expect(cli.Get(t.Context(), client.ObjectKey{Name: "odh-db-internal-postgres"}, role).Error()).
-			Should(ContainSubstring("not found"), "ClusterRole should be deleted")
+		err = h.DeleteOperatorResources(t.Context(), cli, newDeleteTestPlatform(t, cluster.OpenDataHub))
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("checking ownership"))
+		// A failed lookup must not authorize deleting the unowned object.
+		g.Expect(deleted).ShouldNot(ContainElement("odh-db-internal-postgres"))
 	})
 
-	t.Run("XKS platform leaves the SCC untouched", func(t *testing.T) {
+	t.Run("Platform lookup failure fails closed", func(t *testing.T) {
+		g := NewWithT(t)
 		h := databaseservice.NewHandler()
-		cli := seedCluster(t)
 
-		// Install on XKS never rendered the SCC, so cleanup must not delete
-		// a same-named object it does not own.
-		err := h.DeleteOperatorResources(t.Context(), cli, newPlatform(cluster.XKS))
-		g.Expect(err).ShouldNot(HaveOccurred())
+		var deleted []string
+		scc := &unstructured.Unstructured{}
+		scc.SetGroupVersionKind(gvk.SecurityContextConstraints)
+		scc.SetName("odh-db-internal-postgres")
+		scc.SetLabels(map[string]string{"db.infrastructure.opendatahub.io/internal-postgres-scc": "owned"})
 
-		assertSCCExists(t, cli, true)
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(
+				scc,
+				&configApi.Platform{
+					ObjectMeta: metav1.ObjectMeta{Name: configApi.PlatformInstanceName, UID: k8stypes.UID(testPlatformUID)},
+				},
+			),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+					if _, ok := obj.(*configApi.Platform); ok {
+						// Transient Platform lookup failure: the SCC lookup
+						// succeeds and Delete would too.
+						return k8serr.NewInternalError(errors.New("transient apiserver error"))
+					}
+					return c.Get(ctx, key, obj, opts...)
+				},
+				Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+					deleted = append(deleted, obj.GetName())
+					return c.Delete(ctx, obj, opts...)
+				},
+			}),
+			fakeclient.WithGVKs(
+				fakeclient.GVKMapping{GVK: gvk.SecurityContextConstraints, Scope: meta.RESTScopeRoot},
+				fakeclient.GVKMapping{GVK: gvk.ClusterRole, Scope: meta.RESTScopeRoot},
+			),
+		)
+		if err != nil {
+			t.Fatalf("create fake client: %v", err)
+		}
+
+		err = h.DeleteOperatorResources(t.Context(), cli, newDeleteTestPlatform(t, cluster.OpenDataHub))
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("resolving Platform CR"))
+		g.Expect(deleted).ShouldNot(ContainElement("odh-db-internal-postgres"))
 	})
 }

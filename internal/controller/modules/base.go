@@ -445,13 +445,41 @@ func (b *BaseHandler) DeleteOperatorResources(ctx context.Context, cli client.Cl
 	return b.DeleteOperatorManifests(ctx, cli, platform, b.GetOperatorManifests(platform))
 }
 
+// DeleteResourceFilter decides whether a rendered resource should be deleted.
+// Returning false skips its deletion. Returning an error aborts the cleanup —
+// filters guarding shared cluster-scoped resources must fail closed (skip plus
+// error) whenever ownership cannot be determined, so a transient lookup
+// failure cannot authorize deleting an unowned object.
+type DeleteResourceFilter func(ctx context.Context, cli client.Client, res *unstructured.Unstructured) (bool, error)
+
+type deleteOptions struct {
+	filter DeleteResourceFilter
+}
+
+// DeleteOption customizes DeleteOperatorManifests behavior.
+type DeleteOption func(*deleteOptions)
+
+// WithDeleteFilter skips deletion of rendered resources for which filter
+// returns false. Use for ownership checks on shared cluster-scoped resources
+// that a module renders but may not own.
+func WithDeleteFilter(filter DeleteResourceFilter) DeleteOption {
+	return func(o *deleteOptions) {
+		o.filter = filter
+	}
+}
+
 // DeleteOperatorManifests renders the given operator manifests (Helm and/or
 // Kustomize) and deletes each resource from the cluster. NotFound errors are
 // silently ignored so the operation is idempotent. Unlike
 // DeleteOperatorResources, it accepts pre-built manifests so callers can render
 // through a ModuleHandler's GetOperatorManifests override.
-func (b *BaseHandler) DeleteOperatorManifests(ctx context.Context, cli client.Client, platform *PlatformContext, manifests OperatorManifests) error {
+func (b *BaseHandler) DeleteOperatorManifests(ctx context.Context, cli client.Client, platform *PlatformContext, manifests OperatorManifests, opts ...DeleteOption) error {
 	log := logf.FromContext(ctx)
+
+	config := deleteOptions{}
+	for _, opt := range opts {
+		opt(&config)
+	}
 
 	for _, chartInfo := range manifests.HelmCharts {
 		renderer, err := helm.New([]helm.Source{chartInfo.Source})
@@ -464,7 +492,7 @@ func (b *BaseHandler) DeleteOperatorManifests(ctx context.Context, cli client.Cl
 			return fmt.Errorf("rendering chart for %s: %w", b.Config.Name, err)
 		}
 
-		if err := b.deleteRenderedResources(ctx, cli, log, resources); err != nil {
+		if err := b.deleteRenderedResources(ctx, cli, log, resources, config.filter); err != nil {
 			return err
 		}
 	}
@@ -489,7 +517,7 @@ func (b *BaseHandler) DeleteOperatorManifests(ctx context.Context, cli client.Cl
 			return fmt.Errorf("rendering kustomize manifests for %s: %w", b.Config.Name, err)
 		}
 
-		if err := b.deleteRenderedResources(ctx, cli, log, resources); err != nil {
+		if err := b.deleteRenderedResources(ctx, cli, log, resources, config.filter); err != nil {
 			return err
 		}
 	}
@@ -502,6 +530,7 @@ func (b *BaseHandler) deleteRenderedResources(
 	cli client.Client,
 	log logr.Logger,
 	resources []unstructured.Unstructured,
+	filter DeleteResourceFilter,
 ) error {
 	for i := range resources {
 		res := &resources[i]
@@ -518,6 +547,22 @@ func (b *BaseHandler) deleteRenderedResources(
 				"module", b.Config.Name,
 				"name", res.GetName())
 			continue
+		}
+
+		if filter != nil {
+			allowed, err := filter(ctx, cli, res)
+			if err != nil {
+				return fmt.Errorf("evaluating delete filter for %s %s/%s: %w",
+					res.GetKind(), res.GetNamespace(), res.GetName(), err)
+			}
+			if !allowed {
+				log.V(1).Info("skipping resource per delete filter",
+					"module", b.Config.Name,
+					"kind", res.GetKind(),
+					"name", res.GetName(),
+					"namespace", res.GetNamespace())
+				continue
+			}
 		}
 
 		log.V(1).Info("deleting module operator resource",
