@@ -371,13 +371,13 @@ additional_meta:
     git.commit: 3e8ec7941b37eb06e0a88ecbf18130f1c05ef825
   odh-workbench-jupyter-tensorflow-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: c7ffd5c3c929bd6495a8b7e5856c8df130b69d03
+    git.commit: 3e8ec7941b37eb06e0a88ecbf18130f1c05ef825
   odh-workbench-jupyter-tensorflow-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 3e8ec7941b37eb06e0a88ecbf18130f1c05ef825
   odh-workbench-jupyter-trustyai-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: c7ffd5c3c929bd6495a8b7e5856c8df130b69d03
+    git.commit: 3e8ec7941b37eb06e0a88ecbf18130f1c05ef825
   odh-workload-variant-autoscaler-controller:
     git.url: https://github.com/red-hat-data-services/workload-variant-autoscaler
     git.commit: 69d4bc1425435ef05e17ef89f007603e5e08def6
