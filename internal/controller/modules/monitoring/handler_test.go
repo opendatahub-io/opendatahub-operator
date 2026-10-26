@@ -412,6 +412,35 @@ func TestBuildModuleCR_ProjectsUsageLogs(t *testing.T) {
 	g.Expect(spec).ShouldNot(HaveKey("collectorReplicas"))
 }
 
+// A forwarding-only spoke sets exporters and no storage. Requiring storage here stripped
+// the whole stanza, so the collector never saw its exporters and reported
+// UsageLogsNotConfigured on a cluster that was configured. Mirrors the traces case above.
+func TestBuildModuleCR_UsageLogsWithExportersWithoutStorage(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.UsageLogs = &serviceApi.UsageLogs{
+		CredentialSecret: "hub-usage-logs-auth",
+		Attributes:       map[string]string{"cluster_name": "spoke1"},
+		Exporters: map[string]runtime.RawExtension{
+			"otlphttp/hub": {Raw: []byte(`{"endpoint":"https://hub.example.com/api/logs/v1/infrastructure/otlp"}`)},
+		},
+	}
+
+	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).Should(HaveKey("usageLogs"))
+	usageLogs, ok := spec["usageLogs"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(usageLogs).Should(HaveKey("exporters"))
+	g.Expect(usageLogs).Should(HaveKey("credentialSecret"))
+	g.Expect(usageLogs).Should(HaveKey("attributes"))
+	g.Expect(usageLogs).ShouldNot(HaveKey("storage"))
+}
+
 func TestBuildModuleCR_UsageLogsWithoutStorageNulled(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
