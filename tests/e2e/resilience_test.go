@@ -78,6 +78,7 @@ func operatorResilienceTestSuite(t *testing.T) {
 		{"Validate missing CRD handling", resilienceTestCtx.ValidateMissingComponentsCRDHandling},
 		{"Validate RBAC restriction handling", resilienceTestCtx.ValidateRBACRestrictionHandling},
 		{"Validate additional ingress resilience across operator restart", resilienceTestCtx.ValidateAdditionalIngressRestartResilience},
+		{"Validate additional ingress auth persistence across operator restart", resilienceTestCtx.ValidateAdditionalIngressAuthPersistenceAcrossOperatorRestart},
 	}
 
 	// Run the test suite.
