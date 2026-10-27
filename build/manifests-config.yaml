@@ -80,7 +80,7 @@ map:
 additional_meta:
   odh-ai-gateway-payload-processing:
     git.url: https://github.com/red-hat-data-services/ai-gateway-payload-processing
-    git.commit: 52cea934d39e6cd39e1dc0ec8758c8d6cf0f5d76
+    git.commit: e6f8bd2c9f7ce5f1f54a628aa4b28b6350743a14
   odh-automl:
     git.url: https://github.com/red-hat-data-services/pipelines-components
     git.commit: 06fceeb47876fd116f6a7cd39722a7fd85ea7112
@@ -101,10 +101,10 @@ additional_meta:
     git.commit: d7dfd9f2512300153bb2b70465660fcb728d32fb
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
-    git.commit: 2ce1702796f676546d4f2b535eecaa8e6d35da88
+    git.commit: 16ef6648f535f2bb44fb4c3ef027975772e8f14f
   odh-data-science-pipelines-argo-workflowcontroller:
     git.url: https://github.com/red-hat-data-services/argo-workflows
-    git.commit: 2ce1702796f676546d4f2b535eecaa8e6d35da88
+    git.commit: 16ef6648f535f2bb44fb4c3ef027975772e8f14f
   odh-eval-hub:
     git.url: https://github.com/red-hat-data-services/eval-hub
     git.commit: 845fcea3b7b98a802403a9d737bbd171c6d666e9
@@ -149,7 +149,7 @@ additional_meta:
     git.commit: 98f10f414c8aeb43216a4e556afa0dfd30ab9ab1
   odh-kube-auth-proxy:
     git.url: https://github.com/red-hat-data-services/kube-auth-proxy
-    git.commit: e8b5e373a236099ccfdd0a73e59a2af8101976b8
+    git.commit: 8230dcee4363e5b48185363aaac7fb1adbbc3287
   odh-kube-rbac-proxy:
     git.url: https://github.com/red-hat-data-services/kube-rbac-proxy
     git.commit: 5dade223a359e6515004438cc1ceb115d7faef9a
