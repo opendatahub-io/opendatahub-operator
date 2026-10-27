@@ -2232,7 +2232,7 @@ func (tc *MonitoringTestCtx) waitForOpenTelemetryPodReplacement(
 ) {
 	t.Helper()
 
-	Eventually(func(g Gomega) {
+	tc.g.Eventually(func(g Gomega) {
 		currentPods := &corev1.PodList{}
 		g.Expect(tc.Client().List(tc.Context(), currentPods, listOptions...)).To(Succeed(),
 			"failed to list replacement pods for OpenTelemetry Operator deployment %s", deploymentName)
@@ -2267,7 +2267,7 @@ func (tc *MonitoringTestCtx) waitForOpenTelemetryDeploymentReady(
 ) {
 	t.Helper()
 
-	Eventually(func(g Gomega) {
+	tc.g.Eventually(func(g Gomega) {
 		currentPods := &corev1.PodList{}
 		g.Expect(tc.Client().List(tc.Context(), currentPods, listOptions...)).To(Succeed(),
 			"failed to list final pods for OpenTelemetry Operator deployment %s", deploymentName)
