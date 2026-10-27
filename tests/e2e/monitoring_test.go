@@ -10,6 +10,7 @@ import (
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -45,6 +46,9 @@ const (
 	ClusterPrometheusDatasourceSecret        = "cluster-prometheus-datasource-secret"
 	ClusterPrometheusTenancyDatasourceName   = "cluster-prometheus-tenancy-datasource"
 	ClusterPrometheusTenancyDatasourceSecret = "cluster-prometheus-tenancy-datasource-secret"
+	OTelCertManagerClusterRoleBinding        = "odh-observability-opentelemetry-cert-manager"
+	OTelOperatorControllerDeployment         = "opentelemetry-operator-controller-manager"
+	OTelOperatorWebhookDeployment            = "opentelemetry-operator-webhook"
 )
 
 // Constants for common test values.
@@ -220,6 +224,7 @@ func (tc *MonitoringTestCtx) runMetricsAndMonitoringStackTests(t *testing.T) {
 	t.Run("Group 2: Metrics & MonitoringStack", func(t *testing.T) {
 		// Setup: Enable metrics configuration once for all tests in this group
 		tc.setupMetrics(t)
+		tc.restartOpenTelemetryOperatorAfterCertManagerRBAC(t)
 
 		// Cleanup: Reset to Managed state at group end
 		t.Cleanup(func() {
@@ -2093,6 +2098,53 @@ func (tc *MonitoringTestCtx) setupMetrics(t *testing.T) {
 		withManagementState(operatorv1.Managed),
 		tc.withMetricsConfig(),
 	)
+}
+
+// restartOpenTelemetryOperatorAfterCertManagerRBAC works around the OpenTelemetry
+// Operator caching cert-manager availability at startup. The monitoring chart
+// creates the supplemental RBAC only when metrics are enabled, so both operator
+// processes must restart after that binding becomes available.
+func (tc *MonitoringTestCtx) restartOpenTelemetryOperatorAfterCertManagerRBAC(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{Name: OTelCertManagerClusterRoleBinding}),
+		WithCondition(jq.Match(
+			`.subjects[]? | select(.kind == "ServiceAccount" and .name == "opentelemetry-operator-controller-manager") | .namespace == %q`,
+			opentelemetryOpNamespace,
+		)),
+		WithEventuallyTimeout(tc.TestTimeouts.monitoringStackTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+		WithCustomErrorMsg("OpenTelemetry Operator should have the supplemental cert-manager ClusterRoleBinding"),
+	)
+
+	rolloutToken := time.Now().UTC().Format(time.RFC3339Nano)
+	for _, deploymentName := range []string{OTelOperatorControllerDeployment, OTelOperatorWebhookDeployment} {
+		deployment := &appsv1.Deployment{}
+		nn := types.NamespacedName{Name: deploymentName, Namespace: opentelemetryOpNamespace}
+		require.NoError(t, tc.Client().Get(tc.Context(), nn, deployment),
+			"failed to get OpenTelemetry Operator deployment %s", deploymentName)
+
+		if deployment.Spec.Template.Annotations == nil {
+			deployment.Spec.Template.Annotations = map[string]string{}
+		}
+		deployment.Spec.Template.Annotations["test.opendatahub.io/cert-manager-rbac-restarted-at"] = rolloutToken
+		require.NoError(t, tc.Client().Update(tc.Context(), deployment),
+			"failed to restart OpenTelemetry Operator deployment %s", deploymentName)
+
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.Deployment, nn),
+			WithCondition(And(
+				jq.Match(`.metadata.generation == .status.observedGeneration`),
+				jq.Match(`.status.readyReplicas == .status.replicas`),
+				jq.Match(`.status.updatedReplicas == .status.replicas`),
+				jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`),
+			)),
+			WithEventuallyTimeout(tc.TestTimeouts.monitoringStackTimeout),
+			WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+			WithCustomErrorMsg("OpenTelemetry Operator deployment %s should complete its cert-manager RBAC restart", deploymentName),
+		)
+	}
 }
 
 // setupTraces enables traces configuration with the specified backend and optional secret.
