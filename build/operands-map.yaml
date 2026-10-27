@@ -1,6 +1,6 @@
 relatedImages:
 - name: RELATED_IMAGE_ODH_AI_GATEWAY_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-ai-gateway-operator-rhel9@sha256:db45623b551f63857a51eec0cff6a444f5905911c54c21fbdbadce0f77907741"
+  value: "quay.io/rhoai/odh-ai-gateway-operator-rhel9@sha256:4843a4196d80a2184920a50ab96aeab81351abcdb6b83b829d5b937d03ea800f"
 - name: RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE
   value: "quay.io/rhoai/odh-ai-gateway-payload-processing-rhel9@sha256:d57b6e584ea19f330837dd2f130ffcbca324f09725204159253b5a7ede7e15f1"
 - name: RELATED_IMAGE_ODH_AUTOML_IMAGE
@@ -42,7 +42,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_AUTOGLUON_SERVER_IMAGE
   value: "quay.io/rhoai/odh-kserve-autogluon-server-rhel9@sha256:9a14d3c9076d0cd1c42a68952b95352a8470a9afb95caf3aec90315ca65fc045"
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:f3b83452724d2ed69671986575edd4a303aa395a1d9b41430613966277e8c543"
+  value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:b3605fdfa6f9d5547506775aac5df017e907d0ea411501b4cddc670b99262c4e"
 - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9@sha256:134bec7d88f83284922b6b06c7c46eb0d76e4c4e7f0eff0295cfff7db8db3984"
 - name: RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE
@@ -98,7 +98,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
   value: "quay.io/rhoai/odh-mlserver-rhel9@sha256:eafbda049d42f95df6e430e16eb90dfbf25f9ca14395398bb1f9b0a40dc85f53"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_V2_IMAGE
-  value: "quay.io/rhoai/odh-ml-pipelines-api-server-v2-rhel9@sha256:55d0d339be4b6d91f0f43b6242e6bd9d979744d53ea35d96f5660f2ae6e9666c"
+  value: "quay.io/rhoai/odh-ml-pipelines-api-server-v2-rhel9@sha256:5073a739b5689724f654405e94b0b8c6f3f00c28fe970e3d515c6e5844a003ec"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_DRIVER_IMAGE
   value: "quay.io/rhoai/odh-ml-pipelines-driver-rhel9@sha256:fec52bd80791f47ffc871c5eea4e39cf7ea8934a0a28fdc11dc7c948ce9d988c"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_LAUNCHER_IMAGE

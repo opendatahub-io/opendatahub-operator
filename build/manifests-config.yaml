@@ -60,7 +60,7 @@ map:
     src: config
     dest: aigateway
     git.url: https://github.com/red-hat-data-services/ai-gateway-operator
-    git.commit: 1761018beaa0764cb7e150210f0d1f9b65ff3f57
+    git.commit: c3e47f1487a04a6a4e1c66679760c2728b4e8735
   odh-mcp-lifecycle-module-operator:
     src: config
     dest: mcplifecycleoperator
@@ -131,7 +131,7 @@ additional_meta:
     git.commit: d15949e40a80216a7ee928a08ea4472948bb753e
   odh-kserve-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: d15949e40a80216a7ee928a08ea4472948bb753e
+    git.commit: f6f4707b6b1f8293ac85151927ae15b2f9009ae2
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: d15949e40a80216a7ee928a08ea4472948bb753e
@@ -203,7 +203,7 @@ additional_meta:
     git.commit: 55f45f37c42260ba846ce5ba7b1e2d0208132981
   odh-ml-pipelines-api-server-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: a32417c6a0fadffeb868fb141fa99784b5856c95
+    git.commit: 6a83f992daf95bb2086c1102bae73afb0d0ad76b
   odh-ml-pipelines-driver:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
     git.commit: a32417c6a0fadffeb868fb141fa99784b5856c95
