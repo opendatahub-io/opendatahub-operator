@@ -1562,6 +1562,188 @@ func RunAdditionalIngressIdempotencyTest(t *testing.T, setup TestSetup) {
 	}, 10*time.Second, TestInterval).Should(Succeed())
 }
 
+// RunAdditionalIngressCookieSecretIsolationTest validates that each additional ingress
+// receives a credentials Secret whose cookie-secret value is distinct from the default
+// Gateway's and from sibling ingresses', and that rotating one ingress's cookie secret
+// (deleting its Secret so the operator regenerates it) leaves the default Gateway's and
+// the sibling ingress's values untouched.
+func RunAdditionalIngressCookieSecretIsolationTest(t *testing.T, setup TestSetup) {
+	t.Helper()
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+	ctx, cli := setup.TC.Ctx, setup.TC.K8sClient
+
+	spec := setup.Spec
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{{
+		Name:                  "cookie-alpha",
+		Hostname:              "cookie-alpha.example.com",
+		IngressControllerName: "shard-cookie-alpha",
+		RouteLabels:           map[string]string{"example.com/ingress": "cookie-alpha"},
+	}, {
+		Name:                  "cookie-beta",
+		Hostname:              "cookie-beta.example.com",
+		IngressControllerName: "shard-cookie-beta",
+		RouteLabels:           map[string]string{"example.com/ingress": "cookie-beta"},
+	}}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	// Reset spec.AdditionalIngresses via the reconcile path before the shared
+	// teardown: deleteGatewayConfigDependents only reaps the default Gateway,
+	// auth-proxy and Routes, and envtest has no garbage collector — leftover
+	// per-ingress resources would leak into later OAuth tests sharing this
+	// environment. The wait covers every per-ingress kind via the shared
+	// additionalOAuthIngressResources enumerator.
+	defer func() {
+		spec.AdditionalIngresses = nil
+		UpdateGatewayConfig(t, ctx, cli, spec)
+		for _, name := range []string{"cookie-alpha", "cookie-beta"} {
+			waitForGatewayResourcesRemoved(t, setup.TC, additionalOAuthIngressResources(name)...)
+		}
+	}()
+
+	// fetchCookieSecret returns a SHA-256 fingerprint, never the raw value:
+	// the distinctness/preservation assertions below would format the compared
+	// values on failure, and the GH Action log running this suite is public
+	// (CWE-532). It errors on a missing or empty secret so the assertions
+	// cannot pass vacuously against a digest (which is never empty).
+	fetchCookieSecret := func(key types.NamespacedName) (string, error) {
+		secret := &corev1.Secret{}
+		if err := cli.Get(ctx, key, secret); err != nil {
+			return "", err
+		}
+		value, ok := secret.Data[gateway.EnvCookieSecret]
+		if !ok || len(value) == 0 {
+			return "", fmt.Errorf("credentials secret %s has no %s", key.Name, gateway.EnvCookieSecret)
+		}
+		return fmt.Sprintf("sha256:%x", sha256.Sum256(value)), nil
+	}
+
+	defaultKey := types.NamespacedName{Name: gateway.KubeAuthProxySecretsName, Namespace: gateway.GetGatewayNamespace()}
+	alphaKey := types.NamespacedName{Name: "cookie-alpha-auth-creds", Namespace: gateway.GetGatewayNamespace()}
+	betaKey := types.NamespacedName{Name: "cookie-beta-auth-creds", Namespace: gateway.GetGatewayNamespace()}
+
+	var defaultCookie, alphaCookie, betaCookie string
+	g.Eventually(func(g Gomega) {
+		var err error
+		defaultCookie, err = fetchCookieSecret(defaultKey)
+		g.Expect(err).NotTo(HaveOccurred())
+		alphaCookie, err = fetchCookieSecret(alphaKey)
+		g.Expect(err).NotTo(HaveOccurred())
+		betaCookie, err = fetchCookieSecret(betaKey)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(alphaCookie).NotTo(Equal(defaultCookie), "additional ingress must not share the default Gateway's cookie secret")
+		g.Expect(betaCookie).NotTo(Equal(defaultCookie), "additional ingress must not share the default Gateway's cookie secret")
+		g.Expect(alphaCookie).NotTo(Equal(betaCookie), "sibling ingresses must not share a cookie secret")
+	}, TestTimeout, TestInterval).Should(Succeed())
+
+	// Rotating one ingress's cookie secret must not disturb the other sessions.
+	g.Expect(cli.Delete(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: alphaKey.Name, Namespace: alphaKey.Namespace},
+	})).To(Succeed())
+
+	var rotated string
+	g.Eventually(func(g Gomega) {
+		var err error
+		rotated, err = fetchCookieSecret(alphaKey)
+		g.Expect(err).NotTo(HaveOccurred(), "operator must recreate the deleted per-ingress credentials Secret")
+	}, TestTimeout, TestInterval).Should(Succeed())
+	g.Expect(rotated).NotTo(Equal(alphaCookie), "recreating the Secret must rotate the cookie secret")
+
+	g.Consistently(func(g Gomega) {
+		value, err := fetchCookieSecret(defaultKey)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(value).To(Equal(defaultCookie), "default Gateway cookie secret must be preserved")
+		value, err = fetchCookieSecret(betaKey)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(value).To(Equal(betaCookie), "sibling ingress cookie secret must be preserved")
+	}, 5*time.Second, TestInterval).Should(Succeed())
+}
+
+// RunAdditionalIngressNetworkPolicyIsolationTest validates that each additional
+// ingress's kube-auth-proxy NetworkPolicy selects only that ingress's proxy pods and
+// admits ingress traffic only from that ingress's own Gateway, and that additional
+// ingresses do not widen the default Gateway's policy.
+func RunAdditionalIngressNetworkPolicyIsolationTest(t *testing.T, setup TestSetup) {
+	t.Helper()
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+	ctx, cli := setup.TC.Ctx, setup.TC.K8sClient
+
+	names := []string{"netpol-alpha", "netpol-beta"}
+	spec := setup.Spec
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{{
+		Name:                  names[0],
+		Hostname:              "netpol-alpha.example.com",
+		IngressControllerName: "shard-netpol-alpha",
+		RouteLabels:           map[string]string{"example.com/ingress": "netpol-alpha"},
+	}, {
+		Name:                  names[1],
+		Hostname:              "netpol-beta.example.com",
+		IngressControllerName: "shard-netpol-beta",
+		RouteLabels:           map[string]string{"example.com/ingress": "netpol-beta"},
+	}}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	// Same reconcile-path reset as the cookie isolation test above: without
+	// it, the netpol-alpha/beta per-ingress resources outlive this test in
+	// the shared envtest environment.
+	defer func() {
+		spec.AdditionalIngresses = nil
+		UpdateGatewayConfig(t, ctx, cli, spec)
+		for _, name := range names {
+			waitForGatewayResourcesRemoved(t, setup.TC, additionalOAuthIngressResources(name)...)
+		}
+	}()
+
+	for _, name := range names {
+		proxyName := gateway.KubeAuthProxyName + "-" + name
+		key := types.NamespacedName{Name: proxyName, Namespace: gateway.GetGatewayNamespace()}
+		policy := &networkingv1.NetworkPolicy{}
+		g.Eventually(func() error { return cli.Get(ctx, key, policy) }, TestTimeout, TestInterval).Should(Succeed())
+		assertOwnedByGatewayConfig(g, policy)
+
+		g.Expect(policy.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue("app", proxyName),
+			"per-ingress policy must select only its own proxy pods")
+		g.Expect(policy.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeIngress))
+		g.Expect(policy.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeEgress))
+		g.Expect(policy.Spec.Egress).To(HaveLen(1))
+		g.Expect(policy.Spec.Egress[0]).To(Equal(networkingv1.NetworkPolicyEgressRule{}),
+			"egress must stay unrestricted for API server, OIDC provider and DNS access")
+		g.Expect(policy.Spec.Ingress).To(HaveLen(1))
+		rule := policy.Spec.Ingress[0]
+		g.Expect(rule.From).To(HaveLen(1))
+		peer := rule.From[0]
+		g.Expect(peer.PodSelector).NotTo(BeNil())
+		g.Expect(peer.PodSelector.MatchExpressions).To(HaveLen(1))
+		selector := peer.PodSelector.MatchExpressions[0]
+		g.Expect(selector.Key).To(Equal("gateway.networking.k8s.io/gateway-name"))
+		g.Expect(selector.Operator).To(Equal(metav1.LabelSelectorOpIn))
+		g.Expect(selector.Values).To(Equal([]string{name}),
+			"per-ingress policy must admit traffic only from its own Gateway; default and sibling gateways must be excluded")
+		g.Expect(peer.NamespaceSelector).NotTo(BeNil())
+		g.Expect(peer.NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+			"kubernetes.io/metadata.name", gateway.GetGatewayNamespace()))
+		g.Expect(rule.Ports).To(HaveLen(1))
+		g.Expect(rule.Ports[0].Protocol).NotTo(BeNil())
+		g.Expect(*rule.Ports[0].Protocol).To(Equal(corev1.ProtocolTCP))
+		g.Expect(rule.Ports[0].Port).NotTo(BeNil())
+		g.Expect(*rule.Ports[0].Port).To(Equal(intstr.FromInt(gateway.GatewayHTTPSPort)))
+	}
+
+	// Additional ingresses must not widen the default Gateway's policy.
+	defaultPolicy := &networkingv1.NetworkPolicy{}
+	g.Eventually(func() error {
+		return cli.Get(ctx, types.NamespacedName{
+			Name:      gateway.KubeAuthProxyName,
+			Namespace: gateway.GetGatewayNamespace(),
+		}, defaultPolicy)
+	}, TestTimeout, TestInterval).Should(Succeed())
+	g.Expect(defaultPolicy.Spec.Ingress).To(HaveLen(1))
+	g.Expect(defaultPolicy.Spec.Ingress[0].From).To(HaveLen(1))
+	g.Expect(defaultPolicy.Spec.Ingress[0].From[0].PodSelector).NotTo(BeNil())
+	g.Expect(defaultPolicy.Spec.Ingress[0].From[0].PodSelector.MatchExpressions).To(HaveLen(1))
+	g.Expect(defaultPolicy.Spec.Ingress[0].From[0].PodSelector.MatchExpressions[0].Values).To(Equal([]string{gateway.DefaultGatewayName}),
+		"default Gateway policy must keep admitting only the default Gateway's pods")
+}
+
 // RunAdditionalIngressOIDCSourceSecretPreservedTest validates that the admin-supplied
 // OIDC client secret referenced by an additional ingress is never adopted, mutated or
 // deleted by the operator.
@@ -1620,7 +1802,10 @@ func RunAdditionalIngressOIDCSourceSecretPreservedTest(t *testing.T, setup TestS
 		g.Expect(cli.Get(ctx, sourceKey, current)).To(Succeed(), "admin OIDC source Secret must survive %s", stage)
 		g.Expect(current.OwnerReferences).To(BeEmpty(),
 			"the operator must not take ownership of the admin-supplied OIDC source Secret (%s)", stage)
-		g.Expect(current.Data).To(HaveKeyWithValue(OIDCSecretKey, sourceData),
+		// Compared via a boolean so a failure cannot format the whole Data map
+		// — the client-secret value — into the public GH Action log (CWE-532).
+		// A missing key reads as an empty value and fails the same way.
+		g.Expect(string(current.Data[OIDCSecretKey]) == string(sourceData)).To(BeTrue(),
 			"the admin-supplied OIDC source Secret must not be rewritten (%s)", stage)
 		g.Expect(current.DeletionTimestamp).To(BeNil())
 	}
@@ -1723,12 +1908,15 @@ func RunAuthProxySecretCreationTest(t *testing.T, setup TestSetup, expectedClien
 	}, TestTimeout, TestInterval).Should(Succeed())
 	assertOwnedByGatewayConfig(g, secret)
 
-	g.Expect(secret.Data).To(HaveKey(gateway.EnvClientID))
-	g.Expect(secret.Data).To(HaveKey(gateway.EnvClientSecret))
-	g.Expect(secret.Data).To(HaveKey(gateway.EnvCookieSecret))
-	g.Expect(secret.Data[gateway.EnvClientID]).NotTo(BeEmpty())
-	g.Expect(secret.Data[gateway.EnvClientSecret]).NotTo(BeEmpty())
-	g.Expect(secret.Data[gateway.EnvCookieSecret]).NotTo(BeEmpty())
+	// Key presence and non-emptiness asserted via ok/length only: a HaveKey
+	// failure would format the whole Data map — the client and cookie secret
+	// values — into the public GH Action log (CWE-532).
+	for _, key := range []string{gateway.EnvClientID, gateway.EnvClientSecret, gateway.EnvCookieSecret} {
+		value, ok := secret.Data[key]
+		g.Expect(ok).To(BeTrue(), "credentials secret %s should carry %s", gateway.KubeAuthProxySecretsName, key)
+		g.Expect(value).NotTo(BeEmpty(),
+			"credentials secret %s should carry a non-empty %s", gateway.KubeAuthProxySecretsName, key)
+	}
 	if expectedClientID != "" {
 		g.Expect(string(secret.Data[gateway.EnvClientID])).To(Equal(expectedClientID))
 	}
