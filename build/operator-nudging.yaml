@@ -32,7 +32,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE
   value: quay.io/rhoai/odh-feature-server-rhel9@sha256:4552c7e5834abcfb90442f4c9eb20c59d70cea2c78ed420564c016e46dfc4fbd
 - name: RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE
-  value: quay.io/rhoai/odh-fms-guardrails-orchestrator-rhel9@sha256:9deafb8d819404a8817ba0d9402a2dafab38f309d5bcd02e4767ba45f1dd0a45
+  value: quay.io/rhoai/odh-fms-guardrails-orchestrator-rhel9@sha256:b4af1664d32bca3c14cd4e50f67eb2714100363e51ec649f0ee2400487549165
 - name: RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE
   value: quay.io/rhoai/odh-guardrails-detector-huggingface-runtime-rhel9@sha256:ebc7b2c2cdac8cc7dab3597bba83e4d80d394bf6b023dbd7c3c0c8d939e233a8
 - name: RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE
