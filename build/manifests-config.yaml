@@ -113,7 +113,7 @@ additional_meta:
     git.commit: a4f76c820a3029e4e48a367fc014cad3f94730c8
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: 85c1b0b737cb204ccd81642107af3d1792cb5205
+    git.commit: b3dd2c7cec0a86ae5e2da954bdd6eb6b7da17f6c
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
     git.commit: b2a43488778e0c7c58f1cbbfbd7dcbfa8045b4bd
@@ -176,10 +176,10 @@ additional_meta:
     git.commit: 54cdd5e3cd397590c4f8b523320c77f87d77a52f
   odh-llm-d-router-disagg-sidecar:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: 4fcd51fd8c0b14aec849c49d4fafb8c658481673
+    git.commit: 74532bd89a4ebbc705d4752be0c0e9007ad880e7
   odh-llm-d-router-endpoint-picker:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: 4fcd51fd8c0b14aec849c49d4fafb8c658481673
+    git.commit: 74532bd89a4ebbc705d4752be0c0e9007ad880e7
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
     git.commit: c757bf12165691271582ef1304634df85e923200
@@ -347,7 +347,7 @@ additional_meta:
     git.commit: 7ac5a9ff2cc3570ea897ae4fa2f2d535c5ef26d8
   odh-workbench-codeserver-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: c7ffd5c3c929bd6495a8b7e5856c8df130b69d03
+    git.commit: a0827b2c78fe4459ed6dab8b18eb5a8e5ba2719b
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: a0827b2c78fe4459ed6dab8b18eb5a8e5ba2719b
