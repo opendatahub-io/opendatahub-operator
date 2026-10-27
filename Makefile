@@ -576,11 +576,17 @@ $(LOCALBIN)/component-codegen: | $(LOCALBIN)
 WARNINGMSG = "provided API should have an example annotation"
 .PHONY: bundle
 bundle: prepare get-manifests operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
-	# Include pinned module CRDs before rendering the OLM bundle.
-	./hack/bundle-component-crds.sh $(YQ) $(CONFIG_DIR)/crd/bases
-	@$(call add-crd-to-kustomization,$(CONFIG_DIR)/crd/bases)
 	$(OPERATOR_SDK) generate kustomize manifests --package $(OPERATOR_PACKAGE) --input-dir $(CONFIG_DIR)/manifests --output-dir $(CONFIG_DIR)/manifests -q
-	$(KUSTOMIZE) build $(CONFIG_DIR)/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) --package $(OPERATOR_PACKAGE) --kustomize-dir $(CONFIG_DIR)/manifests --output-dir $(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
+	# Feed pinned module CRDs to bundle generation without adding them to shared CRD bases.
+	@bundle_crd_dir=$$(mktemp -d "$(CONFIG_DIR)/.bundle-component-crds.XXXXXX") && \
+		trap 'rm -rf "$$bundle_crd_dir"' EXIT && \
+		./hack/bundle-component-crds.sh $(YQ) "$$bundle_crd_dir" && \
+		{ $(KUSTOMIZE) build $(CONFIG_DIR)/manifests; \
+		  for crd in "$$bundle_crd_dir"/*.yaml; do \
+		    printf '%s\n' '---'; \
+		    cat "$$crd"; \
+		  done; \
+		} | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) --package $(OPERATOR_PACKAGE) --kustomize-dir $(CONFIG_DIR)/manifests --output-dir $(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	$(SED_COMMAND) -i 's#COPY #COPY --from=builder /workspace/#' bundle.Dockerfile
 	cat Dockerfiles/build-bundle.Dockerfile bundle.Dockerfile > Dockerfiles/$(BUNDLE_DOCKERFILE_FILENAME)

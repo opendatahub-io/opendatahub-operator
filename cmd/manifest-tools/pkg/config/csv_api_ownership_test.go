@@ -53,8 +53,8 @@ func TestCSVPlatformOwnershipAndInternalObjects(t *testing.T) {
 				[]byte(csv.Metadata.Annotations[internalObjectsAnnotation]), &internalObjects))
 			require.Contains(t, internalObjects, "platforms.config.opendatahub.io")
 			require.Contains(t, internalObjects, "kueues.components.platform.opendatahub.io")
+			require.Contains(t, internalObjects, "trustyais.components.platform.opendatahub.io")
 			require.NotContains(t, internalObjects, "featuretrackers.features.opendatahub.io")
-			require.NotContains(t, internalObjects, "trustyais.components.platform.opendatahub.io")
 		})
 	}
 }
