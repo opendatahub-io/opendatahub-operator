@@ -108,7 +108,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_SCHEDULEDWORKFLOW_V2_IMAGE
   value: quay.io/rhoai/odh-ml-pipelines-scheduledworkflow-v2-rhel9@sha256:e12f87e8e1ed4beddb95d3cce5a597a1dde457b97a02107f2dbb5958c3112ba6
 - name: RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE
-  value: quay.io/rhoai/odh-model-controller-rhel9@sha256:8125fc9691d4c40cd98d890dd77a87e1602e81ea1975f4b5fc426e32974ad0a9
+  value: quay.io/rhoai/odh-model-controller-rhel9@sha256:01b6cd759ac77b1885346702f4ce967f7a4e740db025eea77a047dd5b12df1c6
 - name: RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE
   value: quay.io/rhoai/odh-model-metadata-collection-rhel9@sha256:0948bd0b317d62dc7b282e81cdb597f90643574627d50d89d3ed76a36ad15109
 - name: RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE
