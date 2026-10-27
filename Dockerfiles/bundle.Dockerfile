@@ -32,6 +32,7 @@ RUN make operator-sdk controller-gen kustomize
 COPY api/ api/
 COPY internal/ internal/
 COPY cmd/main.go cmd/main.go
+COPY cmd/manifest-tools/ cmd/manifest-tools/
 COPY pkg/ pkg/
 
 # Copy other source artifacts
@@ -40,6 +41,8 @@ COPY tests/ tests/
 COPY PROJECT PROJECT
 COPY config/ config/
 COPY Dockerfiles/ Dockerfiles/
+COPY hack/ hack/
+COPY manifests-config.yaml manifests-config.yaml
 
 RUN VERSION=$OPERATOR_VERSION make bundle
 RUN VERSION=$OPERATOR_VERSION make bundle ODH_PLATFORM_TYPE=rhoai

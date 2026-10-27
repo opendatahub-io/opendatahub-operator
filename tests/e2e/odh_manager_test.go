@@ -79,6 +79,36 @@ func (tc *OperatorTestCtx) ValidateOwnedCRDs(t *testing.T) {
 		{"Platform CRD", "platforms.config.opendatahub.io"},
 	}
 
+	operatorPackage := "opendatahub-operator"
+	switch tc.FetchPlatformRelease() {
+	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+		operatorPackage = "rhods-operator"
+	}
+	installedWithOLM, err := tc.CheckOperatorExists(operatorPackage)
+	require.NoError(t, err, "Failed to check OLM installation for %s", operatorPackage)
+	if installedWithOLM {
+		// External module CRDs are installed by the bundle; local make install only installs in-tree CRDs.
+		crdsTestCases = append(crdsTestCases, []struct {
+			name string
+			crd  string
+		}{
+			{"AI Gateway CRD", "aigateways.components.platform.opendatahub.io"},
+			{"AI Hub CRD", "aihubs.components.platform.opendatahub.io"},
+			{"AI Pipelines CRD", "aipipelines.components.platform.opendatahub.io"},
+			{"Dashboard CRD", "dashboards.components.platform.opendatahub.io"},
+			{"Feast Operator CRD", "feastoperators.components.platform.opendatahub.io"},
+			{"KServe CRD", "kserves.components.platform.opendatahub.io"},
+			{"MCP Lifecycle Operator CRD", "mcplifecycleoperators.components.platform.opendatahub.io"},
+			{"MLflow Operator CRD", "mlflowoperators.components.platform.opendatahub.io"},
+			{"OGX CRD", "ogxs.components.platform.opendatahub.io"},
+			{"Ray CRD", "rays.components.platform.opendatahub.io"},
+			{"Spark Operator CRD", "sparkoperators.components.platform.opendatahub.io"},
+			{"Trainer CRD", "trainers.components.platform.opendatahub.io"},
+			{"TrustyAI CRD", "trustyais.components.platform.opendatahub.io"},
+			{"Workbenches CRD", "workbenches.components.platform.opendatahub.io"},
+		}...)
+	}
+
 	crdsTestCases = tc.filterCRDTestCases(crdsTestCases)
 
 	for _, testCase := range crdsTestCases {

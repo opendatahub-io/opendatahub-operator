@@ -8,7 +8,14 @@ metadata:
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v3.6.0
     createdAt: "2026-9-28T00:00:00Z"
-    operators.operatorframework.io/internal-objects: '["kueues.components.platform.opendatahub.io",
+    operators.operatorframework.io/internal-objects: '["aigateways.components.platform.opendatahub.io",
+      "aihubs.components.platform.opendatahub.io", "aipipelines.components.platform.opendatahub.io",
+      "dashboards.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
+      "kserves.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
+      "mcplifecycleoperators.components.platform.opendatahub.io", "mlflowoperators.components.platform.opendatahub.io",
+      "ogxs.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
+      "sparkoperators.components.platform.opendatahub.io", "trainers.components.platform.opendatahub.io",
+      "trustyais.components.platform.opendatahub.io", "workbenches.components.platform.opendatahub.io",
       "platforms.config.opendatahub.io"]'
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v3.6.0
