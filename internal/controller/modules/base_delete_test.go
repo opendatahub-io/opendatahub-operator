@@ -39,7 +39,7 @@ func TestDeleteRenderedResources_SkipsNamespaces(t *testing.T) {
 	}
 
 	b := &BaseHandler{Config: ModuleConfig{Name: "test-module"}}
-	err := b.deleteRenderedResources(context.Background(), cli, logr.Discard(), resources)
+	err := b.deleteRenderedResources(context.Background(), cli, logr.Discard(), resources, nil)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(deletedKinds).To(ConsistOf("Deployment", "ServiceAccount"))
 }
@@ -68,7 +68,7 @@ func TestDeleteRenderedResources_SkipsCRDs(t *testing.T) {
 	}
 
 	b := &BaseHandler{Config: ModuleConfig{Name: "test-module"}}
-	err := b.deleteRenderedResources(context.Background(), cli, logr.Discard(), resources)
+	err := b.deleteRenderedResources(context.Background(), cli, logr.Discard(), resources, nil)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(deletedKinds).To(ConsistOf("Deployment", "ClusterRole"))
 }
