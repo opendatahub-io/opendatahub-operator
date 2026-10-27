@@ -311,7 +311,7 @@ additional_meta:
     git.commit: 5caf81b6382a45d64c9d0c53502ab17e607c1830
   odh-th-torch-cpu-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: d39e64b3bbb151401f6bcf69a2c3f9a79904cea5
+    git.commit: 8dfe5c671ef672d9118db44ef5bde6cf5cdfb662
   odh-th-torch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: afb1271f8d911f794e7f89eef21ed1efeebe8e15
@@ -332,7 +332,7 @@ additional_meta:
     git.commit: a33ac0f25fc6d40e7df59dd4926518e9e364340d
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
-    git.commit: 41b447a150728176e8213e1e307980b3368b66b6
+    git.commit: 63acf0a44b63c4a6e3d27ff79b8a69dde3fc8463
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: 99f0947b941b1b7467d84e45688716670825c41a
