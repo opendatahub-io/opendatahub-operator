@@ -25,6 +25,8 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/clientcmd"
@@ -132,6 +134,13 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate Gateway infrastructure", gatewayCtx.ValidateGatewayInfrastructure},
 		{"Validate additional Gateways", gatewayCtx.ValidateAdditionalGateways},
 		{"Validate additional Gateway lifecycle", gatewayCtx.ValidateAdditionalGatewayLifecycle},
+		{"Validate additional ingress auth stack", gatewayCtx.ValidateAdditionalIngressAuthStack},
+		{"Validate additional ingress auth failure isolation", gatewayCtx.ValidateAdditionalIngressAuthFailureIsolation},
+		{"Validate additional ingress OIDC auth readiness", gatewayCtx.ValidateAdditionalIngressOIDCAuthReadiness},
+		{"Validate additional ingress OIDC traffic", gatewayCtx.ValidateAdditionalIngressOIDCTraffic},
+		{"Validate additional ingress OIDC cookie isolation", gatewayCtx.ValidateAdditionalIngressOIDCCookieIsolation},
+		{"Validate additional ingress credential rotation recovery", gatewayCtx.ValidateAdditionalIngressCredentialRotationRecovery},
+		{"Validate additional ingress OAuth traffic", gatewayCtx.ValidateAdditionalIngressOAuthTraffic},
 		{"Validate OpenShift Route server timeout updates", gatewayCtx.ValidateOCPRouteServerTimeout},
 		{"Validate XKS cert-manager certificates", gatewayCtx.ValidateXKSCertManagerCertificates},
 		{"Validate XKS certificate readiness recovery", gatewayCtx.ValidateXKSCertificateReadinessRecovery},
@@ -1121,17 +1130,18 @@ func restoreAdditionalIngressGatewayTest(
 				reflect.DeepEqual(currentGateway.Spec.Listeners, originalGateway.Spec.Listeners)
 		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
 	}
+	// Delete every test IngressController before settling any of them, so a
+	// slow settle on one cannot leave its siblings on the cluster: the
+	// helper's Delete is idempotent and its settle failures are non-fatal.
 	for _, ingressControllerKey := range ingressControllerKeys {
 		if err := tc.Client().Delete(ctx, &operatorv1.IngressController{ObjectMeta: metav1.ObjectMeta{
 			Name: ingressControllerKey.Name, Namespace: ingressControllerKey.Namespace,
 		}}); err != nil && !k8serr.IsNotFound(err) {
-			t.Errorf("failed to delete test IngressController: %v", err)
-			continue
+			t.Errorf("failed to delete test IngressController %s: %v", ingressControllerKey.Name, err)
 		}
-		g.Eventually(func() bool {
-			current := &operatorv1.IngressController{}
-			return k8serr.IsNotFound(tc.Client().Get(ctx, ingressControllerKey, current))
-		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
+	}
+	for _, ingressControllerKey := range ingressControllerKeys {
+		tc.deleteIngressControllerAndSettle(ctx, t, ingressControllerKey)
 	}
 
 	if restoreErr != nil {
@@ -1161,7 +1171,78 @@ func restoreAdditionalIngressGatewayTest(
 			}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue(),
 				"cleanup must remove %T %s", obj, key)
 		}
+
+		// The rest of the per-ingress auth stack must be gone too: credentials
+		// Secret, HPA, NetworkPolicy, OAuthClient, callback HTTPRoute,
+		// EnvoyFilter and DestinationRule (the resources the auth-stack
+		// inventory specs pin). All are framework-tracked operator resources,
+		// so a leftover here is a genuine leak into every later suite.
+		for _, leftover := range []struct {
+			kind      schema.GroupVersionKind
+			name      string
+			namespace string
+		}{
+			{gvk.Secret, perIngressCredsName(name), namespace},
+			{gvk.HorizontalPodAutoscaler, perIngressProxyName(name), namespace},
+			{gvk.NetworkPolicy, perIngressProxyName(name), namespace},
+			{gvk.HTTPRoute, perIngressCallbackRouteName(name), namespace},
+			{gvk.EnvoyFilter, perIngressEnvoyFilterName(name), namespace},
+			{gvk.DestinationRule, perIngressDestinationRuleName(name), namespace},
+			{gvk.OAuthClient, perIngressOAuthClientName(name), ""},
+		} {
+			key := types.NamespacedName{Name: leftover.name, Namespace: leftover.namespace}
+			g.Eventually(func() bool {
+				obj := &unstructured.Unstructured{}
+				obj.SetGroupVersionKind(leftover.kind)
+				err := tc.Client().Get(ctx, key, obj)
+				// A cluster that does not serve the resource's API group
+				// cannot hold a leftover of that kind. This suite's BYOIDC
+				// cluster serves no oauth.openshift.io at all, so the client
+				// fails GVK resolution with a discovery/NoMatch error rather
+				// than NotFound - which must count as gone, not as a leak.
+				return k8serr.IsNotFound(err) || meta.IsNoMatchError(err)
+			}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue(),
+				"cleanup must remove %s %s of the removed ingress %s", leftover.kind.Kind, key, name)
+		}
 	}
+}
+
+// deleteIngressControllerAndSettle deletes a test-created IngressController
+// and waits for the ingress operator's asynchronous router garbage collection.
+// The operator only watches IngressControllers - it never owns or deletes them -
+// so any spec that creates one must register this cleanup, or every run leaks a
+// router Deployment and Service into openshift-ingress for every later suite
+// (observed: a still-terminating test router raced a later suite's quota
+// sizing). All waits report failures non-fatally: this helper runs in loops
+// over several controllers (and in t.Cleanup), where Gomega's FailNow would
+// abort the remaining deletions and the leftover-resource checks (CWE-459).
+func (tc *GatewayTestCtx) deleteIngressControllerAndSettle(ctx context.Context, t *testing.T, ingressControllerKey types.NamespacedName) {
+	t.Helper()
+	if err := tc.Client().Delete(ctx, &operatorv1.IngressController{ObjectMeta: metav1.ObjectMeta{
+		Name: ingressControllerKey.Name, Namespace: ingressControllerKey.Namespace,
+	}}); err != nil && !k8serr.IsNotFound(err) {
+		t.Errorf("failed to delete test IngressController: %v", err)
+		return
+	}
+	// waitForGone polls until the object is gone; on timeout it reports via
+	// t.Errorf and returns so sibling controllers still get their cleanup.
+	waitForGone := func(kind string, key types.NamespacedName, obj client.Object, timeout time.Duration) {
+		deadline := time.Now().Add(timeout)
+		for !k8serr.IsNotFound(tc.Client().Get(ctx, key, obj)) {
+			if time.Now().After(deadline) {
+				t.Errorf("cleanup must remove the test IngressController %s's %s", ingressControllerKey.Name, kind)
+				return
+			}
+			time.Sleep(2 * time.Second)
+		}
+	}
+	waitForGone("IngressController object", ingressControllerKey, &operatorv1.IngressController{}, tc.TestTimeouts.authGatewayTimeout)
+	waitForGone("router Deployment",
+		types.NamespacedName{Name: "router-" + ingressControllerKey.Name, Namespace: "openshift-ingress"},
+		&appsv1.Deployment{}, 2*time.Minute)
+	waitForGone("router Service",
+		types.NamespacedName{Name: "router-internal-" + ingressControllerKey.Name, Namespace: "openshift-ingress"},
+		&corev1.Service{}, 2*time.Minute)
 }
 
 func additionalIngressStatusNames(entries []serviceApi.AdditionalIngressStatus) map[string]struct{} {
