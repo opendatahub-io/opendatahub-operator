@@ -98,7 +98,7 @@ additional_meta:
     git.commit: f47406b883608d57a1d968fa9dd6da50e0e9e7e4
   odh-dashboard:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: f47406b883608d57a1d968fa9dd6da50e0e9e7e4
+    git.commit: e4dbdc509042665070827a2b268e876425a5e471
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
     git.commit: 16ef6648f535f2bb44fb4c3ef027975772e8f14f
@@ -197,10 +197,10 @@ additional_meta:
     git.commit: c47d37db39a658de244896004c418c1176e1f303
   odh-mlserver-cuda:
     git.url: https://github.com/red-hat-data-services/MLServer
-    git.commit: 55f45f37c42260ba846ce5ba7b1e2d0208132981
+    git.commit: a98d9eb2e6141998c6c5550134ce52712f804d5f
   odh-mlserver:
     git.url: https://github.com/red-hat-data-services/MLServer
-    git.commit: 55f45f37c42260ba846ce5ba7b1e2d0208132981
+    git.commit: a98d9eb2e6141998c6c5550134ce52712f804d5f
   odh-ml-pipelines-api-server-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
     git.commit: 6a83f992daf95bb2086c1102bae73afb0d0ad76b
@@ -239,7 +239,7 @@ additional_meta:
     git.commit: f47406b883608d57a1d968fa9dd6da50e0e9e7e4
   odh-mod-arch-automl:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: f47406b883608d57a1d968fa9dd6da50e0e9e7e4
+    git.commit: e4dbdc509042665070827a2b268e876425a5e471
   odh-mod-arch-autorag:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: f47406b883608d57a1d968fa9dd6da50e0e9e7e4
@@ -251,7 +251,7 @@ additional_meta:
     git.commit: f47406b883608d57a1d968fa9dd6da50e0e9e7e4
   odh-mod-arch-maas:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: f47406b883608d57a1d968fa9dd6da50e0e9e7e4
+    git.commit: e4dbdc509042665070827a2b268e876425a5e471
   odh-mod-arch-mlflow:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: f47406b883608d57a1d968fa9dd6da50e0e9e7e4
