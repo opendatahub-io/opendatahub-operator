@@ -69,6 +69,7 @@ local.mk
 
 # Ignore temporary files created by the Makefile
 *.mktmp.*
+/_e2e_results/
 
 # Ignore catalog related files
 /catalog/

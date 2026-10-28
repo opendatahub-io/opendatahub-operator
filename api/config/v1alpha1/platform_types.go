@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"encoding/json"
 	"reflect"
 	"sort"
 	"strings"
@@ -111,6 +112,10 @@ type PlatformModules struct {
 	// DatabaseService controls the shared database module operator lifecycle.
 	// +optional
 	DatabaseService common.ManagementSpec `json:"databaseservice,omitempty"`
+
+	// SyntheticE2E controls the private synthetic E2E module lifecycle.
+	// +optional
+	SyntheticE2E common.ManagementSpec `json:"synthetice2e,omitempty"`
 }
 
 // PlatformStatus defines the observed state of Platform.
@@ -168,6 +173,23 @@ func moduleJSONName(field reflect.StructField) (string, bool) {
 		return "", false
 	}
 	return name, true
+}
+
+// MarshalJSON omits the private synthetic E2E module when it has no state.
+// A value-typed ManagementSpec is not omitted by encoding/json's omitempty.
+func (m PlatformModules) MarshalJSON() ([]byte, error) {
+	type plain PlatformModules
+	data, err := json.Marshal(plain(m))
+	if err != nil || m.SyntheticE2E.ManagementState != "" {
+		return data, err
+	}
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return nil, err
+	}
+	delete(fields, "synthetice2e")
+	return json.Marshal(fields)
 }
 
 // ModuleNames returns the module names declared on the Platform CR, derived

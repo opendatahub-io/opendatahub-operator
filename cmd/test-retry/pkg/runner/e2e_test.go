@@ -32,7 +32,7 @@ func TestNewE2ETestRunner(t *testing.T) {
 func TestBuildSkipFilter(t *testing.T) {
 	defaultOpts := types.E2ETestOptions{
 		NeverSkipPrefixes: []string{"TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests"},
-		SkipAtPrefixes:    []string{"TestOdhOperator/services/", "TestOdhOperator/components/", "TestOdhOperator/"},
+		SkipAtPrefixes:    []string{"TestOdhOperator/services/", "TestOdhOperator/platform/", "TestOdhOperator/"},
 	}
 
 	tests := []struct {
@@ -79,15 +79,15 @@ func TestBuildSkipFilter(t *testing.T) {
 			expected: "^TestOdhOperator$/^services$|^TestOdhOperator$/^services$/^auth$",
 		},
 		{
-			name: "component test - should use third level",
+			name: "suite test - should use third level",
 			opts: defaultOpts,
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
 				{Name: "TestOdhOperator"},
-				{Name: "TestOdhOperator/components"},
-				{Name: "TestOdhOperator/components/dashboard"},
-				{Name: "TestOdhOperator/components/dashboard/subtest"},
+				{Name: "TestOdhOperator/platform"},
+				{Name: "TestOdhOperator/platform/synthetic"},
+				{Name: "TestOdhOperator/platform/synthetic/subtest"},
 			}},
-			expected: "^TestOdhOperator$/^components$|^TestOdhOperator$/^components$/^dashboard$",
+			expected: "^TestOdhOperator$/^platform$|^TestOdhOperator$/^platform$/^synthetic$",
 		},
 		{
 			name: "dsc initialization test - should not be skipped",
@@ -100,7 +100,7 @@ func TestBuildSkipFilter(t *testing.T) {
 			expected: "",
 		},
 		{
-			name: "mix of service and component tests",
+			name: "mix of service and suite tests",
 			opts: defaultOpts,
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
 				{Name: "TestOdhOperator"},
@@ -108,11 +108,11 @@ func TestBuildSkipFilter(t *testing.T) {
 				{Name: "TestOdhOperator/services/auth"},
 				{Name: "TestOdhOperator/services/auth/subtest1"},
 				{Name: "TestOdhOperator/services/auth/subtest2"},
-				{Name: "TestOdhOperator/components"},
-				{Name: "TestOdhOperator/components/dashboard"},
-				{Name: "TestOdhOperator/components/dashboard/subtest"},
+				{Name: "TestOdhOperator/platform"},
+				{Name: "TestOdhOperator/platform/synthetic"},
+				{Name: "TestOdhOperator/platform/synthetic/subtest"},
 			}},
-			expected: "^TestOdhOperator$/^components$|^TestOdhOperator$/^components$/^dashboard$|^TestOdhOperator$/^services$|^TestOdhOperator$/^services$/^auth$",
+			expected: "^TestOdhOperator$/^platform$|^TestOdhOperator$/^platform$/^synthetic$|^TestOdhOperator$/^services$|^TestOdhOperator$/^services$/^auth$",
 		},
 		{
 			name: "test with special regex characters",
@@ -221,55 +221,55 @@ func TestBuildSkipFilter(t *testing.T) {
 			opts: defaultOpts,
 			aggregatedTestResult: &types.TestResult{
 				PassedTest: []types.TestCase{
-					{Name: "TestOdhOperator/components/component1"},                     // first run
-					{Name: "TestOdhOperator/components/component_fail_consistently/t1"}, // first run
+					{Name: "TestOdhOperator/platform/suite1"},                     // first run
+					{Name: "TestOdhOperator/platform/suite_fail_consistently/t1"}, // first run
 				},
 				// Just to reference the failed tests for a case like this one
 				FailedTest: []types.TestCase{
-					{Name: "TestOdhOperator"},                                           // first run
-					{Name: "TestOdhOperator/components"},                                // first run
-					{Name: "TestOdhOperator/components/component_fail_consistently"},    // first run
-					{Name: "TestOdhOperator/components/component_fail_consistently/t2"}, // first run
-					{Name: "TestOdhOperator"},                                           // second run
-					{Name: "TestOdhOperator/components"},                                // second run
-					{Name: "TestOdhOperator/components/component3"},                     // second run
+					{Name: "TestOdhOperator"},                                     // first run
+					{Name: "TestOdhOperator/platform"},                            // first run
+					{Name: "TestOdhOperator/platform/suite_fail_consistently"},    // first run
+					{Name: "TestOdhOperator/platform/suite_fail_consistently/t2"}, // first run
+					{Name: "TestOdhOperator"},                                     // second run
+					{Name: "TestOdhOperator/platform"},                            // second run
+					{Name: "TestOdhOperator/platform/suite3"},                     // second run
 				},
 			},
-			expected: "^TestOdhOperator$/^components$/^component1$",
+			expected: "^TestOdhOperator$/^platform$/^suite1$",
 		},
 		{
-			name: "components with sub groups",
+			name: "platform with sub groups",
 			opts: types.E2ETestOptions{
-				SkipAtPrefixes: []string{"TestOdhOperator/components/*/", "TestOdhOperator/"},
+				SkipAtPrefixes: []string{"TestOdhOperator/platform/*/", "TestOdhOperator/"},
 			},
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
-				{Name: "TestOdhOperator/components/group_1/dashboard"},
-				{Name: "TestOdhOperator/components/group_1/dashboard/subtest1"},
-				{Name: "TestOdhOperator/components/group_1/dashboard/subtest2"},
-				{Name: "TestOdhOperator/components/group_1/kueue/subtest1"},
-				{Name: "TestOdhOperator/components/group_1/kueue/subtest2"},
-				{Name: "TestOdhOperator/components/group_2/kserve"},
-				{Name: "TestOdhOperator/components/group_2/kserve/subtest1"},
-				{Name: "TestOdhOperator/components/group_2/kserve/subtest2"},
-				{Name: "TestOdhOperator/components/group_3"},
-				{Name: "TestOdhOperator/components/group_3/trustyai"},
-				{Name: "TestOdhOperator/components/group_3/trustyai/subtest1"},
-				{Name: "TestOdhOperator/components/group_3/trustyai/subtest2"},
+				{Name: "TestOdhOperator/platform/group_1/synthetic"},
+				{Name: "TestOdhOperator/platform/group_1/synthetic/subtest1"},
+				{Name: "TestOdhOperator/platform/group_1/synthetic/subtest2"},
+				{Name: "TestOdhOperator/platform/group_1/lifecycle/subtest1"},
+				{Name: "TestOdhOperator/platform/group_1/lifecycle/subtest2"},
+				{Name: "TestOdhOperator/platform/group_2/controller"},
+				{Name: "TestOdhOperator/platform/group_2/controller/subtest1"},
+				{Name: "TestOdhOperator/platform/group_2/controller/subtest2"},
+				{Name: "TestOdhOperator/platform/group_3"},
+				{Name: "TestOdhOperator/platform/group_3/status"},
+				{Name: "TestOdhOperator/platform/group_3/status/subtest1"},
+				{Name: "TestOdhOperator/platform/group_3/status/subtest2"},
 			}},
-			expected: "^TestOdhOperator$/^components$/^group_1$/^dashboard$|^TestOdhOperator$/^components$/^group_2$/^kserve$|^TestOdhOperator$/^components$/^group_3$|^TestOdhOperator$/^components$/^group_3$/^trustyai$",
+			expected: "^TestOdhOperator$/^platform$/^group_1$/^synthetic$|^TestOdhOperator$/^platform$/^group_2$/^controller$|^TestOdhOperator$/^platform$/^group_3$|^TestOdhOperator$/^platform$/^group_3$/^status$",
 		},
 		{
-			name: "only components skipped",
+			name: "only platform skipped",
 			opts: types.E2ETestOptions{
-				SkipAtPrefixes: []string{"TestOdhOperator/components"},
+				SkipAtPrefixes: []string{"TestOdhOperator/platform"},
 			},
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
 				{Name: "TestOdhOperator"},
-				{Name: "TestOdhOperator/components"},
-				{Name: "TestOdhOperator/components/dashboard"},
-				{Name: "TestOdhOperator/components/dashboard/subtest"},
+				{Name: "TestOdhOperator/platform"},
+				{Name: "TestOdhOperator/platform/synthetic"},
+				{Name: "TestOdhOperator/platform/synthetic/subtest"},
 			}},
-			expected: "^TestOdhOperator$/^components$|^TestOdhOperator$/^components$/^dashboard$",
+			expected: "^TestOdhOperator$/^platform$|^TestOdhOperator$/^platform$/^synthetic$",
 		},
 		{
 			name: "wildcard not in the end of the prefix",
@@ -277,24 +277,24 @@ func TestBuildSkipFilter(t *testing.T) {
 				SkipAtPrefixes: []string{"TestOdhOperator/*/group_1"},
 			},
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
-				{Name: "TestOdhOperator/components/group_1/dashboard"},
-				{Name: "TestOdhOperator/components/group_1/dashboard/subtest1"},
-				{Name: "TestOdhOperator/components/group_1/dashboard/subtest2"},
-				{Name: "TestOdhOperator/components/group_1/kueue/subtest1"},
-				{Name: "TestOdhOperator/components/group_1/kueue/subtest2"},
-				{Name: "TestOdhOperator/components/group_2"},
-				{Name: "TestOdhOperator/components/group_2/kserve"},
-				{Name: "TestOdhOperator/components/group_2/kserve/subtest1"},
+				{Name: "TestOdhOperator/platform/group_1/synthetic"},
+				{Name: "TestOdhOperator/platform/group_1/synthetic/subtest1"},
+				{Name: "TestOdhOperator/platform/group_1/synthetic/subtest2"},
+				{Name: "TestOdhOperator/platform/group_1/lifecycle/subtest1"},
+				{Name: "TestOdhOperator/platform/group_1/lifecycle/subtest2"},
+				{Name: "TestOdhOperator/platform/group_2"},
+				{Name: "TestOdhOperator/platform/group_2/controller"},
+				{Name: "TestOdhOperator/platform/group_2/controller/subtest1"},
 				{Name: "TestOdhOperator/services/group_1/auth"},
 				{Name: "TestOdhOperator/services/group_1/auth/subtest1"},
 				{Name: "TestOdhOperator/services/group_1/auth/subtest2"},
 				{Name: "TestOdhOperator/services/group_1/monitoring/subtest1"},
 				{Name: "TestOdhOperator/services/group_1/monitoring/subtest2"},
-				{Name: "TestOdhOperator/components/group_2"},
-				{Name: "TestOdhOperator/components/group_2/gateway"},
-				{Name: "TestOdhOperator/components/group_2/gateway/subtest1"},
+				{Name: "TestOdhOperator/platform/group_2"},
+				{Name: "TestOdhOperator/platform/group_2/gateway"},
+				{Name: "TestOdhOperator/platform/group_2/gateway/subtest1"},
 			}},
-			expected: "^TestOdhOperator$/^components$/^group_1$/^dashboard$|^TestOdhOperator$/^services$/^group_1$/^auth$",
+			expected: "^TestOdhOperator$/^platform$/^group_1$/^synthetic$|^TestOdhOperator$/^services$/^group_1$/^auth$",
 		},
 		{
 			name: "monitoring-specific pattern for group level extraction",
@@ -365,7 +365,7 @@ func TestBuildSkipFilter(t *testing.T) {
 func TestExtractTestLevel(t *testing.T) {
 	defaultOpts := types.E2ETestOptions{
 		NeverSkipPrefixes: []string{"TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests"},
-		SkipAtPrefixes:    []string{"TestOdhOperator/services/", "TestOdhOperator/components/", "TestOdhOperator/"},
+		SkipAtPrefixes:    []string{"TestOdhOperator/services/", "TestOdhOperator/platform/", "TestOdhOperator/"},
 	}
 
 	tests := []struct {
@@ -404,17 +404,17 @@ func TestExtractTestLevel(t *testing.T) {
 			shouldSkip: true,
 		},
 		{
-			name:       "component test with subtest",
+			name:       "suite test with subtest",
 			opts:       defaultOpts,
-			testName:   "TestOdhOperator/components/dashboard/subtest",
-			wantLevel:  "TestOdhOperator/components/dashboard",
+			testName:   "TestOdhOperator/platform/synthetic/subtest",
+			wantLevel:  "TestOdhOperator/platform/synthetic",
 			shouldSkip: true,
 		},
 		{
-			name:       "component test without subtest",
+			name:       "suite test without subtest",
 			opts:       defaultOpts,
-			testName:   "TestOdhOperator/components/dashboard",
-			wantLevel:  "TestOdhOperator/components/dashboard",
+			testName:   "TestOdhOperator/platform/synthetic",
+			wantLevel:  "TestOdhOperator/platform/synthetic",
 			shouldSkip: true,
 		},
 		{
@@ -446,14 +446,14 @@ func TestExtractTestLevel(t *testing.T) {
 			shouldSkip: true,
 		},
 		{
-			name:       "component test with deep nesting",
+			name:       "suite test with deep nesting",
 			opts:       defaultOpts,
-			testName:   "TestOdhOperator/components/dashboard/subtest1/subtest2",
-			wantLevel:  "TestOdhOperator/components/dashboard",
+			testName:   "TestOdhOperator/platform/synthetic/subtest1/subtest2",
+			wantLevel:  "TestOdhOperator/platform/synthetic",
 			shouldSkip: true,
 		},
 		{
-			name:       "non-service/component three-level test",
+			name:       "non-service/suite three-level test",
 			opts:       defaultOpts,
 			testName:   "TestOdhOperator/other/something",
 			wantLevel:  "TestOdhOperator/other",
@@ -643,7 +643,7 @@ func TestExportJUnitBestEffort(t *testing.T) {
 		runner := &E2ETestRunner{opts: types.E2ETestOptions{JUnitOutputPath: out}}
 
 		runner.exportJUnitBestEffort(&types.TestResult{
-			PassedTest: []types.TestCase{{Name: "TestOdhOperator/components/dashboard"}},
+			PassedTest: []types.TestCase{{Name: "TestOdhOperator/platform/synthetic"}},
 			FailedTest: []types.TestCase{{Name: "TestOdhOperator/services/monitoring", FailureOutput: "timed out"}},
 		}, "partial failure")
 
@@ -655,7 +655,7 @@ func TestExportJUnitBestEffort(t *testing.T) {
 		for _, tc := range suite.TestCases {
 			names = append(names, tc.Name)
 		}
-		require.Contains(t, names, "TestOdhOperator/components/dashboard")
+		require.Contains(t, names, "TestOdhOperator/platform/synthetic")
 		require.Contains(t, names, "TestOdhOperator/services/monitoring")
 	})
 }

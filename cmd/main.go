@@ -88,6 +88,7 @@ import (
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	modulebuiltin "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/builtin"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/synthetice2e"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -217,8 +218,20 @@ func registerServices() {
 	}
 }
 
+func moduleRegistrations(enableSyntheticE2E bool) []modulebuiltin.ModuleRegistration {
+	registrations := modulebuiltin.Registrations()
+	if enableSyntheticE2E {
+		registrations = append(registrations, modulebuiltin.ModuleRegistration{
+			Handler:      synthetice2e.NewHandler(),
+			Runlevel:     dag.RL(20),
+			ConfigSource: mr.ConfigFromPlatform,
+		})
+	}
+	return registrations
+}
+
 func registerModules() {
-	for _, registration := range modulebuiltin.Registrations() {
+	for _, registration := range moduleRegistrations(flags.IsSyntheticE2EModuleEnabled()) {
 		name := registration.Handler.GetName()
 		opts := []mr.RegistrationOption{
 			mr.WithRunlevel(registration.Runlevel),

@@ -9,4 +9,8 @@
 **/bin
 opt/manifests/**/scorecard
 **/e2e
+# The standalone synthetic module has its own image build from the repository root.
+!tests/e2e/
+!tests/e2e/syntheticmodule/
+!tests/e2e/syntheticmodule/**
 opt/manifests/**/example-*

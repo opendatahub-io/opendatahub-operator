@@ -45,6 +45,12 @@ func TestRegistrationsHaveCompleteMetadata(t *testing.T) {
 	}
 }
 
+func TestDefaultInventoryExcludesSyntheticE2E(t *testing.T) {
+	t.Parallel()
+
+	assert.NotContains(t, modulebuiltin.Names(), "synthetice2e")
+}
+
 func TestNamesDerivedFromRegistrations(t *testing.T) {
 	t.Parallel()
 

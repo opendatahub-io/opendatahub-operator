@@ -2,8 +2,11 @@ package e2e_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -20,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
@@ -31,13 +35,14 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	modulecontroller "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	modulebuiltin "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/builtin"
 	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
@@ -60,7 +65,7 @@ type componentEntry struct {
 	gvk            schema.GroupVersionKind
 	Enable         func(*dscApi.DataScienceCluster)
 	Disable        func(*dscApi.DataScienceCluster)
-	internal       bool // components whose CR may not exist in the test (webhook-blocked, auto-created, etc.)
+	internal       bool // component readiness is reported through its module CR
 	dsciConfigured bool // configured via DSCI spec, not DSC — cleanup requires patching DSCI
 }
 
@@ -333,6 +338,16 @@ func (tc *DAGOrderingTestCtx) runOpenShiftTestCases(t *testing.T) {
 		tc.deleteDAGQuota()
 		tc.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
 	})
+	// Registered after destructive cleanup so LIFO cleanup ordering captures
+	// failure evidence while module CRs and status are still present.
+	t.Cleanup(func() {
+		if t.Failed() {
+			// Capture diagnostics before the normal cleanup tears down module
+			// Deployments and their failing Pods/events.
+			runDiagnosticsAndClassify("DAG Ordering E2E Tests")
+			writeDAGClassificationReport(t, tc)
+		}
+	})
 
 	// Tests are ordered to minimise expensive enable/disable cycles.
 	// Each test's end state feeds the next test's start state.
@@ -347,7 +362,6 @@ func (tc *DAGOrderingTestCtx) runOpenShiftTestCases(t *testing.T) {
 	//     → AllReady)
 	//
 	// Phase 3: Steady-state tests (original version restored)
-	//   PlatformReady (→AllReady, read-only) →
 	//   ComponentStability (→AllReady, toggles KServe) →
 	//   DAGCleanup (→Removed)
 
@@ -389,7 +403,6 @@ func (tc *DAGOrderingTestCtx) runOpenShiftTestCases(t *testing.T) {
 
 	// Phase 3: steady-state tests
 	RunTestCases(t, []TestCase{
-		{"Validate PlatformReady condition on component CRs", tc.ValidatePlatformReady},
 		{"Validate component stability across enable/disable cycles (RHOAIENG-73142)", tc.ValidateComponentStability},
 		{"Validate DAG cleanup", tc.ValidateDAGCleanup},
 	})
@@ -611,26 +624,6 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 		WithEventuallyPollingInterval(15*time.Second),
 	)
 
-	t.Log("Verifying component controllers are unblocked (PlatformReady=True)")
-	for _, batch := range dagBatches {
-		for _, comp := range batch.components {
-			if comp.internal {
-				continue
-			}
-			t.Logf("Waiting for %s to have PlatformReady=True", comp.name)
-			tc.EnsureResourceExists(
-				WithMinimalObject(comp.gvk, types.NamespacedName{Name: tc.GetInstanceName(comp.gvk)}),
-				WithCondition(jq.Match(
-					`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
-					precondition.PlatformReadyConditionType, metav1.ConditionTrue,
-				)),
-				WithEventuallyTimeout(5*time.Minute),
-				WithEventuallyPollingInterval(10*time.Second),
-				WithCustomErrorMsg("%s should have PlatformReady=True after convergence", comp.name),
-			)
-		}
-	}
-
 	t.Log("Verifying ModulesReady=True on Platform CR")
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
@@ -648,14 +641,12 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 			if !comp.internal {
 				continue
 			}
-			instanceName := tc.findFirstCRName(t, comp.gvk)
-			if instanceName == "" {
-				if comp.dsciConfigured {
-					t.Fatalf("expected %s CR after enabling via DSCI, found none", comp.gvk.Kind)
-				}
-				t.Logf("No %s CRs found, skipping readiness check", comp.gvk.Kind)
+			if !expectsModuleCR(comp) {
+				t.Logf("Skipping %s readiness: component is explicitly excluded from managed DAG tests", comp.name)
 				continue
 			}
+			instanceName := tc.findFirstCRName(t, comp.gvk)
+			require.NotEmpty(t, instanceName, "expected enabled production module %s CR after convergence", comp.gvk.Kind)
 			t.Logf("Waiting for %s to have Ready=True", comp.name)
 			tc.EnsureResourceExists(
 				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
@@ -668,7 +659,8 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 			)
 		}
 	}
-	t.Log("DAG gating and version handshake verified")
+	tc.validateManagedModuleControllerDeployments(t)
+	t.Log("DAG gating, controller deployment, and version handshake verified")
 }
 
 func (tc *DAGOrderingTestCtx) deleteDeploymentPods(t *testing.T, nn types.NamespacedName) {
@@ -842,39 +834,6 @@ func (tc *DAGOrderingTestCtx) waitForRunlevelGate(t *testing.T, result <-chan er
 		t.Fatal("timed out waiting for Platform runlevel gate")
 	case <-tc.Context().Done():
 		t.Fatalf("timed out waiting for Platform runlevel gate: %v", tc.Context().Err())
-	}
-}
-
-// ValidatePlatformReady verifies that every component CR has the
-// PlatformReady condition set to True after DAG convergence, confirming
-// that the in-memory runlevel tracker allowed each component's
-// precondition to pass.
-func (tc *DAGOrderingTestCtx) ValidatePlatformReady(t *testing.T) {
-	t.Helper()
-
-	for _, batch := range dagBatches {
-		for _, comp := range batch.components {
-			if comp.internal {
-				t.Logf("Skipping internal component %s (CR may not exist)", comp.name)
-				continue
-			}
-
-			instanceName := tc.findFirstCRName(t, comp.gvk)
-			if instanceName == "" {
-				t.Logf("No %s CRs found, skipping PlatformReady check", comp.gvk.Kind)
-				continue
-			}
-
-			tc.EnsureResourceExists(
-				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
-				WithCondition(jq.Match(
-					`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
-					precondition.PlatformReadyConditionType, metav1.ConditionTrue,
-				)),
-				WithCustomErrorMsg("Component %s should have %s=True condition", comp.name, precondition.PlatformReadyConditionType),
-			)
-			t.Logf("Component %s: %s=True (correct)", comp.name, precondition.PlatformReadyConditionType)
-		}
 	}
 }
 
@@ -1320,6 +1279,10 @@ func allComponentsRemovedMutation(dsc *dscApi.DataScienceCluster) error {
 	return nil
 }
 
+func expectsModuleCR(component componentEntry) bool {
+	return !slices.Contains(dscComponentsExcludedFromManagedDAGTests, component.name)
+}
+
 func componentEntryByName(name string) componentEntry {
 	for _, batch := range dagBatches {
 		for _, component := range batch.components {
@@ -1480,6 +1443,71 @@ func (tc *DAGOrderingTestCtx) deleteDAGQuota() {
 		WithIgnoreNotFound(true),
 		WithWaitForDeletion(true),
 	)
+}
+
+type operatorEnvSnapshot struct {
+	values  []corev1.EnvVar
+	missing []string
+}
+
+func (tc *DAGOrderingTestCtx) snapshotOperatorEnvVars(t *testing.T, names ...string) operatorEnvSnapshot {
+	t.Helper()
+
+	wanted := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		wanted[name] = struct{}{}
+	}
+
+	var current []corev1.EnvVar
+	if sub := tc.findSubscription(t); sub != nil && sub.Spec.Config != nil {
+		current = sub.Spec.Config.Env
+	} else {
+		deployment := tc.FetchResource(WithMinimalObject(gvk.Deployment, tc.operatorDeploymentNN()))
+		containers, found, err := unstructured.NestedSlice(deployment.Object, "spec", "template", "spec", "containers")
+		require.NoError(t, err)
+		require.True(t, found)
+		require.NotEmpty(t, containers)
+		containerMap, ok := containers[0].(map[string]any)
+		require.True(t, ok)
+		var container corev1.Container
+		require.NoError(t, runtime.DefaultUnstructuredConverter.FromUnstructured(containerMap, &container))
+		current = container.Env
+	}
+
+	snapshot := operatorEnvSnapshot{}
+	for _, env := range current {
+		if _, found := wanted[env.Name]; !found {
+			continue
+		}
+		snapshot.values = append(snapshot.values, env)
+		delete(wanted, env.Name)
+	}
+	for _, name := range names {
+		if _, found := wanted[name]; found {
+			snapshot.missing = append(snapshot.missing, name)
+		}
+	}
+	return snapshot
+}
+
+func (tc *DAGOrderingTestCtx) restoreOperatorEnvVars(t *testing.T, snapshot operatorEnvSnapshot) {
+	t.Helper()
+
+	if sub := tc.findSubscription(t); sub != nil {
+		if sub.Spec.Config == nil {
+			sub.Spec.Config = &ofapi.SubscriptionConfig{}
+		}
+		names := append(envVarNames(snapshot.values), snapshot.missing...)
+		sub.Spec.Config.Env = slices.DeleteFunc(sub.Spec.Config.Env, func(env corev1.EnvVar) bool {
+			return slices.Contains(names, env.Name)
+		})
+		sub.Spec.Config.Env = append(sub.Spec.Config.Env, snapshot.values...)
+		require.NoError(t, tc.Client().Update(tc.Context(), sub), "Failed to restore Subscription %s environment", sub.Name)
+	} else {
+		tc.patchDeploymentEnvVars(t, snapshot.values, snapshot.missing)
+	}
+
+	tc.waitForOperatorReady(t)
 }
 
 // setOperatorEnvVars sets environment variables on the operator, triggering
@@ -1690,11 +1718,372 @@ func (tc *DAGOrderingTestCtx) waitForOperatorReady(t *testing.T) {
 	)
 }
 
+func (tc *DAGOrderingTestCtx) validateManagedModuleControllerDeployments(t *testing.T) {
+	t.Helper()
+	platform := tc.FetchResource(WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName))
+
+	for _, registration := range modulebuiltin.Registrations() {
+		handler := registration.Handler
+		state, _, err := unstructured.NestedString(platform.Object, "spec", "modules", handler.GetName(), "managementState")
+		require.NoError(t, err, "read %s management state", handler.GetName())
+		if state != string(operatorv1.Managed) {
+			continue
+		}
+
+		deploymentName := handler.GetName()
+		if named, ok := handler.(modulecontroller.DeploymentNamer); ok && named.GetDeploymentName() != "" {
+			deploymentName = named.GetDeploymentName()
+		}
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace, Name: deploymentName}),
+			WithEventuallyTimeout(5*time.Minute),
+			WithCondition(jq.Match(`.status.availableReplicas >= 1`)),
+			WithCustomErrorMsg("managed module %s controller Deployment %s should be available", handler.GetName(), deploymentName),
+		)
+	}
+}
+
 func (tc *DAGOrderingTestCtx) operatorDeploymentName() string {
 	if cluster.GetRelease().Name == cluster.SelfManagedRhoai || cluster.GetRelease().Name == cluster.ManagedRhoai {
 		return controllerDeploymentRhoai
 	}
 	return controllerDeploymentODH
+}
+
+type dagFailureEvidence struct {
+	Module                 string `json:"module,omitempty"`
+	PossibleModuleFailure  bool   `json:"possibleModuleFailure,omitempty"`
+	Domain                 string `json:"domain"`
+	Stage                  string `json:"stage,omitempty"`
+	LastSuccessfulBoundary string `json:"lastSuccessfulBoundary,omitempty"`
+	Message                string `json:"message,omitempty"`
+}
+
+type dagFailureEvidenceReport struct {
+	Failures []dagFailureEvidence `json:"failures"`
+}
+
+func writeDAGClassificationReport(t *testing.T, tc *DAGOrderingTestCtx) {
+	t.Helper()
+	path := os.Getenv("E2E_DAG_REPORT_PATH")
+	classification := lastClassification.Load()
+	if path == "" || classification == nil {
+		return
+	}
+
+	domain := "unknown"
+	module := ""
+	stage := "diagnostics"
+	boundary := "cluster diagnostics collected"
+	message := fmt.Sprintf(
+		"%s: %s (code=%d confidence=%s)",
+		classification.Subcategory,
+		strings.Join(classification.Evidence, "; "),
+		classification.ErrorCode,
+		classification.Confidence,
+	)
+
+	if classification.Category == "infrastructure" {
+		domain = "test-infrastructure"
+	}
+	possibleModule := firstUnhealthyManagedModule(tc)
+
+	if classification.Subcategory == "image-pull" {
+		module = moduleWithImagePullFailure()
+		if module != "" {
+			stage = "deployment"
+			boundary = "platform applied rendered module Deployment"
+			if imageReferenceLooksInvalid(strings.Join(classification.Evidence, " ")) {
+				domain = "module-configuration"
+			}
+		}
+	}
+
+	if shouldApplyTentativeModuleAttribution(classification.Category, possibleModule.module) {
+		module = possibleModule.module
+		domain = "module-configuration"
+		stage = possibleModule.stage
+		boundary = possibleModule.boundary
+		message += fmt.Sprintf("; tentative module attribution: %s", possibleModule.message)
+	}
+
+	report := dagFailureEvidenceReport{Failures: []dagFailureEvidence{{
+		Module:                 module,
+		Domain:                 domain,
+		Stage:                  stage,
+		LastSuccessfulBoundary: boundary,
+		PossibleModuleFailure:  shouldApplyTentativeModuleAttribution(classification.Category, possibleModule.module),
+		Message:                message,
+	}}}
+	data, err := json.MarshalIndent(report, "", "  ")
+	require.NoError(t, err, "marshal classified DAG failure report")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750), "create DAG report directory")                //nolint:gosec
+	require.NoError(t, os.WriteFile(path, append(data, '\n'), 0o600), "write classified DAG failure report") //nolint:gosec
+	t.Logf("Wrote classified DAG failure report to %s", path)
+}
+
+func shouldApplyTentativeModuleAttribution(category, module string) bool {
+	return module != "" && category != "infrastructure"
+}
+
+type moduleHealth int
+
+const (
+	moduleHealthUnknown moduleHealth = iota
+	moduleHealthHealthy
+	moduleHealthUnhealthy
+)
+
+type managedModuleHealth struct {
+	name     string
+	runlevel int
+	health   moduleHealth
+	stage    string
+	message  string
+}
+
+type moduleFailureCandidate struct {
+	module   string
+	stage    string
+	boundary string
+	message  string
+}
+
+func moduleHealthFromList(err error, items []unstructured.Unstructured) moduleHealth {
+	return moduleInstallationHealth(err, items, nil, nil, "").health
+}
+
+func moduleInstallationHealth(
+	moduleListErr error,
+	moduleCRs []unstructured.Unstructured,
+	deploymentErr error,
+	deployment *unstructured.Unstructured,
+	expectedPlatformVersion string,
+) managedModuleHealth {
+	switch {
+	case moduleListErr != nil && (meta.IsNoMatchError(moduleListErr) || k8serr.IsNotFound(moduleListErr)):
+		return managedModuleHealth{
+			health:  moduleHealthUnhealthy,
+			stage:   "crd-establishment",
+			message: "module CRD is missing or not established",
+		}
+	case moduleListErr != nil:
+		return managedModuleHealth{health: moduleHealthUnknown, stage: "diagnostics", message: "module CR API could not be queried"}
+	case len(moduleCRs) == 0:
+		return managedModuleHealth{health: moduleHealthUnknown, stage: "module-cr-creation", message: "module CRD exists but module CR is missing"}
+	case len(moduleCRs) > 1:
+		return managedModuleHealth{health: moduleHealthUnknown, stage: "module-cr-creation", message: "multiple singleton module CRs exist"}
+	case deploymentErr != nil && k8serr.IsNotFound(deploymentErr):
+		return managedModuleHealth{
+			health:  moduleHealthUnhealthy,
+			stage:   "controller-deployment",
+			message: "module controller Deployment was not applied",
+		}
+	case deploymentErr != nil:
+		return managedModuleHealth{health: moduleHealthUnknown, stage: "diagnostics", message: "module controller Deployment could not be queried"}
+	case deployment == nil:
+		// Unit callers that only need CR status can omit Deployment evidence.
+	case deploymentAvailableReplicas(deployment) < 1:
+		return managedModuleHealth{
+			health:  moduleHealthUnhealthy,
+			stage:   "controller-deployment",
+			message: "module controller Deployment has no available replicas",
+		}
+	}
+
+	moduleCR := &moduleCRs[0]
+	if moduleConditionStatus(moduleCR, status.ConditionTypeReady) != string(metav1.ConditionTrue) ||
+		moduleConditionStatus(moduleCR, status.ConditionTypeDegraded) == string(metav1.ConditionTrue) {
+		return managedModuleHealth{
+			health:  moduleHealthUnhealthy,
+			stage:   "module-status",
+			message: "module CR is not Ready or reports Degraded",
+		}
+	}
+	if observedGeneration, found, _ := unstructured.NestedInt64(moduleCR.Object, "status", "observedGeneration"); found && observedGeneration != moduleCR.GetGeneration() {
+		return managedModuleHealth{
+			health:  moduleHealthUnhealthy,
+			stage:   "module-status",
+			message: "module CR status has a stale observedGeneration",
+		}
+	}
+	if expectedPlatformVersion != "" && moduleReleaseVersion(moduleCR) != expectedPlatformVersion {
+		return managedModuleHealth{
+			health: moduleHealthUnhealthy,
+			stage:  "release-handshake",
+			message: fmt.Sprintf(
+				"module platform release %q does not match expected version %q",
+				moduleReleaseVersion(moduleCR),
+				expectedPlatformVersion,
+			),
+		}
+	}
+	return managedModuleHealth{health: moduleHealthHealthy}
+}
+
+func deploymentAvailableReplicas(deployment *unstructured.Unstructured) int64 {
+	available, _, _ := unstructured.NestedInt64(deployment.Object, "status", "availableReplicas")
+	return available
+}
+
+func firstUnhealthyRunlevel(modules []managedModuleHealth) moduleFailureCandidate {
+	for start := 0; start < len(modules); {
+		runlevel := modules[start].runlevel
+		end := start
+		var unhealthy []managedModuleHealth
+		hasUnknown := false
+		for end < len(modules) && modules[end].runlevel == runlevel {
+			switch modules[end].health {
+			case moduleHealthUnknown:
+				hasUnknown = true
+			case moduleHealthUnhealthy:
+				unhealthy = append(unhealthy, modules[end])
+			case moduleHealthHealthy:
+			}
+			end++
+		}
+		if hasUnknown || len(unhealthy) > 1 {
+			return moduleFailureCandidate{}
+		}
+		if len(unhealthy) == 1 {
+			failure := unhealthy[0]
+			return moduleFailureCandidate{
+				module:   failure.name,
+				stage:    failure.stage,
+				boundary: fmt.Sprintf("all managed modules before runlevel %d are healthy", runlevel),
+				message: fmt.Sprintf(
+					"%s is the only unhealthy module in the first failing runlevel %d: %s; later runlevels may be blocked",
+					failure.name,
+					runlevel,
+					failure.message,
+				),
+			}
+		}
+		start = end
+	}
+	return moduleFailureCandidate{}
+}
+
+func firstUnhealthyManagedModule(tc *DAGOrderingTestCtx) moduleFailureCandidate {
+	platform := &unstructured.Unstructured{}
+	platform.SetGroupVersionKind(gvk.Platform)
+	if err := tc.Client().Get(tc.Context(), tc.PlatformNamespacedName, platform); err != nil {
+		return moduleFailureCandidate{}
+	}
+
+	expectedPlatformVersion := platform.GetAnnotations()[annotations.PlatformVersion]
+	moduleHealthEvidence := make([]managedModuleHealth, 0)
+	for _, registration := range modulebuiltin.Registrations() {
+		handler := registration.Handler
+		state, _, _ := unstructured.NestedString(platform.Object, "spec", "modules", handler.GetName(), "managementState")
+		if state != string(operatorv1.Managed) {
+			continue
+		}
+
+		list := &unstructured.UnstructuredList{}
+		list.SetGroupVersionKind(handler.GetGVK().GroupVersion().WithKind(handler.GetGVK().Kind + "List"))
+		moduleListErr := tc.Client().List(tc.Context(), list)
+
+		deploymentName := handler.GetName()
+		if named, ok := handler.(modulecontroller.DeploymentNamer); ok && named.GetDeploymentName() != "" {
+			deploymentName = named.GetDeploymentName()
+		}
+		deployment := &unstructured.Unstructured{}
+		deployment.SetGroupVersionKind(gvk.Deployment)
+		deploymentErr := tc.Client().Get(
+			tc.Context(),
+			types.NamespacedName{Namespace: tc.AppsNamespace, Name: deploymentName},
+			deployment,
+		)
+
+		evidence := moduleInstallationHealth(moduleListErr, list.Items, deploymentErr, deployment, expectedPlatformVersion)
+		evidence.name = handler.GetName()
+		evidence.runlevel = registration.Runlevel.Order
+		moduleHealthEvidence = append(moduleHealthEvidence, evidence)
+	}
+	return firstUnhealthyRunlevel(moduleHealthEvidence)
+}
+
+func moduleWithImagePullFailure() string {
+	report := lastHealthReport.Load()
+	if report == nil {
+		return ""
+	}
+	for _, registration := range modulebuiltin.Registrations() {
+		handler := registration.Handler
+		deploymentName := handler.GetName()
+		if named, ok := handler.(modulecontroller.DeploymentNamer); ok && named.GetDeploymentName() != "" {
+			deploymentName = named.GetDeploymentName()
+		}
+		for _, deployment := range report.Deployments.Data.Data {
+			if deployment.Namespace != testOpts.appsNamespace || deployment.Name != deploymentName {
+				continue
+			}
+			for _, pod := range report.Pods.Data.Data {
+				if pod.Namespace != deployment.Namespace || !selectorMatches(deployment.Spec.Selector.MatchLabels, pod.Labels) {
+					continue
+				}
+				for _, status := range pod.Status.InitContainerStatuses {
+					if status.State.Waiting != nil && (status.State.Waiting.Reason == "ImagePullBackOff" || status.State.Waiting.Reason == "ErrImagePull") {
+						return handler.GetName()
+					}
+				}
+				for _, status := range pod.Status.ContainerStatuses {
+					if status.State.Waiting != nil && (status.State.Waiting.Reason == "ImagePullBackOff" || status.State.Waiting.Reason == "ErrImagePull") {
+						return handler.GetName()
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func selectorMatches(selector, labels map[string]string) bool {
+	for key, value := range selector {
+		if labels[key] != value {
+			return false
+		}
+	}
+	return len(selector) > 0
+}
+
+func imageReferenceLooksInvalid(evidence string) bool {
+	lower := strings.ToLower(evidence)
+	for _, marker := range []string{"manifest unknown", "not found", "invalid reference", "invalidimagename", "does not exist"} {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func conditionStatus(obj *unstructured.Unstructured, conditionType string) string {
+	conditions, _, _ := unstructured.NestedSlice(obj.Object, "status", "conditions")
+	for _, raw := range conditions {
+		condition, ok := raw.(map[string]any)
+		if ok && condition["type"] == conditionType {
+			value, _ := condition["status"].(string)
+			return value
+		}
+	}
+	return ""
+}
+
+func moduleConditionStatus(obj *unstructured.Unstructured, conditionType string) string {
+	return conditionStatus(obj, conditionType)
+}
+
+func moduleReleaseVersion(obj *unstructured.Unstructured) string {
+	releases, _, _ := unstructured.NestedSlice(obj.Object, "status", "releases")
+	for _, raw := range releases {
+		release, ok := raw.(map[string]any)
+		if ok && release["name"] == "platform" {
+			value, _ := release["version"].(string)
+			return value
+		}
+	}
+	return ""
 }
 
 func (tc *DAGOrderingTestCtx) operatorDeploymentNN() types.NamespacedName {

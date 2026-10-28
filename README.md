@@ -910,11 +910,18 @@ Once the above variables are set, run the following:
 make e2e-test
 ```
 
+The default target runs two independent invocations: the blocking core and synthetic platform contract, followed by the full production-module DAG integration test. Run either phase directly with `make e2e-test-core` or `make e2e-test-dag`. A full run clears and recreates the default `./_e2e_results` directory before starting, then writes separate core/DAG JUnit files, the DAG attribution report, and the final JSON verdict there. All files from one run share a UTC timestamp such as `20261109T102500Z`; set `E2E_RUN_TIMESTAMP` to supply one explicitly. Set `ARTIFACT_DIR` to override the output location. Explicitly configured artifact directories are preserved so timestamped historical files remain available.
+
+The E2E container follows the same sequence by default. Its entrypoint accepts `core`, `dag`, or `all` (the default) and writes timestamped `junit-core-<timestamp>.xml`, `junit-dag-<timestamp>.xml`, `dag-report-<timestamp>.json`, and `e2e-summary-<timestamp>.json` files under `/e2e/results`. The core profile defaults to `quay.io/stobin/synthetic-module:syntheticmodule-0.0.2`; set `RELATED_IMAGE_ODH_SYNTHETIC_MODULE_OPERATOR_IMAGE` to override it with a CI-built or digest-pinned synthetic module image.
+
+DAG attribution evaluates managed modules in runlevel order. A single module failing in the first unhealthy runlevel can be reported as a tentative module issue at the `crd-establishment`, `controller-deployment`, `module-status`, or `release-handshake` stage; missing resources in later runlevels are treated as potentially blocked rather than independent failures. Ambiguous failures within the first unhealthy runlevel remain blocking.
+
 #### Configuring e2e Tests
 Evn vars can be set to configure e2e tests:
 
 | Configuration Env var                    | Description                                                                                                                                                                                                                | Default value                 |
 |------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
+| E2E_TEST_PROFILE                         | Execution profile: `core`, `synthetic`, `dag`, or `full`. Direct Make targets select this automatically. | `full` |
 | E2E_TEST_OPERATOR_NAMESPACE              | Namespace where the ODH operator is deployed.                                                                                                                                                                              | `opendatahub-operator-system` |
 | E2E_TEST_APPLICATIONS_NAMESPACE          | Namespace where the ODH applications are deployed.                                                                                                                                                                         | `opendatahub`                 |
 | E2E_TEST_WORKBENCHES_NAMESPACE           | Namespace where the workbenches are deployed.                                                                                                                                                                              | `opendatahub`                 |
@@ -924,16 +931,15 @@ Evn vars can be set to configure e2e tests:
 | E2E_TEST_DSC_VALIDATION                  | To configure the execution of DSCI/DSC validation tests, this is useful to run e2e tests for an operator running in xKS cluster                                                                                            | `true`                        |
 | E2E_TEST_OPERATOR_CONTROLLER             | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes                                                    | `true`                        |
 | E2E_TEST_OPERATOR_RESILIENCE             | To configure the execution of operator resilience tests, useful for testing operator fault tolerance scenarios                                                                                                             | `true`                        |
-| E2E_TEST_WEBHOOK                         | To configure the execution of tests related to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes                                               | `true`                        |
+
 | E2E_TEST_CONVERSION_WEBHOOK              | Run conversion webhook scenarios. Defaults to `true` in full and targeted runs; set to `false` to disable them. DSC scenarios delete `default-dsc`. | `true` |
 | E2E_TEST_CONVERSION_WEBHOOK_DSC          | Include DSC conversion scenarios when the conversion suite runs. Set `false` to run only Platform conversion scenarios. | `true` |
 | E2E_TEST_CONVERSION_WEBHOOK_PLATFORM     | Include Platform conversion scenarios when the conversion suite runs. Set `false` to run only DSC conversion scenarios. | `true` |
 | E2E_TEST_DELETION_POLICY                 | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`.                                                                                 | `always`                      |
-| E2E_TEST_COMPONENTS                      | Enable testing of individual components specified by --test-component flag                                                                                                                                                 | `true`                        |
-| E2E_TEST_COMPONENT                       | A space separated configuration to control which component should be tested, by default all component specific test are executed                                                                                           | `all components`              |
+
 | E2E_TEST_SERVICES                        | Enable testing of individual services specified by --test-service flag                                                                                                                                                     | `true`                        |
 | E2E_TEST_SERVICE                         | A space separated configuration to control which services should be tested, by default all service specific test are executed                                                                                              | `all services`                |
-| E2E_AUTO_RESOLVE                         | When `true`, `make e2e-test` derives `E2E_TEST_COMPONENT`/`E2E_TEST_SERVICE` automatically from the PR's changed files (see [Path-based test scoping](docs/e2e-testing.md#path-based-test-scoping)), instead of running the full suite. The resolver always runs and logs its decision regardless of this flag, so its accuracy can be checked in job logs before enabling it. | `false`                       |
+| E2E_AUTO_RESOLVE                         | When `true`, the current scope resolver narrows service tests from changed files. Module/profile-aware resolution is tracked separately. | `false` |
 | E2E_TEST_OPERATOR_V2TOV3UPGRADE          | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                                                                        | `true`                        |
 | E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES     | To configure the cleaning-up of the previous resources in the cluster. This flag is quite useful to test custom scenarios, as well as running the tests after upgrade, to keep the previous DSC and test it.               | `true`                        |
 | E2E_TEST_BACKUP_AND_RESTORE_DSCI_AND_DSC | To back up DSCI/DSC at the beginning of the whole test suite and restore them at the end. Useful for testing custom scenarios, including removal of DSCI/DSC during the tests while keeping cluster in the original shape. | `false`                       |
@@ -949,6 +955,7 @@ Alternatively the above configurations can be passed to e2e-tests as flags by se
 
 | Flag                                  | Description                                                                                                                                                                                                                | Default value                 |
 |---------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
+| --test-profile                        | Execution profile: `core`, `synthetic`, `dag`, or `full`. | `full` |
 | --operator-namespace                  | Namespace where the ODH operator is deployed.                                                                                                                                                                              | `opendatahub-operator-system` |
 | --applications-namespace              | Namespace where the ODH applications are deployed.                                                                                                                                                                         | `opendatahub`                 |
 | --workbenches-namespace               | Namespace where the workbenches are deployed.                                                                                                                                                                              | `opendatahub`                 |
@@ -959,13 +966,12 @@ Alternatively the above configurations can be passed to e2e-tests as flags by se
 | --test-dsc-validation                 | To configure the execution of DSCI/DSC validation tests, this is useful to run e2e tests for an operator running in xKS cluster                                                                                            | `true`                        |
 | --test-operator-controller            | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes                                                    | `true`                        |
 | --test-operator-resilience            | To configure the execution of operator resilience tests, useful for testing operator fault tolerance scenarios                                                                                                             | `true`                        |
-| --test-webhook                        | To configure the execution of tests related to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes                                               | `true`                        |
+
 | --test-conversion-webhook             | Explicitly include or exclude conversion webhook scenarios; when omitted, only full OpenShift `All`/`Tier3` suites include them. DSC scenarios delete `default-dsc`. | auto |
 | --test-conversion-webhook-dsc         | Include DSC conversion scenarios when the conversion suite runs. | `true` |
 | --test-conversion-webhook-platform    | Include Platform conversion scenarios when the conversion suite runs. | `true` |
 | --deletion-policy                     | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`.                                                                                 | `always`                      |
-| --test-components                     | Enable testing of individual components specified by --test-component flag                                                                                                                                                 | `true`                        |
-| --test-component                      | A repeatable (or comma separated no spaces) flag that control which component should be tested, by default all component specific test are executed                                                                        | `all components`              |
+
 | --test-services                       | Enable testing of individual services specified by --test-service flag                                                                                                                                                     | `true`                        |
 | --test-service                        | A repeatable (or comma separated no spaces) flag that control which services should be tested, by default all service specific test are executed                                                                           | `all services`                |
 | --test-operator-v2tov3upgrade         | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                                                                        | `true`                        |
@@ -1004,28 +1010,27 @@ Example command to run full test suite skipping the DataScienceCluster deletion 
 make e2e-test -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_DELETION_POLICY=never
 ```
 
-Example commands to run test suite for the dashboard `component` only, with the operator running out of the cluster:
+Run only the operator-owned core and synthetic contract:
+
+```shell
+make e2e-test-core
+```
+
+Run only the full production-module DAG integration test against an existing core baseline:
+
+```shell
+make e2e-test-dag
+```
+
+Example commands to run the Auth platform service tests with the operator running out of the cluster:
 
 ```shell
 make run-nowebhook
 ```
 ```shell
-make e2e-test -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_OPERATOR_CONTROLLER=false -e E2E_TEST_WEBHOOK=false -e E2E_TEST_SERVICES=false -e E2E_TEST_COMPONENT=dashboard
+make e2e-test-run -e E2E_TEST_PROFILE=full -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_OPERATOR_CONTROLLER=false -e E2E_TEST_SERVICE=auth
 ```
 
-Example commands to run test suite for the monitoring `service` only, with the operator running out of the cluster:
-
-```shell
-make run-nowebhook
-```
-```shell
-make e2e-test -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_OPERATOR_CONTROLLER=false -e E2E_TEST_WEBHOOK=false -e E2E_TEST_COMPONENTS=false -e E2E_TEST_SERVICE=monitoring
-```
-
-Example commands to run test suite excluding tests for ray `component`:
-```shell
-make e2e-test -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_COMPONENT=!ray
-```
 
 To select a different Kueue release channel (default: `stable-v1.5`), for example to test 1.4:
 
@@ -1040,32 +1045,18 @@ Before running any single E2E test, DSCI and DSC resources must exist. Use this 
 make e2e-setup-cluster
 ```
 
-This runs `e2e-test` with component tests, webhook tests, services tests, resilience tests, upgrade tests, and hardware profile tests
-disabled, deletion policy set to `never`, and cleanup enabled. After setup completes, you can run individual
-component or service tests against the prepared cluster.
+This runs the low-level core profile with synthetic, service, webhook, resilience, and upgrade coverage disabled, deletion policy set to `never`, and cleanup enabled. After setup completes, focused platform or service tests can run against the prepared cluster.
 
 #### Running a Single E2E Test
 
-Use `e2e-test-single` to run a single test function by its full path. The test path follows the format
-`TestOdhOperator/<group>/<component-or-service>/<test-name>`:
+Use `e2e-test-single` to run a test by its full path:
 
 ```shell
-# Run a single component test
-make e2e-test-single TEST="TestOdhOperator/Component_Tests/dashboard/Validate component enabled"
-
-# Run a single service test
-make e2e-test-single TEST="TestOdhOperator/Service_Tests/monitoring/Validate.*Prometheus"
-
-# Run a single test matching a pattern (regex supported)
-make e2e-test-single TEST="TestOdhOperator/Component_Tests/mlflowoperator/Validate update operand resources"
+make e2e-test-single TEST="TestOdhOperator/Synthetic_Module_E2E_Tests/Validate_healthy_platform_aggregation"
+make e2e-test-single TEST="TestOdhOperator/DAG_Ordering_E2E_Tests/Validate_runlevel_gating_and_convergence"
 ```
 
-```shell
-go test -v -run "TestOdhOperator/Component_Tests/dashboard/Validate component enabled" ./tests/e2e/ --timeout=15m
-```
-
-**Note:** `e2e-test-single` does **not** create DSCI/DSC or handle component dependencies. Ensure prerequisites
-exist before running (see [Cluster Setup for E2E](#cluster-setup-for-e2e)).
+**Note:** most single tests do not create all prerequisites. The synthetic suite is self-contained; other focused tests may require `make e2e-setup-cluster` first.
 
 Additionally specific env vars can be used to configure tests timeouts
 
@@ -1084,32 +1075,13 @@ Quick reference: "I changed code in directory X — which E2E test(s) should I r
 
 | What You Changed | Pre-Test Steps | E2E Test Command |
 |---|---|---|
-| `internal/controller/components/<comp>/` | None | `make e2e-test -e E2E_TEST_COMPONENT=<comp>` |
-| `internal/controller/services/<svc>/` | None | `make e2e-test -e E2E_TEST_SERVICE=<svc>` |
-| `api/components/v1alpha1/<comp>_types.go` | `make generate manifests api-docs` | `make e2e-test -e E2E_TEST_COMPONENT=<comp>` |
-| `api/datasciencecluster/`, `api/dscinitialization/` | `make generate manifests api-docs` | `make e2e-test` (full suite) |
-| `internal/controller/datasciencecluster/` or `dscinitialization/` | None | `make e2e-test` (full suite) |
-| `pkg/`, `config/`, `cmd/main.go` | None | `make e2e-test` (full suite) |
-| `opt/manifests/<comp>/` | None | `make e2e-test -e E2E_TEST_COMPONENT=<comp>` |
+| Module framework, Platform orchestration, rendering, injection, or cleanup | None | `make e2e-test-core` |
+| DAG ordering, runlevels, upgrade handshake, or gates | None | `make e2e-test-dag` |
+| DSC/DSCI API or controllers | `make generate manifests api-docs` | `make e2e-test-core` |
+| Service controller | None | `make e2e-test-run E2E_TEST_PROFILE=full E2E_TEST_SERVICE=<service>` |
+| Broad operator or release integration | As required | `make e2e-test` |
 
-**Components with dependencies** — include dependencies in `E2E_TEST_COMPONENT`:
-
-| Component | Dependencies | E2E Command |
-|---|---|---|
-| kueue | workbenches | `make e2e-test -e E2E_TEST_COMPONENT="workbenches kueue"` |
-| modelcontroller | kserve, aihub | `make e2e-test -e E2E_TEST_COMPONENT="kserve aihub modelcontroller"` |
-| modelsasservice | kserve | `make e2e-test -e E2E_TEST_COMPONENT="kserve modelsasservice"` |
-| trustyai | kserve | `make e2e-test -e E2E_TEST_COMPONENT="kserve trustyai"` |
-
-**Webhook directory mapping** — webhook dirs don't always match their component:
-
-| Webhook Directory | Test Command |
-|---|---|
-| `webhook/serving/` | `E2E_TEST_COMPONENT=kserve` |
-| `webhook/kueue/` | `E2E_TEST_COMPONENT="workbenches kueue"` |
-| `webhook/dashboard/` | `E2E_TEST_COMPONENT=dashboard` |
-| `webhook/monitoring/` | `E2E_TEST_SERVICE=monitoring` |
-| `webhook/datasciencecluster/`, `webhook/dscinitialization/` | `make e2e-test` (full suite) |
+Per-registered-module selection will be added with the generic module-contract runner. Until then, use the full DAG integration for production-module compatibility.
 
 #### E2E Tips/FAQ
 
@@ -1152,22 +1124,17 @@ make e2e-test  # include other args as needed
 <summary>How do I run only tests for core services (monitoring, etc)?</summary>
 
 ```shell
-make e2e-test -e E2E_TEST_OPERATOR_CONTROLLER=false -e E2E_TEST_WEBHOOK=false -e E2E_TEST_COMPONENTS=false -e E2E_TEST_SERVICES=true -e E2E_TEST_DELETION_POLICY=never
+make e2e-test-run -e E2E_TEST_PROFILE=full -e E2E_TEST_OPERATOR_CONTROLLER=false -e E2E_TEST_SERVICES=true -e E2E_TEST_DELETION_POLICY=never
 ```
 
 </details>
 
 <details>
-<summary>How do I run only tests for a specific component?</summary>
+<summary>How do I run only the synthetic platform contract or production DAG?</summary>
 
 ```shell
-make e2e-test -e E2E_TEST_OPERATOR_CONTROLLER=false -e E2E_TEST_WEBHOOK=false -e E2E_TEST_COMPONENT="dashboard workbenches" -e E2E_TEST_SERVICES=false -e E2E_TEST_DELETION_POLICY=never
-```
-
-##### Alternative using E2E\_TEST\_FLAGS
-
-```shell
-make e2e-test -e E2E_TEST_FLAGS="--test-operator-controller=false --test-webhook=false --test-component=dashboard,workbenches --test-services=false --deletion-policy=never"
+make e2e-test-run E2E_TEST_PROFILE=synthetic
+make e2e-test-dag
 ```
 
 </details>
@@ -1178,8 +1145,8 @@ make e2e-test -e E2E_TEST_FLAGS="--test-operator-controller=false --test-webhook
 Use the `e2e-test-single` target:
 
 ```shell
-make e2e-test-single TEST="TestOdhOperator/Component_Tests/dashboard/Validate component enabled"
-make e2e-test-single TEST="TestOdhOperator/Service_Tests/monitoring/Validate.*Prometheus"
+make e2e-test-single TEST="TestOdhOperator/Synthetic_Module_E2E_Tests/Validate_healthy_platform_aggregation"
+make e2e-test-single TEST="TestOdhOperator/DAG_Ordering_E2E_Tests/Validate_runlevel_gating_and_convergence"
 ```
 
 

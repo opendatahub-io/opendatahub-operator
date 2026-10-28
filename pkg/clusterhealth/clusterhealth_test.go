@@ -542,6 +542,42 @@ func TestRun_DSCISection_DegradedReported(t *testing.T) {
 	}
 }
 
+func TestDSCIUnhealthyConditions_MonitoringManagementState(t *testing.T) {
+	conditions := []ConditionSummary{
+		{Type: "MonitoringReady", Status: "False"},
+		{Type: "MonitoringStackAvailable", Status: "False"},
+		{Type: "ThanosQuerierAvailable", Status: "False"},
+		{Type: "Ready", Status: "False"},
+	}
+
+	t.Run("monitoring removed ignores monitoring conditions", func(t *testing.T) {
+		obj := map[string]any{"spec": map[string]any{
+			"monitoring": map[string]any{"managementState": "Removed"},
+		}}
+		got := dsciUnhealthyConditionsWithObj(obj, conditions)
+		if len(got) != 1 || got[0] != "Ready=False" {
+			t.Fatalf("expected only core Ready condition, got %v", got)
+		}
+	})
+
+	t.Run("empty monitoring state is removed", func(t *testing.T) {
+		got := dsciUnhealthyConditionsWithObj(map[string]any{}, conditions[:3])
+		if len(got) != 0 {
+			t.Fatalf("expected monitoring conditions to be ignored, got %v", got)
+		}
+	})
+
+	t.Run("managed monitoring reports monitoring conditions", func(t *testing.T) {
+		obj := map[string]any{"spec": map[string]any{
+			"monitoring": map[string]any{"managementState": "Managed"},
+		}}
+		got := dsciUnhealthyConditionsWithObj(obj, conditions[:3])
+		if len(got) != 3 {
+			t.Fatalf("expected managed monitoring conditions to be reported, got %v", got)
+		}
+	})
+}
+
 func TestRun_DSCISection_ProgressingIgnored(t *testing.T) {
 	sch := scheme.Scheme
 	_ = corev1.AddToScheme(sch)

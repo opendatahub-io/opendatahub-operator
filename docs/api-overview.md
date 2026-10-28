@@ -1990,6 +1990,7 @@ _Appears in:_
 | `modelregistry` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | ModelRegistry controls the model-registry (AIHub) module operator lifecycle. |  |  |
 | `trustyai` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | TrustyAI controls the TrustyAI module operator lifecycle. |  |  |
 | `databaseservice` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | DatabaseService controls the shared database module operator lifecycle. |  |  |
+| `synthetice2e` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | SyntheticE2E controls the private synthetic E2E module lifecycle. |  |  |
 
 
 #### PlatformSpec
@@ -2084,6 +2085,7 @@ _Appears in:_
 | `ray` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Ray controls the Ray module lifecycle. |  |  |
 | `trustyai` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | TrustyAI controls the TrustyAI module operator lifecycle. |  |  |
 | `aihub` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | AIHub controls the AI Hub module operator lifecycle. |  |  |
+| `synthetice2e` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | SyntheticE2E controls the private synthetic E2E module lifecycle. |  |  |
 
 
 #### PlatformSpec (v1alpha2)

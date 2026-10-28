@@ -29,6 +29,7 @@ func (p *Platform) ConvertTo(dstRaw conversion.Hub) error {
 			TrustyAI:             src.Spec.Modules.TrustyAI,
 			AIHub:                src.Spec.Modules.ModelRegistry,
 			DatabaseService:      src.Spec.Modules.DatabaseService,
+			SyntheticE2E:         src.Spec.Modules.SyntheticE2E,
 		},
 	}
 	dst.Status = v1alpha2.PlatformStatus{Status: src.Status.Status}
@@ -59,6 +60,7 @@ func (p *Platform) ConvertFrom(srcRaw conversion.Hub) error {
 			TrustyAI:             src.Spec.Modules.TrustyAI,
 			ModelRegistry:        src.Spec.Modules.AIHub,
 			DatabaseService:      src.Spec.Modules.DatabaseService,
+			SyntheticE2E:         src.Spec.Modules.SyntheticE2E,
 		},
 	}
 	p.Status = PlatformStatus{Status: src.Status.Status}
