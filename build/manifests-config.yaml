@@ -9,7 +9,7 @@ map:
     src: kserve-module/config
     dest: kserve-module-operator
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: d15949e40a80216a7ee928a08ea4472948bb753e
+    git.commit: ee8371005a55ce6c258b82930841c762c7e1a74d
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
@@ -24,7 +24,7 @@ map:
     src: config
     dest: trustyai
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
-    git.commit: d5ea6c0912113d2b3be68810d1ec42d9e893ad41
+    git.commit: 1fdb3101605e0ff616b06ef1b7d198d0f5abef27
   odh-model-registry-operator:
     src: config
     dest: modelregistry
@@ -50,7 +50,7 @@ map:
     src: config
     dest: mlflowoperator
     git.url: https://github.com/red-hat-data-services/mlflow-operator
-    git.commit: f6537b903f862c9320cb96490c95f3790ee455be
+    git.commit: 23041b6d69178754d830c32a644591954fe78482
   odh-spark-operator:
     src: config
     dest: sparkoperator
@@ -125,13 +125,13 @@ additional_meta:
     git.commit: b16070340f538daf058dfe378d38adfedf45203b
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: abf9ab28287771ab17789cfe099657228c242a7c
+    git.commit: ee8371005a55ce6c258b82930841c762c7e1a74d
   odh-kserve-autogluon-server:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: abf9ab28287771ab17789cfe099657228c242a7c
   odh-kserve-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: ee8371005a55ce6c258b82930841c762c7e1a74d
+    git.commit: abf9ab28287771ab17789cfe099657228c242a7c
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: ee8371005a55ce6c258b82930841c762c7e1a74d
@@ -140,7 +140,7 @@ additional_meta:
     git.commit: abf9ab28287771ab17789cfe099657228c242a7c
   odh-kserve-localmodel-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: abf9ab28287771ab17789cfe099657228c242a7c
+    git.commit: ee8371005a55ce6c258b82930841c762c7e1a74d
   odh-kserve-router:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: d15949e40a80216a7ee928a08ea4472948bb753e
@@ -149,7 +149,7 @@ additional_meta:
     git.commit: 98f10f414c8aeb43216a4e556afa0dfd30ab9ab1
   odh-kube-auth-proxy:
     git.url: https://github.com/red-hat-data-services/kube-auth-proxy
-    git.commit: 8230dcee4363e5b48185363aaac7fb1adbbc3287
+    git.commit: 9c7cbdd69d6d888365397463fac7ad38bf4a9576
   odh-kube-rbac-proxy:
     git.url: https://github.com/red-hat-data-services/kube-rbac-proxy
     git.commit: ae4674a00e59fdfe13cc186c001fb3f907021bc2
@@ -212,7 +212,7 @@ additional_meta:
     git.commit: 3ccee24941677cb6aed17c1678b046ed6df05cb0
   odh-ml-pipelines-persistenceagent-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
-    git.commit: 6a83f992daf95bb2086c1102bae73afb0d0ad76b
+    git.commit: 3ccee24941677cb6aed17c1678b046ed6df05cb0
   odh-ml-pipelines-scheduledworkflow-v2:
     git.url: https://github.com/red-hat-data-services/data-science-pipelines
     git.commit: 3ccee24941677cb6aed17c1678b046ed6df05cb0
@@ -227,7 +227,7 @@ additional_meta:
     git.commit: 6b0cd391518573e114f5a4c44c5fd6ee144f0c3b
   odh-model-registry:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: ba64fd33dd86c90af7aecd28eba9f67338136c14
+    git.commit: 6430c1efc97fb2da6c203b9bf6a4e6ccb555f44a
   odh-model-registry-job-async-upload:
     git.url: https://github.com/red-hat-data-services/model-registry
     git.commit: 9c1a39a8e02c13a0a6f9384b2ecc72449733695c
@@ -275,7 +275,7 @@ additional_meta:
     git.commit: c624ca398fd8ee0d43d27934463d99cce8a54376
   odh-pipelines-components:
     git.url: https://github.com/red-hat-data-services/pipelines-components
-    git.commit: 06fceeb47876fd116f6a7cd39722a7fd85ea7112
+    git.commit: 0c68cd0ff4c175020bcee2390540241738d8747c
   odh-pipeline-runtime-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: c7ffd5c3c929bd6495a8b7e5856c8df130b69d03
@@ -299,10 +299,10 @@ additional_meta:
     git.commit: a0827b2c78fe4459ed6dab8b18eb5a8e5ba2719b
   odh-rhaii-cluster-validator:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: 595173ea342cd019146d2030ae48f80eb92b3c31
+    git.commit: dca4ca6fde49d374dc323c0403ebdbb601b943f6
   odh-rhaii-validator-tools:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
-    git.commit: 595173ea342cd019146d2030ae48f80eb92b3c31
+    git.commit: dca4ca6fde49d374dc323c0403ebdbb601b943f6
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
     git.commit: d5ea6c0912113d2b3be68810d1ec42d9e893ad41
