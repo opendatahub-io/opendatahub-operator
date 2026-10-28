@@ -699,16 +699,26 @@ func (tc *DAGOrderingTestCtx) startRunlevelGateWatch(t *testing.T, resourceVersi
 		ResourceVersion:     resourceVersion,
 		AllowWatchBookmarks: true,
 	}
+	// Runlevel gating surfaces ProvisioningProgress=False with either
+	// AwaitingReadinessReason (while within the runlevel timeout window) or
+	// RunlevelTimeoutExceededReason (once the timeout elapses and gating
+	// advances past the stuck batch). Accept both so the watch cannot miss a
+	// gating event that happens to settle into the timeout-exceeded state.
 	matcher := jq.Match(
-		`any(.status.conditions[]; .type == "%s" and .status == "%s" and .reason == "%s")`,
-		status.ConditionTypeProvisioningProgress, metav1.ConditionFalse, status.AwaitingReadinessReason,
+		`any(.status.conditions[]; .type == "%s" and .status == "%s" and (.reason == "%s" or .reason == "%s"))`,
+		status.ConditionTypeProvisioningProgress, metav1.ConditionFalse,
+		status.AwaitingReadinessReason, status.RunlevelTimeoutExceededReason,
 	)
 	platforms := dynamicClient.Resource(gvk.Platform.GroupVersion().WithResource("platforms"))
-	stream, err := platforms.Watch(ctx, options)
-	require.NoError(t, err, "failed to watch Platform from resource version %s", resourceVersion)
 
 	result := make(chan error, 1)
 	go func() {
+		// The watch is established inside the loop (stream starts nil) so that a
+		// stale/compacted starting resourceVersion is recovered through the same
+		// IsResourceExpired/IsGone path as a mid-stream expiry, rather than
+		// failing the test outright. Watching from resourceVersion replays every
+		// event since then, so establishing the watch here loses no gating event.
+		var stream watch.Interface
 		defer func() {
 			if stream != nil {
 				stream.Stop()
