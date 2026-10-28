@@ -88,7 +88,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_IMAGE
   value: quay.io/rhoai/odh-mcp-lifecycle-operator-rhel9@sha256:9738e1eb3d7d5218b38a1c7c99fb1665c62c655fdfbe52774543c0cee8c5f72b
 - name: RELATED_IMAGE_ODH_MLFLOW_IMAGE
-  value: quay.io/rhoai/odh-mlflow-rhel9@sha256:0be528dc82781989d7d3fcddbf1f9825946c5ae5693c88106037c931f0a7120f
+  value: quay.io/rhoai/odh-mlflow-rhel9@sha256:d6512db8966c73b6d6448dae5612c2be8af26ffb35f63806aedd021133dec851
 - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
   value: quay.io/rhoai/odh-mlflow-operator-rhel9@sha256:f55499de1b9a201351e056b413908c1301352b700f046aaef1b61cc40183e224
 - name: RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE
