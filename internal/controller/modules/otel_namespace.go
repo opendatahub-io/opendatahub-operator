@@ -8,7 +8,13 @@ import (
 	"strings"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 )
 
 // The Collector admission webhook is installed by OLM in the namespace where
@@ -67,4 +73,18 @@ func isOTelCollectorWebhookConfiguration(obj client.Object) bool {
 		return false
 	}
 	return slices.ContainsFunc(configuration.Webhooks, isOTelCollectorWebhook)
+}
+
+func otelCollectorWebhookPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool { return isOTelCollectorWebhookConfiguration(e.Object) },
+		DeleteFunc: func(e event.DeleteEvent) bool { return isOTelCollectorWebhookConfiguration(e.Object) },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return isOTelCollectorWebhookConfiguration(e.ObjectOld) || isOTelCollectorWebhookConfiguration(e.ObjectNew)
+		},
+	}
+}
+
+func otelCollectorWebhookPlatformRequests(_ context.Context, _ client.Object) []reconcile.Request {
+	return []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configApi.PlatformInstanceName}}}
 }

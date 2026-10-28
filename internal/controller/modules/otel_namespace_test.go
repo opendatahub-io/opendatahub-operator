@@ -8,8 +8,12 @@ import (
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 )
 
@@ -62,5 +66,69 @@ func TestResolveOTelOperatorNamespace(t *testing.T) {
 				t.Fatalf("namespace: want %q, got %q (error: %v)", tc.want, got, err)
 			}
 		})
+	}
+}
+
+func TestOTelCollectorWebhookWatch(t *testing.T) {
+	matching := collectorWebhook("collector-admission", "openshift-operators")
+	unrelated := collectorWebhook("other", "wrong")
+	unrelated.Webhooks[0].ClientConfig.Service.Name = "other-service"
+	predicate := otelCollectorWebhookPredicate()
+
+	tests := []struct {
+		name string
+		run  func() bool
+		want bool
+	}{
+		{
+			name: "matching create",
+			run:  func() bool { return predicate.Create(event.CreateEvent{Object: matching}) },
+			want: true,
+		},
+		{
+			name: "unrelated create",
+			run:  func() bool { return predicate.Create(event.CreateEvent{Object: unrelated}) },
+		},
+		{
+			name: "matching delete",
+			run:  func() bool { return predicate.Delete(event.DeleteEvent{Object: matching}) },
+			want: true,
+		},
+		{
+			name: "unrelated delete",
+			run:  func() bool { return predicate.Delete(event.DeleteEvent{Object: unrelated}) },
+		},
+		{
+			name: "update changes target namespace",
+			run: func() bool {
+				return predicate.Update(event.UpdateEvent{
+					ObjectOld: collectorWebhook("collector-admission", "old-operators"),
+					ObjectNew: collectorWebhook("collector-admission", "new-operators"),
+				})
+			},
+			want: true,
+		},
+		{
+			name: "unrelated update",
+			run: func() bool {
+				return predicate.Update(event.UpdateEvent{
+					ObjectOld: unrelated.DeepCopy(),
+					ObjectNew: unrelated.DeepCopy(),
+				})
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.run(); got != tc.want {
+				t.Fatalf("predicate: want %t, got %t", tc.want, got)
+			}
+		})
+	}
+
+	requests := otelCollectorWebhookPlatformRequests(context.Background(), matching)
+	want := []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configApi.PlatformInstanceName}}}
+	if len(requests) != 1 || requests[0] != want[0] {
+		t.Fatalf("requests: want %v, got %v", want, requests)
 	}
 }
