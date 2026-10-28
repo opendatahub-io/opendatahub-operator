@@ -50,7 +50,7 @@ map:
     src: config
     dest: mlflowoperator
     git.url: https://github.com/red-hat-data-services/mlflow-operator
-    git.commit: 23041b6d69178754d830c32a644591954fe78482
+    git.commit: 5faf9d7ab1de865b563e0f1cce94562ab5fc337e
   odh-spark-operator:
     src: config
     dest: sparkoperator
@@ -287,10 +287,10 @@ additional_meta:
     git.commit: a0827b2c78fe4459ed6dab8b18eb5a8e5ba2719b
   odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: a0827b2c78fe4459ed6dab8b18eb5a8e5ba2719b
+    git.commit: 98da5b0d8fd13027b7fc3e69b454965f63306dba
   odh-pipeline-runtime-pytorch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 98da5b0d8fd13027b7fc3e69b454965f63306dba
+    git.commit: 281e507a55d93041f63cc547c6696392370dae07
   odh-pipeline-runtime-tensorflow-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 98da5b0d8fd13027b7fc3e69b454965f63306dba
@@ -362,10 +362,10 @@ additional_meta:
     git.commit: a0827b2c78fe4459ed6dab8b18eb5a8e5ba2719b
   odh-workbench-jupyter-pytorch-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: a0827b2c78fe4459ed6dab8b18eb5a8e5ba2719b
+    git.commit: 98da5b0d8fd13027b7fc3e69b454965f63306dba
   odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: a0827b2c78fe4459ed6dab8b18eb5a8e5ba2719b
+    git.commit: 281e507a55d93041f63cc547c6696392370dae07
   odh-workbench-jupyter-pytorch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 281e507a55d93041f63cc547c6696392370dae07
@@ -377,7 +377,7 @@ additional_meta:
     git.commit: 281e507a55d93041f63cc547c6696392370dae07
   odh-workbench-jupyter-trustyai-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: a0827b2c78fe4459ed6dab8b18eb5a8e5ba2719b
+    git.commit: 281e507a55d93041f63cc547c6696392370dae07
   odh-workload-variant-autoscaler-controller:
     git.url: https://github.com/red-hat-data-services/workload-variant-autoscaler
     git.commit: 872d8024807f4ad39f7f07954aa48f6fb8ceac04
