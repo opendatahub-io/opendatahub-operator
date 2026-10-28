@@ -66,7 +66,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TRAINING_IMAGE
   value: quay.io/rhoai/odh-latency-predictor-training-rhel9@sha256:c630a5fcc7a1599f312f9dc6185aec7a3a30be19bc04adee951eb3495a5c2a91
 - name: RELATED_IMAGE_ODH_LLM_D_ASYNC_IMAGE
-  value: quay.io/rhoai/odh-llm-d-async-rhel9@sha256:1cbfb9a9ec5f5ac1eeb701d1a0bfda0b83a64ecee67cea6cc7065c24a057c363
+  value: quay.io/rhoai/odh-llm-d-async-rhel9@sha256:1e87adddc4345682c1cea632faa7c65a3343c08d56346591e6e5f88fcc27f248
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_APISERVER_IMAGE
   value: quay.io/rhoai/odh-llm-d-batch-gateway-apiserver-rhel9@sha256:9b8abc2607a8fd56ad16eeb5fdb479147e4a95ac7be884272fdd832d8dba32d9
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE
