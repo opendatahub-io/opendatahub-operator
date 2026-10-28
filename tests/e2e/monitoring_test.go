@@ -38,6 +38,7 @@ const (
 	MonitoringStackName                      = "data-science-monitoringstack"
 	ObservabilityDeploymentName              = "odh-observability"
 	OpenTelemetryCollectorName               = "data-science-collector"
+	OpenTelemetryCollectorServiceName        = "data-science-collector-collector"
 	TargetAllocatorDeploymentName            = "data-science-collector-targetallocator"
 	CollectorServiceAccount                  = "data-science-collector-collector"
 	TargetAllocatorServiceAccount            = "data-science-collector-targetallocator"
@@ -951,7 +952,7 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesLifecycle(t *testing
 	)
 
 	// Step 3: Wait for Instrumentation CR to be created and fully configured
-	expectedEndpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:4317", OpenTelemetryCollectorName, tc.MonitoringNamespace)
+	expectedEndpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:4317", OpenTelemetryCollectorServiceName, tc.MonitoringNamespace)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: InstrumentationName, Namespace: tc.MonitoringNamespace}),
