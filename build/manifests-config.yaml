@@ -176,10 +176,10 @@ additional_meta:
     git.commit: bff93e88cfcbe51093358d4e40b5cd07de5918d9
   odh-llm-d-router-disagg-sidecar:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: 7537764620e2afbc3c061a292675819950117cb1
+    git.commit: 297114aeb3c014a5e2326ac74e1d4b9c6737db95
   odh-llm-d-router-endpoint-picker:
     git.url: https://github.com/red-hat-data-services/llm-d-router
-    git.commit: 7537764620e2afbc3c061a292675819950117cb1
+    git.commit: 297114aeb3c014a5e2326ac74e1d4b9c6737db95
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
     git.commit: ce91f70d4245a7d5df877adbbedf2a027e6a1eab
