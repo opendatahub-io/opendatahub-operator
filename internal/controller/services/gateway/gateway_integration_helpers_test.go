@@ -43,7 +43,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
+	"strconv"
 	"testing"
 	"time"
 
@@ -219,7 +219,7 @@ func getGatewayConfig(ctx context.Context, cli client.Client) (*serviceApi.Gatew
 
 // assertOwnedByGatewayConfig asserts that the object has an owner reference to the GatewayConfig singleton.
 // Resources created by the gateway controller must be owned by GatewayConfig so they are garbage-collected when GatewayConfig is deleted.
-func assertOwnedByGatewayConfig(g *WithT, obj client.Object) {
+func assertOwnedByGatewayConfig(g Gomega, obj client.Object) {
 	refs := obj.GetOwnerReferences()
 	g.Expect(refs).NotTo(BeEmpty(), "resource %s/%s should have an owner reference to GatewayConfig", obj.GetNamespace(), obj.GetName())
 	var found bool
@@ -947,13 +947,10 @@ func RunGatewayClassCreationTest(t *testing.T, setup TestSetup) {
 	g := NewWithT(t)
 	defer setup.Setup(t)()
 
+	gc := &gwapiv1.GatewayClass{}
 	g.Eventually(func() error {
-		gc := &gwapiv1.GatewayClass{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{Name: gateway.GatewayClassName}, gc)
 	}, TestTimeout, TestInterval).Should(Succeed())
-
-	gc := &gwapiv1.GatewayClass{}
-	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{Name: gateway.GatewayClassName}, gc)).To(Succeed())
 	assertOwnedByGatewayConfig(g, gc)
 	g.Expect(string(gc.Spec.ControllerName)).To(Equal(gateway.GatewayControllerName))
 }
@@ -988,126 +985,145 @@ func RunGatewayCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(hasHTTPSListener).To(BeTrue(), "Gateway should have HTTPS listener")
 }
 
+func waitForGatewayResourcesRemoved(t *testing.T, tc *TestEnvContext, objects ...client.Object) {
+	t.Helper()
+	g := NewWithT(t)
+	for _, obj := range objects {
+		key := client.ObjectKeyFromObject(obj)
+		g.Eventually(func() error {
+			err := tc.K8sClient.Get(tc.Ctx, key, obj)
+			if k8serr.IsNotFound(err) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			// envtest has no GC; finish foreground deletion only after the controller requests it.
+			if obj.GetDeletionTimestamp() != nil && controllerutil.RemoveFinalizer(obj, metav1.FinalizerDeleteDependents) {
+				if err := tc.K8sClient.Update(tc.Ctx, obj); err != nil {
+					return err
+				}
+			}
+			return fmt.Errorf("%T %s still exists", obj, key)
+		}, TestTimeout, TestInterval).Should(Succeed())
+	}
+}
+
 // RunAdditionalGatewaysTest validates separate Gateway and bridge Route reconciliation.
 func RunAdditionalGatewaysTest(t *testing.T, setup TestSetup) {
 	g := NewWithT(t)
 	defer setup.Setup(t)()
+	ctx, cli := setup.TC.Ctx, setup.TC.K8sClient
 	defaultGatewayBefore := &gwapiv1.Gateway{}
 	g.Eventually(func() error {
-		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-			Name: gateway.GetDefaultGatewayName(), Namespace: gateway.GetGatewayNamespace(),
+		return cli.Get(ctx, types.NamespacedName{
+			Name:      gateway.GetDefaultGatewayName(),
+			Namespace: gateway.GetGatewayNamespace(),
 		}, defaultGatewayBefore)
 	}, TestTimeout, TestInterval).Should(Succeed())
 	defaultRouteBefore := &routev1.Route{}
 	g.Eventually(func() error {
-		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-			Name: gateway.GetDefaultGatewayName(), Namespace: gateway.GetGatewayNamespace(),
+		return cli.Get(ctx, types.NamespacedName{
+			Name:      gateway.GetDefaultGatewayName(),
+			Namespace: gateway.GetGatewayNamespace(),
 		}, defaultRouteBefore)
 	}, TestTimeout, TestInterval).Should(Succeed())
 	defaultHTTPRouteBefore := &gwapiv1.HTTPRoute{}
 	g.Eventually(func() error {
-		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-			Name: gateway.OAuthCallbackRouteName, Namespace: gateway.GetGatewayNamespace(),
+		return cli.Get(ctx, types.NamespacedName{
+			Name:      gateway.OAuthCallbackRouteName,
+			Namespace: gateway.GetGatewayNamespace(),
 		}, defaultHTTPRouteBefore)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
 	alpha := serviceApi.AdditionalIngress{
-		Name: "alpha", Hostname: "alpha.example.com", IngressControllerName: "shard-alpha",
-		RouteLabels: map[string]string{"example.com/ingress": "alpha"},
+		Name:                  "alpha",
+		Hostname:              "alpha.example.com",
+		IngressControllerName: "shard-alpha",
+		RouteLabels:           map[string]string{"example.com/ingress": "alpha"},
 	}
 	beta := serviceApi.AdditionalIngress{
-		Name: "beta", Hostname: "beta.example.com", IngressControllerName: "shard-beta",
-		RouteLabels: map[string]string{"example.com/ingress": "beta"},
+		Name:                  "beta",
+		Hostname:              "beta.example.com",
+		IngressControllerName: "shard-beta",
+		RouteLabels:           map[string]string{"example.com/ingress": "beta"},
+	}
+	if setup.Spec.OIDC != nil {
+		for _, ingress := range []*serviceApi.AdditionalIngress{&alpha, &beta} {
+			secretName := ingress.Name + "-oidc-source"
+			g.Expect(cli.Create(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      secretName,
+					Namespace: gateway.GetGatewayNamespace(),
+				},
+				Data: map[string][]byte{OIDCSecretKey: []byte(ingress.Name + "-client-secret")},
+			})).To(Succeed())
+			ingress.Auth.OIDC = &serviceApi.AdditionalIngressOIDCConfig{
+				ClientID: ingress.Name + "-client",
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: secretName,
+					},
+					Key: OIDCSecretKey,
+				},
+			}
+		}
 	}
 	validateGatewayAndRoute := func(ingress serviceApi.AdditionalIngress) {
 		t.Helper()
-		var gatewayRef serviceApi.GatewayReference
-		g.Eventually(func() bool {
-			current := &serviceApi.GatewayConfig{}
-			if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-				Name: serviceApi.GatewayConfigName,
-			}, current); err != nil {
-				return false
-			}
-			for _, status := range current.Status.AdditionalIngresses {
-				if status.Name == ingress.Name {
-					gatewayRef = status.GatewayRef
-					return gatewayRef == (serviceApi.GatewayReference{
-						Name: ingress.Name, Namespace: gateway.GetGatewayNamespace(),
-					})
-				}
-			}
-			return false
-		}, TestTimeout, TestInterval).Should(BeTrue())
-		g.Eventually(func() error {
+		key := client.ObjectKey{Name: ingress.Name, Namespace: gateway.GetGatewayNamespace()}
+		g.Eventually(func(g Gomega) {
+			current, err := getGatewayConfig(ctx, cli)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(current.Status.AdditionalIngresses).To(ContainElement(SatisfyAll(
+				HaveField("Name", Equal(ingress.Name)),
+				HaveField("GatewayRef", Equal(serviceApi.GatewayReference{Name: key.Name, Namespace: key.Namespace})),
+			)))
+		}, TestTimeout, TestInterval).Should(Succeed())
+		g.Eventually(func(g Gomega) {
 			gatewayObject := &gwapiv1.Gateway{}
-			if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-				Name: gatewayRef.Name, Namespace: gatewayRef.Namespace,
-			}, gatewayObject); err != nil {
-				return err
-			}
-			if gatewayObject.Spec.GatewayClassName != gwapiv1.ObjectName(gateway.GatewayClassName) {
-				return fmt.Errorf("additional Gateway uses class %q", gatewayObject.Spec.GatewayClassName)
-			}
-			if len(gatewayObject.Spec.Listeners) != 1 {
-				return fmt.Errorf("additional Gateway has %d listeners", len(gatewayObject.Spec.Listeners))
-			}
+			g.Expect(cli.Get(ctx, key, gatewayObject)).To(Succeed())
+			g.Expect(gatewayObject.Spec.GatewayClassName).To(Equal(gwapiv1.ObjectName(gateway.GatewayClassName)))
+			g.Expect(gatewayObject.Spec.Listeners).To(HaveLen(1))
 			listener := gatewayObject.Spec.Listeners[0]
-			if listener.Name != gateway.DefaultGatewayListenerName ||
-				listener.Port != gwapiv1.PortNumber(gateway.StandardHTTPSPort) ||
-				listener.Protocol != gwapiv1.HTTPSProtocolType {
-				return fmt.Errorf("additional Gateway has unexpected listener %+v", listener)
-			}
+			g.Expect(listener.Name).To(Equal(gwapiv1.SectionName(gateway.DefaultGatewayListenerName)))
+			g.Expect(listener.Port).To(Equal(gwapiv1.PortNumber(gateway.StandardHTTPSPort)))
+			g.Expect(listener.Protocol).To(Equal(gwapiv1.HTTPSProtocolType))
 			secretName := gatewayObject.Name + "-service-tls"
-			if listener.TLS == nil || len(listener.TLS.CertificateRefs) != 1 ||
-				listener.TLS.CertificateRefs[0].Name != gwapiv1.ObjectName(secretName) ||
-				listener.AllowedRoutes == nil {
-				return fmt.Errorf("additional Gateway has no serving certificate or allowed routes")
-			}
-			if gatewayObject.Spec.Infrastructure == nil || gatewayObject.Spec.Infrastructure.ParametersRef == nil {
-				return fmt.Errorf("additional Gateway has no infrastructure ConfigMap reference")
-			}
+			g.Expect(listener.TLS).NotTo(BeNil())
+			g.Expect(listener.TLS.CertificateRefs).To(HaveLen(1))
+			g.Expect(listener.TLS.CertificateRefs[0].Name).To(Equal(gwapiv1.ObjectName(secretName)))
+			g.Expect(listener.AllowedRoutes).NotTo(BeNil())
+			g.Expect(gatewayObject.Spec.Infrastructure).NotTo(BeNil())
+			g.Expect(gatewayObject.Spec.Infrastructure.ParametersRef).NotTo(BeNil())
 			configMap := &corev1.ConfigMap{}
-			if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-				Name: gatewayObject.Spec.Infrastructure.ParametersRef.Name, Namespace: gateway.GetGatewayNamespace(),
-			}, configMap); err != nil {
-				return err
-			}
-			if !strings.Contains(configMap.Data["service"], secretName) {
-				return fmt.Errorf("additional Gateway Service has no serving certificate annotation")
-			}
+			g.Expect(cli.Get(ctx, types.NamespacedName{
+				Name:      gatewayObject.Spec.Infrastructure.ParametersRef.Name,
+				Namespace: gateway.GetGatewayNamespace(),
+			}, configMap)).To(Succeed())
+			g.Expect(configMap.Data["service"]).To(ContainSubstring(secretName))
 			assertOwnedByGatewayConfig(g, gatewayObject)
 
 			route := &routev1.Route{}
-			if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-				Name: ingress.Name, Namespace: gateway.GetGatewayNamespace(),
-			}, route); err != nil {
-				return err
-			}
-			if route.Spec.Host != ingress.Hostname || route.Spec.To.Name != gateway.GetGatewayServiceFullName(ingress.Name) {
-				return fmt.Errorf("bridge Route targets %q at %q", route.Spec.To.Name, route.Spec.Host)
-			}
-			if route.Spec.Port == nil || route.Spec.Port.TargetPort != intstr.FromInt(gateway.StandardHTTPSPort) {
-				return fmt.Errorf("bridge Route does not target HTTPS port 443")
-			}
-			if route.Spec.TLS == nil || route.Spec.TLS.Termination != routev1.TLSTerminationReencrypt ||
-				route.Annotations["router.openshift.io/service-ca-certificate"] != "true" {
-				return fmt.Errorf("bridge Route has no reencrypt TLS or service CA annotation")
-			}
+			g.Expect(cli.Get(ctx, key, route)).To(Succeed())
+			g.Expect(route.Spec.Host).To(Equal(ingress.Hostname))
+			g.Expect(route.Spec.To.Name).To(Equal(gateway.GetGatewayServiceFullName(ingress.Name)))
+			g.Expect(route.Spec.Port).NotTo(BeNil())
+			g.Expect(route.Spec.Port.TargetPort).To(Equal(intstr.FromInt(gateway.StandardHTTPSPort)))
+			g.Expect(route.Spec.TLS).NotTo(BeNil())
+			g.Expect(route.Spec.TLS.Termination).To(Equal(routev1.TLSTerminationReencrypt))
+			g.Expect(route.Annotations).To(HaveKeyWithValue("router.openshift.io/service-ca-certificate", "true"))
 			for key, value := range ingress.RouteLabels {
-				if route.Labels[key] != value {
-					return fmt.Errorf("bridge Route label %q=%q, expected %q", key, route.Labels[key], value)
-				}
+				g.Expect(route.Labels).To(HaveKeyWithValue(key, value))
 			}
 			assertOwnedByGatewayConfig(g, route)
-			return nil
 		}, TestTimeout, TestInterval).Should(Succeed())
 	}
 
 	spec := setup.Spec
 	spec.IngressMode = serviceApi.IngressModeOcpRoute
 	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{alpha, beta}
-	UpdateGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient, spec)
+	UpdateGatewayConfig(t, ctx, cli, spec)
 	validateGatewayAndRoute(alpha)
 	validateGatewayAndRoute(beta)
 
@@ -1116,53 +1132,44 @@ func RunAdditionalGatewaysTest(t *testing.T, setup TestSetup) {
 		t.Helper()
 		g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 			obj := &gwapiv1.Gateway{}
-			if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-				Name: name, Namespace: gateway.GetGatewayNamespace(),
+			if err := cli.Get(ctx, types.NamespacedName{
+				Name:      name,
+				Namespace: gateway.GetGatewayNamespace(),
 			}, obj); err != nil {
 				return err
 			}
 			obj.Status.Conditions = []metav1.Condition{{
-				Type: string(gwapiv1.GatewayConditionAccepted), Status: accepted,
-				ObservedGeneration: obj.Generation, LastTransitionTime: metav1.Now(), Reason: "TestAcceptance",
+				Type:               string(gwapiv1.GatewayConditionAccepted),
+				Status:             accepted,
+				ObservedGeneration: obj.Generation,
+				LastTransitionTime: metav1.Now(),
+				Reason:             "TestAcceptance",
 			}}
-			return setup.TC.K8sClient.Status().Update(setup.TC.Ctx, obj)
+			return cli.Status().Update(ctx, obj)
 		})).To(Succeed())
 	}
 	checkReadiness := func(expected metav1.ConditionStatus) {
 		t.Helper()
-		g.Eventually(func() error {
-			config, err := getGatewayConfig(setup.TC.Ctx, setup.TC.K8sClient)
-			if err != nil {
-				return err
-			}
-			for _, conditionType := range []string{serviceApi.AdditionalGatewaysReadyConditionType, status.ConditionTypeReady} {
-				condition := conditions.FindStatusCondition(config, conditionType)
-				if condition == nil {
-					return fmt.Errorf("%s condition is missing", conditionType)
-				}
-				if condition.Status != expected {
-					return fmt.Errorf("%s is %s (%s), expected %s", conditionType, condition.Status, condition.Reason, expected)
-				}
-			}
+		g.Eventually(func(g Gomega) {
+			config, err := getGatewayConfig(ctx, cli)
+			g.Expect(err).NotTo(HaveOccurred())
 			condition := conditions.FindStatusCondition(config, serviceApi.AdditionalGatewaysReadyConditionType)
-			if condition.ObservedGeneration != config.Generation {
-				return fmt.Errorf("additional Gateway summary has stale generation %d", condition.ObservedGeneration)
-			}
+			g.Expect(condition).NotTo(BeNil())
+			g.Expect(condition.Status).To(Equal(expected), "%+v", config.Status.AdditionalIngresses)
+			g.Expect(condition.ObservedGeneration).To(Equal(config.Generation))
+			fullReady := conditions.FindStatusCondition(config, status.ConditionTypeReady)
+			g.Expect(fullReady).NotTo(BeNil())
 			defaultReady := conditions.FindStatusCondition(config, gateway.ReadyConditionType)
-			if defaultReady == nil {
-				return fmt.Errorf("default Gateway readiness is missing")
-			}
-			if defaultReady.Status != metav1.ConditionTrue {
-				return fmt.Errorf("default Gateway is %s: %s", defaultReady.Status, defaultReady.Message)
-			}
+			g.Expect(defaultReady).NotTo(BeNil())
+			g.Expect(defaultReady.Status).To(Equal(metav1.ConditionTrue), defaultReady.Message)
 			phase := status.PhaseNotReady
 			if expected == metav1.ConditionTrue {
+				g.Expect(fullReady.Status).To(Equal(metav1.ConditionTrue))
 				phase = status.PhaseReady
+			} else {
+				g.Expect(fullReady.Status).NotTo(Equal(metav1.ConditionTrue))
 			}
-			if config.Status.Phase != phase {
-				return fmt.Errorf("GatewayConfig phase is %q, expected %q", config.Status.Phase, phase)
-			}
-			return nil
+			g.Expect(config.Status.Phase).To(Equal(phase))
 		}, TestTimeout, TestInterval).Should(Succeed())
 	}
 	setGatewayAcceptance(gateway.GetDefaultGatewayName(), metav1.ConditionTrue)
@@ -1170,6 +1177,46 @@ func RunAdditionalGatewaysTest(t *testing.T, setup TestSetup) {
 	setGatewayAcceptance(alpha.Name, metav1.ConditionTrue)
 	checkReadiness(metav1.ConditionFalse)
 	setGatewayAcceptance(beta.Name, metav1.ConditionTrue)
+	setAuthProxyAvailable := func(name string) {
+		t.Helper()
+		g.Eventually(func() error {
+			return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+				proxy := &appsv1.Deployment{}
+				if err := cli.Get(ctx, types.NamespacedName{
+					Name: gateway.KubeAuthProxyName + "-" + name, Namespace: gateway.GetGatewayNamespace(),
+				}, proxy); err != nil {
+					return err
+				}
+				proxy.Status.ObservedGeneration = proxy.Generation
+				proxy.Status.Replicas = *proxy.Spec.Replicas
+				proxy.Status.ReadyReplicas = *proxy.Spec.Replicas
+				proxy.Status.AvailableReplicas = *proxy.Spec.Replicas
+				return cli.Status().Update(ctx, proxy)
+			})
+		}, TestTimeout, TestInterval).Should(Succeed())
+	}
+	// envtest has no Deployment controller or OpenShift router; report their status.
+	for _, ingress := range []serviceApi.AdditionalIngress{alpha, beta} {
+		setAuthProxyAvailable(ingress.Name)
+		g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			route := &routev1.Route{}
+			if err := cli.Get(ctx, types.NamespacedName{
+				Name:      ingress.Name,
+				Namespace: gateway.GetGatewayNamespace(),
+			}, route); err != nil {
+				return err
+			}
+			route.Status.Ingress = []routev1.RouteIngress{{
+				Host:       ingress.Hostname,
+				RouterName: ingress.IngressControllerName,
+				Conditions: []routev1.RouteIngressCondition{{
+					Type:   routev1.RouteAdmitted,
+					Status: corev1.ConditionTrue,
+				}},
+			}}
+			return cli.Status().Update(ctx, route)
+		})).To(Succeed())
+	}
 	checkReadiness(metav1.ConditionTrue)
 	setGatewayAcceptance(beta.Name, metav1.ConditionFalse)
 	checkReadiness(metav1.ConditionFalse)
@@ -1177,7 +1224,7 @@ func RunAdditionalGatewaysTest(t *testing.T, setup TestSetup) {
 	checkReadiness(metav1.ConditionTrue)
 
 	checkDefault := func() {
-		defaultGateway, err := getGateway(setup.TC.Ctx, setup.TC.K8sClient)
+		defaultGateway, err := getGateway(ctx, cli)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(defaultGateway.UID).To(Equal(defaultGatewayBefore.UID))
 		g.Expect(defaultGateway.Spec).To(Equal(defaultGatewayBefore.Spec))
@@ -1185,16 +1232,18 @@ func RunAdditionalGatewaysTest(t *testing.T, setup TestSetup) {
 		g.Expect(defaultGateway.Spec.Listeners[0].Name).To(Equal(gwapiv1.SectionName(gateway.DefaultGatewayListenerName)))
 		g.Expect(defaultGateway.Spec.Listeners[0].Port).To(Equal(gwapiv1.PortNumber(gateway.StandardHTTPSPort)))
 		defaultRoute := &routev1.Route{}
-		g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-			Name: gateway.GetDefaultGatewayName(), Namespace: gateway.GetGatewayNamespace(),
+		g.Expect(cli.Get(ctx, types.NamespacedName{
+			Name:      gateway.GetDefaultGatewayName(),
+			Namespace: gateway.GetGatewayNamespace(),
 		}, defaultRoute)).To(Succeed())
 		g.Expect(defaultRoute.UID).To(Equal(defaultRouteBefore.UID))
 		g.Expect(defaultRoute.Spec).To(Equal(defaultRouteBefore.Spec))
 
 		defaultHTTPRoute := &gwapiv1.HTTPRoute{}
 		g.Eventually(func() error {
-			return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-				Name: gateway.OAuthCallbackRouteName, Namespace: gateway.GetGatewayNamespace(),
+			return cli.Get(ctx, types.NamespacedName{
+				Name:      gateway.OAuthCallbackRouteName,
+				Namespace: gateway.GetGatewayNamespace(),
 			}, defaultHTTPRoute)
 		}, TestTimeout, TestInterval).Should(Succeed())
 		g.Expect(defaultHTTPRoute.UID).To(Equal(defaultHTTPRouteBefore.UID))
@@ -1206,47 +1255,36 @@ func RunAdditionalGatewaysTest(t *testing.T, setup TestSetup) {
 	checkDefault()
 
 	waitForDeletion := func(name string) {
-		for _, obj := range []client.Object{
-			&gwapiv1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: gateway.GetGatewayNamespace()}},
-			&routev1.Route{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: gateway.GetGatewayNamespace()}},
-			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: name + "-config", Namespace: gateway.GetGatewayNamespace()}},
-		} {
-			key := client.ObjectKeyFromObject(obj)
-			g.Eventually(func() error {
-				err := setup.TC.K8sClient.Get(setup.TC.Ctx, key, obj)
-				if k8serr.IsNotFound(err) {
-					return nil
-				}
-				if err != nil {
-					return err
-				}
-				// envtest has no GC to finish foreground deletion; wait for the controller to request it first.
-				if !obj.GetDeletionTimestamp().IsZero() && controllerutil.RemoveFinalizer(obj, metav1.FinalizerDeleteDependents) {
-					if err := setup.TC.K8sClient.Update(setup.TC.Ctx, obj); err != nil {
-						return err
-					}
-				}
-				return fmt.Errorf("removed %T %q still exists", obj, name)
-			}, TestTimeout, TestInterval).Should(Succeed())
-		}
+		t.Helper()
+		meta := metav1.ObjectMeta{Name: name, Namespace: gateway.GetGatewayNamespace()}
+		waitForGatewayResourcesRemoved(t, setup.TC,
+			&gwapiv1.Gateway{ObjectMeta: meta},
+			&routev1.Route{ObjectMeta: meta},
+			&corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: name + "-config", Namespace: gateway.GetGatewayNamespace()},
+			},
+		)
 	}
 
 	setGatewayAcceptance(alpha.Name, metav1.ConditionFalse)
 	checkReadiness(metav1.ConditionFalse)
 	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{beta}
-	UpdateGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient, spec)
+	UpdateGatewayConfig(t, ctx, cli, spec)
 	validateGatewayAndRoute(beta)
 	waitForDeletion(alpha.Name)
+	checkReadiness(metav1.ConditionFalse)
+	// Updating deployment annotations advances its generation, even without a pod change.
+	setAuthProxyAvailable(beta.Name)
 	checkReadiness(metav1.ConditionTrue)
 	checkDefault()
 
 	spec.AdditionalIngresses = nil
-	UpdateGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient, spec)
+	UpdateGatewayConfig(t, ctx, cli, spec)
 	waitForDeletion(beta.Name)
 	checkReadiness(metav1.ConditionTrue)
 	checkDefault()
 	g.Eventually(func() []serviceApi.AdditionalIngressStatus {
-		config, err := getGatewayConfig(setup.TC.Ctx, setup.TC.K8sClient)
+		config, err := getGatewayConfig(ctx, cli)
 		if err != nil {
 			return nil
 		}
@@ -1254,24 +1292,364 @@ func RunAdditionalGatewaysTest(t *testing.T, setup TestSetup) {
 	}, TestTimeout, TestInterval).Should(BeEmpty())
 }
 
+// RunAdditionalIngressRouteLabelsUpdateTest validates that changing routeLabels on an
+// existing additional ingress retargets its bridge Route in place.
+//
+// routeLabels are what an IngressController's routeSelector matches, so this field
+// decides which shard admits the Route. Two properties matter and neither is implied
+// by creation-time coverage: labels removed from the spec must be pruned from the live
+// Route (a stale key could leave the Route admitted by the previous shard), and the
+// Route must be mutated rather than recreated (a recreated Route loses its admission
+// status and takes the ingress briefly offline).
+func RunAdditionalIngressRouteLabelsUpdateTest(t *testing.T, setup TestSetup) {
+	t.Helper()
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+	ctx, cli := setup.TC.Ctx, setup.TC.K8sClient
+
+	const (
+		ingressName  = "label-update"
+		initialKey   = "example.com/ingress"
+		initialValue = "label-update-shard-a"
+		updatedKey   = "example.com/shard"
+		updatedValue = "label-update-shard-b"
+	)
+
+	spec := setup.Spec
+	spec.IngressMode = serviceApi.IngressModeOcpRoute
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{{
+		Name:                  ingressName,
+		Hostname:              ingressName + ".example.com",
+		IngressControllerName: "shard-" + ingressName,
+		RouteLabels:           map[string]string{initialKey: initialValue},
+	}}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	defer func() {
+		spec.AdditionalIngresses = nil
+		UpdateGatewayConfig(t, ctx, cli, spec)
+		meta := metav1.ObjectMeta{Name: ingressName, Namespace: gateway.GetGatewayNamespace()}
+		waitForGatewayResourcesRemoved(t, setup.TC,
+			&gwapiv1.Gateway{ObjectMeta: meta},
+			&routev1.Route{ObjectMeta: meta},
+		)
+	}()
+
+	key := types.NamespacedName{Name: ingressName, Namespace: gateway.GetGatewayNamespace()}
+	route := &routev1.Route{}
+	g.Eventually(func(g Gomega) {
+		g.Expect(cli.Get(ctx, key, route)).To(Succeed())
+		g.Expect(route.Labels).To(HaveKeyWithValue(initialKey, initialValue))
+	}, TestTimeout, TestInterval).Should(Succeed())
+	routeUID := route.UID
+
+	additionalGateway := &gwapiv1.Gateway{}
+	g.Expect(cli.Get(ctx, key, additionalGateway)).To(Succeed())
+	gatewayUID := additionalGateway.UID
+
+	// Retarget the ingress at a different shard by replacing its route label.
+	spec.AdditionalIngresses[0].RouteLabels = map[string]string{updatedKey: updatedValue}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+
+	g.Eventually(func(g Gomega) {
+		g.Expect(cli.Get(ctx, key, route)).To(Succeed())
+		g.Expect(route.Labels).To(HaveKeyWithValue(updatedKey, updatedValue))
+		g.Expect(route.Labels).NotTo(HaveKey(initialKey), "superseded route labels must be pruned")
+	}, TestTimeout, TestInterval).Should(Succeed())
+
+	// The operator's own part-of label is independent of routeLabels and must survive.
+	g.Expect(route.Labels).To(HaveKeyWithValue(metadatalabels.K8SCommon.PartOf, gateway.PartOfGatewayConfig))
+
+	g.Expect(route.UID).To(Equal(routeUID), "the bridge Route must be updated in place, not recreated")
+	g.Expect(cli.Get(ctx, key, additionalGateway)).To(Succeed())
+	g.Expect(additionalGateway.UID).To(Equal(gatewayUID), "a routeLabels change must not recreate the Gateway")
+
+	g.Eventually(func(g Gomega) {
+		config, err := getGatewayConfig(ctx, cli)
+		g.Expect(err).NotTo(HaveOccurred())
+		condition := conditions.FindStatusCondition(config, serviceApi.AdditionalGatewaysReadyConditionType)
+		g.Expect(condition).NotTo(BeNil())
+		g.Expect(condition.ObservedGeneration).To(Equal(config.Generation),
+			"readiness must be republished at the generation that changed the labels")
+	}, TestTimeout, TestInterval).Should(Succeed())
+}
+
+// additionalIngressCoreResourceUIDs returns the UIDs of the three resources the
+// operator renders per additional ingress: the Gateway, the bridge Route, and the
+// infrastructure ConfigMap. Comparing these across a reconciliation distinguishes an
+// in-place update from a delete-and-recreate.
+func additionalIngressCoreResourceUIDs(
+	g Gomega, ctx context.Context, cli client.Client, name string,
+) map[string]types.UID {
+	namespace := gateway.GetGatewayNamespace()
+	key := types.NamespacedName{Name: name, Namespace: namespace}
+	uids := make(map[string]types.UID, 3)
+
+	additionalGateway := &gwapiv1.Gateway{}
+	g.Expect(cli.Get(ctx, key, additionalGateway)).To(Succeed())
+	uids["Gateway"] = additionalGateway.UID
+
+	route := &routev1.Route{}
+	g.Expect(cli.Get(ctx, key, route)).To(Succeed())
+	uids["Route"] = route.UID
+
+	configMap := &corev1.ConfigMap{}
+	g.Expect(cli.Get(ctx, types.NamespacedName{Name: name + "-config", Namespace: namespace}, configMap)).To(Succeed())
+	uids["ConfigMap"] = configMap.UID
+
+	return uids
+}
+
+// RunAdditionalIngressReorderTest validates that reordering spec.additionalIngresses
+// does not churn resources.
+//
+// Resources are keyed by ingress name, so list order carries no meaning and reordering
+// must be a no-op. Nothing proves that today: a controller that keyed off slice index,
+// or that diffed the list as a whole, would silently delete and recreate every ingress
+// on reorder, dropping Route admission in the process.
+func RunAdditionalIngressReorderTest(t *testing.T, setup TestSetup) {
+	t.Helper()
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+	ctx, cli := setup.TC.Ctx, setup.TC.K8sClient
+
+	first := serviceApi.AdditionalIngress{
+		Name:                  "reorder-first",
+		Hostname:              "reorder-first.example.com",
+		IngressControllerName: "shard-reorder-first",
+		RouteLabels:           map[string]string{"example.com/ingress": "reorder-first"},
+	}
+	second := serviceApi.AdditionalIngress{
+		Name:                  "reorder-second",
+		Hostname:              "reorder-second.example.com",
+		IngressControllerName: "shard-reorder-second",
+		RouteLabels:           map[string]string{"example.com/ingress": "reorder-second"},
+	}
+
+	spec := setup.Spec
+	spec.IngressMode = serviceApi.IngressModeOcpRoute
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{first, second}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	defer func() {
+		spec.AdditionalIngresses = nil
+		UpdateGatewayConfig(t, ctx, cli, spec)
+		for _, name := range []string{first.Name, second.Name} {
+			meta := metav1.ObjectMeta{Name: name, Namespace: gateway.GetGatewayNamespace()}
+			waitForGatewayResourcesRemoved(t, setup.TC,
+				&gwapiv1.Gateway{ObjectMeta: meta},
+				&routev1.Route{ObjectMeta: meta},
+			)
+		}
+	}()
+
+	before := make(map[string]map[string]types.UID, 2)
+	for _, name := range []string{first.Name, second.Name} {
+		g.Eventually(func(g Gomega) {
+			before[name] = additionalIngressCoreResourceUIDs(g, ctx, cli, name)
+		}, TestTimeout, TestInterval).Should(Succeed())
+	}
+
+	// Swap the entries; the set of ingresses is unchanged.
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{second, first}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+
+	g.Eventually(func(g Gomega) {
+		config, err := getGatewayConfig(ctx, cli)
+		g.Expect(err).NotTo(HaveOccurred())
+		condition := conditions.FindStatusCondition(config, serviceApi.AdditionalGatewaysReadyConditionType)
+		g.Expect(condition).NotTo(BeNil())
+		g.Expect(condition.ObservedGeneration).To(Equal(config.Generation))
+		g.Expect(config.Status.AdditionalIngresses).To(HaveLen(2))
+	}, TestTimeout, TestInterval).Should(Succeed())
+
+	for _, name := range []string{first.Name, second.Name} {
+		after := additionalIngressCoreResourceUIDs(g, ctx, cli, name)
+		g.Expect(after).To(Equal(before[name]), "reordering additionalIngresses must not recreate %q resources", name)
+	}
+}
+
+// RunAdditionalIngressIdempotencyTest validates that repeated reconciliation leaves an
+// unchanged additional ingress untouched.
+//
+// Only the default Gateway's resources carry UID assertions today, so recreation churn
+// on the additional Gateway, bridge Route or infrastructure ConfigMap would go
+// unnoticed. resourceVersion is asserted as well as UID: UID alone proves the object
+// was not replaced, while a stable resourceVersion proves no write was issued at all,
+// which is what makes the reconcile loop safe to run continuously.
+func RunAdditionalIngressIdempotencyTest(t *testing.T, setup TestSetup) {
+	t.Helper()
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+	ctx, cli := setup.TC.Ctx, setup.TC.K8sClient
+
+	const ingressName = "idempotent"
+	ingress := serviceApi.AdditionalIngress{
+		Name:                  ingressName,
+		Hostname:              ingressName + ".example.com",
+		IngressControllerName: "shard-" + ingressName,
+		RouteLabels:           map[string]string{"example.com/ingress": ingressName},
+	}
+
+	spec := setup.Spec
+	spec.IngressMode = serviceApi.IngressModeOcpRoute
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{ingress}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	defer func() {
+		spec.AdditionalIngresses = nil
+		UpdateGatewayConfig(t, ctx, cli, spec)
+		meta := metav1.ObjectMeta{Name: ingressName, Namespace: gateway.GetGatewayNamespace()}
+		waitForGatewayResourcesRemoved(t, setup.TC,
+			&gwapiv1.Gateway{ObjectMeta: meta},
+			&routev1.Route{ObjectMeta: meta},
+		)
+	}()
+
+	namespace := gateway.GetGatewayNamespace()
+	key := types.NamespacedName{Name: ingressName, Namespace: namespace}
+	configMapKey := types.NamespacedName{Name: ingressName + "-config", Namespace: namespace}
+
+	var before map[string]types.UID
+	g.Eventually(func(g Gomega) {
+		before = additionalIngressCoreResourceUIDs(g, ctx, cli, ingressName)
+	}, TestTimeout, TestInterval).Should(Succeed())
+
+	readVersions := func() map[string]string {
+		versions := make(map[string]string, 3)
+		additionalGateway := &gwapiv1.Gateway{}
+		g.Expect(cli.Get(ctx, key, additionalGateway)).To(Succeed())
+		versions["Gateway"] = additionalGateway.ResourceVersion
+		route := &routev1.Route{}
+		g.Expect(cli.Get(ctx, key, route)).To(Succeed())
+		versions["Route"] = route.ResourceVersion
+		configMap := &corev1.ConfigMap{}
+		g.Expect(cli.Get(ctx, configMapKey, configMap)).To(Succeed())
+		versions["ConfigMap"] = configMap.ResourceVersion
+		return versions
+	}
+
+	// Let the initial reconciliations settle before sampling the baseline, so the
+	// comparison covers steady state rather than the tail of resource creation.
+	// Record the sample before asserting on it: a failed assertion aborts the
+	// polled function, so assigning afterwards would never update the baseline.
+	var settled map[string]string
+	g.Eventually(func(g Gomega) {
+		previous := settled
+		settled = readVersions()
+		g.Expect(settled).To(Equal(previous), "waiting for resource versions to stop changing")
+	}, TestTimeout, TestInterval).Should(Succeed())
+
+	// Re-trigger reconciliation twice without changing anything the ingress depends on.
+	for range 2 {
+		g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			config, err := getGatewayConfig(ctx, cli)
+			if err != nil {
+				return err
+			}
+			annotations := config.GetAnnotations()
+			if annotations == nil {
+				annotations = map[string]string{}
+			}
+			annotations["test.opendatahub.io/reconcile-nonce"] = strconv.FormatInt(time.Now().UnixNano(), 10)
+			config.SetAnnotations(annotations)
+			return cli.Update(ctx, config)
+		})).To(Succeed())
+	}
+
+	g.Consistently(func(g Gomega) {
+		g.Expect(additionalIngressCoreResourceUIDs(g, ctx, cli, ingressName)).To(Equal(before),
+			"repeated reconciliation must not recreate additional ingress resources")
+		g.Expect(readVersions()).To(Equal(settled),
+			"repeated reconciliation must not rewrite unchanged additional ingress resources")
+	}, 10*time.Second, TestInterval).Should(Succeed())
+}
+
+// RunAdditionalIngressOIDCSourceSecretPreservedTest validates that the admin-supplied
+// OIDC client secret referenced by an additional ingress is never adopted, mutated or
+// deleted by the operator.
+//
+// <name>-oidc-source is customer input, not an operator-rendered resource: the operator
+// reads it to build the ingress's own credentials Secret. If it were ever given an
+// ownerReference to the GatewayConfig, removing the ingress — or deleting the
+// GatewayConfig — would garbage-collect a credential the operator did not create and
+// cannot recreate.
+func RunAdditionalIngressOIDCSourceSecretPreservedTest(t *testing.T, setup TestSetup) {
+	t.Helper()
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+	ctx, cli := setup.TC.Ctx, setup.TC.K8sClient
+
+	const ingressName = "oidc-source"
+	sourceSecretName := ingressName + "-oidc-source"
+	sourceKey := types.NamespacedName{Name: sourceSecretName, Namespace: gateway.GetGatewayNamespace()}
+	sourceData := []byte("admin-managed-client-secret")
+
+	source := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: sourceKey.Name, Namespace: sourceKey.Namespace},
+		Data:       map[string][]byte{OIDCSecretKey: sourceData},
+	}
+	g.Expect(cli.Create(ctx, source)).To(Succeed())
+	defer func() {
+		g.Expect(client.IgnoreNotFound(cli.Delete(ctx, source))).To(Succeed())
+	}()
+
+	spec := setup.Spec
+	spec.IngressMode = serviceApi.IngressModeOcpRoute
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{{
+		Name:                  ingressName,
+		Hostname:              ingressName + ".example.com",
+		IngressControllerName: "shard-" + ingressName,
+		RouteLabels:           map[string]string{"example.com/ingress": ingressName},
+		Auth: serviceApi.AdditionalIngressAuth{OIDC: &serviceApi.AdditionalIngressOIDCConfig{
+			ClientID: ingressName + "-client",
+			ClientSecretRef: corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: sourceSecretName},
+				Key:                  OIDCSecretKey,
+			},
+		}},
+	}}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+
+	// The operator consumes the source Secret to render the ingress's own credentials.
+	credentialsKey := types.NamespacedName{Name: ingressName + "-auth-creds", Namespace: sourceKey.Namespace}
+	g.Eventually(func() error {
+		return cli.Get(ctx, credentialsKey, &corev1.Secret{})
+	}, TestTimeout, TestInterval).Should(Succeed())
+
+	assertSourceUntouched := func(stage string) {
+		t.Helper()
+		current := &corev1.Secret{}
+		g.Expect(cli.Get(ctx, sourceKey, current)).To(Succeed(), "admin OIDC source Secret must survive %s", stage)
+		g.Expect(current.OwnerReferences).To(BeEmpty(),
+			"the operator must not take ownership of the admin-supplied OIDC source Secret (%s)", stage)
+		g.Expect(current.Data).To(HaveKeyWithValue(OIDCSecretKey, sourceData),
+			"the admin-supplied OIDC source Secret must not be rewritten (%s)", stage)
+		g.Expect(current.DeletionTimestamp).To(BeNil())
+	}
+	assertSourceUntouched("reconciliation")
+
+	// Removing the ingress must reap the operator's own resources only.
+	spec.AdditionalIngresses = nil
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	meta := metav1.ObjectMeta{Name: ingressName, Namespace: gateway.GetGatewayNamespace()}
+	waitForGatewayResourcesRemoved(t, setup.TC,
+		&gwapiv1.Gateway{ObjectMeta: meta},
+		&routev1.Route{ObjectMeta: meta},
+		&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: credentialsKey.Name, Namespace: credentialsKey.Namespace}},
+	)
+	assertSourceUntouched("ingress removal")
+}
+
 // RunHTTPRouteCreationTest validates that the HTTPRoute exists with the expected parentRef, path match, and backend.
 func RunHTTPRouteCreationTest(t *testing.T, setup TestSetup) {
 	g := NewWithT(t)
 	defer setup.Setup(t)()
 
+	route := &gwapiv1.HTTPRoute{}
 	g.Eventually(func() error {
-		route := &gwapiv1.HTTPRoute{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.OAuthCallbackRouteName,
 			Namespace: gateway.GetGatewayNamespace(),
 		}, route)
 	}, TestTimeout, TestInterval).Should(Succeed())
-
-	route := &gwapiv1.HTTPRoute{}
-	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-		Name:      gateway.OAuthCallbackRouteName,
-		Namespace: gateway.GetGatewayNamespace(),
-	}, route)).To(Succeed())
 	assertOwnedByGatewayConfig(g, route)
 
 	g.Expect(route.Spec.ParentRefs).NotTo(BeEmpty())
@@ -1293,19 +1671,13 @@ func RunServiceCreationTest(t *testing.T, setup TestSetup) {
 	g := NewWithT(t)
 	defer setup.Setup(t)()
 
+	svc := &corev1.Service{}
 	g.Eventually(func() error {
-		svc := &corev1.Service{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
 			Namespace: gateway.GetGatewayNamespace(),
 		}, svc)
 	}, TestTimeout, TestInterval).Should(Succeed())
-
-	svc := &corev1.Service{}
-	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-		Name:      gateway.KubeAuthProxyName,
-		Namespace: gateway.GetGatewayNamespace(),
-	}, svc)).To(Succeed())
 	assertOwnedByGatewayConfig(g, svc)
 
 	// Verify selector
@@ -1342,19 +1714,13 @@ func RunAuthProxySecretCreationTest(t *testing.T, setup TestSetup, expectedClien
 	g := NewWithT(t)
 	defer setup.Setup(t)()
 
+	secret := &corev1.Secret{}
 	g.Eventually(func() error {
-		secret := &corev1.Secret{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxySecretsName,
 			Namespace: gateway.GetGatewayNamespace(),
 		}, secret)
 	}, TestTimeout, TestInterval).Should(Succeed())
-
-	secret := &corev1.Secret{}
-	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-		Name:      gateway.KubeAuthProxySecretsName,
-		Namespace: gateway.GetGatewayNamespace(),
-	}, secret)).To(Succeed())
 	assertOwnedByGatewayConfig(g, secret)
 
 	g.Expect(secret.Data).To(HaveKey(gateway.EnvClientID))
@@ -1373,24 +1739,18 @@ func RunHPACreationTest(t *testing.T, setup TestSetup) {
 	g := NewWithT(t)
 	defer setup.Setup(t)()
 
+	hpa := &autoscalingv2.HorizontalPodAutoscaler{}
 	g.Eventually(func() error {
-		hpa := &autoscalingv2.HorizontalPodAutoscaler{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
 			Namespace: gateway.GetGatewayNamespace(),
 		}, hpa)
 	}, TestTimeout, TestInterval).Should(Succeed())
-
-	hpa := &autoscalingv2.HorizontalPodAutoscaler{}
-	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-		Name:      gateway.KubeAuthProxyName,
-		Namespace: gateway.GetGatewayNamespace(),
-	}, hpa)).To(Succeed())
 	assertOwnedByGatewayConfig(g, hpa)
 
 	// Verify scale target
-	g.Expect(hpa.Spec.ScaleTargetRef.APIVersion).To(Equal("apps/v1"))
-	g.Expect(hpa.Spec.ScaleTargetRef.Kind).To(Equal("Deployment"))
+	g.Expect(hpa.Spec.ScaleTargetRef.APIVersion).To(Equal(gvk.Deployment.GroupVersion().String()))
+	g.Expect(hpa.Spec.ScaleTargetRef.Kind).To(Equal(gvk.Deployment.Kind))
 	g.Expect(hpa.Spec.ScaleTargetRef.Name).To(Equal(gateway.KubeAuthProxyName))
 
 	// Verify replica bounds
@@ -1418,21 +1778,14 @@ func RunEnvoyFilterCreationTest(t *testing.T, setup TestSetup) {
 	g := NewWithT(t)
 	defer setup.Setup(t)()
 
+	ef := &unstructured.Unstructured{}
+	ef.SetGroupVersionKind(gvk.EnvoyFilter)
 	g.Eventually(func() error {
-		ef := &unstructured.Unstructured{}
-		ef.SetGroupVersionKind(gvk.EnvoyFilter)
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.AuthnFilterName,
 			Namespace: gateway.GetGatewayNamespace(),
 		}, ef)
 	}, TestTimeout, TestInterval).Should(Succeed())
-
-	ef := &unstructured.Unstructured{}
-	ef.SetGroupVersionKind(gvk.EnvoyFilter)
-	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-		Name:      gateway.AuthnFilterName,
-		Namespace: gateway.GetGatewayNamespace(),
-	}, ef)).To(Succeed())
 	assertOwnedByGatewayConfig(g, ef)
 
 	labels := assertHasIstioRevisionLabel(g, ef)
@@ -1642,121 +1995,68 @@ func RunEnvoyFilterLuaTokenForwardingTest(t *testing.T, setup TestSetup) {
 func RunSpecMutationCookieConfigTest(t *testing.T, setup TestSetup, cookieUpdate serviceApi.CookieConfig) {
 	g := NewWithT(t)
 	defer setup.Setup(t)()
+	deploymentKey := types.NamespacedName{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()}
 
-	g.Eventually(func() bool {
+	g.Eventually(func(g Gomega) {
 		deployment := &appsv1.Deployment{}
-		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GetGatewayNamespace(),
-		}, deployment); err != nil {
-			return false
-		}
-		for _, arg := range deployment.Spec.Template.Spec.Containers[0].Args {
-			if arg == defaultCookieExpireArg {
-				return true
-			}
-		}
-		return false
-	}, TestTimeout, TestInterval).Should(BeTrue())
+		g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, deploymentKey, deployment)).To(Succeed())
+		g.Expect(deployment.Spec.Template.Spec.Containers).NotTo(BeEmpty())
+		g.Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(ContainElement(defaultCookieExpireArg))
+	}, TestTimeout, TestInterval).Should(Succeed())
 
 	mergedSpec := setup.Spec
 	mergedSpec.Cookie = cookieUpdate
 	UpdateGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient, mergedSpec)
 
-	g.Eventually(func() bool {
+	g.Eventually(func(g Gomega) {
 		gc := &serviceApi.GatewayConfig{}
-		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{Name: serviceApi.GatewayConfigName}, gc); err != nil {
-			return false
-		}
-		return gc.Spec.Cookie.Expire == cookieUpdate.Expire && gc.Spec.Cookie.Refresh == cookieUpdate.Refresh
-	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfig spec (Cookie) was not updated")
+		g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{Name: serviceApi.GatewayConfigName}, gc)).To(Succeed())
+		g.Expect(gc.Spec.Cookie.Expire).To(Equal(cookieUpdate.Expire))
+		g.Expect(gc.Spec.Cookie.Refresh).To(Equal(cookieUpdate.Refresh))
+	}, TestTimeout, TestInterval).Should(Succeed(), "GatewayConfig spec (Cookie) was not updated")
 
-	g.Eventually(func() bool {
+	g.Eventually(func(g Gomega) {
 		deployment := &appsv1.Deployment{}
-		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GetGatewayNamespace(),
-		}, deployment); err != nil {
-			return false
-		}
-		args := deployment.Spec.Template.Spec.Containers[0].Args
-		hasExpire := false
-		hasRefresh := false
-		for _, arg := range args {
-			if arg == updatedCookieExpireArg {
-				hasExpire = true
-			}
-			if arg == updatedCookieRefreshArg {
-				hasRefresh = true
-			}
-		}
-		return hasExpire && hasRefresh
-	}, TestTimeout, TestInterval).Should(BeTrue(), "Deployment cookie args not updated after GatewayConfig spec change")
+		g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, deploymentKey, deployment)).To(Succeed())
+		g.Expect(deployment.Spec.Template.Spec.Containers).NotTo(BeEmpty())
+		g.Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(ContainElements(updatedCookieExpireArg, updatedCookieRefreshArg))
+	}, TestTimeout, TestInterval).Should(Succeed(), "Deployment cookie args not updated after GatewayConfig spec change")
 }
 
 // RunSpecMutationTokenReviewConfigTest updates the TokenReview spec and validates that Deployment args are updated accordingly.
 func RunSpecMutationTokenReviewConfigTest(t *testing.T, setup TestSetup, tokenReviewUpdate *serviceApi.TokenReviewConfig) {
 	g := NewWithT(t)
 	defer setup.Setup(t)()
+	deploymentKey := types.NamespacedName{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()}
 
-	// Verify deployment exists and does NOT have token review args initially
-	g.Eventually(func() bool {
+	g.Eventually(func(g Gomega) {
 		deployment := &appsv1.Deployment{}
-		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GetGatewayNamespace(),
-		}, deployment); err != nil {
-			return false
-		}
-		for _, arg := range deployment.Spec.Template.Spec.Containers[0].Args {
-			if strings.HasPrefix(arg, "--kube-api-qps=") {
-				return false
-			}
-		}
-		return true
-	}, TestTimeout, TestInterval).Should(BeTrue(), "Deployment should not have --kube-api-qps initially")
+		g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, deploymentKey, deployment)).To(Succeed())
+		g.Expect(deployment.Spec.Template.Spec.Containers).NotTo(BeEmpty())
+		g.Expect(deployment.Spec.Template.Spec.Containers[0].Args).NotTo(ContainElement(HavePrefix("--kube-api-qps=")))
+	}, TestTimeout, TestInterval).Should(Succeed(), "Deployment should not have --kube-api-qps initially")
 
 	mergedSpec := setup.Spec
 	mergedSpec.TokenReview = tokenReviewUpdate
 	UpdateGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient, mergedSpec)
 
-	g.Eventually(func() bool {
+	g.Eventually(func(g Gomega) {
 		gc := &serviceApi.GatewayConfig{}
-		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{Name: serviceApi.GatewayConfigName}, gc); err != nil {
-			return false
-		}
-		return gc.Spec.TokenReview != nil && gc.Spec.TokenReview.QPS != nil
-	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfig spec (TokenReview) was not updated")
+		g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{Name: serviceApi.GatewayConfigName}, gc)).To(Succeed())
+		g.Expect(gc.Spec.TokenReview).NotTo(BeNil())
+		g.Expect(gc.Spec.TokenReview.QPS).NotTo(BeNil())
+	}, TestTimeout, TestInterval).Should(Succeed(), "GatewayConfig spec (TokenReview) was not updated")
 
-	expectedQPSArg := fmt.Sprintf("--kube-api-qps=%d", *tokenReviewUpdate.QPS)
-	expectedBurstArg := fmt.Sprintf("--kube-api-burst=%d", *tokenReviewUpdate.Burst)
-	expectedCacheTTLArg := fmt.Sprintf("--kube-api-cache-ttl=%s", tokenReviewUpdate.CacheTTL.Duration.String())
-
-	g.Eventually(func() bool {
+	g.Eventually(func(g Gomega) {
 		deployment := &appsv1.Deployment{}
-		if err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-			Name:      gateway.KubeAuthProxyName,
-			Namespace: gateway.GetGatewayNamespace(),
-		}, deployment); err != nil {
-			return false
-		}
-		args := deployment.Spec.Template.Spec.Containers[0].Args
-		hasQPS := false
-		hasBurst := false
-		hasCacheTTL := false
-		for _, arg := range args {
-			if arg == expectedQPSArg {
-				hasQPS = true
-			}
-			if arg == expectedBurstArg {
-				hasBurst = true
-			}
-			if arg == expectedCacheTTLArg {
-				hasCacheTTL = true
-			}
-		}
-		return hasQPS && hasBurst && hasCacheTTL
-	}, TestTimeout, TestInterval).Should(BeTrue(), "Deployment token review args not updated after GatewayConfig spec change")
+		g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, deploymentKey, deployment)).To(Succeed())
+		g.Expect(deployment.Spec.Template.Spec.Containers).NotTo(BeEmpty())
+		g.Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(ContainElements(
+			fmt.Sprintf("--kube-api-qps=%d", *tokenReviewUpdate.QPS),
+			fmt.Sprintf("--kube-api-burst=%d", *tokenReviewUpdate.Burst),
+			fmt.Sprintf("--kube-api-cache-ttl=%s", tokenReviewUpdate.CacheTTL.Duration.String()),
+		))
+	}, TestTimeout, TestInterval).Should(Succeed(), "Deployment token review args not updated after GatewayConfig spec change")
 }
 
 // RunDeploymentWithAllArgsTest validates Deployment replicas, security context, ports, env, volumes, and that provider args contain or omit the given slices.
@@ -1764,19 +2064,13 @@ func RunDeploymentWithAllArgsTest(t *testing.T, setup TestSetup, expectedHostnam
 	g := NewWithT(t)
 	defer setup.Setup(t)()
 
+	deployment := &appsv1.Deployment{}
 	g.Eventually(func() error {
-		deployment := &appsv1.Deployment{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
 			Namespace: gateway.GetGatewayNamespace(),
 		}, deployment)
 	}, TestTimeout, TestInterval).Should(Succeed())
-
-	deployment := &appsv1.Deployment{}
-	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-		Name:      gateway.KubeAuthProxyName,
-		Namespace: gateway.GetGatewayNamespace(),
-	}, deployment)).To(Succeed())
 	assertOwnedByGatewayConfig(g, deployment)
 
 	g.Expect(*deployment.Spec.Replicas).To(Equal(int32(2)))
@@ -1901,23 +2195,17 @@ func RunOCPRouteCreationTest(t *testing.T, setup TestSetup, expectedHostname str
 	g := NewWithT(t)
 	defer setup.Setup(t)()
 
+	route := &routev1.Route{}
 	g.Eventually(func() error {
-		route := &routev1.Route{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.DefaultGatewayName,
 			Namespace: gateway.GetGatewayNamespace(),
 		}, route)
 	}, TestTimeout, TestInterval).Should(Succeed())
-
-	route := &routev1.Route{}
-	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-		Name:      gateway.DefaultGatewayName,
-		Namespace: gateway.GetGatewayNamespace(),
-	}, route)).To(Succeed())
 	assertOwnedByGatewayConfig(g, route)
 
 	g.Expect(route.Spec.Host).To(Equal(expectedHostname))
-	g.Expect(route.Spec.To.Kind).To(Equal("Service"))
+	g.Expect(route.Spec.To.Kind).To(Equal(gvk.Service.Kind))
 	g.Expect(route.Spec.To.Name).To(Equal(gateway.GetDefaultGatewayServiceFullName()))
 	g.Expect(route.Spec.Port.TargetPort.IntVal).To(Equal(int32(gateway.StandardHTTPSPort)))
 	g.Expect(route.Spec.TLS.Termination).To(Equal(routev1.TLSTerminationReencrypt))
@@ -1942,19 +2230,13 @@ func RunLegacyRedirectRouteCreationTest(t *testing.T, setup TestSetup, expectedL
 
 	legacyRouteName := gateway.LegacyGatewaySubdomain
 	legacyRouteNamespace := cluster.GetApplicationNamespace()
+	route := &routev1.Route{}
 	g.Eventually(func() error {
-		route := &routev1.Route{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      legacyRouteName,
 			Namespace: legacyRouteNamespace,
 		}, route)
 	}, TestTimeout, TestInterval).Should(Succeed())
-
-	route := &routev1.Route{}
-	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-		Name:      legacyRouteName,
-		Namespace: legacyRouteNamespace,
-	}, route)).To(Succeed())
 	assertOwnedByGatewayConfig(g, route)
 	g.Expect(route.Spec.Host).To(Equal(expectedLegacyHost))
 }
@@ -2223,19 +2505,13 @@ func RunNetworkPolicyCreationTest(t *testing.T, setup TestSetup) {
 	g := NewWithT(t)
 	defer setup.Setup(t)()
 
+	np := &networkingv1.NetworkPolicy{}
 	g.Eventually(func() error {
-		np := &networkingv1.NetworkPolicy{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.KubeAuthProxyName,
 			Namespace: gateway.GetGatewayNamespace(),
 		}, np)
 	}, TestTimeout, TestInterval).Should(Succeed())
-
-	np := &networkingv1.NetworkPolicy{}
-	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-		Name:      gateway.KubeAuthProxyName,
-		Namespace: gateway.GetGatewayNamespace(),
-	}, np)).To(Succeed())
 
 	g.Expect(np.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue("app", gateway.KubeAuthProxyName))
 	g.Expect(np.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeIngress))
@@ -2335,8 +2611,6 @@ func RunNetworkPolicyAuthModeLifecycleTest(t *testing.T, setup TestSetup) {
 	g := NewWithT(t)
 	ctx := setup.TC.Ctx
 	cli := setup.TC.K8sClient
-	key := types.NamespacedName{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()}
-
 	auth := &configv1.Authentication{}
 	g.Expect(cli.Get(ctx, types.NamespacedName{Name: cluster.ClusterAuthenticationObj}, auth)).To(Succeed())
 	originalType := auth.Spec.Type
@@ -2350,10 +2624,32 @@ func RunNetworkPolicyAuthModeLifecycleTest(t *testing.T, setup TestSetup) {
 			return cli.Update(ctx, current)
 		})).To(Succeed())
 	}()
-	defer setup.Setup(t)()
+	cleanup := setup.Setup(t)
+	defer func() {
+		cleanup()
+		for _, obj := range additionalOAuthIngressResources("auth-lifecycle") {
+			g.Expect(client.IgnoreNotFound(cli.Delete(ctx, obj))).To(Succeed())
+		}
+		waitForGatewayResourcesRemoved(t, setup.TC, additionalOAuthIngressResources("auth-lifecycle")...)
+	}()
+	spec := setup.Spec
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{{
+		Name: "auth-lifecycle", Hostname: "auth-lifecycle.example.com", IngressControllerName: "shard-auth-lifecycle",
+		RouteLabels: map[string]string{"example.com/ingress": "auth-lifecycle"},
+	}}
+	UpdateGatewayConfig(t, ctx, cli, spec)
 
-	g.Eventually(func() error { return cli.Get(ctx, key, &appsv1.Deployment{}) }, TestTimeout, TestInterval).Should(Succeed())
-	g.Eventually(func() error { return cli.Get(ctx, key, &networkingv1.NetworkPolicy{}) }, TestTimeout, TestInterval).Should(Succeed())
+	keys := []types.NamespacedName{
+		{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()},
+		{Name: gateway.KubeAuthProxyName + "-auth-lifecycle", Namespace: gateway.GetGatewayNamespace()},
+	}
+	for _, key := range keys {
+		g.Eventually(func() error { return cli.Get(ctx, key, &appsv1.Deployment{}) }, TestTimeout, TestInterval).Should(Succeed())
+		g.Eventually(func() error { return cli.Get(ctx, key, &networkingv1.NetworkPolicy{}) }, TestTimeout, TestInterval).Should(Succeed())
+	}
+	config, err := getGatewayConfig(ctx, cli)
+	g.Expect(err).NotTo(HaveOccurred())
+	generation := config.Generation
 
 	g.Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		current := &configv1.Authentication{}
@@ -2364,10 +2660,15 @@ func RunNetworkPolicyAuthModeLifecycleTest(t *testing.T, setup TestSetup) {
 		return cli.Update(ctx, current)
 	})).To(Succeed())
 
-	g.Eventually(func() bool {
-		return deletionRequestedOrComplete(ctx, cli, key, &appsv1.Deployment{}) &&
-			deletionRequestedOrComplete(ctx, cli, key, &networkingv1.NetworkPolicy{})
-	}, TestTimeout, TestInterval).Should(BeTrue(), "auth mode change should remove the proxy and its policy")
+	for _, key := range keys {
+		g.Eventually(func() bool {
+			return deletionRequestedOrComplete(ctx, cli, key, &appsv1.Deployment{}) &&
+				deletionRequestedOrComplete(ctx, cli, key, &networkingv1.NetworkPolicy{})
+		}, TestTimeout, TestInterval).Should(BeTrue(), "auth mode change should remove proxy %s and its policy", key.Name)
+	}
+	config, err = getGatewayConfig(ctx, cli)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(config.Generation).To(Equal(generation), "authentication changes must not require a GatewayConfig spec update")
 }
 
 // RunNetworkPolicyMissingOIDCConfigTest verifies that a missing OIDC configuration
@@ -2378,18 +2679,46 @@ func RunNetworkPolicyMissingOIDCConfigTest(t *testing.T, setup TestSetup) {
 	defer setup.Setup(t)()
 	ctx := setup.TC.Ctx
 	cli := setup.TC.K8sClient
-	key := types.NamespacedName{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()}
-
-	g.Eventually(func() error { return cli.Get(ctx, key, &appsv1.Deployment{}) }, TestTimeout, TestInterval).Should(Succeed())
-	g.Eventually(func() error { return cli.Get(ctx, key, &networkingv1.NetworkPolicy{}) }, TestTimeout, TestInterval).Should(Succeed())
-
 	spec := setup.Spec
+	source := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "auth-lifecycle-oidc-source", Namespace: gateway.GetGatewayNamespace()},
+		Data:       map[string][]byte{OIDCSecretKey: []byte("additional-client-secret")},
+	}
+	g.Expect(cli.Create(ctx, source)).To(Succeed())
+	defer func() { g.Expect(cli.Delete(ctx, source)).To(Succeed()) }()
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{{
+		Name: "auth-lifecycle", Hostname: "auth-lifecycle.example.com", IngressControllerName: "shard-auth-lifecycle",
+		RouteLabels: map[string]string{"example.com/ingress": "auth-lifecycle"},
+		Auth: serviceApi.AdditionalIngressAuth{OIDC: &serviceApi.AdditionalIngressOIDCConfig{
+			ClientID: "auth-lifecycle-client",
+			ClientSecretRef: corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: source.Name},
+				Key:                  OIDCSecretKey,
+			},
+		}},
+	}}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	defer func() {
+		UpdateGatewayConfig(t, ctx, cli, setup.Spec)
+		waitForGatewayResourcesRemoved(t, setup.TC, additionalOAuthIngressResources("auth-lifecycle")...)
+	}()
+	keys := []types.NamespacedName{
+		{Name: gateway.KubeAuthProxyName, Namespace: gateway.GetGatewayNamespace()},
+		{Name: gateway.KubeAuthProxyName + "-auth-lifecycle", Namespace: gateway.GetGatewayNamespace()},
+	}
+	for _, key := range keys {
+		g.Eventually(func() error { return cli.Get(ctx, key, &appsv1.Deployment{}) }, TestTimeout, TestInterval).Should(Succeed())
+		g.Eventually(func() error { return cli.Get(ctx, key, &networkingv1.NetworkPolicy{}) }, TestTimeout, TestInterval).Should(Succeed())
+	}
+
 	spec.OIDC = nil
 	UpdateGatewayConfig(t, ctx, cli, spec)
-	g.Eventually(func() bool {
-		return deletionRequestedOrComplete(ctx, cli, key, &appsv1.Deployment{}) &&
-			deletionRequestedOrComplete(ctx, cli, key, &networkingv1.NetworkPolicy{})
-	}, TestTimeout, TestInterval).Should(BeTrue(), "missing OIDC configuration should remove the proxy and its policy")
+	for _, key := range keys {
+		g.Eventually(func() bool {
+			return deletionRequestedOrComplete(ctx, cli, key, &appsv1.Deployment{}) &&
+				deletionRequestedOrComplete(ctx, cli, key, &networkingv1.NetworkPolicy{})
+		}, TestTimeout, TestInterval).Should(BeTrue(), "missing OIDC configuration should remove proxy %s and its policy", key.Name)
+	}
 }
 
 // RunGatewayConfigStatusConditionsTest validates that GatewayConfig status gets conditions set (e.g. Ready).
@@ -2433,21 +2762,14 @@ func RunDestinationRuleCreationTest(t *testing.T, setup TestSetup) {
 	g := NewWithT(t)
 	defer setup.Setup(t)()
 
+	dr := &unstructured.Unstructured{}
+	dr.SetGroupVersionKind(gvk.DestinationRule)
 	g.Eventually(func() error {
-		dr := &unstructured.Unstructured{}
-		dr.SetGroupVersionKind(gvk.DestinationRule)
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      gateway.DestinationRuleName,
 			Namespace: gateway.GetGatewayNamespace(),
 		}, dr)
 	}, TestTimeout, TestInterval).Should(Succeed())
-
-	dr := &unstructured.Unstructured{}
-	dr.SetGroupVersionKind(gvk.DestinationRule)
-	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-		Name:      gateway.DestinationRuleName,
-		Namespace: gateway.GetGatewayNamespace(),
-	}, dr)).To(Succeed())
 	assertOwnedByGatewayConfig(g, dr)
 
 	assertHasIstioRevisionLabel(g, dr)

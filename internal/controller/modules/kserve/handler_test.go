@@ -199,6 +199,7 @@ func TestGetRelatedImages(t *testing.T) {
 		"RELATED_IMAGE_ODH_MODELEXPRESS_OPERATOR_IMAGE",
 		"RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE",
 		"RELATED_IMAGE_RHAII_VLLM_OMNI_CUDA_IMAGE",
+		"RELATED_IMAGE_OSC_STORAGE_HELPER_IMAGE",
 	))
 	g.Expect(images).ShouldNot(ContainElement(h.GetControllerImage()))
 }

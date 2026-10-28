@@ -103,50 +103,48 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		return err
 	}
 	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
-	if len(gatewayConfig.Spec.AdditionalIngresses) > 0 {
-		for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
-			var conflictReason, conflictMessage string
-			if strings.EqualFold(ingress.Hostname, hostname) || strings.EqualFold(ingress.Hostname, legacyInfo.LegacyHostname) {
-				conflictReason = additionalIngressReasonHostnameConflict
-				conflictMessage = fmt.Sprintf("additional ingress %q hostname %q conflicts with a managed Gateway hostname", ingress.Name, ingress.Hostname)
+	for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
+		var conflictReason, conflictMessage string
+		if strings.EqualFold(ingress.Hostname, hostname) || strings.EqualFold(ingress.Hostname, legacyInfo.LegacyHostname) {
+			conflictReason = additionalIngressReasonHostnameConflict
+			conflictMessage = fmt.Sprintf("additional ingress %q hostname %q conflicts with a managed Gateway hostname", ingress.Name, ingress.Hostname)
+		} else {
+			manageable, err := canManageGatewayResource(ctx, rr.Client, gatewayConfig, &gwapiv1.Gateway{ObjectMeta: metav1.ObjectMeta{
+				Name: ingress.Name, Namespace: GetGatewayNamespace(),
+			}})
+			if err != nil {
+				return fmt.Errorf("failed to validate additional Gateway %q ownership: %w", ingress.Name, err)
+			}
+			if !manageable {
+				conflictReason = additionalIngressReasonOwnershipConflict
+				conflictMessage = fmt.Sprintf("additional Gateway %q already exists and is not owned by GatewayConfig %q", ingress.Name, gatewayConfig.Name)
 			} else {
-				manageable, err := canManageGatewayResource(ctx, rr.Client, gatewayConfig, &gwapiv1.Gateway{ObjectMeta: metav1.ObjectMeta{
-					Name: ingress.Name, Namespace: GetGatewayNamespace(),
+				configMapName := additionalGatewayInfrastructureConfigMapName(ingress.Name)
+				manageable, err = canManageGatewayResource(ctx, rr.Client, gatewayConfig, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+					Name: configMapName, Namespace: GetGatewayNamespace(),
 				}})
 				if err != nil {
-					return fmt.Errorf("failed to validate additional Gateway %q ownership: %w", ingress.Name, err)
+					return fmt.Errorf("failed to validate additional Gateway infrastructure ConfigMap %q ownership: %w", configMapName, err)
 				}
 				if !manageable {
 					conflictReason = additionalIngressReasonOwnershipConflict
-					conflictMessage = fmt.Sprintf("additional Gateway %q already exists and is not owned by GatewayConfig %q", ingress.Name, gatewayConfig.Name)
-				} else {
-					configMapName := additionalGatewayInfrastructureConfigMapName(ingress.Name)
-					manageable, err = canManageGatewayResource(ctx, rr.Client, gatewayConfig, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
-						Name: configMapName, Namespace: GetGatewayNamespace(),
-					}})
-					if err != nil {
-						return fmt.Errorf("failed to validate additional Gateway infrastructure ConfigMap %q ownership: %w", configMapName, err)
-					}
-					if !manageable {
-						conflictReason = additionalIngressReasonOwnershipConflict
-						conflictMessage = fmt.Sprintf("additional Gateway infrastructure ConfigMap %q already exists and is not owned by GatewayConfig %q", configMapName, gatewayConfig.Name)
-					}
+					conflictMessage = fmt.Sprintf("additional Gateway infrastructure ConfigMap %q already exists and is not owned by GatewayConfig %q", configMapName, gatewayConfig.Name)
 				}
 			}
-			if conflictReason != "" {
-				if status := additionalIngressStatusByName(gatewayConfig, ingress.Name); status != nil {
-					setAdditionalIngressCondition(status, gatewayConfig.Generation,
-						serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionFalse,
-						conflictReason, conflictMessage)
-				}
-				updateAdditionalGatewaysReadyCondition(rr, gatewayConfig)
-				continue
+		}
+		if conflictReason != "" {
+			if status := additionalIngressStatusByName(gatewayConfig, ingress.Name); status != nil {
+				setAdditionalIngressCondition(status, gatewayConfig.Generation,
+					serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionFalse,
+					conflictReason, conflictMessage)
 			}
-			if additionalIngressHasGatewayConflict(gatewayConfig, ingress.Name) {
-				setAdditionalIngressCondition(additionalIngressStatusByName(gatewayConfig, ingress.Name), gatewayConfig.Generation,
-					serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionUnknown,
-					serviceApi.AdditionalIngressReconciliationPendingReason, "Gateway conflict has been resolved")
-			}
+			updateAdditionalGatewaysReadyCondition(rr, gatewayConfig)
+			continue
+		}
+		if additionalIngressHasGatewayConflict(gatewayConfig, ingress.Name) {
+			setAdditionalIngressCondition(additionalIngressStatusByName(gatewayConfig, ingress.Name), gatewayConfig.Generation,
+				serviceApi.AdditionalIngressGatewayReadyConditionType, metav1.ConditionUnknown,
+				serviceApi.AdditionalIngressReconciliationPendingReason, "Gateway conflict has been resolved")
 		}
 	}
 
@@ -202,7 +200,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	hostname, err := resolveGatewayHostname(ctx, rr, gatewayConfig)
 	if err != nil {
 		if errors.Is(err, ErrDomainRequired) {
-			return nil
+			return deleteLegacyNetworkPolicy(ctx, rr)
 		}
 		return err
 	}
@@ -213,10 +211,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	}
 	l.V(1).Info("detected cluster authentication mode", "mode", authMode)
 
-	kubeAuthProxyDeploymentTemplates := odhtypes.TemplateInfo{
-		FS:   gatewayResources,
-		Path: kubeAuthProxyDeploymentOauthTemplate,
-	}
+	deploymentTemplate := kubeAuthProxyDeploymentOauthTemplate
 
 	var oidcConfig *serviceApi.OIDCConfig
 	switch authMode {
@@ -227,21 +222,19 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 				conditions.WithReason(status.NotReadyReason),
 				conditions.WithMessage(status.AuthProxyOIDCModeWithoutConfigMessage),
 			)
-			// Return nil (not error) because this is a permanent user configuration error.
-			// Returning an error would cause infinite reconciliation for something only the
-			// user can fix. Users must check GatewayConfig status conditions to see this error.
-			// Reconciliation will retry when the user updates the GatewayConfig with OIDC config.
-			return nil
+			if len(gatewayConfig.Spec.AdditionalIngresses) == 0 {
+				// Preserve the default filter without preparing an incomplete OIDC proxy.
+				return prepareAuthProxies(ctx, rr, gatewayConfig, cluster.AuthModeNone, deploymentTemplate,
+					[]authProxyTarget{defaultAuthProxyTarget(hostname, gatewayConfig)})
+			}
+		} else {
+			oidcConfig = gatewayConfig.Spec.OIDC
+			l.V(1).Info("configuring "+KubeAuthProxyName+" for external OIDC",
+				"issuerURL", oidcConfig.IssuerURL,
+				"clientID", oidcConfig.ClientID,
+				"secretRef", oidcConfig.ClientSecretRef.Name)
 		}
-		oidcConfig = gatewayConfig.Spec.OIDC
-		l.V(1).Info("configuring "+KubeAuthProxyName+" for external OIDC",
-			"issuerURL", oidcConfig.IssuerURL,
-			"clientID", oidcConfig.ClientID,
-			"secretRef", oidcConfig.ClientSecretRef.Name)
-		kubeAuthProxyDeploymentTemplates = odhtypes.TemplateInfo{
-			FS:   gatewayResources,
-			Path: kubeAuthProxyDeploymentOidcTemplate,
-		}
+		deploymentTemplate = kubeAuthProxyDeploymentOidcTemplate
 	case cluster.AuthModeIntegratedOAuth: // default mode.
 		l.V(1).Info("configuring " + KubeAuthProxyName + " for OpenShift OAuth")
 
@@ -253,48 +246,61 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 			conditions.WithReason(status.ReadyReason),
 			conditions.WithMessage(status.AuthProxyExternalAuthNoDeploymentMessage),
 		)
-		return nil
 	}
 
-	return prepareAuthProxy(ctx, rr, gatewayConfig, defaultAuthProxyTarget(hostname, gatewayConfig), authMode, kubeAuthProxyDeploymentTemplates.Path)
+	targets := []authProxyTarget{defaultAuthProxyTarget(hostname, gatewayConfig)}
+	for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
+		targets = append(targets, additionalAuthProxyTarget(ingress, gatewayConfig))
+	}
+	return prepareAuthProxies(ctx, rr, gatewayConfig, authMode, deploymentTemplate, targets)
 }
 
 func prepareAuthProxy(
-	ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig,
-	target authProxyTarget, authMode cluster.AuthenticationMode, deploymentTemplate string,
-) error {
+	ctx context.Context,
+	rr *odhtypes.ReconciliationRequest,
+	gatewayConfig *serviceApi.GatewayConfig,
+	target authProxyTarget,
+	authMode cluster.AuthenticationMode,
+	deploymentTemplate string,
+) (string, error) {
 	l := logf.FromContext(ctx).WithName("prepareAuthProxy")
+	// Only the default target updates GatewayConfig.Ready here. The caller records
+	// additional targets' results for status aggregation.
 	// Get secret values for both OIDC and IntegratedOAuth modes
 	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, authMode, target.OIDC, target)
 	if err != nil {
-		return fmt.Errorf("failed to get secret values: %w", err)
+		return "", fmt.Errorf("failed to get secret values: %w", err)
 	}
 
 	// Create the secret dynamically first
 	authSecret, err := createSecret(ctx, rr, clientID, clientSecret, cookieSecret, target)
 	if err != nil {
-		rr.Conditions.MarkFalse(
-			ReadyConditionType,
-			conditions.WithReason(status.NotReadyReason),
-			conditions.WithMessagef("%s: %v", status.AuthProxyFailedGenerateSecretMessage, err),
-		)
-		return fmt.Errorf("failed to create auth proxy secret: %w", err)
+		if target.isDefault() {
+			rr.Conditions.MarkFalse(
+				ReadyConditionType,
+				conditions.WithReason(status.NotReadyReason),
+				conditions.WithMessagef("%s: %v", status.AuthProxyFailedGenerateSecretMessage, err),
+			)
+		}
+		return "", fmt.Errorf("failed to create auth proxy secret: %w", err)
 	}
-	// Carry only the rollout hash to the template action, using the credentials just written.
-	if rr.Extensions == nil {
-		rr.Extensions = make(map[string]any)
+	// The Secret is already persisted. Include it in deployment so its lifecycle
+	// annotations are refreshed and GC can distinguish active from removed targets.
+	if err := rr.AddResources(authSecret); err != nil {
+		return "", fmt.Errorf("failed to add auth proxy secret: %w", err)
 	}
-	rr.Extensions[target.extensionsKey()] = calculateAuthConfigHash(authSecret)
 
 	// For IntegratedOAuth mode, create OAuth client after secret is created
 	if authMode == cluster.AuthModeIntegratedOAuth {
 		if err := createOAuthClient(rr, target.Hostname, target, authSecret); err != nil {
-			rr.Conditions.MarkFalse(
-				ReadyConditionType,
-				conditions.WithReason(status.NotReadyReason),
-				conditions.WithMessagef("%s: %v", status.AuthProxyFailedOAuthClientMessage, err),
-			)
-			return fmt.Errorf("failed to create OAuth client: %w", err)
+			if target.isDefault() {
+				rr.Conditions.MarkFalse(
+					ReadyConditionType,
+					conditions.WithReason(status.NotReadyReason),
+					conditions.WithMessagef("%s: %v", status.AuthProxyFailedOAuthClientMessage, err),
+				)
+			}
+			return "", fmt.Errorf("failed to create OAuth client: %w", err)
 		}
 		l.V(1).Info("OAuth client created successfully")
 	}
@@ -306,10 +312,10 @@ func prepareAuthProxy(
 		issuerName, issuerKind := resolveIssuerRef(gatewayConfig.Spec.Certificate)
 		cert, err := buildCertManagerCertificate(target.TLSName, GetGatewayNamespace(), target.TLSName, []string{kapServiceDNS}, issuerName, issuerKind)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if err := rr.AddResources(cert); err != nil {
-			return fmt.Errorf("failed to add kube-auth-proxy Certificate: %w", err)
+			return "", fmt.Errorf("failed to add kube-auth-proxy Certificate: %w", err)
 		}
 		l.V(1).Info("Created cert-manager Certificate for kube-auth-proxy",
 			"secret", target.TLSName,
@@ -347,15 +353,16 @@ func prepareAuthProxy(
 		},
 	}
 	rr.Templates = append(rr.Templates, kubeAuthProxyCommonTemplates...)
-	// Clear a previous readiness failure. The status action checks the deployed
-	// resources before it can mark this condition true.
-	rr.Conditions.MarkUnknown(
-		ReadyConditionType,
-		conditions.WithReason(status.NotReadyReason),
-		conditions.WithMessage("Auth proxy resources are being deployed"),
-	)
-
-	return nil
+	if target.isDefault() {
+		// Clear a previous readiness failure. The status action checks the deployed
+		// resources before it can mark this condition true.
+		rr.Conditions.MarkUnknown(
+			ReadyConditionType,
+			conditions.WithReason(status.NotReadyReason),
+			conditions.WithMessage("Auth proxy resources are being deployed"),
+		)
+	}
+	return calculateAuthConfigHash(authSecret), nil
 }
 
 func getGatewayAuthenticationMode(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) (cluster.AuthenticationMode, error) {
@@ -492,12 +499,18 @@ func cleanupKubeAuthProxyResources(ctx context.Context, rr *odhtypes.Reconciliat
 
 	l.V(1).Info("Auth proxy not desired, removing kube-auth-proxy resources", "authMode", authMode)
 
-	for _, obj := range []client.Object{
-		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: KubeAuthProxyName, Namespace: GetGatewayNamespace()}},
-		&networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{Name: KubeAuthProxyName, Namespace: GetGatewayNamespace()}},
-	} {
-		if err := deleteKubeAuthProxyResource(ctx, rr, obj, gatewayConfig); err != nil {
-			return err
+	proxyNames := []string{KubeAuthProxyName}
+	for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
+		proxyNames = append(proxyNames, additionalAuthProxyTarget(ingress, gatewayConfig).ProxyName)
+	}
+	for _, name := range proxyNames {
+		for _, obj := range []client.Object{
+			&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: GetGatewayNamespace()}},
+			&networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: GetGatewayNamespace()}},
+		} {
+			if err := deleteKubeAuthProxyResource(ctx, rr, obj, gatewayConfig); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -514,7 +527,7 @@ func deleteKubeAuthProxyResource(
 	obj client.Object,
 	gatewayConfig *serviceApi.GatewayConfig,
 ) error {
-	if err := rr.Client.Get(ctx, types.NamespacedName{Name: KubeAuthProxyName, Namespace: GetGatewayNamespace()}, obj); err != nil {
+	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
 		if k8serr.IsNotFound(err) {
 			return nil
 		}
@@ -558,29 +571,15 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		}
 		return nil, err
 	}
-
-	// Calculate auth config hash for triggering pod restarts on secret changes
-	target := defaultAuthProxyTarget(hostname, gatewayConfig)
-	authConfigHash, prepared := rr.Extensions[target.extensionsKey()].(string)
-	if !prepared {
-		authSecret := &corev1.Secret{}
-		if err := rr.Client.Get(ctx, types.NamespacedName{Name: target.SecretName, Namespace: GetGatewayNamespace()}, authSecret); err != nil && !k8serr.IsNotFound(err) {
-			return nil, fmt.Errorf("failed to get auth proxy secret: %w", err)
-		}
-		if authSecret.Name != "" {
-			authConfigHash = calculateAuthConfigHash(authSecret)
-		}
+	const templateDataKey = "gateway.template-data"
+	if data, ok := rr.Extensions[templateDataKey].(map[string]any); ok {
+		return data, nil
 	}
 
-	// Fold the provider CA bundle into the rollout hash so rotating the CA in
-	// spec.providerCASecretName restarts kube-auth-proxy pods. Kubelet updates
-	// the mounted secret file in place, but the proxy caches its trust pool, so
-	// without a rollout it keeps validating with the old CA. A referenced
-	// secret that is missing or carries an empty ca.crt is a configuration
-	// error: the rendered Deployment keeps the secret volume, so applying the
-	// hash fallback would roll pods that cannot mount it. Fail the reconcile
-	// instead, leaving the last good revision deployed; the secret watch
-	// requeues once the secret appears.
+	// Keep the CA bundle for each target's rollout hash: the proxy caches its
+	// trust pool and needs a restart after CA rotation. Missing or empty bundles
+	// stop deployment, preserving the last good revision until the Secret is fixed.
+	var providerCA []byte
 	if gatewayConfig.Spec.ProviderCASecretName != "" {
 		providerCASecret := &corev1.Secret{}
 		if err := rr.Client.Get(ctx, types.NamespacedName{
@@ -595,7 +594,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		if len(providerCASecret.Data["ca.crt"]) == 0 {
 			return nil, fmt.Errorf("provider CA secret %s has no ca.crt data", gatewayConfig.Spec.ProviderCASecretName)
 		}
-		authConfigHash = extendAuthConfigHash(authConfigHash, providerCASecret.Data["ca.crt"])
+		providerCA = providerCASecret.Data["ca.crt"]
 	}
 
 	// Get cookie settings with defaults
@@ -603,7 +602,6 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 	// Compute legacy redirect info for template
 	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
-	gatewayFilters := gatewayEnvoyFilterTargets(gatewayConfig)
 	redirectConfigHash, err := CalculateRedirectConfigHash(hostname)
 	if err != nil {
 		return nil, err
@@ -615,44 +613,35 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	templateData := map[string]any{
-		"IsOpenShift":              cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes,
-		"GatewayNamespace":         GetGatewayNamespace(),
-		"GatewayName":              GetDefaultGatewayName(),
-		"GatewayHostname":          hostname,
-		"GatewayServiceName":       GetDefaultGatewayServiceFullName(),
-		"KubeAuthProxyServiceName": KubeAuthProxyName,
-		"KubeAuthProxySecretsName": KubeAuthProxySecretsName,
-		"KubeAuthProxyTLSName":     KubeAuthProxyTLSName,
-		"OAuthCallbackRouteName":   OAuthCallbackRouteName,
-		"KubeAuthProxyImage":       getKubeAuthProxyImage(),
-		"AuthProxyHTTPPort":        AuthProxyHTTPPort,
-		"AuthProxyMetricsPort":     AuthProxyMetricsPort,
-		"StandardHTTPSPort":        StandardHTTPSPort,
-		"GatewayHTTPSPort":         GatewayHTTPSPort,
-		"AuthProxyOAuth2Path":      AuthProxyOAuth2Path,
-		"AuthProxyCookieName":      AuthProxyCookieName,
-		"TLSCertsVolumeName":       TLSCertsVolumeName,
-		"TLSCertsMountPath":        TLSCertsMountPath,
-		"RedirectURL":              fmt.Sprintf("https://%s%s", hostname, OAuthCallbackPath),
-		"DestinationRuleName":      DestinationRuleName,
-		"CookieExpire":             cookieExpire,
-		"CookieRefresh":            cookieRefresh,
-		"AuthConfigHash":           authConfigHash,
-		"AuthProxyTimeout":         getGatewayAuthProxyTimeout(gatewayConfig),
-		"AuthProxyMaxReplicas":     getGatewayAuthProxyMaxReplicas(gatewayConfig),
-		"ComponentLabelKey":        labels.K8SCommon.Component,
-		"ComponentLabelValue":      ComponentLabelValue,
-		"PartOfLabelKey":           labels.K8SCommon.PartOf,
-		"PartOfLabelValue":         PartOfLabelValue,
-		"IstioRevisionLabel":       IstioRevisionLabel,
-		"IstioRevisionValue":       GetIstioRevisionValue(),
-		"PartOfGatewayConfig":      PartOfGatewayConfig,
-		"GatewayNameLabelKey":      labels.GatewayAPI.GatewayName,
-		"GatewayFilters":           gatewayFilters,
-		"LegacySubdomain":          legacyInfo.LegacySubdomain,
-		"LegacyHostname":           legacyInfo.LegacyHostname,
-		"RouteLabels":              gatewayRouteLabels(nil),
-		"RouteServerTimeout":       serverTimeout,
+		"GatewayName":          GetDefaultGatewayName(),
+		"GatewayHostname":      hostname,
+		"IsOpenShift":          cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes,
+		"GatewayNamespace":     GetGatewayNamespace(),
+		"GatewayServiceName":   GetDefaultGatewayServiceFullName(),
+		"KubeAuthProxyImage":   getKubeAuthProxyImage(),
+		"AuthProxyHTTPPort":    AuthProxyHTTPPort,
+		"AuthProxyMetricsPort": AuthProxyMetricsPort,
+		"StandardHTTPSPort":    StandardHTTPSPort,
+		"GatewayHTTPSPort":     GatewayHTTPSPort,
+		"AuthProxyOAuth2Path":  AuthProxyOAuth2Path,
+		"TLSCertsVolumeName":   TLSCertsVolumeName,
+		"TLSCertsMountPath":    TLSCertsMountPath,
+		"CookieExpire":         cookieExpire,
+		"CookieRefresh":        cookieRefresh,
+		"AuthProxyTimeout":     getGatewayAuthProxyTimeout(gatewayConfig),
+		"ComponentLabelKey":    labels.K8SCommon.Component,
+		"ComponentLabelValue":  ComponentLabelValue,
+		"PartOfLabelKey":       labels.K8SCommon.PartOf,
+		"PartOfLabelValue":     PartOfLabelValue,
+		"IstioRevisionLabel":   IstioRevisionLabel,
+		"IstioRevisionValue":   GetIstioRevisionValue(),
+		"PartOfGatewayConfig":  PartOfGatewayConfig,
+		"GatewayNameLabelKey":  labels.GatewayAPI.GatewayName,
+		"LegacySubdomain":      legacyInfo.LegacySubdomain,
+		"LegacyHostname":       legacyInfo.LegacyHostname,
+		"RouteLabels":          gatewayRouteLabels(nil),
+		"RouteServerTimeout":   serverTimeout,
+		"ProviderCA":           providerCA,
 	}
 
 	// Add dashboard redirect template variables
@@ -722,6 +711,10 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData["TLSMinVersion"] = tlsMinVersion
 	templateData["TLSCipherSuite"] = tlsCipherSuites
 	templateData["TLSCurvePreferences"] = tlsCurvePreferences
+	if rr.Extensions == nil {
+		rr.Extensions = map[string]any{}
+	}
+	rr.Extensions[templateDataKey] = templateData
 
 	return templateData, nil
 }
@@ -791,15 +784,15 @@ func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationReq
 				return nil
 			}
 		}
+	}
 
-		message, err := checkGatewayAuthentication(ctx, rr.Client, defaultAuthProxyTarget("", gatewayConfig))
-		if err != nil {
-			return err
-		}
-		if message != "" {
-			markGatewayNotReady(rr, message)
-			return nil
-		}
+	message, err := checkGatewayAuthentication(ctx, rr.Client, defaultAuthProxyTarget("", gatewayConfig))
+	if err != nil {
+		return err
+	}
+	if message != "" {
+		markGatewayNotReady(rr, message)
+		return nil
 	}
 
 	// Check if Gateway infrastructure is ready after reporting any XKS certificate failure.

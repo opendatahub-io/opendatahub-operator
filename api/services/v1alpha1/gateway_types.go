@@ -61,7 +61,7 @@ const (
 )
 
 const (
-	// AdditionalGatewaysReadyConditionType summarizes the per-ingress GatewayReady conditions
+	// AdditionalGatewaysReadyConditionType summarizes the per-ingress Gateway, bridge Route and authentication readiness
 	// and contributes to GatewayConfig's overall Ready condition.
 	AdditionalGatewaysReadyConditionType              = "AdditionalGatewaysReady"
 	AdditionalIngressGatewayReadyConditionType        = "GatewayReady"
@@ -214,7 +214,7 @@ type AdditionalIngresses []AdditionalIngress
 
 // Validate performs runtime validation for additional ingress definitions.
 func (ingresses AdditionalIngresses) Validate(ingressMode IngressMode) error {
-	if len(ingresses) > 0 && ingressMode != IngressModeOcpRoute {
+	if len(ingresses) > 0 && ingressMode != "" && ingressMode != IngressModeOcpRoute {
 		return fmt.Errorf("additional ingresses require %s ingress mode", IngressModeOcpRoute)
 	}
 
@@ -268,6 +268,7 @@ type AdditionalIngress struct {
 	// Hostname is the externally visible hostname for this ingress.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)(\.([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?))*$`
 	Hostname string `json:"hostname"`
 
 	// IngressControllerName is the IngressController whose Route admission is used for readiness.
@@ -300,7 +301,7 @@ type AdditionalIngressAuth struct {
 
 	// MaxReplicas is the maximum number of replicas for this ingress's auth proxy.
 	// The minimum remains fixed at 2. This does not configure the default proxy.
-	// A value of 2 requests two fixed replicas without an HPA; larger values enable autoscaling.
+	// A value of 2 fixes the HPA minimum and maximum at two replicas.
 	// +optional
 	// +kubebuilder:default=10
 	// +kubebuilder:validation:Minimum=2
@@ -327,6 +328,8 @@ type AdditionalIngressOIDCConfig struct {
 
 	// SecretNamespace is the source Secret's namespace; defaults to the gateway namespace.
 	// +optional
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	SecretNamespace string `json:"secretNamespace,omitempty"`
 }
 

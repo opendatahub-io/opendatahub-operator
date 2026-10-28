@@ -36,6 +36,9 @@ const (
 	ReadyConditionType = serviceApi.GatewayConfigKind + status.ReadySuffix
 )
 
+// Configuration failures affect one target; client failures must stop before deployment and GC.
+var errInvalidAuthenticationConfig = errors.New("invalid authentication configuration")
+
 const (
 	// Gateway infrastructure constants.
 	GatewayNamespace           = "openshift-ingress"                  // Namespace where Gateway resources are deployed on OpenShift
@@ -183,22 +186,6 @@ func additionalGatewayEnvoyFilterName(ingressName string) string {
 type gatewayEnvoyFilterTarget struct {
 	Name        string
 	GatewayName string
-}
-
-func gatewayEnvoyFilterTargets(gatewayConfig *serviceApi.GatewayConfig) []gatewayEnvoyFilterTarget {
-	targets := []gatewayEnvoyFilterTarget{{Name: AuthnFilterName, GatewayName: GetDefaultGatewayName()}}
-	if gatewayConfig != nil {
-		for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
-			if additionalIngressHasGatewayConflict(gatewayConfig, ingress.Name) {
-				continue
-			}
-			targets = append(targets, gatewayEnvoyFilterTarget{
-				Name:        additionalGatewayEnvoyFilterName(ingress.Name),
-				GatewayName: ingress.Name,
-			})
-		}
-	}
-	return targets
 }
 
 // ErrDomainRequired is returned by GetFQDN when spec.domain is not set on non-OpenShift clusters.
@@ -573,11 +560,15 @@ func createOAuthClient(
 	clientSecret := string(clientSecretBytes)
 
 	redirectURL := fmt.Sprintf("https://%s%s", hostname, OAuthCallbackPath)
+	grantMethod := oauthv1.GrantHandlerAuto
+	if !target.isDefault() {
+		grantMethod = oauthv1.GrantHandlerPrompt
+	}
 	oauthClient := &oauthv1.OAuthClient{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: target.ClientID,
 		},
-		GrantMethod:  oauthv1.GrantHandlerAuto,
+		GrantMethod:  grantMethod,
 		RedirectURIs: []string{redirectURL},
 		Secret:       clientSecret, // encoded string
 	}
@@ -731,7 +722,7 @@ func calculateAuthConfigHash(authSecret *corev1.Secret) string {
 	cookieSecret := string(authSecret.Data["OAUTH2_PROXY_COOKIE_SECRET"])
 
 	// Calculate SHA256 hash
-	hash := sha256.Sum256([]byte(clientID + clientSecret + cookieSecret))
+	hash := sha256.Sum256([]byte(clientID + "\x00" + clientSecret + "\x00" + cookieSecret))
 	return hex.EncodeToString(hash[:])
 }
 
@@ -773,7 +764,7 @@ func getKubeAuthProxyImage() string {
 	// --tls-cipher-suite and --tls-curve-preferences); it matches the ODH e2e image in
 	// manifests-config.yaml so the fallback stays compatible with the rendered proxy args.
 	// The pinned build includes the provider CA client-cache fix (kube-auth-proxy#119).
-	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:1a5f6e220362aa2077026bb7e3091c38f80aac861fa060b08045e58e783d5bc5" // latest as of 2026-10-16
+	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:6d4babb7514c9d7701a193a752d273a8056498761342221997801a36ca157975" // latest as of 2026-10-20
 }
 
 // getDashboardRedirectImage returns the nginx image for dashboard redirects.
@@ -843,6 +834,11 @@ func getAuthProxySecretValues(
 	switch authMode {
 	case cluster.AuthModeOIDC:
 		// OIDC mode: get client secret from external secret
+		// With additional ingresses, reconciliation continues past the top-level
+		// OIDC check so each target can report its own configuration failure.
+		if oidcConfig == nil {
+			return "", "", "", fmt.Errorf("%w: OIDC configuration is required for gateway %q", errInvalidAuthenticationConfig, target.GatewayName)
+		}
 		clientID = oidcConfig.ClientID
 
 		// Determine which namespace to use for the secret
@@ -856,6 +852,9 @@ func getAuthProxySecretValues(
 			Name:      oidcConfig.ClientSecretRef.Name,
 			Namespace: secretNamespace,
 		}, externalSecret); err != nil {
+			if k8serr.IsNotFound(err) {
+				err = fmt.Errorf("%w: %w", errInvalidAuthenticationConfig, err)
+			}
 			return "", "", "", fmt.Errorf("failed to get OIDC client secret %s/%s: %w",
 				secretNamespace, oidcConfig.ClientSecretRef.Name, err)
 		}
@@ -868,7 +867,8 @@ func getAuthProxySecretValues(
 		if secretValue, exists := externalSecret.Data[key]; exists && len(secretValue) != 0 {
 			clientSecretValue = string(secretValue)
 		} else {
-			return "", "", "", fmt.Errorf("key '%s' is missing or empty in OIDC secret %s/%s", key, secretNamespace, oidcConfig.ClientSecretRef.Name)
+			return "", "", "", fmt.Errorf("%w: key '%s' is missing or empty in OIDC secret %s/%s",
+				errInvalidAuthenticationConfig, key, secretNamespace, oidcConfig.ClientSecretRef.Name)
 		}
 
 	case cluster.AuthModeIntegratedOAuth:
@@ -905,12 +905,20 @@ func getAuthProxySecretValues(
 // that creating or updating these Secrets triggers GatewayConfig re-reconciliation.
 func IsGatewayReferencedSecret(ctx context.Context, cli client.Client, obj client.Object, gatewayNamespace string) bool {
 	gatewayConfig := &serviceApi.GatewayConfig{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayConfigName}, gatewayConfig); err != nil {
+	if err := cli.Get(ctx, client.ObjectKey{
+		Name: serviceApi.GatewayConfigName,
+	}, gatewayConfig); err != nil {
 		return false
 	}
 
 	secretName := obj.GetName()
 	secretNamespace := obj.GetNamespace()
+
+	for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
+		if ingress.Auth.OIDC != nil && secretName == ingress.Auth.OIDC.ClientSecretRef.Name && secretNamespace == authSecretNamespace(ingress.Auth.OIDC.SecretNamespace) {
+			return true
+		}
+	}
 
 	if gatewayConfig.Spec.OIDC != nil {
 		oidcSecretNamespace := gatewayConfig.Spec.OIDC.SecretNamespace

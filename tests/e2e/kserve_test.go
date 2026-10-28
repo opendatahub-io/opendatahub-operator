@@ -33,6 +33,12 @@ const (
 
 	llmInferenceServiceConfigWellKnownAnnotationKey   = "serving.kserve.io/well-known-config"
 	llmInferenceServiceConfigWellKnownAnnotationValue = "true"
+
+	// fakeCoCoRuntimeClassName is an inert RuntimeClass used to simulate
+	// installed confidential container support. Its name matches the kata-
+	// prefix the kserve module looks for, but nothing ever schedules pods
+	// against it: the module only lists RuntimeClasses to detect CoCo support.
+	fakeCoCoRuntimeClassName = "kata-e2e"
 )
 
 type KserveTestCtx struct {
@@ -82,12 +88,12 @@ func kserveTestSuite(t *testing.T) {
 	} else {
 		testCases = append(testCases,
 			TestCase{"Validate subscription dependency conditions", componentCtx.ValidateSubscriptionDependencyConditions},
+			TestCase{"Validate confidential container dependency conditions", componentCtx.ValidateConfidentialContainerDependencyConditions},
 		)
 	}
 
 	testCases = append(testCases,
 		TestCase{"Validate platform config ConfigMap", componentCtx.ValidatePlatformConfigMap},
-		TestCase{"Validate AIHub state propagation", componentCtx.ValidateAIHubStatePropagation},
 		TestCase{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 		TestCase{"Validate module disabled", componentCtx.ValidateModuleDisabled},
@@ -211,6 +217,139 @@ func (tc *KserveTestCtx) ValidateSubscriptionDependencyConditions(t *testing.T) 
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
 				kserve.LLMInferenceServiceWideEPDependencies, metav1.ConditionTrue),
 		)),
+	)
+}
+
+// ValidateConfidentialContainerDependencyConditions verifies that optional CoCo
+// dependencies are surfaced as unavailable when a CoCo RuntimeClass is not
+// installed, without making KServe's required dependencies unavailable. It then
+// creates an inert fake CoCo RuntimeClass to verify the condition flips to
+// available (on both the component CR and the DSC), and finally removes it to
+// verify the condition recovers to unavailable.
+func (tc *KserveTestCtx) ValidateConfidentialContainerDependencyConditions(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+	tc.SkipIfXKSCluster(t)
+
+	kserveNN := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+	t.Log("Verifying Kserve reports missing confidential container dependencies.")
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.GVK, kserveNN),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				kserve.ConfidentialContainerDependencies, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`,
+				kserve.ConfidentialContainerDependencies, "Info"),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`,
+				kserve.ConfidentialContainerDependencies, "RuntimeClass"),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				status.ConditionDependenciesAvailable, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Expected Kserve to report missing optional confidential container dependencies while remaining available"),
+	)
+
+	t.Log("Verifying DSC surfaces the Kserve confidential container dependency condition.")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				kserve.ConfidentialContainerDependencies, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`,
+				kserve.ConfidentialContainerDependencies, "Info"),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`,
+				kserve.ConfidentialContainerDependencies, "RuntimeClass"),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Expected DSC to surface Kserve's missing confidential container dependencies"),
+	)
+
+	// Positive path: install a fake CoCo RuntimeClass and verify the optional
+	// dependency is detected as available. The kserve module watches
+	// RuntimeClasses matching the CoCo prefixes, so it reconciles promptly on
+	// create and delete without waiting for a resync.
+	runtimeClassNN := types.NamespacedName{Name: fakeCoCoRuntimeClassName}
+
+	t.Logf("Creating fake CoCo RuntimeClass %s to simulate installed confidential container support.", runtimeClassNN.Name)
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.RuntimeClass, runtimeClassNN),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			// The kserve module requires a non-empty handler to consider a
+			// matching RuntimeClass usable.
+			return unstructured.SetNestedField(obj.Object, fakeCoCoRuntimeClassName, "handler")
+		}),
+		WithCleanup(t),
+		WithCustomErrorMsg("Failed to create RuntimeClass %s for confidential container dependency test", runtimeClassNN.Name),
+	)
+
+	t.Log("Verifying Kserve reports confidential container dependencies as available.")
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.GVK, kserveNN),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				kserve.ConfidentialContainerDependencies, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`,
+				kserve.ConfidentialContainerDependencies, "Info"),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				status.ConditionDependenciesAvailable, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Expected Kserve to report confidential container dependencies as available with the fake RuntimeClass installed"),
+	)
+
+	t.Log("Verifying DSC surfaces the available confidential container dependency condition.")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				kserve.ConfidentialContainerDependencies, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`,
+				kserve.ConfidentialContainerDependencies, "Info"),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Expected DSC to surface Kserve's available confidential container dependencies"),
+	)
+
+	// Recovery path: remove the fake RuntimeClass and verify the condition
+	// flips back to unavailable. This also guarantees the cluster state is
+	// restored for any test that asserts on the missing-dependency baseline.
+	t.Logf("Deleting fake CoCo RuntimeClass %s to verify recovery.", runtimeClassNN.Name)
+	tc.DeleteResource(
+		WithMinimalObject(gvk.RuntimeClass, runtimeClassNN),
+		WithWaitForDeletion(true),
+		WithCustomErrorMsg("Failed to delete RuntimeClass %s after confidential container dependency test", runtimeClassNN.Name),
+	)
+
+	t.Log("Verifying Kserve reports missing confidential container dependencies again after RuntimeClass removal.")
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.GVK, kserveNN),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				kserve.ConfidentialContainerDependencies, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`,
+				kserve.ConfidentialContainerDependencies, "RuntimeClass"),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Expected Kserve to report missing confidential container dependencies after RuntimeClass removal"),
+	)
+
+	t.Log("Verifying DSC surfaces the missing confidential container dependency condition again.")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				kserve.ConfidentialContainerDependencies, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Expected DSC to surface Kserve's missing confidential container dependencies after RuntimeClass removal"),
 	)
 }
 

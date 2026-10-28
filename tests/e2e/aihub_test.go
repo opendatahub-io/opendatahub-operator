@@ -51,6 +51,14 @@ func aihubTestSuite(t *testing.T) {
 				originalInstancesNamespace = dsc.Spec.Components.AIHub.InstancesNamespace
 			}
 
+			// instancesNamespace is immutable while AI Hub is Managed; pass
+			// through Removed so the next patch can set a new namespace.
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.Transform(`.spec.components.aiHub.managementState = "Removed"`)),
+				WithCondition(jq.Match(`.spec.components.aiHub.managementState == "Removed"`)),
+			)
+
 			// Patch DSC to Managed with a non-default instancesNamespace.
 			tc.EventuallyResourcePatched(
 				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),

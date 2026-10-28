@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	admissionv1 "k8s.io/api/admission/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -59,6 +60,19 @@ func TestGatewayConfigValidator(t *testing.T) {
 			errorMessages: []string{"ingressMode OcpRoute", "LoadBalancer"},
 		},
 		{
+			name:        "rejects additional ingress without explicit mode on Kubernetes",
+			clusterType: cluster.ClusterTypeKubernetes,
+			spec: serviceApi.GatewayConfigSpec{
+				AdditionalIngresses: serviceApi.AdditionalIngresses{{
+					Name:                  "alpha",
+					Hostname:              "alpha.example.com",
+					IngressControllerName: "shard-alpha",
+					RouteLabels:           map[string]string{"example.com/ingress": "alpha"},
+				}},
+			},
+			errorMessages: []string{"additional ingresses require an explicit ingress mode", "received ingressMode=\"\""},
+		},
+		{
 			name:        "rejects both OpenShift-only values on Kubernetes update",
 			clusterType: cluster.ClusterTypeKubernetes,
 			operation:   admissionv1.Update,
@@ -92,6 +106,19 @@ func TestGatewayConfigValidator(t *testing.T) {
 			spec: serviceApi.GatewayConfigSpec{
 				IngressMode: serviceApi.IngressModeOcpRoute,
 				Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
+			},
+			allowed: true,
+		},
+		{
+			name:        "accepts additional ingress before mode detection on OpenShift",
+			clusterType: cluster.ClusterTypeOpenShift,
+			spec: serviceApi.GatewayConfigSpec{
+				AdditionalIngresses: serviceApi.AdditionalIngresses{{
+					Name:                  "alpha",
+					Hostname:              "alpha.example.com",
+					IngressControllerName: "shard-alpha",
+					RouteLabels:           map[string]string{"example.com/ingress": "alpha"},
+				}},
 			},
 			allowed: true,
 		},
@@ -219,6 +246,136 @@ func TestGatewayConfigValidatorRequestErrors(t *testing.T) {
 		g.Expect(response.Result.Code).To(Equal(int32(http.StatusBadRequest)))
 		g.Expect(response.Result.Message).To(ContainSubstring("failed to decode GatewayConfig"))
 	})
+}
+
+func TestGatewayConfigAdditionalIngressCrossEntryValidation(t *testing.T) {
+	g := NewWithT(t)
+	sch, err := scheme.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	validator := &gatewaywebhook.Validator{Decoder: admission.NewDecoder(sch), Name: "test-gatewayconfig-validator"}
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+	validIngress := func(name, hostname, labelValue string) serviceApi.AdditionalIngress {
+		return serviceApi.AdditionalIngress{
+			Name:                  name,
+			Hostname:              hostname,
+			IngressControllerName: "shard-" + name,
+			RouteLabels:           map[string]string{"example.com/ingress": labelValue},
+		}
+	}
+	validOIDC := func(clientID, secretName string) *serviceApi.AdditionalIngressOIDCConfig {
+		return &serviceApi.AdditionalIngressOIDCConfig{
+			ClientID: clientID,
+			ClientSecretRef: corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
+				Key:                  "clientSecret",
+			},
+		}
+	}
+
+	tests := []struct {
+		name    string
+		spec    serviceApi.GatewayConfigSpec
+		message string
+	}{
+		{
+			name: "duplicate hostnames",
+			spec: serviceApi.GatewayConfigSpec{
+				IngressMode:         serviceApi.IngressModeOcpRoute,
+				AdditionalIngresses: serviceApi.AdditionalIngresses{validIngress("alpha", "shared.example.com", "alpha"), validIngress("beta", "shared.example.com", "beta")},
+			},
+			message: "hostname",
+		},
+		{
+			name: "duplicate route labels",
+			spec: serviceApi.GatewayConfigSpec{
+				IngressMode:         serviceApi.IngressModeOcpRoute,
+				AdditionalIngresses: serviceApi.AdditionalIngresses{validIngress("alpha", "alpha.example.com", "shared"), validIngress("beta", "beta.example.com", "shared")},
+			},
+			message: "route labels",
+		},
+		{
+			name: "mixed authentication modes",
+			spec: serviceApi.GatewayConfigSpec{
+				IngressMode: serviceApi.IngressModeOcpRoute,
+				OIDC: &serviceApi.OIDCConfig{
+					ClientID: "default-client",
+					ClientSecretRef: corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "default-secret"},
+						Key:                  "clientSecret",
+					},
+				},
+				AdditionalIngresses: serviceApi.AdditionalIngresses{validIngress("alpha", "alpha.example.com", "alpha")},
+			},
+			message: "auth.oidc is required",
+		},
+		{
+			name: "duplicate OIDC client IDs",
+			spec: serviceApi.GatewayConfigSpec{
+				IngressMode: serviceApi.IngressModeOcpRoute,
+				OIDC: &serviceApi.OIDCConfig{
+					ClientID: "default-client",
+					ClientSecretRef: corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "default-secret"},
+						Key:                  "clientSecret",
+					},
+				},
+				AdditionalIngresses: func() serviceApi.AdditionalIngresses {
+					alpha := validIngress("alpha", "alpha.example.com", "alpha")
+					beta := validIngress("beta", "beta.example.com", "beta")
+					alpha.Auth.OIDC = validOIDC("shared-client", "alpha-secret")
+					beta.Auth.OIDC = validOIDC("shared-client", "beta-secret")
+					return serviceApi.AdditionalIngresses{alpha, beta}
+				}(),
+			},
+			message: "clientID",
+		},
+		{
+			name: "duplicate OIDC Secret references",
+			spec: serviceApi.GatewayConfigSpec{
+				IngressMode: serviceApi.IngressModeOcpRoute,
+				OIDC: &serviceApi.OIDCConfig{
+					ClientID: "default-client",
+					ClientSecretRef: corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "default-secret"},
+						Key:                  "clientSecret",
+					},
+				},
+				AdditionalIngresses: func() serviceApi.AdditionalIngresses {
+					alpha := validIngress("alpha", "alpha.example.com", "alpha")
+					beta := validIngress("beta", "beta.example.com", "beta")
+					alpha.Auth.OIDC = validOIDC("alpha-client", "shared-secret")
+					beta.Auth.OIDC = validOIDC("beta-client", "shared-secret")
+					beta.Auth.OIDC.ClientSecretRef.Key = "other"
+					beta.Auth.OIDC.SecretNamespace = "openshift-ingress"
+					return serviceApi.AdditionalIngresses{alpha, beta}
+				}(),
+			},
+			message: "clientSecretRef",
+		},
+		{
+			name: "additional ingresses require OcpRoute",
+			spec: serviceApi.GatewayConfigSpec{
+				IngressMode:         serviceApi.IngressModeLoadBalancer,
+				AdditionalIngresses: serviceApi.AdditionalIngresses{validIngress("alpha", "alpha.example.com", "alpha")},
+			},
+			message: "require OcpRoute",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			request := envtestutil.NewAdmissionRequest(t, admissionv1.Create,
+				&serviceApi.GatewayConfig{ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName}, Spec: tc.spec},
+				gvk.GatewayConfig,
+				metav1.GroupVersionResource{Group: gvk.GatewayConfig.Group, Version: gvk.GatewayConfig.Version, Resource: "gatewayconfigs"})
+			response := validator.Handle(t.Context(), request)
+			g := NewWithT(t)
+			g.Expect(response.Allowed).To(BeFalse())
+			g.Expect(response.Result.Message).To(ContainSubstring(tc.message))
+		})
+	}
 }
 
 func TestRegisterWebhooksNilManager(t *testing.T) {

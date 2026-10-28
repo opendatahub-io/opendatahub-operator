@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -109,7 +110,7 @@ func gatewayDeploymentWatchPredicate() predicate.Predicate {
 				oldDeployment, oldOK := e.ObjectOld.(*unstructured.Unstructured)
 				newDeployment, newOK := e.ObjectNew.(*unstructured.Unstructured)
 				if !oldOK || !newOK ||
-					newDeployment.GetName() != KubeAuthProxyName ||
+					(newDeployment.GetName() != KubeAuthProxyName && !strings.HasPrefix(newDeployment.GetName(), KubeAuthProxyName+"-")) ||
 					newDeployment.GetNamespace() != GetGatewayNamespace() {
 					return false
 				}
@@ -160,6 +161,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.NetworkPolicy).
 		OwnsGVK(gvk.Deployment, reconciler.WithPredicates(gatewayDeploymentWatchPredicate())).
 		OwnsGVK(gvk.HorizontalPodAutoscaler).
+		OwnsGVK(gvk.ServiceAccount).
 		OwnsGVK(gvk.HTTPRoute).
 		OwnsGVK(gvk.Route,
 			reconciler.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
@@ -250,10 +252,8 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(reportDeprecatedNetworkPolicyConfig).
 		WithAction(syncAdditionalIngressStatus).
 		WithAction(createGatewayInfrastructure).
-		WithAction(createKubeAuthProxyInfrastructure). //  include destinationrule
+		WithAction(createKubeAuthProxyInfrastructure).
 		WithAction(cleanupKubeAuthProxyResources).
-		WithAction(createEnvoyFilter).
-		WithAction(createNetworkPolicy).
 		WithAction(createOCPRoutes).
 		WithAction(createDashboardRedirectsAction).
 		WithAction(template.NewAction(
@@ -267,7 +267,8 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		)).
 		WithAction(syncAdditionalIngressReadiness).
 		WithAction(syncGatewayConfigStatus).
-		WithAction(gc.NewAction()).
+		// Preserve failed auth targets while collecting resources for removed ingresses.
+		WithAction(gc.NewAction(gc.WithObjectPredicate(gatewayAuthResourceCollectable))).
 		WithPostStatusFn(syncAdditionalIngressReadyStatuses).
 		WithConditions(reconciler.DependentConditions(ReadyConditionType, serviceApi.AdditionalGatewaysReadyConditionType)...)
 

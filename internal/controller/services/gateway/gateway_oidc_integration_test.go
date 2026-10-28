@@ -26,14 +26,19 @@ import (
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 
 	. "github.com/onsi/gomega"
 )
@@ -190,6 +195,74 @@ func TestOIDCGatewayCreation(t *testing.T) {
 // TestOIDCAdditionalGateways validates per-ingress Gateway reconciliation in OIDC mode.
 func TestOIDCAdditionalGateways(t *testing.T) {
 	RunAdditionalGatewaysTest(t, GetOIDCTestSetup())
+}
+
+// TestOIDCAdditionalIngressSourceSecretPreserved validates that the admin-supplied OIDC
+// client secret is never adopted, mutated or deleted by the operator.
+func TestOIDCAdditionalIngressSourceSecretPreserved(t *testing.T) {
+	RunAdditionalIngressOIDCSourceSecretPreservedTest(t, GetOIDCTestSetup())
+}
+
+// Missing credentials during a spec update must not delete or roll out default auth resources.
+func TestOIDCDefaultPreparationFailurePreservesResources(t *testing.T) {
+	setup := GetOIDCTestSetup()
+	defer setup.Setup(t)()
+	ctx, cli := setup.TC.Ctx, setup.TC.K8sClient
+	g := NewWithT(t)
+	deployment := &appsv1.Deployment{}
+	objects := []struct {
+		object client.Object
+		name   string
+		uid    types.UID
+	}{
+		{object: deployment, name: gateway.KubeAuthProxyName},
+		{object: &corev1.Service{}, name: gateway.KubeAuthProxyName},
+		{object: &autoscalingv2.HorizontalPodAutoscaler{}, name: gateway.KubeAuthProxyName},
+		{object: &corev1.ServiceAccount{}, name: gateway.KubeAuthProxyName},
+		{object: &rbacv1.ClusterRoleBinding{}, name: gateway.KubeAuthProxyName + "-tokenreview"},
+		{object: &gwapiv1.HTTPRoute{}, name: gateway.OAuthCallbackRouteName},
+		{object: resources.GvkToUnstructured(gvk.DestinationRule), name: gateway.DestinationRuleName},
+	}
+	for i := range objects {
+		resource := &objects[i]
+		key := client.ObjectKey{
+			Name:      resource.name,
+			Namespace: gateway.GetGatewayNamespace(),
+		}
+		if _, clusterScoped := resource.object.(*rbacv1.ClusterRoleBinding); clusterScoped {
+			key.Namespace = ""
+		}
+		g.Eventually(func() error { return cli.Get(ctx, key, resource.object) }, TestTimeout, TestInterval).Should(Succeed())
+		resource.uid = resource.object.GetUID()
+	}
+	podTemplate := deployment.Spec.Template.DeepCopy()
+	source := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      OIDCSecretName,
+			Namespace: gateway.GetGatewayNamespace(),
+		},
+	}
+	g.Expect(cli.Delete(ctx, source)).To(Succeed())
+	defer ensureOIDCClientSecret(t, setup.TC)
+	spec := setup.Spec
+	spec.Cookie.Expire = metav1.Duration{
+		Duration: 48 * time.Hour,
+	}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	g.Eventually(func(g Gomega) {
+		config, err := getGatewayConfig(ctx, cli)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(config.Status.Conditions).To(ContainElement(HaveField("ObservedGeneration", Equal(config.Generation))))
+	}, TestTimeout, TestInterval).Should(Succeed())
+	g.Consistently(func(g Gomega) {
+		for _, resource := range objects {
+			g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(resource.object), resource.object)).To(Succeed())
+			g.Expect(resource.object.GetUID()).To(Equal(resource.uid))
+			g.Expect(resource.object.GetDeletionTimestamp()).To(BeNil())
+		}
+	}, 5*time.Second, TestInterval).Should(Succeed())
+	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(deployment), deployment)).To(Succeed())
+	g.Expect(deployment.Spec.Template).To(Equal(*podTemplate))
 }
 
 // TestOIDCHTTPRouteCreation validates HTTPRoute creation in OIDC mode (delegates to RunHTTPRouteCreationTest).
@@ -408,7 +481,9 @@ func TestOIDCProviderCASecretRotationRollsDeployment(t *testing.T) {
 	g.Expect(hashBefore).NotTo(BeEmpty(), "secret-hash annotation should be set with a provider CA configured")
 
 	// Rotate the CA bundle inside the same secret
-	caSecret.Data["ca.crt"] = []byte("-----BEGIN CERTIFICATE-----\nca-v2\n-----END CERTIFICATE-----")
+	originalCA := caSecret.Data["ca.crt"]
+	rotatedCA := []byte("-----BEGIN CERTIFICATE-----\nca-v2\n-----END CERTIFICATE-----")
+	caSecret.Data["ca.crt"] = rotatedCA
 	g.Expect(tc.K8sClient.Update(tc.Ctx, caSecret)).To(Succeed())
 
 	g.Eventually(func() bool {
@@ -418,6 +493,18 @@ func TestOIDCProviderCASecretRotationRollsDeployment(t *testing.T) {
 		}
 		return updated.Spec.Template.Annotations["opendatahub.io/secret-hash"] != hashBefore
 	}, TestTimeout, TestInterval).Should(BeTrue(), "secret-hash annotation must change when the provider CA secret is rotated")
+
+	g.Expect(tc.K8sClient.Get(tc.Ctx, client.ObjectKeyFromObject(caSecret), caSecret)).To(Succeed())
+	g.Expect(caSecret.Data["ca.crt"]).To(Equal(rotatedCA), "reconciliation must retain the administrator-supplied CA")
+	caSecret.Data["ca.crt"] = originalCA
+	g.Expect(tc.K8sClient.Update(tc.Ctx, caSecret)).To(Succeed())
+	g.Eventually(func() string {
+		updated, err := getAuthProxyDeployment(tc.Ctx, tc.K8sClient)
+		if err != nil {
+			return ""
+		}
+		return updated.Spec.Template.Annotations["opendatahub.io/secret-hash"]
+	}, TestTimeout, TestInterval).Should(Equal(hashBefore), "restoring the original CA must roll back the deployment hash")
 }
 
 // TestOIDCWithInsecureSkipVerify validates that VerifyProviderCertificate=false results in --ssl-insecure-skip-verify=true in the deployment.

@@ -1,0 +1,224 @@
+//nolint:testpackage
+package gatewayconfig
+
+import (
+	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+
+	. "github.com/onsi/gomega"
+)
+
+func TestAdditionalIngressValidationErrors(t *testing.T) {
+	validIngress := func(name, hostname, labelValue string) serviceApi.AdditionalIngress {
+		return serviceApi.AdditionalIngress{
+			Name:                  name,
+			Hostname:              hostname,
+			IngressControllerName: "shard-" + name,
+			RouteLabels:           map[string]string{"example.com/ingress": labelValue},
+		}
+	}
+	validOIDC := func(clientID, secretName, secretKey, namespace string) *serviceApi.AdditionalIngressOIDCConfig {
+		return &serviceApi.AdditionalIngressOIDCConfig{
+			ClientID: clientID,
+			ClientSecretRef: corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
+				Key:                  secretKey,
+			},
+			SecretNamespace: namespace,
+		}
+	}
+
+	tests := []struct {
+		name    string
+		config  *serviceApi.GatewayConfig
+		wantErr string
+	}{
+		{
+			name: "nil config",
+		},
+		{
+			name: "empty additional ingress list",
+			config: &serviceApi.GatewayConfig{
+				Spec: serviceApi.GatewayConfigSpec{},
+			},
+		},
+		{
+			name: "duplicate hostname",
+			config: &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{
+				IngressMode:         serviceApi.IngressModeOcpRoute,
+				AdditionalIngresses: serviceApi.AdditionalIngresses{validIngress("alpha", "shared.example.com", "alpha"), validIngress("beta", "shared.example.com", "beta")},
+			}},
+			wantErr: "hostname",
+		},
+		{
+			name: "mixed authentication modes",
+			config: &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{
+				IngressMode: serviceApi.IngressModeOcpRoute,
+				OIDC: &serviceApi.OIDCConfig{
+					ClientID: "default-client",
+					ClientSecretRef: corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "default-secret"},
+						Key:                  "clientSecret",
+					},
+				},
+				AdditionalIngresses: serviceApi.AdditionalIngresses{validIngress("alpha", "alpha.example.com", "alpha")},
+			}},
+			wantErr: "auth.oidc is required",
+		},
+		{
+			name: "duplicate client ID and effective secret reference",
+			config: &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{
+				IngressMode: serviceApi.IngressModeOcpRoute,
+				OIDC: &serviceApi.OIDCConfig{
+					ClientID: "default-client",
+					ClientSecretRef: corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "shared-secret"},
+						Key:                  "default-key",
+					},
+					SecretNamespace: "openshift-ingress",
+				},
+				AdditionalIngresses: func() serviceApi.AdditionalIngresses {
+					alpha := validIngress("alpha", "alpha.example.com", "alpha")
+					alpha.Auth.OIDC = validOIDC("default-client", "shared-secret", "additional-key", "")
+					return serviceApi.AdditionalIngresses{alpha}
+				}(),
+			}},
+			wantErr: "clientID",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			g := NewWithT(t)
+			messages := AdditionalIngressValidationErrors(test.config, "openshift-ingress")
+			if test.wantErr == "" {
+				g.Expect(messages).To(BeEmpty())
+				return
+			}
+			g.Expect(messages).To(ContainElement(ContainSubstring(test.wantErr)))
+		})
+	}
+}
+
+func TestKubernetesValidationErrors(t *testing.T) {
+	tests := []struct {
+		name   string
+		config *serviceApi.GatewayConfig
+		want   []string
+	}{
+		{
+			name: "nil config",
+		},
+		{
+			name: "supported values",
+			config: &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{
+				IngressMode: serviceApi.IngressModeLoadBalancer,
+				Certificate: &infrav1.CertificateSpec{Type: infrav1.SelfSigned},
+			}},
+		},
+		{
+			name: "unsupported certificate",
+			config: &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{
+				Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
+			}},
+			want: []string{GatewayUnsupportedCertTypeOnKubernetesMessage},
+		},
+		{
+			name: "unsupported ingress mode",
+			config: &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{
+				IngressMode: serviceApi.IngressModeOcpRoute,
+			}},
+			want: []string{GatewayUnsupportedIngressModeOnKubernetesMessage},
+		},
+		{
+			name: "additional ingress without ingress mode",
+			config: &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{
+				AdditionalIngresses: serviceApi.AdditionalIngresses{{Name: "alpha"}},
+			}},
+			want: []string{"additional ingresses require an explicit ingress mode on Kubernetes; received ingressMode=\"\""},
+		},
+		{
+			name: "all unsupported values",
+			config: &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{
+				IngressMode: serviceApi.IngressModeOcpRoute,
+				Certificate: &infrav1.CertificateSpec{Type: infrav1.OpenshiftDefaultIngress},
+			}},
+			want: []string{
+				GatewayUnsupportedCertTypeOnKubernetesMessage,
+				GatewayUnsupportedIngressModeOnKubernetesMessage,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(KubernetesValidationErrors(test.config)).To(Equal(test.want))
+		})
+	}
+}
+
+func TestAdditionalIngressOIDCRequiresTopLevelOIDC(t *testing.T) {
+	g := NewWithT(t)
+	config := &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{
+		AdditionalIngresses: serviceApi.AdditionalIngresses{{
+			Name:                  "alpha",
+			Hostname:              "alpha.example.com",
+			IngressControllerName: "shard-alpha",
+			RouteLabels:           map[string]string{"example.com/ingress": "alpha"},
+			Auth: serviceApi.AdditionalIngressAuth{
+				OIDC: &serviceApi.AdditionalIngressOIDCConfig{
+					ClientID: "alpha-client",
+					ClientSecretRef: corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "alpha-secret"},
+						Key:                  "clientSecret",
+					},
+				},
+			},
+		}},
+	}}
+
+	g.Expect(AdditionalIngressValidationErrors(config, "openshift-ingress")).To(ContainElement(
+		"spec.additionalIngresses[0].auth.oidc requires spec.oidc",
+	))
+}
+
+func TestValidateOIDCIdentityNil(t *testing.T) {
+	g := NewWithT(t)
+
+	g.Expect(validateOIDCIdentity(
+		serviceApi.AdditionalIngress{},
+		0,
+		"openshift-ingress",
+		map[string]string{},
+		map[string]string{},
+	)).To(BeEmpty())
+}
+
+func TestAppendDuplicate(t *testing.T) {
+	g := NewWithT(t)
+	seen := map[string]string{}
+
+	messages := appendDuplicate(nil, seen, "name:alpha", "spec.additionalIngresses[0].name")
+	g.Expect(messages).To(BeEmpty())
+	messages = appendDuplicate(messages, seen, "name:alpha", "spec.additionalIngresses[1].name")
+	g.Expect(messages).To(ConsistOf("spec.additionalIngresses[1].name duplicates spec.additionalIngresses[0].name"))
+}
+
+func TestOIDCSecretReferenceKey(t *testing.T) {
+	g := NewWithT(t)
+	g.Expect(oidcSecretReferenceKey("client", "", "openshift-ingress")).To(Equal("openshift-ingress/client"))
+	g.Expect(oidcSecretReferenceKey("client", "custom", "openshift-ingress")).To(Equal("custom/client"))
+	g.Expect(oidcSecretReferenceKey("client", "custom", "other")).To(Equal("custom/client"))
+}
+
+func TestCanonicalLabelsKeyIsDeterministic(t *testing.T) {
+	g := NewWithT(t)
+	first := canonicalLabelsKey(map[string]string{"b.example/key": "b", "a.example/key": "a"})
+	second := canonicalLabelsKey(map[string]string{"a.example/key": "a", "b.example/key": "b"})
+	g.Expect(first).To(Equal(second))
+}

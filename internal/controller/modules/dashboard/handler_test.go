@@ -178,29 +178,39 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g.Expect(ok).Should(BeTrue())
 	g.Expect(pipComp["managementState"]).Should(Equal("Managed"))
 
-	dataComp, ok := components["data"].(map[string]any)
+	dataRegistryComp, ok := components[componentApi.DataRegistryComponentName].(map[string]any)
 	g.Expect(ok).Should(BeTrue())
-	g.Expect(dataComp["managementState"]).Should(Equal("Managed"))
+	g.Expect(dataRegistryComp["managementState"]).Should(Equal("Managed"))
 }
 
 func TestBuildModuleCR_ProjectsDataRegistryState(t *testing.T) {
-	g := NewWithT(t)
-	h := dashboard.NewHandler()
-	dscCtx := newDSCCtx(operatorv1.Managed)
-	dscCtx.DSC.Spec.Components.Data.FeatureStore.ManagementState = operatorv1.Managed
-	dscCtx.DSC.Spec.Components.Data.DataRegistry.ManagementState = operatorv1.Removed
+	states := []operatorv1.ManagementState{operatorv1.Managed, operatorv1.Removed}
+	for _, featureStoreState := range states {
+		for _, dataRegistryState := range states {
+			name := "featureStore=" + string(featureStoreState) + "/dataRegistry=" + string(dataRegistryState)
+			t.Run(name, func(t *testing.T) {
+				g := NewWithT(t)
+				h := dashboard.NewHandler()
+				dscCtx := newDSCCtx(operatorv1.Managed)
+				dscCtx.DSC.Spec.Components.Data.FeatureStore.ManagementState = featureStoreState
+				dscCtx.DSC.Spec.Components.Data.DataRegistry.ManagementState = dataRegistryState
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
-	g.Expect(err).ShouldNot(HaveOccurred())
+				u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
+				g.Expect(err).ShouldNot(HaveOccurred())
 
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue())
-	components, ok := spec["components"].(map[string]any)
-	g.Expect(ok).Should(BeTrue())
-	dataComp, ok := components["data"].(map[string]any)
-	g.Expect(ok).Should(BeTrue())
-	g.Expect(dataComp["managementState"]).Should(Equal("Removed"),
-		"Dashboard data availability must follow data.dataRegistry, not featureStore")
+				spec, ok := u.Object["spec"].(map[string]any)
+				g.Expect(ok).Should(BeTrue())
+				components, ok := spec["components"].(map[string]any)
+				g.Expect(ok).Should(BeTrue())
+				g.Expect(components).ShouldNot(HaveKey(componentApi.DataModuleName),
+					"aggregate data state must not be projected as Data Registry availability")
+				dataRegistryComp, ok := components[componentApi.DataRegistryComponentName].(map[string]any)
+				g.Expect(ok).Should(BeTrue())
+				g.Expect(dataRegistryComp["managementState"]).Should(Equal(string(dataRegistryState)),
+					"Dashboard Data Registry availability must follow only data.dataRegistry")
+			})
+		}
+	}
 }
 
 func TestBuildModuleCR_OmitsGatewayWhenDomainEmpty(t *testing.T) {

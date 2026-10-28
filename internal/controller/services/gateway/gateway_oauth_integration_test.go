@@ -19,16 +19,28 @@ limitations under the License.
 package gateway_test
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	oauthv1 "github.com/openshift/api/oauth/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 
 	. "github.com/onsi/gomega"
 )
@@ -90,6 +102,174 @@ func TestOAuthGatewayCreation(t *testing.T) {
 // TestOAuthAdditionalGateways validates per-ingress Gateway reconciliation in OAuth mode.
 func TestOAuthAdditionalGateways(t *testing.T) {
 	RunAdditionalGatewaysTest(t, GetOAuthTestSetup())
+}
+
+// TestOAuthAdditionalIngressRouteLabelsUpdate validates routeLabels updates in OAuth mode.
+func TestOAuthAdditionalIngressRouteLabelsUpdate(t *testing.T) {
+	RunAdditionalIngressRouteLabelsUpdateTest(t, GetOAuthTestSetup())
+}
+
+// TestOAuthAdditionalIngressReorder validates that reordering additionalIngresses does not churn resources.
+func TestOAuthAdditionalIngressReorder(t *testing.T) {
+	RunAdditionalIngressReorderTest(t, GetOAuthTestSetup())
+}
+
+// TestOAuthAdditionalIngressIdempotency validates that repeated reconciliation leaves resources untouched.
+func TestOAuthAdditionalIngressIdempotency(t *testing.T) {
+	RunAdditionalIngressIdempotencyTest(t, GetOAuthTestSetup())
+}
+
+func additionalOAuthIngressResources(name string) []client.Object {
+	proxyName := gateway.KubeAuthProxyName + "-" + name
+	objects := make([]client.Object, 0, 14)
+	for kind, resourceName := range map[schema.GroupVersionKind]string{
+		gvk.Deployment:              proxyName,
+		gvk.Service:                 proxyName,
+		gvk.HorizontalPodAutoscaler: proxyName,
+		gvk.ServiceAccount:          proxyName,
+		gvk.NetworkPolicy:           proxyName,
+		gvk.Secret:                  name + "-auth-creds",
+		gvk.ClusterRoleBinding:      proxyName + "-tokenreview",
+		gvk.OAuthClient:             gateway.AuthClientID + "-" + name,
+		gvk.HTTPRoute:               gateway.OAuthCallbackRouteName + "-" + name,
+		gvk.EnvoyFilter:             name + "-authn",
+		gvk.DestinationRule:         name + "-auth-destination",
+		gvk.KubernetesGateway:       name,
+		gvk.Route:                   name,
+		gvk.ConfigMap:               name + "-config",
+	} {
+		obj := resources.GvkToUnstructured(kind)
+		obj.SetName(resourceName)
+		if kind != gvk.ClusterRoleBinding && kind != gvk.OAuthClient {
+			obj.SetNamespace(gateway.GetGatewayNamespace())
+		}
+		objects = append(objects, obj)
+	}
+	return objects
+}
+
+func TestOAuthAdditionalAuthenticationResources(t *testing.T) {
+	setup := GetOAuthTestSetup()
+	defer setup.Setup(t)()
+	ctx, cli := setup.TC.Ctx, setup.TC.K8sClient
+	g := NewWithT(t)
+	spec := setup.Spec
+	spec.AdditionalIngresses = serviceApi.AdditionalIngresses{{
+		Name:                  "auth-check",
+		Hostname:              "auth-check.example.com",
+		IngressControllerName: "shard-auth-check",
+		RouteLabels:           map[string]string{"example.com/ingress": "auth-check"},
+	}, {
+		Name: "remove-check", Hostname: "remove-check.example.com", IngressControllerName: "shard-remove-check",
+		RouteLabels: map[string]string{"example.com/ingress": "remove-check"},
+	}}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	for _, name := range []string{"auth-check", "remove-check"} {
+		for _, obj := range additionalOAuthIngressResources(name) {
+			key := client.ObjectKeyFromObject(obj)
+			g.Eventually(func(g Gomega) {
+				g.Expect(cli.Get(ctx, key, obj)).To(Succeed())
+				g.Expect(obj.GetAnnotations()["platform.opendatahub.io/instance.generation"]).NotTo(BeEmpty(), "%T %s needs deployment metadata", obj, key)
+			}, TestTimeout, TestInterval).Should(Succeed())
+		}
+	}
+	key := types.NamespacedName{
+		Name:      "kube-auth-proxy-auth-check",
+		Namespace: gateway.GetGatewayNamespace(),
+	}
+	callback := &gwapiv1.HTTPRoute{}
+	g.Eventually(func() error {
+		return cli.Get(ctx,
+			types.NamespacedName{
+				Name:      gateway.OAuthCallbackRouteName + "-auth-check",
+				Namespace: key.Namespace,
+			}, callback)
+	}, TestTimeout, TestInterval).Should(Succeed())
+	g.Expect(callback.Spec.ParentRefs).To(HaveLen(1))
+	g.Expect(string(callback.Spec.ParentRefs[0].Name)).To(Equal("auth-check"))
+	g.Expect(string(callback.Spec.Rules[0].BackendRefs[0].Name)).To(Equal(key.Name))
+	filter := resources.GvkToUnstructured(gvk.EnvoyFilter)
+	g.Eventually(func() error {
+		return cli.Get(ctx,
+			types.NamespacedName{
+				Name:      "auth-check-authn",
+				Namespace: key.Namespace,
+			}, filter)
+	}, TestTimeout, TestInterval).Should(Succeed())
+	selector, found, err := unstructured.NestedStringMap(filter.Object, "spec", "workloadSelector", "labels")
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(found).To(BeTrue())
+	g.Expect(selector["gateway.networking.k8s.io/gateway-name"]).To(Equal("auth-check"))
+
+	// Owned auth dependencies must be recreated after deletion, without a spec change.
+	for _, obj := range []client.Object{&corev1.ServiceAccount{}, &networkingv1.NetworkPolicy{}} {
+		g.Expect(cli.Get(ctx, key, obj)).To(Succeed())
+		oldUID := obj.GetUID()
+		g.Expect(cli.Delete(ctx, obj)).To(Succeed())
+		g.Eventually(func() error {
+			if err := cli.Get(ctx, key, obj); err != nil {
+				return err
+			}
+			if obj.GetUID() == oldUID {
+				return fmt.Errorf("%T has not been recreated", obj)
+			}
+			return nil
+		}, TestTimeout, TestInterval).Should(Succeed())
+	}
+
+	// A preparation failure after a generation change must preserve the existing stack.
+	deployment := &appsv1.Deployment{}
+	g.Expect(cli.Get(ctx, key, deployment)).To(Succeed())
+	oldUID := deployment.UID
+	credentials := &corev1.Secret{}
+	credentialsKey := types.NamespacedName{
+		Name:      "auth-check-auth-creds",
+		Namespace: key.Namespace,
+	}
+	g.Expect(cli.Get(ctx, credentialsKey, credentials)).To(Succeed())
+	owners := credentials.OwnerReferences
+	credentials.OwnerReferences = append([]metav1.OwnerReference(nil), owners...)
+	credentials.OwnerReferences[0].Name = "another-gateway-config"
+	credentials.OwnerReferences[0].UID = "another-gateway-config"
+	g.Expect(cli.Update(ctx, credentials)).To(Succeed())
+	spec.AdditionalIngresses[0].Hostname = "updated-auth-check.example.com"
+	spec.AdditionalIngresses = spec.AdditionalIngresses[:1]
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	g.Eventually(func(g Gomega) {
+		config, err := getGatewayConfig(ctx, cli)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(config.Status.AdditionalIngresses).To(HaveLen(1))
+		condition := conditions.FindStatusCondition(&config.Status.AdditionalIngresses[0], serviceApi.AdditionalIngressAuthenticationReadyConditionType)
+		g.Expect(condition).NotTo(BeNil())
+		g.Expect(condition.ObservedGeneration).To(Equal(config.Generation))
+		g.Expect(condition.Status).To(Equal(metav1.ConditionFalse))
+	}, TestTimeout, TestInterval).Should(Succeed())
+	waitForGatewayResourcesRemoved(t, setup.TC, additionalOAuthIngressResources("remove-check")...)
+	g.Consistently(func(g Gomega) {
+		g.Expect(cli.Get(ctx, key, deployment)).To(Succeed())
+		g.Expect(deployment.UID).To(Equal(oldUID))
+		g.Expect(deployment.DeletionTimestamp).To(BeNil())
+	}, 5*time.Second, TestInterval).Should(Succeed(), "GC must retain resources when auth preparation is incomplete")
+
+	// Fixing preparation must resume normal deployment and subsequent removal cleanup.
+	g.Expect(cli.Get(ctx, credentialsKey, credentials)).To(Succeed())
+	credentials.OwnerReferences = owners
+	g.Expect(cli.Update(ctx, credentials)).To(Succeed())
+	spec.AdditionalIngresses[0].Hostname = "auth-check.example.com"
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	g.Eventually(func(g Gomega) {
+		config, err := getGatewayConfig(ctx, cli)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(cli.Get(ctx, key, deployment)).To(Succeed())
+		g.Expect(deployment.Annotations).To(HaveKeyWithValue("platform.opendatahub.io/instance.generation", strconv.FormatInt(config.Generation, 10)))
+	}, TestTimeout, TestInterval).Should(Succeed())
+	g.Expect(deployment.UID).To(Equal(oldUID))
+
+	spec.AdditionalIngresses = nil
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	waitForGatewayResourcesRemoved(t, setup.TC, additionalOAuthIngressResources("auth-check")...)
+	g.Expect(cli.Get(ctx, types.NamespacedName{Name: gateway.KubeAuthProxySecretsName, Namespace: key.Namespace}, &corev1.Secret{})).To(Succeed())
+	g.Expect(cli.Get(ctx, types.NamespacedName{Name: gateway.AuthClientID}, &oauthv1.OAuthClient{})).To(Succeed())
 }
 
 // TestOAuthHTTPRouteCreation validates HTTPRoute creation in OAuth mode (delegates to RunHTTPRouteCreationTest).

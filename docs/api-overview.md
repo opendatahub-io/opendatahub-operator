@@ -3012,7 +3012,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `name` _string_ | Name is the Gateway name and stable identity of this ingress.<br />The 36-character limit keeps Istio's <Gateway>-<GatewayClass> Service name within 63 characters. |  | MaxLength: 36 <br />Pattern: `^[a-z]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
-| `hostname` _string_ | Hostname is the externally visible hostname for this ingress. |  | MaxLength: 253 <br />Required: \{\} <br /> |
+| `hostname` _string_ | Hostname is the externally visible hostname for this ingress. |  | MaxLength: 253 <br />Pattern: `^([a-z0-9]([-a-z0-9]\{0,61\}[a-z0-9])?)(\.([a-z0-9]([-a-z0-9]\{0,61\}[a-z0-9])?))*$` <br />Required: \{\} <br /> |
 | `ingressControllerName` _string_ | IngressControllerName is the IngressController whose Route admission is used for readiness. |  | MaxLength: 63 <br />Pattern: `^[a-z]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
 | `routeLabels` _object (keys:string, values:string)_ | RouteLabels are applied to the bridge Route and can match the target<br />IngressController route selector. They do not prevent other matching<br />IngressControllers from admitting the Route. |  | MinProperties: 1 <br />Required: \{\} <br /> |
 | `auth` _[AdditionalIngressAuth](#additionalingressauth)_ | Auth configures this ingress's client credentials and auth proxy capacity.<br />Authentication mode and provider settings are inherited from the default gateway. | \{  \} |  |
@@ -3032,7 +3032,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `oidc` _[AdditionalIngressOIDCConfig](#additionalingressoidcconfig)_ | OIDC supplies this ingress's distinct client identity in OIDC mode.<br />Required in OIDC mode; omit in integrated OpenShift OAuth mode, where the<br />operator generates a distinct OAuthClient. The issuer comes from spec.oidc. |  |  |
-| `maxReplicas` _integer_ | MaxReplicas is the maximum number of replicas for this ingress's auth proxy.<br />The minimum remains fixed at 2. This does not configure the default proxy.<br />A value of 2 requests two fixed replicas without an HPA; larger values enable autoscaling. | 10 | Maximum: 10 <br />Minimum: 2 <br /> |
+| `maxReplicas` _integer_ | MaxReplicas is the maximum number of replicas for this ingress's auth proxy.<br />The minimum remains fixed at 2. This does not configure the default proxy.<br />A value of 2 fixes the HPA minimum and maximum at two replicas. | 10 | Maximum: 10 <br />Minimum: 2 <br /> |
 
 
 #### AdditionalIngressOIDCConfig
@@ -3050,7 +3050,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `clientID` _string_ | ClientID is distinct from the default ingress and sibling ingress client IDs. |  | MinLength: 1 <br />Required: \{\} <br /> |
 | `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | ClientSecretRef references an administrator-managed Secret containing the client secret.<br />Each ingress must reference a distinct Secret, including from the default ingress.<br />The operator must not own or delete this source Secret.<br />Name and key must be nonempty; optional must be omitted or false. |  | Required: \{\} <br /> |
-| `secretNamespace` _string_ | SecretNamespace is the source Secret's namespace; defaults to the gateway namespace. |  |  |
+| `secretNamespace` _string_ | SecretNamespace is the source Secret's namespace; defaults to the gateway namespace. |  | MaxLength: 63 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br /> |
 
 
 #### AdditionalIngressStatus
@@ -3086,7 +3086,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `name` _string_ | Name is the Gateway name and stable identity of this ingress.<br />The 36-character limit keeps Istio's <Gateway>-<GatewayClass> Service name within 63 characters. |  | MaxLength: 36 <br />Pattern: `^[a-z]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
-| `hostname` _string_ | Hostname is the externally visible hostname for this ingress. |  | MaxLength: 253 <br />Required: \{\} <br /> |
+| `hostname` _string_ | Hostname is the externally visible hostname for this ingress. |  | MaxLength: 253 <br />Pattern: `^([a-z0-9]([-a-z0-9]\{0,61\}[a-z0-9])?)(\.([a-z0-9]([-a-z0-9]\{0,61\}[a-z0-9])?))*$` <br />Required: \{\} <br /> |
 | `ingressControllerName` _string_ | IngressControllerName is the IngressController whose Route admission is used for readiness. |  | MaxLength: 63 <br />Pattern: `^[a-z]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
 | `routeLabels` _object (keys:string, values:string)_ | RouteLabels are applied to the bridge Route and can match the target<br />IngressController route selector. They do not prevent other matching<br />IngressControllers from admitting the Route. |  | MinProperties: 1 <br />Required: \{\} <br /> |
 | `auth` _[AdditionalIngressAuth](#additionalingressauth)_ | Auth configures this ingress's client credentials and auth proxy capacity.<br />Authentication mode and provider settings are inherited from the default gateway. | \{  \} |  |

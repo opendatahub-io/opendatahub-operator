@@ -291,6 +291,7 @@ func TestImageHandling(t *testing.T) {
 	g.Expect(h.GetControllerImage()).Should(Equal("RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE"))
 	g.Expect(h.GetRelatedImages()).Should(ContainElement("RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE"))
 	g.Expect(h.GetRelatedImages()).Should(ContainElement("RELATED_IMAGE_ODH_WORKBENCHES_CONTROLLER_IMAGE"))
+	g.Expect(h.GetRelatedImages()).Should(ContainElement("RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_MINIMAL_CPU_PY312_IMAGE"))
 	g.Expect(h.GetRelatedImages()).ShouldNot(ContainElement("RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE"))
 }
 
