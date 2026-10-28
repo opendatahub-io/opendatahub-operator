@@ -76,7 +76,7 @@ map:
     src: ogx-module/config
     dest: ogx
     git.url: https://github.com/red-hat-data-services/ogx-k8s-operator
-    git.commit: 66624550e70f7368f083e0e783089d59c00a1689
+    git.commit: bc66d7adf5e00a9cb0298a3df824a6b026175280
 additional_meta:
   odh-ai-gateway-payload-processing:
     git.url: https://github.com/red-hat-data-services/ai-gateway-payload-processing
@@ -122,7 +122,7 @@ additional_meta:
     git.commit: 781004b34ca9331f24ba7afbc61a054c25695118
   odh-kf-notebook-controller:
     git.url: https://github.com/red-hat-data-services/kubeflow
-    git.commit: b16070340f538daf058dfe378d38adfedf45203b
+    git.commit: 48135e035eacb3bf9d484c66f8fa0d6eb7545473
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: ee8371005a55ce6c258b82930841c762c7e1a74d
@@ -143,7 +143,7 @@ additional_meta:
     git.commit: ee8371005a55ce6c258b82930841c762c7e1a74d
   odh-kserve-router:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: ee8371005a55ce6c258b82930841c762c7e1a74d
+    git.commit: abf9ab28287771ab17789cfe099657228c242a7c
   odh-kserve-storage-initializer:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 98f10f414c8aeb43216a4e556afa0dfd30ab9ab1
@@ -152,7 +152,7 @@ additional_meta:
     git.commit: 9c7cbdd69d6d888365397463fac7ad38bf4a9576
   odh-kube-rbac-proxy:
     git.url: https://github.com/red-hat-data-services/kube-rbac-proxy
-    git.commit: ae4674a00e59fdfe13cc186c001fb3f907021bc2
+    git.commit: 7602433caebbf72a632e4b0bdeb6a9d1dffe1064
   odh-latency-predictor-prediction:
     git.url: https://github.com/red-hat-data-services/llm-d-latency-predictor
     git.commit: fcf347164865d44c21395241c618f72a6114cc41
