@@ -683,7 +683,7 @@ catalog-build: catalog-prepare
 catalog-push: ## Push a catalog image.
 	$(MAKE) image-push IMG=$(CATALOG_IMG)
 
-TOOLBOX_GOLANG_VERSION := 1.26.0
+TOOLBOX_GOLANG_VERSION := 1.26.5
 
 # Generate a Toolbox container for locally testing changes easily
 .PHONY: toolbox

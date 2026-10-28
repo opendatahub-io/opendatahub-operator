@@ -17,11 +17,20 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
+	"errors"
 	"reflect"
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
+	commonTLS "github.com/openshift/controller-runtime-common/pkg/tls"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	. "github.com/onsi/gomega"
 )
@@ -65,6 +74,14 @@ func TestBuildManagerTLSOpts(t *testing.T) {
 			wantCipherList: intermediateCiphers,
 		},
 		{
+			name:           "legacy-adhering uses hardened defaults",
+			profile:        configv1.TLSProfileSpec{},
+			adherence:      configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+			wantMin:        tls.VersionTLS12,
+			wantCiphers:    true,
+			wantCipherList: intermediateCiphers,
+		},
+		{
 			name: "strict applies the profile",
 			profile: configv1.TLSProfileSpec{
 				MinTLSVersion: configv1.VersionTLS12,
@@ -99,7 +116,7 @@ func TestBuildManagerTLSOpts(t *testing.T) {
 			name: "strict rejects all unsupported ciphers",
 			profile: configv1.TLSProfileSpec{
 				MinTLSVersion: configv1.VersionTLS12,
-				Ciphers:       []string{"DHE-RSA-AES128-GCM-SHA256", "DHE-RSA-AES256-GCM-SHA384"},
+				Ciphers:       []string{"NOT-A-CIPHER", "ALSO-NOT-A-CIPHER"},
 			},
 			adherence: configv1.TLSAdherencePolicyStrictAllComponents,
 			wantError: true,
@@ -142,6 +159,150 @@ func TestBuildManagerTLSOpts(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTLSProfileSchemeRegistered(t *testing.T) {
+	_, err := scheme.New(configv1.SchemeGroupVersion.WithKind("APIServer"))
+	if err != nil {
+		t.Fatalf("APIServer is not registered in the startup scheme: %v", err)
+	}
+}
+
+func TestFetchTLSProfileWithClientProfiles(t *testing.T) {
+	tests := []struct {
+		name        string
+		profile     *configv1.TLSSecurityProfile
+		wantError   bool
+		wantMin     uint16
+		wantCiphers bool
+	}{
+		{
+			name:        "Old profile",
+			profile:     &configv1.TLSSecurityProfile{Type: configv1.TLSProfileOldType},
+			wantMin:     tls.VersionTLS10,
+			wantCiphers: true,
+		},
+		{
+			name: "Custom profile",
+			profile: &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileCustomType,
+				Custom: &configv1.CustomTLSProfile{TLSProfileSpec: configv1.TLSProfileSpec{
+					MinTLSVersion: configv1.VersionTLS12,
+					Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+				}},
+			},
+			wantMin:     tls.VersionTLS12,
+			wantCiphers: true,
+		},
+		{
+			name:        "nil profile uses Intermediate",
+			wantMin:     tls.VersionTLS12,
+			wantCiphers: true,
+		},
+		{
+			name: "Custom profile without spec fails closed",
+			profile: &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileCustomType,
+			},
+			wantError: true,
+		},
+		{
+			name: "unknown profile fails closed",
+			profile: &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileType("FutureProfile"),
+			},
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			profileClient := newTLSProfileClient(t, tt.profile, configv1.TLSAdherencePolicyStrictAllComponents)
+			opts, _, _, watchable, err := fetchTLSProfileWithClient(context.Background(), profileClient)
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("fetchTLSProfileWithClient() expected an error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("fetchTLSProfileWithClient() error = %v", err)
+			}
+			if !watchable {
+				t.Fatal("watchable = false, want true")
+			}
+
+			cfg := &tls.Config{}
+			for _, opt := range opts {
+				opt(cfg)
+			}
+			if cfg.MinVersion != tt.wantMin {
+				t.Errorf("MinVersion = %d, want %d", cfg.MinVersion, tt.wantMin)
+			}
+			if tt.wantCiphers && len(cfg.CipherSuites) == 0 {
+				t.Error("CipherSuites is empty")
+			}
+		})
+	}
+}
+
+func TestFetchTLSProfileWithClientDeniedReadFailsClosed(t *testing.T) {
+	denied := k8serr.NewForbidden(
+		schema.GroupResource{Group: configv1.GroupName, Resource: "apiservers"},
+		commonTLS.APIServerName,
+		errors.New("access denied"),
+	)
+	opts, _, _, watchable, err := fetchTLSProfileWithClient(context.Background(), tlsProfileReadErrorClient{err: denied})
+	if err == nil {
+		t.Fatal("fetchTLSProfileWithClient() expected a denied-read error")
+	}
+	if !k8serr.IsForbidden(err) {
+		t.Fatalf("fetchTLSProfileWithClient() error = %v, want Forbidden", err)
+	}
+	if len(opts) != 0 || watchable {
+		t.Fatalf("denied read returned fallback options/watchable=%t, want no options and false", watchable)
+	}
+}
+
+func TestFetchTLSProfileWithClientUnregisteredSchemeFailsClosed(t *testing.T) {
+	profileClient := fake.NewClientBuilder().WithScheme(runtime.NewScheme()).Build()
+	opts, _, _, watchable, err := fetchTLSProfileWithClient(context.Background(), profileClient)
+	if err == nil {
+		t.Fatal("fetchTLSProfileWithClient() expected an unregistered-scheme error")
+	}
+	if len(opts) != 0 {
+		t.Fatalf("unregistered scheme returned %d TLS options, want none", len(opts))
+	}
+	if watchable {
+		t.Fatal("unregistered scheme returned watchable=true, want false")
+	}
+}
+
+func newTLSProfileClient(t *testing.T, profile *configv1.TLSSecurityProfile, adherence configv1.TLSAdherencePolicy) client.Client {
+	t.Helper()
+
+	clientScheme := runtime.NewScheme()
+	if err := configv1.Install(clientScheme); err != nil {
+		t.Fatalf("register config/v1 scheme: %v", err)
+	}
+	apiServer := &configv1.APIServer{
+		ObjectMeta: metav1.ObjectMeta{Name: commonTLS.APIServerName},
+		Spec: configv1.APIServerSpec{
+			TLSSecurityProfile: profile,
+			TLSAdherence:       adherence,
+		},
+	}
+	return fake.NewClientBuilder().WithScheme(clientScheme).WithObjects(apiServer).Build()
+}
+
+type tlsProfileReadErrorClient struct {
+	client.Client
+
+	err error
+}
+
+func (c tlsProfileReadErrorClient) Get(_ context.Context, _ client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+	return c.err
 }
 
 func requireError(t *testing.T, err error) {
