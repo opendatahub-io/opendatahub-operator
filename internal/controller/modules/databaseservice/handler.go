@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	fwtypes "github.com/k8s-manifest-kit/engine/pkg/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -12,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
@@ -56,8 +59,9 @@ func NewHandler() *handler {
 }
 
 // GetOperatorManifests sets Values.openshift.securityContextConstraints on
-// OpenShift platforms so the db-operator chart renders the Internal Postgres
-// SCC: the offline render lacks Capabilities, and the SCC API is absent on
+// OpenShift platforms when the chart declares that value, so the db-operator
+// chart renders the Internal Postgres SCC. Older charts reject the openshift
+// property. The offline render lacks Capabilities, and the SCC API is absent on
 // XKS (vanilla Kubernetes). Unknown platforms fail closed (no SCC) since
 // rendering it on a non-OpenShift cluster fails the reconcile at apply time.
 func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) modules.OperatorManifests {
@@ -74,6 +78,7 @@ func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) module
 
 	// Wrap the chart's Values func so the flag is injected at render time with
 	// the renderer's context instead of eagerly with a detached one.
+	chartPath := result.HelmCharts[0].Chart
 	base := result.HelmCharts[0].Values
 	result.HelmCharts[0].Values = func(ctx context.Context) (fwtypes.Values, error) {
 		vals := map[string]any{}
@@ -85,6 +90,22 @@ func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) module
 			if v != nil {
 				vals = v
 			}
+		}
+		// Only inject the SCC override into charts that expose the setting.
+		// Legacy charts have a strict schema without openshift, so injecting it
+		// would block both installation and disabled-module cleanup.
+		data, err := os.ReadFile(filepath.Join(chartPath, "values.yaml"))
+		if err != nil {
+			return nil, fmt.Errorf("reading databaseservice chart values: %w", err)
+		}
+		var defaults map[string]any
+		if err := yaml.Unmarshal(data, &defaults); err != nil {
+			return nil, fmt.Errorf("parsing databaseservice chart values: %w", err)
+		}
+		if _, found, err := unstructured.NestedBool(defaults, "openshift", "securityContextConstraints"); err != nil {
+			return nil, fmt.Errorf("reading databaseservice chart SCC setting: %w", err)
+		} else if !found {
+			return vals, nil
 		}
 		// Merge instead of overwriting so base values under openshift.* survive.
 		openshift, _ := vals["openshift"].(map[string]any)

@@ -1,0 +1,18 @@
+config: {}
+imagePullSecrets: []
+operator:
+  image:
+    pullPolicy: Always
+    ref: quay.io/opendatahub/opendatahub-db-operator:latest
+  replicas: 1
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 10m
+      memory: 128Mi
+platform:
+  type: OpenDataHub
+  version: ""
+serviceAccount: {}

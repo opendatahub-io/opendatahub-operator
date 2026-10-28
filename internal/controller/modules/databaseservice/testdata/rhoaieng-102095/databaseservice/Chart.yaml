@@ -1,0 +1,4 @@
+apiVersion: v2
+name: opendatahub-db-operator
+version: 0.0.0
+description: Minimal chart reproducing the DatabaseService schema mismatch.

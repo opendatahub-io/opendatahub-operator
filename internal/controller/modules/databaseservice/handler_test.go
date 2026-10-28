@@ -179,12 +179,17 @@ func TestGetOperatorManifests(t *testing.T) {
 func TestGetOperatorManifests_SCCValuesByPlatform(t *testing.T) {
 	g := NewWithT(t)
 	h := databaseservice.NewHandler()
+	chartsRoot := t.TempDir()
+	chartPath := filepath.Join(chartsRoot, "databaseservice")
+	g.Expect(os.MkdirAll(chartPath, 0o755)).Should(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(chartPath, "values.yaml"),
+		[]byte("openshift:\n  securityContextConstraints: false\n"), 0o600)).Should(Succeed())
 
 	getValues := func(t *testing.T, release common.Platform) map[string]any {
 		t.Helper()
 		m := h.GetOperatorManifests(&modules.PlatformContext{
 			ApplicationsNamespace: testAppsNS,
-			ChartsBasePath:        "/opt/charts",
+			ChartsBasePath:        chartsRoot,
 			Release:               common.Release{Name: release},
 		})
 		g.Expect(m.HelmCharts).Should(HaveLen(1))

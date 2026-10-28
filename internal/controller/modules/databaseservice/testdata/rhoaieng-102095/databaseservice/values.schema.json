@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/opendatahub-io/opendatahub-db-operator/cmd/chartgen/values",
+  "$ref": "#/$defs/Values",
+  "$defs": {
+    "ImagePullSecretRef": {
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "ImageSpec": {
+      "properties": {
+        "ref": {
+          "type": "string"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "ref",
+        "pullPolicy"
+      ]
+    },
+    "OperatorSpec": {
+      "properties": {
+        "image": {
+          "$ref": "#/$defs/ImageSpec"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "resources": {
+          "$ref": "#/$defs/ResourceSpec"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "image",
+        "replicas",
+        "resources"
+      ]
+    },
+    "PlatformSpec": {
+      "properties": {
+        "type": {
+          "type": "string",
+          "default": "OpenDataHub"
+        },
+        "version": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type",
+        "version"
+      ]
+    },
+    "ResourceSpec": {
+      "properties": {
+        "limits": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "requests": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ServiceAccountSpec": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "annotations": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Values": {
+      "properties": {
+        "nameOverride": {
+          "type": "string"
+        },
+        "fullnameOverride": {
+          "type": "string"
+        },
+        "operator": {
+          "$ref": "#/$defs/OperatorSpec"
+        },
+        "serviceAccount": {
+          "$ref": "#/$defs/ServiceAccountSpec"
+        },
+        "imagePullSecrets": {
+          "items": {
+            "$ref": "#/$defs/ImagePullSecretRef"
+          },
+          "type": "array"
+        },
+        "platform": {
+          "$ref": "#/$defs/PlatformSpec"
+        },
+        "config": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "operator",
+        "serviceAccount",
+        "imagePullSecrets",
+        "platform",
+        "config"
+      ]
+    }
+  }
+}
