@@ -9,7 +9,7 @@ map:
     src: kserve-module/config
     dest: kserve-module-operator
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: ee8371005a55ce6c258b82930841c762c7e1a74d
+    git.commit: abf9ab28287771ab17789cfe099657228c242a7c
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
@@ -116,7 +116,7 @@ additional_meta:
     git.commit: b3dd2c7cec0a86ae5e2da954bdd6eb6b7da17f6c
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
-    git.commit: b2a43488778e0c7c58f1cbbfbd7dcbfa8045b4bd
+    git.commit: bf34af28e502896d20bc655de73793c6d656252f
   odh-guardrails-detector-huggingface-runtime:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: 781004b34ca9331f24ba7afbc61a054c25695118
@@ -134,7 +134,7 @@ additional_meta:
     git.commit: abf9ab28287771ab17789cfe099657228c242a7c
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: ee8371005a55ce6c258b82930841c762c7e1a74d
+    git.commit: abf9ab28287771ab17789cfe099657228c242a7c
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: abf9ab28287771ab17789cfe099657228c242a7c
@@ -185,7 +185,7 @@ additional_meta:
     git.commit: ce91f70d4245a7d5df877adbbedf2a027e6a1eab
   odh-maas-controller:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: c757bf12165691271582ef1304634df85e923200
+    git.commit: ce91f70d4245a7d5df877adbbedf2a027e6a1eab
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
     git.commit: 55ebb347e0ae798555a34ace253c5939c029095d
@@ -218,7 +218,7 @@ additional_meta:
     git.commit: 3ccee24941677cb6aed17c1678b046ed6df05cb0
   odh-model-controller:
     git.url: https://github.com/red-hat-data-services/odh-model-controller
-    git.commit: 3b8d0f99e23067d90149e07ec5c31d8451deda96
+    git.commit: 7c3fa03b0e524ec7cbf366b6e9c28c17e79eb6f6
   odh-model-metadata-collection:
     git.url: https://github.com/red-hat-data-services/model-metadata-collection
     git.commit: 95b41ac04a64c9d5304b1964318274ee5b0831c0
