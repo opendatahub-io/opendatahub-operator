@@ -1585,8 +1585,18 @@ func (tc *DAGOrderingTestCtx) findSubscription(t *testing.T) *ofapi.Subscription
 		require.NoError(t, err, "failed to list Subscriptions")
 	}
 
+	// Match on the package (spec.name) as well as the object name: the
+	// Subscription is conventionally named "opendatahub"/"rhods", but some
+	// installs use a different object name (e.g. "rhoai-operator-dev") while
+	// the package stays "rhods-operator"/"opendatahub-operator". Matching only
+	// the object name there would miss the Subscription and silently fall back
+	// to patching the Deployment directly, which OLM owns and immediately
+	// reverts — making env-var mutations a no-op.
+	matches := func(s string) bool {
+		return strings.Contains(s, "opendatahub") || strings.Contains(s, "rhods")
+	}
 	subIdx := slices.IndexFunc(subList.Items, func(sub ofapi.Subscription) bool {
-		return strings.Contains(sub.Name, "opendatahub") || strings.Contains(sub.Name, "rhods")
+		return matches(sub.Name) || matches(sub.Spec.Package)
 	})
 	if subIdx == -1 {
 		return nil
