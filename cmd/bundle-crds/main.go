@@ -244,12 +244,23 @@ func findCRD(src source) (candidate, error) {
 // isCRDDocument inspects the top-level kind without parsing unrelated YAML,
 // which can include malformed templates and comments mentioning CRDs.
 func isCRDDocument(doc []byte) bool {
-	for _, line := range bytes.Split(doc, []byte("\n")) {
-		if len(line) == 0 || line[0] == ' ' || line[0] == '\t' || line[0] == '#' {
+	lines := bytes.Split(doc, []byte("\n"))
+	minIndent := len(doc)
+	for _, line := range lines {
+		trimmed := bytes.TrimLeft(line, " \t")
+		if len(trimmed) == 0 || trimmed[0] == '#' {
 			continue
 		}
-		key, value, ok := bytes.Cut(line, []byte(":"))
-		if !ok || !bytes.Equal(bytes.TrimSpace(key), []byte("kind")) {
+		minIndent = min(minIndent, len(line)-len(trimmed))
+	}
+	for _, line := range lines {
+		trimmed := bytes.TrimLeft(line, " \t")
+		if len(trimmed) == 0 || trimmed[0] == '#' || len(line)-len(trimmed) != minIndent {
+			continue
+		}
+		key, value, ok := bytes.Cut(trimmed, []byte(":"))
+		key = bytes.Trim(bytes.TrimSpace(key), "\"'")
+		if !ok || !bytes.Equal(key, []byte("kind")) {
 			continue
 		}
 		value, _, _ = bytes.Cut(value, []byte("#"))

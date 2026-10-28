@@ -105,7 +105,7 @@ func TestFindCRDRejectsMalformedSource(t *testing.T) {
 func TestFindCRDSkipsMalformedUnrelatedDocument(t *testing.T) {
 	root := t.TempDir()
 	data := "# CustomResourceDefinition is mentioned here, but this is a ConfigMap\n" +
-		"kind: ConfigMap\nmetadata: [broken\n---\n" + testCRD
+		"kind: ConfigMap\nmetadata:\n  kind: CustomResourceDefinition\n  labels: [broken\n---\n" + testCRD
 	require.NoError(t, os.WriteFile(filepath.Join(root, "resources.yaml"), []byte(data), 0o600))
 
 	selected, err := findCRD(source{
@@ -115,6 +115,30 @@ func TestFindCRDSkipsMalformedUnrelatedDocument(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, testCRD, string(selected.data))
+}
+
+func TestFindCRDAcceptsIndentedAndQuotedKindKeys(t *testing.T) {
+	indented := "  " + strings.ReplaceAll(strings.TrimSuffix(testCRD, "\n"), "\n", "\n  ") + "\n"
+	for _, tc := range []struct {
+		name string
+		data string
+	}{
+		{name: "indented", data: indented},
+		{name: "double quoted", data: strings.Replace(testCRD, "kind:", "\"kind\":", 1)},
+		{name: "single quoted", data: strings.Replace(testCRD, "kind:", "'kind':", 1)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(root, "crd.yaml"), []byte(tc.data), 0o600))
+			selected, err := findCRD(source{
+				name:  "examples.components.platform.opendatahub.io",
+				gvk:   schema.GroupVersionKind{Group: "components.platform.opendatahub.io", Version: "v1alpha1", Kind: "Example"},
+				roots: []string{root},
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.data, string(selected.data))
+		})
+	}
 }
 
 func TestFindCRDRejectsSourceSymlinkEscape(t *testing.T) {
