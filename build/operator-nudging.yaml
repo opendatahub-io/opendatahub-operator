@@ -76,7 +76,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE
   value: quay.io/rhoai/odh-llm-d-batch-gateway-processor-rhel9@sha256:869cd133c94a94153c65998c170d2725640b9b08a609056054a87715ed24b6f7
 - name: RELATED_IMAGE_ODH_LLM_D_ROUTER_DISAGG_SIDECAR_IMAGE
-  value: quay.io/rhoai/odh-llm-d-router-disagg-sidecar-rhel9@sha256:6d220c07351a0bdfbc9766e759136a8c68eb7374c465e5b7da02331429a2a833
+  value: quay.io/rhoai/odh-llm-d-router-disagg-sidecar-rhel9@sha256:4d6b32432ab32bee87fb8899ecdb0b64891ac3ffe6f5ec48b328bdfdf644e1d7
 - name: RELATED_IMAGE_ODH_LLM_D_ROUTER_ENDPOINT_PICKER_IMAGE
   value: quay.io/rhoai/odh-llm-d-router-endpoint-picker-rhel9@sha256:9ebd3db2de5ad5a5f81366d9b5642024174a0530cb60102439f7baa76b50ac40
 - name: RELATED_IMAGE_ODH_MAAS_API_IMAGE
