@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	modulebuiltin "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/builtin"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
@@ -77,6 +78,15 @@ func (tc *OperatorTestCtx) ValidateOwnedCRDs(t *testing.T) {
 		{"Kueue CRD", "kueues.components.platform.opendatahub.io"},
 		{"Auth CRD", "auths.services.platform.opendatahub.io"},
 		{"Platform CRD", "platforms.config.opendatahub.io"},
+	}
+	for _, registration := range modulebuiltin.Registrations() {
+		if registration.BundleCRDName == "" {
+			continue
+		}
+		crdsTestCases = append(crdsTestCases, struct {
+			name string
+			crd  string
+		}{registration.Handler.GetName() + " module CRD", registration.BundleCRDName})
 	}
 
 	crdsTestCases = tc.filterCRDTestCases(crdsTestCases)

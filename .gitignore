@@ -76,6 +76,8 @@ local.mk
 # Ignore generated files
 config/crd/bases
 config/crd/external
+config/crd/components/*.yaml
+!config/crd/components/kustomization.yaml
 config/rbac/role.yaml
 config/webhook/manifests.yaml
 config/rhoai/crd/bases

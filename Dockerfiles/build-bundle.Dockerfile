@@ -18,6 +18,8 @@ COPY pkg/failureclassifier/go.mod pkg/failureclassifier/go.mod
 COPY pkg/failureclassifier/go.sum pkg/failureclassifier/go.sum
 COPY pkg/scoperules/go.mod pkg/scoperules/go.mod
 COPY pkg/scoperules/go.sum pkg/scoperules/go.sum
+COPY cmd/manifest-tools/go.mod cmd/manifest-tools/go.mod
+COPY cmd/manifest-tools/go.sum cmd/manifest-tools/go.sum
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
 RUN go mod download
@@ -32,12 +34,15 @@ RUN make operator-sdk controller-gen kustomize
 COPY api/ api/
 COPY internal/ internal/
 COPY cmd/main.go cmd/main.go
+COPY cmd/bundle-crds/ cmd/bundle-crds/
+COPY cmd/manifest-tools/ cmd/manifest-tools/
 COPY pkg/ pkg/
 
 # Copy other source artifacts
 # tests is needed because we have references to tests packages outside of tests
 COPY tests/ tests/
 COPY PROJECT PROJECT
+COPY manifests-config.yaml manifests-config.yaml
 COPY config/ config/
 COPY Dockerfiles/ Dockerfiles/
 

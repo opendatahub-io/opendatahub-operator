@@ -576,6 +576,14 @@ $(LOCALBIN)/component-codegen: | $(LOCALBIN)
 WARNINGMSG = "provided API should have an example annotation"
 .PHONY: bundle
 bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
+	$(MAKE) get-manifests ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE)
+	go run ./cmd/bundle-crds --platform $(ODH_PLATFORM_TYPE) --output-dir config/crd/components
+	@$(MAKE) bundle-render; result=$$?; \
+		go run ./cmd/bundle-crds --output-dir config/crd/components --reset || exit $$?; \
+		exit $$result
+
+.PHONY: bundle-render
+bundle-render:
 	$(OPERATOR_SDK) generate kustomize manifests --package $(OPERATOR_PACKAGE) --input-dir $(CONFIG_DIR)/manifests --output-dir $(CONFIG_DIR)/manifests -q
 	$(KUSTOMIZE) build $(CONFIG_DIR)/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) --package $(OPERATOR_PACKAGE) --kustomize-dir $(CONFIG_DIR)/manifests --output-dir $(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
