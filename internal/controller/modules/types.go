@@ -271,6 +271,10 @@ type PlatformContext struct {
 	// Empty when monitoring is not set on main process or no DSCI(xKS).
 	MonitoringNamespace string
 
+	// OTelOperatorNamespace is the namespace of the active OpenTelemetry
+	// Collector admission webhook service. Empty until the operator is installed.
+	OTelOperatorNamespace string
+
 	// Release identifies the platform (ODH/RHOAI) and version.
 	Release common.Release
 
