@@ -293,10 +293,10 @@ additional_meta:
     git.commit: a0827b2c78fe4459ed6dab8b18eb5a8e5ba2719b
   odh-pipeline-runtime-tensorflow-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: a0827b2c78fe4459ed6dab8b18eb5a8e5ba2719b
+    git.commit: 98da5b0d8fd13027b7fc3e69b454965f63306dba
   odh-pipeline-runtime-tensorflow-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: a0827b2c78fe4459ed6dab8b18eb5a8e5ba2719b
+    git.commit: 281e507a55d93041f63cc547c6696392370dae07
   odh-rhaii-cluster-validator:
     git.url: https://github.com/red-hat-data-services/rhaii-cluster-validation
     git.commit: dca4ca6fde49d374dc323c0403ebdbb601b943f6
