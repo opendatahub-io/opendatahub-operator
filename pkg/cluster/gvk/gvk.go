@@ -14,6 +14,7 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	nodev1 "k8s.io/api/node/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -254,6 +255,12 @@ var (
 		Group:   corev1.SchemeGroupVersion.Group,
 		Version: corev1.SchemeGroupVersion.Version,
 		Kind:    "Service",
+	}
+
+	RuntimeClass = schema.GroupVersionKind{
+		Group:   nodev1.SchemeGroupVersion.Group,
+		Version: nodev1.SchemeGroupVersion.Version,
+		Kind:    "RuntimeClass",
 	}
 
 	Route = schema.GroupVersionKind{
