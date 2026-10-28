@@ -17,6 +17,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const monitoringCRName = "default-monitoring"
+
 type DeletionTestCtx struct {
 	*TestContext
 }
@@ -65,7 +67,7 @@ func (tc *DeletionTestCtx) TestDSCDeletion(t *testing.T) {
 		WithMutateFunc(testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed)),
 	)
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: monitoringCRName}),
 		WithCondition(jq.Match(
 			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
 			status.ConditionTypeReady, metav1.ConditionTrue,
@@ -129,7 +131,7 @@ func (tc *DeletionTestCtx) TestDSCDeletion(t *testing.T) {
 		WithConsistentlyPollingInterval(5*time.Second),
 	)
 	tc.EnsureResourceExistsConsistently(
-		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: monitoringCRName}),
 		WithCondition(jq.Match(
 			`.metadata.deletionTimestamp == null and any(.status.conditions[]; .type == "%s" and .status == "%s")`,
 			status.ConditionTypeReady, metav1.ConditionTrue,

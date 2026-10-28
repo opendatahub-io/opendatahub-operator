@@ -175,6 +175,8 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectNetworkPolicySelfHealing(t *t
 // Undeclared ports are covered by the policy shape assertions above: the
 // redirect container listens on TCP 8080 only, so a traffic probe of another
 // port could not distinguish a policy deny from a missing listener.
+const dashboardRedirectTrafficProbeImage = "curlimages/curl@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"
+
 func (tc *GatewayTestCtx) ValidateDashboardRedirectNetworkPolicyTraffic(t *testing.T) {
 	t.Helper()
 
@@ -249,7 +251,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectNetworkPolicyTraffic(t *testi
 			},
 			Containers: []corev1.Container{{
 				Name:    "probe",
-				Image:   FakeGCSClientImage,
+				Image:   dashboardRedirectTrafficProbeImage,
 				Command: []string{"/bin/sh", "-c"},
 				Args: []string{`
 set -eu

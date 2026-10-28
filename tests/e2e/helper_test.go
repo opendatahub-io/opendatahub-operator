@@ -44,11 +44,6 @@ import (
 // Namespace and Operator Constants.
 const (
 
-	// Component API field name constants for v1 <-> v2 conversion.
-	dataSciencePipelinesKind          = "DataSciencePipelines" // Kind name for DataSciencePipelines component
-	dataSciencePipelinesComponentName = "datasciencepipelines" // v1 API component name for DataSciencePipelines
-	aiPipelinesFieldName              = "aipipelines"          // v2 API field name for DataSciencePipelines component
-
 	// Test timing constants.
 	// controllerCacheRefreshDelay is the time to wait for controller-runtime
 	// informer cache to update after resource deletion. This prevents cache

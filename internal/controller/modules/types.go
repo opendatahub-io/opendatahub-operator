@@ -309,6 +309,9 @@ const (
 	// ConfigFromDSCI means the module is configured via the DSCI spec.
 	// The DSCI controller creates/manages its module CR.
 	ConfigFromDSCI
+	// ConfigFromPlatform means the module is configured directly through the
+	// internal Platform API. Neither DSC nor DSCI owns its module CR lifecycle.
+	ConfigFromPlatform
 )
 
 // RegistrationOption configures optional orchestration metadata when adding

@@ -43,6 +43,9 @@ COPY config/connectionAPI/ /opt/manifests/connectionAPI
 # Copy segment.io config (dashboard telemetry dependency)
 RUN rm -f /opt/manifests/segment
 COPY config/segment/ /opt/manifests/segment
+# Copy the opt-in synthetic E2E module Helm chart.
+RUN rm -rf /opt/charts/synthetice2e
+COPY tests/e2e/syntheticmodule/charts/synthetice2e/ /opt/charts/synthetice2e
 
 ################################################################################
 FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder

@@ -449,6 +449,12 @@ run-nowebhook: manifests generate fmt vet ## Run a controller from your host wit
 image-build: # unit-test ## Build image with the manager.
 	$(IMAGE_BUILDER) buildx build --no-cache -f Dockerfiles/$(DOCKERFILE_FILENAME) ${IMAGE_BUILD_FLAGS} -t $(IMG) .
 
+SYNTHETIC_MODULE_IMG ?= synthetic-module-operator:latest
+
+.PHONY: synthetic-module-image-build
+synthetic-module-image-build: ## Build the standalone synthetic module image used by core E2E tests.
+	$(IMAGE_BUILDER) buildx build --no-cache -f tests/e2e/syntheticmodule/Dockerfile ${IMAGE_BUILD_FLAGS} -t $(SYNTHETIC_MODULE_IMG) .
+
 .PHONY: image-push
 image-push: ## Push image with the manager.
 	$(IMAGE_BUILDER) push $(IMG)
@@ -710,7 +716,7 @@ $(ENVTEST): $(LOCALBIN)
 test: unit-test e2e-test
 
 .PHONY: unit-test
-unit-test: unit-test-operator unit-test-clusterhealth unit-test-manifest-tools unit-test-scoperules unit-test-e2e-scope-completeness unit-test-e2e-installation
+unit-test: unit-test-operator unit-test-clusterhealth unit-test-manifest-tools unit-test-scoperules unit-test-e2e-scope-completeness unit-test-e2e-installation unit-test-e2e-orchestration
 
 .PHONY: unit-test-operator
 unit-test-operator: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
@@ -755,6 +761,12 @@ unit-test-e2e-scope-completeness: ## Registry-completeness checks for tests/e2e/
 .PHONY: unit-test-e2e-installation
 unit-test-e2e-installation: ## Run cluster-free tests for OLM operator installation helpers.
 	go test ./tests/e2e/ -run '^(TestEnsureOperatorHealthyViaSubscriptionCorrectsOperatorGroupScope|TestEnsureOperatorGroupExistsPreservesExistingScopeUnlessCorrectionIsRequested|TestShouldUseOLMv1|TestPlanOperatorInstall)$$'
+
+.PHONY: unit-test-e2e-orchestration
+unit-test-e2e-orchestration: ## Cluster-free checks for E2E profiles, DAG attribution, verdict policy, and container runner exit handling.
+	go -C cmd/test-retry test ./pkg/verdict ./pkg/cli
+	go test ./tests/e2e/ -run 'Test(DAGReportStatusExtraction|TentativeModuleAttributionPrecedence|ModuleHealthFromList|ModuleInstallationHealthStages|FirstUnhealthyRunlevelIgnoresBlockedLaterRunlevels|FirstUnhealthyRunlevelRequiresUnambiguousFailure|ExpectsModuleCRDocumentsOnlyException|DAGInventoryCoversRegisteredProductionModules|ApplyTestProfile)$$'
+	bash tests/e2e/scripts/run_e2e_tests_test.sh
 
 # Pattern rule to generate .rules.yaml from PrometheusRule templates
 # This finds the corresponding *-prometheusrules.tmpl.yaml in the same directory
@@ -814,15 +826,70 @@ ifneq (,$(wildcard cmd/mcp-server/Makefile))
 include cmd/mcp-server/Makefile
 endif
 
-.PHONY: e2e-test e2e
+.PHONY: e2e-test e2e-test-core e2e-test-dag e2e-test-run e2e e2e-artifacts-init e2e-artifacts-clean
 e2e: e2e-test ## Alias for e2e-test
+
+DEFAULT_E2E_ARTIFACT_DIR := $(CURDIR)/_e2e_results
+ARTIFACT_DIR ?= $(DEFAULT_E2E_ARTIFACT_DIR)
+ifndef E2E_RUN_TIMESTAMP
+E2E_RUN_TIMESTAMP := $(shell date -u +%Y%m%dT%H%M%SZ)
+endif
+export E2E_RUN_TIMESTAMP
+E2E_DAG_REPORT_PATH ?= $(ARTIFACT_DIR)/dag-report-$(E2E_RUN_TIMESTAMP).json
+E2E_SUMMARY_PATH ?= $(ARTIFACT_DIR)/e2e-summary-$(E2E_RUN_TIMESTAMP).json
+
+e2e-artifacts-init:
+	@mkdir -p "$(ARTIFACT_DIR)"
+
+e2e-artifacts-clean:
+	@if [ -z "$(ARTIFACT_DIR)" ] || [ "$(ARTIFACT_DIR)" = "/" ]; then \
+		echo "Refusing unsafe ARTIFACT_DIR=$(ARTIFACT_DIR)" >&2; \
+		exit 1; \
+	fi
+	@if [ "$(ARTIFACT_DIR)" = "$(DEFAULT_E2E_ARTIFACT_DIR)" ]; then \
+		rm -rf "$(ARTIFACT_DIR)"; \
+	else \
+		echo "Preserving custom artifact directory $(ARTIFACT_DIR)"; \
+	fi
+	@mkdir -p "$(ARTIFACT_DIR)"
+
+# The default E2E entrypoint runs operator-owned coverage and the production
+# module DAG as separate invocations. Failed DAG runs are non-blocking only
+# when an explicit report attributes every failure to module configuration.
+e2e-test: e2e-artifacts-clean
+	@set +e; \
+	$(MAKE) e2e-test-core; core_status=$$?; \
+	if [ $$core_status -ne 0 ]; then \
+		go run -C ./cmd/test-retry . verdict --core-exit=$$core_status --dag-exit=-1 $(if $(E2E_SUMMARY_PATH),--output=$(E2E_SUMMARY_PATH)) || true; \
+		exit $$core_status; \
+	fi; \
+	$(MAKE) e2e-test-dag; dag_status=$$?; \
+	verdict_status=0; \
+	go run -C ./cmd/test-retry . verdict --core-exit=0 --dag-exit=$$dag_status $(if $(E2E_DAG_REPORT_PATH),--dag-report=$(E2E_DAG_REPORT_PATH)) $(if $(E2E_SUMMARY_PATH),--output=$(E2E_SUMMARY_PATH)) || verdict_status=$$?; \
+	exit $$verdict_status
+
+# Core leaves DSC/DSCI in place for the following DAG invocation.
+e2e-test-core: e2e-artifacts-init
+	@$(MAKE) e2e-test-run \
+		-e E2E_TEST_PROFILE=core \
+		-e E2E_TEST_DELETION_POLICY=never \
+		$(if $(ARTIFACT_DIR),-e JUNIT_OUTPUT_PATH=$(ARTIFACT_DIR)/junit-core-$(E2E_RUN_TIMESTAMP).xml)
+
+# DAG consumes the baseline established by core and owns module cleanup.
+e2e-test-dag: e2e-artifacts-init
+	@rm -f "$(E2E_DAG_REPORT_PATH)"
+	@$(MAKE) e2e-test-run \
+		-e E2E_TEST_PROFILE=dag \
+		$(if $(E2E_DAG_REPORT_PATH),-e E2E_DAG_REPORT_PATH=$(E2E_DAG_REPORT_PATH)) \
+		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false \
+		-e E2E_TEST_DELETION_POLICY=never \
+		$(if $(ARTIFACT_DIR),-e JUNIT_OUTPUT_PATH=$(ARTIFACT_DIR)/junit-dag-$(E2E_RUN_TIMESTAMP).xml)
 # Path-based e2e test scoping (cmd/manifest-tools' resolve-e2e-scope subcommand)
-# runs and logs its decision whenever E2E_TEST_COMPONENT and E2E_TEST_SERVICE are
-# both unset (e.g. not already set explicitly by e2e-test-xks). Only when
-# E2E_AUTO_RESOLVE=true does it narrow what actually runs; otherwise it only logs.
+# runs and logs its service decision whenever E2E_TEST_SERVICE is unset. Only
+# when E2E_AUTO_RESOLVE=true does it narrow what actually runs; otherwise it only logs.
 export E2E_AUTO_RESOLVE
 E2E_AUTO_RESOLVE ?= false
-e2e-test:
+e2e-test-run:
 # Specifies the namespace where the operator pods are deployed
 ifndef E2E_TEST_OPERATOR_NAMESPACE
 export E2E_TEST_OPERATOR_NAMESPACE = $(OPERATOR_NAMESPACE)
@@ -845,25 +912,23 @@ endif
 # Auto-apply digest-pinned image overrides to the OLM Subscription before E2E tests.
 # Set SKIP_IMAGE_OVERRIDES=1 to disable.
 ifndef SKIP_IMAGE_OVERRIDES
-e2e-test: apply-image-overrides-olm
+e2e-test-run: apply-image-overrides-olm
 endif
-e2e-test:
-	@if [ -z "$${E2E_TEST_COMPONENT:-}" ] && [ -z "$${E2E_TEST_SERVICE:-}" ]; then \
+e2e-test-run:
+	@if [ -z "$${E2E_TEST_SERVICE:-}" ]; then \
 		if resolved=$$(go run -C ./cmd/manifest-tools main.go --config $(CURDIR)/manifests-config.yaml resolve-e2e-scope) \
 			&& echo "$$resolved" | grep -q '^COMPONENTS=' \
 			&& echo "$$resolved" | grep -q '^SERVICES='; then \
-			components=$$(echo "$$resolved" | grep '^COMPONENTS=' | cut -d= -f2); \
 			services=$$(echo "$$resolved" | grep '^SERVICES=' | cut -d= -f2); \
-			echo "SELECTIVE-E2E: would run components=[$$components] services=[$$services]"; \
+			echo "SELECTIVE-E2E: would run services=[$$services]"; \
 			if [ "$${E2E_AUTO_RESOLVE:-false}" = "true" ]; then \
-				if [ -n "$$components" ]; then export E2E_TEST_COMPONENT="$$components"; else export E2E_TEST_COMPONENTS=false; fi; \
 				if [ -n "$$services" ]; then export E2E_TEST_SERVICE="$$services"; else export E2E_TEST_SERVICES=false; fi; \
 				echo "SELECTIVE-E2E: E2E_AUTO_RESOLVE=true -- applying selective scope"; \
 			else \
 				echo "SELECTIVE-E2E: E2E_AUTO_RESOLVE is not 'true' -- running full suite (dry-run only)"; \
 			fi; \
 		else \
-			echo "SELECTIVE-E2E: could not resolve affected components -- running full suite"; \
+			echo "SELECTIVE-E2E: could not resolve affected services -- running full suite"; \
 		fi; \
 	fi; \
 	go run -C ./cmd/test-retry main.go e2e --verbose --max-retries=$(E2E_TESTING_MAX_RETRIES) --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}
@@ -872,7 +937,7 @@ e2e-test:
 e2e-test-single:
 # Run a single E2E test function (usage: make e2e-test-single TEST="<test-path>")
 ifndef TEST
-	$(error TEST is required. Usage: make e2e-test-single TEST="TestOdhOperator/Component_Tests/dashboard/Validate component enabled")
+	$(error TEST is required. Usage: make e2e-test-single TEST="TestOdhOperator/Synthetic_Module_E2E_Tests/Validate_synthetic_module_contract")
 endif
 	@echo "Running single test: $(TEST)"
 	E2E_TEST_DELETION_POLICY=never E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false go test ./tests/e2e/ -run "$(TEST)" -timeout=10m -v
@@ -882,10 +947,10 @@ e2e-setup-cluster:
 # Setup cluster prerequisites (DSCI/DSC) by running e2e-test with most suites disabled
 # (operator-controller tests may still execute unless explicitly disabled)
 	@echo "Creating DSCI and DSC with all services enabled..."
-	@$(MAKE) e2e-test \
-		-e E2E_TEST_COMPONENTS=false \
+	@$(MAKE) e2e-test-run \
+		-e E2E_TEST_PROFILE=core \
+		-e E2E_TEST_SYNTHETIC_MODULE=false \
 		-e E2E_TEST_SERVICES=false \
-		-e E2E_TEST_WEBHOOK=false \
 		-e E2E_TEST_CONVERSION_WEBHOOK=false \
 		-e E2E_TEST_OPERATOR_RESILIENCE=false \
 		-e E2E_TEST_OPERATOR_V2TOV3UPGRADE=false \
@@ -894,13 +959,12 @@ e2e-setup-cluster:
 
 .PHONY: e2e-test-xks
 e2e-test-xks: ## Run e2e tests on external Kubernetes (KinD, AKS, CoreWeave, etc.). Image overrides are applied at deploy (see deploy-rhaii-local).
-	@$(MAKE) e2e-test \
+	@$(MAKE) e2e-test-run \
+		-e E2E_TEST_PROFILE=full \
 		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false \
 		-e E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT=false \
-		-e E2E_TEST_WEBHOOK=false \
 		-e E2E_TEST_CONVERSION_WEBHOOK=false \
-		-e E2E_TEST_COMPONENTS=true \
-		-e E2E_TEST_COMPONENT="kserve" \
+
 		-e E2E_TEST_SERVICES=true \
 		-e E2E_TEST_SERVICE="gateway" \
 		-e E2E_TEST_OPERATOR_RESILIENCE=false \

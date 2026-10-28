@@ -35,7 +35,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -419,9 +419,9 @@ func (tc *GatewayTestCtx) ValidateAdditionalGateways(t *testing.T) {
 	tc.SkipIfBYOIDC(t)
 	originalGateway, err := tc.getGateway(ctx)
 	require.NoError(t, err)
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscApi.DataScienceCluster{}
 	require.NoError(t, tc.Client().Get(ctx, tc.DataScienceClusterNamespacedName, dsc))
-	originalDashboardState := dsc.Spec.Components.Dashboard.ManagementState
+	originalDashboardState := dsc.Spec.Components.Dashboard.Standard.ManagementState
 	if originalDashboardState != operatorv1.Managed {
 		tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
 		t.Cleanup(func() {
@@ -615,9 +615,9 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayLifecycle(t *testing.T) {
 	// to the Gateway: with the dashboard Removed (for example after the DAG suite's
 	// cleanup), the gateway answers 404 and checkDefault below cannot pass. Manage the
 	// dashboard for the duration of this spec, like ValidateAdditionalGateways does.
-	dsc := &dscv2.DataScienceCluster{}
+	dsc := &dscApi.DataScienceCluster{}
 	require.NoError(t, tc.Client().Get(ctx, tc.DataScienceClusterNamespacedName, dsc))
-	originalDashboardState := dsc.Spec.Components.Dashboard.ManagementState
+	originalDashboardState := dsc.Spec.Components.Dashboard.Standard.ManagementState
 	if originalDashboardState != operatorv1.Managed {
 		tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
 		t.Cleanup(func() {

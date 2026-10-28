@@ -17,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/pkg/scoperules"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	modulebuiltin "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/builtin"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 )
@@ -45,6 +46,21 @@ func repoRoot(t *testing.T) string {
 
 func hasBuiltinModule(name string) bool {
 	return slices.Contains(modulebuiltin.Names(), name)
+}
+
+func TestSyntheticE2EModuleRegistrationIsOptIn(t *testing.T) {
+	t.Parallel()
+
+	defaultRegistrations := moduleRegistrations(false)
+	for _, registration := range defaultRegistrations {
+		assert.NotEqual(t, "synthetice2e", registration.Handler.GetName())
+	}
+
+	optInRegistrations := moduleRegistrations(true)
+	require.Len(t, optInRegistrations, len(defaultRegistrations)+1)
+	assert.Equal(t, "synthetice2e", optInRegistrations[len(optInRegistrations)-1].Handler.GetName())
+	assert.Equal(t, dag.RL(20), optInRegistrations[len(optInRegistrations)-1].Runlevel)
+	assert.Equal(t, mr.ConfigFromPlatform, optInRegistrations[len(optInRegistrations)-1].ConfigSource)
 }
 
 func TestAllComponentsHaveExplicitRunlevel(t *testing.T) {

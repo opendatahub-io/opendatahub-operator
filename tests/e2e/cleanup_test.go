@@ -17,6 +17,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 )
 
+const (
+	kueueDefaultClusterQueueName = "default"
+	kueueTestNamespaceLabel      = "opendatahub.io/e2e-test"
+	kueueTestNamespaceLabelValue = "kueue"
+)
+
 // workloadGVK is used to cleanup Kueue Workloads that may block namespace deletion.
 var workloadGVK = schema.GroupVersionKind{
 	Group:   "kueue.x-k8s.io",

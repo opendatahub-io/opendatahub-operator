@@ -31,7 +31,7 @@ COPY tests/ tests/
 # build the e2e test binary + pre-compile the e2e tests
 RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go test -c ./tests/e2e/ -o e2e-tests
 
-# Build test-retry CLI for JUnit enrichment
+# Build E2E execution, classification, and verdict CLI
 RUN cd cmd/test-retry && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -o ../../test-retry .
 
 ################################################################################
