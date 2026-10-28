@@ -3,9 +3,11 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -14,6 +16,7 @@ import (
 
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/yaml"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -104,7 +107,7 @@ func restoreEmptyOverlay(outputDir string) error {
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return fmt.Errorf("creating empty bundle CRD overlay: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(outputDir, "kustomization.yaml"), []byte(emptyKustomization), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(outputDir, "kustomization.yaml"), []byte(emptyKustomization), 0o600); err != nil {
 		return fmt.Errorf("writing empty bundle CRD overlay: %w", err)
 	}
 	return nil
@@ -133,14 +136,14 @@ func generate(outputDir string, sources []source) error {
 			return err
 		}
 		filename := src.name + ".yaml"
-		if err := os.WriteFile(filepath.Join(tempDir, filename), selected.data, 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(tempDir, filename), selected.data, 0o600); err != nil {
 			return fmt.Errorf("writing %s: %w", filename, err)
 		}
 		resources = append(resources, "- "+filename+"\n")
 	}
 	kustomization := "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n" +
 		strings.Join(resources, "")
-	if err := os.WriteFile(filepath.Join(tempDir, "kustomization.yaml"), []byte(kustomization), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tempDir, "kustomization.yaml"), []byte(kustomization), 0o600); err != nil {
 		return fmt.Errorf("writing bundle CRD kustomization: %w", err)
 	}
 	if err := os.RemoveAll(outputDir); err != nil {
@@ -158,41 +161,67 @@ func findCRD(src source) (candidate, error) {
 	}
 	var candidates []candidate
 	for _, root := range src.roots {
-		if _, err := os.Stat(root); err != nil {
+		rootFS, err := os.OpenRoot(root)
+		if err != nil {
 			return candidate{}, fmt.Errorf("module %s manifest source %s: %w (run make get-manifests)", src.name, root, err)
 		}
-		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
 			}
 			if entry.IsDir() || !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
 				return nil
 			}
-			data, err := os.ReadFile(path)
+			relPath, err := filepath.Rel(root, path)
 			if err != nil {
-				return err
+				return fmt.Errorf("resolving %s in %s: %w", path, root, err)
+			}
+			data, err := rootFS.ReadFile(relPath)
+			if err != nil {
+				return fmt.Errorf("reading %s in %s: %w", relPath, root, err)
 			}
 			if !bytes.Contains(data, []byte("CustomResourceDefinition")) {
 				return nil
 			}
-			var crd apiextv1.CustomResourceDefinition
-			if err := yaml.Unmarshal(data, &crd); err != nil {
-				return nil // Helm templates and unrelated YAML are not CRD source files.
-			}
-			if crd.Kind != "CustomResourceDefinition" || crd.Name != src.name ||
-				crd.Spec.Group != src.gvk.Group || crd.Spec.Names.Kind != src.gvk.Kind {
-				return nil
-			}
-			for _, version := range crd.Spec.Versions {
-				if version.Name == src.gvk.Version && version.Served {
-					candidates = append(candidates, candidate{path: path, data: data, rank: sourceRank(path)})
+			reader := k8syaml.NewYAMLReader(bufio.NewReader(bytes.NewReader(data)))
+			for {
+				doc, readErr := reader.Read()
+				if readErr == io.EOF {
 					return nil
 				}
+				if readErr != nil {
+					return fmt.Errorf("reading YAML documents in %s: %w", path, readErr)
+				}
+				if !bytes.Contains(doc, []byte("CustomResourceDefinition")) || bytes.Contains(doc, []byte("{{")) {
+					continue // Ignore unrelated YAML and unresolved Helm templates.
+				}
+				var crd apiextv1.CustomResourceDefinition
+				if err := yaml.Unmarshal(doc, &crd); err != nil {
+					return fmt.Errorf("parsing CRD in %s: %w", path, err)
+				}
+				if crd.Kind != "CustomResourceDefinition" || crd.Name != src.name ||
+					crd.Spec.Group != src.gvk.Group || crd.Spec.Names.Kind != src.gvk.Kind {
+					continue
+				}
+				served := false
+				for _, version := range crd.Spec.Versions {
+					if version.Name == src.gvk.Version && version.Served {
+						served = true
+						break
+					}
+				}
+				if !served {
+					return fmt.Errorf("module CRD %s in %s does not serve %s", src.name, path, src.gvk.Version)
+				}
+				candidates = append(candidates, candidate{path: path, data: doc, rank: sourceRank(path)})
 			}
-			return fmt.Errorf("module CRD %s in %s does not serve %s", src.name, path, src.gvk.Version)
 		})
+		closeErr := rootFS.Close()
 		if err != nil {
 			return candidate{}, fmt.Errorf("searching module CRD %s in %s: %w", src.name, root, err)
+		}
+		if closeErr != nil {
+			return candidate{}, fmt.Errorf("closing manifest source %s: %w", root, closeErr)
 		}
 	}
 	if len(candidates) == 0 {

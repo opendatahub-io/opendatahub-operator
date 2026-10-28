@@ -74,3 +74,43 @@ func TestFindCRDRejectsUnservedVersion(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "does not serve v1alpha1")
 }
+
+func TestFindCRDSelectsOnlyMatchingDocument(t *testing.T) {
+	root := t.TempDir()
+	data := "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: before\n---\n" +
+		testCRD + "---\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: after\n"
+	require.NoError(t, os.WriteFile(filepath.Join(root, "resources.yaml"), []byte(data), 0o600))
+
+	selected, err := findCRD(source{
+		name:  "examples.components.platform.opendatahub.io",
+		gvk:   schema.GroupVersionKind{Group: "components.platform.opendatahub.io", Version: "v1alpha1", Kind: "Example"},
+		roots: []string{root},
+	})
+	require.NoError(t, err)
+	require.Equal(t, testCRD, string(selected.data))
+}
+
+func TestFindCRDRejectsMalformedSource(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "crd.yaml"),
+		[]byte("kind: CustomResourceDefinition\nmetadata: [broken\n"), 0o600))
+	_, err := findCRD(source{
+		name:  "examples.components.platform.opendatahub.io",
+		gvk:   schema.GroupVersionKind{Group: "components.platform.opendatahub.io", Version: "v1alpha1", Kind: "Example"},
+		roots: []string{root},
+	})
+	require.ErrorContains(t, err, "parsing CRD")
+}
+
+func TestFindCRDRejectsSourceSymlinkEscape(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.yaml")
+	require.NoError(t, os.WriteFile(outside, []byte(testCRD), 0o600))
+	require.NoError(t, os.Symlink(outside, filepath.Join(root, "crd.yaml")))
+	_, err := findCRD(source{
+		name:  "examples.components.platform.opendatahub.io",
+		gvk:   schema.GroupVersionKind{Group: "components.platform.opendatahub.io", Version: "v1alpha1", Kind: "Example"},
+		roots: []string{root},
+	})
+	require.ErrorContains(t, err, "reading crd.yaml")
+}

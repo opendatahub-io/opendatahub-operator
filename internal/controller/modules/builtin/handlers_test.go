@@ -78,8 +78,8 @@ func TestBundleModuleCRDsMarkedInternal(t *testing.T) {
 			}
 			require.NoError(t, yaml.Unmarshal(data, &csv))
 			var internal []string
-			require.NoError(t, json.Unmarshal([]byte(csv.Metadata.Annotations[
-				"operators.operatorframework.io/internal-objects"]), &internal))
+			annotation := csv.Metadata.Annotations["operators.operatorframework.io/internal-objects"]
+			require.NoError(t, json.Unmarshal([]byte(annotation), &internal))
 			expected := []string{
 				"kueues.components.platform.opendatahub.io",
 				"platforms.config.opendatahub.io",

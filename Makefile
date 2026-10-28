@@ -578,7 +578,7 @@ WARNINGMSG = "provided API should have an example annotation"
 bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
 	$(MAKE) get-manifests ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE)
 	go run ./cmd/bundle-crds --platform $(ODH_PLATFORM_TYPE) --output-dir config/crd/components
-	@$(MAKE) bundle-render; result=$$?; \
+	@if $(MAKE) bundle-render; then result=0; else result=$$?; fi; \
 		go run ./cmd/bundle-crds --output-dir config/crd/components --reset || exit $$?; \
 		exit $$result
 
