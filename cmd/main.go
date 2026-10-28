@@ -726,7 +726,10 @@ func buildManagerTLSOpts(profile configv1.TLSProfileSpec, adherence configv1.TLS
 	if err := tlspkg.ValidateStrictTLSProfile(profile); err != nil {
 		return nil, nil, err
 	}
-	tlsConfigFn, unsupported := tlspkg.ConfigFromProfile(profile)
+	tlsConfigFn, unsupported, err := tlspkg.ConfigFromProfileWithError(profile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("building TLS options from profile: %w", err)
+	}
 	return []func(*tls.Config){tlsConfigFn, setNextProtos}, unsupported, nil
 }
 
