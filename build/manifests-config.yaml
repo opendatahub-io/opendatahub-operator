@@ -80,7 +80,7 @@ map:
 additional_meta:
   odh-ai-gateway-payload-processing:
     git.url: https://github.com/red-hat-data-services/ai-gateway-payload-processing
-    git.commit: e6f8bd2c9f7ce5f1f54a628aa4b28b6350743a14
+    git.commit: 5c4c856c758a50f1d326cd052afa056f9abafe3f
   odh-automl:
     git.url: https://github.com/red-hat-data-services/pipelines-components
     git.commit: 06fceeb47876fd116f6a7cd39722a7fd85ea7112
@@ -107,7 +107,7 @@ additional_meta:
     git.commit: 16ef6648f535f2bb44fb4c3ef027975772e8f14f
   odh-eval-hub:
     git.url: https://github.com/red-hat-data-services/eval-hub
-    git.commit: ad07b8182db76f1ea4aa374487b486d884e7d615
+    git.commit: a87610a593decdc90ad99741a6facc6ebf4185fb
   odh-feast-operator:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: a4f76c820a3029e4e48a367fc014cad3f94730c8
@@ -182,7 +182,7 @@ additional_meta:
     git.commit: 74532bd89a4ebbc705d4752be0c0e9007ad880e7
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: c757bf12165691271582ef1304634df85e923200
+    git.commit: ce91f70d4245a7d5df877adbbedf2a027e6a1eab
   odh-maas-controller:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
     git.commit: c757bf12165691271582ef1304634df85e923200
@@ -248,7 +248,7 @@ additional_meta:
     git.commit: e4dbdc509042665070827a2b268e876425a5e471
   odh-mod-arch-gen-ai:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: e4dbdc509042665070827a2b268e876425a5e471
+    git.commit: 8ca420c9ba9d8ae287c1cefac598d001c7db091e
   odh-mod-arch-maas:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: e4dbdc509042665070827a2b268e876425a5e471

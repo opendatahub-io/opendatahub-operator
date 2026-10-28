@@ -2,7 +2,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_AI_GATEWAY_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-ai-gateway-operator-rhel9@sha256:244c4d786d826c0aec0a4b369b68abc21acdb14a86a39a32328f721afeac0752"
 - name: RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE
-  value: "quay.io/rhoai/odh-ai-gateway-payload-processing-rhel9@sha256:d57b6e584ea19f330837dd2f130ffcbca324f09725204159253b5a7ede7e15f1"
+  value: "quay.io/rhoai/odh-ai-gateway-payload-processing-rhel9@sha256:6c23a56eb1ff3f2c22da200d44cb826d6c91658d68e22d48e61d660d918b06d9"
 - name: RELATED_IMAGE_ODH_AUTOML_IMAGE
   value: "quay.io/rhoai/odh-automl-rhel9@sha256:e398341025ad33b926d0c5d798e8b01030319b0b29959c61d231399d677bf098"
 - name: RELATED_IMAGE_ODH_AUTORAG_IMAGE
@@ -24,7 +24,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-data-science-pipelines-operator-controller-rhel9@sha256:0fd94ab4e78f92e3e1286d44dd948c23ad33e6127dc7ddaec5e7deb727d905bc"
 - name: RELATED_IMAGE_ODH_EVAL_HUB_IMAGE
-  value: "quay.io/rhoai/odh-eval-hub-rhel9@sha256:3ec1fe9b622619fb50bb267a5e0b0b1f579a257983c4c388a4a34c3820580b44"
+  value: "quay.io/rhoai/odh-eval-hub-rhel9@sha256:dff5a9eb9a27902390eae301a9cdf022cf01856ea46741e618dfc68cc42db93c"
 - name: RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-feast-module-operator-rhel9@sha256:f3b9497527f553a45fd5bba5781813f3b3315505d3e81918d36b1405c54aff3b"
 - name: RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE
@@ -80,7 +80,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_LLM_D_ROUTER_ENDPOINT_PICKER_IMAGE
   value: "quay.io/rhoai/odh-llm-d-router-endpoint-picker-rhel9@sha256:a67410f2e0208280269b15105e699e35f0085f2c1d7559d24761f13d1b8ec8c4"
 - name: RELATED_IMAGE_ODH_MAAS_API_IMAGE
-  value: "quay.io/rhoai/odh-maas-api-rhel9@sha256:4ae2ac8a4c47e2750b4fda608a2a8ea3698a384127049c05d86059c3dd75cb88"
+  value: "quay.io/rhoai/odh-maas-api-rhel9@sha256:61036cadedc984f96b1ed90bcb0070f9cf318d4e63da2d118560c690e648cd6c"
 - name: RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-maas-controller-rhel9@sha256:a3d8ae426bc9277a51a9345f2b8d003f70b067e4ea5b6caa4eee42270857bcf0"
 - name: RELATED_IMAGE_ODH_MCP_LIFECYCLE_MODULE_OPERATOR_IMAGE
@@ -130,7 +130,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-eval-hub-rhel9@sha256:2568bbc07f69390de04fcab1d6fd75ef18f768ab3b2ea0c456a971613ad1ec55"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE
-  value: "quay.io/rhoai/odh-mod-arch-gen-ai-rhel9@sha256:ee7d6d6c0271ce5ebdf0ab538cac3a874fd9b66cd49d9f2dd517bfdda7d735be"
+  value: "quay.io/rhoai/odh-mod-arch-gen-ai-rhel9@sha256:b69a11e8c71a5be0acf4d5c171d9cea762829d486aae182e73005a2e64235f31"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-maas-rhel9@sha256:86603dcea1c7f02dc51a5f15a373aae8c9eef41373ebb23e4727a8686993ec45"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MLFLOW_IMAGE
