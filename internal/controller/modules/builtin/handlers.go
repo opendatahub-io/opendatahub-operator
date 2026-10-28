@@ -26,9 +26,9 @@ import (
 // ModuleRegistration combines a built-in module handler with its orchestration
 // metadata.
 type ModuleRegistration struct {
-	Handler       modules.ModuleHandler
-	Runlevel      dag.Runlevel
-	ConfigSource  modules.ConfigSource
+	Handler      modules.ModuleHandler
+	Runlevel     dag.Runlevel
+	ConfigSource modules.ConfigSource
 	// BundleCRDName is the primary module CRD installed by the OLM bundle.
 	// Empty means the release does not bundle-own this optional module CRD.
 	BundleCRDName string

@@ -102,6 +102,21 @@ func TestFindCRDRejectsMalformedSource(t *testing.T) {
 	require.ErrorContains(t, err, "parsing CRD")
 }
 
+func TestFindCRDSkipsMalformedUnrelatedDocument(t *testing.T) {
+	root := t.TempDir()
+	data := "# CustomResourceDefinition is mentioned here, but this is a ConfigMap\n" +
+		"kind: ConfigMap\nmetadata: [broken\n---\n" + testCRD
+	require.NoError(t, os.WriteFile(filepath.Join(root, "resources.yaml"), []byte(data), 0o600))
+
+	selected, err := findCRD(source{
+		name:  "examples.components.platform.opendatahub.io",
+		gvk:   schema.GroupVersionKind{Group: "components.platform.opendatahub.io", Version: "v1alpha1", Kind: "Example"},
+		roots: []string{root},
+	})
+	require.NoError(t, err)
+	require.Equal(t, testCRD, string(selected.data))
+}
+
 func TestFindCRDRejectsSourceSymlinkEscape(t *testing.T) {
 	root := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "outside.yaml")

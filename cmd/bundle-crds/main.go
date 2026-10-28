@@ -192,7 +192,7 @@ func findCRD(src source) (candidate, error) {
 				if readErr != nil {
 					return fmt.Errorf("reading YAML documents in %s: %w", path, readErr)
 				}
-				if !bytes.Contains(doc, []byte("CustomResourceDefinition")) || bytes.Contains(doc, []byte("{{")) {
+				if !isCRDDocument(doc) || bytes.Contains(doc, []byte("{{")) {
 					continue // Ignore unrelated YAML and unresolved Helm templates.
 				}
 				var crd apiextv1.CustomResourceDefinition
@@ -239,6 +239,26 @@ func findCRD(src source) (candidate, error) {
 		}
 	}
 	return candidates[0], nil
+}
+
+// isCRDDocument inspects the top-level kind without parsing unrelated YAML,
+// which can include malformed templates and comments mentioning CRDs.
+func isCRDDocument(doc []byte) bool {
+	for _, line := range bytes.Split(doc, []byte("\n")) {
+		if len(line) == 0 || line[0] == ' ' || line[0] == '\t' || line[0] == '#' {
+			continue
+		}
+		key, value, ok := bytes.Cut(line, []byte(":"))
+		if !ok || !bytes.Equal(bytes.TrimSpace(key), []byte("kind")) {
+			continue
+		}
+		value, _, _ = bytes.Cut(value, []byte("#"))
+		value = bytes.Trim(bytes.TrimSpace(value), "\"'")
+		if bytes.Equal(value, []byte("CustomResourceDefinition")) {
+			return true
+		}
+	}
+	return false
 }
 
 func sourceRank(path string) int {
