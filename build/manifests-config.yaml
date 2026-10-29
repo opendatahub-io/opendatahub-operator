@@ -60,7 +60,7 @@ map:
     src: config
     dest: aigateway
     git.url: https://github.com/red-hat-data-services/ai-gateway-operator
-    git.commit: 06558afdf0e983dd501b883262492f0e465bd6db
+    git.commit: 766b929a6939c9717a5764a8ba3d0cc1b4ce2f92
   odh-mcp-lifecycle-module-operator:
     src: config
     dest: mcplifecycleoperator
@@ -134,7 +134,7 @@ additional_meta:
     git.commit: abf9ab28287771ab17789cfe099657228c242a7c
   odh-kserve-llmisvc-controller:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: abf9ab28287771ab17789cfe099657228c242a7c
+    git.commit: 10b3ecb723bb3396f171ffe0188c2830cd399f75
   odh-kserve-localmodelnode-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: ee8371005a55ce6c258b82930841c762c7e1a74d
@@ -149,7 +149,7 @@ additional_meta:
     git.commit: 98f10f414c8aeb43216a4e556afa0dfd30ab9ab1
   odh-kube-auth-proxy:
     git.url: https://github.com/red-hat-data-services/kube-auth-proxy
-    git.commit: 9c7cbdd69d6d888365397463fac7ad38bf4a9576
+    git.commit: 61c4681085f6f4a50ab04a16b609cb155dda2d58
   odh-kube-rbac-proxy:
     git.url: https://github.com/red-hat-data-services/kube-rbac-proxy
     git.commit: 7602433caebbf72a632e4b0bdeb6a9d1dffe1064
