@@ -128,8 +128,10 @@ func (tc *TrustyAITestCtx) createDummyPrometheus(t *testing.T) {
 	})
 }
 
-// ValidateUpdateDeploymentsResources verifies that the TrustyAI module operator
-// reconciles changes to its managed service operator Deployment.
+// ValidateUpdateDeploymentsResources verifies ODS-2664 / RHOAIENG-101065
+// allowlist-preserve for trustyai-service-operator-controller-manager: without
+// opendatahub.io/managed=true, replica edits must stick across module
+// reconcile (companion to trustyai-service-operator#1081).
 func (tc *TrustyAITestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
 	t.Helper()
 
@@ -151,16 +153,31 @@ func (tc *TrustyAITestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
 		updatedReplicas = 1
 	}
 
-	tc.EventuallyResourceCreatedOrUpdated(
+	// Unmanaged (no opendatahub.io/managed=true): preserve the patched value.
+	tc.ConsistentlyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Deployment, deploymentName),
 		WithMutateFunc(testf.Transform(`.spec.replicas = %d`, updatedReplicas)),
 		WithCondition(jq.Match(`.spec.replicas == %d`, updatedReplicas)),
+		WithCustomErrorMsg("TrustyAI module operator should preserve unmanaged service operator Deployment replicas"),
+	)
+
+	// Explicitly managed: module reapplies manifest defaults.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Deployment, deploymentName),
+		WithMutateFunc(testf.Transform(
+			`.metadata.annotations["opendatahub.io/managed"] = "true" | .spec.replicas = %d`,
+			updatedReplicas,
+		)),
+		WithCondition(jq.Match(
+			`.metadata.annotations["opendatahub.io/managed"] == "true" and .spec.replicas == %d`,
+			updatedReplicas,
+		)),
 	)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, deploymentName),
 		WithCondition(jq.Match(`.spec.replicas == %d`, replicas)),
-		WithCustomErrorMsg("TrustyAI module operator should reconcile the service operator Deployment replicas"),
+		WithCustomErrorMsg("TrustyAI module operator should revert replicas when opendatahub.io/managed=true"),
 	)
 }
 
