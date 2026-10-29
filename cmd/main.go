@@ -131,6 +131,7 @@ var intermediateCiphers = []uint16{
 	tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
 }
 
+// explicit comment to trigger workflow.
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
