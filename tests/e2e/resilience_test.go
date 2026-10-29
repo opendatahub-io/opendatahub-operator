@@ -13,7 +13,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	"github.com/stretchr/testify/require"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -51,7 +50,6 @@ type OperatorResilienceTestCtx struct {
 const (
 	expectedReplicas     = 3                        // Number of replicas for the deployment
 	restrictiveQuotaName = "test-restrictive-quota" // Restrictive quota name
-	restartAnnotation    = "kubectl.kubernetes.io/restartedAt"
 )
 
 // operatorResilienceTestSuite runs operator resilience and failure recovery tests.
@@ -160,19 +158,37 @@ func (tc *OperatorResilienceTestCtx) ValidateStorageVersionMigrationEvents(t *te
 		previousEventUIDs.Insert(event.UID)
 	}
 
-	t.Logf("Restarting operator deployment %s/%s", deployment.Namespace, deployment.Name)
-	beforeRestart := deployment.DeepCopy()
-	metav1.SetMetaDataAnnotation(&deployment.Spec.Template.ObjectMeta, restartAnnotation, time.Now().Format(time.RFC3339Nano))
-	g.Expect(tc.Client().Patch(ctx, deployment, client.MergeFrom(beforeRestart))).To(Succeed())
+	g.Expect(deployment.Spec.Selector.MatchLabels).NotTo(BeEmpty(), "Operator deployment must have a pod selector")
+	podOptions := []client.ListOption{
+		client.InNamespace(deployment.Namespace),
+		client.MatchingLabels(deployment.Spec.Selector.MatchLabels),
+	}
+	previousPods := &corev1.PodList{}
+	g.Expect(tc.Client().List(ctx, previousPods, podOptions...)).To(Succeed())
+	g.Expect(previousPods.Items).NotTo(BeEmpty(), "Operator deployment must have pods to restart")
 
-	t.Log("Waiting for the operator deployment rollout to complete")
+	previousPodUIDs := sets.New[types.UID]()
+	for _, pod := range previousPods.Items {
+		previousPodUIDs.Insert(pod.UID)
+	}
+
+	// Reuse the resilience restart helper without changing OLM's deployment template.
+	tc.deletePodsForDeployment(t, client.ObjectKeyFromObject(deployment))
+
+	t.Log("Waiting for replacement operator pods to become ready")
 	g.Eventually(func(g Gomega) {
-		current := &appsv1.Deployment{}
-		g.Expect(tc.Client().Get(ctx, client.ObjectKeyFromObject(deployment), current)).To(Succeed())
-		g.Expect(current.Status.ObservedGeneration).To(BeNumerically(">=", deployment.Generation))
-		g.Expect(current.Status.UpdatedReplicas).To(Equal(*current.Spec.Replicas))
-		g.Expect(current.Status.Replicas).To(Equal(*current.Spec.Replicas))
-		g.Expect(current.Status.AvailableReplicas).To(Equal(*current.Spec.Replicas))
+		currentPods := &corev1.PodList{}
+		g.Expect(tc.Client().List(ctx, currentPods, podOptions...)).To(Succeed())
+		g.Expect(currentPods.Items).To(HaveLen(int(*deployment.Spec.Replicas)))
+
+		for _, pod := range currentPods.Items {
+			g.Expect(previousPodUIDs.Has(pod.UID)).To(BeFalse(), "Old operator pod %s must be replaced", pod.Name)
+			g.Expect(pod.DeletionTimestamp).To(BeNil())
+			g.Expect(pod.Status.Conditions).To(ContainElement(And(
+				HaveField("Type", Equal(corev1.PodReady)),
+				HaveField("Status", Equal(corev1.ConditionTrue)),
+			)))
+		}
 	}).Should(Succeed())
 
 	t.Log("Checking for fresh storage migration no-op events for all three CRDs")
