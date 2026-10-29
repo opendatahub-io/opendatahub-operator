@@ -3552,6 +3552,7 @@ _Appears in:_
 
 
 UsageLogs defines the configuration for usage log collection.
+A cluster-local store requires storage; forwarding-only configs (a fleet hub) omit storage.
 
 
 
@@ -3561,6 +3562,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `storage` _[LokiStorageConfig](#lokistorageconfig)_ | Storage configures the LokiStack storage backend (S3).<br />When configured, the operator deploys a LokiStack instance and auto-configures the collector endpoint. |  | Required: \{\} <br /> |
+| `storage` _[LokiStorageConfig](#lokistorageconfig)_ | Storage configures the LokiStack storage backend (S3).<br />When configured, the operator deploys a LokiStack instance and auto-configures the collector endpoint.<br />Omit when forwarding only: no LokiStack is deployed and no object storage is needed. |  |  |
+| `size` _string_ | Size selects the LokiStack t-shirt size for the usage-log store. The default<br />reserves 2 CPU and 8Gi per ingester, which does not schedule on smaller<br />clusters; the LokiStack then never reports Ready and the usage-logs collector<br />is never deployed. Ignored when storage is omitted, since no LokiStack is<br />deployed. | 1x.extra-small | Enum: [1x.demo 1x.pico 1x.extra-small 1x.small 1x.medium] <br /> |
+| `exporters` _object (keys:string, values:[RawExtension](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#rawextension-runtime-pkg))_ | Exporters defines additional usage-log exporters, for forwarding a copy of every<br />usage record to an observability backend outside this cluster — typically a<br />LokiStack on an ACM hub that aggregates a fleet. The configuration follows the<br />OpenTelemetry Collector exporter format. The local write is left untouched,<br />making it a dual-write rather than a redirect; with storage omitted they are the<br />only destination and nothing is written locally.<br />Reserved name 'otlphttp/loki' cannot be used.<br />Maximum 10 exporters allowed. |  |  |
+| `credentialSecret` _string_ | CredentialSecret names a Secret in the monitoring namespace holding a bearer<br />token under the key 'token', for authenticating to the Exporters' endpoint. It is<br />mounted as a file and read through a 'bearertokenauth/remote' extension, which an<br />exporter selects with auth: \{authenticator: bearertokenauth/remote\}. The token is<br />never written into the collector object, and because the extension re-reads the<br />file, rotating the Secret reaches a running collector. |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$` <br /> |
+| `attributes` _object (keys:string, values:string)_ | Attributes are resource attributes stamped onto records sent to Exporters only,<br />so a cluster identity added here cannot disturb the spoke-local pipeline. Set<br />cluster_name and cluster_id here to attribute records to the cluster that<br />produced them. |  | MaxProperties: 20 <br /> |
 
 
