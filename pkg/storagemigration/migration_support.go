@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strconv"
 	"time"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -147,7 +148,7 @@ func discoverMigrationAPI(ctx context.Context, discoveryClient discovery.ServerR
 }
 
 func newRequest(crd *apiextensionsv1.CustomResourceDefinition, storage string, api schema.GroupVersionResource) (*unstructured.Unstructured, error) {
-	identity := fmt.Sprintf("%s/%s/%s", crd.Name, crd.UID, storage)
+	identity := fmt.Sprintf("%s/%s/%d/%s", crd.Name, crd.UID, crd.Generation, storage)
 	digest := sha256.Sum256([]byte(identity))
 
 	resource := map[string]any{
@@ -170,6 +171,7 @@ func newRequest(crd *apiextensionsv1.CustomResourceDefinition, storage string, a
 	request.SetName(fmt.Sprintf("odh-storage-%x", digest[:20]))
 	resources.SetLabel(request, "app.kubernetes.io/managed-by", "opendatahub-operator")
 	resources.SetAnnotation(request, annotationPrefix+"crd-uid", string(crd.UID))
+	resources.SetAnnotation(request, annotationPrefix+"crd-generation", strconv.FormatInt(crd.Generation, 10))
 	resources.SetAnnotation(request, annotationPrefix+"storage-version", storage)
 
 	return request, nil
@@ -309,6 +311,8 @@ func pruneStorageHistory(
 	case current.UID != original.UID ||
 		currentStorage != storage:
 		return errors.New("CRD identity or storage configuration changed during migration")
+	case current.Generation != original.Generation:
+		return errors.New("CRD generation changed during migration")
 	case slices.Equal(current.Status.StoredVersions, []string{storage}):
 		return nil
 	}

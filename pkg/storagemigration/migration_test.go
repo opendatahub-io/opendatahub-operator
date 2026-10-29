@@ -44,6 +44,8 @@ import (
 	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/events"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+
 	. "github.com/onsi/gomega"
 )
 
@@ -291,6 +293,12 @@ func TestRequestRecovery(t *testing.T) {
 			mismatch:  true,
 			wantError: true,
 		},
+		{
+			name:      "generation mismatch",
+			condition: "Succeeded",
+			mismatch:  true,
+			wantError: true,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -301,7 +309,12 @@ func TestRequestRecovery(t *testing.T) {
 			m, definitions, requests := testMigration(crd, api)
 			request := seedRequest(t, requests, crd, api, test.condition)
 			if test.mismatch {
-				request.SetAnnotations(nil)
+				switch test.name {
+				case "unmarked":
+					request.SetAnnotations(nil)
+				case "generation mismatch":
+					resources.SetAnnotation(request, annotationPrefix+"crd-generation", "1")
+				}
 				g.Expect(requests.Tracker().Update(api, request, "")).To(Succeed())
 			}
 			reads := 0
@@ -337,6 +350,28 @@ func TestRequestRecovery(t *testing.T) {
 	}
 }
 
+func TestRequestFromPreviousGeneration(t *testing.T) {
+	g := NewWithT(t)
+
+	crd := testCRD()
+	api := migrationAPIs[3]
+	m, _, requests := testMigration(crd, api)
+	previous := seedRequest(t, requests, crd, api, "Succeeded")
+
+	// Model a storage version change and rollback on the same CRD.
+	crd.Generation += 2
+	_, err := m.definitions.Update(t.Context(), crd, metav1.UpdateOptions{})
+	g.Expect(err).To(Succeed())
+
+	g.Expect(m.execute(t.Context())).To(Succeed())
+	g.Expect(m.request.GetName()).NotTo(Equal(previous.GetName()), "a new generation requires a fresh migration")
+	g.Expect(resources.GetAnnotation(m.request, annotationPrefix+"crd-generation")).To(Equal("4"))
+
+	retained, err := requests.Resource(api).Get(t.Context(), previous.GetName(), metav1.GetOptions{})
+	g.Expect(err).To(Succeed())
+	g.Expect(retained).To(Equal(previous), "the old successful request must not be resumed or deleted")
+}
+
 func TestSelectsOneAPI(t *testing.T) {
 	g := NewWithT(t)
 
@@ -358,7 +393,7 @@ func TestSelectsOneAPI(t *testing.T) {
 }
 
 func TestFailurePreservesRequest(t *testing.T) {
-	for _, stage := range []string{"conflict", "forbidden", "cleanup", "UID", "storage", "deleting", "request replaced", "request spec"} {
+	for _, stage := range []string{"conflict", "forbidden", "cleanup", "UID", "storage", "generation", "deleting", "request replaced", "request spec"} {
 		t.Run(stage, func(t *testing.T) {
 			g := NewWithT(t)
 
@@ -395,6 +430,8 @@ func TestFailurePreservesRequest(t *testing.T) {
 				case "storage":
 					changed.Spec.Versions[0].Storage = true
 					changed.Spec.Versions[1].Storage = false
+				case "generation":
+					changed.Generation += 2
 				case "deleting":
 					changed.DeletionTimestamp = new(metav1.Now())
 				default:
