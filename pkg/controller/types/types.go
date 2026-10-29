@@ -169,8 +169,10 @@ type HelmChartInfo struct {
 }
 
 type ReconciliationRequest struct {
-	Client            client.Client
-	Controller        Controller
+	Client     client.Client
+	Controller Controller
+	// Conditions is nil for BeforeReconciliation preconditions. It is initialized
+	// only for reconciliation actions and ordinary preconditions.
 	Conditions        *conditions.Manager
 	Instance          common.PlatformObject
 	Release           common.Release

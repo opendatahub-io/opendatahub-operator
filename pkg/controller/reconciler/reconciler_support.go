@@ -161,6 +161,9 @@ func (b *ReconcilerBuilder[T]) WithConditions(dependents ...string) *ReconcilerB
 	return b
 }
 
+// WithPreCondition registers a check in its configured execution phase.
+// BeforeReconciliation checks run before finalizers and status handling;
+// ordinary checks run during apply and report status conditions.
 func (b *ReconcilerBuilder[T]) WithPreCondition(pc precondition.PreCondition) *ReconcilerBuilder[T] {
 	b.preConditions = append(b.preConditions, pc)
 

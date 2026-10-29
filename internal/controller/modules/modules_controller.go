@@ -26,6 +26,7 @@ import (
 	helmrender "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
 	kustomizerender "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	dependentpredicates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -100,6 +101,11 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 // dynamic ownership action.
 func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	b := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
+		// RHAI-15101: condition suppression still permits status writes, so
+		// require conversion before entering reconciliation at all.
+		WithPreCondition(precondition.CRDConversion(
+			"datascienceclusters.datasciencecluster.opendatahub.io", precondition.RequireWebhookAlways,
+		)).
 		WithInstanceName("modules").
 		WithDynamicOwnership(reconciler.WithGVKPredicates(moduleStatusPredicates())).
 		// The modules controller still reconciles against the DSC in OpenShift mode,
@@ -154,6 +160,10 @@ func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 // Dynamic ownership is enabled for the same reasons as DSC mode.
 func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	b := reconciler.ReconcilerFor(mgr, &configv1alpha1.Platform{}).
+		// RHAI-15101: a single served Platform version needs no conversion.
+		WithPreCondition(precondition.CRDConversion(
+			"platforms.config.opendatahub.io", precondition.RequireWebhookForMultipleServedVersions,
+		)).
 		WithInstanceName("modules").
 		WithDynamicOwnership(reconciler.WithGVKPredicates(moduleStatusPredicates())).
 		WithoutConditionCleanup().
