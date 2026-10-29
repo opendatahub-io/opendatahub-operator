@@ -548,13 +548,26 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 		WithConsistentlyDuration(20*time.Second),
 		WithConsistentlyPollingInterval(5*time.Second),
 	)
-	t.Log("Verifying the runlevel-31 KServe operator Deployment is not updated while batch 20 is blocked")
-	tc.EnsureResourceExistsConsistently(
-		WithMinimalObject(gvk.Deployment, kserveDeploymentNN),
-		WithCondition(jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformVersion, originalVersion)),
-		WithConsistentlyDuration(20*time.Second),
-		WithConsistentlyPollingInterval(5*time.Second),
-	)
+	// While batch 20 is gated, the runlevel-31 KServe operator Deployment must
+	// not advance to the new version. Gating defers runlevel 31 out of the
+	// reconciler's desired set, so the declarative GC transiently removes the
+	// existing Deployment during the gated upgrade and re-creates it once the
+	// gate clears. Tolerate that absence: only a Deployment that is present AND
+	// already carrying the new platform version proves gating failed to hold
+	// back runlevel 31.
+	t.Log("Verifying the runlevel-31 KServe operator Deployment does not advance to the new version while batch 20 is blocked")
+	tc.g.Consistently(func(g Gomega) {
+		kserveDeployment := tc.FetchResource(
+			WithMinimalObject(gvk.Deployment, kserveDeploymentNN),
+		)
+		if kserveDeployment == nil {
+			return // absence while gated is acceptable
+		}
+		g.Expect(kserveDeployment).To(
+			jq.Match(`.metadata.annotations."%s" != "%s"`, annotations.PlatformVersion, dagTestVersion),
+			"KServe operator Deployment advanced to %s while runlevel 20 was still gated", dagTestVersion,
+		)
+	}).WithTimeout(20 * time.Second).WithPolling(5 * time.Second).Should(Succeed())
 
 	// Step 4: Remove quota and verify convergence at new version.
 	t.Log("Removing quota to unblock deployments")
