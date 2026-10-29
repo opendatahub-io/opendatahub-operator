@@ -2,19 +2,25 @@ package e2e_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"testing"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+	"github.com/stretchr/testify/require"
 
 	. "github.com/onsi/gomega"
 )
@@ -22,6 +28,7 @@ import (
 const (
 	dashboardRedirectName           = "dashboard-redirect"
 	dashboardRedirectConfigName     = "dashboard-redirect-config"
+	dashboardRedirectHashAnnotation = "opendatahub.io/redirect-config-hash"
 	dashboardRedirectsAnnotation    = "platform.opendatahub.io/dashboard-redirects"
 	dashboardRedirectsDisabledValue = "disabled"
 	dashboardRouteNameODH           = "odh-dashboard"
@@ -46,6 +53,7 @@ func (tc *GatewayTestCtx) DashboardRedirectTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Validate dashboard redirect ConfigMap", tc.ValidateDashboardRedirectConfigMap},
 		{"Validate dashboard redirect Deployment", tc.ValidateDashboardRedirectDeployment},
+		{"Validate dashboard redirect configuration rollout", tc.ValidateDashboardRedirectRollout},
 		{"Validate dashboard redirect Service", tc.ValidateDashboardRedirectService},
 		{"Validate dashboard redirect Routes", tc.ValidateDashboardRedirectRoutes},
 		{"Validate dashboard redirect HTTP functionality", tc.ValidateDashboardRedirectHTTP},
@@ -127,6 +135,11 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 	t.Log("Validating dashboard redirect Deployment")
 
 	appNamespace := tc.AppsNamespace
+	configMap := &corev1.ConfigMap{}
+	require.NoError(t, tc.Client().Get(tc.Context(), types.NamespacedName{
+		Name: dashboardRedirectConfigName, Namespace: appNamespace,
+	}, configMap))
+	expectedConfigHash := dashboardRedirectConfigHash(configMap.Data)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
 			Name:      dashboardRedirectName,
@@ -141,7 +154,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 			jq.Match(`.metadata.labels.app == "%s"`, dashboardRedirectName),
 			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, dashboardPartOf),
 			jq.Match(`.spec.template.metadata.labels.app == "%s"`, dashboardRedirectName),
-			jq.Match(`.spec.template.metadata.annotations["opendatahub.io/redirect-config-hash"] | test("^[0-9a-f]{64}$")`),
+			jq.Match(`.spec.template.metadata.annotations["%s"] == "%s"`, dashboardRedirectHashAnnotation, expectedConfigHash),
 
 			// Owner reference
 			jq.Match(`.metadata.ownerReferences[] | select(.kind == "Dashboard") | .controller == true`),
@@ -197,6 +210,114 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 	)
 
 	t.Log("Dashboard redirect Deployment validation completed")
+}
+
+// ValidateDashboardRedirectRollout changes the desired gateway hostname and verifies
+// the resulting ConfigMap content is bound to a completed Deployment rollout.
+func (tc *GatewayTestCtx) ValidateDashboardRedirectRollout(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier1)
+	t.Log("Validating dashboard redirect configuration rollout")
+
+	ctx := tc.Context()
+	configKey := types.NamespacedName{Name: dashboardRedirectConfigName, Namespace: tc.AppsNamespace}
+	deploymentKey := types.NamespacedName{Name: dashboardRedirectName, Namespace: tc.AppsNamespace}
+	gatewayConfigKey := types.NamespacedName{Name: gatewayConfigName}
+
+	originalConfigMap := &corev1.ConfigMap{}
+	require.NoError(t, tc.Client().Get(ctx, configKey, originalConfigMap))
+	originalHash := dashboardRedirectConfigHash(originalConfigMap.Data)
+	originalDeployment := &appsv1.Deployment{}
+	require.NoError(t, tc.Client().Get(ctx, deploymentKey, originalDeployment))
+	require.Equal(t, originalHash, originalDeployment.Spec.Template.Annotations[dashboardRedirectHashAnnotation])
+
+	originalGatewayConfig := &serviceApi.GatewayConfig{}
+	require.NoError(t, tc.Client().Get(ctx, gatewayConfigKey, originalGatewayConfig))
+	originalSubdomain := originalGatewayConfig.Spec.Subdomain
+	changedSubdomain := "redirect-rollout"
+	if originalSubdomain == changedSubdomain {
+		changedSubdomain = "redirect-rollout-alt"
+	}
+
+	setSubdomain := func(subdomain string) {
+		mutation := testf.Transform(`del(.spec.subdomain)`)
+		condition := jq.Match(`.spec.subdomain == null`)
+		if subdomain != "" {
+			mutation = testf.Transform(`.spec.subdomain = "%s"`, subdomain)
+			condition = jq.Match(`.spec.subdomain == "%s"`, subdomain)
+		}
+		tc.EventuallyResourcePatched(
+			WithMinimalObject(gvk.GatewayConfig, gatewayConfigKey),
+			WithMutateFunc(mutation),
+			WithCondition(condition),
+		)
+	}
+
+	var changedHash string
+	var changedGeneration int64
+	t.Cleanup(func() {
+		setSubdomain(originalSubdomain)
+		tc.g.Eventually(func(g Gomega) {
+			configMap := &corev1.ConfigMap{}
+			g.Expect(tc.Client().Get(ctx, configKey, configMap)).To(Succeed())
+			g.Expect(dashboardRedirectConfigHash(configMap.Data)).To(Equal(originalHash))
+
+			deployment := &appsv1.Deployment{}
+			g.Expect(tc.Client().Get(ctx, deploymentKey, deployment)).To(Succeed())
+			g.Expect(deployment.Spec.Template.Annotations[dashboardRedirectHashAnnotation]).To(Equal(originalHash))
+			g.Expect(deployment.Generation).To(BeNumerically(">", changedGeneration))
+			g.Expect(deployment.Status.ObservedGeneration).To(BeNumerically(">=", deployment.Generation))
+			g.Expect(deployment.Status.UpdatedReplicas).To(Equal(int32(2)))
+			g.Expect(deployment.Status.ReadyReplicas).To(Equal(int32(2)))
+		}, tc.TestTimeouts.longEventuallyTimeout, 2*time.Second).Should(Succeed(),
+			"redirect Deployment should roll back to the original configuration")
+	})
+
+	setSubdomain(changedSubdomain)
+	tc.g.Eventually(func(g Gomega) {
+		configMap := &corev1.ConfigMap{}
+		g.Expect(tc.Client().Get(ctx, configKey, configMap)).To(Succeed())
+		currentHash := dashboardRedirectConfigHash(configMap.Data)
+		g.Expect(currentHash).NotTo(Equal(originalHash))
+
+		deployment := &appsv1.Deployment{}
+		g.Expect(tc.Client().Get(ctx, deploymentKey, deployment)).To(Succeed())
+		g.Expect(deployment.Spec.Template.Annotations[dashboardRedirectHashAnnotation]).To(Equal(currentHash))
+		g.Expect(deployment.Generation).To(BeNumerically(">", originalDeployment.Generation))
+		g.Expect(deployment.Status.ObservedGeneration).To(BeNumerically(">=", deployment.Generation))
+		g.Expect(deployment.Status.UpdatedReplicas).To(Equal(int32(2)))
+		g.Expect(deployment.Status.ReadyReplicas).To(Equal(int32(2)))
+		changedHash = currentHash
+		changedGeneration = deployment.Generation
+	}, tc.TestTimeouts.longEventuallyTimeout, 2*time.Second).Should(Succeed(),
+		"redirect Deployment should roll out when the redirect configuration changes")
+	require.NotEqual(t, originalHash, changedHash)
+
+	t.Log("Dashboard redirect configuration rollout validation completed")
+}
+
+func dashboardRedirectConfigHash(data map[string]string) string {
+	hash := sha256.New()
+	for _, key := range []string{"nginx.conf", "redirect.conf", "deprecation.html"} {
+		_, _ = hash.Write([]byte(key))
+		_, _ = hash.Write([]byte{0})
+		_, _ = hash.Write([]byte(data[key]))
+		_, _ = hash.Write([]byte{0})
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func TestDashboardRedirectConfigHashTracksContent(t *testing.T) {
+	config := map[string]string{
+		"nginx.conf":       "nginx",
+		"redirect.conf":    "return 301 https://one.example.com$request_uri;",
+		"deprecation.html": "<a href=\"https://one.example.com/\">",
+	}
+	original := dashboardRedirectConfigHash(config)
+	require.Len(t, original, sha256.Size*2)
+
+	config["redirect.conf"] = "return 301 https://two.example.com$request_uri;"
+	require.NotEqual(t, original, dashboardRedirectConfigHash(config))
 }
 
 // ValidateDashboardRedirectService validates the redirect service configuration.
