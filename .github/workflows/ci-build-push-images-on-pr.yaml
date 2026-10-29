@@ -3,7 +3,7 @@ on:
   pull_request_target:
     types: [ opened, synchronize, reopened ]
     branches:
-      - main
+      - rhoai-3.5
     paths:
       - 'bundle/**'
       - 'config/**'
