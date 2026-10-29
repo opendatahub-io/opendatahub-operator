@@ -940,7 +940,7 @@ Evn vars can be set to configure e2e tests:
 | E2E_TEST_CIRCUIT_BREAKER                 | Enable circuit breaker to halt tests on repeated infrastructure failures.                                                                                                                                                  | `true`                        |
 | E2E_TEST_CIRCUIT_BREAKER_THRESHOLD       | Consecutive infrastructure failures before health-checking for infrastructure problems.                                                                                                                                    | `3`                           |
 | E2E_TEST_TAG                             | Tag to run tests for. Options: `All`, `Smoke`, `Tier1`.                                                                                                                                                                    | `All`                         |
-| E2E_TEST_KUEUE_OPERATOR_CHANNEL           | Kueue subscription channel. | `stable-v1.4` |
+| E2E_TEST_KUEUE_OPERATOR_CHANNEL           | Kueue subscription channel. | `stable-v1.5` |
 | E2E_TEST_TIMEOUT                         | Timeout for the containerized E2E test binary, including conversion webhook scenarios.                                                                                                                                    | `110m`                        |
 | E2E_TEST_FLAGS                           | Alternatively the above configurations can be passed to e2e-tests as flags using this env var (see flags table below)                                                                                                      |                               |
 | SKIP_IMAGE_OVERRIDES                     | Skip auto-applying digest-pinned image overrides during `make deploy` and `make e2e-test`. Set to any value to disable.                                                                                                    | *(unset)*                     |
@@ -953,7 +953,7 @@ Alternatively the above configurations can be passed to e2e-tests as flags by se
 | --applications-namespace              | Namespace where the ODH applications are deployed.                                                                                                                                                                         | `opendatahub`                 |
 | --workbenches-namespace               | Namespace where the workbenches are deployed.                                                                                                                                                                              | `opendatahub`                 |
 | --dsc-monitoring-namespace            | Namespace where the ODH monitoring is deployed.                                                                                                                                                                            | `opendatahub`                 |
-| --kueue-operator-channel              | Kueue subscription channel. | `stable-v1.4` |
+| --kueue-operator-channel              | Kueue subscription channel. | `stable-v1.5` |
 | --test-dependant-operators-management | To configure the execution of tests related to the Dependant Operators management, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes                                  | `true`                        |
 | --test-dsc-management                 | To configure the execution of DSCI/DSC management tests, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes                                                            | `true`                        |
 | --test-dsc-validation                 | To configure the execution of DSCI/DSC validation tests, this is useful to run e2e tests for an operator running in xKS cluster                                                                                            | `true`                        |
@@ -1027,10 +1027,10 @@ Example commands to run test suite excluding tests for ray `component`:
 make e2e-test -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_COMPONENT=!ray
 ```
 
-To select a different Kueue release channel (default: `stable-v1.4`):
+To select a different Kueue release channel (default: `stable-v1.5`), for example to test 1.4:
 
 ```shell
-E2E_TEST_KUEUE_OPERATOR_CHANNEL=stable-v1.5 make e2e-test
+E2E_TEST_KUEUE_OPERATOR_CHANNEL=stable-v1.4 make e2e-test
 ```
 
 #### Cluster Setup for E2E

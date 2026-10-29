@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -114,6 +115,13 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
 				resources.CreatedOrUpdatedOrDeletedLabeled(gates.UpgradeGateLabel, "true"),
 			)))
+
+	// The OpenTelemetry Operator may be installed after Monitoring. Its active
+	// Collector webhook identifies the namespace for the cert-manager binding.
+	b = b.Watches(&admissionregistrationv1.ValidatingWebhookConfiguration{},
+		reconciler.WithEventMapper(otelCollectorWebhookPlatformRequests),
+		reconciler.WithPredicates(otelCollectorWebhookPredicate()),
+	)
 
 	b = addModuleCRWatches(b)
 	b = addModuleCRDWatches(b, func(ctx context.Context, _ client.Object) []reconcile.Request {

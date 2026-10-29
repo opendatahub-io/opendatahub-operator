@@ -2,19 +2,26 @@ package e2e_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
+	"slices"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -31,6 +38,7 @@ const (
 	MonitoringStackName                      = "data-science-monitoringstack"
 	ObservabilityDeploymentName              = "odh-observability"
 	OpenTelemetryCollectorName               = "data-science-collector"
+	OpenTelemetryCollectorServiceName        = "data-science-collector-collector"
 	TargetAllocatorDeploymentName            = "data-science-collector-targetallocator"
 	CollectorServiceAccount                  = "data-science-collector-collector"
 	TargetAllocatorServiceAccount            = "data-science-collector-targetallocator"
@@ -45,6 +53,9 @@ const (
 	ClusterPrometheusDatasourceSecret        = "cluster-prometheus-datasource-secret"
 	ClusterPrometheusTenancyDatasourceName   = "cluster-prometheus-tenancy-datasource"
 	ClusterPrometheusTenancyDatasourceSecret = "cluster-prometheus-tenancy-datasource-secret"
+	OTelCertManagerClusterRoleBinding        = "odh-observability-opentelemetry-cert-manager"
+	OTelOperatorControllerDeployment         = "opentelemetry-operator-controller-manager"
+	OTelOperatorWebhookDeployment            = "opentelemetry-operator-webhook"
 )
 
 // Constants for common test values.
@@ -220,6 +231,7 @@ func (tc *MonitoringTestCtx) runMetricsAndMonitoringStackTests(t *testing.T) {
 	t.Run("Group 2: Metrics & MonitoringStack", func(t *testing.T) {
 		// Setup: Enable metrics configuration once for all tests in this group
 		tc.setupMetrics(t)
+		tc.restartOpenTelemetryOperatorAfterCertManagerRBAC(t)
 
 		// Cleanup: Reset to Managed state at group end
 		t.Cleanup(func() {
@@ -669,8 +681,9 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 			monitoringCondition: jq.Match(`.spec.metrics != null`),
 			validation: jq.Match(`
 				(.spec.config.exporters | has("prometheus") and has("debug") and has("%s")) and
-				(.spec.config.service.pipelines.metrics.exporters | length == 3 and contains(["prometheus", "debug", "%s"]))
-			`, OtlpCustomExporter, OtlpCustomExporter),
+				(.spec.config.service.pipelines."metrics/scrape".exporters | length == 3 and contains(["prometheus", "debug", "%s"])) and
+				(.spec.config.service.pipelines."metrics/otlp".exporters | length == 3 and contains(["prometheus", "debug", "%s"]))
+			`, OtlpCustomExporter, OtlpCustomExporter, OtlpCustomExporter),
 		},
 		{
 			name: "Custom Traces Exporters",
@@ -939,7 +952,7 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesLifecycle(t *testing
 	)
 
 	// Step 3: Wait for Instrumentation CR to be created and fully configured
-	expectedEndpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:4317", OpenTelemetryCollectorName, tc.MonitoringNamespace)
+	expectedEndpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:4317", OpenTelemetryCollectorServiceName, tc.MonitoringNamespace)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: InstrumentationName, Namespace: tc.MonitoringNamespace}),
@@ -2092,6 +2105,218 @@ func (tc *MonitoringTestCtx) setupMetrics(t *testing.T) {
 		withManagementState(operatorv1.Managed),
 		tc.withMetricsConfig(),
 	)
+}
+
+// restartOpenTelemetryOperatorAfterCertManagerRBAC is a temporary workaround for
+// an OpenTelemetry Operator issue: the operator caches cert-manager availability
+// at startup. The monitoring chart creates the supplemental RBAC only when
+// metrics are enabled, so the controller and webhook processes must restart after
+// that binding becomes available.
+func (tc *MonitoringTestCtx) restartOpenTelemetryOperatorAfterCertManagerRBAC(t *testing.T) {
+	t.Helper()
+
+	operatorNamespace, err := resolveActiveOpenTelemetryOperatorNamespace(tc.Context(), tc.Client())
+	require.NoError(t, err, "failed to resolve the active OpenTelemetry Operator namespace")
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{Name: OTelCertManagerClusterRoleBinding}),
+		WithCondition(jq.Match(
+			`.subjects[]? | select(.kind == "ServiceAccount" and .name == "opentelemetry-operator-controller-manager") | .namespace == %q`,
+			operatorNamespace,
+		)),
+		WithEventuallyTimeout(tc.TestTimeouts.monitoringStackTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+		WithCustomErrorMsg("OpenTelemetry Operator should have the supplemental cert-manager ClusterRoleBinding"),
+	)
+
+	for _, deploymentName := range []string{OTelOperatorControllerDeployment, OTelOperatorWebhookDeployment} {
+		tc.restartOpenTelemetryDeploymentPods(t, operatorNamespace, deploymentName)
+	}
+}
+
+// resolveActiveOpenTelemetryOperatorNamespace uses the Collector admission
+// webhook service as the source of truth because OLM can leave inactive CSV
+// copies in other namespaces.
+func resolveActiveOpenTelemetryOperatorNamespace(ctx context.Context, c client.Client) (string, error) {
+	var configurations admissionregistrationv1.ValidatingWebhookConfigurationList
+	if err := c.List(ctx, &configurations); err != nil {
+		return "", fmt.Errorf("listing validating webhook configurations: %w", err)
+	}
+
+	namespaces := map[string]struct{}{}
+	for i := range configurations.Items {
+		for _, webhook := range configurations.Items[i].Webhooks {
+			if !isOpenTelemetryCollectorWebhook(webhook) {
+				continue
+			}
+			namespaces[webhook.ClientConfig.Service.Namespace] = struct{}{}
+		}
+	}
+
+	if len(namespaces) == 0 {
+		return "", errors.New("no active OpenTelemetry Collector admission webhook was found")
+	}
+	if len(namespaces) > 1 {
+		found := make([]string, 0, len(namespaces))
+		for namespace := range namespaces {
+			found = append(found, namespace)
+		}
+		sort.Strings(found)
+		return "", fmt.Errorf("OpenTelemetry Collector admission webhooks target multiple namespaces: %s", strings.Join(found, ", "))
+	}
+
+	for namespace := range namespaces {
+		return namespace, nil
+	}
+	return "", nil
+}
+
+func isOpenTelemetryCollectorWebhook(webhook admissionregistrationv1.ValidatingWebhook) bool {
+	service := webhook.ClientConfig.Service
+	if service == nil || service.Namespace == "" || service.Name != "opentelemetry-operator-webhook-service" {
+		return false
+	}
+	for _, rule := range webhook.Rules {
+		if (slices.Contains(rule.APIGroups, "opentelemetry.io") || slices.Contains(rule.APIGroups, "*")) &&
+			(slices.Contains(rule.Resources, "opentelemetrycollectors") || slices.Contains(rule.Resources, "*")) {
+			return true
+		}
+	}
+	return false
+}
+
+// restartOpenTelemetryDeploymentPods deletes pods directly. Updating the
+// OLM-owned Deployment template can be reverted before a new ReplicaSet rolls
+// out, which leaves the cached cert-manager state in the original processes.
+func (tc *MonitoringTestCtx) restartOpenTelemetryDeploymentPods(t *testing.T, namespace, deploymentName string) {
+	t.Helper()
+
+	deployment := &appsv1.Deployment{}
+	nn := types.NamespacedName{Name: deploymentName, Namespace: namespace}
+	require.NoError(t, tc.Client().Get(tc.Context(), nn, deployment),
+		"failed to get OpenTelemetry Operator deployment %s", deploymentName)
+	require.NotNil(t, deployment.Spec.Selector, "OpenTelemetry Operator deployment %s has no selector", deploymentName)
+	require.NotEmpty(t, deployment.Spec.Selector.MatchLabels,
+		"OpenTelemetry Operator deployment %s has no selector labels", deploymentName)
+
+	desiredReplicas := int32(1)
+	if deployment.Spec.Replicas != nil {
+		desiredReplicas = *deployment.Spec.Replicas
+	}
+	listOptions := []client.ListOption{
+		client.InNamespace(namespace),
+		client.MatchingLabels(deployment.Spec.Selector.MatchLabels),
+	}
+
+	pods := &corev1.PodList{}
+	require.NoError(t, tc.Client().List(tc.Context(), pods, listOptions...),
+		"failed to list pods for OpenTelemetry Operator deployment %s", deploymentName)
+	require.NotEmpty(t, pods.Items, "OpenTelemetry Operator deployment %s has no running pods", deploymentName)
+
+	for i := range pods.Items {
+		oldPod := pods.Items[i]
+		require.NoError(t, tc.Client().Delete(tc.Context(), &oldPod, client.GracePeriodSeconds(0)),
+			"failed to restart OpenTelemetry Operator pod %s/%s", namespace, oldPod.Name)
+		tc.waitForOpenTelemetryPodReplacement(t, namespace, deploymentName, listOptions, oldPod, desiredReplicas)
+	}
+
+	tc.waitForOpenTelemetryDeploymentReady(t, namespace, deploymentName, nn, listOptions, desiredReplicas)
+}
+
+func (tc *MonitoringTestCtx) waitForOpenTelemetryPodReplacement(
+	t *testing.T,
+	namespace string,
+	deploymentName string,
+	listOptions []client.ListOption,
+	oldPod corev1.Pod,
+	desiredReplicas int32,
+) {
+	t.Helper()
+
+	tc.g.Eventually(func(g Gomega) {
+		currentPods := &corev1.PodList{}
+		g.Expect(tc.Client().List(tc.Context(), currentPods, listOptions...)).To(Succeed(),
+			"failed to list replacement pods for OpenTelemetry Operator deployment %s", deploymentName)
+
+		readyReplicas := 0
+		oldPodStillExists := false
+		for _, pod := range currentPods.Items {
+			if pod.UID == oldPod.UID {
+				oldPodStillExists = true
+			}
+			if isPodReady(pod) {
+				readyReplicas++
+			}
+		}
+		g.Expect(oldPodStillExists).To(BeFalse(),
+			"OpenTelemetry Operator pod %s/%s was not replaced", namespace, oldPod.Name)
+		g.Expect(readyReplicas).To(BeNumerically(">=", desiredReplicas),
+			"OpenTelemetry Operator deployment %s did not return to its desired ready replica count", deploymentName)
+	}).WithContext(tc.Context()).
+		WithTimeout(tc.TestTimeouts.monitoringStackTimeout).
+		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
+		Should(Succeed(), "OpenTelemetry Operator pod replacement timed out for deployment %s", deploymentName)
+}
+
+func (tc *MonitoringTestCtx) waitForOpenTelemetryDeploymentReady(
+	t *testing.T,
+	namespace string,
+	deploymentName string,
+	nn types.NamespacedName,
+	listOptions []client.ListOption,
+	desiredReplicas int32,
+) {
+	t.Helper()
+
+	tc.g.Eventually(func(g Gomega) {
+		currentPods := &corev1.PodList{}
+		g.Expect(tc.Client().List(tc.Context(), currentPods, listOptions...)).To(Succeed(),
+			"failed to list final pods for OpenTelemetry Operator deployment %s", deploymentName)
+		g.Expect(currentPods.Items).To(HaveLen(int(desiredReplicas)),
+			"OpenTelemetry Operator deployment %s has an unexpected pod count", deploymentName)
+		for _, pod := range currentPods.Items {
+			g.Expect(isPodReady(pod)).To(BeTrue(), "OpenTelemetry Operator pod %s/%s is not ready", namespace, pod.Name)
+		}
+
+		currentDeployment := &appsv1.Deployment{}
+		g.Expect(tc.Client().Get(tc.Context(), nn, currentDeployment)).To(Succeed(),
+			"failed to get final status for OpenTelemetry Operator deployment %s", deploymentName)
+		g.Expect(currentDeployment.Status.ObservedGeneration).To(Equal(currentDeployment.Generation),
+			"OpenTelemetry Operator deployment %s has not observed its current generation", deploymentName)
+		g.Expect(currentDeployment.Status.ReadyReplicas).To(Equal(currentDeployment.Status.Replicas),
+			"OpenTelemetry Operator deployment %s does not have all replicas ready", deploymentName)
+		g.Expect(currentDeployment.Status.UpdatedReplicas).To(Equal(currentDeployment.Status.Replicas),
+			"OpenTelemetry Operator deployment %s does not have all replicas updated", deploymentName)
+
+		available := findDeploymentCondition(currentDeployment, appsv1.DeploymentAvailable)
+		g.Expect(available).NotTo(BeNil(), "OpenTelemetry Operator deployment %s has no Available condition", deploymentName)
+		g.Expect(available.Status).To(Equal(corev1.ConditionTrue),
+			"OpenTelemetry Operator deployment %s is not Available", deploymentName)
+	}).WithContext(tc.Context()).
+		WithTimeout(tc.TestTimeouts.monitoringStackTimeout).
+		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
+		Should(Succeed(), "OpenTelemetry Operator deployment %s did not become ready after restart", deploymentName)
+}
+
+func isPodReady(pod corev1.Pod) bool {
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodReady {
+			return condition.Status == corev1.ConditionTrue
+		}
+	}
+	return false
+}
+
+func findDeploymentCondition(
+	deployment *appsv1.Deployment,
+	conditionType appsv1.DeploymentConditionType,
+) *appsv1.DeploymentCondition {
+	for i := range deployment.Status.Conditions {
+		if deployment.Status.Conditions[i].Type == conditionType {
+			return &deployment.Status.Conditions[i]
+		}
+	}
+	return nil
 }
 
 // setupTraces enables traces configuration with the specified backend and optional secret.

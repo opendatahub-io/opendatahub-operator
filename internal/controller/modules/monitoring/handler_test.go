@@ -577,6 +577,7 @@ func TestGetOperatorManifests_InjectsMonitoringNamespace(t *testing.T) {
 	platform := &modules.PlatformContext{
 		ApplicationsNamespace: "redhat-ods-applications",
 		MonitoringNamespace:   "redhat-ods-monitoring",
+		OTelOperatorNamespace: "openshift-operators",
 		ChartsBasePath:        "/opt/charts",
 	}
 
@@ -591,6 +592,7 @@ func TestGetOperatorManifests_InjectsMonitoringNamespace(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(vals["operatorNamespace"]).Should(Equal("redhat-ods-applications"))
 	g.Expect(vals["monitoringNamespace"]).Should(Equal("redhat-ods-monitoring"))
+	g.Expect(vals["otelOperatorNamespace"]).Should(Equal("openshift-operators"))
 }
 
 func TestGetOperatorManifests_OmitsEmptyMonitoringNamespace(t *testing.T) {
@@ -608,4 +610,5 @@ func TestGetOperatorManifests_OmitsEmptyMonitoringNamespace(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(vals["operatorNamespace"]).Should(Equal("opendatahub"))
 	g.Expect(vals).ShouldNot(HaveKey("monitoringNamespace"))
+	g.Expect(vals["otelOperatorNamespace"]).Should(Equal(""))
 }
