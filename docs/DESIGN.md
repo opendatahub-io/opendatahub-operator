@@ -99,6 +99,11 @@ In addition to the previously-mentioned CRs and their controller, the operator a
   - singleton instance in the cluster
   - controller implementation located in `internal/controller/services/monitoring`
 
+Log forwarding (`spec.monitoring.logs`) and usage logs (`spec.monitoring.usageLogs`) in
+`DSCInitialization` use one shared LokiStack. Each enabled feature requires its own
+`storage` block. When both are present, they must match: `logs.storage` takes
+precedence when the operator selects the shared stack's storage configuration.
+
 ### Accessory controllers
 
 The ODH operator currently manages several accessory controllers that handle parts of its functionality.

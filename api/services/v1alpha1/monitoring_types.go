@@ -135,7 +135,8 @@ type Alerting struct {
 // Logs defines the configuration for cluster log forwarding via the ClusterLogForwarder operator.
 type Logs struct {
 	// Storage configures the LokiStack storage backend for log forwarding.
-	// Required: the operator deploys a shared LokiStack used by both log forwarding and usage logs.
+	// Required: the operator deploys one LokiStack shared by log forwarding and usage logs.
+	// When both are configured, logs.storage takes precedence; the two storage configurations must match.
 	// +kubebuilder:validation:Required
 	Storage *LokiStorageConfig `json:"storage"`
 
@@ -147,8 +148,9 @@ type Logs struct {
 
 // UsageLogs defines the configuration for usage log collection.
 type UsageLogs struct {
-	// Storage configures the LokiStack storage backend (S3).
-	// When configured, the operator deploys a LokiStack instance and auto-configures the collector endpoint.
+	// Storage configures the shared LokiStack storage backend (S3) for usage logs.
+	// The operator deploys one LokiStack for both usage logs and log forwarding, and auto-configures the collector endpoint.
+	// When both are configured, logs.storage takes precedence; the two storage configurations must match.
 	// +kubebuilder:validation:Required
 	Storage *LokiStorageConfig `json:"storage"`
 }
