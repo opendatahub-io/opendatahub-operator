@@ -30,7 +30,9 @@ import (
 )
 
 // +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get
-// +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions/status,verbs=patch
+// +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions/status,verbs=patch,resourceNames=datascienceclusters.datasciencecluster.opendatahub.io
+// +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions/status,verbs=patch,resourceNames=dscinitializations.dscinitialization.opendatahub.io
+// +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions/status,verbs=patch,resourceNames=platforms.config.opendatahub.io
 // +kubebuilder:rbac:groups=storagemigration.k8s.io;migration.k8s.io,resources=storageversionmigrations,verbs=get;create;delete
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 

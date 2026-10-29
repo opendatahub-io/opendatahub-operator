@@ -238,6 +238,11 @@ func TestStorageMigrationIntegration(t *testing.T) {
 				return getErr
 			}).WithContext(ctx).WithTimeout(5 * time.Second).WithPolling(10 * time.Millisecond).Should(Succeed())
 
+			// The generated role must not allow status patches on unrelated CRDs.
+			_, patchErr := userDefinitions.CustomResourceDefinitions().Patch(ctx, migrationCRD.Name, types.MergePatchType,
+				[]byte(`{"status":{"storedVersions":["v1alpha1"]}}`), metav1.PatchOptions{}, "status")
+			g.Expect(k8serr.IsForbidden(patchErr)).To(BeTrue(), "role %s must not patch status of CRD %s: %v", platform, migrationCRD.Name, patchErr)
+
 			m := migration{
 				crdName:     target.Name,
 				definitions: userDefinitions.CustomResourceDefinitions(),
