@@ -36,12 +36,18 @@ inspected or resumed, including after an API preference change on restart. It
 does not install a migrator or rewrite custom resources itself. Each CRD attempt
 is limited to five minutes.
 
+Requests are bound to the CRD UID, generation, and target storage version. A
+storage version change followed by a rollback therefore creates a fresh request
+instead of reusing an earlier success.
+
 Only a successful migration request permits a fresh, resourceVersion-guarded
-patch of the CRD's `status.storedVersions`. A concurrent change rejects the patch
-with a conflict; the request remains for subsequent inspection and recovery.
+patch of the CRD's `status.storedVersions`. A changed CRD generation stops
+pruning; a concurrent change after the safety read rejects the patch with a
+conflict. In either case, the request remains for inspection and recovery.
 The operator deletes its successful request after pruning. If cleanup fails,
 pruning is still complete; a later startup is a no-op and does not remove the
-leftover request.
+leftover request. If migration is needed for a later CRD generation, it uses a
+new request and leaves older requests untouched.
 
 ## Diagnosis and recovery
 
@@ -93,8 +99,12 @@ asynchronous recorder and is best effort.
 
 Use the request name/API in the error and inspect its spec, ownership/stage
 annotations, and conditions. A matching pending or successful request can resume
-on restart. A Failed request is retained and never automatically retried: review
-the failure, repair its cause, and manually delete that request before restarting.
+on restart only for the same CRD generation. A Failed request for that generation
+is retained and never automatically retried: review the failure, repair its cause,
+and manually delete that request before restarting. An operator upgrade that
+changes the CRD spec increases its generation and creates a fresh request if
+migration is needed; changing only the operator image does not. Requests from
+before generation tracking was introduced are left untouched and are not resumed.
 Mismatched requests require review; the operator never adopts unmarked or
 CLI-created requests. Manager shutdown cancellation emits no warning.
 

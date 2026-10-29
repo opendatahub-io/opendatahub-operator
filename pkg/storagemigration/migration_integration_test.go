@@ -343,6 +343,34 @@ func TestStorageMigrationIntegration(t *testing.T) {
 			testTerminalRequest(ctx, t, crds, requests, original, condition)
 		})
 	}
+
+	t.Run("generation changed", func(t *testing.T) {
+		original := resetHistory(t)
+		testGenerationChanged(ctx, t, crds, original)
+	})
+}
+
+func testGenerationChanged(
+	ctx context.Context,
+	t *testing.T,
+	crds apiextensions.CustomResourceDefinitionInterface,
+	original *apiextensionsv1.CustomResourceDefinition,
+) {
+	t.Helper()
+	g := NewWithT(t)
+
+	changed := original.DeepCopy()
+	changed.Spec.Names.ShortNames = []string{"svmtest"}
+	changed, err := crds.Update(ctx, changed, metav1.UpdateOptions{})
+	g.Expect(err).To(Succeed())
+	g.Expect(changed.Generation).To(BeNumerically(">", original.Generation))
+
+	err = pruneStorageHistory(ctx, crds, original, "v3")
+	g.Expect(err).To(MatchError(ContainSubstring("generation changed")))
+
+	after, err := crds.Get(ctx, original.Name, metav1.GetOptions{})
+	g.Expect(err).To(Succeed())
+	g.Expect(after.Status.StoredVersions).To(Equal(original.Status.StoredVersions))
 }
 
 func testMissingCRDEvent(ctx context.Context, t *testing.T, config *rest.Config) {
