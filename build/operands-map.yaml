@@ -92,7 +92,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-mlflow-operator-rhel9@sha256:470b20b21ae4167f93b400adbbce4cdad17f5a34893ade7ed2357eccd49572cf"
 - name: RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE
-  value: "quay.io/rhoai/odh-mlmd-grpc-server-rhel9@sha256:71f953ff6ddc2b91e1025d710929796cfa673d90e77097ac2fb7145ef4a42c00"
+  value: "quay.io/rhoai/odh-mlmd-grpc-server-rhel9@sha256:2fdd75419b3acfbe73ad3fa338f70bb33260fd7b07e7ce9ffd69727580c1134e"
 - name: RELATED_IMAGE_ODH_MLSERVER_CUDA_IMAGE
   value: "quay.io/rhoai/odh-mlserver-cuda-rhel9@sha256:3629406204349c10a37086d7f6a73fbc78af32394c1d4a8397793a8aebcda0d2"
 - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
