@@ -227,7 +227,7 @@ additional_meta:
     git.commit: 6b0cd391518573e114f5a4c44c5fd6ee144f0c3b
   odh-model-registry:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: e3f0cd5b340b8f21e299f72243f33d975fb5bd12
+    git.commit: 7cd965d2b11f9dbe6ef32713a54160052925b8d5
   odh-model-registry-job-async-upload:
     git.url: https://github.com/red-hat-data-services/model-registry
     git.commit: 9c1a39a8e02c13a0a6f9384b2ecc72449733695c
@@ -236,7 +236,7 @@ additional_meta:
     git.commit: c114d8c8b6b50ba787560d26c853c979f4e05cba
   odh-mod-arch-agent-ops:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 8ca420c9ba9d8ae287c1cefac598d001c7db091e
+    git.commit: 4743888bc5f0ed23641e7a57363defeb456bc209
   odh-mod-arch-automl:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 4743888bc5f0ed23641e7a57363defeb456bc209
