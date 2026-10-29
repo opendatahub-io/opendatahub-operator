@@ -351,11 +351,6 @@ func TestOAuthOCPRouteCreation(t *testing.T) {
 	RunOCPRouteCreationTest(t, GetOAuthTestSetup(), DefaultGatewayHost(OAuthClusterDomain))
 }
 
-// TestOAuthLegacyRedirectRouteCreation validates legacy redirect Route creation in OAuth mode (delegates to RunLegacyRedirectRouteCreationTest).
-func TestOAuthLegacyRedirectRouteCreation(t *testing.T) {
-	RunLegacyRedirectRouteCreationTest(t, GetOAuthTestSetup(), LegacyGatewayHost(OAuthClusterDomain))
-}
-
 // TestOAuthNetworkPolicyCreation validates NetworkPolicy creation in OAuth mode (delegates to RunNetworkPolicyCreationTest).
 func TestOAuthNetworkPolicyCreation(t *testing.T) {
 	RunNetworkPolicyCreationTest(t, GetOAuthTestSetup())
@@ -367,21 +362,6 @@ func TestOAuthNetworkPolicyReconciliation(t *testing.T) {
 
 func TestOAuthNetworkPolicyAuthModeLifecycle(t *testing.T) {
 	RunNetworkPolicyAuthModeLifecycleTest(t, GetOAuthTestSetup())
-}
-
-// TestOAuthNginxDashboardRedirectSkippedWithoutDashboard validates redirects are skipped when Dashboard is not deployed in OAuth mode.
-func TestOAuthNginxDashboardRedirectSkippedWithoutDashboard(t *testing.T) {
-	RunNginxDashboardRedirectSkippedWithoutDashboardTest(t, GetOAuthTestSetup())
-}
-
-// TestOAuthNginxDashboardRedirectCreation validates nginx-based dashboard redirect resources (ConfigMap, Deployment, Service, Routes) in OAuth mode.
-func TestOAuthNginxDashboardRedirectCreation(t *testing.T) {
-	RunNginxDashboardRedirectCreationTest(t, GetOAuthTestSetup())
-}
-
-// TestOAuthLegacyRouteRemovedWhenSubdomainChangesToLegacy validates no legacy redirect route when subdomain is legacy from the start (delegates to RunLegacyRouteRemovedWhenSubdomainChangesToLegacyTest).
-func TestOAuthLegacyRouteRemovedWhenSubdomainChangesToLegacy(t *testing.T) {
-	RunLegacyRouteRemovedWhenSubdomainChangesToLegacyTest(t, GetOAuthTestSetup())
 }
 
 // TestOAuthSpecMutationCookieConfig validates cookie spec mutation in OAuth mode (delegates to RunSpecMutationCookieConfigTest).

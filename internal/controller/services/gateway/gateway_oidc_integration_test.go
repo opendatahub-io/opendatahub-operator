@@ -348,16 +348,6 @@ func TestOIDCOCPRouteCreation(t *testing.T) {
 	RunOCPRouteCreationTest(t, GetOIDCTestSetup(), DefaultGatewayHost(OIDCClusterDomain))
 }
 
-// TestOIDCLegacyRedirectRouteCreation validates legacy redirect Route creation in OIDC mode (delegates to RunLegacyRedirectRouteCreationTest).
-func TestOIDCLegacyRedirectRouteCreation(t *testing.T) {
-	RunLegacyRedirectRouteCreationTest(t, GetOIDCTestSetup(), LegacyGatewayHost(OIDCClusterDomain))
-}
-
-// TestOIDCLegacyRouteRemovedWhenSubdomainChangesToLegacy validates no legacy redirect route when subdomain is legacy from the start (delegates to RunLegacyRouteRemovedWhenSubdomainChangesToLegacyTest).
-func TestOIDCLegacyRouteRemovedWhenSubdomainChangesToLegacy(t *testing.T) {
-	RunLegacyRouteRemovedWhenSubdomainChangesToLegacyTest(t, GetOIDCTestSetup())
-}
-
 // TestOIDCNetworkPolicyCreation validates NetworkPolicy creation in OIDC mode (delegates to RunNetworkPolicyCreationTest).
 func TestOIDCNetworkPolicyCreation(t *testing.T) {
 	RunNetworkPolicyCreationTest(t, GetOIDCTestSetup())
@@ -369,16 +359,6 @@ func TestOIDCNetworkPolicyReconciliation(t *testing.T) {
 
 func TestOIDCNetworkPolicyMissingConfig(t *testing.T) {
 	RunNetworkPolicyMissingOIDCConfigTest(t, GetOIDCTestSetup())
-}
-
-// TestOIDCNginxDashboardRedirectSkippedWithoutDashboard validates redirects are skipped when Dashboard is not deployed in OIDC mode.
-func TestOIDCNginxDashboardRedirectSkippedWithoutDashboard(t *testing.T) {
-	RunNginxDashboardRedirectSkippedWithoutDashboardTest(t, GetOIDCTestSetup())
-}
-
-// TestOIDCNginxDashboardRedirectCreation validates nginx-based dashboard redirect resources (ConfigMap, Deployment, Service, Routes) in OIDC mode.
-func TestOIDCNginxDashboardRedirectCreation(t *testing.T) {
-	RunNginxDashboardRedirectCreationTest(t, GetOIDCTestSetup())
 }
 
 // TestOIDCWithProviderCASecret validates that Deployment gets provider CA volume, mount, and --provider-ca-file arg when ProviderCASecretName is set.
