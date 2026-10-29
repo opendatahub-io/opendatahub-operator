@@ -308,8 +308,10 @@ func (tc *WorkbenchesTestCtx) ValidateMLflowIntegration(t *testing.T) {
 		mlflowRestore = operatorv1.Managed
 	}
 	t.Cleanup(func() {
+		// Defer the Workbenches restore so it runs even if the MLflowOperator
+		// restore exits early (its assertion can FailNow/Goexit on error).
+		defer tc.UpdateComponentStateInDataScienceClusterWithKind(workbenchesRestore, componentApi.WorkbenchesKind)
 		tc.UpdateComponentStateInDataScienceClusterWithKind(mlflowRestore, componentApi.MLflowOperatorKind)
-		tc.UpdateComponentStateInDataScienceClusterWithKind(workbenchesRestore, componentApi.WorkbenchesKind)
 	})
 
 	tc.UpdateComponentState(operatorv1.Managed)
