@@ -2,6 +2,7 @@ package v2
 
 import (
 	"encoding/json"
+	"strconv"
 	"testing"
 	"time"
 
@@ -316,6 +317,55 @@ func TestConvertToRejectsUnknownModelExpressMarker(t *testing.T) {
 
 	v2 := &DataScienceCluster{}
 	v2.Annotations = map[string]string{ModelExpressV3StateAnnotation: "bogus"}
+	g.Expect(v2.ConvertTo(&dscApi.DataScienceCluster{})).ToNot(Succeed())
+}
+
+// TestLLMMonitoringIngressNetworkPolicySurvivesV3ToV2ToV3 covers the v3-only
+// enableLLMMonitoringIngressNetworkPolicy toggle, which v2 cannot represent and
+// must carry in a conversion annotation so a write through v2 keeps it.
+func TestLLMMonitoringIngressNetworkPolicySurvivesV3ToV2ToV3(t *testing.T) {
+	tests := []struct {
+		name  string
+		value *bool
+	}{
+		{name: "enabled", value: new(true)},
+		{name: "disabled", value: new(false)},
+		{name: "unset", value: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			hub := &dscApi.DataScienceCluster{}
+			hub.Annotations = map[string]string{"example": "kept"}
+			hub.Spec.Components.Kserve.ManagementState = operatorv1.Managed
+			hub.Spec.Components.Kserve.EnableLLMMonitoringIngressNetworkPolicy = tt.value
+
+			v2 := &DataScienceCluster{}
+			g.Expect(v2.ConvertFrom(hub)).To(Succeed())
+			marker, marked := v2.Annotations[LLMMonitoringIngressNetworkPolicyV3StateAnnotation]
+			g.Expect(marked).To(Equal(tt.value != nil))
+			if tt.value != nil {
+				g.Expect(marker).To(Equal(strconv.FormatBool(*tt.value)))
+			}
+
+			back := &dscApi.DataScienceCluster{}
+			g.Expect(v2.ConvertTo(back)).To(Succeed())
+			if tt.value == nil {
+				g.Expect(back.Spec.Components.Kserve.EnableLLMMonitoringIngressNetworkPolicy).To(BeNil())
+			} else {
+				g.Expect(back.Spec.Components.Kserve.EnableLLMMonitoringIngressNetworkPolicy).To(HaveValue(Equal(*tt.value)))
+			}
+			g.Expect(back.Annotations).To(Equal(map[string]string{"example": "kept"}))
+		})
+	}
+}
+
+func TestConvertToRejectsUnknownLLMMonitoringIngressNetworkPolicyMarker(t *testing.T) {
+	g := NewWithT(t)
+
+	v2 := &DataScienceCluster{}
+	v2.Annotations = map[string]string{LLMMonitoringIngressNetworkPolicyV3StateAnnotation: "bogus"}
 	g.Expect(v2.ConvertTo(&dscApi.DataScienceCluster{})).ToNot(Succeed())
 }
 

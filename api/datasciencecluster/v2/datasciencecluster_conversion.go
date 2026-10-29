@@ -19,6 +19,7 @@ package v2
 import (
 	"fmt"
 	"slices"
+	"strconv"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
@@ -184,6 +185,12 @@ const ModelExpressV3StateAnnotation = "conversion.opendatahub.io/modelexpress-v3
 
 const modelExpressManaged = "managed"
 
+// LLMMonitoringIngressNetworkPolicyV3StateAnnotation carries the v3-only
+// enableLLMMonitoringIngressNetworkPolicy toggle through the v2 view, which has
+// no such field, so a write through v2 does not silently reset it. The value is
+// the boolean as text. It is conversion-owned metadata.
+const LLMMonitoringIngressNetworkPolicyV3StateAnnotation = "conversion.opendatahub.io/llm-monitoring-ingress-networkpolicy-v3-state"
+
 // ConvertTo copies the DSC into v3, moving legacy MaaS selection into the canonical stanza.
 func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 	dst := dstRaw.(*dscApi.DataScienceCluster)
@@ -290,6 +297,18 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 		}
 	}
 
+	if value, found := dst.Annotations[LLMMonitoringIngressNetworkPolicyV3StateAnnotation]; found {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("invalid LLM monitoring ingress NetworkPolicy v3 state marker %q: %w", value, err)
+		}
+		dst.Spec.Components.Kserve.EnableLLMMonitoringIngressNetworkPolicy = &enabled
+		delete(dst.Annotations, LLMMonitoringIngressNetworkPolicyV3StateAnnotation)
+		if len(dst.Annotations) == 0 {
+			dst.Annotations = nil
+		}
+	}
+
 	return nil
 }
 
@@ -390,6 +409,13 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 			dst.Annotations = make(map[string]string)
 		}
 		dst.Annotations[ModelExpressV3StateAnnotation] = modelExpressManaged
+	}
+	delete(dst.Annotations, LLMMonitoringIngressNetworkPolicyV3StateAnnotation)
+	if enabled := src.Spec.Components.Kserve.EnableLLMMonitoringIngressNetworkPolicy; enabled != nil {
+		if dst.Annotations == nil {
+			dst.Annotations = make(map[string]string)
+		}
+		dst.Annotations[LLMMonitoringIngressNetworkPolicyV3StateAnnotation] = strconv.FormatBool(*enabled)
 	}
 	if len(dst.Annotations) == 0 {
 		dst.Annotations = nil
