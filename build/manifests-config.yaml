@@ -92,7 +92,7 @@ additional_meta:
     git.commit: 781004b34ca9331f24ba7afbc61a054c25695118
   odh-cli:
     git.url: https://github.com/red-hat-data-services/odh-cli
-    git.commit: 8b07c1aa427887cfb5f1bf07f2913ac16f5542a2
+    git.commit: 2e131779489d810933e9682f0e5b0fcfd3561dcd
   odh-core-bff:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 8ca420c9ba9d8ae287c1cefac598d001c7db091e
@@ -107,7 +107,7 @@ additional_meta:
     git.commit: 16ef6648f535f2bb44fb4c3ef027975772e8f14f
   odh-eval-hub:
     git.url: https://github.com/red-hat-data-services/eval-hub
-    git.commit: a87610a593decdc90ad99741a6facc6ebf4185fb
+    git.commit: 7becf6b80d22c07f6d37da4942a943d1401d032f
   odh-feast-operator:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: a4f76c820a3029e4e48a367fc014cad3f94730c8
@@ -185,7 +185,7 @@ additional_meta:
     git.commit: ce91f70d4245a7d5df877adbbedf2a027e6a1eab
   odh-maas-controller:
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: ce91f70d4245a7d5df877adbbedf2a027e6a1eab
+    git.commit: dba75c7ac73da9ba73935baae319e1b3cca46af5
   odh-mcp-lifecycle-operator:
     git.url: https://github.com/red-hat-data-services/mcp-lifecycle-operator
     git.commit: 55ebb347e0ae798555a34ace253c5939c029095d

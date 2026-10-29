@@ -10,7 +10,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE
   value: "quay.io/rhoai/odh-built-in-detector-rhel9@sha256:618e555e949f11a8577060756e3f2440f3322f2e095874e1040fd66fef065f35"
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
-  value: "quay.io/rhoai/odh-cli-rhel9@sha256:caf6ccc4bc153c1e76a933603a8df8821a77ac88493ec4d9d082540576a8784b"
+  value: "quay.io/rhoai/odh-cli-rhel9@sha256:ace47220e1d99bfc2b536f8ac01ef093eedae9a33df3bfc148f7c97e86687cf6"
 - name: RELATED_IMAGE_ODH_CORE_BFF_IMAGE
   value: "quay.io/rhoai/odh-core-bff-rhel9@sha256:220cc1302b78e39300e24b481d0706491fdcb7155f2b3df74f0e16267572e549"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
@@ -24,7 +24,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-data-science-pipelines-operator-controller-rhel9@sha256:0fd94ab4e78f92e3e1286d44dd948c23ad33e6127dc7ddaec5e7deb727d905bc"
 - name: RELATED_IMAGE_ODH_EVAL_HUB_IMAGE
-  value: "quay.io/rhoai/odh-eval-hub-rhel9@sha256:dff5a9eb9a27902390eae301a9cdf022cf01856ea46741e618dfc68cc42db93c"
+  value: "quay.io/rhoai/odh-eval-hub-rhel9@sha256:c52ccd626dc931c88c10a67c31b2f9603a4bb8e355f41d79c95024be21b5c1c1"
 - name: RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-feast-module-operator-rhel9@sha256:67b05d7876235ebc7cfa087dc68311e603df182543820f846bd78bb10b83e4df"
 - name: RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE
@@ -82,7 +82,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MAAS_API_IMAGE
   value: "quay.io/rhoai/odh-maas-api-rhel9@sha256:61036cadedc984f96b1ed90bcb0070f9cf318d4e63da2d118560c690e648cd6c"
 - name: RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-maas-controller-rhel9@sha256:38f10f4abd9aff3881a8fb8f475f550cd93754d463981e8be91f854114f66892"
+  value: "quay.io/rhoai/odh-maas-controller-rhel9@sha256:6554d85c6215eee99da2e613c9e930c308b729de4942cc8094a7dc07b048c658"
 - name: RELATED_IMAGE_ODH_MCP_LIFECYCLE_MODULE_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-mcp-lifecycle-module-operator-rhel9@sha256:2dfa3cd4f6b0b1bce5efc7bd400d280303827ed5ae4a013ca96ff1ad692d67ba"
 - name: RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_IMAGE
