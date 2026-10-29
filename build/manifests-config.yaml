@@ -9,7 +9,7 @@ map:
     src: kserve-module/config
     dest: kserve-module-operator
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: abf9ab28287771ab17789cfe099657228c242a7c
+    git.commit: 10b3ecb723bb3396f171ffe0188c2830cd399f75
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
@@ -71,7 +71,7 @@ map:
     dest: feastoperator
     type: chart
     git.url: https://github.com/red-hat-data-services/feast-module-operator
-    git.commit: 4a64f49a224cf77a9401769745c9ed2421094813
+    git.commit: 7ad51098c5d93c9e424efec519d256cf963c7810
   odh-ogx-module-operator:
     src: ogx-module/config
     dest: ogx
@@ -245,7 +245,7 @@ additional_meta:
     git.commit: 8ca420c9ba9d8ae287c1cefac598d001c7db091e
   odh-mod-arch-eval-hub:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 8ca420c9ba9d8ae287c1cefac598d001c7db091e
+    git.commit: 4743888bc5f0ed23641e7a57363defeb456bc209
   odh-mod-arch-gen-ai:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 8ca420c9ba9d8ae287c1cefac598d001c7db091e
