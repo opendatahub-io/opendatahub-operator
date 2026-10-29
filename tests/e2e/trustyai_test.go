@@ -132,52 +132,55 @@ func (tc *TrustyAITestCtx) createDummyPrometheus(t *testing.T) {
 // allowlist-preserve for trustyai-service-operator-controller-manager: without
 // opendatahub.io/managed=true, replica edits must stick across module
 // reconcile (companion to trustyai-service-operator#1081).
+//
+// manifestDefaultReplicas matches the TrustyAI service-operator manager.yaml
+// default (replicas: 1). The managed=true assertion must compare against that
+// manifest default, not whatever replica count happened to be live at test
+// start — otherwise a pre-drifted Deployment makes the revert check flaky.
 func (tc *TrustyAITestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Smoke)
+
+	const (
+		manifestDefaultReplicas = 1
+		patchedReplicas         = 2
+	)
 
 	deploymentName := types.NamespacedName{
 		Namespace: tc.AppsNamespace,
 		Name:      trustyAIServiceOperatorDeployment,
 	}
 
-	deployment := tc.EnsureResourceExists(
+	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, deploymentName),
 	)
-
-	replicas := ExtractAndExpectValue[int](tc.g, *deployment, `.spec.replicas`, Not(BeNil()))
-
-	updatedReplicas := replicas + 1
-	if replicas > 1 {
-		updatedReplicas = 1
-	}
 
 	// Unmanaged (no opendatahub.io/managed=true): preserve the patched value.
 	tc.ConsistentlyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Deployment, deploymentName),
-		WithMutateFunc(testf.Transform(`.spec.replicas = %d`, updatedReplicas)),
-		WithCondition(jq.Match(`.spec.replicas == %d`, updatedReplicas)),
+		WithMutateFunc(testf.Transform(`.spec.replicas = %d`, patchedReplicas)),
+		WithCondition(jq.Match(`.spec.replicas == %d`, patchedReplicas)),
 		WithCustomErrorMsg("TrustyAI module operator should preserve unmanaged service operator Deployment replicas"),
 	)
 
-	// Explicitly managed: module reapplies manifest defaults.
+	// Explicitly managed: module reapplies the manifest default.
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Deployment, deploymentName),
 		WithMutateFunc(testf.Transform(
 			`.metadata.annotations["opendatahub.io/managed"] = "true" | .spec.replicas = %d`,
-			updatedReplicas,
+			patchedReplicas,
 		)),
 		WithCondition(jq.Match(
 			`.metadata.annotations["opendatahub.io/managed"] == "true" and .spec.replicas == %d`,
-			updatedReplicas,
+			patchedReplicas,
 		)),
 	)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, deploymentName),
-		WithCondition(jq.Match(`.spec.replicas == %d`, replicas)),
-		WithCustomErrorMsg("TrustyAI module operator should revert replicas when opendatahub.io/managed=true"),
+		WithCondition(jq.Match(`.spec.replicas == %d`, manifestDefaultReplicas)),
+		WithCustomErrorMsg("TrustyAI module operator should revert replicas to the manifest default when opendatahub.io/managed=true"),
 	)
 }
 
