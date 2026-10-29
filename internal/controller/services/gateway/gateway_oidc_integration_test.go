@@ -327,8 +327,7 @@ func TestOIDCDeploymentWithAllArgs(t *testing.T) {
 
 func TestOIDCDeploymentWithSkipClaimsFromProfileURL(t *testing.T) {
 	spec := getOIDCGatewayConfigSpec()
-	skip := true
-	spec.OIDC.SkipClaimsFromProfileURL = &skip
+	spec.OIDC.SkipClaimsFromProfileURL = true
 	RunDeploymentWithAllArgsTest(t, TestSetup{
 		TC: OIDCTestEnv, Spec: spec, SetupFunc: ensureOIDCClientSecret,
 	}, DefaultGatewayHost(OIDCClusterDomain),

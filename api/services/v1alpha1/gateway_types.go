@@ -405,7 +405,7 @@ type OIDCConfig struct {
 	// Set to true when the access token is scoped to an external resource (e.g. AKS)
 	// rather than the IdP's userinfo endpoint.
 	// +optional
-	SkipClaimsFromProfileURL *bool `json:"skipClaimsFromProfileURL,omitempty"`
+	SkipClaimsFromProfileURL bool `json:"skipClaimsFromProfileURL,omitempty"`
 }
 
 // CookieConfig defines cookie settings for OAuth2 proxy

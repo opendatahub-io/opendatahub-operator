@@ -668,9 +668,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		templateData["OIDCIssuerURL"] = gatewayConfig.Spec.OIDC.IssuerURL
 		templateData["OIDCScope"] = gatewayConfig.Spec.OIDC.Scope
 		templateData["OIDCPassAccessToken"] = gatewayConfig.Spec.OIDC.PassAccessToken
-		if gatewayConfig.Spec.OIDC.SkipClaimsFromProfileURL != nil {
-			templateData["SkipClaimsFromProfileURL"] = *gatewayConfig.Spec.OIDC.SkipClaimsFromProfileURL
-		}
+		templateData["SkipClaimsFromProfileURL"] = gatewayConfig.Spec.OIDC.SkipClaimsFromProfileURL
 	}
 
 	// Add provider CA certificate configuration if specified
