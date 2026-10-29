@@ -556,6 +556,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
+	if err := bootstrap.RunStorageVersionMigration(mgr); err != nil {
+		setupLog.Error(err, "error scheduling storage version migration")
+		os.Exit(1)
+	}
+
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)

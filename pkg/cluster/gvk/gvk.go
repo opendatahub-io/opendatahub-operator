@@ -36,6 +36,11 @@ const (
 	SubscriptionCRDname            = "subscriptions.operators.coreos.com"
 	VariantAutoscalingCRDname      = "variantautoscalings.llmd.ai"
 
+	// Platform configuration CRDs.
+	DataScienceClusterCRDName = "datascienceclusters.datasciencecluster.opendatahub.io"
+	DSCInitializationCRDName  = "dscinitializations.dscinitialization.opendatahub.io"
+	PlatformCRDName           = "platforms.config.opendatahub.io"
+
 	// Istio CRDs — networking.istio.io.
 	DestinationRuleCRDName = "destinationrules.networking.istio.io"
 	EnvoyFilterCRDName     = "envoyfilters.networking.istio.io"
