@@ -658,10 +658,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData["DashboardRedirectProductName"] = productName
 	templateData["RedirectConfigHash"] = redirectConfigHash
 
-	// Always set OIDCScope/OIDCPassAccessToken so templates can reference them
-	// without missingkey=error, even when OIDC is unconfigured. Empty scope and
-	// false pass-access-token preserve existing (e.g. OpenShift) behavior of
-	// forwarding only the ID token.
+	// Seed optional OIDC template keys to avoid missingkey=error when unset.
 	templateData["OIDCScope"] = ""
 	templateData["OIDCPassAccessToken"] = false
 	templateData["SkipClaimsFromProfileURL"] = false

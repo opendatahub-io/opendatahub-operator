@@ -2322,8 +2322,8 @@ func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--upstream=static://200")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--enable-k8s-token-validation=true")`),
 
-			// OIDC mode must NOT have --pass-access-token (uses id_token via Authorization header instead)
-			jq.Match(`.spec.template.spec.containers[0].args | all(. != "--pass-access-token=true")`),
+			// Access-token forwarding follows GatewayConfig.spec.oidc.passAccessToken.
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--pass-access-token=true") == %t`, oidcConfig.PassAccessToken),
 
 			// metrics and trust store
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--metrics-address=0.0.0.0:%d")`, kubeAuthProxyMetricsPort),
@@ -2388,13 +2388,16 @@ func (tc *GatewayTestCtx) ValidateOIDCScopeAndPassAccessTokenDeployment(t *testi
 	tc.SkipUnlessBYOIDC(t)
 	t.Log("Validating kube-auth-proxy deployment args for OIDC scope/passAccessToken")
 
-	const testScope = "openid aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/.default"
+	const testScope = "openid email profile"
 
 	g := NewWithT(t)
 	ctx := tc.Context()
 	gatewayConfig := &serviceApi.GatewayConfig{}
 	require.NoError(t, tc.Client().Get(ctx, types.NamespacedName{Name: gatewayConfigName}, gatewayConfig))
 	require.NotNil(t, gatewayConfig.Spec.OIDC, "GatewayConfig should have OIDC configuration on BYOIDC cluster")
+	if !tc.IsXKS() || gatewayConfig.Spec.Domain != xksGatewayDomain || gatewayConfig.Spec.OIDC.IssuerURL != xksGatewayOIDCIssuerURL {
+		t.Skip("scope mutation requires the KinD Dex test configuration")
+	}
 	originalScope := gatewayConfig.Spec.OIDC.Scope
 	originalPassAccessToken := gatewayConfig.Spec.OIDC.PassAccessToken
 

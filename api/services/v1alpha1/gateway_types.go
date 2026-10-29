@@ -384,7 +384,7 @@ type OIDCConfig struct {
 	// ("openid email profile"). When set, kube-auth-proxy requests exactly this
 	// space-separated scope list instead of the default. Some identity
 	// providers (e.g. Azure AD/AKS) require a resource-specific scope, such as
-	// "openid <app-id>/.default", to mint an access token for a
+	// "openid APP_ID/.default", to mint an access token for a
 	// particular audience.
 	// If unset, kube-auth-proxy uses its default scope.
 	// When set, scope must include "openid" and use space-separated OAuth scope tokens.
