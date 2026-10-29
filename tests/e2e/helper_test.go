@@ -31,7 +31,6 @@ import (
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -489,11 +488,11 @@ func getControllerDeploymentNameByPlatform(platform common.Platform) string {
 func getDashboardRouteNameByPlatform(platform common.Platform) string {
 	switch platform {
 	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
-		return gateway.DashboardRouteNameRHOAI
+		return dashboardRouteNameRHOAI
 	case cluster.OpenDataHub:
-		return gateway.DashboardRouteNameODH
+		return dashboardRouteNameODH
 	default:
-		return gateway.DashboardRouteNameODH
+		return dashboardRouteNameODH
 	}
 }
 

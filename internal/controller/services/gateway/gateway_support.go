@@ -94,12 +94,6 @@ const (
 	EnvClientSecret = "OAUTH2_PROXY_CLIENT_SECRET" //nolint:gosec // This is an environment variable name, not a secret
 	EnvCookieSecret = "OAUTH2_PROXY_COOKIE_SECRET" //nolint:gosec // This is an environment variable name, not a secret
 
-	// Dashboard redirect constants.
-	DashboardRedirectName       = "dashboard-redirect"
-	DashboardRedirectConfigName = "dashboard-redirect-config"
-	DashboardRouteNameODH       = "odh-dashboard"   // ODH dashboard route name
-	DashboardRouteNameRHOAI     = "rhods-dashboard" // RHOAI dashboard route name
-
 	// Label constants.
 	ComponentLabelValue = "authentication"
 	PartOfLabelValue    = "data-science-gateway"
@@ -735,22 +729,6 @@ func extendAuthConfigHash(authConfigHash string, providerCA []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// CalculateRedirectConfigHash hashes the hostname and embedded redirect configuration.
-// The pod annotation changes when an upgrade updates the ConfigMap template, so Nginx
-// reloads its subPath mounts even if the gateway hostname stays the same.
-func CalculateRedirectConfigHash(hostname string) (string, error) {
-	config, err := gatewayResources.ReadFile(dashboardRedirectConfigMapTemplate)
-	if err != nil {
-		return "", fmt.Errorf("read dashboard redirect configuration for rollout hash: %w", err)
-	}
-	return calculateRedirectConfigHash(hostname, config), nil
-}
-
-func calculateRedirectConfigHash(hostname string, config []byte) string {
-	h := sha256.Sum256([]byte(hostname + "\x00" + string(config)))
-	return hex.EncodeToString(h[:])
-}
-
 // getKubeAuthProxyImage returns the kube-auth-proxy image from environment variable.
 // For RHOAI deployments, this comes from the CSV (via RHOAI-Build-Config/bundle/additional-images-patch.yaml).
 // For ODH deployments, this comes from config/manager/manager.yaml.
@@ -765,33 +743,6 @@ func getKubeAuthProxyImage() string {
 	// manifests-config.yaml so the fallback stays compatible with the rendered proxy args.
 	// The pinned build includes the provider CA client-cache fix (kube-auth-proxy#119).
 	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:6d4babb7514c9d7701a193a752d273a8056498761342221997801a36ca157975" // latest as of 2026-10-20
-}
-
-// getDashboardRedirectImage returns the nginx image for dashboard redirects.
-// For RHOAI deployments, this comes from the CSV (via RHOAI-Build-Config/bundle/additional-images-patch.yaml).
-// For ODH deployments and local development/testing, falls back to a publicly accessible UBI9 nginx S2I image.
-func getDashboardRedirectImage() string {
-	if image := os.Getenv("RELATED_IMAGE_NGINX_126_IMAGE"); image != "" {
-		return image
-	}
-	// Fallback for ODH and local development - publicly accessible UBI9 nginx S2I image
-	// This image is identical to registry.redhat.io/ubi9/nginx-126 but does not require authentication
-	// Pinned to sha256 digest for disconnected/air-gapped support
-	return "registry.access.redhat.com/ubi9/nginx-126@sha256:f0a79ccf21b8780a7534d78ee0e49d1852654f5f0f52e17ebdbe185a71d93253" // 1-1782419572
-}
-
-// GetDashboardRouteName returns the platform-specific dashboard route name.
-func GetDashboardRouteName() string {
-	release := cluster.GetRelease()
-
-	switch release.Name {
-	case cluster.OpenDataHub:
-		return DashboardRouteNameODH
-	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
-		return DashboardRouteNameRHOAI
-	default:
-		return DashboardRouteNameODH // Fallback to ODH
-	}
 }
 
 func getAuthProxySecretValues(

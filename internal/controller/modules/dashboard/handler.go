@@ -3,6 +3,7 @@ package dashboard
 import (
 	"context"
 	"errors"
+	"os"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -17,7 +18,9 @@ import (
 )
 
 const (
-	moduleName = componentApi.DashboardComponentName
+	moduleName                   = componentApi.DashboardComponentName
+	dashboardRedirectsAnnotation = "platform.opendatahub.io/dashboard-redirects"
+	dashboardRedirectsDisabled   = "disabled"
 	// crName must match dashboard-operator CRD CEL (default-dashboard); see odh-dashboard#8093.
 	crName = componentApi.DashboardInstanceName
 
@@ -120,9 +123,21 @@ func (h *handler) BuildModuleCR(
 		spec["modelRegistryNamespace"] = ns
 	}
 
-	if cfg != nil && cfg.GatewayConfig != nil && cfg.GatewayConfig.Status.Domain != "" {
-		spec["gateway"] = map[string]any{
-			"domain": cfg.GatewayConfig.Status.Domain,
+	if cfg != nil && cfg.GatewayConfig != nil {
+		redirectState := operatorv1.Managed
+		if cfg.GatewayConfig.Status.Domain == "" ||
+			cfg.GatewayConfig.GetAnnotations()[dashboardRedirectsAnnotation] == dashboardRedirectsDisabled ||
+			os.Getenv("DISABLE_DASHBOARD_REDIRECTS") == "true" {
+			redirectState = operatorv1.Removed
+		}
+		spec["legacyRedirects"] = map[string]any{
+			"managementState": string(redirectState),
+		}
+
+		if cfg.GatewayConfig.Status.Domain != "" {
+			spec["gateway"] = map[string]any{
+				"domain": cfg.GatewayConfig.Status.Domain,
+			}
 		}
 	}
 

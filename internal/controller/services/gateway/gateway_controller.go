@@ -32,7 +32,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -48,16 +47,11 @@ import (
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-// gatewayCRDWatchPredicate matches CRD events that must re-trigger a GatewayConfig reconcile:
-//
-//   - the Dashboard CRD, which gates the dashboard redirect resources;
-//   - the cert-manager Certificate CRD, which gates certificate handling and retries a
-//     previously blocked XKS reconcile when cert-manager is installed after the operator.
+// gatewayCRDWatchPredicate matches the cert-manager Certificate CRD, which gates
+// certificate handling and retries a previously blocked XKS reconcile when
+// cert-manager is installed after the operator.
 func gatewayCRDWatchPredicate() predicate.Predicate {
-	return predicate.Or(
-		resources.CreatedOrUpdatedOrDeletedNamed(gvk.DashboardComponentCRDName),
-		resources.CreatedOrUpdatedOrDeletedNamed(gvk.CertManagerCertificateCRDName),
-	)
+	return resources.CreatedOrUpdatedOrDeletedNamed(gvk.CertManagerCertificateCRDName)
 }
 
 // Only changes to the cluster authentication type alter whether the proxy is desired.
@@ -224,14 +218,6 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(resources.HTTPRouteReferencesGateway(GetDefaultGatewayName(), GetGatewayNamespace())),
 		).
-		// Reconcile when Dashboard CR is created or deleted so dashboard redirect
-		// resources are deployed or cleaned up accordingly.
-		WatchesGVK(
-			gvk.Dashboard,
-			reconciler.Dynamic(reconciler.CrdExists(gvk.Dashboard)),
-			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
-			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(componentApi.DashboardInstanceName)),
-		).
 		// Reconcile when cluster APIServer TLS profile changes (kube-auth-proxy TLS args).
 		WatchesGVK(
 			gvk.OpenshiftAPIServer,
@@ -255,7 +241,6 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(createKubeAuthProxyInfrastructure).
 		WithAction(cleanupKubeAuthProxyResources).
 		WithAction(createOCPRoutes).
-		WithAction(createDashboardRedirectsAction).
 		WithAction(template.NewAction(
 			// Template data depends on watched resources such as the default
 			// IngressController, which can change without a new GatewayConfig generation.

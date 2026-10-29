@@ -157,6 +157,9 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	gateway, ok := spec["gateway"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.gateway missing")
 	g.Expect(gateway["domain"]).Should(Equal("dashboard.example.com"))
+	redirects, ok := spec["legacyRedirects"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.legacyRedirects missing")
+	g.Expect(redirects["managementState"]).Should(Equal("Managed"))
 
 	components, ok := spec["components"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.components missing")
@@ -224,6 +227,43 @@ func TestBuildModuleCR_OmitsGatewayWhenDomainEmpty(t *testing.T) {
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue())
 	g.Expect(spec).ShouldNot(HaveKey("gateway"))
+	redirects, ok := spec["legacyRedirects"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.legacyRedirects missing")
+	g.Expect(redirects["managementState"]).Should(Equal("Removed"))
+}
+
+func TestBuildModuleCR_ProjectsLegacyRedirectOptOuts(t *testing.T) {
+	tests := []struct {
+		name       string
+		annotation string
+		env        string
+		want       string
+	}{
+		{name: "enabled by default", want: "Managed"},
+		{name: "disabled by annotation", annotation: "disabled", want: "Removed"},
+		{name: "unsupported annotation remains enabled", annotation: "unsupported", want: "Managed"},
+		{name: "disabled by environment", env: "true", want: "Removed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("DISABLE_DASHBOARD_REDIRECTS", tt.env)
+			g := NewWithT(t)
+			cfg := newModuleCRConfig("dashboard.example.com")
+			if tt.annotation != "" {
+				cfg.GatewayConfig.Annotations = map[string]string{
+					"platform.opendatahub.io/dashboard-redirects": tt.annotation,
+				}
+			}
+
+			u, err := dashboard.NewHandler().BuildModuleCR(context.Background(), nil, newDSCCtx(operatorv1.Managed), cfg)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			spec, ok := u.Object["spec"].(map[string]any)
+			g.Expect(ok).Should(BeTrue())
+			redirects, ok := spec["legacyRedirects"].(map[string]any)
+			g.Expect(ok).Should(BeTrue())
+			g.Expect(redirects["managementState"]).Should(Equal(tt.want))
+		})
+	}
 }
 
 func TestBuildModuleCR_EmptyStatesProjectRemoved(t *testing.T) {
@@ -657,5 +697,6 @@ func TestGetRelatedImages(t *testing.T) {
 		"RELATED_IMAGE_ODH_CORE_BFF_IMAGE",
 		"RELATED_IMAGE_POSTGRESQL_16_IMAGE",
 		"RELATED_IMAGE_ODH_OGX_CORE_IMAGE",
+		"RELATED_IMAGE_NGINX_126_IMAGE",
 	))
 }
