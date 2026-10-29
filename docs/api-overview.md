@@ -138,6 +138,44 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the bundled Argo Workflows controllers.<br />              It will only upgrade the Argo Workflows controllers if it is safe to do so. This is the default<br />              behavior.<br />- "Removed" : the operator is not managing the bundled Argo Workflows controllers and will not install it.<br />              If it is installed, the operator will remove it but will not remove other Argo Workflows<br />              installations. | Managed | Enum: [Managed Removed] <br /> |
 
 
+#### AuditProfile
+
+_Underlying type:_ _string_
+
+AuditProfile selects the audit logging profile for InferenceService and
+LLMInferenceService traffic.
+
+
+
+_Appears in:_
+- [DSCKserve](#dsckserve)
+- [KserveCommonSpec](#kservecommonspec)
+
+| Field | Description |
+| --- | --- |
+| `Removed` | AuditProfileRemoved disables audit events.<br /> |
+| `Metadata` | AuditProfileMetadata records request and response metadata without bodies.<br /> |
+
+
+#### ConfidentialContainersConfig
+
+
+
+ConfidentialContainersConfig supplies installation defaults for confidential
+model serving. Storage is supplied separately through each model's PVC.
+
+
+
+_Appears in:_
+- [DSCKserve](#dsckserve)
+- [KserveCommonSpec](#kservecommonspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `luksResourceId` _string_ | LUKSResourceID identifies the disk passphrase in Trustee/KBS, not the<br />passphrase itself. It must match the key used to encrypt the supplied disk.<br />A service's format-disk LUKS_RESOURCE_ID environment variable overrides it. | kbs:///default/kserve-luks-password/key | MaxLength: 2048 <br />Pattern: `^kbs:///[^/\s?#]+/[^/\s?#]+/[^/\s?#]+$` <br /> |
+| `initData` _string_ | InitData is gzip-compressed, base64-encoded initdata.toml for the confidential<br />guest. A model's explicit cc_init_data annotation overrides this default.<br />When empty, the runtime's global init data is used. |  |  |
+
+
 #### DSCAIGateway
 
 
@@ -480,10 +518,12 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
+| `confidentialContainers` _[ConfidentialContainersConfig](#confidentialcontainersconfig)_ | ConfidentialContainers configures the disk-key reference and default guest<br />init data for confidential model serving. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
 | `modelExpress` _[ModelExpressSpec](#modelexpressspec)_ | Configures and enables the ModelExpress operator, a model cache and<br />GPU-to-GPU weight transfer service for distributed model serving | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
+| `auditLoggingProfile` _[AuditProfile](#auditprofile)_ | AuditLoggingProfile selects the audit logging profile for InferenceService and<br />LLMInferenceService traffic. Removed disables audit events; Metadata records<br />request and response metadata without bodies. | Removed | Enum: [Removed Metadata] <br /> |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 
@@ -1206,10 +1246,12 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
+| `confidentialContainers` _[ConfidentialContainersConfig](#confidentialcontainersconfig)_ | ConfidentialContainers configures the disk-key reference and default guest<br />init data for confidential model serving. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
 | `modelExpress` _[ModelExpressSpec](#modelexpressspec)_ | Configures and enables the ModelExpress operator, a model cache and<br />GPU-to-GPU weight transfer service for distributed model serving | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
+| `auditLoggingProfile` _[AuditProfile](#auditprofile)_ | AuditLoggingProfile selects the audit logging profile for InferenceService and<br />LLMInferenceService traffic. Removed disables audit events; Metadata records<br />request and response metadata without bodies. | Removed | Enum: [Removed Metadata] <br /> |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 

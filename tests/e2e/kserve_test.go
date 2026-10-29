@@ -68,7 +68,7 @@ func kserveTestSuite(t *testing.T) {
 	}
 
 	// Define test cases.
-	testCases := make([]TestCase, 0, 11)
+	testCases := make([]TestCase, 0, 13)
 	testCases = append(testCases,
 		TestCase{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		TestCase{"Validate module enabled", componentCtx.ValidateModuleEnabled},
@@ -78,6 +78,8 @@ func kserveTestSuite(t *testing.T) {
 		TestCase{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		TestCase{"Validate component releases", componentCtx.ValidateComponentReleases},
 		TestCase{"Validate well-known LLMInferenceServiceConfig versioning", componentCtx.ValidateLLMInferenceServiceConfigVersioned},
+		TestCase{"Validate confidential containers spec propagation", componentCtx.ValidateConfidentialContainersSpec},
+		TestCase{"Validate audit logging profile spec propagation", componentCtx.ValidateAuditLoggingProfileSpec},
 	)
 
 	// Always run deletion recovery and component disable tests last
@@ -988,4 +990,121 @@ func (tc *KserveTestCtx) ValidateModelCacheDisabled(t *testing.T) {
 		}),
 	)
 	require.Empty(t, nodes, "Expected no nodes with kserve/localmodel=worker label after disable")
+}
+
+// ValidateConfidentialContainersSpec verifies that the DSC confidentialContainers
+// configuration propagates to the Kserve module CR, and that the field is
+// removed from the module CR again when it is unset on the DSC.
+func (tc *KserveTestCtx) ValidateConfidentialContainersSpec(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	tc.SkipIfXKSCluster(t)
+
+	luksResourceID := "kbs:///e2e/luks-password/key"
+	initData := "aW5pdGRhdGE="
+
+	t.Logf("Enabling confidentialContainers on the DSC (luksResourceId=%s)", luksResourceID)
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, map[string]any{
+				"luksResourceId": luksResourceID,
+				"initData":       initData,
+			}, "spec", "components", "kserve", "confidentialContainers")
+		}),
+		WithCondition(
+			jq.Match(`.spec.components.kserve.confidentialContainers.luksResourceId == "%s"`, luksResourceID),
+		),
+	)
+
+	t.Log("Verifying the Kserve CR exposes the confidential containers defaults")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}),
+		WithCondition(And(
+			jq.Match(`.spec.confidentialContainers.luksResourceId == "%s"`, luksResourceID),
+			jq.Match(`.spec.confidentialContainers.initData == "%s"`, initData),
+		)),
+	)
+
+	// Wait for KServe to reconcile successfully with the confidential containers config
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		),
+	)
+
+	t.Log("Removing confidentialContainers from the DSC")
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			unstructured.RemoveNestedField(obj.Object, "spec", "components", "kserve", "confidentialContainers")
+			return nil
+		}),
+		WithCondition(
+			jq.Match(`(.spec.components.kserve | has("confidentialContainers")) == false`),
+		),
+	)
+
+	t.Log("Verifying the Kserve CR no longer carries confidentialContainers")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}),
+		WithCondition(
+			jq.Match(`(.spec | has("confidentialContainers")) == false`),
+		),
+	)
+}
+
+// ValidateAuditLoggingProfileSpec verifies that the DSC auditLoggingProfile
+// propagates to the Kserve module CR and is restored to Removed afterwards.
+func (tc *KserveTestCtx) ValidateAuditLoggingProfileSpec(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	tc.SkipIfXKSCluster(t)
+
+	t.Log("Setting auditLoggingProfile=Metadata on the DSC")
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.kserve.auditLoggingProfile = "Metadata"`)),
+		WithCondition(
+			jq.Match(`.spec.components.kserve.auditLoggingProfile == "Metadata"`),
+		),
+	)
+
+	t.Log("Verifying the Kserve CR exposes auditLoggingProfile=Metadata")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}),
+		WithCondition(
+			jq.Match(`.spec.auditLoggingProfile == "Metadata"`),
+		),
+	)
+
+	// Wait for KServe to reconcile successfully with the audit profile enabled
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		),
+	)
+
+	t.Log("Restoring auditLoggingProfile=Removed on the DSC")
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.kserve.auditLoggingProfile = "Removed"`)),
+		WithCondition(
+			jq.Match(`.spec.components.kserve.auditLoggingProfile == "Removed"`),
+		),
+	)
+
+	t.Log("Verifying the Kserve CR exposes auditLoggingProfile=Removed")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}),
+		WithCondition(
+			jq.Match(`.spec.auditLoggingProfile == "Removed"`),
+		),
+	)
 }
