@@ -48,6 +48,12 @@ func TestGatewayConfigModuleInputsChanged(t *testing.T) {
 		{"gateway namespace", func(c *serviceApi.GatewayConfig) { c.Status.AdditionalIngresses[0].GatewayRef.Namespace = "new-ns" }, true},
 		{"ingress name", func(c *serviceApi.GatewayConfig) { c.Status.AdditionalIngresses[0].Name = "renamed" }, true},
 		{"remove", func(c *serviceApi.GatewayConfig) { c.Status.AdditionalIngresses = nil }, true},
+		{"dashboard redirects annotation", func(c *serviceApi.GatewayConfig) {
+			c.Annotations = map[string]string{"platform.opendatahub.io/dashboard-redirects": "disabled"}
+		}, true},
+		{"unrelated annotation", func(c *serviceApi.GatewayConfig) {
+			c.Annotations = map[string]string{"example.com/unrelated": "changed"}
+		}, false},
 		{"spec only", func(c *serviceApi.GatewayConfig) {
 			c.Spec.AdditionalIngresses = serviceApi.AdditionalIngresses{{Name: "beta"}}
 		}, false},

@@ -2,22 +2,39 @@ package e2e_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"testing"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+	"github.com/stretchr/testify/require"
 
 	. "github.com/onsi/gomega"
+)
+
+const (
+	dashboardRedirectName           = "dashboard-redirect"
+	dashboardRedirectConfigName     = "dashboard-redirect-config"
+	dashboardRedirectHashAnnotation = "opendatahub.io/redirect-config-hash"
+	dashboardRedirectsAnnotation    = "platform.opendatahub.io/dashboard-redirects"
+	dashboardRedirectsDisabledValue = "disabled"
+	dashboardRouteNameODH           = "odh-dashboard"
+	dashboardRouteNameRHOAI         = "rhods-dashboard"
+	legacyGatewaySubdomain          = "data-science-gateway"
+	dashboardPartOf                 = "dashboard"
 )
 
 func (tc *GatewayTestCtx) DashboardRedirectTestSuite(t *testing.T) {
@@ -30,14 +47,13 @@ func (tc *GatewayTestCtx) DashboardRedirectTestSuite(t *testing.T) {
 		t.Skip("Dashboard redirects are only created in OcpRoute ingress mode")
 	}
 
-	// Dashboard CR must exist for redirect resources to be created.
-	// The gateway reconciler checks for the Dashboard CR and cleans up redirect
-	// resources when it is absent.
+	// Dashboard CR must exist for its controller to create redirect resources.
 	tc.ensureDashboardCRExists(t)
 
 	testCases := []TestCase{
 		{"Validate dashboard redirect ConfigMap", tc.ValidateDashboardRedirectConfigMap},
 		{"Validate dashboard redirect Deployment", tc.ValidateDashboardRedirectDeployment},
+		{"Validate dashboard redirect configuration rollout", tc.ValidateDashboardRedirectRollout},
 		{"Validate dashboard redirect Service", tc.ValidateDashboardRedirectService},
 		{"Validate dashboard redirect Routes", tc.ValidateDashboardRedirectRoutes},
 		{"Validate dashboard redirect HTTP functionality", tc.ValidateDashboardRedirectHTTP},
@@ -62,7 +78,7 @@ func (tc *GatewayTestCtx) ensureDashboardCRExists(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Dashboard, types.NamespacedName{Name: "default-dashboard"}),
 	)
-	t.Logf("Dashboard CR exists; redirect resources can now be created by gateway reconciler")
+	t.Logf("Dashboard CR exists; redirect resources can now be created by the Dashboard controller")
 }
 
 // ValidateDashboardRedirectConfigMap validates the nginx configuration for redirects.
@@ -77,17 +93,17 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectConfigMap(t *testing.T) {
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
-			Name:      gateway.DashboardRedirectConfigName,
+			Name:      dashboardRedirectConfigName,
 			Namespace: appNamespace,
 		}),
 		WithCondition(And(
 			// Labels
-			jq.Match(`.metadata.labels.app == "%s"`, gateway.DashboardRedirectName),
-			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, gateway.PartOfGatewayConfig),
+			jq.Match(`.metadata.labels.app == "%s"`, dashboardRedirectName),
+			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, dashboardPartOf),
 
-			// Owner reference to GatewayConfig
+			// Owner reference to Dashboard
 			jq.Match(`.metadata.ownerReferences | length > 0`),
-			jq.Match(`.metadata.ownerReferences[] | select(.kind == "GatewayConfig") | .controller == true`),
+			jq.Match(`.metadata.ownerReferences[] | select(.kind == "Dashboard") | .controller == true`),
 
 			// Nginx config content
 			jq.Match(`.data."redirect.conf" != null`),
@@ -119,28 +135,29 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 	t.Log("Validating dashboard redirect Deployment")
 
 	appNamespace := tc.AppsNamespace
-	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
-	expectedHash, err := gateway.CalculateRedirectConfigHash(expectedGatewayHostname)
-	tc.g.Expect(err).NotTo(HaveOccurred())
-
+	configMap := &corev1.ConfigMap{}
+	require.NoError(t, tc.Client().Get(tc.Context(), types.NamespacedName{
+		Name: dashboardRedirectConfigName, Namespace: appNamespace,
+	}, configMap))
+	expectedConfigHash := dashboardRedirectConfigHash(configMap.Data)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
-			Name:      gateway.DashboardRedirectName,
+			Name:      dashboardRedirectName,
 			Namespace: appNamespace,
 		}),
 		WithCondition(And(
 			// Basic deployment config
 			jq.Match(`.spec.replicas == 2`),
-			jq.Match(`.spec.selector.matchLabels.app == "%s"`, gateway.DashboardRedirectName),
+			jq.Match(`.spec.selector.matchLabels.app == "%s"`, dashboardRedirectName),
 
 			// Labels
-			jq.Match(`.metadata.labels.app == "%s"`, gateway.DashboardRedirectName),
-			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, gateway.PartOfGatewayConfig),
-			jq.Match(`.spec.template.metadata.labels.app == "%s"`, gateway.DashboardRedirectName),
-			jq.Match(`.spec.template.metadata.annotations["opendatahub.io/redirect-config-hash"] == "%s"`, expectedHash),
+			jq.Match(`.metadata.labels.app == "%s"`, dashboardRedirectName),
+			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, dashboardPartOf),
+			jq.Match(`.spec.template.metadata.labels.app == "%s"`, dashboardRedirectName),
+			jq.Match(`.spec.template.metadata.annotations["%s"] == "%s"`, dashboardRedirectHashAnnotation, expectedConfigHash),
 
 			// Owner reference
-			jq.Match(`.metadata.ownerReferences[] | select(.kind == "GatewayConfig") | .controller == true`),
+			jq.Match(`.metadata.ownerReferences[] | select(.kind == "Dashboard") | .controller == true`),
 
 			// Container config
 			jq.Match(`.spec.template.spec.containers | length == 1`),
@@ -162,7 +179,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 				` | .mountPath == "/opt/app-root/src/deprecation.html"`),
 
 			// Volumes
-			jq.Match(`.spec.template.spec.volumes[] | select(.name == "redirect-config") | .configMap.name == "%s"`, gateway.DashboardRedirectConfigName),
+			jq.Match(`.spec.template.spec.volumes[] | select(.name == "redirect-config") | .configMap.name == "%s"`, dashboardRedirectConfigName),
 
 			// Resources
 			jq.Match(`.spec.template.spec.containers[0].resources.requests.cpu == "50m"`),
@@ -182,7 +199,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 	// Wait for deployment readiness using EnsureResourceExists (polls via Eventually)
 	// rather than EnsureDeploymentReady (point-in-time) to avoid a race with pod rollout.
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Deployment, types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: appNamespace}),
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Name: dashboardRedirectName, Namespace: appNamespace}),
 		WithCondition(And(
 			jq.Match(`.status.readyReplicas == 2`),
 			jq.Match(`.status.updatedReplicas == 2`),
@@ -195,6 +212,114 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 	t.Log("Dashboard redirect Deployment validation completed")
 }
 
+// ValidateDashboardRedirectRollout changes the desired gateway hostname and verifies
+// the resulting ConfigMap content is bound to a completed Deployment rollout.
+func (tc *GatewayTestCtx) ValidateDashboardRedirectRollout(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier1)
+	t.Log("Validating dashboard redirect configuration rollout")
+
+	ctx := tc.Context()
+	configKey := types.NamespacedName{Name: dashboardRedirectConfigName, Namespace: tc.AppsNamespace}
+	deploymentKey := types.NamespacedName{Name: dashboardRedirectName, Namespace: tc.AppsNamespace}
+	gatewayConfigKey := types.NamespacedName{Name: gatewayConfigName}
+
+	originalConfigMap := &corev1.ConfigMap{}
+	require.NoError(t, tc.Client().Get(ctx, configKey, originalConfigMap))
+	originalHash := dashboardRedirectConfigHash(originalConfigMap.Data)
+	originalDeployment := &appsv1.Deployment{}
+	require.NoError(t, tc.Client().Get(ctx, deploymentKey, originalDeployment))
+	require.Equal(t, originalHash, originalDeployment.Spec.Template.Annotations[dashboardRedirectHashAnnotation])
+
+	originalGatewayConfig := &serviceApi.GatewayConfig{}
+	require.NoError(t, tc.Client().Get(ctx, gatewayConfigKey, originalGatewayConfig))
+	originalSubdomain := originalGatewayConfig.Spec.Subdomain
+	changedSubdomain := "redirect-rollout"
+	if originalSubdomain == changedSubdomain {
+		changedSubdomain = "redirect-rollout-alt"
+	}
+
+	setSubdomain := func(subdomain string) {
+		mutation := testf.Transform(`del(.spec.subdomain)`)
+		condition := jq.Match(`.spec.subdomain == null`)
+		if subdomain != "" {
+			mutation = testf.Transform(`.spec.subdomain = "%s"`, subdomain)
+			condition = jq.Match(`.spec.subdomain == "%s"`, subdomain)
+		}
+		tc.EventuallyResourcePatched(
+			WithMinimalObject(gvk.GatewayConfig, gatewayConfigKey),
+			WithMutateFunc(mutation),
+			WithCondition(condition),
+		)
+	}
+
+	var changedHash string
+	var changedGeneration int64
+	t.Cleanup(func() {
+		setSubdomain(originalSubdomain)
+		tc.g.Eventually(func(g Gomega) {
+			configMap := &corev1.ConfigMap{}
+			g.Expect(tc.Client().Get(ctx, configKey, configMap)).To(Succeed())
+			g.Expect(dashboardRedirectConfigHash(configMap.Data)).To(Equal(originalHash))
+
+			deployment := &appsv1.Deployment{}
+			g.Expect(tc.Client().Get(ctx, deploymentKey, deployment)).To(Succeed())
+			g.Expect(deployment.Spec.Template.Annotations[dashboardRedirectHashAnnotation]).To(Equal(originalHash))
+			g.Expect(deployment.Generation).To(BeNumerically(">", changedGeneration))
+			g.Expect(deployment.Status.ObservedGeneration).To(BeNumerically(">=", deployment.Generation))
+			g.Expect(deployment.Status.UpdatedReplicas).To(Equal(int32(2)))
+			g.Expect(deployment.Status.ReadyReplicas).To(Equal(int32(2)))
+		}, tc.TestTimeouts.longEventuallyTimeout, 2*time.Second).Should(Succeed(),
+			"redirect Deployment should roll back to the original configuration")
+	})
+
+	setSubdomain(changedSubdomain)
+	tc.g.Eventually(func(g Gomega) {
+		configMap := &corev1.ConfigMap{}
+		g.Expect(tc.Client().Get(ctx, configKey, configMap)).To(Succeed())
+		currentHash := dashboardRedirectConfigHash(configMap.Data)
+		g.Expect(currentHash).NotTo(Equal(originalHash))
+
+		deployment := &appsv1.Deployment{}
+		g.Expect(tc.Client().Get(ctx, deploymentKey, deployment)).To(Succeed())
+		g.Expect(deployment.Spec.Template.Annotations[dashboardRedirectHashAnnotation]).To(Equal(currentHash))
+		g.Expect(deployment.Generation).To(BeNumerically(">", originalDeployment.Generation))
+		g.Expect(deployment.Status.ObservedGeneration).To(BeNumerically(">=", deployment.Generation))
+		g.Expect(deployment.Status.UpdatedReplicas).To(Equal(int32(2)))
+		g.Expect(deployment.Status.ReadyReplicas).To(Equal(int32(2)))
+		changedHash = currentHash
+		changedGeneration = deployment.Generation
+	}, tc.TestTimeouts.longEventuallyTimeout, 2*time.Second).Should(Succeed(),
+		"redirect Deployment should roll out when the redirect configuration changes")
+	require.NotEqual(t, originalHash, changedHash)
+
+	t.Log("Dashboard redirect configuration rollout validation completed")
+}
+
+func dashboardRedirectConfigHash(data map[string]string) string {
+	hash := sha256.New()
+	for _, key := range []string{"nginx.conf", "redirect.conf", "deprecation.html"} {
+		_, _ = hash.Write([]byte(key))
+		_, _ = hash.Write([]byte{0})
+		_, _ = hash.Write([]byte(data[key]))
+		_, _ = hash.Write([]byte{0})
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func TestDashboardRedirectConfigHashTracksContent(t *testing.T) {
+	config := map[string]string{
+		"nginx.conf":       "nginx",
+		"redirect.conf":    "return 301 https://one.example.com$request_uri;",
+		"deprecation.html": "<a href=\"https://one.example.com/\">",
+	}
+	original := dashboardRedirectConfigHash(config)
+	require.Len(t, original, sha256.Size*2)
+
+	config["redirect.conf"] = "return 301 https://two.example.com$request_uri;"
+	require.NotEqual(t, original, dashboardRedirectConfigHash(config))
+}
+
 // ValidateDashboardRedirectService validates the redirect service configuration.
 func (tc *GatewayTestCtx) ValidateDashboardRedirectService(t *testing.T) {
 	t.Helper()
@@ -205,7 +330,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectService(t *testing.T) {
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Service, types.NamespacedName{
-			Name:      gateway.DashboardRedirectName,
+			Name:      dashboardRedirectName,
 			Namespace: appNamespace,
 		}),
 		WithCondition(And(
@@ -213,14 +338,14 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectService(t *testing.T) {
 			jq.Match(`.spec.type == "ClusterIP"`),
 
 			// Labels
-			jq.Match(`.metadata.labels.app == "%s"`, gateway.DashboardRedirectName),
-			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, gateway.PartOfGatewayConfig),
+			jq.Match(`.metadata.labels.app == "%s"`, dashboardRedirectName),
+			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, dashboardPartOf),
 
 			// Owner reference
-			jq.Match(`.metadata.ownerReferences[] | select(.kind == "GatewayConfig") | .controller == true`),
+			jq.Match(`.metadata.ownerReferences[] | select(.kind == "Dashboard") | .controller == true`),
 
 			// Selector
-			jq.Match(`.spec.selector.app == "%s"`, gateway.DashboardRedirectName),
+			jq.Match(`.spec.selector.app == "%s"`, dashboardRedirectName),
 
 			// Ports
 			jq.Match(`.spec.ports | length == 1`),
@@ -242,7 +367,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectService(t *testing.T) {
 // - Legacy gateway route exists conditionally (only when current subdomain != data-science-gateway)
 // - Routes point to dashboard-redirect service
 // - Routes have proper TLS configuration
-// - Routes have GatewayConfig owner references (verifies SSA ownership takeover).
+// - Routes have Dashboard owner references (verifies SSA ownership takeover).
 func (tc *GatewayTestCtx) ValidateDashboardRedirectRoutes(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Tier1)
@@ -260,7 +385,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectRoutes(t *testing.T) {
 		WithCondition(And(
 			// Route target
 			jq.Match(`.spec.to.kind == "Service"`),
-			jq.Match(`.spec.to.name == "%s"`, gateway.DashboardRedirectName),
+			jq.Match(`.spec.to.name == "%s"`, dashboardRedirectName),
 			jq.Match(`.spec.to.weight == 100`),
 
 			// Port
@@ -270,36 +395,36 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectRoutes(t *testing.T) {
 			jq.Match(`.spec.tls.termination == "edge"`),
 			jq.Match(`.spec.tls.insecureEdgeTerminationPolicy == "Redirect"`),
 
-			// Owner reference - verifies SSA ownership takeover from old dashboard deployment
+			// Owner reference - verifies SSA ownership takeover from the Gateway controller
 			jq.Match(`.metadata.ownerReferences | length > 0`),
-			jq.Match(`.metadata.ownerReferences[] | select(.kind == "GatewayConfig") | .controller == true`),
-			jq.Match(`.metadata.ownerReferences[] | select(.kind == "GatewayConfig") | .blockOwnerDeletion == true`),
+			jq.Match(`.metadata.ownerReferences[] | select(.kind == "Dashboard") | .controller == true`),
+			jq.Match(`.metadata.ownerReferences[] | select(.kind == "Dashboard") | .blockOwnerDeletion == true`),
 
 			// Labels
-			jq.Match(`.metadata.labels.app == "%s"`, gateway.DashboardRedirectName),
-			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, gateway.PartOfGatewayConfig),
+			jq.Match(`.metadata.labels.app == "%s"`, dashboardRedirectName),
+			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, dashboardPartOf),
 
 			// HSTS header annotation
 			jq.Match(`.metadata.annotations."haproxy.router.openshift.io/hsts_header" != null`),
 		)),
-		WithCustomErrorMsg("Dashboard route %s should exist and point to dashboard-redirect service with GatewayConfig ownership", dashboardRouteName),
+		WithCustomErrorMsg("Dashboard route %s should exist and point to dashboard-redirect service with Dashboard ownership", dashboardRouteName),
 	)
 
 	// Validate legacy gateway route (conditional based on current subdomain)
 	// Only created when current subdomain != "data-science-gateway"
 	currentSubdomain := gatewaySubdomain
-	if currentSubdomain != gateway.LegacyGatewaySubdomain {
+	if currentSubdomain != legacyGatewaySubdomain {
 		t.Logf("Current gateway subdomain is %s, expecting legacy gateway redirect route to exist", currentSubdomain)
 
 		tc.EnsureResourceExists(
 			WithMinimalObject(gvk.Route, types.NamespacedName{
-				Name:      gateway.LegacyGatewaySubdomain,
+				Name:      legacyGatewaySubdomain,
 				Namespace: appNamespace,
 			}),
 			WithCondition(And(
 				// Route target
 				jq.Match(`.spec.to.kind == "Service"`),
-				jq.Match(`.spec.to.name == "%s"`, gateway.DashboardRedirectName),
+				jq.Match(`.spec.to.name == "%s"`, dashboardRedirectName),
 
 				// Port
 				jq.Match(`.spec.port.targetPort == "http"`),
@@ -309,12 +434,12 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectRoutes(t *testing.T) {
 				jq.Match(`.spec.tls.insecureEdgeTerminationPolicy == "Redirect"`),
 
 				// Owner reference
-				jq.Match(`.metadata.ownerReferences[] | select(.kind == "GatewayConfig") | .controller == true`),
+				jq.Match(`.metadata.ownerReferences[] | select(.kind == "Dashboard") | .controller == true`),
 
 				// Labels
-				jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, gateway.PartOfGatewayConfig),
+				jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, dashboardPartOf),
 			)),
-			WithCustomErrorMsg("Legacy gateway route %s should exist when current subdomain is %s", gateway.LegacyGatewaySubdomain, currentSubdomain),
+			WithCustomErrorMsg("Legacy gateway route %s should exist when current subdomain is %s", legacyGatewaySubdomain, currentSubdomain),
 		)
 	} else {
 		t.Logf("Current gateway subdomain is %s, legacy gateway redirect route should NOT be created", currentSubdomain)
@@ -338,8 +463,8 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectHTTP(t *testing.T) {
 	}
 	appNamespace := tc.AppsNamespace
 	routeNames := []string{dashboardRouteName}
-	if gatewaySubdomain != gateway.LegacyGatewaySubdomain {
-		routeNames = append(routeNames, gateway.LegacyGatewaySubdomain)
+	if gatewaySubdomain != legacyGatewaySubdomain {
+		routeNames = append(routeNames, legacyGatewaySubdomain)
 	}
 	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
 	httpClient := tc.createHTTPClient()
@@ -420,31 +545,31 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectAnnotationOptOut(t *testing.T
 		nn          types.NamespacedName
 	}
 	redirectResources := []redirectResource{
-		{resourceGVK: gvk.Deployment, nn: types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: appNamespace}},
-		{resourceGVK: gvk.Service, nn: types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: appNamespace}},
-		{resourceGVK: gvk.ConfigMap, nn: types.NamespacedName{Name: gateway.DashboardRedirectConfigName, Namespace: appNamespace}},
+		{resourceGVK: gvk.Deployment, nn: types.NamespacedName{Name: dashboardRedirectName, Namespace: appNamespace}},
+		{resourceGVK: gvk.Service, nn: types.NamespacedName{Name: dashboardRedirectName, Namespace: appNamespace}},
+		{resourceGVK: gvk.ConfigMap, nn: types.NamespacedName{Name: dashboardRedirectConfigName, Namespace: appNamespace}},
 		{resourceGVK: gvk.Route, nn: types.NamespacedName{Name: dashboardRouteName, Namespace: appNamespace}},
 	}
-	if gatewaySubdomain != gateway.LegacyGatewaySubdomain {
+	if gatewaySubdomain != legacyGatewaySubdomain {
 		redirectResources = append(redirectResources, redirectResource{
 			resourceGVK: gvk.Route,
-			nn:          types.NamespacedName{Name: gateway.LegacyGatewaySubdomain, Namespace: appNamespace},
+			nn:          types.NamespacedName{Name: legacyGatewaySubdomain, Namespace: appNamespace},
 		})
 	}
 
 	setAnnotation := func(disabled bool) {
-		mutation := testf.Transform(`del(.metadata.annotations["%s"])`, gateway.DashboardRedirectsAnnotation)
-		condition := jq.Match(`.metadata.annotations["%s"] == null`, gateway.DashboardRedirectsAnnotation)
+		mutation := testf.Transform(`del(.metadata.annotations["%s"])`, dashboardRedirectsAnnotation)
+		condition := jq.Match(`.metadata.annotations["%s"] == null`, dashboardRedirectsAnnotation)
 		if disabled {
 			mutation = testf.Transform(
 				`(.metadata.annotations //= {}) | .metadata.annotations["%s"] = "%s"`,
-				gateway.DashboardRedirectsAnnotation,
-				gateway.DashboardRedirectsDisabledValue,
+				dashboardRedirectsAnnotation,
+				dashboardRedirectsDisabledValue,
 			)
 			condition = jq.Match(
 				`.metadata.annotations["%s"] == "%s"`,
-				gateway.DashboardRedirectsAnnotation,
-				gateway.DashboardRedirectsDisabledValue,
+				dashboardRedirectsAnnotation,
+				dashboardRedirectsDisabledValue,
 			)
 		}
 

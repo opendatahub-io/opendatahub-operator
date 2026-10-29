@@ -21,7 +21,6 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"html"
 	"maps"
 	"strings"
 
@@ -600,13 +599,6 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	// Get cookie settings with defaults
 	cookieExpire, cookieRefresh := getCookieSettings(&gatewayConfig.Spec.Cookie)
 
-	// Compute legacy redirect info for template
-	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
-	redirectConfigHash, err := CalculateRedirectConfigHash(hostname)
-	if err != nil {
-		return nil, err
-	}
-
 	serverTimeout, err := resolveOCPRouteServerTimeout(ctx, rr.Client, gatewayConfig)
 	if err != nil {
 		return nil, err
@@ -637,26 +629,10 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"IstioRevisionValue":   GetIstioRevisionValue(),
 		"PartOfGatewayConfig":  PartOfGatewayConfig,
 		"GatewayNameLabelKey":  labels.GatewayAPI.GatewayName,
-		"LegacySubdomain":      legacyInfo.LegacySubdomain,
-		"LegacyHostname":       legacyInfo.LegacyHostname,
 		"RouteLabels":          gatewayRouteLabels(nil),
 		"RouteServerTimeout":   serverTimeout,
 		"ProviderCA":           providerCA,
 	}
-
-	// Add dashboard redirect template variables
-	productName := "Open Data Hub"
-	if rr.Release.Name == cluster.ManagedRhoai || rr.Release.Name == cluster.SelfManagedRhoai {
-		productName = "OpenShift AI"
-	}
-	templateData["DashboardRedirectNamespace"] = cluster.GetApplicationNamespace()
-	templateData["DashboardRedirectName"] = DashboardRedirectName
-	templateData["DashboardRedirectConfigName"] = DashboardRedirectConfigName
-	templateData["DashboardRouteName"] = GetDashboardRouteName()
-	templateData["DashboardRedirectImage"] = getDashboardRedirectImage()
-	templateData["DashboardRedirectHostnameHTML"] = html.EscapeString(hostname)
-	templateData["DashboardRedirectProductName"] = productName
-	templateData["RedirectConfigHash"] = redirectConfigHash
 
 	// Add OIDC-specific fields only if OIDC config is present
 	if gatewayConfig.Spec.OIDC != nil {
