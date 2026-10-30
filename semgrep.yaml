@@ -1867,7 +1867,40 @@ rules:
       Remediation: Always quote variables in file operations:
         rm "$FILE"         # correct
         rm $FILE           # dangerous
-    pattern-regex: '(rm|cp|mv|eval|chmod|chown|kill|pkill)\s+[^|;]*(?<!["''\\])\$(?:\{[A-Za-z_][A-Za-z0-9_]*(?:[:\-\+\?=][^}]*)?\}|[A-Za-z_][A-Za-z0-9_]*)'
+    # Match command positions only, consuming quoted/escaped spans before checking arguments.
+    # Separators inside quotes do not end the command scan.
+    pattern-regex: |
+      (?mx)
+      ^[ \t]*
+      (?:
+        (?:
+          "(?:\\(?:\n|[^\n])|[^"\\])*"
+          | '[^']*'
+          | \\(?:\n|[^\n])
+          | [^"'\\;&|\n]
+        )*
+        (?:;|&&?|\|\|?)[ \t]*
+        (?:(?:then|do|else)[ \t]+)?
+      )*
+      (?:(?:sudo|command|exec|builtin|nohup|time|nice|env)(?:[ \t]+-[^ \t;&|]+(?:[ \t]+[^ \t;&|]+)?)*[ \t]+)*
+      (?:
+        [A-Za-z_][A-Za-z0-9_]*=
+        (?:
+          "(?:\\(?:\n|[^\n])|[^"\\])*"
+          | '[^']*'
+          | \\(?:\n|[^\n])
+          | [^"'\\;&|\n]
+        )*
+        [ \t]+
+      )*
+      (rm|cp|mv|eval|chmod|chown|kill|pkill)(?![\w-])[ \t]+
+      (?:
+        "(?:\\(?:\n|[^\n])|[^"\\])*"
+        | '[^']*'
+        | \\(?:\n|[^\n])
+        | [^"'\\;&|\n]
+      )*?
+      \$(?:\{[A-Za-z_][A-Za-z0-9_]*(?:[:\-\+\?=][^}]*)?\}|[A-Za-z_][A-Za-z0-9_]*)
     metadata:
       cwe: "CWE-78"
       category: "security"
