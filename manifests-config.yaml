@@ -1294,7 +1294,7 @@ imageOverrides:
       digest: "sha256:cc4d31c496144ee9295def5b72a633de533943c39ecb75ee4cacc8b6ceb69585"
     rhoai:
       base: "quay.io/rhoai/odh-trustyai-module-operator-rhel9"
-      digest: "sha256:1f189b499a9aeda5ce19234e0211d32181f30c9031c9f7cc00b3c6b71197d122"
+      digest: "sha256:14a6353f8f8b269748484af237efc6122145714f80ff7826c97e1fd7b3305ffc"
   RELATED_IMAGE_ODH_MODELEXPRESS_IMAGE:
     component: kserve-module-operator
     source: "csv"
