@@ -112,14 +112,22 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 
 	// Define operators to be installed.
 	operators := []Operator{
-		{nn: types.NamespacedName{Name: certManagerOpName, Namespace: certManagerOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: certManagerOpChannel},
+		{
+			nn:                  types.NamespacedName{Name: certManagerOpName, Namespace: certManagerOpNamespace},
+			skipOperatorGroup:   false,
+			globalOperatorGroup: true,
+			channel:             certManagerOpChannel,
+			useOLMv1:            true,
+			useOLMv1ByDefault:   false,
+		},
 		{nn: types.NamespacedName{Name: kuadrantOpName, Namespace: kuadrantNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
 		{
 			nn:                  types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace},
 			skipOperatorGroup:   false,
-			globalOperatorGroup: false,
+			globalOperatorGroup: true, // Kueue 1.5 supports only AllNamespaces OperatorGroup
 			channel:             testOpts.kueueOperatorChannel,
 			useOLMv1:            true,
+			useOLMv1ByDefault:   true,
 		},
 		{nn: types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace}, skipOperatorGroup: false, globalOperatorGroup: false, channel: leaderWorkerSetChannel}, //nolint:lll
 		{nn: types.NamespacedName{Name: jobSetOpName, Namespace: jobSetOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: false, channel: jobSetOpChannel},
