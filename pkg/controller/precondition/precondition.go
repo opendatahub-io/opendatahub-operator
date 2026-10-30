@@ -23,30 +23,35 @@ type CheckResult struct {
 	Message string
 }
 
-// CheckFunc is the function signature for a pre-reconciliation check.
+// CheckFunc is the function signature for a precondition check.
+// Checks marked with BeforeReconciliation must follow its read-only contract.
 type CheckFunc func(ctx context.Context, rr *types.ReconciliationRequest) (CheckResult, error)
 
 type Option func(*PreCondition)
 
-// SkipFunc is a runtime predicate evaluated on every reconciliation after
-// WithClusterTypes filtering. Return true to skip the precondition (no
-// condition is written and an Info-level log is emitted). Return an error
-// to record ConditionUnknown and continue (same semantics as CheckFunc errors).
+// SkipFunc is a runtime predicate evaluated in the precondition's execution
+// phase after WithClusterTypes filtering. Return true to skip the check.
+// In ordinary execution, errors become Unknown conditions and evaluation
+// continues with the remaining preconditions (as with CheckFunc errors).
+// RunBeforeReconciliation instead returns errors immediately without reporting
+// conditions. Its skip callbacks must follow BeforeReconciliation's read-only contract.
 type SkipFunc func(ctx context.Context, rr *types.ReconciliationRequest) (bool, error)
 
-// PreCondition composes a Check with framework configuration that controls
-// how RunAll aggregates and writes Kubernetes status conditions.
+// PreCondition composes a check with execution and condition-reporting options.
+// RunAll reports conditions for ordinary checks; RunBeforeReconciliation runs
+// checks marked with BeforeReconciliation without condition reporting.
 type PreCondition struct {
-	check              CheckFunc
-	conditionType      string
-	severity           common.ConditionSeverity
-	stopReconciliation bool
-	clusterTypes       []string
-	message            string
-	skipFunc           SkipFunc // runtime predicate to conditionally skip this precondition
+	check                CheckFunc
+	conditionType        string
+	severity             common.ConditionSeverity
+	stopReconciliation   bool
+	beforeReconciliation bool
+	clusterTypes         []string
+	message              string
+	skipFunc             SkipFunc // runtime predicate to conditionally skip this precondition
 }
 
-// WithConditionType sets the condition type that will be written.
+// WithConditionType sets the condition type reported during ordinary execution.
 // Empty strings are ignored to preserve the constructor default.
 func WithConditionType(t string) Option {
 	return func(pc *PreCondition) {
@@ -56,14 +61,16 @@ func WithConditionType(t string) Option {
 	}
 }
 
-// WithSeverity sets the severity of the condition that will be written.
+// WithSeverity sets the condition severity reported during ordinary execution.
 func WithSeverity(s common.ConditionSeverity) Option {
 	return func(pc *PreCondition) {
 		pc.severity = s
 	}
 }
 
-// WithStopReconciliation flags the reconciliation to be stopped if the precondition is not met.
+// WithStopReconciliation stops actions when an ordinary precondition fails,
+// while still allowing status reporting. BeforeReconciliation checks always
+// stop the entire attempt on failure or error, independently of this option.
 func WithStopReconciliation() Option {
 	return func(pc *PreCondition) {
 		pc.stopReconciliation = true
@@ -77,15 +84,16 @@ func WithClusterTypes(types ...string) Option {
 	}
 }
 
-// WithMessage sets the message that will be written to the condition.
+// WithMessage overrides the failure message reported in a condition during
+// ordinary execution or returned by RunBeforeReconciliation.
 func WithMessage(msg string) Option {
 	return func(pc *PreCondition) {
 		pc.message = msg
 	}
 }
 
-// WithSkipFunc sets a runtime predicate evaluated on every reconciliation
-// after WithClusterTypes filtering. See [SkipFunc] for return value semantics.
+// WithSkipFunc sets a predicate evaluated in the precondition's execution phase
+// after WithClusterTypes filtering. See [SkipFunc] for phase-specific error handling.
 func WithSkipFunc(fn SkipFunc) Option {
 	return func(pc *PreCondition) {
 		pc.skipFunc = fn
@@ -144,7 +152,9 @@ func (agg *conditionAggregate) record(s metav1.ConditionStatus, message string, 
 	}
 }
 
-// RunAll runs all the preconditions and returns true when the reconciliation should be stopped.
+// RunAll runs ordinary preconditions and reports their aggregated conditions.
+// It skips checks marked with BeforeReconciliation. It returns true when
+// reconciliation actions should stop; status reporting can still proceed.
 func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions []PreCondition) bool {
 	if len(preConditions) == 0 {
 		return false
@@ -156,6 +166,9 @@ func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions 
 
 	for i := range preConditions {
 		pc := &preConditions[i]
+		if pc.beforeReconciliation {
+			continue
+		}
 
 		// Skip preconditions that don't apply to this cluster type.
 		// Initialize the aggregate so the condition is written as True

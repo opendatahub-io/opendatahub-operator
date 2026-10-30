@@ -3,7 +3,6 @@ package modules
 import (
 	"context"
 	"fmt"
-	"sort"
 
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -26,6 +25,7 @@ import (
 	helmrender "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
 	kustomizerender "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	dependentpredicates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -100,6 +100,11 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 // dynamic ownership action.
 func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	b := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
+		// RHAI-15101: condition suppression still permits status writes, so
+		// require conversion before entering reconciliation at all.
+		WithPreCondition(precondition.CRDConversion(
+			"datascienceclusters.datasciencecluster.opendatahub.io", precondition.RequireWebhookAlways,
+		)).
 		WithInstanceName("modules").
 		WithDynamicOwnership(reconciler.WithGVKPredicates(moduleStatusPredicates())).
 		// The modules controller still reconciles against the DSC in OpenShift mode,
@@ -154,6 +159,10 @@ func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 // Dynamic ownership is enabled for the same reasons as DSC mode.
 func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	b := reconciler.ReconcilerFor(mgr, &configv1alpha1.Platform{}).
+		// RHAI-15101: a single served Platform version needs no conversion.
+		WithPreCondition(precondition.CRDConversion(
+			"platforms.config.opendatahub.io", precondition.RequireWebhookForMultipleServedVersions,
+		)).
 		WithInstanceName("modules").
 		WithDynamicOwnership(reconciler.WithGVKPredicates(moduleStatusPredicates())).
 		WithoutConditionCleanup().
@@ -199,10 +208,10 @@ func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 }
 
 // addModuleCRDWatches registers a non-dynamic watch on CustomResourceDefinition
-// resources filtered to the API groups used by registered modules. When a module
-// CRD is created, this triggers a reconcile so the controller can register the
-// dynamic module CR watch and read the module's status — resolving the race
-// where the controller reconciles before a module CRD is available.
+// resources filtered to the GroupKinds used by registered modules. It omits CRDs of
+// in-tree controllers. When a module CRD is created, this triggers a reconcile so
+// the controller can register the dynamic module CR watch and read the module's
+// status — resolving the race where the controller reconciles before a module CRD is available.
 func addModuleCRDWatches[T common.PlatformObject](
 	b *reconciler.ReconcilerBuilder[T],
 	mapper func(ctx context.Context, obj client.Object) []reconcile.Request,
@@ -212,21 +221,15 @@ func addModuleCRDWatches[T common.PlatformObject](
 		return b
 	}
 
-	groupSet := make(map[string]bool)
+	groupKindSet := make(map[schema.GroupKind]bool)
 	_ = reg.ForAll(func(h ModuleHandler, _ bool) error {
-		groupSet[h.GetGVK().Group] = true
+		groupKindSet[h.GetGVK().GroupKind()] = true
 		return nil
 	})
 
-	groups := make([]string, 0, len(groupSet))
-	for g := range groupSet {
-		groups = append(groups, g)
-	}
-	sort.Strings(groups)
-
-	crdPredicates := make([]predicate.Predicate, 0, len(groups))
-	for _, g := range groups {
-		crdPredicates = append(crdPredicates, resources.CreatedOrUpdatedOrDeletedNameSuffixed("."+g))
+	crdPredicates := make([]predicate.Predicate, 0, len(groupKindSet))
+	for gk := range groupKindSet {
+		crdPredicates = append(crdPredicates, resources.CreatedOrUpdatedOrDeletedCRDGroupKindMatched(gk))
 	}
 
 	b.Watches(
@@ -256,8 +259,8 @@ func addModuleCRWatches[T common.PlatformObject](b *reconciler.ReconcilerBuilder
 	return b
 }
 
-// AddModuleCRDWatches registers a non-dynamic CRD watch so that module CRD
-// creation triggers a reconcile. Exported for use by the DSC controller.
+// AddModuleCRDWatches registers a CRD watch for registered module GroupKinds.
+// Matching CRD create, update, and delete events trigger reconciliation.
 func AddModuleCRDWatches[T common.PlatformObject](
 	b *reconciler.ReconcilerBuilder[T],
 	mapper func(ctx context.Context, obj client.Object) []reconcile.Request,
