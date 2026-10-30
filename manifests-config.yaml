@@ -43,11 +43,11 @@ components:
   trustyai:
     odh:
       repo: opendatahub-io/trustyai-service-operator
-      ref: main@5b6456173224a3f9da4d3f3f916433e4c92c41a8
+      ref: main@165b2dfa73d80b540e25cda5a85fd48a52eb37de
       sourcePath: trustyai-operator-module/config
     rhoai:
       repo: red-hat-data-services/trustyai-service-operator
-      ref: rhoai-3.6@b0fcb9757cbd82380bb3371e496b612ccd05a8b3
+      ref: rhoai-3.6@1e05c99babadaac255925e370630d2fca79330ef
       sourcePath: trustyai-operator-module/config
   aihub:
     odh:
@@ -1291,10 +1291,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-trustyai-module-operator"
-      digest: "sha256:7684d1912117c92998a27e65ea837eee4be1a60781a11654aa4e9f0176f094b0"
+      digest: "sha256:cc4d31c496144ee9295def5b72a633de533943c39ecb75ee4cacc8b6ceb69585"
     rhoai:
       base: "quay.io/rhoai/odh-trustyai-module-operator-rhel9"
-      digest: "sha256:1f189b499a9aeda5ce19234e0211d32181f30c9031c9f7cc00b3c6b71197d122"
+      digest: "sha256:14a6353f8f8b269748484af237efc6122145714f80ff7826c97e1fd7b3305ffc"
   RELATED_IMAGE_ODH_MODELEXPRESS_IMAGE:
     component: kserve-module-operator
     source: "csv"
