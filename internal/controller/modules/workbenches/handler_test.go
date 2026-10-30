@@ -187,6 +187,12 @@ func TestBuildModuleCR_ProjectsIngresses(t *testing.T) {
 		map[string]any{"name": "beta", "gatewayName": "beta-parent", "gatewayNamespace": gateway.GatewayNamespace, "hostname": "beta.example.com"},
 		map[string]any{"name": "alpha", "gatewayName": "alpha", "gatewayNamespace": gateway.GatewayNamespace, "hostname": "alpha.example.com"},
 	}))
+	// The ingress contract is projected alongside the ingress list with the
+	// GatewayConfig generation, so the consumer can detect stale projections.
+	g.Expect(spec["ingressContract"]).To(Equal(map[string]any{
+		"version":          "v1",
+		"sourceGeneration": cfg.GatewayConfig.Generation,
+	}))
 	validateModuleCRAgainstBundledSchema(t, u.Object)
 
 	cfg.GatewayConfig.Status.AdditionalIngresses = nil

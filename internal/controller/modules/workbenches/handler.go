@@ -125,6 +125,12 @@ func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 // module CR spec for API parity; notebook-controller operands deploy into
 // APPLICATIONS_NAMESPACE (injected separately). Orchestrator-only fields
 // (gatewayDomain, platform, mlflowEnabled, ingresses) are derived from ModuleCRConfig and DSC.
+// The ingress contract (spec.ingressContract, sourceGeneration from the
+// GatewayConfig generation) is projected alongside them so the consumer can
+// detect stale projections. Withholding shards until the consumer reports
+// IngressContractReady is deliberately NOT done here: the platform sets the
+// CR spec, the workbenches controller converges to it, and gating on its own
+// rollout state belongs consumer-side.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
@@ -149,6 +155,10 @@ func (h *handler) BuildModuleCR(
 		if cfg.GatewayConfig != nil {
 			ingresses = gatewayStatusIngresses(cfg.GatewayConfig.Status.Domain, cfg.GatewayConfig.Status.AdditionalIngresses)
 			spec["gatewayDomain"] = cfg.GatewayConfig.Status.Domain
+			spec["ingressContract"] = map[string]any{
+				"version":          IngressContractVersion,
+				"sourceGeneration": cfg.GatewayConfig.Generation,
+			}
 		}
 		spec["platform"] = workbenchesPlatformType(cfg.Release.Name)
 	}
