@@ -936,6 +936,9 @@ func authProxyTemplateData() map[string]any {
 		"GatewayHostname":          testHostnameDefault,
 		"InsecureSkipVerify":       false,
 		"OIDCIssuerURL":            "https://example.com/realms/test",
+		"OIDCScope":                "",
+		"OIDCPassAccessToken":      false,
+		"SkipClaimsFromProfileURL": false,
 		"TokenReviewQPS":           nil,
 		"TokenReviewBurst":         nil,
 		"TokenReviewCacheTTL":      nil,
@@ -952,6 +955,22 @@ func renderAuthProxyTemplate(g Gomega, path string, data map[string]any) string 
 	var buf bytes.Buffer
 	g.Expect(tmpl.Execute(&buf, data)).To(Succeed(), "template %s should render", path)
 	return buf.String()
+}
+
+func TestOIDCSkipClaimsFromProfileURLTemplate(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	data := authProxyTemplateData()
+
+	for _, value := range []any{nil, false, true} {
+		data["SkipClaimsFromProfileURL"] = value
+		rendered := renderAuthProxyTemplate(g, kubeAuthProxyDeploymentOidcTemplate, data)
+		if value == true {
+			g.Expect(rendered).To(ContainSubstring("--skip-claims-from-profile-url=true"))
+		} else {
+			g.Expect(rendered).NotTo(ContainSubstring("--skip-claims-from-profile-url"))
+		}
+	}
 }
 
 func TestDefaultAuthTemplatesExcludeAdditionalGateways(t *testing.T) {
