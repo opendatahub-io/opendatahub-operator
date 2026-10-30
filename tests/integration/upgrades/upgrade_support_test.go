@@ -3,14 +3,18 @@
 package upgrades_test
 
 import (
+	"context"
+	"fmt"
 	"testing"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
 
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
@@ -144,6 +148,7 @@ func setupUpgradeGateTestWithComponentStatesAndReleases(
 	t.Cleanup(func() {
 		_ = te.Stop()
 	})
+	te.Manager().GetWebhookServer().Register("/convert", conversion.NewWebhookHandler(te.Scheme(), te.Manager().GetConverterRegistry()))
 
 	tc := &upgradeGateTestCtx{cli: te.Client()}
 	for _, fixture := range append(baseUpgradeFixtures(deployedVer, componentStates), extraFixtures...) {
@@ -173,11 +178,37 @@ func setupUpgradeGateTestWithComponentStatesAndReleases(
 	g.Expect(dscctrl.NewDataScienceClusterReconciler(ctx, te.Manager())).To(Succeed())
 	g.Expect(modules.NewModuleReconciler(ctx, te.Manager())).To(Succeed())
 	te.StartManager(t, ctx)
+	enableDSCConversion(t, te)
 
 	return &upgradeGateHarness{
 		tf: testCtx.NewWithT(t),
 		tc: tc,
 	}
+}
+
+// Upgrade-gate tests need healthy conversion so the RHAI-15101 precondition
+// allows the controllers to reach the upgrade gates under test.
+func enableDSCConversion(t *testing.T, te *envt.EnvT) {
+	t.Helper()
+	g := NewWithT(t)
+	ctx, cancel := context.WithTimeout(t.Context(), envt.DefaultMaxWait)
+	defer cancel()
+	g.Expect(te.WaitForWebhookServer(ctx)).To(Succeed())
+
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	g.Expect(te.Client().Get(ctx, client.ObjectKey{Name: "datascienceclusters.datasciencecluster.opendatahub.io"}, crd)).To(Succeed())
+	opts := te.Env.WebhookInstallOptions
+	url := fmt.Sprintf("https://%s:%d/convert", opts.LocalServingHost, opts.LocalServingPort)
+	crd.Spec.Conversion = &apiextensionsv1.CustomResourceConversion{
+		Strategy: apiextensionsv1.WebhookConverter,
+		Webhook: &apiextensionsv1.WebhookConversion{
+			ClientConfig: &apiextensionsv1.WebhookClientConfig{
+				URL: &url, CABundle: opts.LocalServingCAData,
+			},
+			ConversionReviewVersions: []string{"v1"},
+		},
+	}
+	g.Expect(te.Client().Update(ctx, crd)).To(Succeed())
 }
 
 func baseUpgradeFixtures(deployedVer string, componentStates map[string]string) []fixtureSpec {

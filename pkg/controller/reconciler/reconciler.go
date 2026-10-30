@@ -109,6 +109,8 @@ func withDynamicOwnership(opts ...DynamicOwnershipOption) ReconcilerOpt {
 
 const platformFinalizer = "platform.opendatahub.io/finalizer"
 
+const beforeReconciliationRetryDelay = 5 * time.Second
+
 // Reconciler provides generic reconciliation functionality for ODH objects.
 type Reconciler struct {
 	Client          client.Client
@@ -270,6 +272,25 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("unable to set GVK to instance: %w", err)
 	}
 
+	// These checks run before any writes, including finalizers and status.
+	// Do not initialize a conditions manager: its constructor changes conditions.
+	rr := types.ReconciliationRequest{
+		Client:            r.Client,
+		Controller:        r,
+		Instance:          res,
+		Release:           r.Release,
+		ManifestsBasePath: r.ManifestsBasePath,
+		ChartsBasePath:    r.ChartsBasePath,
+	}
+	result, err := precondition.RunBeforeReconciliation(ctx, &rr, r.preConditions)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("preconditions before reconciliation failed: %w", err)
+	}
+	if !result.Pass {
+		l.Info("Preconditions not met before reconciliation", "message", result.Message, "retryAfter", beforeReconciliationRetryDelay)
+		return ctrl.Result{RequeueAfter: beforeReconciliationRetryDelay}, nil
+	}
+
 	if !res.GetDeletionTimestamp().IsZero() {
 		// resource is being deleted, attempt to perform clean-up logic and remove finalizer
 		if !controllerutil.ContainsFinalizer(res, platformFinalizer) {
@@ -399,7 +420,7 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 
 	rr.Conditions.Reset()
 
-	// Check if all the preconditions are met. If not, flag to stop the reconciliation.
+	// Check ordinary preconditions and stop actions if their requirements are not met.
 	shouldStop := precondition.RunAll(ctx, &rr, r.preConditions)
 
 	var provisionErr error

@@ -35,6 +35,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
@@ -46,6 +47,10 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 	componentsPredicate := dependent.New(dependent.WithWatchStatus(true))
 
 	b := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
+		// RHAI-15101: pause before any writes while OLM removes conversion.
+		WithPreCondition(precondition.CRDConversion(
+			"datascienceclusters.datasciencecluster.opendatahub.io", precondition.RequireWebhookAlways,
+		)).
 		Owns(&componentApi.Ray{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.ModelRegistry{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.TrustyAI{}, reconciler.WithPredicates(componentsPredicate)).

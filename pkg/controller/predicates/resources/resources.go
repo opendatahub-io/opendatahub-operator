@@ -307,16 +307,34 @@ func CreatedOrUpdatedOrDeletedNamePrefixed(namePrefix string) predicate.Predicat
 	}
 }
 
-func CreatedOrUpdatedOrDeletedNameSuffixed(nameSuffix string) predicate.Predicate {
+func CreatedOrUpdatedOrDeletedCRDGroupKindMatched(expected schema.GroupKind) predicate.Predicate {
+	matches := func(obj client.Object) bool {
+		u, err := resources.ToUnstructured(obj)
+		if err != nil {
+			return false
+		}
+
+		group, found, err := unstructured.NestedString(u.Object, "spec", "group")
+		if err != nil || !found {
+			return false
+		}
+
+		kind, found, err := unstructured.NestedString(u.Object, "spec", "names", "kind")
+		if err != nil || !found {
+			return false
+		}
+
+		return group == expected.Group && kind == expected.Kind
+	}
 	return predicate.Funcs{
 		CreateFunc: func(e event.TypedCreateEvent[client.Object]) bool {
-			return strings.HasSuffix(e.Object.GetName(), nameSuffix)
+			return matches(e.Object)
 		},
 		UpdateFunc: func(e event.TypedUpdateEvent[client.Object]) bool {
-			return strings.HasSuffix(e.ObjectNew.GetName(), nameSuffix)
+			return matches(e.ObjectNew)
 		},
 		DeleteFunc: func(e event.TypedDeleteEvent[client.Object]) bool {
-			return strings.HasSuffix(e.Object.GetName(), nameSuffix)
+			return matches(e.Object)
 		},
 	}
 }
