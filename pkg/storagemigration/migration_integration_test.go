@@ -281,7 +281,7 @@ func TestStorageMigrationIntegration(t *testing.T) {
 			g.Expect(getErr).To(Succeed())
 			g.Expect(beforeStatus.Status.StoredVersions).To(Equal(original.Status.StoredVersions), "pending request cannot prune")
 
-			setCondition(request, "Succeeded")
+			setCondition(request, succeededCondition)
 			_, statusErr := requests.Resource(api).UpdateStatus(ctx, request, metav1.UpdateOptions{})
 			g.Expect(statusErr).To(Succeed())
 
@@ -337,7 +337,7 @@ func TestStorageMigrationIntegration(t *testing.T) {
 		testMissingCRDEvent(ctx, t, config)
 	})
 
-	for _, condition := range []string{"Failed", "Succeeded"} {
+	for _, condition := range []string{"Failed", succeededCondition} {
 		t.Run(condition, func(t *testing.T) {
 			original := resetHistory(t)
 			testTerminalRequest(ctx, t, crds, requests, original, condition)
@@ -577,7 +577,7 @@ func testTerminalRequest(
 	request, err = requests.Resource(api).UpdateStatus(ctx, request, metav1.UpdateOptions{})
 	g.Expect(err).To(Succeed())
 
-	if condition == "Succeeded" {
+	if condition == succeededCondition {
 		m.definitions = conflictDefinitions{
 			crds,
 		}
@@ -586,7 +586,7 @@ func testTerminalRequest(
 	runErr := m.execute(ctx)
 	g.Expect(runErr).To(HaveOccurred())
 
-	if condition == "Succeeded" {
+	if condition == succeededCondition {
 		g.Expect(k8serr.IsConflict(runErr)).To(BeTrue(), "%v", runErr)
 	} else {
 		g.Expect(runErr).To(MatchError(ContainSubstring("manually delete")))

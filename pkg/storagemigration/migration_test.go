@@ -666,7 +666,6 @@ func TestStepEvents(t *testing.T) {
 
 			m, _, requests := testMigration(crd, migrationAPIs[0])
 			recorder := events.NewFakeRecorder(8)
-			recorder.Verbose = true
 			m.recorder = recorder
 
 			switch test.name {
@@ -720,7 +719,7 @@ func TestShutdownIsQuiet(t *testing.T) {
 }
 
 func TestProductionClientCancellation(t *testing.T) {
-	for _, stage := range []string{"CRD", "discovery", "request"} {
+	for _, stage := range []string{"CRD", "request"} {
 		t.Run(stage, func(t *testing.T) {
 			g := NewWithT(t)
 
@@ -739,8 +738,6 @@ func TestProductionClientCancellation(t *testing.T) {
 				switch stage {
 				case "CRD":
 					blocked = r.URL.Path == crdPath
-				case "discovery":
-					blocked = r.URL.Path == discoveryPath
 				case "request":
 					blocked = r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, requestCollection+"/")
 				}

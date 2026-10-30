@@ -45,8 +45,9 @@ import (
 )
 
 const (
-	requestKind      = "StorageVersionMigration"
-	annotationPrefix = "storage-migration.opendatahub.io/"
+	requestKind        = "StorageVersionMigration"
+	annotationPrefix   = "storage-migration.opendatahub.io/"
+	succeededCondition = "Succeeded"
 )
 
 var migrationAPIs = []schema.GroupVersionResource{
@@ -114,9 +115,9 @@ func Migrate(ctx context.Context, config *rest.Config, crdName string, recorder 
 	return nil
 }
 
-func discoverMigrationAPI(ctx context.Context, discoveryClient discovery.ServerResourcesInterfaceWithContext) (schema.GroupVersionResource, error) {
+func discoverMigrationAPI(_ context.Context, discoveryClient discovery.ServerResourcesInterface) (schema.GroupVersionResource, error) {
 	for _, api := range migrationAPIs {
-		resources, err := discoveryClient.ServerResourcesForGroupVersionWithContext(ctx, api.GroupVersion().String())
+		resources, err := discoveryClient.ServerResourcesForGroupVersion(api.GroupVersion().String())
 		switch {
 		case k8serr.IsNotFound(err):
 			continue
@@ -242,7 +243,7 @@ func requestSucceeded(request *unstructured.Unstructured) (bool, error) {
 					"migration request %s failed: %s: %s; review and manually delete the failed request before restarting the operator",
 					request.GetName(), condition.Reason, condition.Message,
 				)
-			case "Succeeded":
+			case succeededCondition:
 				complete = true
 			}
 		default:

@@ -39,7 +39,7 @@ import (
 type migration struct {
 	definitions apiextensions.CustomResourceDefinitionInterface
 	requests    dynamic.Interface
-	discovery   discovery.ServerResourcesInterfaceWithContext
+	discovery   discovery.ServerResourcesInterface
 	recorder    events.EventRecorder
 	interval    time.Duration
 
