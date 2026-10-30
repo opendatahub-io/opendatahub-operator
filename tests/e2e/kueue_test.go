@@ -84,10 +84,15 @@ func (tc *KueueTestCtx) ensureKueueOperatorsInstalled(t *testing.T) {
 	t.Helper()
 
 	t.Logf("Ensuring LWS Operator is installed (namespace=%s, name=%s).", leaderWorkerSetNamespace, leaderWorkerSetOpName)
-	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(
-		types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace},
-		leaderWorkerSetChannel,
-	)
+	tc.ensureOperatorsAreInstalled(t, []Operator{
+		{
+			nn:                  types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace},
+			globalOperatorGroup: true,
+			useOLMv1:            true,
+			useOLMv1ByDefault:   false,
+			channel:             leaderWorkerSetChannel,
+		},
+	})
 
 	t.Logf("Ensuring LeaderWorkerSetOperator CR exists (namespace=%s, name=cluster).", leaderWorkerSetNamespace)
 	tc.EventuallyResourceCreatedOrUpdated(
@@ -98,10 +103,15 @@ func (tc *KueueTestCtx) ensureKueueOperatorsInstalled(t *testing.T) {
 	)
 
 	t.Logf("Ensuring OCP Kueue Operator is installed (namespace=%s, name=%s).", kueueOcpOperatorNamespace, kueueOpName)
-	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(
-		types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace},
-		testOpts.kueueOperatorChannel,
-	)
+	tc.ensureOperatorsAreInstalled(t, []Operator{
+		{
+			nn:                  types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace},
+			globalOperatorGroup: true, // Kueue 1.5 supports only AllNamespaces OperatorGroup
+			useOLMv1:            true,
+			useOLMv1ByDefault:   true,
+			channel:             testOpts.kueueOperatorChannel,
+		},
+	})
 }
 
 func kueueTestSuite(t *testing.T) {
@@ -747,10 +757,40 @@ func (tc *KueueTestCtx) ensureKueueBaseline(t *testing.T) *unstructured.Unstruct
 	return kueueCR
 }
 
-// scaleKueueOperator scales the Kueue operator deployment by patching the CSV.
-// blocks until the deployment reaches the target replica count.
+// scaleKueueOperator scales the Kueue operator deployment.
+// With OLMv1 (ClusterExtension), no CSV exists, so the Deployment is patched directly.
+// With OLMv0, the CSV is updated to propagate the replica change.
+// Blocks until the deployment reaches the target replica count.
 func (tc *KueueTestCtx) scaleKueueOperator(t *testing.T, replicas int32) {
 	t.Helper()
+
+	kueueOp := Operator{
+		nn:                types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace},
+		useOLMv1:          true,
+		useOLMv1ByDefault: true,
+	}
+	if shouldUseOLMv1(kueueOp, tc.ForceOLMVersion) {
+		t.Logf("Scaling Kueue operator Deployment directly (OLMv1) in namespace %s to %d replicas.", kueueOcpOperatorNamespace, replicas)
+		dep := &appsv1.Deployment{}
+		require.NoError(t, tc.Client().Get(tc.Context(), kueueOperatorDeploymentNN, dep))
+		dep.Spec.Replicas = &replicas
+		require.NoError(t, tc.Client().Update(tc.Context(), dep))
+		if replicas == 0 {
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Deployment, kueueOperatorDeploymentNN),
+				WithCondition(jq.Match(`.status.replicas == 0 or .status.replicas == null`)),
+				WithCustomErrorMsg("Deployment %s should have 0 replicas", kueueOperatorDeploymentNN.Name),
+			)
+		} else {
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Deployment, kueueOperatorDeploymentNN),
+				WithCondition(jq.Match(`.status.readyReplicas == %d`, replicas)),
+				WithCustomErrorMsg("Deployment %s should have %d ready replicas", kueueOperatorDeploymentNN.Name, replicas),
+			)
+		}
+		t.Logf("Kueue operator Deployment scaled to %d replicas.", replicas)
+		return
+	}
 
 	t.Logf("Scaling Kueue operator via CSV in namespace %s to %d replicas.", kueueOcpOperatorNamespace, replicas)
 	tc.ScaleCSVDeploymentReplicas(

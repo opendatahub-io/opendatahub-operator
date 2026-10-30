@@ -106,7 +106,8 @@ type Operator struct {
 	skipOperatorGroup   bool
 	globalOperatorGroup bool
 	channel             string
-	useOLMv1            bool
+	useOLMv1            bool // OLMv1 capability, used when OLMv1 is explicitly forced.
+	useOLMv1ByDefault   bool
 }
 
 // TestCaseOpts defines a function type that can be used to modify how individual test cases are executed.
@@ -449,30 +450,111 @@ func (tc *TestContext) getControllerDeploymentName() string {
 // ensureOperatorsAreInstalled ensures the specified operators are installed using parallel test cases.
 func (tc *TestContext) ensureOperatorsAreInstalled(t *testing.T, operators []Operator) {
 	t.Helper()
-	// Create and run test cases in parallel.
 	testCases := make([]TestCase, len(operators))
 	for i, op := range operators {
 		testCases[i] = TestCase{
 			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
 			testFn: func(t *testing.T) {
 				t.Helper()
-				if op.useOLMv1 {
+				plan := planOperatorInstall(op, tc.ForceOLMVersion)
+				switch plan.mode {
+				case operatorInstallClusterExtension:
 					tc.EnsureOperatorInstalledViaClusterExtension(op.nn, op.channel)
-				} else {
-					switch {
-					case op.skipOperatorGroup:
-						tc.EnsureOperatorInstalledWithChannel(op.nn, op.channel)
-					case op.globalOperatorGroup:
-						tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(op.nn, op.channel)
-					default:
-						tc.EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(op.nn, op.channel)
-					}
+				case operatorInstallSubscription:
+					tc.ensureOperatorHealthyViaSubscription(op.nn, op.channel, plan.targetNamespaces)
+				case operatorInstallChannel:
+					tc.EnsureOperatorInstalledWithChannel(op.nn, op.channel)
+				case operatorInstallGlobalOperatorGroup:
+					tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(op.nn, op.channel)
+				case operatorInstallLocalOperatorGroup:
+					tc.EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(op.nn, op.channel)
+				default:
+					t.Fatalf("unsupported operator install mode %q", plan.mode)
 				}
 			},
 		}
 	}
+	if len(testCases) > 1 {
+		RunTestCases(t, testCases, WithParallel())
+	} else {
+		RunTestCases(t, testCases)
+	}
+}
 
-	RunTestCases(t, testCases, WithParallel())
+func shouldUseOLMv1(op Operator, forceOLMVersion string) bool {
+	switch forceOLMVersion {
+	case "v0":
+		return false
+	case "v1":
+		return op.useOLMv1
+	default:
+		return op.useOLMv1ByDefault
+	}
+}
+
+// operatorInstallMode selects how ensureOperatorsAreInstalled installs one operator.
+type operatorInstallMode string
+
+const (
+	// operatorInstallClusterExtension installs through an OLMv1 ClusterExtension.
+	operatorInstallClusterExtension operatorInstallMode = "cluster-extension"
+	// operatorInstallSubscription requires an OLMv0 Subscription and enforces the
+	// operator's configured OperatorGroup scope. A ready ClusterExtension is not enough.
+	operatorInstallSubscription operatorInstallMode = "subscription"
+	// operatorInstallChannel installs through a Subscription without choosing an OperatorGroup scope.
+	operatorInstallChannel operatorInstallMode = "channel"
+	// operatorInstallGlobalOperatorGroup installs through a Subscription with an AllNamespaces OperatorGroup.
+	operatorInstallGlobalOperatorGroup operatorInstallMode = "global-operator-group"
+	// operatorInstallLocalOperatorGroup installs through a Subscription with a namespace-scoped OperatorGroup.
+	operatorInstallLocalOperatorGroup operatorInstallMode = "local-operator-group"
+)
+
+// operatorInstallPlan is the install path for one operator under a force-OLM setting.
+type operatorInstallPlan struct {
+	mode             operatorInstallMode
+	targetNamespaces []string
+}
+
+// planOperatorInstall chooses the OLM install path.
+// Forced OLMv0 requires a Subscription for every operator and keeps that
+// operator's configured OperatorGroup scope. A ready ClusterExtension is not
+// treated as proof that OLMv0 is installed.
+func planOperatorInstall(op Operator, forceOLMVersion string) operatorInstallPlan {
+	if shouldUseOLMv1(op, forceOLMVersion) {
+		return operatorInstallPlan{mode: operatorInstallClusterExtension}
+	}
+
+	namespaces := operatorGroupTargetNamespaces(op)
+	if forceOLMVersion == "v0" {
+		// skipOperatorGroup means an external controller owns the OperatorGroup; do not
+		// enforce scope via ensureOperatorHealthyViaSubscription (which would overwrite it
+		// with AllNamespaces). Use the channel-only path instead.
+		if op.skipOperatorGroup {
+			return operatorInstallPlan{mode: operatorInstallChannel}
+		}
+		return operatorInstallPlan{
+			mode:             operatorInstallSubscription,
+			targetNamespaces: namespaces,
+		}
+	}
+
+	switch {
+	case op.skipOperatorGroup:
+		return operatorInstallPlan{mode: operatorInstallChannel, targetNamespaces: namespaces}
+	case op.globalOperatorGroup:
+		return operatorInstallPlan{mode: operatorInstallGlobalOperatorGroup, targetNamespaces: namespaces}
+	default:
+		return operatorInstallPlan{mode: operatorInstallLocalOperatorGroup, targetNamespaces: namespaces}
+	}
+}
+
+// operatorGroupTargetNamespaces returns the OperatorGroup spec.targetNamespaces
+// configured for op. nil means AllNamespaces. A local operator targets its own namespace.
+func operatorGroupTargetNamespaces(op Operator) []string {
+	if op.skipOperatorGroup || op.globalOperatorGroup {
+		return nil
+	}
+	return []string{op.nn.Namespace}
 }
 
 func getControllerDeploymentNameByPlatform(platform common.Platform) string {

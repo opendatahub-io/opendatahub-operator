@@ -78,6 +78,9 @@ type TestContext struct {
 	// Namespace where the monitoring components are deployed.
 	MonitoringNamespace string
 
+	// ForceOLMVersion overrides OLM install path for all operators: v0, v1, or default (per-component flag).
+	ForceOLMVersion string
+
 	// Namespaced name of the DSCInitialization custom resource used for testing.
 	DSCInitializationNamespacedName types.NamespacedName
 
@@ -150,6 +153,7 @@ func newTestContext(t *testing.T, ctx context.Context) (*TestContext, error) { /
 		AppsNamespace:                    testOpts.appsNamespace,
 		WorkbenchesNamespace:             testOpts.workbenchesNamespace,
 		MonitoringNamespace:              testOpts.monitoringNamespace,
+		ForceOLMVersion:                  testOpts.forceOLMVersion,
 		TestTimeouts:                     testOpts.TestTimeouts,
 	}, nil
 }
@@ -948,21 +952,43 @@ func (tc *TestContext) EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(n
 // This function is idempotent and works regardless of how the operator was initially installed.
 func (tc *TestContext) EnsureOperatorHealthy(nn types.NamespacedName, channel string, targetNamespaces []string) {
 	// Quick health check - if already healthy, we're done
-	if tc.isOperatorHealthy(nn) {
+	if tc.isOperatorHealthy(nn, false) {
 		return
 	}
 
 	// Not healthy - ensure installation
-	tc.ensureOperatorInstalled(nn, channel, targetNamespaces)
+	tc.ensureOperatorInstalled(nn, channel, targetNamespaces, false)
 
 	// Wait for the operator to become healthy
 	tc.ensureCSVSucceeded(nn)
 }
 
+// ensureOperatorHealthyViaSubscription is like EnsureOperatorHealthy but requires a Subscription —
+// a ready ClusterExtension alone is not accepted as healthy. targetNamespaces is the
+// OperatorGroup scope to enforce (nil means AllNamespaces). Use this whenever OLMv0 is
+// explicitly forced, so a ClusterExtension left from an earlier install cannot hide a missing Subscription.
+func (tc *TestContext) ensureOperatorHealthyViaSubscription(nn types.NamespacedName, channel string, targetNamespaces []string) {
+	// Enforce the requested OperatorGroup scope before a healthy Subscription can
+	// short-circuit this path.
+	tc.ensureOperatorNamespaceExists(nn.Namespace)
+	tc.ensureOperatorGroupExists(nn, targetNamespaces, true)
+
+	if tc.isOperatorHealthy(nn, true) {
+		return
+	}
+	tc.ensureOperatorInstalled(nn, channel, targetNamespaces, true)
+	tc.ensureCSVSucceeded(nn)
+}
+
 // isOperatorHealthy checks if operator CSV is in Succeeded phase.
-func (tc *TestContext) isOperatorHealthy(nn types.NamespacedName) bool {
+// When requireSubscription is true, a ready ClusterExtension alone is not considered healthy;
+// a Subscription must exist and its CSV must have reached the Succeeded phase.
+func (tc *TestContext) isOperatorHealthy(nn types.NamespacedName, requireSubscription bool) bool {
 	sub, err := tc.FetchActualSubscription(nn)
 	if err != nil || sub == nil {
+		if requireSubscription {
+			return false
+		}
 		ready, ceErr := tc.isClusterExtensionReady(nn.Name)
 		if ceErr != nil {
 			tc.Logf("isOperatorHealthy: ClusterExtension check failed for %s: %v", nn.Name, ceErr)
@@ -1044,27 +1070,49 @@ func clusterExtensionInstalledAndCurrent(obj *unstructured.Unstructured) bool {
 }
 
 // ensureOperatorInstalled performs operator installation, handling pre-existing resources.
-func (tc *TestContext) ensureOperatorInstalled(nn types.NamespacedName, channel string, targetNamespaces []string) {
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: nn.Namespace}),
-		WithCustomErrorMsg("Failed to create namespace '%s'", nn.Namespace),
-	)
+func (tc *TestContext) ensureOperatorInstalled(nn types.NamespacedName, channel string, targetNamespaces []string, correctTargetNamespaces bool) {
+	tc.ensureOperatorNamespaceExists(nn.Namespace)
 
-	tc.ensureOperatorGroupExists(nn, targetNamespaces)
+	tc.ensureOperatorGroupExists(nn, targetNamespaces, correctTargetNamespaces)
 	tc.ensureInstallPlan(nn, channel)
 }
 
-// ensureOperatorGroupExists reuses existing OperatorGroups or creates one.
-func (tc *TestContext) ensureOperatorGroupExists(nn types.NamespacedName, targetNamespaces []string) {
+func (tc *TestContext) ensureOperatorNamespaceExists(namespace string) {
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: namespace}),
+		WithCustomErrorMsg("Failed to create namespace '%s'", namespace),
+	)
+}
+
+// ensureOperatorGroupExists reuses a matching OperatorGroup or creates one. It only
+// corrects an existing group's scope when correctTargetNamespaces is true.
+func (tc *TestContext) ensureOperatorGroupExists(nn types.NamespacedName, targetNamespaces []string, correctTargetNamespaces bool) {
 	existingOG := tc.fetchOperatorGroupInNamespace(nn.Namespace)
 	if existingOG != nil {
-		return // Reuse existing OperatorGroup
+		// AllNamespaces scope requires both TargetNamespaces and Selector to be absent.
+		scopeMatches := slices.Equal(existingOG.Spec.TargetNamespaces, targetNamespaces) &&
+			(len(targetNamespaces) != 0 || existingOG.Spec.Selector == nil)
+		if scopeMatches || !correctTargetNamespaces {
+			return // Preserve an existing group unless scope correction was requested.
+		}
 	}
 
-	resourceID := resources.FormatNamespacedName(nn)
+	operatorGroupNN := nn
+	if existingOG != nil {
+		operatorGroupNN.Name = existingOG.Name
+	}
+	resourceID := resources.FormatNamespacedName(operatorGroupNN)
 
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(tc.createOperatorGroup(nn, targetNamespaces)),
+		WithObjectToCreate(tc.createOperatorGroup(operatorGroupNN, targetNamespaces)),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			if len(targetNamespaces) == 0 {
+				unstructured.RemoveNestedField(obj.Object, "spec", "targetNamespaces")
+				unstructured.RemoveNestedField(obj.Object, "spec", "selector")
+				return nil
+			}
+			return unstructured.SetNestedStringSlice(obj.Object, targetNamespaces, "spec", "targetNamespaces")
+		}),
 		WithCustomErrorMsg("Failed to create operator group '%s'", resourceID),
 	)
 }
@@ -1172,6 +1220,11 @@ func (tc *TestContext) EnsureOperatorInstalledViaClusterExtension(nn types.Names
 
 	// If ClusterExtension CRD doesn't exist, OLMv1 is not available — fall back to OLMv0
 	if meta.IsNoMatchError(err) {
+		if tc.ForceOLMVersion == "v1" {
+			tc.g.Expect(err).NotTo(HaveOccurred(),
+				"--force-olm-version=v1 requires OLMv1 support but ClusterExtension CRD is not available on this cluster")
+			return
+		}
 		tc.Logf("OLMv1 not available on this cluster; falling back to OLMv0 for %s", nn.Name)
 		// Use global OperatorGroup for OLMv0 fallback since operators like Kueue require AllNamespaces mode
 		tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(nn, channel)
