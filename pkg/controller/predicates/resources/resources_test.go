@@ -16,6 +16,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -642,6 +643,24 @@ func TestDSCDeletionPredicate(t *testing.T) {
 	g.Expect(resources.DSCDeletionPredicate.Update(event.UpdateEvent{})).To(BeTrue())
 
 	g.Expect(resources.DSCDeletionPredicate.Generic(event.GenericEvent{})).To(BeTrue())
+}
+
+func TestPlatformDeletionPredicate(t *testing.T) {
+	t.Parallel()
+
+	g := NewWithT(t)
+	predicate := resources.PlatformDeletionPredicate()
+	now := metav1.Now()
+	platform := &configApi.Platform{ObjectMeta: metav1.ObjectMeta{Name: configApi.PlatformInstanceName}}
+	deletingPlatform := platform.DeepCopy()
+	deletingPlatform.SetDeletionTimestamp(&now)
+
+	g.Expect(predicate.Create(event.CreateEvent{Object: platform})).To(BeFalse())
+	g.Expect(predicate.Generic(event.GenericEvent{Object: platform})).To(BeFalse())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: platform, ObjectNew: deletingPlatform})).To(BeTrue())
+	g.Expect(predicate.Update(event.UpdateEvent{ObjectOld: deletingPlatform, ObjectNew: deletingPlatform})).To(BeFalse())
+	g.Expect(predicate.Delete(event.DeleteEvent{Object: platform})).To(BeTrue())
+	g.Expect(predicate.Delete(event.DeleteEvent{Object: &configApi.Platform{ObjectMeta: metav1.ObjectMeta{Name: "other"}}})).To(BeFalse())
 }
 
 func TestDSCComponentUpdatePredicate_Structured(t *testing.T) {
