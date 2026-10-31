@@ -171,7 +171,7 @@ componentCharts:
   workbenches:
     odh:
       repo: opendatahub-io/workbenches-operator
-      ref: main@4469ccd878c93640fcc6a7a2354ad4a444d6eefa
+      ref: main@8c7d911ebf996df7788514001ce0bffc49f6a288
       sourcePath: charts/operator
     rhoai:
       repo: red-hat-data-services/workbenches-operator
