@@ -125,6 +125,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 		},
 		EnableLLMInferenceServiceTLS:               new(false),
 		EnableLLMInferenceServiceConsoleDashboards: new(true),
+		EnableLLMMonitoringIngressNetworkPolicy:    new(true),
 		ModelCache: &componentApi.ModelCacheSpec{
 			ManagementState: operatorv1.Managed,
 			CacheSize:       new(resource.MustParse("100Gi")),
@@ -151,6 +152,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	}))
 	g.Expect(spec["enableLLMInferenceServiceTLS"]).Should(BeFalse())
 	g.Expect(spec["enableLLMInferenceServiceConsoleDashboards"]).Should(BeTrue())
+	g.Expect(spec["enableLLMMonitoringIngressNetworkPolicy"]).Should(BeTrue())
 	g.Expect(spec["modelCache"]).Should(Equal(map[string]any{
 		"managementState": "Managed",
 		"cacheSize":       "100Gi",
@@ -184,6 +186,8 @@ func TestBuildModuleCR_HeadedRawServiceConfig(t *testing.T) {
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue())
 	g.Expect(spec["rawDeploymentServiceConfig"]).Should(Equal("Headed"))
+	// Unset optional toggles must not be projected, so the operand keeps its own defaults.
+	g.Expect(spec).ShouldNot(HaveKey("enableLLMMonitoringIngressNetworkPolicy"))
 }
 
 func TestGetRelatedImages(t *testing.T) {
