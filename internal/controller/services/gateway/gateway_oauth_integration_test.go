@@ -119,6 +119,16 @@ func TestOAuthAdditionalIngressIdempotency(t *testing.T) {
 	RunAdditionalIngressIdempotencyTest(t, GetOAuthTestSetup())
 }
 
+// TestOAuthAdditionalIngressCookieSecretIsolation validates per-ingress cookie-secret content isolation and rotation.
+func TestOAuthAdditionalIngressCookieSecretIsolation(t *testing.T) {
+	RunAdditionalIngressCookieSecretIsolationTest(t, GetOAuthTestSetup())
+}
+
+// TestOAuthAdditionalIngressNetworkPolicyIsolation validates per-ingress NetworkPolicy selector and peer scoping.
+func TestOAuthAdditionalIngressNetworkPolicyIsolation(t *testing.T) {
+	RunAdditionalIngressNetworkPolicyIsolationTest(t, GetOAuthTestSetup())
+}
+
 func additionalOAuthIngressResources(name string) []client.Object {
 	proxyName := gateway.KubeAuthProxyName + "-" + name
 	objects := make([]client.Object, 0, 14)
