@@ -37,10 +37,14 @@ func (tc *GatewayTestCtx) DashboardRedirectTestSuite(t *testing.T) {
 
 	testCases := []TestCase{
 		{"Validate dashboard redirect ConfigMap", tc.ValidateDashboardRedirectConfigMap},
+		{"Validate dashboard redirect NetworkPolicy", tc.ValidateDashboardRedirectNetworkPolicy},
+		{"Validate DSCI default policy excludes redirect pods", tc.ValidateDSCIDefaultPolicyExcludesRedirectPods},
 		{"Validate dashboard redirect Deployment", tc.ValidateDashboardRedirectDeployment},
 		{"Validate dashboard redirect Service", tc.ValidateDashboardRedirectService},
 		{"Validate dashboard redirect Routes", tc.ValidateDashboardRedirectRoutes},
 		{"Validate dashboard redirect HTTP functionality", tc.ValidateDashboardRedirectHTTP},
+		{"Validate dashboard redirect NetworkPolicy self-healing", tc.ValidateDashboardRedirectNetworkPolicySelfHealing},
+		{"Validate dashboard redirect NetworkPolicy traffic isolation", tc.ValidateDashboardRedirectNetworkPolicyTraffic},
 		{"Validate dashboard redirect annotation opt-out", tc.ValidateDashboardRedirectAnnotationOptOut},
 	}
 
@@ -359,20 +363,23 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectHTTP(t *testing.T) {
 				"/deprecation.html?tab=models",
 			} {
 				func() {
-					ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
-					defer cancel()
-					req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+requestURI, nil)
-					g.Expect(err).NotTo(HaveOccurred())
-					req.Header.Set("Accept", "application/json")
-					resp, err := httpClient.Do(req)
-					g.Expect(err).NotTo(HaveOccurred())
-					defer func() {
-						g.Expect(resp.Body.Close()).To(Succeed())
-					}()
+					// The router can briefly return 503 after the redirect
+					// Service endpoints first become ready, until it absorbs
+					// the new backends. Retry until the redirect is served.
+					g.Eventually(func(g Gomega) {
+						ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+						defer cancel()
+						req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+requestURI, nil)
+						g.Expect(err).NotTo(HaveOccurred())
+						req.Header.Set("Accept", "application/json")
+						resp, err := httpClient.Do(req)
+						g.Expect(err).NotTo(HaveOccurred())
+						defer resp.Body.Close()
 
-					g.Expect(resp.StatusCode).To(Equal(http.StatusMovedPermanently))
-					g.Expect(resp.Header.Get("Location")).To(Equal("https://" + expectedGatewayHostname + requestURI))
-					g.Expect(resp.Header.Get("Cache-Control")).To(ContainSubstring("no-store"))
+						g.Expect(resp.StatusCode).To(Equal(http.StatusMovedPermanently))
+						g.Expect(resp.Header.Get("Location")).To(Equal("https://" + expectedGatewayHostname + requestURI))
+						g.Expect(resp.Header.Get("Cache-Control")).To(ContainSubstring("no-store"))
+					}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
 				}()
 			}
 		})
@@ -380,27 +387,29 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectHTTP(t *testing.T) {
 		t.Run(routeName+" text/html", func(t *testing.T) {
 			g := NewWithT(t)
 			requestURI := "/%3Cscript%3Ealert(1)%3C%2Fscript%3E?next=https%3A%2F%2Fevil.example"
-			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
-			defer cancel()
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+requestURI, nil)
-			g.Expect(err).NotTo(HaveOccurred())
-			req.Header.Set("Accept", "text/html,application/xhtml+xml")
-			resp, err := httpClient.Do(req)
-			g.Expect(err).NotTo(HaveOccurred())
-			defer resp.Body.Close()
+			g.Eventually(func(g Gomega) {
+				ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+				defer cancel()
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+requestURI, nil)
+				g.Expect(err).NotTo(HaveOccurred())
+				req.Header.Set("Accept", "text/html,application/xhtml+xml")
+				resp, err := httpClient.Do(req)
+				g.Expect(err).NotTo(HaveOccurred())
+				defer resp.Body.Close()
 
-			g.Expect(resp.StatusCode).To(Equal(http.StatusOK))
-			g.Expect(resp.Header.Get("Content-Type")).To(ContainSubstring("text/html"))
-			g.Expect(resp.Header.Get("Cache-Control")).To(ContainSubstring("no-store"))
-			g.Expect(resp.Header.Get("Location")).To(BeEmpty())
-			const maxPageBytes = 64 << 10
-			body, err := io.ReadAll(io.LimitReader(resp.Body, maxPageBytes+1))
-			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(len(body)).To(BeNumerically("<=", maxPageBytes))
-			g.Expect(string(body)).To(ContainSubstring(productName + " has a new address"))
-			g.Expect(string(body)).To(ContainSubstring(`href="https://` + expectedGatewayHostname + `/"`))
-			g.Expect(string(body)).To(ContainSubstring("destination.hash = window.location.hash"))
-			g.Expect(string(body)).NotTo(ContainSubstring("alert(1)"), "request data must not appear in the HTML page")
+				g.Expect(resp.StatusCode).To(Equal(http.StatusOK))
+				g.Expect(resp.Header.Get("Content-Type")).To(ContainSubstring("text/html"))
+				g.Expect(resp.Header.Get("Cache-Control")).To(ContainSubstring("no-store"))
+				g.Expect(resp.Header.Get("Location")).To(BeEmpty())
+				const maxPageBytes = 64 << 10
+				body, err := io.ReadAll(io.LimitReader(resp.Body, maxPageBytes+1))
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(len(body)).To(BeNumerically("<=", maxPageBytes))
+				g.Expect(string(body)).To(ContainSubstring(productName + " has a new address"))
+				g.Expect(string(body)).To(ContainSubstring(`href="https://` + expectedGatewayHostname + `/"`))
+				g.Expect(string(body)).To(ContainSubstring("destination.hash = window.location.hash"))
+				g.Expect(string(body)).NotTo(ContainSubstring("alert(1)"), "request data must not appear in the HTML page")
+			}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
 		})
 	}
 	t.Log("Dashboard redirect HTTP functionality validation completed")
@@ -423,6 +432,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectAnnotationOptOut(t *testing.T
 		{resourceGVK: gvk.Deployment, nn: types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: appNamespace}},
 		{resourceGVK: gvk.Service, nn: types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: appNamespace}},
 		{resourceGVK: gvk.ConfigMap, nn: types.NamespacedName{Name: gateway.DashboardRedirectConfigName, Namespace: appNamespace}},
+		{resourceGVK: gvk.NetworkPolicy, nn: types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: appNamespace}},
 		{resourceGVK: gvk.Route, nn: types.NamespacedName{Name: dashboardRouteName, Namespace: appNamespace}},
 	}
 	if gatewaySubdomain != gateway.LegacyGatewaySubdomain {
