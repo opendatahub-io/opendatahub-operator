@@ -40,6 +40,17 @@ const (
 	KserveRawHeaded   RawServiceConfig = "Headed"
 )
 
+// AuditProfile selects the audit logging profile for InferenceService and
+// LLMInferenceService traffic.
+type AuditProfile string
+
+const (
+	// AuditProfileRemoved disables audit events.
+	AuditProfileRemoved AuditProfile = "Removed"
+	// AuditProfileMetadata records request and response metadata without bodies.
+	AuditProfileMetadata AuditProfile = "Metadata"
+)
+
 // OAuthProxyResourceRequirements describes the resource requirements
 // for the OAuth proxy sidecar container.
 type OAuthProxyResourceRequirements struct {
@@ -59,6 +70,25 @@ type OAuthProxyConfig struct {
 	Resources *OAuthProxyResourceRequirements `json:"resources,omitempty"`
 }
 
+// ConfidentialContainersConfig supplies installation defaults for confidential
+// model serving. Storage is supplied separately through each model's PVC.
+type ConfidentialContainersConfig struct {
+	// LUKSResourceID identifies the disk passphrase in Trustee/KBS, not the
+	// passphrase itself. It must match the key used to encrypt the supplied disk.
+	// A service's format-disk LUKS_RESOURCE_ID environment variable overrides it.
+	// +optional
+	// +kubebuilder:default="kbs:///default/kserve-luks-password/key"
+	// +kubebuilder:validation:MaxLength=2048
+	// +kubebuilder:validation:Pattern=`^kbs:///[^/\s?#]+/[^/\s?#]+/[^/\s?#]+$`
+	// +kubebuilder:validation:XValidation:rule="self.split('/').all(p, p != '.' && p != '..')",message="luksResourceId must identify a disk key as kbs:///repository/type/tag"
+	LUKSResourceID string `json:"luksResourceId,omitempty"`
+	// InitData is gzip-compressed, base64-encoded initdata.toml for the confidential
+	// guest. A model's explicit cc_init_data annotation overrides this default.
+	// When empty, the runtime's global init data is used.
+	// +optional
+	InitData string `json:"initData,omitempty"`
+}
+
 // KserveCommonSpec defines the current KServe configuration exposed in DSC.
 type KserveCommonSpec struct {
 	// Configures the type of service that is created for InferenceServices using RawDeployment.
@@ -72,6 +102,10 @@ type KserveCommonSpec struct {
 	// override the defaults shipped with the operator manifests.
 	// +optional
 	OAuthProxy *OAuthProxyConfig `json:"oauthProxy,omitempty"`
+	// ConfidentialContainers configures the disk-key reference and default guest
+	// init data for confidential model serving.
+	// +optional
+	ConfidentialContainers *ConfidentialContainersConfig `json:"confidentialContainers,omitempty"`
 	// Configures and enables NVIDIA NIM integration
 	// +kubebuilder:default={}
 	NIM NimSpec `json:"nim,omitempty"`
@@ -87,6 +121,12 @@ type KserveCommonSpec struct {
 	// Enabled by default.
 	// +optional
 	EnableLLMInferenceServiceConsoleDashboards *bool `json:"enableLLMInferenceServiceConsoleDashboards,omitempty"`
+	// AuditLoggingProfile selects the audit logging profile for InferenceService and
+	// LLMInferenceService traffic. Removed disables audit events; Metadata records
+	// request and response metadata without bodies.
+	// +kubebuilder:validation:Enum=Removed;Metadata
+	// +kubebuilder:default=Removed
+	AuditLoggingProfile AuditProfile `json:"auditLoggingProfile,omitempty"`
 	// Configures and enables Model Cache integration
 	ModelCache *ModelCacheSpec `json:"modelCache,omitempty"`
 }

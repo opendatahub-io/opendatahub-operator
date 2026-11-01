@@ -19,6 +19,50 @@ func (m KserveSuite) run(t *testing.T) {
 	t.Run("v2_v3_drops_wva", m.v2ToV3DropsWVA)
 	t.Run("v3_v2_projects_wva_removed", m.v3ToV2ProjectsWVAsRemoved)
 	t.Run("v2_admission_rejects_wva_managed", m.v2AdmissionRejectsWVAManaged)
+	t.Run("v3_rejects_invalid_luks_resource_id", m.v3RejectsInvalidLUKSResourceID)
+	t.Run("v3_rejects_invalid_audit_profile", m.v3RejectsInvalidAuditProfile)
+}
+
+// v3RejectsInvalidLUKSResourceID verifies the CRD schema rejects a
+// confidentialContainers.luksResourceId that is not a kbs:/// URI.
+func (m KserveSuite) v3RejectsInvalidLUKSResourceID(t *testing.T) {
+	w := m.newScenario(t)
+	w.Apply(&dscApi.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: dscKey.Name},
+		Spec: dscApi.DataScienceClusterSpec{
+			Components: dscApi.Components{
+				Kserve: componentApi.DSCKserve{
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						ConfidentialContainers: &componentApi.ConfidentialContainersConfig{
+							LUKSResourceID: "not-a-kbs-uri",
+						},
+					},
+				},
+			},
+		},
+	}).Should(
+		gomega.MatchError(gomega.ContainSubstring("luksResourceId")),
+	)
+}
+
+// v3RejectsInvalidAuditProfile verifies the CRD schema rejects an
+// auditLoggingProfile outside the Removed/Metadata enum.
+func (m KserveSuite) v3RejectsInvalidAuditProfile(t *testing.T) {
+	w := m.newScenario(t)
+	w.Apply(&dscApi.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: dscKey.Name},
+		Spec: dscApi.DataScienceClusterSpec{
+			Components: dscApi.Components{
+				Kserve: componentApi.DSCKserve{
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						AuditLoggingProfile: componentApi.AuditProfile("Verbose"),
+					},
+				},
+			},
+		},
+	}).Should(
+		gomega.MatchError(gomega.ContainSubstring("auditLoggingProfile")),
+	)
 }
 
 func (m KserveSuite) v2AdmissionRejectsWVAManaged(t *testing.T) {

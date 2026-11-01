@@ -25,11 +25,11 @@ components:
   kserve-module-operator:
     odh:
       repo: opendatahub-io/kserve
-      ref: release-v0.17@db12bf00b8d97e23bbed2ba02a75715bf97776f4
+      ref: release-v0.17@e7ce1cd1c4ac637e3c1a7ce080f6326cc45ae2f7
       sourcePath: kserve-module/config
     rhoai:
       repo: red-hat-data-services/kserve
-      ref: rhoai-3.6@f4d172447ecc578535743eab64bb582ff0fae6de
+      ref: rhoai-3.6@0a9ade70e948c22614e47a91cb065c0fa1ec1e06
       sourcePath: kserve-module/config
   ray:
     odh:
@@ -230,37 +230,37 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/kserve-controller"
-      digest: "sha256:14e679a6b0594b4a8a48af5ff0d03316ffee54a3d6e41d9cd680195d1c8dce2d"
+      digest: "sha256:94450a28aea1812a3c5309c939aad0a072c3a937dbce0bdddc01258451b49464"
     rhoai:
       base: "quay.io/rhoai/odh-kserve-controller-rhel9"
-      digest: "sha256:0632332a4092a59d6bbe3101aa91e749c63641ae146f407cfc8d0ff9654bc4e9"
+      digest: "sha256:eda4468e6e9a33565f50c5060a517913fbe3fd1cd51f3f11751d09e016f0789c"
   RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE:
     component: kserve-module-operator
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-kserve-llmisvc-controller"
-      digest: "sha256:546723b4743206d5409415b75ead8c835fd69baf4428351cb8ade6f72bca8fbb"
+      digest: "sha256:3941e8b322649fdd8745a4e8a57bc408d06d1bdf4368f241381b86ab6e730095"
     rhoai:
       base: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9"
-      digest: "sha256:24fd5f1a81b937dbb715c3802620d65c2cd62edad6177ebbd3e413fc07fa7545"
+      digest: "sha256:ecb6358b4ddaa58a5f00d989a70dd00912798088faead15862abf1a2555c0f21"
   RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE:
     component: kserve-module-operator
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-kserve-localmodel-controller"
-      digest: "sha256:b5a47fbced0c490445eb6c8f288972b526dd6dbbaacd01a7c9d6cf830240d372"
+      digest: "sha256:f9a34ccaed621a163646c23c3fd676c4aeaae39a1071a0b21b6f44637ca2a3a2"
     rhoai:
       base: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9"
-      digest: "sha256:2738f073c52ece0ebc9980ec7fa27899d235f4e116e96bc385da346781df9875"
+      digest: "sha256:2507ee50a481e9fc0979bbb21ad1c1c13c92acfdec480a0ee440a16f30e3c92d"
   RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE:
     component: kserve-module-operator
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-kserve-module-operator"
-      digest: "sha256:d35e4f5d35e0f5dee46955bbc8931aed25b3cc34944383a8e0d17a6a4553a01e"
+      digest: "sha256:b0d48c8602a3eaf5b6914cb9c91f31d13b32f78e10a5fc6b6dc0d06c7cf3efa8"
     rhoai:
       base: "quay.io/rhoai/odh-kserve-module-operator-rhel9"
-      digest: "sha256:bc4d3c03dda0368b6fd162b3502683f242df1617ccd71c3baed725761c815700"
+      digest: "sha256:e202acbac433dff8ac8d5916cb3738a420e379307c1acb9e9a169619e66c170b"
   RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE:
     component: ray
     paramsEnvKey: odh-kuberay-operator-controller-image
@@ -406,10 +406,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-model-controller"
-      digest: "sha256:94f7f4383ef91d10d60d82c0858a60158a02915fdd3000d507210139faaac775"
+      digest: "sha256:05f2698f32190424d28e69615707e4ce1a6973586cad79adeb3287ac9856aa13"
     rhoai:
       base: "quay.io/rhoai/odh-model-controller-rhel9"
-      digest: "sha256:defc9638441b6c3f27ed4d49b19e56939c648804f5656df26ddefb7fe7ebb75e"
+      digest: "sha256:15d2542793578eb10bbfcefdddfc4df498a0d5a9d627d4a17cec541e9455d329"
   RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE:
     source: "csv"
     component: data
@@ -1300,19 +1300,19 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-modelexpress"
-      digest: "sha256:2fb30eca72270e9e5ecadc35dd612a46d350938e1d8b56b3151ed11f53ff9d34"
+      digest: "sha256:cfcb0328f3cd239fbddd48d3ac4f92994a7f493da21e8e3eef267fa57a2d0818"
     rhoai:
       base: "quay.io/rhoai/odh-modelexpress-rhel9"
-      digest: "sha256:7ca05b262514777391e37d39ee243a690f4e0d39079421d3a4ba5ebb2ee2a56a"
+      digest: "sha256:bbddaa98f1338374af19b4e1ea0113ffffe6885f71d4ea7e8035df77d11f32b2"
   RELATED_IMAGE_ODH_MODELEXPRESS_OPERATOR_IMAGE:
     component: kserve-module-operator
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-modelexpress-operator"
-      digest: "sha256:c34b37f04f71f87114fc2d6f354b852835c632b1c6ccdf357007505f12fdc2c9"
+      digest: "sha256:e82bc324154a668cd1fdf485bc676dde2e0a196adc90a41bf10efc0c07579475"
     rhoai:
       base: "quay.io/rhoai/odh-modelexpress-operator-rhel9"
-      digest: "sha256:87acc3bf919f7dc0c1cd86539d51fb7a7c785141a9516867388ebc5638abefb1"
+      digest: "sha256:f487afc5bbaaf859ec143582d5b32212be349ac02a3667ec3219385aaaba5ef6"
   RELATED_IMAGE_ODH_AI_GATEWAY_CONTROLLER_IMAGE:
     source: "csv"
     odh:
