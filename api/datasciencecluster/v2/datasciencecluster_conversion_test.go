@@ -396,6 +396,35 @@ func TestConvertToRejectsInvalidKserveStateMarker(t *testing.T) {
 	g.Expect(v2.ConvertTo(&dscApi.DataScienceCluster{})).ToNot(Succeed())
 }
 
+// TestConvertToRejectsEmptyKserveStateMarker verifies that a marker carrying
+// no settings cannot be used to clear the confidential settings through a v2
+// write: ConvertFrom never produces an empty marker.
+func TestConvertToRejectsEmptyKserveStateMarker(t *testing.T) {
+	tests := []struct {
+		name   string
+		marker string
+	}{
+		{name: "json null", marker: "null"},
+		{name: "empty object", marker: "{}"},
+		{name: "empty profile only", marker: `{"auditLoggingProfile":""}`},
+		{name: "null confidential containers only", marker: `{"confidentialContainers":null}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			v2 := &DataScienceCluster{}
+			v2.Annotations = map[string]string{KserveV3StateAnnotation: tt.marker}
+
+			dst := &dscApi.DataScienceCluster{}
+			g.Expect(v2.ConvertTo(dst)).ToNot(Succeed())
+			g.Expect(dst.Spec.Components.Kserve.ConfidentialContainers).To(BeNil())
+			g.Expect(dst.Spec.Components.Kserve.AuditLoggingProfile).To(BeEmpty())
+		})
+	}
+}
+
 // TestConvertToRejectsInvalidKserveStateMarkerValues verifies that values
 // carried by the kserve-v3-state marker satisfy the v3 CRD constraints even
 // though the v2 schema has no such fields to validate them.

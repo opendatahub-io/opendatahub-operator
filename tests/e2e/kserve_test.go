@@ -1007,6 +1007,11 @@ func (tc *KserveTestCtx) ValidateConfidentialContainersSpec(t *testing.T) {
 
 	tc.SkipIfXKSCluster(t)
 
+	// Restore the original value even when the test fails midway; the fields
+	// are v3-only, so the snapshot must go through the v3 GVK.
+	snapshotDSCFields(t, tc.TestContext, gvk.DataScienceCluster,
+		[]string{"spec", "components", "kserve", "confidentialContainers"})
+
 	luksResourceID := "kbs:///e2e/luks-password/key"
 	initData := gzipBase64(t, "[workload]\nworkload_path = \"/bin/trustme\"\n")
 
@@ -1070,6 +1075,11 @@ func (tc *KserveTestCtx) ValidateAuditLoggingProfileSpec(t *testing.T) {
 	skipUnless(t, Tier1)
 
 	tc.SkipIfXKSCluster(t)
+
+	// Restore the original value even when the test fails midway; the field is
+	// v3-only, so the snapshot must go through the v3 GVK.
+	snapshotDSCFields(t, tc.TestContext, gvk.DataScienceCluster,
+		[]string{"spec", "components", "kserve", "auditLoggingProfile"})
 
 	t.Log("Setting auditLoggingProfile=Metadata on the DSC")
 	tc.EventuallyResourcePatched(

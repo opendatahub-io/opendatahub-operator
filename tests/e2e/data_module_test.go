@@ -73,7 +73,7 @@ func (ctx *DataModuleTestCtx) ValidateV2DSCDataSelection(t *testing.T) {
 		t.Skip("v2 DSC conversion smoke is not supported on XKS")
 	}
 
-	snapshotV2DSCFields(t, ctx.TestContext, []string{"spec", "components", "feastoperator"})
+	snapshotDSCFields(t, ctx.TestContext, gvk.DataScienceClusterV2, []string{"spec", "components", "feastoperator"})
 	ctx.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceClusterV2, ctx.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(

@@ -214,7 +214,14 @@ const (
 var luksResourceIDPattern = regexp.MustCompile(`^kbs:///[^/\s?#]+/[^/\s?#]+/[^/\s?#]+$`)
 
 // validate checks that marker-carried values satisfy the v3 CRD constraints.
+// An empty payload (JSON null or an object with no settings) is rejected too:
+// ConvertFrom never produces one, and accepting it would let a v2 write clear
+// the confidential settings through the annotation.
 func (s kserveV3State) validate() error {
+	if s.ConfidentialContainers == nil && s.AuditLoggingProfile == "" {
+		return fmt.Errorf("carries no settings")
+	}
+
 	switch profile := s.AuditLoggingProfile; profile {
 	case "", componentApi.AuditProfileRemoved, componentApi.AuditProfileMetadata:
 	default:

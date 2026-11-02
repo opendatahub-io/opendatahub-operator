@@ -372,7 +372,7 @@ func validateV2DSCCanonicalMaaSSelection(t *testing.T, tc *TestContext, moduleGV
 		t.Skip("v2 DSC conversion smoke is not supported on XKS")
 	}
 
-	snapshotV2DSCFields(t, tc, []string{"spec", "components", "aigateway"})
+	snapshotDSCFields(t, tc, gvk.DataScienceClusterV2, []string{"spec", "components", "aigateway"})
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceClusterV2, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
