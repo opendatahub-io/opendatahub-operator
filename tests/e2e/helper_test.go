@@ -461,7 +461,12 @@ func (tc *TestContext) ensureOperatorsAreInstalled(t *testing.T, operators []Ope
 				case operatorInstallClusterExtension:
 					tc.EnsureOperatorInstalledViaClusterExtension(op.nn, op.channel)
 				case operatorInstallSubscription:
-					tc.ensureOperatorHealthyViaSubscription(op.nn, op.channel, plan.targetNamespaces)
+					tc.ensureOperatorHealthyViaSubscriptionWithScope(
+						op.nn,
+						op.channel,
+						plan.targetNamespaces,
+						!op.skipOperatorGroup,
+					)
 				case operatorInstallChannel:
 					tc.EnsureOperatorInstalledWithChannel(op.nn, op.channel)
 				case operatorInstallGlobalOperatorGroup:
@@ -498,8 +503,8 @@ type operatorInstallMode string
 const (
 	// operatorInstallClusterExtension installs through an OLMv1 ClusterExtension.
 	operatorInstallClusterExtension operatorInstallMode = "cluster-extension"
-	// operatorInstallSubscription requires an OLMv0 Subscription and enforces the
-	// operator's configured OperatorGroup scope. A ready ClusterExtension is not enough.
+	// operatorInstallSubscription requires an OLMv0 Subscription and applies the
+	// configured OperatorGroup scope unless another controller owns the group.
 	operatorInstallSubscription operatorInstallMode = "subscription"
 	// operatorInstallChannel installs through a Subscription without choosing an OperatorGroup scope.
 	operatorInstallChannel operatorInstallMode = "channel"
@@ -526,12 +531,6 @@ func planOperatorInstall(op Operator, forceOLMVersion string) operatorInstallPla
 
 	namespaces := operatorGroupTargetNamespaces(op)
 	if forceOLMVersion == "v0" {
-		// skipOperatorGroup means an external controller owns the OperatorGroup; do not
-		// enforce scope via ensureOperatorHealthyViaSubscription (which would overwrite it
-		// with AllNamespaces). Use the channel-only path instead.
-		if op.skipOperatorGroup {
-			return operatorInstallPlan{mode: operatorInstallChannel}
-		}
 		return operatorInstallPlan{
 			mode:             operatorInstallSubscription,
 			targetNamespaces: namespaces,

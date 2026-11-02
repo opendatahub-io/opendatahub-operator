@@ -708,7 +708,7 @@ $(ENVTEST): $(LOCALBIN)
 test: unit-test e2e-test
 
 .PHONY: unit-test
-unit-test: unit-test-operator unit-test-clusterhealth unit-test-manifest-tools unit-test-scoperules unit-test-e2e-scope-completeness
+unit-test: unit-test-operator unit-test-clusterhealth unit-test-manifest-tools unit-test-scoperules unit-test-e2e-scope-completeness unit-test-e2e-installation
 
 .PHONY: unit-test-operator
 unit-test-operator: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
@@ -749,6 +749,10 @@ unit-test-scoperules:
 unit-test-e2e-scope-completeness: ## Registry-completeness checks for tests/e2e/scripts/e2e-scope-rules.yaml. No cluster needed, so these run outside ginkgo's TEST_SRC and outside make e2e-test's ^TestOdhOperator filter.
 	go test ./cmd
 	go test ./tests/e2e/ -run "^TestScopeRules"
+
+.PHONY: unit-test-e2e-installation
+unit-test-e2e-installation: ## Run cluster-free tests for OLM operator installation helpers.
+	go test ./tests/e2e/ -run '^(TestEnsureOperatorHealthyViaSubscriptionCorrectsOperatorGroupScope|TestEnsureOperatorGroupExistsPreservesExistingScopeUnlessCorrectionIsRequested|TestShouldUseOLMv1|TestPlanOperatorInstall)$$'
 
 # Pattern rule to generate .rules.yaml from PrometheusRule templates
 # This finds the corresponding *-prometheusrules.tmpl.yaml in the same directory

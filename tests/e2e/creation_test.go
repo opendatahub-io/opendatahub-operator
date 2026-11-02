@@ -127,9 +127,16 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 			globalOperatorGroup: true, // Kueue 1.5 supports only AllNamespaces OperatorGroup
 			channel:             testOpts.kueueOperatorChannel,
 			useOLMv1:            true,
-			useOLMv1ByDefault:   true,
+			useOLMv1ByDefault:   false,
 		},
-		{nn: types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace}, skipOperatorGroup: false, globalOperatorGroup: false, channel: leaderWorkerSetChannel}, //nolint:lll
+		{
+			nn:                  types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace},
+			skipOperatorGroup:   false,
+			globalOperatorGroup: false,
+			channel:             leaderWorkerSetChannel,
+			useOLMv1:            false, // The LWS bundle only supports OwnNamespace, which OLMv1 cannot target here.
+			useOLMv1ByDefault:   false,
+		},
 		{nn: types.NamespacedName{Name: jobSetOpName, Namespace: jobSetOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: false, channel: jobSetOpChannel},
 	}
 
