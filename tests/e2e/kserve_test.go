@@ -183,6 +183,14 @@ func (tc *KserveTestCtx) ValidateMonitoringIngressNetworkPolicyToggle(t *testing
 	const touch = "test.opendatahub.io/v2-touch"
 	kserveNN := types.NamespacedName{Name: componentApi.KserveInstanceName}
 
+	// On a developer cluster the DSC is whatever was there before the run. The
+	// steps below need the field and the marker annotation to start absent, so
+	// bail out rather than clear a value somebody else put on the shared object.
+	dsc := tc.FetchDataScienceCluster()
+	if _, hasTouch := dsc.Annotations[touch]; hasTouch || dsc.Spec.Components.Kserve.EnableLLMMonitoringIngressNetworkPolicy != nil {
+		t.Skip("DSC already carries the toggle or the v2-touch annotation; the test needs both absent")
+	}
+
 	// The DSC is shared with every later test case. Restore it even when an
 	// assertion below fails, so a failure here cannot turn the field into a
 	// persistent reconcile error for the rest of the suite.
