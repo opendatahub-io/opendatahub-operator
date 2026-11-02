@@ -645,7 +645,7 @@ func (tc *DashboardTestCtx) ValidateV2DSCDashboardSelection(t *testing.T) {
 		t.Skip("v2 DSC conversion smoke is not supported on XKS")
 	}
 
-	snapshotV2DSCFields(t, tc.TestContext, []string{"spec", "components", "dashboard"})
+	snapshotDSCFields(t, tc.TestContext, gvk.DataScienceClusterV2, []string{"spec", "components", "dashboard"})
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceClusterV2, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
