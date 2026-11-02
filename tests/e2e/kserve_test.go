@@ -1,6 +1,9 @@
 package e2e_test
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/base64"
 	"strings"
 	"testing"
 
@@ -1003,7 +1006,7 @@ func (tc *KserveTestCtx) ValidateConfidentialContainersSpec(t *testing.T) {
 	tc.SkipIfXKSCluster(t)
 
 	luksResourceID := "kbs:///e2e/luks-password/key"
-	initData := "aW5pdGRhdGE="
+	initData := gzipBase64(t, "[workload]\nworkload_path = \"/bin/trustme\"\n")
 
 	t.Logf("Enabling confidentialContainers on the DSC (luksResourceId=%s)", luksResourceID)
 	tc.EventuallyResourcePatched(
@@ -1107,4 +1110,17 @@ func (tc *KserveTestCtx) ValidateAuditLoggingProfileSpec(t *testing.T) {
 			jq.Match(`.spec.auditLoggingProfile == "Removed"`),
 		),
 	)
+}
+
+// gzipBase64 builds a valid confidentialContainers.initData payload: a TOML
+// document compressed with gzip and then base64-encoded.
+func gzipBase64(t *testing.T, toml string) string {
+	t.Helper()
+
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	_, err := gz.Write([]byte(toml))
+	require.NoError(t, err)
+	require.NoError(t, gz.Close())
+	return base64.StdEncoding.EncodeToString(buf.Bytes())
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package v2
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 
@@ -184,6 +185,19 @@ const ModelExpressV3StateAnnotation = "conversion.opendatahub.io/modelexpress-v3
 
 const modelExpressManaged = "managed"
 
+// KserveV3StateAnnotation carries v3-only KServe settings (confidential
+// containers and audit logging profile) through the v2 view, which has no
+// corresponding fields. It is conversion-owned metadata.
+const KserveV3StateAnnotation = "conversion.opendatahub.io/kserve-v3-state"
+
+// kserveV3State is the JSON payload carried by KserveV3StateAnnotation. Only
+// non-default values are recorded so clusters that never opted into
+// confidential serving carry no marker.
+type kserveV3State struct {
+	ConfidentialContainers *componentApi.ConfidentialContainersConfig `json:"confidentialContainers,omitempty"`
+	AuditLoggingProfile    componentApi.AuditProfile                  `json:"auditLoggingProfile,omitempty"`
+}
+
 // ConvertTo copies the DSC into v3, moving legacy MaaS selection into the canonical stanza.
 func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 	dst := dstRaw.(*dscApi.DataScienceCluster)
@@ -290,6 +304,19 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 		}
 	}
 
+	if value, found := dst.Annotations[KserveV3StateAnnotation]; found {
+		var state kserveV3State
+		if err := json.Unmarshal([]byte(value), &state); err != nil {
+			return fmt.Errorf("invalid KServe v3 state marker: %w", err)
+		}
+		dst.Spec.Components.Kserve.ConfidentialContainers = state.ConfidentialContainers
+		dst.Spec.Components.Kserve.AuditLoggingProfile = state.AuditLoggingProfile
+		delete(dst.Annotations, KserveV3StateAnnotation)
+		if len(dst.Annotations) == 0 {
+			dst.Annotations = nil
+		}
+	}
+
 	return nil
 }
 
@@ -390,6 +417,25 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 			dst.Annotations = make(map[string]string)
 		}
 		dst.Annotations[ModelExpressV3StateAnnotation] = modelExpressManaged
+	}
+
+	delete(dst.Annotations, KserveV3StateAnnotation)
+	var kserveState kserveV3State
+	if src.Spec.Components.Kserve.ConfidentialContainers != nil {
+		kserveState.ConfidentialContainers = src.Spec.Components.Kserve.ConfidentialContainers
+	}
+	if profile := src.Spec.Components.Kserve.AuditLoggingProfile; profile != "" && profile != componentApi.AuditProfileRemoved {
+		kserveState.AuditLoggingProfile = profile
+	}
+	if kserveState.ConfidentialContainers != nil || kserveState.AuditLoggingProfile != "" {
+		encoded, err := json.Marshal(kserveState)
+		if err != nil {
+			return fmt.Errorf("encode KServe v3 state marker: %w", err)
+		}
+		if dst.Annotations == nil {
+			dst.Annotations = make(map[string]string)
+		}
+		dst.Annotations[KserveV3StateAnnotation] = string(encoded)
 	}
 	if len(dst.Annotations) == 0 {
 		dst.Annotations = nil

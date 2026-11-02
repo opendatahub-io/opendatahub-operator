@@ -319,6 +319,82 @@ func TestConvertToRejectsUnknownModelExpressMarker(t *testing.T) {
 	g.Expect(v2.ConvertTo(&dscApi.DataScienceCluster{})).ToNot(Succeed())
 }
 
+// TestKserveV3OnlySettingsSurviveV3ToV2ToV3 covers the v3-only
+// confidentialContainers and auditLoggingProfile fields, which v2 cannot
+// represent and must carry in a conversion annotation.
+func TestKserveV3OnlySettingsSurviveV3ToV2ToV3(t *testing.T) {
+	tests := []struct {
+		name          string
+		confidential  *componentApi.ConfidentialContainersConfig
+		profile       componentApi.AuditProfile
+		expectMarker  bool
+		expectProfile componentApi.AuditProfile
+	}{
+		{
+			name: "confidential containers with metadata audit profile",
+			confidential: &componentApi.ConfidentialContainersConfig{
+				LUKSResourceID: "kbs:///default/kserve-luks-password/key",
+				InitData:       "aW5pdGRhdGE=",
+			},
+			profile:       componentApi.AuditProfileMetadata,
+			expectMarker:  true,
+			expectProfile: componentApi.AuditProfileMetadata,
+		},
+		{
+			name:          "metadata audit profile only",
+			profile:       componentApi.AuditProfileMetadata,
+			expectMarker:  true,
+			expectProfile: componentApi.AuditProfileMetadata,
+		},
+		{
+			name: "confidential containers only",
+			confidential: &componentApi.ConfidentialContainersConfig{
+				LUKSResourceID: "kbs:///default/kserve-luks-password/key",
+			},
+			expectMarker: true,
+		},
+		{
+			// Removed is the CRD default; it must not produce a marker, and its
+			// absence round-trips to the same defaulted value.
+			name:          "default removed audit profile",
+			profile:       componentApi.AuditProfileRemoved,
+			expectMarker:  false,
+			expectProfile: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			hub := &dscApi.DataScienceCluster{}
+			hub.Annotations = map[string]string{"example": "kept"}
+			hub.Spec.Components.Kserve.ManagementState = operatorv1.Managed
+			hub.Spec.Components.Kserve.ConfidentialContainers = tt.confidential
+			hub.Spec.Components.Kserve.AuditLoggingProfile = tt.profile
+
+			v2 := &DataScienceCluster{}
+			g.Expect(v2.ConvertFrom(hub)).To(Succeed())
+			_, marked := v2.Annotations[KserveV3StateAnnotation]
+			g.Expect(marked).To(Equal(tt.expectMarker))
+
+			back := &dscApi.DataScienceCluster{}
+			g.Expect(v2.ConvertTo(back)).To(Succeed())
+			g.Expect(back.Spec.Components.Kserve.ConfidentialContainers).To(Equal(tt.confidential))
+			g.Expect(back.Spec.Components.Kserve.AuditLoggingProfile).To(Equal(tt.expectProfile))
+			g.Expect(back.Annotations).To(Equal(map[string]string{"example": "kept"}))
+		})
+	}
+}
+
+func TestConvertToRejectsInvalidKserveStateMarker(t *testing.T) {
+	g := NewWithT(t)
+
+	v2 := &DataScienceCluster{}
+	v2.Annotations = map[string]string{KserveV3StateAnnotation: "not-json"}
+	g.Expect(v2.ConvertTo(&dscApi.DataScienceCluster{})).ToNot(Succeed())
+}
+
 // TestDashboardSpecConversionCombinations covers all four standard/portal
 // management state combinations through the v3<->v2 spec mapping.
 func TestDashboardSpecConversionCombinations(t *testing.T) {

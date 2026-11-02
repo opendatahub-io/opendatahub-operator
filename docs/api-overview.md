@@ -145,7 +145,8 @@ _Underlying type:_ _string_
 AuditProfile selects the audit logging profile for InferenceService and
 LLMInferenceService traffic.
 
-
+_Validation:_
+- MaxLength: 8
 
 _Appears in:_
 - [DSCKserve](#dsckserve)
@@ -172,8 +173,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `luksResourceId` _string_ | LUKSResourceID identifies the disk passphrase in Trustee/KBS, not the<br />passphrase itself. It must match the key used to encrypt the supplied disk.<br />A service's format-disk LUKS_RESOURCE_ID environment variable overrides it. | kbs:///default/kserve-luks-password/key | MaxLength: 2048 <br />Pattern: `^kbs:///[^/\s?#]+/[^/\s?#]+/[^/\s?#]+$` <br /> |
-| `initData` _string_ | InitData is gzip-compressed, base64-encoded initdata.toml for the confidential<br />guest. A model's explicit cc_init_data annotation overrides this default.<br />When empty, the runtime's global init data is used. |  |  |
+| `luksResourceId` _string_ | LUKSResourceID identifies the disk passphrase in Trustee/KBS, not the<br />passphrase itself. It must match the key used to encrypt the supplied disk.<br />A service's format-disk LUKS_RESOURCE_ID environment variable overrides it.<br />Repository, type, and tag path segments must not be "." or "..". | kbs:///default/kserve-luks-password/key | MaxLength: 2048 <br />Pattern: `^kbs:///[^/\s?#]+/[^/\s?#]+/[^/\s?#]+$` <br /> |
+| `initData` _string_ | InitData is gzip-compressed, base64-encoded initdata.toml for the confidential<br />guest. A model's explicit cc_init_data annotation overrides this default.<br />When empty, the runtime's global init data is used. |  | MaxLength: 8192 <br /> |
 
 
 #### DSCAIGateway
@@ -523,7 +524,7 @@ _Appears in:_
 | `modelExpress` _[ModelExpressSpec](#modelexpressspec)_ | Configures and enables the ModelExpress operator, a model cache and<br />GPU-to-GPU weight transfer service for distributed model serving | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
-| `auditLoggingProfile` _[AuditProfile](#auditprofile)_ | AuditLoggingProfile selects the audit logging profile for InferenceService and<br />LLMInferenceService traffic. Removed disables audit events; Metadata records<br />request and response metadata without bodies. | Removed | Enum: [Removed Metadata] <br /> |
+| `auditLoggingProfile` _[AuditProfile](#auditprofile)_ | AuditLoggingProfile selects the audit logging profile for InferenceService and<br />LLMInferenceService traffic. Removed disables audit events; Metadata records<br />request and response metadata without bodies. | Removed | Enum: [Removed Metadata] <br />MaxLength: 8 <br /> |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 
@@ -1251,7 +1252,7 @@ _Appears in:_
 | `modelExpress` _[ModelExpressSpec](#modelexpressspec)_ | Configures and enables the ModelExpress operator, a model cache and<br />GPU-to-GPU weight transfer service for distributed model serving | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
-| `auditLoggingProfile` _[AuditProfile](#auditprofile)_ | AuditLoggingProfile selects the audit logging profile for InferenceService and<br />LLMInferenceService traffic. Removed disables audit events; Metadata records<br />request and response metadata without bodies. | Removed | Enum: [Removed Metadata] <br /> |
+| `auditLoggingProfile` _[AuditProfile](#auditprofile)_ | AuditLoggingProfile selects the audit logging profile for InferenceService and<br />LLMInferenceService traffic. Removed disables audit events; Metadata records<br />request and response metadata without bodies. | Removed | Enum: [Removed Metadata] <br />MaxLength: 8 <br /> |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 

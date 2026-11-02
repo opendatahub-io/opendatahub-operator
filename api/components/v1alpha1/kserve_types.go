@@ -42,6 +42,7 @@ const (
 
 // AuditProfile selects the audit logging profile for InferenceService and
 // LLMInferenceService traffic.
+// +kubebuilder:validation:MaxLength=8
 type AuditProfile string
 
 const (
@@ -76,6 +77,7 @@ type ConfidentialContainersConfig struct {
 	// LUKSResourceID identifies the disk passphrase in Trustee/KBS, not the
 	// passphrase itself. It must match the key used to encrypt the supplied disk.
 	// A service's format-disk LUKS_RESOURCE_ID environment variable overrides it.
+	// Repository, type, and tag path segments must not be "." or "..".
 	// +optional
 	// +kubebuilder:default="kbs:///default/kserve-luks-password/key"
 	// +kubebuilder:validation:MaxLength=2048
@@ -86,6 +88,7 @@ type ConfidentialContainersConfig struct {
 	// guest. A model's explicit cc_init_data annotation overrides this default.
 	// When empty, the runtime's global init data is used.
 	// +optional
+	// +kubebuilder:validation:MaxLength=8192
 	InitData string `json:"initData,omitempty"`
 }
 
