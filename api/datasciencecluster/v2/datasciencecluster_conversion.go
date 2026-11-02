@@ -19,7 +19,9 @@ package v2
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"slices"
+	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
@@ -198,6 +200,47 @@ type kserveV3State struct {
 	AuditLoggingProfile    componentApi.AuditProfile                  `json:"auditLoggingProfile,omitempty"`
 }
 
+// The constraints below mirror the kubebuilder markers on
+// ConfidentialContainersConfig and AuditProfile in
+// api/components/v1alpha1/kserve_types.go. They are re-checked here because
+// the marker is annotation-carried: the v2 schema has no such fields, so v2
+// admission cannot reject invalid values before conversion persists them in
+// the stored v3 object.
+const (
+	luksResourceIDMaxLength = 2048
+	initDataMaxLength       = 8192
+)
+
+var luksResourceIDPattern = regexp.MustCompile(`^kbs:///[^/\s?#]+/[^/\s?#]+/[^/\s?#]+$`)
+
+// validate checks that marker-carried values satisfy the v3 CRD constraints.
+func (s kserveV3State) validate() error {
+	switch profile := s.AuditLoggingProfile; profile {
+	case "", componentApi.AuditProfileRemoved, componentApi.AuditProfileMetadata:
+	default:
+		return fmt.Errorf("invalid auditLoggingProfile %q", profile)
+	}
+
+	if cc := s.ConfidentialContainers; cc != nil {
+		if len(cc.LUKSResourceID) > luksResourceIDMaxLength {
+			return fmt.Errorf("luksResourceId exceeds %d characters", luksResourceIDMaxLength)
+		}
+		if !luksResourceIDPattern.MatchString(cc.LUKSResourceID) {
+			return fmt.Errorf("invalid luksResourceId %q", cc.LUKSResourceID)
+		}
+		for segment := range strings.SplitSeq(cc.LUKSResourceID, "/") {
+			if segment == "." || segment == ".." {
+				return fmt.Errorf("luksResourceId %q must not contain \".\" or \"..\" path segments", cc.LUKSResourceID)
+			}
+		}
+		if len(cc.InitData) > initDataMaxLength {
+			return fmt.Errorf("initData exceeds %d characters", initDataMaxLength)
+		}
+	}
+
+	return nil
+}
+
 // ConvertTo copies the DSC into v3, moving legacy MaaS selection into the canonical stanza.
 func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 	dst := dstRaw.(*dscApi.DataScienceCluster)
@@ -307,6 +350,9 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 	if value, found := dst.Annotations[KserveV3StateAnnotation]; found {
 		var state kserveV3State
 		if err := json.Unmarshal([]byte(value), &state); err != nil {
+			return fmt.Errorf("invalid KServe v3 state marker: %w", err)
+		}
+		if err := state.validate(); err != nil {
 			return fmt.Errorf("invalid KServe v3 state marker: %w", err)
 		}
 		dst.Spec.Components.Kserve.ConfidentialContainers = state.ConfidentialContainers

@@ -2,6 +2,7 @@ package v2
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -393,6 +394,64 @@ func TestConvertToRejectsInvalidKserveStateMarker(t *testing.T) {
 	v2 := &DataScienceCluster{}
 	v2.Annotations = map[string]string{KserveV3StateAnnotation: "not-json"}
 	g.Expect(v2.ConvertTo(&dscApi.DataScienceCluster{})).ToNot(Succeed())
+}
+
+// TestConvertToRejectsInvalidKserveStateMarkerValues verifies that values
+// carried by the kserve-v3-state marker satisfy the v3 CRD constraints even
+// though the v2 schema has no such fields to validate them.
+func TestConvertToRejectsInvalidKserveStateMarkerValues(t *testing.T) {
+	tests := []struct {
+		name  string
+		state kserveV3State
+	}{
+		{
+			name:  "audit profile outside enum",
+			state: kserveV3State{AuditLoggingProfile: "Verbose"},
+		},
+		{
+			name: "luks resource id not a kbs uri",
+			state: kserveV3State{ConfidentialContainers: &componentApi.ConfidentialContainersConfig{
+				LUKSResourceID: "not-a-kbs-uri",
+			}},
+		},
+		{
+			name: "luks resource id with dot-dot segment",
+			state: kserveV3State{ConfidentialContainers: &componentApi.ConfidentialContainersConfig{
+				LUKSResourceID: "kbs:///repo/../tag",
+			}},
+		},
+		{
+			name: "luks resource id too long",
+			state: kserveV3State{ConfidentialContainers: &componentApi.ConfidentialContainersConfig{
+				LUKSResourceID: "kbs:///" + strings.Repeat("a", luksResourceIDMaxLength),
+			}},
+		},
+		{
+			name: "init data too long",
+			state: kserveV3State{ConfidentialContainers: &componentApi.ConfidentialContainersConfig{
+				LUKSResourceID: "kbs:///default/kserve-luks-password/key",
+				InitData:       strings.Repeat("a", initDataMaxLength+1),
+			}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			encoded, err := json.Marshal(tt.state)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			v2 := &DataScienceCluster{}
+			v2.Annotations = map[string]string{KserveV3StateAnnotation: string(encoded)}
+
+			dst := &dscApi.DataScienceCluster{}
+			g.Expect(v2.ConvertTo(dst)).ToNot(Succeed())
+			// The invalid values must not reach the destination spec.
+			g.Expect(dst.Spec.Components.Kserve.ConfidentialContainers).To(BeNil())
+			g.Expect(dst.Spec.Components.Kserve.AuditLoggingProfile).To(BeEmpty())
+		})
+	}
 }
 
 // TestDashboardSpecConversionCombinations covers all four standard/portal
