@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -20,7 +21,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
-	"github.com/stretchr/testify/require"
 
 	. "github.com/onsi/gomega"
 )
@@ -415,6 +415,10 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectRoutes(t *testing.T) {
 	currentSubdomain := gatewaySubdomain
 	if currentSubdomain != legacyGatewaySubdomain {
 		t.Logf("Current gateway subdomain is %s, expecting legacy gateway redirect route to exist", currentSubdomain)
+		dashboard := tc.EnsureResourceExists(
+			WithMinimalObject(gvk.Dashboard, types.NamespacedName{Name: "default-dashboard"}),
+		)
+		expectedLegacyHostname := ExtractAndExpectValue[string](tc.g, dashboard, ".spec.legacyRedirects.legacyHostname", Not(BeEmpty()))
 
 		tc.EnsureResourceExists(
 			WithMinimalObject(gvk.Route, types.NamespacedName{
@@ -422,6 +426,11 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectRoutes(t *testing.T) {
 				Namespace: appNamespace,
 			}),
 			WithCondition(And(
+				// The platform operator projects the actual compatibility endpoint
+				// instead of asking the Dashboard operator to derive it from the
+				// potentially unrelated current gateway DNS suffix.
+				jq.Match(`.spec.host == "%s"`, expectedLegacyHostname),
+
 				// Route target
 				jq.Match(`.spec.to.kind == "Service"`),
 				jq.Match(`.spec.to.name == "%s"`, dashboardRedirectName),
