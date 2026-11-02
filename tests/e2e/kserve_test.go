@@ -73,6 +73,7 @@ func kserveTestSuite(t *testing.T) {
 		TestCase{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		TestCase{"Validate module enabled", componentCtx.ValidateModuleEnabled},
 		TestCase{"Validate component spec", componentCtx.ValidateSpec},
+		TestCase{"Validate monitoring ingress NetworkPolicy toggle projection", componentCtx.ValidateMonitoringIngressNetworkPolicyToggle},
 		TestCase{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		TestCase{"Validate VAP created when kserve is enabled", componentCtx.ValidateS3SecretCheckBucketExist},
 		TestCase{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
@@ -164,6 +165,108 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 				}()),
 		),
 		),
+	)
+}
+
+// ValidateMonitoringIngressNetworkPolicyToggle verifies that the optional DSC
+// toggle for the per-LLMInferenceService monitoring ingress NetworkPolicy is
+// projected onto the Kserve module CR when set, and dropped again when unset so
+// the operand keeps its own default (no policy). The DSC is left as it was found.
+func (tc *KserveTestCtx) ValidateMonitoringIngressNetworkPolicyToggle(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke)
+
+	tc.SkipIfXKSCluster(t)
+
+	const field = "enableLLMMonitoringIngressNetworkPolicy"
+	const touch = "test.opendatahub.io/v2-touch"
+	kserveNN := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+	// On a developer cluster the DSC is whatever was there before the run. The
+	// steps below need the field and the marker annotation to start absent, so
+	// bail out rather than clear a value somebody else put on the shared object.
+	dsc := tc.FetchDataScienceCluster()
+	if _, hasTouch := dsc.Annotations[touch]; hasTouch || dsc.Spec.Components.Kserve.EnableLLMMonitoringIngressNetworkPolicy != nil {
+		t.Skip("DSC already carries the toggle or the v2-touch annotation; the test needs both absent")
+	}
+
+	// The DSC is shared with every later test case. Restore it even when an
+	// assertion below fails, so a failure here cannot turn the field into a
+	// persistent reconcile error for the rest of the suite.
+	t.Cleanup(func() {
+		tc.EventuallyResourcePatched(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithMutateFunc(func(obj *unstructured.Unstructured) error {
+				unstructured.RemoveNestedField(obj.Object, "spec", "components", "kserve", field)
+				unstructured.RemoveNestedField(obj.Object, "metadata", "annotations", touch)
+				return nil
+			}),
+			WithCondition(And(
+				jq.Match(`.spec.components.kserve | has("%s") | not`, field),
+				jq.Match(`.metadata.annotations["%s"] == null`, touch),
+			)),
+		)
+	})
+
+	// Not set on the DSC: the operand must not carry the field either.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, kserveNN),
+		WithCondition(jq.Match(`.spec | has("%s") | not`, field)),
+	)
+
+	// Set it on the DSC and expect the same value on the operand.
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, true, "spec", "components", "kserve", field)
+		}),
+		WithCondition(jq.Match(`.spec.components.kserve.%s == true`, field)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, kserveNN),
+		WithCondition(jq.Match(`.spec.%s == true`, field)),
+	)
+
+	// A write through the deprecated v2 API, which has no such field, must not
+	// reset it: the conversion carries the v3-only value in an annotation. The
+	// annotation written here changes the object, so the write really round-trips.
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceClusterV2, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, "1", "metadata", "annotations", touch)
+		}),
+		WithCondition(jq.Match(`.metadata.annotations["%s"] == "1"`, touch)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.spec.components.kserve.%s == true`, field)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, kserveNN),
+		WithCondition(jq.Match(`.spec.%s == true`, field)),
+	)
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			unstructured.RemoveNestedField(obj.Object, "metadata", "annotations", touch)
+			return nil
+		}),
+		WithCondition(jq.Match(`.metadata.annotations["%s"] == null`, touch)),
+	)
+
+	// Clear it again and expect the operand to drop it.
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			unstructured.RemoveNestedField(obj.Object, "spec", "components", "kserve", field)
+			return nil
+		}),
+		WithCondition(jq.Match(`.spec.components.kserve | has("%s") | not`, field)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, kserveNN),
+		WithCondition(jq.Match(`.spec | has("%s") | not`, field)),
 	)
 }
 

@@ -484,6 +484,7 @@ _Appears in:_
 | `modelExpress` _[ModelExpressSpec](#modelexpressspec)_ | Configures and enables the ModelExpress operator, a model cache and<br />GPU-to-GPU weight transfer service for distributed model serving | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
+| `enableLLMMonitoringIngressNetworkPolicy` _boolean_ | Enables a per-LLMInferenceService ingress NetworkPolicy that restricts<br />traffic to the Prometheus and gateway namespaces plus the service's own<br />namespace. Disabled by default: when unset or false no policy is created,<br />which keeps the open behaviour of releases before 3.6 across upgrades. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 
@@ -1210,6 +1211,7 @@ _Appears in:_
 | `modelExpress` _[ModelExpressSpec](#modelexpressspec)_ | Configures and enables the ModelExpress operator, a model cache and<br />GPU-to-GPU weight transfer service for distributed model serving | \{  \} |  |
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
+| `enableLLMMonitoringIngressNetworkPolicy` _boolean_ | Enables a per-LLMInferenceService ingress NetworkPolicy that restricts<br />traffic to the Prometheus and gateway namespaces plus the service's own<br />namespace. Disabled by default: when unset or false no policy is created,<br />which keeps the open behaviour of releases before 3.6 across upgrades. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 

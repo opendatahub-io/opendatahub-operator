@@ -25,11 +25,11 @@ components:
   kserve-module-operator:
     odh:
       repo: opendatahub-io/kserve
-      ref: release-v0.17@db12bf00b8d97e23bbed2ba02a75715bf97776f4
+      ref: release-v0.17@ac6709afdebd062793cb49d0465190c175662513
       sourcePath: kserve-module/config
     rhoai:
       repo: red-hat-data-services/kserve
-      ref: rhoai-3.6@f4d172447ecc578535743eab64bb582ff0fae6de
+      ref: rhoai-3.6@71b7da36a3f8a5684a3f78fa2481dbf1cc11a1c8
       sourcePath: kserve-module/config
   ray:
     odh:

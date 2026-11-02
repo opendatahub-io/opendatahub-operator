@@ -87,6 +87,12 @@ type KserveCommonSpec struct {
 	// Enabled by default.
 	// +optional
 	EnableLLMInferenceServiceConsoleDashboards *bool `json:"enableLLMInferenceServiceConsoleDashboards,omitempty"`
+	// Enables a per-LLMInferenceService ingress NetworkPolicy that restricts
+	// traffic to the Prometheus and gateway namespaces plus the service's own
+	// namespace. Disabled by default: when unset or false no policy is created,
+	// which keeps the open behaviour of releases before 3.6 across upgrades.
+	// +optional
+	EnableLLMMonitoringIngressNetworkPolicy *bool `json:"enableLLMMonitoringIngressNetworkPolicy,omitempty"`
 	// Configures and enables Model Cache integration
 	ModelCache *ModelCacheSpec `json:"modelCache,omitempty"`
 }
