@@ -900,6 +900,12 @@ var (
 		Kind:    "PodMonitor",
 	}
 
+	CoreosPrometheusRule = schema.GroupVersionKind{
+		Group:   "monitoring.coreos.com",
+		Version: "v1",
+		Kind:    "PrometheusRule",
+	}
+
 	PrometheusRule = schema.GroupVersionKind{
 		Group:   "monitoring.rhobs",
 		Version: "v1",

@@ -52,6 +52,8 @@ var allowedResourceKindsByModule = map[string]sets.Set[schema.GroupKind]{
 	"databaseservice": sets.New(gvk.SecurityContextConstraints.GroupKind()),
 	// The observability chart creates a dedicated namespace for its webhook probe.
 	"monitoring": sets.New(gvk.Namespace.GroupKind()),
+	// The trainer-operator manifests ship its telemetry PrometheusRule.
+	"trainer": sets.New(gvk.CoreosPrometheusRule.GroupKind()),
 }
 
 func TestModuleChartCompliance(t *testing.T) {
@@ -303,6 +305,20 @@ func TestModuleSpecificResourceKindAllowlist(t *testing.T) {
 			moduleName: "monitoring",
 			gvk:        gvk.Namespace,
 			allowed:    true,
+		},
+		"Trainer allows coreos PrometheusRule": {
+			moduleName: "trainer",
+			gvk:        gvk.CoreosPrometheusRule,
+			allowed:    true,
+		},
+		"other module rejects coreos PrometheusRule": {
+			moduleName: "aipipelines",
+			gvk:        gvk.CoreosPrometheusRule,
+			allowed:    false,
+		},
+		"unknown module rejects coreos PrometheusRule": {
+			gvk:     gvk.CoreosPrometheusRule,
+			allowed: false,
 		},
 		"other module rejects Namespace": {
 			moduleName: "aipipelines",
