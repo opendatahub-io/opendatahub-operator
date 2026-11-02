@@ -66,10 +66,11 @@ const (
 	DestinationRuleName      = "data-science-tls-rule"
 
 	// Network configuration.
-	AuthProxyHTTPPort    = 4180
-	AuthProxyMetricsPort = 9000
-	StandardHTTPSPort    = 443
-	GatewayHTTPSPort     = 8443
+	AuthProxyHTTPPort                  = 4180
+	AuthProxyMetricsPort               = 9000
+	StandardHTTPSPort                  = 443
+	GatewayHTTPSPort                   = 8443
+	httpsHealthProbeProtocolAnnotation = "service.beta.kubernetes.io/port_443_health-probe_protocol"
 
 	AuthProxyOAuth2Path = "/oauth2"
 	OAuthCallbackPath   = AuthProxyOAuth2Path + "/callback"
@@ -460,6 +461,14 @@ func createGateway(
 	if ingressMode == serviceApi.IngressModeOcpRoute {
 		if err := configureClusterIPInfrastructure(rr, gateway, GatewayInfraConfigMapName, GatewayServiceTLSSecretName); err != nil {
 			return err
+		}
+	} else if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		// Istio copies infrastructure annotations to its generated LoadBalancer Service.
+		// TCP avoids failed TLS probes from load balancers that do not send SNI.
+		gateway.Spec.Infrastructure = &gwapiv1.GatewayInfrastructure{
+			Annotations: map[gwapiv1.AnnotationKey]gwapiv1.AnnotationValue{
+				httpsHealthProbeProtocolAnnotation: "Tcp",
+			},
 		}
 	}
 
@@ -1028,8 +1037,8 @@ func reconcileGatewayForModeChange(ctx context.Context, rr *odhtypes.Reconciliat
 		return fmt.Errorf("failed to get Gateway: %w", err)
 	}
 
-	// OcpRoute: no hostname, has infrastructure
-	// LoadBalancer: has hostname, no infrastructure
+	// OcpRoute: no hostname, has ClusterIP parametersRef.
+	// LoadBalancer: has hostname, may have infrastructure annotations on XKS.
 	var hasHostname bool
 	for _, listener := range gateway.Spec.Listeners {
 		if listener.Name == DefaultGatewayListenerName && listener.Hostname != nil {
@@ -1037,12 +1046,12 @@ func reconcileGatewayForModeChange(ctx context.Context, rr *odhtypes.Reconciliat
 			break
 		}
 	}
-	hasInfrastructure := gateway.Spec.Infrastructure != nil
+	hasClusterIPConfig := gateway.Spec.Infrastructure != nil && gateway.Spec.Infrastructure.ParametersRef != nil
 
 	wantsHostname := desiredMode == serviceApi.IngressModeLoadBalancer
-	wantsInfrastructure := desiredMode == serviceApi.IngressModeOcpRoute
+	wantsClusterIPConfig := desiredMode == serviceApi.IngressModeOcpRoute
 
-	if hasHostname == wantsHostname && hasInfrastructure == wantsInfrastructure {
+	if hasHostname == wantsHostname && hasClusterIPConfig == wantsClusterIPConfig {
 		return nil
 	}
 
