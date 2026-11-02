@@ -180,7 +180,26 @@ func (tc *KserveTestCtx) ValidateMonitoringIngressNetworkPolicyToggle(t *testing
 	tc.SkipIfXKSCluster(t)
 
 	const field = "enableLLMMonitoringIngressNetworkPolicy"
+	const touch = "test.opendatahub.io/v2-touch"
 	kserveNN := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+	// The DSC is shared with every later test case. Restore it even when an
+	// assertion below fails, so a failure here cannot turn the field into a
+	// persistent reconcile error for the rest of the suite.
+	t.Cleanup(func() {
+		tc.EventuallyResourcePatched(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithMutateFunc(func(obj *unstructured.Unstructured) error {
+				unstructured.RemoveNestedField(obj.Object, "spec", "components", "kserve", field)
+				unstructured.RemoveNestedField(obj.Object, "metadata", "annotations", touch)
+				return nil
+			}),
+			WithCondition(And(
+				jq.Match(`.spec.components.kserve | has("%s") | not`, field),
+				jq.Match(`.metadata.annotations["%s"] == null`, touch),
+			)),
+		)
+	})
 
 	// Not set on the DSC: the operand must not carry the field either.
 	tc.EnsureResourceExists(
@@ -204,7 +223,6 @@ func (tc *KserveTestCtx) ValidateMonitoringIngressNetworkPolicyToggle(t *testing
 	// A write through the deprecated v2 API, which has no such field, must not
 	// reset it: the conversion carries the v3-only value in an annotation. The
 	// annotation written here changes the object, so the write really round-trips.
-	const touch = "test.opendatahub.io/v2-touch"
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceClusterV2, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(func(obj *unstructured.Unstructured) error {
