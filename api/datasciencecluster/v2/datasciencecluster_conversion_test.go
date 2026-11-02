@@ -483,6 +483,33 @@ func TestConvertToRejectsInvalidKserveStateMarkerValues(t *testing.T) {
 	}
 }
 
+// TestConvertToAcceptsMultibyteKserveStateMarkerValues verifies that the
+// marker's length limits count Unicode code points, matching the v3 CRD
+// MaxLength constraints: a multibyte value within the code-point limit is
+// v3-valid and must not be falsely rejected by its byte length.
+func TestConvertToAcceptsMultibyteKserveStateMarkerValues(t *testing.T) {
+	g := NewWithT(t)
+
+	state := kserveV3State{ConfidentialContainers: &componentApi.ConfidentialContainersConfig{
+		// 1025 two-byte runes: 2050 bytes (over the byte limit) but 1025
+		// code points (within the 2048 limit).
+		LUKSResourceID: "kbs:///" + strings.Repeat("é", 1025) + "/default/key",
+		// 5000 two-byte runes: 10000 bytes (over the byte limit) but 5000
+		// code points (within the 8192 limit).
+		InitData: strings.Repeat("é", 5000),
+	}}
+	encoded, err := json.Marshal(state)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	v2 := &DataScienceCluster{}
+	v2.Annotations = map[string]string{KserveV3StateAnnotation: string(encoded)}
+
+	dst := &dscApi.DataScienceCluster{}
+	g.Expect(v2.ConvertTo(dst)).To(Succeed())
+	g.Expect(dst.Spec.Components.Kserve.ConfidentialContainers).To(Equal(state.ConfidentialContainers))
+	g.Expect(dst.Annotations).NotTo(HaveKey(KserveV3StateAnnotation))
+}
+
 // TestDashboardSpecConversionCombinations covers all four standard/portal
 // management state combinations through the v3<->v2 spec mapping.
 func TestDashboardSpecConversionCombinations(t *testing.T) {

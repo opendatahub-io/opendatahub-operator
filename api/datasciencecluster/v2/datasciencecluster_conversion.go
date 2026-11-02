@@ -22,6 +22,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
@@ -229,7 +230,9 @@ func (s kserveV3State) validate() error {
 	}
 
 	if cc := s.ConfidentialContainers; cc != nil {
-		if len(cc.LUKSResourceID) > luksResourceIDMaxLength {
+		// Length limits mirror the v3 CRD MaxLength constraints, which count
+		// Unicode code points, not bytes.
+		if utf8.RuneCountInString(cc.LUKSResourceID) > luksResourceIDMaxLength {
 			return fmt.Errorf("luksResourceId exceeds %d characters", luksResourceIDMaxLength)
 		}
 		if !luksResourceIDPattern.MatchString(cc.LUKSResourceID) {
@@ -240,7 +243,7 @@ func (s kserveV3State) validate() error {
 				return fmt.Errorf("luksResourceId %q must not contain \".\" or \"..\" path segments", cc.LUKSResourceID)
 			}
 		}
-		if len(cc.InitData) > initDataMaxLength {
+		if utf8.RuneCountInString(cc.InitData) > initDataMaxLength {
 			return fmt.Errorf("initData exceeds %d characters", initDataMaxLength)
 		}
 	}
