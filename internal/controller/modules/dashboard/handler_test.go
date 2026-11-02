@@ -2,6 +2,7 @@ package dashboard_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -10,7 +11,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -241,6 +244,68 @@ func TestBuildModuleCR_RetainsLegacyHostnameAfterRouteRemoval(t *testing.T) {
 	g.Expect(ok).Should(BeTrue())
 	g.Expect(redirects["managementState"]).Should(Equal("Removed"))
 	g.Expect(redirects["legacyHostname"]).Should(Equal("data-science-gateway.apps.cluster.example"))
+}
+
+func TestBuildModuleCR_RetainsLegacyHostnameWhenRemovedRouteReadFails(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	scheme := runtime.NewScheme()
+	g.Expect(routev1.AddToScheme(scheme)).To(Succeed())
+	currentDashboard := &unstructured.Unstructured{Object: map[string]any{
+		"spec": map[string]any{
+			"legacyRedirects": map[string]any{
+				"managementState": "Removed",
+				"legacyHostname":  "data-science-gateway.apps.cluster.example",
+			},
+		},
+	}}
+	currentDashboard.SetGroupVersionKind(h.GetGVK())
+	currentDashboard.SetName(componentApi.DashboardInstanceName)
+	cli := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(currentDashboard).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if _, isRoute := obj.(*routev1.Route); isRoute {
+					return errors.New("route read denied")
+				}
+				return c.Get(ctx, key, obj, opts...)
+			},
+		}).
+		Build()
+	cfg := newModuleCRConfig("")
+	cfg.GatewayConfig.Spec.Subdomain = "ai"
+
+	u, err := h.BuildModuleCR(context.Background(), cli, newDSCCtx(operatorv1.Managed), cfg)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	redirects, ok := spec["legacyRedirects"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(redirects["legacyHostname"]).Should(Equal("data-science-gateway.apps.cluster.example"))
+}
+
+func TestBuildModuleCR_PropagatesDashboardReadFailureWhenRedirectsRemoved(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	scheme := runtime.NewScheme()
+	g.Expect(routev1.AddToScheme(scheme)).To(Succeed())
+	cli := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(_ context.Context, _ client.WithWatch, _ client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
+				if _, isRoute := obj.(*routev1.Route); isRoute {
+					return errors.New("route read denied")
+				}
+				return errors.New("dashboard read denied")
+			},
+		}).
+		Build()
+	cfg := newModuleCRConfig("")
+	cfg.GatewayConfig.Spec.Subdomain = "ai"
+
+	_, err := h.BuildModuleCR(context.Background(), cli, newDSCCtx(operatorv1.Managed), cfg)
+	g.Expect(err).Should(MatchError(ContainSubstring("read Dashboard CR legacy hostname: dashboard read denied")))
 }
 
 func TestBuildModuleCR_ProjectsDataRegistryState(t *testing.T) {

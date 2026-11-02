@@ -140,7 +140,7 @@ func (h *handler) BuildModuleCR(
 		legacyRedirects := map[string]any{
 			"managementState": string(redirectState),
 		}
-		legacyHostname, err := h.resolveLegacyRedirectHostname(ctx, cli, cfg)
+		legacyHostname, err := h.resolveLegacyRedirectHostname(ctx, cli, cfg, redirectState)
 		if err != nil {
 			return nil, fmt.Errorf("resolve legacy dashboard redirect hostname: %w", err)
 		}
@@ -171,6 +171,7 @@ func (h *handler) resolveLegacyRedirectHostname(
 	ctx context.Context,
 	cli client.Client,
 	cfg *modules.ModuleCRConfig,
+	redirectState operatorv1.ManagementState,
 ) (string, error) {
 	gatewayConfig := cfg.GatewayConfig
 	currentSubdomain := strings.TrimSpace(gatewayConfig.Spec.Subdomain)
@@ -188,7 +189,11 @@ func (h *handler) resolveLegacyRedirectHostname(
 		case err == nil && strings.TrimSpace(route.Spec.Host) != "":
 			return strings.TrimSpace(route.Spec.Host), nil
 		case err != nil && !k8serr.IsNotFound(err) && !meta.IsNoMatchError(err):
-			return "", fmt.Errorf("read legacy gateway Route: %w", err)
+			if redirectState != operatorv1.Removed {
+				return "", fmt.Errorf("read legacy gateway Route: %w", err)
+			}
+			// Redirect cleanup does not depend on reading the optional Route. Keep
+			// the endpoint contract from the current Dashboard CR instead.
 		}
 
 		// Dashboard-owned cleanup removes the Route while redirects are disabled.
