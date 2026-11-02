@@ -37,6 +37,10 @@ const (
 // +kubebuilder:validation:XValidation:rule="has(self.storage) || !has(self.replicas) || self.replicas == 0",message="Non-zero replicas require metrics.storage to be configured"
 type Metrics struct {
 	Storage *MetricsStorage `json:"storage,omitempty"`
+	// BuiltinDCGMScrapeEnabled controls the built-in HTTP scrape for DCGM exporter metrics.
+	// It defaults to enabled; set false when collecting DCGM through a ServiceMonitor or PodMonitor instead.
+	// +optional
+	BuiltinDCGMScrapeEnabled *bool `json:"builtinDCGMScrapeEnabled,omitempty"`
 	// Replicas specifies the number of replicas in monitoringstack. If not set, it defaults
 	// to 1 on single-node clusters and 2 on multi-node clusters.
 	// +kubebuilder:validation:Minimum=0

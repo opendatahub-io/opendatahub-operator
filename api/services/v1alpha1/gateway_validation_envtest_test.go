@@ -188,6 +188,41 @@ func TestGatewayIssuerURLValidationEnvtest(t *testing.T) {
 	}
 }
 
+func TestGatewayOIDCScopeValidationEnvtest(t *testing.T) {
+	k8sClient := newGatewayValidationClient(t)
+	for _, tc := range []struct {
+		name    string
+		scope   string
+		invalid bool
+	}{
+		{name: "unset"},
+		{name: "openid only", scope: "openid"},
+		{name: "openid with AKS resource", scope: "openid 6dae42f8-4368-4678-94ff-3960e28e3630/.default"},
+		{name: "openid after another scope", scope: "profile openid email"},
+		{name: "missing openid", scope: "profile email", invalid: true},
+		{name: "quoted token", scope: `openid bad"scope`, invalid: true},
+		{name: "backslash token", scope: `openid bad\scope`, invalid: true},
+		{name: "double space", scope: "openid  email", invalid: true},
+		{name: "tab separator", scope: "openid\temail", invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			gw := validGatewayWithIssuerURL("https://auth.example.com")
+			gw.Spec.OIDC.Scope = tc.scope
+			err := k8sClient.Create(t.Context(), gw)
+			if err == nil {
+				g.Expect(k8sClient.Delete(t.Context(), gw)).To(Succeed())
+			}
+			if tc.invalid {
+				g.Expect(k8serrors.IsInvalid(err)).To(BeTrue(), "%v", err)
+				g.Expect(err.Error()).To(ContainSubstring("scope"))
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+			}
+		})
+	}
+}
+
 func TestGatewayAdditionalIngressValidationEnvtest(t *testing.T) {
 	k8sClient := newGatewayValidationClient(t)
 	ctx := t.Context()

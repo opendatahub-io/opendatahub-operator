@@ -658,9 +658,17 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData["DashboardRedirectProductName"] = productName
 	templateData["RedirectConfigHash"] = redirectConfigHash
 
+	// Seed optional OIDC template keys to avoid missingkey=error when unset.
+	templateData["OIDCScope"] = ""
+	templateData["OIDCPassAccessToken"] = false
+	templateData["SkipClaimsFromProfileURL"] = false
+
 	// Add OIDC-specific fields only if OIDC config is present
 	if gatewayConfig.Spec.OIDC != nil {
 		templateData["OIDCIssuerURL"] = gatewayConfig.Spec.OIDC.IssuerURL
+		templateData["OIDCScope"] = gatewayConfig.Spec.OIDC.Scope
+		templateData["OIDCPassAccessToken"] = gatewayConfig.Spec.OIDC.PassAccessToken
+		templateData["SkipClaimsFromProfileURL"] = gatewayConfig.Spec.OIDC.SkipClaimsFromProfileURL
 	}
 
 	// Add provider CA certificate configuration if specified

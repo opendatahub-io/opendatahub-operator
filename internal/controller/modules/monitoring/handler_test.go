@@ -148,12 +148,14 @@ func TestBuildModuleCR_ProjectsMetrics(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
 	dsci := newDSCI(operatorv1.Managed)
+	builtinDCGMScrapeEnabled := false
 	dsci.Spec.Monitoring.Metrics = &serviceApi.Metrics{
 		Storage: &serviceApi.MetricsStorage{
 			Size:      resource.MustParse("10Gi"),
 			Retention: "7d",
 		},
-		Replicas: 2,
+		BuiltinDCGMScrapeEnabled: &builtinDCGMScrapeEnabled,
+		Replicas:                 2,
 	}
 
 	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
@@ -169,6 +171,7 @@ func TestBuildModuleCR_ProjectsMetrics(t *testing.T) {
 	g.Expect(ok).Should(BeTrue(), "spec.metrics.storage missing")
 	g.Expect(storage["size"]).Should(Equal("10Gi"))
 	g.Expect(storage["retention"]).Should(Equal("7d"))
+	g.Expect(metrics["builtinDCGMScrapeEnabled"]).Should(BeFalse())
 	g.Expect(metrics["replicas"]).Should(Equal(int64(2)))
 }
 
@@ -277,6 +280,7 @@ func TestBuildModuleCR_MetricsWithExportersWithoutStorage(t *testing.T) {
 	g.Expect(ok).Should(BeTrue())
 	g.Expect(metrics).Should(HaveKey("exporters"))
 	g.Expect(metrics).ShouldNot(HaveKey("storage"))
+	g.Expect(metrics).ShouldNot(HaveKey("builtinDCGMScrapeEnabled"))
 }
 
 func TestBuildModuleCR_TracesWithExportersWithoutStorage(t *testing.T) {

@@ -3417,6 +3417,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `storage` _[MetricsStorage](#metricsstorage)_ |  |  |  |
+| `builtinDCGMScrapeEnabled` _boolean_ | BuiltinDCGMScrapeEnabled controls the built-in HTTP scrape for DCGM exporter metrics.<br />It defaults to enabled; set false when collecting DCGM through a ServiceMonitor or PodMonitor instead. |  |  |
 | `replicas` _integer_ | Replicas specifies the number of replicas in monitoringstack. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  | Minimum: 0 <br /> |
 | `exporters` _object (keys:string, values:[RawExtension](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#rawextension-runtime-pkg))_ | Exporters defines custom metrics exporters for sending metrics to external observability tools.<br />Each key represents the exporter name, and the value contains the exporter configuration.<br />The configuration follows the OpenTelemetry Collector exporter format.<br />Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters.<br />Maximum 10 exporters allowed, each config must be less than 10KB (enforced at reconciliation time). |  |  |
 
@@ -3512,6 +3513,9 @@ _Appears in:_
 | `clientID` _string_ | OIDC client ID |  | Required: \{\} <br /> |
 | `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | Reference to secret containing client secret |  | Required: \{\} <br /> |
 | `secretNamespace` _string_ | Namespace where the client secret is located.<br />If unset, defaults to the gateway namespace. |  |  |
+| `scope` _string_ | Scope is a complete replacement for kube-auth-proxy's default OIDC scope<br />("openid email profile"). When set, kube-auth-proxy requests exactly this<br />space-separated scope list instead of the default. Some identity<br />providers (e.g. Azure AD/AKS) require a resource-specific scope, such as<br />"openid APP_ID/.default", to mint an access token for a<br />particular audience.<br />If unset, kube-auth-proxy uses its default scope.<br />When set, scope must include "openid" and use space-separated OAuth scope tokens. |  | MaxLength: 1024 <br />Pattern: `^$\|^([\x21\x23-\x5B\x5D-\x7E]+ )*openid( [\x21\x23-\x5B\x5D-\x7E]+)*$` <br /> |
+| `passAccessToken` _boolean_ | PassAccessToken controls whether kube-auth-proxy forwards the raw OIDC<br />access token to the Gateway (via the x-auth-request-access-token header)<br />for downstream services, in addition to the ID token.<br />If unset (false), only the ID token is forwarded, preserving existing<br />GatewayConfig behavior. |  |  |
+| `skipClaimsFromProfileURL` _boolean_ | SkipClaimsFromProfileURL disables querying the IdP profile/userinfo URL for missing claims.<br />Set to true when the access token is scoped to an external resource (e.g. AKS)<br />rather than the IdP's userinfo endpoint. |  |  |
 
 
 #### TokenReviewConfig

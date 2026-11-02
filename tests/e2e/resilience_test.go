@@ -14,16 +14,19 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	eventsv1 "k8s.io/api/events/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
@@ -33,6 +36,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/storagemigration"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
@@ -68,6 +72,7 @@ func operatorResilienceTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Validate operator deployment health", resilienceTestCtx.ValidateOperatorDeployment},
 		{"Validate leader election behavior", resilienceTestCtx.ValidateLeaderElectionBehavior},
+		{"Validate storage version migration events", resilienceTestCtx.ValidateStorageVersionMigrationEvents},
 		{"Validate components deployment success", resilienceTestCtx.ValidateComponentsDeploymentSuccess},
 		{"Validate components deployment failure", resilienceTestCtx.ValidateComponentsDeploymentFailure},
 		{"Validate missing CRD handling", resilienceTestCtx.ValidateMissingComponentsCRDHandling},
@@ -124,6 +129,101 @@ func (tc *OperatorResilienceTestCtx) ValidateLeaderElectionBehavior(t *testing.T
 	// Ensure system still works
 	tc.validateDeploymentHealth(t)
 	tc.validateSystemHealth(t)
+}
+
+// ValidateStorageVersionMigrationEvents checks startup events after an operator deployment restart.
+func (tc *OperatorResilienceTestCtx) ValidateStorageVersionMigrationEvents(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	g := tc.NewWithT(t)
+	ctx := t.Context()
+
+	// Discover the deployment without requiring DSC or DSCI instances.
+	deployment, err := clusterhealth.FindOperatorDeploymentInNamespace(ctx, tc.Client(), tc.OperatorNamespace)
+	g.Expect(err).To(Succeed())
+	g.Expect(deployment).NotTo(BeNil(), "Operator deployment must exist in namespace %s", tc.OperatorNamespace)
+	g.Expect(*deployment.Spec.Replicas).To(BeNumerically(">", 0), "Operator deployment must be running")
+
+	t.Log("Snapshotting all storage migration event UIDs")
+	eventSelector := client.MatchingFields{
+		"reportingController": storagemigration.EventReporter,
+	}
+	previousEvents := &eventsv1.EventList{}
+	g.Expect(tc.Client().List(ctx, previousEvents, eventSelector)).To(Succeed())
+
+	previousEventUIDs := sets.New[types.UID]()
+	for _, event := range previousEvents.Items {
+		previousEventUIDs.Insert(event.UID)
+	}
+
+	g.Expect(deployment.Spec.Selector.MatchLabels).NotTo(BeEmpty(), "Operator deployment must have a pod selector")
+	podOptions := []client.ListOption{
+		client.InNamespace(deployment.Namespace),
+		client.MatchingLabels(deployment.Spec.Selector.MatchLabels),
+	}
+	previousPods := &corev1.PodList{}
+	g.Expect(tc.Client().List(ctx, previousPods, podOptions...)).To(Succeed())
+	g.Expect(previousPods.Items).NotTo(BeEmpty(), "Operator deployment must have pods to restart")
+
+	previousPodUIDs := sets.New[types.UID]()
+	for _, pod := range previousPods.Items {
+		previousPodUIDs.Insert(pod.UID)
+	}
+
+	// Reuse the resilience restart helper without changing OLM's deployment template.
+	tc.deletePodsForDeployment(t, client.ObjectKeyFromObject(deployment))
+
+	t.Log("Waiting for replacement operator pods to become ready")
+	g.Eventually(func(g Gomega) {
+		currentPods := &corev1.PodList{}
+		g.Expect(tc.Client().List(ctx, currentPods, podOptions...)).To(Succeed())
+		g.Expect(currentPods.Items).To(HaveLen(int(*deployment.Spec.Replicas)))
+
+		for _, pod := range currentPods.Items {
+			g.Expect(previousPodUIDs.Has(pod.UID)).To(BeFalse(), "Old operator pod %s must be replaced", pod.Name)
+			g.Expect(pod.DeletionTimestamp).To(BeNil())
+			g.Expect(pod.Status.Conditions).To(ContainElement(And(
+				HaveField("Type", Equal(corev1.PodReady)),
+				HaveField("Status", Equal(corev1.ConditionTrue)),
+			)))
+		}
+	}).Should(Succeed())
+
+	t.Log("Checking for fresh storage migration no-op events for all three CRDs")
+	expectedCRDs := sets.New(
+		gvk.DataScienceClusterCRDName,
+		gvk.DSCInitializationCRDName,
+		gvk.PlatformCRDName,
+	)
+
+	g.Eventually(func(g Gomega) {
+		events := &eventsv1.EventList{}
+		g.Expect(tc.Client().List(ctx, events, eventSelector)).To(Succeed())
+
+		missingCRDs := expectedCRDs.Clone()
+		for _, event := range events.Items {
+			switch {
+			case previousEventUIDs.Has(event.UID):
+				continue
+			case event.Type != corev1.EventTypeNormal:
+				continue
+			case event.Reason != storagemigration.EventReasonNotNeeded:
+				continue
+			case event.Action != storagemigration.EventActionValidate:
+				continue
+			case event.Regarding.APIVersion != gvk.CustomResourceDefinition.GroupVersion().String():
+				continue
+			case event.Regarding.Kind != gvk.CustomResourceDefinition.Kind:
+				continue
+			default:
+				missingCRDs.Delete(event.Regarding.Name)
+			}
+		}
+
+		g.Expect(sets.List(missingCRDs)).To(BeEmpty(), "CRDs missing fresh StorageVersionMigrationNotNeeded events")
+	}).Should(Succeed())
 }
 
 func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentSuccess(t *testing.T) {

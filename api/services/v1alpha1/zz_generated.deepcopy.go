@@ -508,6 +508,11 @@ func (in *Metrics) DeepCopyInto(out *Metrics) {
 		*out = new(MetricsStorage)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.BuiltinDCGMScrapeEnabled != nil {
+		in, out := &in.BuiltinDCGMScrapeEnabled, &out.BuiltinDCGMScrapeEnabled
+		*out = new(bool)
+		**out = **in
+	}
 	if in.Exporters != nil {
 		in, out := &in.Exporters, &out.Exporters
 		*out = make(map[string]runtime.RawExtension, len(*in))

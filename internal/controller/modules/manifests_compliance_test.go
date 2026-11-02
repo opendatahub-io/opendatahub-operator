@@ -50,6 +50,8 @@ var allowedResourceKindsByModule = map[string]sets.Set[schema.GroupKind]{
 	"ray": sets.New(gvk.SecurityContextConstraints.GroupKind()),
 	// The db-operator chart ships the Internal Postgres SCC for OpenShift installs.
 	"databaseservice": sets.New(gvk.SecurityContextConstraints.GroupKind()),
+	// The observability chart creates a dedicated namespace for its webhook probe.
+	"monitoring": sets.New(gvk.Namespace.GroupKind()),
 }
 
 func TestModuleChartCompliance(t *testing.T) {
@@ -296,6 +298,20 @@ func TestModuleSpecificResourceKindAllowlist(t *testing.T) {
 			moduleName: "databaseservice",
 			gvk:        gvk.SecurityContextConstraints,
 			allowed:    true,
+		},
+		"Monitoring allows webhook probe Namespace": {
+			moduleName: "monitoring",
+			gvk:        gvk.Namespace,
+			allowed:    true,
+		},
+		"other module rejects Namespace": {
+			moduleName: "aipipelines",
+			gvk:        gvk.Namespace,
+			allowed:    false,
+		},
+		"unknown module rejects Namespace": {
+			gvk:     gvk.Namespace,
+			allowed: false,
 		},
 		"other module rejects SCC": {
 			moduleName: "aipipelines",

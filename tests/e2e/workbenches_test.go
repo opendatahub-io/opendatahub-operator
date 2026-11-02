@@ -287,11 +287,41 @@ func (tc *WorkbenchesTestCtx) ValidateMLflowIntegration(t *testing.T) {
 		Namespace: tc.AppsNamespace,
 	})
 
+	// The workbenches enablement case (ValidateComponentEnabled) is gated to
+	// Smoke/Tier1, so in a Tier2-only run it is skipped and a prior suite may have
+	// left Workbenches Removed. Establish Workbenches enablement here so this test
+	// does not depend on tag-filtered sibling cases.
+	//
+	// Capture the pre-test DSC management states first so cleanup restores exactly
+	// what this test changes, even on a mid-test failure. This keeps the suite
+	// self-contained in a Tier2-only run and non-destructive in an "All" run, where
+	// later cases still expect the pre-existing Workbenches/MLflowOperator states
+	// (Test Cleanup Contract: DSC component enablement changes must be restored).
+	dsc := tc.EnsureResourceExists(WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName))
+
+	workbenchesRestore := operatorv1.Removed
+	if ExtractAndExpectValue[string](tc.g, dsc, `.spec.components.workbenches.managementState // "Removed"`) == string(operatorv1.Managed) {
+		workbenchesRestore = operatorv1.Managed
+	}
+	mlflowRestore := operatorv1.Removed
+	if ExtractAndExpectValue[string](tc.g, dsc, `.spec.components.mlflowoperator.managementState // "Removed"`) == string(operatorv1.Managed) {
+		mlflowRestore = operatorv1.Managed
+	}
+	t.Cleanup(func() {
+		// Defer the Workbenches restore so it runs even if the MLflowOperator
+		// restore exits early (its assertion can FailNow/Goexit on error).
+		defer tc.UpdateComponentStateInDataScienceClusterWithKind(workbenchesRestore, componentApi.WorkbenchesKind)
+		tc.UpdateComponentStateInDataScienceClusterWithKind(mlflowRestore, componentApi.MLflowOperatorKind)
+	})
+
+	tc.UpdateComponentState(operatorv1.Managed)
+
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.MLflowOperatorKind)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Workbenches, types.NamespacedName{Name: componentApi.WorkbenchesInstanceName}),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`)),
+		WithCustomErrorMsg("Workbenches must be enabled and Ready before validating MLflow integration"),
 	)
 
 	tc.EnsureResourceExists(
