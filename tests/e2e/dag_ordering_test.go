@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -17,18 +18,27 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlcfg "sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
+	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
@@ -268,12 +278,6 @@ var dscComponentsExcludedFromManagedDAGTests = []string{
 	componentApi.KueueComponentName, // validating webhook rejects managementState=Managed
 }
 
-// extensionGVKs lists in-tree component CRs at RL 31+ whose controllers
-// write PlatformReady via RunlevelGateAction. Fully-modularized components
-// (Kserve, Data, MLflowOperator, SparkOperator, TrustyAI) are
-// excluded — they have no in-tree controller to write PlatformReady.
-var extensionGVKs = []schema.GroupVersionKind{}
-
 const (
 	dagQuotaName   = "dag-test-restrictive-quota"
 	dagTestVersion = "99.0.0-dag-test"
@@ -445,9 +449,10 @@ func (tc *DAGOrderingTestCtx) ValidateXKSRunlevelGating(t *testing.T) {
 // a platform release mismatch on component CRs (old version != new
 // operator version), blocking DAG advancement. The quota prevents
 // batch-20 components from reconciling at the new version, keeping them
-// stuck. Extension controllers (batch 31+) should be gated
-// (PlatformReady=False) while batch 20 is blocked. Removing the quota
-// lets components reconcile, proving convergence.
+// stuck. The Platform gate event, unchanged Workbenches release, and
+// unchanged KServe operator Deployment version prove that runlevel 31
+// cannot advance while batch 20 is blocked. Removing the quota lets
+// both runlevels reconcile, proving convergence.
 //
 // The test leaves the operator at version 99.0.0-dag-test for
 // subsequent tests (BatchOrdering). The suite restores the original
@@ -480,6 +485,32 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 		WithEventuallyPollingInterval(15*time.Second),
 	)
 	tc.waitForMonitoringReady(t)
+	originalVersion := tc.getDeployedVersion(t)
+	workbenchesNN := types.NamespacedName{Name: tc.GetInstanceName(gvk.Workbenches)}
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Workbenches, workbenchesNN),
+		WithCondition(jq.Match(
+			`any(.status.releases[]?; .name == "%s" and .version == "%s")`,
+			common.PlatformReleaseName, originalVersion,
+		)),
+		WithEventuallyTimeout(2*time.Minute),
+	)
+	kserveDeploymentNN := types.NamespacedName{Namespace: tc.AppsNamespace, Name: kserveModule.NewHandler().GetDeploymentName()}
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, kserveDeploymentNN),
+		WithCondition(jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformVersion, originalVersion)),
+		WithEventuallyTimeout(2*time.Minute),
+	)
+	platform := tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
+		WithCondition(jq.Match(
+			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+			status.ConditionTypeProvisioningProgress, metav1.ConditionTrue,
+		)),
+		WithEventuallyTimeout(2*time.Minute),
+	)
+	platformResourceVersion := platform.GetResourceVersion()
+	gateResult := tc.startRunlevelGateWatch(t, platformResourceVersion)
 
 	// Step 2: Apply quota and simulate version upgrade.
 	// Quota blocks new pod creation. Version change triggers readiness
@@ -487,6 +518,14 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 	// no longer matches the new operator version.
 	t.Log("Applying zero-pod quota to block deployments")
 	tc.createDAGQuota()
+	t.Cleanup(tc.deleteDAGQuota)
+
+	// Existing pods survive a new quota. Stop the batch-20 Workbenches
+	// operator so it cannot read the new platformVersion ConfigMap or advance
+	// its CR release until the quota is removed and its pod is recreated.
+	t.Log("Deleting workbenches-operator pods while quota blocks replacements")
+	workbenchesDeploymentNN := types.NamespacedName{Namespace: tc.AppsNamespace, Name: workbenchesModule.ControllerDeploymentName}
+	tc.deleteDeploymentPods(t, workbenchesDeploymentNN)
 
 	t.Log("Simulating version upgrade")
 	tc.setOperatorEnvVars(t,
@@ -494,35 +533,67 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 		corev1.EnvVar{Name: "RHAI_VERSION", Value: dagTestVersion},
 	)
 
-	// Step 3: Verify gating is active.
-	t.Log("Waiting for ProvisioningProgress=False on Platform CR (version mismatch + quota)")
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
+	// Step 3: Verify the DAG stopped at an earlier runlevel. The watch
+	// started before the upgrade, so it catches a short-lived condition
+	// even if it clears while setOperatorEnvVars waits for the new pod.
+	t.Log("Watching for ProvisioningProgress=False/AwaitingReadiness on Platform CR")
+	tc.waitForRunlevelGate(t, gateResult)
+	t.Log("Verifying Workbenches remains at the original release while quota blocks batch 20")
+	tc.EnsureResourceExistsConsistently(
+		WithMinimalObject(gvk.Workbenches, workbenchesNN),
 		WithCondition(jq.Match(
-			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
-			status.ConditionTypeProvisioningProgress, metav1.ConditionFalse,
+			`any(.status.releases[]?; .name == "%s" and .version == "%s")`,
+			common.PlatformReleaseName, originalVersion,
 		)),
-		WithEventuallyTimeout(5*time.Minute),
-		WithEventuallyPollingInterval(10*time.Second),
+		WithConsistentlyDuration(20*time.Second),
+		WithConsistentlyPollingInterval(5*time.Second),
 	)
-
-	t.Log("Verifying Extension controllers are gated (PlatformReady=False) while prior batches are stuck")
-	for _, extGVK := range extensionGVKs {
-		instanceName := tc.GetInstanceName(extGVK)
-		tc.EnsureResourceExists(
-			WithMinimalObject(extGVK, types.NamespacedName{Name: instanceName}),
-			WithCondition(jq.Match(
-				`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
-				precondition.PlatformReadyConditionType, metav1.ConditionFalse,
-			)),
-			WithCustomErrorMsg("Extension %s should have PlatformReady=False while prior batches are gated", extGVK.Kind),
+	// While batch 20 is gated, the runlevel-31 KServe operator Deployment must
+	// not advance to the new version. Gating defers runlevel 31 out of the
+	// reconciler's desired set, so the declarative GC transiently removes the
+	// existing Deployment during the gated upgrade and re-creates it once the
+	// gate clears. Tolerate that absence: only a Deployment that is present AND
+	// already carrying the new platform version proves gating failed to hold
+	// back runlevel 31.
+	t.Log("Verifying the runlevel-31 KServe operator Deployment does not advance to the new version while batch 20 is blocked")
+	tc.g.Consistently(func(g Gomega) {
+		kserveDeployment := tc.FetchResource(
+			WithMinimalObject(gvk.Deployment, kserveDeploymentNN),
 		)
-	}
-	t.Log("Confirmed: Extension controllers are gated")
+		if kserveDeployment == nil {
+			return // absence while gated is acceptable
+		}
+		g.Expect(kserveDeployment).To(
+			jq.Match(`.metadata.annotations."%s" != "%s"`, annotations.PlatformVersion, dagTestVersion),
+			"KServe operator Deployment advanced to %s while runlevel 20 was still gated", dagTestVersion,
+		)
+	}).WithTimeout(20 * time.Second).WithPolling(5 * time.Second).Should(Succeed())
 
 	// Step 4: Remove quota and verify convergence at new version.
 	t.Log("Removing quota to unblock deployments")
 	tc.deleteDAGQuota()
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, workbenchesDeploymentNN),
+		WithCondition(jq.Match(`(.status.readyReplicas // 0) > 0`)),
+		WithEventuallyTimeout(15*time.Minute),
+		WithEventuallyPollingInterval(15*time.Second),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Workbenches, workbenchesNN),
+		WithCondition(jq.Match(
+			`any(.status.releases[]?; .name == "%s" and .version == "%s")`,
+			common.PlatformReleaseName, dagTestVersion,
+		)),
+		WithEventuallyTimeout(15*time.Minute),
+		WithEventuallyPollingInterval(15*time.Second),
+	)
+	t.Log("Waiting for the runlevel-31 KServe operator Deployment to advance to the new version")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, kserveDeploymentNN),
+		WithCondition(jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformVersion, dagTestVersion)),
+		WithEventuallyTimeout(15*time.Minute),
+		WithEventuallyPollingInterval(15*time.Second),
+	)
 
 	t.Log("Waiting for DAG convergence (ProvisioningProgress=True on Platform CR)")
 	tc.EnsureResourceExists(
@@ -593,6 +664,180 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 		}
 	}
 	t.Log("DAG gating and version handshake verified")
+}
+
+func (tc *DAGOrderingTestCtx) deleteDeploymentPods(t *testing.T, nn types.NamespacedName) {
+	t.Helper()
+
+	deployment := tc.EnsureResourceExists(WithMinimalObject(gvk.Deployment, nn))
+	matchLabels, found, err := unstructured.NestedStringMap(deployment.Object, "spec", "selector", "matchLabels")
+	require.NoError(t, err, "failed to read selector for %s", nn)
+	require.True(t, found, "deployment %s has no matchLabels selector", nn)
+	require.NotEmpty(t, matchLabels, "deployment %s has an empty matchLabels selector", nn)
+
+	// The deletion wait lists pods via ListOptions, independently of DeleteAllOfOptions.
+	tc.DeleteResources(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{}),
+		WithNamespaceFilter(nn.Namespace),
+		WithDeleteAllOfOptions(client.MatchingLabels(matchLabels)),
+		WithListOptions(&client.ListOptions{
+			Namespace:     nn.Namespace,
+			LabelSelector: labels.SelectorFromSet(matchLabels),
+		}),
+		WithWaitForDeletion(true),
+		WithEventuallyTimeout(2*time.Minute),
+		WithEventuallyPollingInterval(5*time.Second),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, nn),
+		WithCondition(jq.Match(`(.status.readyReplicas // 0) == 0`)),
+		WithEventuallyTimeout(2*time.Minute),
+		WithEventuallyPollingInterval(5*time.Second),
+	)
+}
+
+func (tc *DAGOrderingTestCtx) startRunlevelGateWatch(t *testing.T, resourceVersion string) <-chan error {
+	t.Helper()
+
+	config, err := ctrlcfg.GetConfig()
+	require.NoError(t, err, "failed to get Kubernetes config for Platform watch")
+	dynamicClient, err := dynamic.NewForConfig(config)
+	require.NoError(t, err, "failed to create client for Platform watch")
+
+	ctx, cancel := context.WithCancel(tc.Context())
+	t.Cleanup(cancel)
+
+	options := metav1.ListOptions{
+		FieldSelector:       fields.OneTermEqualSelector("metadata.name", tc.PlatformNamespacedName.Name).String(),
+		ResourceVersion:     resourceVersion,
+		AllowWatchBookmarks: true,
+	}
+	// Runlevel gating surfaces ProvisioningProgress=False with either
+	// AwaitingReadinessReason (while within the runlevel timeout window) or
+	// RunlevelTimeoutExceededReason (once the timeout elapses and gating
+	// advances past the stuck batch). Accept both so the watch cannot miss a
+	// gating event that happens to settle into the timeout-exceeded state.
+	matcher := jq.Match(
+		`any(.status.conditions[]; .type == "%s" and .status == "%s" and (.reason == "%s" or .reason == "%s"))`,
+		status.ConditionTypeProvisioningProgress, metav1.ConditionFalse,
+		status.AwaitingReadinessReason, status.RunlevelTimeoutExceededReason,
+	)
+	platforms := dynamicClient.Resource(gvk.Platform.GroupVersion().WithResource("platforms"))
+
+	result := make(chan error, 1)
+	go func() {
+		// The watch is established inside the loop (stream starts nil) so that a
+		// stale/compacted starting resourceVersion is recovered through the same
+		// IsResourceExpired/IsGone path as a mid-stream expiry, rather than
+		// failing the test outright. Watching from resourceVersion replays every
+		// event since then, so establishing the watch here loses no gating event.
+		var stream watch.Interface
+		defer func() {
+			if stream != nil {
+				stream.Stop()
+			}
+		}()
+		refreshPlatform := func() (bool, error) {
+			current, getErr := platforms.Get(ctx, tc.PlatformNamespacedName.Name, metav1.GetOptions{})
+			if getErr != nil {
+				return false, fmt.Errorf("failed to get current Platform after watch expiry: %w", getErr)
+			}
+			matched, matchErr := matcher.Match(current)
+			if matchErr != nil {
+				return false, fmt.Errorf("failed to inspect current Platform conditions: %w", matchErr)
+			}
+			options.ResourceVersion = current.GetResourceVersion()
+			return matched, nil
+		}
+		for ctx.Err() == nil {
+			if stream == nil {
+				var watchErr error
+				stream, watchErr = platforms.Watch(ctx, options)
+				if watchErr != nil {
+					if !k8serr.IsResourceExpired(watchErr) && !k8serr.IsGone(watchErr) {
+						result <- fmt.Errorf("failed to watch Platform from resource version %s: %w", options.ResourceVersion, watchErr)
+						return
+					}
+					matched, refreshErr := refreshPlatform()
+					if refreshErr != nil {
+						result <- refreshErr
+						return
+					}
+					if matched {
+						result <- nil
+						return
+					}
+					continue
+				}
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case event, ok := <-stream.ResultChan():
+				if !ok {
+					stream.Stop()
+					stream = nil
+					continue
+				}
+				if event.Type == watch.Error {
+					watchErr := k8serr.FromObject(event.Object)
+					if !k8serr.IsResourceExpired(watchErr) && !k8serr.IsGone(watchErr) {
+						result <- fmt.Errorf("Platform watch failed: %w", watchErr)
+						return
+					}
+					matched, refreshErr := refreshPlatform()
+					if refreshErr != nil {
+						result <- refreshErr
+						return
+					}
+					if matched {
+						result <- nil
+						return
+					}
+					stream.Stop()
+					stream = nil
+					continue
+				}
+				if event.Type == watch.Bookmark {
+					bookmark, accessorErr := meta.Accessor(event.Object)
+					if accessorErr != nil {
+						result <- fmt.Errorf("failed to inspect Platform watch bookmark: %w", accessorErr)
+						return
+					}
+					options.ResourceVersion = bookmark.GetResourceVersion()
+					continue
+				}
+				platform, isPlatform := event.Object.(*unstructured.Unstructured)
+				if !isPlatform {
+					result <- fmt.Errorf("unexpected Platform watch object %T", event.Object)
+					return
+				}
+				options.ResourceVersion = platform.GetResourceVersion()
+				matched, matchErr := matcher.Match(platform)
+				if matchErr != nil {
+					result <- fmt.Errorf("failed to inspect Platform conditions: %w", matchErr)
+					return
+				}
+				if matched {
+					result <- nil
+					return
+				}
+			}
+		}
+	}()
+	return result
+}
+
+func (tc *DAGOrderingTestCtx) waitForRunlevelGate(t *testing.T, result <-chan error) {
+	t.Helper()
+	select {
+	case err := <-result:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Minute):
+		t.Fatal("timed out waiting for Platform runlevel gate")
+	case <-tc.Context().Done():
+		t.Fatalf("timed out waiting for Platform runlevel gate: %v", tc.Context().Err())
+	}
 }
 
 // ValidatePlatformReady verifies that every component CR has the
@@ -1353,8 +1598,18 @@ func (tc *DAGOrderingTestCtx) findSubscription(t *testing.T) *ofapi.Subscription
 		require.NoError(t, err, "failed to list Subscriptions")
 	}
 
+	// Match on the package (spec.name) as well as the object name: the
+	// Subscription is conventionally named "opendatahub"/"rhods", but some
+	// installs use a different object name (e.g. "rhoai-operator-dev") while
+	// the package stays "rhods-operator"/"opendatahub-operator". Matching only
+	// the object name there would miss the Subscription and silently fall back
+	// to patching the Deployment directly, which OLM owns and immediately
+	// reverts — making env-var mutations a no-op.
+	matches := func(s string) bool {
+		return strings.Contains(s, "opendatahub") || strings.Contains(s, "rhods")
+	}
 	subIdx := slices.IndexFunc(subList.Items, func(sub ofapi.Subscription) bool {
-		return strings.Contains(sub.Name, "opendatahub") || strings.Contains(sub.Name, "rhods")
+		return matches(sub.Name) || matches(sub.Spec.Package)
 	})
 	if subIdx == -1 {
 		return nil

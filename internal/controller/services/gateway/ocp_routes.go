@@ -117,11 +117,7 @@ func createOCPRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		},
 	)
 
-	if err := createAdditionalIngressRoutes(ctx, rr, gatewayConfig); err != nil {
-		return err
-	}
-
-	return nil
+	return createAdditionalIngressRoutes(ctx, rr, gatewayConfig)
 }
 
 func createAdditionalIngressRoutes(
@@ -134,7 +130,6 @@ func createAdditionalIngressRoutes(
 		return nil
 	}
 
-	l := logf.FromContext(ctx).WithName("createAdditionalIngressRoutes")
 	for _, ingress := range ingresses {
 		if additionalIngressHasGatewayConflict(gatewayConfig, ingress.Name) {
 			continue
@@ -150,8 +145,6 @@ func createAdditionalIngressRoutes(
 			return fmt.Errorf("failed to verify additional ingress Route %q ownership: %w", route.Name, err)
 		}
 		if !manageable {
-			l.Info("Skipping additional ingress Route because existing Route is not owned by GatewayConfig",
-				"ingress", ingress.Name, "route", route.Name)
 			recordAdditionalIngressRouteCondition(rr, ingress.Name, metav1.ConditionFalse,
 				additionalIngressReasonOwnershipConflict,
 				fmt.Sprintf("Route %q is not controlled by this GatewayConfig", route.Name))
@@ -166,12 +159,7 @@ func createAdditionalIngressRoutes(
 	return nil
 }
 
-func canManageGatewayResource(
-	ctx context.Context,
-	cli client.Client,
-	gatewayConfig *serviceApi.GatewayConfig,
-	desired client.Object,
-) (bool, error) {
+func canManageGatewayResource(ctx context.Context, cli client.Client, gatewayConfig *serviceApi.GatewayConfig, desired client.Object) (bool, error) {
 	existing, ok := desired.DeepCopyObject().(client.Object)
 	if !ok {
 		return false, fmt.Errorf("cannot copy resource %T", desired)
@@ -183,7 +171,6 @@ func canManageGatewayResource(
 	if err != nil {
 		return false, fmt.Errorf("failed to get existing resource %s: %w", client.ObjectKeyFromObject(desired), err)
 	}
-
 	return isOwnedByGatewayConfig(existing, gatewayConfig), nil
 }
 
@@ -204,20 +191,8 @@ func buildAdditionalIngressRoute(ingress serviceApi.AdditionalIngress) (*routev1
 		"RouteServerTimeout": "",
 	}
 
-	content, err := gatewayResources.ReadFile(ocpRouteTemplate)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read Route template: %w", err)
-	}
-	tmpl, err := gotemplate.New(ocpRouteTemplate).
-		Funcs(templateutils.TextTemplateFuncMap()).
-		Option("missingkey=error").
-		Parse(string(content))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse Route template: %w", err)
-	}
-
 	var rendered bytes.Buffer
-	if err := tmpl.Execute(&rendered, data); err != nil {
+	if err := ocpRouteTemplateParsed.Execute(&rendered, data); err != nil {
 		return nil, fmt.Errorf("failed to execute Route template: %w", err)
 	}
 
@@ -227,3 +202,14 @@ func buildAdditionalIngressRoute(ingress serviceApi.AdditionalIngress) (*routev1
 	}
 	return route, nil
 }
+
+var ocpRouteTemplateParsed = func() *gotemplate.Template {
+	content, err := gatewayResources.ReadFile(ocpRouteTemplate)
+	if err != nil {
+		panic(fmt.Sprintf("failed to read Route template: %v", err))
+	}
+	return gotemplate.Must(gotemplate.New(ocpRouteTemplate).
+		Funcs(templateutils.TextTemplateFuncMap()).
+		Option("missingkey=error").
+		Parse(string(content)))
+}()

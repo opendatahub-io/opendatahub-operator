@@ -40,9 +40,12 @@ const (
 
 	// maasPortalConditionType is the v3 DSC condition mirrored from the
 	// dashboard-operator for the MaaS Consumer Portal submodule.
-	maasPortalConditionType     = "MaaSPortalAvailable"
-	dashboardReadyConditionType = "DashboardReady"
-	monitoringViewClusterRole   = "cluster-monitoring-view"
+	maasPortalConditionType = "MaaSPortalAvailable"
+	// maasConsumerPortalConditionType is the v2 spelling of the same condition,
+	// produced by the v2<->v3 conversion webhook.
+	maasConsumerPortalConditionType = "MaaSConsumerPortalAvailable"
+	dashboardReadyConditionType     = "DashboardReady"
+	monitoringViewClusterRole       = "cluster-monitoring-view"
 )
 
 func dashboardTestSuite(t *testing.T) {
@@ -104,6 +107,7 @@ func dashboardTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate module enabled", componentCtx.ValidateModuleEnabled},
+		{"Validate independent Data component projection", componentCtx.ValidateIndependentDataComponentProjection},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate data registry image env var injection", componentCtx.ValidateDataRegistryImageEnvVarInjection},
@@ -121,6 +125,67 @@ func dashboardTestSuite(t *testing.T) {
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
+}
+
+// ValidateIndependentDataComponentProjection verifies that the Dashboard CR
+// receives Data Registry availability from the Data Registry child only. The
+// aggregate Data state and the Feature Store child must not affect this gate.
+func (tc *DashboardTestCtx) ValidateIndependentDataComponentProjection(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke, Tier1)
+
+	tc.SkipIfXKSCluster(t)
+	t.Cleanup(func() {
+		tc.EventuallyResourcePatched(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithMutateFunc(testf.TransformPipeline(
+				testf.Transform(`.spec.components.data.featureStore.managementState = %q`, operatorv1.Removed),
+				testf.Transform(`.spec.components.data.dataRegistry.managementState = %q`, operatorv1.Removed),
+			)),
+			WithCondition(And(
+				jq.Match(`.spec.components.data.featureStore.managementState == %q`, operatorv1.Removed),
+				jq.Match(`.spec.components.data.dataRegistry.managementState == %q`, operatorv1.Removed),
+			)),
+		)
+	})
+
+	tests := []struct {
+		name              string
+		featureStoreState operatorv1.ManagementState
+		dataRegistryState operatorv1.ManagementState
+	}{
+		{name: "Data Registry managed, Feature Store removed", featureStoreState: operatorv1.Removed, dataRegistryState: operatorv1.Managed},
+		{name: "Data Registry removed, Feature Store managed", featureStoreState: operatorv1.Managed, dataRegistryState: operatorv1.Removed},
+		{name: "both removed", featureStoreState: operatorv1.Removed, dataRegistryState: operatorv1.Removed},
+		{name: "both managed", featureStoreState: operatorv1.Managed, dataRegistryState: operatorv1.Managed},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.TransformPipeline(
+					testf.Transform(`.spec.components.data.featureStore.managementState = %q`, tt.featureStoreState),
+					testf.Transform(`.spec.components.data.dataRegistry.managementState = %q`, tt.dataRegistryState),
+				)),
+				WithCondition(And(
+					jq.Match(`.spec.components.data.featureStore.managementState == %q`, tt.featureStoreState),
+					jq.Match(`.spec.components.data.dataRegistry.managementState == %q`, tt.dataRegistryState),
+				)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Dashboard, tc.NamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(And(
+					jq.Match(`.spec.components.dataRegistry.managementState == %q`, tt.dataRegistryState),
+					jq.Match(`.spec.components | has("data") | not`),
+				)),
+				WithCustomErrorMsg("Dashboard Data Registry availability must follow only the Data Registry child"),
+			)
+		})
+	}
 }
 
 // TODO(RHOAIENG-96914): Remove this fake role once https://redhat.atlassian.net/browse/RHOAIENG-96914 is resolved and integrated.
@@ -580,7 +645,7 @@ func (tc *DashboardTestCtx) ValidateV2DSCDashboardSelection(t *testing.T) {
 		t.Skip("v2 DSC conversion smoke is not supported on XKS")
 	}
 
-	snapshotV2DSCFields(t, tc.TestContext, []string{"spec", "components", "dashboard"})
+	snapshotDSCFields(t, tc.TestContext, gvk.DataScienceClusterV2, []string{"spec", "components", "dashboard"})
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceClusterV2, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
@@ -608,7 +673,10 @@ func (tc *DashboardTestCtx) ValidateV2DSCDashboardSelection(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Dashboard, types.NamespacedName{Name: componentApi.DashboardInstanceName}),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
-		WithCondition(jq.Match(`.spec.managementState == "Managed"`)),
+		WithCondition(And(
+			jq.Match(`.spec.managementState == "Removed"`),
+			jq.Match(`.spec.maasPortal.managementState == "Managed"`),
+		)),
 	)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -628,6 +696,9 @@ func (tc *DashboardTestCtx) ValidateV2DSCDashboardSelection(t *testing.T) {
 			jq.Match(`.status.components.dashboard.managementState == "Managed"`),
 			jq.Match(`.status.components.maasConsumerPortal.managementState == "Managed"`),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, dashboardReadyConditionType, metav1.ConditionTrue),
+			// The v3 MaaSPortalAvailable condition must surface under its v2
+			// spelling through the conversion webhook.
+			jq.Match(`any(.status.conditions[]; .type == "%s")`, maasConsumerPortalConditionType),
 		)),
 	)
 }
@@ -663,15 +734,20 @@ func (tc *DashboardTestCtx) ValidatePortalOnlyKeepsOperatorUp(t *testing.T) {
 		WithMinimalObject(gvk.Deployment, controllerNN),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
-		WithCustomErrorMsg("dashboard-operator Deployment should stay up when only maasConsumerPortal is Managed"),
+		WithCustomErrorMsg("dashboard-operator Deployment should stay up when only the MaaS Portal is Managed"),
 	)
 
-	// The Dashboard module CR must remain Managed while the portal is enabled.
+	// The Dashboard module CR stays alive with the core Removed and the portal
+	// Managed: the CR projects the standard state on spec.managementState and
+	// the portal state on spec.maasPortal.managementState.
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Dashboard, moduleCRNN),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
-		WithCondition(jq.Match(`.spec.managementState == "Managed"`)),
-		WithCustomErrorMsg("Dashboard module CR should remain Managed when only maasConsumerPortal is Managed"),
+		WithCondition(And(
+			jq.Match(`.spec.managementState == "Removed"`),
+			jq.Match(`.spec.maasPortal.managementState == "Managed"`),
+		)),
+		WithCustomErrorMsg("Dashboard module CR should project standard Removed and maasPortal Managed"),
 	)
 
 	// DSC status must reflect the active Dashboard module and its Managed portal submodule.
@@ -701,6 +777,7 @@ func (tc *DashboardTestCtx) ValidatePortalDisabledWhileDashboardEnabled(t *testi
 	skipUnless(t, Tier1)
 
 	controllerNN := types.NamespacedName{Namespace: tc.AppsNamespace, Name: dashboardControllerDeployment}
+	moduleCRNN := types.NamespacedName{Name: componentApi.DashboardInstanceName}
 
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -722,6 +799,18 @@ func (tc *DashboardTestCtx) ValidatePortalDisabledWhileDashboardEnabled(t *testi
 		WithCustomErrorMsg("dashboard-operator Deployment should stay up for the core Dashboard"),
 	)
 
+	// The Dashboard module CR projects the standard state on spec.managementState
+	// and the removed portal on spec.maasPortal.managementState.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Dashboard, moduleCRNN),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(And(
+			jq.Match(`.spec.managementState == "Managed"`),
+			jq.Match(`.spec.maasPortal.managementState == "Removed"`),
+		)),
+		WithCustomErrorMsg("Dashboard module CR should project standard Managed and maasPortal Removed"),
+	)
+
 	// Portal submodule condition and status must report Removed.
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -740,10 +829,12 @@ func (tc *DashboardTestCtx) ValidatePortalDisabledWhileDashboardEnabled(t *testi
 // ValidateBothRemovedTearsDown verifies that when both the core Dashboard and the
 // portal are Removed, the shared dashboard-operator Deployment and the Dashboard
 // module CR are torn down.
+// Must run on Smoke as well as Tier1: ValidateModuleDisabled (next case) only
+// asserts Platform projection and does not disable the module itself.
 func (tc *DashboardTestCtx) ValidateBothRemovedTearsDown(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, Tier1)
+	skipUnless(t, Smoke, Tier1)
 
 	moduleCRNN := types.NamespacedName{Name: componentApi.DashboardInstanceName}
 

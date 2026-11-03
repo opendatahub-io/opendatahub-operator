@@ -148,12 +148,14 @@ func TestBuildModuleCR_ProjectsMetrics(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
 	dsci := newDSCI(operatorv1.Managed)
+	builtinDCGMScrapeEnabled := false
 	dsci.Spec.Monitoring.Metrics = &serviceApi.Metrics{
 		Storage: &serviceApi.MetricsStorage{
 			Size:      resource.MustParse("10Gi"),
 			Retention: "7d",
 		},
-		Replicas: 2,
+		BuiltinDCGMScrapeEnabled: &builtinDCGMScrapeEnabled,
+		Replicas:                 2,
 	}
 
 	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
@@ -169,6 +171,7 @@ func TestBuildModuleCR_ProjectsMetrics(t *testing.T) {
 	g.Expect(ok).Should(BeTrue(), "spec.metrics.storage missing")
 	g.Expect(storage["size"]).Should(Equal("10Gi"))
 	g.Expect(storage["retention"]).Should(Equal("7d"))
+	g.Expect(metrics["builtinDCGMScrapeEnabled"]).Should(BeFalse())
 	g.Expect(metrics["replicas"]).Should(Equal(int64(2)))
 }
 
@@ -277,6 +280,7 @@ func TestBuildModuleCR_MetricsWithExportersWithoutStorage(t *testing.T) {
 	g.Expect(ok).Should(BeTrue())
 	g.Expect(metrics).Should(HaveKey("exporters"))
 	g.Expect(metrics).ShouldNot(HaveKey("storage"))
+	g.Expect(metrics).ShouldNot(HaveKey("builtinDCGMScrapeEnabled"))
 }
 
 func TestBuildModuleCR_TracesWithExportersWithoutStorage(t *testing.T) {
@@ -410,6 +414,35 @@ func TestBuildModuleCR_ProjectsUsageLogs(t *testing.T) {
 	g.Expect(storage["credentialMode"]).Should(Equal("static"))
 	g.Expect(storage["storageClassName"]).Should(Equal("gp3-csi"))
 	g.Expect(spec).ShouldNot(HaveKey("collectorReplicas"))
+}
+
+// A forwarding-only spoke sets exporters and no storage. Requiring storage here stripped
+// the whole stanza, so the collector never saw its exporters and reported
+// UsageLogsNotConfigured on a cluster that was configured. Mirrors the traces case above.
+func TestBuildModuleCR_UsageLogsWithExportersWithoutStorage(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.UsageLogs = &serviceApi.UsageLogs{
+		CredentialSecret: "hub-usage-logs-auth",
+		Attributes:       map[string]string{"cluster_name": "spoke1"},
+		Exporters: map[string]runtime.RawExtension{
+			"otlphttp/hub": {Raw: []byte(`{"endpoint":"https://hub.example.com/api/logs/v1/infrastructure/otlp"}`)},
+		},
+	}
+
+	u, err := h.BuildModuleCR(context.Background(), newFakeClient(), &modules.DSCContext{DSCI: dsci}, nil)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).Should(HaveKey("usageLogs"))
+	usageLogs, ok := spec["usageLogs"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(usageLogs).Should(HaveKey("exporters"))
+	g.Expect(usageLogs).Should(HaveKey("credentialSecret"))
+	g.Expect(usageLogs).Should(HaveKey("attributes"))
+	g.Expect(usageLogs).ShouldNot(HaveKey("storage"))
 }
 
 func TestBuildModuleCR_UsageLogsWithoutStorageNulled(t *testing.T) {
@@ -577,6 +610,7 @@ func TestGetOperatorManifests_InjectsMonitoringNamespace(t *testing.T) {
 	platform := &modules.PlatformContext{
 		ApplicationsNamespace: "redhat-ods-applications",
 		MonitoringNamespace:   "redhat-ods-monitoring",
+		OTelOperatorNamespace: "openshift-operators",
 		ChartsBasePath:        "/opt/charts",
 	}
 
@@ -591,6 +625,7 @@ func TestGetOperatorManifests_InjectsMonitoringNamespace(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(vals["operatorNamespace"]).Should(Equal("redhat-ods-applications"))
 	g.Expect(vals["monitoringNamespace"]).Should(Equal("redhat-ods-monitoring"))
+	g.Expect(vals["otelOperatorNamespace"]).Should(Equal("openshift-operators"))
 }
 
 func TestGetOperatorManifests_OmitsEmptyMonitoringNamespace(t *testing.T) {
@@ -608,4 +643,5 @@ func TestGetOperatorManifests_OmitsEmptyMonitoringNamespace(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(vals["operatorNamespace"]).Should(Equal("opendatahub"))
 	g.Expect(vals).ShouldNot(HaveKey("monitoringNamespace"))
+	g.Expect(vals["otelOperatorNamespace"]).Should(Equal(""))
 }

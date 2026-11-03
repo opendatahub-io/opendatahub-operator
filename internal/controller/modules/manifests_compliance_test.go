@@ -8,11 +8,15 @@ import (
 
 	helmRenderer "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	modulebuiltin "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/builtin"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/databaseservice"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
@@ -20,28 +24,34 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var allowedChartResourceKinds = map[string]bool{
-	"Deployment":                     true,
-	"Service":                        true,
-	"ServiceAccount":                 true,
-	"ClusterRole":                    true,
-	"ClusterRoleBinding":             true,
-	"Role":                           true,
-	"RoleBinding":                    true,
-	"ConfigMap":                      true,
-	"CustomResourceDefinition":       true,
-	"MutatingWebhookConfiguration":   true,
-	"ValidatingWebhookConfiguration": true,
-	"Issuer":                         true,
-	"Certificate":                    true,
-	"NetworkPolicy":                  true,
-}
+var allowedChartResourceKinds = sets.New(
+	gvk.Deployment.GroupKind(),
+	gvk.Service.GroupKind(),
+	gvk.ServiceAccount.GroupKind(),
+	gvk.ClusterRole.GroupKind(),
+	gvk.ClusterRoleBinding.GroupKind(),
+	gvk.Role.GroupKind(),
+	gvk.RoleBinding.GroupKind(),
+	gvk.ConfigMap.GroupKind(),
+	gvk.CustomResourceDefinition.GroupKind(),
+	gvk.MutatingWebhookConfiguration.GroupKind(),
+	gvk.ValidatingWebhookConfiguration.GroupKind(),
+	gvk.ValidatingAdmissionPolicy.GroupKind(),
+	gvk.ValidatingAdmissionPolicyBinding.GroupKind(),
+	gvk.CertManagerIssuer.GroupKind(),
+	gvk.CertManagerCertificate.GroupKind(),
+	gvk.NetworkPolicy.GroupKind(),
+)
 
 // allowedResourceKindsByModule contains resource kinds that are valid only for
 // specific module manifests. Keep exceptions scoped to the module that owns
 // the resource instead of weakening the allowlist for every module.
-var allowedResourceKindsByModule = map[string]map[string]bool{
-	"ray": {"SecurityContextConstraints": true},
+var allowedResourceKindsByModule = map[string]sets.Set[schema.GroupKind]{
+	"ray": sets.New(gvk.SecurityContextConstraints.GroupKind()),
+	// The db-operator chart ships the Internal Postgres SCC for OpenShift installs.
+	"databaseservice": sets.New(gvk.SecurityContextConstraints.GroupKind()),
+	// The observability chart creates a dedicated namespace for its webhook probe.
+	"monitoring": sets.New(gvk.Namespace.GroupKind()),
 }
 
 func TestModuleChartCompliance(t *testing.T) {
@@ -79,7 +89,7 @@ func TestModuleChartCompliance(t *testing.T) {
 				g.Expect(err).ShouldNot(HaveOccurred(), "failed to render chart for %s", name)
 				g.Expect(resources).ShouldNot(BeEmpty(), "chart %s rendered zero resources", name)
 
-				assertOperatorManifestCompliance(g, name, name, toRenderedResources(resources))
+				assertOperatorManifestCompliance(g, name, name, resources)
 			})
 		}
 
@@ -91,6 +101,64 @@ func TestModuleChartCompliance(t *testing.T) {
 	if testedCount == 0 {
 		t.Fatal("no module handlers have Helm charts to test")
 	}
+}
+
+// TestModuleChartCompliance_DatabaseServiceSCCGate covers the platform-gated
+// SCC render that TestModuleChartCompliance cannot exercise: its shared
+// PlatformContext has no Release, and the databaseservice handler fails closed
+// for unknown/empty platform names.
+func TestModuleChartCompliance_DatabaseServiceSCCGate(t *testing.T) {
+	chartsRoot := requireAssetsRoot(t, "DEFAULT_CHARTS_PATH", filepath.Join("opt", "charts"))
+	h := databaseservice.NewHandler()
+
+	render := func(t *testing.T, release common.Platform) []unstructured.Unstructured {
+		t.Helper()
+		g := NewWithT(t)
+
+		m := h.GetOperatorManifests(&modules.PlatformContext{
+			ApplicationsNamespace: "test-ns",
+			ChartsBasePath:        chartsRoot,
+			Release:               common.Release{Name: release},
+		})
+		g.Expect(m.HelmCharts).Should(HaveLen(1))
+
+		renderer, err := helmRenderer.New([]helmRenderer.Source{{
+			Chart:       m.HelmCharts[0].Chart,
+			ReleaseName: m.HelmCharts[0].ReleaseName,
+			Values:      m.HelmCharts[0].Values,
+		}})
+		if err != nil {
+			t.Fatalf("failed to create helm renderer: %v", err)
+		}
+
+		resources, err := renderer.Process(t.Context(), nil)
+		if err != nil {
+			t.Fatalf("failed to render chart: %v", err)
+		}
+		return resources
+	}
+
+	hasSCC := func(resources []unstructured.Unstructured) bool {
+		for _, res := range resources {
+			if res.GroupVersionKind() == gvk.SecurityContextConstraints &&
+				res.GetName() == "odh-db-internal-postgres" {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("OpenShift release renders the Internal Postgres SCC", func(t *testing.T) {
+		g := NewWithT(t)
+		g.Expect(hasSCC(render(t, cluster.OpenDataHub))).Should(BeTrue(),
+			"chart should render SecurityContextConstraints/odh-db-internal-postgres for ODH")
+	})
+
+	t.Run("XKS release omits the SCC", func(t *testing.T) {
+		g := NewWithT(t)
+		g.Expect(hasSCC(render(t, cluster.XKS))).Should(BeFalse(),
+			"chart must not render the SCC for XKS (vanilla Kubernetes)")
+	})
 }
 
 func TestModuleManifestCompliance(t *testing.T) {
@@ -137,7 +205,7 @@ func TestModuleManifestCompliance(t *testing.T) {
 				g.Expect(err).ShouldNot(HaveOccurred(), "failed to render manifest for %s", name)
 				g.Expect(resources).ShouldNot(BeEmpty(), "manifest %s rendered zero resources", name)
 
-				assertOperatorManifestCompliance(g, handler.GetName(), name, toRenderedResources(resources))
+				assertOperatorManifestCompliance(g, handler.GetName(), name, resources)
 			})
 		}
 
@@ -186,27 +254,14 @@ func requireBuiltinRegistry(t *testing.T) *modules.Registry {
 	return reg
 }
 
-type renderedResource struct {
-	kind string
-	name string
-}
-
-func toRenderedResources(resources []unstructured.Unstructured) []renderedResource {
-	out := make([]renderedResource, len(resources))
-	for i, res := range resources {
-		out[i] = renderedResource{kind: res.GetKind(), name: res.GetName()}
-	}
-	return out
-}
-
-func assertOperatorManifestCompliance(g Gomega, moduleName, source string, resources []renderedResource) {
+func assertOperatorManifestCompliance(g Gomega, moduleName, source string, resources []unstructured.Unstructured) {
 	deploymentCount := 0
 	for _, res := range resources {
-		g.Expect(resourceKindAllowed(moduleName, res.kind)).Should(BeTrue(),
-			"%s contains disallowed resource kind %q (name: %s)",
-			source, res.kind, res.name)
+		g.Expect(resourceKindAllowed(moduleName, res.GroupVersionKind())).Should(BeTrue(),
+			"%s contains disallowed resource %s (name: %s)",
+			source, res.GroupVersionKind(), res.GetName())
 
-		if res.kind == "Deployment" {
+		if res.GroupVersionKind().GroupKind() == gvk.Deployment.GroupKind() {
 			deploymentCount++
 		}
 	}
@@ -216,12 +271,14 @@ func assertOperatorManifestCompliance(g Gomega, moduleName, source string, resou
 		source, deploymentCount)
 }
 
-func resourceKindAllowed(moduleName, kind string) bool {
-	if allowedChartResourceKinds[kind] {
+func resourceKindAllowed(moduleName string, resourceGVK schema.GroupVersionKind) bool {
+	groupKind := resourceGVK.GroupKind()
+	if allowedChartResourceKinds.Has(groupKind) {
 		return true
 	}
 
-	return allowedResourceKindsByModule[moduleName][kind]
+	// A missing module entry yields a nil set, whose Has call safely returns false.
+	return allowedResourceKindsByModule[moduleName].Has(groupKind)
 }
 
 func TestModuleSpecificResourceKindAllowlist(t *testing.T) {
@@ -229,21 +286,40 @@ func TestModuleSpecificResourceKindAllowlist(t *testing.T) {
 
 	tests := map[string]struct {
 		moduleName string
-		kind       string
+		gvk        schema.GroupVersionKind
 		allowed    bool
 	}{
 		"Ray allows SCC": {
 			moduleName: "ray",
-			kind:       "SecurityContextConstraints",
+			gvk:        gvk.SecurityContextConstraints,
 			allowed:    true,
+		},
+		"DatabaseService allows SCC": {
+			moduleName: "databaseservice",
+			gvk:        gvk.SecurityContextConstraints,
+			allowed:    true,
+		},
+		"Monitoring allows webhook probe Namespace": {
+			moduleName: "monitoring",
+			gvk:        gvk.Namespace,
+			allowed:    true,
+		},
+		"other module rejects Namespace": {
+			moduleName: "aipipelines",
+			gvk:        gvk.Namespace,
+			allowed:    false,
+		},
+		"unknown module rejects Namespace": {
+			gvk:     gvk.Namespace,
+			allowed: false,
 		},
 		"other module rejects SCC": {
 			moduleName: "aipipelines",
-			kind:       "SecurityContextConstraints",
+			gvk:        gvk.SecurityContextConstraints,
 			allowed:    false,
 		},
 		"unknown module rejects SCC": {
-			kind:    "SecurityContextConstraints",
+			gvk:     gvk.SecurityContextConstraints,
 			allowed: false,
 		},
 	}
@@ -253,7 +329,7 @@ func TestModuleSpecificResourceKindAllowlist(t *testing.T) {
 			t.Parallel()
 
 			g := NewWithT(t)
-			g.Expect(resourceKindAllowed(tc.moduleName, tc.kind)).Should(Equal(tc.allowed))
+			g.Expect(resourceKindAllowed(tc.moduleName, tc.gvk)).Should(Equal(tc.allowed))
 		})
 	}
 }

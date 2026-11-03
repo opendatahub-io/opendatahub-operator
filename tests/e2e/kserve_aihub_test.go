@@ -3,13 +3,38 @@ package e2e_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 )
+
+func kserveAIHubStatePropagationTestSuite(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier1)
+
+	ct, err := NewModuleTestCtx(t, kserve.NewHandler())
+	require.NoError(t, err)
+	ct.SkipIfXKSCluster(t)
+
+	componentCtx := KserveTestCtx{ComponentTestCtx: ct}
+	componentCtx.DefaultResourceOpts = []ResourceOpts{
+		WithEventuallyTimeout(ct.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyPollingInterval(ct.TestTimeouts.defaultEventuallyPollInterval),
+	}
+
+	RunTestCases(t, []TestCase{
+		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate module enabled", componentCtx.ValidateModuleEnabled},
+		{"Validate AIHub state propagation", componentCtx.ValidateAIHubStatePropagation},
+		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+		{"Validate module disabled", componentCtx.ValidateModuleDisabled},
+	})
+}
 
 // ValidateAIHubStatePropagation verifies that AI Hub management state
 // from the DSC is correctly injected into the Kserve module CR spec.

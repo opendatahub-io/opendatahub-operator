@@ -677,6 +677,25 @@ func TestBuildPlatformContext_MonitoringNamespaceFromDSCI(t *testing.T) {
 	}
 }
 
+func TestBuildPlatformContext_OTelNamespaceFromActiveWebhook(t *testing.T) {
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
+	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
+	platform := &configApi.Platform{}
+	platform.Spec.Modules.Monitoring.ManagementState = operatorv1.Managed
+	webhook := collectorWebhook("collector-admission", "openshift-operators")
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsci, webhook))
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+	ctx, err := buildPlatformContext(context.Background(), &types.ReconciliationRequest{Client: cli, Instance: platform})
+	if err != nil {
+		t.Fatalf("buildPlatformContext: %v", err)
+	}
+	if ctx.OTelOperatorNamespace != "openshift-operators" {
+		t.Fatalf("expected active webhook namespace openshift-operators, got %q", ctx.OTelOperatorNamespace)
+	}
+}
+
 func TestBuildPlatformContext_MonitoringNamespaceEmptyWithoutDSCI(t *testing.T) {
 	cli, err := fakeclient.New()
 	if err != nil {

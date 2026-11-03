@@ -508,6 +508,11 @@ func (in *Metrics) DeepCopyInto(out *Metrics) {
 		*out = new(MetricsStorage)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.BuiltinDCGMScrapeEnabled != nil {
+		in, out := &in.BuiltinDCGMScrapeEnabled, &out.BuiltinDCGMScrapeEnabled
+		*out = new(bool)
+		**out = **in
+	}
 	if in.Exporters != nil {
 		in, out := &in.Exporters, &out.Exporters
 		*out = make(map[string]runtime.RawExtension, len(*in))
@@ -734,6 +739,20 @@ func (in *UsageLogs) DeepCopyInto(out *UsageLogs) {
 		in, out := &in.Storage, &out.Storage
 		*out = new(LokiStorageConfig)
 		**out = **in
+	}
+	if in.Exporters != nil {
+		in, out := &in.Exporters, &out.Exporters
+		*out = make(map[string]runtime.RawExtension, len(*in))
+		for key, val := range *in {
+			(*out)[key] = *val.DeepCopy()
+		}
+	}
+	if in.Attributes != nil {
+		in, out := &in.Attributes, &out.Attributes
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
 	}
 }
 

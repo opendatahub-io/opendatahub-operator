@@ -265,7 +265,7 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		assert.Equal(t, intermediateCurves, curvePreferences)
 	})
 
-	t.Run("Strict APIServer with unsupported custom TLS version returns an error", func(t *testing.T) {
+	t.Run("Strict APIServer with custom TLS 1.1 profile is honored", func(t *testing.T) {
 		t.Parallel()
 		apiServer := &configv1.APIServer{
 			ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAPIServerObj},
@@ -285,9 +285,9 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(apiServer).Build()
 
 		minVersion, cipherSuites, curvePreferences, err := gateway.GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
-		require.Error(t, err)
-		assert.Empty(t, minVersion)
-		assert.Empty(t, cipherSuites)
+		require.NoError(t, err)
+		assert.Equal(t, "TLS1.1", minVersion)
+		assert.Equal(t, "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_3DES_EDE_CBC_SHA", cipherSuites)
 		assert.Empty(t, curvePreferences)
 	})
 

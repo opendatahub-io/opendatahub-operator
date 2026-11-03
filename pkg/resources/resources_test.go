@@ -1,6 +1,7 @@
 package resources_test
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -18,12 +19,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -33,6 +37,31 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+func TestGetGatewayConfig(t *testing.T) {
+	g := NewWithT(t)
+	scheme := runtime.NewScheme()
+	g.Expect(serviceApi.AddToScheme(scheme)).To(Succeed())
+	config := &serviceApi.GatewayConfig{ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName}}
+	cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(config).Build()
+	got, err := resources.GetGatewayConfig(t.Context(), cli)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got.GetName()).To(Equal(serviceApi.GatewayConfigName))
+
+	missing := fake.NewClientBuilder().WithScheme(scheme).Build()
+	got, err = resources.GetGatewayConfig(t.Context(), missing)
+	g.Expect(err).To(MatchError(ContainSubstring("not found")))
+	g.Expect(got).To(BeNil())
+
+	failing := fake.NewClientBuilder().WithInterceptorFuncs(interceptor.Funcs{
+		Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
+			return errors.New("read failed")
+		},
+	}).Build()
+	got, err = resources.GetGatewayConfig(t.Context(), failing)
+	g.Expect(got).To(BeNil())
+	g.Expect(err).To(MatchError("get GatewayConfig: read failed"))
+}
 
 func TestHasAnnotationAndLabels(t *testing.T) {
 	tests := []struct {

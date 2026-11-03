@@ -102,8 +102,8 @@ func (d *Defaulter) applyDefaults(ctx context.Context, dsc *dscApi.DataScienceCl
 	aiHub := &dsc.Spec.Components.AIHub
 	if aiHub.ManagementState == operatorv1.Managed {
 		if aiHub.InstancesNamespace == "" {
-			log.V(1).Info("Setting default InstancesNamespace for AI Hub", "default", componentApi.DefaultModelRegistriesNamespace)
 			aiHub.InstancesNamespace = componentApi.DefaultModelRegistriesNamespace
+			log.V(1).Info("Setting default InstancesNamespace for AI Hub", "default", aiHub.InstancesNamespace)
 		}
 	}
 

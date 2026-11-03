@@ -100,7 +100,7 @@ func (tc *KueueTestCtx) ensureKueueOperatorsInstalled(t *testing.T) {
 	t.Logf("Ensuring OCP Kueue Operator is installed (namespace=%s, name=%s).", kueueOcpOperatorNamespace, kueueOpName)
 	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(
 		types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace},
-		kueueOcpOperatorChannel,
+		testOpts.kueueOperatorChannel,
 	)
 }
 
@@ -152,6 +152,10 @@ func kueueDegradedMonitoringTestSuite(t *testing.T) {
 	componentCtx := KueueTestCtx{
 		ComponentTestCtx: ct,
 	}
+
+	t.Cleanup(func() {
+		componentCtx.ValidateKueueComponentDisabled(t)
+	})
 
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.EnsureKueueReady},

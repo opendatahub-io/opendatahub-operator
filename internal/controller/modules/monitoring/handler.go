@@ -19,9 +19,10 @@ import (
 )
 
 const (
-	moduleName                 = serviceApi.MonitoringServiceName
-	crName                     = serviceApi.MonitoringInstanceName
-	monitoringNamespaceHelmKey = "monitoringNamespace"
+	moduleName                   = serviceApi.MonitoringServiceName
+	crName                       = serviceApi.MonitoringInstanceName
+	monitoringNamespaceHelmKey   = "monitoringNamespace"
+	otelOperatorNamespaceHelmKey = "otelOperatorNamespace"
 )
 
 type handler struct {
@@ -58,7 +59,7 @@ func NewHandler() *handler {
 // ModuleConfig field.
 func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) modules.OperatorManifests {
 	result := h.BaseHandler.GetOperatorManifests(platform)
-	if platform == nil || platform.MonitoringNamespace == "" || len(result.HelmCharts) == 0 {
+	if platform == nil || len(result.HelmCharts) == 0 {
 		return result
 	}
 
@@ -69,7 +70,12 @@ func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) module
 	if vals == nil {
 		vals = map[string]any{}
 	}
-	vals[monitoringNamespaceHelmKey] = platform.MonitoringNamespace
+	if platform.MonitoringNamespace != "" {
+		vals[monitoringNamespaceHelmKey] = platform.MonitoringNamespace
+	}
+	// Always pass this value, including empty, so a chart cannot bind cert-manager
+	// permissions to a stale or guessed namespace before OTel is installed.
+	vals[otelOperatorNamespaceHelmKey] = platform.OTelOperatorNamespace
 	result.HelmCharts[0].Values = helm.Values(vals)
 	return result
 }
@@ -92,7 +98,8 @@ func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 // BuildModuleCR constructs the Monitoring CR from DSCI spec with
 // conditional field projection matching the monitoring domain rules:
 // collector replica defaulting, TLS nulling when disabled, and
-// metrics/traces/logs/usageLogs omitted when storage/config is unset.
+// metrics/traces/usageLogs omitted when neither storage nor exporters are set; logs omitted
+// when storage is unset, because cluster log forwarding has nowhere else to write.
 func (h *handler) BuildModuleCR(
 	ctx context.Context,
 	cli client.Client,
@@ -108,7 +115,12 @@ func (h *handler) BuildModuleCR(
 	metricsEnabled := spec.Metrics != nil && (spec.Metrics.Storage != nil || len(spec.Metrics.Exporters) > 0)
 	tracesEnabled := spec.Traces != nil && (spec.Traces.Storage != nil || len(spec.Traces.Exporters) > 0)
 	logsEnabled := spec.Logs != nil && spec.Logs.Storage != nil
-	usageLogsEnabled := spec.UsageLogs != nil && spec.UsageLogs.Storage != nil
+	// Storage drives the cluster-local write and exporters drive forwarding, so either
+	// alone is a working configuration, the same shape as metrics and traces above.
+	// Requiring storage here stripped the whole stanza from a forwarding-only spoke, so
+	// the collector never saw its exporters.
+	usageLogsEnabled := spec.UsageLogs != nil &&
+		(spec.UsageLogs.Storage != nil || len(spec.UsageLogs.Exporters) > 0)
 
 	if !metricsEnabled {
 		spec.Metrics = nil

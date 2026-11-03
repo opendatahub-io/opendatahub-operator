@@ -6,6 +6,7 @@ package gateway
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -26,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -35,6 +38,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gatewayconfig"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	testscheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
@@ -44,7 +48,111 @@ import (
 // testIssuerRef is a deliberately non-default issuer so that assertions on a produced Certificate
 // fail if name and kind are transposed, or if the per-GatewayConfig override is ignored in favour
 // of the platform default.
-var testIssuerRef = infrav1.IssuerRef{Name: "test-ca-issuer", Kind: "Issuer"}
+var testIssuerRef = infrav1.IssuerRef{
+	Name: "test-ca-issuer",
+	Kind: "Issuer",
+}
+
+func TestLegacyNetworkPolicyCleanupWithoutDomain(t *testing.T) {
+	original := cluster.GetClusterInfo()
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+	t.Cleanup(func() { cluster.SetClusterInfo(original) })
+
+	for _, tc := range []struct {
+		name        string
+		ownerRefs   []metav1.OwnerReference
+		managed     string
+		component   string
+		wantDeleted bool
+	}{
+		{name: "legacy gateway policy", component: ComponentLabelValue, wantDeleted: true},
+		{name: "owned gateway policy", component: ComponentLabelValue, ownerRefs: []metav1.OwnerReference{{Kind: serviceApi.GatewayConfigKind, Name: serviceApi.GatewayConfigName}}},
+		{name: "opted-out policy", component: ComponentLabelValue, managed: "false"},
+		{name: "unrelated policy", component: "other"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			policy := &networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{
+				Name:      KubeAuthProxyName,
+				Namespace: GetGatewayNamespace(),
+				Labels: map[string]string{
+					labels.PlatformPartOf:      labels.NormalizePartOfValue(serviceApi.GatewayConfigKind),
+					labels.K8SCommon.Component: tc.component,
+				},
+				Annotations:     map[string]string{"opendatahub.io/managed": tc.managed},
+				OwnerReferences: tc.ownerRefs,
+			}}
+			cli, err := fakeclient.New(fakeclient.WithObjects(policy))
+			g.Expect(err).NotTo(HaveOccurred())
+			config := newGatewayAuthTestConfig()
+			config.Spec.Domain = ""
+			config.Spec.IngressMode = serviceApi.IngressModeLoadBalancer
+			config.Spec.OIDC = &serviceApi.OIDCConfig{}
+			rr := &odhtypes.ReconciliationRequest{
+				Client: cli, Instance: config, Conditions: conditionstest.NewManager(config, ReadyConditionType),
+			}
+			g.Expect(createKubeAuthProxyInfrastructure(t.Context(), rr)).To(Succeed())
+			g.Expect(cleanupKubeAuthProxyResources(t.Context(), rr)).To(Succeed())
+			err = cli.Get(t.Context(), types.NamespacedName{Name: KubeAuthProxyName, Namespace: GetGatewayNamespace()}, &networkingv1.NetworkPolicy{})
+			g.Expect(k8serr.IsNotFound(err)).To(Equal(tc.wantDeleted))
+		})
+	}
+}
+
+func TestReportDeprecatedNetworkPolicyConfig(t *testing.T) {
+	t.Run("reports the ignored legacy setting as informational", func(t *testing.T) {
+		g := NewWithT(t)
+		gatewayConfig := &serviceApi.GatewayConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName, Generation: 3},
+		}
+		g.Expect(json.Unmarshal([]byte(`{"networkPolicy":{"ingress":{"enabled":false}}}`), &gatewayConfig.Spec)).To(Succeed())
+		manager := conditionstest.NewManager(
+			gatewayConfig,
+			status.ConditionTypeReady,
+			status.ConditionTypeProvisioningSucceeded,
+			ReadyConditionType,
+		)
+		manager.Reset()
+		manager.MarkTrue(status.ConditionTypeProvisioningSucceeded)
+		manager.MarkTrue(ReadyConditionType)
+		rr := &odhtypes.ReconciliationRequest{Instance: gatewayConfig, Conditions: manager}
+
+		g.Expect(reportDeprecatedNetworkPolicyConfig(t.Context(), rr)).To(Succeed())
+
+		condition := manager.GetCondition(deprecatedNetworkPolicyConfigConditionType)
+		g.Expect(condition).NotTo(BeNil())
+		g.Expect(condition.Status).To(Equal(metav1.ConditionTrue))
+		g.Expect(condition.Severity).To(Equal(common.ConditionSeverityInfo))
+		g.Expect(condition.Reason).To(Equal(deprecatedNetworkPolicyConfigReason))
+		g.Expect(condition.Message).To(ContainSubstring("spec.networkPolicy is deprecated and ignored"))
+		g.Expect(condition.ObservedGeneration).To(Equal(int64(3)))
+		g.Expect(manager.GetCondition(status.ConditionTypeReady).Status).To(Equal(metav1.ConditionTrue))
+	})
+
+	t.Run("stale information condition is removed when the field is absent", func(t *testing.T) {
+		g := NewWithT(t)
+		gatewayConfig := &serviceApi.GatewayConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+		}
+		manager := conditionstest.NewManager(
+			gatewayConfig,
+			status.ConditionTypeReady,
+			status.ConditionTypeProvisioningSucceeded,
+			ReadyConditionType,
+		)
+		manager.MarkTrue(
+			deprecatedNetworkPolicyConfigConditionType,
+			conditions.WithSeverity(common.ConditionSeverityInfo),
+		)
+		manager.Reset()
+		rr := &odhtypes.ReconciliationRequest{Instance: gatewayConfig, Conditions: manager}
+
+		g.Expect(reportDeprecatedNetworkPolicyConfig(t.Context(), rr)).To(Succeed())
+		manager.CleanupStaleConditions()
+
+		g.Expect(manager.GetCondition(deprecatedNetworkPolicyConfigConditionType)).To(BeNil())
+	})
+}
 
 // expectCertManagerCertificate asserts the full wiring of a produced cert-manager Certificate:
 // its identity, the Secret cert-manager is told to populate, the SANs requested, and the issuer
@@ -204,7 +312,7 @@ func TestKubeAuthProxyCertificateProvider(t *testing.T) {
 	err = createKubeAuthProxyInfrastructure(ctx, rr)
 	g.Expect(err).NotTo(HaveOccurred())
 
-	g.Expect(rr.Templates).NotTo(BeEmpty(), "auth proxy resources must be queued")
+	g.Expect(rr.Templates).To(BeEmpty(), "auth proxy resources must already be rendered")
 	g.Expect(rr.Conditions.GetCondition(ReadyConditionType).Status).To(Equal(metav1.ConditionUnknown),
 		"readiness is decided after the Certificate and Deployment become available")
 
@@ -213,10 +321,10 @@ func TestKubeAuthProxyCertificateProvider(t *testing.T) {
 
 	g.Expect(k8serr.IsNotFound(err)).To(BeTrue(),
 		"cert-manager owns the Secret; the operator must not pre-create it")
-	g.Expect(rr.Resources).To(HaveLen(1))
+	g.Expect(rr.Resources).To(HaveLen(11))
 	// The Certificate must name the Secret the kube-auth-proxy Deployment mounts, and
 	// carry the in-cluster Service DNS name the EnvoyFilter dials for ext_authz.
-	expectCertManagerCertificate(t, g, rr.Resources[0],
+	expectCertManagerCertificate(t, g, rr.Resources[1],
 		KubeAuthProxyTLSName, GetGatewayNamespace(), KubeAuthProxyTLSName,
 		[]string{KubeAuthProxyName + "." + GetGatewayNamespace() + ".svc.cluster.local"},
 		issuerRef)
@@ -288,114 +396,32 @@ func TestGatewayReadinessRecoversAfterProxyStatusUpdate(t *testing.T) {
 	g.Expect(rr.Conditions.GetCondition(ReadyConditionType).Status).To(Equal(metav1.ConditionTrue))
 }
 
-func TestCreateGatewayInfrastructureSkipsAdditionalGatewayOwnershipConflicts(t *testing.T) {
-	originalClusterInfo := cluster.GetClusterInfo()
-	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
-	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
-	for _, test := range []struct {
-		name     string
-		ownerUID types.UID
-		allowed  bool
-	}{
-		{name: "unowned Gateway"},
-		{name: "foreign GatewayConfig", ownerUID: "other-config-uid"},
-		{name: "current GatewayConfig", ownerUID: "config-uid", allowed: true},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			g := NewWithT(t)
-			config := &serviceApi.GatewayConfig{
-				ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName, UID: "config-uid"},
-				Spec: serviceApi.GatewayConfigSpec{
-					Domain: "apps.example.com", IngressMode: serviceApi.IngressModeOcpRoute,
-					AdditionalIngresses: serviceApi.AdditionalIngresses{
-						additionalIngress("alpha", "alpha.example.com", "alpha"),
-						additionalIngress("beta", "beta.example.com", "beta"),
-					},
-				},
-			}
-			existing := managedGatewayForIngress("alpha")
-			if test.ownerUID != "" {
-				setGatewayConfigOwner(existing, config)
-				existing.OwnerReferences[0].UID = test.ownerUID
-			}
-			before := existing.DeepCopy()
-			beta := managedGatewayForIngress("beta")
-			setGatewayConfigOwner(beta, config)
-			cli := newGatewayTestClient(t, config, existing, beta)
-			rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: config,
-				Conditions: conditionstest.NewManager(config, status.ConditionTypeReady, serviceApi.AdditionalGatewaysReadyConditionType)}
-			g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
-			ingressStatus := additionalIngressStatusByName(config, "alpha")
-			for _, conditionType := range []string{
-				serviceApi.AdditionalIngressGatewayReadyConditionType, serviceApi.AdditionalIngressRouteAdmittedConditionType,
-			} {
-				setAdditionalIngressCondition(ingressStatus, config.Generation, conditionType,
-					metav1.ConditionTrue, additionalIngressReasonReady, "Previously ready")
-			}
-			updateAdditionalIngressReadyCondition(ingressStatus, config.Generation)
-			g.Expect(createGatewayInfrastructure(t.Context(), rr)).To(Succeed())
-			g.Expect(createOCPRoutes(t.Context(), rr)).To(Succeed())
-			g.Expect(rr.Templates).NotTo(BeEmpty())
-			resourceNames := make([]string, 0, len(rr.Resources))
-			for _, resource := range rr.Resources {
-				resourceNames = append(resourceNames, resource.GetName())
-			}
-			g.Expect(resourceNames).To(ContainElements(GetDefaultGatewayName(), "beta", additionalGatewayInfrastructureConfigMapName("beta")))
-			if test.allowed {
-				g.Expect(resourceNames).To(ContainElements("alpha", additionalGatewayInfrastructureConfigMapName("alpha")))
-			} else {
-				g.Expect(resourceNames).NotTo(ContainElement("alpha"))
-				g.Expect(resourceNames).NotTo(ContainElement(additionalGatewayInfrastructureConfigMapName("alpha")))
-				g.Expect(syncAdditionalIngressReadiness(t.Context(), rr)).To(Succeed())
-				g.Expect(syncAdditionalIngressReadyStatuses(t.Context(), rr, false)).To(Succeed())
-				g.Expect(conditions.FindStatusCondition(additionalIngressStatusByName(config, "beta"), serviceApi.AdditionalIngressGatewayReadyConditionType).Status).
-					To(Equal(metav1.ConditionTrue))
-				g.Expect(conditions.FindStatusCondition(ingressStatus, serviceApi.AdditionalIngressGatewayReadyConditionType).Reason).
-					To(Equal(additionalIngressReasonOwnershipConflict))
-				// The ownership conflict makes GatewayReady false, overriding the previous ready status and both aggregates.
-				g.Expect(conditions.FindStatusCondition(ingressStatus, serviceApi.AdditionalIngressReadyConditionType).Status).
-					To(Equal(metav1.ConditionFalse))
-				g.Expect(rr.Conditions.GetCondition(serviceApi.AdditionalGatewaysReadyConditionType).Status).To(Equal(metav1.ConditionFalse))
-			}
-			g.Expect(cli.Get(t.Context(), types.NamespacedName{
-				Name: existing.Name, Namespace: existing.Namespace,
-			}, existing)).To(Succeed())
-			g.Expect(existing.Spec).To(Equal(before.Spec))
-			g.Expect(existing.OwnerReferences).To(Equal(before.OwnerReferences))
-			if !test.allowed {
-				g.Expect(cli.Delete(t.Context(), existing)).To(Succeed())
-				rr.Resources = nil
-				g.Expect(createGatewayInfrastructure(t.Context(), rr)).To(Succeed())
-				g.Expect(additionalIngressHasGatewayConflict(config, "alpha")).To(BeFalse())
-				g.Expect(rr.Resources).To(ContainElement(HaveField("Object", HaveKeyWithValue("metadata", HaveKeyWithValue("name", "alpha")))))
-			}
-		})
-	}
-}
-
 func TestCreateGatewayInfrastructureSkipsManagedHostnameConflicts(t *testing.T) {
 	originalClusterInfo := cluster.GetClusterInfo()
-	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+	cluster.SetClusterInfo(cluster.ClusterInfo{
+		Type: cluster.ClusterTypeOpenShift,
+	})
 	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
 	for _, subdomain := range []string{DefaultGatewaySubdomain, LegacyGatewaySubdomain} {
 		t.Run(subdomain, func(t *testing.T) {
 			g := NewWithT(t)
-			config := &serviceApi.GatewayConfig{
-				ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName, UID: "config-uid", Generation: 1},
-				Spec: serviceApi.GatewayConfigSpec{
-					Domain: "apps.example.com", IngressMode: serviceApi.IngressModeOcpRoute,
-					AdditionalIngresses: serviceApi.AdditionalIngresses{
-						additionalIngress("alpha", subdomain+".apps.example.com", "alpha"),
-						additionalIngress("beta", "beta.example.com", "beta"),
-					},
-				},
-			}
+			config := newGatewayAuthTestConfig(
+				additionalIngress("alpha", subdomain+".apps.example.com", "alpha"),
+				additionalIngress("beta", "beta.example.com", "beta"),
+			)
+			config.UID = "config-uid"
 			alpha, beta := managedGatewayForIngress("alpha"), managedGatewayForIngress("beta")
-			setGatewayConfigOwner(alpha, config)
-			setGatewayConfigOwner(beta, config)
+			alphaProxy, betaProxy := readyAuthProxyForIngress("alpha"), readyAuthProxyForIngress("beta")
+			for _, obj := range []client.Object{alpha, beta, alphaProxy, betaProxy} {
+				setGatewayConfigOwner(obj, config)
+			}
 			rr := &odhtypes.ReconciliationRequest{
-				Client: newGatewayTestClient(t, config, alpha, beta), Instance: config,
-				Conditions: conditionstest.NewManager(config, serviceApi.AdditionalGatewaysReadyConditionType),
+				Client: newGatewayTestClient(t, config, alpha, beta, alphaProxy, betaProxy, &configv1.Authentication{
+					ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
+					Spec:       configv1.AuthenticationSpec{Type: configv1.AuthenticationTypeIntegratedOAuth},
+				}),
+				Instance:   config,
+				Conditions: conditionstest.NewManager(config, ReadyConditionType, serviceApi.AdditionalGatewaysReadyConditionType),
 			}
 			g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
 			g.Expect(createGatewayInfrastructure(t.Context(), rr)).To(Succeed())
@@ -428,113 +454,22 @@ func TestCreateGatewayInfrastructureSkipsManagedHostnameConflicts(t *testing.T) 
 	}
 }
 
-func TestCreateGatewayInfrastructureValidatesAdditionalResourceOwnership(t *testing.T) {
-	originalClusterInfo := cluster.GetClusterInfo()
-	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
-	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
-	for _, test := range []struct {
-		name       string
-		ownerUID   types.UID
-		lookupKind string
-		allowed    bool
-	}{
-		{name: "unowned ConfigMap"},
-		{name: "foreign ConfigMap", ownerUID: "other-config-uid"},
-		{name: "owned ConfigMap", ownerUID: "config-uid", allowed: true},
-		{name: "ConfigMap lookup failure", lookupKind: "ConfigMap"},
-		{name: "Gateway lookup failure", lookupKind: "Gateway"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			g := NewWithT(t)
-			config := &serviceApi.GatewayConfig{
-				ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName, UID: "config-uid"},
-				Spec: serviceApi.GatewayConfigSpec{
-					Domain: "apps.example.com", IngressMode: serviceApi.IngressModeOcpRoute,
-					AdditionalIngresses: serviceApi.AdditionalIngresses{
-						additionalIngress("alpha", "alpha.example.com", "alpha"),
-						additionalIngress("beta", "beta.example.com", "beta"),
-					},
-				},
-			}
-			configMap := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
-				Name: additionalGatewayInfrastructureConfigMapName("alpha"), Namespace: GetGatewayNamespace(),
-			}, Data: map[string]string{"service": "existing configuration"}}
-			if test.ownerUID != "" {
-				setGatewayConfigOwner(configMap, config)
-				configMap.OwnerReferences[0].UID = test.ownerUID
-			}
-			before := configMap.DeepCopy()
-			lookupErr := k8serr.NewForbidden(schema.GroupResource{Resource: test.lookupKind}, "alpha", nil)
-			cli, err := fakeclient.New(fakeclient.WithObjects(config, configMap),
-				fakeclient.WithInterceptorFuncs(interceptor.Funcs{
-					Get: func(ctx context.Context, clnt client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-						if (test.lookupKind == "ConfigMap" && key.Name == configMap.Name) ||
-							(test.lookupKind == "Gateway" && key.Name == "alpha") {
-							return lookupErr
-						}
-						return clnt.Get(ctx, key, obj, opts...)
-					},
-				}))
-			g.Expect(err).NotTo(HaveOccurred())
-			rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: config,
-				Conditions: conditionstest.NewManager(config, serviceApi.AdditionalGatewaysReadyConditionType)}
-			g.Expect(syncAdditionalIngressStatus(t.Context(), rr)).To(Succeed())
-			err = createGatewayInfrastructure(t.Context(), rr)
-			if test.lookupKind != "" {
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(err).To(MatchError(lookupErr))
-			} else {
-				g.Expect(err).NotTo(HaveOccurred())
-				resourceNames := make([]string, 0, len(rr.Resources))
-				for _, resource := range rr.Resources {
-					resourceNames = append(resourceNames, resource.GetName())
-				}
-				g.Expect(resourceNames).To(ContainElements(GetDefaultGatewayName(), "beta", additionalGatewayInfrastructureConfigMapName("beta")))
-				if test.allowed {
-					g.Expect(resourceNames).To(ContainElements("alpha", configMap.Name))
-				} else {
-					g.Expect(resourceNames).NotTo(ContainElement("alpha"))
-					g.Expect(resourceNames).NotTo(ContainElement(configMap.Name))
-					g.Expect(conditions.FindStatusCondition(additionalIngressStatusByName(config, "alpha"),
-						serviceApi.AdditionalIngressGatewayReadyConditionType).Reason).To(Equal(additionalIngressReasonOwnershipConflict))
-					g.Expect(gatewayEnvoyFilterTargets(config)).To(Equal([]gatewayEnvoyFilterTarget{
-						{Name: AuthnFilterName, GatewayName: GetDefaultGatewayName()},
-						{Name: additionalGatewayEnvoyFilterName("beta"), GatewayName: "beta"},
-					}))
-					g.Expect(syncAdditionalIngressReadyStatuses(t.Context(), rr, false)).To(Succeed())
-					g.Expect(conditions.FindStatusCondition(additionalIngressStatusByName(config, "alpha"),
-						serviceApi.AdditionalIngressReadyConditionType).Status).To(Equal(metav1.ConditionFalse))
-				}
-			}
-			if test.lookupKind != "ConfigMap" {
-				g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(configMap), configMap)).To(Succeed())
-				g.Expect(configMap.Data).To(Equal(before.Data))
-				g.Expect(configMap.OwnerReferences).To(Equal(before.OwnerReferences))
-			}
-		})
-	}
-}
-
 func TestCreateGatewayInfrastructureCreatesOneGatewayPerAdditionalIngress(t *testing.T) {
 	g := NewWithT(t)
 	originalClusterInfo := cluster.GetClusterInfo()
-	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+	cluster.SetClusterInfo(cluster.ClusterInfo{
+		Type: cluster.ClusterTypeOpenShift,
+	})
 	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
 
-	config := &serviceApi.GatewayConfig{
-		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
-		Spec: serviceApi.GatewayConfigSpec{
-			Domain:      "apps.example.com",
-			IngressMode: serviceApi.IngressModeOcpRoute,
-			AdditionalIngresses: serviceApi.AdditionalIngresses{
-				additionalIngress("alpha", "alpha.apps.example.com", "alpha"),
-				additionalIngress("beta", "beta.apps.example.com", "beta"),
-			},
-		},
-	}
-	cli, err := fakeclient.New(fakeclient.WithObjects(config))
-	g.Expect(err).NotTo(HaveOccurred())
-	rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: config}
+	config := newGatewayAuthTestConfig(
+		additionalIngress("alpha", "alpha.apps.example.com", "alpha"),
+		additionalIngress("beta", "beta.apps.example.com", "beta"),
+	)
+	rr := newGatewayAuthTestRequest(t, config, &configv1.Authentication{
+		ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
+		Spec:       configv1.AuthenticationSpec{Type: configv1.AuthenticationTypeIntegratedOAuth},
+	})
 
 	g.Expect(createGatewayInfrastructure(t.Context(), rr)).To(Succeed())
 	gateways := make(map[string]*gwapiv1.Gateway, 3)
@@ -609,8 +544,6 @@ func TestXKSReconcileWithoutDomainStopsCleanly(t *testing.T) {
 
 	g.Expect(createGatewayInfrastructure(ctx, rr)).To(Succeed())
 	g.Expect(createKubeAuthProxyInfrastructure(ctx, rr)).To(Succeed())
-	g.Expect(createEnvoyFilter(ctx, rr)).To(Succeed())
-	g.Expect(createNetworkPolicy(ctx, rr)).To(Succeed())
 	g.Expect(syncGatewayConfigStatus(ctx, rr)).To(Succeed())
 
 	ready := rr.Conditions.GetCondition(ReadyConditionType)
@@ -662,8 +595,6 @@ func TestXKSReconcileRejectsOpenShiftOnlyValues(t *testing.T) {
 
 	g.Expect(createGatewayInfrastructure(ctx, rr)).To(Succeed())
 	g.Expect(createKubeAuthProxyInfrastructure(ctx, rr)).To(Succeed())
-	g.Expect(createEnvoyFilter(ctx, rr)).To(Succeed())
-	g.Expect(createNetworkPolicy(ctx, rr)).To(Succeed())
 	g.Expect(syncGatewayConfigStatus(ctx, rr)).To(Succeed())
 
 	ready := rr.Conditions.GetCondition(ReadyConditionType)
@@ -729,7 +660,7 @@ func TestGetTemplateDataTLSCurvePreferences(t *testing.T) {
 
 	templateData, err := getTemplateData(ctx, rr)
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(templateData).To(HaveKeyWithValue("AuthProxyMaxReplicas", maximum))
+	g.Expect(authTargetTemplateData(templateData, defaultAuthProxyTarget("rh-ai.apps.example.com", gatewayConfig), "")).To(HaveKeyWithValue("AuthProxyMaxReplicas", maximum))
 	g.Expect(templateData).To(HaveKeyWithValue("TLSMinVersion", "TLS1.2"))
 	g.Expect(templateData).To(HaveKeyWithValue("TLSCipherSuite", tls.CipherSuiteName(tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)))
 	g.Expect(templateData).To(HaveKeyWithValue("TLSCurvePreferences", "29,23"))
@@ -782,6 +713,99 @@ func TestGetTemplateDataTLSReadError(t *testing.T) {
 	_, err = getTemplateData(ctx, rr)
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(ContainSubstring("failed to resolve APIServer TLS profile"))
+}
+
+// Shared template data retains the CA bundle for each target's rollout hash.
+// Missing or empty bundles and read errors must stop deployment.
+func TestGetTemplateDataProviderCA(t *testing.T) {
+	originalClusterInfo := cluster.GetClusterInfo()
+	t.Cleanup(func() { cluster.SetClusterInfo(originalClusterInfo) })
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+
+	providerCA := []byte("-----BEGIN CERTIFICATE-----\nprovider-ca-bundle\n-----END CERTIFICATE-----\n")
+	caSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "provider-ca", Namespace: GetGatewayNamespace()},
+		Data:       map[string][]byte{"ca.crt": providerCA},
+	}
+	emptyCASecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "provider-ca", Namespace: GetGatewayNamespace()},
+		Data:       map[string][]byte{"ca.crt": {}},
+	}
+
+	for _, tc := range []struct {
+		name        string
+		objects     []client.Object
+		wantErrText string
+		failGet     bool
+	}{
+		{
+			name:    "secret with ca.crt retains the CA bundle",
+			objects: []client.Object{caSecret},
+		},
+		{
+			name:        "missing secret fails the reconcile",
+			wantErrText: "provider CA secret provider-ca not found in namespace",
+		},
+		{
+			name:        "empty ca.crt fails the reconcile",
+			objects:     []client.Object{emptyCASecret},
+			wantErrText: "provider CA secret provider-ca has no ca.crt data",
+		},
+		{
+			name:        "read error surfaces",
+			wantErrText: "failed to get provider CA secret for hash calculation",
+			failGet:     true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			ctx := t.Context()
+
+			gatewayConfig := &serviceApi.GatewayConfig{
+				ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName},
+				Spec: serviceApi.GatewayConfigSpec{
+					Domain:               "apps.example.com",
+					ProviderCASecretName: "provider-ca",
+				},
+			}
+
+			scheme, err := testscheme.New()
+			g.Expect(err).NotTo(HaveOccurred())
+
+			cli, err := fakeclient.New(
+				fakeclient.WithObjects(append(tc.objects, gatewayConfig)...),
+				fakeclient.WithScheme(scheme),
+				fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+					Get: func(ctx context.Context, clnt client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+						if tc.failGet {
+							if _, ok := obj.(*corev1.Secret); ok && key.Name == "provider-ca" {
+								return k8serr.NewForbidden(schema.GroupResource{Group: "", Resource: "secrets"}, key.Name, nil)
+							}
+						}
+						return clnt.Get(ctx, key, obj, opts...)
+					},
+				}),
+			)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			rr := &odhtypes.ReconciliationRequest{
+				Client:     cli,
+				Instance:   gatewayConfig,
+				Conditions: conditionstest.NewManager(gatewayConfig, ReadyConditionType),
+			}
+
+			templateData, err := getTemplateData(ctx, rr)
+			if tc.wantErrText != "" {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring(tc.wantErrText))
+				return
+			}
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(templateData).To(HaveKeyWithValue("ProviderCA", providerCA))
+			g.Expect(templateData).To(HaveKeyWithValue("ProviderCASecretName", "provider-ca"))
+			g.Expect(templateData).To(HaveKeyWithValue("ProviderCASecret", true))
+		})
+	}
 }
 
 func TestResolveOCPRouteServerTimeout(t *testing.T) {
@@ -982,10 +1006,10 @@ func TestKubeAuthProxySecretCreateFailure(t *testing.T) {
 	g.Expect(ready.Message).To(ContainSubstring(status.AuthProxyFailedGenerateSecretMessage))
 }
 
-// TestKubeAuthProxyOAuthClientFailure covers the createKubeAuthProxyInfrastructure
-// branch where OAuth client creation fails in IntegratedOAuth mode: the action marks
-// the GatewayConfig not ready with the OAuth client failure message and propagates the error.
-func TestKubeAuthProxyOAuthClientFailure(t *testing.T) {
+// TestKubeAuthProxyOAuthClientPreparationFailure verifies that an OAuthClient
+// normalization error from rr.AddResources is propagated and marks Ready=False.
+// The incomplete scheme injects this failure before the deployment action runs.
+func TestKubeAuthProxyOAuthClientPreparationFailure(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
@@ -1005,23 +1029,14 @@ func TestKubeAuthProxyOAuthClientFailure(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: cluster.ClusterAuthenticationObj},
 	}
 
-	cli, err := fakeclient.New(
-		fakeclient.WithObjects(gatewayConfig, authentication),
-		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
-			// Fail the kube-auth-proxy-creds read only once the secret exists:
-			// getAuthProxySecretValues and createSecret read it while absent (NotFound),
-			// createOAuthClient reads it after createSecret has created it.
-			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-				err := c.Get(ctx, key, obj, opts...)
-				if err == nil {
-					if _, ok := obj.(*corev1.Secret); ok && key.Name == KubeAuthProxySecretsName {
-						return errors.New("injected kube-auth-proxy-creds get failure")
-					}
-				}
-				return err
-			},
-		}),
-	)
+	// Register the types needed to create credentials, but omit OAuthClient so
+	// rr.AddResources fails when resolving its GroupVersionKind.
+	scheme := runtime.NewScheme()
+	g.Expect(corev1.AddToScheme(scheme)).To(Succeed())
+	g.Expect(configv1.AddToScheme(scheme)).To(Succeed())
+	g.Expect(operatorv1.AddToScheme(scheme)).To(Succeed())
+	g.Expect(serviceApi.AddToScheme(scheme)).To(Succeed())
+	cli, err := fakeclient.New(fakeclient.WithScheme(scheme), fakeclient.WithObjects(gatewayConfig, authentication))
 	g.Expect(err).NotTo(HaveOccurred())
 
 	rr := &odhtypes.ReconciliationRequest{
@@ -1031,10 +1046,12 @@ func TestKubeAuthProxyOAuthClientFailure(t *testing.T) {
 	}
 
 	err = createKubeAuthProxyInfrastructure(ctx, rr)
-	g.Expect(err).To(MatchError(ContainSubstring("failed to create OAuth client")))
+	g.Expect(err).To(MatchError(ContainSubstring("failed to create OAuth client: cannot normalize object")))
+	g.Expect(err).To(MatchError(ContainSubstring("no kind is registered for the type v1.OAuthClient")))
 
 	ready := rr.Conditions.GetCondition(ReadyConditionType)
 	g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
 	g.Expect(ready.Reason).To(Equal(status.NotReadyReason))
 	g.Expect(ready.Message).To(ContainSubstring(status.AuthProxyFailedOAuthClientMessage))
+	g.Expect(ready.Message).To(ContainSubstring("no kind is registered for the type v1.OAuthClient"))
 }

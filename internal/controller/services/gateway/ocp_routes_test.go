@@ -87,29 +87,61 @@ func TestCreateAdditionalIngressRoutesUsePerIngressGatewayServices(t *testing.T)
 	g.Expect(observedHTTPRoute.Spec.ParentRefs[0].SectionName).To(BeNil())
 }
 
-func TestCreateAdditionalIngressRoutesDoesNotAdoptUnownedRoute(t *testing.T) {
+func TestCreateAdditionalIngressRoutesSkipsForeignRoute(t *testing.T) {
 	g := NewWithT(t)
 	ingress := additionalIngress("alpha", "alpha.apps.example.com", "alpha")
 	gatewayConfig := &serviceApi.GatewayConfig{
 		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName, UID: types.UID("config-uid"), Generation: 1},
 		Spec:       serviceApi.GatewayConfigSpec{AdditionalIngresses: serviceApi.AdditionalIngresses{ingress}},
 	}
-	gatewayConfig.Status.AdditionalIngresses = buildAdditionalIngressStatuses(
-		gatewayConfig.Spec.AdditionalIngresses, nil, gatewayConfig.Generation,
-	)
-	existing, err := buildAdditionalIngressRoute(ingress)
+	gatewayConfig.Status.AdditionalIngresses = buildAdditionalIngressStatuses(gatewayConfig.Spec.AdditionalIngresses, nil, gatewayConfig.Generation)
+	foreignOwner := &serviceApi.GatewayConfig{ObjectMeta: metav1.ObjectMeta{Name: "other-config", UID: types.UID("other-uid")}}
+	foreignRoute, err := buildAdditionalIngressRoute(ingress)
 	g.Expect(err).NotTo(HaveOccurred())
-	cli := newGatewayTestClient(t, gatewayConfig, existing)
+	setGatewayConfigOwner(foreignRoute, foreignOwner)
+	cli := newGatewayTestClient(t, gatewayConfig, foreignRoute)
 	rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: gatewayConfig}
 
 	g.Expect(createAdditionalIngressRoutes(t.Context(), rr, gatewayConfig)).To(Succeed())
 	g.Expect(rr.Resources).To(BeEmpty())
-	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(existing), &routev1.Route{})).To(Succeed())
 	condition := conditions.FindStatusCondition(
-		additionalIngressStatusByName(gatewayConfig, ingress.Name), serviceApi.AdditionalIngressRouteAdmittedConditionType,
+		additionalIngressStatusByName(gatewayConfig, ingress.Name),
+		serviceApi.AdditionalIngressRouteAdmittedConditionType,
 	)
 	g.Expect(condition.Status).To(Equal(metav1.ConditionFalse))
 	g.Expect(condition.Reason).To(Equal(additionalIngressReasonOwnershipConflict))
+}
+
+func TestCanManageGatewayResourceRejectsForeignResources(t *testing.T) {
+	gatewayConfig := &serviceApi.GatewayConfig{ObjectMeta: metav1.ObjectMeta{Name: serviceApi.GatewayConfigName, UID: types.UID("config-uid")}}
+	foreignOwner := &serviceApi.GatewayConfig{ObjectMeta: metav1.ObjectMeta{Name: "other-config", UID: types.UID("other-uid")}}
+
+	tests := []struct {
+		name    string
+		desired client.Object
+		foreign client.Object
+	}{
+		{
+			name:    "Gateway",
+			desired: &gwapiv1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: GetGatewayNamespace()}},
+			foreign: &gwapiv1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: GetGatewayNamespace()}},
+		},
+		{
+			name:    "ConfigMap",
+			desired: &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "alpha-config", Namespace: GetGatewayNamespace()}},
+			foreign: &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "alpha-config", Namespace: GetGatewayNamespace()}},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			g := NewWithT(t)
+			setGatewayConfigOwner(test.foreign, foreignOwner)
+			cli := newGatewayTestClient(t, test.foreign)
+			manageable, err := canManageGatewayResource(t.Context(), cli, gatewayConfig, test.desired)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(manageable).To(BeFalse())
+		})
+	}
 }
 
 func TestIsGatewayCertificateOrReferencedSecret(t *testing.T) {

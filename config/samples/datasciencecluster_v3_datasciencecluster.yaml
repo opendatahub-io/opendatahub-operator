@@ -24,6 +24,8 @@ spec:
       nim:
         managementState: "Managed"
       rawDeploymentServiceConfig: "Headed"
+      modelExpress:
+        managementState: "Removed"
     kueue:
       managementState: "Removed"
     trainer:

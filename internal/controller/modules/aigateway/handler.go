@@ -72,6 +72,10 @@ var (
 		// AI Gateway Controller images
 		"RELATED_IMAGE_ODH_AI_GATEWAY_CONTROLLER_IMAGE",
 		"RELATED_IMAGE_ODH_PRAXIS_EXTPROC_IMAGE",
+		// Consumer portal auth proxy, deployed by the AI Gateway Controller
+		"RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE",
+		// AI Grid operator image
+		"RELATED_IMAGE_ODH_PRAXIS_AI_GRID_OPERATOR_IMAGE",
 	}
 )
 
@@ -114,6 +118,17 @@ func NewHandler() *handler {
 								return false
 							}
 							return dscCtx.DSC.Spec.Components.AIGateway.BatchGateway.ManagementState == operatorv1.Managed
+						},
+					},
+					{
+						SourceConditionType: "AIGridReady",
+						DSCConditionType:    "AIGridReady",
+						StatusFieldName:     "AIGrid",
+						IsEnabled: func(dscCtx *modules.DSCContext) bool {
+							if dscCtx == nil || dscCtx.DSC == nil {
+								return false
+							}
+							return dscCtx.DSC.Spec.Components.AIGateway.AIGrid.ManagementState == operatorv1.Managed
 						},
 					},
 				},

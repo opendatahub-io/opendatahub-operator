@@ -3,9 +3,11 @@ package trustyai
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -13,10 +15,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
-
-// permitAllow is the DSC-facing enum value that maps to the module CRD's
-// boolean permit fields. Any other value (including empty) maps to false.
-const permitAllow = "allow"
 
 const (
 	moduleName = componentApi.TrustyAIComponentName
@@ -41,6 +39,8 @@ var relatedImages = []string{
 	"RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE",
 	"RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE",
 	"RELATED_IMAGE_ODH_EVAL_HUB_IMAGE",
+	"RELATED_IMAGE_ODH_EVAL_HUB_LIGHTEVAL_IMAGE",
+	"RELATED_IMAGE_ODH_EVAL_HUB_INSPECTAI_IMAGE",
 	"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 }
 
@@ -89,10 +89,12 @@ func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 // BuildModuleCR projects the DSC TrustyAI component spec onto the module CR.
 // TrustyAI is DSC-mode only for now; Platform mode (xKS) is not yet supported.
 //
-// The DSC-facing spec and the module CRD share field names/paths under
-// eval.lmeval but declare different types for the permit fields (DSC:
-// string enum "allow"/"deny", module CRD: bool), so fields are mapped
-// explicitly here rather than converted wholesale.
+// TrustyAICommonSpec is exactly the subset of the DSC component spec that
+// belongs on the module CR (the DSC-level ManagementSpec is projected through
+// PlatformModules instead), so it is converted wholesale like the OGX handler.
+// The DSC-facing spec and the module CR share field names, paths, and types
+// (the permit fields are the "allow"/"deny" string enum on both sides), and
+// zero-valued fields are omitted so the module CRD defaults apply.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
@@ -103,19 +105,16 @@ func (h *handler) BuildModuleCR(
 		return nil, errors.New("DSC is nil, cannot build TrustyAI CR")
 	}
 
-	lmeval := dscCtx.DSC.Spec.Components.TrustyAI.Eval.LMEval
+	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(
+		&dscCtx.DSC.Spec.Components.TrustyAI.TrustyAICommonSpec,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert TrustyAICommonSpec to unstructured: %w", err)
+	}
 
 	u := &unstructured.Unstructured{
 		Object: map[string]any{
-			"spec": map[string]any{
-				"mcpGuardrailsMode": dscCtx.DSC.Spec.Components.TrustyAI.MCPGuardrailsMode,
-				"eval": map[string]any{
-					"lmeval": map[string]any{
-						"permitCodeExecution": lmeval.PermitCodeExecution == permitAllow,
-						"permitOnline":        lmeval.PermitOnline == permitAllow,
-					},
-				},
-			},
+			"spec": spec,
 		},
 	}
 	u.SetGroupVersionKind(h.Config.GVK)

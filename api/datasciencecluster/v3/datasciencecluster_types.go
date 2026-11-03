@@ -137,6 +137,9 @@ type ComponentsStatus struct {
 	// BatchGateway submodule status (submodule of AIGateway).
 	BatchGateway componentApi.DSCBatchGatewayStatus `json:"batchGateway,omitempty"`
 
+	// AIGrid submodule status (submodule of AIGateway).
+	AIGrid componentApi.DSCAIGridStatus `json:"aiGrid,omitempty"`
+
 	// MCPLifecycleOperator component status.
 	MCPLifecycleOperator componentApi.DSCMCPLifecycleOperatorStatus `json:"mcplifecycleoperator,omitempty"`
 

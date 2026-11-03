@@ -11,6 +11,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -60,6 +61,13 @@ func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
 							ManagementState: operatorv1.Managed,
 						},
 					},
+					Data: componentApi.DSCData{
+						DataRegistry: componentApi.DSCDataRegistry{
+							ManagementSpec: common.ManagementSpec{
+								ManagementState: operatorv1.Managed,
+							},
+						},
+					},
 				},
 			},
 		},
@@ -68,7 +76,9 @@ func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
 
 func newModuleCRConfig(gatewayDomain string) *modules.ModuleCRConfig {
 	return &modules.ModuleCRConfig{
-		GatewayDomain: gatewayDomain,
+		GatewayConfig: &serviceApi.GatewayConfig{
+			Status: serviceApi.GatewayConfigStatus{Domain: gatewayDomain},
+		},
 	}
 }
 
@@ -139,13 +149,18 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
 	g.Expect(spec["managementState"]).Should(Equal("Managed"))
 
+	portal, ok := spec["maasPortal"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.maasPortal missing")
+	g.Expect(portal["managementState"]).Should(Equal("Removed"),
+		"unset portal should project Removed")
+
 	gateway, ok := spec["gateway"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.gateway missing")
 	g.Expect(gateway["domain"]).Should(Equal("dashboard.example.com"))
 
 	components, ok := spec["components"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.components missing")
-	g.Expect(components).Should(HaveLen(4))
+	g.Expect(components).Should(HaveLen(5))
 
 	mrComp, ok := components["modelregistry"].(map[string]any)
 	g.Expect(ok).Should(BeTrue())
@@ -162,6 +177,40 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	pipComp, ok := components["aipipelines"].(map[string]any)
 	g.Expect(ok).Should(BeTrue())
 	g.Expect(pipComp["managementState"]).Should(Equal("Managed"))
+
+	dataRegistryComp, ok := components[componentApi.DataRegistryComponentName].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(dataRegistryComp["managementState"]).Should(Equal("Managed"))
+}
+
+func TestBuildModuleCR_ProjectsDataRegistryState(t *testing.T) {
+	states := []operatorv1.ManagementState{operatorv1.Managed, operatorv1.Removed}
+	for _, featureStoreState := range states {
+		for _, dataRegistryState := range states {
+			name := "featureStore=" + string(featureStoreState) + "/dataRegistry=" + string(dataRegistryState)
+			t.Run(name, func(t *testing.T) {
+				g := NewWithT(t)
+				h := dashboard.NewHandler()
+				dscCtx := newDSCCtx(operatorv1.Managed)
+				dscCtx.DSC.Spec.Components.Data.FeatureStore.ManagementState = featureStoreState
+				dscCtx.DSC.Spec.Components.Data.DataRegistry.ManagementState = dataRegistryState
+
+				u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
+				g.Expect(err).ShouldNot(HaveOccurred())
+
+				spec, ok := u.Object["spec"].(map[string]any)
+				g.Expect(ok).Should(BeTrue())
+				components, ok := spec["components"].(map[string]any)
+				g.Expect(ok).Should(BeTrue())
+				g.Expect(components).ShouldNot(HaveKey(componentApi.DataModuleName),
+					"aggregate data state must not be projected as Data Registry availability")
+				dataRegistryComp, ok := components[componentApi.DataRegistryComponentName].(map[string]any)
+				g.Expect(ok).Should(BeTrue())
+				g.Expect(dataRegistryComp["managementState"]).Should(Equal(string(dataRegistryState)),
+					"Dashboard Data Registry availability must follow only data.dataRegistry")
+			})
+		}
+	}
 }
 
 func TestBuildModuleCR_OmitsGatewayWhenDomainEmpty(t *testing.T) {
@@ -177,7 +226,7 @@ func TestBuildModuleCR_OmitsGatewayWhenDomainEmpty(t *testing.T) {
 	g.Expect(spec).ShouldNot(HaveKey("gateway"))
 }
 
-func TestBuildModuleCR_EmptyManagementStateOmitted(t *testing.T) {
+func TestBuildModuleCR_EmptyStatesProjectRemoved(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtx("")
@@ -187,8 +236,12 @@ func TestBuildModuleCR_EmptyManagementStateOmitted(t *testing.T) {
 
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec).ShouldNot(HaveKey("managementState"),
-		"empty ManagementState should be omitted by unstructured conversion (omitempty)")
+	g.Expect(spec["managementState"]).Should(Equal("Removed"),
+		"absent standard state should project Removed")
+	portal, ok := spec["maasPortal"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.maasPortal missing")
+	g.Expect(portal["managementState"]).Should(Equal("Removed"),
+		"absent portal state should project Removed")
 }
 
 func TestBuildModuleCR_ComponentsDefaultToRemovedWhenEmpty(t *testing.T) {
@@ -238,7 +291,6 @@ func TestGetOperatorManifests(t *testing.T) {
 	platform := &modules.PlatformContext{
 		ApplicationsNamespace: "opendatahub",
 		ChartsBasePath:        "/opt/charts",
-		GatewayDomain:         "dashboard.example.com",
 	}
 
 	manifests := h.GetOperatorManifests(platform)
@@ -366,17 +418,16 @@ func TestBuildModuleCR_OmitsAIHubNamespaceWhenNotManaged(t *testing.T) {
 	g.Expect(spec).ShouldNot(HaveKey("modelRegistryNamespace"))
 }
 
-func TestBuildModuleCR_OmitsAIHubNamespaceWhenEmpty(t *testing.T) {
+func TestBuildModuleCR_ProjectsDefaultedAIHubNamespace(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
-	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Removed, "", operatorv1.Managed, "")
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Removed, "", operatorv1.Managed, componentApi.DefaultModelRegistriesNamespace)
 
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, _ := u.Object["spec"].(map[string]any)
-	g.Expect(spec).ShouldNot(HaveKey("modelRegistryNamespace"),
-		"empty RegistriesNamespace with Managed AI Hub should not project a namespace field")
+	g.Expect(spec["modelRegistryNamespace"]).Should(Equal(componentApi.DefaultModelRegistriesNamespace))
 }
 
 func TestBuildModuleCR_ProjectsNotebooksNamespace_ManagedRhoai(t *testing.T) {
@@ -461,13 +512,14 @@ func TestPopulatePlatformModule_EmptyStatesRemoved(t *testing.T) {
 	g.Expect(populatedState("", "")).Should(Equal(operatorv1.Removed))
 }
 
-func TestBuildModuleCR_ProjectsMaaSConsumerPortal(t *testing.T) {
+func TestBuildModuleCR_ProjectsMaaSPortal(t *testing.T) {
 	tests := []struct {
 		name            string
 		managementState operatorv1.ManagementState
 	}{
 		{name: "Managed", managementState: operatorv1.Managed},
 		{name: "Removed", managementState: operatorv1.Removed},
+		{name: "EmptyDefaultsToRemoved", managementState: ""},
 	}
 
 	for _, tt := range tests {
@@ -483,47 +535,76 @@ func TestBuildModuleCR_ProjectsMaaSConsumerPortal(t *testing.T) {
 			spec, ok := u.Object["spec"].(map[string]any)
 			g.Expect(ok).Should(BeTrue(), "spec is not a map")
 
-			portal, ok := spec["maasConsumerPortal"].(map[string]any)
-			g.Expect(ok).Should(BeTrue(), "spec.maasConsumerPortal missing")
-			g.Expect(portal["managementState"]).Should(Equal(string(tt.managementState)), "portal managementState passes through verbatim")
+			portal, ok := spec["maasPortal"].(map[string]any)
+			g.Expect(ok).Should(BeTrue(), "spec.maasPortal missing")
+			want := tt.managementState
+			if want != operatorv1.Managed {
+				want = operatorv1.Removed
+			}
+			g.Expect(portal["managementState"]).Should(Equal(string(want)),
+				"only Managed passes through; every other state projects Removed")
 
-			// No bool-style consumerPortal projection (this is a direct passthrough, not a translation).
+			// The core state tracks only the standard Dashboard.
+			g.Expect(spec["managementState"]).Should(Equal("Managed"))
+
+			// No legacy maasConsumerPortal projection and no bool-style
+			// consumerPortal translation.
+			g.Expect(spec).ShouldNot(HaveKey("maasConsumerPortal"))
 			g.Expect(spec).ShouldNot(HaveKey("consumerPortal"))
 		})
 	}
 }
 
-func TestBuildModuleCR_UsesEffectiveDashboardManagementState(t *testing.T) {
+// TestBuildModuleCR_UsesStandardManagementState covers all four standard/portal
+// combinations and distinguishes the Dashboard CR's core projection (standard
+// only) from operator enablement (the compound OR computed by
+// PopulatePlatformModule).
+func TestBuildModuleCR_UsesStandardManagementState(t *testing.T) {
 	tests := []struct {
-		name     string
-		standard operatorv1.ManagementState
-		portal   operatorv1.ManagementState
-		want     operatorv1.ManagementState
+		name         string
+		standard     operatorv1.ManagementState
+		portal       operatorv1.ManagementState
+		wantCore     operatorv1.ManagementState
+		wantPortal   operatorv1.ManagementState
+		wantOperator operatorv1.ManagementState
 	}{
-		{name: "both managed", standard: operatorv1.Managed, portal: operatorv1.Managed, want: operatorv1.Managed},
-		{name: "standard only", standard: operatorv1.Managed, portal: operatorv1.Removed, want: operatorv1.Managed},
-		{name: "portal only", standard: operatorv1.Removed, portal: operatorv1.Managed, want: operatorv1.Managed},
-		{name: "portal with absent standard", portal: operatorv1.Managed, want: operatorv1.Managed},
-		{name: "both removed", standard: operatorv1.Removed, portal: operatorv1.Removed, want: operatorv1.Removed},
+		{name: "both managed", standard: operatorv1.Managed, portal: operatorv1.Managed, wantCore: operatorv1.Managed, wantPortal: operatorv1.Managed, wantOperator: operatorv1.Managed},
+		{name: "standard only", standard: operatorv1.Managed, portal: operatorv1.Removed, wantCore: operatorv1.Managed, wantPortal: operatorv1.Removed, wantOperator: operatorv1.Managed},
+		{name: "standard with absent portal", standard: operatorv1.Managed, portal: "", wantCore: operatorv1.Managed, wantPortal: operatorv1.Removed, wantOperator: operatorv1.Managed},
+		{name: "portal only", standard: operatorv1.Removed, portal: operatorv1.Managed, wantCore: operatorv1.Removed, wantPortal: operatorv1.Managed, wantOperator: operatorv1.Managed},
+		{name: "both removed", standard: operatorv1.Removed, portal: operatorv1.Removed, wantCore: operatorv1.Removed, wantPortal: operatorv1.Removed, wantOperator: operatorv1.Removed},
+		{name: "portal with absent standard", standard: "", portal: operatorv1.Managed, wantCore: operatorv1.Removed, wantPortal: operatorv1.Managed, wantOperator: operatorv1.Managed},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
+			h := dashboard.NewHandler()
 			dscCtx := newDSCCtx(tt.standard)
 			dscCtx.DSC.Spec.Components.Dashboard.MaaSPortal.ManagementState = tt.portal
 
-			u, err := dashboard.NewHandler().BuildModuleCR(t.Context(), nil, dscCtx, nil)
+			u, err := h.BuildModuleCR(t.Context(), nil, dscCtx, nil)
 			g.Expect(err).NotTo(HaveOccurred())
 
 			spec, ok := u.Object["spec"].(map[string]any)
 			g.Expect(ok).To(BeTrue())
-			g.Expect(spec["managementState"]).To(Equal(string(tt.want)))
+			g.Expect(spec["managementState"]).To(Equal(string(tt.wantCore)),
+				"core managementState must track only the standard Dashboard")
+
+			portal, ok := spec["maasPortal"].(map[string]any)
+			g.Expect(ok).To(BeTrue(), "spec.maasPortal missing")
+			g.Expect(portal["managementState"]).To(Equal(string(tt.wantPortal)))
+
+			// Operator enablement stays the compound OR of standard and portal.
+			pm := &configApi.PlatformModules{}
+			h.PopulatePlatformModule(pm, dscCtx)
+			g.Expect(pm.Dashboard.ManagementState).To(Equal(tt.wantOperator),
+				"operator enablement must stay up while either workload is Managed")
 		})
 	}
 }
 
-func TestGetSubmoduleConditions_MaaSConsumerPortal(t *testing.T) {
+func TestGetSubmoduleConditions_MaaSPortal(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 
@@ -531,7 +612,7 @@ func TestGetSubmoduleConditions_MaaSConsumerPortal(t *testing.T) {
 	g.Expect(subs).Should(HaveLen(1))
 
 	sm := subs[0]
-	g.Expect(sm.SourceConditionType).Should(Equal("MaaSConsumerPortalAvailable"))
+	g.Expect(sm.SourceConditionType).Should(Equal("MaaSPortalAvailable"))
 	g.Expect(sm.DSCConditionType).Should(Equal("MaaSPortalAvailable"))
 	g.Expect(sm.StatusFieldName).Should(Equal("MaaSPortal"))
 	g.Expect(sm.IsEnabled).ShouldNot(BeNil())

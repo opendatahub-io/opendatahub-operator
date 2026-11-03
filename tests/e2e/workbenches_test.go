@@ -10,10 +10,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -43,7 +46,9 @@ func workbenchesTestSuite(t *testing.T) {
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate module enabled", componentCtx.ValidateModuleEnabled},
 		{"Validate module operator deployment", componentCtx.ValidateModuleOperatorDeployment},
+		{"Validate related image injection", componentCtx.ValidateRelatedImageInjection},
 		{"Validate workbenches namespace configuration", componentCtx.ValidateWorkbenchesNamespaceConfiguration},
+		{"Validate ingress projection", componentCtx.ValidateIngressProjection},
 		{"Validate module releases", componentCtx.ValidateModuleReleases},
 		{"Validate ImageStreams available", componentCtx.ValidateImageStreamsAvailable},
 		{"Validate MLflow integration", componentCtx.ValidateMLflowIntegration},
@@ -92,6 +97,25 @@ func (tc *WorkbenchesTestCtx) ValidateModuleOperatorDeployment(t *testing.T) {
 			Name:      workbenchesModule.ControllerDeploymentName,
 		}),
 		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+	)
+}
+
+func (tc *WorkbenchesTestCtx) ValidateRelatedImageInjection(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.AppsNamespace,
+			Name:      workbenchesModule.ControllerDeploymentName,
+		}),
+		WithCondition(jq.Match(
+			`.spec.template.spec.containers[] | select(.env != null) | .env[] | `+
+				`select(.name == "RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_MINIMAL_CPU_PY312_IMAGE") | `+
+				`.value != null and .value != ""`,
+		)),
+		WithCustomErrorMsg("Workbenches module operator Deployment should have RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_MINIMAL_CPU_PY312_IMAGE injected"),
 	)
 }
 
@@ -163,6 +187,85 @@ func (tc *WorkbenchesTestCtx) ValidateWorkbenchesNamespaceConfiguration(t *testi
 	)
 }
 
+func (tc *WorkbenchesTestCtx) ValidateIngressProjection(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier1)
+
+	configKey := types.NamespacedName{Name: serviceApi.GatewayConfigName}
+	config := &serviceApi.GatewayConfig{}
+	require.NoError(t, tc.Client().Get(tc.Context(), configKey, config))
+	require.NotEmpty(t, config.Status.Domain)
+	original := config.DeepCopy()
+
+	validate := func(additional serviceApi.AdditionalIngresses) {
+		conditions := make([]OmegaMatcher, 0, len(additional)+2)
+		conditions = append(conditions,
+			jq.Match(`.spec.ingresses | length == %d`, len(additional)+1),
+			jq.Match(`.spec.ingresses | map(select(.isDefault == true)) == [{
+				name: "%s", gatewayName: "%s", gatewayNamespace: "%s", hostname: "%s", isDefault: true
+			}]`, gateway.GetDefaultGatewayName(), gateway.GetDefaultGatewayName(), gateway.GetGatewayNamespace(), original.Status.Domain),
+		)
+		for _, ingress := range additional {
+			conditions = append(conditions, jq.Match(`.spec.ingresses | map(select(.name == "%s")) == [{
+				name: "%s", gatewayName: "%s", gatewayNamespace: "%s", hostname: "%s"
+			}]`, ingress.Name, ingress.Name, ingress.Name, gateway.GetGatewayNamespace(), ingress.Hostname))
+		}
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.Workbenches, types.NamespacedName{Name: componentApi.WorkbenchesInstanceName}),
+			WithCondition(And(conditions...)),
+			WithCustomErrorMsg("Workbenches should project the default and %d additional ingresses", len(additional)),
+		)
+	}
+	validate(original.Spec.AdditionalIngresses)
+
+	if config.Spec.IngressMode != serviceApi.IngressModeOcpRoute {
+		t.Log("Additional ingress lifecycle requires OcpRoute mode; default projection validated")
+		return
+	}
+	tc.SkipIfBYOIDC(t)
+
+	update := func(additional serviceApi.AdditionalIngresses) error {
+		return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			current := &serviceApi.GatewayConfig{}
+			if err := tc.Client().Get(tc.Context(), configKey, current); err != nil {
+				return err
+			}
+			current.Spec.AdditionalIngresses = additional
+			return tc.Client().Update(tc.Context(), current)
+		})
+	}
+	t.Cleanup(func() {
+		if err := update(original.Spec.AdditionalIngresses); err != nil {
+			t.Errorf("failed to restore GatewayConfig additional ingresses: %v", err)
+			return
+		}
+		validate(original.Spec.AdditionalIngresses)
+	})
+
+	additional := serviceApi.AdditionalIngresses{{
+		Name: "e2e-workbenches", Hostname: "workbenches.e2e.invalid",
+		IngressControllerName: "e2e-workbenches-missing",
+		RouteLabels:           map[string]string{"example.com/ingress": "e2e-workbenches"},
+	}}
+	require.NoError(t, update(additional))
+	// Published assignments must reach Workbenches even when the ingress is not ready.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.GatewayConfig, configKey),
+		WithCondition(jq.Match(`.status.additionalIngresses[] | select(.name == "%s") |
+			.gatewayRef == {name: "%s", namespace: "%s"} and
+			any(.conditions[]; .type == "Ready" and .status == "False")`,
+			additional[0].Name, additional[0].Name, gateway.GetGatewayNamespace())),
+	)
+	validate(additional)
+
+	additional[0].Hostname = "updated-workbenches.e2e.invalid"
+	require.NoError(t, update(additional))
+	validate(additional)
+
+	require.NoError(t, update(nil))
+	validate(nil)
+}
+
 func (tc *WorkbenchesTestCtx) ValidateMLflowIntegration(t *testing.T) {
 	t.Helper()
 
@@ -184,11 +287,41 @@ func (tc *WorkbenchesTestCtx) ValidateMLflowIntegration(t *testing.T) {
 		Namespace: tc.AppsNamespace,
 	})
 
+	// The workbenches enablement case (ValidateComponentEnabled) is gated to
+	// Smoke/Tier1, so in a Tier2-only run it is skipped and a prior suite may have
+	// left Workbenches Removed. Establish Workbenches enablement here so this test
+	// does not depend on tag-filtered sibling cases.
+	//
+	// Capture the pre-test DSC management states first so cleanup restores exactly
+	// what this test changes, even on a mid-test failure. This keeps the suite
+	// self-contained in a Tier2-only run and non-destructive in an "All" run, where
+	// later cases still expect the pre-existing Workbenches/MLflowOperator states
+	// (Test Cleanup Contract: DSC component enablement changes must be restored).
+	dsc := tc.EnsureResourceExists(WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName))
+
+	workbenchesRestore := operatorv1.Removed
+	if ExtractAndExpectValue[string](tc.g, dsc, `.spec.components.workbenches.managementState // "Removed"`) == string(operatorv1.Managed) {
+		workbenchesRestore = operatorv1.Managed
+	}
+	mlflowRestore := operatorv1.Removed
+	if ExtractAndExpectValue[string](tc.g, dsc, `.spec.components.mlflowoperator.managementState // "Removed"`) == string(operatorv1.Managed) {
+		mlflowRestore = operatorv1.Managed
+	}
+	t.Cleanup(func() {
+		// Defer the Workbenches restore so it runs even if the MLflowOperator
+		// restore exits early (its assertion can FailNow/Goexit on error).
+		defer tc.UpdateComponentStateInDataScienceClusterWithKind(workbenchesRestore, componentApi.WorkbenchesKind)
+		tc.UpdateComponentStateInDataScienceClusterWithKind(mlflowRestore, componentApi.MLflowOperatorKind)
+	})
+
+	tc.UpdateComponentState(operatorv1.Managed)
+
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.MLflowOperatorKind)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Workbenches, types.NamespacedName{Name: componentApi.WorkbenchesInstanceName}),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`)),
+		WithCustomErrorMsg("Workbenches must be enabled and Ready before validating MLflow integration"),
 	)
 
 	tc.EnsureResourceExists(

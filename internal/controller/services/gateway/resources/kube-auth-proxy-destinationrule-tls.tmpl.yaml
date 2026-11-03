@@ -8,7 +8,7 @@ metadata:
     {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
     {{.IstioRevisionLabel}}: {{.IstioRevisionValue}}
 spec:
-  host: "*"
+  host: "{{.DestinationRuleHost}}"
   trafficPolicy:
     portLevelSettings:
     - port:
@@ -21,4 +21,3 @@ spec:
       tls:
         mode: SIMPLE
         insecureSkipVerify: true
-

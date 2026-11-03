@@ -24,7 +24,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	ccmtest "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/cloudmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -140,17 +139,22 @@ func TestAWSKubernetesEngineGC(t *testing.T) {
 	ccmtest.RequireCharts(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	et, wt := ccmtest.StartIsolatedController(t, ctx, awsCfg)
+	et, _ := ccmtest.StartIsolatedController(t, ctx, awsCfg)
 	t.Cleanup(cancel)
+	gcTC, err := ccmtest.NewTestContext(ctx, et)
+	NewWithT(t).Expect(err).NotTo(HaveOccurred())
 
 	t.Run("deletes resources of dependency that transitions to Unmanaged", func(t *testing.T) {
 		t.Skip("two-phase cleanup requires real GC and dynamic watch infrastructure unavailable in envtest")
 	})
 
 	t.Run("GC deletes stale resources with mismatched generation", func(t *testing.T) {
+		wt := gcTC.NewWithT(t)
+
 		// Create the AKE CR — after the first reconcile, the CR gets a real UID and generation.
 		ccmtest.CreateCR(t, wt, awsCfg, ccmcommon.Dependencies{
-			LWS: ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Managed},
+			LWS:        ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Managed},
+			GatewayAPI: ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
 		})
 
 		// Wait for the CR to be reconciled (LWS deployment appears, which means
@@ -192,9 +196,10 @@ func TestAWSKubernetesEngineGC(t *testing.T) {
 			_ = wt.Client().Delete(wt.Context(), staleCM)
 		})
 
-		// Trigger a spec change to cause a cache miss → GC runs.
-		awske.Spec.Dependencies.LWS.ManagementPolicy = ccmcommon.Managed
-		wt.Expect(wt.Client().Update(wt.Context(), awske)).To(Succeed())
+		// Enable a dependency to change the render; Update retries concurrent status writes.
+		wt.Update(gvk.AWSKubernetesEngine, client.ObjectKeyFromObject(awske), func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, string(ccmcommon.Managed), "spec", "dependencies", "gatewayAPI", "managementPolicy")
+		}).Eventually().Should(Succeed())
 
 		// GC should delete the stale resource. In envtest there is no garbage collector
 		// process, so Foreground deletion marks the object with a deletionTimestamp but
@@ -206,8 +211,11 @@ func TestAWSKubernetesEngineGC(t *testing.T) {
 	})
 
 	t.Run("GC keeps protected resources regardless of generation mismatch", func(t *testing.T) {
+		wt := gcTC.NewWithT(t)
+
 		ccmtest.CreateCR(t, wt, awsCfg, ccmcommon.Dependencies{
-			LWS: ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Managed},
+			LWS:        ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Managed},
+			GatewayAPI: ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
 		})
 
 		wt.Get(gvk.Deployment, types.NamespacedName{
@@ -227,33 +235,33 @@ func TestAWSKubernetesEngineGC(t *testing.T) {
 		wt.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{Name: "opendatahub-selfsigned-issuer"}).
 			Eventually().ShouldNot(BeNil())
 
-		// Trigger a spec change → cache miss → GC runs.
-		awske := &ccmv1alpha1.AWSKubernetesEngine{}
-		wt.Expect(wt.Client().Get(wt.Context(),
-			types.NamespacedName{Name: ccmv1alpha1.AWSKubernetesEngineInstanceName}, awske)).To(Succeed())
-		awske.Spec.Dependencies.LWS.ManagementPolicy = ccmcommon.Managed
-		wt.Expect(wt.Client().Update(wt.Context(), awske)).To(Succeed())
+		// Enable a dependency to change the render; Update retries concurrent status writes.
+		updated := wt.Update(gvk.AWSKubernetesEngine, types.NamespacedName{Name: ccmv1alpha1.AWSKubernetesEngineInstanceName}, func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, string(ccmcommon.Managed), "spec", "dependencies", "gatewayAPI", "managementPolicy")
+		}).Eventually().Should(Succeed())
 
-		// Wait for LWS deployment to confirm the reconcile (and GC) completed.
-		wt.Get(gvk.Deployment, types.NamespacedName{
-			Name: "openshift-lws-operator", Namespace: "openshift-lws-operator",
-		}).Eventually().Should(Not(BeNil()))
+		// ProvisioningSucceeded is written after all actions, including GC, complete.
+		// Overall readiness is not required: dependency workloads do not run in envtest.
+		wt.Get(gvk.AWSKubernetesEngine, client.ObjectKeyFromObject(updated)).Eventually().Should(
+			jq.Match(`.status.conditions[] | select(.type == "ProvisioningSucceeded") | .status == "True" and .observedGeneration == %d`, updated.GetGeneration()),
+		)
 
-		// The protected PKI resources must survive across GC runs.
-		NewWithT(t).Consistently(func() error {
-			return wt.Client().Get(wt.Context(), types.NamespacedName{Name: "opendatahub-selfsigned-issuer"},
-				resources.GvkToPartial(gvk.CertManagerClusterIssuer))
-		}).WithTimeout(5 * time.Second).WithPolling(250 * time.Millisecond).Should(Succeed())
+		// Foreground deletion leaves objects present in envtest, so also check that
+		// GC has not marked any protected PKI resource for deletion.
+		wt.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{Name: "opendatahub-selfsigned-issuer"}).
+			Consistently().WithTimeout(5 * time.Second).WithPolling(250 * time.Millisecond).Should(
+			And(Not(BeNil()), jq.Match(`.metadata.deletionTimestamp == null`)),
+		)
 
-		NewWithT(t).Consistently(func() error {
-			return wt.Client().Get(wt.Context(), types.NamespacedName{Name: "opendatahub-ca", Namespace: "cert-manager"},
-				resources.GvkToPartial(gvk.CertManagerCertificate))
-		}).WithTimeout(5 * time.Second).WithPolling(250 * time.Millisecond).Should(Succeed())
+		wt.Get(gvk.CertManagerCertificate, types.NamespacedName{Name: "opendatahub-ca", Namespace: "cert-manager"}).
+			Consistently().WithTimeout(5 * time.Second).WithPolling(250 * time.Millisecond).Should(
+			And(Not(BeNil()), jq.Match(`.metadata.deletionTimestamp == null`)),
+		)
 
-		NewWithT(t).Consistently(func() error {
-			return wt.Client().Get(wt.Context(), types.NamespacedName{Name: "opendatahub-ca-issuer"},
-				resources.GvkToPartial(gvk.CertManagerClusterIssuer))
-		}).WithTimeout(5 * time.Second).WithPolling(250 * time.Millisecond).Should(Succeed())
+		wt.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{Name: "opendatahub-ca-issuer"}).
+			Consistently().WithTimeout(5 * time.Second).WithPolling(250 * time.Millisecond).Should(
+			And(Not(BeNil()), jq.Match(`.metadata.deletionTimestamp == null`)),
+		)
 	})
 }
 

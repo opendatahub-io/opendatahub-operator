@@ -490,6 +490,7 @@ func TestWriteSubmoduleComponentStatus_FieldResolution(t *testing.T) {
 	knownSubmoduleFields := []string{
 		"ModelsAsAService",
 		"BatchGateway",
+		"AIGrid",
 		"WorkbenchesV2",
 	}
 

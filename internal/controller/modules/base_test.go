@@ -222,7 +222,7 @@ metadata:
 	resourcesToDelete[0].SetGroupVersionKind(gvk.CustomResourceDefinition)
 	resourcesToDelete[1].SetGroupVersionKind(gvk.ConfigMap)
 
-	if err := handler.deleteRenderedResources(context.Background(), cli, logr.Discard(), resourcesToDelete); err != nil {
+	if err := handler.deleteRenderedResources(context.Background(), cli, logr.Discard(), resourcesToDelete, nil); err != nil {
 		t.Fatalf("delete rendered resources: %v", err)
 	}
 

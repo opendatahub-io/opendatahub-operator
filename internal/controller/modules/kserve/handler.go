@@ -24,6 +24,7 @@ const (
 
 	LLMInferenceServiceDependencies       = componentApi.KserveKind + "LLMInferenceServiceDependencies"
 	LLMInferenceServiceWideEPDependencies = componentApi.KserveKind + "LLMInferenceServiceWideEPDependencies"
+	ConfidentialContainerDependencies     = componentApi.KserveKind + "ConfidentialContainerDependencies"
 )
 
 type handler struct {
@@ -49,6 +50,10 @@ func NewHandler() *handler {
 						SourceConditionType: LLMInferenceServiceWideEPDependencies,
 						DSCConditionType:    LLMInferenceServiceWideEPDependencies,
 					},
+					{
+						SourceConditionType: ConfidentialContainerDependencies,
+						DSCConditionType:    ConfidentialContainerDependencies,
+					},
 				},
 				// Keep in sync with kserve-module/pkg/kservemodule/images.go
 				// and ODH-Build-Config bundle-patch.yaml.
@@ -65,18 +70,15 @@ func NewHandler() *handler {
 					"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 					"RELATED_IMAGE_ODH_LLM_D_ROUTER_DISAGG_SIDECAR_IMAGE",
 					"RELATED_IMAGE_ODH_LLM_D_ROUTER_ENDPOINT_PICKER_IMAGE",
+					"RELATED_IMAGE_ODH_LLM_D_KV_PVC_EVICTOR_IMAGE",
 					"RELATED_IMAGE_ODH_MLSERVER_IMAGE",
 					"RELATED_IMAGE_ODH_MLSERVER_CUDA_IMAGE",
+					"RELATED_IMAGE_ODH_MODELEXPRESS_IMAGE",
+					"RELATED_IMAGE_ODH_MODELEXPRESS_OPERATOR_IMAGE",
 					"RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
 					"RELATED_IMAGE_ODH_MODEL_SERVING_API_IMAGE",
 					"RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE",
-					"RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE",
-					"RELATED_IMAGE_ODH_VLLM_CPU_FAST_1_IMAGE_UPSTREAM_VERSION",
-					"RELATED_IMAGE_ODH_VLLM_CPU_FAST_2_IMAGE",
-					"RELATED_IMAGE_ODH_VLLM_CPU_FAST_2_IMAGE_UPSTREAM_VERSION",
-					"RELATED_IMAGE_ODH_VLLM_CPU_IMAGE",
-					"RELATED_IMAGE_ODH_VLLM_CPU_IMAGE_UPSTREAM_VERSION",
-					"RELATED_IMAGE_ODH_WORKLOAD_VARIANT_AUTOSCALER_CONTROLLER_IMAGE",
+					"RELATED_IMAGE_OSC_STORAGE_HELPER_IMAGE",
 					"RELATED_IMAGE_RHAII_VLLM_CPU_FAST_1_IMAGE",
 					"RELATED_IMAGE_RHAII_VLLM_CPU_FAST_1_IMAGE_UPSTREAM_VERSION",
 					"RELATED_IMAGE_RHAII_VLLM_CPU_FAST_2_IMAGE",

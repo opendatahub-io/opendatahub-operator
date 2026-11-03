@@ -100,10 +100,12 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
 	g.Expect(spec).ShouldNot(HaveKey("managementState"),
 		"managementState is a DSC-level field and must not be projected into the component CR")
-	mcpMode, found, err := unstructured.NestedBool(u.Object, "spec", "mcpGuardrailsMode")
+	g.Expect(spec).ShouldNot(HaveKey("mcpGuardrailsMode"),
+		"mcpGuardrailsMode is omitempty and must be omitted when unset so the module CRD default applies")
+	_, found, err := unstructured.NestedString(u.Object, "spec", "eval", "lmeval", "permitCodeExecution")
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(found).Should(BeTrue())
-	g.Expect(mcpMode).Should(BeFalse())
+	g.Expect(found).Should(BeFalse(),
+		"unset permit fields must be omitted instead of projected as empty strings, which the module CRD enum rejects")
 }
 
 func TestBuildModuleCR_ProjectsMCPGuardrailsMode(t *testing.T) {
@@ -122,7 +124,7 @@ func TestBuildModuleCR_ProjectsMCPGuardrailsMode(t *testing.T) {
 	g.Expect(mcpMode).Should(BeTrue())
 }
 
-func TestBuildModuleCR_PermitFieldsConvertedToBool(t *testing.T) {
+func TestBuildModuleCR_PermitFieldsPassedThrough(t *testing.T) {
 	g := NewWithT(t)
 	h := trustyai.NewHandler()
 
@@ -133,15 +135,15 @@ func TestBuildModuleCR_PermitFieldsConvertedToBool(t *testing.T) {
 	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig())
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	permitCodeExecution, found, err := unstructured.NestedBool(u.Object, "spec", "eval", "lmeval", "permitCodeExecution")
+	permitCodeExecution, found, err := unstructured.NestedString(u.Object, "spec", "eval", "lmeval", "permitCodeExecution")
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(found).Should(BeTrue())
-	g.Expect(permitCodeExecution).Should(BeTrue())
+	g.Expect(permitCodeExecution).Should(Equal("allow"))
 
-	permitOnline, found, err := unstructured.NestedBool(u.Object, "spec", "eval", "lmeval", "permitOnline")
+	permitOnline, found, err := unstructured.NestedString(u.Object, "spec", "eval", "lmeval", "permitOnline")
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(found).Should(BeTrue())
-	g.Expect(permitOnline).Should(BeFalse())
+	g.Expect(permitOnline).Should(Equal("deny"))
 }
 
 func TestBuildModuleCR_NilDSCContextReturnsError(t *testing.T) {
@@ -188,6 +190,8 @@ func TestImageHandling(t *testing.T) {
 		"RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE",
 		"RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE",
 		"RELATED_IMAGE_ODH_EVAL_HUB_IMAGE",
+		"RELATED_IMAGE_ODH_EVAL_HUB_LIGHTEVAL_IMAGE",
+		"RELATED_IMAGE_ODH_EVAL_HUB_INSPECTAI_IMAGE",
 		"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 	))
 

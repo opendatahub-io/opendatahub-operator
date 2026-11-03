@@ -65,8 +65,7 @@ func dataModuleTestSuite(t *testing.T) {
 }
 
 // ValidateV2DSCDataSelection proves that the v2 FeastOperator stanza still
-// drives the v3 FeatureStore runtime. DataRegistry is wire-mapped only here;
-// runtime projection for that child is covered by its owning integration work.
+// drives the v3 FeatureStore runtime and maps DataRegistry into the v3 DSC.
 func (ctx *DataModuleTestCtx) ValidateV2DSCDataSelection(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Tier3)
@@ -74,7 +73,7 @@ func (ctx *DataModuleTestCtx) ValidateV2DSCDataSelection(t *testing.T) {
 		t.Skip("v2 DSC conversion smoke is not supported on XKS")
 	}
 
-	snapshotV2DSCFields(t, ctx.TestContext, []string{"spec", "components", "feastoperator"})
+	snapshotDSCFields(t, ctx.TestContext, gvk.DataScienceClusterV2, []string{"spec", "components", "feastoperator"})
 	ctx.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceClusterV2, ctx.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
@@ -325,7 +324,8 @@ func (ctx *DataModuleTestCtx) ValidateUpgradeOperandsPreserved(t *testing.T) {
 }
 
 // ValidateDataRegistryAloneEnablesModule verifies how Feature Store and Data
-// Registry management states are projected to Platform and DSC status.
+// Registry management states are projected to Platform, DSC status, and the
+// FeastOperator capabilities.
 func (ctx *DataModuleTestCtx) ValidateDataRegistryAloneEnablesModule(t *testing.T) {
 	t.Helper()
 
@@ -352,6 +352,17 @@ func (ctx *DataModuleTestCtx) ValidateDataRegistryAloneEnablesModule(t *testing.
 			WithEventuallyTimeout(ctx.TestTimeouts.longEventuallyTimeout),
 			WithCondition(jq.Match(`.status.components.data.managementState == %q`, expectedState)),
 		)
+		if expectedState == operatorv1.Managed {
+			ctx.EnsureResourceExists(
+				WithMinimalObject(dataModuleCRGVK, types.NamespacedName{Name: dataModuleCRName}),
+				WithEventuallyTimeout(ctx.TestTimeouts.longEventuallyTimeout),
+				WithCondition(And(
+					jq.Match(`.spec.capabilities.featureStore.managementState == %q`, featureStoreState),
+					jq.Match(`.spec.capabilities.dataRegistry.managementState == %q`, dataRegistryState),
+				)),
+				WithCustomErrorMsg("FeastOperator capabilities should match DSC Data management states"),
+			)
+		}
 	}
 
 	steps := []struct {

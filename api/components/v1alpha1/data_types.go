@@ -18,7 +18,10 @@ package v1alpha1
 
 import "github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 
-const DataModuleName = "data"
+const (
+	DataModuleName            = "data"
+	DataRegistryComponentName = "dataRegistry"
+)
 
 // DSCFeatureStore defines the Feature Store configuration exposed in a DSC.
 type DSCFeatureStore struct {

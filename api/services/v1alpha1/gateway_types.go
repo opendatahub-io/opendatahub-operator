@@ -61,7 +61,7 @@ const (
 )
 
 const (
-	// AdditionalGatewaysReadyConditionType summarizes the per-ingress GatewayReady conditions
+	// AdditionalGatewaysReadyConditionType summarizes the per-ingress Gateway, bridge Route and authentication readiness
 	// and contributes to GatewayConfig's overall Ready condition.
 	AdditionalGatewaysReadyConditionType              = "AdditionalGatewaysReady"
 	AdditionalIngressGatewayReadyConditionType        = "GatewayReady"
@@ -139,7 +139,10 @@ type GatewayConfigSpec struct {
 	// +kubebuilder:validation:Maximum=10
 	AuthProxyMaxReplicas *int32 `json:"authProxyMaxReplicas,omitempty"`
 
-	// NetworkPolicy configuration for kube-auth-proxy
+	// NetworkPolicy configures NetworkPolicy behavior for kube-auth-proxy.
+	// It is retained for backward compatibility and has no effect; the operator
+	// always manages the kube-auth-proxy NetworkPolicy.
+	// Deprecated: This setting is ignored and will be removed in a future API version.
 	// +optional
 	NetworkPolicy *NetworkPolicyConfig `json:"networkPolicy,omitempty"`
 
@@ -211,7 +214,7 @@ type AdditionalIngresses []AdditionalIngress
 
 // Validate performs runtime validation for additional ingress definitions.
 func (ingresses AdditionalIngresses) Validate(ingressMode IngressMode) error {
-	if len(ingresses) > 0 && ingressMode != IngressModeOcpRoute {
+	if len(ingresses) > 0 && ingressMode != "" && ingressMode != IngressModeOcpRoute {
 		return fmt.Errorf("additional ingresses require %s ingress mode", IngressModeOcpRoute)
 	}
 
@@ -265,6 +268,7 @@ type AdditionalIngress struct {
 	// Hostname is the externally visible hostname for this ingress.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)(\.([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?))*$`
 	Hostname string `json:"hostname"`
 
 	// IngressControllerName is the IngressController whose Route admission is used for readiness.
@@ -297,7 +301,7 @@ type AdditionalIngressAuth struct {
 
 	// MaxReplicas is the maximum number of replicas for this ingress's auth proxy.
 	// The minimum remains fixed at 2. This does not configure the default proxy.
-	// A value of 2 requests two fixed replicas without an HPA; larger values enable autoscaling.
+	// A value of 2 fixes the HPA minimum and maximum at two replicas.
 	// +optional
 	// +kubebuilder:default=10
 	// +kubebuilder:validation:Minimum=2
@@ -324,25 +328,29 @@ type AdditionalIngressOIDCConfig struct {
 
 	// SecretNamespace is the source Secret's namespace; defaults to the gateway namespace.
 	// +optional
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	SecretNamespace string `json:"secretNamespace,omitempty"`
 }
 
-// NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
-// When nil or when Ingress is nil, NetworkPolicy ingress rules are enabled by default
-// to restrict access to kube-auth-proxy pods.
+// NetworkPolicyConfig is retained only for backward compatibility.
+//
+// Deprecated: This configuration is ignored. The operator always manages the
+// kube-auth-proxy NetworkPolicy.
 type NetworkPolicyConfig struct {
-	// Ingress defines ingress NetworkPolicy rules.
-	// When nil, ingress rules are applied by default (allows traffic from Gateway pods and monitoring namespaces).
-	// When specified, Enabled must be set to true to apply rules or false to skip NetworkPolicy creation.
-	// Set Enabled=false only in development environments or when using alternative network security controls.
+	// Ingress is retained for backward compatibility and has no effect.
+	// Deprecated: This setting is ignored.
 	// +optional
 	Ingress *IngressPolicyConfig `json:"ingress,omitempty"`
 }
 
-// IngressPolicyConfig defines ingress NetworkPolicy rules
+// IngressPolicyConfig is retained only for backward compatibility.
+//
+// Deprecated: This configuration is ignored. The operator always manages the
+// kube-auth-proxy NetworkPolicy.
 type IngressPolicyConfig struct {
-	// Enabled determines whether ingress rules are applied.
-	// When true, creates NetworkPolicy allowing traffic only from Gateway pods and monitoring namespaces.
+	// Enabled is retained for backward compatibility and has no effect.
+	// Deprecated: This setting is ignored.
 	// +kubebuilder:validation:Required
 	Enabled bool `json:"enabled"`
 }
@@ -371,6 +379,33 @@ type OIDCConfig struct {
 	// If unset, defaults to the gateway namespace.
 	// +optional
 	SecretNamespace string `json:"secretNamespace,omitempty"`
+
+	// Scope is a complete replacement for kube-auth-proxy's default OIDC scope
+	// ("openid email profile"). When set, kube-auth-proxy requests exactly this
+	// space-separated scope list instead of the default. Some identity
+	// providers (e.g. Azure AD/AKS) require a resource-specific scope, such as
+	// "openid APP_ID/.default", to mint an access token for a
+	// particular audience.
+	// If unset, kube-auth-proxy uses its default scope.
+	// When set, scope must include "openid" and use space-separated OAuth scope tokens.
+	// +optional
+	// +kubebuilder:validation:MaxLength=1024
+	// +kubebuilder:validation:Pattern=`^$|^([\x21\x23-\x5B\x5D-\x7E]+ )*openid( [\x21\x23-\x5B\x5D-\x7E]+)*$`
+	Scope string `json:"scope,omitempty"`
+
+	// PassAccessToken controls whether kube-auth-proxy forwards the raw OIDC
+	// access token to the Gateway (via the x-auth-request-access-token header)
+	// for downstream services, in addition to the ID token.
+	// If unset (false), only the ID token is forwarded, preserving existing
+	// GatewayConfig behavior.
+	// +optional
+	PassAccessToken bool `json:"passAccessToken,omitempty"`
+
+	// SkipClaimsFromProfileURL disables querying the IdP profile/userinfo URL for missing claims.
+	// Set to true when the access token is scoped to an external resource (e.g. AKS)
+	// rather than the IdP's userinfo endpoint.
+	// +optional
+	SkipClaimsFromProfileURL bool `json:"skipClaimsFromProfileURL,omitempty"`
 }
 
 // CookieConfig defines cookie settings for OAuth2 proxy

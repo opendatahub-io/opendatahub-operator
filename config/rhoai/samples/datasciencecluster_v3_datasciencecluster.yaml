@@ -23,6 +23,8 @@ spec:
       managementState: "Managed"
       nim:
         managementState: "Managed"
+      modelExpress:
+        managementState: "Removed"
     kueue:
       managementState: "Removed"
     trainer:

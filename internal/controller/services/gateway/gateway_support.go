@@ -31,9 +31,13 @@ import (
 )
 
 const (
-	ServiceName        = serviceApi.GatewayServiceName
+	ServiceName = serviceApi.GatewayServiceName
+	// ReadyConditionType is GatewayConfig's service-specific Ready condition; the reconciler computes aggregate Ready.
 	ReadyConditionType = serviceApi.GatewayConfigKind + status.ReadySuffix
 )
+
+// Configuration failures affect one target; client failures must stop before deployment and GC.
+var errInvalidAuthenticationConfig = errors.New("invalid authentication configuration")
 
 const (
 	// Gateway infrastructure constants.
@@ -182,22 +186,6 @@ func additionalGatewayEnvoyFilterName(ingressName string) string {
 type gatewayEnvoyFilterTarget struct {
 	Name        string
 	GatewayName string
-}
-
-func gatewayEnvoyFilterTargets(gatewayConfig *serviceApi.GatewayConfig) []gatewayEnvoyFilterTarget {
-	targets := []gatewayEnvoyFilterTarget{{Name: AuthnFilterName, GatewayName: GetDefaultGatewayName()}}
-	if gatewayConfig != nil {
-		for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
-			if additionalIngressHasGatewayConflict(gatewayConfig, ingress.Name) {
-				continue
-			}
-			targets = append(targets, gatewayEnvoyFilterTarget{
-				Name:        additionalGatewayEnvoyFilterName(ingress.Name),
-				GatewayName: ingress.Name,
-			})
-		}
-	}
-	return targets
 }
 
 // ErrDomainRequired is returned by GetFQDN when spec.domain is not set on non-OpenShift clusters.
@@ -560,31 +548,27 @@ spec:
 
 // createOAuthClient creates an OpenShift OAuth client for integrated authentication.
 func createOAuthClient(
-	ctx context.Context,
 	rr *odhtypes.ReconciliationRequest,
 	hostname string,
+	target authProxyTarget,
+	authSecret *corev1.Secret,
 ) error {
-	// Read client secret from kube-auth-proxy-creds secret
-	authSecret := &corev1.Secret{}
-	if err := rr.Client.Get(ctx, types.NamespacedName{
-		Name:      KubeAuthProxySecretsName,
-		Namespace: GetGatewayNamespace(),
-	}, authSecret); err != nil {
-		return fmt.Errorf("failed to get auth proxy secret %s/%s: %w", GetGatewayNamespace(), KubeAuthProxySecretsName, err)
-	}
-
 	clientSecretBytes, exists := authSecret.Data["OAUTH2_PROXY_CLIENT_SECRET"]
 	if !exists {
-		return fmt.Errorf("OAUTH2_PROXY_CLIENT_SECRET not found in secret %s/%s", GetGatewayNamespace(), KubeAuthProxySecretsName)
+		return fmt.Errorf("OAUTH2_PROXY_CLIENT_SECRET not found in secret %s/%s", GetGatewayNamespace(), target.SecretName)
 	}
 	clientSecret := string(clientSecretBytes)
 
 	redirectURL := fmt.Sprintf("https://%s%s", hostname, OAuthCallbackPath)
+	grantMethod := oauthv1.GrantHandlerAuto
+	if !target.isDefault() {
+		grantMethod = oauthv1.GrantHandlerPrompt
+	}
 	oauthClient := &oauthv1.OAuthClient{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: AuthClientID,
+			Name: target.ClientID,
 		},
-		GrantMethod:  oauthv1.GrantHandlerAuto,
+		GrantMethod:  grantMethod,
 		RedirectURIs: []string{redirectURL},
 		Secret:       clientSecret, // encoded string
 	}
@@ -593,15 +577,15 @@ func createOAuthClient(
 }
 
 // createSecret dynamically creates the kube-auth-proxy-creds secret immediately on the cluster.
-func createSecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clientID, clientSecret, cookieSecret string) error {
+func createSecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clientID, clientSecret, cookieSecret string, target authProxyTarget) (*corev1.Secret, error) {
 	gatewayConfig, err := validateGatewayConfig(rr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      KubeAuthProxySecretsName,
+			Name:      target.SecretName,
 			Namespace: GetGatewayNamespace(),
 		},
 		Type: corev1.SecretTypeOpaque,
@@ -612,16 +596,19 @@ func createSecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clien
 	}
 
 	_, err = controllerutil.CreateOrUpdate(ctx, rr.Client, secret, func() error {
-		secret.StringData = map[string]string{
-			"OAUTH2_PROXY_CLIENT_ID":     clientID,
-			"OAUTH2_PROXY_CLIENT_SECRET": clientSecret,
-			"OAUTH2_PROXY_COOKIE_SECRET": cookieSecret,
+		secret.Data = map[string][]byte{
+			EnvClientID:     []byte(clientID),
+			EnvClientSecret: []byte(clientSecret),
+			EnvCookieSecret: []byte(cookieSecret),
 		}
 		resources.SetLabels(secret, labelList)
 		return controllerutil.SetControllerReference(gatewayConfig, secret, rr.Client.Scheme())
 	})
 
-	return err
+	if err != nil {
+		return nil, err
+	}
+	return secret, nil
 }
 
 // validateGatewayConfig extracts the GatewayConfig from the reconciliation request instance.
@@ -735,8 +722,17 @@ func calculateAuthConfigHash(authSecret *corev1.Secret) string {
 	cookieSecret := string(authSecret.Data["OAUTH2_PROXY_COOKIE_SECRET"])
 
 	// Calculate SHA256 hash
-	hash := sha256.Sum256([]byte(clientID + clientSecret + cookieSecret))
+	hash := sha256.Sum256([]byte(clientID + "\x00" + clientSecret + "\x00" + cookieSecret))
 	return hex.EncodeToString(hash[:])
+}
+
+// extendAuthConfigHash folds the provider CA bundle into the auth config hash so
+// that rotating the CA in the spec.providerCASecretName secret rolls the
+// kube-auth-proxy pods. The base hash is kept verbatim when no provider CA is
+// configured, so upgrades do not trigger a spurious rollout.
+func extendAuthConfigHash(authConfigHash string, providerCA []byte) string {
+	sum := sha256.Sum256([]byte(authConfigHash + "\x00" + string(providerCA)))
+	return hex.EncodeToString(sum[:])
 }
 
 // CalculateRedirectConfigHash hashes the hostname and embedded redirect configuration.
@@ -767,7 +763,8 @@ func getKubeAuthProxyImage() string {
 	// This build must support the TLS startup flags the gateway emits (--tls-min-version,
 	// --tls-cipher-suite and --tls-curve-preferences); it matches the ODH e2e image in
 	// manifests-config.yaml so the fallback stays compatible with the rendered proxy args.
-	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:d90930380151490d5516eeb95840eecc743e9005fc02733dec6fe79e1a00e035" // latest as of 2026-09-17
+	// The pinned build includes the provider CA client-cache fix (kube-auth-proxy#119).
+	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:6d4babb7514c9d7701a193a752d273a8056498761342221997801a36ca157975" // latest as of 2026-10-20
 }
 
 // getDashboardRedirectImage returns the nginx image for dashboard redirects.
@@ -801,17 +798,17 @@ func getAuthProxySecretValues(
 	ctx context.Context,
 	rr *odhtypes.ReconciliationRequest,
 	authMode cluster.AuthenticationMode,
-	oidcConfig *serviceApi.OIDCConfig) (string, string, string, error) {
+	oidcConfig *serviceApi.OIDCConfig, target authProxyTarget) (string, string, string, error) {
 	// Check if kube-auth-proxy-creds already exists and is valid
 	existingSecret := &corev1.Secret{}
 	secretErr := rr.Client.Get(ctx, types.NamespacedName{
-		Name:      KubeAuthProxySecretsName,
+		Name:      target.SecretName,
 		Namespace: GetGatewayNamespace(),
 	}, existingSecret)
 
 	// Fast exit on NotFound errors
 	if secretErr != nil && !k8serr.IsNotFound(secretErr) {
-		return "", "", "", fmt.Errorf("failed to check existing secret %s/%s: %w", GetGatewayNamespace(), KubeAuthProxySecretsName, secretErr)
+		return "", "", "", fmt.Errorf("failed to check existing secret %s/%s: %w", GetGatewayNamespace(), target.SecretName, secretErr)
 	}
 
 	// If secret exists, validate and reuse its values
@@ -822,9 +819,10 @@ func getAuthProxySecretValues(
 		if hasClientSecret && hasCookieSecret {
 			switch authMode {
 			case cluster.AuthModeOIDC:
-				return oidcConfig.ClientID, string(clientSecretBytes), string(cookieSecretBytes), nil
+				// Read the administrator-managed credential below on every reconciliation.
+				// Only the cookie key is reused, so client rotation preserves sessions.
 			case cluster.AuthModeIntegratedOAuth:
-				return AuthClientID, string(clientSecretBytes), string(cookieSecretBytes), nil
+				return target.ClientID, string(clientSecretBytes), string(cookieSecretBytes), nil
 			default:
 				return "", "", "", fmt.Errorf("auth mode: %s is not supported", authMode)
 			}
@@ -836,6 +834,11 @@ func getAuthProxySecretValues(
 	switch authMode {
 	case cluster.AuthModeOIDC:
 		// OIDC mode: get client secret from external secret
+		// With additional ingresses, reconciliation continues past the top-level
+		// OIDC check so each target can report its own configuration failure.
+		if oidcConfig == nil {
+			return "", "", "", fmt.Errorf("%w: OIDC configuration is required for gateway %q", errInvalidAuthenticationConfig, target.GatewayName)
+		}
 		clientID = oidcConfig.ClientID
 
 		// Determine which namespace to use for the secret
@@ -849,6 +852,9 @@ func getAuthProxySecretValues(
 			Name:      oidcConfig.ClientSecretRef.Name,
 			Namespace: secretNamespace,
 		}, externalSecret); err != nil {
+			if k8serr.IsNotFound(err) {
+				err = fmt.Errorf("%w: %w", errInvalidAuthenticationConfig, err)
+			}
 			return "", "", "", fmt.Errorf("failed to get OIDC client secret %s/%s: %w",
 				secretNamespace, oidcConfig.ClientSecretRef.Name, err)
 		}
@@ -858,15 +864,16 @@ func getAuthProxySecretValues(
 			key = "clientSecret"
 		}
 
-		if secretValue, exists := externalSecret.Data[key]; exists {
+		if secretValue, exists := externalSecret.Data[key]; exists && len(secretValue) != 0 {
 			clientSecretValue = string(secretValue)
 		} else {
-			return "", "", "", fmt.Errorf("key '%s' not found in OIDC secret %s/%s", key, secretNamespace, oidcConfig.ClientSecretRef.Name)
+			return "", "", "", fmt.Errorf("%w: key '%s' is missing or empty in OIDC secret %s/%s",
+				errInvalidAuthenticationConfig, key, secretNamespace, oidcConfig.ClientSecretRef.Name)
 		}
 
 	case cluster.AuthModeIntegratedOAuth:
 		// OAuth mode: generate new client secret
-		clientID = AuthClientID
+		clientID = target.ClientID
 
 		clientSecretGen, err := cluster.NewSecret("client-secret", "random", 24)
 		if err != nil {
@@ -878,7 +885,12 @@ func getAuthProxySecretValues(
 		return "", "", "", fmt.Errorf("auth mode: %s is not supported", authMode)
 	}
 
-	// Always generate new cookie secret on oauth or oidc mode.
+	// Preserve the session key independently of the client credential.
+	if secretErr == nil && len(existingSecret.Data[EnvCookieSecret]) > 0 {
+		return clientID, clientSecretValue, string(existingSecret.Data[EnvCookieSecret]), nil
+	}
+
+	// Generate the cookie key only when it does not exist.
 	cookieSecretGen, err := cluster.NewSecret("cookie-secret", "random", 32)
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to generate cookie secret: %w", err)
@@ -893,12 +905,20 @@ func getAuthProxySecretValues(
 // that creating or updating these Secrets triggers GatewayConfig re-reconciliation.
 func IsGatewayReferencedSecret(ctx context.Context, cli client.Client, obj client.Object, gatewayNamespace string) bool {
 	gatewayConfig := &serviceApi.GatewayConfig{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayConfigName}, gatewayConfig); err != nil {
+	if err := cli.Get(ctx, client.ObjectKey{
+		Name: serviceApi.GatewayConfigName,
+	}, gatewayConfig); err != nil {
 		return false
 	}
 
 	secretName := obj.GetName()
 	secretNamespace := obj.GetNamespace()
+
+	for _, ingress := range gatewayConfig.Spec.AdditionalIngresses {
+		if ingress.Auth.OIDC != nil && secretName == ingress.Auth.OIDC.ClientSecretRef.Name && secretNamespace == authSecretNamespace(ingress.Auth.OIDC.SecretNamespace) {
+			return true
+		}
+	}
 
 	if gatewayConfig.Spec.OIDC != nil {
 		oidcSecretNamespace := gatewayConfig.Spec.OIDC.SecretNamespace

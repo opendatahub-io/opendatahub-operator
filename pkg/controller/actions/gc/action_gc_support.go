@@ -5,6 +5,6 @@ import (
 )
 
 var (
-	DefaultObjectPredicate = fwgc.DefaultObjectPredicate
+	DefaultObjectPredicate = fwgc.DefaultObjectPredicate(fwgc.DefaultAnnotationPrefix)
 	DefaultTypePredicate   = fwgc.DefaultTypePredicate
 )

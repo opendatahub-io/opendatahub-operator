@@ -11,10 +11,12 @@ import (
 
 	admissionv1 "k8s.io/api/admission/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	gatewayctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/gatewayconfig"
@@ -42,7 +44,7 @@ func (v *Validator) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // Handle rejects OpenShift-only GatewayConfig values on vanilla Kubernetes.
-func (v *Validator) Handle(_ context.Context, req admission.Request) admission.Response {
+func (v *Validator) Handle(ctx context.Context, req admission.Request) admission.Response {
 	if v.Decoder == nil {
 		return admission.Errored(http.StatusInternalServerError, errors.New("webhook decoder not initialized"))
 	}
@@ -60,14 +62,19 @@ func (v *Validator) Handle(_ context.Context, req admission.Request) admission.R
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("failed to decode GatewayConfig: %w", err))
 	}
 
-	if cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes {
-		return admission.Allowed("GatewayConfig values are supported on this platform")
+	var messages []string
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		messages = append(messages, gatewayconfig.KubernetesValidationErrors(gatewayConfig)...)
 	}
-
-	messages := gatewayconfig.KubernetesValidationErrors(gatewayConfig)
+	messages = append(messages, gatewayconfig.AdditionalIngressValidationErrors(gatewayConfig, gatewayctrl.GetGatewayNamespace())...)
 	if len(messages) > 0 {
+		logf.FromContext(ctx).Info("GatewayConfig admission denied",
+			"name", req.Name,
+			"operation", req.Operation,
+			"messages", messages,
+		)
 		return admission.Denied(strings.Join(messages, "; "))
 	}
 
-	return admission.Allowed("GatewayConfig values are valid on Kubernetes")
+	return admission.Allowed("GatewayConfig values are valid")
 }

@@ -26,14 +26,19 @@ import (
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 
 	. "github.com/onsi/gomega"
 )
@@ -80,20 +85,55 @@ func oidcSpecWithLoadBalancer() serviceApi.GatewayConfigSpec {
 	return spec
 }
 
-// oidcSpecWithNetworkPolicyDisabled returns the OIDC spec with ingress network policy disabled.
-func oidcSpecWithNetworkPolicyDisabled() serviceApi.GatewayConfigSpec {
-	spec := getOIDCGatewayConfigSpec()
-	spec.NetworkPolicy = &serviceApi.NetworkPolicyConfig{
-		Ingress: &serviceApi.IngressPolicyConfig{Enabled: false},
-	}
-	return spec
-}
-
 // oidcSpecWithProviderCA returns the OIDC spec with ProviderCASecretName set.
 func oidcSpecWithProviderCA(secretName string) serviceApi.GatewayConfigSpec {
 	spec := getOIDCGatewayConfigSpec()
 	spec.ProviderCASecretName = secretName
 	return spec
+}
+
+// createProviderCASecret creates a provider CA secret in the gateway
+// namespace and removes it when the test finishes. It returns the secret so
+// tests can rotate its ca.crt and update it. If the secret already exists
+// (for example after an aborted run), it is fetched instead so later updates
+// carry a resource version, reset to the requested CA so tests start from a
+// known state, and its original data is restored on cleanup rather than
+// deleting an object this test did not create.
+func createProviderCASecret(t *testing.T, tc *TestEnvContext, name string, caPEM []byte) *corev1.Secret {
+	caSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: gateway.GetGatewayNamespace(),
+		},
+		Data: map[string][]byte{"ca.crt": caPEM},
+	}
+	err := tc.K8sClient.Create(tc.Ctx, caSecret)
+	switch {
+	case err == nil:
+		t.Cleanup(func() {
+			if err := tc.K8sClient.Delete(tc.Ctx, caSecret); err != nil && !k8serr.IsNotFound(err) {
+				t.Logf("Failed to delete provider CA secret %s: %v", name, err)
+			}
+		})
+	case k8serr.IsAlreadyExists(err):
+		if err := tc.K8sClient.Get(tc.Ctx, types.NamespacedName{Name: name, Namespace: gateway.GetGatewayNamespace()}, caSecret); err != nil {
+			t.Fatalf("Failed to fetch existing provider CA secret %s: %v", name, err)
+		}
+		originalData := caSecret.Data
+		caSecret.Data = map[string][]byte{"ca.crt": caPEM}
+		if err := tc.K8sClient.Update(tc.Ctx, caSecret); err != nil {
+			t.Fatalf("Failed to reset existing provider CA secret %s: %v", name, err)
+		}
+		t.Cleanup(func() {
+			caSecret.Data = originalData
+			if err := tc.K8sClient.Update(tc.Ctx, caSecret); err != nil {
+				t.Logf("Failed to restore provider CA secret %s: %v", name, err)
+			}
+		})
+	default:
+		t.Fatalf("Failed to create provider CA secret: %v", err)
+	}
+	return caSecret
 }
 
 // oidcSpecWithVerifyProviderCertificate returns the OIDC spec with VerifyProviderCertificate set.
@@ -121,6 +161,16 @@ func oidcSpecWithSubdomain(subdomain string) serviceApi.GatewayConfigSpec {
 func oidcSpecWithIssuerURL(issuerURL string) serviceApi.GatewayConfigSpec {
 	spec := getOIDCGatewayConfigSpec()
 	spec.OIDC.IssuerURL = issuerURL
+	return spec
+}
+
+// oidcSpecWithScopeAndPassAccessToken returns the OIDC spec with Scope and PassAccessToken set,
+// mirroring the AKS browser OIDC flow (requests an access token for a specific audience and
+// forwards it downstream).
+func oidcSpecWithScopeAndPassAccessToken() serviceApi.GatewayConfigSpec {
+	spec := getOIDCGatewayConfigSpec()
+	spec.OIDC.Scope = "openid 6dae42f8-4368-4678-94ff-3960e28e3630/.default"
+	spec.OIDC.PassAccessToken = true
 	return spec
 }
 
@@ -155,6 +205,74 @@ func TestOIDCGatewayCreation(t *testing.T) {
 // TestOIDCAdditionalGateways validates per-ingress Gateway reconciliation in OIDC mode.
 func TestOIDCAdditionalGateways(t *testing.T) {
 	RunAdditionalGatewaysTest(t, GetOIDCTestSetup())
+}
+
+// TestOIDCAdditionalIngressSourceSecretPreserved validates that the admin-supplied OIDC
+// client secret is never adopted, mutated or deleted by the operator.
+func TestOIDCAdditionalIngressSourceSecretPreserved(t *testing.T) {
+	RunAdditionalIngressOIDCSourceSecretPreservedTest(t, GetOIDCTestSetup())
+}
+
+// Missing credentials during a spec update must not delete or roll out default auth resources.
+func TestOIDCDefaultPreparationFailurePreservesResources(t *testing.T) {
+	setup := GetOIDCTestSetup()
+	defer setup.Setup(t)()
+	ctx, cli := setup.TC.Ctx, setup.TC.K8sClient
+	g := NewWithT(t)
+	deployment := &appsv1.Deployment{}
+	objects := []struct {
+		object client.Object
+		name   string
+		uid    types.UID
+	}{
+		{object: deployment, name: gateway.KubeAuthProxyName},
+		{object: &corev1.Service{}, name: gateway.KubeAuthProxyName},
+		{object: &autoscalingv2.HorizontalPodAutoscaler{}, name: gateway.KubeAuthProxyName},
+		{object: &corev1.ServiceAccount{}, name: gateway.KubeAuthProxyName},
+		{object: &rbacv1.ClusterRoleBinding{}, name: gateway.KubeAuthProxyName + "-tokenreview"},
+		{object: &gwapiv1.HTTPRoute{}, name: gateway.OAuthCallbackRouteName},
+		{object: resources.GvkToUnstructured(gvk.DestinationRule), name: gateway.DestinationRuleName},
+	}
+	for i := range objects {
+		resource := &objects[i]
+		key := client.ObjectKey{
+			Name:      resource.name,
+			Namespace: gateway.GetGatewayNamespace(),
+		}
+		if _, clusterScoped := resource.object.(*rbacv1.ClusterRoleBinding); clusterScoped {
+			key.Namespace = ""
+		}
+		g.Eventually(func() error { return cli.Get(ctx, key, resource.object) }, TestTimeout, TestInterval).Should(Succeed())
+		resource.uid = resource.object.GetUID()
+	}
+	podTemplate := deployment.Spec.Template.DeepCopy()
+	source := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      OIDCSecretName,
+			Namespace: gateway.GetGatewayNamespace(),
+		},
+	}
+	g.Expect(cli.Delete(ctx, source)).To(Succeed())
+	defer ensureOIDCClientSecret(t, setup.TC)
+	spec := setup.Spec
+	spec.Cookie.Expire = metav1.Duration{
+		Duration: 48 * time.Hour,
+	}
+	UpdateGatewayConfig(t, ctx, cli, spec)
+	g.Eventually(func(g Gomega) {
+		config, err := getGatewayConfig(ctx, cli)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(config.Status.Conditions).To(ContainElement(HaveField("ObservedGeneration", Equal(config.Generation))))
+	}, TestTimeout, TestInterval).Should(Succeed())
+	g.Consistently(func(g Gomega) {
+		for _, resource := range objects {
+			g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(resource.object), resource.object)).To(Succeed())
+			g.Expect(resource.object.GetUID()).To(Equal(resource.uid))
+			g.Expect(resource.object.GetDeletionTimestamp()).To(BeNil())
+		}
+	}, 5*time.Second, TestInterval).Should(Succeed())
+	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(deployment), deployment)).To(Succeed())
+	g.Expect(deployment.Spec.Template).To(Equal(*podTemplate))
 }
 
 // TestOIDCHTTPRouteCreation validates HTTPRoute creation in OIDC mode (delegates to RunHTTPRouteCreationTest).
@@ -199,10 +317,40 @@ func TestOIDCServiceCreation(t *testing.T) {
 }
 
 // TestOIDCDeploymentWithAllArgs validates Deployment args in OIDC mode (delegates to RunDeploymentWithAllArgsTest).
+// Scope and pass-access-token are unset here, so both flags must be absent, preserving the
+// existing ID-token-only forwarding behavior.
 func TestOIDCDeploymentWithAllArgs(t *testing.T) {
 	RunDeploymentWithAllArgsTest(t, GetOIDCTestSetup(), DefaultGatewayHost(OIDCClusterDomain),
 		[]string{"--provider=oidc", fmt.Sprintf("--oidc-issuer-url=%s", OIDCIssuerURL), "--skip-oidc-discovery=false", "--ssl-insecure-skip-verify=false", "--pass-authorization-header=true", "--set-authorization-header=true"},
-		[]string{"--provider=openshift", "--scope=user:full", "--pass-access-token=true"})
+		[]string{"--provider=openshift", "--scope=user:full", "--pass-access-token=true", "--skip-claims-from-profile-url=true"})
+}
+
+func TestOIDCDeploymentWithSkipClaimsFromProfileURL(t *testing.T) {
+	spec := getOIDCGatewayConfigSpec()
+	spec.OIDC.SkipClaimsFromProfileURL = true
+	RunDeploymentWithAllArgsTest(t, TestSetup{
+		TC: OIDCTestEnv, Spec: spec, SetupFunc: ensureOIDCClientSecret,
+	}, DefaultGatewayHost(OIDCClusterDomain),
+		[]string{"--skip-claims-from-profile-url=true"}, nil)
+}
+
+// TestOIDCDeploymentWithScopeAndPassAccessToken validates that --scope and --pass-access-token=true
+// are added to the Deployment when GatewayConfig.spec.oidc.scope/passAccessToken are set (e.g. the
+// AKS browser OIDC flow, which needs an access token minted for a specific audience).
+func TestOIDCDeploymentWithScopeAndPassAccessToken(t *testing.T) {
+	setup := TestSetup{
+		TC:        OIDCTestEnv,
+		Spec:      oidcSpecWithScopeAndPassAccessToken(),
+		SetupFunc: ensureOIDCClientSecret,
+	}
+	RunDeploymentWithAllArgsTest(t, setup, DefaultGatewayHost(OIDCClusterDomain),
+		[]string{
+			"--provider=oidc",
+			fmt.Sprintf("--oidc-issuer-url=%s", OIDCIssuerURL),
+			"--scope=openid 6dae42f8-4368-4678-94ff-3960e28e3630/.default",
+			"--pass-access-token=true",
+		},
+		nil)
 }
 
 // TestOIDCHPACreation validates HPA creation in OIDC mode (delegates to RunHPACreationTest).
@@ -255,6 +403,14 @@ func TestOIDCNetworkPolicyCreation(t *testing.T) {
 	RunNetworkPolicyCreationTest(t, GetOIDCTestSetup())
 }
 
+func TestOIDCNetworkPolicyReconciliation(t *testing.T) {
+	RunNetworkPolicyReconciliationTest(t, GetOIDCTestSetup())
+}
+
+func TestOIDCNetworkPolicyMissingConfig(t *testing.T) {
+	RunNetworkPolicyMissingOIDCConfigTest(t, GetOIDCTestSetup())
+}
+
 // TestOIDCNginxDashboardRedirectSkippedWithoutDashboard validates redirects are skipped when Dashboard is not deployed in OIDC mode.
 func TestOIDCNginxDashboardRedirectSkippedWithoutDashboard(t *testing.T) {
 	RunNginxDashboardRedirectSkippedWithoutDashboardTest(t, GetOIDCTestSetup())
@@ -263,12 +419,6 @@ func TestOIDCNginxDashboardRedirectSkippedWithoutDashboard(t *testing.T) {
 // TestOIDCNginxDashboardRedirectCreation validates nginx-based dashboard redirect resources (ConfigMap, Deployment, Service, Routes) in OIDC mode.
 func TestOIDCNginxDashboardRedirectCreation(t *testing.T) {
 	RunNginxDashboardRedirectCreationTest(t, GetOIDCTestSetup())
-}
-
-// TestOIDCNetworkPolicyDisabled validates that no NetworkPolicy is created when ingress policy is disabled in OIDC mode (delegates to RunNetworkPolicyDisabledTest).
-func TestOIDCNetworkPolicyDisabled(t *testing.T) {
-	ensureOIDCClientSecret(t, OIDCTestEnv)
-	RunNetworkPolicyDisabledTest(t, GetOIDCTestSetup(), oidcSpecWithNetworkPolicyDisabled())
 }
 
 // TestOIDCWithProviderCASecret validates that Deployment gets provider CA volume, mount, and --provider-ca-file arg when ProviderCASecretName is set.
@@ -281,18 +431,7 @@ func TestOIDCWithProviderCASecret(t *testing.T) {
 
 	// Create provider CA secret (idempotent)
 	caSecretName := "oidc-provider-ca"
-	caSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      caSecretName,
-			Namespace: gateway.GetGatewayNamespace(),
-		},
-		Data: map[string][]byte{
-			"ca.crt": []byte("-----BEGIN CERTIFICATE-----\ntest-ca\n-----END CERTIFICATE-----"),
-		},
-	}
-	if err := tc.K8sClient.Create(tc.Ctx, caSecret); err != nil && !k8serr.IsAlreadyExists(err) {
-		t.Fatalf("Failed to create provider CA secret: %v", err)
-	}
+	createProviderCASecret(t, tc, caSecretName, []byte("-----BEGIN CERTIFICATE-----\ntest-ca\n-----END CERTIFICATE-----"))
 
 	CreateGatewayConfig(t, tc.Ctx, tc.K8sClient, oidcSpecWithProviderCA(caSecretName))
 
@@ -306,7 +445,7 @@ func TestOIDCWithProviderCASecret(t *testing.T) {
 			return false
 		}
 		for _, vol := range deployment.Spec.Template.Spec.Volumes {
-			if vol.Name == "provider-ca-cert" {
+			if vol.Name == "provider-ca-cert" && vol.Secret.SecretName == caSecretName {
 				return true
 			}
 		}
@@ -343,6 +482,69 @@ func TestOIDCWithProviderCASecret(t *testing.T) {
 	// Verify --provider-ca-file arg
 	args := deployment.Spec.Template.Spec.Containers[0].Args
 	g.Expect(args).To(ContainElement("--provider-ca-file=/etc/provider-ca/ca.crt"))
+}
+
+// TestOIDCProviderCASecretRotationRollsDeployment validates that rotating the CA
+// inside the provider CA secret changes the secret-hash pod annotation so
+// kube-auth-proxy pods roll with the new trust pool.
+func TestOIDCProviderCASecretRotationRollsDeployment(t *testing.T) {
+	tc := OIDCTestEnv
+	g := NewWithT(t)
+
+	ensureOIDCClientSecret(t, tc)
+	defer DeleteGatewayConfig(t, tc.Ctx, tc.K8sClient)
+
+	caSecretName := "oidc-provider-ca-rotation"
+	caSecret := createProviderCASecret(t, tc, caSecretName, []byte("-----BEGIN CERTIFICATE-----\nca-v1\n-----END CERTIFICATE-----"))
+
+	CreateGatewayConfig(t, tc.Ctx, tc.K8sClient, oidcSpecWithProviderCA(caSecretName))
+
+	// Wait for Deployment with this provider CA secret's volume (controller
+	// must update it); matching the secret name guards against recording a
+	// baseline from a Deployment still configured for a previous test's CA.
+	g.Eventually(func() bool {
+		deployment, err := getAuthProxyDeployment(tc.Ctx, tc.K8sClient)
+		if err != nil {
+			return false
+		}
+		for _, vol := range deployment.Spec.Template.Spec.Volumes {
+			if vol.Name == "provider-ca-cert" && vol.Secret.SecretName == caSecretName {
+				return true
+			}
+		}
+		return false
+	}, TestTimeout, TestInterval).Should(BeTrue(), "Deployment should have provider CA volume")
+
+	deployment, err := getAuthProxyDeployment(tc.Ctx, tc.K8sClient)
+	g.Expect(err).To(Succeed())
+	hashBefore := deployment.Spec.Template.Annotations["opendatahub.io/secret-hash"]
+	g.Expect(hashBefore).NotTo(BeEmpty(), "secret-hash annotation should be set with a provider CA configured")
+
+	// Rotate the CA bundle inside the same secret
+	originalCA := caSecret.Data["ca.crt"]
+	rotatedCA := []byte("-----BEGIN CERTIFICATE-----\nca-v2\n-----END CERTIFICATE-----")
+	caSecret.Data["ca.crt"] = rotatedCA
+	g.Expect(tc.K8sClient.Update(tc.Ctx, caSecret)).To(Succeed())
+
+	g.Eventually(func() bool {
+		updated, err := getAuthProxyDeployment(tc.Ctx, tc.K8sClient)
+		if err != nil {
+			return false
+		}
+		return updated.Spec.Template.Annotations["opendatahub.io/secret-hash"] != hashBefore
+	}, TestTimeout, TestInterval).Should(BeTrue(), "secret-hash annotation must change when the provider CA secret is rotated")
+
+	g.Expect(tc.K8sClient.Get(tc.Ctx, client.ObjectKeyFromObject(caSecret), caSecret)).To(Succeed())
+	g.Expect(caSecret.Data["ca.crt"]).To(Equal(rotatedCA), "reconciliation must retain the administrator-supplied CA")
+	caSecret.Data["ca.crt"] = originalCA
+	g.Expect(tc.K8sClient.Update(tc.Ctx, caSecret)).To(Succeed())
+	g.Eventually(func() string {
+		updated, err := getAuthProxyDeployment(tc.Ctx, tc.K8sClient)
+		if err != nil {
+			return ""
+		}
+		return updated.Spec.Template.Annotations["opendatahub.io/secret-hash"]
+	}, TestTimeout, TestInterval).Should(Equal(hashBefore), "restoring the original CA must roll back the deployment hash")
 }
 
 // TestOIDCWithInsecureSkipVerify validates that VerifyProviderCertificate=false results in --ssl-insecure-skip-verify=true in the deployment.

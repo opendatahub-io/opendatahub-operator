@@ -17,7 +17,12 @@ limitations under the License.
 package v2
 
 import (
+	"encoding/json"
+	"fmt"
+	"regexp"
 	"slices"
+	"strings"
+	"unicode/utf8"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
@@ -177,6 +182,75 @@ func dashboardV3ToV2(src componentApi.DSCDashboard) componentApi.DSCDashboardV2 
 	}
 }
 
+// ModelExpressV3StateAnnotation carries v3-only ModelExpress enablement through
+// the v2 view, which has no modelExpress field. It is conversion-owned metadata.
+const ModelExpressV3StateAnnotation = "conversion.opendatahub.io/modelexpress-v3-state"
+
+const modelExpressManaged = "managed"
+
+// KserveV3StateAnnotation carries v3-only KServe settings (confidential
+// containers and audit logging profile) through the v2 view, which has no
+// corresponding fields. It is conversion-owned metadata.
+const KserveV3StateAnnotation = "conversion.opendatahub.io/kserve-v3-state"
+
+// kserveV3State is the JSON payload carried by KserveV3StateAnnotation. Only
+// non-default values are recorded so clusters that never opted into
+// confidential serving carry no marker.
+type kserveV3State struct {
+	ConfidentialContainers *componentApi.ConfidentialContainersConfig `json:"confidentialContainers,omitempty"`
+	AuditLoggingProfile    componentApi.AuditProfile                  `json:"auditLoggingProfile,omitempty"`
+}
+
+// The constraints below mirror the kubebuilder markers on
+// ConfidentialContainersConfig and AuditProfile in
+// api/components/v1alpha1/kserve_types.go. They are re-checked here because
+// the marker is annotation-carried: the v2 schema has no such fields, so v2
+// admission cannot reject invalid values before conversion persists them in
+// the stored v3 object.
+const (
+	luksResourceIDMaxLength = 2048
+	initDataMaxLength       = 8192
+)
+
+var luksResourceIDPattern = regexp.MustCompile(`^kbs:///[^/\s?#]+/[^/\s?#]+/[^/\s?#]+$`)
+
+// validate checks that marker-carried values satisfy the v3 CRD constraints.
+// An empty payload (JSON null or an object with no settings) is rejected too:
+// ConvertFrom never produces one, and accepting it would let a v2 write clear
+// the confidential settings through the annotation.
+func (s kserveV3State) validate() error {
+	if s.ConfidentialContainers == nil && s.AuditLoggingProfile == "" {
+		return fmt.Errorf("carries no settings")
+	}
+
+	switch profile := s.AuditLoggingProfile; profile {
+	case "", componentApi.AuditProfileRemoved, componentApi.AuditProfileMetadata:
+	default:
+		return fmt.Errorf("invalid auditLoggingProfile %q", profile)
+	}
+
+	if cc := s.ConfidentialContainers; cc != nil {
+		// Length limits mirror the v3 CRD MaxLength constraints, which count
+		// Unicode code points, not bytes.
+		if utf8.RuneCountInString(cc.LUKSResourceID) > luksResourceIDMaxLength {
+			return fmt.Errorf("luksResourceId exceeds %d characters", luksResourceIDMaxLength)
+		}
+		if !luksResourceIDPattern.MatchString(cc.LUKSResourceID) {
+			return fmt.Errorf("invalid luksResourceId %q", cc.LUKSResourceID)
+		}
+		for segment := range strings.SplitSeq(cc.LUKSResourceID, "/") {
+			if segment == "." || segment == ".." {
+				return fmt.Errorf("luksResourceId %q must not contain \".\" or \"..\" path segments", cc.LUKSResourceID)
+			}
+		}
+		if utf8.RuneCountInString(cc.InitData) > initDataMaxLength {
+			return fmt.Errorf("initData exceeds %d characters", initDataMaxLength)
+		}
+	}
+
+	return nil
+}
+
 // ConvertTo copies the DSC into v3, moving legacy MaaS selection into the canonical stanza.
 func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 	dst := dstRaw.(*dscApi.DataScienceCluster)
@@ -245,6 +319,7 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 			AIGateway:            src.Status.Components.AIGateway,
 			ModelsAsAService:     src.Status.Components.ModelsAsAService,
 			BatchGateway:         src.Status.Components.BatchGateway,
+			AIGrid:               src.Status.Components.AIGrid,
 			MCPLifecycleOperator: src.Status.Components.MCPLifecycleOperator,
 			DatabaseService:      src.Status.Components.DatabaseService,
 		},
@@ -271,6 +346,33 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 
 	dst.PreserveMaaSV2State(canonical.ManagementState, legacy)
 
+	if value, found := dst.Annotations[ModelExpressV3StateAnnotation]; found {
+		if value != modelExpressManaged {
+			return fmt.Errorf("invalid ModelExpress v3 state marker %q", value)
+		}
+		dst.Spec.Components.Kserve.ModelExpress.ManagementState = operatorv1.Managed
+		delete(dst.Annotations, ModelExpressV3StateAnnotation)
+		if len(dst.Annotations) == 0 {
+			dst.Annotations = nil
+		}
+	}
+
+	if value, found := dst.Annotations[KserveV3StateAnnotation]; found {
+		var state kserveV3State
+		if err := json.Unmarshal([]byte(value), &state); err != nil {
+			return fmt.Errorf("invalid KServe v3 state marker: %w", err)
+		}
+		if err := state.validate(); err != nil {
+			return fmt.Errorf("invalid KServe v3 state marker: %w", err)
+		}
+		dst.Spec.Components.Kserve.ConfidentialContainers = state.ConfidentialContainers
+		dst.Spec.Components.Kserve.AuditLoggingProfile = state.AuditLoggingProfile
+		delete(dst.Annotations, KserveV3StateAnnotation)
+		if len(dst.Annotations) == 0 {
+			dst.Annotations = nil
+		}
+	}
+
 	return nil
 }
 
@@ -288,9 +390,10 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 			Kserve: componentApi.DSCKserveV2{
 				ManagementSpec: src.Spec.Components.Kserve.ManagementSpec,
 				KserveCommonSpecV2: componentApi.KserveCommonSpecV2{
-					RawDeploymentServiceConfig:   src.Spec.Components.Kserve.RawDeploymentServiceConfig,
-					OAuthProxy:                   src.Spec.Components.Kserve.OAuthProxy,
-					NIM:                          src.Spec.Components.Kserve.NIM,
+					RawDeploymentServiceConfig: src.Spec.Components.Kserve.RawDeploymentServiceConfig,
+					OAuthProxy:                 src.Spec.Components.Kserve.OAuthProxy,
+					NIM:                        src.Spec.Components.Kserve.NIM,
+					// WVA is unsupported in 3.6; do not preserve leftover Managed across conversion.
 					WVA:                          componentApi.WVASpec{ManagementState: operatorv1.Removed},
 					EnableLLMInferenceServiceTLS: src.Spec.Components.Kserve.EnableLLMInferenceServiceTLS,
 					EnableLLMInferenceServiceConsoleDashboards: src.Spec.Components.Kserve.EnableLLMInferenceServiceConsoleDashboards,
@@ -342,6 +445,7 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 			AIGateway:            src.Status.Components.AIGateway,
 			ModelsAsAService:     src.Status.Components.ModelsAsAService,
 			BatchGateway:         src.Status.Components.BatchGateway,
+			AIGrid:               src.Status.Components.AIGrid,
 			MCPLifecycleOperator: src.Status.Components.MCPLifecycleOperator,
 			DatabaseService:      src.Status.Components.DatabaseService,
 		},
@@ -363,6 +467,32 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 	}
 
 	delete(dst.Annotations, dscApi.MaaSV2StateAnnotation)
+	delete(dst.Annotations, ModelExpressV3StateAnnotation)
+	if src.Spec.Components.Kserve.ModelExpress.ManagementState == operatorv1.Managed {
+		if dst.Annotations == nil {
+			dst.Annotations = make(map[string]string)
+		}
+		dst.Annotations[ModelExpressV3StateAnnotation] = modelExpressManaged
+	}
+
+	delete(dst.Annotations, KserveV3StateAnnotation)
+	var kserveState kserveV3State
+	if src.Spec.Components.Kserve.ConfidentialContainers != nil {
+		kserveState.ConfidentialContainers = src.Spec.Components.Kserve.ConfidentialContainers
+	}
+	if profile := src.Spec.Components.Kserve.AuditLoggingProfile; profile != "" && profile != componentApi.AuditProfileRemoved {
+		kserveState.AuditLoggingProfile = profile
+	}
+	if kserveState.ConfidentialContainers != nil || kserveState.AuditLoggingProfile != "" {
+		encoded, err := json.Marshal(kserveState)
+		if err != nil {
+			return fmt.Errorf("encode KServe v3 state marker: %w", err)
+		}
+		if dst.Annotations == nil {
+			dst.Annotations = make(map[string]string)
+		}
+		dst.Annotations[KserveV3StateAnnotation] = string(encoded)
+	}
 	if len(dst.Annotations) == 0 {
 		dst.Annotations = nil
 	}
