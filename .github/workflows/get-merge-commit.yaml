@@ -2,6 +2,17 @@ name: Get merge commit
 
 on:
   workflow_call:
+    inputs:
+      verifyHeadSha:
+        description: "Require the test merge commit to contain this exact PR head SHA"
+        required: false
+        type: boolean
+        default: false
+      expectedHeadSha:
+        description: "PR head SHA captured by the triggering event"
+        required: false
+        type: string
+        default: ""
     outputs:
       mergedSha:
         description: "The merge commit SHA"
@@ -25,13 +36,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_EVENT: ${{ github.event_name }}
+          VERIFY_HEAD_SHA: ${{ inputs.verifyHeadSha }}
+          EXPECTED_HEAD_SHA: ${{ inputs.expectedHeadSha }}
         run: |
           chmod +x base/.github/scripts/get-merge-commit.sh
           case "$GH_EVENT" in
             pull_request_target)
-              if mergedSha=$(base/.github/scripts/get-merge-commit.sh ${{ github.repository }} ${{ github.event.number }}); then
+              if [[ "$VERIFY_HEAD_SHA" == "true" && -z "$EXPECTED_HEAD_SHA" ]]; then
+                echo "::error::Expected PR head SHA is required when verification is enabled."
+                exit 1
+              fi
+              resolverArgs=()
+              if [[ "$VERIFY_HEAD_SHA" == "true" ]]; then
+                resolverArgs=("$EXPECTED_HEAD_SHA")
+              fi
+              if mergedSha=$(base/.github/scripts/get-merge-commit.sh "${{ github.repository }}" "${{ github.event.number }}" "${resolverArgs[@]}"); then
                 echo "Checking the merge commit $mergedSha"
                 echo "mergedSha=$mergedSha" >> "$GITHUB_OUTPUT"
+              elif [[ "$VERIFY_HEAD_SHA" == "true" ]]; then
+                echo "::error::Unable to verify the merge commit against the PR head captured by the triggering event."
+                exit 1
               else
                 # Skipping so that no notifications are sent
                 echo "Skipping the rest..."
