@@ -1,6 +1,8 @@
 name: Cloud Manager E2E Tests
 on:
   pull_request_target:
+    # Keep push/reopen events for trusted contributors. For external contributors,
+    # only a label added by this event authorizes a run; existing labels never do.
     types: [opened, labeled, synchronize, reopened]
     branches:
       - main
@@ -29,6 +31,9 @@ jobs:
   get-merge-commit:
     name: Get merge commit
     uses: ./.github/workflows/get-merge-commit.yaml
+    with:
+      verifyHeadSha: true
+      expectedHeadSha: ${{ github.event.pull_request.head.sha }}
 
   cloud-manager-e2e:
     needs: get-merge-commit
@@ -47,7 +52,6 @@ jobs:
           AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
           EVENT_ACTION: ${{ github.event.action }}
           LABEL_NAME: ${{ github.event.label.name }}
-          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'run-xks-e2e') }}
         run: |
           TRUSTED_BOTS=("odh-release-bot[bot]" "jira-autofix[bot]" "dependabot[bot]")
           if [[ "$AUTHOR_ASSOCIATION" =~ ^(OWNER|MEMBER|COLLABORATOR)$ ]]; then
@@ -60,15 +64,13 @@ jobs:
               exit 0
             fi
           done
-          if [[ "$EVENT_ACTION" == "labeled" && ( "$LABEL_NAME" == "lgtm" || "$LABEL_NAME" == "approved" ) ]]; then
+          # For external contributors, only the label added in THIS event authorizes
+          # the run. Never check the PR's current labels: they persist across pushes.
+          if [[ "$EVENT_ACTION" == "labeled" && ( "$LABEL_NAME" == "lgtm" || "$LABEL_NAME" == "approved" || "$LABEL_NAME" == "run-xks-e2e" ) ]]; then
             echo "Reviewer approval ($LABEL_NAME) — running automatically"
             exit 0
           fi
-          if [[ "$HAS_LABEL" == "true" ]]; then
-            echo "External contributor — approved via label"
-            exit 0
-          fi
-          echo "::error::xKS e2e tests required. A maintainer must add the 'run-xks-e2e' label after reviewing the code."
+          echo "::error::xKS e2e tests required. A maintainer must add the 'run-xks-e2e' label after reviewing the current PR head. Existing labels do not authorize pushes; add the label again after reviewing new code."
           exit 1
 
       - name: Check for a prior successful run
