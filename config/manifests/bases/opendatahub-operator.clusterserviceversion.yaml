@@ -7,7 +7,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v3.6.0
-    createdAt: "2026-9-28T00:00:00Z"
+    createdAt: "2026-11-04T00:00:00Z"
     operators.operatorframework.io/internal-objects: '["kueues.components.platform.opendatahub.io",
       "platforms.config.opendatahub.io"]'
     repository: https://github.com/opendatahub-io/opendatahub-operator
