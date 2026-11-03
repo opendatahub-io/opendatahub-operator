@@ -268,7 +268,9 @@ func (tc *ComponentTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 	)
 }
 
-func (tc *ComponentTestCtx) ValidateS3SecretCheckBucketExist(t *testing.T) {
+// ValidateConnectionAPIPoliciesExist verifies Connection API ValidatingAdmissionPolicies
+// (S3 and postgres) and their bindings are created when the component is enabled.
+func (tc *ComponentTestCtx) ValidateConnectionAPIPoliciesExist(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Tier1)
@@ -283,6 +285,12 @@ func (tc *ComponentTestCtx) ValidateS3SecretCheckBucketExist(t *testing.T) {
 	)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ValidatingAdmissionPolicyBinding, types.NamespacedName{Name: "connectionapi-check-s3-bucket-binding"}),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ValidatingAdmissionPolicy, types.NamespacedName{Name: "connectionapi-check-postgres-fields"}),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ValidatingAdmissionPolicyBinding, types.NamespacedName{Name: "connectionapi-check-postgres-fields-binding"}),
 	)
 }
 
