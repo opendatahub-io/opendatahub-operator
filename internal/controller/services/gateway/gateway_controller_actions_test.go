@@ -518,6 +518,90 @@ func TestCreateGatewayInfrastructureCreatesOneGatewayPerAdditionalIngress(t *tes
 	}
 }
 
+func TestGatewayLoadBalancerHealthProbeAnnotation(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		clusterType string
+		wantProbe   bool
+	}{
+		{name: "XKS", clusterType: cluster.ClusterTypeKubernetes, wantProbe: true},
+		{name: "OpenShift", clusterType: cluster.ClusterTypeOpenShift},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			previous := cluster.GetClusterInfo()
+			cluster.SetClusterInfo(cluster.ClusterInfo{Type: tc.clusterType})
+			t.Cleanup(func() { cluster.SetClusterInfo(previous) })
+
+			rr := &odhtypes.ReconciliationRequest{Client: newGatewayTestClient(t)}
+			config := &serviceApi.GatewayConfig{Spec: serviceApi.GatewayConfigSpec{IngressMode: serviceApi.IngressModeLoadBalancer}}
+			g.Expect(createGateway(rr, "gateway-tls", "rh-ai.example.com", "", config)).To(Succeed())
+			g.Expect(rr.Resources).To(HaveLen(1), "LoadBalancer must not create a ClusterIP configuration")
+
+			gateway := &gwapiv1.Gateway{}
+			g.Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, gateway)).To(Succeed())
+			if tc.wantProbe {
+				g.Expect(gateway.Spec.Infrastructure).NotTo(BeNil())
+				g.Expect(gateway.Spec.Infrastructure.ParametersRef).To(BeNil())
+				g.Expect(gateway.Spec.Infrastructure.Annotations).To(HaveKeyWithValue(
+					gwapiv1.AnnotationKey(httpsHealthProbeProtocolAnnotation), gwapiv1.AnnotationValue("Tcp")))
+			} else {
+				g.Expect(gateway.Spec.Infrastructure).To(BeNil())
+			}
+		})
+	}
+}
+
+func TestReconcileGatewayForModeChangeWithInfrastructureAnnotations(t *testing.T) {
+	hostname := gwapiv1.Hostname("rh-ai.example.com")
+	probe := &gwapiv1.GatewayInfrastructure{Annotations: map[gwapiv1.AnnotationKey]gwapiv1.AnnotationValue{
+		httpsHealthProbeProtocolAnnotation: "Tcp",
+	}}
+	clusterIP := &gwapiv1.GatewayInfrastructure{ParametersRef: &gwapiv1.LocalParametersReference{
+		Kind: "ConfigMap", Name: GatewayInfraConfigMapName,
+	}}
+	for _, tc := range []struct {
+		name        string
+		clusterType string
+		hostname    *gwapiv1.Hostname
+		infra       *gwapiv1.GatewayInfrastructure
+		desired     serviceApi.IngressMode
+		wantDelete  bool
+	}{
+		{name: "existing XKS LoadBalancer without annotation", clusterType: cluster.ClusterTypeKubernetes, hostname: &hostname, desired: serviceApi.IngressModeLoadBalancer},
+		{name: "XKS LoadBalancer with annotation", clusterType: cluster.ClusterTypeKubernetes, hostname: &hostname, infra: probe, desired: serviceApi.IngressModeLoadBalancer},
+		{name: "OpenShift LoadBalancer", clusterType: cluster.ClusterTypeOpenShift, hostname: &hostname, desired: serviceApi.IngressModeLoadBalancer},
+		{name: "OpenShift OcpRoute", clusterType: cluster.ClusterTypeOpenShift, infra: clusterIP, desired: serviceApi.IngressModeOcpRoute},
+		{name: "OcpRoute to LoadBalancer", clusterType: cluster.ClusterTypeOpenShift, infra: clusterIP, desired: serviceApi.IngressModeLoadBalancer, wantDelete: true},
+		{name: "LoadBalancer to OcpRoute", clusterType: cluster.ClusterTypeOpenShift, hostname: &hostname, desired: serviceApi.IngressModeOcpRoute, wantDelete: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			previous := cluster.GetClusterInfo()
+			cluster.SetClusterInfo(cluster.ClusterInfo{Type: tc.clusterType})
+			t.Cleanup(func() { cluster.SetClusterInfo(previous) })
+
+			gateway := &gwapiv1.Gateway{
+				ObjectMeta: metav1.ObjectMeta{Name: GetDefaultGatewayName(), Namespace: GetGatewayNamespace()},
+				Spec: gwapiv1.GatewaySpec{
+					Listeners:      []gwapiv1.Listener{{Name: DefaultGatewayListenerName, Hostname: tc.hostname}},
+					Infrastructure: tc.infra,
+				},
+			}
+			cli := newGatewayTestClient(t, gateway)
+			rr := &odhtypes.ReconciliationRequest{Client: cli}
+			err := reconcileGatewayForModeChange(t.Context(), rr, tc.desired)
+			if tc.wantDelete {
+				g.Expect(err).To(MatchError(ContainSubstring("gateway deleted for mode change")))
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+			}
+			err = cli.Get(t.Context(), types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}, &gwapiv1.Gateway{})
+			g.Expect(k8serr.IsNotFound(err)).To(Equal(tc.wantDelete))
+		})
+	}
+}
+
 func TestXKSReconcileWithoutDomainStopsCleanly(t *testing.T) {
 	g := NewWithT(t)
 
