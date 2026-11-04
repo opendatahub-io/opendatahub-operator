@@ -105,7 +105,7 @@ spec:
             - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_UNIVERSAL_CPU_PY312_C9S_IMAGE
               value: quay.io/opendatahub/odh-workbench-jupyter-universal-cpu-py312-c9s@sha256:f1d16fcbce39010569682813bc891a8270c040482d858be3a281b19ce917954d
             - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_OPERATOR_IMAGE
-              value: quay.io/opendatahub/odh-batch-gateway-operator@sha256:2c5e8633c9e9b81188d5870ed28ec97a01243c56e60b465aa781143a8fe9e21e
+              value: quay.io/opendatahub/odh-batch-gateway-operator@sha256:eaaec9ced5c56ac5feeff95b8241ee37c546cae1af0f10fdacd37d8184239c8e
             - name: RELATED_IMAGE_ODH_MAAS_DISCOVERY_IMAGE
               value: quay.io/opendatahub/odh-maas-discovery@sha256:b2321269fb3c5e5f169448fb78e955cfeceaf23917961d9dc454460d72a127c2
             - name: RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_IMAGE
@@ -137,7 +137,7 @@ spec:
             - name: RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE
               value: quay.io/opendatahub/kuberay-operator@sha256:b6280791f01f2e37bff5e432c33140aaf1a7084b2eeff3f1f828a80adb24c486
             - name: RELATED_IMAGE_ODH_LLM_D_ASYNC_IMAGE
-              value: quay.io/opendatahub/odh-llm-d-async@sha256:e6fed8df39a29d66d7574a3ead73cd4bf433263381f44079458d9dc89461e1ee
+              value: quay.io/opendatahub/odh-llm-d-async@sha256:d15c4259f5a039894ec1212babaf2034441b69e1ffadb69104da52b5d944b55d
             - name: RELATED_IMAGE_ODH_ML_PIPELINES_DRIVER_IMAGE
               value: quay.io/opendatahub/ds-pipelines-driver@sha256:b667384a802e993dea0557213867e794a78cbbbada9f913debc9e87b42a86ca8
             - name: RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE
@@ -201,7 +201,7 @@ spec:
             - name: RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE
               value: quay.io/opendatahub/kserve-router@sha256:3c3357f488749c5df9334b6e30c78291a429357f2afc527c526c2be468380f92
             - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE
-              value: quay.io/opendatahub/odh-llm-d-batch-gateway-gc@sha256:f5cad19875bdc308bc6be8d9222916445ec9d979473d31b436bceffc6ff8c4a3
+              value: quay.io/opendatahub/odh-llm-d-batch-gateway-gc@sha256:3d001772a38e754f90ce53e90a905fc6f8f4b1023c38e426b1a1a275befda480
             - name: RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_E2E_IMAGE
               value: quay.io/opendatahub/odh-mcp-lifecycle-operator-e2e@sha256:7936c6dfec0da5cd8811b59f8f5580c4f44638b5b0acdfdfee2c81da44f0202d
             - name: RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE
@@ -267,7 +267,7 @@ spec:
             - name: RELATED_IMAGE_ODH_AUTOML_IMAGE
               value: quay.io/opendatahub/odh-automl@sha256:1faf06776d650c78dc4e92ba3dfc53ba9dc87f99e94aa98f39e8c90f46c3ad62
             - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_APISERVER_IMAGE
-              value: quay.io/opendatahub/odh-llm-d-batch-gateway-apiserver@sha256:a459c4a37b91ebb85261281761ccb3b344bc48935e6cc086bc554c8f7d814681
+              value: quay.io/opendatahub/odh-llm-d-batch-gateway-apiserver@sha256:1d12c18a26ab3228d2019c04feb70a0ab4a80fe844ce7b4cb15ee25e6583bb6c
             - name: RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE
               value: quay.io/opendatahub/odh-mod-arch-modular-architecture@sha256:da1f3a94c4e7eb80bbea29d22cdfacab64f36cce4e14956add2e5870bbca5045
             - name: RELATED_IMAGE_ODH_TRAINING_ROCM62_TORCH24_PY311_IMAGE
@@ -331,7 +331,7 @@ spec:
             - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_ROCM_PY312_IMAGE
               value: quay.io/opendatahub/odh-pipeline-runtime-pytorch-rocm-py312-ubi9@sha256:7725118b8b89a85b3f94fa3f2010c38462e4927c73dae333762c0b9e16bc7100
             - name: RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE
-              value: quay.io/opendatahub/odh-llm-d-batch-gateway-processor@sha256:154726200d9b80f59eb474bdf9e11e99b7c5a9063f25b65c1cb620ea56938073
+              value: quay.io/opendatahub/odh-llm-d-batch-gateway-processor@sha256:d16eb7f655461195c06fa69ffab6be438fa39a3b0f651a0ffb95288e02f16138
             - name: RELATED_IMAGE_ODH_LLM_D_ROUTER_ENDPOINT_PICKER_IMAGE
               value: quay.io/opendatahub/odh-llm-d-router-endpoint-picker@sha256:1180e3a984930af30a4a71f0f819c79fa358976693f0de355dc65bd5da2b3d3a
             - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_MINIMAL_CPU_PY312_IMAGE
