@@ -162,7 +162,7 @@ componentCharts:
   dashboard-operator:
     odh:
       repo: opendatahub-io/odh-dashboard
-      ref: odh-release@ca551d77cf207a50fe98c39b54fd534f03dde325
+      ref: main@d4054dfb9607a0af2b619a5b5f6829b316c72b27
       sourcePath: dashboard-operator/charts/dashboard
     rhoai:
       repo: red-hat-data-services/odh-dashboard
@@ -361,7 +361,7 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-dashboard-operator"
-      digest: "sha256:2b80ad037455802476689bb1e2e3b2421cff518cb4f95b4b46f0f6a92fd8c591"
+      digest: "sha256:62085fe592cbdcee8f3f8d774b051c7cffe29fe7ca783cf6c30d33a2500dcb33"
     rhoai:
       base: "quay.io/rhoai/odh-dashboard-operator-rhel9"
       digest: "sha256:ce5cda301e6f3f7728ae024e4585ba1e4afc6b65629f41c11d5c4cb8cf2f71ca"
@@ -370,7 +370,7 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-dashboard"
-      digest: "sha256:596a273f11ce2c7a4ceff7454e3efb6891d2f2a463f43d04557852e4c59000fb"
+      digest: "sha256:8673bedeca4e58b9bbbdf64cd99d780f6fc330b0382c3ce66caf4aa8d18555b8"
     rhoai:
       base: "quay.io/rhoai/odh-dashboard-rhel9"
       digest: "sha256:abdb0a1f02214be9c401b0a9447bc3b325d2d7701d891d0ac72eb996cc33b7e9"
