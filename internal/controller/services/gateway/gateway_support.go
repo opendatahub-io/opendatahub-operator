@@ -773,7 +773,7 @@ func getKubeAuthProxyImage() string {
 	// --tls-cipher-suite and --tls-curve-preferences); it matches the ODH e2e image in
 	// manifests-config.yaml so the fallback stays compatible with the rendered proxy args.
 	// The pinned build includes the provider CA client-cache fix (kube-auth-proxy#119).
-	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:6d4babb7514c9d7701a193a752d273a8056498761342221997801a36ca157975" // latest as of 2026-10-20
+	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:43bf458ca3c01d51a61f1a61459aa30e8f23a3cedaa3a9037ab5e0e3d4f5a6af" // latest as of 2026-11-03
 }
 
 // getDashboardRedirectImage returns the nginx image for dashboard redirects.
