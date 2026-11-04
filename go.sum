@@ -192,12 +192,12 @@ github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142
 github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a/go.mod h1:uMYnqqPwy+1ub8me0YMZRZ1vrUQY9jS9nMcUXLBp88k=
 github.com/opendatahub-io/odh-platform-utilities v0.4.0 h1:2owyFN/cv6xoqvXCcweQPGN4FXmAh/xJ6Kbxp9E/s7w=
 github.com/opendatahub-io/odh-platform-utilities v0.4.0/go.mod h1:9fZ0sf6jCU8GTSViHUGAbFLHG3PYJ4/nG4QFLZEhYaE=
-github.com/opendatahub-io/odh-platform-utilities/framework v0.0.0-20261012121829-3163630a4c27 h1:bFRin/NoDos4mbsB4N8aKo9zpzwIu4ZPUWY5wC0U+ME=
-github.com/opendatahub-io/odh-platform-utilities/framework v0.0.0-20261012121829-3163630a4c27/go.mod h1:dbnC+EVIrhij8Crb3/digHuho2t82OdddnUjBgtaszc=
+github.com/opendatahub-io/odh-platform-utilities/framework v0.4.0 h1:kiRaMPhR9JQfjkEZeqqzENViAS7gS4Q1EdSOpGKT3q8=
+github.com/opendatahub-io/odh-platform-utilities/framework v0.4.0/go.mod h1:S6DJv3u/ei458FSrKPU4Drvm8VVxjnS+SkOrEBIOjgQ=
 github.com/openshift/api v0.0.0-20261002115817-f8795cdde518 h1:m0CfIxttdj/Wu0N/uHNgj3ZCB6zQpkWhbdr6rTK1q60=
 github.com/openshift/api v0.0.0-20261002115817-f8795cdde518/go.mod h1:2oI3aXQFDjjl7l4xA9ZPSkB+l+lyfWLg7P2sWg9yEvM=
-github.com/openshift/controller-runtime-common v0.0.0-20261005093240-b39eb7218441 h1:rxX9ejX5FTDiYguenwomjnlq1wnTho5Z45ocygeVLF0=
-github.com/openshift/controller-runtime-common v0.0.0-20261005093240-b39eb7218441/go.mod h1:wRo2jx/+tZd6HnYYmKayArJgL3T6LLbovLr28DGukMg=
+github.com/openshift/controller-runtime-common v0.0.0-20261026124434-bdfc411d93cd h1:ryKoDx8pbVqytd/plQ5TvOeoTTC8l4akPB6O3FZULuQ=
+github.com/openshift/controller-runtime-common v0.0.0-20261026124434-bdfc411d93cd/go.mod h1:wRo2jx/+tZd6HnYYmKayArJgL3T6LLbovLr28DGukMg=
 github.com/openshift/library-go v0.0.0-20261001144932-192662696fc7 h1:PDH/v+jap31Eb4N9q+Q3X05QHIXZA4sVyr4zb/n+Cv0=
 github.com/openshift/library-go v0.0.0-20261001144932-192662696fc7/go.mod h1:k0EA2kHPdvdKgyV38lWS1u1eIgMBgrpWkCl2ei4A3ug=
 github.com/operator-framework/api v0.42.0 h1:rkc5V3zW8RxZMjePAe12jdL7Co/hwsYo1pLnkkhuR7s=
