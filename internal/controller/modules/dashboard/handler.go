@@ -9,6 +9,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -28,6 +29,7 @@ const (
 	dashboardRedirectsDisabled   = "disabled"
 	defaultGatewaySubdomain      = "rh-ai"
 	legacyGatewayRouteName       = "data-science-gateway"
+	dashboardCRDName             = "dashboards.components.platform.opendatahub.io"
 	// crName must match dashboard-operator CRD CEL (default-dashboard); see odh-dashboard#8093.
 	crName = componentApi.DashboardInstanceName
 
@@ -131,23 +133,29 @@ func (h *handler) BuildModuleCR(
 	}
 
 	if cfg != nil && cfg.GatewayConfig != nil {
-		redirectState := operatorv1.Managed
-		if cfg.GatewayConfig.Status.Domain == "" ||
-			cfg.GatewayConfig.GetAnnotations()[dashboardRedirectsAnnotation] == dashboardRedirectsDisabled ||
-			os.Getenv("DISABLE_DASHBOARD_REDIRECTS") == "true" {
-			redirectState = operatorv1.Removed
-		}
-		legacyRedirects := map[string]any{
-			"managementState": string(redirectState),
-		}
-		legacyHostname, err := h.resolveLegacyRedirectHostname(ctx, cli, cfg, redirectState)
+		redirectsSupported, err := h.dashboardCRDSupportsLegacyRedirects(ctx, cli)
 		if err != nil {
-			return nil, fmt.Errorf("resolve legacy dashboard redirect hostname: %w", err)
+			return nil, fmt.Errorf("check Dashboard CRD redirect support: %w", err)
 		}
-		if legacyHostname != "" {
-			legacyRedirects["legacyHostname"] = legacyHostname
+		if redirectsSupported {
+			redirectState := operatorv1.Managed
+			if cfg.GatewayConfig.Status.Domain == "" ||
+				cfg.GatewayConfig.GetAnnotations()[dashboardRedirectsAnnotation] == dashboardRedirectsDisabled ||
+				os.Getenv("DISABLE_DASHBOARD_REDIRECTS") == "true" {
+				redirectState = operatorv1.Removed
+			}
+			legacyRedirects := map[string]any{
+				"managementState": string(redirectState),
+			}
+			legacyHostname, err := h.resolveLegacyRedirectHostname(ctx, cli, cfg, redirectState)
+			if err != nil {
+				return nil, fmt.Errorf("resolve legacy dashboard redirect hostname: %w", err)
+			}
+			if legacyHostname != "" {
+				legacyRedirects["legacyHostname"] = legacyHostname
+			}
+			spec["legacyRedirects"] = legacyRedirects
 		}
-		spec["legacyRedirects"] = legacyRedirects
 
 		if cfg.GatewayConfig.Status.Domain != "" {
 			spec["gateway"] = map[string]any{
@@ -165,6 +173,34 @@ func (h *handler) BuildModuleCR(
 	u.SetName(h.Config.CRName)
 
 	return u, nil
+}
+
+func (h *handler) dashboardCRDSupportsLegacyRedirects(ctx context.Context, cli client.Client) (bool, error) {
+	if cli == nil {
+		return false, nil
+	}
+
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: dashboardCRDName}, crd); err != nil {
+		if k8serr.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	for _, version := range crd.Spec.Versions {
+		if version.Name != h.Config.GVK.Version || !version.Served || version.Schema == nil || version.Schema.OpenAPIV3Schema == nil {
+			continue
+		}
+		specSchema, found := version.Schema.OpenAPIV3Schema.Properties["spec"]
+		if !found {
+			return false, nil
+		}
+		_, found = specSchema.Properties["legacyRedirects"]
+		return found, nil
+	}
+
+	return false, nil
 }
 
 func (h *handler) resolveLegacyRedirectHostname(
