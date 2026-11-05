@@ -38,7 +38,7 @@ const (
 	MonitoringStackName                      = "data-science-monitoringstack"
 	ObservabilityDeploymentName              = "odh-observability"
 	OpenTelemetryCollectorName               = "data-science-collector"
-	OpenTelemetryCollectorServiceName        = "data-science-collector-collector"
+	OTelCollectorHeadlessServiceName         = "data-science-collector-collector-headless"
 	TargetAllocatorDeploymentName            = "data-science-collector-targetallocator"
 	CollectorServiceAccount                  = "data-science-collector-collector"
 	TargetAllocatorServiceAccount            = "data-science-collector-targetallocator"
@@ -952,7 +952,7 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesLifecycle(t *testing
 	)
 
 	// Step 3: Wait for Instrumentation CR to be created and fully configured
-	expectedEndpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:4317", OpenTelemetryCollectorServiceName, tc.MonitoringNamespace)
+	expectedEndpoint := fmt.Sprintf("https://%s.%s.svc.cluster.local:4317", OTelCollectorHeadlessServiceName, tc.MonitoringNamespace)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: InstrumentationName, Namespace: tc.MonitoringNamespace}),
@@ -966,6 +966,7 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesLifecycle(t *testing
 			(.spec.sampler.type == "traceidratio") and
 			(.spec.sampler.argument == "0.1")
 		`, expectedEndpoint),
+			jq.Match(`.spec.exporter.tls.ca_file == "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"`),
 			// Owner references are correct
 			monitoringOwnerReferencesCondition,
 		)),
