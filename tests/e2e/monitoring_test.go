@@ -48,6 +48,7 @@ const (
 	InstrumentationName                       = "data-science-instrumentation"
 	ThanosQuerierName                         = "data-science-thanos-querier"
 	ThanosQuerierRouteName                    = "data-science-thanos-querier-route"
+	ThanosQuerierProxyServiceName             = "data-science-thanos-querier-proxy"
 	PersesName                                = "data-science-perses"
 	PersesDatasourceName                      = "data-science-prometheus-datasource"
 	ClusterPrometheusDatasourceName           = "cluster-prometheus-datasource"
@@ -1223,32 +1224,35 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceWithPrometheus(t *testing.T
 		WithCustomErrorMsg("Monitoring CR should have all conditions (Perses, MonitoringStack, PersesPrometheusDataSource) set to True"),
 	)
 
-	// Verify Data Science PersesDatasource CR is created (default: false, points to local Thanos Querier)
+	// Verify Data Science PersesDatasource CR is created (default: true, points to local Thanos Querier proxy)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: PersesDatasourceName, Namespace: tc.MonitoringNamespace}),
 		WithCondition(And(
 			// Validate owner references
 			monitoringOwnerReferencesCondition,
-			// Validate datasource is NOT set as default (cluster datasource is default)
-			jq.Match(`.spec.config.default == false`),
+			// Validate datasource IS set as default (data-science Thanos proxy is the default datasource)
+			jq.Match(`.spec.config.default == true`),
 			// Validate plugin kind is PrometheusDatasource
 			jq.Match(`.spec.config.plugin.kind == "PrometheusDatasource"`),
-			// Validate Prometheus URL points to local Thanos Querier using proxy configuration
+			// Validate Prometheus URL points to local Thanos Querier proxy service (service-ca TLS)
 			jq.Match(`.spec.config.plugin.spec.proxy.kind == "HTTPProxy"`),
-			jq.Match(`.spec.config.plugin.spec.proxy.spec.url | contains("thanos-querier-data-science-thanos-querier")`),
-			jq.Match(`.spec.config.plugin.spec.proxy.spec.url | contains("%s")`, tc.MonitoringNamespace),
+			jq.Match(`.spec.config.plugin.spec.proxy.spec.url == "%s"`, fmt.Sprintf("https://%s.%s.svc.cluster.local:8443", ThanosQuerierProxyServiceName, tc.MonitoringNamespace)),
+			// Validate TLS configuration (service-ca)
+			jq.Match(`.spec.client.tls.enable == true`),
+			jq.Match(`.spec.client.tls.caCert.name == "prometheus-web-tls-ca"`),
+			jq.Match(`.spec.client.tls.caCert.certPath == "service-ca.crt"`),
 		)),
 		WithCustomErrorMsg("Data Science PersesDatasource CR should be created with correct Thanos Querier proxy configuration"),
 	)
 
-	// Verify Cluster Prometheus PersesDatasource CR is created (default: true, points to openshift-monitoring Thanos)
+	// Verify Cluster Prometheus PersesDatasource CR is created (default: false, points to openshift-monitoring Thanos)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: ClusterPrometheusDatasourceName, Namespace: tc.MonitoringNamespace}),
 		WithCondition(And(
 			// Validate owner references
 			monitoringOwnerReferencesCondition,
-			// Validate datasource IS set as default
-			jq.Match(`.spec.config.default == true`),
+			// Validate datasource is NOT set as default (data-science datasource is default)
+			jq.Match(`.spec.config.default == false`),
 			// Validate plugin kind is PrometheusDatasource
 			jq.Match(`.spec.config.plugin.kind == "PrometheusDatasource"`),
 			// Validate Prometheus URL points to cluster Thanos Querier in openshift-monitoring
