@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
@@ -155,6 +156,12 @@ func (h *handler) BuildModuleCR(
 				legacyRedirects["legacyHostname"] = legacyHostname
 			}
 			spec["legacyRedirects"] = legacyRedirects
+		} else {
+			logf.FromContext(ctx).V(1).Info(
+				"legacy Dashboard redirects are unavailable because the Dashboard CRD schema does not support them",
+				"crd", dashboardCRDName,
+				"version", h.Config.GVK.Version,
+			)
 		}
 
 		if cfg.GatewayConfig.Status.Domain != "" {

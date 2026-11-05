@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -46,6 +47,9 @@ func (tc *GatewayTestCtx) DashboardRedirectTestSuite(t *testing.T) {
 	if !tc.isOcpRouteMode(t) {
 		t.Skip("Dashboard redirects are only created in OcpRoute ingress mode")
 	}
+	if !tc.dashboardCRDSupportsLegacyRedirects(t) {
+		t.Skip("Dashboard redirects are not supported by the installed Dashboard CRD")
+	}
 
 	// Dashboard CR must exist for its controller to create redirect resources.
 	tc.ensureDashboardCRExists(t)
@@ -61,6 +65,29 @@ func (tc *GatewayTestCtx) DashboardRedirectTestSuite(t *testing.T) {
 	}
 
 	RunTestCases(t, testCases)
+}
+
+func (tc *GatewayTestCtx) dashboardCRDSupportsLegacyRedirects(t *testing.T) bool {
+	t.Helper()
+
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	require.NoError(t, tc.Client().Get(tc.Context(), types.NamespacedName{
+		Name: "dashboards.components.platform.opendatahub.io",
+	}, crd))
+
+	for _, version := range crd.Spec.Versions {
+		if version.Name != gvk.Dashboard.Version || !version.Served || version.Schema == nil || version.Schema.OpenAPIV3Schema == nil {
+			continue
+		}
+		specSchema, found := version.Schema.OpenAPIV3Schema.Properties["spec"]
+		if !found {
+			return false
+		}
+		_, found = specSchema.Properties["legacyRedirects"]
+		return found
+	}
+
+	return false
 }
 
 // ensureDashboardCRExists sets Dashboard to Managed in the DSC and waits for the
