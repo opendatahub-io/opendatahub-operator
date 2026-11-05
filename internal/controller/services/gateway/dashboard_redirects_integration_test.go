@@ -10,6 +10,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -95,7 +96,7 @@ func TestCreateDashboardRedirectsWithRealAPIServer(t *testing.T) {
 
 		templates, err := createDashboardRedirects(ctx, tc.client, gatewayConfig)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(templates).To(HaveLen(5))
+		g.Expect(templates).To(HaveLen(6))
 	})
 
 	t.Run("when redirects are disabled by annotation", func(t *testing.T) {
@@ -130,7 +131,7 @@ func TestCreateDashboardRedirectsWithRealAPIServer(t *testing.T) {
 		gatewayConfig.SetAnnotations(nil)
 		templates, err := createDashboardRedirects(ctx, tc.client, gatewayConfig)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(templates).To(HaveLen(5))
+		g.Expect(templates).To(HaveLen(6))
 	})
 }
 
@@ -210,6 +211,12 @@ func (tc *dashboardRedirectTestEnv) createDashboardRedirectResources(
 				Namespace: appNs,
 			},
 		},
+		&networkingv1.NetworkPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      DashboardRedirectName,
+				Namespace: appNs,
+			},
+		},
 	}
 
 	for _, obj := range objs {
@@ -253,6 +260,14 @@ func (tc *dashboardRedirectTestEnv) resetDashboardRedirectTestState(
 		},
 	}
 	tc.deleteObjectEventually(t, ctx, configMap)
+
+	networkPolicy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      DashboardRedirectName,
+			Namespace: appNs,
+		},
+	}
+	tc.deleteObjectEventually(t, ctx, networkPolicy)
 
 	gatewayConfig := &serviceApi.GatewayConfig{
 		ObjectMeta: metav1.ObjectMeta{

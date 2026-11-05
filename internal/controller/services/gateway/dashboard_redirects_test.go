@@ -10,6 +10,7 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -58,6 +59,52 @@ func TestDashboardRedirectConfigTemplate(t *testing.T) {
 	g.Expect(page).NotTo(ContainSubstring("$request_uri"), "request data must never be embedded in the HTML")
 }
 
+func TestDashboardRedirectNetworkPolicyTemplate(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	data := map[string]any{
+		"DashboardRedirectNamespace": "opendatahub",
+		"DashboardRedirectName":      DashboardRedirectName,
+		"PartOfLabelKey":             "app.kubernetes.io/part-of",
+		"PartOfGatewayConfig":        PartOfGatewayConfig,
+	}
+	rendered := renderAuthProxyTemplate(g, "resources/dashboard-redirect-networkpolicy.tmpl.yaml", data)
+
+	var policy networkingv1.NetworkPolicy
+	g.Expect(yaml.Unmarshal([]byte(rendered), &policy)).To(Succeed())
+
+	g.Expect(policy.Name).To(Equal(DashboardRedirectName))
+	g.Expect(policy.Namespace).To(Equal("opendatahub"))
+	g.Expect(policy.Labels["app"]).To(Equal(DashboardRedirectName))
+	g.Expect(policy.Labels["app.kubernetes.io/part-of"]).To(Equal(PartOfGatewayConfig))
+
+	g.Expect(policy.Spec.PodSelector.MatchLabels).To(Equal(map[string]string{
+		"app": DashboardRedirectName,
+	}), "the policy must select only redirect pods via the stable app label contract")
+	g.Expect(policy.Spec.PodSelector.MatchExpressions).To(BeEmpty())
+
+	g.Expect(policy.Spec.PolicyTypes).To(Equal([]networkingv1.PolicyType{networkingv1.PolicyTypeIngress}))
+	g.Expect(policy.Spec.Egress).To(BeEmpty(), "the nginx redirect has no required application egress")
+	g.Expect(policy.Spec.Ingress).To(HaveLen(1), "exactly one ingress rule is allowed")
+
+	rule := policy.Spec.Ingress[0]
+	g.Expect(rule.From).To(HaveLen(2), "two alternative allowed namespace peers (OR)")
+	g.Expect(rule.From[0].NamespaceSelector.MatchLabels).To(Equal(map[string]string{
+		"network.openshift.io/policy-group": "ingress",
+	}), "the verified router source on LoadBalancerService IngressControllers")
+	g.Expect(rule.From[1].NamespaceSelector.MatchLabels).To(Equal(map[string]string{
+		"kubernetes.io/metadata.name": "openshift-host-network",
+	}), "documented intent for HostNetwork IngressControllers")
+	g.Expect(rule.From[0].PodSelector).To(BeNil())
+	g.Expect(rule.From[0].IPBlock).To(BeNil())
+	g.Expect(rule.From[1].PodSelector).To(BeNil())
+	g.Expect(rule.From[1].IPBlock).To(BeNil())
+	g.Expect(rule.Ports).To(HaveLen(1))
+	g.Expect(string(*rule.Ports[0].Protocol)).To(Equal("TCP"))
+	g.Expect(rule.Ports[0].Port.String()).To(Equal("8080"))
+}
+
 func TestCreateDashboardRedirects_SkipsWhenDashboardNotDeployed(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
@@ -97,6 +144,9 @@ func TestCreateDashboardRedirects_CreatesWhenDashboardExists(t *testing.T) {
 	templates, err := createDashboardRedirects(ctx, cli, gatewayConfig)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(templates).ToNot(BeEmpty(), "redirect templates should be added when Dashboard CR exists")
+	g.Expect(templates).To(HaveLen(6), "five original redirect templates plus the NetworkPolicy")
+	g.Expect(templates[1].Path).To(ContainSubstring("dashboard-redirect-networkpolicy"),
+		"the redirect template list should include the NetworkPolicy")
 }
 
 func TestCreateDashboardRedirects_SkipsWhenEnvDisabled(t *testing.T) {
@@ -161,7 +211,7 @@ func TestCreateDashboardRedirects_DisabledByAnnotation(t *testing.T) {
 	delete(gatewayConfig.Annotations, DashboardRedirectsAnnotation)
 	templates, err := createDashboardRedirects(ctx, cli, gatewayConfig)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(templates).To(HaveLen(5), "redirect templates should be restored when the annotation is removed")
+	g.Expect(templates).To(HaveLen(6), "redirect templates should be restored when the annotation is removed")
 }
 
 func TestCreateDashboardRedirects_UnsupportedAnnotationValueKeepsRedirectsEnabled(t *testing.T) {
@@ -186,7 +236,7 @@ func TestCreateDashboardRedirects_UnsupportedAnnotationValueKeepsRedirectsEnable
 
 	templates, err := createDashboardRedirects(ctx, cli, gatewayConfig)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(templates).To(HaveLen(5), "unsupported annotation values should retain the enabled default")
+	g.Expect(templates).To(HaveLen(6), "unsupported annotation values should retain the enabled default")
 }
 
 func TestCreateDashboardRedirects_DeletesResourcesWhenDashboardRemoved(t *testing.T) {
@@ -237,6 +287,13 @@ func TestCreateDashboardRedirects_DeletesResourcesWhenDashboardRemoved(t *testin
 		},
 	}
 
+	redirectPolicy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      DashboardRedirectName,
+			Namespace: appNs,
+		},
+	}
+
 	cli, err := fakeclient.New(fakeclient.WithObjects(
 		gatewayConfig,
 		redirectDeployment,
@@ -244,6 +301,7 @@ func TestCreateDashboardRedirects_DeletesResourcesWhenDashboardRemoved(t *testin
 		redirectConfigMap,
 		redirectRoute,
 		legacyRoute,
+		redirectPolicy,
 	))
 	g.Expect(err).To(Succeed())
 
@@ -262,4 +320,7 @@ func TestCreateDashboardRedirects_DeletesResourcesWhenDashboardRemoved(t *testin
 		To(MatchError(ContainSubstring("not found")))
 	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(legacyRoute), &routev1.Route{})).
 		To(MatchError(ContainSubstring("not found")))
+	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(redirectPolicy), &networkingv1.NetworkPolicy{})).
+		To(MatchError(ContainSubstring("not found")),
+			"the redirect NetworkPolicy must be removed in the same reconciliation as the other redirect resources")
 }
