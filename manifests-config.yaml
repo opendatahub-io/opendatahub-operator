@@ -943,14 +943,6 @@ imageOverrides:
     rhoai:
       base: "quay.io/rhoai/odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312-rhel9"
       digest: "sha256:1ee22622fd0241737a6b48a40f620f476dd502ec54b32ba85c5af0d56eb4acfc"
-  RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_ROCM_PY312_IMAGE:
-    source: "csv"
-    odh:
-      base: "quay.io/opendatahub/odh-pipeline-runtime-pytorch-rocm-py312-ubi9"
-      digest: "sha256:538030ff35a5a61efeb6a4f1f3e037ae525130d4a31f7957c20afbcab11c75b9"
-    rhoai:
-      base: "quay.io/rhoai/odh-pipeline-runtime-pytorch-rocm-py312-rhel9"
-      digest: "sha256:eb0ca4c1ccb230ac598e0e094412c61bcf0854ea7af41d019b8f57ec84d6b6b0"
   RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_CUDA_PY312_IMAGE:
     source: "csv"
     odh:
@@ -959,14 +951,6 @@ imageOverrides:
     rhoai:
       base: "quay.io/rhoai/odh-pipeline-runtime-tensorflow-cuda-py312-rhel9"
       digest: "sha256:8d9fcef73f67c5e12ac3bcc494276e37121acbd996b690ad67ce12061c1d07b6"
-  RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_ROCM_PY312_IMAGE:
-    source: "csv"
-    odh:
-      base: "quay.io/opendatahub/odh-pipeline-runtime-tensorflow-rocm-py312-ubi9"
-      digest: "sha256:91cc092135dfb28006f9b7cc8348d7551e27e7b088f56f28debb2a032d952009"
-    rhoai:
-      base: "quay.io/rhoai/odh-pipeline-runtime-tensorflow-rocm-py312-rhel9"
-      digest: "sha256:7e83201cb115871229ff3b9830242aceb62889a6d59096fb19fda088abc85014"
   RELATED_IMAGE_ODH_RAY_MODULE_OPERATOR_IMAGE:
     source: "csv"
     odh:
@@ -1208,14 +1192,6 @@ imageOverrides:
     rhoai:
       base: "quay.io/rhoai/odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-rhel9"
       digest: "sha256:2d83ee740d8228f908902e15e336282a72db28322c63ca94e351104346db67b1"
-  RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_ROCM_PY312_IMAGE:
-    source: "csv"
-    odh:
-      base: "quay.io/opendatahub/odh-workbench-jupyter-pytorch-rocm-py312-ubi9"
-      digest: "sha256:eeeb6679d49bfa8c828c8255048749aaa04cf4aec566fd8fa7a6b485cd8fd699"
-    rhoai:
-      base: "quay.io/rhoai/odh-workbench-jupyter-pytorch-rocm-py312-rhel9"
-      digest: "sha256:7297930982294f5beb445e3070906dc451aa3ef20e0418c9bde6996dc054f588"
   RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TENSORFLOW_CUDA_PY312_IMAGE:
     source: "csv"
     odh:
@@ -1224,22 +1200,6 @@ imageOverrides:
     rhoai:
       base: "quay.io/rhoai/odh-workbench-jupyter-tensorflow-cuda-py312-rhel9"
       digest: "sha256:9df002fecd5e36e3903c0ecf4adbaedf5ef22c6efadf4098e1438a2ff6e7c85d"
-  RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TENSORFLOW_ROCM_PY312_IMAGE:
-    source: "csv"
-    odh:
-      base: "quay.io/opendatahub/odh-workbench-jupyter-tensorflow-rocm-py312-ubi9"
-      digest: "sha256:98ac89f672b7ef9118685ff0956bcf88f2662c8de834022dae88ea249bb69b39"
-    rhoai:
-      base: "quay.io/rhoai/odh-workbench-jupyter-tensorflow-rocm-py312-rhel9"
-      digest: "sha256:b05dd33035709631f19915932aeb3e96b540d0abd7fb78a0aad116177c33707e"
-  RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TRUSTYAI_CPU_PY312_IMAGE:
-    source: "csv"
-    odh:
-      base: "quay.io/opendatahub/odh-workbench-jupyter-trustyai-cpu-py312-ubi9"
-      digest: "sha256:44cb1857dadeb8cc2c0530ba55fa705b6047bdabf433ca49a5898767c131fe2d"
-    rhoai:
-      base: "quay.io/rhoai/odh-workbench-jupyter-trustyai-cpu-py312-rhel9"
-      digest: "sha256:50afa17475d2ad26da02fbcecc6b70e8ad4acbf0c126758bbdf5a03fed8a3e79"
   RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE:
     source: "csv"
     odh:
