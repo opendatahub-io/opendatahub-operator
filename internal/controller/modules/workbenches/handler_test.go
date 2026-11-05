@@ -292,7 +292,19 @@ func TestImageHandling(t *testing.T) {
 	g.Expect(h.GetRelatedImages()).Should(ContainElement("RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE"))
 	g.Expect(h.GetRelatedImages()).Should(ContainElement("RELATED_IMAGE_ODH_WORKBENCHES_CONTROLLER_IMAGE"))
 	g.Expect(h.GetRelatedImages()).Should(ContainElement("RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_MINIMAL_CPU_PY312_IMAGE"))
+	g.Expect(h.GetRelatedImages()).Should(ContainElement("RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TENSORFLOW_CUDA_PY312_IMAGE"))
+	g.Expect(h.GetRelatedImages()).Should(ContainElement("RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_LLMCOMPRESSOR_CUDA_PY312_IMAGE"))
 	g.Expect(h.GetRelatedImages()).ShouldNot(ContainElement("RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE"))
+	// Wave-1 notebook retirement: these pins must not be forwarded to workbenches-operator.
+	for _, retired := range []string{
+		"RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_ROCM_PY312_IMAGE",
+		"RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TENSORFLOW_ROCM_PY312_IMAGE",
+		"RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TRUSTYAI_CPU_PY312_IMAGE",
+		"RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_ROCM_PY312_IMAGE",
+		"RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_ROCM_PY312_IMAGE",
+	} {
+		g.Expect(h.GetRelatedImages()).ShouldNot(ContainElement(retired))
+	}
 }
 
 func TestGetName(t *testing.T) {
