@@ -52,6 +52,8 @@ var allowedResourceKindsByModule = map[string]sets.Set[schema.GroupKind]{
 	"databaseservice": sets.New(gvk.SecurityContextConstraints.GroupKind()),
 	// The observability chart creates a dedicated namespace for its webhook probe.
 	"monitoring": sets.New(gvk.Namespace.GroupKind()),
+	// The trainer-operator chart ships a telemetry PrometheusRule.
+	"trainer": sets.New(gvk.PrometheusRule.GroupKind()),
 }
 
 func TestModuleChartCompliance(t *testing.T) {
@@ -321,6 +323,16 @@ func TestModuleSpecificResourceKindAllowlist(t *testing.T) {
 		"unknown module rejects SCC": {
 			gvk:     gvk.SecurityContextConstraints,
 			allowed: false,
+		},
+		"Trainer allows PrometheusRule": {
+			moduleName: "trainer",
+			gvk:        gvk.PrometheusRule,
+			allowed:    true,
+		},
+		"other module rejects PrometheusRule": {
+			moduleName: "aipipelines",
+			gvk:        gvk.PrometheusRule,
+			allowed:    false,
 		},
 	}
 
