@@ -25,6 +25,8 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/clientcmd"
@@ -132,6 +134,13 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate Gateway infrastructure", gatewayCtx.ValidateGatewayInfrastructure},
 		{"Validate additional Gateways", gatewayCtx.ValidateAdditionalGateways},
 		{"Validate additional Gateway lifecycle", gatewayCtx.ValidateAdditionalGatewayLifecycle},
+		{"Validate additional ingress auth stack", gatewayCtx.ValidateAdditionalIngressAuthStack},
+		{"Validate additional ingress auth failure isolation", gatewayCtx.ValidateAdditionalIngressAuthFailureIsolation},
+		{"Validate additional ingress OIDC auth readiness", gatewayCtx.ValidateAdditionalIngressOIDCAuthReadiness},
+		{"Validate additional ingress OIDC traffic", gatewayCtx.ValidateAdditionalIngressOIDCTraffic},
+		{"Validate additional ingress OIDC cookie isolation", gatewayCtx.ValidateAdditionalIngressOIDCCookieIsolation},
+		{"Validate additional ingress credential rotation recovery", gatewayCtx.ValidateAdditionalIngressCredentialRotationRecovery},
+		{"Validate additional ingress OAuth traffic", gatewayCtx.ValidateAdditionalIngressOAuthTraffic},
 		{"Validate OpenShift Route server timeout updates", gatewayCtx.ValidateOCPRouteServerTimeout},
 		{"Validate XKS cert-manager certificates", gatewayCtx.ValidateXKSCertManagerCertificates},
 		{"Validate XKS certificate readiness recovery", gatewayCtx.ValidateXKSCertificateReadinessRecovery},
@@ -1114,6 +1123,47 @@ func restoreAdditionalIngressGatewayTest(
 		current.Spec.AdditionalIngresses = original.Spec.AdditionalIngresses
 		return tc.Client().Update(ctx, current)
 	})
+
+	// Delete every test IngressController and register every cleanup entry
+	// before the restore wait at the end of this function: that wait Fatalfs
+	// on timeout, so by then everything this cleanup must guarantee has to
+	// have already happened, or a restore timeout would leak the test
+	// controllers and skip the router settles (CWE-459). The deletes are
+	// idempotent and report failures non-fatally, so no controller is ever
+	// left on the cluster by an aborted sibling.
+	for _, ingressControllerKey := range ingressControllerKeys {
+		if err := tc.Client().Delete(ctx, &operatorv1.IngressController{ObjectMeta: metav1.ObjectMeta{
+			Name: ingressControllerKey.Name, Namespace: ingressControllerKey.Namespace,
+		}}); err != nil && !k8serr.IsNotFound(err) {
+			t.Errorf("failed to delete test IngressController %s: %v", ingressControllerKey.Name, err)
+		}
+	}
+
+	// Cleanup verification: removing the test ingresses must leave none of their
+	// operator-rendered resources behind. A leftover Service, ConfigMap or TLS Secret
+	// would leak into every suite that runs after this one. Each ingress's
+	// verification is its own t.Cleanup entry, so a failed assertion on one
+	// ingress cannot starve the others (CWE-459). Registered before the settle
+	// entries below so the LIFO order runs the settles first. Skipped without a
+	// restored spec: the operator never received the removal signal, so the
+	// per-ingress resources still exist and the checks could only false-fail.
+	if restoreErr == nil {
+		for _, name := range ingressNames {
+			t.Cleanup(func() { tc.requireAdditionalIngressResourcesGone(ctx, t, name) })
+		}
+	}
+
+	// Settle each controller as its own t.Cleanup entry too: a failed settle
+	// wait ends only that controller's entry, never the siblings' or the
+	// verifications' (CWE-459). Registered unconditionally: the deletes have
+	// already happened above, so even a failed restore must still wait out the
+	// routers' garbage collection.
+	for _, ingressControllerKey := range ingressControllerKeys {
+		t.Cleanup(func() { tc.deleteIngressControllerAndSettle(ctx, t, ingressControllerKey) })
+	}
+
+	// The restore convergence wait runs last: it Fatalfs on timeout, so nothing
+	// the cluster's cleanliness depends on may follow it.
 	if restoreErr != nil {
 		t.Errorf("failed to restore GatewayConfig: %v", restoreErr)
 	} else {
@@ -1131,46 +1181,99 @@ func restoreAdditionalIngressGatewayTest(
 				reflect.DeepEqual(currentGateway.Spec.Listeners, originalGateway.Spec.Listeners)
 		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
 	}
-	for _, ingressControllerKey := range ingressControllerKeys {
-		if err := tc.Client().Delete(ctx, &operatorv1.IngressController{ObjectMeta: metav1.ObjectMeta{
-			Name: ingressControllerKey.Name, Namespace: ingressControllerKey.Namespace,
-		}}); err != nil && !k8serr.IsNotFound(err) {
-			t.Errorf("failed to delete test IngressController: %v", err)
-			continue
-		}
-		g.Eventually(func() bool {
-			current := &operatorv1.IngressController{}
-			return k8serr.IsNotFound(tc.Client().Get(ctx, ingressControllerKey, current))
-		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue())
-	}
+}
 
-	if restoreErr != nil {
-		// The leftover-resource checks below cannot pass without a restored spec:
-		// the operator never received the removal signal, so the per-ingress
-		// resources still exist. The root cause is already reported above.
+// deleteIngressControllerAndSettle deletes a test-created IngressController
+// and waits for the ingress operator's asynchronous router garbage collection.
+// The operator only watches IngressControllers - it never owns or deletes them -
+// so any spec that creates one must register this cleanup, or every run leaks a
+// router Deployment and Service into openshift-ingress for every later suite
+// (observed: a still-terminating test router raced a later suite's quota
+// sizing). The waits use the suite's standard Eventually: a failed wait ends
+// this cleanup entry only, and callers delete every controller before settling
+// any of them, so the deletions themselves are never starved (CWE-459).
+func (tc *GatewayTestCtx) deleteIngressControllerAndSettle(ctx context.Context, t *testing.T, ingressControllerKey types.NamespacedName) {
+	t.Helper()
+	if err := tc.Client().Delete(ctx, &operatorv1.IngressController{ObjectMeta: metav1.ObjectMeta{
+		Name: ingressControllerKey.Name, Namespace: ingressControllerKey.Namespace,
+	}}); err != nil && !k8serr.IsNotFound(err) {
+		t.Errorf("failed to delete test IngressController: %v", err)
 		return
 	}
+	g := NewWithT(t)
+	g.Eventually(func() bool {
+		return k8serr.IsNotFound(tc.Client().Get(ctx, ingressControllerKey, &operatorv1.IngressController{}))
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue(),
+		"cleanup must remove the test IngressController %s's object", ingressControllerKey.Name)
+	g.Eventually(func() bool {
+		return k8serr.IsNotFound(tc.Client().Get(ctx,
+			types.NamespacedName{Name: "router-" + ingressControllerKey.Name, Namespace: "openshift-ingress"},
+			&appsv1.Deployment{}))
+	}, 2*time.Minute, 2*time.Second).Should(BeTrue(),
+		"cleanup must remove the test IngressController %s's router Deployment", ingressControllerKey.Name)
+	g.Eventually(func() bool {
+		return k8serr.IsNotFound(tc.Client().Get(ctx,
+			types.NamespacedName{Name: "router-internal-" + ingressControllerKey.Name, Namespace: "openshift-ingress"},
+			&corev1.Service{}))
+	}, 2*time.Minute, 2*time.Second).Should(BeTrue(),
+		"cleanup must remove the test IngressController %s's router Service", ingressControllerKey.Name)
+}
 
-	// Cleanup verification: removing the test ingresses must leave none of their
-	// operator-rendered resources behind. A leftover Service, ConfigMap or TLS Secret
-	// would leak into every suite that runs after this one.
-	for _, name := range ingressNames {
-		namespace := tc.gatewayNamespace()
-		resources := []client.Object{
-			&gwapiv1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}},
-			&routev1.Route{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}},
-			&corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: gateway.GetGatewayServiceFullName(name), Namespace: namespace}},
-			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: name + "-config", Namespace: namespace}},
-			&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name + "-service-tls", Namespace: namespace}},
-			&corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: gateway.KubeAuthProxyName + "-" + name, Namespace: namespace}},
-		}
-		for _, obj := range resources {
-			key := client.ObjectKeyFromObject(obj)
-			g.Eventually(func() bool {
-				return k8serr.IsNotFound(tc.Client().Get(ctx, key, obj))
-			}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue(),
-				"cleanup must remove %T %s", obj, key)
-		}
+// requireAdditionalIngressResourcesGone verifies that a removed additional
+// ingress left none of its operator-rendered resources behind: the core
+// resources (Gateway, OCP Route, Services, config ConfigMap, TLS Secret) and
+// the per-ingress auth stack (credentials Secret, HPA, NetworkPolicy,
+// OAuthClient, callback HTTPRoute, EnvoyFilter, DestinationRule - the
+// resources the auth-stack inventory specs pin). All are framework-tracked
+// operator resources, so a leftover here is a genuine leak into every later
+// suite. Registered per ingress as its own t.Cleanup entry so a failed
+// assertion cannot starve the other ingresses' checks (CWE-459).
+func (tc *GatewayTestCtx) requireAdditionalIngressResourcesGone(ctx context.Context, t *testing.T, name string) {
+	t.Helper()
+	g := NewWithT(t)
+	namespace := tc.gatewayNamespace()
+	resources := []client.Object{
+		&gwapiv1.Gateway{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}},
+		&routev1.Route{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}},
+		&corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: gateway.GetGatewayServiceFullName(name), Namespace: namespace}},
+		&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: name + "-config", Namespace: namespace}},
+		&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name + "-service-tls", Namespace: namespace}},
+		&corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: gateway.KubeAuthProxyName + "-" + name, Namespace: namespace}},
+	}
+	for _, obj := range resources {
+		key := client.ObjectKeyFromObject(obj)
+		g.Eventually(func() bool {
+			return k8serr.IsNotFound(tc.Client().Get(ctx, key, obj))
+		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue(),
+			"cleanup must remove %T %s", obj, key)
+	}
+
+	for _, leftover := range []struct {
+		kind      schema.GroupVersionKind
+		name      string
+		namespace string
+	}{
+		{gvk.Secret, perIngressCredsName(name), namespace},
+		{gvk.HorizontalPodAutoscaler, perIngressProxyName(name), namespace},
+		{gvk.NetworkPolicy, perIngressProxyName(name), namespace},
+		{gvk.HTTPRoute, perIngressCallbackRouteName(name), namespace},
+		{gvk.EnvoyFilter, perIngressEnvoyFilterName(name), namespace},
+		{gvk.DestinationRule, perIngressDestinationRuleName(name), namespace},
+		{gvk.OAuthClient, perIngressOAuthClientName(name), ""},
+	} {
+		key := types.NamespacedName{Name: leftover.name, Namespace: leftover.namespace}
+		g.Eventually(func() bool {
+			obj := &unstructured.Unstructured{}
+			obj.SetGroupVersionKind(leftover.kind)
+			err := tc.Client().Get(ctx, key, obj)
+			// A cluster that does not serve the resource's API group
+			// cannot hold a leftover of that kind. This suite's BYOIDC
+			// cluster serves no oauth.openshift.io at all, so the client
+			// fails GVK resolution with a discovery/NoMatch error rather
+			// than NotFound - which must count as gone, not as a leak.
+			return k8serr.IsNotFound(err) || meta.IsNoMatchError(err)
+		}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(BeTrue(),
+			"cleanup must remove %s %s of the removed ingress %s", leftover.kind.Kind, key, name)
 	}
 }
 
