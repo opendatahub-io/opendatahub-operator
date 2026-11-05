@@ -29,7 +29,7 @@ components:
       sourcePath: kserve-module/config
     rhoai:
       repo: red-hat-data-services/kserve
-      ref: rhoai-3.6@b11561be64ba52fba408eb1e742ff9e1ba0a7457
+      ref: rhoai-3.6@71b7da36a3f8a5684a3f78fa2481dbf1cc11a1c8
       sourcePath: kserve-module/config
   ray:
     odh:
@@ -79,11 +79,11 @@ components:
   trainer:
     odh:
       repo: opendatahub-io/trainer-operator
-      ref: main@77cc419c9045395ef7c14c5efe149534215199e0
+      ref: main@ab55bc88be012f2b6105440fd157fe1b07033ed0
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/trainer-operator
-      ref: rhoai-3.6@ef045bf061a43705e248441dda8895b0ad85689b
+      ref: rhoai-3.6@5b6a9d9e0ed25c16db36d669ae6e474e2bc48caf
       sourcePath: config
   mlflowoperator:
     odh:
@@ -106,11 +106,11 @@ components:
   aigateway:
     odh:
       repo: opendatahub-io/ai-gateway-operator
-      ref: main@ed2f0b1ccdfda64efe784ed86b6f707a67a86a47
+      ref: main@c01891e19b73cd0151cbbb591c4d4d5add9e6ee2
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/ai-gateway-operator
-      ref: rhoai-3.6@6af2ada62482be49f43289cb21fb35774cb4e165
+      ref: rhoai-3.6@0e164ee63527cb377aeaed3bd8523c73deae24dc
       sourcePath: config
   mcplifecycleoperator:
     odh:
@@ -162,11 +162,11 @@ componentCharts:
   dashboard-operator:
     odh:
       repo: opendatahub-io/odh-dashboard
-      ref: main@8a56fc15005bec221930d43dac04f962738983fd
+      ref: main@f8b048167a42e457afa323279c775c3ff7fceac2
       sourcePath: dashboard-operator/charts/dashboard
     rhoai:
       repo: red-hat-data-services/odh-dashboard
-      ref: rhoai-3.6@f956a635b0d2b220069ab8bb96e09f7f737d3e65
+      ref: rhoai-3.6@e8a0de534584408e988774d270a880bc443968f8
       sourcePath: dashboard-operator/charts/dashboard
   workbenches:
     odh:
@@ -198,11 +198,11 @@ componentCharts:
   odh-observability:
     odh:
       repo: opendatahub-io/odh-observability
-      ref: main@b0498f26d34a82be4bbd58fd8a2bfc8ff08424cd
+      ref: main@f7050b59693a1a12da127cbb757d75fa4d125ef5
       sourcePath: charts/odh-observability
     rhoai:
       repo: red-hat-data-services/odh-observability
-      ref: rhoai-3.6@69bae7c1343b503ce6778f410b3a56e58d808abf
+      ref: rhoai-3.6@7d4d9c396f861af1fcec49e1864846946a0b48c0
       sourcePath: charts/odh-observability
 # Image overrides — pinned operator image digests, keyed by RELATED_IMAGE_* env var name.
 # Local directories symlinked into opt/manifests/ during development.
@@ -361,19 +361,19 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-dashboard-operator"
-      digest: "sha256:45b84258a65687be7a716641610c2e2b2e876e3b21404dfbcf237b3e66cf3432"
+      digest: "sha256:4d7971d59e4749fd8981357066e18298361384fc4490487287d6044d4b62fd74"
     rhoai:
       base: "quay.io/rhoai/odh-dashboard-operator-rhel9"
-      digest: "sha256:d1a34f01c4193c652b2ebba5e323f7967560b8af762de52fd348bd7026a5dcc1"
+      digest: "sha256:f962659fac4d6bc07860b7e28ddea54294f34c591d501b881d5b78eac2a5cd14"
   RELATED_IMAGE_ODH_DASHBOARD_IMAGE:
     component: dashboard-operator
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-dashboard"
-      digest: "sha256:9a7cb73e0e57d34693b7276da52a675058bf18412684b8297be0fc01d7cf5bad"
+      digest: "sha256:ca95b3832d0e9916442fad050ca44c2d933985d6d240910eba7d7d674b90f6e9"
     rhoai:
       base: "quay.io/rhoai/odh-dashboard-rhel9"
-      digest: "sha256:0678ce10c6320d761bb2d69d479bf150e53ca49e615c4959884e9faee49c4035"
+      digest: "sha256:8a9aecccedb0c2fc63f88598f6eb73f910478f4b28e865a656007dde1a79c328"
   RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE:
     component: workbenches
     tagTemplate: "{SHA}"
@@ -875,10 +875,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-observability"
-      digest: "sha256:bc4bd21deacc366007b65a4f1901f82f5859761b7fa0e5386a2beab7ab62797b"
+      digest: "sha256:e29059107a6e18e7e82c3cb6b092ad562889d98004c7a02be5898c276e45e3ac"
     rhoai:
       base: "quay.io/rhoai/odh-observability-rhel9"
-      digest: "sha256:95d313ae43f05b2b53554f5704645b42ab27e89baecce0708e1319711e5b247a"
+      digest: "sha256:60fa997ad69a0d6373249a88b90be48d9d0a4886d311d9b3af6bd3cff260f6f9"
   RELATED_IMAGE_ODH_OGX_CORE_IMAGE:
     source: "csv"
     odh:
