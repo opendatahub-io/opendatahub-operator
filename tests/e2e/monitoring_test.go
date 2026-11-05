@@ -34,28 +34,29 @@ import (
 
 // Constants for monitoring resource names.
 const (
-	MonitoringCRName                         = "default-monitoring"
-	MonitoringStackName                      = "data-science-monitoringstack"
-	ObservabilityDeploymentName              = "odh-observability"
-	OpenTelemetryCollectorName               = "data-science-collector"
-	OpenTelemetryCollectorServiceName        = "data-science-collector-collector"
-	TargetAllocatorDeploymentName            = "data-science-collector-targetallocator"
-	CollectorServiceAccount                  = "data-science-collector-collector"
-	TargetAllocatorServiceAccount            = "data-science-collector-targetallocator"
-	TempoMonolithicName                      = "data-science-tempomonolithic"
-	TempoStackName                           = "data-science-tempostack"
-	InstrumentationName                      = "data-science-instrumentation"
-	ThanosQuerierName                        = "data-science-thanos-querier"
-	ThanosQuerierRouteName                   = "data-science-thanos-querier-route"
-	PersesName                               = "data-science-perses"
-	PersesDatasourceName                     = "data-science-prometheus-datasource"
-	ClusterPrometheusDatasourceName          = "cluster-prometheus-datasource"
-	ClusterPrometheusDatasourceSecret        = "cluster-prometheus-datasource-secret"
-	ClusterPrometheusTenancyDatasourceName   = "cluster-prometheus-tenancy-datasource"
-	ClusterPrometheusTenancyDatasourceSecret = "cluster-prometheus-tenancy-datasource-secret"
-	OTelCertManagerClusterRoleBinding        = "odh-observability-opentelemetry-cert-manager"
-	OTelOperatorControllerDeployment         = "opentelemetry-operator-controller-manager"
-	OTelOperatorWebhookDeployment            = "opentelemetry-operator-webhook"
+	MonitoringCRName                          = "default-monitoring"
+	MonitoringStackName                       = "data-science-monitoringstack"
+	ObservabilityDeploymentName               = "odh-observability"
+	OpenTelemetryCollectorName                = "data-science-collector"
+	OpenTelemetryCollectorServiceName         = "data-science-collector-collector"
+	OpenTelemetryCollectorHeadlessServiceName = "data-science-collector-collector-headless"
+	TargetAllocatorDeploymentName             = "data-science-collector-targetallocator"
+	CollectorServiceAccount                   = "data-science-collector-collector"
+	TargetAllocatorServiceAccount             = "data-science-collector-targetallocator"
+	TempoMonolithicName                       = "data-science-tempomonolithic"
+	TempoStackName                            = "data-science-tempostack"
+	InstrumentationName                       = "data-science-instrumentation"
+	ThanosQuerierName                         = "data-science-thanos-querier"
+	ThanosQuerierRouteName                    = "data-science-thanos-querier-route"
+	PersesName                                = "data-science-perses"
+	PersesDatasourceName                      = "data-science-prometheus-datasource"
+	ClusterPrometheusDatasourceName           = "cluster-prometheus-datasource"
+	ClusterPrometheusDatasourceSecret         = "cluster-prometheus-datasource-secret"
+	ClusterPrometheusTenancyDatasourceName    = "cluster-prometheus-tenancy-datasource"
+	ClusterPrometheusTenancyDatasourceSecret  = "cluster-prometheus-tenancy-datasource-secret"
+	OTelCertManagerClusterRoleBinding         = "odh-observability-opentelemetry-cert-manager"
+	OTelOperatorControllerDeployment          = "opentelemetry-operator-controller-manager"
+	OTelOperatorWebhookDeployment             = "opentelemetry-operator-webhook"
 )
 
 // Constants for common test values.
@@ -952,7 +953,7 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesLifecycle(t *testing
 	)
 
 	// Step 3: Wait for Instrumentation CR to be created and fully configured
-	expectedEndpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:4317", OpenTelemetryCollectorServiceName, tc.MonitoringNamespace)
+	expectedEndpoint := fmt.Sprintf("https://%s.%s.svc.cluster.local:4317", OpenTelemetryCollectorHeadlessServiceName, tc.MonitoringNamespace)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: InstrumentationName, Namespace: tc.MonitoringNamespace}),
@@ -963,6 +964,7 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesLifecycle(t *testing
 			// Configuration is correct
 			jq.Match(`
 			(.spec.exporter.endpoint == "%s") and
+			(.spec.exporter.tls.ca_file == "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt") and
 			(.spec.sampler.type == "traceidratio") and
 			(.spec.sampler.argument == "0.1")
 		`, expectedEndpoint),
