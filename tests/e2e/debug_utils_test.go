@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlcfg "sigs.k8s.io/controller-runtime/pkg/client/config"
 
@@ -66,6 +67,17 @@ var (
 	// lastClassification stores the most recent failure classification for circuit breaker consumption.
 	lastClassification atomic.Pointer[failureclassifier.FailureClassification]
 	podLogsFetcher     = retrievePodLogs
+	// newPodLogsClient builds the clientset for the debug log path. Tests
+	// override it so the podLogsFetcher seam is reachable without a host
+	// kubeconfig or in-cluster config: ctrlcfg.GetConfig would otherwise
+	// fail first on a config-less host and the fetcher would never run.
+	newPodLogsClient = func() (kubernetes.Interface, error) {
+		config, err := ctrlcfg.GetConfig()
+		if err != nil {
+			return nil, fmt.Errorf("get Kubernetes config: %w", err)
+		}
+		return kubernetes.NewForConfig(config)
+	}
 )
 
 // SetGlobalDebugClient sets the Kubernetes client for global debugging.
@@ -441,7 +453,16 @@ func determineLogType(containerStatus corev1.ContainerStatus) string {
 func logContainerLogs(podName, containerName, namespace, logType string) {
 	log.Printf("        === LOGS (%s) for container %s ===", strings.ToUpper(logType), containerName)
 
-	logs, err := podLogsFetcher(namespace, podName, containerName, logType == "previous")
+	// The clientset comes from the injectable factory (tests override it);
+	// the fetcher itself takes an injected client so callers can supply
+	// their own.
+	clientset, err := newPodLogsClient()
+	if err != nil {
+		log.Printf("        Failed to create clientset: %v", err)
+		return
+	}
+
+	logs, err := podLogsFetcher(clientset, namespace, podName, containerName, 10, logType == "previous")
 	if err != nil {
 		log.Printf("        Failed to retrieve logs: %v", err)
 		return
@@ -476,18 +497,36 @@ func TestLogPodsSectionContinuesWithPartialData(t *testing.T) {
 	var buf bytes.Buffer
 	originalWriter := log.Writer()
 	originalFetcher := podLogsFetcher
+	originalClient := newPodLogsClient
 	log.SetOutput(&buf)
 	defer log.SetOutput(originalWriter)
 
-	podLogsFetcher = func(namespace, podName, containerName string, previous bool) (string, error) {
+	// The clientset factory is overridden too: the test must exercise the
+	// fetcher seam without any host kubeconfig or in-cluster config
+	// (GetConfig would fail first on a config-less host and skip the seam).
+	newPodLogsClient = func() (kubernetes.Interface, error) {
+		return fake.NewSimpleClientset(), nil
+	}
+	defer func() {
+		podLogsFetcher = originalFetcher
+		newPodLogsClient = originalClient
+	}()
+
+	podLogsFetcher = func(kubeClient kubernetes.Interface, namespace, podName, containerName string, tail int64, previous bool) (string, error) {
+		// The seam must receive the caller's client and bounded tail, not
+		// defaults of its own: a nil client or an unbounded tail would turn
+		// the debug path into a full-log read or a nil-pointer panic.
+		if kubeClient == nil {
+			t.Fatalf("expected injected kubeClient to be non-nil")
+		}
+		if tail != 10 {
+			t.Fatalf("expected tail=10 (bounded last-lines read), got %d", tail)
+		}
 		if namespace != testNamespace || podName != testMLflowPod || containerName != testManagerName || !previous {
 			t.Fatalf("unexpected log request namespace=%q pod=%q container=%q previous=%v", namespace, podName, containerName, previous)
 		}
 		return "line-1\nline-2", nil
 	}
-	defer func() {
-		podLogsFetcher = originalFetcher
-	}()
 
 	report := &clusterhealth.Report{
 		Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
@@ -544,53 +583,35 @@ func TestLogPodsSectionContinuesWithPartialData(t *testing.T) {
 	}
 }
 
-// retrievePodLogs gets the actual logs from a pod container using client-go.
-func retrievePodLogs(namespace, podName, containerName string, previous bool) (string, error) {
-	// Get the Kubernetes REST config
-	config, err := ctrlcfg.GetConfig()
+// retrievePodLogs returns the last tail lines of a container's log, bounded
+// to 256KiB, through the given client. previous selects the terminated
+// container instance's logs. Used for evidence dumps and for the echo-backend
+// handshake, which the probe pods cannot report themselves.
+func retrievePodLogs(kubeClient kubernetes.Interface, namespace, podName, containerName string, tail int64, previous bool) (string, error) {
+	const maxLogBytes int64 = 256 * 1024
+	limit := maxLogBytes
+	req := kubeClient.CoreV1().Pods(namespace).GetLogs(podName, &corev1.PodLogOptions{
+		Container:  containerName,
+		TailLines:  &tail,
+		LimitBytes: &limit,
+		Previous:   previous,
+	})
+	logCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	stream, err := req.Stream(logCtx)
 	if err != nil {
-		return "", fmt.Errorf("failed to get Kubernetes config: %w", err)
-	}
-
-	// Create a clientset for log access
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return "", fmt.Errorf("failed to create clientset: %w", err)
-	}
-
-	// Set log options
-	tailLines := int64(10)
-	podLogOpts := &corev1.PodLogOptions{
-		Container: containerName,
-		TailLines: &tailLines,
-		Previous:  previous,
-	}
-
-	// Get logs request
-	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, podLogOpts)
-
-	// Stream logs with a bounded timeout to prevent indefinite hangs
-	logCtx, logCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer logCancel()
-
-	podLogs, err := req.Stream(logCtx)
-	if err != nil {
-		return "", fmt.Errorf("error opening log stream: %w", err)
+		return "", fmt.Errorf("open log stream: %w", err)
 	}
 	defer func() {
-		if closeErr := podLogs.Close(); closeErr != nil {
-			log.Printf("        Warning: failed to close log stream: %v", closeErr)
+		if closeErr := stream.Close(); closeErr != nil {
+			log.Printf("close log stream: %v", closeErr)
 		}
 	}()
-
-	// Read logs
-	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, podLogs)
+	data, err := io.ReadAll(io.LimitReader(stream, maxLogBytes))
 	if err != nil {
-		return "", fmt.Errorf("error reading logs: %w", err)
+		return "", fmt.Errorf("read log stream: %w", err)
 	}
-
-	return buf.String(), nil
+	return string(data), nil
 }
 
 func getDSCI(ctx context.Context) *unstructured.Unstructured {

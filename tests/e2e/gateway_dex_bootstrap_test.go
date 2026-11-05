@@ -85,6 +85,96 @@ func newXKSDexConfigMap() *corev1.ConfigMap {
 	}
 }
 
+// newDexDeployment returns the Dex server Deployment shared by the XKS and OCP
+// bootstraps; only the config volume source differs between them (the XKS
+// bootstrap mounts the dex-config ConfigMap, the OCP bootstrap in
+// gateway_dex_ocp_test.go the dex-config Secret).
+func newDexDeployment(configVolume corev1.VolumeSource) *appsv1.Deployment {
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      xksDexName,
+			Namespace: xksDexNamespace,
+			Labels: map[string]string{
+				"app": xksDexName,
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: new(int32(1)),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": xksDexName},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": xksDexName},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:    xksDexName,
+							Image:   xksDexImage,
+							Command: []string{"/usr/local/bin/dex"},
+							Args:    []string{"serve", "/etc/dex/config.yaml"},
+							Ports: []corev1.ContainerPort{
+								{Name: "https", ContainerPort: xksDexPort},
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{Name: "config", MountPath: "/etc/dex", ReadOnly: true},
+								{Name: "tls", MountPath: "/etc/dex/tls", ReadOnly: true},
+							},
+							ReadinessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									TCPSocket: &corev1.TCPSocketAction{
+										Port: intstr.FromInt32(xksDexPort),
+									},
+								},
+								InitialDelaySeconds: 2,
+								PeriodSeconds:       5,
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name:         "config",
+							VolumeSource: configVolume,
+						},
+						{
+							Name: "tls",
+							VolumeSource: corev1.VolumeSource{
+								Secret: &corev1.SecretVolumeSource{
+									SecretName: xksDexTLSName,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// newDexService returns the Dex Service shared by the XKS and OCP bootstraps.
+func newDexService() *corev1.Service {
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      xksDexName,
+			Namespace: xksDexNamespace,
+			Labels: map[string]string{
+				"app": xksDexName,
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: map[string]string{"app": xksDexName},
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "https",
+					Port:       xksDexPort,
+					TargetPort: intstr.FromInt32(xksDexPort),
+				},
+			},
+		},
+	}
+}
+
 // ensureDexForXKS deploys a minimal Dex OIDC provider for KinD / vanilla Kubernetes e2e.
 // kube-auth-proxy uses --skip-oidc-discovery=false, so the issuer must be reachable at startup.
 func (tc *TestContext) ensureDexForXKS(t *testing.T) {
@@ -136,96 +226,17 @@ func (tc *TestContext) ensureDexForXKS(t *testing.T) {
 
 	tc.ensureXKSDexConfigMap(t)
 
-	dexDeployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      xksDexName,
-			Namespace: xksDexNamespace,
-			Labels: map[string]string{
-				"app": xksDexName,
-			},
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: new(int32(1)),
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{"app": xksDexName},
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{"app": xksDexName},
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:    xksDexName,
-							Image:   xksDexImage,
-							Command: []string{"/usr/local/bin/dex"},
-							Args:    []string{"serve", "/etc/dex/config.yaml"},
-							Ports: []corev1.ContainerPort{
-								{Name: "https", ContainerPort: xksDexPort},
-							},
-							VolumeMounts: []corev1.VolumeMount{
-								{Name: "config", MountPath: "/etc/dex", ReadOnly: true},
-								{Name: "tls", MountPath: "/etc/dex/tls", ReadOnly: true},
-							},
-							ReadinessProbe: &corev1.Probe{
-								ProbeHandler: corev1.ProbeHandler{
-									TCPSocket: &corev1.TCPSocketAction{
-										Port: intstr.FromInt32(xksDexPort),
-									},
-								},
-								InitialDelaySeconds: 2,
-								PeriodSeconds:       5,
-							},
-						},
-					},
-					Volumes: []corev1.Volume{
-						{
-							Name: "config",
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{Name: xksDexConfigName},
-								},
-							},
-						},
-						{
-							Name: "tls",
-							VolumeSource: corev1.VolumeSource{
-								Secret: &corev1.SecretVolumeSource{
-									SecretName: xksDexTLSName,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(dexDeployment),
+		WithObjectToCreate(newDexDeployment(corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{Name: xksDexConfigName},
+			},
+		})),
 		WithEventuallyTimeout(tc.TestTimeouts.crCreationTimeout),
 	)
 
-	dexService := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      xksDexName,
-			Namespace: xksDexNamespace,
-			Labels: map[string]string{
-				"app": xksDexName,
-			},
-		},
-		Spec: corev1.ServiceSpec{
-			Selector: map[string]string{"app": xksDexName},
-			Ports: []corev1.ServicePort{
-				{
-					Name:       "https",
-					Port:       xksDexPort,
-					TargetPort: intstr.FromInt32(xksDexPort),
-				},
-			},
-		},
-	}
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(dexService),
+		WithObjectToCreate(newDexService()),
 		WithEventuallyTimeout(tc.TestTimeouts.crCreationTimeout),
 	)
 
