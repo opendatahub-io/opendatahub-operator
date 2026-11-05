@@ -18,6 +18,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -164,6 +165,18 @@ func ReconcileDefaultNetworkPolicy(
 			Namespace: dscInit.Spec.ApplicationsNamespace,
 		},
 		Spec: networkingv1.NetworkPolicySpec{
+			// The dashboard-redirect proxy carries its own narrow ingress policy
+			// reconciled by the gateway controller. NetworkPolicies are additive,
+			// so the broad baseline must not select those pods, or it would grant
+			// what the narrow policy denies. NotIn also matches pods without the
+			// label, preserving the baseline for every other workload.
+			PodSelector: metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{{
+					Key:      "app",
+					Operator: metav1.LabelSelectorOpNotIn,
+					Values:   []string{gateway.DashboardRedirectName},
+				}},
+			},
 			Ingress: []networkingv1.NetworkPolicyIngressRule{{
 				From: createNetworkPolicyPeer(labels.ODH.OwnedNamespace, labels.True)}, {
 				From: createNetworkPolicyPeer(labels.CustomizedAppNamespace, labels.True)}, {
