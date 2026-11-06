@@ -404,7 +404,6 @@ APIs live under `api/components/v1alpha1/`.
 - [Dashboard](https://github.com/opendatahub-io/odh-dashboard)
 - [KServe](https://github.com/opendatahub-io/kserve)
 - [Model Controller](https://github.com/opendatahub-io/odh-model-controller)
-- [ModelRegistry](https://github.com/opendatahub-io/model-registry)
 - [Ray](https://github.com/opendatahub-io/kuberay)
 - [Trainer](https://github.com/opendatahub-io/trainer)
 - [TrustyAI](https://github.com/opendatahub-io/trustyai-service-operator)
@@ -419,6 +418,7 @@ module operators live in their own repositories. See
 [modules README](../internal/controller/modules/README.md).
 
 - [AI Gateway](https://github.com/opendatahub-io/ai-gateway-operator) — handler: `internal/controller/modules/aigateway/`
+- [AI Hub (Model Registry)](https://github.com/opendatahub-io/model-registry-operator) — handler: `internal/controller/modules/aihub/`
 - [Spark Operator](https://github.com/opendatahub-io/spark-operator/tree/main/spark-operator-module) — handler: `internal/controller/modules/sparkoperator/`
 - [AI Pipelines](https://github.com/opendatahub-io/data-science-pipelines-operator) — handler: `internal/controller/modules/aipipelines/`
 - [Monitoring and observability (odh-observability)](https://github.com/opendatahub-io/odh-observability) — handler: `internal/controller/modules/monitoring/`

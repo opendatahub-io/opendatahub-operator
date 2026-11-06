@@ -123,7 +123,7 @@ func aihubTestSuite(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			snapshotV2DSCFields(t, tc, []string{"spec", "components", "modelregistry"})
+			snapshotDSCFields(t, tc, gvk.DataScienceClusterV2, []string{"spec", "components", "modelregistry"})
 			// The namespace is immutable while Managed. This cleanup runs before
 			// the snapshot restoration so an unrelated original value can be restored.
 			t.Cleanup(func() {

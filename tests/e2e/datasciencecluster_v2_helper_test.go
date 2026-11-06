@@ -6,34 +6,37 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 
 	. "github.com/onsi/gomega"
 )
 
-type savedV2DSCField struct {
+type savedDSCField struct {
 	path  []string
 	value any
 	found bool
 }
 
-// snapshotV2DSCFields restores only the named v2 spec fields. Component suites
-// run concurrently and share one DSC, so cleanup must never replace its whole
-// spec with an older snapshot of another component's changes.
-func snapshotV2DSCFields(t *testing.T, tc *TestContext, paths ...[]string) {
+// snapshotDSCFields restores only the named spec fields, read and written
+// through the given DSC GVK. Component suites run concurrently and share one
+// DSC, so cleanup must never replace its whole spec with an older snapshot of
+// another component's changes. Use gvk.DataScienceClusterV2 for fields the v2
+// view exposes; v3-only fields (e.g. kserve confidentialContainers) hide
+// behind the conversion marker in the v2 view and need
+// gvk.DataScienceCluster.
+func snapshotDSCFields(t *testing.T, tc *TestContext, clusterGVK schema.GroupVersionKind, paths ...[]string) {
 	t.Helper()
 	g := NewWithT(t)
 	object := &unstructured.Unstructured{}
-	object.SetGroupVersionKind(gvk.DataScienceClusterV2)
+	object.SetGroupVersionKind(clusterGVK)
 	g.Expect(tc.Client().Get(t.Context(), tc.DataScienceClusterNamespacedName, object)).To(Succeed())
 
-	saved := make([]savedV2DSCField, 0, len(paths))
+	saved := make([]savedDSCField, 0, len(paths))
 	for _, path := range paths {
 		value, found, err := unstructured.NestedFieldCopy(object.Object, path...)
 		g.Expect(err).NotTo(HaveOccurred())
-		saved = append(saved, savedV2DSCField{path: path, value: value, found: found})
+		saved = append(saved, savedDSCField{path: path, value: value, found: found})
 	}
 
 	t.Cleanup(func() {
@@ -41,16 +44,16 @@ func snapshotV2DSCFields(t *testing.T, tc *TestContext, paths ...[]string) {
 		defer cancel()
 		g.Eventually(func(g Gomega) {
 			current := &unstructured.Unstructured{}
-			current.SetGroupVersionKind(gvk.DataScienceClusterV2)
+			current.SetGroupVersionKind(clusterGVK)
 			g.Expect(tc.Client().Get(ctx, tc.DataScienceClusterNamespacedName, current)).To(Succeed())
 			before := current.DeepCopy()
-			g.Expect(restoreV2DSCFields(current, saved)).To(Succeed())
+			g.Expect(restoreDSCFields(current, saved)).To(Succeed())
 			g.Expect(tc.Client().Patch(ctx, current, client.MergeFrom(before))).To(Succeed())
-		}).WithContext(ctx).WithPolling(2*time.Second).Should(Succeed(), "restore prior v2 DSC component fields")
+		}).WithContext(ctx).WithPolling(2*time.Second).Should(Succeed(), "restore prior DSC component fields")
 	})
 }
 
-func restoreV2DSCFields(object *unstructured.Unstructured, saved []savedV2DSCField) error {
+func restoreDSCFields(object *unstructured.Unstructured, saved []savedDSCField) error {
 	for _, field := range saved {
 		if field.found {
 			if err := unstructured.SetNestedField(object.Object, field.value, field.path...); err != nil {

@@ -375,6 +375,16 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 		)),
 		WithCustomErrorMsg("Gateway should be created with correct HTTPS listener configuration"),
 	)
+	if tc.IsXKS() {
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.Service, types.NamespacedName{
+				Name:      gateway.GetDefaultGatewayServiceFullName(),
+				Namespace: tc.gatewayNamespace(),
+			}),
+			WithCondition(jq.Match(`.metadata.annotations["service.beta.kubernetes.io/port_443_health-probe_protocol"] == "Tcp"`)),
+			WithCustomErrorMsg("XKS Gateway LoadBalancer Service should use a TCP health probe on port 443"),
+		)
+	}
 
 	// OcpRoute mode: validate the OCP Route exists
 	if tc.isOcpRouteMode(t) {
