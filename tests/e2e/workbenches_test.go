@@ -105,17 +105,34 @@ func (tc *WorkbenchesTestCtx) ValidateRelatedImageInjection(t *testing.T) {
 
 	skipUnless(t, Tier1)
 
+	// Wave-1 retirement removed these pins from the platform injection list.
+	// The workbenches chart emits a RELATED_IMAGE_* env var only when the
+	// platform operator supplies a non-empty value, so these names must be absent.
+	retiredEnvSelector := strings.Join([]string{
+		`. == "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_ROCM_PY312_IMAGE"`,
+		`. == "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TENSORFLOW_ROCM_PY312_IMAGE"`,
+		`. == "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TRUSTYAI_CPU_PY312_IMAGE"`,
+		`. == "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_ROCM_PY312_IMAGE"`,
+		`. == "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_ROCM_PY312_IMAGE"`,
+	}, " or ")
+
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
 			Namespace: tc.AppsNamespace,
 			Name:      workbenchesModule.ControllerDeploymentName,
 		}),
-		WithCondition(jq.Match(
-			`.spec.template.spec.containers[] | select(.env != null) | .env[] | `+
-				`select(.name == "RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_MINIMAL_CPU_PY312_IMAGE") | `+
-				`.value != null and .value != ""`,
+		WithCondition(And(
+			jq.Match(
+				`.spec.template.spec.containers[] | select(.env != null) | .env[] | `+
+					`select(.name == "RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_MINIMAL_CPU_PY312_IMAGE") | `+
+					`.value != null and .value != ""`,
+			),
+			jq.Match(
+				`[.spec.template.spec.containers[] | select(.env != null) | .env[] | .name | select(%s)] | length == 0`,
+				retiredEnvSelector,
+			),
 		)),
-		WithCustomErrorMsg("Workbenches module operator Deployment should have RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_MINIMAL_CPU_PY312_IMAGE injected"),
+		WithCustomErrorMsg("Workbenches module operator Deployment should inject retained notebook images and omit retired wave-1 RELATED_IMAGE pins"),
 	)
 }
 
