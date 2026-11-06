@@ -29,9 +29,6 @@ const (
 	// (config/chart/templates/apps_v1_deployment.yaml).
 	deploymentName = "odh-db-operator-operator"
 
-	// controllerImage is the RELATED_IMAGE_* env var holding the digest-pinned
-	// module operator image. Add a matching imageOverrides entry once the
-	// quay image digest is published for release builds.
 	controllerImage = "RELATED_IMAGE_ODH_DB_OPERATOR_IMAGE"
 )
 
@@ -49,6 +46,7 @@ func NewHandler() *handler {
 				ReleaseName:     "opendatahub-db-operator",
 				DeploymentName:  deploymentName,
 				ControllerImage: controllerImage,
+				RelatedImages:   []string{"RELATED_IMAGE_POSTGRESQL_16_IMAGE"},
 				GVK:             gvk.DatabaseService,
 			},
 		},
