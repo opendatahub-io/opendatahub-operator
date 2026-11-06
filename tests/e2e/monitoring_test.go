@@ -3079,7 +3079,7 @@ func (tc *MonitoringTestCtx) validatePrometheusNamespaceProxyResourcesCommon(t *
 		}),
 		WithCondition(And(
 			jq.Match(`.status.readyReplicas == 1`),
-			jq.Match(`.spec.template.spec.containers | length == 2`), // kube-rbac-proxy + prom-label-proxy
+			jq.Match(`.spec.template.spec.containers | length == 3`), // kube-rbac-proxy + method-gate + prom-label-proxy
 		)),
 		WithCustomErrorMsg("data-science-prometheus-namespace-proxy deployment should be created and ready"),
 	)
