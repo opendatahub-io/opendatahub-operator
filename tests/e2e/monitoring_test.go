@@ -3080,6 +3080,7 @@ func (tc *MonitoringTestCtx) validatePrometheusNamespaceProxyResourcesCommon(t *
 		WithCondition(And(
 			jq.Match(`.status.readyReplicas == 1`),
 			jq.Match(`.spec.template.spec.containers | length == 3`), // kube-rbac-proxy + method-gate + prom-label-proxy
+			jq.Match(`.spec.template.spec.containers | any(.[]; .name == "method-gate")`),
 		)),
 		WithCustomErrorMsg("data-science-prometheus-namespace-proxy deployment should be created and ready"),
 	)
@@ -3201,7 +3202,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusSecureProxyAuthentication(t *test
 		}),
 		WithCondition(And(
 			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream="))) | length == 1`),
-			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream=http://127.0.0.1:9091/"))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream=http://127.0.0.1:9092/"))) | length == 1`), // upstream is the method-gate container
 			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--secure-listen-address=0.0.0.0:8443"))) | length == 1`),
 		)),
 		WithCustomErrorMsg("kube-rbac-proxy should be configured with correct upstream and secure listen address"),
