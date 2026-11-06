@@ -101,7 +101,9 @@ spec:
             - "--tls-cert-file={{.TLSCertsMountPath}}/tls.crt"
             - "--tls-key-file={{.TLSCertsMountPath}}/tls.key"
             - "--tls-min-version={{.TLSMinVersion}}"
+            {{- if .TLSCipherSuite }}
             - "--tls-cipher-suite={{.TLSCipherSuite}}"
+            {{- end }}
             {{- if .TLSCurvePreferences }}
             - "--tls-curve-preferences={{.TLSCurvePreferences}}"
             {{- end }}
