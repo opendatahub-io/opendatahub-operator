@@ -106,7 +106,7 @@ components:
   aigateway:
     odh:
       repo: opendatahub-io/ai-gateway-operator
-      ref: main@c01891e19b73cd0151cbbb591c4d4d5add9e6ee2
+      ref: main@46086b27906e73fa23309e585f2dc39540322fcd
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/ai-gateway-operator
