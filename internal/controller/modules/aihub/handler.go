@@ -3,6 +3,7 @@ package aihub
 import (
 	"context"
 	"errors"
+	"os"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -54,6 +55,22 @@ func NewHandler() *handler {
 
 func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 	return modules != nil && modules.AIHub.ManagementState == operatorv1.Managed
+}
+
+// GetExtraEnv maps the unified catalog image from the CSV to both import sources.
+// Keep the complete reference, including any digest chosen by the release.
+func (h *handler) GetExtraEnv() map[string]string {
+	env := h.BaseHandler.GetExtraEnv()
+	image := os.Getenv("RELATED_IMAGE_RHAI_AI_HUB_CATALOG_IMAGE")
+	if image == "" {
+		return env
+	}
+	if env == nil {
+		env = make(map[string]string, 2)
+	}
+	env["CATALOG_DATA_IMAGE_STREAM_SOURCE"] = image
+	env["BENCHMARK_DATA_IMAGE_STREAM_SOURCE"] = image
+	return env
 }
 
 func (h *handler) PopulatePlatformModule(pm *configApi.PlatformModules, dscCtx *modules.DSCContext) {

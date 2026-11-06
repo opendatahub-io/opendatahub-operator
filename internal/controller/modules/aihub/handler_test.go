@@ -2,6 +2,8 @@ package aihub_test
 
 import (
 	"context"
+	"os"
+	"strings"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -68,6 +70,70 @@ func TestIsEnabled_NilModules(t *testing.T) {
 	g := NewWithT(t)
 	h := aihub.NewHandler()
 	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
+}
+
+func TestGetExtraEnv_CatalogImageSources(t *testing.T) {
+	const imageEnv = "RELATED_IMAGE_RHAI_AI_HUB_CATALOG_IMAGE"
+	digest := "sha256:" + strings.Repeat("a", 64)
+	tests := []struct {
+		name  string
+		image string
+		unset bool
+	}{
+		{name: "missing CSV image", unset: true},
+		{name: "empty CSV image"},
+		{name: "floating tag", image: "registry.example.com/catalog:candidate"},
+		{name: "tag and digest", image: "registry.example.com/catalog:stable@" + digest},
+		{name: "digest only", image: "registry.example.com/catalog@" + digest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			t.Setenv(imageEnv, tt.image)
+			if tt.unset {
+				g.Expect(os.Unsetenv(imageEnv)).Should(Succeed())
+			}
+			h := aihub.NewHandler()
+			var provider modules.ExtraEnvProvider = h
+			env := provider.GetExtraEnv()
+			if tt.image == "" {
+				// No injection: keep the source defaults rendered by the overlay.
+				g.Expect(env).Should(BeEmpty())
+				return
+			}
+			g.Expect(env).Should(Equal(map[string]string{
+				"CATALOG_DATA_IMAGE_STREAM_SOURCE":   tt.image,
+				"BENCHMARK_DATA_IMAGE_STREAM_SOURCE": tt.image,
+			}))
+		})
+	}
+}
+
+func TestGetExtraEnv_PreservesBaseConfiguration(t *testing.T) {
+	g := NewWithT(t)
+	h := aihub.NewHandler()
+	h.Config.ExtraEnv = map[string]string{
+		"EXISTING_SETTING":                   "keep",
+		"CATALOG_DATA_IMAGE_STREAM_SOURCE":   "registry.example.com/catalog:default",
+		"BENCHMARK_DATA_IMAGE_STREAM_SOURCE": "registry.example.com/benchmarks:default",
+	}
+
+	t.Setenv("RELATED_IMAGE_RHAI_AI_HUB_CATALOG_IMAGE", "")
+	g.Expect(h.GetExtraEnv()).Should(Equal(h.Config.ExtraEnv))
+
+	const image = "registry.example.com/unified:stable"
+	t.Setenv("RELATED_IMAGE_RHAI_AI_HUB_CATALOG_IMAGE", image)
+	env := h.GetExtraEnv()
+	g.Expect(env).Should(Equal(map[string]string{
+		"EXISTING_SETTING":                   "keep",
+		"CATALOG_DATA_IMAGE_STREAM_SOURCE":   image,
+		"BENCHMARK_DATA_IMAGE_STREAM_SOURCE": image,
+	}))
+	g.Expect(h.Config.ExtraEnv).Should(Equal(map[string]string{
+		"EXISTING_SETTING":                   "keep",
+		"CATALOG_DATA_IMAGE_STREAM_SOURCE":   "registry.example.com/catalog:default",
+		"BENCHMARK_DATA_IMAGE_STREAM_SOURCE": "registry.example.com/benchmarks:default",
+	}))
 }
 
 func TestPopulatePlatformModule_Managed(t *testing.T) {

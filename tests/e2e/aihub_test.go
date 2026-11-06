@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -211,6 +212,11 @@ func aihubTestSuite(t *testing.T) {
 				WithCustomErrorMsg("non-default AI Hub instances namespace %s should be auto-created", aihubTestNamespace),
 			)
 		}},
+		{"Validate catalog image sources from CSV", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+			validateAIHubCatalogImageSources(t, tc)
+		}},
 		{"Validate releases mirrored to DSC", func(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Tier1)
@@ -272,4 +278,41 @@ func aihubTestSuite(t *testing.T) {
 	}
 
 	RunTestCases(t, testCases)
+}
+
+func validateAIHubCatalogImageSources(t *testing.T, tc *TestContext) {
+	t.Helper()
+
+	operatorDeployment := &appsv1.Deployment{}
+	tc.FetchTypedResource(operatorDeployment, WithMinimalObject(gvk.Deployment, types.NamespacedName{
+		Namespace: tc.OperatorNamespace,
+		Name:      tc.getControllerDeploymentName(),
+	}))
+
+	var image string
+	for _, container := range operatorDeployment.Spec.Template.Spec.Containers {
+		if container.Name != "manager" {
+			continue
+		}
+		for _, env := range container.Env {
+			if env.Name == "RELATED_IMAGE_RHAI_AI_HUB_CATALOG_IMAGE" {
+				image = env.Value
+			}
+		}
+	}
+	if image == "" {
+		t.Skip("The platform bundle does not supply RELATED_IMAGE_RHAI_AI_HUB_CATALOG_IMAGE")
+	}
+
+	for _, name := range []string{aihubModuleOperatorDeployment, "catalog-controller-manager"} {
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace, Name: name}),
+			WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+			WithCondition(And(
+				jq.Match(`[.spec.template.spec.containers[] | select(.name == "manager") | .env[]? | select(.name == "CATALOG_DATA_IMAGE_STREAM_SOURCE") | .value] == [%q]`, image),
+				jq.Match(`[.spec.template.spec.containers[] | select(.name == "manager") | .env[]? | select(.name == "BENCHMARK_DATA_IMAGE_STREAM_SOURCE") | .value] == [%q]`, image),
+			)),
+			WithCustomErrorMsg("Deployment %s should receive both catalog import sources from the CSV without duplicate variables", name),
+		)
+	}
 }
