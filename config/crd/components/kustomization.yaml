@@ -1,0 +1,5 @@
+# Bundle generation fills this overlay from get-manifests before rendering.
+# Keep it empty so source-only Kustomize and lint checks can build the CSV.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: []

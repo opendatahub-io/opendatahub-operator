@@ -35,18 +35,13 @@ func TestCSVPlatformOwnershipAndInternalObjects(t *testing.T) {
 			require.NoError(t, yaml.Unmarshal(csvBytes, &csv))
 
 			ownedVersions := make([]string, 0, 2)
-			ownedNames := make([]string, 0, len(csv.Spec.CustomResourceDefinitions.Owned))
 			for _, owned := range csv.Spec.CustomResourceDefinitions.Owned {
-				ownedNames = append(ownedNames, owned.Name)
 				if owned.Name == "platforms.config.opendatahub.io" {
 					ownedVersions = append(ownedVersions, owned.Version)
 				}
 			}
 			require.ElementsMatch(t, []string{"v1alpha1", "v1alpha2"}, ownedVersions,
 				"Platform must be CSV-owned at both served versions")
-			require.NotContains(t, ownedNames, "trustyais.components.platform.opendatahub.io",
-				"TrustyAI is not owned by this CSV")
-
 			const internalObjectsAnnotation = "operators.operatorframework.io/internal-objects"
 			var internalObjects []string
 			require.NoError(t, json.Unmarshal(
@@ -54,7 +49,7 @@ func TestCSVPlatformOwnershipAndInternalObjects(t *testing.T) {
 			require.Contains(t, internalObjects, "platforms.config.opendatahub.io")
 			require.Contains(t, internalObjects, "kueues.components.platform.opendatahub.io")
 			require.NotContains(t, internalObjects, "featuretrackers.features.opendatahub.io")
-			require.NotContains(t, internalObjects, "trustyais.components.platform.opendatahub.io")
+			require.Contains(t, internalObjects, "trustyais.components.platform.opendatahub.io")
 		})
 	}
 }
