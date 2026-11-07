@@ -1,8 +1,10 @@
+{{- range .AuthorinoExtAuthzFilters }}
+---
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
 metadata:
-  name: kserve-authorino-ext-authz
-  namespace: {{ .ControlPlane.Namespace }}
+  name: {{ .Name }}
+  namespace: {{ $.ControlPlane.Namespace }}
   labels:
     app.opendatahub.io/kserve: "true"
     app.kubernetes.io/part-of: kserve
@@ -11,7 +13,7 @@ spec:
   priority: 20
   workloadSelector:
     labels:
-      component: predictor
+{{ toYaml .Selector | indent 6 }}
   configPatches:
   - applyTo: CLUSTER
     match:
@@ -30,14 +32,14 @@ spec:
             - endpoint:
                 address:
                   socket_address:
-                    address: {{ .AuthProviderName }}-authorino-authorization.{{ .AuthNamespace }}.svc.{{ .TrustDomain }}
+                    address: {{ $.AuthProviderName }}-authorino-authorization.{{ $.AuthNamespace }}.svc.{{ $.TrustDomain }}
                     port_value: 50051
         http2_protocol_options: {}
         transport_socket:
           name: envoy.transport_sockets.tls
           typed_config:
             '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-            sni: outbound_.50051_._.{{ .AuthProviderName }}-authorino-authorization.{{ .AuthNamespace }}.svc.{{ .TrustDomain }}
+            sni: outbound_.50051_._.{{ $.AuthProviderName }}-authorino-authorization.{{ $.AuthNamespace }}.svc.{{ $.TrustDomain }}
             common_tls_context:
               tls_certificate_sds_secret_configs:
               - name: default
@@ -54,7 +56,7 @@ spec:
                   match_typed_subject_alt_names:
                   - san_type: URI
                     matcher:
-                      exact: spiffe://{{ .TrustDomain }}/ns/{{ .AuthNamespace }}/sa/{{ .AuthProviderName }}-authorino
+                      exact: spiffe://{{ $.TrustDomain }}/ns/{{ $.AuthNamespace }}/sa/{{ $.AuthProviderName }}-authorino
                 validation_context_sds_secret_config:
                   name: ROOTCA
                   sds_config:
@@ -83,3 +85,4 @@ spec:
           grpc_service:
             envoy_grpc:
               cluster_name: odhai-authorino-ext-authz
+{{- end }}
