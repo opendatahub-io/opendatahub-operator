@@ -3,10 +3,18 @@ package dashboard
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
@@ -17,7 +25,12 @@ import (
 )
 
 const (
-	moduleName = componentApi.DashboardComponentName
+	moduleName                   = componentApi.DashboardComponentName
+	dashboardRedirectsAnnotation = "platform.opendatahub.io/dashboard-redirects"
+	dashboardRedirectsDisabled   = "disabled"
+	defaultGatewaySubdomain      = "rh-ai"
+	legacyGatewayRouteName       = "data-science-gateway"
+	dashboardCRDName             = "dashboards.components.platform.opendatahub.io"
 	// crName must match dashboard-operator CRD CEL (default-dashboard); see odh-dashboard#8093.
 	crName = componentApi.DashboardInstanceName
 
@@ -102,8 +115,8 @@ func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 // fields from DSCContext and ModuleCRConfig onto the module CR.
 // When dscCtx or dscCtx.DSC is nil, returns an error.
 func (h *handler) BuildModuleCR(
-	_ context.Context,
-	_ client.Client,
+	ctx context.Context,
+	cli client.Client,
 	dscCtx *modules.DSCContext,
 	cfg *modules.ModuleCRConfig,
 ) (*unstructured.Unstructured, error) {
@@ -120,9 +133,41 @@ func (h *handler) BuildModuleCR(
 		spec["modelRegistryNamespace"] = ns
 	}
 
-	if cfg != nil && cfg.GatewayConfig != nil && cfg.GatewayConfig.Status.Domain != "" {
-		spec["gateway"] = map[string]any{
-			"domain": cfg.GatewayConfig.Status.Domain,
+	if cfg != nil && cfg.GatewayConfig != nil {
+		redirectsSupported, err := h.dashboardCRDSupportsLegacyRedirects(ctx, cli)
+		if err != nil {
+			return nil, fmt.Errorf("check Dashboard CRD redirect support: %w", err)
+		}
+		if redirectsSupported {
+			redirectState := operatorv1.Managed
+			if cfg.GatewayConfig.Status.Domain == "" ||
+				cfg.GatewayConfig.GetAnnotations()[dashboardRedirectsAnnotation] == dashboardRedirectsDisabled ||
+				os.Getenv("DISABLE_DASHBOARD_REDIRECTS") == "true" {
+				redirectState = operatorv1.Removed
+			}
+			legacyRedirects := map[string]any{
+				"managementState": string(redirectState),
+			}
+			legacyHostname, err := h.resolveLegacyRedirectHostname(ctx, cli, cfg, redirectState)
+			if err != nil {
+				return nil, fmt.Errorf("resolve legacy dashboard redirect hostname: %w", err)
+			}
+			if legacyHostname != "" {
+				legacyRedirects["legacyHostname"] = legacyHostname
+			}
+			spec["legacyRedirects"] = legacyRedirects
+		} else {
+			logf.FromContext(ctx).V(1).Info(
+				"legacy Dashboard redirects are unavailable because the Dashboard CRD schema does not support them",
+				"crd", dashboardCRDName,
+				"version", h.Config.GVK.Version,
+			)
+		}
+
+		if cfg.GatewayConfig.Status.Domain != "" {
+			spec["gateway"] = map[string]any{
+				"domain": cfg.GatewayConfig.Status.Domain,
+			}
 		}
 	}
 
@@ -135,6 +180,93 @@ func (h *handler) BuildModuleCR(
 	u.SetName(h.Config.CRName)
 
 	return u, nil
+}
+
+func (h *handler) dashboardCRDSupportsLegacyRedirects(ctx context.Context, cli client.Client) (bool, error) {
+	if cli == nil {
+		return false, nil
+	}
+
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: dashboardCRDName}, crd); err != nil {
+		if k8serr.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	for _, version := range crd.Spec.Versions {
+		if version.Name != h.Config.GVK.Version || !version.Served || version.Schema == nil || version.Schema.OpenAPIV3Schema == nil {
+			continue
+		}
+		specSchema, found := version.Schema.OpenAPIV3Schema.Properties["spec"]
+		if !found {
+			return false, nil
+		}
+		_, found = specSchema.Properties["legacyRedirects"]
+		return found, nil
+	}
+
+	return false, nil
+}
+
+func (h *handler) resolveLegacyRedirectHostname(
+	ctx context.Context,
+	cli client.Client,
+	cfg *modules.ModuleCRConfig,
+	redirectState operatorv1.ManagementState,
+) (string, error) {
+	gatewayConfig := cfg.GatewayConfig
+	currentSubdomain := strings.TrimSpace(gatewayConfig.Spec.Subdomain)
+	if currentSubdomain == "" {
+		currentSubdomain = defaultGatewaySubdomain
+	}
+	if currentSubdomain == legacyGatewayRouteName {
+		return "", nil
+	}
+
+	if cli != nil {
+		route := &routev1.Route{}
+		err := cli.Get(ctx, client.ObjectKey{Name: legacyGatewayRouteName, Namespace: cfg.ApplicationsNamespace}, route)
+		switch {
+		case err == nil && strings.TrimSpace(route.Spec.Host) != "":
+			return strings.TrimSpace(route.Spec.Host), nil
+		case err != nil && !k8serr.IsNotFound(err) && !meta.IsNoMatchError(err):
+			if redirectState != operatorv1.Removed {
+				return "", fmt.Errorf("read legacy gateway Route: %w", err)
+			}
+			// Redirect cleanup does not depend on reading the optional Route. Keep
+			// the endpoint contract from the current Dashboard CR instead.
+		}
+
+		// Dashboard-owned cleanup removes the Route while redirects are disabled.
+		// Keep projecting the last hostname already recorded on the Dashboard CR so
+		// a later Removed-to-Managed transition recreates the same endpoint.
+		currentDashboard := &unstructured.Unstructured{}
+		currentDashboard.SetGroupVersionKind(h.Config.GVK)
+		err = cli.Get(ctx, client.ObjectKey{Name: h.Config.CRName}, currentDashboard)
+		if err == nil {
+			hostname, found, nestedErr := unstructured.NestedString(currentDashboard.Object, "spec", "legacyRedirects", "legacyHostname")
+			if nestedErr != nil {
+				return "", fmt.Errorf("read legacy hostname from Dashboard CR: %w", nestedErr)
+			}
+			if found && strings.TrimSpace(hostname) != "" {
+				return strings.TrimSpace(hostname), nil
+			}
+		} else if !k8serr.IsNotFound(err) && !meta.IsNoMatchError(err) {
+			return "", fmt.Errorf("read Dashboard CR legacy hostname: %w", err)
+		}
+	}
+
+	hostname := strings.TrimSpace(gatewayConfig.Status.Domain)
+	_, suffix, ok := strings.Cut(hostname, ".")
+	if !ok || suffix == "" {
+		if hostname == "" {
+			return "", nil
+		}
+		return "", fmt.Errorf("gateway hostname %q must contain a subdomain", hostname)
+	}
+	return legacyGatewayRouteName + "." + suffix, nil
 }
 
 func dashboardModuleSpec(dashboard componentApi.DSCDashboard) map[string]any {
