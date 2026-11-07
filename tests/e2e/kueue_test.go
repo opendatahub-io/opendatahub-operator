@@ -212,7 +212,10 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedWithoutOcpKueueOperator(t *testing
 
 	// ... and uninstall Kueue Operator and its operands
 	t.Logf("Uninstalling Kueue operator")
-	tc.UninstallOperator(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace})
+	tc.UninstallOperator(
+		types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace},
+		WithWaitForDeletion(true),
+	)
 
 	stateUnmanaged := operatorv1.Unmanaged
 
@@ -220,6 +223,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedWithoutOcpKueueOperator(t *testing
 	conditionsNotReady := []gTypes.GomegaMatcher{
 		// Validate that the component's management state is updated correctly
 		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateUnmanaged),
+		jq.Match(`.status.components.%s.managementState == "%s"`, componentName, stateUnmanaged),
 
 		// Validate the "Ready" condition for the component
 		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionFalse),
