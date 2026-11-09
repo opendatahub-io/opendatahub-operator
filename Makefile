@@ -333,7 +333,7 @@ lint: golangci-lint lint-logs ## Run golangci-lint and structured-log analyzer t
 .PHONY: lint-logs
 lint-logs: ## Run structured log convention analyzer tests and the analyzer itself.
 	go test ./cmd/loglint/...
-	go run ./cmd/loglint ./...
+	go run ./cmd/loglint $$(go list ./... | grep -v /prefetched-manifests/)
 
 .PHONY: lint-fix
 lint-fix: golangci-lint ## Run golangci-lint against code.
