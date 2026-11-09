@@ -14,22 +14,22 @@ STATE_DIR="${XDG_RUNTIME_DIR:-/tmp}/odh-mcp-scenarios-${UID}"
 
 # Kill the background loop
 if [[ -f ${STATE_DIR}/odh-misconfiguration-pid ]]; then
-  LOOP_PID=$(cat ${STATE_DIR}/odh-misconfiguration-pid)
+  LOOP_PID=$(cat "${STATE_DIR}/odh-misconfiguration-pid")
   log_step "Stopping background loop (PID: $LOOP_PID)..."
   if [[ "$LOOP_PID" =~ ^[0-9]+$ ]] && (( LOOP_PID > 1 )); then
     kill -- "$LOOP_PID" 2>/dev/null || true
   else
     log_step "WARN: Invalid PID in state file, skipping kill."
   fi
-  rm -f ${STATE_DIR}/odh-misconfiguration-pid
+  rm -f "${STATE_DIR}/odh-misconfiguration-pid"
 else
   log_step "No background loop PID file found, skipping."
 fi
 
 DEPLOYMENT="odh-dashboard"
 if [[ -f ${STATE_DIR}/odh-misconfiguration-deploy ]]; then
-  DEPLOYMENT=$(cat ${STATE_DIR}/odh-misconfiguration-deploy)
-  rm -f ${STATE_DIR}/odh-misconfiguration-deploy
+  DEPLOYMENT=$(cat "${STATE_DIR}/odh-misconfiguration-deploy")
+  rm -f "${STATE_DIR}/odh-misconfiguration-deploy"
 fi
 
 # Rollback the deployment to the last working revision

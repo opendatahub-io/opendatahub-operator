@@ -126,6 +126,42 @@ func TestCheckPreConditionsAllowsNonUninstallReadyCondition(t *testing.T) {
 	g.Expect(checkPreConditions(t.Context(), rr)).Should(Succeed())
 }
 
+func TestCheckPreConditionsErrorMessages(t *testing.T) {
+	t.Run("missing DSCInitialization reports DSCInitialization instance", func(t *testing.T) {
+		g := NewWithT(t)
+
+		cli, err := fakeclient.New()
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &types.ReconciliationRequest{
+			Client:   cli,
+			Instance: newDSC(),
+		}
+
+		err = checkPreConditions(t.Context(), rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("DSCInitialization instance"))
+		g.Expect(err.Error()).NotTo(ContainSubstring("DataScienceCluster instance"))
+	})
+
+	t.Run("missing DataScienceCluster reports DataScienceCluster instance", func(t *testing.T) {
+		g := NewWithT(t)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(&dsciv2.DSCInitialization{}))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &types.ReconciliationRequest{
+			Client:   cli,
+			Instance: newDSC(),
+		}
+
+		err = checkPreConditions(t.Context(), rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("DataScienceCluster instance"))
+		g.Expect(err.Error()).NotTo(ContainSubstring("DSCInitialization instance"))
+	})
+}
+
 type recordingModuleHandler struct {
 	modules.ModuleHandler
 
