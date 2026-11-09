@@ -47,6 +47,10 @@ The OpenShift E2E suite uses one shared Go harness with separate execution profi
 - **`make e2e-test-dag`** — Run only the full production-module DAG integration against an existing core baseline.
 - **`make e2e-test-run E2E_TEST_PROFILE=<profile>`** — Low-level single invocation for `core`, `synthetic`, `dag`, or `full`.
 
+### Gateway service fixtures
+
+Generic Gateway authentication and additional-ingress tests deploy a temporary TLS backend, Service, and protected HTTPRoute attached to the default Gateway. This fixture validates OAuth/OIDC redirects, forwarded-token headers, and default-route continuity without enabling a production module. The Dashboard redirect suite intentionally remains Dashboard-specific: it enables Dashboard because the Gateway controller creates the legacy redirect proxy and Routes only when the Dashboard CR exists.
+
 ### Conversion webhook tests
 
 The OpenShift `All` and `Tier3` suites run conversion tests after platform and service tests. Targeted runs include them only when `E2E_TEST_CONVERSION_WEBHOOK=true` is set.

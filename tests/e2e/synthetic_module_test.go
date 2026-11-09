@@ -72,6 +72,12 @@ func syntheticModuleTestSuite(t *testing.T) {
 	})
 	t.Cleanup(func() {
 		tc.SetModuleStateInPlatformCR(t, synthetice2e.ModuleName, operatorv1.Removed)
+		tc.DeleteResource(
+			WithMinimalObject(syntheticModuleGVK, types.NamespacedName{Name: synthetice2e.CRName}),
+			WithForegroundDeletion(),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
 		ensureSyntheticOperatorResourcesGone(t, tc)
 	})
 	t.Cleanup(func() {
@@ -220,6 +226,26 @@ func syntheticModuleTestSuite(t *testing.T) {
 			t.Helper()
 			setSyntheticFault(t, tc, synthetice2e.FaultModeHoldFinalizer)
 			tc.SetModuleStateInPlatformCR(t, synthetice2e.ModuleName, operatorv1.Removed)
+
+			// A normal Removed transition does not own deletion of a live module CR.
+			// The platform keeps the module controller available until the CR owner
+			// requests deletion and the module controller completes finalization.
+			tc.EnsureResourceExists(
+				WithMinimalObject(syntheticModuleGVK, types.NamespacedName{Name: synthetice2e.CRName}),
+				WithCondition(jq.Match(`.metadata.deletionTimestamp == null`)),
+			)
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace, Name: synthetice2e.DeploymentName}),
+				WithCondition(jq.Match(`.status.availableReplicas >= 1`)),
+			)
+
+			// Simulate the module CR owner requesting deletion. The injected finalizer
+			// hold keeps the CR terminating so we can verify the controller remains.
+			tc.DeleteResource(
+				WithMinimalObject(syntheticModuleGVK, types.NamespacedName{Name: synthetice2e.CRName}),
+				WithForegroundDeletion(),
+				WithWaitForDeletion(false),
+			)
 			tc.EnsureResourceExists(
 				WithMinimalObject(syntheticModuleGVK, types.NamespacedName{Name: synthetice2e.CRName}),
 				WithCondition(jq.Match(`.metadata.deletionTimestamp != null`)),

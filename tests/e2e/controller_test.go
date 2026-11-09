@@ -585,7 +585,9 @@ func applyTestProfile(profile TestProfile) error {
 		Services.enabled = false
 		return nil
 	case ProfileDAG:
-		testOpts.dependantOperatorsManagementTest = false
+		// Production modules require their external operators (for example
+		// cert-manager and JobSet); dependency setup belongs to the DAG phase.
+		testOpts.dependantOperatorsManagementTest = true
 		testOpts.dscManagementTest = false
 		testOpts.dscValidationTest = false
 		testOpts.operatorControllerTest = false

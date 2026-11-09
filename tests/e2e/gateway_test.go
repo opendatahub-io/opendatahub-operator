@@ -34,8 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -419,26 +417,12 @@ func (tc *GatewayTestCtx) ValidateAdditionalGateways(t *testing.T) {
 	tc.SkipIfBYOIDC(t)
 	originalGateway, err := tc.getGateway(ctx)
 	require.NoError(t, err)
-	dsc := &dscApi.DataScienceCluster{}
-	require.NoError(t, tc.Client().Get(ctx, tc.DataScienceClusterNamespacedName, dsc))
-	originalDashboardState := dsc.Spec.Components.Dashboard.Standard.ManagementState
-	if originalDashboardState != operatorv1.Managed {
-		tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
-		t.Cleanup(func() {
-			tc.UpdateComponentStateInDataScienceClusterWithKind(originalDashboardState, componentApi.DashboardKind)
-		})
-	}
-	tc.waitForDashboardHTTPRoute(t)
+	backendFixture := tc.deployDefaultGatewayBackendFixture(t, false)
 	defaultRouteKey := types.NamespacedName{Name: tc.gatewayName(), Namespace: tc.gatewayNamespace()}
 	defaultRoute := &routev1.Route{}
 	require.NoError(t, tc.Client().Get(ctx, defaultRouteKey, defaultRoute))
 	defaultRouteUID := defaultRoute.UID
 	require.NotEmpty(t, defaultRoute.Spec.Host)
-	dashboardRouteKey := types.NamespacedName{
-		Name: getDashboardRouteNameByPlatform(tc.FetchPlatformRelease()), Namespace: tc.AppsNamespace,
-	}
-	dashboardHTTPRoute := &gwapiv1.HTTPRoute{}
-	require.NoError(t, tc.Client().Get(ctx, dashboardRouteKey, dashboardHTTPRoute))
 	authHTTPRouteKey := types.NamespacedName{Name: gateway.OAuthCallbackRouteName, Namespace: tc.gatewayNamespace()}
 	authHTTPRoute := &gwapiv1.HTTPRoute{}
 	require.NoError(t, tc.Client().Get(ctx, authHTTPRouteKey, authHTTPRoute))
@@ -449,14 +433,11 @@ func (tc *GatewayTestCtx) ValidateAdditionalGateways(t *testing.T) {
 	}
 	require.NoError(t, tc.Client().Get(ctx, defaultAuthKey, defaultAuthDeployment))
 	checkDefault := func() {
-		tc.assertDefaultGatewayContinuity(ctx, t, originalGateway.UID, defaultRouteUID, defaultRoute.Spec.Host)
-		tc.waitForDashboardHTTPRoute(t)
+		tc.assertDefaultGatewayContinuity(ctx, t, originalGateway.UID, defaultRouteUID, backendFixture.url)
+		tc.assertGatewayBackendFixtureUnchanged(ctx, t, backendFixture)
 		currentRoute := &routev1.Route{}
 		g.Expect(tc.Client().Get(ctx, defaultRouteKey, currentRoute)).To(Succeed())
 		g.Expect(currentRoute.Spec).To(Equal(defaultRoute.Spec))
-		currentDashboardHTTPRoute := &gwapiv1.HTTPRoute{}
-		g.Expect(tc.Client().Get(ctx, dashboardRouteKey, currentDashboardHTTPRoute)).To(Succeed())
-		g.Expect(currentDashboardHTTPRoute.Spec).To(Equal(dashboardHTTPRoute.Spec))
 		currentAuthHTTPRoute := &gwapiv1.HTTPRoute{}
 		g.Expect(tc.Client().Get(ctx, authHTTPRouteKey, currentAuthHTTPRoute)).To(Succeed())
 		g.Expect(currentAuthHTTPRoute.Spec).To(Equal(authHTTPRoute.Spec))
@@ -611,27 +592,15 @@ func (tc *GatewayTestCtx) ValidateAdditionalGatewayLifecycle(t *testing.T) {
 	tc.SkipIfBYOIDC(t)
 	originalGateway, err := tc.getGateway(ctx)
 	require.NoError(t, err)
-	// The default-host redirect is only served while the dashboard HTTPRoute is attached
-	// to the Gateway: with the dashboard Removed (for example after the DAG suite's
-	// cleanup), the gateway answers 404 and checkDefault below cannot pass. Manage the
-	// dashboard for the duration of this spec, like ValidateAdditionalGateways does.
-	dsc := &dscApi.DataScienceCluster{}
-	require.NoError(t, tc.Client().Get(ctx, tc.DataScienceClusterNamespacedName, dsc))
-	originalDashboardState := dsc.Spec.Components.Dashboard.Standard.ManagementState
-	if originalDashboardState != operatorv1.Managed {
-		tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
-		t.Cleanup(func() {
-			tc.UpdateComponentStateInDataScienceClusterWithKind(originalDashboardState, componentApi.DashboardKind)
-		})
-	}
-	tc.waitForDashboardHTTPRoute(t)
+	backendFixture := tc.deployDefaultGatewayBackendFixture(t, false)
 	defaultRouteKey := types.NamespacedName{Name: tc.gatewayName(), Namespace: tc.gatewayNamespace()}
 	defaultRoute := &routev1.Route{}
 	require.NoError(t, tc.Client().Get(ctx, defaultRouteKey, defaultRoute))
 	defaultRouteUID := defaultRoute.UID
 	require.NotEmpty(t, defaultRoute.Spec.Host)
 	checkDefault := func() {
-		tc.assertDefaultGatewayContinuity(ctx, t, originalGateway.UID, defaultRouteUID, defaultRoute.Spec.Host)
+		tc.assertDefaultGatewayContinuity(ctx, t, originalGateway.UID, defaultRouteUID, backendFixture.url)
+		tc.assertGatewayBackendFixtureUnchanged(ctx, t, backendFixture)
 	}
 	// Default-only baseline before any additional ingress exists.
 	checkDefault()
@@ -921,7 +890,7 @@ func (tc *GatewayTestCtx) validateAdditionalGatewayAndRoute(t *testing.T, ingres
 }
 
 func (tc *GatewayTestCtx) assertDefaultGatewayContinuity(
-	ctx context.Context, t *testing.T, gatewayUID, routeUID types.UID, hostname string,
+	ctx context.Context, t *testing.T, gatewayUID, routeUID types.UID, targetURL string,
 ) {
 	t.Helper()
 	g := NewWithT(t)
@@ -941,7 +910,7 @@ func (tc *GatewayTestCtx) assertDefaultGatewayContinuity(
 	g.Eventually(func() error {
 		requestCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, "https://"+hostname, nil)
+		request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, targetURL, nil)
 		if err != nil {
 			return err
 		}
@@ -2022,15 +1991,9 @@ func (tc *GatewayTestCtx) ValidateGatewayReadyStatus(t *testing.T) {
 
 // ValidateUnauthenticatedRedirect tests that unauthenticated requests are redirected to OAuth login.
 //
-// This test validates end-to-end authentication by:
-// 1. Temporarily enabling Dashboard component (provides an HTTPRoute to test against)
-// 2. Making an unauthenticated HTTP request to the dashboard through the gateway
-// 3. Verifying the response is a redirect (302/307) to the OAuth provider
-// 4. Checking the redirect URL contains OAuth authorization endpoint and callback parameters
-// 5. Cleaning up by removing Dashboard component
-//
-// Note: Dashboard is used as a test target because it automatically creates an HTTPRoute
-// that is attached to the Gateway, providing a real route to test authentication against.
+// This test validates end-to-end authentication against a temporary protected
+// HTTPRoute attached to the default Gateway. It verifies an unauthenticated
+// request is redirected to the OAuth provider with the expected callback.
 func (tc *GatewayTestCtx) ValidateUnauthenticatedRedirect(t *testing.T) {
 	t.Helper()
 
@@ -2038,53 +2001,14 @@ func (tc *GatewayTestCtx) ValidateUnauthenticatedRedirect(t *testing.T) {
 	skipUnless(t, Tier1)
 	tc.SkipIfBYOIDC(t)
 
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
-	defer tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.DashboardKind)
-
-	tc.waitForDashboardHTTPRoute(t)
-	dashboardURL := tc.getDashboardURL(t)
-
-	tc.testUnauthenticatedAccess(t, dashboardURL)
-}
-
-// waitForDashboardHTTPRoute waits for dashboard HTTPRoute to be accepted by the Gateway.
-// Note: Deployment readiness is already validated by UpdateComponentStateInDataScienceClusterWithKind
-// via the DashboardReady condition in DSC, which checks deployment status via deployments.NewAction().
-func (tc *GatewayTestCtx) waitForDashboardHTTPRoute(t *testing.T) {
-	t.Helper()
-
-	dashboardNamespace := tc.AppsNamespace
-	dashboardRouteName := getDashboardRouteNameByPlatform(tc.FetchPlatformRelease())
-
-	t.Log("Waiting for dashboard HTTPRoute to be accepted by Gateway")
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.HTTPRoute, types.NamespacedName{
-			Name:      dashboardRouteName,
-			Namespace: dashboardNamespace,
-		}),
-		WithCondition(And(
-			jq.Match(`.spec.parentRefs[] | select(.name == "%s") | .namespace == "%s"`, tc.gatewayName(), tc.gatewayNamespace()),
-			jq.Match(`.spec.parentRefs[] | select(.name == "%s") | .sectionName == null`, tc.gatewayName()),
-			jq.Match(`.status.parents[0].conditions[] | select(.type == "Accepted") | .status == "True"`),
-			jq.Match(`.status.parents[0].conditions[] | select(.type == "ResolvedRefs") | .status == "True"`),
-		)),
-		WithCustomErrorMsg("Dashboard HTTPRoute should be accepted by Gateway"),
-	)
-	t.Log("Dashboard HTTPRoute is accepted")
-}
-
-// getDashboardURL returns the dashboard URL through the gateway.
-func (tc *GatewayTestCtx) getDashboardURL(t *testing.T) string {
-	t.Helper()
-
-	gatewayHostname := tc.getExpectedGatewayHostname(t)
-	return fmt.Sprintf("https://%s", gatewayHostname)
+	backendFixture := tc.deployDefaultGatewayBackendFixture(t, false)
+	tc.testUnauthenticatedAccess(t, backendFixture.url)
 }
 
 // testUnauthenticatedAccess validates that unauthenticated requests are redirected to OAuth provider.
-func (tc *GatewayTestCtx) testUnauthenticatedAccess(t *testing.T, dashboardURL string) {
+func (tc *GatewayTestCtx) testUnauthenticatedAccess(t *testing.T, targetURL string) {
 	t.Helper()
-	t.Log("Testing unauthenticated access to dashboard")
+	t.Log("Testing unauthenticated access to protected Gateway backend")
 
 	httpClient := tc.createHTTPClient()
 
@@ -2092,11 +2016,11 @@ func (tc *GatewayTestCtx) testUnauthenticatedAccess(t *testing.T, dashboardURL s
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, dashboardURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to create HTTP request")
 
 	resp, err := httpClient.Do(req)
-	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to make HTTP request to dashboard")
+	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to make HTTP request to protected Gateway backend")
 	defer resp.Body.Close()
 
 	// Check status code is a redirect
@@ -2570,12 +2494,7 @@ func (tc *GatewayTestCtx) ValidateOIDCUnauthenticatedRedirect(t *testing.T) {
 	tc.SkipUnlessBYOIDC(t)
 
 	oidcConfig := tc.getOIDCConfig(t)
-
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
-	defer tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.DashboardKind)
-
-	tc.waitForDashboardHTTPRoute(t)
-	dashboardURL := tc.getDashboardURL(t)
+	backendFixture := tc.deployDefaultGatewayBackendFixture(t, false)
 
 	t.Log("Testing unauthenticated access on BYOIDC cluster")
 
@@ -2584,11 +2503,11 @@ func (tc *GatewayTestCtx) ValidateOIDCUnauthenticatedRedirect(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, dashboardURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, backendFixture.url, nil)
 	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to create HTTP request")
 
 	resp, err := httpClient.Do(req)
-	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to make HTTP request to dashboard")
+	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to make HTTP request to protected Gateway backend")
 	defer resp.Body.Close()
 
 	// Check status code is a redirect
@@ -2618,9 +2537,7 @@ func (tc *GatewayTestCtx) ValidateOIDCUnauthenticatedRedirect(t *testing.T) {
 }
 
 // ValidateOIDCTokenForwarding tests that a request authenticated with an OIDC id_token
-// has the token forwarded to the dashboard backend as x-forwarded-access-token.
-// It sends a Bearer token request to the dashboard's /api/k8s endpoint through the gateway
-// and verifies the response is not 401 (which would indicate the token was not forwarded).
+// has the token forwarded to a protected fixture backend as x-forwarded-access-token.
 func (tc *GatewayTestCtx) ValidateOIDCTokenForwarding(t *testing.T) {
 	t.Helper()
 
@@ -2628,19 +2545,10 @@ func (tc *GatewayTestCtx) ValidateOIDCTokenForwarding(t *testing.T) {
 	skipUnless(t, Tier1)
 	tc.SkipUnlessBYOIDC(t)
 
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
-	defer tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.DashboardKind)
-
-	tc.waitForDashboardHTTPRoute(t)
-
+	backendFixture := tc.deployDefaultGatewayBackendFixture(t, true)
 	idToken := tc.getOIDCIDToken(t)
-	dashboardURL := tc.getDashboardURL(t)
 
-	// Use /api/k8s proxy endpoint — this requires x-forwarded-access-token to be set
-	// by the EnvoyFilter Lua filter. Without it, the dashboard returns 401.
-	apiURL := dashboardURL + "/api/k8s/apis"
-
-	t.Logf("Testing OIDC token forwarding to %s", apiURL)
+	t.Logf("Testing OIDC token forwarding to %s", backendFixture.url)
 
 	httpClient := &http.Client{
 		Transport: &http.Transport{
@@ -2654,7 +2562,7 @@ func (tc *GatewayTestCtx) ValidateOIDCTokenForwarding(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, backendFixture.url, nil)
 	require.NoError(t, err, "Failed to create HTTP request")
 
 	req.Header.Set("Authorization", "Bearer "+idToken)
@@ -2664,8 +2572,7 @@ func (tc *GatewayTestCtx) ValidateOIDCTokenForwarding(t *testing.T) {
 	defer resp.Body.Close()
 
 	tc.g.Expect(resp.StatusCode).To(Equal(http.StatusOK),
-		"Authenticated request with OIDC id_token to /api/k8s/apis should return 200 — "+
-			"got %d, which indicates the token is not being correctly forwarded via x-forwarded-access-token", resp.StatusCode)
+		"fixture backend requires x-forwarded-access-token and should return 200; got %d", resp.StatusCode)
 
 	t.Log("OIDC token forwarding verified (status 200)")
 }
