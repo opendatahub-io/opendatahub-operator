@@ -59,6 +59,7 @@ func TestApplyTestProfile(t *testing.T) {
 		reset()
 		require.NoError(t, applyTestProfile(ProfileDAG))
 		assert.True(t, testOpts.dagOrderingTest)
+		assert.True(t, testOpts.dependantOperatorsManagementTest)
 		assert.False(t, testOpts.syntheticModuleTest)
 		assert.False(t, testOpts.cleanUpPreviousResources)
 		assert.False(t, Services.enabled)

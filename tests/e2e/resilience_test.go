@@ -23,7 +23,6 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -413,24 +412,14 @@ func (tc *OperatorResilienceTestCtx) ValidateAdditionalIngressRestartResilience(
 	original := gatewayConfig.DeepCopy()
 	originalGateway, err := gtc.getGateway(ctx)
 	require.NoError(t, err)
-	// The default-host redirect is only served while the dashboard HTTPRoute is attached
-	// to the Gateway; the services suites typically leave the dashboard Removed.
-	dsc := &dscApi.DataScienceCluster{}
-	require.NoError(t, gtc.Client().Get(ctx, gtc.DataScienceClusterNamespacedName, dsc))
-	originalDashboardState := dsc.Spec.Components.Dashboard.Standard.ManagementState
-	if originalDashboardState != operatorv1.Managed {
-		gtc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
-		t.Cleanup(func() {
-			gtc.UpdateComponentStateInDataScienceClusterWithKind(originalDashboardState, componentApi.DashboardKind)
-		})
-	}
-	gtc.waitForDashboardHTTPRoute(t)
+	backendFixture := gtc.deployDefaultGatewayBackendFixture(t, false)
 	defaultRoute := &routev1.Route{}
 	defaultRouteKey := types.NamespacedName{Name: gtc.gatewayName(), Namespace: gtc.gatewayNamespace()}
 	require.NoError(t, gtc.Client().Get(ctx, defaultRouteKey, defaultRoute))
 	require.NotEmpty(t, defaultRoute.Spec.Host)
 	checkDefault := func() {
-		gtc.assertDefaultGatewayContinuity(ctx, t, originalGateway.UID, defaultRoute.UID, defaultRoute.Spec.Host)
+		gtc.assertDefaultGatewayContinuity(ctx, t, originalGateway.UID, defaultRoute.UID, backendFixture.url)
+		gtc.assertGatewayBackendFixtureUnchanged(ctx, t, backendFixture)
 	}
 
 	controllerName := fmt.Sprintf("e2e-restart-shard-%x", time.Now().UnixNano())
