@@ -598,6 +598,24 @@ func TestGetRelatedImages(t *testing.T) {
 	))
 }
 
+func TestGetExtraEnvPinsMethodGateImage(t *testing.T) {
+	t.Setenv("RELATED_IMAGE_ODH_OBSERVABILITY_IMAGE", "registry.example.com/odh-observability@sha256:abc123")
+
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	g.Expect(h.GetExtraEnv()).Should(Equal(map[string]string{
+		"OPERATOR_IMAGE": "registry.example.com/odh-observability@sha256:abc123",
+	}))
+}
+
+func TestGetExtraEnvKeepsChartDefaultWithoutPinnedImage(t *testing.T) {
+	t.Setenv("RELATED_IMAGE_ODH_OBSERVABILITY_IMAGE", "")
+
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	g.Expect(h.GetExtraEnv()).Should(BeNil())
+}
+
 func TestGetName(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()

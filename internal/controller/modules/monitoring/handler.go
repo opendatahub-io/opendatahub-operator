@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -50,6 +51,17 @@ func NewHandler() *handler {
 			},
 		},
 	}
+}
+
+// GetExtraEnv keeps the method-gate sidecar on the same release image as the
+// observability controller when the platform provides a pinned image.
+func (h *handler) GetExtraEnv() map[string]string {
+	image := os.Getenv(h.Config.ControllerImage)
+	if image == "" {
+		return nil
+	}
+
+	return map[string]string{"OPERATOR_IMAGE": image}
 }
 
 // GetOperatorManifests renders the odh-observability chart. On RHOAI the

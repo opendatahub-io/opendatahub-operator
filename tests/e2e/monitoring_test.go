@@ -203,6 +203,7 @@ func (tc *MonitoringTestCtx) runBaseConfigurationTests(t *testing.T) {
 		t.Run("Test MonitoringReady condition propagated to DSCI", tc.ValidateMonitoringReadyConditionOnDSCI)
 		t.Run("Test Traces default content", tc.ValidateMonitoringCRDefaultTracesContent)
 		t.Run("Test Korrel8r image env var injection", tc.ValidateKorrel8rImageEnvVarInjection)
+		t.Run("Test method-gate image env var injection", tc.ValidateOperatorImageEnvVarInjection)
 	})
 }
 
@@ -221,6 +222,23 @@ func (tc *MonitoringTestCtx) ValidateKorrel8rImageEnvVarInjection(t *testing.T) 
 			ExpectedKorrel8rImage,
 		)),
 		WithCustomErrorMsg("odh-observability Deployment should have the CSV-resolved Korrel8r image reference injected"),
+	)
+}
+
+// ValidateOperatorImageEnvVarInjection checks that the method-gate sidecar
+// uses the same image reference as the observability controller.
+func (tc *MonitoringTestCtx) ValidateOperatorImageEnvVarInjection(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.AppsNamespace,
+			Name:      ObservabilityDeploymentName,
+		}),
+		WithCondition(jq.Match(
+			`.spec.template.spec.containers[] | select(.name == "manager") | .image == ([.env[] | select(.name == "OPERATOR_IMAGE") | .value][0])`,
+		)),
+		WithCustomErrorMsg("odh-observability Deployment should pass its resolved controller image to the method-gate sidecar"),
 	)
 }
 
