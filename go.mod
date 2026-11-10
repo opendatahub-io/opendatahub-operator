@@ -8,7 +8,7 @@ require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/go-logr/logr v1.4.4
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/itchyny/gojq v0.12.19
+	github.com/itchyny/gojq v0.12.20
 	github.com/k8s-manifest-kit/renderer-helm v0.4.0
 	github.com/onsi/ginkgo/v2 v2.34.0
 	github.com/onsi/gomega v1.44.0
@@ -109,7 +109,7 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/itchyny/timefmt-go v0.1.8 // indirect
+	github.com/itchyny/timefmt-go v0.1.9 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/k8s-manifest-kit/pkg v0.2.1-0.20260716110029-cb840211b914 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
