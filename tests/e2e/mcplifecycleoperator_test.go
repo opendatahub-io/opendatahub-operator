@@ -79,18 +79,20 @@ func mcpLifecycleOperatorTestSuite(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Tier1)
 
-			// Module CR should have releases populated by the module operator.
+			// Module CR must carry the platform version handshake entry
+			// (name == "platform") with a non-empty version, not just any release.
 			tc.EnsureResourceExists(
 				WithMinimalObject(moduleGVK, moduleCRNN),
-				WithCondition(jq.Match(`.status.releases | length > 0`)),
-				WithCustomErrorMsg("MCPLifecycleOperator module CR should have releases in status"),
+				WithCondition(jq.Match(`.status.releases[] | select(.name == "platform") | .version | length > 0`)),
+				WithCustomErrorMsg(`MCPLifecycleOperator module CR status.releases should contain a "platform" entry with a non-empty version`),
 			)
 
-			// DSC should mirror the module CR's releases.
+			// DSC must mirror the module CR's "platform" release entry, again with a
+			// non-empty version, so the platform version handshake is propagated.
 			tc.EnsureResourceExists(
 				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithCondition(jq.Match(`.status.components.mcplifecycleoperator.releases | length > 0`)),
-				WithCustomErrorMsg("DSC status.components.mcplifecycleoperator.releases should be mirrored from module CR"),
+				WithCondition(jq.Match(`.status.components.mcplifecycleoperator.releases[] | select(.name == "platform") | .version | length > 0`)),
+				WithCustomErrorMsg(`DSC status.components.mcplifecycleoperator.releases should mirror the module CR "platform" entry with a non-empty version`),
 			)
 		}},
 		{"Validate component disabled", func(t *testing.T) {
