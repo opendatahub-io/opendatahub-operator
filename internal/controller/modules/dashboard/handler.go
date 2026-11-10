@@ -30,7 +30,6 @@ const (
 	dashboardRedirectsDisabled   = "disabled"
 	defaultGatewaySubdomain      = "rh-ai"
 	legacyGatewayRouteName       = "data-science-gateway"
-	dashboardCRDName             = "dashboards.components.platform.opendatahub.io"
 	// crName must match dashboard-operator CRD CEL (default-dashboard); see odh-dashboard#8093.
 	crName = componentApi.DashboardInstanceName
 
@@ -159,7 +158,7 @@ func (h *handler) BuildModuleCR(
 		} else {
 			logf.FromContext(ctx).V(1).Info(
 				"legacy Dashboard redirects are unavailable because the Dashboard CRD schema does not support them",
-				"crd", dashboardCRDName,
+				"crd", gvk.DashboardComponentCRDName,
 				"version", h.Config.GVK.Version,
 			)
 		}
@@ -188,7 +187,7 @@ func (h *handler) dashboardCRDSupportsLegacyRedirects(ctx context.Context, cli c
 	}
 
 	crd := &apiextensionsv1.CustomResourceDefinition{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: dashboardCRDName}, crd); err != nil {
+	if err := cli.Get(ctx, client.ObjectKey{Name: gvk.DashboardComponentCRDName}, crd); err != nil {
 		if k8serr.IsNotFound(err) {
 			return false, nil
 		}
