@@ -316,7 +316,7 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/trainer"
-      digest: "sha256:9dad355926bc7ce16ae88574c8d26707ecc098265d5230224a4a5da214a82592"
+      digest: "sha256:3cd1416eeeb6dfab44d5092072dd4dcd7cec1b91160eacffb2354617d7aa1943"
     rhoai:
       base: "quay.io/rhoai/odh-trainer-rhel9"
       digest: "sha256:1391cc175f1a886a8c912f0043670b03adc3166c3a4ab3a048eb8e4e8b1e92fc"
@@ -1035,7 +1035,7 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-trainer-operator"
-      digest: "sha256:b3388c03a7bb4f61a712399a74ebbd3cd4caa6de4979fb1fca9ed204a7c63362"
+      digest: "sha256:c4ea2ea1224c53c3ac17ca825a68c58321d116731c77aa8f3105cdf0a41d5610"
     rhoai:
       base: "quay.io/rhoai/odh-trainer-operator-rhel9"
       digest: "sha256:be56aad45cc68064d65fd17dcbba314b6b60d8492ffe5a3d6b80e3a5fcc05629"
