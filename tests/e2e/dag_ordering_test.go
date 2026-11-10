@@ -556,6 +556,7 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 	// already carrying the new platform version proves gating failed to hold
 	// back runlevel 31.
 	t.Log("Verifying the runlevel-31 KServe operator Deployment does not advance to the new version while batch 20 is blocked")
+	var kserveVersionAsserted bool
 	tc.g.Consistently(func(g Gomega) {
 		kserveDeployment := tc.FetchResource(
 			WithMinimalObject(gvk.Deployment, kserveDeploymentNN),
@@ -563,11 +564,15 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 		if kserveDeployment == nil {
 			return // absence while gated is acceptable
 		}
+		kserveVersionAsserted = true
 		g.Expect(kserveDeployment).To(
 			jq.Match(`.metadata.annotations."%s" != "%s"`, annotations.PlatformVersion, dagTestVersion),
 			"KServe operator Deployment advanced to %s while runlevel 20 was still gated", dagTestVersion,
 		)
 	}).WithTimeout(20 * time.Second).WithPolling(5 * time.Second).Should(Succeed())
+	if !kserveVersionAsserted {
+		t.Log("KServe Deployment was absent for the entire gating window; version oracle did not fire — GC removed it before the check ran")
+	}
 
 	// Step 4: Remove quota and verify convergence at new version.
 	t.Log("Removing quota to unblock deployments")

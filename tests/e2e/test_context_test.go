@@ -17,6 +17,8 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/rs/xid"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -28,8 +30,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlcfg "sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -56,6 +61,9 @@ type TestContext struct {
 	// Embeds the common test context (e.g., cluster clients, config)
 	*testf.TestContext
 
+	// REST config used to create clients with a test-specific identity.
+	restConfig *rest.Config
+
 	// Shared Gomega wrapper for making assertions in tests.
 	g *testf.WithT
 
@@ -77,6 +85,9 @@ type TestContext struct {
 
 	// Namespace where the monitoring components are deployed.
 	MonitoringNamespace string
+
+	// ForceOLMVersion overrides OLM install path for all operators: v0, v1, or default (per-component flag).
+	ForceOLMVersion string
 
 	// Namespaced name of the DSCInitialization custom resource used for testing.
 	DSCInitializationNamespacedName types.NamespacedName
@@ -109,7 +120,13 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 }
 
 func newTestContext(t *testing.T, ctx context.Context) (*TestContext, error) { //nolint:thelper
+	restConfig, err := ctrlcfg.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load Kubernetes REST config: %w", err)
+	}
+
 	opts := []testf.TestContextOpt{
+		testf.WithRestConfig(restConfig),
 		testf.WithTOptions(
 			testf.WithEventuallyTimeout(testOpts.TestTimeouts.defaultEventuallyTimeout),
 			testf.WithEventuallyPollingInterval(testOpts.TestTimeouts.defaultEventuallyPollInterval),
@@ -141,6 +158,7 @@ func newTestContext(t *testing.T, ctx context.Context) (*TestContext, error) { /
 
 	return &TestContext{
 		TestContext:                      tcf,
+		restConfig:                       restConfig,
 		g:                                tcf.NewWithT(t),
 		logger:                           t,
 		DSCInitializationNamespacedName:  types.NamespacedName{Name: dsciInstanceName},
@@ -150,8 +168,195 @@ func newTestContext(t *testing.T, ctx context.Context) (*TestContext, error) { /
 		AppsNamespace:                    testOpts.appsNamespace,
 		WorkbenchesNamespace:             testOpts.workbenchesNamespace,
 		MonitoringNamespace:              testOpts.monitoringNamespace,
+		ForceOLMVersion:                  testOpts.forceOLMVersion,
 		TestTimeouts:                     testOpts.TestTimeouts,
 	}, nil
+}
+
+// RestConfig returns a copy of the REST config used by this test context.
+func (tc *TestContext) RestConfig() *rest.Config {
+	return rest.CopyConfig(tc.restConfig)
+}
+
+const statusFreezeAdmissionMessage = "e2e: external operator status writes are frozen by test"
+
+// ServiceAccountRef identifies the service account whose status writes should be frozen.
+type ServiceAccountRef struct {
+	Namespace string
+	Name      string
+}
+
+// Username returns the Kubernetes username for this service account.
+func (sa ServiceAccountRef) Username() string {
+	return "system:serviceaccount:" + sa.Namespace + ":" + sa.Name
+}
+
+type freezeStatusWritesOptions struct {
+	resourceName string
+	freezeName   string
+}
+
+// FreezeOption configures a status-write freeze policy.
+type FreezeOption func(*freezeStatusWritesOptions)
+
+// WithFrozenResourceName restricts the policy to one resource by name.
+func WithFrozenResourceName(name string) FreezeOption {
+	return func(opts *freezeStatusWritesOptions) {
+		opts.resourceName = name
+	}
+}
+
+// WithFreezeName sets the names shared by the admission policy and its binding.
+func WithFreezeName(name string) FreezeOption {
+	return func(opts *freezeStatusWritesOptions) {
+		opts.freezeName = name
+	}
+}
+
+// buildStatusFreezeResources creates the policy and binding used to deny status updates
+// by one service account. Keeping the resource construction separate makes it unit-testable.
+func buildStatusFreezeResources(
+	target schema.GroupVersionKind,
+	resourcePlural string,
+	writer ServiceAccountRef,
+	defaultName string,
+	opts ...FreezeOption,
+) (*admissionregistrationv1.ValidatingAdmissionPolicy, *admissionregistrationv1.ValidatingAdmissionPolicyBinding) {
+	options := freezeStatusWritesOptions{freezeName: defaultName}
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	matchConditions := []admissionregistrationv1.MatchCondition{{
+		Name:       "only-writer-service-account",
+		Expression: fmt.Sprintf("request.userInfo.username == %q", writer.Username()),
+	}}
+	if options.resourceName != "" {
+		matchConditions = append(matchConditions, admissionregistrationv1.MatchCondition{
+			Name:       "only-frozen-resource",
+			Expression: fmt.Sprintf("request.name == %q", options.resourceName),
+		})
+	}
+
+	policy := &admissionregistrationv1.ValidatingAdmissionPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: options.freezeName},
+		Spec: admissionregistrationv1.ValidatingAdmissionPolicySpec{
+			FailurePolicy: ptr.To(admissionregistrationv1.Fail),
+			MatchConstraints: &admissionregistrationv1.MatchResources{
+				ResourceRules: []admissionregistrationv1.NamedRuleWithOperations{{
+					RuleWithOperations: admissionregistrationv1.RuleWithOperations{
+						Operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Update},
+						Rule: admissionregistrationv1.Rule{
+							APIGroups:   []string{target.Group},
+							APIVersions: []string{target.Version},
+							Resources:   []string{resourcePlural, resourcePlural + "/status"},
+						},
+					},
+				}},
+			},
+			MatchConditions: matchConditions,
+			Validations: []admissionregistrationv1.Validation{{
+				Expression: "false",
+				Message:    statusFreezeAdmissionMessage,
+			}},
+		},
+	}
+
+	binding := &admissionregistrationv1.ValidatingAdmissionPolicyBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: options.freezeName},
+		Spec: admissionregistrationv1.ValidatingAdmissionPolicyBindingSpec{
+			PolicyName:        options.freezeName,
+			ValidationActions: []admissionregistrationv1.ValidationAction{admissionregistrationv1.Deny},
+		},
+	}
+
+	return policy, binding
+}
+
+// FreezeStatusWrites installs a policy that denies UPDATE requests for the target
+// resource from the specified service account. The policy and binding are deleted by
+// test cleanup. This does not modify an OLM-owned Deployment, so it works with OLMv0
+// and OLMv1 installations.
+func (tc *TestContext) FreezeStatusWrites(
+	t *testing.T,
+	target schema.GroupVersionKind,
+	resourcePlural string,
+	writer ServiceAccountRef,
+	opts ...FreezeOption,
+) {
+	t.Helper()
+	if target.Version == "" || target.Kind == "" {
+		t.Fatalf("freeze target must include an API version and kind: %#v", target)
+	}
+	if resourcePlural == "" {
+		t.Fatal("freeze target resource plural must not be empty")
+	}
+	if writer.Namespace == "" || writer.Name == "" {
+		t.Fatalf("freeze writer must include a namespace and service account name: %#v", writer)
+	}
+
+	defaultName := fmt.Sprintf("e2e-freeze-%s-%s", strings.ToLower(target.Kind), xid.New().String())
+	policy, binding := buildStatusFreezeResources(target, resourcePlural, writer, defaultName, opts...)
+	name := policy.Name
+
+	deleteResources := func(ctx context.Context) error {
+		var errs []error
+		for _, obj := range []client.Object{binding, policy} {
+			if err := tc.Client().Delete(ctx, obj); err != nil && !k8serr.IsNotFound(err) {
+				errs = append(errs, err)
+			}
+		}
+		if len(errs) > 0 {
+			return errors.Join(errs...)
+		}
+		return nil
+	}
+	waitForDeletion := func(ctx context.Context) error {
+		return wait.PollUntilContextTimeout(ctx, time.Second, 30*time.Second, true, func(ctx context.Context) (bool, error) {
+			for _, obj := range []client.Object{
+				&admissionregistrationv1.ValidatingAdmissionPolicyBinding{ObjectMeta: metav1.ObjectMeta{Name: name}},
+				&admissionregistrationv1.ValidatingAdmissionPolicy{ObjectMeta: metav1.ObjectMeta{Name: name}},
+			} {
+				err := tc.Client().Get(ctx, types.NamespacedName{Name: name}, obj)
+				if err == nil {
+					return false, nil
+				}
+				if !k8serr.IsNotFound(err) {
+					return false, err
+				}
+			}
+			return true, nil
+		})
+	}
+
+	// Clear a leftover policy from an interrupted prior run before installing this one.
+	startCtx, cancel := context.WithTimeout(context.WithoutCancel(tc.Context()), 30*time.Second)
+	defer cancel()
+	if err := deleteResources(startCtx); err != nil {
+		t.Fatalf("failed to remove stale status freeze %q: %v", name, err)
+	}
+	if err := waitForDeletion(startCtx); err != nil {
+		t.Fatalf("stale status freeze %q was not removed: %v", name, err)
+	}
+
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(tc.Context()), 30*time.Second)
+		defer cancel()
+		if err := deleteResources(cleanupCtx); err != nil {
+			t.Errorf("failed to remove status freeze %q: %v", name, err)
+			return
+		}
+		if err := waitForDeletion(cleanupCtx); err != nil {
+			t.Errorf("status freeze %q was not removed: %v", name, err)
+		}
+	})
+
+	if err := tc.Client().Create(tc.Context(), policy); err != nil {
+		t.Fatalf("failed to create status freeze policy %q: %v", name, err)
+	}
+	if err := tc.Client().Create(tc.Context(), binding); err != nil {
+		t.Fatalf("failed to create status freeze binding %q: %v", name, err)
+	}
 }
 
 // Logf logs a formatted message to the test output.
@@ -948,21 +1153,51 @@ func (tc *TestContext) EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(n
 // This function is idempotent and works regardless of how the operator was initially installed.
 func (tc *TestContext) EnsureOperatorHealthy(nn types.NamespacedName, channel string, targetNamespaces []string) {
 	// Quick health check - if already healthy, we're done
-	if tc.isOperatorHealthy(nn) {
+	if tc.isOperatorHealthy(nn, false) {
 		return
 	}
 
 	// Not healthy - ensure installation
-	tc.ensureOperatorInstalled(nn, channel, targetNamespaces)
+	tc.ensureOperatorInstalled(nn, channel, targetNamespaces, false)
 
 	// Wait for the operator to become healthy
 	tc.ensureCSVSucceeded(nn)
 }
 
+// ensureOperatorHealthyViaSubscription is like EnsureOperatorHealthy but requires a Subscription —
+// a ready ClusterExtension alone is not accepted as healthy. targetNamespaces is the
+// OperatorGroup scope to enforce (nil means AllNamespaces). Use this whenever OLMv0 is
+// explicitly forced, so a ClusterExtension left from an earlier install cannot hide a missing Subscription.
+func (tc *TestContext) ensureOperatorHealthyViaSubscription(nn types.NamespacedName, channel string, targetNamespaces []string) {
+	tc.ensureOperatorHealthyViaSubscriptionWithScope(nn, channel, targetNamespaces, true)
+}
+
+func (tc *TestContext) ensureOperatorHealthyViaSubscriptionWithScope(
+	nn types.NamespacedName,
+	channel string,
+	targetNamespaces []string,
+	correctTargetNamespaces bool,
+) {
+	// Apply the OperatorGroup scope policy before a healthy Subscription can short-circuit this path.
+	tc.ensureOperatorNamespaceExists(nn.Namespace)
+	tc.ensureOperatorGroupExists(nn, targetNamespaces, correctTargetNamespaces)
+
+	if tc.isOperatorHealthy(nn, true) {
+		return
+	}
+	tc.ensureOperatorInstalled(nn, channel, targetNamespaces, correctTargetNamespaces)
+	tc.ensureCSVSucceeded(nn)
+}
+
 // isOperatorHealthy checks if operator CSV is in Succeeded phase.
-func (tc *TestContext) isOperatorHealthy(nn types.NamespacedName) bool {
+// When requireSubscription is true, a ready ClusterExtension alone is not considered healthy;
+// a Subscription must exist and its CSV must have reached the Succeeded phase.
+func (tc *TestContext) isOperatorHealthy(nn types.NamespacedName, requireSubscription bool) bool {
 	sub, err := tc.FetchActualSubscription(nn)
 	if err != nil || sub == nil {
+		if requireSubscription {
+			return false
+		}
 		ready, ceErr := tc.isClusterExtensionReady(nn.Name)
 		if ceErr != nil {
 			tc.Logf("isOperatorHealthy: ClusterExtension check failed for %s: %v", nn.Name, ceErr)
@@ -1044,27 +1279,49 @@ func clusterExtensionInstalledAndCurrent(obj *unstructured.Unstructured) bool {
 }
 
 // ensureOperatorInstalled performs operator installation, handling pre-existing resources.
-func (tc *TestContext) ensureOperatorInstalled(nn types.NamespacedName, channel string, targetNamespaces []string) {
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: nn.Namespace}),
-		WithCustomErrorMsg("Failed to create namespace '%s'", nn.Namespace),
-	)
+func (tc *TestContext) ensureOperatorInstalled(nn types.NamespacedName, channel string, targetNamespaces []string, correctTargetNamespaces bool) {
+	tc.ensureOperatorNamespaceExists(nn.Namespace)
 
-	tc.ensureOperatorGroupExists(nn, targetNamespaces)
+	tc.ensureOperatorGroupExists(nn, targetNamespaces, correctTargetNamespaces)
 	tc.ensureInstallPlan(nn, channel)
 }
 
-// ensureOperatorGroupExists reuses existing OperatorGroups or creates one.
-func (tc *TestContext) ensureOperatorGroupExists(nn types.NamespacedName, targetNamespaces []string) {
+func (tc *TestContext) ensureOperatorNamespaceExists(namespace string) {
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: namespace}),
+		WithCustomErrorMsg("Failed to create namespace '%s'", namespace),
+	)
+}
+
+// ensureOperatorGroupExists reuses a matching OperatorGroup or creates one. It only
+// corrects an existing group's scope when correctTargetNamespaces is true.
+func (tc *TestContext) ensureOperatorGroupExists(nn types.NamespacedName, targetNamespaces []string, correctTargetNamespaces bool) {
 	existingOG := tc.fetchOperatorGroupInNamespace(nn.Namespace)
 	if existingOG != nil {
-		return // Reuse existing OperatorGroup
+		// AllNamespaces scope requires both TargetNamespaces and Selector to be absent.
+		scopeMatches := slices.Equal(existingOG.Spec.TargetNamespaces, targetNamespaces) &&
+			(len(targetNamespaces) != 0 || existingOG.Spec.Selector == nil)
+		if scopeMatches || !correctTargetNamespaces {
+			return // Preserve an existing group unless scope correction was requested.
+		}
 	}
 
-	resourceID := resources.FormatNamespacedName(nn)
+	operatorGroupNN := nn
+	if existingOG != nil {
+		operatorGroupNN.Name = existingOG.Name
+	}
+	resourceID := resources.FormatNamespacedName(operatorGroupNN)
 
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(tc.createOperatorGroup(nn, targetNamespaces)),
+		WithObjectToCreate(tc.createOperatorGroup(operatorGroupNN, targetNamespaces)),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			if len(targetNamespaces) == 0 {
+				unstructured.RemoveNestedField(obj.Object, "spec", "targetNamespaces")
+				unstructured.RemoveNestedField(obj.Object, "spec", "selector")
+				return nil
+			}
+			return unstructured.SetNestedStringSlice(obj.Object, targetNamespaces, "spec", "targetNamespaces")
+		}),
 		WithCustomErrorMsg("Failed to create operator group '%s'", resourceID),
 	)
 }
@@ -1172,6 +1429,11 @@ func (tc *TestContext) EnsureOperatorInstalledViaClusterExtension(nn types.Names
 
 	// If ClusterExtension CRD doesn't exist, OLMv1 is not available — fall back to OLMv0
 	if meta.IsNoMatchError(err) {
+		if tc.ForceOLMVersion == "v1" {
+			tc.g.Expect(err).NotTo(HaveOccurred(),
+				"--force-olm-version=v1 requires OLMv1 support but ClusterExtension CRD is not available on this cluster")
+			return
+		}
 		tc.Logf("OLMv1 not available on this cluster; falling back to OLMv0 for %s", nn.Name)
 		// Use global OperatorGroup for OLMv0 fallback since operators like Kueue require AllNamespaces mode
 		tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(nn, channel)
@@ -2545,4 +2807,72 @@ func getComponentNameFromKind(kind string) (string, string) {
 	}
 
 	return componentFieldName, conditionKind
+}
+
+func TestBuildStatusFreezeResources(t *testing.T) {
+	target := schema.GroupVersionKind{
+		Group:   "kueue.openshift.io",
+		Version: "v1",
+		Kind:    "Kueue",
+	}
+	writer := ServiceAccountRef{Namespace: "operators", Name: "kueue-controller"}
+	policy, binding := buildStatusFreezeResources(
+		target,
+		"kueues",
+		writer,
+		"base-freeze-name",
+		WithFrozenResourceName("cluster"),
+		WithFreezeName("custom-freeze-name"),
+	)
+
+	if got, want := writer.Username(), "system:serviceaccount:operators:kueue-controller"; got != want {
+		t.Fatalf("unexpected service account username: got %q, want %q", got, want)
+	}
+	if policy.Name != "custom-freeze-name" || binding.Name != policy.Name {
+		t.Fatalf("freeze resources should share the configured name: policy=%q binding=%q", policy.Name, binding.Name)
+	}
+	if policy.Spec.FailurePolicy == nil || *policy.Spec.FailurePolicy != admissionregistrationv1.Fail {
+		t.Fatalf("freeze policy should fail closed, got failurePolicy=%v", policy.Spec.FailurePolicy)
+	}
+	if policy.Spec.MatchConstraints == nil || len(policy.Spec.MatchConstraints.ResourceRules) != 1 {
+		t.Fatalf("freeze policy should contain one resource rule, got %#v", policy.Spec.MatchConstraints)
+	}
+	rule := policy.Spec.MatchConstraints.ResourceRules[0]
+	if !slices.Equal(rule.APIGroups, []string{target.Group}) || !slices.Equal(rule.APIVersions, []string{target.Version}) {
+		t.Fatalf("freeze policy targets unexpected API group/version: %#v", rule)
+	}
+	if !slices.Equal(rule.Resources, []string{"kueues", "kueues/status"}) || !slices.Equal(rule.Operations, []admissionregistrationv1.OperationType{admissionregistrationv1.Update}) {
+		t.Fatalf("freeze policy targets unexpected resources/operations: %#v", rule)
+	}
+	if len(policy.Spec.MatchConditions) != 2 {
+		t.Fatalf("freeze policy should constrain writer and resource name, got %#v", policy.Spec.MatchConditions)
+	}
+	if got, want := policy.Spec.MatchConditions[0].Expression, `request.userInfo.username == "system:serviceaccount:operators:kueue-controller"`; got != want {
+		t.Fatalf("unexpected writer match condition: got %q, want %q", got, want)
+	}
+	if got, want := policy.Spec.MatchConditions[1].Expression, `request.name == "cluster"`; got != want {
+		t.Fatalf("unexpected resource-name match condition: got %q, want %q", got, want)
+	}
+	if len(policy.Spec.Validations) != 1 || policy.Spec.Validations[0].Expression != "false" || policy.Spec.Validations[0].Message == "" {
+		t.Fatalf("freeze policy should deny matching writes with an explicit message, got %#v", policy.Spec.Validations)
+	}
+	if binding.Spec.PolicyName != policy.Name || !slices.Equal(binding.Spec.ValidationActions, []admissionregistrationv1.ValidationAction{admissionregistrationv1.Deny}) {
+		t.Fatalf("freeze binding should deny through its policy, got %#v", binding.Spec)
+	}
+}
+
+func TestBuildStatusFreezeResourcesDoesNotConstrainResourceNameByDefault(t *testing.T) {
+	policy, _ := buildStatusFreezeResources(
+		schema.GroupVersionKind{Group: "example.io", Version: "v1", Kind: "Widget"},
+		"widgets",
+		ServiceAccountRef{Namespace: "operators", Name: "widget-controller"},
+		"default-freeze-name",
+	)
+
+	if policy.Name != "default-freeze-name" {
+		t.Fatalf("expected default name to be retained, got %q", policy.Name)
+	}
+	if len(policy.Spec.MatchConditions) != 1 || policy.Spec.MatchConditions[0].Name != "only-writer-service-account" {
+		t.Fatalf("expected only the writer condition by default, got %#v", policy.Spec.MatchConditions)
+	}
 }
