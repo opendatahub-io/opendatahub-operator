@@ -626,6 +626,8 @@ func TestGetOperatorManifests_InjectsMonitoringNamespace(t *testing.T) {
 	g.Expect(vals["operatorNamespace"]).Should(Equal("redhat-ods-applications"))
 	g.Expect(vals["monitoringNamespace"]).Should(Equal("redhat-ods-monitoring"))
 	g.Expect(vals["otelOperatorNamespace"]).Should(Equal("openshift-operators"))
+	g.Expect(vals).ShouldNot(HaveKey("metrics"),
+		"ServiceMonitor must stay at chart default until the RHOBS CRD is available")
 }
 
 func TestGetOperatorManifests_OmitsEmptyMonitoringNamespace(t *testing.T) {
@@ -644,4 +646,26 @@ func TestGetOperatorManifests_OmitsEmptyMonitoringNamespace(t *testing.T) {
 	g.Expect(vals["operatorNamespace"]).Should(Equal("opendatahub"))
 	g.Expect(vals).ShouldNot(HaveKey("monitoringNamespace"))
 	g.Expect(vals["otelOperatorNamespace"]).Should(Equal(""))
+}
+
+func TestGetOperatorManifests_EnablesMetricsServiceMonitorWhenCRDAvailable(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	platform := &modules.PlatformContext{
+		ApplicationsNamespace:        "opendatahub",
+		ChartsBasePath:               "/opt/charts",
+		MetricsServiceMonitorEnabled: true,
+	}
+
+	manifests := h.GetOperatorManifests(platform)
+	g.Expect(manifests.HelmCharts).Should(HaveLen(1))
+
+	vals, err := manifests.HelmCharts[0].Values(context.Background())
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	metrics, ok := vals["metrics"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "metrics values missing")
+	serviceMonitor, ok := metrics["serviceMonitor"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "metrics.serviceMonitor values missing")
+	g.Expect(serviceMonitor["enabled"]).Should(BeTrue())
 }
