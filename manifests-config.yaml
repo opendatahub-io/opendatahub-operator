@@ -1379,6 +1379,9 @@ imageOverrides:
       digest: "sha256:80760d9fc13a72107b078629432e3ab05ebbfad52435ffa95f3d2c05a27b41bc"
   RELATED_IMAGE_ODH_DB_OPERATOR_IMAGE:
     source: "csv"
+    odh:
+      base: "quay.io/opendatahub/odh-db-operator"
+      digest: "sha256:a4f209303464d49b1848d364117285f91ea7bc5da1853ced986802069024289c"
     rhoai:
       base: "quay.io/rhoai/odh-db-operator-rhel9"
       digest: "sha256:5a3d5c9263477f106ad1164874038ee363830bc2aa3df0644c50b022fee07f3c"
