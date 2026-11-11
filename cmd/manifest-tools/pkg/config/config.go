@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -61,11 +62,19 @@ type ImageOverride struct {
 }
 
 type PlatformImage struct {
-	Base    string `yaml:"base,omitempty"`
-	Digest  string `yaml:"digest,omitempty"`
-	Pinned  bool   `yaml:"pinned,omitempty"`
-	SHAFrom string `yaml:"shaFrom,omitempty"`
+	Base               string `yaml:"base,omitempty"`
+	Digest             string `yaml:"digest,omitempty"`
+	Pinned             bool   `yaml:"pinned,omitempty"`
+	SHAFrom            string `yaml:"shaFrom,omitempty"`
+	Fallback           string `yaml:"fallback,omitempty"`
+	ExpectedRevision   string `yaml:"expectedRevision,omitempty"`
+	SourceRevisionPath string `yaml:"sourceRevisionPath,omitempty"`
 }
+
+const (
+	FallbackCSV               = "csv"
+	ExpectedRevisionComponent = "component"
+)
 
 var DigestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
 
@@ -224,6 +233,55 @@ func (c *ManifestsConfig) CheckImageOverride(envName string, override ImageOverr
 	}
 	if override.ParamsEnvKey != "" && override.Component == "" {
 		return fmt.Errorf("imageOverrides.%s.paramsEnvKey: requires component", envName)
+	}
+	for _, platform := range []string{"odh", "rhoai"} {
+		if err := checkPlatformImage(envName, platform, override, override.PlatformImage(platform)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func checkPlatformImage(envName, platform string, override ImageOverride, image *PlatformImage) error {
+	if image == nil {
+		return nil
+	}
+	prefix := fmt.Sprintf("imageOverrides.%s.%s", envName, platform)
+	if image.Fallback != "" && image.Fallback != FallbackCSV {
+		return fmt.Errorf("%s.fallback: %q is not %q", prefix, image.Fallback, FallbackCSV)
+	}
+	if image.Fallback != "" && override.TagTemplate == "" {
+		return fmt.Errorf("%s.fallback: requires tagTemplate", prefix)
+	}
+	if image.ExpectedRevision != "" && image.ExpectedRevision != ExpectedRevisionComponent {
+		return fmt.Errorf("%s.expectedRevision: %q is not %q", prefix, image.ExpectedRevision, ExpectedRevisionComponent)
+	}
+	if (image.ExpectedRevision != "" || image.SourceRevisionPath != "") && override.Component == "" {
+		return fmt.Errorf("%s: revision provenance requires component", prefix)
+	}
+	if image.ExpectedRevision != "" && image.SourceRevisionPath != "" {
+		return fmt.Errorf("%s: expectedRevision and sourceRevisionPath are mutually exclusive", prefix)
+	}
+	if image.SourceRevisionPath != "" {
+		clean := filepath.Clean(image.SourceRevisionPath)
+		if filepath.IsAbs(image.SourceRevisionPath) || clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("%s.sourceRevisionPath: %q must be a relative repository path", prefix, image.SourceRevisionPath)
+		}
+	}
+	if override.Source == "csv" && image.Fallback != "" {
+		return fmt.Errorf("%s.fallback: source: csv already selects CSV", prefix)
+	}
+	if image.Pinned && (image.Fallback != "" || image.SHAFrom != "" || image.ExpectedRevision != "" || image.SourceRevisionPath != "") {
+		return fmt.Errorf("%s: pinned cannot be combined with fallback, shaFrom, or revision provenance", prefix)
+	}
+	if image.SHAFrom != "" && (image.Fallback != "" || image.ExpectedRevision != "" || image.SourceRevisionPath != "") {
+		return fmt.Errorf("%s: shaFrom cannot be combined with fallback or revision provenance", prefix)
+	}
+	if image.SHAFrom == platform {
+		return fmt.Errorf("%s.shaFrom: cannot reference its own platform", prefix)
+	}
+	if image.SHAFrom != "" && image.SHAFrom != "odh" && image.SHAFrom != "rhoai" {
+		return fmt.Errorf("%s.shaFrom: %q must be odh or rhoai", prefix, image.SHAFrom)
 	}
 	return nil
 }

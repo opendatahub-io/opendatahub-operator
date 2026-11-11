@@ -22,6 +22,7 @@ func NewRootCommand() *cobra.Command {
 
 	cmd.AddCommand(
 		newResolveCommand(opts),
+		newValidateProvenanceCommand(opts),
 		newApplyOLMCommand(opts),
 		newApplyDeployCommand(opts),
 		newDownloadCommand(opts),

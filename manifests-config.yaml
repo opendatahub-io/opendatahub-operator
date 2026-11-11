@@ -10,6 +10,9 @@
 #   tagTemplate:  must contain {SHA} and/or {SHORT_SHA}; prefixes and suffixes are allowed (quote the value)
 #   odh.digest / rhoai.digest: pinned image digest (sha256:...)
 #   odh.pinned / rhoai.pinned: true to prevent resolve-image-digests from updating (add comment with reason)
+#   odh.fallback / rhoai.fallback: explicit fallback source; only "csv" is supported
+#   odh.expectedRevision / rhoai.expectedRevision: "component" validates the OCI revision label against the component SHA
+#   odh.sourceRevisionPath / rhoai.sourceRevisionPath: optional repository metadata file whose revision must match the image
 #   rhoai.shaFrom: resolve SHA from a different platform's manifest (e.g. "odh")
 #
 # Run 'make resolve-image-digests' to populate empty digest fields.
@@ -29,7 +32,7 @@ components:
       sourcePath: kserve-module/config
     rhoai:
       repo: red-hat-data-services/kserve
-      ref: rhoai-3.6@71b7da36a3f8a5684a3f78fa2481dbf1cc11a1c8
+      ref: rhoai-3.6@b11561be64ba52fba408eb1e742ff9e1ba0a7457
       sourcePath: kserve-module/config
   ray:
     odh:
@@ -215,7 +218,7 @@ platformManifests:
 #   component:    which component's SHA to use for tagTemplate (matches key in components/ccmCharts/componentCharts)
 #   paramsEnvKey: (optional) params.env key for Go runtime
 #   tagTemplate:  (optional) must contain {SHA} and/or {SHORT_SHA}; prefixes and suffixes are allowed (quote the value)
-#   odh/rhoai:    per-platform base image, digest, and optional shaFrom
+#   odh/rhoai:    per-platform image, fallback, and revision provenance policy
 imageOverrides:
   RELATED_IMAGE_KORREL8R_IMAGE:
     source: "csv"
@@ -232,6 +235,7 @@ imageOverrides:
       base: "quay.io/opendatahub/kserve-controller"
       digest: "sha256:14e679a6b0594b4a8a48af5ff0d03316ffee54a3d6e41d9cd680195d1c8dce2d"
     rhoai:
+      fallback: csv
       base: "quay.io/rhoai/odh-kserve-controller-rhel9"
       digest: "sha256:0632332a4092a59d6bbe3101aa91e749c63641ae146f407cfc8d0ff9654bc4e9"
   RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE:
@@ -241,6 +245,7 @@ imageOverrides:
       base: "quay.io/opendatahub/odh-kserve-llmisvc-controller"
       digest: "sha256:546723b4743206d5409415b75ead8c835fd69baf4428351cb8ade6f72bca8fbb"
     rhoai:
+      fallback: csv
       base: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9"
       digest: "sha256:24fd5f1a81b937dbb715c3802620d65c2cd62edad6177ebbd3e413fc07fa7545"
   RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE:
@@ -250,6 +255,7 @@ imageOverrides:
       base: "quay.io/opendatahub/odh-kserve-localmodel-controller"
       digest: "sha256:b5a47fbced0c490445eb6c8f288972b526dd6dbbaacd01a7c9d6cf830240d372"
     rhoai:
+      fallback: csv
       base: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9"
       digest: "sha256:2738f073c52ece0ebc9980ec7fa27899d235f4e116e96bc385da346781df9875"
   RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE:
@@ -257,10 +263,13 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-kserve-module-operator"
-      digest: "sha256:d35e4f5d35e0f5dee46955bbc8931aed25b3cc34944383a8e0d17a6a4553a01e"
+      digest: "sha256:4715db9b4a57d9446c100a7a52927fb57e776d076a2775ff1d7b0dc9a686b895"
+      expectedRevision: component
     rhoai:
+      fallback: csv
       base: "quay.io/rhoai/odh-kserve-module-operator-rhel9"
-      digest: "sha256:bc4d3c03dda0368b6fd162b3502683f242df1617ccd71c3baed725761c815700"
+      digest: "sha256:21c2eac08953a569ab8ccd6387fc15bdc1e44ee20d675b718d986a5fa8514347"
+      expectedRevision: component
   RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE:
     component: ray
     paramsEnvKey: odh-kuberay-operator-controller-image
@@ -269,6 +278,7 @@ imageOverrides:
       base: "quay.io/opendatahub/kuberay-operator"
       digest: "sha256:1f879fe61784b89f82e66217cb4c0de0d43c20364d1b45f6f4f767830cfbb77c"
     rhoai:
+      fallback: csv
       base: quay.io/rhoai/odh-kuberay-operator-controller-rhel9
       digest: "sha256:6fc83a632f69612bac0f9f8d4d19db6c072146d1a0709e155c5ebc38047577a6"
   RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE:
@@ -278,6 +288,7 @@ imageOverrides:
       base: "quay.io/opendatahub/trustyai-service-operator"
       digest: "sha256:73d0d76271a348679a9bb404c55cb66af41e15c1b13d7dcbb36d681e72e14322"
     rhoai:
+      fallback: csv
       base: "quay.io/rhoai/odh-trustyai-service-operator-rhel9"
       digest: "sha256:e2eee17fe008259b8219a7f39eefd6ae7b472d51e6f20e26e190ac07f27c27ce"
   RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE:
@@ -288,6 +299,7 @@ imageOverrides:
       base: "quay.io/opendatahub/model-registry-operator"
       digest: "sha256:424ec1d8b0906473e29c78d8da5fd9062017ac19654769fa40177ce077299d99"
     rhoai:
+      fallback: csv
       base: "quay.io/rhoai/odh-model-registry-operator-rhel9"
       digest: "sha256:4123c53570d520a59821837ebd24581c12248aa2103becdf1bd4d132ad0cef82"
   RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE:
@@ -309,15 +321,18 @@ imageOverrides:
       base: "quay.io/opendatahub/odh-ogx-k8s-operator"
       digest: "sha256:dfef4341c7f705804c699655c244f88414d4367ae71330dd96ac6279005ff453"
     rhoai:
+      fallback: csv
       base: "quay.io/rhoai/odh-ogx-k8s-operator-rhel9"
       digest: "sha256:03d4670721a4c47ecbf986c3d3bc6100e0d2e43bc5fdb73fc89c21c5157fe4e0"
   RELATED_IMAGE_ODH_TRAINER_IMAGE:
     component: trainer
     tagTemplate: "{SHA}"
     odh:
+      fallback: csv
       base: "quay.io/opendatahub/trainer"
       digest: "sha256:3cd1416eeeb6dfab44d5092072dd4dcd7cec1b91160eacffb2354617d7aa1943"
     rhoai:
+      fallback: csv
       base: "quay.io/rhoai/odh-trainer-rhel9"
       digest: "sha256:2e5b25b60d46da5efa28de68a26e5ab4cad0944bade65c8963c4612421e4dc26"
   RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE:
@@ -327,6 +342,7 @@ imageOverrides:
       base: "quay.io/opendatahub/mlflow-operator"
       digest: "sha256:c36110acdbff1baafa48a5dac7395ba4af5e31d2e09be6d4901b54bae34a8b80"
     rhoai:
+      fallback: csv
       base: "quay.io/rhoai/odh-mlflow-operator-rhel9"
       digest: "sha256:21baad05dacdaffc79977af2cf46daf123f5d1eb48da455943d9ae6fb3d1230f"
   RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE:
@@ -336,6 +352,7 @@ imageOverrides:
       base: "quay.io/opendatahub/spark-operator"
       digest: "sha256:980cef82e1407bf726b3a0235ef82a384e1b42c211059dc419c7f5056b1a2297"
     rhoai:
+      fallback: csv
       base: "quay.io/rhoai/odh-spark-operator-rhel9"
       digest: "sha256:f938e854da61b751eb8079d7d143d5c70c73908cce15cf316d357766529c44ba"
   RELATED_IMAGE_ODH_AI_GATEWAY_OPERATOR_IMAGE:
@@ -345,6 +362,7 @@ imageOverrides:
       base: "quay.io/opendatahub/odh-ai-gateway-operator"
       digest: "sha256:01794b566eece42b17df2680aa08fa965dc09cc5e3e34c96a4c6095f92776994"
     rhoai:
+      fallback: csv
       base: "quay.io/rhoai/odh-ai-gateway-operator-rhel9"
       digest: "sha256:a73f2a20432c535f62193f432be82bf511f3fcf8865915034ec93c6c9c19645d"
   RELATED_IMAGE_ODH_MCP_LIFECYCLE_MODULE_OPERATOR_IMAGE:
@@ -354,15 +372,18 @@ imageOverrides:
       base: "quay.io/opendatahub/odh-mcp-lifecycle-module-operator"
       digest: "sha256:c855a7ceb02f2f05c0ed8f632a75b121b9a4cf5630921fddc6d3aa395bf3f730"
     rhoai:
+      fallback: csv
       base: "quay.io/rhoai/odh-mcp-lifecycle-module-operator-rhel9"
       digest: "sha256:1d049006023e24336d5390740b9e1733f0ba74b38757d35bba4c0c78cdc9f6ed"
   RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE:
     component: dashboard-operator
     tagTemplate: "{SHA}"
     odh:
+      fallback: csv
       base: "quay.io/opendatahub/odh-dashboard-operator"
       digest: "sha256:4d7971d59e4749fd8981357066e18298361384fc4490487287d6044d4b62fd74"
     rhoai:
+      fallback: csv
       base: "quay.io/rhoai/odh-dashboard-operator-rhel9"
       digest: "sha256:f962659fac4d6bc07860b7e28ddea54294f34c591d501b881d5b78eac2a5cd14"
   RELATED_IMAGE_ODH_DASHBOARD_IMAGE:
@@ -372,6 +393,7 @@ imageOverrides:
       base: "quay.io/opendatahub/odh-dashboard"
       digest: "sha256:ca95b3832d0e9916442fad050ca44c2d933985d6d240910eba7d7d674b90f6e9"
     rhoai:
+      fallback: csv
       base: "quay.io/rhoai/odh-dashboard-rhel9"
       digest: "sha256:8a9aecccedb0c2fc63f88598f6eb73f910478f4b28e865a656007dde1a79c328"
   RELATED_IMAGE_ODH_WORKBENCHES_OPERATOR_IMAGE:
@@ -381,6 +403,7 @@ imageOverrides:
       base: "quay.io/opendatahub/odh-workbenches-operator"
       digest: "sha256:5f654984220f3d187163c6d2998f820981c9d5f4e9ca3a5ee008de693f0fd973"
     rhoai:
+      fallback: csv
       base: "quay.io/rhoai/odh-workbenches-operator-rhel9"
       digest: "sha256:7bff68f9414ccf8401d4ef99c20b407d1d8aac2a6847c093d58af78c4d36df45"
   RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE:
@@ -390,6 +413,7 @@ imageOverrides:
       base: "quay.io/opendatahub/odh-feast-module-operator"
       digest: "sha256:7e7b2128ebd132369a81f9e2d206e318e223fa4fcdd3d23b749966898b4cca38"
     rhoai:
+      fallback: csv
       base: "quay.io/rhoai/odh-feast-module-operator-rhel9"
       digest: "sha256:c92168cc5601d1cf9a58af230d07ef08e6609a242c9dd80e97f219d730ad9351"
   RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_IMAGE:
@@ -407,9 +431,11 @@ imageOverrides:
     odh:
       base: "quay.io/opendatahub/odh-model-controller"
       digest: "sha256:94f7f4383ef91d10d60d82c0858a60158a02915fdd3000d507210139faaac775"
+      sourceRevisionPath: kserve-module/prefetched-manifests-odh/modelcontroller/.source.yaml
     rhoai:
       base: "quay.io/rhoai/odh-model-controller-rhel9"
       digest: "sha256:defc9638441b6c3f27ed4d49b19e56939c648804f5656df26ddefb7fe7ebb75e"
+      sourceRevisionPath: kserve-module/prefetched-manifests-rhoai/modelcontroller/.source.yaml
   RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE:
     source: "csv"
     component: data

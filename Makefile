@@ -378,6 +378,10 @@ validate-related-images: yq ## Validate RELATED_IMAGE_* names against build conf
 resolve-image-digests: ## Resolve image digests from Build-Config and update manifests-config.yaml
 	go run -C ./cmd/manifest-tools main.go resolve-digests --config $(CURDIR)/manifests-config.yaml --related-images-config $(CURDIR)/component-params-env.yaml --manifests-dir $(CURDIR)/opt/manifests
 
+.PHONY: validate-image-provenance
+validate-image-provenance: ## Validate pinned image revisions against component and vendored-source revisions
+	go run -C ./cmd/manifest-tools main.go validate-provenance --config $(CURDIR)/manifests-config.yaml
+
 .PHONY: update-refs-shas
 update-refs-shas: ## Update branch@sha refs to latest commit SHAs from GitHub (requires GITHUB_TOKEN)
 	go run -C ./cmd/manifest-tools main.go update-refs shas --config $(CURDIR)/manifests-config.yaml

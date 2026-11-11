@@ -46,6 +46,8 @@ jobs:
 
       - name: Resolve image digests
         if: steps.update-shas.outputs.updates-needed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: make resolve-image-digests
 
       - name: Create Pull Request

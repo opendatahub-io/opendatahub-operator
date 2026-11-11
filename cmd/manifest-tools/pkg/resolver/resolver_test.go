@@ -105,7 +105,7 @@ imageOverrides:
 	}
 }
 
-func TestResolve_ClonedCommitImageNotFound_FallsBackToCSV(t *testing.T) {
+func TestResolve_CommitImageRevisionMismatch_UsesExplicitCSVFallback(t *testing.T) {
 	dir := t.TempDir()
 	configFile := filepath.Join(dir, "manifests-config.yaml")
 	manifestsDir := filepath.Join(dir, "manifests")
@@ -122,14 +122,15 @@ components:
   test-component:
     odh:
       repo: "test-org/test-repo"
-      ref: "main@abc123def456"
+      ref: "main@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       sourcePath: "config"
 imageOverrides:
   RELATED_IMAGE_TEST:
     component: "test-component"
+    tagTemplate: "v{SHA}"
     odh:
       base: "quay.io/test/image"
-      tagTemplate: "v{SHA}"
+      fallback: csv
 `
 	if err := os.WriteFile(configFile, []byte(content), 0644); err != nil {
 		t.Fatal(err)
@@ -142,12 +143,77 @@ imageOverrides:
 	}
 
 	_, err := resolver.Resolve(t.Context(), resolver.Options{
-		ConfigFile:     configFile,
-		ManifestsDir:   manifestsDir,
+		ConfigFile:   configFile,
+		ManifestsDir: manifestsDir,
+		ResolveRegistryImage: func(context.Context, string) (resolver.RegistryImage, error) {
+			return resolver.RegistryImage{
+				Digest:   "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+				Revision: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			}, nil
+		},
 		FetchCSVImages: fakeFetch,
 	})
 	if err != nil {
-		t.Errorf("expected CSV fallback to succeed when SHA image not found, got error: %v", err)
+		t.Fatalf("expected CSV fallback after revision mismatch, got error: %v", err)
+	}
+	cfg, err := config.Load(configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	image := cfg.ImageOverrides["RELATED_IMAGE_TEST"].ODH
+	if image.Base != "quay.io/bundle/image" || image.Digest != "sha256:0000000000000000000000000000000000000000000000000000000000000000" {
+		t.Fatalf("explicit CSV fallback was not selected: %#v", image)
+	}
+}
+
+func TestResolve_ClonedCommitImageNotFound_RejectsImplicitCSVFallback(t *testing.T) {
+	dir := t.TempDir()
+	configFile := filepath.Join(dir, "manifests-config.yaml")
+	original := `buildConfig:
+  odh:
+    repo: opendatahub-io/ODH-Build-Config
+    ref: main@1111111111111111111111111111111111111111
+  rhoai:
+    repo: red-hat-data-services/RHOAI-Build-Config
+    ref: rhoai-3.6@2222222222222222222222222222222222222222
+components:
+  test-component:
+    odh:
+      repo: test-org/test-repo
+      ref: main@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      sourcePath: config
+imageOverrides:
+  RELATED_IMAGE_TEST:
+    component: test-component
+    tagTemplate: "{SHA}"
+    odh:
+      base: quay.io/test/image
+`
+	if err := os.WriteFile(configFile, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fetch := func(context.Context, config.BuildConfigRepo) (map[string]resolver.CSVImage, error) {
+		return map[string]resolver.CSVImage{
+			"RELATED_IMAGE_TEST": {Base: "quay.io/test/from-csv", Digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+		}, nil
+	}
+
+	_, err := resolver.Resolve(t.Context(), resolver.Options{
+		ConfigFile: configFile,
+		ResolveRegistryImage: func(context.Context, string) (resolver.RegistryImage, error) {
+			return resolver.RegistryImage{}, os.ErrNotExist
+		},
+		FetchCSVImages: fetch,
+	})
+	if err == nil || !strings.Contains(err.Error(), "no permitted fallback") {
+		t.Fatalf("Resolve() error = %v, want strict fallback error", err)
+	}
+	got, readErr := os.ReadFile(configFile)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(got) != original {
+		t.Error("Resolve wrote manifests-config.yaml after strict fallback error")
 	}
 }
 
@@ -185,8 +251,10 @@ imageOverrides:
   RELATED_IMAGE_TEST:
     component: test-component
     paramsEnvKey: TEST_IMAGE
+    tagTemplate: "{SHA}"
     odh: {}
-    rhoai: {}
+    rhoai:
+      fallback: csv
   RELATED_IMAGE_CSV:
     source: csv
     odh: {}
