@@ -40,6 +40,7 @@ func NewHandler() *handler {
 				CRName:            crName,
 				ReleaseName:       "opendatahub-feast-operator",
 				ChartDir:          chartDir,
+				DeploymentName:    "opendatahub-feast-operator",
 				NamespaceValueKey: "namespace",
 				ControllerImage:   "RELATED_IMAGE_ODH_FEAST_MODULE_OPERATOR_IMAGE",
 				InitContainerName: "copy-manifests",

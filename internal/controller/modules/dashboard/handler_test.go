@@ -88,6 +88,11 @@ func TestGetName(t *testing.T) {
 	g.Expect(h.GetName()).Should(Equal(componentApi.DashboardComponentName))
 }
 
+func TestGetDeploymentName(t *testing.T) {
+	g := NewWithT(t)
+	g.Expect(dashboard.NewHandler().GetDeploymentName()).Should(Equal("dashboard-operator"))
+}
+
 func TestGetGVK_UsesPlatformAPIGroup(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()

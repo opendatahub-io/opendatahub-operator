@@ -38,6 +38,7 @@ func NewHandler() *handler {
 				CRName:            crName,
 				ReleaseName:       "dashboard-operator",
 				ChartDir:          "dashboard-operator",
+				DeploymentName:    "dashboard-operator",
 				NamespaceValueKey: "namespace",
 				Values: map[string]any{
 					// Chart defaults namePrefix to "odh-", producing Deployment

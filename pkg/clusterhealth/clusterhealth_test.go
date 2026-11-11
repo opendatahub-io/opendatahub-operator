@@ -576,6 +576,21 @@ func TestDSCIUnhealthyConditions_MonitoringManagementState(t *testing.T) {
 			t.Fatalf("expected managed monitoring conditions to be reported, got %v", got)
 		}
 	})
+
+	t.Run("managed monitoring ignores optional capabilities that are not configured", func(t *testing.T) {
+		obj := map[string]any{"spec": map[string]any{
+			"monitoring": map[string]any{"managementState": "Managed"},
+		}}
+		got := dsciUnhealthyConditionsWithObj(obj, []ConditionSummary{
+			{Type: "MonitoringReady", Status: "True"},
+			{Type: "MonitoringStackAvailable", Status: "False", Message: "Metrics not configured in Monitoring CR"},
+			{Type: "TempoAvailable", Status: "False", Message: "Traces not configured in Monitoring CR"},
+			{Type: "PersesAvailable", Status: "False", Message: "Perses requires metrics.storage or traces.storage to be configured"},
+		})
+		if len(got) != 0 {
+			t.Fatalf("expected unconfigured optional monitoring capabilities to be ignored, got %v", got)
+		}
+	})
 }
 
 func TestRun_DSCISection_ProgressingIgnored(t *testing.T) {

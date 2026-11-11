@@ -128,6 +128,9 @@ func dsciUnhealthyConditions(conditions []ConditionSummary, monitoringManaged bo
 		if !monitoringManaged && isDSCIMonitoringCondition(conditionType) {
 			continue
 		}
+		if isDSCIOptionalMonitoringCondition(conditionType) && conditionMessageIndicatesNotConfigured(cond.Message) {
+			continue
+		}
 		switch conditionType {
 		case "Progressing", "Upgradeable":
 			continue
@@ -142,6 +145,30 @@ func dsciUnhealthyConditions(conditions []ConditionSummary, monitoringManaged bo
 		}
 	}
 	return out
+}
+
+func conditionMessageIndicatesNotConfigured(message string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(message))
+	return strings.Contains(normalized, "not configured") ||
+		(strings.Contains(normalized, "requires") && strings.Contains(normalized, "configured"))
+}
+
+func isDSCIOptionalMonitoringCondition(conditionType string) bool {
+	switch conditionType {
+	case "MonitoringStackAvailable",
+		"ThanosQuerierAvailable",
+		"OpenTelemetryCollectorAvailable",
+		"TempoAvailable",
+		"PersesAvailable",
+		"AlertingAvailable",
+		"NodeMetricsEndpointAvailable",
+		"LokiStackAvailable",
+		"ClusterLogForwarderAvailable",
+		"UsageLogsCollectorAvailable":
+		return true
+	default:
+		return false
+	}
 }
 
 func isDSCIMonitoringCondition(conditionType string) bool {

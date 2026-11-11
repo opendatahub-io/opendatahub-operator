@@ -308,6 +308,14 @@ func dagOrderingTestSuite(t *testing.T) {
 		return
 	}
 
+	// The default combined flow leaves these resources behind from core, but a
+	// direct e2e-test-dag invocation must be self-contained. Creation is
+	// idempotent, so this safely reuses an existing core baseline when present.
+	t.Log("Ensuring DSCInitialization and DataScienceCluster exist for DAG tests")
+	dscCtx := &DSCTestCtx{TestContext: tc}
+	dscCtx.ValidateDSCICreation(t)
+	dscCtx.ValidateDSCCreation(t)
+
 	ctx.runOpenShiftTestCases(t)
 }
 
