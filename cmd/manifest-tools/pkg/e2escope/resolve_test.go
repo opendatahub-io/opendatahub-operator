@@ -302,27 +302,34 @@ func repoTestRoot(t *testing.T) string {
 	}
 }
 
-// TestResolve_RealConfigClassifiesServiceOnlyTestFilesAsServices uses the
-// real tests/e2e/scripts/e2e-scope-rules.yaml, not a synthetic fixture:
-// gateway and monitoring are only ever registered under services, but
-// their e2e test files match the shared components-list test-file
-// pattern. A regression here would have every such file force the full
-// suite instead of narrowing to the one service it actually belongs to.
-func TestResolve_RealConfigClassifiesServiceOnlyTestFilesAsServices(t *testing.T) {
+// TestResolve_RealConfigClassifiesGatewayTestFileAsService uses the real
+// scope rules to ensure the broad tests/e2e component filename pattern does
+// not misclassify the platform-owned Gateway service suite.
+func TestResolve_RealConfigClassifiesGatewayTestFileAsService(t *testing.T) {
 	root := repoTestRoot(t)
+	result, err := Resolve(context.Background(), Options{
+		RepoRoot:     root,
+		RulesPath:    filepath.Join(root, scoperules.DefaultPath),
+		changedFiles: []string{"tests/e2e/gateway_test.go"},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, result.Components)
+	assert.Equal(t, []string{"gateway"}, result.Services)
+}
 
-	for _, name := range []string{"gateway", "monitoring"} {
-		t.Run(name, func(t *testing.T) {
-			result, err := Resolve(context.Background(), Options{
-				RepoRoot:     root,
-				RulesPath:    filepath.Join(root, scoperules.DefaultPath),
-				changedFiles: []string{"tests/e2e/" + name + "_test.go"},
-			})
-			require.NoError(t, err)
-			assert.Empty(t, result.Components)
-			assert.Equal(t, []string{name}, result.Services)
-		})
-	}
+// TestResolve_RealConfigClassifiesMonitoringTestFileAsModule documents that
+// Monitoring is now a registered production module rather than a platform
+// service suite, including when resolving deletion of the legacy test file.
+func TestResolve_RealConfigClassifiesMonitoringTestFileAsModule(t *testing.T) {
+	root := repoTestRoot(t)
+	result, err := Resolve(context.Background(), Options{
+		RepoRoot:     root,
+		RulesPath:    filepath.Join(root, scoperules.DefaultPath),
+		changedFiles: []string{"tests/e2e/monitoring_test.go"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"monitoring"}, result.Components)
+	assert.Empty(t, result.Services)
 }
 
 const rulesWithDuplicateAlias = `
