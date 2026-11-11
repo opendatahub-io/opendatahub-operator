@@ -185,6 +185,17 @@ func TestExpectsModuleCRDocumentsOnlyException(t *testing.T) {
 	assert.True(t, expectsModuleCR(componentEntry{name: componentApi.KserveComponentName}))
 }
 
+func TestRegisteredModulesDeclareControllerDeploymentName(t *testing.T) {
+	inventory, err := moduleinventory.Builtins()
+	require.NoError(t, err)
+
+	for _, module := range inventory.All() {
+		named, ok := module.Handler.(interface{ GetDeploymentName() string })
+		require.Truef(t, ok, "registered module %s does not expose its controller Deployment name", module.Name)
+		assert.NotEmptyf(t, named.GetDeploymentName(), "registered module %s has an empty controller Deployment name", module.Name)
+	}
+}
+
 func TestDAGInventoryCoversRegisteredProductionModules(t *testing.T) {
 	inventory, err := moduleinventory.Builtins()
 	require.NoError(t, err)

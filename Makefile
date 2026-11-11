@@ -765,7 +765,7 @@ unit-test-e2e-installation: ## Run cluster-free tests for OLM operator installat
 .PHONY: unit-test-e2e-orchestration
 unit-test-e2e-orchestration: ## Cluster-free checks for E2E profiles, DAG attribution, verdict policy, and container runner exit handling.
 	go -C cmd/test-retry test ./pkg/verdict ./pkg/cli
-	go test ./tests/e2e/ -run 'Test(DAGReportStatusExtraction|TentativeModuleAttributionPrecedence|ModuleHealthFromList|ModuleInstallationHealthStages|FirstUnhealthyRunlevelIgnoresBlockedLaterRunlevels|FirstUnhealthyRunlevelRequiresUnambiguousFailure|ExpectsModuleCRDocumentsOnlyException|DAGInventoryCoversRegisteredProductionModules|ApplyTestProfile)$$'
+	go test ./tests/e2e/ -run 'Test(DAGReportStatusExtraction|TentativeModuleAttributionPrecedence|ModuleHealthFromList|ModuleInstallationHealthStages|FirstUnhealthyRunlevelIgnoresBlockedLaterRunlevels|FirstUnhealthyRunlevelRequiresUnambiguousFailure|ExpectsModuleCRDocumentsOnlyException|RegisteredModulesDeclareControllerDeploymentName|DAGInventoryCoversRegisteredProductionModules|ApplyTestProfile)$$'
 	bash tests/e2e/scripts/run_e2e_tests_test.sh
 
 # Pattern rule to generate .rules.yaml from PrometheusRule templates
@@ -875,7 +875,8 @@ e2e-test-core: e2e-artifacts-init
 		-e E2E_TEST_DELETION_POLICY=never \
 		$(if $(ARTIFACT_DIR),-e JUNIT_OUTPUT_PATH=$(ARTIFACT_DIR)/junit-core-$(E2E_RUN_TIMESTAMP).xml)
 
-# DAG consumes the baseline established by core and owns module cleanup.
+# DAG reuses the baseline established by core when present, creates DSCI/DSC
+# when invoked directly, and owns module cleanup.
 e2e-test-dag: e2e-artifacts-init
 	@rm -f "$(E2E_DAG_REPORT_PATH)"
 	@$(MAKE) e2e-test-run \

@@ -270,6 +270,11 @@ func TestGetName(t *testing.T) {
 	g.Expect(h.GetName()).Should(Equal(componentApi.DataModuleName))
 }
 
+func TestGetDeploymentName(t *testing.T) {
+	g := NewWithT(t)
+	g.Expect(data.NewHandler().GetDeploymentName()).Should(Equal("opendatahub-feast-operator"))
+}
+
 func TestGetGVK(t *testing.T) {
 	g := NewWithT(t)
 	h := data.NewHandler()
