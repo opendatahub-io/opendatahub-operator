@@ -156,7 +156,7 @@ func TestImageHandling(t *testing.T) {
 	h := databaseservice.NewHandler()
 
 	g.Expect(h.GetControllerImage()).Should(Equal("RELATED_IMAGE_ODH_DB_OPERATOR_IMAGE"))
-	g.Expect(h.GetRelatedImages()).Should(BeEmpty())
+	g.Expect(h.GetRelatedImages()).Should(Equal([]string{"RELATED_IMAGE_POSTGRESQL_16_IMAGE"}))
 }
 
 func TestGetOperatorManifests(t *testing.T) {
