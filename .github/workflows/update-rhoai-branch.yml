@@ -66,6 +66,8 @@ jobs:
         run: make get-manifests
 
       - name: Resolve image digests
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: make resolve-image-digests
 
       - name: Create Pull Request

@@ -195,6 +195,58 @@ func TestResolve_MalformedImageOverrides(t *testing.T) {
 `,
 			wantSubstr: []string{"imageOverrides.RELATED_IMAGE_ODH_RAY_IMAGE.source", "csvv"},
 		},
+		{
+			name: "unknown fallback",
+			overrides: `
+  RELATED_IMAGE_ODH_RAY_IMAGE:
+    component: ray
+    odh:
+      fallback: params.env
+`,
+			wantSubstr: []string{"imageOverrides.RELATED_IMAGE_ODH_RAY_IMAGE.odh.fallback", "params.env", "csv"},
+		},
+		{
+			name: "fallback without tag template",
+			overrides: `
+  RELATED_IMAGE_ODH_RAY_IMAGE:
+    component: ray
+    odh:
+      fallback: csv
+`,
+			wantSubstr: []string{"imageOverrides.RELATED_IMAGE_ODH_RAY_IMAGE.odh.fallback", "requires tagTemplate"},
+		},
+		{
+			name: "revision provenance requires component",
+			overrides: `
+  RELATED_IMAGE_ODH_RAY_IMAGE:
+    source: csv
+    odh:
+      expectedRevision: component
+`,
+			wantSubstr: []string{"imageOverrides.RELATED_IMAGE_ODH_RAY_IMAGE.odh", "requires component"},
+		},
+		{
+			name: "source revision path traversal",
+			overrides: `
+  RELATED_IMAGE_ODH_RAY_IMAGE:
+    component: ray
+    source: csv
+    odh:
+      sourceRevisionPath: ../source.yaml
+`,
+			wantSubstr: []string{"sourceRevisionPath", "relative repository path"},
+		},
+		{
+			name: "pinned provenance conflict",
+			overrides: `
+  RELATED_IMAGE_ODH_RAY_IMAGE:
+    component: ray
+    odh:
+      pinned: true
+      expectedRevision: component
+`,
+			wantSubstr: []string{"pinned cannot be combined"},
+		},
 	}
 
 	for _, tt := range tests {

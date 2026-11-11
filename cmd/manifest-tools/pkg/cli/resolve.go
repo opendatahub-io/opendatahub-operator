@@ -31,3 +31,15 @@ func newResolveCommand(root *rootOptions) *cobra.Command {
 
 	return cmd
 }
+
+func newValidateProvenanceCommand(root *rootOptions) *cobra.Command {
+	return &cobra.Command{
+		Use:   "validate-provenance",
+		Short: "Validate pinned image revisions against their configured sources",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return resolver.ValidateProvenance(cmd.Context(), resolver.ProvenanceOptions{
+				ConfigFile: root.configFile,
+			})
+		},
+	}
+}

@@ -21,6 +21,9 @@ type Options struct {
 	CSVImportRegistries     []string
 	// FetchCSVImages overrides the real HTTP fetch; used in tests only.
 	FetchCSVImages func(ctx context.Context, source config.BuildConfigRepo) (map[string]CSVImage, error)
+	// ResolveRegistryImage and FetchSourceRevision override network access in tests.
+	ResolveRegistryImage RegistryImageResolver
+	FetchSourceRevision  SourceRevisionFetcher
 }
 
 type Result struct {
@@ -81,6 +84,14 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 
 	var results []Result
 	var unresolved []Result
+	resolveRegistryImage := opts.ResolveRegistryImage
+	if resolveRegistryImage == nil {
+		resolveRegistryImage = ResolveRegistryImage
+	}
+	fetchSourceRevision := opts.FetchSourceRevision
+	if fetchSourceRevision == nil {
+		fetchSourceRevision = FetchSourceRevision
+	}
 
 	fetchCSV := opts.FetchCSVImages
 	if fetchCSV == nil {
@@ -117,14 +128,22 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 		override := cfg.ImageOverrides[envName]
 		for _, platform := range []string{"odh", "rhoai"} {
 			platformCSVImages := csvImages[platform]
+			pi := override.PlatformImage(platform)
 			// Entries with source: csv are always updated from CSV
 			if override.Source == "csv" {
 				// Existing platform blocks are refreshed here. Missing platform
 				// blocks are reconciled against the import allowlist below.
-				if override.PlatformImage(platform) == nil {
+				if pi == nil {
 					continue
 				}
 				if img, ok := platformCSVImages[envName]; ok && config.DigestPattern.MatchString(img.Digest) {
+					var repo *config.PlatformRepo
+					if comp := cfg.FindComponent(override.Component); comp != nil {
+						repo = comp.PlatformRepo(platform)
+					}
+					if err := validateSelectedImage(ctx, envName, platform, img.Base, img.Digest, pi, repo, false, nil, resolveRegistryImage, fetchSourceRevision); err != nil {
+						return results, err
+					}
 					if err := nodeDoc.SetImageOverrideField(envName, platform, "base", img.Base); err != nil {
 						slog.Warn("Failed to set base field", slog.String("error", err.Error()))
 					}
@@ -154,7 +173,6 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 				continue
 			}
 
-			pi := override.PlatformImage(platform)
 			if pi != nil && pi.Pinned {
 				slog.Info("Pinned, skipping", slog.String("env", envName), slog.String("platform", platform))
 				continue
@@ -169,6 +187,7 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 			}
 
 			sha := config.ExtractSHA(pr.Ref)
+			var tagErr error
 
 			// Priority 1: tagTemplate + base → registry lookup
 			effectiveBase := override.Base
@@ -184,27 +203,35 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 				resolvedTag = strings.ReplaceAll(resolvedTag, config.TagShortSHA, shortSHA)
 				imageRef := effectiveBase + ":" + resolvedTag
 
-				digest, err := ResolveDigestViaRegistry(ctx, imageRef)
-				if err == nil && config.DigestPattern.MatchString(digest) {
-					if err := nodeDoc.SetImageOverrideField(envName, platform, "base", effectiveBase); err != nil {
-						slog.Warn("Failed to set base field", slog.String("error", err.Error()))
+				registryImage, resolveErr := resolveRegistryImage(ctx, imageRef)
+				if resolveErr == nil && config.DigestPattern.MatchString(registryImage.Digest) {
+					tagErr = validateSelectedImage(ctx, envName, platform, effectiveBase, registryImage.Digest, pi, pr, true, &registryImage, resolveRegistryImage, fetchSourceRevision)
+					if tagErr == nil {
+						if err := nodeDoc.SetImageOverrideField(envName, platform, "base", effectiveBase); err != nil {
+							slog.Warn("Failed to set base field", slog.String("error", err.Error()))
+						}
+						if err := nodeDoc.SetImageOverrideField(envName, platform, "digest", registryImage.Digest); err != nil {
+							slog.Warn("Failed to set digest field", slog.String("error", err.Error()))
+						}
+						results = append(results, Result{envName, platform, effectiveBase, registryImage.Digest, "commit-sha"})
+						if resolved[envName] == nil {
+							resolved[envName] = map[string]resolvedImage{}
+						}
+						resolved[envName][platform] = resolvedImage{effectiveBase, registryImage.Digest}
+						slog.Info("Resolved via commit-sha",
+							slog.String("env", envName), slog.String("platform", platform),
+							slog.String("base", effectiveBase), slog.String("digest", registryImage.Digest),
+							slog.String("tag", resolvedTag), slog.String("component", override.Component),
+							slog.String("sha", shortSHA))
+						continue
 					}
-					if err := nodeDoc.SetImageOverrideField(envName, platform, "digest", digest); err != nil {
-						slog.Warn("Failed to set digest field", slog.String("error", err.Error()))
+				} else {
+					tagErr = resolveErr
+					if tagErr == nil {
+						tagErr = fmt.Errorf("registry returned invalid digest %q", registryImage.Digest)
 					}
-					results = append(results, Result{envName, platform, effectiveBase, digest, "commit-sha"})
-					if resolved[envName] == nil {
-						resolved[envName] = map[string]resolvedImage{}
-					}
-					resolved[envName][platform] = resolvedImage{effectiveBase, digest}
-					slog.Info("Resolved via commit-sha",
-						slog.String("env", envName), slog.String("platform", platform),
-						slog.String("base", effectiveBase), slog.String("digest", digest),
-						slog.String("tag", resolvedTag), slog.String("component", override.Component),
-						slog.String("sha", shortSHA))
-					continue
 				}
-				slog.Info("Registry lookup failed, falling through", slog.String("env", envName), slog.String("platform", platform), slog.String("imageRef", imageRef))
+				slog.Info("Commit-tag candidate rejected", slog.String("env", envName), slog.String("platform", platform), slog.String("imageRef", imageRef), slog.Any("error", tagErr))
 			}
 
 			// Priority 2 for ODH only: params.env (value cached during the check above).
@@ -214,6 +241,9 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 				if strings.Contains(imageRef, "@sha256:") {
 					pBase, pDigest := SplitImageRef(imageRef)
 					if config.DigestPattern.MatchString(pDigest) {
+						if err := validateSelectedImage(ctx, envName, platform, pBase, pDigest, pi, pr, false, nil, resolveRegistryImage, fetchSourceRevision); err != nil {
+							return results, err
+						}
 						if err := nodeDoc.SetImageOverrideField(envName, platform, "base", pBase); err != nil {
 							slog.Warn("Failed to set base field", slog.String("error", err.Error()))
 						}
@@ -230,31 +260,37 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 					}
 				}
 				// Tagged image → registry lookup
-				digest, err := ResolveDigestViaRegistry(ctx, imageRef)
-				if err == nil && config.DigestPattern.MatchString(digest) {
+				registryImage, resolveErr := resolveRegistryImage(ctx, imageRef)
+				if resolveErr == nil && config.DigestPattern.MatchString(registryImage.Digest) {
 					pBase := imageBaseWithoutTag(imageRef)
+					if err := validateSelectedImage(ctx, envName, platform, pBase, registryImage.Digest, pi, pr, false, &registryImage, resolveRegistryImage, fetchSourceRevision); err != nil {
+						return results, err
+					}
 					if err := nodeDoc.SetImageOverrideField(envName, platform, "base", pBase); err != nil {
 						slog.Warn("Failed to set base field", slog.String("error", err.Error()))
 					}
-					if err := nodeDoc.SetImageOverrideField(envName, platform, "digest", digest); err != nil {
+					if err := nodeDoc.SetImageOverrideField(envName, platform, "digest", registryImage.Digest); err != nil {
 						slog.Warn("Failed to set digest field", slog.String("error", err.Error()))
 					}
-					results = append(results, Result{envName, platform, pBase, digest, "params.env+registry"})
+					results = append(results, Result{envName, platform, pBase, registryImage.Digest, "params.env+registry"})
 					if resolved[envName] == nil {
 						resolved[envName] = map[string]resolvedImage{}
 					}
-					resolved[envName][platform] = resolvedImage{pBase, digest}
-					slog.Info("Resolved via params.env+registry", slog.String("env", envName), slog.String("platform", platform), slog.String("base", pBase), slog.String("digest", digest))
+					resolved[envName][platform] = resolvedImage{pBase, registryImage.Digest}
+					slog.Info("Resolved via params.env+registry", slog.String("env", envName), slog.String("platform", platform), slog.String("base", pBase), slog.String("digest", registryImage.Digest))
 					continue
 				}
 			}
 
-			// Priority 3: CSV fallback
-			if platformCSVImages != nil {
+			// Priority 3: explicitly permitted CSV fallback.
+			if pi != nil && pi.Fallback == config.FallbackCSV && platformCSVImages != nil {
 				if img, ok := platformCSVImages[envName]; ok && config.DigestPattern.MatchString(img.Digest) {
 					if sha != "" {
-						slog.Warn("Image for commit SHA not found in registry, falling back to CSV",
+						slog.Warn("Commit-tag candidate rejected, falling back to CSV",
 							slog.String("env", envName), slog.String("platform", platform))
+					}
+					if err := validateSelectedImage(ctx, envName, platform, img.Base, img.Digest, pi, pr, false, nil, resolveRegistryImage, fetchSourceRevision); err != nil {
+						return results, err
 					}
 					if err := nodeDoc.SetImageOverrideField(envName, platform, "base", img.Base); err != nil {
 						slog.Warn("Failed to set base field", slog.String("error", err.Error()))
@@ -270,6 +306,12 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 					slog.Info("Resolved via CSV", slog.String("env", envName), slog.String("platform", platform), slog.String("base", img.Base), slog.String("digest", img.Digest))
 					continue
 				}
+			}
+			if override.TagTemplate != "" && sha != "" {
+				if tagErr == nil {
+					tagErr = fmt.Errorf("tagTemplate requires a platform image base")
+				}
+				return results, fmt.Errorf("%s %s: image for component revision %s could not be resolved from tagTemplate and no permitted fallback succeeded: %w", envName, platform, sha, tagErr)
 			}
 
 			unresolved = append(unresolved, Result{envName, platform, "", "", "unresolved"})

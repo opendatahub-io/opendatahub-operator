@@ -52,6 +52,23 @@ Examples from `manifests-config.yaml`:
 
 `make resolve-image-digests` fails if an `imageOverrides` row has an illegal key (must start with `RELATED_IMAGE_`), or if `component`, `tagTemplate`, `paramsEnvKey`, or `source` is set to a value that does not match its rules, and it does not rewrite `manifests-config.yaml`. PRs that change that YAML or `cmd/manifest-tools` run the unit tests that cover these errors.
 
-The command fetches the release CSV from each platform's pinned `buildConfig` commit. ODH entries resolve from the ODH CSV and may use downloaded `params.env` values. RHOAI entries do not use those ODH defaults; they resolve from the RHOAI CSV. RHOAI production references under `registry.redhat.io/rhoai/` are stored using the pullable `quay.io/rhoai/` mirror with the same digest.
+The command fetches the release CSV from each platform's pinned `buildConfig` commit. ODH entries may use downloaded `params.env` values. RHOAI entries do not use those ODH defaults. RHOAI production references under `registry.redhat.io/rhoai/` use the pullable `quay.io/rhoai/` mirror with the same digest.
 
 For `source: csv` entries, existing platform images are refreshed, platforms no longer published are removed, and newly published platforms are added when their image registry matches the import allowlist. Images listed under `odh_exceptions` or `rhoai_exceptions` in `component-params-env.yaml` are not automatically imported for that platform. An existing platform mapping remains explicitly managed until it is removed from `imageOverrides`.
+
+## Image provenance policies
+
+An image with `tagTemplate` resolves from its component commit SHA. The command fails if that tag is unavailable. A platform can permit the Build-Config CSV as a fallback with `fallback: csv`. The resolver never uses CSV as an implicit fallback for a commit tag.
+
+Each source has a separate policy:
+
+- `source: csv` selects the platform Build-Config CSV directly.
+- `paramsEnvKey` permits an ODH `params.env` fallback. The downloaded manifest owns that image reference.
+- `pinned: true` preserves the configured digest and skips resolution.
+- `shaFrom` copies the selected platform image after the source platform resolves.
+
+The resolver reads the `linux/amd64` child image. For a commit-tag result, it compares `org.opencontainers.image.revision` with the component SHA when the label exists. `expectedRevision: component` applies the same check to an explicit fallback.
+
+`sourceRevisionPath` points to an optional `.source.yaml` file in the component repository. When that file exists, its `revision` must match the selected image revision. The KServe model-controller mappings use this policy for the separate ODH and RHOAI vendored manifest directories.
+
+Run `make validate-image-provenance` to validate configured digests with explicit revision policies. The unit-test workflow runs this check for pull requests. The manifest update workflow resolves and validates images before it creates or updates a bot pull request.
