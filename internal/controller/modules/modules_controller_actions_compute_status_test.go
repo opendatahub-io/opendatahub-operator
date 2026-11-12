@@ -4,6 +4,7 @@ package modules
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -275,6 +276,84 @@ func TestComputeModulesStatusDetailed_DisabledModule(t *testing.T) {
 	modulesReady := rr.Conditions.GetCondition(status.ConditionTypeModulesReady)
 	g.Expect(modulesReady.Status).Should(Equal(metav1.ConditionTrue))
 	g.Expect(modulesReady.Reason).Should(Equal(status.NoManagedModulesReason))
+}
+
+func TestComputeModulesStatusDetailed_EnabledDeletingModule(t *testing.T) {
+	g := NewWithT(t)
+
+	h1 := newStatusTestHandler("gw", "AIGateway", true, nil)
+	h1.crState = CRStateDeleting
+
+	rr, cleanup := setupStatusTest(t, h1)
+	defer cleanup()
+
+	err := ComputeModulesStatusDetailed(t.Context(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	cond := rr.Conditions.GetCondition("AIGatewayReady")
+	g.Expect(cond).ShouldNot(BeNil())
+	g.Expect(cond.Status).Should(Equal(metav1.ConditionFalse))
+	g.Expect(cond.Reason).Should(Equal(status.DeletingReason))
+	g.Expect(cond.Message).Should(Equal(status.DeletingMessage))
+
+	modulesReady := rr.Conditions.GetCondition(status.ConditionTypeModulesReady)
+	g.Expect(modulesReady.Status).Should(Equal(metav1.ConditionFalse))
+	g.Expect(modulesReady.Reason).Should(Equal(status.NotReadyReason))
+}
+
+func TestComputeModulesStatusDetailed_DisabledDeletingModule(t *testing.T) {
+	g := NewWithT(t)
+
+	h1 := newStatusTestHandler("gw", "AIGateway", false, nil)
+	h1.crState = CRStateDeleting
+
+	rr, cleanup := setupStatusTest(t, h1)
+	defer cleanup()
+
+	err := ComputeModulesStatusDetailed(t.Context(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	cond := rr.Conditions.GetCondition("AIGatewayReady")
+	g.Expect(cond).ShouldNot(BeNil())
+	g.Expect(cond.Status).Should(Equal(metav1.ConditionFalse))
+	g.Expect(cond.Reason).Should(Equal(status.DeletingReason))
+	g.Expect(cond.Message).Should(Equal(status.DeletingMessage))
+}
+
+func TestComputeModulesStatusDetailed_DeletionBlocked(t *testing.T) {
+	for _, enabled := range []bool{true, false} {
+		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
+			g := NewWithT(t)
+			const blockedMessage = "LLMInferenceServiceConfig is still referenced"
+
+			h1 := newStatusTestHandler("gw", "AIGateway", enabled, &ModuleStatus{
+				Conditions: []common.Condition{{
+					Type:    status.ConditionTypeDegraded,
+					Status:  metav1.ConditionTrue,
+					Reason:  status.DeletionBlockedReason,
+					Message: blockedMessage,
+				}},
+			})
+			h1.crState = CRStateDeleting
+
+			rr, cleanup := setupStatusTest(t, h1)
+			defer cleanup()
+
+			err := ComputeModulesStatusDetailed(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			cond := rr.Conditions.GetCondition("AIGatewayReady")
+			g.Expect(cond).ShouldNot(BeNil())
+			g.Expect(cond.Status).Should(Equal(metav1.ConditionFalse))
+			g.Expect(cond.Reason).Should(Equal(status.DeletionBlockedReason))
+			g.Expect(cond.Message).Should(Equal(blockedMessage))
+
+			modulesReady := rr.Conditions.GetCondition(status.ConditionTypeModulesReady)
+			g.Expect(modulesReady.Status).Should(Equal(metav1.ConditionFalse))
+			g.Expect(modulesReady.Reason).Should(Equal(status.ConditionTypeDegraded))
+			g.Expect(modulesReady.Message).Should(ContainSubstring("gw"))
+		})
+	}
 }
 
 func TestComputeModulesStatusAggregate_DisabledPendingDeletion(t *testing.T) {
