@@ -26,8 +26,12 @@ type DSCTestCtx struct {
 func dependantOperatorsManagementTestSuite(t *testing.T) {
 	t.Helper()
 
-	// disruptive tests are only supported on tier3 clusters
-	skipUnless(t, Tier3)
+	// Dependency installation is a prerequisite of the production DAG and must
+	// run regardless of the selected test tag. Legacy/full invocations retain
+	// the Tier 3 gate because operator installation is disruptive.
+	if testOpts.profile != ProfileDAG {
+		skipUnless(t, Tier3)
+	}
 
 	// Initialize the test context.
 	tc, err := NewTestContext(t)

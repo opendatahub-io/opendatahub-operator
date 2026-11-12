@@ -35,24 +35,25 @@ For OpenShift tests additionally:
 
 ## Understanding the Test Suites
 
-The E2E test suite is organized into test groups that run sequentially. Within each group,
-component tests run in parallel. The suite supports two main targets:
+The OpenShift E2E suite uses one shared Go harness with separate execution profiles. The default target runs the core and synthetic platform contract first, then invokes the production-module DAG separately.
 
 - **`make e2e-test-xks`** — KServe and gateway service tests on KinD / vanilla Kubernetes.
   This is the CI-equivalent E2E for KinD (see `.github/workflows/test-kind-odh-e2e.yaml`).
   Covers KServe module lifecycle, gateway infrastructure (GatewayConfig, kube-auth-proxy,
   EnvoyFilter), and xKS DAG runlevel gating.
 
-- **`make e2e-test`** — Full suite across all components, DSC/DSCI lifecycle,
-  services, webhooks, and operator resilience. Requires an OpenShift cluster.
+- **`make e2e-test`** — Run core/synthetic and DAG as separate invocations with a final summary.
+- **`make e2e-test-core`** — Run blocking operator-owned coverage, including the synthetic module contract.
+- **`make e2e-test-dag`** — Run only the full production-module DAG integration against an existing core baseline.
+- **`make e2e-test-run E2E_TEST_PROFILE=<profile>`** — Low-level single invocation for `core`, `synthetic`, `dag`, or `full`.
+
+### Gateway service fixtures
+
+Generic Gateway authentication and additional-ingress tests deploy a temporary TLS backend, Service, and protected HTTPRoute attached to the default Gateway. This fixture validates OAuth/OIDC redirects, forwarded-token headers, and default-route continuity without enabling a production module. The Dashboard redirect suite intentionally remains Dashboard-specific: it enables Dashboard because the Gateway controller creates the legacy redirect proxy and Routes only when the Dashboard CR exists.
 
 ### Conversion webhook tests
 
-The OpenShift `All` and `Tier3` suites run conversion tests after component and
-service tests. Targeted runs include them only when
-`E2E_TEST_CONVERSION_WEBHOOK=true` is set. The existing `E2E_TEST_WEBHOOK` flag
-still controls monitoring admission-webhook tests; it does not select conversion
-tests.
+The OpenShift `All` and `Tier3` suites run conversion tests after platform and service tests. Targeted runs include them only when `E2E_TEST_CONVERSION_WEBHOOK=true` is set.
 
 The conversion subtests are grouped by the CRD whose webhook is exercised:
 
@@ -70,25 +71,6 @@ scenarios; on a non-disposable cluster, enable
 `E2E_TEST_BACKUP_AND_RESTORE_DSCI_AND_DSC=true`. Platform-only runs do not create
 a DSCI. Conversion tests are skipped on xKS clusters.
 
-The `Tier3` component suites also include v2 DSC smoke cases for Dashboard,
-ModelRegistry/AIHub, FeastOperator/Data, and AI Gateway. They use the v2 API to
-change the same DSC exercised by the normal component suite, verify its v3
-projection and runtime, then restore their own fields. These cases run with
-normal component selection; they do not require the conversion-webhook flag.
-For a targeted run after installing a new image, for example:
-
-```bash
-E2E_TEST_DSC_MANAGEMENT=true E2E_TEST_COMPONENTS=true \
-  E2E_TEST_COMPONENT=dashboard E2E_TEST_TAG=Tier3 \
-  E2E_TEST_CONVERSION_WEBHOOK=false make e2e-test
-```
-
-Repeat with `aihub`, `data`, or `aigateway` as the component.
-The explicit `E2E_TEST_COMPONENTS=true` overrides a local `.envrc` configured
-for conversion-only tests. On a clean cluster, enable `E2E_TEST_DSC_MANAGEMENT`
-for the first run so the suite creates `default-dsci` and `default-dsc` before
-component tests. Subsequent runs can omit it if those resources remain; with
-`E2E_TEST_DELETION_POLICY=never`, the suite leaves them in place.
 
 ## KinD E2E (KServe and Gateway)
 
@@ -278,7 +260,7 @@ kubectl wait --for=jsonpath='{.status.phase}'=Ready dsc/default-dsc --timeout=60
 E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false \
 E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT=false \
 E2E_TEST_SERVICES=false \
-E2E_TEST_WEBHOOK=false \
+
 E2E_TEST_OPERATOR_RESILIENCE=false \
 E2E_TEST_OPERATOR_V2TOV3UPGRADE=false \
 E2E_TEST_DSC_MANAGEMENT=false \
@@ -332,24 +314,14 @@ kubectl patch deployment opendatahub-operator-controller-manager \
      -n opendatahub-operator-system --timeout=600s
    ```
 
-4. **Run full E2E tests**: `make e2e-test`
+4. **Run separated core and DAG E2E tests**: `make e2e-test`
 
-5. **Run a single test** (useful for debugging):
-   `make e2e-test-single TEST="TestOdhOperator/Component_Tests/dashboard/Validate component enabled"`
+5. **Run a single phase**:
+   - `make e2e-test-core`
+   - `make e2e-test-dag`
 
-### Running a single component
-
-To test only one component without running the full suite:
-
-```bash
-make e2e-test \
-  -e E2E_TEST_COMPONENT="dashboard" \
-  -e E2E_TEST_SERVICES=false \
-  -e E2E_TEST_WEBHOOK=false \
-  -e E2E_TEST_OPERATOR_RESILIENCE=false \
-  -e E2E_TEST_DSC_MANAGEMENT=false \
-  -e E2E_TEST_DSC_VALIDATION=false
-```
+6. **Run a focused synthetic test**:
+   `make e2e-test-single TEST="TestOdhOperator/Synthetic_Module_E2E_Tests/Validate_healthy_platform_aggregation"`
 
 ### Setting up cluster prerequisites only
 
@@ -447,9 +419,12 @@ done
 | `make deploy-ccm-local-azure` | Deploy Cloud Manager with local image pull policy |
 | `make deploy-rhaii-local` | Deploy operator in XKS mode (KServe module + gateway service enabled) |
 | `make e2e-test-xks` | Run KinD E2E tests (KServe component + gateway service + xKS DAG ordering) |
-| `make e2e-test` | Run full E2E tests (requires OpenShift) |
+| `make e2e-test` | Run core/synthetic, then the production DAG, with a combined summary |
+| `make e2e-test-core` | Run operator-owned core and synthetic coverage |
+| `make e2e-test-dag` | Run the production-module DAG integration |
+| `make e2e-test-run E2E_TEST_PROFILE=<profile>` | Run one low-level profile invocation |
 | `make e2e-test-single TEST="<path>"` | Run a single E2E test |
-| `make e2e-setup-cluster` | Create DSCI/DSC without running component tests |
+| `make e2e-setup-cluster` | Create DSCI/DSC prerequisites |
 | `make deploy` | Deploy operator via kustomize (OpenShift) |
 
 ### Environment variables
@@ -462,9 +437,9 @@ done
 | `KIND_CLUSTER_NAME` | `kind-odh` | KinD cluster name (used by `image-kind-load`) |
 | `KIND_CONFIG_PATH` | `config/kind/kind-config.yaml` | KinD cluster config |
 | `PULL_SECRET` | *(required)* | Path to container registry auth config |
-| `E2E_TEST_COMPONENT` | *(all)* | Single component to test (e.g., `kserve`) |
+| `E2E_TEST_PROFILE` | `full` | Execution profile: `core`, `synthetic`, `dag`, or `full` |
 | `E2E_TEST_SERVICES` | `true` | Enable/disable service tests |
-| `E2E_TEST_WEBHOOK` | `true` | Enable/disable the existing monitoring admission-webhook tests when the monitoring service suite runs. |
+
 | `E2E_TEST_CONVERSION_WEBHOOK` | auto | Conversion webhook scenarios run in full OpenShift `All`/`Tier3` suites. Set `true` to include them in a targeted run or `false` to disable them. DSC scenarios delete `default-dsc`; enable DSCI/DSC backup and restore for non-disposable clusters. |
 | `E2E_TEST_CONVERSION_WEBHOOK_DSC` | `true` | Include DSC conversion scenarios when conversion tests run. Set `false` for Platform-only conversion tests. |
 | `E2E_TEST_CONVERSION_WEBHOOK_PLATFORM` | `true` | Include Platform conversion scenarios when conversion tests run. Set `false` for DSC-only conversion tests. |
@@ -476,9 +451,9 @@ done
 | `E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT` | `true` | Enable/disable dependent operator management |
 | `E2E_TEST_OPERATOR_CONTROLLER` | `true` | Enable/disable operator controller tests |
 | `E2E_TEST_OPERATOR_V2TOV3UPGRADE` | `true` | Enable/disable v2-to-v3 upgrade tests |
-| `E2E_TEST_COMPONENTS` | `true` | Enable/disable component tests |
+
 | `E2E_TEST_DELETION_POLICY` | `always` | Deletion policy for test resources (`never`, `always`, `on-failure`) |
-| `E2E_AUTO_RESOLVE` | `false` | When `true`, derive `E2E_TEST_COMPONENT`/`E2E_TEST_SERVICE` automatically from changed files instead of running the full suite. See [Path-based test scoping](#path-based-test-scoping). |
+| `E2E_AUTO_RESOLVE` | `false` | When `true`, narrow currently supported service selection from changed files. Profile/module-aware resolution is planned with the registered-module contract runner. |
 
 ### Path-based test scoping
 

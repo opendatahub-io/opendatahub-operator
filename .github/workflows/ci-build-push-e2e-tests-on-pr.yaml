@@ -6,8 +6,15 @@ on:
       - main
     paths:
       - 'tests/e2e/**'
+      - 'Makefile'
+      - '.github/workflows/ci-build-push-e2e-tests-on-pr.yaml'
       - 'cmd/main.go'
+      - 'cmd/test-retry/**'
       - 'Dockerfiles/e2e-tests/e2e-tests.Dockerfile'
+      - 'internal/controller/modules/**'
+      - 'pkg/clusterhealth/**'
+      - 'pkg/failureclassifier/**'
+      - 'api/config/**'
 
 permissions:
   contents: read
@@ -66,4 +73,4 @@ jobs:
           echo "Pushing E2E test image: ${E2E_IMAGE}"
           podman push "${E2E_IMAGE}"
 
-          echo "E2E test image built and pushed successfully!"
+          echo "E2E image built and pushed successfully!"

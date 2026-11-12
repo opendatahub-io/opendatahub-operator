@@ -1,0 +1,9 @@
+namespace: redhat-ods-applications
+image: synthetic-module-operator:latest
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi

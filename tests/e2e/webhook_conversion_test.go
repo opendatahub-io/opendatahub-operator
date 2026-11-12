@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -25,11 +24,6 @@ import (
 func conversionWebhookSuiteSelected() bool {
 	return testOpts.conversionWebhookTest &&
 		(testOpts.conversionWebhookDSC || testOpts.conversionWebhookPlatform)
-}
-
-func envIsSet(name string) bool {
-	value, present := os.LookupEnv(name)
-	return present && value != ""
 }
 
 func findOrCreateWebhookDSCI(ctx context.Context, cli client.Client, desired *dsciv2.DSCInitialization) (bool, error) {

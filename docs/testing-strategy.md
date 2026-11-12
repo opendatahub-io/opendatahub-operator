@@ -91,9 +91,8 @@ E2E tests in `tests/e2e/` exercise the full module lifecycle (provision, update,
 - `tests/e2e/kserve_test.go`
 - `tests/e2e/mcplifecycleoperator_test.go`
 - `tests/e2e/mlflowoperator_test.go`
-- `tests/e2e/monitoring_test.go`
-- `tests/e2e/ogx_test.go`
-- `tests/e2e/workbenches_test.go`
+- `tests/e2e/synthetic_module_test.go` for operator-owned module lifecycle behavior
+- `tests/e2e/dag_ordering_test.go` for full production-module integration
 
 Additional E2E tests validate library-level behavior at the system level:
 

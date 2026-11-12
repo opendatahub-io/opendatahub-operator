@@ -21,9 +21,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// The monitoring e2e suite already uses this pinned curl image. Reuse it for a
-// disposable pod that checks the effective ingress policy from an unapproved namespace.
-const authProxyTrafficProbeImage = FakeGCSClientImage
+// Pinned curl image used by a disposable pod that checks the effective ingress
+// policy from an unapproved namespace.
+const authProxyTrafficProbeImage = "curlimages/curl@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"
 
 func (tc *GatewayTestCtx) ValidateNetworkPolicyIngressTraffic(t *testing.T) {
 	t.Helper()

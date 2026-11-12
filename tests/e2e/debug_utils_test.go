@@ -66,6 +66,7 @@ var (
 	lastPanicDiagTS atomic.Int64
 	// lastClassification stores the most recent failure classification for circuit breaker consumption.
 	lastClassification atomic.Pointer[failureclassifier.FailureClassification]
+	lastHealthReport   atomic.Pointer[clusterhealth.Report]
 	podLogsFetcher     = retrievePodLogs
 	// newPodLogsClient builds the clientset for the debug log path. Tests
 	// override it so the podLogsFetcher seam is reachable without a host
@@ -182,6 +183,7 @@ func runDiagnosticsAndClassify(testName string) {
 		return
 	}
 
+	lastHealthReport.Store(report)
 	logReport(report)
 
 	fc := failureclassifier.Classify(report)

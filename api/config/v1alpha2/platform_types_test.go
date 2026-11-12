@@ -26,6 +26,7 @@ var expectedPlatformModuleNames = []string{
 	"ogx",
 	"ray",
 	"sparkoperator",
+	"synthetice2e",
 	"trainer",
 	"workbenches",
 	"trustyai",
@@ -111,6 +112,7 @@ func TestPlatformModulesEnabledModulesAllManaged(t *testing.T) {
 		Ray:                  common.ManagementSpec{ManagementState: operatorv1.Managed},
 		AIHub:                common.ManagementSpec{ManagementState: operatorv1.Managed},
 		TrustyAI:             common.ManagementSpec{ManagementState: operatorv1.Managed},
+		SyntheticE2E:         common.ManagementSpec{ManagementState: operatorv1.Managed},
 	}
 
 	assert.Equal(t, (&PlatformModules{}).ModuleNames(), pm.EnabledModules())

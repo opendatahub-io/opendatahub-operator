@@ -39,6 +39,15 @@ import (
 // Test function signature.
 type TestFn func(t *testing.T)
 
+type TestProfile string
+
+const (
+	ProfileFull      TestProfile = "full"
+	ProfileCore      TestProfile = "core"
+	ProfileSynthetic TestProfile = "synthetic"
+	ProfileDAG       TestProfile = "dag"
+)
+
 // DeletionPolicy type representing the deletion policy.
 type DeletionPolicy int
 
@@ -75,6 +84,7 @@ func ParseDeletionPolicy(dp string) (DeletionPolicy, error) {
 
 // Struct to store test configurations.
 type TestContextConfig struct {
+	profile              TestProfile
 	tag                  string
 	operatorNamespace    string
 	appsNamespace        string
@@ -91,15 +101,16 @@ type TestContextConfig struct {
 	dscValidationTest                bool
 	operatorControllerTest           bool
 	operatorResilienceTest           bool
-	webhookTest                      bool
-	conversionWebhookTest            bool
-	conversionWebhookDSC             bool
-	conversionWebhookPlatform        bool
-	dagOrderingTest                  bool
-	v2tov3upgradeTest                bool
-	circuitBreakerEnabled            bool
-	circuitBreakerThreshold          int
-	TestTimeouts                     TestTimeouts
+
+	conversionWebhookTest     bool
+	conversionWebhookDSC      bool
+	conversionWebhookPlatform bool
+	dagOrderingTest           bool
+	syntheticModuleTest       bool
+	v2tov3upgradeTest         bool
+	circuitBreakerEnabled     bool
+	circuitBreakerThreshold   int
+	TestTimeouts              TestTimeouts
 }
 
 // TestGroup defines the test groups.
@@ -140,66 +151,13 @@ var (
 	Scheme   = runtime.NewScheme()
 	testOpts = TestContextConfig{}
 
-	Components = TestGroup{
-		name:     "components",
-		enabled:  true,
-		parallel: true,
-		scenarios: []map[string]TestFn{
-			{
-				componentApi.DashboardComponentName:            dashboardTestSuite,
-				componentApi.RayComponentName:                  rayTestSuite,
-				componentApi.TrainerComponentName:              trainerTestSuite,
-				componentApi.AIPipelinesComponentName:          aiPipelinesTestSuite,
-				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
-				componentApi.KserveComponentName:               kserveTestSuite,
-				componentApi.OGXComponentName:                  ogxTestSuite,
-				componentApi.SparkOperatorComponentName:        sparkOperatorTestSuite,
-				componentApi.AIGatewayComponentName:            aiGatewayTestSuite,
-				componentApi.MCPLifecycleOperatorComponentName: mcpLifecycleOperatorTestSuite,
-				componentApi.DatabaseServiceComponentName:      databaseServiceTestSuite,
-			},
-			{
-				// Dashboard and Data mutate the singleton DSC's data lifecycle fields.
-				// Keep Data in a later scenario group so their cleanups cannot race.
-				componentApi.DataModuleName: dataModuleTestSuite,
-				// Kserve propagates AIHub state to the module CR, so it needs to manipulate the DSC's AIHub state to test.
-				// This triggers Dashboard AIHub state propagation, interfering with Dashboard tests by deploying model registry UI resources
-				// Keep it in a later scenario so it does not race with Dashboard tests.
-				componentApi.KserveComponentName: kserveAIHubStatePropagationTestSuite,
-			},
-			{
-				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
-				componentApi.KueueComponentName: kueueTestSuite,
-				// AIHub and Kserve are coupled, so must not run with Kserve tests in parallel
-				componentApi.AIHubModuleName: aihubTestSuite,
-			},
-			{
-				// TrustyAI tests depends on KServe, so must not run with Kserve tests in parallel
-				componentApi.TrustyAIComponentName: trustyAITestSuite,
-				// MLflowOperator tests should not run in parallel with Workbenches tests, as Workbenches tests integration with MLflowOperator
-				componentApi.MLflowOperatorComponentName: mlflowOperatorTestSuite,
-			},
-			{
-				// run external operator degraded monitoring tests isolated from other component tests
-				componentApi.KserveComponentName:  kserveDegradedMonitoringTestSuite,
-				componentApi.KueueComponentName:   kueueDegradedMonitoringTestSuite,
-				componentApi.TrainerComponentName: trainerDegradedMonitoringTestSuite,
-			},
-			{
-				// ModelCache tests modify namespace PSA labels, so must not run with other KServe tests in parallel
-				componentApi.KserveComponentName + "-modelcache": kserveModelCacheTestSuite,
-			},
-		},
-	}
-
 	Services = TestGroup{
 		name:     "services",
 		enabled:  true,
 		parallel: true,
 		scenarios: []map[string]TestFn{{
-			serviceApi.MonitoringServiceName: monitoringTestSuite,
-			serviceApi.AuthServiceName:       authControllerTestSuite,
-			serviceApi.GatewayServiceName:    gatewayTestSuite,
+			serviceApi.AuthServiceName:    authControllerTestSuite,
+			serviceApi.GatewayServiceName: gatewayTestSuite,
 		}},
 	}
 )
@@ -538,20 +496,19 @@ func TestOdhOperator(t *testing.T) {
 		mustRun(t, "DSCInitialization and DataScienceCluster validation E2E Tests", dscValidationTestSuite)
 	}
 
-	// Run DAG ordering tests before individual component tests to verify
-	// the unified batch provisioning order on a clean DSC.
+	// Validate operator-owned module lifecycle against the known-good fixture.
+	if testOpts.syntheticModuleTest {
+		mustRun(t, "Synthetic Module E2E Tests", syntheticModuleTestSuite)
+	}
+
+	// Run full production-module DAG integration on a clean DSC.
 	if testOpts.dagOrderingTest {
 		mustRun(t, "DAG Ordering E2E Tests", dagOrderingTestSuite)
 	}
 
-	// Run monitoring before components — monitoring setup is a prerequisite.
-	mustRun(t, serviceApi.MonitoringServiceName, Services.RunSingle(serviceApi.MonitoringServiceName))
-
-	// Run components test suites
-	mustRun(t, Components.String(), Components.Run)
-
-	// Run remaining services (auth, gateway)
-	mustRun(t, Services.String(), Services.RunExcluding(serviceApi.MonitoringServiceName))
+	// Run platform-owned services (auth and gateway). Monitoring is a module
+	// and is covered by the registered-module contract and full DAG.
+	mustRun(t, Services.String(), Services.Run)
 
 	// Run operator resilience test suites after functional tests
 	if testOpts.operatorResilienceTest {
@@ -601,6 +558,53 @@ func TestOdhOperator(t *testing.T) {
 	}
 }
 
+func applyTestProfile(profile TestProfile) error {
+	testOpts.profile = profile
+
+	switch profile {
+	case ProfileFull:
+		return nil
+	case ProfileCore:
+		testOpts.dependantOperatorsManagementTest = false
+		testOpts.dagOrderingTest = false
+		// DSC conversion scenarios delete the singleton DSC. Keep Platform
+		// conversion coverage in core while preserving the baseline for DAG.
+		testOpts.conversionWebhookDSC = false
+		return nil
+	case ProfileSynthetic:
+		testOpts.dependantOperatorsManagementTest = false
+		testOpts.dscManagementTest = false
+		testOpts.dscValidationTest = false
+		testOpts.operatorControllerTest = false
+		testOpts.operatorResilienceTest = false
+		testOpts.conversionWebhookTest = false
+		testOpts.conversionWebhookDSC = false
+		testOpts.conversionWebhookPlatform = false
+		testOpts.dagOrderingTest = false
+		testOpts.v2tov3upgradeTest = false
+		Services.enabled = false
+		return nil
+	case ProfileDAG:
+		// Production modules require their external operators (for example
+		// cert-manager and JobSet); dependency setup belongs to the DAG phase.
+		testOpts.dependantOperatorsManagementTest = true
+		testOpts.dscManagementTest = false
+		testOpts.dscValidationTest = false
+		testOpts.operatorControllerTest = false
+		testOpts.operatorResilienceTest = false
+		testOpts.conversionWebhookTest = false
+		testOpts.conversionWebhookDSC = false
+		testOpts.conversionWebhookPlatform = false
+		testOpts.syntheticModuleTest = false
+		testOpts.v2tov3upgradeTest = false
+		testOpts.cleanUpPreviousResources = false
+		Services.enabled = false
+		return nil
+	default:
+		return fmt.Errorf("unknown E2E test profile %q; valid profiles are: %s, %s, %s, %s", profile, ProfileCore, ProfileSynthetic, ProfileDAG, ProfileFull)
+	}
+}
+
 func TestMain(m *testing.M) {
 	// Gomega output config:
 	format.MaxLength = 0 // 0 disables truncation entirely
@@ -633,6 +637,8 @@ func TestMain(m *testing.M) {
 	viper.SetDefault("operandReadinessTimeout", "2m")   // Operand deployments reaching ready state (P99=56s, outliers at 90s).
 
 	// Flags
+	pflag.String("test-profile", string(ProfileFull), "E2E execution profile: core, synthetic, dag, or full")
+	checkEnvVarBindingError(viper.BindEnv("test-profile", viper.GetEnvPrefix()+"_PROFILE"))
 	pflag.String("operator-namespace", "opendatahub-operator-system", "Namespace where the odh operator is deployed")
 	checkEnvVarBindingError(viper.BindEnv("operator-namespace", viper.GetEnvPrefix()+"_OPERATOR_NAMESPACE"))
 	pflag.String("applications-namespace", "opendatahub", "Namespace where the odh applications are deployed")
@@ -670,8 +676,6 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-operator-resilience", viper.GetEnvPrefix()+"_OPERATOR_RESILIENCE"))
 	pflag.Bool("test-operator-v2tov3upgrade", true, "run V2 to V3 upgrade tests")
 	checkEnvVarBindingError(viper.BindEnv("test-operator-v2tov3upgrade", viper.GetEnvPrefix()+"_OPERATOR_V2TOV3UPGRADE"))
-	pflag.Bool("test-webhook", true, "run webhook tests")
-	checkEnvVarBindingError(viper.BindEnv("test-webhook", viper.GetEnvPrefix()+"_WEBHOOK"))
 	pflag.Bool("test-conversion-webhook", true, "run conversion webhook tests")
 	checkEnvVarBindingError(viper.BindEnv("test-conversion-webhook", viper.GetEnvPrefix()+"_CONVERSION_WEBHOOK"))
 	pflag.Bool("test-conversion-webhook-dsc", true, "run DSC conversion webhook tests")
@@ -680,24 +684,16 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-conversion-webhook-platform", viper.GetEnvPrefix()+"_CONVERSION_WEBHOOK_PLATFORM"))
 	pflag.Bool("test-dag-ordering", true, "run DAG upgrade ordering tests")
 	checkEnvVarBindingError(viper.BindEnv("test-dag-ordering", viper.GetEnvPrefix()+"_DAG_ORDERING"))
+	pflag.Bool("test-synthetic-module", true, "run the synthetic module platform contract")
+	checkEnvVarBindingError(viper.BindEnv("test-synthetic-module", viper.GetEnvPrefix()+"_SYNTHETIC_MODULE"))
 
 	pflag.Bool("circuit-breaker", true, "enable circuit breaker to halt tests on infrastructure failures")
 	checkEnvVarBindingError(viper.BindEnv("circuit-breaker", viper.GetEnvPrefix()+"_CIRCUIT_BREAKER"))
 	pflag.Int("circuit-breaker-threshold", 3, "consecutive test failures before health-checking for infrastructure problems")
 	checkEnvVarBindingError(viper.BindEnv("circuit-breaker-threshold", viper.GetEnvPrefix()+"_CIRCUIT_BREAKER_THRESHOLD"))
 
-	pflag.String("force-olm-version", "default", "Override OLM install path for all operators: v0, v1, or default (per-component flag)")
+	pflag.String("force-olm-version", "default", "Override OLM install path for all operators: v0, v1, or default")
 	checkEnvVarBindingError(viper.BindEnv("force-olm-version", viper.GetEnvPrefix()+"_FORCE_OLM_VERSION"))
-
-	// Component flags
-	componentNames := strings.Join(Components.Names(), ", ")
-	pflag.Bool("test-components", Components.enabled, "Enable testing of individual components specified by --test-component flag")
-	checkEnvVarBindingError(viper.BindEnv("test-components", viper.GetEnvPrefix()+"_COMPONENTS"))
-	pflag.StringSlice("test-component", Components.Names(), "Run tests for the specified component. Valid names: "+componentNames)
-	checkEnvVarBindingError(viper.BindEnv("test-component", viper.GetEnvPrefix()+"_COMPONENT"))
-	pflag.Bool("test-components-parallel", Components.parallel, "Run component test suites in parallel")
-	checkEnvVarBindingError(viper.BindEnv("test-components-parallel", viper.GetEnvPrefix()+"_COMPONENTS_PARALLEL"))
-
 	// Service flags
 	serviceNames := strings.Join(Services.Names(), ", ")
 	pflag.Bool("test-services", Services.enabled, "Enable testing of individual services specified by --test-service flag")
@@ -770,27 +766,24 @@ func TestMain(m *testing.M) {
 	testOpts.dscValidationTest = viper.GetBool("test-dsc-validation")
 	testOpts.operatorResilienceTest = viper.GetBool("test-operator-resilience")
 	testOpts.v2tov3upgradeTest = viper.GetBool("test-operator-v2tov3upgrade")
-	testOpts.webhookTest = viper.GetBool("test-webhook")
 	testOpts.conversionWebhookTest = viper.GetBool("test-conversion-webhook")
 	testOpts.conversionWebhookDSC = viper.GetBool("test-conversion-webhook-dsc")
 	testOpts.conversionWebhookPlatform = viper.GetBool("test-conversion-webhook-platform")
 	testOpts.dagOrderingTest = viper.GetBool("test-dag-ordering")
+	testOpts.syntheticModuleTest = viper.GetBool("test-synthetic-module")
 	testOpts.circuitBreakerEnabled = viper.GetBool("circuit-breaker")
 	testOpts.circuitBreakerThreshold = viper.GetInt("circuit-breaker-threshold")
 
-	Components.enabled = viper.GetBool("test-components")
-	Components.flags = viper.GetStringSlice("test-component")
-	Components.parallel = viper.GetBool("test-components-parallel")
 	Services.enabled = viper.GetBool("test-services")
 	Services.flags = viper.GetStringSlice("test-service")
 	Services.parallel = viper.GetBool("test-services-parallel")
 
-	// Config validation
-	if err := Components.Validate(); err != nil {
-		fmt.Printf("test-component: %s", err.Error())
+	if err := applyTestProfile(TestProfile(viper.GetString("test-profile"))); err != nil {
+		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 
+	// Config validation
 	if err := Services.Validate(); err != nil {
 		fmt.Printf("test-service: %s", err.Error())
 		os.Exit(1)
@@ -857,6 +850,7 @@ func mustRun(t *testing.T, name string, testFunc func(t *testing.T), opts ...Tes
 
 	if !passed {
 		HandleTestFailure(name)
+
 		t.Logf("Stopping: %s test failed.", name)
 		t.Fail()
 	}

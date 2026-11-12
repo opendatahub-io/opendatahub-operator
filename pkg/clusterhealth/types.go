@@ -18,7 +18,7 @@ var (
 	}
 	DataScienceClusterGVK = schema.GroupVersionKind{
 		Group:   "datasciencecluster.opendatahub.io",
-		Version: "v2",
+		Version: "v3",
 		Kind:    "DataScienceCluster",
 	}
 )

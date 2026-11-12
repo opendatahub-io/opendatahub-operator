@@ -542,6 +542,57 @@ func TestRun_DSCISection_DegradedReported(t *testing.T) {
 	}
 }
 
+func TestDSCIUnhealthyConditions_MonitoringManagementState(t *testing.T) {
+	conditions := []ConditionSummary{
+		{Type: "MonitoringReady", Status: "False"},
+		{Type: "MonitoringStackAvailable", Status: "False"},
+		{Type: "ThanosQuerierAvailable", Status: "False"},
+		{Type: "Ready", Status: "False"},
+	}
+
+	t.Run("monitoring removed ignores monitoring conditions", func(t *testing.T) {
+		obj := map[string]any{"spec": map[string]any{
+			"monitoring": map[string]any{"managementState": "Removed"},
+		}}
+		got := dsciUnhealthyConditionsWithObj(obj, conditions)
+		if len(got) != 1 || got[0] != "Ready=False" {
+			t.Fatalf("expected only core Ready condition, got %v", got)
+		}
+	})
+
+	t.Run("empty monitoring state is removed", func(t *testing.T) {
+		got := dsciUnhealthyConditionsWithObj(map[string]any{}, conditions[:3])
+		if len(got) != 0 {
+			t.Fatalf("expected monitoring conditions to be ignored, got %v", got)
+		}
+	})
+
+	t.Run("managed monitoring reports monitoring conditions", func(t *testing.T) {
+		obj := map[string]any{"spec": map[string]any{
+			"monitoring": map[string]any{"managementState": "Managed"},
+		}}
+		got := dsciUnhealthyConditionsWithObj(obj, conditions[:3])
+		if len(got) != 3 {
+			t.Fatalf("expected managed monitoring conditions to be reported, got %v", got)
+		}
+	})
+
+	t.Run("managed monitoring ignores optional capabilities that are not configured", func(t *testing.T) {
+		obj := map[string]any{"spec": map[string]any{
+			"monitoring": map[string]any{"managementState": "Managed"},
+		}}
+		got := dsciUnhealthyConditionsWithObj(obj, []ConditionSummary{
+			{Type: "MonitoringReady", Status: "True"},
+			{Type: "MonitoringStackAvailable", Status: "False", Message: "Metrics not configured in Monitoring CR"},
+			{Type: "TempoAvailable", Status: "False", Message: "Traces not configured in Monitoring CR"},
+			{Type: "PersesAvailable", Status: "False", Message: "Perses requires metrics.storage or traces.storage to be configured"},
+		})
+		if len(got) != 0 {
+			t.Fatalf("expected unconfigured optional monitoring capabilities to be ignored, got %v", got)
+		}
+	})
+}
+
 func TestRun_DSCISection_ProgressingIgnored(t *testing.T) {
 	sch := scheme.Scheme
 	_ = corev1.AddToScheme(sch)

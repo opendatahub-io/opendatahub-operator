@@ -23,9 +23,12 @@ func getUnhealthyChecker(kind string) UnhealthyChecker {
 	return kindUnhealthyCheckers[kind]
 }
 
-// dsciUnhealthyConditionsWithObj adapts dsciUnhealthyConditions to the UnhealthyChecker signature (DSCI logic ignores the object).
-func dsciUnhealthyConditionsWithObj(_ map[string]any, conditions []ConditionSummary) []string {
-	return dsciUnhealthyConditions(conditions)
+// dsciUnhealthyConditionsWithObj excludes monitoring conditions when monitoring is not managed.
+func dsciUnhealthyConditionsWithObj(obj map[string]any, conditions []ConditionSummary) []string {
+	monitoringState, _, _ := unstructured.NestedString(obj, "spec", "monitoring", "managementState")
+	monitoringManaged := strings.EqualFold(strings.TrimSpace(monitoringState), "Managed")
+
+	return dsciUnhealthyConditions(conditions, monitoringManaged)
 }
 
 // dscUnhealthyConditions returns condition strings that count as unhealthy for DSC.
@@ -118,10 +121,17 @@ func conditionTypeToDSCComponentKeys(conditionType string) []string {
 
 // dsciUnhealthyConditions returns condition strings that count as unhealthy for DSCI.
 // We ignore Progressing and Upgradeable. We report unhealthy only when Degraded is True.
-func dsciUnhealthyConditions(conditions []ConditionSummary) []string {
+func dsciUnhealthyConditions(conditions []ConditionSummary, monitoringManaged bool) []string {
 	out := make([]string, 0, len(conditions))
 	for _, cond := range conditions {
-		switch strings.TrimSpace(cond.Type) {
+		conditionType := strings.TrimSpace(cond.Type)
+		if !monitoringManaged && isDSCIMonitoringCondition(conditionType) {
+			continue
+		}
+		if isDSCIOptionalMonitoringCondition(conditionType) && conditionMessageIndicatesNotConfigured(cond.Message) {
+			continue
+		}
+		switch conditionType {
 		case "Progressing", "Upgradeable":
 			continue
 		case "Degraded":
@@ -135,4 +145,49 @@ func dsciUnhealthyConditions(conditions []ConditionSummary) []string {
 		}
 	}
 	return out
+}
+
+func conditionMessageIndicatesNotConfigured(message string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(message))
+	return strings.Contains(normalized, "not configured") ||
+		(strings.Contains(normalized, "requires") && strings.Contains(normalized, "configured"))
+}
+
+func isDSCIOptionalMonitoringCondition(conditionType string) bool {
+	switch conditionType {
+	case "MonitoringStackAvailable",
+		"ThanosQuerierAvailable",
+		"OpenTelemetryCollectorAvailable",
+		"TempoAvailable",
+		"PersesAvailable",
+		"AlertingAvailable",
+		"NodeMetricsEndpointAvailable",
+		"LokiStackAvailable",
+		"ClusterLogForwarderAvailable",
+		"UsageLogsCollectorAvailable":
+		return true
+	default:
+		return false
+	}
+}
+
+func isDSCIMonitoringCondition(conditionType string) bool {
+	switch conditionType {
+	case "MonitoringReady",
+		"ProvisioningSucceeded",
+		"MonitoringDependenciesReady",
+		"MonitoringStackAvailable",
+		"ThanosQuerierAvailable",
+		"OpenTelemetryCollectorAvailable",
+		"TempoAvailable",
+		"PersesAvailable",
+		"AlertingAvailable",
+		"NodeMetricsEndpointAvailable",
+		"LokiStackAvailable",
+		"ClusterLogForwarderAvailable",
+		"UsageLogsCollectorAvailable":
+		return true
+	default:
+		return false
+	}
 }
