@@ -6,6 +6,13 @@ import (
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -305,6 +312,17 @@ func TestGetOperatorManifests(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(vals["namespace"]).Should(Equal("opendatahub"))
 	g.Expect(vals["namePrefix"]).Should(Equal(""))
+	webhookValues, ok := vals["webhook"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "webhook values missing")
+	g.Expect(webhookValues).Should(HaveKeyWithValue("enabled", true))
+	g.Expect(webhookValues["namespacedRBACWriters"]).Should(ConsistOf(
+		"system:serviceaccount:redhat-ods-operator:redhat-ods-operator-controller-manager",
+		"system:serviceaccount:opendatahub-operator:opendatahub-operator-controller-manager",
+		"system:serviceaccount:openshift-operators:opendatahub-operator-controller-manager",
+	))
+	certManagerValues, ok := webhookValues["certManager"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "webhook cert-manager values missing")
+	g.Expect(certManagerValues).Should(HaveKeyWithValue("enabled", true))
 
 	relatedImages, ok := vals["relatedImages"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "relatedImages values missing")
@@ -344,12 +362,23 @@ func newModuleCRConfigWithRelease(releaseName common.Platform) *modules.ModuleCR
 	}
 }
 
+func newNamespaceClient(t *testing.T, names ...string) client.Client {
+	t.Helper()
+	scheme := runtime.NewScheme()
+	NewWithT(t).Expect(clientgoscheme.AddToScheme(scheme)).Should(Succeed())
+	objects := make([]client.Object, 0, len(names))
+	for _, name := range names {
+		objects = append(objects, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}})
+	}
+	return fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+}
+
 func TestBuildModuleCR_ProjectsNotebooksNamespace_RHOAI(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "", operatorv1.Removed, "")
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	u, err := h.BuildModuleCR(context.Background(), newNamespaceClient(t, cluster.DefaultNotebooksNamespaceRHOAI), dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, _ := u.Object["spec"].(map[string]any)
@@ -362,7 +391,7 @@ func TestBuildModuleCR_ProjectsNotebooksNamespace_ODH(t *testing.T) {
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "", operatorv1.Removed, "")
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.OpenDataHub))
+	u, err := h.BuildModuleCR(context.Background(), newNamespaceClient(t, cluster.DefaultNotebooksNamespaceODH), dscCtx, newModuleCRConfigWithRelease(cluster.OpenDataHub))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, _ := u.Object["spec"].(map[string]any)
@@ -374,11 +403,31 @@ func TestBuildModuleCR_ProjectsCustomNotebooksNamespace(t *testing.T) {
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "custom-notebooks", operatorv1.Removed, "")
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	u, err := h.BuildModuleCR(context.Background(), newNamespaceClient(t, "custom-notebooks"), dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, _ := u.Object["spec"].(map[string]any)
 	g.Expect(spec["notebooksNamespace"]).Should(Equal("custom-notebooks"))
+}
+
+func TestBuildModuleCR_NamespacedRBACTargetRequiresClient(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "custom-notebooks", operatorv1.Removed, "")
+
+	_, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).Should(MatchError("client is required to opt in namespaced RBAC targets"))
+}
+
+func TestBuildModuleCR_MissingNamespacedRBACTargetRemainsFailClosed(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "not-created-yet", operatorv1.Removed, "")
+
+	u, err := h.BuildModuleCR(context.Background(), newNamespaceClient(t), dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+	spec, _ := u.Object["spec"].(map[string]any)
+	g.Expect(spec["notebooksNamespace"]).Should(Equal("not-created-yet"))
 }
 
 func TestBuildModuleCR_OmitsNotebooksNamespaceWhenWorkbenchesNotManaged(t *testing.T) {
@@ -398,7 +447,7 @@ func TestBuildModuleCR_ProjectsAIHubNamespace(t *testing.T) {
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Removed, "", operatorv1.Managed, "rhoai-model-registries")
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	u, err := h.BuildModuleCR(context.Background(), newNamespaceClient(t, "rhoai-model-registries"), dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, _ := u.Object["spec"].(map[string]any)
@@ -423,7 +472,12 @@ func TestBuildModuleCR_ProjectsDefaultedAIHubNamespace(t *testing.T) {
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Removed, "", operatorv1.Managed, componentApi.DefaultModelRegistriesNamespace)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	u, err := h.BuildModuleCR(
+		context.Background(),
+		newNamespaceClient(t, componentApi.DefaultModelRegistriesNamespace),
+		dscCtx,
+		newModuleCRConfigWithRelease(cluster.SelfManagedRhoai),
+	)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, _ := u.Object["spec"].(map[string]any)
@@ -435,7 +489,7 @@ func TestBuildModuleCR_ProjectsNotebooksNamespace_ManagedRhoai(t *testing.T) {
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "", operatorv1.Removed, "")
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.ManagedRhoai))
+	u, err := h.BuildModuleCR(context.Background(), newNamespaceClient(t, cluster.DefaultNotebooksNamespaceRHOAI), dscCtx, newModuleCRConfigWithRelease(cluster.ManagedRhoai))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, _ := u.Object["spec"].(map[string]any)
@@ -452,12 +506,18 @@ func TestBuildModuleCR_ProjectsBothNamespaces(t *testing.T) {
 		operatorv1.Managed, "rhoai-model-registries",
 	)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	cli := newNamespaceClient(t, "rhods-notebooks", "rhoai-model-registries")
+	u, err := h.BuildModuleCR(context.Background(), cli, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, _ := u.Object["spec"].(map[string]any)
 	g.Expect(spec["notebooksNamespace"]).Should(Equal("rhods-notebooks"))
 	g.Expect(spec["modelRegistryNamespace"]).Should(Equal("rhoai-model-registries"))
+	for _, name := range []string{"rhods-notebooks", "rhoai-model-registries"} {
+		namespace := &corev1.Namespace{}
+		g.Expect(cli.Get(context.Background(), types.NamespacedName{Name: name}, namespace)).Should(Succeed())
+		g.Expect(namespace.Labels).Should(HaveKeyWithValue("dashboard.opendatahub.io/allow-namespaced-rbac", "true"))
+	}
 }
 
 func TestBuildModuleCR_NilCfgWithWorkbenchesManaged_DefaultsToODH(t *testing.T) {
@@ -465,7 +525,7 @@ func TestBuildModuleCR_NilCfgWithWorkbenchesManaged_DefaultsToODH(t *testing.T) 
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "", operatorv1.Removed, "")
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, nil)
+	u, err := h.BuildModuleCR(context.Background(), newNamespaceClient(t, cluster.DefaultNotebooksNamespaceODH), dscCtx, nil)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, _ := u.Object["spec"].(map[string]any)
