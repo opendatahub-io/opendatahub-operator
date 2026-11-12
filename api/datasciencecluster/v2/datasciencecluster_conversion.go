@@ -189,16 +189,25 @@ const ModelExpressV3StateAnnotation = "conversion.opendatahub.io/modelexpress-v3
 const modelExpressManaged = "managed"
 
 // KserveV3StateAnnotation carries v3-only KServe settings (confidential
-// containers and audit logging profile) through the v2 view, which has no
-// corresponding fields. It is conversion-owned metadata.
+// containers, audit logging profile and the strict LLMInferenceService
+// NetworkPolicy toggle) through the v2 view, which has no corresponding
+// fields. It is conversion-owned metadata.
 const KserveV3StateAnnotation = "conversion.opendatahub.io/kserve-v3-state"
 
 // kserveV3State is the JSON payload carried by KserveV3StateAnnotation. Only
 // non-default values are recorded so clusters that never opted into
-// confidential serving carry no marker.
+// confidential serving carry no marker. The NetworkPolicy toggle is a
+// tri-state pointer: an explicit false is projected onto the operand, unlike
+// an unset value, so it is carried too.
 type kserveV3State struct {
-	ConfidentialContainers *componentApi.ConfidentialContainersConfig `json:"confidentialContainers,omitempty"`
-	AuditLoggingProfile    componentApi.AuditProfile                  `json:"auditLoggingProfile,omitempty"`
+	ConfidentialContainers                       *componentApi.ConfidentialContainersConfig `json:"confidentialContainers,omitempty"`
+	AuditLoggingProfile                          componentApi.AuditProfile                  `json:"auditLoggingProfile,omitempty"`
+	EnableLLMInferenceServiceStrictNetworkPolicy *bool                                      `json:"enableLLMInferenceServiceStrictNetworkPolicy,omitempty"`
+}
+
+// empty reports whether the payload carries no settings at all.
+func (s kserveV3State) empty() bool {
+	return s.ConfidentialContainers == nil && s.AuditLoggingProfile == "" && s.EnableLLMInferenceServiceStrictNetworkPolicy == nil
 }
 
 // The constraints below mirror the kubebuilder markers on
@@ -219,7 +228,7 @@ var luksResourceIDPattern = regexp.MustCompile(`^kbs:///[^/\s?#]+/[^/\s?#]+/[^/\
 // ConvertFrom never produces one, and accepting it would let a v2 write clear
 // the confidential settings through the annotation.
 func (s kserveV3State) validate() error {
-	if s.ConfidentialContainers == nil && s.AuditLoggingProfile == "" {
+	if s.empty() {
 		return fmt.Errorf("carries no settings")
 	}
 
@@ -367,6 +376,7 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 		}
 		dst.Spec.Components.Kserve.ConfidentialContainers = state.ConfidentialContainers
 		dst.Spec.Components.Kserve.AuditLoggingProfile = state.AuditLoggingProfile
+		dst.Spec.Components.Kserve.EnableLLMInferenceServiceStrictNetworkPolicy = state.EnableLLMInferenceServiceStrictNetworkPolicy
 		delete(dst.Annotations, KserveV3StateAnnotation)
 		if len(dst.Annotations) == 0 {
 			dst.Annotations = nil
@@ -483,7 +493,8 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 	if profile := src.Spec.Components.Kserve.AuditLoggingProfile; profile != "" && profile != componentApi.AuditProfileRemoved {
 		kserveState.AuditLoggingProfile = profile
 	}
-	if kserveState.ConfidentialContainers != nil || kserveState.AuditLoggingProfile != "" {
+	kserveState.EnableLLMInferenceServiceStrictNetworkPolicy = src.Spec.Components.Kserve.EnableLLMInferenceServiceStrictNetworkPolicy
+	if !kserveState.empty() {
 		encoded, err := json.Marshal(kserveState)
 		if err != nil {
 			return fmt.Errorf("encode KServe v3 state marker: %w", err)

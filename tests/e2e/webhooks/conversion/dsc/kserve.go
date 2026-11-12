@@ -28,6 +28,7 @@ func (m KserveSuite) run(t *testing.T) {
 	t.Run("v3_rejects_invalid_audit_profile", m.v3RejectsInvalidAuditProfile)
 	t.Run("v3_v2_round_trip_preserves_confidential_containers", m.v3V2RoundTripPreservesConfidentialContainers)
 	t.Run("v3_v2_round_trip_preserves_audit_profile", m.v3V2RoundTripPreservesAuditProfile)
+	t.Run("v3_v2_round_trip_preserves_strict_network_policy_toggle", m.v3V2RoundTripPreservesStrictNetworkPolicyToggle)
 }
 
 // v3RejectsInvalidLUKSResourceID verifies the CRD schema rejects a
@@ -208,6 +209,43 @@ func (m KserveSuite) v3V2RoundTripPreservesAuditProfile(t *testing.T) {
 
 	w.Get(gvk.DataScienceClusterV3, dscKey).Should(gomega.And(
 		jq.Match(`.spec.components.kserve.auditLoggingProfile == "Metadata"`),
+		jq.Match(`.spec.components.kserve.rawDeploymentServiceConfig == "Headed"`),
+		jq.Match(`.metadata.annotations["%s"] == null`, dscv2.KserveV3StateAnnotation),
+	))
+}
+
+// v3V2RoundTripPreservesStrictNetworkPolicyToggle verifies that the v3-only
+// enableLLMInferenceServiceStrictNetworkPolicy toggle survives a v2
+// read-modify-write of the DSC, carried by the conversion-owned
+// kserve-v3-state annotation. It uses an explicit false, which must be kept
+// apart from an unset value.
+func (m KserveSuite) v3V2RoundTripPreservesStrictNetworkPolicyToggle(t *testing.T) {
+	w := m.newScenario(t)
+
+	w.Apply(&dscApi.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: dscKey.Name},
+		Spec: dscApi.DataScienceClusterSpec{
+			Components: dscApi.Components{
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						EnableLLMInferenceServiceStrictNetworkPolicy: new(false),
+					},
+				},
+			},
+		},
+	}).Should(gomega.Succeed())
+
+	w.Get(gvk.DataScienceClusterV2, dscKey).Should(gomega.And(
+		jq.Match(`(.spec.components.kserve | has("enableLLMInferenceServiceStrictNetworkPolicy")) == false`),
+		jq.Match(`.metadata.annotations["%s"] | fromjson | .enableLLMInferenceServiceStrictNetworkPolicy == false`,
+			dscv2.KserveV3StateAnnotation),
+	))
+
+	m.updateUnrelatedFieldThroughV2(t, w)
+
+	w.Get(gvk.DataScienceClusterV3, dscKey).Should(gomega.And(
+		jq.Match(`.spec.components.kserve.enableLLMInferenceServiceStrictNetworkPolicy == false`),
 		jq.Match(`.spec.components.kserve.rawDeploymentServiceConfig == "Headed"`),
 		jq.Match(`.metadata.annotations["%s"] == null`, dscv2.KserveV3StateAnnotation),
 	))
