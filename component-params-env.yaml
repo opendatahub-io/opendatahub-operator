@@ -100,6 +100,8 @@ rhoai_exceptions:
   reason: RHOAI Konflux image offboarded (odh-trustyai-vllm-orchestrator-gateway); present in ODH-Build-Config, not in RHOAI-Build-Config
 
 image_overrides_exceptions:
+- image: RELATED_IMAGE_ODH_SYNTHETIC_MODULE_OPERATOR_IMAGE
+  reason: E2E-only synthetic module fixture; not shipped in product manifests or build config
 - image: RELATED_IMAGE_DSP_INSTRUCTLAB_NVIDIA_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
   reason: Removed with InstructLab pipeline removal since RHOAI 3.0
