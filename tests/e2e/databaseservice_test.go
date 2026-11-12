@@ -1,14 +1,25 @@
 package e2e_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	databaseserviceModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/databaseservice"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
@@ -16,49 +27,65 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-const databaseServiceControllerDeployment = "odh-db-operator-operator"
+const (
+	databaseServiceControllerDeployment = "odh-db-operator-operator"
+	databaseServiceServiceAccount       = "opendatahub-db-operator"
+	databaseServiceConfigMap            = "odh-databaseservice-config"
+	databaseServiceSCCName              = "odh-db-internal-postgres"
+	databaseServiceControllerImageEnv   = "RELATED_IMAGE_ODH_DB_OPERATOR_IMAGE"
+	databaseServiceReleaseName          = "opendatahub-db-operator"
+	databaseServiceLeaderElectionRole   = "odh-db-operator-leader-election-role"
+	databaseServiceLeaderElectionRB     = "odh-db-operator-leader-election-rolebinding"
+	databaseServiceDefaultProvider      = "rhai-db"
+	databaseServiceChartAppName         = "opendatahub-db-operator"
 
-// skipDatabaseServiceE2E skips the whole suite until RELATED_IMAGE_ODH_DB_OPERATOR_IMAGE is
-// digest-pinned . Remove this call when re-enabling; the cases below stay as the
-// acceptance checklist.
-func skipDatabaseServiceE2E(t *testing.T) {
+	databaseServiceCRDName     = "databaseservices.services.platform.opendatahub.io"
+	databaseProviderCRDName    = "databaseproviders.infrastructure.opendatahub.io"
+	databaseClaimCRDName       = "databaseclaims.infrastructure.opendatahub.io"
+	schemaClaimCRDName         = "schemaclaims.infrastructure.opendatahub.io"
+	operandsReadyConditionType = "OperandsReady"
+)
+
+// Infrastructure claim/provider kinds live on the db-operator API group and are
+// not registered in this repo's typed scheme. Lifecycle e2e addresses them as
+// unstructured resources only — no claims are created here.
+var (
+	databaseClaimGVK = schema.GroupVersionKind{
+		Group:   "infrastructure.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "DatabaseClaim",
+	}
+	schemaClaimGVK = schema.GroupVersionKind{
+		Group:   "infrastructure.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "SchemaClaim",
+	}
+	databaseProviderGVK = schema.GroupVersionKind{
+		Group:   "infrastructure.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "DatabaseProvider",
+	}
+)
+
+func databaseServiceTestSuite(t *testing.T) { //nolint:maintidx // sequential subtests sharing one CR lifecycle are clearer inline
 	t.Helper()
-	t.Skip("Skipping DatabaseService e2e: RELATED_IMAGE_ODH_DB_OPERATOR_IMAGE has no imageOverrides digest yet ")
-}
 
-// skipDatabaseServiceOperatorReady skips checks that need a reconciling module operator
-// (CRD/Deployment from the Helm chart, Ready conditions, releases).
-func skipDatabaseServiceOperatorReady(t *testing.T) {
-	t.Helper()
-	t.Skip("Skipping: RELATED_IMAGE_ODH_DB_OPERATOR_IMAGE has no imageOverrides digest yet (RHOAIENG-96276)")
-}
-
-func databaseServiceTestSuite(t *testing.T) {
-	t.Helper()
-
-	tc, err := NewTestContext(t)
+	tc, err := NewModuleTestCtx(t, databaseserviceModule.NewHandler())
 	require.NoError(t, err)
 
 	// RHAII sets RHAI_DISABLE_DATABASESERVICE_MODULE=true, so the handler is not
 	// registered on XKS/KinD. OpenShift-only until the module is enabled there.
 	tc.SkipIfXKSCluster(t)
 
-	skipDatabaseServiceE2E(t)
-
-	// DatabaseService CRD is services.platform.opendatahub.io, not components.platform.
 	moduleGVK := gvk.DatabaseService
 	moduleCRNN := types.NamespacedName{Name: componentApi.DatabaseServiceInstanceName}
 	controllerNN := types.NamespacedName{
 		Namespace: tc.AppsNamespace,
 		Name:      databaseServiceControllerDeployment,
 	}
-	platformConfigNN := types.NamespacedName{
-		Name:      modules.PlatformConfigName(componentApi.DatabaseServiceComponentName),
-		Namespace: tc.AppsNamespace,
-	}
 
 	testCases := []TestCase{
-		{"Validate component enabled", func(t *testing.T) {
+		{"Validate install", func(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Smoke, Tier1)
 
@@ -74,28 +101,86 @@ func databaseServiceTestSuite(t *testing.T) {
 				WithCondition(jq.Match(`.spec.components.databaseservice.managementState == "Managed"`)),
 			)
 
-			skipDatabaseServiceOperatorReady(t)
-
-			tc.EnsureResourceExists(WithMinimalObject(moduleGVK, moduleCRNN))
-			tc.EnsureResourceExists(WithMinimalObject(gvk.Deployment, controllerNN))
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Deployment, controllerNN),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+				WithCustomErrorMsg("Deployment %s should be ready in %s", controllerNN.Name, controllerNN.Namespace),
+			)
 
 			tc.EnsureResourceExists(
-				WithMinimalObject(gvk.ConfigMap, platformConfigNN),
-				WithCondition(jq.Match(`.data | has("%s")`, modules.PlatformVersionKey)),
-				WithCustomErrorMsg("platform should create %s with %s",
-					platformConfigNN.Name, modules.PlatformVersionKey),
+				WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{
+					Namespace: tc.AppsNamespace,
+					Name:      databaseServiceServiceAccount,
+				}),
+				WithCustomErrorMsg("ServiceAccount %s should exist in %s",
+					databaseServiceServiceAccount, tc.AppsNamespace),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+						status.ConditionTypeReady, metav1.ConditionTrue),
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+						status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+						operandsReadyConditionType, metav1.ConditionTrue),
+					jq.Match(`.status.releases[] | select(.name == "%s") | .version != ""`,
+						common.PlatformReleaseName),
+				)),
+				WithCustomErrorMsg("DatabaseService %s should be Ready with OperandsReady and a platform release",
+					moduleCRNN.Name),
+			)
+
+			for _, crdName := range []string{
+				databaseServiceCRDName,
+				databaseProviderCRDName,
+				databaseClaimCRDName,
+				schemaClaimCRDName,
+			} {
+				tc.EnsureCRDEstablished(crdName)
+			}
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.SecurityContextConstraints, types.NamespacedName{
+					Name: databaseServiceSCCName,
+				}),
+				WithCustomErrorMsg("SCC %s should exist after DatabaseService install", databaseServiceSCCName),
 			)
 
 			tc.EnsureResourceExists(
 				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithCondition(jq.Match(`.status.components.databaseservice.managementState == "Managed"`)),
-				WithCustomErrorMsg("DSC status.components.databaseservice.managementState should be Managed"),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`,
+						componentApi.DatabaseServiceKind, metav1.ConditionTrue),
+					jq.Match(`.status.components.databaseservice.managementState == "Managed"`),
+				)),
+				WithCustomErrorMsg("DSC should report DatabaseServiceReady=True and managementState=Managed"),
+			)
+
+			tc.EnsureResourcesExist(
+				WithMinimalObject(databaseClaimGVK, types.NamespacedName{}),
+				WithCondition(HaveLen(0)),
+				WithCustomErrorMsg("no DatabaseClaims should exist during module lifecycle e2e"),
+			)
+			tc.EnsureResourcesExist(
+				WithMinimalObject(schemaClaimGVK, types.NamespacedName{}),
+				WithCondition(HaveLen(0)),
+				WithCustomErrorMsg("no SchemaClaims should exist during module lifecycle e2e"),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.AppsNamespace}),
+				WithCustomErrorMsg("applications namespace %s must still exist after install", tc.AppsNamespace),
 			)
 		}},
-		{"Validate releases mirrored to DSC", func(t *testing.T) {
+		// Phase 2: upgrade handshake without bumping RHAI_VERSION.
+		{"Validate upgrade", func(t *testing.T) {
 			t.Helper()
-			skipUnless(t, Tier1)
-			skipDatabaseServiceOperatorReady(t)
+			skipUnless(t, Smoke, Tier1)
 
 			tc.EventuallyResourcePatched(
 				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -103,21 +188,43 @@ func databaseServiceTestSuite(t *testing.T) {
 				WithCondition(jq.Match(`.spec.components.databaseservice.managementState == "Managed"`)),
 			)
 
-			tc.EnsureResourceExists(
-				WithMinimalObject(moduleGVK, moduleCRNN),
-				WithCondition(jq.Match(`.status.releases | length > 0`)),
-				WithCustomErrorMsg("DatabaseService module CR should have releases in status"),
-			)
+			configNN := types.NamespacedName{
+				Name:      databaseServiceConfigMap,
+				Namespace: tc.AppsNamespace,
+			}
+			// PlatformConfigName(databaseservice) is the same ConfigMap the chart
+			// mounts; platformVersion is merged by injectPlatformConfig.
+			require.Equal(t, modules.PlatformConfigName(componentApi.DatabaseServiceComponentName), configNN.Name)
 
-			module := tc.FetchResource(WithMinimalObject(moduleGVK, moduleCRNN))
-			moduleReleases, found, err := unstructured.NestedSlice(module.Object, "status", "releases")
-			require.NoError(t, err)
-			require.True(t, found, "DatabaseService module CR should have status.releases")
-			require.NotEmpty(t, moduleReleases, "DatabaseService module CR status.releases should be non-empty")
+			expectedImage := databaseServiceRelatedImage(t, tc)
 
 			g := NewWithT(t)
 			g.Eventually(func(g Gomega) {
 				dsc := tc.FetchResource(WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName))
+				g.Expect(dsc).NotTo(BeNil())
+				operatorVersion, _, err := unstructured.NestedString(dsc.Object, "status", "release", "version")
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(operatorVersion).NotTo(BeEmpty(), "DSC .status.release.version must be populated")
+
+				cm := &corev1.ConfigMap{}
+				g.Expect(tc.Client().Get(context.Background(), configNN, cm)).To(Succeed())
+				g.Expect(cm.Data).To(HaveKey(modules.PlatformVersionKey))
+				platformVersion := cm.Data[modules.PlatformVersionKey]
+				g.Expect(platformVersion).NotTo(BeEmpty())
+				g.Expect(platformVersion).To(Equal(operatorVersion),
+					"odh-databaseservice-config platformVersion should equal the operator release")
+
+				module := &unstructured.Unstructured{}
+				module.SetGroupVersionKind(moduleGVK)
+				g.Expect(tc.Client().Get(context.Background(), moduleCRNN, module)).To(Succeed())
+				moduleReleases, found, err := unstructured.NestedSlice(module.Object, "status", "releases")
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(found).To(BeTrue(), "DatabaseService status.releases should exist")
+				modulePlatform, modulePlatformFound := releaseFieldsByName(moduleReleases, common.PlatformReleaseName)
+				g.Expect(modulePlatformFound).To(BeTrue(), "DatabaseService should publish the %s release", common.PlatformReleaseName)
+				g.Expect(modulePlatform).To(Equal(platformVersion),
+					"DatabaseService platform release should match ConfigMap platformVersion")
+
 				dscReleases, found, err := unstructured.NestedSlice(
 					dsc.Object,
 					"status", "components", componentApi.DatabaseServiceComponentName, "releases",
@@ -126,12 +233,27 @@ func databaseServiceTestSuite(t *testing.T) {
 				g.Expect(found).To(BeTrue(), "DSC status.components.databaseservice.releases should exist")
 				g.Expect(dscReleases).To(Equal(moduleReleases),
 					"DSC status.components.databaseservice.releases should match the module CR releases")
+
+				deployment := &appsv1.Deployment{}
+				g.Expect(tc.Client().Get(context.Background(), controllerNN, deployment)).To(Succeed())
+				managerImage := ""
+				for _, container := range deployment.Spec.Template.Spec.Containers {
+					if container.Name == "manager" {
+						managerImage = container.Image
+						break
+					}
+				}
+				g.Expect(managerImage).NotTo(BeEmpty(), "odh-db-operator-operator should have a manager container")
+				g.Expect(managerImage).To(Equal(expectedImage),
+					"manager image should equal RELATED_IMAGE_ODH_DB_OPERATOR_IMAGE from the platform operator")
 			}).
-				WithTimeout(tc.TestTimeouts.componentReadinessTimeout).
+				WithTimeout(tc.TestTimeouts.longEventuallyTimeout).
 				WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
-				Should(Succeed())
+				Should(Succeed(), "DatabaseService upgrade handshake should converge")
 		}},
-		{"Validate component disabled", func(t *testing.T) {
+		// Phase 3: disable on an existing install; platform must stay healthy.
+		// Do not delete DSC or DSCI here — only flip databaseservice to Removed.
+		{"Validate disable", func(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Smoke, Tier1)
 
@@ -141,18 +263,233 @@ func databaseServiceTestSuite(t *testing.T) {
 				WithCondition(jq.Match(`.spec.components.databaseservice.managementState == "Removed"`)),
 			)
 
-			skipDatabaseServiceOperatorReady(t)
-
-			tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
-			tc.EnsureResourceGone(WithMinimalObject(gvk.Deployment, controllerNN))
+			tc.EnsureResourceGone(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+			)
+			tc.EnsureResourceGone(
+				WithMinimalObject(gvk.Deployment, controllerNN),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+			)
 
 			tc.EnsureResourceExists(
 				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithCondition(jq.Match(`.status.components.databaseservice.managementState == "Removed"`)),
-				WithCustomErrorMsg("DSC status.components.databaseservice.managementState should be Removed"),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`,
+						componentApi.DatabaseServiceKind, metav1.ConditionFalse),
+					jq.Match(`.status.conditions[] | select(.type == "%sReady") | .reason == "%s"`,
+						componentApi.DatabaseServiceKind, status.RemovedReason),
+					jq.Match(`.status.components.databaseservice.managementState == "Removed"`),
+				)),
+				WithCustomErrorMsg("DSC should report DatabaseServiceReady=False/Removed after disable"),
+			)
+
+			tc.ValidateModuleDisabled(t)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(
+					`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+					status.ConditionTypeModulesReady, metav1.ConditionTrue,
+				)),
+				WithCustomErrorMsg("DSC ModulesReady should remain True after disabling DatabaseService"),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.AppsNamespace}),
+				WithCustomErrorMsg("applications namespace %s must still exist after disable", tc.AppsNamespace),
+			)
+		}},
+		// Phase 4: after disable finalizers finish, chart-owned orphans must be gone.
+		// Upstream retains the Internal provider PVC and admin Secret on purpose
+		// (ownerRefs stripped during DatabaseService finalizer cleanup) so data can
+		// be recovered or deleted by an administrator. Do not fail this case if
+		// those objects remain, and do not delete them here.
+		{"Validate uninstall", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Smoke, Tier1)
+
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.Transform(`.spec.components.databaseservice.managementState = "Removed"`)),
+				WithCondition(jq.Match(`.spec.components.databaseservice.managementState == "Removed"`)),
+			)
+
+			tc.EnsureResourceGone(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+			)
+
+			tc.EnsureResourceGone(
+				WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{
+					Namespace: tc.AppsNamespace,
+					Name:      databaseServiceServiceAccount,
+				}),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+			)
+			tc.EnsureResourceGone(
+				WithMinimalObject(gvk.Role, types.NamespacedName{
+					Namespace: tc.AppsNamespace,
+					Name:      databaseServiceLeaderElectionRole,
+				}),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+			)
+			tc.EnsureResourceGone(
+				WithMinimalObject(gvk.RoleBinding, types.NamespacedName{
+					Namespace: tc.AppsNamespace,
+					Name:      databaseServiceLeaderElectionRB,
+				}),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+			)
+
+			// Chart ClusterRole(Binding) names may be hashed; select by chart labels
+			// and also require no ClusterRoleBinding still grants the module SA.
+			chartLabelSelector := labels.SelectorFromSet(labels.Set{
+				"app.kubernetes.io/instance": databaseServiceReleaseName,
+			})
+			chartNameSelector := labels.SelectorFromSet(labels.Set{
+				"app.kubernetes.io/name": databaseServiceChartAppName,
+			})
+			tc.EnsureResourcesGone(
+				WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{}),
+				WithListOptions(&client.ListOptions{LabelSelector: chartLabelSelector}),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCustomErrorMsg("no ClusterRoleBinding with app.kubernetes.io/instance=%s should remain",
+					databaseServiceReleaseName),
+			)
+			tc.EnsureResourcesGone(
+				WithMinimalObject(gvk.ClusterRole, types.NamespacedName{}),
+				WithListOptions(&client.ListOptions{LabelSelector: chartLabelSelector}),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCustomErrorMsg("no ClusterRole with app.kubernetes.io/instance=%s should remain",
+					databaseServiceReleaseName),
+			)
+			tc.EnsureResourcesGone(
+				WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{}),
+				WithListOptions(&client.ListOptions{LabelSelector: chartNameSelector}),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCustomErrorMsg("no ClusterRoleBinding with app.kubernetes.io/name=%s should remain",
+					databaseServiceChartAppName),
+			)
+			ensureDatabaseServiceClusterRoleBindingsGone(t, tc)
+
+			tc.EnsureResourceGone(
+				WithMinimalObject(gvk.SecurityContextConstraints, types.NamespacedName{
+					Name: databaseServiceSCCName,
+				}),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+			)
+			tc.EnsureResourceGone(
+				WithMinimalObject(gvk.ClusterRole, types.NamespacedName{
+					Name: databaseServiceSCCName,
+				}),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+			)
+
+			tc.EnsureResourceGone(
+				WithMinimalObject(databaseProviderGVK, types.NamespacedName{
+					Name: databaseServiceDefaultProvider,
+				}),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+			)
+			tc.EnsureResourceGone(
+				WithMinimalObject(gvk.StatefulSet, types.NamespacedName{
+					Namespace: tc.AppsNamespace,
+					Name:      databaseServiceDefaultProvider,
+				}),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+			)
+
+			tc.EnsureResourceGone(
+				WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+					Namespace: tc.AppsNamespace,
+					Name:      databaseServiceConfigMap,
+				}),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+			)
+
+			for _, crdName := range []string{
+				databaseServiceCRDName,
+				databaseProviderCRDName,
+				databaseClaimCRDName,
+				schemaClaimCRDName,
+			} {
+				tc.EnsureResourceGone(
+					WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdName}),
+					WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+					WithCustomErrorMsg("CRD %s should be removed after DatabaseService uninstall", crdName),
+				)
+			}
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.AppsNamespace}),
+				WithCustomErrorMsg("applications namespace %s must still exist after uninstall", tc.AppsNamespace),
 			)
 		}},
 	}
 
 	RunTestCases(t, testCases)
+}
+
+// databaseServiceRelatedImage reads RELATED_IMAGE_ODH_DB_OPERATOR_IMAGE from the
+// platform operator Deployment. injectModuleEnv uses that value to override the
+// module operator manager image.
+func databaseServiceRelatedImage(t *testing.T, tc *ComponentTestCtx) string {
+	t.Helper()
+
+	operatorDeployment := &appsv1.Deployment{}
+	tc.FetchTypedResource(
+		operatorDeployment,
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      tc.getControllerDeploymentName(),
+			Namespace: tc.OperatorNamespace,
+		}),
+		WithCustomErrorMsg("Failed to fetch platform operator Deployment %s/%s",
+			tc.OperatorNamespace, tc.getControllerDeploymentName()),
+	)
+
+	for _, container := range operatorDeployment.Spec.Template.Spec.Containers {
+		for _, envVar := range container.Env {
+			if envVar.Name == databaseServiceControllerImageEnv && envVar.Value != "" {
+				return envVar.Value
+			}
+		}
+	}
+
+	t.Fatalf("platform operator Deployment is missing non-empty %s", databaseServiceControllerImageEnv)
+	return ""
+}
+
+// ensureDatabaseServiceClusterRoleBindingsGone asserts no ClusterRoleBinding still
+// subjects the module ServiceAccount. Chart ClusterRoleBinding names can be
+// release/namespace-hashed, so label selectors alone are not enough.
+func ensureDatabaseServiceClusterRoleBindingsGone(t *testing.T, tc *ComponentTestCtx) {
+	t.Helper()
+
+	g := NewWithT(t)
+	g.Eventually(func(g Gomega) {
+		crbList := &rbacv1.ClusterRoleBindingList{}
+		g.Expect(tc.Client().List(context.Background(), crbList)).To(Succeed())
+
+		var leftover []string
+		for i := range crbList.Items {
+			crb := &crbList.Items[i]
+			for _, subject := range crb.Subjects {
+				if subject.Kind == "ServiceAccount" &&
+					subject.Name == databaseServiceServiceAccount &&
+					subject.Namespace == tc.AppsNamespace {
+					leftover = append(leftover, crb.Name)
+					break
+				}
+			}
+		}
+		g.Expect(leftover).To(BeEmpty(),
+			"ClusterRoleBindings still granting %s/%s: %v",
+			tc.AppsNamespace, databaseServiceServiceAccount, leftover)
+	}).
+		WithTimeout(tc.TestTimeouts.longEventuallyTimeout).
+		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
+		Should(Succeed())
 }
