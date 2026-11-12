@@ -20,6 +20,7 @@ import (
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
@@ -121,6 +122,17 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	b = b.Watches(&admissionregistrationv1.ValidatingWebhookConfiguration{},
 		reconciler.WithEventMapper(otelCollectorWebhookPlatformRequests),
 		reconciler.WithPredicates(otelCollectorWebhookPredicate()),
+	)
+
+	// COO may install the RHOBS ServiceMonitor CRD after Monitoring is already
+	// Managed. Re-render the odh-observability chart so metrics.serviceMonitor
+	// can be enabled once the CRD exists.
+	b = b.Watches(
+		&apiextensionsv1.CustomResourceDefinition{},
+		reconciler.WithEventMapper(func(_ context.Context, _ client.Object) []reconcile.Request {
+			return platformRequest
+		}),
+		reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(gvk.ServiceMonitorCRDName)),
 	)
 
 	b = addModuleCRWatches(b)

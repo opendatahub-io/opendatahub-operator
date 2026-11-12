@@ -23,6 +23,7 @@ import (
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
@@ -229,21 +230,31 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 	}
 
 	var otelOperatorNS string
+	var metricsServiceMonitorEnabled bool
 	if modules.Monitoring.ManagementState == operatorv1.Managed {
 		otelOperatorNS, err = resolveOTelOperatorNamespace(ctx, rr.Client)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve OpenTelemetry Operator namespace: %w", err)
 		}
+
+		// The chart defaults metrics.serviceMonitor.enabled to false until the
+		// RHOBS CRD exists. Enable it once COO has installed the CRD so webhook
+		// admission-path alerts have scrape targets in the default deployment.
+		metricsServiceMonitorEnabled, err = cluster.HasCRD(ctx, rr.Client, gvk.ServiceMonitor)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check RHOBS ServiceMonitor CRD availability: %w", err)
+		}
 	}
 
 	return &PlatformContext{
-		ApplicationsNamespace: appNS,
-		MonitoringNamespace:   monitoringNS,
-		OTelOperatorNamespace: otelOperatorNS,
-		Release:               rr.Release,
-		Modules:               modules,
-		ChartsBasePath:        rr.ChartsBasePath,
-		ManifestsBasePath:     rr.ManifestsBasePath,
+		ApplicationsNamespace:        appNS,
+		MonitoringNamespace:          monitoringNS,
+		OTelOperatorNamespace:        otelOperatorNS,
+		MetricsServiceMonitorEnabled: metricsServiceMonitorEnabled,
+		Release:                      rr.Release,
+		Modules:                      modules,
+		ChartsBasePath:               rr.ChartsBasePath,
+		ManifestsBasePath:            rr.ManifestsBasePath,
 	}, nil
 }
 

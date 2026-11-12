@@ -25,13 +25,17 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routes,verbs=get;list;watch;create;delete;update;patch
 
-// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=roles,verbs=*
+// RBAC resources: full CRUD for reconciling component and platform Roles/Bindings
+// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=roles,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=rolebindings,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=clusterroles,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=clusterrolebindings,verbs=get;list;watch;create;update;patch;delete
 
-// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=rolebindings,verbs=*
-
-// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=clusterroles,verbs=*
-
-// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=clusterrolebindings,verbs=*
+// Escalate: the operator renders Roles/ClusterRoles granting permissions the operator itself
+// does not hold, which the API server rejects without the escalate verb.
+// Bind: the operator creates Bindings referencing Roles/ClusterRoles whose permissions
+// it does not fully hold. The API server checks bind on the referenced Role/ClusterRole.
+// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=roles;clusterroles,verbs=escalate;bind
 
 // +kubebuilder:rbac:groups="apiregistration.k8s.io",resources=apiservices,verbs=create;delete;list;watch;update;patch;get
 
@@ -98,8 +102,6 @@ package datasciencecluster
 
 // Log access for debugging and troubleshooting
 // +kubebuilder:rbac:groups="core",resources=pods/log,verbs=get
-// Exec access may be needed for certain operational tasks
-// +kubebuilder:rbac:groups="core",resources=pods/exec,verbs=create
 // Pod management for all workloads
 // +kubebuilder:rbac:groups="core",resources=pods,verbs=get;list;watch;create;update;patch;delete
 

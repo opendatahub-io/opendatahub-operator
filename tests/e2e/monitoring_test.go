@@ -34,28 +34,30 @@ import (
 
 // Constants for monitoring resource names.
 const (
-	MonitoringCRName                         = "default-monitoring"
-	MonitoringStackName                      = "data-science-monitoringstack"
-	ObservabilityDeploymentName              = "odh-observability"
-	OpenTelemetryCollectorName               = "data-science-collector"
-	OpenTelemetryCollectorServiceName        = "data-science-collector-collector"
-	TargetAllocatorDeploymentName            = "data-science-collector-targetallocator"
-	CollectorServiceAccount                  = "data-science-collector-collector"
-	TargetAllocatorServiceAccount            = "data-science-collector-targetallocator"
-	TempoMonolithicName                      = "data-science-tempomonolithic"
-	TempoStackName                           = "data-science-tempostack"
-	InstrumentationName                      = "data-science-instrumentation"
-	ThanosQuerierName                        = "data-science-thanos-querier"
-	ThanosQuerierRouteName                   = "data-science-thanos-querier-route"
-	PersesName                               = "data-science-perses"
-	PersesDatasourceName                     = "data-science-prometheus-datasource"
-	ClusterPrometheusDatasourceName          = "cluster-prometheus-datasource"
-	ClusterPrometheusDatasourceSecret        = "cluster-prometheus-datasource-secret"
-	ClusterPrometheusTenancyDatasourceName   = "cluster-prometheus-tenancy-datasource"
-	ClusterPrometheusTenancyDatasourceSecret = "cluster-prometheus-tenancy-datasource-secret"
-	OTelCertManagerClusterRoleBinding        = "odh-observability-opentelemetry-cert-manager"
-	OTelOperatorControllerDeployment         = "opentelemetry-operator-controller-manager"
-	OTelOperatorWebhookDeployment            = "opentelemetry-operator-webhook"
+	MonitoringCRName                          = "default-monitoring"
+	MonitoringStackName                       = "data-science-monitoringstack"
+	ObservabilityDeploymentName               = "odh-observability"
+	OpenTelemetryCollectorName                = "data-science-collector"
+	OpenTelemetryCollectorServiceName         = "data-science-collector-collector"
+	OpenTelemetryCollectorHeadlessServiceName = "data-science-collector-collector-headless"
+	TargetAllocatorDeploymentName             = "data-science-collector-targetallocator"
+	CollectorServiceAccount                   = "data-science-collector-collector"
+	TargetAllocatorServiceAccount             = "data-science-collector-targetallocator"
+	TempoMonolithicName                       = "data-science-tempomonolithic"
+	TempoStackName                            = "data-science-tempostack"
+	InstrumentationName                       = "data-science-instrumentation"
+	ThanosQuerierName                         = "data-science-thanos-querier"
+	ThanosQuerierRouteName                    = "data-science-thanos-querier-route"
+	ThanosQuerierProxyServiceName             = "data-science-thanos-querier-proxy"
+	PersesName                                = "data-science-perses"
+	PersesDatasourceName                      = "data-science-prometheus-datasource"
+	ClusterPrometheusDatasourceName           = "cluster-prometheus-datasource"
+	ClusterPrometheusDatasourceSecret         = "cluster-prometheus-datasource-secret"
+	ClusterPrometheusTenancyDatasourceName    = "cluster-prometheus-tenancy-datasource"
+	ClusterPrometheusTenancyDatasourceSecret  = "cluster-prometheus-tenancy-datasource-secret"
+	OTelCertManagerClusterRoleBinding         = "odh-observability-opentelemetry-cert-manager"
+	OTelOperatorControllerDeployment          = "opentelemetry-operator-controller-manager"
+	OTelOperatorWebhookDeployment             = "opentelemetry-operator-webhook"
 )
 
 // Constants for common test values.
@@ -952,7 +954,7 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesLifecycle(t *testing
 	)
 
 	// Step 3: Wait for Instrumentation CR to be created and fully configured
-	expectedEndpoint := fmt.Sprintf("http://%s.%s.svc.cluster.local:4317", OpenTelemetryCollectorServiceName, tc.MonitoringNamespace)
+	expectedEndpoint := fmt.Sprintf("https://%s.%s.svc.cluster.local:4317", OpenTelemetryCollectorHeadlessServiceName, tc.MonitoringNamespace)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: InstrumentationName, Namespace: tc.MonitoringNamespace}),
@@ -963,6 +965,7 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesLifecycle(t *testing
 			// Configuration is correct
 			jq.Match(`
 			(.spec.exporter.endpoint == "%s") and
+			(.spec.exporter.tls.ca_file == "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt") and
 			(.spec.sampler.type == "traceidratio") and
 			(.spec.sampler.argument == "0.1")
 		`, expectedEndpoint),
@@ -1221,32 +1224,35 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceWithPrometheus(t *testing.T
 		WithCustomErrorMsg("Monitoring CR should have all conditions (Perses, MonitoringStack, PersesPrometheusDataSource) set to True"),
 	)
 
-	// Verify Data Science PersesDatasource CR is created (default: false, points to local Thanos Querier)
+	// Verify Data Science PersesDatasource CR is created (default: true, points to local Thanos Querier proxy)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: PersesDatasourceName, Namespace: tc.MonitoringNamespace}),
 		WithCondition(And(
 			// Validate owner references
 			monitoringOwnerReferencesCondition,
-			// Validate datasource is NOT set as default (cluster datasource is default)
-			jq.Match(`.spec.config.default == false`),
+			// Validate datasource IS set as default (data-science Thanos proxy is the default datasource)
+			jq.Match(`.spec.config.default == true`),
 			// Validate plugin kind is PrometheusDatasource
 			jq.Match(`.spec.config.plugin.kind == "PrometheusDatasource"`),
-			// Validate Prometheus URL points to local Thanos Querier using proxy configuration
+			// Validate Prometheus URL points to local Thanos Querier proxy service (service-ca TLS)
 			jq.Match(`.spec.config.plugin.spec.proxy.kind == "HTTPProxy"`),
-			jq.Match(`.spec.config.plugin.spec.proxy.spec.url | contains("thanos-querier-data-science-thanos-querier")`),
-			jq.Match(`.spec.config.plugin.spec.proxy.spec.url | contains("%s")`, tc.MonitoringNamespace),
+			jq.Match(`.spec.config.plugin.spec.proxy.spec.url == "%s"`, fmt.Sprintf("https://%s.%s.svc.cluster.local:8443", ThanosQuerierProxyServiceName, tc.MonitoringNamespace)),
+			// Validate TLS configuration (service-ca)
+			jq.Match(`.spec.client.tls.enable == true`),
+			jq.Match(`.spec.client.tls.caCert.name == "prometheus-web-tls-ca"`),
+			jq.Match(`.spec.client.tls.caCert.certPath == "service-ca.crt"`),
 		)),
 		WithCustomErrorMsg("Data Science PersesDatasource CR should be created with correct Thanos Querier proxy configuration"),
 	)
 
-	// Verify Cluster Prometheus PersesDatasource CR is created (default: true, points to openshift-monitoring Thanos)
+	// Verify Cluster Prometheus PersesDatasource CR is created (default: false, points to openshift-monitoring Thanos)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: ClusterPrometheusDatasourceName, Namespace: tc.MonitoringNamespace}),
 		WithCondition(And(
 			// Validate owner references
 			monitoringOwnerReferencesCondition,
-			// Validate datasource IS set as default
-			jq.Match(`.spec.config.default == true`),
+			// Validate datasource is NOT set as default (data-science datasource is default)
+			jq.Match(`.spec.config.default == false`),
 			// Validate plugin kind is PrometheusDatasource
 			jq.Match(`.spec.config.plugin.kind == "PrometheusDatasource"`),
 			// Validate Prometheus URL points to cluster Thanos Querier in openshift-monitoring
@@ -3073,7 +3079,8 @@ func (tc *MonitoringTestCtx) validatePrometheusNamespaceProxyResourcesCommon(t *
 		}),
 		WithCondition(And(
 			jq.Match(`.status.readyReplicas == 1`),
-			jq.Match(`.spec.template.spec.containers | length == 2`), // kube-rbac-proxy + prom-label-proxy
+			jq.Match(`.spec.template.spec.containers | length == 3`), // kube-rbac-proxy + method-gate + prom-label-proxy
+			jq.Match(`.spec.template.spec.containers | any(.[]; .name == "method-gate")`),
 		)),
 		WithCustomErrorMsg("data-science-prometheus-namespace-proxy deployment should be created and ready"),
 	)
@@ -3195,7 +3202,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusSecureProxyAuthentication(t *test
 		}),
 		WithCondition(And(
 			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream="))) | length == 1`),
-			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream=http://127.0.0.1:9091/"))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream=http://127.0.0.1:9092/"))) | length == 1`), // upstream is the method-gate container
 			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--secure-listen-address=0.0.0.0:8443"))) | length == 1`),
 		)),
 		WithCustomErrorMsg("kube-rbac-proxy should be configured with correct upstream and secure listen address"),
