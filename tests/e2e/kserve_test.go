@@ -22,6 +22,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
@@ -42,6 +43,9 @@ const (
 	// prefix the kserve module looks for, but nothing ever schedules pods
 	// against it: the module only lists RuntimeClasses to detect CoCo support.
 	fakeCoCoRuntimeClassName = "kata-e2e"
+
+	modelCacheNamespace = "model-serving-cache"
+	modelCachePSAMarker = "kserve-modelcache"
 )
 
 type KserveTestCtx struct {
@@ -865,12 +869,12 @@ func (tc *KserveTestCtx) ValidateModelCacheEnabled(t *testing.T) {
 		WithMinimalObject(gvk.PersistentVolume, types.NamespacedName{Name: "kserve-localmodelnode-pv"}),
 	)
 
-	// Verify PVC exists in apps namespace
-	t.Log("Verifying PersistentVolumeClaim kserve-localmodelnode-pvc exists")
+	// Verify PVC exists in the ModelCache namespace
+	t.Logf("Verifying PersistentVolumeClaim kserve-localmodelnode-pvc exists in namespace %q", modelCacheNamespace)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.PersistentVolumeClaim, types.NamespacedName{
 			Name:      "kserve-localmodelnode-pvc",
-			Namespace: tc.AppsNamespace,
+			Namespace: modelCacheNamespace,
 		}),
 	)
 
@@ -889,24 +893,30 @@ func (tc *KserveTestCtx) ValidateModelCacheEnabled(t *testing.T) {
 		),
 	)
 
-	// Verify namespace PSA label is privileged
-	t.Logf("Verifying namespace %q has PSA enforce=privileged", tc.AppsNamespace)
+	// Verify only the dedicated ModelCache namespace is elevated for this feature.
+	t.Logf("Verifying namespace %q has PSA enforce=privileged", modelCacheNamespace)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: modelCacheNamespace}),
+		WithCondition(And(
+			jq.Match(`.metadata.labels["%s"] == "privileged"`, labels.SecurityEnforce),
+			jq.Match(`.metadata.annotations["%s"] == "%s"`, annotations.PSAElevatedBy, modelCachePSAMarker),
+		)),
+	)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.AppsNamespace}),
-		WithCondition(
-			jq.Match(`.metadata.labels["%s"] == "privileged"`, labels.SecurityEnforce),
-		),
+		WithCondition(jq.Match(`.metadata.annotations["%s"] != "%s"`, annotations.PSAElevatedBy, modelCachePSAMarker)),
+		WithCustomErrorMsg("Applications namespace %s must not carry the ModelCache PSA marker", tc.AppsNamespace),
 	)
 }
 
 // ValidateModelCacheConfigMap verifies the inferenceservice-config ConfigMap is correctly
-// configured for ModelCache: localModel.enabled=true and jobNamespace matches the apps namespace.
+// configured for ModelCache: localModel.enabled=true and jobNamespace is the ModelCache namespace.
 func (tc *KserveTestCtx) ValidateModelCacheConfigMap(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Tier1)
 
-	t.Logf("Verifying inferenceservice-config ConfigMap has localModel.enabled=true and jobNamespace=%s", tc.AppsNamespace)
+	t.Logf("Verifying inferenceservice-config ConfigMap has localModel.enabled=true and jobNamespace=%s", modelCacheNamespace)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
 			Name:      "inferenceservice-config",
@@ -915,15 +925,16 @@ func (tc *KserveTestCtx) ValidateModelCacheConfigMap(t *testing.T) {
 		WithCondition(
 			And(
 				jq.Match(`.data.localModel | fromjson | .enabled == true`),
-				jq.Match(`.data.localModel | fromjson | .jobNamespace == "%s"`, tc.AppsNamespace),
+				jq.Match(`.data.localModel | fromjson | .jobNamespace == "%s"`, modelCacheNamespace),
 			),
 		),
 	)
 }
 
 // ValidateModelCacheDisabled disables ModelCache and verifies full cleanup:
-// PSA label reverts to baseline, ConfigMap localModel.enabled=false,
-// PV/PVC/LocalModelNodeGroup are deleted, and node labels are removed.
+// cache workloads and PVC are deleted, localModel is disabled in the ConfigMap,
+// PSA elevation is removed from the ModelCache namespace, and the PV,
+// LocalModelNodeGroup, and node labels are cleaned up.
 func (tc *KserveTestCtx) ValidateModelCacheDisabled(t *testing.T) {
 	t.Helper()
 
@@ -946,13 +957,19 @@ func (tc *KserveTestCtx) ValidateModelCacheDisabled(t *testing.T) {
 		),
 	)
 
-	// Verify namespace PSA label reverted to baseline
-	t.Logf("Verifying namespace %q has PSA enforce=baseline", tc.AppsNamespace)
+	// Verify namespace PSA label reverted to baseline and the ModelCache marker was removed.
+	t.Logf("Verifying namespace %q has PSA enforce=baseline", modelCacheNamespace)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: modelCacheNamespace}),
+		WithCondition(And(
+			jq.Match(`.metadata.labels["%s"] == "baseline"`, labels.SecurityEnforce),
+			jq.Match(`(.metadata.annotations["%s"] // "") == ""`, annotations.PSAElevatedBy),
+		)),
+	)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.AppsNamespace}),
-		WithCondition(
-			jq.Match(`.metadata.labels["%s"] == "baseline"`, labels.SecurityEnforce),
-		),
+		WithCondition(jq.Match(`.metadata.annotations["%s"] != "%s"`, annotations.PSAElevatedBy, modelCachePSAMarker)),
+		WithCustomErrorMsg("Applications namespace %s must not retain the ModelCache PSA marker", tc.AppsNamespace),
 	)
 
 	// Verify ConfigMap localModel.enabled is false
@@ -976,7 +993,7 @@ func (tc *KserveTestCtx) ValidateModelCacheDisabled(t *testing.T) {
 	tc.EnsureResourceGone(
 		WithMinimalObject(gvk.PersistentVolumeClaim, types.NamespacedName{
 			Name:      "kserve-localmodelnode-pvc",
-			Namespace: tc.AppsNamespace,
+			Namespace: modelCacheNamespace,
 		}),
 	)
 
