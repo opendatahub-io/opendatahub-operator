@@ -1091,7 +1091,9 @@ _Appears in:_
 
 
 
-DashboardCommonStatus defines the shared observed state of Dashboard
+DashboardCommonStatus defines the shared observed state of Dashboard.
+Releases is filled from the Dashboard module CR so the Info dialog can
+show the upstream component link and version.
 
 
 
@@ -1100,7 +1102,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `url` _string_ |  |  |  |
+| `url` _string_ | URL is the externally reachable dashboard URL. |  |  |
 
 
 #### DashboardMaaSPortalSpec
