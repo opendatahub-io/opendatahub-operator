@@ -634,27 +634,76 @@ func evaluateModulesStatus(ctx context.Context, rr *odhtype.ReconciliationReques
 		condType := readyConditionTypeFor(handler)
 		submodules := submoduleConditionsFor(handler)
 		enabled := isEnabled(handler)
+		crState, crErr := handler.GetModuleCRState(ctx, rr.Client)
 
-		if !enabled {
-			eval.perModule = append(eval.perModule, perModuleResult{
+		if crErr == nil && crState == CRStateDeleting {
+			result := perModuleResult{
 				handler: handler,
+				enabled: enabled,
 				condition: common.Condition{
-					Type:     condType,
-					Status:   metav1.ConditionFalse,
-					Reason:   status.RemovedReason,
-					Severity: common.ConditionSeverityInfo,
-					Message:  fmt.Sprintf("Module ManagementState is set to %s", status.RemovedReason),
+					Type:    condType,
+					Status:  metav1.ConditionFalse,
+					Reason:  status.DeletingReason,
+					Message: status.DeletingMessage,
 				},
 				submodules: submodules,
-			})
+			}
 
-			crState, crErr := handler.GetModuleCRState(ctx, rr.Client)
+			moduleStatus, statusErr := handler.GetModuleStatus(ctx, rr.Client)
+			if statusErr != nil {
+				log.V(1).Info("failed to get module status for deleting module", "module", name, "error", statusErr)
+			} else if moduleStatus != nil {
+				for i := range moduleStatus.Conditions {
+					condition := &moduleStatus.Conditions[i]
+					if condition.Type == status.ConditionTypeDegraded &&
+						condition.Status == metav1.ConditionTrue &&
+						condition.Reason == status.DeletionBlockedReason {
+						result.condition.Reason = condition.Reason
+						result.condition.Message = condition.Message
+						result.degraded = true
+						break
+					}
+				}
+			}
+
+			eval.perModule = append(eval.perModule, result)
+			if result.degraded {
+				eval.degraded = append(eval.degraded, name)
+			}
+
+			if enabled {
+				eval.enabledCount++
+				if !result.degraded {
+					eval.notReady = append(eval.notReady, name)
+				}
+			} else {
+				eval.pendingCleanup = append(eval.pendingCleanup, name)
+			}
+
+			return nil
+		}
+
+		if !enabled {
+			condition := common.Condition{
+				Type:     condType,
+				Status:   metav1.ConditionFalse,
+				Reason:   status.RemovedReason,
+				Severity: common.ConditionSeverityInfo,
+				Message:  fmt.Sprintf("Module ManagementState is set to %s", status.RemovedReason),
+			}
+
 			if crErr != nil {
 				log.V(1).Info("failed to get module CR state for disabled module", "module", name, "error", crErr)
 				eval.pendingCleanup = append(eval.pendingCleanup, name)
 			} else if crState != CRStateAbsent {
 				eval.pendingCleanup = append(eval.pendingCleanup, name)
 			}
+
+			eval.perModule = append(eval.perModule, perModuleResult{
+				handler:    handler,
+				condition:  condition,
+				submodules: submodules,
+			})
 
 			return nil
 		}
@@ -723,15 +772,7 @@ func evaluateModulesStatus(ctx context.Context, rr *odhtype.ReconciliationReques
 
 		result := perModuleResult{handler: handler, enabled: true, ready: ready, degraded: degraded}
 
-		crState, _ := handler.GetModuleCRState(ctx, rr.Client)
 		switch {
-		case crState == CRStateDeleting:
-			result.condition = common.Condition{
-				Type:    condType,
-				Status:  metav1.ConditionFalse,
-				Reason:  status.DeletingReason,
-				Message: status.DeletingMessage,
-			}
 		case readyCond != nil:
 			result.condition = common.Condition{
 				Type:    condType,
