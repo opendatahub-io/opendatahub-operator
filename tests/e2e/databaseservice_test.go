@@ -2,6 +2,10 @@ package e2e_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -10,10 +14,8 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -37,7 +39,6 @@ const (
 	databaseServiceLeaderElectionRole   = "odh-db-operator-leader-election-role"
 	databaseServiceLeaderElectionRB     = "odh-db-operator-leader-election-rolebinding"
 	databaseServiceDefaultProvider      = "rhai-db"
-	databaseServiceChartAppName         = "opendatahub-db-operator"
 
 	databaseServiceCRDName     = "databaseservices.services.platform.opendatahub.io"
 	databaseProviderCRDName    = "databaseproviders.infrastructure.opendatahub.io"
@@ -161,14 +162,12 @@ func databaseServiceTestSuite(t *testing.T) { //nolint:maintidx // sequential su
 				WithCustomErrorMsg("DSC should report DatabaseServiceReady=True and managementState=Managed"),
 			)
 
-			tc.EnsureResourcesExist(
+			tc.EnsureResourcesGone(
 				WithMinimalObject(databaseClaimGVK, types.NamespacedName{}),
-				WithCondition(HaveLen(0)),
 				WithCustomErrorMsg("no DatabaseClaims should exist during module lifecycle e2e"),
 			)
-			tc.EnsureResourcesExist(
+			tc.EnsureResourcesGone(
 				WithMinimalObject(schemaClaimGVK, types.NamespacedName{}),
-				WithCondition(HaveLen(0)),
 				WithCustomErrorMsg("no SchemaClaims should exist during module lifecycle e2e"),
 			)
 
@@ -177,8 +176,9 @@ func databaseServiceTestSuite(t *testing.T) { //nolint:maintidx // sequential su
 				WithCustomErrorMsg("applications namespace %s must still exist after install", tc.AppsNamespace),
 			)
 		}},
-		// Phase 2: upgrade handshake without bumping RHAI_VERSION.
-		{"Validate upgrade", func(t *testing.T) {
+		// Phase 2: release and image propagation on the already-installed operator.
+		// This does not change versions.
+		{"Validate release and image propagation", func(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Smoke, Tier1)
 
@@ -249,7 +249,7 @@ func databaseServiceTestSuite(t *testing.T) { //nolint:maintidx // sequential su
 			}).
 				WithTimeout(tc.TestTimeouts.longEventuallyTimeout).
 				WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
-				Should(Succeed(), "DatabaseService upgrade handshake should converge")
+				Should(Succeed(), "DatabaseService release and image propagation should converge")
 		}},
 		// Phase 3: disable on an existing install; platform must stay healthy.
 		// Do not delete DSC or DSCI here — only flip databaseservice to Removed.
@@ -301,6 +301,25 @@ func databaseServiceTestSuite(t *testing.T) { //nolint:maintidx // sequential su
 				WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.AppsNamespace}),
 				WithCustomErrorMsg("applications namespace %s must still exist after disable", tc.AppsNamespace),
 			)
+
+			// BaseHandler retains the chart DatabaseService CRD (same as Ray/Spark).
+			// Operand infrastructure CRDs are owned by db-operator cleanupOperands and
+			// are deleted once no claims/providers remain.
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: databaseServiceCRDName}),
+				WithCustomErrorMsg("DatabaseService CRD should NOT be deleted on disable — BaseHandler retains chart CRDs"),
+			)
+			for _, crdName := range []string{
+				databaseProviderCRDName,
+				databaseClaimCRDName,
+				schemaClaimCRDName,
+			} {
+				tc.EnsureResourceGone(
+					WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdName}),
+					WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+					WithCustomErrorMsg("operand CRD %s should be deleted on disable once claims/providers are gone", crdName),
+				)
+			}
 		}},
 		// Phase 4: after disable finalizers finish, chart-owned orphans must be gone.
 		// Upstream retains the Internal provider PVC and admin Secret on purpose
@@ -344,35 +363,11 @@ func databaseServiceTestSuite(t *testing.T) { //nolint:maintidx // sequential su
 				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 			)
 
-			// Chart ClusterRole(Binding) names may be hashed; select by chart labels
-			// and also require no ClusterRoleBinding still grants the module SA.
-			chartLabelSelector := labels.SelectorFromSet(labels.Set{
-				"app.kubernetes.io/instance": databaseServiceReleaseName,
-			})
-			chartNameSelector := labels.SelectorFromSet(labels.Set{
-				"app.kubernetes.io/name": databaseServiceChartAppName,
-			})
-			tc.EnsureResourcesGone(
-				WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{}),
-				WithListOptions(&client.ListOptions{LabelSelector: chartLabelSelector}),
-				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
-				WithCustomErrorMsg("no ClusterRoleBinding with app.kubernetes.io/instance=%s should remain",
-					databaseServiceReleaseName),
-			)
-			tc.EnsureResourcesGone(
-				WithMinimalObject(gvk.ClusterRole, types.NamespacedName{}),
-				WithListOptions(&client.ListOptions{LabelSelector: chartLabelSelector}),
-				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
-				WithCustomErrorMsg("no ClusterRole with app.kubernetes.io/instance=%s should remain",
-					databaseServiceReleaseName),
-			)
-			tc.EnsureResourcesGone(
-				WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{}),
-				WithListOptions(&client.ListOptions{LabelSelector: chartNameSelector}),
-				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
-				WithCustomErrorMsg("no ClusterRoleBinding with app.kubernetes.io/name=%s should remain",
-					databaseServiceChartAppName),
-			)
+			// Hashed chart ClusterRole(Binding) names omit app.kubernetes.io/instance
+			// (and metrics-reader-binding has neither selector label nor the module SA
+			// as subject). Match the chart.clusterResourceName prefix so every rendered
+			// role/binding is covered, including future metrics-* suffixes.
+			ensureDatabaseServiceChartRBACGone(t, tc)
 			ensureDatabaseServiceClusterRoleBindingsGone(t, tc)
 
 			tc.EnsureResourceGone(
@@ -410,8 +405,13 @@ func databaseServiceTestSuite(t *testing.T) { //nolint:maintidx // sequential su
 				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 			)
 
+			// Chart CRD retained; operand CRDs removed by db-operator finalizer.
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: databaseServiceCRDName}),
+				WithCustomErrorMsg("DatabaseService CRD should NOT be deleted on uninstall — BaseHandler retains chart CRDs"),
+			)
+
 			for _, crdName := range []string{
-				databaseServiceCRDName,
 				databaseProviderCRDName,
 				databaseClaimCRDName,
 				schemaClaimCRDName,
@@ -419,7 +419,7 @@ func databaseServiceTestSuite(t *testing.T) { //nolint:maintidx // sequential su
 				tc.EnsureResourceGone(
 					WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdName}),
 					WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
-					WithCustomErrorMsg("CRD %s should be removed after DatabaseService uninstall", crdName),
+					WithCustomErrorMsg("operand CRD %s should be deleted on uninstall once claims/providers are gone", crdName),
 				)
 			}
 
@@ -462,9 +462,55 @@ func databaseServiceRelatedImage(t *testing.T, tc *ComponentTestCtx) string {
 	return ""
 }
 
+// databaseServiceClusterResourcePrefix mirrors chart.clusterResourceName from the
+// db-operator Helm helpers: <fullname>-<sha256(release/ns)[:12]>-. Any hashed
+// ClusterRole or ClusterRoleBinding from this release starts with that prefix.
+func databaseServiceClusterResourcePrefix(releaseName, namespace string) string {
+	sum := sha256.Sum256([]byte(fmt.Sprintf("%s/%s", releaseName, namespace)))
+	identityHash := hex.EncodeToString(sum[:])[:12]
+	return fmt.Sprintf("%s-%s-", releaseName, identityHash)
+}
+
+// ensureDatabaseServiceChartRBACGone asserts no hashed ClusterRole or
+// ClusterRoleBinding from the db-operator chart remains after uninstall.
+func ensureDatabaseServiceChartRBACGone(t *testing.T, tc *ComponentTestCtx) {
+	t.Helper()
+
+	prefix := databaseServiceClusterResourcePrefix(databaseServiceReleaseName, tc.AppsNamespace)
+	g := NewWithT(t)
+	g.Eventually(func(g Gomega) {
+		crList := &rbacv1.ClusterRoleList{}
+		g.Expect(tc.Client().List(context.Background(), crList)).To(Succeed())
+		var leftoverRoles []string
+		for i := range crList.Items {
+			if strings.HasPrefix(crList.Items[i].Name, prefix) {
+				leftoverRoles = append(leftoverRoles, crList.Items[i].Name)
+			}
+		}
+		g.Expect(leftoverRoles).To(BeEmpty(),
+			"ClusterRoles with prefix %s should be removed after DatabaseService uninstall: %v",
+			prefix, leftoverRoles)
+
+		crbList := &rbacv1.ClusterRoleBindingList{}
+		g.Expect(tc.Client().List(context.Background(), crbList)).To(Succeed())
+		var leftoverBindings []string
+		for i := range crbList.Items {
+			if strings.HasPrefix(crbList.Items[i].Name, prefix) {
+				leftoverBindings = append(leftoverBindings, crbList.Items[i].Name)
+			}
+		}
+		g.Expect(leftoverBindings).To(BeEmpty(),
+			"ClusterRoleBindings with prefix %s should be removed after DatabaseService uninstall: %v",
+			prefix, leftoverBindings)
+	}).
+		WithTimeout(tc.TestTimeouts.longEventuallyTimeout).
+		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
+		Should(Succeed())
+}
+
 // ensureDatabaseServiceClusterRoleBindingsGone asserts no ClusterRoleBinding still
-// subjects the module ServiceAccount. Chart ClusterRoleBinding names can be
-// release/namespace-hashed, so label selectors alone are not enough.
+// subjects the module ServiceAccount. Complements the chart-name prefix check for
+// any extra binding that still grants the module SA.
 func ensureDatabaseServiceClusterRoleBindingsGone(t *testing.T, tc *ComponentTestCtx) {
 	t.Helper()
 

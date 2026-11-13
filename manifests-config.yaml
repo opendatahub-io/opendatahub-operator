@@ -189,11 +189,11 @@ componentCharts:
   databaseservice:
     odh:
       repo: opendatahub-io/opendatahub-db-operator
-      ref: main@9df99ded9d506faa521b59ce5c2c121c1311b226
+      ref: main@d0dd9e7a646084f9d291b65eb8727d61a5c11370
       sourcePath: config/chart
     rhoai:
       repo: red-hat-data-services/rhai-db-operator
-      ref: rhoai-3.7-ea.1@de31ad675184de7f1e3494e28285f2a50499cf93
+      ref: rhoai-3.7-ea.1@80b9ad595914e692a4bcce6a094a7581aae5ae17
       sourcePath: config/chart
   odh-observability:
     odh:
@@ -1360,10 +1360,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-db-operator"
-      digest: "sha256:a4f209303464d49b1848d364117285f91ea7bc5da1853ced986802069024289c"
+      digest: "sha256:fe6d16ce93e94863e1d6d44cff569c8579373f5456dfe879746c02e1aa26a9c1"
     rhoai:
       base: "quay.io/rhoai/odh-db-operator-rhel9"
-      digest: "sha256:16ce21211b54888953010d7920ac51096c4cbb253deeff8d13038692eca1cde7"
+      digest: "sha256:b54e441892fbf61e13468c49344145e1ef00c6f80f87121b24fed0147dd19dd1"
   RELATED_IMAGE_ODH_FEAST_MCP_IMAGE:
     source: "csv"
     rhoai:
