@@ -121,7 +121,7 @@ func TestGatewayCRDWatchPredicate(t *testing.T) {
 		wantMatch bool
 	}{
 		{name: "cert-manager Certificate CRD", crdName: gvk.CertManagerCertificateCRDName, wantMatch: true},
-		{name: "Dashboard CRD", crdName: gvk.DashboardComponentCRDName, wantMatch: true},
+		{name: "Dashboard CRD", crdName: gvk.DashboardComponentCRDName, wantMatch: false},
 		{name: "unrelated CRD", crdName: "widgets.example.com"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

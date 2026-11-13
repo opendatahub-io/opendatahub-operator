@@ -220,6 +220,8 @@ func GatewayConfigModuleInputsChanged() predicate.Predicate {
 			}
 
 			return oldGC.Status.Domain != newGC.Status.Domain ||
+				oldGC.GetAnnotations()["platform.opendatahub.io/dashboard-redirects"] !=
+					newGC.GetAnnotations()["platform.opendatahub.io/dashboard-redirects"] ||
 				!slices.EqualFunc(oldGC.Status.AdditionalIngresses, newGC.Status.AdditionalIngresses,
 					func(a, b serviceApi.AdditionalIngressStatus) bool {
 						return a.Name == b.Name && a.Hostname == b.Hostname && a.GatewayRef == b.GatewayRef

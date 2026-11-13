@@ -2,10 +2,19 @@ package dashboard_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -76,10 +85,45 @@ func newDSCCtx(mgmtState operatorv1.ManagementState) *modules.DSCContext {
 
 func newModuleCRConfig(gatewayDomain string) *modules.ModuleCRConfig {
 	return &modules.ModuleCRConfig{
+		ApplicationsNamespace: "applications",
 		GatewayConfig: &serviceApi.GatewayConfig{
 			Status: serviceApi.GatewayConfigStatus{Domain: gatewayDomain},
 		},
 	}
+}
+
+func newDashboardCRD(redirectsSupported bool) *apiextensionsv1.CustomResourceDefinition {
+	specProperties := map[string]apiextensionsv1.JSONSchemaProps{}
+	if redirectsSupported {
+		specProperties["legacyRedirects"] = apiextensionsv1.JSONSchemaProps{Type: "object"}
+	}
+	return &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "dashboards.components.platform.opendatahub.io"},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: "components.platform.opendatahub.io",
+			Names: apiextensionsv1.CustomResourceDefinitionNames{Plural: "dashboards", Kind: "Dashboard"},
+			Scope: apiextensionsv1.ClusterScoped,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name: "v1alpha1", Served: true, Storage: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+					Type: "object",
+					Properties: map[string]apiextensionsv1.JSONSchemaProps{
+						"spec": {Type: "object", Properties: specProperties},
+					},
+				}},
+			}},
+		},
+	}
+}
+
+func newRedirectClient(t *testing.T, objects ...client.Object) client.Client {
+	t.Helper()
+	g := NewWithT(t)
+	scheme := runtime.NewScheme()
+	g.Expect(routev1.AddToScheme(scheme)).To(Succeed())
+	g.Expect(apiextensionsv1.AddToScheme(scheme)).To(Succeed())
+	objects = append(objects, newDashboardCRD(true))
+	return fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
 }
 
 func TestGetName(t *testing.T) {
@@ -138,7 +182,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtx(operatorv1.Managed)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig("dashboard.example.com"))
+	u, err := h.BuildModuleCR(context.Background(), newRedirectClient(t), dscCtx, newModuleCRConfig("dashboard.example.com"))
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u.GetName()).Should(Equal(componentApi.DashboardInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(componentApi.DashboardKind))
@@ -157,6 +201,10 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	gateway, ok := spec["gateway"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.gateway missing")
 	g.Expect(gateway["domain"]).Should(Equal("dashboard.example.com"))
+	redirects, ok := spec["legacyRedirects"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.legacyRedirects missing")
+	g.Expect(redirects["managementState"]).Should(Equal("Managed"))
+	g.Expect(redirects["legacyHostname"]).Should(Equal("data-science-gateway.example.com"))
 
 	components, ok := spec["components"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec.components missing")
@@ -181,6 +229,156 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	dataRegistryComp, ok := components[componentApi.DataRegistryComponentName].(map[string]any)
 	g.Expect(ok).Should(BeTrue())
 	g.Expect(dataRegistryComp["managementState"]).Should(Equal("Managed"))
+}
+
+func TestBuildModuleCR_OmitsLegacyRedirectsWhenCRDSchemaDoesNotSupportIt(t *testing.T) {
+	g := NewWithT(t)
+	scheme := runtime.NewScheme()
+	g.Expect(apiextensionsv1.AddToScheme(scheme)).To(Succeed())
+	cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(newDashboardCRD(false)).Build()
+
+	u, err := dashboard.NewHandler().BuildModuleCR(
+		context.Background(), cli, newDSCCtx(operatorv1.Managed), newModuleCRConfig("dashboard.example.com"),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(spec).ShouldNot(HaveKey("legacyRedirects"),
+		"older dashboard CRDs reject unknown spec fields")
+	g.Expect(spec).Should(HaveKeyWithValue("gateway", map[string]any{"domain": "dashboard.example.com"}))
+}
+
+func TestBuildModuleCR_PropagatesDashboardCRDReadFailure(t *testing.T) {
+	g := NewWithT(t)
+	scheme := runtime.NewScheme()
+	g.Expect(apiextensionsv1.AddToScheme(scheme)).To(Succeed())
+	cli := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(_ context.Context, _ client.WithWatch, _ client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+				return errors.New("crd read denied")
+			},
+		}).
+		Build()
+
+	_, err := dashboard.NewHandler().BuildModuleCR(
+		context.Background(), cli, newDSCCtx(operatorv1.Managed), newModuleCRConfig("dashboard.example.com"),
+	)
+	g.Expect(err).Should(MatchError(ContainSubstring("check Dashboard CRD redirect support: crd read denied")))
+}
+
+func TestBuildModuleCR_ProjectsActualLegacyRouteHostname(t *testing.T) {
+	g := NewWithT(t)
+	legacyRoute := &routev1.Route{
+		ObjectMeta: metav1.ObjectMeta{Name: "data-science-gateway", Namespace: "applications"},
+		Spec:       routev1.RouteSpec{Host: "data-science-gateway.apps.cluster.example"},
+	}
+	cli := newRedirectClient(t, legacyRoute)
+	cfg := newModuleCRConfig("ai.company.example")
+	cfg.GatewayConfig.Spec.Subdomain = "ai"
+
+	u, err := dashboard.NewHandler().BuildModuleCR(context.Background(), cli, newDSCCtx(operatorv1.Managed), cfg)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	redirects, ok := spec["legacyRedirects"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(redirects["legacyHostname"]).Should(Equal("data-science-gateway.apps.cluster.example"))
+}
+
+func TestBuildModuleCR_RetainsLegacyHostnameAfterRouteRemoval(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	currentDashboard := &unstructured.Unstructured{Object: map[string]any{
+		"spec": map[string]any{
+			"legacyRedirects": map[string]any{
+				"managementState": "Removed",
+				"legacyHostname":  "data-science-gateway.apps.cluster.example",
+			},
+		},
+	}}
+	currentDashboard.SetGroupVersionKind(h.GetGVK())
+	currentDashboard.SetName(componentApi.DashboardInstanceName)
+	cli := newRedirectClient(t, currentDashboard)
+	cfg := newModuleCRConfig("")
+	cfg.GatewayConfig.Spec.Subdomain = "ai"
+
+	u, err := h.BuildModuleCR(context.Background(), cli, newDSCCtx(operatorv1.Managed), cfg)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	redirects, ok := spec["legacyRedirects"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(redirects["managementState"]).Should(Equal("Removed"))
+	g.Expect(redirects["legacyHostname"]).Should(Equal("data-science-gateway.apps.cluster.example"))
+}
+
+func TestBuildModuleCR_RetainsLegacyHostnameWhenRemovedRouteReadFails(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	scheme := runtime.NewScheme()
+	g.Expect(routev1.AddToScheme(scheme)).To(Succeed())
+	g.Expect(apiextensionsv1.AddToScheme(scheme)).To(Succeed())
+	currentDashboard := &unstructured.Unstructured{Object: map[string]any{
+		"spec": map[string]any{
+			"legacyRedirects": map[string]any{
+				"managementState": "Removed",
+				"legacyHostname":  "data-science-gateway.apps.cluster.example",
+			},
+		},
+	}}
+	currentDashboard.SetGroupVersionKind(h.GetGVK())
+	currentDashboard.SetName(componentApi.DashboardInstanceName)
+	cli := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(currentDashboard, newDashboardCRD(true)).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if _, isRoute := obj.(*routev1.Route); isRoute {
+					return errors.New("route read denied")
+				}
+				return c.Get(ctx, key, obj, opts...)
+			},
+		}).
+		Build()
+	cfg := newModuleCRConfig("")
+	cfg.GatewayConfig.Spec.Subdomain = "ai"
+
+	u, err := h.BuildModuleCR(context.Background(), cli, newDSCCtx(operatorv1.Managed), cfg)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	redirects, ok := spec["legacyRedirects"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(redirects["legacyHostname"]).Should(Equal("data-science-gateway.apps.cluster.example"))
+}
+
+func TestBuildModuleCR_PropagatesDashboardReadFailureWhenRedirectsRemoved(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	scheme := runtime.NewScheme()
+	g.Expect(routev1.AddToScheme(scheme)).To(Succeed())
+	g.Expect(apiextensionsv1.AddToScheme(scheme)).To(Succeed())
+	cli := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(newDashboardCRD(true)).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if _, isCRD := obj.(*apiextensionsv1.CustomResourceDefinition); isCRD {
+					return c.Get(ctx, key, obj, opts...)
+				}
+				if _, isRoute := obj.(*routev1.Route); isRoute {
+					return errors.New("route read denied")
+				}
+				return errors.New("dashboard read denied")
+			},
+		}).
+		Build()
+	cfg := newModuleCRConfig("")
+	cfg.GatewayConfig.Spec.Subdomain = "ai"
+
+	_, err := h.BuildModuleCR(context.Background(), cli, newDSCCtx(operatorv1.Managed), cfg)
+	g.Expect(err).Should(MatchError(ContainSubstring("read Dashboard CR legacy hostname: dashboard read denied")))
 }
 
 func TestBuildModuleCR_ProjectsDataRegistryState(t *testing.T) {
@@ -218,12 +416,49 @@ func TestBuildModuleCR_OmitsGatewayWhenDomainEmpty(t *testing.T) {
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtx(operatorv1.Managed)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfig(""))
+	u, err := h.BuildModuleCR(context.Background(), newRedirectClient(t), dscCtx, newModuleCRConfig(""))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue())
 	g.Expect(spec).ShouldNot(HaveKey("gateway"))
+	redirects, ok := spec["legacyRedirects"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "spec.legacyRedirects missing")
+	g.Expect(redirects["managementState"]).Should(Equal("Removed"))
+}
+
+func TestBuildModuleCR_ProjectsLegacyRedirectOptOuts(t *testing.T) {
+	tests := []struct {
+		name       string
+		annotation string
+		env        string
+		want       string
+	}{
+		{name: "enabled by default", want: "Managed"},
+		{name: "disabled by annotation", annotation: "disabled", want: "Removed"},
+		{name: "unsupported annotation remains enabled", annotation: "unsupported", want: "Managed"},
+		{name: "disabled by environment", env: "true", want: "Removed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("DISABLE_DASHBOARD_REDIRECTS", tt.env)
+			g := NewWithT(t)
+			cfg := newModuleCRConfig("dashboard.example.com")
+			if tt.annotation != "" {
+				cfg.GatewayConfig.Annotations = map[string]string{
+					"platform.opendatahub.io/dashboard-redirects": tt.annotation,
+				}
+			}
+
+			u, err := dashboard.NewHandler().BuildModuleCR(context.Background(), newRedirectClient(t), newDSCCtx(operatorv1.Managed), cfg)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			spec, ok := u.Object["spec"].(map[string]any)
+			g.Expect(ok).Should(BeTrue())
+			redirects, ok := spec["legacyRedirects"].(map[string]any)
+			g.Expect(ok).Should(BeTrue())
+			g.Expect(redirects["managementState"]).Should(Equal(tt.want))
+		})
+	}
 }
 
 func TestBuildModuleCR_EmptyStatesProjectRemoved(t *testing.T) {
@@ -657,5 +892,6 @@ func TestGetRelatedImages(t *testing.T) {
 		"RELATED_IMAGE_ODH_CORE_BFF_IMAGE",
 		"RELATED_IMAGE_POSTGRESQL_16_IMAGE",
 		"RELATED_IMAGE_ODH_OGX_CORE_IMAGE",
+		"RELATED_IMAGE_NGINX_126_IMAGE",
 	))
 }
