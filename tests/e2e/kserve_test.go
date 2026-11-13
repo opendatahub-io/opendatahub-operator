@@ -80,6 +80,7 @@ func kserveTestSuite(t *testing.T) {
 		TestCase{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		TestCase{"Validate module enabled", componentCtx.ValidateModuleEnabled},
 		TestCase{"Validate component spec", componentCtx.ValidateSpec},
+		TestCase{"Validate strict NetworkPolicy toggle projection", componentCtx.ValidateStrictNetworkPolicyToggle},
 		TestCase{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		TestCase{"Validate Connection API VAPs created when kserve is enabled", componentCtx.ValidateConnectionAPIPoliciesExist},
 		TestCase{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
@@ -173,6 +174,77 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 				}()),
 		),
 		),
+	)
+}
+
+// ValidateStrictNetworkPolicyToggle verifies that the optional DSC toggle for
+// the strict per-LLMInferenceService NetworkPolicies is projected onto the
+// Kserve module CR when set, and dropped again when unset so the operand keeps
+// its own default (allow-all policies). The DSC is left as it was found. The
+// v2 round-trip of the field is covered by the DSC conversion webhook suite.
+func (tc *KserveTestCtx) ValidateStrictNetworkPolicyToggle(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke)
+
+	tc.SkipIfXKSCluster(t)
+
+	const field = "enableLLMInferenceServiceStrictNetworkPolicy"
+	kserveNN := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+	// On a developer cluster the DSC is whatever was there before the run. The
+	// steps below need the field to start absent, so bail out rather than clear
+	// a value somebody else put on the shared object.
+	dsc := tc.FetchDataScienceCluster()
+	if dsc.Spec.Components.Kserve.EnableLLMInferenceServiceStrictNetworkPolicy != nil {
+		t.Skip("DSC already carries the toggle; the test needs it absent")
+	}
+
+	// The DSC is shared with every later test case. Restore it even when an
+	// assertion below fails, so a failure here cannot turn the field into a
+	// persistent reconcile error for the rest of the suite.
+	t.Cleanup(func() {
+		tc.EventuallyResourcePatched(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithMutateFunc(func(obj *unstructured.Unstructured) error {
+				unstructured.RemoveNestedField(obj.Object, "spec", "components", "kserve", field)
+				return nil
+			}),
+			WithCondition(jq.Match(`.spec.components.kserve | has("%s") | not`, field)),
+		)
+	})
+
+	// Not set on the DSC: the operand must not carry the field either.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, kserveNN),
+		WithCondition(jq.Match(`.spec | has("%s") | not`, field)),
+	)
+
+	// Set it on the DSC and expect the same value on the operand.
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, true, "spec", "components", "kserve", field)
+		}),
+		WithCondition(jq.Match(`.spec.components.kserve.%s == true`, field)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, kserveNN),
+		WithCondition(jq.Match(`.spec.%s == true`, field)),
+	)
+
+	// Clear it again and expect the operand to drop it.
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			unstructured.RemoveNestedField(obj.Object, "spec", "components", "kserve", field)
+			return nil
+		}),
+		WithCondition(jq.Match(`.spec.components.kserve | has("%s") | not`, field)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, kserveNN),
+		WithCondition(jq.Match(`.spec | has("%s") | not`, field)),
 	)
 }
 

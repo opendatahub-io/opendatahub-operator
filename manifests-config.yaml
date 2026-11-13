@@ -25,11 +25,11 @@ components:
   kserve-module-operator:
     odh:
       repo: opendatahub-io/kserve
-      ref: release-v0.17@ac6709afdebd062793cb49d0465190c175662513
+      ref: release-v0.17@8d4f7da1ca019b114a33130ddbfa4b0136e10ff8
       sourcePath: kserve-module/config
     rhoai:
       repo: red-hat-data-services/kserve
-      ref: rhoai-3.7-ea.1@9556bd53bbc6cfdfc2938614d08bc04ddc0adf72
+      ref: rhoai-3.7-ea.1@549b7821aeb6ebce19e76a3415509de3cb42f734
       sourcePath: kserve-module/config
   ray:
     odh:
@@ -230,7 +230,7 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/kserve-controller"
-      digest: "sha256:a344942f67fdbf2e3fb500bc986c638b45771524ee65d927f3522baa0af9a00d"
+      digest: "sha256:f20de37992a8a943342ffadd4fa440a1dfafe5d8195b51ada2276af8563b16b8"
     rhoai:
       base: "quay.io/rhoai/odh-kserve-controller-rhel9"
       digest: "sha256:16c2871daa0c3597fc16efc788ab92733eab7981000b564b0bc8d95b907ba0a6"
@@ -239,7 +239,7 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-kserve-llmisvc-controller"
-      digest: "sha256:feab65de6ee4c863e267f90e1cc1d2d2df7c7e8f1564e316e22fb0eea9f5e587"
+      digest: "sha256:f093b8ff4bef36409d5f240ddce35195b9b116e2839f9c6d15f3c1f401da232c"
     rhoai:
       base: "quay.io/rhoai/odh-kserve-llmisvc-controller-rhel9"
       digest: "sha256:e2847bb4bc0684b366412772bbb4bff916adfeee548c55fb62f045f213720249"
@@ -248,7 +248,7 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-kserve-localmodel-controller"
-      digest: "sha256:5468996148d9389182e82ae76f9aee9e4001dd72162875699b1545fbd83fcef2"
+      digest: "sha256:fafc3685a3a1e6dc106bcab2980113f90732f363b689f51cebbe2fe3ca2e647a"
     rhoai:
       base: "quay.io/rhoai/odh-kserve-localmodel-controller-rhel9"
       digest: "sha256:5cf55a8456d2eac6c6dd0213d7dcb7a11c9e3ff064e1192e6caf5c794b026526"
@@ -257,7 +257,7 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-kserve-module-operator"
-      digest: "sha256:4715db9b4a57d9446c100a7a52927fb57e776d076a2775ff1d7b0dc9a686b895"
+      digest: "sha256:b78f1cc438c8ec3d6fef5737d4e481fb2e09219bf190f7aea4dc0f1c2d882e55"
     rhoai:
       base: "quay.io/rhoai/odh-kserve-module-operator-rhel9"
       digest: "sha256:adc5a3ac2f033ced5fd7263ec941264ce12eb1ad9d54bc830fb1009ec5cd66f0"
