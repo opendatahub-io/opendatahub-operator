@@ -91,6 +91,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 	_, err := b.
 		WithAction(checkPreConditions).
 		WithAction(updateStatus).
+		WithAction(cleanupLegacyDataSciencePipelines).
 		WithAction(syncPlatformCR).
 		WithAction(cleanupDisabledComponents).
 		WithAction(cleanupDisabledModuleCRs).
