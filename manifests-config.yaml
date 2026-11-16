@@ -254,7 +254,13 @@ imageOverrides:
       digest: "sha256:5cf55a8456d2eac6c6dd0213d7dcb7a11c9e3ff064e1192e6caf5c794b026526"
   RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE:
     component: kserve-module-operator
-    tagTemplate: "{SHA}"
+    # Moving tag: resolve whatever the last build published to odh-stable
+    # instead of the pinned commit's image. This waives the commit-sha
+    # guarantee for this image; the digest below is refreshed daily by
+    # update-manifest-shas. Pairs with the odh-mc .tekton cross-repo
+    # trigger (odh-model-controller#1018) and odh-stable additional-tags
+    # on the module operator push pipeline (odh-konflux-central).
+    tagTemplate: "odh-stable"
     odh:
       base: "quay.io/opendatahub/odh-kserve-module-operator"
       digest: "sha256:4715db9b4a57d9446c100a7a52927fb57e776d076a2775ff1d7b0dc9a686b895"
