@@ -3,6 +3,7 @@ package modules
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -198,6 +199,15 @@ type SubmoduleConditionProvider interface {
 // operator Deployment alongside RELATED_IMAGE_* and APPLICATIONS_NAMESPACE.
 type ExtraEnvProvider interface {
 	GetExtraEnv() map[string]string
+}
+
+// PreviousDefaultResourcesProvider allows a module handler to declare the
+// resource requirements that earlier releases shipped as defaults for its
+// primary operator container. All handlers embedding BaseHandler satisfy this
+// interface automatically; the migration is only active when
+// ModuleConfig.PreviousDefaultResources is non-empty.
+type PreviousDefaultResourcesProvider interface {
+	GetPreviousDefaultResources() []corev1.ResourceRequirements
 }
 
 // ModuleStatus holds the parsed status from a module CR. It includes the

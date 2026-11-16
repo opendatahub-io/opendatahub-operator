@@ -11,6 +11,7 @@ import (
 	"github.com/go-logr/logr"
 	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -134,6 +135,17 @@ type ModuleConfig struct {
 	// operator Deployment after rendering. This is intended for temporary
 	// handoff toggles and other explicit module-owned env flags.
 	ExtraEnv map[string]string
+
+	// PreviousDefaultResources lists resource requirements that earlier
+	// releases of this module shipped as defaults for the primary operator
+	// container (ContainerName) in the operator Deployment (DeploymentName).
+	// On upgrade, when the live container still carries one of these values
+	// exactly and the Deployment is not explicitly operator-managed, the
+	// platform treats it as uncustomized and applies the rendered resources
+	// instead of preserving it as a user override. Any other value is
+	// preserved. Append the outgoing default here whenever the chart default
+	// changes.
+	PreviousDefaultResources []corev1.ResourceRequirements
 }
 
 // BaseHandler provides default implementations for ModuleHandler methods
@@ -189,6 +201,10 @@ func (b *BaseHandler) GetRelatedImages() []string {
 
 func (b *BaseHandler) GetSubmoduleConditions() []SubmoduleCondition {
 	return b.Config.SubmoduleConditions
+}
+
+func (b *BaseHandler) GetPreviousDefaultResources() []corev1.ResourceRequirements {
+	return b.Config.PreviousDefaultResources
 }
 
 // WriteDSCComponentStatus sets the managementState and releases on the

@@ -64,6 +64,21 @@ func newInfrastructure(topology configv1.TopologyMode) *configv1.Infrastructure 
 	}
 }
 
+func TestGetPreviousDefaultResources_DeclaresLegacyManagerDefault(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	g.Expect(h.GetPreviousDefaultResources()).Should(ConsistOf(corev1.ResourceRequirements{
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("500m"),
+			corev1.ResourceMemory: resource.MustParse("512Mi"),
+		},
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("100m"),
+			corev1.ResourceMemory: resource.MustParse("128Mi"),
+		},
+	}))
+}
+
 func TestIsEnabled_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
