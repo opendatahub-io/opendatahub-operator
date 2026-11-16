@@ -17,7 +17,7 @@
 buildConfig:
   odh:
     repo: opendatahub-io/ODH-Build-Config
-    ref: main@a7cf07b703103a69f0d2ef57e60e68f2726a2ffa
+    ref: main@a7d5f9c900a5a1f77e57aa8cc81af3f47792374d
   rhoai:
     repo: red-hat-data-services/RHOAI-Build-Config
     ref: rhoai-3.7-ea.1@ab1f7e57882c19aacbec6f0f9bbad8628508f9d0
@@ -198,7 +198,7 @@ componentCharts:
   odh-observability:
     odh:
       repo: opendatahub-io/odh-observability
-      ref: main@b0498f26d34a82be4bbd58fd8a2bfc8ff08424cd
+      ref: main@bf191f6fd9ca0f7be32b7829bf1b7dfc9d7d5418
       sourcePath: charts/odh-observability
     rhoai:
       repo: red-hat-data-services/odh-observability
@@ -859,7 +859,7 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-observability"
-      digest: "sha256:bc4bd21deacc366007b65a4f1901f82f5859761b7fa0e5386a2beab7ab62797b"
+      digest: "sha256:8365b7bdfce786a8c2cb296887109553adc1f3cd0581b32edc55ac77548df098"
     rhoai:
       base: "quay.io/rhoai/odh-observability-rhel9"
       digest: "sha256:99814cb531fdcbe99fe09b07d2752a58339ac31420cb90a6db67f1e22df85f5b"
