@@ -1,21 +1,14 @@
-//nolint:testpackage // Needs package access for cleanup/render helper coverage.
+//nolint:testpackage // Needs package access for BaseHandler helper coverage.
 package modules
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
-	"github.com/go-logr/logr"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 )
 
@@ -43,6 +36,7 @@ const (
 	baseTestConditionReadyType = "Ready"
 	baseTestConditionTrue      = "True"
 	baseTestRequiredEnvToggle  = "ENABLE_TEST_MODULE_CONTROLLER"
+	cleanupInitContainerName   = "copy-manifests"
 )
 
 func TestBaseHandlerAccessorsAndStatusHelpers(t *testing.T) {
@@ -155,83 +149,5 @@ func TestBaseHandlerGetModuleStatusAndCRLifecycle(t *testing.T) {
 	}
 	if crState != CRStateAbsent {
 		t.Fatalf("expected CRStateAbsent after delete, got %v", crState)
-	}
-}
-
-func TestBaseHandlerDeleteRenderedResourcesAndOperatorResources(t *testing.T) {
-	tmpDir := t.TempDir()
-	moduleDir := filepath.Join(tmpDir, baseTestModuleName, "overlays", "odh")
-
-	if err := os.MkdirAll(moduleDir, 0o755); err != nil {
-		t.Fatalf("create temp kustomize dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(moduleDir, "kustomization.yaml"), []byte(`
-resources:
-- configmap.yaml
-`), 0o600); err != nil {
-		t.Fatalf("write kustomization: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(moduleDir, "configmap.yaml"), []byte(`
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: test-module-config
-`), 0o600); err != nil {
-		t.Fatalf("write configmap manifest: %v", err)
-	}
-
-	handler := &BaseHandler{
-		Config: ModuleConfig{
-			Name:                 baseTestModuleName,
-			CRName:               baseTestModuleCRName,
-			GVK:                  schema.GroupVersionKind{Group: baseTestModuleGroup, Version: baseTestModuleVersion, Kind: baseTestModuleKind},
-			ManifestDir:          baseTestModuleName,
-			SourcePathByPlatform: map[common.Platform]string{cluster.OpenDataHub: baseTestOverlayODH},
-		},
-	}
-
-	cm := &unstructured.Unstructured{}
-	cm.SetGroupVersionKind(gvk.ConfigMap)
-	cm.SetName(baseTestConfigMapName)
-	cm.SetNamespace(testApplicationsNamespace)
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(cm))
-	if err != nil {
-		t.Fatalf("create fake client: %v", err)
-	}
-
-	resourcesToDelete := []unstructured.Unstructured{
-		{
-			Object: map[string]any{
-				baseTestKeyAPIVersion: apiextensionsv1.SchemeGroupVersion.String(),
-				baseTestKeyKind:       "CustomResourceDefinition",
-				baseTestKeyMetadata:   map[string]any{baseTestKeyName: "tests.test.opendatahub.io"},
-			},
-		},
-		{
-			Object: map[string]any{
-				baseTestKeyAPIVersion: "v1",
-				baseTestKeyKind:       baseTestConfigMapKind,
-				baseTestKeyMetadata: map[string]any{
-					baseTestKeyName:      baseTestConfigMapName,
-					baseTestKeyNamespace: testApplicationsNamespace,
-				},
-			},
-		},
-	}
-	resourcesToDelete[0].SetGroupVersionKind(gvk.CustomResourceDefinition)
-	resourcesToDelete[1].SetGroupVersionKind(gvk.ConfigMap)
-
-	if err := handler.deleteRenderedResources(context.Background(), cli, logr.Discard(), resourcesToDelete, nil); err != nil {
-		t.Fatalf("delete rendered resources: %v", err)
-	}
-
-	platformCtx := &PlatformContext{
-		ApplicationsNamespace: testApplicationsNamespace,
-		Release:               common.Release{Name: cluster.OpenDataHub},
-		ManifestsBasePath:     tmpDir,
-	}
-	if err := handler.DeleteOperatorResources(context.Background(), cli, platformCtx); err != nil {
-		t.Fatalf("delete operator resources: %v", err)
 	}
 }

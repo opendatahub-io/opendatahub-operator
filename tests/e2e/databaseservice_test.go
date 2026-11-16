@@ -19,8 +19,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	databaseserviceModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/databaseservice"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/platformmodules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -193,8 +193,8 @@ func databaseServiceTestSuite(t *testing.T) { //nolint:maintidx // sequential su
 				Namespace: tc.AppsNamespace,
 			}
 			// PlatformConfigName(databaseservice) is the same ConfigMap the chart
-			// mounts; platformVersion is merged by injectPlatformConfig.
-			require.Equal(t, modules.PlatformConfigName(componentApi.DatabaseServiceComponentName), configNN.Name)
+			// mounts; platformVersion is merged by the PlatformModule controller.
+			require.Equal(t, platformmodules.PlatformConfigName(componentApi.DatabaseServiceComponentName), configNN.Name)
 
 			expectedImage := databaseServiceRelatedImage(t, tc)
 
@@ -208,8 +208,8 @@ func databaseServiceTestSuite(t *testing.T) { //nolint:maintidx // sequential su
 
 				cm := &corev1.ConfigMap{}
 				g.Expect(tc.Client().Get(context.Background(), configNN, cm)).To(Succeed())
-				g.Expect(cm.Data).To(HaveKey(modules.PlatformVersionKey))
-				platformVersion := cm.Data[modules.PlatformVersionKey]
+				g.Expect(cm.Data).To(HaveKey(platformmodules.PlatformVersionKey))
+				platformVersion := cm.Data[platformmodules.PlatformVersionKey]
 				g.Expect(platformVersion).NotTo(BeEmpty())
 				g.Expect(platformVersion).To(Equal(operatorVersion),
 					"odh-databaseservice-config platformVersion should equal the operator release")

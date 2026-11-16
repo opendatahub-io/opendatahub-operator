@@ -14,6 +14,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -24,9 +25,10 @@ import (
 // and removes the gate CMs from rr.Resources so they are not deployed
 // as standalone objects.
 //
-// This action is placed after helm/kustomize render and before
-// checkUpgradeGates in the modules action chain so that gate CMs
-// embedded in module charts are discovered before the gate check runs.
+// This action is placed after helm/kustomize render in both gate-preflight and
+// PlatformModule action chains. In the PlatformModule chain it strips gate CMs
+// from the real deploy inventory; gate decisions happen in Platform controller
+// preflight.
 func ExtractUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
@@ -34,7 +36,7 @@ func ExtractUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest)
 
 	for i := range rr.Resources {
 		res := &rr.Resources[i]
-		if res.GetKind() != "ConfigMap" || res.GetLabels()[gates.UpgradeGateLabel] != "true" {
+		if res.GetKind() != gvk.ConfigMap.Kind || res.GetLabels()[gates.UpgradeGateLabel] != "true" {
 			kept = append(kept, *res)
 			continue
 		}

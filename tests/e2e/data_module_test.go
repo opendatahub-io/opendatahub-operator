@@ -16,6 +16,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dataModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/data"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -26,6 +27,7 @@ import (
 
 const (
 	dataModuleOperatorDeployment = "opendatahub-feast-operator"
+	dataModuleCRDName            = "feastoperators.components.platform.opendatahub.io"
 	dataModuleCRName             = componentApi.FeastOperatorInstanceName
 	feastOperatorDeploymentName  = "feast-operator-controller-manager"
 	dataReadyCondition           = "DataReady"
@@ -48,8 +50,9 @@ func dataModuleTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Validate upgrade from in-tree: selector migration", ctx.ValidateUpgradeSelectorMigration},
 		{"Validate component enabled", ctx.ValidateComponentEnabled},
-		{"Validate module enabled", ctx.ValidateModuleEnabled},
 		{"Validate module operator deployed", ctx.ValidateModuleOperatorDeployed},
+		// Call directly to include Tier3; ValidateModuleEnabled only runs on Smoke/Tier1.
+		{"Validate Platform module enablement and tracker", ctx.ValidatePlatformModuleTracker},
 		{"Validate module CR created", ctx.ValidateModuleCRCreated},
 		{"Validate module CR ready", ctx.ValidateModuleCRReady},
 		{"Validate DataReady condition", ctx.ValidateDataReadyCondition},
@@ -144,6 +147,14 @@ func (ctx *DataModuleTestCtx) ValidateModuleOperatorDeployed(t *testing.T) {
 		deploy := &appsv1.Deployment{}
 		g.Expect(ctx.Client().Get(context.Background(), nn, deploy)).To(Succeed())
 		g.Expect(deploy.Status.AvailableReplicas).To(BeNumerically(">=", 1))
+		tracker := &configApi.PlatformModule{}
+		g.Expect(ctx.Client().Get(t.Context(), types.NamespacedName{Name: componentApi.DataModuleName}, tracker)).To(Succeed())
+		g.Expect(metav1.IsControlledBy(deploy, tracker)).To(BeTrue())
+		g.Expect(platformModuleDeployments([]appsv1.Deployment{*deploy}, tracker.Name)).To(HaveLen(1))
+		g.Expect(tracker.Status.Resources).To(ContainElement(configApi.ResourceRef{
+			Group: gvk.CustomResourceDefinition.Group, Version: gvk.CustomResourceDefinition.Version,
+			Kind: gvk.CustomResourceDefinition.Kind, Name: dataModuleCRDName,
+		}))
 	}).
 		WithTimeout(3*time.Minute).
 		WithPolling(5*time.Second).
@@ -416,4 +427,14 @@ func (ctx *DataModuleTestCtx) ValidateModuleDisabledCleanup(t *testing.T) {
 
 	// Phase 2: Module operator Deployment should be deleted
 	ctx.EnsureResourceGone(WithMinimalObject(gvk.Deployment, controllerNN))
+
+	// Check the chart's known CRD independently of the deleted tracker's inventory.
+	ctx.EnsureResourceGone(WithMinimalObject(
+		configApi.GroupVersion.WithKind(configApi.PlatformModuleKind),
+		types.NamespacedName{Name: componentApi.DataModuleName},
+	))
+	ctx.EnsureResourceExists(
+		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: dataModuleCRDName}),
+		WithCustomErrorMsg("module CRD should remain after tracker finalization"),
+	)
 }

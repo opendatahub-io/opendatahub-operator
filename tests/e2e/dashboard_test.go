@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dashboardModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -246,15 +247,24 @@ func (tc *DashboardTestCtx) createMissingRoles(t *testing.T) {
 	})
 }
 
-// ValidateOperandsOwnerReferences overrides the ComponentTestCtx method to
-// accept both Dashboard and DataScienceCluster as valid owners. With the
-// module architecture the controller deployment is owned by DSC (deployed
-// by the ODH Operator via Helm), while operand deployments are owned by
-// the Dashboard CR (deployed by the dashboard-operator).
+// ValidateOperandsOwnerReferences checks the tracker's operator ownership on
+// every platform and Dashboard's operand ownership on OpenShift.
 func (tc *DashboardTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Smoke)
+
+	tracker := &configApi.PlatformModule{}
+	tc.FetchTypedResource(tracker, WithMinimalObject(gvk.PlatformModule, types.NamespacedName{Name: tc.ModuleHandler.GetName()}))
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace, Name: dashboardControllerDeployment}),
+		WithCondition(jq.Match(
+			`any(.metadata.ownerReferences[]?; .controller == true and .apiVersion == "%s"`+
+				` and .kind == "%s" and .name == "%s" and .uid == "%s")`,
+			gvk.PlatformModule.GroupVersion().String(), gvk.PlatformModule.Kind, tracker.Name, tracker.UID,
+		)),
+		WithCustomErrorMsg("Dashboard module operator Deployment should be controlled by its PlatformModule tracker"),
+	)
 
 	if tc.IsXKS() {
 		t.Skip("Skipping test because operands ownership by component CR is not enforced/guaranteed on XKS platform")
@@ -272,10 +282,7 @@ func (tc *DashboardTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 		),
 		WithCondition(
 			HaveEach(
-				SatisfyAny(
-					jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, tc.GVK.Kind),
-					jq.Match(`.metadata.ownerReferences[0].kind == "Platform"`),
-				),
+				jq.Match(`any(.metadata.ownerReferences[]?; .controller == true and .kind == "%s" and .name == "%s")`, tc.GVK.Kind, tc.NamespacedName.Name),
 			),
 		),
 		WithCustomErrorMsg("Deployment resources with correct owner references should exist"),
@@ -283,7 +290,7 @@ func (tc *DashboardTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 }
 
 // ValidateUpdateDeploymentsResources overrides the ComponentTestCtx method to
-// only test the controller deployment (owned by DSC). Operand deployments
+// only test the controller deployment (owned by PlatformModule). Operand deployments
 // (e.g. rhods-dashboard) are owned and reconciled by the dashboard-operator,
 // so external replica changes are expected to be reverted — that is correct
 // module behavior, not a test failure.

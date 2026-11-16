@@ -109,7 +109,7 @@ metadata:
     operatorframework.io/suggested-namespace: redhat-ods-operator
     operators.openshift.io/infrastructure-features: '["disconnected"]'
     operators.operatorframework.io/internal-objects: '["kueues.components.platform.opendatahub.io",
-      "platforms.config.opendatahub.io"]'
+      "platforms.config.opendatahub.io", "platformmodules.config.opendatahub.io"]'
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
   name: rhods-operator.v2.0.0
@@ -132,6 +132,11 @@ spec:
       displayName: Platform
       kind: Platform
       name: platforms.config.opendatahub.io
+      version: v1alpha2
+    - description: PlatformModule tracks a module operator deployment lifecycle.
+      displayName: Platform Module
+      kind: PlatformModule
+      name: platformmodules.config.opendatahub.io
       version: v1alpha2
     - description: Auth is the Schema for the auths API
       displayName: Auth

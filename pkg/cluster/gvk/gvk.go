@@ -424,6 +424,12 @@ var (
 
 	Platform = PlatformV1alpha2
 
+	PlatformModule = schema.GroupVersionKind{
+		Group:   configApi.GroupVersion.Group,
+		Version: configApi.GroupVersion.Version,
+		Kind:    configApi.PlatformModuleKind,
+	}
+
 	FeastOperator = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,

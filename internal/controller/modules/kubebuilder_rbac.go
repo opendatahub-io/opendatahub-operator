@@ -4,6 +4,12 @@ package modules
 // +kubebuilder:rbac:groups="config.opendatahub.io",resources=platforms/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="config.opendatahub.io",resources=platforms/finalizers,verbs=update
 
+// PlatformModule: per-module deployment tracker CRs, created/deleted by
+// Platform controller based on Platform.Spec.Modules[name].ManagementState.
+// +kubebuilder:rbac:groups="config.opendatahub.io",resources=platformmodules,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="config.opendatahub.io",resources=platformmodules/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups="config.opendatahub.io",resources=platformmodules/finalizers,verbs=update
+
 // AIPipelines module
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=aipipelines,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=aipipelines/status,verbs=get

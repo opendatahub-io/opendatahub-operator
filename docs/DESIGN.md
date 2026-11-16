@@ -1,7 +1,7 @@
 # Open Data Hub Operator Design
 
 The following document outlines the current design of the Open Data Hub operator and the resources it manages.
-The contents of this document reflect the changes brought by the ODH operator reconciliation refactor, introduced in December 2024. 
+It covers in-tree component reconciliation and the PlatformModule architecture for out-of-tree module operators.
 
 ## Motivation
 
@@ -25,22 +25,25 @@ The current ODH operator design adheres to the following general goals:
 
 To deploy ODH components seamlessly, the ODH operator watches two [user-facing custom resources (CRs)](#user-facing-custom-resources-and-their-controllers) - **DSCInitialization** and **DataScienceCluster** – which are together responsible for ODH configuration and component setup.
 
-In addition, each ODH component is represented by its own dedicated internal API/custom resource.
-Each component CR singleton instance and its sub-resources are managed by a dedicated component controller.
+In addition, each ODH component is represented by its own dedicated API/custom resource.
+In-tree component CRs and their subresources are managed by dedicated component controllers. Out-of-tree module CRs are reconciled by separate module operators, whose deployment is managed through PlatformModule trackers.
 More details on the supported ODH components are provided [here](#component-crs-and-controllers).
+
+The [Platform and PlatformModule controllers](#platform-and-platformmodule-controllers) coordinate module operator deployment and report platform readiness.
 
 Furthermore, there are dedicated [service CRs and controllers](#service-crs-and-controllers) for configuring authentication and monitoring.
 
 Lastly, the ODH operator also manages [accessory controllers](#accessory-controllers) responsible for helper tasks, such as cleanup after uninstallation.
 
-A high-level diagram showcasing the majority of the above-mentioned CRs and their reconcilers is provided below.
+The original in-tree component reconciliation layout is shown below. The PlatformModule controller responsibilities are described in the next section.
 
 ![Operator Reconciler Architecture](images/odh-operator-design.png)
 
 ### User-facing Custom Resources and their controllers
 
-The user-facing CRs are **DSCInitialization** (DSCI) and **DataScienceCluster** (DSC), along with **Auth** CR.
+On OpenShift, the user-facing CRs are **DSCInitialization** (DSCI) and **DataScienceCluster** (DSC), along with **Auth** CR.
 Together, these CRs are responsible for configuration of ODH at the platform level.
+Standalone xKS deployments use the **Platform** CR for shared configuration and module enablement, and users create module CRs directly.
 
 #### DSCInitialization (DSCI)
 
@@ -62,13 +65,33 @@ Together, these CRs are responsible for configuration of ODH at the platform lev
 
 - described in [Service CRs section](#service-crs-and-controllers).
 
+### Platform and PlatformModule controllers
+
+The `config.opendatahub.io/v1alpha2` Platform CR holds shared configuration and module management states. On OpenShift, DSC/DSCI controllers project module enablement into Platform and create or delete their module CRs with the full component configuration.
+
+| Controller | Resources and responsibilities |
+|------------|--------------------------------|
+| Platform (`internal/controller/modules/`) | Owns one `config.opendatahub.io/v1alpha2` PlatformModule tracker per managed module, coordinates the unified component/module DAG, persists deployment checkpoints in `status.dag`, and aggregates tracker readiness. |
+| PlatformModule (`internal/controller/platformmodules/`) | Renders and deploys the module operator's Helm charts or Kustomize manifests, owns removable operator resources, watches module CR readiness, and commits the successful resource inventory and release to tracker status. |
+| DSC/DSCI | Own module CRs and project module status into the DSC/DSCI API. |
+| Out-of-tree module operator | Reconciles its module CR and owns the component workloads. |
+
+Disabling a module deletes its owned tracker. DSC/DSCI request module CR deletion on OpenShift; users or GitOps do so on xKS. The tracker finalizer keeps the operator available until the module CR is absent. Platform explicitly waits for its tracker finalizers and reports pending removal in readiness. Inventory cleanup preserves CRDs, Namespaces, Leases, and externally owned resources. Each tracker commits its inventory and release only after operator resource apply and tracker-owned cleanup complete. Runtime readiness continues to follow module CR status.
+
+See [PlatformModule tracker lifecycle](platformmodule-tracker-design.md) for release gating, safe inventory cleanup, finalization, and watches, and the [module integration guide](../internal/controller/modules/README.md) for handler implementation.
+
 ### Component CRs and controllers
 
 The ODH operator reconciliation refactor introduced dedicated CRDs for each ODH component.
-From there, if enabled, an ODH component is represented by its dedicated singleton CR instance and the owned subresources, all of which are managed by a dedicated component controller. Component CRs are owned by the DSC.
-The component controller implementations are located in the subdirectories of `internal/controller/components` directory.
+For in-tree components, each enabled component has a dedicated singleton CR and owned subresources managed by a component controller under `internal/controller/components/`. Component CRs are owned by the DSC.
+
+For out-of-tree modules, DSC/DSCI retain ownership of the module CR, while the PlatformModule controller manages its operator deployment. The active module registrations and runlevels are defined in `internal/controller/modules/builtin/handlers.go`.
+
+Component and module handler registries hold handlers and startup enablement.
+The unified provisioning registry owns runlevels, readiness gating, and reverse
+cleanup ordering; handler enumeration is alphabetical.
  
-List of currently integrated ODH components:
+Examples of component CRs (including modules reconciled by out-of-tree operators):
 
 | **ODH Component** | **CR Kind** |
 | --- | --- |

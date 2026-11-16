@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"sort"
 
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
-	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -21,71 +19,50 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
-	helmrender "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
-	kustomizerender "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	dependentpredicates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
-
-// legacyDSCFieldOwner is the SSA field owner used by the 3.5.x DSC
-// controller to apply module operand resources. The platform modules
-// controller must migrate ownership from it on upgrade: server-side apply
-// otherwise retains the previous owner's associative-list entries forever,
-// permanently rejecting applies whose merge keys changed (RHAI-21655).
-const legacyDSCFieldOwner = "datasciencecluster"
-
-// commonActions returns the shared action chain for both DSC and Platform modes.
-//
-// Ordering: provisionModules and render run before the gate check so
-// that gate ConfigMaps embedded in module Helm charts are discovered
-// before the check runs. ExtractUpgradeGates pulls gate CMs out of
-// rr.Resources and stashes them on rr.GateEntries. checkUpgradeGates
-// then merges all gate sources and writes descriptions to
-// odh-upgrade-acks. If unacked gates exist, deploy never runs.
-func commonActions() []actions.Fn {
-	return []actions.Fn{
-		cleanupDisabledModules,
-		provisionModules,
-		helmrender.NewAction(),
-		kustomizerender.NewAction(),
-		provision.ExtractUpgradeGates,
-		checkUpgradeGates,
-		injectModuleEnv,
-		injectPlatformConfig,
-		deploy.NewAction(
-			deploy.WithCache(),
-			deploy.WithApplyOrder(),
-			deploy.WithContinueOnError(),
-			deploy.WithPreviousFieldOwners(legacyDSCFieldOwner),
-		),
-		updateModuleStatus,
-		gc.NewAction(
-			gc.WithTypePredicate(
-				func(rr *types.ReconciliationRequest, objGVK schema.GroupVersionKind) (bool, error) {
-					return rr.Controller.Owns(objGVK), nil
-				},
-			),
-		),
-	}
-}
 
 // NewModuleReconciler creates the platform controller that reconciles the
 // Platform CR. On OpenShift the DSC/DSCI controllers project module
 // enablement into Platform CR via SSA; on xKS the Helm chart creates it.
 // The controller always reads Platform CR — single code path.
 func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	platformRequest := []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configApi.PlatformInstanceName}}}
+
 	b := reconciler.ReconcilerFor(mgr, &configApi.Platform{}).
 		WithInstanceName("modules").
-		WithDynamicOwnership()
+		WithDynamicOwnership(
+			reconciler.WithGVKPredicates(map[schema.GroupVersionKind][]predicate.Predicate{
+				gvk.PlatformModule: {
+					dependentpredicates.New(dependentpredicates.WithWatchStatus(true)),
+				},
+			}),
+		).
+		WatchesGVK(
+			gvk.ConfigMap,
+			reconciler.WithEventMapper(func(_ context.Context, _ client.Object) []reconcile.Request {
+				return platformRequest
+			}),
+			reconciler.WithPredicates(predicate.Or(
+				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
+				resources.CreatedOrUpdatedOrDeletedLabeled(gates.UpgradeGateLabel, "true"),
+			)),
+		).
+		WithAction(checkPlatformModuleUpgradeGates).
+		WithAction(cleanupDisabledPlatformModules).
+		WithAction(provisionPlatformModules).
+		WithAction(deploy.NewAction(
+			deploy.WithCache(),
+			deploy.WithApplyOrder(),
+			deploy.WithContinueOnError(),
+		)).
+		WithAction(coordinateDAG).
+		WithAction(aggregatePlatformModulesStatus)
 
-	platformRequest := []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configApi.PlatformInstanceName}}}
 	statusPredicate := dependentpredicates.New(dependentpredicates.WithWatchStatus(true))
 
 	if err := cr.DefaultRegistry().ForEach(func(handler cr.ComponentHandler) error {
@@ -101,63 +78,15 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		return fmt.Errorf("failed to register component CR watches: %w", err)
 	}
 
-	if err := DefaultRegistry().ForEach(func(handler ModuleHandler) error {
-		b = b.WatchesGVK(handler.GetGVK(),
-			reconciler.Dynamic(reconciler.CrdExists(handler.GetGVK())),
-			reconciler.WithEventMapper(func(_ context.Context, _ client.Object) []reconcile.Request {
-				return platformRequest
-			}),
-			reconciler.WithPredicates(statusPredicate),
-		)
-		return nil
-	}); err != nil {
-		return fmt.Errorf("failed to register module CR watches: %w", err)
-	}
-
-	b = b.
-		Watches(
-			&corev1.ConfigMap{},
-			reconciler.WithEventMapper(func(_ context.Context, _ client.Object) []reconcile.Request {
-				return []reconcile.Request{{NamespacedName: k8stypes.NamespacedName{Name: configApi.PlatformInstanceName}}}
-			}),
-			reconciler.WithPredicates(predicate.Or(
-				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
-				resources.CreatedOrUpdatedOrDeletedLabeled(gates.UpgradeGateLabel, "true"),
-			)))
-
-	// The OpenTelemetry Operator may be installed after Monitoring. Its active
-	// Collector webhook identifies the namespace for the cert-manager binding.
-	b = b.Watches(&admissionregistrationv1.ValidatingWebhookConfiguration{},
-		reconciler.WithEventMapper(otelCollectorWebhookPlatformRequests),
-		reconciler.WithPredicates(otelCollectorWebhookPredicate()),
-	)
-
-	// COO may install the RHOBS ServiceMonitor CRD after Monitoring is already
-	// Managed. Re-render the odh-observability chart so metrics.serviceMonitor
-	// can be enabled once the CRD exists.
-	b = b.Watches(
-		&apiextensionsv1.CustomResourceDefinition{},
-		reconciler.WithEventMapper(func(_ context.Context, _ client.Object) []reconcile.Request {
-			return platformRequest
-		}),
-		reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(gvk.ServiceMonitorCRDName)),
-	)
-
-	b = addModuleCRWatches(b)
 	b = addModuleCRDWatches(b, func(ctx context.Context, _ client.Object) []reconcile.Request {
 		return cluster.WatchDataScienceClusters(ctx, mgr.GetClient())
 	})
 
-	for _, a := range commonActions() {
-		b = b.WithAction(a)
-	}
-
-	// Hold the Platform CR until every module CR is gone so module-operator
-	// Deployments (owned by Platform) stay up to process their CR finalizers.
-	// This is the uninstall/cascade path; per-module disable uses
-	// cleanupDisabledModules on the apply path instead.
-	_, err := b.WithFinalizer(waitForModuleCRDeletion).
-		WithConditions(reconciler.DependentConditions(status.ConditionTypeModulesReady, status.ConditionTypeProvisioningProgress)...).Build(ctx)
+	// Hold Platform until its owned trackers have finished operator cleanup.
+	_, err := b.WithFinalizer(finalizePlatform).
+		WithConditions(reconciler.DependentConditions(
+			status.ConditionTypeModulesReady, status.ConditionTypeProvisioningProgress,
+		)...).Build(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create platform controller: %w", err)
 	}
@@ -205,24 +134,6 @@ func addModuleCRDWatches[T common.PlatformObject](
 	return b
 }
 
-func addModuleCRWatches[T common.PlatformObject](b *reconciler.ReconcilerBuilder[T]) *reconciler.ReconcilerBuilder[T] {
-	reg := DefaultRegistry()
-	if !reg.HasEntries() {
-		return b
-	}
-
-	_ = reg.ForAll(func(handler ModuleHandler, _ bool) error {
-		b.OwnsGVK(
-			handler.GetGVK(),
-			reconciler.Dynamic(reconciler.CrdExists(handler.GetGVK())),
-			reconciler.WithPredicates(dependentpredicates.New(dependentpredicates.WithWatchStatus(true))),
-		)
-		return nil
-	})
-
-	return b
-}
-
 // AddModuleCRDWatches registers a non-dynamic CRD watch so that module CRD
 // creation triggers a reconcile. Exported for use by the DSC controller.
 func AddModuleCRDWatches[T common.PlatformObject](
@@ -247,9 +158,9 @@ func AddDSCCompatibilityProjectorWatches[T common.PlatformObject](b *reconciler.
 
 	_ = reg.ForConfigSource(ConfigFromDSC, func(handler ModuleHandler, _ bool) error {
 		// Requeue the DSC controller from module CR status changes without
-		// claiming ownership of the module CR type itself. The modules
-		// controller provisions module CRs; the DSC controller only needs the
-		// watch so its generic module status and any compatibility projections
+		// claiming ownership of the module CR type itself. The DSC controller
+		// owns the CR and needs the watch so its generic module status and
+		// compatibility projections
 		// stay current as module CRs transition.
 		b.WatchesGVK(
 			handler.GetGVK(),

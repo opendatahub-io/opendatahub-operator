@@ -13,18 +13,15 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 
 	. "github.com/onsi/gomega"
 )
 
 type mockHandler struct {
 	modules.BaseHandler
-
-	enabled bool
 }
 
-func newMockHandler(name string, enabled bool) *mockHandler {
+func newMockHandler(name string) *mockHandler {
 	return &mockHandler{
 		BaseHandler: modules.BaseHandler{
 			Config: modules.ModuleConfig{
@@ -33,12 +30,11 @@ func newMockHandler(name string, enabled bool) *mockHandler {
 				GVK:    schema.GroupVersionKind{Group: "test.io", Version: "v1", Kind: "Mock"},
 			},
 		},
-		enabled: enabled,
 	}
 }
 
 func (m *mockHandler) IsEnabled(_ *configApi.PlatformModules) bool {
-	return m.enabled
+	return true
 }
 
 func (m *mockHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *modules.DSCContext, _ *modules.ModuleCRConfig) (*unstructured.Unstructured, error) {
@@ -52,27 +48,24 @@ func TestRegistryAdd(t *testing.T) {
 	g := NewWithT(t)
 	reg := &modules.Registry{}
 
-	h := newMockHandler("test-module", true)
+	h := newMockHandler("test-module")
 	reg.Add(h)
 
 	g.Expect(reg.IsEnabled("test-module")).Should(BeTrue())
 	g.Expect(reg.HasEntries()).Should(BeTrue())
 }
 
-func TestRegistryDisableEnable(t *testing.T) {
+func TestRegistryDisable(t *testing.T) {
 	g := NewWithT(t)
 	reg := &modules.Registry{}
 
-	h := newMockHandler("test-module", true)
+	h := newMockHandler("test-module")
 	reg.Add(h)
 
 	g.Expect(reg.IsEnabled("test-module")).Should(BeTrue())
 
 	reg.Disable("test-module")
 	g.Expect(reg.IsEnabled("test-module")).Should(BeFalse())
-
-	reg.Enable("test-module")
-	g.Expect(reg.IsEnabled("test-module")).Should(BeTrue())
 }
 
 func TestRegistryDisableNonExistent(t *testing.T) {
@@ -81,74 +74,6 @@ func TestRegistryDisableNonExistent(t *testing.T) {
 
 	reg.Disable("does-not-exist")
 	g.Expect(reg.IsEnabled("does-not-exist")).Should(BeFalse())
-}
-
-func TestRegistryForEachSkipsDisabled(t *testing.T) {
-	g := NewWithT(t)
-	reg := &modules.Registry{}
-
-	reg.Add(newMockHandler("a", true))
-	reg.Add(newMockHandler("b", true))
-	reg.Disable("b")
-
-	var visited []string
-	err := reg.ForEach(func(h modules.ModuleHandler) error {
-		visited = append(visited, h.GetName())
-		return nil
-	})
-
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(visited).Should(ConsistOf("a"))
-}
-
-func TestRegistryForEachCollectsErrors(t *testing.T) {
-	g := NewWithT(t)
-	reg := &modules.Registry{}
-
-	reg.Add(newMockHandler("a", true))
-	reg.Add(newMockHandler("b", true))
-
-	err := reg.ForEach(func(h modules.ModuleHandler) error {
-		return errors.New("fail-" + h.GetName())
-	})
-
-	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring("fail-a"))
-	g.Expect(err.Error()).Should(ContainSubstring("fail-b"))
-}
-
-func TestRegistryEmptyForEachIsNoop(t *testing.T) {
-	g := NewWithT(t)
-	reg := &modules.Registry{}
-
-	g.Expect(reg.HasEntries()).Should(BeFalse())
-
-	err := reg.ForEach(func(_ modules.ModuleHandler) error {
-		t.Fatal("should not be called")
-		return nil
-	})
-
-	g.Expect(err).ShouldNot(HaveOccurred())
-}
-
-func TestRegistryIsModuleEnabled(t *testing.T) {
-	g := NewWithT(t)
-	reg := &modules.Registry{}
-
-	enabledHandler := newMockHandler("enabled-mod", true)
-	disabledHandler := newMockHandler("disabled-mod", false)
-
-	reg.Add(enabledHandler)
-	reg.Add(disabledHandler)
-
-	pm := &configApi.PlatformModules{}
-
-	g.Expect(reg.IsModuleEnabled("enabled-mod", pm)).Should(BeTrue())
-	g.Expect(reg.IsModuleEnabled("disabled-mod", pm)).Should(BeFalse())
-	g.Expect(reg.IsModuleEnabled("nonexistent", pm)).Should(BeFalse())
-
-	reg.Disable("enabled-mod")
-	g.Expect(reg.IsModuleEnabled("enabled-mod", pm)).Should(BeFalse())
 }
 
 func TestBaseHandlerDefaultsHelmOnly(t *testing.T) {
@@ -164,7 +89,6 @@ func TestBaseHandlerDefaultsHelmOnly(t *testing.T) {
 				ReleaseName: "mymodule-operator",
 			},
 		},
-		enabled: true,
 	}
 
 	g.Expect(h.GetName()).Should(Equal("helm-mod"))
@@ -191,7 +115,6 @@ func TestBaseHandlerDefaultsKustomizeOnly(t *testing.T) {
 				SourcePath:  "overlays/production",
 			},
 		},
-		enabled: true,
 	}
 
 	manifests := h.GetOperatorManifests(nil)
@@ -205,7 +128,7 @@ func TestBaseHandlerDefaultsKustomizeOnly(t *testing.T) {
 func TestBaseHandlerDefaultsNoManifests(t *testing.T) {
 	g := NewWithT(t)
 
-	h := newMockHandler("empty", true)
+	h := newMockHandler("empty")
 
 	manifests := h.GetOperatorManifests(nil)
 	g.Expect(manifests.HelmCharts).Should(BeEmpty())
@@ -302,90 +225,11 @@ func TestParseConditionsNoStatus(t *testing.T) {
 	g.Expect(conditions).Should(BeNil())
 }
 
-func TestResolvedBatchesBasicOrdering(t *testing.T) {
-	g := NewWithT(t)
-	reg := &modules.Registry{}
-
-	reg.Add(newMockHandler("ext-mod", true), modules.WithRunlevel(dag.RL(30)))
-	reg.Add(newMockHandler("infra-mod", true), modules.WithRunlevel(dag.RL(0)))
-	reg.Add(newMockHandler("ai-mod", true), modules.WithRunlevel(dag.RL(20)))
-
-	batches, err := reg.ResolvedBatches()
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(batches).Should(HaveLen(3))
-
-	g.Expect(batches[0]).Should(HaveLen(1))
-	g.Expect(batches[0][0].GetName()).Should(Equal("infra-mod"))
-	g.Expect(batches[1]).Should(HaveLen(1))
-	g.Expect(batches[1][0].GetName()).Should(Equal("ai-mod"))
-	g.Expect(batches[2]).Should(HaveLen(1))
-	g.Expect(batches[2][0].GetName()).Should(Equal("ext-mod"))
-}
-
-func TestResolvedBatchesSkipsDisabled(t *testing.T) {
-	g := NewWithT(t)
-	reg := &modules.Registry{}
-
-	reg.Add(newMockHandler("a", true), modules.WithRunlevel(dag.RL(20)))
-	reg.Add(newMockHandler("b", true), modules.WithRunlevel(dag.RL(20)))
-
-	reg.Disable("b")
-
-	batches, err := reg.ResolvedBatches()
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(batches).Should(HaveLen(1))
-	g.Expect(batches[0]).Should(HaveLen(1))
-	g.Expect(batches[0][0].GetName()).Should(Equal("a"))
-}
-
-func TestResolvedBatchesCacheInvalidation(t *testing.T) {
-	g := NewWithT(t)
-	reg := &modules.Registry{}
-
-	reg.Add(newMockHandler("mod-a", true), modules.WithRunlevel(dag.RL(20)))
-
-	batches1, err := reg.ResolvedBatches()
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(batches1).Should(HaveLen(1))
-
-	reg.Add(newMockHandler("mod-b", true), modules.WithRunlevel(dag.RL(30)))
-
-	batches2, err := reg.ResolvedBatches()
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(batches2).Should(HaveLen(2))
-}
-
-func TestReverseBatchesOrdering(t *testing.T) {
-	g := NewWithT(t)
-	reg := &modules.Registry{}
-
-	reg.Add(newMockHandler("infra", true), modules.WithRunlevel(dag.RL(0)))
-	reg.Add(newMockHandler("ext-a", true), modules.WithRunlevel(dag.RL(30)))
-	reg.Add(newMockHandler("ext-b", true), modules.WithRunlevel(dag.RL(30)))
-
-	batches, err := reg.ReverseBatches()
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(batches).Should(HaveLen(2))
-
-	g.Expect(batches[0][0].GetName()).Should(Equal("ext-b"))
-	g.Expect(batches[0][1].GetName()).Should(Equal("ext-a"))
-	g.Expect(batches[1][0].GetName()).Should(Equal("infra"))
-}
-
-func TestResolvedBatchesEmpty(t *testing.T) {
-	g := NewWithT(t)
-	reg := &modules.Registry{}
-
-	batches, err := reg.ResolvedBatches()
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(batches).Should(BeNil())
-}
-
 func TestLookup(t *testing.T) {
 	g := NewWithT(t)
 	reg := &modules.Registry{}
 
-	h := newMockHandler("findme", true)
+	h := newMockHandler("findme")
 	reg.Add(h)
 
 	g.Expect(reg.Lookup("findme")).Should(Equal(h))
@@ -396,9 +240,9 @@ func TestForConfigSourceFiltersBySource(t *testing.T) {
 	g := NewWithT(t)
 	reg := &modules.Registry{}
 
-	reg.Add(newMockHandler("dsc-mod", true))
-	reg.Add(newMockHandler("dsci-mod", true), modules.WithConfigSource(modules.ConfigFromDSCI))
-	reg.Add(newMockHandler("dsc-mod-2", true))
+	reg.Add(newMockHandler("dsc-mod"))
+	reg.Add(newMockHandler("dsci-mod"), modules.WithConfigSource(modules.ConfigFromDSCI))
+	reg.Add(newMockHandler("dsc-mod-2"))
 
 	var dscVisited, dsciVisited []string
 	_ = reg.ForConfigSource(modules.ConfigFromDSC, func(h modules.ModuleHandler, _ bool) error {
@@ -418,7 +262,7 @@ func TestRegisteredModuleDefaultsToDSCConfigured(t *testing.T) {
 	g := NewWithT(t)
 	reg := &modules.Registry{}
 
-	reg.Add(newMockHandler("default-source", true))
+	reg.Add(newMockHandler("default-source"))
 
 	var dscVisited, dsciVisited []string
 	_ = reg.ForConfigSource(modules.ConfigFromDSC, func(h modules.ModuleHandler, _ bool) error {
@@ -432,4 +276,55 @@ func TestRegisteredModuleDefaultsToDSCConfigured(t *testing.T) {
 
 	g.Expect(dscVisited).Should(ConsistOf("default-source"))
 	g.Expect(dsciVisited).Should(BeEmpty())
+}
+
+func TestRegistryForAllReportsStaticSuppression(t *testing.T) {
+	g := NewWithT(t)
+	reg := &modules.Registry{}
+
+	reg.Add(newMockHandler("a"))
+	reg.Add(newMockHandler("b"))
+	reg.Disable("b")
+
+	var visited []string
+	err := reg.ForAll(func(h modules.ModuleHandler, registryEnabled bool) error {
+		if !registryEnabled {
+			return nil
+		}
+		visited = append(visited, h.GetName())
+		return nil
+	})
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(visited).Should(ConsistOf("a"))
+}
+
+func TestRegistryForAllCollectsErrors(t *testing.T) {
+	g := NewWithT(t)
+	reg := &modules.Registry{}
+
+	reg.Add(newMockHandler("a"))
+	reg.Add(newMockHandler("b"))
+
+	err := reg.ForAll(func(h modules.ModuleHandler, _ bool) error {
+		return errors.New("fail-" + h.GetName())
+	})
+
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err.Error()).Should(ContainSubstring("fail-a"))
+	g.Expect(err.Error()).Should(ContainSubstring("fail-b"))
+}
+
+func TestRegistryEmptyForAllIsNoop(t *testing.T) {
+	g := NewWithT(t)
+	reg := &modules.Registry{}
+
+	g.Expect(reg.HasEntries()).Should(BeFalse())
+
+	err := reg.ForAll(func(_ modules.ModuleHandler, _ bool) error {
+		t.Fatal("should not be called")
+		return nil
+	})
+
+	g.Expect(err).ShouldNot(HaveOccurred())
 }

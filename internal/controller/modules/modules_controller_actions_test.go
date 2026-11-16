@@ -4,19 +4,17 @@ package modules
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 	"time"
 
-	semver "github.com/blang/semver/v4"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	ofversion "github.com/operator-framework/api/pkg/lib/version"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -26,14 +24,13 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
-	testscheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
+
+	. "github.com/onsi/gomega"
 )
 
 func withTestRegistry(t *testing.T) {
@@ -52,73 +49,15 @@ func withTestRegistry(t *testing.T) {
 }
 
 const (
-	cleanupInitContainerName       = "copy-manifests"
-	testDSCName                    = "test-dsc"
-	testDSCIName                   = "default-dsci"
-	testApplicationsNamespace      = "opendatahub"
-	testProvisioningModuleName     = "test-module"
-	testProvisioningModuleKind     = "TestModule"
-	testProvisioningModuleGroup    = "test.opendatahub.io"
-	testProvisioningModuleVersion  = "v1alpha1"
-	testProvisioningOverlayODH     = "overlays/odh"
-	testProvisioningVersion        = "2.30.0"
-	testProvisioningDeploymentName = "test-module-controller-manager"
-	testProvisioningImageEnv       = "RELATED_IMAGE_TEST_MODULE"
-	testProvisioningControllerEnv  = "RELATED_IMAGE_TEST_MODULE_CONTROLLER"
+	testDSCName                   = "test-dsc"
+	testDSCIName                  = "default-dsci"
+	testApplicationsNamespace     = "opendatahub"
+	testProvisioningModuleName    = "test-module"
+	testProvisioningModuleKind    = "TestModule"
+	testProvisioningModuleGroup   = "test.opendatahub.io"
+	testProvisioningModuleVersion = "v1alpha1"
+	testProvisioningOverlayODH    = "overlays/odh"
 )
-
-type deletingCleanupStub struct{}
-
-func (deletingCleanupStub) GetName() string { return "cleanup-module" }
-
-func (deletingCleanupStub) IsEnabled(*configApi.PlatformModules) bool { return false }
-
-func (deletingCleanupStub) GetGVK() schema.GroupVersionKind { return schema.GroupVersionKind{} }
-
-func (deletingCleanupStub) GetOperatorManifests(*PlatformContext) OperatorManifests {
-	return OperatorManifests{
-		Manifests: []types.ManifestInfo{{
-			Path:       "cleanup-module",
-			SourcePath: "overlays/odh",
-		}},
-	}
-}
-
-func (deletingCleanupStub) PopulatePlatformModule(_ *configApi.PlatformModules, _ *DSCContext) {
-}
-
-func (deletingCleanupStub) BuildModuleCR(context.Context, client.Client, *DSCContext, *ModuleCRConfig) (*unstructured.Unstructured, error) {
-	return nil, nil
-}
-
-func (deletingCleanupStub) GetRelatedImages() []string { return []string{"RELATED_IMAGE_CLEANUP"} }
-
-func (deletingCleanupStub) GetModuleStatus(context.Context, client.Client) (*ModuleStatus, error) {
-	return &ModuleStatus{}, nil
-}
-
-func (deletingCleanupStub) GetModuleCRState(context.Context, client.Client) (CRState, error) {
-	return CRStateDeleting, nil
-}
-
-func (deletingCleanupStub) DeleteModuleCR(context.Context, client.Client) error { return nil }
-
-func (deletingCleanupStub) DeleteOperatorResources(context.Context, client.Client, *PlatformContext) error {
-	return nil
-}
-
-func (deletingCleanupStub) WriteDSCComponentStatus(*dscApi.DataScienceCluster, bool, []common.ComponentRelease) {
-}
-
-func (deletingCleanupStub) GetDeploymentName() string { return "cleanup-module-controller-manager" }
-
-func (deletingCleanupStub) GetControllerImage() string { return "RELATED_IMAGE_CLEANUP_CONTROLLER" }
-
-func (deletingCleanupStub) GetInitContainerName() string { return cleanupInitContainerName }
-
-func (deletingCleanupStub) GetExtraEnv() map[string]string {
-	return map[string]string{"ENABLE_CLEANUP_MODULE_CONTROLLER": "true"}
-}
 
 type provisioningModuleStub struct {
 	moduleName string
@@ -159,7 +98,7 @@ func (s provisioningModuleStub) BuildModuleCR(_ context.Context, _ client.Client
 }
 
 func (s provisioningModuleStub) GetRelatedImages() []string {
-	return []string{testProvisioningImageEnv}
+	return nil
 }
 
 func (s provisioningModuleStub) GetModuleStatus(context.Context, client.Client) (*ModuleStatus, error) {
@@ -175,23 +114,7 @@ func (s provisioningModuleStub) GetModuleCRState(context.Context, client.Client)
 
 func (s provisioningModuleStub) DeleteModuleCR(context.Context, client.Client) error { return nil }
 
-func (s provisioningModuleStub) DeleteOperatorResources(context.Context, client.Client, *PlatformContext) error {
-	return nil
-}
-
 func (s provisioningModuleStub) WriteDSCComponentStatus(*dscApi.DataScienceCluster, bool, []common.ComponentRelease) {
-}
-
-func (s provisioningModuleStub) GetDeploymentName() string {
-	return s.moduleName + "-controller-manager"
-}
-
-func (s provisioningModuleStub) GetControllerImage() string { return testProvisioningControllerEnv }
-
-func (s provisioningModuleStub) GetInitContainerName() string { return cleanupInitContainerName }
-
-func (s provisioningModuleStub) GetExtraEnv() map[string]string {
-	return map[string]string{"ENABLE_TEST_MODULE_CONTROLLER": "true"}
 }
 
 type legacyStatusFieldsWriterStub struct {
@@ -231,156 +154,6 @@ func (s legacyStatusFieldsWriterStub) WriteLegacyStatusFields(
 	return nil
 }
 
-func TestCleanupDisabledModulesPreservesModuleEnvInjectionWhileDeleting(t *testing.T) {
-	withTestRegistry(t)
-	DefaultRegistry().Add(deletingCleanupStub{})
-	provision.Add("cleanup-module", provision.KindModule, dag.RL(20))
-
-	dsci := &dsciv2.DSCInitialization{
-		ObjectMeta: metav1.ObjectMeta{Name: testDSCIName},
-	}
-	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
-	if err != nil {
-		t.Fatalf("create fake client: %v", err)
-	}
-
-	rr := &types.ReconciliationRequest{
-		Client:   cli,
-		Instance: &configApi.Platform{},
-	}
-
-	if err := cleanupDisabledModules(context.Background(), rr); err != nil {
-		t.Fatalf("cleanup disabled modules: %v", err)
-	}
-
-	if len(rr.Manifests) != 1 {
-		t.Fatalf("expected deleting module manifests to be kept alive, got %d", len(rr.Manifests))
-	}
-	mei := types.GetModuleEnvInjection(rr)
-	if mei == nil {
-		t.Fatalf("expected module env injection to be preserved for deleting module")
-	}
-	if mei.ApplicationsNamespace != testApplicationsNamespace {
-		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, mei.ApplicationsNamespace)
-	}
-	if len(mei.PerModuleImages) != 1 {
-		t.Fatalf("expected one deleting module env injection entry, got %d", len(mei.PerModuleImages))
-	}
-
-	moduleImages := mei.PerModuleImages[0]
-	if moduleImages.DeploymentName != "cleanup-module-controller-manager" {
-		t.Fatalf("expected deployment name %q, got %q", "cleanup-module-controller-manager", moduleImages.DeploymentName)
-	}
-	if moduleImages.ControllerImage != "RELATED_IMAGE_CLEANUP_CONTROLLER" {
-		t.Fatalf("expected controller image env var %q, got %q", "RELATED_IMAGE_CLEANUP_CONTROLLER", moduleImages.ControllerImage)
-	}
-	if moduleImages.InitContainerName != cleanupInitContainerName {
-		t.Fatalf("expected init container name %q, got %q", cleanupInitContainerName, moduleImages.InitContainerName)
-	}
-	if got := moduleImages.ExtraEnv["ENABLE_CLEANUP_MODULE_CONTROLLER"]; got != "true" {
-		t.Fatalf("expected cleanup extra env to be preserved, got %q", got)
-	}
-	if len(moduleImages.Images) != 1 || moduleImages.Images[0] != "RELATED_IMAGE_CLEANUP" {
-		t.Fatalf("expected related image env vars to be preserved, got %#v", moduleImages.Images)
-	}
-}
-
-func TestProvisionModulesAddsResourcesAndEnvInjection(t *testing.T) {
-	withTestRegistry(t)
-
-	handler := provisioningModuleStub{
-		moduleName: testProvisioningModuleName,
-		enabled:    true,
-		status: &ModuleStatus{
-			Conditions: []common.Condition{{
-				Type:   status.ConditionTypeReady,
-				Status: metav1.ConditionTrue,
-			}},
-		},
-	}
-	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
-	provision.Add(handler.GetName(), provision.KindModule, dag.RL(20))
-
-	dsc := &dscApi.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName, UID: "uid-1"}}
-	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
-	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
-	if err != nil {
-		t.Fatalf("create fake client: %v", err)
-	}
-
-	rr := &types.ReconciliationRequest{
-		Client:     cli,
-		Instance:   dsc,
-		Release:    common.Release{Name: common.Platform("Open Data Hub"), Version: ofversion.OperatorVersion{Version: semver.MustParse(testProvisioningVersion)}},
-		Conditions: conditionstest.NewManager(dsc, status.ConditionTypeModulesReady),
-	}
-
-	if err := provisionModules(context.Background(), rr); err != nil {
-		t.Fatalf("provision modules: %v", err)
-	}
-
-	if len(rr.Manifests) != 1 {
-		t.Fatalf("expected one module manifest entry, got %d", len(rr.Manifests))
-	}
-	mei2 := types.GetModuleEnvInjection(rr)
-	if mei2 == nil || len(mei2.PerModuleImages) != 1 {
-		t.Fatalf("expected one module env injection entry, got %#v", mei2)
-	}
-	if mei2.ApplicationsNamespace != testApplicationsNamespace {
-		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, mei2.ApplicationsNamespace)
-	}
-	if mei2.PerModuleImages[0].DeploymentName != testProvisioningDeploymentName {
-		t.Fatalf("expected deployment name to be preserved, got %#v", mei2.PerModuleImages[0])
-	}
-	if got := mei2.PerModuleImages[0].ExtraEnv["ENABLE_TEST_MODULE_CONTROLLER"]; got != "true" {
-		t.Fatalf("expected fixed module env to be preserved, got %q", got)
-	}
-}
-
-func TestInjectPlatformConfigCreatesModuleConfigMap(t *testing.T) {
-	withTestRegistry(t)
-
-	handler := provisioningModuleStub{moduleName: testProvisioningModuleName, enabled: true}
-	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
-
-	dsc := &dscApi.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName}}
-	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
-	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
-	if err != nil {
-		t.Fatalf("create fake client: %v", err)
-	}
-
-	rr := &types.ReconciliationRequest{
-		Client:   cli,
-		Instance: dsc,
-		Release:  common.Release{Name: common.Platform("Open Data Hub"), Version: ofversion.OperatorVersion{Version: semver.MustParse(testProvisioningVersion)}},
-	}
-
-	if err := injectPlatformConfig(context.Background(), rr); err != nil {
-		t.Fatalf("inject platform config: %v", err)
-	}
-
-	if len(rr.Resources) != 1 {
-		t.Fatalf("expected one generated platform config, got %d", len(rr.Resources))
-	}
-	if got := rr.Resources[0].GetName(); got != "odh-test-module-config" {
-		t.Fatalf("expected generated configmap name %q, got %q", "odh-test-module-config", got)
-	}
-	data, found, err := unstructured.NestedStringMap(rr.Resources[0].Object, "data")
-	if err != nil || !found {
-		t.Fatalf("expected configmap data to be present, got found=%v err=%v", found, err)
-	}
-	if data[PlatformVersionKey] != testProvisioningVersion {
-		t.Fatalf("expected platform version %q, got %#v", testProvisioningVersion, data)
-	}
-}
-
 func TestComputeModulesStatusMarksNotReadyModules(t *testing.T) {
 	withTestRegistry(t)
 
@@ -397,8 +170,8 @@ func TestComputeModulesStatusMarksNotReadyModules(t *testing.T) {
 		enabled:    true,
 		status:     &ModuleStatus{},
 	}
-	DefaultRegistry().Add(readyHandler, WithRunlevel(dag.RL(20)))
-	DefaultRegistry().Add(notReadyHandler, WithRunlevel(dag.RL(20)))
+	DefaultRegistry().Add(readyHandler)
+	DefaultRegistry().Add(notReadyHandler)
 
 	dsc := &dscApi.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName}}
 	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
@@ -442,7 +215,7 @@ func TestComputeModulesStatusPreservesWorkbenchNamespaceOnGetModuleStatusError(t
 		},
 		getStatusErr: errors.New("failed to get module status"),
 	}
-	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
+	DefaultRegistry().Add(handler)
 
 	dsc := &dscApi.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName}}
 	dsc.Spec.Components.Workbenches.WorkbenchNamespace = "other-namespace"
@@ -499,7 +272,7 @@ func TestComputeModulesStatusInfoDependencyKeepsModulesReady(t *testing.T) {
 			{SourceConditionType: depCond, DSCConditionType: depCond},
 		},
 	}
-	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
+	DefaultRegistry().Add(handler)
 
 	dsc := &dscApi.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName}}
 	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
@@ -566,7 +339,7 @@ func TestComputeModulesStatusRequeuesOnCRDAbsent(t *testing.T) {
 			enabled:    true,
 		},
 	}
-	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
+	DefaultRegistry().Add(handler)
 
 	dsc := &dscApi.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName}}
 	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
@@ -623,7 +396,7 @@ func TestComputeModulesStatusNoRequeueOnRegularError(t *testing.T) {
 		},
 		getStatusErr: errors.New("some transient API error"),
 	}
-	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
+	DefaultRegistry().Add(handler)
 
 	dsc := &dscApi.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName}}
 	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
@@ -680,97 +453,6 @@ func TestBuildPlatformContext_MonitoringNamespaceFromDSCI(t *testing.T) {
 	}
 }
 
-func TestBuildPlatformContext_OTelNamespaceFromActiveWebhook(t *testing.T) {
-	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
-	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
-	platform := &configApi.Platform{}
-	platform.Spec.Modules.Monitoring.ManagementState = operatorv1.Managed
-	webhook := collectorWebhook("collector-admission", "openshift-operators")
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsci, webhook))
-	if err != nil {
-		t.Fatalf("create fake client: %v", err)
-	}
-	ctx, err := buildPlatformContext(context.Background(), &types.ReconciliationRequest{Client: cli, Instance: platform})
-	if err != nil {
-		t.Fatalf("buildPlatformContext: %v", err)
-	}
-	if ctx.OTelOperatorNamespace != "openshift-operators" {
-		t.Fatalf("expected active webhook namespace openshift-operators, got %q", ctx.OTelOperatorNamespace)
-	}
-	if ctx.MetricsServiceMonitorEnabled {
-		t.Fatal("expected MetricsServiceMonitorEnabled false when RHOBS ServiceMonitor CRD is absent")
-	}
-}
-
-func rhobsServiceMonitorCRD() *apiextensionsv1.CustomResourceDefinition {
-	return &apiextensionsv1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{Name: gvk.ServiceMonitorCRDName},
-		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
-			Group: gvk.ServiceMonitor.Group,
-			Names: apiextensionsv1.CustomResourceDefinitionNames{
-				Plural:   "servicemonitors",
-				Singular: "servicemonitor",
-				Kind:     gvk.ServiceMonitor.Kind,
-			},
-			Scope: apiextensionsv1.NamespaceScoped,
-			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
-				Name:    gvk.ServiceMonitor.Version,
-				Served:  true,
-				Storage: true,
-			}},
-		},
-	}
-}
-
-func clientWithRHOBSServiceMonitorCRD(t *testing.T, objs ...client.Object) client.Client {
-	t.Helper()
-
-	s, err := testscheme.New()
-	if err != nil {
-		t.Fatalf("create scheme: %v", err)
-	}
-	s.AddKnownTypeWithName(gvk.ServiceMonitor, &unstructured.Unstructured{})
-
-	objs = append(objs, rhobsServiceMonitorCRD())
-	cli, err := fakeclient.New(fakeclient.WithScheme(s), fakeclient.WithObjects(objs...))
-	if err != nil {
-		t.Fatalf("create fake client: %v", err)
-	}
-	return cli
-}
-
-func TestBuildPlatformContext_EnablesMetricsServiceMonitorWhenCRDPresent(t *testing.T) {
-	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
-	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
-	platform := &configApi.Platform{}
-	platform.Spec.Modules.Monitoring.ManagementState = operatorv1.Managed
-
-	cli := clientWithRHOBSServiceMonitorCRD(t, dsci)
-	ctx, err := buildPlatformContext(context.Background(), &types.ReconciliationRequest{Client: cli, Instance: platform})
-	if err != nil {
-		t.Fatalf("buildPlatformContext: %v", err)
-	}
-	if !ctx.MetricsServiceMonitorEnabled {
-		t.Fatal("expected MetricsServiceMonitorEnabled true when RHOBS ServiceMonitor CRD is present")
-	}
-}
-
-func TestBuildPlatformContext_SkipsMetricsServiceMonitorWhenMonitoringNotManaged(t *testing.T) {
-	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
-	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
-	platform := &configApi.Platform{}
-	platform.Spec.Modules.Monitoring.ManagementState = operatorv1.Removed
-
-	cli := clientWithRHOBSServiceMonitorCRD(t, dsci)
-	ctx, err := buildPlatformContext(context.Background(), &types.ReconciliationRequest{Client: cli, Instance: platform})
-	if err != nil {
-		t.Fatalf("buildPlatformContext: %v", err)
-	}
-	if ctx.MetricsServiceMonitorEnabled {
-		t.Fatal("expected MetricsServiceMonitorEnabled false when monitoring is not Managed")
-	}
-}
-
 func TestBuildPlatformContext_MonitoringNamespaceEmptyWithoutDSCI(t *testing.T) {
 	cli, err := fakeclient.New()
 	if err != nil {
@@ -790,103 +472,6 @@ func TestBuildPlatformContext_MonitoringNamespaceEmptyWithoutDSCI(t *testing.T) 
 	}
 	// ApplicationNamespace also fails without DSCI — that's expected.
 	// The key assertion: no panic, monitoring namespace is empty.
-}
-
-func TestProvisionModulesMonitoringNamespaceInjected(t *testing.T) {
-	withTestRegistry(t)
-
-	const testMonitoringNS = "redhat-ods-monitoring"
-
-	handler := provisioningModuleStub{
-		moduleName: testProvisioningModuleName,
-		enabled:    true,
-		status: &ModuleStatus{
-			Conditions: []common.Condition{{
-				Type:   status.ConditionTypeReady,
-				Status: metav1.ConditionTrue,
-			}},
-		},
-	}
-	DefaultRegistry().Add(handler, WithRunlevel(dag.RL(20)))
-	provision.Add(handler.GetName(), provision.KindModule, dag.RL(20))
-
-	dsc := &dscApi.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: testDSCName, UID: "uid-1"}}
-	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
-	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
-	dsci.Spec.Monitoring.Namespace = testMonitoringNS
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsci))
-	if err != nil {
-		t.Fatalf("create fake client: %v", err)
-	}
-
-	rr := &types.ReconciliationRequest{
-		Client:     cli,
-		Instance:   dsc,
-		Release:    common.Release{Name: common.Platform("Open Data Hub"), Version: ofversion.OperatorVersion{Version: semver.MustParse(testProvisioningVersion)}},
-		Conditions: conditionstest.NewManager(dsc, status.ConditionTypeModulesReady),
-	}
-
-	if err := provisionModules(context.Background(), rr); err != nil {
-		t.Fatalf("provision modules: %v", err)
-	}
-
-	mei := types.GetModuleEnvInjection(rr)
-	if mei == nil {
-		t.Fatalf("expected module env injection to be set")
-	}
-	if mei.MonitoringNamespace != testMonitoringNS {
-		t.Fatalf("expected monitoring namespace %q, got %q", testMonitoringNS, mei.MonitoringNamespace)
-	}
-}
-
-func TestBuildPlatformModules_NoEmptyManagementState(t *testing.T) {
-	t.Parallel()
-
-	dsc := &dscApi.DataScienceCluster{}
-	pm := BuildPlatformModules(&DSCContext{DSC: dsc})
-
-	v := reflect.ValueOf(pm)
-	for sf, fv := range v.Fields() {
-		ms := fv.FieldByName("ManagementState")
-		if !ms.IsValid() {
-			continue
-		}
-		state := operatorv1.ManagementState(ms.String())
-		if state == "" {
-			t.Errorf("PlatformModules.%s.ManagementState is empty; must be Managed or Removed", sf.Name)
-		}
-		if state != operatorv1.Managed && state != operatorv1.Removed {
-			t.Errorf("PlatformModules.%s.ManagementState = %q; want Managed or Removed", sf.Name, state)
-		}
-	}
-}
-
-func TestBuildPlatformModules_WithDSCI_MonitoringManaged(t *testing.T) {
-	withTestRegistry(t)
-
-	DefaultRegistry().Add(&testDSCIConfiguredHandler{
-		BaseHandler: BaseHandler{Config: ModuleConfig{Name: "monitoring"}},
-	}, WithConfigSource(ConfigFromDSCI))
-
-	dsci := &dsciv2.DSCInitialization{
-		Spec: dsciv2.DSCInitializationSpec{
-			Monitoring: serviceApi.DSCIMonitoring{
-				ManagementSpec: common.ManagementSpec{
-					ManagementState: operatorv1.Managed,
-				},
-			},
-		},
-	}
-
-	pm := BuildPlatformModules(&DSCContext{
-		DSC:  &dscApi.DataScienceCluster{},
-		DSCI: dsci,
-	})
-
-	if pm.Monitoring.ManagementState != operatorv1.Managed {
-		t.Fatalf("expected monitoring=Managed when DSCI is provided, got %q", pm.Monitoring.ManagementState)
-	}
 }
 
 func TestBuildPlatformModulesForSource_DoesNotPopulateOtherSource(t *testing.T) {
@@ -927,9 +512,19 @@ func TestBuildPlatformModulesForSource_DoesNotPopulateOtherSource(t *testing.T) 
 	if dscModules.Monitoring.ManagementState != "" {
 		t.Fatalf("expected DSC source to leave monitoring unset, got %q", dscModules.Monitoring.ManagementState)
 	}
+
+	// Static deployment suppression must not change source field ownership.
+	DefaultRegistry().Disable("dashboard")
+	DefaultRegistry().Disable("monitoring")
+	if got := BuildPlatformModulesForSource(dscCtx, ConfigFromDSC); got != dscModules {
+		t.Fatalf("disabled DSC handler changed its projection: got %+v, want %+v", got, dscModules)
+	}
+	if got := BuildPlatformModulesForSource(dscCtx, ConfigFromDSCI); got != dsciModules {
+		t.Fatalf("disabled DSCI handler changed its projection: got %+v, want %+v", got, dsciModules)
+	}
 }
 
-func TestNewPlatformCRRemovedForSource_ForcesDSCModulesRemoved(t *testing.T) {
+func TestNewPlatformCRRemovedForSource_PreservesOtherSource(t *testing.T) {
 	withTestRegistry(t)
 
 	DefaultRegistry().Add(&testDSCIConfiguredHandler{
@@ -958,6 +553,14 @@ func TestNewPlatformCRRemovedForSource_ForcesDSCModulesRemoved(t *testing.T) {
 	}
 	if removed.Spec.Modules.Monitoring.ManagementState != "" {
 		t.Fatalf("expected monitoring to stay unset so DSCI SSA keeps it, got %q", removed.Spec.Modules.Monitoring.ManagementState)
+	}
+
+	removed = NewPlatformCRRemovedForSource(dscCtx, ConfigFromDSCI)
+	if removed.Spec.Modules.Monitoring.ManagementState != operatorv1.Removed {
+		t.Fatalf("expected monitoring=Removed on DSCI delete payload, got %q", removed.Spec.Modules.Monitoring.ManagementState)
+	}
+	if removed.Spec.Modules.Dashboard.ManagementState != "" {
+		t.Fatalf("expected dashboard to stay unset so DSC SSA keeps it, got %q", removed.Spec.Modules.Dashboard.ManagementState)
 	}
 }
 
@@ -1010,4 +613,86 @@ func (h *testDSCConfiguredHandler) PopulatePlatformModule(pm *configApi.Platform
 		ms = operatorv1.Removed
 	}
 	pm.Dashboard.ManagementState = ms
+}
+
+func TestFinalizePlatformWaitsForOwnedTrackers(t *testing.T) {
+	g := NewWithT(t)
+	withTestRegistry(t)
+	DefaultRegistry().Add(&lifecycleModuleStub{name: "module", crState: CRStateAlive})
+	platform := &configApi.Platform{ObjectMeta: metav1.ObjectMeta{Name: configApi.PlatformInstanceName, UID: "platform-uid"}}
+	tracker := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "module", UID: "tracker-uid", Finalizers: []string{"tracker-finalizer"},
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: configApi.GroupVersion.String(), Kind: configApi.PlatformKind, Name: platform.Name, UID: platform.UID, Controller: new(true),
+		}}}}
+	external := tracker.DeepCopy()
+	external.Name = "external"
+	external.OwnerReferences = nil
+	cli, err := fakeclient.New(fakeclient.WithObjects(platform, tracker, external))
+	g.Expect(err).ShouldNot(HaveOccurred())
+	rr := &types.ReconciliationRequest{Client: cli, Instance: platform}
+	g.Expect(finalizePlatform(t.Context(), rr)).Should(HaveOccurred(), "Platform must wait for tracker finalization")
+	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(tracker), tracker)).Should(Succeed())
+	g.Expect(tracker.DeletionTimestamp.IsZero()).Should(BeFalse(), "owned tracker deletion was not requested")
+	g.Expect(cli.Get(t.Context(), client.ObjectKeyFromObject(external), external)).Should(Succeed())
+	g.Expect(external.DeletionTimestamp.IsZero()).Should(BeTrue(), "external tracker was deleted")
+	tracker.Finalizers = nil
+	g.Expect(cli.Update(t.Context(), tracker)).Should(Succeed())
+	g.Expect(finalizePlatform(t.Context(), rr)).Should(Succeed(), "unrelated module CR must not block finalization after owned trackers are gone")
+}
+
+func TestDisabledTrackerDeletionRetriesAfterConflict(t *testing.T) {
+	for _, ownershipChanges := range []bool{false, true} {
+		t.Run(map[bool]string{false: "status change", true: "ownership change"}[ownershipChanges], func(t *testing.T) {
+			g := NewWithT(t)
+			withTestRegistry(t)
+			DefaultRegistry().Add(provisioningModuleStub{moduleName: "module"})
+			platform := &configApi.Platform{ObjectMeta: metav1.ObjectMeta{Name: configApi.PlatformInstanceName, UID: "platform-uid"}}
+			tracker := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "module", UID: "tracker-uid",
+				OwnerReferences: []metav1.OwnerReference{{
+					APIVersion: configApi.GroupVersion.String(), Kind: configApi.PlatformKind, Name: platform.Name, UID: platform.UID, Controller: new(true),
+				}}}}
+			conflict := true
+			cli, err := fakeclient.New(fakeclient.WithObjects(tracker), fakeclient.WithStatusSubresources(tracker), fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+					options := (&client.DeleteOptions{}).ApplyOptions(opts)
+					g.Expect(options.Preconditions).ShouldNot(BeNil())
+					g.Expect(options.Preconditions.UID).Should(Equal(new(obj.GetUID())), "deletion must pin the identity")
+					g.Expect(options.Preconditions.ResourceVersion).Should(Equal(new(obj.GetResourceVersion())), "deletion must pin the ownership check")
+					if !conflict {
+						return c.Delete(ctx, obj, opts...)
+					}
+					conflict = false
+					updated := tracker.DeepCopy()
+					if err := c.Get(ctx, client.ObjectKeyFromObject(tracker), updated); err != nil {
+						return err
+					}
+					if ownershipChanges {
+						updated.OwnerReferences[0].UID = "external-platform"
+						if err := c.Update(ctx, updated); err != nil {
+							return err
+						}
+					} else {
+						updated.Status.ObservedGeneration = 1
+						if err := c.Status().Update(ctx, updated); err != nil {
+							return err
+						}
+					}
+					return k8serr.NewConflict(configApi.GroupVersion.WithResource("platformmodules").GroupResource(), obj.GetName(), errors.New("changed since read"))
+				},
+			}))
+			g.Expect(err).ShouldNot(HaveOccurred())
+			rr := &types.ReconciliationRequest{Client: cli, Instance: platform}
+			err = cleanupDisabledPlatformModules(t.Context(), rr)
+			g.Expect(k8serr.IsConflict(err)).Should(BeTrue())
+			g.Expect(cleanupDisabledPlatformModules(t.Context(), rr)).Should(Succeed())
+			err = cli.Get(t.Context(), client.ObjectKeyFromObject(tracker), tracker)
+			if ownershipChanges {
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(tracker.OwnerReferences).ShouldNot(BeEmpty())
+				g.Expect(string(tracker.OwnerReferences[0].UID)).Should(Equal("external-platform"))
+			} else {
+				g.Expect(k8serr.IsNotFound(err)).Should(BeTrue(), "still-owned tracker was not deleted on retry")
+			}
+		})
+	}
 }

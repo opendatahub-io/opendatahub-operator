@@ -5,31 +5,28 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-multierror"
-
-	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 )
 
 type registryEntry struct {
 	handler      ModuleHandler
 	enabled      bool
-	runlevel     dag.Runlevel
 	configSource ConfigSource
 }
-
-func (e registryEntry) GetName() string           { return e.handler.GetName() }
-func (e registryEntry) GetRunlevel() dag.Runlevel { return e.runlevel }
 
 // Registry maintains the set of registered ModuleHandlers.
 // All public methods are safe for concurrent use.
 type Registry struct {
 	mu      sync.RWMutex
 	entries map[string]registryEntry
-	// order preserves insertion order for deterministic iteration.
-	order []string
-	// resolvedCache caches the DAG-resolved batches; invalidated on mutation.
-	resolvedCache [][]registryEntry
+}
+
+// Reset removes all registered handlers. Intended for isolated controller
+// tests that exercise the process-wide default registry.
+func (r *Registry) Reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.entries = nil
 }
 
 var r = &Registry{}
@@ -45,25 +42,12 @@ func (r *Registry) Add(handler ModuleHandler, opts ...RegistrationOption) {
 
 	name := handler.GetName()
 
-	e := registryEntry{handler: handler, enabled: true, runlevel: dag.RL(99)}
+	e := registryEntry{handler: handler, enabled: true}
 	for _, opt := range opts {
 		opt(&e)
 	}
 
-	if _, exists := r.entries[name]; !exists {
-		r.order = append(r.order, name)
-	}
 	r.entries[name] = e
-	r.resolvedCache = nil
-	provision.InvalidateCache()
-}
-
-// Enable sets the enabled state for the named module to true.
-func (r *Registry) Enable(name string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.setEnabledLocked(name, true)
 }
 
 // Disable sets the enabled state for the named module to false.
@@ -71,16 +55,9 @@ func (r *Registry) Disable(name string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.setEnabledLocked(name, false)
-}
-
-// setEnabledLocked sets the enabled state. Caller must hold r.mu.
-func (r *Registry) setEnabledLocked(name string, enabled bool) {
 	if e, ok := r.entries[name]; ok {
-		e.enabled = enabled
+		e.enabled = false
 		r.entries[name] = e
-		r.resolvedCache = nil
-		provision.InvalidateCache()
 	}
 }
 
@@ -102,42 +79,6 @@ func (r *Registry) sortedNames() []string {
 	}
 	sort.Strings(names)
 	return names
-}
-
-// ForEach iterates over all registered modules in sorted order and applies
-// the given function. Entries whose enabled flag is false are skipped.
-// Errors are collected and returned at the end.
-func (r *Registry) ForEach(f func(ModuleHandler) error) error {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	var errs *multierror.Error
-	for _, name := range r.sortedNames() {
-		e := r.entries[name]
-		if !e.enabled {
-			continue
-		}
-		errs = multierror.Append(errs, f(e.handler))
-	}
-
-	return errs.ErrorOrNil()
-}
-
-// ForEachEnabled iterates over enabled modules in sorted order and invokes
-// the given function. Unlike ForEach, the callback has no return value,
-// making it suitable when callers collect errors through an external
-// mechanism (e.g. a failedModules slice).
-func (r *Registry) ForEachEnabled(f func(ModuleHandler)) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	for _, name := range r.sortedNames() {
-		e := r.entries[name]
-		if !e.enabled {
-			continue
-		}
-		f(e.handler)
-	}
 }
 
 // ForAll iterates over every registered module in sorted order regardless of
@@ -174,68 +115,6 @@ func (r *Registry) ForConfigSource(source ConfigSource, f func(handler ModuleHan
 	return errs.ErrorOrNil()
 }
 
-// IsModuleEnabled checks if a module with the given name is enabled in the
-// registry and also enabled based on platform configuration.
-func (r *Registry) IsModuleEnabled(moduleName string, modules *configApi.PlatformModules) bool {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	e, ok := r.entries[moduleName]
-	return ok && e.enabled && e.handler.IsEnabled(modules)
-}
-
-// ResolvedBatches returns modules grouped by runlevel and topologically
-// sorted within each batch. Only enabled modules are included.
-// Results are cached until the registry is mutated.
-func (r *Registry) ResolvedBatches() ([][]registryEntry, error) {
-	r.mu.RLock()
-	if r.resolvedCache != nil {
-		defer r.mu.RUnlock()
-		return r.resolvedCache, nil
-	}
-	r.mu.RUnlock()
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if r.resolvedCache != nil {
-		return r.resolvedCache, nil
-	}
-
-	g := dag.NewGraph[registryEntry]()
-	for _, name := range r.order {
-		e := r.entries[name]
-		if !e.enabled {
-			continue
-		}
-		g.Add(e)
-	}
-
-	batches, err := g.Resolve()
-	if err != nil {
-		return nil, err
-	}
-	r.resolvedCache = batches
-	return batches, nil
-}
-
-// ReverseBatches returns batches in reverse order for cleanup.
-func (r *Registry) ReverseBatches() ([][]registryEntry, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	g := dag.NewGraph[registryEntry]()
-	for _, name := range r.order {
-		e := r.entries[name]
-		if !e.enabled {
-			continue
-		}
-		g.Add(e)
-	}
-
-	return g.ReverseBatches()
-}
-
 // Lookup returns the handler for a named module, or nil if not found.
 func (r *Registry) Lookup(name string) ModuleHandler { //nolint:ireturn
 	r.mu.RLock()
@@ -255,30 +134,10 @@ func (r *Registry) HasEntries() bool {
 	return len(r.entries) > 0
 }
 
-// AnyEnabled returns true if at least one registered module is enabled
-// in the given PlatformContext. Returns false when all modules are
-// Removed or no modules are registered.
-func (r *Registry) AnyEnabled(modules *configApi.PlatformModules) bool {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	for _, e := range r.entries {
-		if e.enabled && e.handler.IsEnabled(modules) {
-			return true
-		}
-	}
-	return false
-}
-
 // Package-level functions that delegate to the default registry.
 
 func Add(handler ModuleHandler, opts ...RegistrationOption) {
 	r.Add(handler, opts...)
-}
-
-// Enable marks the module as enabled, i.e. not disabled via env var at operator startup.
-func Enable(name string) {
-	r.Enable(name)
 }
 
 // Disable marks the module as disabled via env var at operator startup.
@@ -290,24 +149,8 @@ func IsEnabled(name string) bool {
 	return r.IsEnabled(name)
 }
 
-func ForEach(f func(ModuleHandler) error) error {
-	return r.ForEach(f)
-}
-
-func ForEachEnabled(f func(ModuleHandler)) {
-	r.ForEachEnabled(f)
-}
-
-func ForAll(f func(handler ModuleHandler, registryEnabled bool) error) error {
-	return r.ForAll(f)
-}
-
 func ForConfigSource(source ConfigSource, f func(handler ModuleHandler, registryEnabled bool) error) error {
 	return r.ForConfigSource(source, f)
-}
-
-func IsModuleEnabled(moduleName string, modules *configApi.PlatformModules) bool {
-	return r.IsModuleEnabled(moduleName, modules)
 }
 
 func DefaultRegistry() *Registry {

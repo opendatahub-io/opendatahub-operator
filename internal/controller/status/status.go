@@ -84,6 +84,7 @@ const (
 	ConditionArgoWorkflowAvailable               = "ArgoWorkflowAvailable"
 	ConditionTypeComponentsReady                 = "ComponentsReady"
 	ConditionTypeProvisioningProgress            = "ProvisioningProgress"
+	ConditionTypeModuleCRReady                   = "ModuleCRReady"
 	ConditionMonitoringReady                     = "MonitoringReady"
 	ConditionMonitoringDependenciesReady         = "MonitoringDependenciesReady"
 	ConditionTypeModulesReady                    = "ModulesReady"

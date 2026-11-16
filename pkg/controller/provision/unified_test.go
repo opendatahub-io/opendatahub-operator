@@ -152,23 +152,6 @@ func TestCacheInvalidation(t *testing.T) {
 	assert.Len(t, b2[0], 2, "cache should be invalidated after Add")
 }
 
-func TestCacheInvalidation_ViaInvalidateCache(t *testing.T) {
-	t.Parallel()
-
-	r := newRegistry()
-	r.Add("alpha", provision.KindComponent, dag.RL(20))
-
-	_, err := r.ResolvedBatches()
-	require.NoError(t, err)
-
-	r.InvalidateCache()
-	r.Add("beta", provision.KindComponent, dag.RL(20))
-
-	b, err := r.ResolvedBatches()
-	require.NoError(t, err)
-	assert.Len(t, b[0], 2)
-}
-
 func TestReverseBatches(t *testing.T) {
 	t.Parallel()
 

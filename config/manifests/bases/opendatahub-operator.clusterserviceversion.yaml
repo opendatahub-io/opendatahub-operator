@@ -9,7 +9,7 @@ metadata:
     containerImage: quay.io/opendatahub/opendatahub-operator:v3.7.0-ea.1
     createdAt: "2026-11-09T00:00:00Z"
     operators.operatorframework.io/internal-objects: '["kueues.components.platform.opendatahub.io",
-      "platforms.config.opendatahub.io"]'
+      "platforms.config.opendatahub.io", "platformmodules.config.opendatahub.io"]'
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v3.7.0-ea.1
   namespace: placeholder
@@ -31,6 +31,11 @@ spec:
       displayName: Platform
       kind: Platform
       name: platforms.config.opendatahub.io
+      version: v1alpha2
+    - description: PlatformModule tracks a module operator deployment lifecycle.
+      displayName: Platform Module
+      kind: PlatformModule
+      name: platformmodules.config.opendatahub.io
       version: v1alpha2
     - description: Auth is the Schema for the auths API
       displayName: Auth

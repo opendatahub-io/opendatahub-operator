@@ -13,6 +13,21 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+type statusMockHandler struct {
+	modules.BaseHandler
+
+	status *modules.ModuleStatus
+}
+
+func newStatusMock(name string, moduleStatus *modules.ModuleStatus) *statusMockHandler {
+	return &statusMockHandler{
+		BaseHandler: modules.BaseHandler{
+			Config: modules.ModuleConfig{Name: name, CRName: "default"},
+		},
+		status: moduleStatus,
+	}
+}
+
 func TestGetReadyConditionType(t *testing.T) {
 	t.Parallel()
 

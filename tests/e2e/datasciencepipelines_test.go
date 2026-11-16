@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	aipipelinesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aipipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -80,19 +81,25 @@ func (tc *DataSciencePipelinesTestCtx) ValidateConditions(t *testing.T) {
 }
 
 // ValidateOperandsOwnerReferences verifies that the module operator Deployment
-// is owned by the Platform CR that renders it, rather than by the module CR.
+// is controlled by the current PlatformModule tracker.
 func (tc *DataSciencePipelinesTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Smoke)
 
+	tracker := &configApi.PlatformModule{}
+	tc.FetchTypedResource(tracker, WithMinimalObject(gvk.PlatformModule, types.NamespacedName{Name: tc.ModuleHandler.GetName()}))
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
 			Namespace: tc.AppsNamespace,
 			Name:      aipipelinesModule.ControllerDeploymentName,
 		}),
-		WithCondition(jq.Match(`.metadata.ownerReferences[0].kind == "Platform"`)),
-		WithCustomErrorMsg("AI Pipelines module operator Deployment should be owned by Platform"),
+		WithCondition(jq.Match(
+			`any(.metadata.ownerReferences[]?; .controller == true and .apiVersion == "%s"`+
+				` and .kind == "%s" and .name == "%s" and .uid == "%s")`,
+			gvk.PlatformModule.GroupVersion().String(), gvk.PlatformModule.Kind, tracker.Name, tracker.UID,
+		)),
+		WithCustomErrorMsg("AI Pipelines module operator Deployment should be controlled by its PlatformModule tracker"),
 	)
 }
 
