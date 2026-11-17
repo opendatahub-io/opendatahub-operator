@@ -39,17 +39,24 @@ func aihubTestSuite(t *testing.T) {
 	}
 	aihubInstancesNSNN := types.NamespacedName{Name: aihubTestNamespace}
 
-	var originalInstancesNamespace string
+	// The AI Hub state this suite mutates is captured up front and restored by
+	// a cleanup, so a failure part-way through cannot leave AI Hub Removed for
+	// the suites that run after this one.
+	originalInstancesNamespace := captureAIHubState(t, tc)
+
+	var createdInstancesNamespace bool
 
 	testCases := []TestCase{
 		{"Validate component enabled", func(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Smoke, Tier1)
 
-			// Capture the original instancesNamespace so cleanup can restore it.
-			if dsc := tc.FetchDataScienceCluster(); dsc != nil {
-				originalInstancesNamespace = dsc.Spec.Components.AIHub.InstancesNamespace
-			}
+			// Record whether the namespace predates the suite: this suite must
+			// never delete a namespace it did not create on a shared cluster.
+			// FetchResource yields nil for a namespace that does not exist.
+			createdInstancesNamespace = tc.FetchResource(
+				WithMinimalObject(gvk.Namespace, aihubInstancesNSNN),
+			) == nil
 
 			// instancesNamespace is immutable while AI Hub is Managed; pass
 			// through Removed so the next patch can set a new namespace.
@@ -262,14 +269,80 @@ func aihubTestSuite(t *testing.T) {
 				WithCustomErrorMsg("DataScienceCluster should have %s condition set to False/Removed", aiHubReadyCondition),
 			)
 
-			// Clean up the test namespace.
-			tc.DeleteResource(
-				WithMinimalObject(gvk.Namespace, aihubInstancesNSNN),
-				WithIgnoreNotFound(true),
-				WithWaitForDeletion(true),
-			)
+			// Only delete the namespace when this suite created it: on a shared
+			// cluster it may have existed before the run.
+			if createdInstancesNamespace {
+				tc.DeleteResource(
+					WithMinimalObject(gvk.Namespace, aihubInstancesNSNN),
+					WithIgnoreNotFound(true),
+					WithWaitForDeletion(true),
+				)
+			}
 		}},
 	}
 
 	RunTestCases(t, testCases)
+}
+
+// captureAIHubState records the AI Hub spec fields aihubTestSuite mutates and
+// registers a cleanup that restores them. It returns the original
+// instancesNamespace for the component-disabled test case to restore.
+func captureAIHubState(t *testing.T, tc *TestContext) string {
+	t.Helper()
+
+	dsc := tc.FetchDataScienceCluster()
+	if dsc == nil {
+		return ""
+	}
+
+	managementState := string(dsc.Spec.Components.AIHub.ManagementState)
+	instancesNamespace := dsc.Spec.Components.AIHub.InstancesNamespace
+
+	t.Cleanup(func() {
+		restoreAIHubState(tc, managementState, instancesNamespace)
+	})
+
+	return instancesNamespace
+}
+
+// restoreAIHubState puts the AI Hub DSC fields captured by aihubTestSuite back.
+// instancesNamespace is immutable while AI Hub is Managed, so the namespace is
+// restored by a patch that also moves the component to Removed, followed by a
+// second patch that restores the original managementState. See the CEL rule on
+// DSCAIHub in api/components/v1alpha1/aihub_types.go: a namespace change is
+// only admitted when the old or the new managementState is not Managed.
+func restoreAIHubState(tc *TestContext, managementState, instancesNamespace string) {
+	current := tc.FetchDataScienceCluster()
+	if current != nil &&
+		string(current.Spec.Components.AIHub.ManagementState) == managementState &&
+		current.Spec.Components.AIHub.InstancesNamespace == instancesNamespace {
+		return
+	}
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			if err := unstructured.SetNestedField(obj.Object, "Removed", "spec", "components", "aiHub", "managementState"); err != nil {
+				return err
+			}
+
+			return unstructured.SetNestedField(obj.Object, instancesNamespace, "spec", "components", "aiHub", "instancesNamespace")
+		}),
+		WithCondition(jq.Match(`.spec.components.aiHub.managementState == "Removed"`)),
+	)
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			// An unset managementState is removed rather than written back: ""
+			// is not a valid value for the field's enum.
+			if managementState == "" {
+				unstructured.RemoveNestedField(obj.Object, "spec", "components", "aiHub", "managementState")
+
+				return nil
+			}
+
+			return unstructured.SetNestedField(obj.Object, managementState, "spec", "components", "aiHub", "managementState")
+		}),
+	)
 }
