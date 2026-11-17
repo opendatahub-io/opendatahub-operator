@@ -900,7 +900,7 @@ e2e-test-xks: ## Run e2e tests on external Kubernetes (KinD, AKS, CoreWeave, etc
 		-e E2E_TEST_WEBHOOK=false \
 		-e E2E_TEST_CONVERSION_WEBHOOK=false \
 		-e E2E_TEST_COMPONENTS=true \
-		-e E2E_TEST_COMPONENT="kserve" \
+		-e E2E_TEST_COMPONENT="kserve aihub" \
 		-e E2E_TEST_SERVICES=true \
 		-e E2E_TEST_SERVICE="gateway" \
 		-e E2E_TEST_OPERATOR_RESILIENCE=false \
