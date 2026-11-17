@@ -45,11 +45,9 @@ jobs:
         run: make update-cloudmanager-rbac
 
       - name: Resolve image digests
-        if: steps.update-shas.outputs.updates-needed == 'true'
         run: make resolve-image-digests
 
       - name: Create Pull Request
-        if: steps.update-shas.outputs.updates-needed == 'true'
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         id: create-pr
         with:

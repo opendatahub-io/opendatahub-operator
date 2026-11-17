@@ -125,6 +125,10 @@ func ExtractBranch(ref string) string {
 
 var tagPlaceholderPattern = regexp.MustCompile(`\{[^{}]+\}`)
 
+// literalTagPattern matches a valid image tag without placeholders, per the
+// distribution reference grammar: alphanumeric, underscores, dots, and dashes.
+var literalTagPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`)
+
 const (
 	// TagSHA and TagShortSHA are the only placeholders ValidateTagTemplate
 	// accepts. Substitution uses the same strings when building a registry tag.
@@ -133,16 +137,23 @@ const (
 )
 
 // ValidateTagTemplate returns an error unless template can be used to build an
-// image tag from a component SHA. It must contain TagSHA and/or TagShortSHA.
-// Every {…} token must be one of those two (case-sensitive). Prefixes and
-// suffixes are allowed. Leftover { or } after those tokens, and whitespace-only
-// values, are rejected.
+// image tag from a component SHA. It is either a literal tag (no placeholders;
+// must be a valid image tag) or a template that contains TagSHA and/or
+// TagShortSHA. Every {…} token must be one of those two (case-sensitive).
+// Prefixes and suffixes are allowed. Leftover { or } after those tokens, and
+// whitespace-only values, are rejected.
 func ValidateTagTemplate(template string) error {
 	if strings.TrimSpace(template) == "" {
 		return fmt.Errorf("must contain %s and/or %s", TagSHA, TagShortSHA)
 	}
 
 	placeholders := tagPlaceholderPattern.FindAllString(template, -1)
+	if len(placeholders) == 0 {
+		if literalTagPattern.MatchString(template) {
+			return nil
+		}
+		return fmt.Errorf("literal tag %q must match %s", template, literalTagPattern.String())
+	}
 	hasKnown := false
 	var unknown []string
 	for _, p := range placeholders {
