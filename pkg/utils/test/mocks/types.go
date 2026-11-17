@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/metadata"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -71,6 +72,14 @@ func (m *MockController) GetDiscoveryClient() discovery.DiscoveryInterface {
 
 func (m *MockController) GetDynamicClient() dynamic.Interface {
 	return m.Called().Get(0).(dynamic.Interface)
+}
+
+func (m *MockController) GetMetadataClient() metadata.Interface {
+	args := m.Called()
+	if len(args) == 0 || args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(metadata.Interface)
 }
 
 func (m *MockController) IsDynamicOwnershipEnabled() bool {
