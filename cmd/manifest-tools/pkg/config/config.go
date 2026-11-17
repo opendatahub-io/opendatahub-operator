@@ -179,6 +179,15 @@ func ValidateTagTemplate(template string) error {
 	return nil
 }
 
+// IsLiteralTagTemplate reports whether template names a literal tag rather
+// than a {SHA}/{SHORT_SHA} template. Such tags track the newest published
+// build instead of a specific commit.
+func IsLiteralTagTemplate(template string) bool {
+	return template != "" &&
+		len(tagPlaceholderPattern.FindAllString(template, -1)) == 0 &&
+		literalTagPattern.MatchString(template)
+}
+
 func NormalizePlatform(platform string) (string, error) {
 	switch platform {
 	case "OpenDataHub":

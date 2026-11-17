@@ -482,3 +482,23 @@ func TestCheckImageOverride(t *testing.T) {
 		})
 	}
 }
+
+func TestIsLiteralTagTemplate(t *testing.T) {
+	tests := []struct {
+		tmpl string
+		want bool
+	}{
+		{tmpl: "odh-stable", want: true},
+		{tmpl: "SHA", want: true},
+		{tmpl: "{SHA}", want: false},
+		{tmpl: "v{SHORT_SHA}", want: false},
+		{tmpl: "", want: false},
+		{tmpl: "odh stable", want: false},
+		{tmpl: "{FOO}", want: false},
+	}
+	for _, tt := range tests {
+		if got := config.IsLiteralTagTemplate(tt.tmpl); got != tt.want {
+			t.Errorf("IsLiteralTagTemplate(%q) = %v, want %v", tt.tmpl, got, tt.want)
+		}
+	}
+}
