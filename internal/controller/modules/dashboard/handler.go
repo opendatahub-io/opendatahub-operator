@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -28,7 +30,9 @@ const (
 	// AI Pipelines. Keep in sync with dashboard-operator's component name for DSP.
 	dashboardAIPipelinesName = "aipipelines"
 
-	namespacedRBACOptInLabel = "dashboard.opendatahub.io/allow-namespaced-rbac"
+	namespacedRBACOptInLabel  = "dashboard.opendatahub.io/allow-namespaced-rbac"
+	operatorNamespaceEnv      = "OPERATOR_NAMESPACE"
+	operatorServiceAccountEnv = "OPERATOR_SERVICE_ACCOUNT"
 )
 
 type handler struct {
@@ -81,11 +85,12 @@ func NewHandler() *handler {
 }
 
 func namespacedRBACWriterUsernames() []string {
-	return []string{
-		"system:serviceaccount:redhat-ods-operator:redhat-ods-operator-controller-manager",
-		"system:serviceaccount:opendatahub-operator:opendatahub-operator-controller-manager",
-		"system:serviceaccount:openshift-operators:opendatahub-operator-controller-manager",
+	namespace := os.Getenv(operatorNamespaceEnv)
+	serviceAccount := os.Getenv(operatorServiceAccountEnv)
+	if namespace == "" || serviceAccount == "" {
+		return nil
 	}
+	return []string{fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccount)}
 }
 
 func (h *handler) PopulatePlatformModule(pm *configApi.PlatformModules, dscCtx *modules.DSCContext) {
@@ -130,9 +135,6 @@ func (h *handler) BuildModuleCR(
 	spec["components"] = buildComponentsMap(dscCtx)
 	notebooksNamespace := resolveNotebooksNamespace(dscCtx, cfg)
 	modelRegistryNamespace := resolveAIHubNamespace(dscCtx)
-	if err := ensureNamespacedRBACOptIn(ctx, cli, notebooksNamespace, modelRegistryNamespace); err != nil {
-		return nil, err
-	}
 	if notebooksNamespace != "" {
 		spec["notebooksNamespace"] = notebooksNamespace
 	}
@@ -157,14 +159,59 @@ func (h *handler) BuildModuleCR(
 	return u, nil
 }
 
-// ensureNamespacedRBACOptIn records explicit consent on existing namespaces
-// before projecting them into the Dashboard CR. Component operators may create
-// their namespaces asynchronously, so a missing namespace is left fail-closed
-// for the dashboard-operator and will be labelled on a later DSC reconcile.
+// SyncNamespacedRBACOptIns reconciles platform-managed consent labels for the
+// namespaces currently projected into the Dashboard CR. Component operators
+// may create their namespaces asynchronously, so a missing namespace is left
+// fail-closed and the Namespace watch retries when it appears.
+func SyncNamespacedRBACOptIns(ctx context.Context, cli client.Client, dscCtx *modules.DSCContext, cfg *modules.ModuleCRConfig) error {
+	if dscCtx == nil || dscCtx.DSC == nil {
+		return nil
+	}
+	desired := NamespacedRBACTargets(dscCtx, cfg)
+	if cli == nil {
+		return errors.New("client is required to opt in namespaced RBAC targets")
+	}
+
+	var optedIn corev1.NamespaceList
+	if err := cli.List(ctx, &optedIn, client.MatchingLabels{namespacedRBACOptInLabel: "true"}); err != nil {
+		return fmt.Errorf("listing dashboard namespaced RBAC targets: %w", err)
+	}
+	desiredSet := make(map[string]struct{}, len(desired))
+	for _, name := range desired {
+		if isSystemNamespace(name) {
+			continue
+		}
+		desiredSet[name] = struct{}{}
+	}
+	for i := range optedIn.Items {
+		namespace := &optedIn.Items[i]
+		if _, keep := desiredSet[namespace.Name]; keep {
+			continue
+		}
+		before := namespace.DeepCopy()
+		delete(namespace.Labels, namespacedRBACOptInLabel)
+		if err := cli.Patch(ctx, namespace, client.MergeFrom(before)); err != nil {
+			return fmt.Errorf("removing dashboard namespaced RBAC opt-in from namespace %s: %w", namespace.Name, err)
+		}
+	}
+	return ensureNamespacedRBACOptIn(ctx, cli, desired...)
+}
+
+// NamespacedRBACTargets returns the namespaces projected into the Dashboard CR.
+func NamespacedRBACTargets(dscCtx *modules.DSCContext, cfg *modules.ModuleCRConfig) []string {
+	if dscCtx == nil || dscCtx.DSC == nil {
+		return nil
+	}
+	return []string{resolveNotebooksNamespace(dscCtx, cfg), resolveAIHubNamespace(dscCtx)}
+}
+
 func ensureNamespacedRBACOptIn(ctx context.Context, cli client.Client, namespaces ...string) error {
 	seen := make(map[string]struct{}, len(namespaces))
 	for _, name := range namespaces {
 		if name == "" {
+			continue
+		}
+		if isSystemNamespace(name) {
 			continue
 		}
 		if _, exists := seen[name]; exists {
@@ -196,6 +243,10 @@ func ensureNamespacedRBACOptIn(ctx context.Context, cli client.Client, namespace
 		}
 	}
 	return nil
+}
+
+func isSystemNamespace(name string) bool {
+	return name == "default" || strings.HasPrefix(name, "kube-") || strings.HasPrefix(name, "openshift-")
 }
 
 func dashboardModuleSpec(dashboard componentApi.DSCDashboard) map[string]any {

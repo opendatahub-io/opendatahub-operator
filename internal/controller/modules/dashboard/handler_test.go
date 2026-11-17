@@ -294,6 +294,8 @@ func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 
 func TestGetOperatorManifests(t *testing.T) {
 	g := NewWithT(t)
+	t.Setenv("OPERATOR_NAMESPACE", "custom-operator-namespace")
+	t.Setenv("OPERATOR_SERVICE_ACCOUNT", "custom-controller-manager")
 	h := dashboard.NewHandler()
 	platform := &modules.PlatformContext{
 		ApplicationsNamespace: "opendatahub",
@@ -316,9 +318,7 @@ func TestGetOperatorManifests(t *testing.T) {
 	g.Expect(ok).Should(BeTrue(), "webhook values missing")
 	g.Expect(webhookValues).Should(HaveKeyWithValue("enabled", true))
 	g.Expect(webhookValues["namespacedRBACWriters"]).Should(ConsistOf(
-		"system:serviceaccount:redhat-ods-operator:redhat-ods-operator-controller-manager",
-		"system:serviceaccount:opendatahub-operator:opendatahub-operator-controller-manager",
-		"system:serviceaccount:openshift-operators:opendatahub-operator-controller-manager",
+		"system:serviceaccount:custom-operator-namespace:custom-controller-manager",
 	))
 	certManagerValues, ok := webhookValues["certManager"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "webhook cert-manager values missing")
@@ -410,21 +410,23 @@ func TestBuildModuleCR_ProjectsCustomNotebooksNamespace(t *testing.T) {
 	g.Expect(spec["notebooksNamespace"]).Should(Equal("custom-notebooks"))
 }
 
-func TestBuildModuleCR_NamespacedRBACTargetRequiresClient(t *testing.T) {
+func TestSyncNamespacedRBACOptInsRequiresClient(t *testing.T) {
 	g := NewWithT(t)
-	h := dashboard.NewHandler()
 	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "custom-notebooks", operatorv1.Removed, "")
 
-	_, err := h.BuildModuleCR(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	err := dashboard.SyncNamespacedRBACOptIns(context.Background(), nil, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
 	g.Expect(err).Should(MatchError("client is required to opt in namespaced RBAC targets"))
 }
 
-func TestBuildModuleCR_MissingNamespacedRBACTargetRemainsFailClosed(t *testing.T) {
+func TestSyncNamespacedRBACOptIns_MissingTargetRemainsFailClosed(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "not-created-yet", operatorv1.Removed, "")
 
-	u, err := h.BuildModuleCR(context.Background(), newNamespaceClient(t), dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	cli := newNamespaceClient(t)
+	err := dashboard.SyncNamespacedRBACOptIns(context.Background(), cli, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
+	g.Expect(err).ShouldNot(HaveOccurred())
+	u, err := h.BuildModuleCR(context.Background(), cli, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
 	g.Expect(err).ShouldNot(HaveOccurred())
 	spec, _ := u.Object["spec"].(map[string]any)
 	g.Expect(spec["notebooksNamespace"]).Should(Equal("not-created-yet"))
@@ -507,6 +509,7 @@ func TestBuildModuleCR_ProjectsBothNamespaces(t *testing.T) {
 	)
 
 	cli := newNamespaceClient(t, "rhods-notebooks", "rhoai-model-registries")
+	g.Expect(dashboard.SyncNamespacedRBACOptIns(context.Background(), cli, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))).Should(Succeed())
 	u, err := h.BuildModuleCR(context.Background(), cli, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -517,6 +520,24 @@ func TestBuildModuleCR_ProjectsBothNamespaces(t *testing.T) {
 		namespace := &corev1.Namespace{}
 		g.Expect(cli.Get(context.Background(), types.NamespacedName{Name: name}, namespace)).Should(Succeed())
 		g.Expect(namespace.Labels).Should(HaveKeyWithValue("dashboard.opendatahub.io/allow-namespaced-rbac", "true"))
+	}
+}
+
+func TestSyncNamespacedRBACOptIns_RemovesStaleTargetAndSkipsSystemNamespace(t *testing.T) {
+	g := NewWithT(t)
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "openshift-monitoring", operatorv1.Removed, "")
+	cli := newNamespaceClient(t, "openshift-monitoring", "old-target")
+	oldTarget := &corev1.Namespace{}
+	g.Expect(cli.Get(t.Context(), types.NamespacedName{Name: "old-target"}, oldTarget)).Should(Succeed())
+	oldTarget.Labels = map[string]string{"dashboard.opendatahub.io/allow-namespaced-rbac": "true"}
+	g.Expect(cli.Update(t.Context(), oldTarget)).Should(Succeed())
+
+	g.Expect(dashboard.SyncNamespacedRBACOptIns(t.Context(), cli, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))).Should(Succeed())
+
+	for _, name := range []string{"openshift-monitoring", "old-target"} {
+		namespace := &corev1.Namespace{}
+		g.Expect(cli.Get(t.Context(), types.NamespacedName{Name: name}, namespace)).Should(Succeed())
+		g.Expect(namespace.Labels).ShouldNot(HaveKey("dashboard.opendatahub.io/allow-namespaced-rbac"))
 	}
 }
 
