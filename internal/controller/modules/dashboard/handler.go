@@ -246,7 +246,8 @@ func ensureNamespacedRBACOptIn(ctx context.Context, cli client.Client, namespace
 }
 
 func isSystemNamespace(name string) bool {
-	return name == "default" || strings.HasPrefix(name, "kube-") || strings.HasPrefix(name, "openshift-")
+	return name == "default" || name == "openshift" ||
+		strings.HasPrefix(name, "kube-") || strings.HasPrefix(name, "openshift-")
 }
 
 func dashboardModuleSpec(dashboard componentApi.DSCDashboard) map[string]any {

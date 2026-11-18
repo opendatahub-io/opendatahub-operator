@@ -525,8 +525,8 @@ func TestBuildModuleCR_ProjectsBothNamespaces(t *testing.T) {
 
 func TestSyncNamespacedRBACOptIns_RemovesStaleTargetAndSkipsSystemNamespace(t *testing.T) {
 	g := NewWithT(t)
-	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "openshift-monitoring", operatorv1.Removed, "")
-	cli := newNamespaceClient(t, "openshift-monitoring", "old-target")
+	dscCtx := newDSCCtxWithNamespaces(operatorv1.Managed, operatorv1.Managed, "openshift", operatorv1.Managed, "openshift-monitoring")
+	cli := newNamespaceClient(t, "openshift", "openshift-monitoring", "old-target")
 	oldTarget := &corev1.Namespace{}
 	g.Expect(cli.Get(t.Context(), types.NamespacedName{Name: "old-target"}, oldTarget)).Should(Succeed())
 	oldTarget.Labels = map[string]string{"dashboard.opendatahub.io/allow-namespaced-rbac": "true"}
@@ -534,7 +534,7 @@ func TestSyncNamespacedRBACOptIns_RemovesStaleTargetAndSkipsSystemNamespace(t *t
 
 	g.Expect(dashboard.SyncNamespacedRBACOptIns(t.Context(), cli, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))).Should(Succeed())
 
-	for _, name := range []string{"openshift-monitoring", "old-target"} {
+	for _, name := range []string{"openshift", "openshift-monitoring", "old-target"} {
 		namespace := &corev1.Namespace{}
 		g.Expect(cli.Get(t.Context(), types.NamespacedName{Name: name}, namespace)).Should(Succeed())
 		g.Expect(namespace.Labels).ShouldNot(HaveKey("dashboard.opendatahub.io/allow-namespaced-rbac"))
