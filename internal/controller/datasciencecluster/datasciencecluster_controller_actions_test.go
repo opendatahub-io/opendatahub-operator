@@ -398,8 +398,9 @@ func TestCleanupDisabledModuleCRsLogsDeleteFailure(t *testing.T) {
 }
 
 // clusterPolicyCRD returns the NVIDIA GPU Operator ClusterPolicy CRD.
-// served controls whether v1 is served. terminating sets the Terminating condition.
-func clusterPolicyCRD(served, terminating bool) *apiextensionsv1.CustomResourceDefinition {
+// served controls whether v1 is served. established sets the Established
+// condition. terminating sets the Terminating condition.
+func clusterPolicyCRD(served, established, terminating bool) *apiextensionsv1.CustomResourceDefinition {
 	crd := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: gvk.GPUOperatorClusterPolicyCRDName,
@@ -413,11 +414,17 @@ func clusterPolicyCRD(served, terminating bool) *apiextensionsv1.CustomResourceD
 			}},
 		},
 	}
+	if established {
+		crd.Status.Conditions = append(crd.Status.Conditions, apiextensionsv1.CustomResourceDefinitionCondition{
+			Type:   apiextensionsv1.Established,
+			Status: apiextensionsv1.ConditionTrue,
+		})
+	}
 	if terminating {
-		crd.Status.Conditions = []apiextensionsv1.CustomResourceDefinitionCondition{{
+		crd.Status.Conditions = append(crd.Status.Conditions, apiextensionsv1.CustomResourceDefinitionCondition{
 			Type:   apiextensionsv1.Terminating,
 			Status: apiextensionsv1.ConditionTrue,
-		}}
+		})
 	}
 	return crd
 }
@@ -429,6 +436,7 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 		name         string
 		crdPresent   bool
 		served       bool
+		established  bool
 		terminating  bool
 		getErr       error
 		wantStatus   metav1.ConditionStatus
@@ -440,6 +448,7 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 			name:        "ClusterPolicy CRD present reports prerequisite available",
 			crdPresent:  true,
 			served:      true,
+			established: true,
 			wantStatus:  metav1.ConditionTrue,
 			wantReason:  status.GPUOperatorPrerequisiteMetReason,
 			wantMessage: status.GPUOperatorPrerequisiteMetMessage,
@@ -454,6 +463,16 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 		{
 			name:         "ClusterPolicy CRD not serving v1 reports prerequisite not usable",
 			crdPresent:   true,
+			established:  true,
+			wantStatus:   metav1.ConditionFalse,
+			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
+			wantMessage:  status.GPUOperatorPrerequisiteNotUsableMessage,
+			wantSeverity: common.ConditionSeverityInfo,
+		},
+		{
+			name:         "served ClusterPolicy CRD that is not established reports prerequisite not usable",
+			crdPresent:   true,
+			served:       true,
 			wantStatus:   metav1.ConditionFalse,
 			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
 			wantMessage:  status.GPUOperatorPrerequisiteNotUsableMessage,
@@ -463,6 +482,7 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 			name:         "terminating ClusterPolicy CRD reports prerequisite not usable",
 			crdPresent:   true,
 			served:       true,
+			established:  true,
 			terminating:  true,
 			wantStatus:   metav1.ConditionFalse,
 			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
@@ -473,6 +493,7 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 			name:         "CRD read error reports prerequisite unknown and requeues",
 			crdPresent:   true,
 			served:       true,
+			established:  true,
 			getErr:       discoveryErr,
 			wantStatus:   metav1.ConditionUnknown,
 			wantReason:   status.GPUOperatorPrerequisiteUnknownReason,
@@ -487,7 +508,7 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 
 			opts := []fakeclient.ClientOpts{}
 			if tc.crdPresent {
-				opts = append(opts, fakeclient.WithObjects(clusterPolicyCRD(tc.served, tc.terminating)))
+				opts = append(opts, fakeclient.WithObjects(clusterPolicyCRD(tc.served, tc.established, tc.terminating)))
 			}
 			if tc.getErr != nil {
 				opts = append(opts, fakeclient.WithInterceptorFuncs(interceptor.Funcs{
@@ -518,7 +539,7 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 			rr.Conditions.MarkTrue(status.ConditionTypeComponentsReady)
 			rr.Conditions.MarkTrue(status.ConditionTypeModulesReady)
 
-			err = checkGPUOperatorPrerequisite(t.Context(), rr)
+			err = checkGPUOperatorPrerequisite(t.Context(), rr, cli)
 			if tc.wantStatus == metav1.ConditionUnknown {
 				var requeue odherrors.RequeueAfterError
 				g.Expect(errors.As(err, &requeue)).To(BeTrue())

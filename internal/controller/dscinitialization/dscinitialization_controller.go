@@ -270,7 +270,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		for _, c := range monitoringConditions {
 			status.SetCondition(&saved.Status.Conditions, c.Type, c.ReadyReason, c.ReadyMessage, c.ReadyStatus)
 		}
-		gpuStatus = setGPUOperatorPrerequisite(ctx, r.Client, &saved.Status.Conditions)
+		gpuStatus = setGPUOperatorPrerequisite(ctx, r.clusterPolicyReader(), &saved.Status.Conditions)
 		saved.Status.Phase = status.PhaseReady
 	})
 	if err != nil {
@@ -569,8 +569,9 @@ func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, i
 // the provisioning error unchanged. Deletion and uninstall paths do not use it.
 // A failed condition write is logged so it does not hide the provisioning error.
 func (r *DSCInitializationReconciler) provisioningErrorWithGPUPrerequisite(ctx context.Context, instance *dsciv2.DSCInitialization, provErr error) (ctrl.Result, error) {
+	reader := r.clusterPolicyReader()
 	if _, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
-		setGPUOperatorPrerequisite(ctx, r.Client, &saved.Status.Conditions)
+		setGPUOperatorPrerequisite(ctx, reader, &saved.Status.Conditions)
 	}); err != nil {
 		logf.FromContext(ctx).Error(err, "failed to record GPU Operator prerequisite")
 	}
@@ -591,10 +592,22 @@ func requeueAfterGPUOperatorPrerequisite(condStatus metav1.ConditionStatus) ctrl
 	return ctrl.Result{}
 }
 
+// clusterPolicyReader is the live API reader. The cached client can report a
+// CRD as missing before its watch has synced. The watch still enqueues
+// reconciliation. Tests without a manager keep using the client they built.
+func (r *DSCInitializationReconciler) clusterPolicyReader() client.Reader { //nolint:ireturn // manager API reader is a client.Reader
+	if r.mgr != nil {
+		if reader := r.mgr.GetAPIReader(); reader != nil {
+			return reader
+		}
+	}
+	return r.Client
+}
+
 // setGPUOperatorPrerequisite records ClusterPolicy CRD presence on DSCI.
 // SetCompleteCondition merges by type, so this must run in the same status
 // update and is safe to call after it.
-func setGPUOperatorPrerequisite(ctx context.Context, cli client.Client, conditions *[]common.Condition) metav1.ConditionStatus {
+func setGPUOperatorPrerequisite(ctx context.Context, cli client.Reader, conditions *[]common.Condition) metav1.ConditionStatus {
 	condStatus, reason, message := status.GPUOperatorPrerequisite(ctx, cli)
 	status.SetCondition(conditions, status.ConditionGPUOperatorPrerequisiteAvailable, reason, message, condStatus)
 

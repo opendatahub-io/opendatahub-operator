@@ -290,6 +290,7 @@ func TestSetGPUOperatorPrerequisite(t *testing.T) {
 		name         string
 		crdPresent   bool
 		served       bool
+		established  bool
 		wantStatus   metav1.ConditionStatus
 		wantReason   string
 		wantMessage  string
@@ -299,6 +300,7 @@ func TestSetGPUOperatorPrerequisite(t *testing.T) {
 			name:        "ClusterPolicy CRD present",
 			crdPresent:  true,
 			served:      true,
+			established: true,
 			wantStatus:  metav1.ConditionTrue,
 			wantReason:  status.GPUOperatorPrerequisiteMetReason,
 			wantMessage: status.GPUOperatorPrerequisiteMetMessage,
@@ -313,6 +315,16 @@ func TestSetGPUOperatorPrerequisite(t *testing.T) {
 		{
 			name:         "ClusterPolicy CRD not serving v1",
 			crdPresent:   true,
+			established:  true,
+			wantStatus:   metav1.ConditionFalse,
+			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
+			wantMessage:  status.GPUOperatorPrerequisiteNotUsableMessage,
+			wantSeverity: common.ConditionSeverityInfo,
+		},
+		{
+			name:         "served ClusterPolicy CRD that is not established",
+			crdPresent:   true,
+			served:       true,
 			wantStatus:   metav1.ConditionFalse,
 			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
 			wantMessage:  status.GPUOperatorPrerequisiteNotUsableMessage,
@@ -324,7 +336,7 @@ func TestSetGPUOperatorPrerequisite(t *testing.T) {
 
 			var opts []fakeclient.ClientOpts
 			if tc.crdPresent {
-				opts = append(opts, fakeclient.WithObjects(&apiextensionsv1.CustomResourceDefinition{
+				crd := &apiextensionsv1.CustomResourceDefinition{
 					ObjectMeta: metav1.ObjectMeta{Name: gvk.GPUOperatorClusterPolicyCRDName},
 					Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 						Group: "nvidia.com",
@@ -334,7 +346,14 @@ func TestSetGPUOperatorPrerequisite(t *testing.T) {
 							Storage: true,
 						}},
 					},
-				}))
+				}
+				if tc.established {
+					crd.Status.Conditions = []apiextensionsv1.CustomResourceDefinitionCondition{{
+						Type:   apiextensionsv1.Established,
+						Status: apiextensionsv1.ConditionTrue,
+					}}
+				}
+				opts = append(opts, fakeclient.WithObjects(crd))
 			}
 
 			cli, err := fakeclient.New(opts...)

@@ -71,12 +71,19 @@ func checkPreConditions(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 // prerequisite is present on the cluster, so administrators can tell whether GPU
 // attribution recording rules will produce data (RHAI-49218).
 //
-// Detection reads the ClusterPolicy CRD directly and never queries Prometheus,
-// consistent with the operator egress constraint (port 6443 only). A missing
-// CRD is event-driven. A transient read failure is informational: the action
-// chain continues, and the framework requeues only that case.
-func checkGPUOperatorPrerequisite(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	condStatus, reason, message := status.GPUOperatorPrerequisite(ctx, rr.Client)
+// Detection reads the ClusterPolicy CRD from the uncached API reader and never
+// queries Prometheus, consistent with the operator egress constraint (port 6443
+// only). A missing CRD is event-driven. A transient read failure is
+// informational: the action chain continues, and the framework requeues only
+// that case.
+func checkGPUOperatorPrerequisiteAction(reader client.Reader) func(context.Context, *odhtype.ReconciliationRequest) error {
+	return func(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+		return checkGPUOperatorPrerequisite(ctx, rr, reader)
+	}
+}
+
+func checkGPUOperatorPrerequisite(ctx context.Context, rr *odhtype.ReconciliationRequest, reader client.Reader) error {
+	condStatus, reason, message := status.GPUOperatorPrerequisite(ctx, reader)
 	opts := []conditions.Option{
 		conditions.WithReason(reason),
 		conditions.WithMessage(message),

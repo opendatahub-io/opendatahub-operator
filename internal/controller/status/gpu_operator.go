@@ -14,11 +14,11 @@ import (
 )
 
 // GPUOperatorPrerequisite reports whether the NVIDIA GPU Operator ClusterPolicy
-// CRD is installed. It reads clusterpolicies.nvidia.com directly so a CRD that
-// exists is not reported missing while API discovery is still catching up.
-// NotFound is a confirmed absence. A CRD that does not serve v1, or is
-// terminating, is present but not usable. Any other read error is Unknown.
-func GPUOperatorPrerequisite(ctx context.Context, cli client.Client) (metav1.ConditionStatus, string, string) {
+// CRD is installed. cli is an uncached reader; the CRD watches only enqueue
+// reconciliation. NotFound is a confirmed absence. A CRD that does not serve
+// v1, is not established, or is terminating is present but not usable. Any
+// other read error is Unknown.
+func GPUOperatorPrerequisite(ctx context.Context, cli client.Reader) (metav1.ConditionStatus, string, string) {
 	crd := &apiextensionsv1.CustomResourceDefinition{}
 	err := cli.Get(ctx, client.ObjectKey{Name: gvk.GPUOperatorClusterPolicyCRDName}, crd)
 	if err != nil {
@@ -44,7 +44,7 @@ func gpuOperatorClusterPolicyServed(crd *apiextensionsv1.CustomResourceDefinitio
 
 	for _, version := range crd.Spec.Versions {
 		if version.Name == gvk.GPUOperatorClusterPolicy.Version && version.Served {
-			return true
+			return apihelpers.IsCRDConditionTrue(crd, apiextensionsv1.Established)
 		}
 	}
 
