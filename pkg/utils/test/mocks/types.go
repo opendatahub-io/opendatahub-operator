@@ -98,6 +98,14 @@ func (m *MockController) IsExcludedFromDynamicOwnership(gvk schema.GroupVersionK
 	return args.Bool(0)
 }
 
+func (m *MockController) IsUnownableGVK(gvk schema.GroupVersionKind) bool {
+	args := m.Called(gvk)
+	if len(args) == 0 {
+		return false
+	}
+	return args.Bool(0)
+}
+
 func (m *MockController) AddDynamicOwnedType(gvk schema.GroupVersionKind) {
 	m.Called(gvk)
 }
@@ -110,6 +118,7 @@ func NewMockController(f func(m *MockController)) *MockController {
 	// This allows tests to override with specific expectations before these defaults.
 	m.On("Owns", mock.Anything).Return(false).Maybe()
 	m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false).Maybe()
+	m.On("IsUnownableGVK", mock.Anything).Return(false).Maybe()
 	m.On("IsDynamicOwnershipEnabled").Return(false).Maybe()
 	m.On("AddDynamicOwnedType", mock.Anything).Return().Maybe()
 
