@@ -33,7 +33,7 @@ type Result struct {
 	Platform string
 	Base     string
 	Digest   string
-	Source   string // "commit-sha", "Build-Config", "params.env", "params.env+registry", "shaFrom"
+	Source   string // "commit-sha", "literal-tag", "Build-Config", "params.env", "params.env+registry", "shaFrom"
 }
 
 func Resolve(ctx context.Context, opts Options) ([]Result, error) {
@@ -192,11 +192,19 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 				resolvedTag = strings.ReplaceAll(resolvedTag, config.TagShortSHA, shortSHA)
 				imageRef := effectiveBase + ":" + resolvedTag
 
+				// The pinned digest may live in a different repository than the
+				// override base (e.g. a repo migration): look it up where it is
+				// configured, not where the candidate is.
+				pinnedBase := effectiveBase
+				if pi != nil && pi.Base != "" {
+					pinnedBase = pi.Base
+				}
+
 				digest, err := resolveDigest(ctx, opts, imageRef)
 				if err == nil && config.DigestPattern.MatchString(digest) {
 					if config.IsLiteralTagTemplate(override.TagTemplate) &&
 						pi != nil && pi.Digest != "" && digest != pi.Digest {
-						keep, reason := guardMovingTagRegression(ctx, opts, effectiveBase, pi.Digest, digest)
+						keep, reason := guardMovingTagRegression(ctx, opts, pinnedBase, effectiveBase, pi.Digest, digest)
 						if !keep {
 							slog.Warn("Skipping regressed moving-tag image",
 								slog.String("env", envName),
@@ -214,12 +222,16 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 					if err := nodeDoc.SetImageOverrideField(envName, platform, "digest", digest); err != nil {
 						slog.Warn("Failed to set digest field", slog.String("error", err.Error()))
 					}
-					results = append(results, Result{envName, platform, effectiveBase, digest, "commit-sha"})
+					source := "commit-sha"
+					if config.IsLiteralTagTemplate(override.TagTemplate) {
+						source = "literal-tag"
+					}
+					results = append(results, Result{envName, platform, effectiveBase, digest, source})
 					if resolved[envName] == nil {
 						resolved[envName] = map[string]resolvedImage{}
 					}
 					resolved[envName][platform] = resolvedImage{effectiveBase, digest}
-					slog.Info("Resolved via commit-sha",
+					slog.Info("Resolved via "+source,
 						slog.String("env", envName), slog.String("platform", platform),
 						slog.String("base", effectiveBase), slog.String("digest", digest),
 						slog.String("tag", resolvedTag), slog.String("component", override.Component),
@@ -227,6 +239,18 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 					continue
 				}
 				slog.Info("Registry lookup failed, falling through", slog.String("env", envName), slog.String("platform", platform), slog.String("imageRef", imageRef))
+			}
+
+			// A literal moving tag with an accepted pinned digest must not be
+			// replaced by params.env or CSV fallbacks when the registry lookup
+			// fails: those fallbacks are not guarded against regressions and
+			// can pin an older image than the one already accepted.
+			if config.IsLiteralTagTemplate(override.TagTemplate) && pi != nil && pi.Digest != "" {
+				slog.Warn("Keeping pinned digest after failed moving-tag lookup",
+					slog.String("env", envName),
+					slog.String("platform", platform),
+					slog.String("pinnedDigest", pi.Digest))
+				continue
 			}
 
 			// Priority 2 for ODH only: params.env (value cached during the check above).
@@ -606,8 +630,10 @@ func fetchImageLabels(ctx context.Context, opts Options, imageRef string) (map[s
 // currently pinned image, and rejects candidates built from an older
 // commit. Missing, unparseable, or unreachable labels fail open: the
 // candidate is accepted so a labeling hiccup cannot freeze the nightly.
-func guardMovingTagRegression(ctx context.Context, opts Options, base, pinnedDigest, candidateDigest string) (keep bool, reason string) {
-	fetchRelease := func(digest string) (int64, bool) {
+// pinned images may live in a different repository than candidates (e.g. a
+// repo migration), so each is looked up in its own base.
+func guardMovingTagRegression(ctx context.Context, opts Options, pinnedBase, candidateBase, pinnedDigest, candidateDigest string) (keep bool, reason string) {
+	fetchRelease := func(base, digest string) (int64, bool) {
 		labels, err := fetchImageLabels(ctx, opts, base+"@"+digest)
 		if err != nil {
 			slog.Warn("Failed to fetch image labels for moving-tag guard",
@@ -627,11 +653,11 @@ func guardMovingTagRegression(ctx context.Context, opts Options, base, pinnedDig
 		return ts, true
 	}
 
-	candidateTS, ok := fetchRelease(candidateDigest)
+	candidateTS, ok := fetchRelease(candidateBase, candidateDigest)
 	if !ok {
 		return true, "candidate release label unavailable; failing open"
 	}
-	pinnedTS, ok := fetchRelease(pinnedDigest)
+	pinnedTS, ok := fetchRelease(pinnedBase, pinnedDigest)
 	if !ok {
 		return true, "pinned release label unavailable; failing open"
 	}

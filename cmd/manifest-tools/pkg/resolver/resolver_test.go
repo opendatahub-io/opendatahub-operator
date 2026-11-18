@@ -1,7 +1,6 @@
 package resolver_test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -437,7 +436,9 @@ imageOverrides: {}
 
 // movingTagGuardFixture writes a config whose only image override resolves a
 // literal moving tag, with an already-pinned digest to compare against.
-func movingTagGuardFixture(t *testing.T) (configFile string, pinnedDigest string) {
+// componentRef selects the component ref written into the fixture; guard
+// tests pass a pinned ref, the unpinned-SHA test passes "main".
+func movingTagGuardFixture(t *testing.T, componentRef string) (configFile string, pinnedDigest string) {
 	dir := t.TempDir()
 	configFile = filepath.Join(dir, "manifests-config.yaml")
 	manifestsDir := filepath.Join(dir, "manifests")
@@ -455,7 +456,7 @@ components:
   test-component:
     odh:
       repo: "test-org/test-repo"
-      ref: "main@abc123def456"
+      ref: "` + componentRef + `"
       sourcePath: "config"
 imageOverrides:
   RELATED_IMAGE_TEST:
@@ -475,17 +476,7 @@ imageOverrides:
 // resolves via registry lookup when the component ref carries no commit SHA
 // (e.g. an unpinned "main" ref).
 func TestResolve_LiteralTagWithoutSHA(t *testing.T) {
-	configFile, _ := movingTagGuardFixture(t)
-
-	// Strip the SHA from the component ref to simulate an unpinned branch.
-	data, err := os.ReadFile(configFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	data = bytes.Replace(data, []byte("main@abc123def456"), []byte("main"), 1)
-	if err := os.WriteFile(configFile, data, 0644); err != nil {
-		t.Fatal(err)
-	}
+	configFile, _ := movingTagGuardFixture(t, "main")
 
 	newerDigest := "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 	fakeDigest := func(_ context.Context, imageRef string) (string, error) {
@@ -512,7 +503,7 @@ func TestResolve_LiteralTagWithoutSHA(t *testing.T) {
 	}
 	found := false
 	for _, r := range results {
-		if r.EnvName == "RELATED_IMAGE_TEST" && r.Digest == newerDigest && r.Source == "commit-sha" {
+		if r.EnvName == "RELATED_IMAGE_TEST" && r.Digest == newerDigest && r.Source == "literal-tag" {
 			found = true
 		}
 	}
@@ -521,8 +512,55 @@ func TestResolve_LiteralTagWithoutSHA(t *testing.T) {
 	}
 }
 
+// TestResolve_LiteralTagFailedLookupKeepsPinnedDigest Verifies that when the
+// moving-tag registry lookup fails, the resolver keeps the accepted pinned
+// digest instead of falling back to a params.env or CSV digest, which is not
+// guarded against regressions.
+func TestResolve_LiteralTagFailedLookupKeepsPinnedDigest(t *testing.T) {
+	configFile, pinnedDigest := movingTagGuardFixture(t, "main@abc123def456")
+
+	fakeDigest := func(_ context.Context, _ string) (string, error) {
+		return "", fmt.Errorf("registry unavailable")
+	}
+	csvDigest := "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+	fakeLabels := func(_ context.Context, _ string) (map[string]string, error) {
+		return nil, fmt.Errorf("registry unavailable")
+	}
+
+	results, err := resolver.Resolve(t.Context(), resolver.Options{
+		ConfigFile:       configFile,
+		ResolveDigest:    fakeDigest,
+		FetchImageLabels: fakeLabels,
+		FetchCSVImages: func(_ context.Context, _ config.BuildConfigRepo) (map[string]resolver.CSVImage, error) {
+			return map[string]resolver.CSVImage{
+				"RELATED_IMAGE_TEST": {Base: "quay.io/test/image", Digest: csvDigest},
+			}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("Resolve returned error: %v", err)
+	}
+	for _, r := range results {
+		if r.EnvName == "RELATED_IMAGE_TEST" && r.Digest == csvDigest && r.Source == "csv" {
+			t.Fatalf("failed moving-tag lookup fell back to unguarded CSV digest %s", csvDigest)
+		}
+	}
+
+	// The config on disk must keep the accepted pinned digest.
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), csvDigest) {
+		t.Fatalf("config was rewritten with the unguarded CSV digest %s", csvDigest)
+	}
+	if !strings.Contains(string(data), pinnedDigest) {
+		t.Fatalf("config lost the pinned digest %s", pinnedDigest)
+	}
+}
+
 func TestResolve_MovingTagRejectsOlderSource(t *testing.T) {
-	configFile, pinnedDigest := movingTagGuardFixture(t)
+	configFile, pinnedDigest := movingTagGuardFixture(t, "main@abc123def456")
 	newerDigest := "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 	fakeDigest := func(_ context.Context, _ string) (string, error) {
@@ -567,7 +605,7 @@ func TestResolve_MovingTagRejectsOlderSource(t *testing.T) {
 }
 
 func TestResolve_MovingTagAcceptsNewerSource(t *testing.T) {
-	configFile, _ := movingTagGuardFixture(t)
+	configFile, _ := movingTagGuardFixture(t, "main@abc123def456")
 	newerDigest := "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 
 	fakeDigest := func(_ context.Context, _ string) (string, error) {
@@ -593,7 +631,7 @@ func TestResolve_MovingTagAcceptsNewerSource(t *testing.T) {
 	}
 	found := false
 	for _, r := range results {
-		if r.EnvName == "RELATED_IMAGE_TEST" && r.Digest == newerDigest && r.Source == "commit-sha" {
+		if r.EnvName == "RELATED_IMAGE_TEST" && r.Digest == newerDigest && r.Source == "literal-tag" {
 			found = true
 		}
 	}
@@ -603,7 +641,7 @@ func TestResolve_MovingTagAcceptsNewerSource(t *testing.T) {
 }
 
 func TestResolve_MovingTagFailsOpenWhenLabelsUnavailable(t *testing.T) {
-	configFile, _ := movingTagGuardFixture(t)
+	configFile, _ := movingTagGuardFixture(t, "main@abc123def456")
 	newerDigest := "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 
 	fakeDigest := func(_ context.Context, _ string) (string, error) {
