@@ -180,7 +180,10 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 			if effectiveBase == "" && pi != nil {
 				effectiveBase = pi.Base
 			}
-			if effectiveBase != "" && override.TagTemplate != "" && sha != "" {
+			// Literal tags (e.g. odh-stable) do not need a commit SHA; templates
+			// with {SHA}/{SHORT_SHA} placeholders do.
+			if effectiveBase != "" && override.TagTemplate != "" &&
+				(sha != "" || config.IsLiteralTagTemplate(override.TagTemplate)) {
 				shortSHA := sha
 				if len(shortSHA) > 7 {
 					shortSHA = shortSHA[:7]

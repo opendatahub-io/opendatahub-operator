@@ -1,6 +1,7 @@
 package resolver_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -468,6 +469,56 @@ imageOverrides:
 		t.Fatal(err)
 	}
 	return configFile, pinnedDigest
+}
+
+// TestResolve_LiteralTagWithoutSHA Verifies that a literal tag template still
+// resolves via registry lookup when the component ref carries no commit SHA
+// (e.g. an unpinned "main" ref).
+func TestResolve_LiteralTagWithoutSHA(t *testing.T) {
+	configFile, _ := movingTagGuardFixture(t)
+
+	// Strip the SHA from the component ref to simulate an unpinned branch.
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data = bytes.Replace(data, []byte("main@abc123def456"), []byte("main"), 1)
+	if err := os.WriteFile(configFile, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	newerDigest := "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+	fakeDigest := func(_ context.Context, imageRef string) (string, error) {
+		if imageRef != "quay.io/test/image:odh-stable" {
+			return "", fmt.Errorf("unexpected image ref %s", imageRef)
+		}
+		return newerDigest, nil
+	}
+	fakeLabels := func(_ context.Context, _ string) (map[string]string, error) {
+		// Candidate is newer than the pinned image; guard must allow it.
+		return map[string]string{"release": "300"}, nil
+	}
+
+	results, err := resolver.Resolve(t.Context(), resolver.Options{
+		ConfigFile:       configFile,
+		ResolveDigest:    fakeDigest,
+		FetchImageLabels: fakeLabels,
+		FetchCSVImages: func(_ context.Context, _ config.BuildConfigRepo) (map[string]resolver.CSVImage, error) {
+			return map[string]resolver.CSVImage{}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("Resolve returned error: %v", err)
+	}
+	found := false
+	for _, r := range results {
+		if r.EnvName == "RELATED_IMAGE_TEST" && r.Digest == newerDigest && r.Source == "commit-sha" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("literal tag did not resolve without a commit SHA; results: %+v", results)
+	}
 }
 
 func TestResolve_MovingTagRejectsOlderSource(t *testing.T) {
