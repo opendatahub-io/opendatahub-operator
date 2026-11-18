@@ -229,6 +229,8 @@ func (h *handler) resolveLegacyRedirectHostname(
 		err := cli.Get(ctx, client.ObjectKey{Name: legacyGatewayRouteName, Namespace: cfg.ApplicationsNamespace}, route)
 		switch {
 		case err == nil && strings.TrimSpace(route.Spec.Host) != "":
+			// Preserve the deployed endpoint across Gateway domain changes. The
+			// dashboard-operator owns any later hostname migration and conflict checks.
 			return strings.TrimSpace(route.Spec.Host), nil
 		case err != nil && !k8serr.IsNotFound(err) && !meta.IsNoMatchError(err):
 			if redirectState != operatorv1.Removed {
@@ -261,6 +263,13 @@ func (h *handler) resolveLegacyRedirectHostname(
 	_, suffix, ok := strings.Cut(hostname, ".")
 	if !ok || suffix == "" {
 		if hostname == "" {
+			return "", nil
+		}
+		if redirectState == operatorv1.Removed {
+			logf.FromContext(ctx).V(1).Info(
+				"skipping legacy Dashboard redirect hostname projection because the Gateway domain has no subdomain",
+				"domain", hostname,
+			)
 			return "", nil
 		}
 		return "", fmt.Errorf("gateway hostname %q must contain a subdomain", hostname)

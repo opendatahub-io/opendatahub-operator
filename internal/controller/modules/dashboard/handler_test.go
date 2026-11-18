@@ -286,6 +286,41 @@ func TestBuildModuleCR_ProjectsActualLegacyRouteHostname(t *testing.T) {
 	g.Expect(redirects["legacyHostname"]).Should(Equal("data-science-gateway.apps.cluster.example"))
 }
 
+func TestBuildModuleCR_DotlessGatewayDomainOnlyFailsForManagedRedirects(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		disable bool
+		wantErr string
+	}{
+		{name: "managed", wantErr: `gateway hostname "localhost" must contain a subdomain`},
+		{name: "removed", disable: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			cfg := newModuleCRConfig("localhost")
+			if tt.disable {
+				cfg.GatewayConfig.Annotations = map[string]string{
+					"platform.opendatahub.io/dashboard-redirects": "disabled",
+				}
+			}
+
+			u, err := dashboard.NewHandler().BuildModuleCR(context.Background(), newRedirectClient(t), newDSCCtx(operatorv1.Managed), cfg)
+			if tt.wantErr != "" {
+				g.Expect(err).Should(MatchError(ContainSubstring(tt.wantErr)))
+				return
+			}
+
+			g.Expect(err).ShouldNot(HaveOccurred())
+			spec, ok := u.Object["spec"].(map[string]any)
+			g.Expect(ok).Should(BeTrue())
+			redirects, ok := spec["legacyRedirects"].(map[string]any)
+			g.Expect(ok).Should(BeTrue())
+			g.Expect(redirects["managementState"]).Should(Equal("Removed"))
+			g.Expect(redirects).ShouldNot(HaveKey("legacyHostname"))
+		})
+	}
+}
+
 func TestBuildModuleCR_RetainsLegacyHostnameAfterRouteRemoval(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
