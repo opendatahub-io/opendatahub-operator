@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr/funcr"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -19,6 +21,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
@@ -279,5 +282,59 @@ func TestNoLegacyKeysInLogs(t *testing.T) {
 				"log record contains legacy key %q: %s", key, record,
 			)
 		}
+	}
+}
+
+func TestSetGPUOperatorPrerequisite(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		crdPresent  bool
+		wantStatus  metav1.ConditionStatus
+		wantReason  string
+		wantMessage string
+	}{
+		{
+			name:        "ClusterPolicy CRD present",
+			crdPresent:  true,
+			wantStatus:  metav1.ConditionTrue,
+			wantReason:  status.GPUOperatorPrerequisiteMetReason,
+			wantMessage: status.GPUOperatorPrerequisiteMetMessage,
+		},
+		{
+			name:        "ClusterPolicy CRD absent",
+			crdPresent:  false,
+			wantStatus:  metav1.ConditionFalse,
+			wantReason:  status.GPUOperatorPrerequisiteMissingReason,
+			wantMessage: status.GPUOperatorPrerequisiteMissingMessage,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			var opts []fakeclient.ClientOpts
+			if tc.crdPresent {
+				opts = append(opts,
+					fakeclient.WithGVKs(fakeclient.GVKMapping{
+						GVK:   gvk.GPUOperatorClusterPolicy,
+						Scope: meta.RESTScopeRoot,
+					}),
+					fakeclient.WithObjects(&apiextensionsv1.CustomResourceDefinition{
+						ObjectMeta: metav1.ObjectMeta{Name: gvk.GPUOperatorClusterPolicyCRDName},
+					}),
+				)
+			}
+
+			cli, err := fakeclient.New(opts...)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			var conditions []common.Condition
+			setGPUOperatorPrerequisite(t.Context(), cli, &conditions)
+
+			g.Expect(conditions).To(HaveLen(1))
+			g.Expect(conditions[0].Type).To(Equal(status.ConditionGPUOperatorPrerequisiteAvailable))
+			g.Expect(conditions[0].Status).To(Equal(tc.wantStatus))
+			g.Expect(conditions[0].Reason).To(Equal(tc.wantReason))
+			g.Expect(conditions[0].Message).To(Equal(tc.wantMessage))
+		})
 	}
 }

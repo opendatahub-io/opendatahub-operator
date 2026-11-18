@@ -67,6 +67,28 @@ func checkPreConditions(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 	return nil
 }
 
+// checkGPUOperatorPrerequisite surfaces whether the NVIDIA GPU Operator
+// prerequisite is present on the cluster, so administrators can tell whether GPU
+// attribution recording rules will produce data (RHAI-49218).
+//
+// Detection is limited to Kubernetes API discovery (CRD presence) and never
+// queries Prometheus, consistent with the operator egress constraint
+// (port 6443 only). A missing CRD and a discovery failure are both informational:
+// this action always returns nil so DSC provisioning continues.
+func checkGPUOperatorPrerequisite(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	condStatus, reason, message := status.GPUOperatorPrerequisite(ctx, rr.Client)
+	opts := []conditions.Option{
+		conditions.WithReason(reason),
+		conditions.WithMessage(message),
+	}
+	if condStatus != metav1.ConditionTrue {
+		opts = append(opts, conditions.WithSeverity(common.ConditionSeverityInfo))
+	}
+
+	rr.Conditions.Mark(status.ConditionGPUOperatorPrerequisiteAvailable, condStatus, opts...)
+	return nil
+}
+
 func watchDataScienceClusters(ctx context.Context, cli client.Client) []reconcile.Request {
 	return cluster.WatchDataScienceClusters(ctx, cli)
 }

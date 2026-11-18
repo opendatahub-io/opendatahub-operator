@@ -79,6 +79,7 @@ const (
 	ConditionTypeProvisioningSucceeded           = "ProvisioningSucceeded"
 	ConditionDeploymentsNotAvailableReason       = "DeploymentsNotReady"
 	ConditionMaaSPrerequisitesAvailable          = "MaaSPrerequisitesAvailable"
+	ConditionGPUOperatorPrerequisiteAvailable    = "GPUOperatorPrerequisiteAvailable"
 	ConditionDeploymentsAvailable                = "DeploymentsAvailable"
 	ConditionDependenciesAvailable               = "DependenciesAvailable"
 	ConditionArgoWorkflowAvailable               = "ArgoWorkflowAvailable"
@@ -206,6 +207,17 @@ const (
 	AuthProxyOIDCIssuerURLEmptyMessage       = "OIDC issuerURL cannot be empty"
 	AuthProxyOIDCSecretRefNameEmptyMessage   = "OIDC clientSecretRef.name cannot be empty" //nolint:gosec // This is an error message, not a credential
 	AuthProxyExternalAuthNoDeploymentMessage = "Cluster uses external authentication, no gateway auth proxy deployed"
+)
+
+// For GPU Operator prerequisite checks.
+const (
+	GPUOperatorPrerequisiteMetReason     = "GPUOperatorPrerequisiteMet"
+	GPUOperatorPrerequisiteMissingReason = "GPUOperatorPrerequisiteMissing"
+	GPUOperatorPrerequisiteUnknownReason = "GPUOperatorPrerequisiteUnknown"
+
+	GPUOperatorPrerequisiteMetMessage     = "NVIDIA GPU Operator ClusterPolicy CRD is present"
+	GPUOperatorPrerequisiteMissingMessage = "NVIDIA GPU Operator ClusterPolicy CRD is absent; GPU attribution recording rules will not produce data"
+	GPUOperatorPrerequisiteUnknownMessage = "Failed to detect NVIDIA GPU Operator ClusterPolicy CRD"
 )
 
 // For v3 upgrade sanity checks.

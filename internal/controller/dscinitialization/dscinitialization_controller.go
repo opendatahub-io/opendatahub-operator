@@ -269,6 +269,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		for _, c := range monitoringConditions {
 			status.SetCondition(&saved.Status.Conditions, c.Type, c.ReadyReason, c.ReadyMessage, c.ReadyStatus)
 		}
+		setGPUOperatorPrerequisite(ctx, r.Client, &saved.Status.Conditions)
 		saved.Status.Phase = status.PhaseReady
 	})
 	if err != nil {
@@ -356,6 +357,7 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 				rp.CreatedOrUpdatedName("acceleratorprofiles.dashboard.opendatahub.io"),
 				rp.CreatedOrUpdatedName("hardwareprofiles.dashboard.opendatahub.io"),
 				rp.CreatedOrUpdatedName(serviceApi.MonitoringCRDName),
+				rp.CreatedOrUpdatedOrDeletedNamed(gvk.GPUOperatorClusterPolicyCRDName),
 			)),
 		).
 		Build(r)
@@ -561,9 +563,18 @@ func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, i
 	return nil
 }
 
+// setGPUOperatorPrerequisite records ClusterPolicy CRD presence on DSCI.
+// SetCompleteCondition merges by type, so this must run in the same status
+// update and is safe to call after it.
+func setGPUOperatorPrerequisite(ctx context.Context, cli client.Client, conditions *[]common.Condition) {
+	condStatus, reason, message := status.GPUOperatorPrerequisite(ctx, cli)
+	status.SetCondition(conditions, status.ConditionGPUOperatorPrerequisiteAvailable, reason, message, condStatus)
+}
+
 // reconcileOnCRDChange maps optional CRD events to a DSCI reconcile. The
 // Monitoring CRD comes from the odh-observability chart; Dashboard
 // AcceleratorProfile/HWProfile CRDs come from the dashboard module (VAP/VAPB).
+// The NVIDIA GPU Operator ClusterPolicy CRD updates the prerequisite condition.
 // TODO: the HWP/AcceleratorProfile portion is temporary for VAP/VAPB and should be removed in v3.3.
 func (r *DSCInitializationReconciler) reconcileOnCRDChange(ctx context.Context, a client.Object) []reconcile.Request {
 	log := logf.FromContext(ctx)
