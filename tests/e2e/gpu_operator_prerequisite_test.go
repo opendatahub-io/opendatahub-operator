@@ -6,7 +6,9 @@ import (
 	"github.com/stretchr/testify/require"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -25,9 +27,8 @@ func gpuOperatorPrerequisiteTestSuite(t *testing.T) {
 
 	tc.SkipIfXKSCluster(t)
 
-	testCtx := &gpuOperatorPrerequisiteTestCtx{TestContext: tc}
 	RunTestCases(t, []TestCase{
-		{"GPU Operator prerequisite condition follows the ClusterPolicy CRD", testCtx.validateGPUOperatorPrerequisite},
+		{"GPU Operator prerequisite condition follows the ClusterPolicy CRD", validateGPUOperatorPrerequisite},
 	})
 }
 
@@ -35,12 +36,17 @@ type gpuOperatorPrerequisiteTestCtx struct {
 	*TestContext
 }
 
-func (tc *gpuOperatorPrerequisiteTestCtx) validateGPUOperatorPrerequisite(t *testing.T) {
+func validateGPUOperatorPrerequisite(t *testing.T) {
 	t.Helper()
+
+	base, err := NewTestContext(t)
+	require.NoError(t, err)
+	tc := &gpuOperatorPrerequisiteTestCtx{TestContext: base}
+	tc.skipUnlessPlatformSingletons(t)
 
 	crdName := gvk.GPUOperatorClusterPolicyCRDName
 	existing := &apiextv1.CustomResourceDefinition{}
-	err := tc.Client().Get(t.Context(), types.NamespacedName{Name: crdName}, existing)
+	err = tc.Client().Get(t.Context(), types.NamespacedName{Name: crdName}, existing)
 	if err == nil {
 		t.Logf("ClusterPolicy CRD %s is already installed; checking the met condition and leaving it in place", crdName)
 		tc.ensureGPUOperatorPrerequisite(metav1.ConditionTrue, status.GPUOperatorPrerequisiteMetReason, "")
@@ -62,11 +68,11 @@ func (tc *gpuOperatorPrerequisiteTestCtx) validateGPUOperatorPrerequisite(t *tes
 		)
 	})
 
+	createdByTest = true
 	tc.EventuallyResourceCreated(
 		WithObjectToCreate(clusterPolicyCRD()),
 		WithCustomErrorMsg("Failed to create ClusterPolicy CRD %s", crdName),
 	)
-	createdByTest = true
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdName}),
@@ -79,6 +85,26 @@ func (tc *gpuOperatorPrerequisiteTestCtx) validateGPUOperatorPrerequisite(t *tes
 		WithWaitForDeletion(true),
 	)
 	tc.ensureGPUOperatorPrerequisite(metav1.ConditionFalse, status.GPUOperatorPrerequisiteMissingReason, string(common.ConditionSeverityInfo))
+}
+
+func (tc *gpuOperatorPrerequisiteTestCtx) skipUnlessPlatformSingletons(t *testing.T) {
+	t.Helper()
+
+	for _, target := range []struct {
+		kind schema.GroupVersionKind
+		nn   types.NamespacedName
+	}{
+		{gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName},
+		{gvk.DSCInitialization, tc.DSCInitializationNamespacedName},
+	} {
+		obj := &unstructured.Unstructured{}
+		obj.SetGroupVersionKind(target.kind)
+		err := tc.Client().Get(t.Context(), target.nn, obj)
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+			t.Skipf("skipping GPU Operator prerequisite check: %s %s is not present", target.kind.Kind, target.nn.Name)
+		}
+		require.NoError(t, err, "failed to read %s %s", target.kind.Kind, target.nn.Name)
+	}
 }
 
 func (tc *gpuOperatorPrerequisiteTestCtx) ensureGPUOperatorPrerequisite(condStatus metav1.ConditionStatus, reason, severity string) {
