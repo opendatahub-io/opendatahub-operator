@@ -3,27 +3,50 @@ package status
 import (
 	"context"
 
+	apihelpers "k8s.io/apiextensions-apiserver/pkg/apihelpers"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
-// GPUOperatorPrerequisite reports ClusterPolicy CRD presence for DSC and DSCI.
-// Detection uses API discovery only. A missing CRD and a discovery failure are
-// both returned as conditions; callers publish the condition and continue.
+// GPUOperatorPrerequisite reports whether the NVIDIA GPU Operator ClusterPolicy
+// CRD is installed. It reads clusterpolicies.nvidia.com directly so a CRD that
+// exists is not reported missing while API discovery is still catching up.
+// NotFound is a confirmed absence. A CRD that does not serve v1, or is
+// terminating, is present but not usable. Any other read error is Unknown.
 func GPUOperatorPrerequisite(ctx context.Context, cli client.Client) (metav1.ConditionStatus, string, string) {
-	hasCRD, err := cluster.HasCRD(ctx, cli, gvk.GPUOperatorClusterPolicy)
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	err := cli.Get(ctx, client.ObjectKey{Name: gvk.GPUOperatorClusterPolicyCRDName}, crd)
 	if err != nil {
-		logf.FromContext(ctx).Error(err, "failed to detect GPU Operator ClusterPolicy CRD")
+		if k8serr.IsNotFound(err) {
+			return metav1.ConditionFalse, GPUOperatorPrerequisiteMissingReason, GPUOperatorPrerequisiteMissingMessage
+		}
+
+		logf.FromContext(ctx).Error(err, "failed to read GPU Operator ClusterPolicy CRD")
 		return metav1.ConditionUnknown, GPUOperatorPrerequisiteUnknownReason, GPUOperatorPrerequisiteUnknownMessage
 	}
 
-	if hasCRD {
-		return metav1.ConditionTrue, GPUOperatorPrerequisiteMetReason, GPUOperatorPrerequisiteMetMessage
+	if !gpuOperatorClusterPolicyServed(crd) {
+		return metav1.ConditionFalse, GPUOperatorPrerequisiteNotUsableReason, GPUOperatorPrerequisiteNotUsableMessage
 	}
 
-	return metav1.ConditionFalse, GPUOperatorPrerequisiteMissingReason, GPUOperatorPrerequisiteMissingMessage
+	return metav1.ConditionTrue, GPUOperatorPrerequisiteMetReason, GPUOperatorPrerequisiteMetMessage
+}
+
+func gpuOperatorClusterPolicyServed(crd *apiextensionsv1.CustomResourceDefinition) bool {
+	if apihelpers.IsCRDConditionTrue(crd, apiextensionsv1.Terminating) {
+		return false
+	}
+
+	for _, version := range crd.Spec.Versions {
+		if version.Name == gvk.GPUOperatorClusterPolicy.Version && version.Served {
+			return true
+		}
+	}
+
+	return false
 }

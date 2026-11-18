@@ -211,13 +211,15 @@ const (
 
 // For GPU Operator prerequisite checks.
 const (
-	GPUOperatorPrerequisiteMetReason     = "GPUOperatorPrerequisiteMet"
-	GPUOperatorPrerequisiteMissingReason = "GPUOperatorPrerequisiteMissing"
-	GPUOperatorPrerequisiteUnknownReason = "GPUOperatorPrerequisiteUnknown"
+	GPUOperatorPrerequisiteMetReason       = "GPUOperatorPrerequisiteMet"
+	GPUOperatorPrerequisiteMissingReason   = "GPUOperatorPrerequisiteMissing"
+	GPUOperatorPrerequisiteNotUsableReason = "GPUOperatorPrerequisiteNotUsable"
+	GPUOperatorPrerequisiteUnknownReason   = "GPUOperatorPrerequisiteUnknown"
 
-	GPUOperatorPrerequisiteMetMessage     = "NVIDIA GPU Operator ClusterPolicy CRD is present"
-	GPUOperatorPrerequisiteMissingMessage = "NVIDIA GPU Operator ClusterPolicy CRD is absent; GPU attribution recording rules will not produce data"
-	GPUOperatorPrerequisiteUnknownMessage = "Failed to detect NVIDIA GPU Operator ClusterPolicy CRD"
+	GPUOperatorPrerequisiteMetMessage       = "NVIDIA GPU Operator ClusterPolicy CRD is present"
+	GPUOperatorPrerequisiteMissingMessage   = "NVIDIA GPU Operator ClusterPolicy CRD is absent; GPU attribution recording rules will not produce data"
+	GPUOperatorPrerequisiteNotUsableMessage = "NVIDIA GPU Operator ClusterPolicy CRD is present but not usable; GPU attribution recording rules will not produce data"
+	GPUOperatorPrerequisiteUnknownMessage   = "Failed to detect NVIDIA GPU Operator ClusterPolicy CRD"
 )
 
 // For v3 upgrade sanity checks.

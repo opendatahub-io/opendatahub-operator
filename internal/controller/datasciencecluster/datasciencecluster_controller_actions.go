@@ -71,10 +71,10 @@ func checkPreConditions(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 // prerequisite is present on the cluster, so administrators can tell whether GPU
 // attribution recording rules will produce data (RHAI-49218).
 //
-// Detection is limited to Kubernetes API discovery (CRD presence) and never
-// queries Prometheus, consistent with the operator egress constraint
-// (port 6443 only). A missing CRD and a discovery failure are both informational:
-// this action always returns nil so DSC provisioning continues.
+// Detection reads the ClusterPolicy CRD directly and never queries Prometheus,
+// consistent with the operator egress constraint (port 6443 only). A missing
+// CRD is event-driven. A transient read failure is informational: the action
+// chain continues, and the framework requeues only that case.
 func checkGPUOperatorPrerequisite(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	condStatus, reason, message := status.GPUOperatorPrerequisite(ctx, rr.Client)
 	opts := []conditions.Option{
@@ -86,6 +86,9 @@ func checkGPUOperatorPrerequisite(ctx context.Context, rr *odhtype.Reconciliatio
 	}
 
 	rr.Conditions.Mark(status.ConditionGPUOperatorPrerequisiteAvailable, condStatus, opts...)
+	if condStatus == metav1.ConditionUnknown {
+		return odherrors.NewRequeueAfterError(30 * time.Second)
+	}
 	return nil
 }
 

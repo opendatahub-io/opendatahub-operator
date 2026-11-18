@@ -10,7 +10,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -398,14 +397,29 @@ func TestCleanupDisabledModuleCRsLogsDeleteFailure(t *testing.T) {
 	)))
 }
 
-// clusterPolicyCRD returns a CustomResourceDefinition object matching the
-// NVIDIA GPU Operator ClusterPolicy CRD, so HasCRD resolves it as present.
-func clusterPolicyCRD() *apiextensionsv1.CustomResourceDefinition {
-	return &apiextensionsv1.CustomResourceDefinition{
+// clusterPolicyCRD returns the NVIDIA GPU Operator ClusterPolicy CRD.
+// served controls whether v1 is served. terminating sets the Terminating condition.
+func clusterPolicyCRD(served, terminating bool) *apiextensionsv1.CustomResourceDefinition {
+	crd := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: gvk.GPUOperatorClusterPolicyCRDName,
 		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: "nvidia.com",
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    gvk.GPUOperatorClusterPolicy.Version,
+				Served:  served,
+				Storage: true,
+			}},
+		},
 	}
+	if terminating {
+		crd.Status.Conditions = []apiextensionsv1.CustomResourceDefinitionCondition{{
+			Type:   apiextensionsv1.Terminating,
+			Status: apiextensionsv1.ConditionTrue,
+		}}
+	}
+	return crd
 }
 
 func TestCheckGPUOperatorPrerequisite(t *testing.T) {
@@ -414,6 +428,8 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
 		crdPresent   bool
+		served       bool
+		terminating  bool
 		getErr       error
 		wantStatus   metav1.ConditionStatus
 		wantReason   string
@@ -423,21 +439,40 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 		{
 			name:        "ClusterPolicy CRD present reports prerequisite available",
 			crdPresent:  true,
+			served:      true,
 			wantStatus:  metav1.ConditionTrue,
 			wantReason:  status.GPUOperatorPrerequisiteMetReason,
 			wantMessage: status.GPUOperatorPrerequisiteMetMessage,
 		},
 		{
 			name:         "ClusterPolicy CRD absent reports prerequisite missing",
-			crdPresent:   false,
 			wantStatus:   metav1.ConditionFalse,
 			wantReason:   status.GPUOperatorPrerequisiteMissingReason,
 			wantMessage:  status.GPUOperatorPrerequisiteMissingMessage,
 			wantSeverity: common.ConditionSeverityInfo,
 		},
 		{
-			name:         "discovery error reports prerequisite unknown and continues",
+			name:         "ClusterPolicy CRD not serving v1 reports prerequisite not usable",
 			crdPresent:   true,
+			wantStatus:   metav1.ConditionFalse,
+			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
+			wantMessage:  status.GPUOperatorPrerequisiteNotUsableMessage,
+			wantSeverity: common.ConditionSeverityInfo,
+		},
+		{
+			name:         "terminating ClusterPolicy CRD reports prerequisite not usable",
+			crdPresent:   true,
+			served:       true,
+			terminating:  true,
+			wantStatus:   metav1.ConditionFalse,
+			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
+			wantMessage:  status.GPUOperatorPrerequisiteNotUsableMessage,
+			wantSeverity: common.ConditionSeverityInfo,
+		},
+		{
+			name:         "CRD read error reports prerequisite unknown and requeues",
+			crdPresent:   true,
+			served:       true,
 			getErr:       discoveryErr,
 			wantStatus:   metav1.ConditionUnknown,
 			wantReason:   status.GPUOperatorPrerequisiteUnknownReason,
@@ -452,15 +487,7 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 
 			opts := []fakeclient.ClientOpts{}
 			if tc.crdPresent {
-				// Register the ClusterPolicy GVK in the fake RESTMapper and
-				// create the backing CRD object so HasCRD resolves it.
-				opts = append(opts,
-					fakeclient.WithGVKs(fakeclient.GVKMapping{
-						GVK:   gvk.GPUOperatorClusterPolicy,
-						Scope: meta.RESTScopeRoot,
-					}),
-					fakeclient.WithObjects(clusterPolicyCRD()),
-				)
+				opts = append(opts, fakeclient.WithObjects(clusterPolicyCRD(tc.served, tc.terminating)))
 			}
 			if tc.getErr != nil {
 				opts = append(opts, fakeclient.WithInterceptorFuncs(interceptor.Funcs{
@@ -491,7 +518,14 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 			rr.Conditions.MarkTrue(status.ConditionTypeComponentsReady)
 			rr.Conditions.MarkTrue(status.ConditionTypeModulesReady)
 
-			g.Expect(checkGPUOperatorPrerequisite(t.Context(), rr)).Should(Succeed())
+			err = checkGPUOperatorPrerequisite(t.Context(), rr)
+			if tc.wantStatus == metav1.ConditionUnknown {
+				var requeue odherrors.RequeueAfterError
+				g.Expect(errors.As(err, &requeue)).To(BeTrue())
+				g.Expect(requeue.After).NotTo(BeZero())
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+			}
 
 			cond := rr.Conditions.GetCondition(status.ConditionGPUOperatorPrerequisiteAvailable)
 			g.Expect(cond).NotTo(BeNil())

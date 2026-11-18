@@ -5,10 +5,10 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/funcr"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -287,25 +287,36 @@ func TestNoLegacyKeysInLogs(t *testing.T) {
 
 func TestSetGPUOperatorPrerequisite(t *testing.T) {
 	for _, tc := range []struct {
-		name        string
-		crdPresent  bool
-		wantStatus  metav1.ConditionStatus
-		wantReason  string
-		wantMessage string
+		name         string
+		crdPresent   bool
+		served       bool
+		wantStatus   metav1.ConditionStatus
+		wantReason   string
+		wantMessage  string
+		wantSeverity common.ConditionSeverity
 	}{
 		{
 			name:        "ClusterPolicy CRD present",
 			crdPresent:  true,
+			served:      true,
 			wantStatus:  metav1.ConditionTrue,
 			wantReason:  status.GPUOperatorPrerequisiteMetReason,
 			wantMessage: status.GPUOperatorPrerequisiteMetMessage,
 		},
 		{
-			name:        "ClusterPolicy CRD absent",
-			crdPresent:  false,
-			wantStatus:  metav1.ConditionFalse,
-			wantReason:  status.GPUOperatorPrerequisiteMissingReason,
-			wantMessage: status.GPUOperatorPrerequisiteMissingMessage,
+			name:         "ClusterPolicy CRD absent",
+			wantStatus:   metav1.ConditionFalse,
+			wantReason:   status.GPUOperatorPrerequisiteMissingReason,
+			wantMessage:  status.GPUOperatorPrerequisiteMissingMessage,
+			wantSeverity: common.ConditionSeverityInfo,
+		},
+		{
+			name:         "ClusterPolicy CRD not serving v1",
+			crdPresent:   true,
+			wantStatus:   metav1.ConditionFalse,
+			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
+			wantMessage:  status.GPUOperatorPrerequisiteNotUsableMessage,
+			wantSeverity: common.ConditionSeverityInfo,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -313,15 +324,17 @@ func TestSetGPUOperatorPrerequisite(t *testing.T) {
 
 			var opts []fakeclient.ClientOpts
 			if tc.crdPresent {
-				opts = append(opts,
-					fakeclient.WithGVKs(fakeclient.GVKMapping{
-						GVK:   gvk.GPUOperatorClusterPolicy,
-						Scope: meta.RESTScopeRoot,
-					}),
-					fakeclient.WithObjects(&apiextensionsv1.CustomResourceDefinition{
-						ObjectMeta: metav1.ObjectMeta{Name: gvk.GPUOperatorClusterPolicyCRDName},
-					}),
-				)
+				opts = append(opts, fakeclient.WithObjects(&apiextensionsv1.CustomResourceDefinition{
+					ObjectMeta: metav1.ObjectMeta{Name: gvk.GPUOperatorClusterPolicyCRDName},
+					Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+						Group: "nvidia.com",
+						Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+							Name:    gvk.GPUOperatorClusterPolicy.Version,
+							Served:  tc.served,
+							Storage: true,
+						}},
+					},
+				}))
 			}
 
 			cli, err := fakeclient.New(opts...)
@@ -335,6 +348,15 @@ func TestSetGPUOperatorPrerequisite(t *testing.T) {
 			g.Expect(conditions[0].Status).To(Equal(tc.wantStatus))
 			g.Expect(conditions[0].Reason).To(Equal(tc.wantReason))
 			g.Expect(conditions[0].Message).To(Equal(tc.wantMessage))
+			g.Expect(conditions[0].Severity).To(Equal(tc.wantSeverity))
 		})
 	}
+}
+
+func TestRequeueAfterGPUOperatorPrerequisite(t *testing.T) {
+	g := NewWithT(t)
+
+	g.Expect(requeueAfterGPUOperatorPrerequisite(metav1.ConditionUnknown)).To(Equal(ctrl.Result{RequeueAfter: 30 * time.Second}))
+	g.Expect(requeueAfterGPUOperatorPrerequisite(metav1.ConditionFalse)).To(Equal(ctrl.Result{}))
+	g.Expect(requeueAfterGPUOperatorPrerequisite(metav1.ConditionTrue)).To(Equal(ctrl.Result{}))
 }
