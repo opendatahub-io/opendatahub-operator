@@ -68,11 +68,11 @@ func validateGPUOperatorPrerequisite(t *testing.T) {
 		)
 	})
 
-	createdByTest = true
 	tc.EventuallyResourceCreated(
 		WithObjectToCreate(clusterPolicyCRD()),
 		WithCustomErrorMsg("Failed to create ClusterPolicy CRD %s", crdName),
 	)
+	createdByTest = true
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdName}),
