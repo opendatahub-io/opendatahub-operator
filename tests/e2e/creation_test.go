@@ -91,7 +91,7 @@ func dscValidationTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Validate HardwareProfile resource", dscTestCtx.ValidateHardwareProfileCR},
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
-		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
+		{"Validate default NetworkPolicy allows UWM metrics", dscTestCtx.ValidateDefaultNetworkPolicyAllowsUWMMetrics},
 	}
 
 	// Run the test suite.
@@ -210,8 +210,9 @@ func (tc *DSCTestCtx) ValidateOwnedNamespacesAllExist(t *testing.T) {
 	)
 }
 
-// ValidateDefaultNetworkPolicyExists verifies that the default network policy exists.
-func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyExists(t *testing.T) {
+// ValidateDefaultNetworkPolicyAllowsUWMMetrics verifies that the default network policy
+// permits User Workload Monitoring Prometheus to scrape controller metrics.
+func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyAllowsUWMMetrics(t *testing.T) {
 	t.Helper()
 
 	tc.SkipIfXKSCluster(t)
@@ -220,10 +221,13 @@ func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyExists(t *testing.T) {
 
 	dsci := tc.FetchDSCInitialization()
 
-	// Ensure namespaces with the owned namespace label exist.
-	tc.EnsureResourcesExist(
+	// Check that the UWM source and TCP 8080 port appear in the same ingress rule.
+	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.NetworkPolicy, types.NamespacedName{Namespace: dsci.Spec.ApplicationsNamespace, Name: dsci.Spec.ApplicationsNamespace}),
-		WithCustomErrorMsg("Expected the default NetworkPolicy to be created."),
+		WithCondition(jq.Match(`any(.spec.ingress[];
+			any(.from[]; .namespaceSelector.matchLabels["kubernetes.io/metadata.name"] == "openshift-user-workload-monitoring" and .podSelector.matchLabels.prometheus == "user-workload")
+			and any(.ports[]; .port == 8080 and .protocol == "TCP"))`)),
+		WithCustomErrorMsg("Expected the default NetworkPolicy to allow UWM Prometheus to reach TCP 8080."),
 	)
 }
 
