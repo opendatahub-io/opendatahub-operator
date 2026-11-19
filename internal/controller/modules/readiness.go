@@ -19,20 +19,29 @@ import (
 type PlatformModuleReadinessChecker struct {
 	registry      *Registry
 	client        client.Client
+	modules       *configApi.PlatformModules
 	targetVersion string
 }
 
-func NewReadinessChecker(registry *Registry, cli client.Client, targetVersion string) *PlatformModuleReadinessChecker {
+func NewReadinessChecker(registry *Registry, cli client.Client, modules *configApi.PlatformModules, targetVersion string) *PlatformModuleReadinessChecker {
 	return &PlatformModuleReadinessChecker{
 		registry:      registry,
 		client:        cli,
+		modules:       modules,
 		targetVersion: targetVersion,
 	}
 }
 
 func (c *PlatformModuleReadinessChecker) IsReady(ctx context.Context, name string) (bool, error) {
-	if c.registry == nil || c.registry.Lookup(name) == nil {
+	if c.registry == nil {
 		return false, fmt.Errorf("module %q: %w", name, dag.ErrUnknownNode)
+	}
+	handler := c.registry.Lookup(name)
+	if handler == nil {
+		return false, fmt.Errorf("module %q: %w", name, dag.ErrUnknownNode)
+	}
+	if !c.registry.IsEnabled(name) || !handler.IsEnabled(c.modules) {
+		return true, nil
 	}
 
 	tracker, err := getPlatformModule(ctx, c.client, name)
