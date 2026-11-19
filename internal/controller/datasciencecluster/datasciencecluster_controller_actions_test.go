@@ -497,7 +497,7 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 			getErr:       discoveryErr,
 			wantStatus:   metav1.ConditionUnknown,
 			wantReason:   status.GPUOperatorPrerequisiteUnknownReason,
-			wantMessage:  status.GPUOperatorPrerequisiteUnknownMessage,
+			wantMessage:  status.GPUOperatorPrerequisiteUnknownMessage + ": " + discoveryErr.Error(),
 			wantSeverity: common.ConditionSeverityInfo,
 		},
 	} {
@@ -539,7 +539,7 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 			rr.Conditions.MarkTrue(status.ConditionTypeComponentsReady)
 			rr.Conditions.MarkTrue(status.ConditionTypeModulesReady)
 
-			err = checkGPUOperatorPrerequisite(t.Context(), rr, cli)
+			err = checkGPUOperatorPrerequisite(t.Context(), rr)
 			if tc.wantStatus == metav1.ConditionUnknown {
 				var requeue odherrors.RequeueAfterError
 				g.Expect(errors.As(err, &requeue)).To(BeTrue())

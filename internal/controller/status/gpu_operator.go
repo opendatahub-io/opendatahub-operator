@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	"fmt"
 
 	apihelpers "k8s.io/apiextensions-apiserver/pkg/apihelpers"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -14,10 +15,11 @@ import (
 )
 
 // GPUOperatorPrerequisite reports whether the NVIDIA GPU Operator ClusterPolicy
-// CRD is installed. cli is an uncached reader; the CRD watches only enqueue
-// reconciliation. NotFound is a confirmed absence. A CRD that does not serve
-// v1, is not established, or is terminating is present but not usable. Any
-// other read error is Unknown.
+// CRD is installed. cli is the cached client; the CRD watches enqueue
+// reconciliation after the informer has the object. NotFound is a confirmed
+// absence. A CRD that does not serve v1, is not established, or is terminating
+// is present but not usable. Any other read error is Unknown, and the
+// condition message includes that error.
 func GPUOperatorPrerequisite(ctx context.Context, cli client.Reader) (metav1.ConditionStatus, string, string) {
 	crd := &apiextensionsv1.CustomResourceDefinition{}
 	err := cli.Get(ctx, client.ObjectKey{Name: gvk.GPUOperatorClusterPolicyCRDName}, crd)
@@ -27,7 +29,7 @@ func GPUOperatorPrerequisite(ctx context.Context, cli client.Reader) (metav1.Con
 		}
 
 		logf.FromContext(ctx).Error(err, "failed to read GPU Operator ClusterPolicy CRD")
-		return metav1.ConditionUnknown, GPUOperatorPrerequisiteUnknownReason, GPUOperatorPrerequisiteUnknownMessage
+		return metav1.ConditionUnknown, GPUOperatorPrerequisiteUnknownReason, fmt.Sprintf("%s: %s", GPUOperatorPrerequisiteUnknownMessage, err)
 	}
 
 	if !gpuOperatorClusterPolicyServed(crd) {

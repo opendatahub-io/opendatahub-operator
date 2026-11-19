@@ -49,6 +49,10 @@ func validateGPUOperatorPrerequisite(t *testing.T) {
 	err = tc.Client().Get(t.Context(), types.NamespacedName{Name: crdName}, existing)
 	if err == nil {
 		t.Logf("ClusterPolicy CRD %s is already installed; checking the met condition and leaving it in place", crdName)
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdName}),
+			WithCondition(jq.Match(`any(.status.conditions[]?; .type == "Established" and .status == "True")`)),
+		)
 		tc.ensureGPUOperatorPrerequisite(metav1.ConditionTrue, status.GPUOperatorPrerequisiteMetReason, "")
 		return
 	}

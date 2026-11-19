@@ -204,21 +204,18 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// Deal with application namespace, configmap, networpolicy etc
 	if err := r.createOperatorResource(ctx, instance, platform); err != nil {
-		if _, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
-			status.SetProgressingCondition(&saved.Status.Conditions, status.ReconcileFailed, err.Error())
-			saved.Status.Phase = status.PhaseError
-		}); err != nil {
-			log.Error(err, "Failed to update conditions")
+		if updateErr := r.recordOperatorResourceFailure(ctx, instance, err); updateErr != nil {
+			log.Error(updateErr, "Failed to update conditions")
 
 			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
-				"%s for instance %s", err.Error(), instance.Name)
+				"%s for instance %s", updateErr.Error(), instance.Name)
 		}
 
 		// no need to log error as it was already logged in createOperatorResource
 		r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
 			"failed to create operator resources for instance %s: %s", instance.Name, err.Error())
 
-		return r.provisioningErrorWithGPUPrerequisite(ctx, instance, err)
+		return reconcile.Result{}, err
 	}
 
 	if platform == cluster.ManagedRhoai {
@@ -263,16 +260,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// Finish reconciling
-	monitoringConditions := r.GetMonitoringReadyCondition(ctx)
-	var gpuStatus metav1.ConditionStatus
-	_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
-		status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
-		for _, c := range monitoringConditions {
-			status.SetCondition(&saved.Status.Conditions, c.Type, c.ReadyReason, c.ReadyMessage, c.ReadyStatus)
-		}
-		gpuStatus = setGPUOperatorPrerequisite(ctx, r.clusterPolicyReader(), &saved.Status.Conditions)
-		saved.Status.Phase = status.PhaseReady
-	})
+	gpuStatus, err := r.recordReady(ctx, instance)
 	if err != nil {
 		log.Error(err, "failed to update status after reconciliation")
 		r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
@@ -565,13 +553,43 @@ func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, i
 	return nil
 }
 
+// recordOperatorResourceFailure writes ReconcileFailed and the GPU condition in
+// one status update. The ClusterPolicy read stays outside the conflict retry.
+func (r *DSCInitializationReconciler) recordOperatorResourceFailure(ctx context.Context, instance *dsciv2.DSCInitialization, provErr error) error {
+	gpuStatus, gpuReason, gpuMessage := status.GPUOperatorPrerequisite(ctx, r.Client)
+	_, updateErr := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
+		status.SetProgressingCondition(&saved.Status.Conditions, status.ReconcileFailed, provErr.Error())
+		saved.Status.Phase = status.PhaseError
+		applyGPUOperatorPrerequisite(&saved.Status.Conditions, gpuStatus, gpuReason, gpuMessage)
+	})
+	return updateErr
+}
+
+// recordReady writes the completed DSCI status, including the GPU condition.
+// The ClusterPolicy read stays outside the conflict retry. The returned status
+// is the one written, so the caller can requeue a transient read.
+func (r *DSCInitializationReconciler) recordReady(ctx context.Context, instance *dsciv2.DSCInitialization) (metav1.ConditionStatus, error) {
+	monitoringConditions := r.GetMonitoringReadyCondition(ctx)
+	gpuStatus, gpuReason, gpuMessage := status.GPUOperatorPrerequisite(ctx, r.Client)
+	_, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
+		status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
+		for _, c := range monitoringConditions {
+			status.SetCondition(&saved.Status.Conditions, c.Type, c.ReadyReason, c.ReadyMessage, c.ReadyStatus)
+		}
+		applyGPUOperatorPrerequisite(&saved.Status.Conditions, gpuStatus, gpuReason, gpuMessage)
+		saved.Status.Phase = status.PhaseReady
+	})
+	return gpuStatus, err
+}
+
 // provisioningErrorWithGPUPrerequisite records the GPU condition, then returns
 // the provisioning error unchanged. Deletion and uninstall paths do not use it.
-// A failed condition write is logged so it does not hide the provisioning error.
+// The ClusterPolicy read happens once, outside the status retry. A failed
+// condition write is logged so it does not hide the provisioning error.
 func (r *DSCInitializationReconciler) provisioningErrorWithGPUPrerequisite(ctx context.Context, instance *dsciv2.DSCInitialization, provErr error) (ctrl.Result, error) {
-	reader := r.clusterPolicyReader()
+	gpuStatus, gpuReason, gpuMessage := status.GPUOperatorPrerequisite(ctx, r.Client)
 	if _, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
-		setGPUOperatorPrerequisite(ctx, reader, &saved.Status.Conditions)
+		applyGPUOperatorPrerequisite(&saved.Status.Conditions, gpuStatus, gpuReason, gpuMessage)
 	}); err != nil {
 		logf.FromContext(ctx).Error(err, "failed to record GPU Operator prerequisite")
 	}
@@ -592,23 +610,13 @@ func requeueAfterGPUOperatorPrerequisite(condStatus metav1.ConditionStatus) ctrl
 	return ctrl.Result{}
 }
 
-// clusterPolicyReader is the live API reader. The cached client can report a
-// CRD as missing before its watch has synced. The watch still enqueues
-// reconciliation. Tests without a manager keep using the client they built.
-func (r *DSCInitializationReconciler) clusterPolicyReader() client.Reader { //nolint:ireturn // manager API reader is a client.Reader
-	if r.mgr != nil {
-		if reader := r.mgr.GetAPIReader(); reader != nil {
-			return reader
-		}
-	}
-	return r.Client
-}
-
-// setGPUOperatorPrerequisite records ClusterPolicy CRD presence on DSCI.
-// SetCompleteCondition merges by type, so this must run in the same status
-// update and is safe to call after it.
-func setGPUOperatorPrerequisite(ctx context.Context, cli client.Reader, conditions *[]common.Condition) metav1.ConditionStatus {
-	condStatus, reason, message := status.GPUOperatorPrerequisite(ctx, cli)
+// applyGPUOperatorPrerequisite records a precomputed ClusterPolicy result.
+// Callers read the CRD before UpdateWithRetry so a conflict retry does not
+// repeat the GET. SetCompleteCondition merges by type, so this must run in
+// the same status update. A result other than True is severity Info so it
+// does not surface as a degradation. True replaces the condition and clears
+// any previous severity.
+func applyGPUOperatorPrerequisite(conditions *[]common.Condition, condStatus metav1.ConditionStatus, reason, message string) {
 	status.SetCondition(conditions, status.ConditionGPUOperatorPrerequisiteAvailable, reason, message, condStatus)
 
 	// A missing/unknown prerequisite is informational, not an error: mark it
@@ -621,8 +629,6 @@ func setGPUOperatorPrerequisite(ctx context.Context, cli client.Reader, conditio
 			}
 		}
 	}
-
-	return condStatus
 }
 
 // reconcileOnCRDChange maps optional CRD events to a DSCI reconcile. The

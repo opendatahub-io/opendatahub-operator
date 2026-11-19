@@ -99,7 +99,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 
 	_, err := b.
 		WithAction(checkPreConditions).
-		WithAction(checkGPUOperatorPrerequisiteAction(mgr.GetAPIReader())).
+		WithAction(checkGPUOperatorPrerequisite).
 		WithAction(updateStatus).
 		WithAction(syncPlatformCR).
 		WithAction(cleanupDisabledComponents).
