@@ -6,6 +6,7 @@ import (
 	"maps"
 	"time"
 
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -32,25 +33,62 @@ func checkPlatformModuleUpgradeGates(ctx context.Context, rr *odhtype.Reconcilia
 	if !DefaultRegistry().HasEntries() {
 		return nil
 	}
-
-	platformCtx, err := buildPlatformContext(ctx, rr)
-	if err != nil {
+	platform, ok := rr.Instance.(*configApi.Platform)
+	if !ok {
+		return fmt.Errorf("module gate preflight requires Platform instance, got %T", rr.Instance)
+	}
+	gateEntries, failures, err := DiscoverModuleUpgradeGates(ctx, rr, platform, "")
+	if err != nil || gateEntries == nil {
 		return err
 	}
+	if len(failures) > 0 {
+		if rr.Extensions == nil {
+			rr.Extensions = make(map[string]any)
+		}
+		rr.Extensions[moduleGatePreflightErrorsKey] = failures
+	}
+	if err := provision.CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, gateEntries); err != nil {
+		return err
+	}
+	if len(failures) > 0 {
+		return odherrors.NewRequeueAfterError(30 * time.Second)
+	}
+	return nil
+}
 
-	gateEntries := make(map[string]string)
+// DiscoverModuleUpgradeGates renders the enabled modules to find their chart
+// gates. If the caller already rendered one module, use its extracted gates.
+func DiscoverModuleUpgradeGates(
+	ctx context.Context, rr *odhtype.ReconciliationRequest, platform *configApi.Platform, renderedModule string,
+) (map[string]string, map[string]string, error) {
+	if !DefaultRegistry().HasEntries() {
+		return rr.GateEntries, nil, nil
+	}
+	gateContext := newGateRenderRequest(rr)
+	gateContext.Instance = platform
+	platformCtx, err := buildPlatformContext(ctx, &gateContext)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var gateEntries map[string]string
+	if renderedModule != "" {
+		gateEntries = make(map[string]string)
+		maps.Copy(gateEntries, rr.GateEntries)
+	}
 	failures := make(map[string]string)
-
-	managed := 0
-	if err := DefaultRegistry().ForAll(func(handler ModuleHandler, registryEnabled bool) error {
+	err = DefaultRegistry().ForAll(func(handler ModuleHandler, registryEnabled bool) error {
 		if !registryEnabled || !handler.IsEnabled(platformCtx.Modules) {
 			return nil
 		}
-
-		managed++
-		// TODO: Separate upgrade-gate discovery from operator manifest rendering in
-		// ModuleHandler so preflight can read gate metadata without rendering deployable resources.
-		gateRR := newGateRenderRequest(rr)
+		if gateEntries == nil {
+			gateEntries = make(map[string]string)
+		}
+		if handler.GetName() == renderedModule {
+			return nil
+		}
+		// ponytail: render siblings at deployment time; cache by render inputs if this becomes expensive.
+		gateRR := newGateRenderRequest(&gateContext)
 		manifests := handler.GetOperatorManifests(platformCtx)
 		gateRR.HelmCharts = manifests.HelmCharts
 		gateRR.Manifests = manifests.Manifests
@@ -72,30 +110,8 @@ func checkPlatformModuleUpgradeGates(ctx context.Context, rr *odhtype.Reconcilia
 		}
 		maps.Copy(gateEntries, gateRR.GateEntries)
 		return nil
-	}); err != nil {
-		return fmt.Errorf("collecting module manifests for upgrade gates: %w", err)
-	}
-
-	if managed == 0 {
-		return nil
-	}
-
-	if len(failures) > 0 {
-		if rr.Extensions == nil {
-			rr.Extensions = make(map[string]any)
-		}
-		rr.Extensions[moduleGatePreflightErrorsKey] = failures
-	}
-
-	if err := provision.CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, gateEntries); err != nil {
-		return err
-	}
-	if len(failures) > 0 {
-		// Inputs can change between reconciliations. Invalid packaged manifests
-		// need a corrected installation; keep reporting the error until then.
-		return odherrors.NewRequeueAfterError(30 * time.Second)
-	}
-	return nil
+	})
+	return gateEntries, failures, err
 }
 
 // newGateRenderRequest returns an isolated request containing only context

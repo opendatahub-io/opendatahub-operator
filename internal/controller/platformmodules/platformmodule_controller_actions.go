@@ -498,11 +498,19 @@ func updateModuleCRCondition(ctx context.Context, rr *odhtype.ReconciliationRequ
 	}
 }
 
-// checkModuleUpgradeGates protects a tracker whose render succeeds after a
-// failed Platform preflight. Unknown chart gates must never be bypassed.
+// checkModuleUpgradeGates enforces the shared gate barrier just before deploy,
+// including for existing trackers when runlevel ordering is disabled.
 func checkModuleUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	if rr.SkipDeploy {
 		return nil
 	}
-	return provision.CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, rr.GateEntries)
+	platform := &configApi.Platform{}
+	if err := rr.Client.Get(ctx, client.ObjectKey{Name: configApi.PlatformInstanceName}, platform); err != nil {
+		return fmt.Errorf("getting Platform for shared upgrade gates: %w", err)
+	}
+	gates, _, err := modules.DiscoverModuleUpgradeGates(ctx, rr, platform, rr.Instance.GetName())
+	if err != nil {
+		return err
+	}
+	return provision.CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, gates)
 }

@@ -26,9 +26,8 @@ import (
 // as standalone objects.
 //
 // This action is placed after helm/kustomize render in both gate-preflight and
-// PlatformModule action chains. In the PlatformModule chain it strips gate CMs
-// from the real deploy inventory; gate decisions happen in Platform controller
-// preflight.
+// PlatformModule action chains. It strips gate ConfigMaps from the deployment
+// inventory before PlatformModule checks shared acknowledgments.
 func ExtractUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
