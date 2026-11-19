@@ -1140,7 +1140,7 @@ func TestAddTracesTemplateData_TLS(t *testing.T) {
 			}
 
 			// Verify other template data fields are set
-			g.Expect(templateData).Should(HaveKey("OtlpEndpoint"))
+			g.Expect(templateData["OtlpEndpoint"]).Should(Equal(fmt.Sprintf("http://data-science-collector-collector.%s.svc.cluster.local:4317", tt.namespace)))
 			g.Expect(templateData).Should(HaveKey("SampleRatio"))
 			g.Expect(templateData).Should(HaveKey("Backend"))
 			g.Expect(templateData).Should(HaveKey("TracesRetention"))

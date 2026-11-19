@@ -215,7 +215,7 @@ func validateExporters(exporters map[string]runtime.RawExtension) (map[string]st
 }
 
 func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Traces, namespace string) error {
-	templateData["OtlpEndpoint"] = fmt.Sprintf("http://data-science-collector.%s.svc.cluster.local:4317", namespace)
+	templateData["OtlpEndpoint"] = fmt.Sprintf("http://data-science-collector-collector.%s.svc.cluster.local:4317", namespace)
 	templateData["SampleRatio"] = getStringValueOrDefault(traces.SampleRatio, defaultTracesSampleRatio)
 
 	// Apply defaults for backend and retention when zero/empty
