@@ -458,10 +458,18 @@ func TestAuthenticationCleanupPreservesLegacyDashboardRedirectsDuringOwnershipHa
 			obj := unstructured.Unstructured{}
 			obj.SetGroupVersionKind(kind)
 			obj.SetName(name)
+			obj.SetNamespace(cluster.GetApplicationNamespace())
 			obj.SetAnnotations(map[string]string{"platform.opendatahub.io/instance.generation": "old"})
 			g.Expect(gatewayAuthResourceCollectable(rr, obj)).To(BeFalse(), "%s %s must survive the ownership handoff", kind.Kind, name)
 		}
 	}
+
+	gatewayRoute := unstructured.Unstructured{}
+	gatewayRoute.SetGroupVersionKind(gvk.Route)
+	gatewayRoute.SetName(LegacyGatewaySubdomain)
+	gatewayRoute.SetNamespace(GetGatewayNamespace())
+	gatewayRoute.SetAnnotations(map[string]string{"platform.opendatahub.io/instance.generation": "old"})
+	g.Expect(gatewayAuthResourceCollectable(rr, gatewayRoute)).To(BeTrue(), "the Gateway Route must use normal garbage collection")
 
 	for kind, name := range map[schema.GroupVersionKind]string{
 		gvk.NetworkPolicy: "dashboard-redirect",

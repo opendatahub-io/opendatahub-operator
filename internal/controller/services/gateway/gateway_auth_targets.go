@@ -58,8 +58,8 @@ func gatewayAuthState(rr *odhtypes.ReconciliationRequest) map[string]authProxyRe
 // Match kind and name so unrelated resources and removed targets still use normal GC.
 func gatewayAuthResourceCollectable(rr *odhtypes.ReconciliationRequest, resource unstructured.Unstructured) (bool, error) {
 	// Keep the Gateway-owned redirect resources alive during the ownership handoff.
-	// The dashboard-operator adopts these names after it rolls out; remove this
-	// compatibility exception after the migration release.
+	// The dashboard-operator adopts these names after it rolls out.
+	// TODO(RHOAIENG-87774): Remove this compatibility exception after the RHOAI 3.7 migration release.
 	if isLegacyDashboardRedirectResource(resource) {
 		return false, nil
 	}
@@ -76,6 +76,10 @@ func gatewayAuthResourceCollectable(rr *odhtypes.ReconciliationRequest, resource
 }
 
 func isLegacyDashboardRedirectResource(resource unstructured.Unstructured) bool {
+	if resource.GetNamespace() != cluster.GetApplicationNamespace() {
+		return false
+	}
+
 	switch resource.GroupVersionKind() {
 	case gvk.Deployment, gvk.Service:
 		return resource.GetName() == legacyDashboardRedirectName
