@@ -74,11 +74,11 @@ local.mk
 /catalog/
 
 # Ignore generated files
-# config/crd/bases/*.yaml is tracked: the API contract check compares the CRDs
-# in pull requests against a baseline commit, which requires them in git.
-# The other generated files in that directory stay ignored.
+# config/crd/bases is tracked (CRDs and kustomization) so the API contract
+# check can compare the CRDs in pull requests against a baseline commit, and
+# so config/crd stays valid kustomize config on a fresh clone. Only the
+# controller-gen artifact _.yaml stays ignored.
 config/crd/bases/_.yaml
-config/crd/bases/kustomization.yaml
 config/crd/external
 config/rbac/role.yaml
 config/webhook/manifests.yaml
