@@ -307,7 +307,15 @@ func validateAIHubCatalogImageSources(t *testing.T, tc *TestContext) {
 
 	require.Regexp(t, `^.+/[^/:@]+@sha256:[a-f0-9]{64}$`, image, "the combined catalog image must use a digest-only reference")
 
-	for _, name := range []string{aihubModuleOperatorDeployment, "catalog-controller-manager"} {
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace, Name: aihubModuleOperatorDeployment}),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(jq.Match(`[.spec.template.spec.containers[] | select(.name == "manager") | .env[]? | `+
+			`select(.name == "RELATED_IMAGE_RHAI_AI_HUB_CATALOG_IMAGE") | .value] == [%q]`, image)),
+		WithCustomErrorMsg("AIHub should receive the unified catalog image from the CSV through RelatedImages"),
+	)
+
+	for _, name := range []string{"model-registry-operator-controller-manager", "catalog-controller-manager"} {
 		tc.EnsureResourceExists(
 			WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace, Name: name}),
 			WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
