@@ -106,9 +106,9 @@ func TestResolve_MalformedImageOverrides(t *testing.T) {
 			wantSubstr: []string{"imageOverrides.RELATED_IMAGE_ODH_RAY_IMAGE.tagTemplate", "{sha}"},
 		},
 		{
-			name:       "no braces",
-			overrides:  sprintfOverride(rayBase, `"SHA"`),
-			wantSubstr: []string{"imageOverrides.RELATED_IMAGE_ODH_RAY_IMAGE.tagTemplate", "SHA"},
+			name:       "literal tag with space",
+			overrides:  sprintfOverride(rayBase, `"odh stable"`),
+			wantSubstr: []string{"imageOverrides.RELATED_IMAGE_ODH_RAY_IMAGE.tagTemplate", "literal tag"},
 		},
 		{
 			name:       "whitespace tagTemplate",

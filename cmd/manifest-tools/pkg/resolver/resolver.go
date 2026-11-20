@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/manifest-tools/pkg/config"
@@ -21,6 +22,10 @@ type Options struct {
 	CSVImportRegistries     []string
 	// FetchCSVImages overrides the real HTTP fetch; used in tests only.
 	FetchCSVImages func(ctx context.Context, source config.BuildConfigRepo) (map[string]CSVImage, error)
+	// ResolveDigest overrides registry digest lookups; used in tests only.
+	ResolveDigest func(ctx context.Context, imageRef string) (string, error)
+	// FetchImageLabels overrides registry label lookups; used in tests only.
+	FetchImageLabels func(ctx context.Context, imageRef string) (map[string]string, error)
 }
 
 type Result struct {
@@ -28,7 +33,7 @@ type Result struct {
 	Platform string
 	Base     string
 	Digest   string
-	Source   string // "commit-sha", "Build-Config", "params.env", "params.env+registry", "shaFrom"
+	Source   string // "commit-sha", "literal-tag", "Build-Config", "params.env", "params.env+registry", "shaFrom"
 }
 
 func Resolve(ctx context.Context, opts Options) ([]Result, error) {
@@ -175,7 +180,10 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 			if effectiveBase == "" && pi != nil {
 				effectiveBase = pi.Base
 			}
-			if effectiveBase != "" && override.TagTemplate != "" && sha != "" {
+			// Literal tags (e.g. odh-stable) do not need a commit SHA; templates
+			// with {SHA}/{SHORT_SHA} placeholders do.
+			if effectiveBase != "" && override.TagTemplate != "" &&
+				(sha != "" || config.IsLiteralTagTemplate(override.TagTemplate)) {
 				shortSHA := sha
 				if len(shortSHA) > 7 {
 					shortSHA = shortSHA[:7]
@@ -184,20 +192,46 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 				resolvedTag = strings.ReplaceAll(resolvedTag, config.TagShortSHA, shortSHA)
 				imageRef := effectiveBase + ":" + resolvedTag
 
-				digest, err := ResolveDigestViaRegistry(ctx, imageRef)
+				// The pinned digest may live in a different repository than the
+				// override base (e.g. a repo migration): look it up where it is
+				// configured, not where the candidate is.
+				pinnedBase := effectiveBase
+				if pi != nil && pi.Base != "" {
+					pinnedBase = pi.Base
+				}
+
+				digest, err := resolveDigest(ctx, opts, imageRef)
 				if err == nil && config.DigestPattern.MatchString(digest) {
+					if config.IsLiteralTagTemplate(override.TagTemplate) &&
+						pi != nil && pi.Digest != "" && digest != pi.Digest {
+						keep, reason := guardMovingTagRegression(ctx, opts, pinnedBase, effectiveBase, pi.Digest, digest)
+						if !keep {
+							slog.Warn("Skipping regressed moving-tag image",
+								slog.String("env", envName),
+								slog.String("platform", platform),
+								slog.String("tag", resolvedTag),
+								slog.String("pinnedDigest", pi.Digest),
+								slog.String("candidateDigest", digest),
+								slog.String("reason", reason))
+							continue
+						}
+					}
 					if err := nodeDoc.SetImageOverrideField(envName, platform, "base", effectiveBase); err != nil {
 						slog.Warn("Failed to set base field", slog.String("error", err.Error()))
 					}
 					if err := nodeDoc.SetImageOverrideField(envName, platform, "digest", digest); err != nil {
 						slog.Warn("Failed to set digest field", slog.String("error", err.Error()))
 					}
-					results = append(results, Result{envName, platform, effectiveBase, digest, "commit-sha"})
+					source := "commit-sha"
+					if config.IsLiteralTagTemplate(override.TagTemplate) {
+						source = "literal-tag"
+					}
+					results = append(results, Result{envName, platform, effectiveBase, digest, source})
 					if resolved[envName] == nil {
 						resolved[envName] = map[string]resolvedImage{}
 					}
 					resolved[envName][platform] = resolvedImage{effectiveBase, digest}
-					slog.Info("Resolved via commit-sha",
+					slog.Info("Resolved via "+source,
 						slog.String("env", envName), slog.String("platform", platform),
 						slog.String("base", effectiveBase), slog.String("digest", digest),
 						slog.String("tag", resolvedTag), slog.String("component", override.Component),
@@ -205,6 +239,18 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 					continue
 				}
 				slog.Info("Registry lookup failed, falling through", slog.String("env", envName), slog.String("platform", platform), slog.String("imageRef", imageRef))
+			}
+
+			// A literal moving tag with an accepted pinned digest must not be
+			// replaced by params.env or CSV fallbacks when the registry lookup
+			// fails: those fallbacks are not guarded against regressions and
+			// can pin an older image than the one already accepted.
+			if config.IsLiteralTagTemplate(override.TagTemplate) && pi != nil && pi.Digest != "" {
+				slog.Warn("Keeping pinned digest after failed moving-tag lookup",
+					slog.String("env", envName),
+					slog.String("platform", platform),
+					slog.String("pinnedDigest", pi.Digest))
+				continue
 			}
 
 			// Priority 2 for ODH only: params.env (value cached during the check above).
@@ -230,7 +276,7 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 					}
 				}
 				// Tagged image → registry lookup
-				digest, err := ResolveDigestViaRegistry(ctx, imageRef)
+				digest, err := resolveDigest(ctx, opts, imageRef)
 				if err == nil && config.DigestPattern.MatchString(digest) {
 					pBase := imageBaseWithoutTag(imageRef)
 					if err := nodeDoc.SetImageOverrideField(envName, platform, "base", pBase); err != nil {
@@ -419,9 +465,10 @@ func printSummary(results []Result, unresolved []Result) {
 	)
 
 	blue := "\033[34m"
-	sourceOrder := []string{"commit-sha", "params.env", "params.env+registry", "csv", "shaFrom", "csv-imported"}
+	sourceOrder := []string{"commit-sha", "literal-tag", "params.env", "params.env+registry", "csv", "shaFrom", "csv-imported"}
 	sourceColor := map[string]string{
 		"commit-sha":          green,
+		"literal-tag":         green,
 		"params.env":          yellow,
 		"params.env+registry": yellow,
 		"csv":                 cyan,
@@ -557,4 +604,66 @@ func ReadParamsEnvKey(path, key string) (string, error) {
 		return "", fmt.Errorf("reading %s: %w", path, err)
 	}
 	return "", fmt.Errorf("key %q not found in %s", key, path)
+}
+
+// resolveDigest dispatches to the injected test hook or the real registry.
+func resolveDigest(ctx context.Context, opts Options, imageRef string) (string, error) {
+	if opts.ResolveDigest != nil {
+		return opts.ResolveDigest(ctx, imageRef)
+	}
+	return ResolveDigestViaRegistry(ctx, imageRef)
+}
+
+// fetchImageLabels dispatches to the injected test hook or the real registry.
+func fetchImageLabels(ctx context.Context, opts Options, imageRef string) (map[string]string, error) {
+	if opts.FetchImageLabels != nil {
+		return opts.FetchImageLabels(ctx, imageRef)
+	}
+	return ResolveImageLabelsViaRegistry(ctx, imageRef)
+}
+
+// guardMovingTagRegression reports whether a freshly resolved moving-tag
+// digest should be pinned, given the digest already pinned in the config.
+// A moving tag has multiple writers that do not coordinate; a slower build
+// from an older source revision can finish last and overwrite the tag. The
+// guard compares the `release` label (the source commit timestamp the
+// Konflux pipelines stamp on every image) of the candidate against the
+// currently pinned image, and rejects candidates built from an older
+// commit. Missing, unparseable, or unreachable labels fail open: the
+// candidate is accepted so a labeling hiccup cannot freeze the nightly.
+// pinned images may live in a different repository than candidates (e.g. a
+// repo migration), so each is looked up in its own base.
+func guardMovingTagRegression(ctx context.Context, opts Options, pinnedBase, candidateBase, pinnedDigest, candidateDigest string) (keep bool, reason string) {
+	fetchRelease := func(base, digest string) (int64, bool) {
+		labels, err := fetchImageLabels(ctx, opts, base+"@"+digest)
+		if err != nil {
+			slog.Warn("Failed to fetch image labels for moving-tag guard",
+				slog.String("image", base+"@"+digest), slog.String("error", err.Error()))
+			return 0, false
+		}
+		release, ok := labels["release"]
+		if !ok {
+			return 0, false
+		}
+		ts, err := strconv.ParseInt(strings.TrimSpace(release), 10, 64)
+		if err != nil {
+			slog.Warn("Unparseable release label for moving-tag guard",
+				slog.String("image", base+"@"+digest), slog.String("release", release))
+			return 0, false
+		}
+		return ts, true
+	}
+
+	candidateTS, ok := fetchRelease(candidateBase, candidateDigest)
+	if !ok {
+		return true, "candidate release label unavailable; failing open"
+	}
+	pinnedTS, ok := fetchRelease(pinnedBase, pinnedDigest)
+	if !ok {
+		return true, "pinned release label unavailable; failing open"
+	}
+	if candidateTS >= pinnedTS {
+		return true, "candidate source is same or newer"
+	}
+	return false, fmt.Sprintf("candidate source commit timestamp %d is older than pinned %d", candidateTS, pinnedTS)
 }

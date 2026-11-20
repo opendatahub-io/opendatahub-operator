@@ -390,7 +390,12 @@ func TestValidateTagTemplate(t *testing.T) {
 		{name: "unknown", tmpl: "{FOO}", wantErr: "unknown placeholder"},
 		{name: "unknown beside known", tmpl: "{SHA}-{FOO}", wantErr: "unknown placeholder"},
 		{name: "lowercase", tmpl: "{sha}", wantErr: "unknown placeholder"},
-		{name: "no braces", tmpl: "SHA", wantErr: "must contain"},
+		{name: "literal", tmpl: "odh-stable"},
+		{name: "literal word", tmpl: "SHA"},
+		{name: "literal with dot and digit", tmpl: "v1.2_prod-3"},
+		{name: "literal with space", tmpl: "odh stable", wantErr: "literal tag"},
+		{name: "literal with slash", tmpl: "odh/stable", wantErr: "literal tag"},
+		{name: "literal leading dash", tmpl: "-odh-stable", wantErr: "literal tag"},
 		{name: "empty", tmpl: "", wantErr: "must contain"},
 		{name: "whitespace", tmpl: "   ", wantErr: "must contain"},
 		{name: "extra close", tmpl: "{SHA}}", wantErr: "malformed placeholder"},
@@ -475,5 +480,25 @@ func TestCheckImageOverride(t *testing.T) {
 				t.Errorf("error %q, want substring %q", checkErr.Error(), tt.wantSubstr)
 			}
 		})
+	}
+}
+
+func TestIsLiteralTagTemplate(t *testing.T) {
+	tests := []struct {
+		tmpl string
+		want bool
+	}{
+		{tmpl: "odh-stable", want: true},
+		{tmpl: "SHA", want: true},
+		{tmpl: "{SHA}", want: false},
+		{tmpl: "v{SHORT_SHA}", want: false},
+		{tmpl: "", want: false},
+		{tmpl: "odh stable", want: false},
+		{tmpl: "{FOO}", want: false},
+	}
+	for _, tt := range tests {
+		if got := config.IsLiteralTagTemplate(tt.tmpl); got != tt.want {
+			t.Errorf("IsLiteralTagTemplate(%q) = %v, want %v", tt.tmpl, got, tt.want)
+		}
 	}
 }
