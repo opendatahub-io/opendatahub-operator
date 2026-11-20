@@ -74,14 +74,27 @@ local.mk
 /catalog/
 
 # Ignore generated files
-config/crd/bases
+# config/crd/bases/*.yaml is tracked: the API contract check compares the CRDs
+# in pull requests against a baseline commit, which requires them in git.
+# The other generated files in that directory stay ignored.
+config/crd/bases/_.yaml
+config/crd/bases/kustomization.yaml
 config/crd/external
 config/rbac/role.yaml
 config/webhook/manifests.yaml
+# config/rhoai/crd/bases is deliberately NOT tracked for now. The RHOAI variant
+# differs from config/crd/bases only in default namespaces and their descriptions
+# (RHOAI branding), not in fields, types, or validation, and the API contract
+# check compares one canonical set per CRD: a single glob cannot span both
+# variants because the runner rejects divergent copies of the same CRD. Gap:
+# changes to RHOAI-only defaults (or any future RHOAI-only fields) are not
+# caught. If a consumer relies on those defaults unset, track this directory
+# and add a second check glob — discussion welcome on this point.
 config/rhoai/crd/bases
 config/rhoai/crd/external
 config/rhoai/rbac/role.yaml
 config/rhoai/webhook/manifests.yaml
+# rhaii/crd/bases is a copy of two CRDs already tracked via config/crd/bases.
 config/rhaii/crd/bases
 config/rhaii/webhook/manifests.yaml
 rhoai-bundle/
