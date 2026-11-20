@@ -130,6 +130,13 @@ type KserveCommonSpec struct {
 	// +kubebuilder:validation:Enum=Removed;Metadata
 	// +kubebuilder:default=Removed
 	AuditLoggingProfile AuditProfile `json:"auditLoggingProfile,omitempty"`
+	// Enables the strict per-LLMInferenceService NetworkPolicies that restrict
+	// traffic between the workload, scheduler and tokenizer Pods to what each
+	// service needs. When unset or false, KServe creates a single allow-all
+	// NetworkPolicy per service instead, which keeps the open behaviour of
+	// releases that did not restrict Pod traffic across upgrades.
+	// +optional
+	EnableLLMInferenceServiceStrictNetworkPolicy *bool `json:"enableLLMInferenceServiceStrictNetworkPolicy,omitempty"`
 	// Configures and enables Model Cache integration
 	ModelCache *ModelCacheSpec `json:"modelCache,omitempty"`
 }
