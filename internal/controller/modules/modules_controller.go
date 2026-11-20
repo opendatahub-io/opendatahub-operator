@@ -56,6 +56,7 @@ func commonActions() []actions.Fn {
 			deploy.WithCache(),
 			deploy.WithApplyOrder(),
 			deploy.WithContinueOnError(),
+			deploy.WithApplyCustomizer(gvk.Deployment, customizeModuleDeployments),
 		),
 		updateModuleStatus,
 		gc.NewAction(
