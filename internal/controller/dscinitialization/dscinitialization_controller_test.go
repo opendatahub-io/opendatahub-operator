@@ -322,7 +322,7 @@ func TestSetGPUOperatorPrerequisite(t *testing.T) {
 			established:  true,
 			wantStatus:   metav1.ConditionFalse,
 			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
-			wantMessage:  status.GPUOperatorPrerequisiteNotUsableMessage,
+			wantMessage:  status.GPUOperatorPrerequisiteNotServingMessage,
 			wantSeverity: common.ConditionSeverityInfo,
 		},
 		{
@@ -331,7 +331,7 @@ func TestSetGPUOperatorPrerequisite(t *testing.T) {
 			served:       true,
 			wantStatus:   metav1.ConditionFalse,
 			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
-			wantMessage:  status.GPUOperatorPrerequisiteNotUsableMessage,
+			wantMessage:  status.GPUOperatorPrerequisiteNotEstablishedMessage,
 			wantSeverity: common.ConditionSeverityInfo,
 		},
 		{

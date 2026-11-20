@@ -216,10 +216,12 @@ const (
 	GPUOperatorPrerequisiteNotUsableReason = "GPUOperatorPrerequisiteNotUsable"
 	GPUOperatorPrerequisiteUnknownReason   = "GPUOperatorPrerequisiteUnknown"
 
-	GPUOperatorPrerequisiteMetMessage       = "NVIDIA GPU Operator ClusterPolicy CRD is present"
-	GPUOperatorPrerequisiteMissingMessage   = "NVIDIA GPU Operator ClusterPolicy CRD is absent; GPU attribution recording rules will not produce data"
-	GPUOperatorPrerequisiteNotUsableMessage = "NVIDIA GPU Operator ClusterPolicy CRD is present but not usable; GPU attribution recording rules will not produce data"
-	GPUOperatorPrerequisiteUnknownMessage   = "Failed to detect NVIDIA GPU Operator ClusterPolicy CRD"
+	GPUOperatorPrerequisiteMetMessage            = "NVIDIA GPU Operator ClusterPolicy CRD is present"
+	GPUOperatorPrerequisiteMissingMessage        = "NVIDIA GPU Operator ClusterPolicy CRD is absent; GPU attribution recording rules will not produce data"
+	GPUOperatorPrerequisiteNotServingMessage     = "NVIDIA GPU Operator ClusterPolicy CRD does not serve v1; GPU attribution recording rules will not produce data"
+	GPUOperatorPrerequisiteNotEstablishedMessage = "NVIDIA GPU Operator ClusterPolicy CRD is not established; GPU attribution recording rules will not produce data"
+	GPUOperatorPrerequisiteTerminatingMessage    = "NVIDIA GPU Operator ClusterPolicy CRD is terminating; GPU attribution recording rules will not produce data"
+	GPUOperatorPrerequisiteUnknownMessage        = "Failed to detect NVIDIA GPU Operator ClusterPolicy CRD"
 )
 
 // For v3 upgrade sanity checks.

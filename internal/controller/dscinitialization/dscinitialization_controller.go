@@ -596,16 +596,12 @@ func (r *DSCInitializationReconciler) provisioningErrorWithGPUPrerequisite(ctx c
 	return ctrl.Result{}, provErr
 }
 
-// gpuOperatorPrerequisiteRequeueAfter matches the DSC delay for a transient
-// ClusterPolicy CRD read. Confirmed absence stays on the CRD watch.
-const gpuOperatorPrerequisiteRequeueAfter = 30 * time.Second
-
 // requeueAfterGPUOperatorPrerequisite delays the next DSCI reconcile when the
 // ClusterPolicy lookup failed. The error stays nil so a successful status write
 // is still success. Confirmed absence and a met prerequisite do not delay.
 func requeueAfterGPUOperatorPrerequisite(condStatus metav1.ConditionStatus) ctrl.Result {
 	if condStatus == metav1.ConditionUnknown {
-		return ctrl.Result{RequeueAfter: gpuOperatorPrerequisiteRequeueAfter}
+		return ctrl.Result{RequeueAfter: status.GPUOperatorPrerequisiteRequeueAfter}
 	}
 	return ctrl.Result{}
 }

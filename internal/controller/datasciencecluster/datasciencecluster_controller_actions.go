@@ -89,7 +89,7 @@ func checkGPUOperatorPrerequisite(ctx context.Context, rr *odhtype.Reconciliatio
 
 	rr.Conditions.Mark(status.ConditionGPUOperatorPrerequisiteAvailable, condStatus, opts...)
 	if condStatus == metav1.ConditionUnknown {
-		return odherrors.NewRequeueAfterError(30 * time.Second)
+		return odherrors.NewRequeueAfterError(status.GPUOperatorPrerequisiteRequeueAfter)
 	}
 	return nil
 }

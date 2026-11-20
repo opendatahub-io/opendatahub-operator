@@ -1,9 +1,12 @@
 package e2e_test
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	apihelpers "k8s.io/apiextensions-apiserver/pkg/apihelpers"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -48,12 +51,13 @@ func validateGPUOperatorPrerequisite(t *testing.T) {
 	existing := &apiextv1.CustomResourceDefinition{}
 	err = tc.Client().Get(t.Context(), types.NamespacedName{Name: crdName}, existing)
 	if err == nil {
-		t.Logf("ClusterPolicy CRD %s is already installed; checking the met condition and leaving it in place", crdName)
-		tc.EnsureResourceExists(
-			WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdName}),
-			WithCondition(jq.Match(`any(.status.conditions[]?; .type == "Established" and .status == "True")`)),
-		)
-		tc.ensureGPUOperatorPrerequisite(metav1.ConditionTrue, status.GPUOperatorPrerequisiteMetReason, "")
+		t.Logf("ClusterPolicy CRD %s is already installed; leaving it in place", crdName)
+		if tc.clusterPolicyBecomesUsable(t, crdName) {
+			tc.ensureGPUOperatorPrerequisite(metav1.ConditionTrue, status.GPUOperatorPrerequisiteMetReason, "")
+		} else {
+			t.Logf("ClusterPolicy CRD %s did not become usable; expecting NotUsable", crdName)
+			tc.ensureGPUOperatorPrerequisite(metav1.ConditionFalse, status.GPUOperatorPrerequisiteNotUsableReason, string(common.ConditionSeverityInfo))
+		}
 		return
 	}
 	require.True(t, k8serr.IsNotFound(err), "failed to read ClusterPolicy CRD: %v", err)
@@ -89,6 +93,61 @@ func validateGPUOperatorPrerequisite(t *testing.T) {
 		WithWaitForDeletion(true),
 	)
 	tc.ensureGPUOperatorPrerequisite(metav1.ConditionFalse, status.GPUOperatorPrerequisiteMissingReason, string(common.ConditionSeverityInfo))
+}
+
+// clusterPolicyBecomesUsable waits while a served v1 CRD can still become
+// Established. A terminating CRD or one that does not serve v1 is not usable
+// and returns immediately so the caller can expect NotUsable.
+func (tc *gpuOperatorPrerequisiteTestCtx) clusterPolicyBecomesUsable(t *testing.T, name string) bool {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(t.Context(), tc.TestTimeouts.defaultEventuallyTimeout)
+	defer cancel()
+
+	ticker := time.NewTicker(tc.TestTimeouts.defaultEventuallyPollInterval)
+	defer ticker.Stop()
+
+	for {
+		crd := &apiextv1.CustomResourceDefinition{}
+		err := tc.Client().Get(t.Context(), types.NamespacedName{Name: name}, crd)
+		require.NoError(t, err, "failed to read ClusterPolicy CRD %s", name)
+		if clusterPolicyUsable(crd) {
+			return true
+		}
+		if !clusterPolicyMayBecomeUsable(crd) {
+			return false
+		}
+
+		select {
+		case <-ctx.Done():
+			return false
+		case <-ticker.C:
+		}
+	}
+}
+
+func clusterPolicyUsable(crd *apiextv1.CustomResourceDefinition) bool {
+	if apihelpers.IsCRDConditionTrue(crd, apiextv1.Terminating) {
+		return false
+	}
+	for _, version := range crd.Spec.Versions {
+		if version.Name == gvk.GPUOperatorClusterPolicy.Version && version.Served {
+			return apihelpers.IsCRDConditionTrue(crd, apiextv1.Established)
+		}
+	}
+	return false
+}
+
+func clusterPolicyMayBecomeUsable(crd *apiextv1.CustomResourceDefinition) bool {
+	if apihelpers.IsCRDConditionTrue(crd, apiextv1.Terminating) {
+		return false
+	}
+	for _, version := range crd.Spec.Versions {
+		if version.Name == gvk.GPUOperatorClusterPolicy.Version && version.Served {
+			return !apihelpers.IsCRDConditionTrue(crd, apiextv1.Established)
+		}
+	}
+	return false
 }
 
 func (tc *gpuOperatorPrerequisiteTestCtx) skipUnlessPlatformSingletons(t *testing.T) {

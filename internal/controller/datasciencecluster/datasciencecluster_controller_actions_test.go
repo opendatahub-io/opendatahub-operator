@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/funcr"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -466,7 +467,7 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 			established:  true,
 			wantStatus:   metav1.ConditionFalse,
 			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
-			wantMessage:  status.GPUOperatorPrerequisiteNotUsableMessage,
+			wantMessage:  status.GPUOperatorPrerequisiteNotServingMessage,
 			wantSeverity: common.ConditionSeverityInfo,
 		},
 		{
@@ -475,7 +476,7 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 			served:       true,
 			wantStatus:   metav1.ConditionFalse,
 			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
-			wantMessage:  status.GPUOperatorPrerequisiteNotUsableMessage,
+			wantMessage:  status.GPUOperatorPrerequisiteNotEstablishedMessage,
 			wantSeverity: common.ConditionSeverityInfo,
 		},
 		{
@@ -486,7 +487,7 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 			terminating:  true,
 			wantStatus:   metav1.ConditionFalse,
 			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
-			wantMessage:  status.GPUOperatorPrerequisiteNotUsableMessage,
+			wantMessage:  status.GPUOperatorPrerequisiteTerminatingMessage,
 			wantSeverity: common.ConditionSeverityInfo,
 		},
 		{
@@ -543,7 +544,7 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 			if tc.wantStatus == metav1.ConditionUnknown {
 				var requeue odherrors.RequeueAfterError
 				g.Expect(errors.As(err, &requeue)).To(BeTrue())
-				g.Expect(requeue.After).NotTo(BeZero())
+				g.Expect(requeue.After).To(Equal(30 * time.Second))
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 			}
