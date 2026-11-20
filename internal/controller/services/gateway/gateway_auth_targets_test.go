@@ -471,6 +471,13 @@ func TestAuthenticationCleanupPreservesLegacyDashboardRedirectsDuringOwnershipHa
 	gatewayRoute.SetAnnotations(map[string]string{"platform.opendatahub.io/instance.generation": "old"})
 	g.Expect(gatewayAuthResourceCollectable(rr, gatewayRoute)).To(BeTrue(), "the Gateway Route must use normal garbage collection")
 
+	otherNamespaceDeployment := unstructured.Unstructured{}
+	otherNamespaceDeployment.SetGroupVersionKind(gvk.Deployment)
+	otherNamespaceDeployment.SetName(legacyDashboardRedirectName)
+	otherNamespaceDeployment.SetNamespace("other-namespace")
+	otherNamespaceDeployment.SetAnnotations(map[string]string{"platform.opendatahub.io/instance.generation": "old"})
+	g.Expect(gatewayAuthResourceCollectable(rr, otherNamespaceDeployment)).To(BeTrue(), "same-named resources outside the applications namespace must use normal garbage collection")
+
 	for kind, name := range map[schema.GroupVersionKind]string{
 		gvk.NetworkPolicy: "dashboard-redirect",
 		gvk.Deployment:    "unrelated",

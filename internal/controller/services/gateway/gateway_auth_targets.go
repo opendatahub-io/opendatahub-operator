@@ -59,7 +59,7 @@ func gatewayAuthState(rr *odhtypes.ReconciliationRequest) map[string]authProxyRe
 func gatewayAuthResourceCollectable(rr *odhtypes.ReconciliationRequest, resource unstructured.Unstructured) (bool, error) {
 	// Keep the Gateway-owned redirect resources alive during the ownership handoff.
 	// The dashboard-operator adopts these names after it rolls out.
-	// TODO(RHOAIENG-87774): Remove this compatibility exception after the RHOAI 3.7 migration release.
+	// TODO(RHOAIENG-104135): Remove this compatibility exception after the RHOAI 3.7 migration release.
 	if isLegacyDashboardRedirectResource(resource) {
 		return false, nil
 	}
