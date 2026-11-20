@@ -135,7 +135,7 @@ components:
   modelcontroller:
     odh:
       repo: red-hat-data-services/odh-model-controller
-      ref: rhoai-2.25@212d2ffe4325a9da8f5f04736f26302d00227b13
+      ref: rhoai-2.25@3c433eacbac35b9fb35a085fb0ccaf3151d75f7b
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/odh-model-controller
@@ -462,10 +462,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/rhoai/odh-model-controller-rhel9"
-      digest: "sha256:a7e51a35d4fe5ce3cc4229865ffe3bf05e9c0041ed30c50b044b593be850c564"
+      digest: "sha256:43628f2971bf590797198ccfeb339880af457a19b59c462cec60c7b83f188e1f"
     rhoai:
       base: "quay.io/rhoai/odh-model-controller-rhel9"
-      digest: "sha256:a7e51a35d4fe5ce3cc4229865ffe3bf05e9c0041ed30c50b044b593be850c564"
+      digest: "sha256:43628f2971bf590797198ccfeb339880af457a19b59c462cec60c7b83f188e1f"
   RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE:
     source: "csv"
     odh:
