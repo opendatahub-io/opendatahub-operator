@@ -388,6 +388,67 @@ func TestKserveV3OnlySettingsSurviveV3ToV2ToV3(t *testing.T) {
 	}
 }
 
+// TestKserveStrictNetworkPolicyToggleSurvivesV3ToV2ToV3 covers the v3-only
+// enableLLMInferenceServiceStrictNetworkPolicy toggle, alone and next to the
+// audit profile in the same marker. An explicit false is carried too: it
+// projects onto the operand, unlike an unset value.
+func TestKserveStrictNetworkPolicyToggleSurvivesV3ToV2ToV3(t *testing.T) {
+	tests := []struct {
+		name         string
+		toggle       *bool
+		profile      componentApi.AuditProfile
+		expectMarker bool
+	}{
+		{name: "enabled", toggle: new(true), expectMarker: true},
+		{name: "explicitly disabled", toggle: new(false), expectMarker: true},
+		{name: "unset", toggle: nil, expectMarker: false},
+		{name: "enabled with metadata audit profile", toggle: new(true), profile: componentApi.AuditProfileMetadata, expectMarker: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			hub := &dscApi.DataScienceCluster{}
+			hub.Annotations = map[string]string{"example": "kept"}
+			hub.Spec.Components.Kserve.ManagementState = operatorv1.Managed
+			hub.Spec.Components.Kserve.EnableLLMInferenceServiceStrictNetworkPolicy = tt.toggle
+			hub.Spec.Components.Kserve.AuditLoggingProfile = tt.profile
+
+			v2 := &DataScienceCluster{}
+			g.Expect(v2.ConvertFrom(hub)).To(Succeed())
+			marker, marked := v2.Annotations[KserveV3StateAnnotation]
+			g.Expect(marked).To(Equal(tt.expectMarker))
+			if tt.toggle != nil {
+				var state kserveV3State
+				g.Expect(json.Unmarshal([]byte(marker), &state)).To(Succeed())
+				g.Expect(state.EnableLLMInferenceServiceStrictNetworkPolicy).To(HaveValue(Equal(*tt.toggle)))
+			}
+
+			back := &dscApi.DataScienceCluster{}
+			g.Expect(v2.ConvertTo(back)).To(Succeed())
+			if tt.toggle == nil {
+				g.Expect(back.Spec.Components.Kserve.EnableLLMInferenceServiceStrictNetworkPolicy).To(BeNil())
+			} else {
+				g.Expect(back.Spec.Components.Kserve.EnableLLMInferenceServiceStrictNetworkPolicy).To(HaveValue(Equal(*tt.toggle)))
+			}
+			g.Expect(back.Spec.Components.Kserve.AuditLoggingProfile).To(Equal(tt.profile))
+			g.Expect(back.Annotations).To(Equal(map[string]string{"example": "kept"}))
+		})
+	}
+}
+
+func TestConvertToRejectsNonBooleanKserveStrictNetworkPolicyMarker(t *testing.T) {
+	g := NewWithT(t)
+
+	v2 := &DataScienceCluster{}
+	v2.Annotations = map[string]string{KserveV3StateAnnotation: `{"enableLLMInferenceServiceStrictNetworkPolicy":"yes"}`}
+
+	dst := &dscApi.DataScienceCluster{}
+	g.Expect(v2.ConvertTo(dst)).ToNot(Succeed())
+	g.Expect(dst.Spec.Components.Kserve.EnableLLMInferenceServiceStrictNetworkPolicy).To(BeNil())
+}
+
 func TestConvertToRejectsInvalidKserveStateMarker(t *testing.T) {
 	g := NewWithT(t)
 
@@ -408,6 +469,7 @@ func TestConvertToRejectsEmptyKserveStateMarker(t *testing.T) {
 		{name: "empty object", marker: "{}"},
 		{name: "empty profile only", marker: `{"auditLoggingProfile":""}`},
 		{name: "null confidential containers only", marker: `{"confidentialContainers":null}`},
+		{name: "null network policy toggle only", marker: `{"enableLLMInferenceServiceStrictNetworkPolicy":null}`},
 	}
 
 	for _, tt := range tests {
@@ -421,6 +483,7 @@ func TestConvertToRejectsEmptyKserveStateMarker(t *testing.T) {
 			g.Expect(v2.ConvertTo(dst)).ToNot(Succeed())
 			g.Expect(dst.Spec.Components.Kserve.ConfidentialContainers).To(BeNil())
 			g.Expect(dst.Spec.Components.Kserve.AuditLoggingProfile).To(BeEmpty())
+			g.Expect(dst.Spec.Components.Kserve.EnableLLMInferenceServiceStrictNetworkPolicy).To(BeNil())
 		})
 	}
 }
