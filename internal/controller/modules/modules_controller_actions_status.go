@@ -47,7 +47,7 @@ func aggregatePlatformModulesStatus(ctx context.Context, rr *odhtype.Reconciliat
 		}
 		ready := conditions.FindStatusCondition(tracker, status.ConditionTypeReady)
 		if !enabled {
-			if platformOwnsTracker(platform, tracker) {
+			if PlatformOwnsTracker(platform, tracker) {
 				message := name + ": removal pending"
 				if ready != nil && ready.Message != "" {
 					message += " (" + ready.Message + ")"

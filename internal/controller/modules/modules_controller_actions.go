@@ -85,7 +85,7 @@ func cleanupDisabledPlatformModules(ctx context.Context, rr *odhtype.Reconciliat
 		if err != nil || pm == nil {
 			return err
 		}
-		if !platformOwnsTracker(platform, pm) || !pm.DeletionTimestamp.IsZero() {
+		if !PlatformOwnsTracker(platform, pm) || !pm.DeletionTimestamp.IsZero() {
 			return nil
 		}
 		// UID protects recreated trackers; resourceVersion rejects ownership
@@ -533,9 +533,9 @@ func writeSubmoduleComponentStatus(dscCtx *DSCContext, sm SubmoduleCondition, en
 	setDSCComponentField(dscCtx.DSC, sm.StatusFieldName, enabled, nil)
 }
 
-// platformOwnsTracker accepts both served versions of the Platform parent;
+// PlatformOwnsTracker accepts both served versions of the Platform parent;
 // the owner reference's API version is independent of the tracker's version.
-func platformOwnsTracker(platform *configApi.Platform, tracker *configApi.PlatformModule) bool {
+func PlatformOwnsTracker(platform *configApi.Platform, tracker *configApi.PlatformModule) bool {
 	owner := metav1.GetControllerOf(tracker)
 	return platform.UID != "" && owner != nil && owner.UID == platform.UID && owner.Name == platform.Name && owner.Kind == configApi.PlatformKind &&
 		(owner.APIVersion == configApi.GroupVersion.String() || owner.APIVersion == configv1alpha1.GroupVersion.String())
@@ -554,7 +554,7 @@ func finalizePlatform(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 	var errs *multierror.Error
 	for i := range trackers.Items {
 		tracker := &trackers.Items[i]
-		if !platformOwnsTracker(platform, tracker) {
+		if !PlatformOwnsTracker(platform, tracker) {
 			continue
 		}
 		if tracker.DeletionTimestamp.IsZero() {

@@ -241,14 +241,22 @@ func handlePlatformModuleDeletion(ctx context.Context, rr *odhtype.Reconciliatio
 	}
 
 	if crState != modules.CRStateAbsent {
-		log.Info("module CR still exists, keeping operator alive for finalizers", "module", name, "state", crState)
 		if crState == modules.CRStateDeleting {
 			return fmt.Errorf("module CR for %s still exists and is deleting; waiting for its finalizers before operator cleanup", name)
 		}
-		return fmt.Errorf("module CR for %s still exists; waiting for its deletion before operator cleanup", name)
+		// A re-enabled module can have a live CR before the old tracker finishes.
+		// Finish cleaning up the old inventory so its replacement can deploy.
+		platform := &configApi.Platform{}
+		if err := rr.Client.Get(ctx, client.ObjectKey{Name: configApi.PlatformInstanceName}, platform); err != nil && !k8serr.IsNotFound(err) {
+			return fmt.Errorf("checking whether module %s was re-enabled: %w", name, err)
+		}
+		if crState != modules.CRStateAlive || !modules.PlatformOwnsTracker(platform, pm) || !platform.DeletionTimestamp.IsZero() ||
+			!modules.DefaultRegistry().IsEnabled(name) || !handler.IsEnabled(&platform.Spec.Modules) {
+			return fmt.Errorf("module CR for %s still exists; waiting for its deletion before operator cleanup", name)
+		}
 	}
 
-	log.Info("module CR absent, deleting tracked operator resources", "module", name, "resourceCount", len(pm.Status.Resources))
+	log.Info("deleting tracked operator resources", "module", name, "resourceCount", len(pm.Status.Resources))
 
 	return deletePlatformModuleResources(ctx, rr.Client, pm, pm.Status.Resources)
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	frameworkmanager "github.com/opendatahub-io/odh-platform-utilities/framework/manager"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/spf13/viper"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -45,14 +46,26 @@ import (
 
 // Use the real module CR readers so lifecycle and readiness changes reach the
 // controller through its watches, rather than through mutable stub state.
-type controllerTestHandler struct{ stubModuleHandler }
+type controllerTestHandler struct {
+	stubModuleHandler
+
+	observedLiveModuleCR atomic.Bool
+}
+
+func (*controllerTestHandler) IsEnabled(config *configApi.PlatformModules) bool {
+	return config.Dashboard.ManagementState == operatorv1.Managed
+}
 
 func (h *controllerTestHandler) GetModuleStatus(ctx context.Context, cli client.Client) (*modules.ModuleStatus, error) {
 	return h.BaseHandler.GetModuleStatus(ctx, cli)
 }
 
 func (h *controllerTestHandler) GetModuleCRState(ctx context.Context, cli client.Client) (modules.CRState, error) {
-	return h.BaseHandler.GetModuleCRState(ctx, cli)
+	state, err := h.BaseHandler.GetModuleCRState(ctx, cli)
+	if err == nil {
+		h.observedLiveModuleCR.Store(state == modules.CRStateAlive)
+	}
+	return state, err
 }
 
 // EnvT provides the API server, CRDs, and client. Its manager helpers create one
@@ -107,11 +120,15 @@ func startPlatformModuleController(t *testing.T, et *envt.EnvT, manifestsRoot st
 
 // Seed API state left by a healthy previous release; no previous operator image
 // runs here. Nonzero transition times also make these conditions valid SSA data.
-func createPreviousModuleRelease(t *testing.T, cli client.Client, namespace string) (*configApi.PlatformModule, *corev1.ConfigMap, *testscheme.TestPlatformObject) {
+func createPreviousModuleRelease(
+	t *testing.T, cli client.Client, namespace string, platform *configApi.Platform,
+) (*configApi.PlatformModule, *corev1.ConfigMap, *testscheme.TestPlatformObject) {
 	t.Helper()
 	g := NewWithT(t)
 	ctx := t.Context()
-	pm := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{Name: "testmod"}}
+	pm := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{
+		Name: "testmod", OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(platform, gvk.Platform)},
+	}}
 	g.Expect(cli.Create(ctx, pm)).To(Succeed())
 	// old-config belongs to the previous inventory but is absent from the new
 	// manifests. The test finalizer lets us hold its deletion after Delete succeeds.
@@ -141,6 +158,12 @@ func createPreviousModuleRelease(t *testing.T, cli client.Client, namespace stri
 // ConfigMap/Lease fixtures stand in for operator resources; the test writes DAG
 // and module CR status because their controllers are not running here.
 func TestPlatformModuleControllerLifecycle(t *testing.T) {
+	t.Run("removal", func(t *testing.T) { testPlatformModuleControllerLifecycle(t, false) })
+	t.Run("reenable during removal", func(t *testing.T) { testPlatformModuleControllerLifecycle(t, true) })
+}
+
+func testPlatformModuleControllerLifecycle(t *testing.T, reenable bool) {
+	t.Helper()
 	// Phase 1: seed a healthy 1.0.0 installation, not a fresh install. The running
 	// operator targets 2.0.0, but Platform has not opened this module's runlevel yet.
 	g := NewWithT(t)
@@ -175,18 +198,20 @@ func TestPlatformModuleControllerLifecycle(t *testing.T) {
 	_, err = et.RegisterCRD(ctx, testscheme.TestPlatformObjectGVK,
 		"testplatformobjects", "testplatformobject", apiextensionsv1.ClusterScoped, envt.WithPermissiveSchema())
 	g.Expect(err).NotTo(HaveOccurred())
-	modules.Add(&controllerTestHandler{stubModuleHandler: stubModuleHandler{BaseHandler: modules.BaseHandler{Config: modules.ModuleConfig{
+	moduleHandler := &controllerTestHandler{stubModuleHandler: stubModuleHandler{BaseHandler: modules.BaseHandler{Config: modules.ModuleConfig{
 		Name: "testmod", CRName: "default", GVK: testscheme.TestPlatformObjectGVK, ManifestDir: "completion",
-	}}}})
+	}}}}
+	modules.Add(moduleHandler)
 	provision.DefaultRegistry().Add("testmod", provision.KindModule, dag.RL(20))
 	g.Expect(cli.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})).To(Succeed())
 	platform := platformWithDAG(0)
+	platform.Spec.Modules.Dashboard.ManagementState = operatorv1.Managed
 	platform.Status.DAG.Release = release
 	dagStatus := platform.Status.DAG
 	g.Expect(cli.Create(ctx, platform)).To(Succeed())
 	platform.Status.DAG = dagStatus
 	g.Expect(cli.Status().Update(ctx, platform)).To(Succeed())
-	pm, stale, module := createPreviousModuleRelease(t, cli, namespace)
+	pm, stale, module := createPreviousModuleRelease(t, cli, namespace, platform)
 	previous := pm.DeepCopy()
 
 	var blockStatus, statusFailed atomic.Bool
@@ -306,13 +331,30 @@ func TestPlatformModuleControllerLifecycle(t *testing.T) {
 		g.Expect(metav1.GetControllerOf(operator).UID).To(Equal(pm.UID))
 	}).WithTimeout(20*time.Second).Should(Succeed(), "owned-resource deletion must trigger reconciliation")
 
+	testPlatformModuleRemoval(t, cli, platform, pm, module, operator, moduleHandler, reenable)
+	g.Expect(cli.Get(ctx, leaseKey, lease)).To(Succeed())
+	g.Expect(lease.UID).To(Equal(leaseUID), "protected resources must survive tracker removal")
+}
+
+func testPlatformModuleRemoval(
+	t *testing.T, cli client.Client, platform *configApi.Platform, pm *configApi.PlatformModule,
+	module *testscheme.TestPlatformObject, operator *corev1.ConfigMap, moduleHandler *controllerTestHandler, reenable bool,
+) {
+	t.Helper()
+	g := NewWithT(t)
+	ctx := t.Context()
+	operatorKey := client.ObjectKeyFromObject(operator)
+	trackerKey, trackerUID := client.ObjectKeyFromObject(pm), pm.UID
+
 	// Phase 9: tracker deletion keeps the operator available for module CR finalizers.
+	platform.Spec.Modules.Dashboard.ManagementState = operatorv1.Removed
+	g.Expect(cli.Update(ctx, platform)).To(Succeed())
 	operator.Finalizers = []string{"test.io/operator"}
 	g.Expect(cli.Update(ctx, operator)).To(Succeed())
 	g.Expect(cli.Delete(ctx, pm)).To(Succeed())
 	g.Expect(cli.Delete(ctx, module)).To(Succeed())
 	g.Eventually(func(g Gomega) {
-		g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(pm), pm)).To(Succeed())
+		g.Expect(cli.Get(ctx, trackerKey, pm)).To(Succeed())
 		g.Expect(pm.Finalizers).NotTo(BeEmpty())
 		g.Expect(conditions.FindStatusCondition(pm, status.ConditionTypeReady)).NotTo(BeNil())
 		g.Expect(conditions.FindStatusCondition(pm, status.ConditionTypeReady).Message).To(ContainSubstring("module CR"))
@@ -327,17 +369,42 @@ func TestPlatformModuleControllerLifecycle(t *testing.T) {
 	g.Eventually(func(g Gomega) {
 		g.Expect(cli.Get(ctx, operatorKey, operator)).To(Succeed())
 		g.Expect(operator.DeletionTimestamp.IsZero()).To(BeFalse())
-		g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(pm), pm)).To(Succeed())
+		g.Expect(cli.Get(ctx, trackerKey, pm)).To(Succeed())
 		g.Expect(pm.Finalizers).NotTo(BeEmpty())
 		g.Expect(conditions.FindStatusCondition(pm, status.ConditionTypeReady).Message).
 			To(ContainSubstring("ConfigMap completion/operator-config (finalizers: test.io/operator)"))
 	}).WithTimeout(20*time.Second).Should(Succeed(), "tracker must wait for actual operator-resource deletion")
 
-	// Phase 11: releasing the last finalizer removes the tracker and preserves the Lease.
+	// Phase 11: re-enable before releasing the last operator finalizer.
+	if reenable {
+		platform.Spec.Modules.Dashboard.ManagementState = operatorv1.Managed
+		g.Expect(cli.Update(ctx, platform)).To(Succeed())
+		replacement := &testscheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: module.Name}}
+		g.Expect(cli.Create(ctx, replacement)).To(Succeed())
+		g.Expect(replacement.UID).NotTo(Equal(module.UID))
+		g.Eventually(moduleHandler.observedLiveModuleCR.Load).WithTimeout(20*time.Second).
+			Should(BeTrue(), "the finalizer must observe the replacement CR before cleanup resumes")
+		// The same tracker must still be terminating after Platform returns to Managed.
+		g.Expect(cli.Get(ctx, trackerKey, pm)).To(Succeed())
+		g.Expect(pm.UID).To(Equal(trackerUID))
+		g.Expect(pm.DeletionTimestamp.IsZero()).To(BeFalse(), "the original tracker must still be terminating after re-enable")
+		g.Expect(pm.Finalizers).NotTo(BeEmpty())
+	}
 	operator.Finalizers = nil
 	g.Expect(cli.Update(ctx, operator)).To(Succeed())
-	g.Eventually(func() bool { return k8serr.IsNotFound(cli.Get(ctx, client.ObjectKeyFromObject(pm), pm)) }).
-		WithTimeout(20 * time.Second).Should(BeTrue())
-	g.Expect(cli.Get(ctx, leaseKey, lease)).To(Succeed())
-	g.Expect(lease.UID).To(Equal(leaseUID), "protected resources must survive tracker removal")
+	g.Eventually(func() bool { return k8serr.IsNotFound(cli.Get(ctx, trackerKey, pm)) }).
+		WithTimeout(20*time.Second).Should(BeTrue(), "the old tracker must finish removal")
+	if reenable {
+		// Simulate the Platform controller creating a tracker with the same name and a new UID.
+		fresh := &configApi.PlatformModule{ObjectMeta: metav1.ObjectMeta{
+			Name: pm.Name, OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(platform, gvk.Platform)},
+		}}
+		g.Expect(cli.Create(ctx, fresh)).To(Succeed())
+		g.Expect(fresh.UID).NotTo(Equal(trackerUID))
+		g.Eventually(func(g Gomega) {
+			g.Expect(cli.Get(ctx, operatorKey, operator)).To(Succeed())
+			g.Expect(metav1.GetControllerOf(operator)).NotTo(BeNil())
+			g.Expect(metav1.GetControllerOf(operator).UID).To(Equal(fresh.UID))
+		}).WithTimeout(20 * time.Second).Should(Succeed())
+	}
 }
