@@ -24,6 +24,7 @@ var (
 	WithMode                = fwdeploy.WithMode
 	WithPartOfLabel         = fwdeploy.WithPartOfLabel
 	WithPartOfLabelDefault  = fwdeploy.WithPartOfLabelDefault
+	WithPreviousFieldOwners = fwdeploy.WithPreviousFieldOwners
 	WithAnnotationPrefix    = fwdeploy.WithAnnotationPrefix
 	WithManagedByAnnotation = fwdeploy.WithManagedByAnnotation
 	WithLabel               = fwdeploy.WithLabel
