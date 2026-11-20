@@ -743,35 +743,28 @@ imageOverrides:
     rhoai:
       base: "quay.io/rhoai/odh-ml-pipelines-scheduledworkflow-v2-rhel9"
       digest: "sha256:d47916c461ace47eeff69062a94ccd8ec6de9e0c344d47d2c6cd743d3b8254db"
-  # Freeze the combined catalog release until an explicit digest update is approved.
-  # registry.redhat.io/rhai/ai-hub-catalog-rhel9@sha256:0e396f316c5da71164d97e36a2d950be1ba15fc3659b177797a7f0b8b74e5b96
   RELATED_IMAGE_RHAI_AI_HUB_CATALOG_IMAGE:
     component: "aihub"
     source: "csv"
     rhoai:
       base: "registry.redhat.io/rhai/ai-hub-catalog-rhel9"
       digest: "sha256:0e396f316c5da71164d97e36a2d950be1ba15fc3659b177797a7f0b8b74e5b96"
-      pinned: true
   RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-model-metadata-collection"
       digest: "sha256:21d5e97f9bd1c96a5f9647db886272d8bfe6cf88d736ee6390e1aae7168ee183"
     rhoai:
-      # Same pinned release as RELATED_IMAGE_RHAI_AI_HUB_CATALOG_IMAGE.
-      base: "registry.redhat.io/rhai/ai-hub-catalog-rhel9"
-      digest: "sha256:0e396f316c5da71164d97e36a2d950be1ba15fc3659b177797a7f0b8b74e5b96"
-      pinned: true
+      base: "quay.io/rhoai/odh-model-metadata-collection-rhel9"
+      digest: "sha256:234c7b434949d2062b5de7898fd30846d82f8b3f028b6282beb634b0bda71e68"
   RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE:
     source: "csv"
     odh:
       base: "quay.io/opendatahub/odh-model-metadata-collection"
       digest: "sha256:21d5e97f9bd1c96a5f9647db886272d8bfe6cf88d736ee6390e1aae7168ee183"
     rhoai:
-      # Same pinned release as RELATED_IMAGE_RHAI_AI_HUB_CATALOG_IMAGE.
-      base: "registry.redhat.io/rhai/ai-hub-catalog-rhel9"
-      digest: "sha256:0e396f316c5da71164d97e36a2d950be1ba15fc3659b177797a7f0b8b74e5b96"
-      pinned: true
+      base: "quay.io/rhoai/odh-model-performance-data-rhel9"
+      digest: "sha256:94d1825293f7884fed04760858b1ee1e4a3cd0be095c440c8a1959d334774ee5"
   RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE:
     source: "csv"
     odh:
