@@ -63,8 +63,8 @@ func ResolveImageLabelsViaRegistry(ctx context.Context, imageRef string) (map[st
 	if err != nil {
 		return nil, fmt.Errorf("reading manifest for %s: %w", imageRef, err)
 	}
-	if manifest.Config.Size > maxConfigBytes {
-		return nil, fmt.Errorf("config for %s exceeds size limit: %d bytes", imageRef, manifest.Config.Size)
+	if manifest.Config.Size < 0 || manifest.Config.Size > maxConfigBytes {
+		return nil, fmt.Errorf("config for %s has invalid size: %d bytes (limit %d)", imageRef, manifest.Config.Size, maxConfigBytes)
 	}
 
 	cfgFile, err := img.ConfigFile()

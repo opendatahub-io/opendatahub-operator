@@ -465,9 +465,10 @@ func printSummary(results []Result, unresolved []Result) {
 	)
 
 	blue := "\033[34m"
-	sourceOrder := []string{"commit-sha", "params.env", "params.env+registry", "csv", "shaFrom", "csv-imported"}
+	sourceOrder := []string{"commit-sha", "literal-tag", "params.env", "params.env+registry", "csv", "shaFrom", "csv-imported"}
 	sourceColor := map[string]string{
 		"commit-sha":          green,
+		"literal-tag":         green,
 		"params.env":          yellow,
 		"params.env+registry": yellow,
 		"csv":                 cyan,
