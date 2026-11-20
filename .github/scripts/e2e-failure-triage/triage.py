@@ -29,7 +29,7 @@ GCSWEB_BASE = "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs"
 
 JIRA_BASE_URL = "https://redhat.atlassian.net"
 TEMPLATE_ISSUE_KEY = "RHOAIENG-79740"
-JIRA_PROJECT_KEY = "RHOAIENG"
+JIRA_PROJECT_KEY = "RHAI"
 AUTO_BLOCKER_LABEL = "odh-operator-auto-e2e-blocker"
 
 PROW_URL_PATTERNS = [

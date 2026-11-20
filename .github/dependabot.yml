@@ -1,6 +1,8 @@
 version: 2
 updates:
   - package-ecosystem: "gomod"
+    cooldown:
+      default-days: 7
     directories:
       - "**/*"
     schedule:
@@ -14,6 +16,8 @@ updates:
         group-by: "dependency-name"
 
   - package-ecosystem: "github-actions"
+    cooldown:
+      default-days: 14
     directory: "/"
     target-branch: "main"
     schedule:
@@ -28,5 +32,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/Dockerfiles"
+    cooldown:
+      default-days: 7
     schedule:
       interval: "weekly"

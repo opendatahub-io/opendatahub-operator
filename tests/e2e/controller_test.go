@@ -82,6 +82,7 @@ type TestContextConfig struct {
 	monitoringNamespace  string
 	deletionPolicy       DeletionPolicy
 	kueueOperatorChannel string
+	forceOLMVersion      string
 
 	backupAndRestoreDSCIandDSC       bool
 	cleanUpPreviousResources         bool
@@ -685,6 +686,9 @@ func TestMain(m *testing.M) {
 	pflag.Int("circuit-breaker-threshold", 3, "consecutive test failures before health-checking for infrastructure problems")
 	checkEnvVarBindingError(viper.BindEnv("circuit-breaker-threshold", viper.GetEnvPrefix()+"_CIRCUIT_BREAKER_THRESHOLD"))
 
+	pflag.String("force-olm-version", "default", "Override OLM install path for all operators: v0, v1, or default (per-component flag)")
+	checkEnvVarBindingError(viper.BindEnv("force-olm-version", viper.GetEnvPrefix()+"_FORCE_OLM_VERSION"))
+
 	// Component flags
 	componentNames := strings.Join(Components.Names(), ", ")
 	pflag.Bool("test-components", Components.enabled, "Enable testing of individual components specified by --test-component flag")
@@ -749,6 +753,11 @@ func TestMain(m *testing.M) {
 	testOpts.workbenchesNamespace = viper.GetString("workbenches-namespace")
 	testOpts.monitoringNamespace = viper.GetString("dsc-monitoring-namespace")
 	testOpts.kueueOperatorChannel = viper.GetString("kueue-operator-channel")
+	testOpts.forceOLMVersion = viper.GetString("force-olm-version")
+	if !slices.Contains([]string{"v0", "v1", "default"}, testOpts.forceOLMVersion) {
+		fmt.Printf("Unknown force-olm-version: %s. Valid values: v0, v1, default\n", testOpts.forceOLMVersion)
+		os.Exit(1)
+	}
 	var err error
 	if testOpts.deletionPolicy, err = ParseDeletionPolicy(viper.GetString("deletion-policy")); err != nil {
 		fmt.Print(err.Error())

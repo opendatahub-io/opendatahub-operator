@@ -31,7 +31,7 @@ log_step "Starting background loop to keep $TARGET_DEPLOY scaled to 0..."
 ) &
 LOOP_PID=$!
 
-trap 'kill $LOOP_PID 2>/dev/null || true' EXIT
+trap 'kill "$LOOP_PID" 2>/dev/null || true' EXIT
 
 STATE_DIR="${XDG_RUNTIME_DIR:-/tmp}/odh-mcp-scenarios-${UID}"
 mkdir -p "$STATE_DIR"

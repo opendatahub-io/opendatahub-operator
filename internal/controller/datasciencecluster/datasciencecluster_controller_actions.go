@@ -41,11 +41,11 @@ func isNilInterface(v any) bool {
 
 func checkPreConditions(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	if _, err := cluster.GetDSCI(ctx, rr.Client); err != nil {
-		return fmt.Errorf("failed to get a valid DataScienceCluster instance, %w", err)
+		return fmt.Errorf("failed to get a valid DSCInitialization instance, %w", err)
 	}
 
 	if _, err := cluster.GetDSC(ctx, rr.Client); err != nil {
-		return fmt.Errorf("failed to get a valid DSCInitialization instance, %w", err)
+		return fmt.Errorf("failed to get a valid DataScienceCluster instance, %w", err)
 	}
 
 	instance, ok := rr.Instance.(*dscApi.DataScienceCluster)

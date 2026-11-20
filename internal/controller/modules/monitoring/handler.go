@@ -23,6 +23,9 @@ const (
 	crName                       = serviceApi.MonitoringInstanceName
 	monitoringNamespaceHelmKey   = "monitoringNamespace"
 	otelOperatorNamespaceHelmKey = "otelOperatorNamespace"
+	metricsHelmKey               = "metrics"
+	serviceMonitorHelmKey        = "serviceMonitor"
+	enabledHelmKey               = "enabled"
 )
 
 type handler struct {
@@ -57,6 +60,10 @@ func NewHandler() *handler {
 // the chart needs monitoringNamespace at render time (Tempo RBAC). That value
 // is observability-only, so it is merged here rather than a generic
 // ModuleConfig field.
+//
+// When the RHOBS ServiceMonitor CRD is available, metrics.serviceMonitor.enabled
+// is set so the chart creates the operator-metrics ServiceMonitor that feeds
+// webhook admission-path alerts.
 func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) modules.OperatorManifests {
 	result := h.BaseHandler.GetOperatorManifests(platform)
 	if platform == nil || len(result.HelmCharts) == 0 {
@@ -76,6 +83,13 @@ func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) module
 	// Always pass this value, including empty, so a chart cannot bind cert-manager
 	// permissions to a stale or guessed namespace before OTel is installed.
 	vals[otelOperatorNamespaceHelmKey] = platform.OTelOperatorNamespace
+	if platform.MetricsServiceMonitorEnabled {
+		vals[metricsHelmKey] = map[string]any{
+			serviceMonitorHelmKey: map[string]any{
+				enabledHelmKey: true,
+			},
+		}
+	}
 	result.HelmCharts[0].Values = helm.Values(vals)
 	return result
 }

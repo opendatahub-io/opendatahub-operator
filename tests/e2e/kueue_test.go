@@ -14,13 +14,14 @@ import (
 	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -71,8 +72,7 @@ var (
 	}
 
 	// kueueOperatorDeploymentNN is the NamespacedName for the OCP Kueue operator deployment.
-	// We scale this down during condition injection to prevent it from resetting conditions.
-	// This is the operator that writes to the Kueue CR status - not the workload controller.
+	// Its service account writes to the Kueue CR status; the workload controller does not.
 	kueueOperatorDeploymentNN = types.NamespacedName{
 		Name:      "openshift-kueue-operator",
 		Namespace: kueueOcpOperatorNamespace,
@@ -84,10 +84,15 @@ func (tc *KueueTestCtx) ensureKueueOperatorsInstalled(t *testing.T) {
 	t.Helper()
 
 	t.Logf("Ensuring LWS Operator is installed (namespace=%s, name=%s).", leaderWorkerSetNamespace, leaderWorkerSetOpName)
-	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(
-		types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace},
-		leaderWorkerSetChannel,
-	)
+	tc.ensureOperatorsAreInstalled(t, []Operator{
+		{
+			nn:                  types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace},
+			globalOperatorGroup: false, // The OpenShift LWS CSV supports only the OwnNamespace install mode.
+			useOLMv1:            false, // The LWS bundle only supports OwnNamespace, which OLMv1 cannot target here.
+			useOLMv1ByDefault:   false,
+			channel:             leaderWorkerSetChannel,
+		},
+	})
 
 	t.Logf("Ensuring LeaderWorkerSetOperator CR exists (namespace=%s, name=cluster).", leaderWorkerSetNamespace)
 	tc.EventuallyResourceCreatedOrUpdated(
@@ -98,10 +103,15 @@ func (tc *KueueTestCtx) ensureKueueOperatorsInstalled(t *testing.T) {
 	)
 
 	t.Logf("Ensuring OCP Kueue Operator is installed (namespace=%s, name=%s).", kueueOcpOperatorNamespace, kueueOpName)
-	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(
-		types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace},
-		testOpts.kueueOperatorChannel,
-	)
+	tc.ensureOperatorsAreInstalled(t, []Operator{
+		{
+			nn:                  types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace},
+			globalOperatorGroup: true, // Kueue 1.5 supports only AllNamespaces OperatorGroup
+			useOLMv1:            true,
+			useOLMv1ByDefault:   false,
+			channel:             testOpts.kueueOperatorChannel,
+		},
+	})
 }
 
 func kueueTestSuite(t *testing.T) {
@@ -175,7 +185,11 @@ func (tc *KueueTestCtx) EnsureKueueReady(t *testing.T) {
 	tc.ensureKueueOperatorsInstalled(t)
 
 	t.Logf("Ensuring Kueue operator is running (namespace=%s).", kueueOcpOperatorNamespace)
-	tc.scaleKueueOperator(t, 1)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, kueueOperatorDeploymentNN),
+		WithCondition(jq.Match(`.status.readyReplicas > 0`)),
+		WithCustomErrorMsg("Kueue operator Deployment %s should have at least one ready replica", kueueOperatorDeploymentNN.Name),
+	)
 
 	t.Logf("Setting Kueue component to Unmanaged and waiting for KueueReady=True.")
 	stateUnmanaged := operatorv1.Unmanaged
@@ -656,9 +670,8 @@ integrations:
 // Validates the full condition propagation chain:
 // External Operator CR > Kueue Component CR > DataScienceCluster CR
 //
-// Keep the real Kueue operator installed but scale its deployment to 0 during
-// condition injection. This way olm.OperatorExists() still passes (OLM OperatorCondition or ClusterExtension exists),
-// but the operator can't reset conditions we inject.
+// Keep the real Kueue operator installed and deny only its status writes during
+// condition injection, so its existence remains observable under OLMv0 and OLMv1.
 func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T) {
 	t.Helper()
 
@@ -705,17 +718,46 @@ func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T)
 
 	operatorDeployment := &appsv1.Deployment{}
 	require.NoError(t, tc.Client().Get(tc.Context(), kueueOperatorDeploymentNN, operatorDeployment))
-	originalReplicas := ptr.Deref(operatorDeployment.Spec.Replicas, 1)
-	// Register restoration before scaling: the wait for zero replicas can fail
-	// after the CSV has already been updated.
-	t.Cleanup(func() {
-		t.Logf("Restoring Kueue operator deployment (namespace=%s, name=%s).", kueueOcpOperatorNamespace, kueueOperatorDeploymentNN.Name)
-		tc.scaleKueueOperator(t, originalReplicas)
-	})
-	t.Logf("Scaling down Kueue operator deployment to prevent condition reset (namespace=%s, name=%s).", kueueOcpOperatorNamespace, kueueOperatorDeploymentNN.Name)
-	tc.scaleKueueOperator(t, 0)
+	writer := ServiceAccountRef{
+		Namespace: kueueOperatorDeploymentNN.Namespace,
+		Name:      operatorDeployment.Spec.Template.Spec.ServiceAccountName,
+	}
+	require.NotEmpty(t, writer.Name, "could not determine Kueue operator ServiceAccount")
+	t.Logf("Freezing Kueue status writes from service account %s/%s.", writer.Namespace, writer.Name)
+	tc.FreezeStatusWrites(
+		t,
+		gvk.KueueConfigV1,
+		"kueues",
+		writer,
+		WithFrozenResourceName(kueue.KueueCRName),
+		WithFreezeName("e2e-freeze-kueue-status"),
+	)
 
-	// Run each test case (inject condition, verify, clear condition, verify recovery)
+	operatorConfig := rest.CopyConfig(tc.RestConfig())
+	operatorConfig.Impersonate = rest.ImpersonationConfig{UserName: writer.Username()}
+	asOperator, err := client.New(operatorConfig, client.Options{Scheme: tc.Client().Scheme()})
+	require.NoError(t, err, "failed to create Kueue operator impersonation client")
+	tc.g.Eventually(func() bool {
+		probe := &unstructured.Unstructured{}
+		probe.SetGroupVersionKind(gvk.KueueConfigV1)
+		if err := asOperator.Get(tc.Context(), types.NamespacedName{Name: kueue.KueueCRName}, probe); err != nil {
+			tc.Logf("Kueue status freeze probe could not read the resource yet: %v", err)
+			return false
+		}
+		err := asOperator.Status().Update(tc.Context(), probe)
+		if !k8serr.IsInvalid(err) || !strings.Contains(err.Error(), statusFreezeAdmissionMessage) {
+			if err != nil {
+				tc.Logf("Kueue status freeze probe did not receive the expected admission policy denial: %v", err)
+			}
+			return false
+		}
+		return true
+	}).WithTimeout(tc.TestTimeouts.defaultEventuallyTimeout).
+		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
+		Should(BeTrue(), "Kueue status freeze policy did not deny an impersonated status update")
+
+	// Run each test case (inject condition, verify, clear condition, verify recovery).
+	// The freeze cleanup is registered above, so subtest cleanups run before the policy is lifted.
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			tc.runDegradedConditionTestCase(t, testCase)
@@ -745,21 +787,6 @@ func (tc *KueueTestCtx) ensureKueueBaseline(t *testing.T) *unstructured.Unstruct
 	)
 
 	return kueueCR
-}
-
-// scaleKueueOperator scales the Kueue operator deployment by patching the CSV.
-// blocks until the deployment reaches the target replica count.
-func (tc *KueueTestCtx) scaleKueueOperator(t *testing.T, replicas int32) {
-	t.Helper()
-
-	t.Logf("Scaling Kueue operator via CSV in namespace %s to %d replicas.", kueueOcpOperatorNamespace, replicas)
-	tc.ScaleCSVDeploymentReplicas(
-		kueueOcpOperatorNamespace,
-		"kueue",
-		kueueOperatorDeploymentNN.Name,
-		replicas,
-	)
-	t.Logf("Kueue operator deployment scaled to %d replicas in namespace %s.", replicas, kueueOcpOperatorNamespace)
 }
 
 // runDegradedConditionTestCase runs a single degraded condition test case.

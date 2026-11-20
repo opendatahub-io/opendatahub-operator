@@ -7,7 +7,7 @@
 # api/components/v1alpha1/*_types.go and the Components TestGroup in
 # tests/e2e/controller_test.go.
 #
-# jira_component: The "Component" field value in the RHOAIENG Jira project.
+# jira_component: The "Components" field value in the RHAI Jira project.
 #                 Must match exactly.
 
 components:

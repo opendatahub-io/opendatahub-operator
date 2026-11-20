@@ -275,6 +275,12 @@ type PlatformContext struct {
 	// Collector admission webhook service. Empty until the operator is installed.
 	OTelOperatorNamespace string
 
+	// MetricsServiceMonitorEnabled is true when the RHOBS ServiceMonitor CRD
+	// is available. The monitoring handler passes this to the odh-observability
+	// chart as metrics.serviceMonitor.enabled so operator webhook admission
+	// metrics are scraped in the default deployment.
+	MetricsServiceMonitorEnabled bool
+
 	// Release identifies the platform (ODH/RHOAI) and version.
 	Release common.Release
 

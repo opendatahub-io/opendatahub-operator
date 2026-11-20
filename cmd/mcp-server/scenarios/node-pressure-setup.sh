@@ -46,7 +46,7 @@ log_step "Starting background patcher to maintain simulated pressure..."
 ) &
 PATCHER_PID=$!
 
-trap 'kill $PATCHER_PID 2>/dev/null || true' EXIT
+trap 'kill "$PATCHER_PID" 2>/dev/null || true' EXIT
 
 # Save state for teardown
 STATE_DIR="${XDG_RUNTIME_DIR:-/tmp}/odh-mcp-scenarios-${UID}"

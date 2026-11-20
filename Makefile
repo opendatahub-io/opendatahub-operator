@@ -30,7 +30,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	ifeq ($(VERSION), )
-		VERSION = 3.6.0
+		VERSION = 3.7.0-ea.1
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
 	OPERATOR_NAMESPACE ?= opendatahub-operator-system
@@ -62,7 +62,7 @@ else
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	# NOTE: see also the git branches for RHOAI in manifests-config.yaml. This variable does NOT affect those
 	ifeq ($(VERSION), )
-		VERSION = 3.6.0
+		VERSION = 3.7.0-ea.1
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to redhat-ods-operator)
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
@@ -153,7 +153,7 @@ ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -
 ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 CRD_REF_DOCS_VERSION = 0.2.0
 # Add to tool versions section
-GINKGO_VERSION ?= v2.28.1
+GINKGO_VERSION ?= v2.34.0
 
 
 GO_VERSION ?= $(shell sed -n 's/^go //p' go.mod)
@@ -333,7 +333,7 @@ lint: golangci-lint lint-logs ## Run golangci-lint and structured-log analyzer t
 .PHONY: lint-logs
 lint-logs: ## Run structured log convention analyzer tests and the analyzer itself.
 	go test ./cmd/loglint/...
-	go run ./cmd/loglint ./...
+	go run ./cmd/loglint $$(go list ./... | grep -v /prefetched-manifests/)
 
 .PHONY: lint-fix
 lint-fix: golangci-lint ## Run golangci-lint against code.
@@ -366,10 +366,12 @@ update-rhai-images: yq ## Locally update downloaded RHAI params.env files (not u
 		echo "ERROR: RHAI_BRANCH is not set. Use --branch flag or set RHAI_BRANCH env var."; exit 1; \
 	fi
 	MANIFESTS_DIR=./opt/manifests RHAI_BRANCH=$(RHAI_BRANCH) YQ=$(YQ) SED_COMMAND=$(SED_COMMAND) ./hack/update-rhai-images.sh
+
 .PHONY: validate-related-images
-# RHOAI Build Config branches use major.minor, while VERSION includes patch and
+# RHOAI Build Config branches use rhoai-major.minor[-ea.N], while VERSION includes patch and
 # prerelease components.
-RHOAI_BUILD_CONFIG_BRANCH := rhoai-$(word 1,$(subst ., ,$(VERSION))).$(word 2,$(subst ., ,$(VERSION)))
+RHOAI_PRERELEASE := $(word 2,$(subst -, ,$(VERSION)))
+RHOAI_BUILD_CONFIG_BRANCH := rhoai-$(word 1,$(subst ., ,$(VERSION))).$(word 2,$(subst ., ,$(VERSION)))$(if $(RHOAI_PRERELEASE),-$(RHOAI_PRERELEASE))
 export RHOAI_BUILD_CONFIG_BRANCH
 validate-related-images: yq ## Validate RELATED_IMAGE_* names against build configs
 	@YQ="$(YQ)" ./.github/scripts/validate-related-images.sh
@@ -708,7 +710,7 @@ $(ENVTEST): $(LOCALBIN)
 test: unit-test e2e-test
 
 .PHONY: unit-test
-unit-test: unit-test-operator unit-test-clusterhealth unit-test-manifest-tools unit-test-scoperules unit-test-e2e-scope-completeness
+unit-test: unit-test-operator unit-test-clusterhealth unit-test-manifest-tools unit-test-scoperules unit-test-e2e-scope-completeness unit-test-e2e-installation
 
 .PHONY: unit-test-operator
 unit-test-operator: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
@@ -749,6 +751,10 @@ unit-test-scoperules:
 unit-test-e2e-scope-completeness: ## Registry-completeness checks for tests/e2e/scripts/e2e-scope-rules.yaml. No cluster needed, so these run outside ginkgo's TEST_SRC and outside make e2e-test's ^TestOdhOperator filter.
 	go test ./cmd
 	go test ./tests/e2e/ -run "^TestScopeRules"
+
+.PHONY: unit-test-e2e-installation
+unit-test-e2e-installation: ## Run cluster-free tests for OLM operator installation helpers.
+	go test ./tests/e2e/ -run '^(TestEnsureOperatorHealthyViaSubscriptionCorrectsOperatorGroupScope|TestEnsureOperatorGroupExistsPreservesExistingScopeUnlessCorrectionIsRequested|TestShouldUseOLMv1|TestPlanOperatorInstall)$$'
 
 # Pattern rule to generate .rules.yaml from PrometheusRule templates
 # This finds the corresponding *-prometheusrules.tmpl.yaml in the same directory

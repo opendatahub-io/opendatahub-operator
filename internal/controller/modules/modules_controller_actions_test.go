@@ -11,6 +11,7 @@ import (
 	semver "github.com/blang/semver/v4"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	ofversion "github.com/operator-framework/api/pkg/lib/version"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -25,12 +26,14 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
+	testscheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 )
 
 func withTestRegistry(t *testing.T) {
@@ -693,6 +696,78 @@ func TestBuildPlatformContext_OTelNamespaceFromActiveWebhook(t *testing.T) {
 	}
 	if ctx.OTelOperatorNamespace != "openshift-operators" {
 		t.Fatalf("expected active webhook namespace openshift-operators, got %q", ctx.OTelOperatorNamespace)
+	}
+	if ctx.MetricsServiceMonitorEnabled {
+		t.Fatal("expected MetricsServiceMonitorEnabled false when RHOBS ServiceMonitor CRD is absent")
+	}
+}
+
+func rhobsServiceMonitorCRD() *apiextensionsv1.CustomResourceDefinition {
+	return &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: gvk.ServiceMonitorCRDName},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: gvk.ServiceMonitor.Group,
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Plural:   "servicemonitors",
+				Singular: "servicemonitor",
+				Kind:     gvk.ServiceMonitor.Kind,
+			},
+			Scope: apiextensionsv1.NamespaceScoped,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    gvk.ServiceMonitor.Version,
+				Served:  true,
+				Storage: true,
+			}},
+		},
+	}
+}
+
+func clientWithRHOBSServiceMonitorCRD(t *testing.T, objs ...client.Object) client.Client {
+	t.Helper()
+
+	s, err := testscheme.New()
+	if err != nil {
+		t.Fatalf("create scheme: %v", err)
+	}
+	s.AddKnownTypeWithName(gvk.ServiceMonitor, &unstructured.Unstructured{})
+
+	objs = append(objs, rhobsServiceMonitorCRD())
+	cli, err := fakeclient.New(fakeclient.WithScheme(s), fakeclient.WithObjects(objs...))
+	if err != nil {
+		t.Fatalf("create fake client: %v", err)
+	}
+	return cli
+}
+
+func TestBuildPlatformContext_EnablesMetricsServiceMonitorWhenCRDPresent(t *testing.T) {
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
+	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
+	platform := &configApi.Platform{}
+	platform.Spec.Modules.Monitoring.ManagementState = operatorv1.Managed
+
+	cli := clientWithRHOBSServiceMonitorCRD(t, dsci)
+	ctx, err := buildPlatformContext(context.Background(), &types.ReconciliationRequest{Client: cli, Instance: platform})
+	if err != nil {
+		t.Fatalf("buildPlatformContext: %v", err)
+	}
+	if !ctx.MetricsServiceMonitorEnabled {
+		t.Fatal("expected MetricsServiceMonitorEnabled true when RHOBS ServiceMonitor CRD is present")
+	}
+}
+
+func TestBuildPlatformContext_SkipsMetricsServiceMonitorWhenMonitoringNotManaged(t *testing.T) {
+	dsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: testDSCIName}}
+	dsci.Spec.ApplicationsNamespace = testApplicationsNamespace
+	platform := &configApi.Platform{}
+	platform.Spec.Modules.Monitoring.ManagementState = operatorv1.Removed
+
+	cli := clientWithRHOBSServiceMonitorCRD(t, dsci)
+	ctx, err := buildPlatformContext(context.Background(), &types.ReconciliationRequest{Client: cli, Instance: platform})
+	if err != nil {
+		t.Fatalf("buildPlatformContext: %v", err)
+	}
+	if ctx.MetricsServiceMonitorEnabled {
+		t.Fatal("expected MetricsServiceMonitorEnabled false when monitoring is not Managed")
 	}
 }
 
