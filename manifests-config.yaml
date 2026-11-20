@@ -63,7 +63,7 @@ components:
   kserve:
     odh:
       repo: red-hat-data-services/kserve
-      ref: rhoai-2.25@a554cec9f0a8e917b961f0487de3f44e555ad9fe
+      ref: rhoai-2.25@7ed06095f995d58485accc9d8a92a7aae1b95621
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/kserve
@@ -135,7 +135,7 @@ components:
   modelcontroller:
     odh:
       repo: red-hat-data-services/odh-model-controller
-      ref: rhoai-2.25@212d2ffe4325a9da8f5f04736f26302d00227b13
+      ref: rhoai-2.25@3c433eacbac35b9fb35a085fb0ccaf3151d75f7b
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/odh-model-controller
@@ -168,8 +168,8 @@ imageOverrides:
     paramsEnvKey: kserve-controller
     source: "csv"
     tagTemplate: "{SHA}"
-    odh: {base: "quay.io/rhoai/odh-kserve-controller-rhel9", digest: "sha256:a1969347ce0c1075a233fc29f0db9e991c6b7a158e6d15ec780046dbd1990b92"}
-    rhoai: {base: "quay.io/rhoai/odh-kserve-controller-rhel9", digest: "sha256:a1969347ce0c1075a233fc29f0db9e991c6b7a158e6d15ec780046dbd1990b92"}
+    odh: {base: "quay.io/rhoai/odh-kserve-controller-rhel9", digest: "sha256:8c7a35cebc3d4f55ba02a4006c39a853661a5e8aa5d4a28a6458c26c40a93653"}
+    rhoai: {base: "quay.io/rhoai/odh-kserve-controller-rhel9", digest: "sha256:8c7a35cebc3d4f55ba02a4006c39a853661a5e8aa5d4a28a6458c26c40a93653"}
   RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE:
     component: ray
     paramsEnvKey: odh-kuberay-operator-controller-image
@@ -370,22 +370,6 @@ imageOverrides:
     rhoai:
       base: "quay.io/rhoai/odh-llama-stack-core-rhel9"
       digest: "sha256:c72da1b93cafc31c44ce3fdbfa4a7cb4155f4a0fa24ebb09713f8fc45ef83833"
-  RELATED_IMAGE_ODH_LLM_D_INFERENCE_SCHEDULER_IMAGE:
-    source: "csv"
-    odh:
-      base: "quay.io/rhoai/odh-llm-d-inference-scheduler-rhel9"
-      digest: "sha256:7163053fd1eac1e4d2f18e361cb3c2bfd81a77c5b79830d42445c697c3210dcf"
-    rhoai:
-      base: "quay.io/rhoai/odh-llm-d-inference-scheduler-rhel9"
-      digest: "sha256:7163053fd1eac1e4d2f18e361cb3c2bfd81a77c5b79830d42445c697c3210dcf"
-  RELATED_IMAGE_ODH_LLM_D_ROUTING_SIDECAR_IMAGE:
-    source: "csv"
-    odh:
-      base: "quay.io/rhoai/odh-llm-d-routing-sidecar-rhel9"
-      digest: "sha256:e10a63b503015500622d182bc66bd4a75191c8ba751e2f15340ea6ac6839320f"
-    rhoai:
-      base: "quay.io/rhoai/odh-llm-d-routing-sidecar-rhel9"
-      digest: "sha256:e10a63b503015500622d182bc66bd4a75191c8ba751e2f15340ea6ac6839320f"
   RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE:
     source: "csv"
     odh:
@@ -478,10 +462,10 @@ imageOverrides:
     source: "csv"
     odh:
       base: "quay.io/rhoai/odh-model-controller-rhel9"
-      digest: "sha256:a7e51a35d4fe5ce3cc4229865ffe3bf05e9c0041ed30c50b044b593be850c564"
+      digest: "sha256:43628f2971bf590797198ccfeb339880af457a19b59c462cec60c7b83f188e1f"
     rhoai:
       base: "quay.io/rhoai/odh-model-controller-rhel9"
-      digest: "sha256:a7e51a35d4fe5ce3cc4229865ffe3bf05e9c0041ed30c50b044b593be850c564"
+      digest: "sha256:43628f2971bf590797198ccfeb339880af457a19b59c462cec60c7b83f188e1f"
   RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE:
     source: "csv"
     odh:
@@ -802,14 +786,6 @@ imageOverrides:
     rhoai:
       base: "registry.redhat.io/openshift4/ose-oauth-proxy-rhel9"
       digest: "sha256:c2fb73b37910aa6950f756f9db964db8c56cd0d1262aeadb774ca4a67486984f"
-  RELATED_IMAGE_RHAIIS_VLLM_CUDA_IMAGE:
-    source: "csv"
-    odh:
-      base: "registry.redhat.io/rhaiis/vllm-cuda-rhel9"
-      digest: "sha256:512437c1091ccc9c0108cb86d784ef0e128d5e30a262d64400a7b7a2c47a47db"
-    rhoai:
-      base: "registry.redhat.io/rhaiis/vllm-cuda-rhel9"
-      digest: "sha256:512437c1091ccc9c0108cb86d784ef0e128d5e30a262d64400a7b7a2c47a47db"
   RELATED_IMAGE_RHAIIS_VLLM_SPYRE_IMAGE:
     source: "csv"
     odh:
