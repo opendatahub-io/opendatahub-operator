@@ -34,6 +34,13 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
+// legacyDSCFieldOwner is the SSA field owner used by the 3.5.x DSC
+// controller to apply module operand resources. The platform modules
+// controller must migrate ownership from it on upgrade: server-side apply
+// otherwise retains the previous owner's associative-list entries forever,
+// permanently rejecting applies whose merge keys changed (RHAI-21655).
+const legacyDSCFieldOwner = "datasciencecluster"
+
 // commonActions returns the shared action chain for both DSC and Platform modes.
 //
 // Ordering: provisionModules and render run before the gate check so
@@ -56,6 +63,7 @@ func commonActions() []actions.Fn {
 			deploy.WithCache(),
 			deploy.WithApplyOrder(),
 			deploy.WithContinueOnError(),
+			deploy.WithPreviousFieldOwners(legacyDSCFieldOwner),
 		),
 		updateModuleStatus,
 		gc.NewAction(
