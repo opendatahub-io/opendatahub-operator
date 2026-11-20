@@ -51,7 +51,7 @@ import (
 
 // NewComponentReconciler creates a ComponentReconciler for the Dashboard API.
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ReconcilerFor(mgr, &componentApi.Kserve{}).
+	builder := reconciler.ReconcilerFor(mgr, &componentApi.Kserve{}).
 		// operands - owned
 		Owns(&corev1.Secret{}).
 		Owns(&corev1.Service{}).
@@ -78,10 +78,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		OwnsGVK(gvk.ServiceMeshMember, reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMeshMember))).
 		OwnsGVK(gvk.AuthorizationPolicy, reconciler.Dynamic(reconciler.CrdExists(gvk.AuthorizationPolicy))).
 		OwnsGVK(gvk.AuthorizationPolicyv1beta1, reconciler.Dynamic(reconciler.CrdExists(gvk.AuthorizationPolicyv1beta1))).
-		OwnsGVK(gvk.InferencePoolV1alpha2, reconciler.Dynamic(reconciler.CrdExists(gvk.InferencePoolV1alpha2))).
-		OwnsGVK(gvk.InferenceModelV1alpha2, reconciler.Dynamic(reconciler.CrdExists(gvk.InferenceModelV1alpha2))).
-		OwnsGVK(gvk.LLMInferenceServiceConfigV1Alpha1, reconciler.Dynamic(reconciler.CrdExists(gvk.LLMInferenceServiceConfigV1Alpha1))).
-		OwnsGVK(gvk.LLMInferenceServiceV1Alpha1, reconciler.Dynamic(reconciler.CrdExists(gvk.LLMInferenceServiceV1Alpha1))).
 
 		// operands - watched
 		//
@@ -128,8 +124,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			gvk.ClusterServiceVersion,
 			reconciler.WithEventHandler(handlers.ToNamed(componentApi.KserveInstanceName)),
 			reconciler.WithPredicates(isAuthorinoCSV),
-		).
-
+		)
+	_, err := builder.
 		// actions
 		WithAction(checkPreConditions).
 		WithAction(initialize).
