@@ -72,7 +72,7 @@ func TestIsEnabled_NilModules(t *testing.T) {
 	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
 }
 
-func TestGetExtraEnv_CatalogImageSources(t *testing.T) {
+func TestGetExtraEnv_CatalogReleaseImagesAndSources(t *testing.T) {
 	const imageEnv = "RELATED_IMAGE_RHAI_AI_HUB_CATALOG_IMAGE"
 	digest := "sha256:" + strings.Repeat("a", 64)
 	tests := []struct {
@@ -82,8 +82,6 @@ func TestGetExtraEnv_CatalogImageSources(t *testing.T) {
 	}{
 		{name: "missing CSV image", unset: true},
 		{name: "empty CSV image"},
-		{name: "floating tag", image: "registry.example.com/catalog:candidate"},
-		{name: "tag and digest", image: "registry.example.com/catalog:stable@" + digest},
 		{name: "digest only", image: "registry.example.com/catalog@" + digest},
 	}
 	for _, tt := range tests {
@@ -102,8 +100,10 @@ func TestGetExtraEnv_CatalogImageSources(t *testing.T) {
 				return
 			}
 			g.Expect(env).Should(Equal(map[string]string{
-				"CATALOG_DATA_IMAGE_STREAM_SOURCE":   tt.image,
-				"BENCHMARK_DATA_IMAGE_STREAM_SOURCE": tt.image,
+				"RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE": tt.image,
+				"RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE":    tt.image,
+				"CATALOG_DATA_IMAGE_STREAM_SOURCE":                  tt.image,
+				"BENCHMARK_DATA_IMAGE_STREAM_SOURCE":                tt.image,
 			}))
 		})
 	}
@@ -121,13 +121,15 @@ func TestGetExtraEnv_PreservesBaseConfiguration(t *testing.T) {
 	t.Setenv("RELATED_IMAGE_RHAI_AI_HUB_CATALOG_IMAGE", "")
 	g.Expect(h.GetExtraEnv()).Should(Equal(h.Config.ExtraEnv))
 
-	const image = "registry.example.com/unified:stable"
+	const image = "registry.redhat.io/rhai/ai-hub-catalog-rhel9@sha256:0e396f316c5da71164d97e36a2d950be1ba15fc3659b177797a7f0b8b74e5b96"
 	t.Setenv("RELATED_IMAGE_RHAI_AI_HUB_CATALOG_IMAGE", image)
 	env := h.GetExtraEnv()
 	g.Expect(env).Should(Equal(map[string]string{
-		"EXISTING_SETTING":                   "keep",
-		"CATALOG_DATA_IMAGE_STREAM_SOURCE":   image,
-		"BENCHMARK_DATA_IMAGE_STREAM_SOURCE": image,
+		"EXISTING_SETTING": "keep",
+		"RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE": image,
+		"RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE":    image,
+		"CATALOG_DATA_IMAGE_STREAM_SOURCE":                  image,
+		"BENCHMARK_DATA_IMAGE_STREAM_SOURCE":                image,
 	}))
 	g.Expect(h.Config.ExtraEnv).Should(Equal(map[string]string{
 		"EXISTING_SETTING":                   "keep",

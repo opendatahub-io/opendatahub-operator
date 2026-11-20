@@ -9,6 +9,7 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -212,7 +213,7 @@ func aihubTestSuite(t *testing.T) {
 				WithCustomErrorMsg("non-default AI Hub instances namespace %s should be auto-created", aihubTestNamespace),
 			)
 		}},
-		{"Validate catalog image sources from CSV", func(t *testing.T) {
+		{"Validate catalog release images and sources from CSV", func(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Tier1)
 			validateAIHubCatalogImageSources(t, tc)
@@ -304,15 +305,35 @@ func validateAIHubCatalogImageSources(t *testing.T, tc *TestContext) {
 		t.Skip("The platform bundle does not supply RELATED_IMAGE_RHAI_AI_HUB_CATALOG_IMAGE")
 	}
 
+	require.Regexp(t, `^.+/[^/:@]+@sha256:[a-f0-9]{64}$`, image, "the combined catalog image must use a digest-only reference")
+
 	for _, name := range []string{aihubModuleOperatorDeployment, "catalog-controller-manager"} {
 		tc.EnsureResourceExists(
 			WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace, Name: name}),
 			WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 			WithCondition(And(
+				jq.Match(`[.spec.template.spec.containers[] | select(.name == "manager") | .env[]? | `+
+					`select(.name == "RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE") | .value] == [%q]`, image),
+				jq.Match(`[.spec.template.spec.containers[] | select(.name == "manager") | .env[]? | `+
+					`select(.name == "RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE") | .value] == [%q]`, image),
 				jq.Match(`[.spec.template.spec.containers[] | select(.name == "manager") | .env[]? | select(.name == "CATALOG_DATA_IMAGE_STREAM_SOURCE") | .value] == [%q]`, image),
 				jq.Match(`[.spec.template.spec.containers[] | select(.name == "manager") | .env[]? | select(.name == "BENCHMARK_DATA_IMAGE_STREAM_SOURCE") | .value] == [%q]`, image),
 			)),
-			WithCustomErrorMsg("Deployment %s should receive both catalog import sources from the CSV without duplicate variables", name),
+			WithCustomErrorMsg("Deployment %s should receive both catalog release images and sources from the CSV without duplicate variables", name),
 		)
 	}
+
+	catalogNN := types.NamespacedName{Namespace: aihubTestNamespace, Name: "catalog"}
+	tc.EnsureResourceExists(
+		WithMinimalObject(schema.GroupVersionKind{Group: "aihub.opendatahub.io", Version: "v1alpha1", Kind: "Catalog"}, catalogNN),
+		WithCondition(And(
+			jq.Match(`(.spec.catalogDataImageStream // "") == ""`),
+			jq.Match(`(.spec.benchmarkDataImageStream // "") == ""`),
+		)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: aihubTestNamespace, Name: "model-catalog"}),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCondition(jq.Match(`[.spec.template.spec.initContainers[] | select(.name == "catalog-data-init" or .name == "benchmark-data-init") | .image] == [%q, %q]`, image, image)),
+	)
 }

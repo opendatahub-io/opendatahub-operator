@@ -57,7 +57,8 @@ func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 	return modules != nil && modules.AIHub.ManagementState == operatorv1.Managed
 }
 
-// GetExtraEnv maps the unified catalog image from the CSV to both import sources.
+// GetExtraEnv maps the unified catalog image from the CSV to both release images
+// and their configured sources.
 // Keep the complete reference, including any digest chosen by the release.
 func (h *handler) GetExtraEnv() map[string]string {
 	env := h.BaseHandler.GetExtraEnv()
@@ -66,8 +67,10 @@ func (h *handler) GetExtraEnv() map[string]string {
 		return env
 	}
 	if env == nil {
-		env = make(map[string]string, 2)
+		env = make(map[string]string, 4)
 	}
+	env["RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE"] = image
+	env["RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE"] = image
 	env["CATALOG_DATA_IMAGE_STREAM_SOURCE"] = image
 	env["BENCHMARK_DATA_IMAGE_STREAM_SOURCE"] = image
 	return env
