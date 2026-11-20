@@ -45,7 +45,9 @@ func (c *PlatformModuleReadinessChecker) IsReady(ctx context.Context, name strin
 	}
 
 	tracker, err := getPlatformModule(ctx, c.client, name)
-	if err != nil || tracker == nil {
+	// After a quick re-enable, a terminating tracker can still report a
+	// matching release for the operator being removed.
+	if err != nil || tracker == nil || !tracker.DeletionTimestamp.IsZero() {
 		return false, err
 	}
 

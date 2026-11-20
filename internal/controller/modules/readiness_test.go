@@ -99,8 +99,9 @@ func TestTrackerReadinessAndPlatformAggregate(t *testing.T) {
 func TestCoordinateDAGRestoresCheckpointAfterRestart(t *testing.T) {
 	g := NewWithT(t)
 	withTestRegistry(t)
+	previous := viper.Get("disable-dag-ordering")
 	viper.Set("disable-dag-ordering", false)
-	t.Cleanup(func() { viper.Set("disable-dag-ordering", false) })
+	t.Cleanup(func() { viper.Set("disable-dag-ordering", previous) })
 	target := common.Release{
 		Name:    cluster.OpenDataHub,
 		Version: ofversion.OperatorVersion{Version: semver.MustParse("1.2.3")},
@@ -127,19 +128,21 @@ func TestCoordinateDAGRestoresCheckpointAfterRestart(t *testing.T) {
 	g.Expect(platform.Status.DAG.Release).To(Equal(target))
 }
 
-func TestCoordinateDAGSkipsDisabledModules(t *testing.T) {
+func TestCoordinateDAGModuleReadiness(t *testing.T) {
 	previous := viper.Get("disable-dag-ordering")
 	viper.Set("disable-dag-ordering", false)
 	t.Cleanup(func() { viper.Set("disable-dag-ordering", previous) })
 	for _, tc := range []struct {
-		name     string
-		managed  bool
-		registry bool
-		want     int
+		name        string
+		managed     bool
+		registry    bool
+		terminating bool
+		want        int
 	}{
 		{name: "removed module", registry: true, want: 31},
 		{name: "registry disabled", managed: true, want: 31},
 		{name: "managed module awaiting tracker", managed: true, registry: true, want: 20},
+		{name: "managed module with terminating tracker", managed: true, registry: true, terminating: true, want: 20},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
@@ -158,6 +161,16 @@ func TestCoordinateDAGSkipsDisabledModules(t *testing.T) {
 				Client: cli, Instance: platform,
 				Release:    common.Release{Version: ofversion.OperatorVersion{Version: semver.MustParse("1.2.3")}},
 				Conditions: conditionstest.NewManager(platform, status.ConditionTypeProvisioningProgress),
+			}
+			if tc.terminating {
+				platform.Status.DAG.Release = rr.Release
+				platform.Status.DAG.ClearedRunlevel = 20
+				tracker := &configApi.PlatformModule{
+					ObjectMeta: metav1.ObjectMeta{Name: "first", Finalizers: []string{"test-finalizer"}},
+					Status:     configApi.PlatformModuleStatus{Release: rr.Release},
+				}
+				g.Expect(cli.Create(t.Context(), tracker)).To(Succeed())
+				g.Expect(cli.Delete(t.Context(), tracker)).To(Succeed())
 			}
 			err = coordinateDAG(t.Context(), rr)
 			g.Expect(platform.Status.DAG.ClearedRunlevel).To(BeNumerically("==", tc.want))

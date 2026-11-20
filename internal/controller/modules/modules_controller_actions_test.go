@@ -26,6 +26,7 @@ import (
 	conditionstest "github.com/opendatahub-io/opendatahub-operator/v2/internal/testutil/conditions"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -37,9 +38,12 @@ func withTestRegistry(t *testing.T) {
 	t.Helper()
 
 	original := r
+	originalStuckTracker := moduleStuckTracker
 	r = &Registry{}
+	moduleStuckTracker = dag.NewStuckTracker()
 	t.Cleanup(func() {
 		r = original
+		moduleStuckTracker = originalStuckTracker
 		provision.DefaultRegistry().Reset()
 		provision.GetRunlevelTracker().Reset()
 	})
