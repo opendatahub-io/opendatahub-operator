@@ -5,6 +5,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -35,6 +36,7 @@ func aiPipelinesTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate module enabled", componentCtx.ValidateModuleEnabled},
+		{"Validate legacy CR removed", componentCtx.ValidateLegacyCRRemoved},
 		{"Validate component conditions", componentCtx.ValidateConditions},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentResources},
@@ -48,6 +50,24 @@ func aiPipelinesTestSuite(t *testing.T) {
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
+}
+
+// ValidateLegacyCRRemoved checks that an upgrade no longer leaves the in-tree
+// singleton available to own resources managed by the AIPipelines module.
+func (tc *DataSciencePipelinesTestCtx) ValidateLegacyCRRemoved(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	legacyGVK := schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    "DataSciencePipelines",
+	}
+	tc.EnsureResourceGone(
+		WithMinimalObject(legacyGVK, types.NamespacedName{Name: "default-datasciencepipelines"}),
+		WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
+	)
 }
 
 // ValidateUpdateDeploymentResources verifies that the AI Pipelines module
