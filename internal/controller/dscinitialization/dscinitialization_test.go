@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -127,6 +128,19 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				Operator: metav1.LabelSelectorOpNotIn,
 				Values:   []string{gateway.DashboardRedirectName},
 			}}))
+			metricsProtocol := corev1.ProtocolTCP
+			metricsPort := intstr.FromInt(8080)
+			Expect(foundNetworkPolicy.Spec.Ingress).To(ContainElement(networkingv1.NetworkPolicyIngressRule{
+				From: []networkingv1.NetworkPolicyPeer{{
+					NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
+						"kubernetes.io/metadata.name": "openshift-user-workload-monitoring",
+					}},
+					PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
+						"prometheus": "user-workload",
+					}},
+				}},
+				Ports: []networkingv1.NetworkPolicyPort{{Protocol: &metricsProtocol, Port: &metricsPort}},
+			}))
 		})
 
 		It("Should not create user group when we do not have authentications CR in the cluster", func(ctx context.Context) {
