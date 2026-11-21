@@ -5,8 +5,10 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/funcr"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -19,6 +21,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
@@ -280,4 +283,163 @@ func TestNoLegacyKeysInLogs(t *testing.T) {
 			)
 		}
 	}
+}
+
+func TestSetGPUOperatorPrerequisite(t *testing.T) {
+	readErr := errors.New("forbidden")
+
+	for _, tc := range []struct {
+		name         string
+		crdPresent   bool
+		served       bool
+		established  bool
+		getErr       error
+		initial      []common.Condition
+		wantStatus   metav1.ConditionStatus
+		wantReason   string
+		wantMessage  string
+		wantSeverity common.ConditionSeverity
+	}{
+		{
+			name:        "ClusterPolicy CRD present",
+			crdPresent:  true,
+			served:      true,
+			established: true,
+			wantStatus:  metav1.ConditionTrue,
+			wantReason:  status.GPUOperatorPrerequisiteMetReason,
+			wantMessage: status.GPUOperatorPrerequisiteMetMessage,
+		},
+		{
+			name:         "ClusterPolicy CRD absent",
+			wantStatus:   metav1.ConditionFalse,
+			wantReason:   status.GPUOperatorPrerequisiteMissingReason,
+			wantMessage:  status.GPUOperatorPrerequisiteMissingMessage,
+			wantSeverity: common.ConditionSeverityInfo,
+		},
+		{
+			name:         "ClusterPolicy CRD not serving v1",
+			crdPresent:   true,
+			established:  true,
+			wantStatus:   metav1.ConditionFalse,
+			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
+			wantMessage:  status.GPUOperatorPrerequisiteNotServingMessage,
+			wantSeverity: common.ConditionSeverityInfo,
+		},
+		{
+			name:         "served ClusterPolicy CRD that is not established",
+			crdPresent:   true,
+			served:       true,
+			wantStatus:   metav1.ConditionFalse,
+			wantReason:   status.GPUOperatorPrerequisiteNotUsableReason,
+			wantMessage:  status.GPUOperatorPrerequisiteNotEstablishedMessage,
+			wantSeverity: common.ConditionSeverityInfo,
+		},
+		{
+			name:         "CRD read error reports prerequisite unknown",
+			getErr:       readErr,
+			wantStatus:   metav1.ConditionUnknown,
+			wantReason:   status.GPUOperatorPrerequisiteUnknownReason,
+			wantMessage:  status.GPUOperatorPrerequisiteUnknownMessage + ": " + readErr.Error(),
+			wantSeverity: common.ConditionSeverityInfo,
+		},
+		{
+			name:        "False Info condition transitions to True and clears severity",
+			crdPresent:  true,
+			served:      true,
+			established: true,
+			initial: []common.Condition{{
+				Type:     status.ConditionGPUOperatorPrerequisiteAvailable,
+				Status:   metav1.ConditionFalse,
+				Reason:   status.GPUOperatorPrerequisiteMissingReason,
+				Message:  status.GPUOperatorPrerequisiteMissingMessage,
+				Severity: common.ConditionSeverityInfo,
+			}},
+			wantStatus:  metav1.ConditionTrue,
+			wantReason:  status.GPUOperatorPrerequisiteMetReason,
+			wantMessage: status.GPUOperatorPrerequisiteMetMessage,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			var opts []fakeclient.ClientOpts
+			if tc.crdPresent {
+				crd := &apiextensionsv1.CustomResourceDefinition{
+					ObjectMeta: metav1.ObjectMeta{Name: gvk.GPUOperatorClusterPolicyCRDName},
+					Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+						Group: "nvidia.com",
+						Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+							Name:    gvk.GPUOperatorClusterPolicy.Version,
+							Served:  tc.served,
+							Storage: true,
+						}},
+					},
+				}
+				if tc.established {
+					crd.Status.Conditions = []apiextensionsv1.CustomResourceDefinitionCondition{{
+						Type:   apiextensionsv1.Established,
+						Status: apiextensionsv1.ConditionTrue,
+					}}
+				}
+				opts = append(opts, fakeclient.WithObjects(crd))
+			}
+
+			if tc.getErr != nil {
+				opts = append(opts, fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+					Get: func(ctx context.Context, cli client.WithWatch, key client.ObjectKey, obj client.Object, getOpts ...client.GetOption) error {
+						if _, ok := obj.(*apiextensionsv1.CustomResourceDefinition); ok {
+							return tc.getErr
+						}
+						return cli.Get(ctx, key, obj, getOpts...)
+					},
+				}))
+			}
+
+			cli, err := fakeclient.New(opts...)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			conditions := append([]common.Condition(nil), tc.initial...)
+			condStatus, reason, message := status.GPUOperatorPrerequisite(t.Context(), cli)
+			applyGPUOperatorPrerequisite(&conditions, condStatus, reason, message)
+
+			g.Expect(conditions).To(HaveLen(1))
+			g.Expect(conditions[0].Type).To(Equal(status.ConditionGPUOperatorPrerequisiteAvailable))
+			g.Expect(conditions[0].Status).To(Equal(tc.wantStatus))
+			g.Expect(conditions[0].Reason).To(Equal(tc.wantReason))
+			g.Expect(conditions[0].Message).To(Equal(tc.wantMessage))
+			g.Expect(conditions[0].Severity).To(Equal(tc.wantSeverity))
+		})
+	}
+}
+
+func TestRequeueAfterGPUOperatorPrerequisite(t *testing.T) {
+	g := NewWithT(t)
+
+	g.Expect(requeueAfterGPUOperatorPrerequisite(metav1.ConditionUnknown)).To(Equal(ctrl.Result{RequeueAfter: 30 * time.Second}))
+	g.Expect(requeueAfterGPUOperatorPrerequisite(metav1.ConditionFalse)).To(Equal(ctrl.Result{}))
+	g.Expect(requeueAfterGPUOperatorPrerequisite(metav1.ConditionTrue)).To(Equal(ctrl.Result{}))
+}
+
+func TestProvisioningErrorWithGPUPrerequisiteReturnsOriginalError(t *testing.T) {
+	g := NewWithT(t)
+
+	provErr := errors.New("create operator resources failed")
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{Name: "default-dsci"},
+	}
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(dsci),
+		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			SubResourceUpdate: func(context.Context, client.Client, string, client.Object, ...client.SubResourceUpdateOption) error {
+				return errors.New("status update failed")
+			},
+		}),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	reconciler := &DSCInitializationReconciler{Client: cli}
+	result, gotErr := reconciler.provisioningErrorWithGPUPrerequisite(t.Context(), dsci, provErr)
+
+	g.Expect(result).To(Equal(ctrl.Result{}))
+	g.Expect(gotErr).To(MatchError(provErr))
 }

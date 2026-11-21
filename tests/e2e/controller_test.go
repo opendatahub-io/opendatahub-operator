@@ -531,6 +531,7 @@ func TestOdhOperator(t *testing.T) {
 	if testOpts.operatorControllerTest {
 		// individual test suites after the operator is running
 		mustRun(t, "Operator Manager E2E Tests", odhOperatorTestSuite)
+		mustRun(t, "GPU Operator prerequisite E2E Tests", gpuOperatorPrerequisiteTestSuite)
 	}
 
 	if testOpts.dscValidationTest {
