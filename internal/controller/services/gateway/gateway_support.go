@@ -777,7 +777,7 @@ func getKubeAuthProxyImage() string {
 	// by `make resolve-image-digests` (cmd/manifest-tools resolve-digests);
 	// do not update it by hand.
 	// sync-digests: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
-	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:43bf458ca3c01d51a61f1a61459aa30e8f23a3cedaa3a9037ab5e0e3d4f5a6af"
+	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:cceef48808b1a22f34aa07186c1c4a7adb9a0eb0632332e2c67fbb364f1a1f6b"
 }
 
 // getDashboardRedirectImage returns the nginx image for dashboard redirects.
