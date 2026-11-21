@@ -3,8 +3,13 @@ package dashboard
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -24,6 +29,10 @@ const (
 	// dashboardAIPipelinesName is the key used in the Dashboard CR components map for
 	// AI Pipelines. Keep in sync with dashboard-operator's component name for DSP.
 	dashboardAIPipelinesName = "aipipelines"
+
+	namespacedRBACOptInLabel  = "dashboard.opendatahub.io/allow-namespaced-rbac"
+	operatorNamespaceEnv      = "OPERATOR_NAMESPACE"
+	operatorServiceAccountEnv = "OPERATOR_SERVICE_ACCOUNT"
 )
 
 type handler struct {
@@ -44,9 +53,11 @@ func NewHandler() *handler {
 					// "odh-dashboard-operator". Clear it so the Deployment name matches
 					// ReleaseName for module env injection (deploymentNameFromManifests).
 					"namePrefix": "",
-					// Disable webhook until chart defaults are updated upstream.
-					// CEL on the CRD enforces the singleton constraint.
-					"webhook": map[string]any{"enabled": false},
+					"webhook": map[string]any{
+						"enabled":               true,
+						"namespacedRBACWriters": namespacedRBACWriterUsernames(),
+						"certManager":           map[string]any{"enabled": true},
+					},
 					// Override chart :main tag defaults with empty strings so the
 					// dashboard-operator falls back to digest-pinned params.env defaults.
 					"relatedImages": emptyRelatedImageValues(),
@@ -71,6 +82,15 @@ func NewHandler() *handler {
 			},
 		},
 	}
+}
+
+func namespacedRBACWriterUsernames() []string {
+	namespace := os.Getenv(operatorNamespaceEnv)
+	serviceAccount := os.Getenv(operatorServiceAccountEnv)
+	if namespace == "" || serviceAccount == "" {
+		return nil
+	}
+	return []string{fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccount)}
 }
 
 func (h *handler) PopulatePlatformModule(pm *configApi.PlatformModules, dscCtx *modules.DSCContext) {
@@ -102,8 +122,8 @@ func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 // fields from DSCContext and ModuleCRConfig onto the module CR.
 // When dscCtx or dscCtx.DSC is nil, returns an error.
 func (h *handler) BuildModuleCR(
-	_ context.Context,
-	_ client.Client,
+	ctx context.Context,
+	cli client.Client,
 	dscCtx *modules.DSCContext,
 	cfg *modules.ModuleCRConfig,
 ) (*unstructured.Unstructured, error) {
@@ -113,11 +133,13 @@ func (h *handler) BuildModuleCR(
 
 	spec := dashboardModuleSpec(dscCtx.DSC.Spec.Components.Dashboard)
 	spec["components"] = buildComponentsMap(dscCtx)
-	if ns := resolveNotebooksNamespace(dscCtx, cfg); ns != "" {
-		spec["notebooksNamespace"] = ns
+	notebooksNamespace := resolveNotebooksNamespace(dscCtx, cfg)
+	modelRegistryNamespace := resolveAIHubNamespace(dscCtx)
+	if notebooksNamespace != "" {
+		spec["notebooksNamespace"] = notebooksNamespace
 	}
-	if ns := resolveAIHubNamespace(dscCtx); ns != "" {
-		spec["modelRegistryNamespace"] = ns
+	if modelRegistryNamespace != "" {
+		spec["modelRegistryNamespace"] = modelRegistryNamespace
 	}
 
 	if cfg != nil && cfg.GatewayConfig != nil && cfg.GatewayConfig.Status.Domain != "" {
@@ -135,6 +157,97 @@ func (h *handler) BuildModuleCR(
 	u.SetName(h.Config.CRName)
 
 	return u, nil
+}
+
+// SyncNamespacedRBACOptIns reconciles platform-managed consent labels for the
+// namespaces currently projected into the Dashboard CR. Component operators
+// may create their namespaces asynchronously, so a missing namespace is left
+// fail-closed and the Namespace watch retries when it appears.
+func SyncNamespacedRBACOptIns(ctx context.Context, cli client.Client, dscCtx *modules.DSCContext, cfg *modules.ModuleCRConfig) error {
+	if dscCtx == nil || dscCtx.DSC == nil {
+		return nil
+	}
+	desired := NamespacedRBACTargets(dscCtx, cfg)
+	if cli == nil {
+		return errors.New("client is required to opt in namespaced RBAC targets")
+	}
+
+	var optedIn corev1.NamespaceList
+	if err := cli.List(ctx, &optedIn, client.MatchingLabels{namespacedRBACOptInLabel: "true"}); err != nil {
+		return fmt.Errorf("listing dashboard namespaced RBAC targets: %w", err)
+	}
+	desiredSet := make(map[string]struct{}, len(desired))
+	for _, name := range desired {
+		if isSystemNamespace(name) {
+			continue
+		}
+		desiredSet[name] = struct{}{}
+	}
+	for i := range optedIn.Items {
+		namespace := &optedIn.Items[i]
+		if _, keep := desiredSet[namespace.Name]; keep {
+			continue
+		}
+		before := namespace.DeepCopy()
+		delete(namespace.Labels, namespacedRBACOptInLabel)
+		if err := cli.Patch(ctx, namespace, client.MergeFrom(before)); err != nil {
+			return fmt.Errorf("removing dashboard namespaced RBAC opt-in from namespace %s: %w", namespace.Name, err)
+		}
+	}
+	return ensureNamespacedRBACOptIn(ctx, cli, desired...)
+}
+
+// NamespacedRBACTargets returns the namespaces projected into the Dashboard CR.
+func NamespacedRBACTargets(dscCtx *modules.DSCContext, cfg *modules.ModuleCRConfig) []string {
+	if dscCtx == nil || dscCtx.DSC == nil {
+		return nil
+	}
+	return []string{resolveNotebooksNamespace(dscCtx, cfg), resolveAIHubNamespace(dscCtx)}
+}
+
+func ensureNamespacedRBACOptIn(ctx context.Context, cli client.Client, namespaces ...string) error {
+	seen := make(map[string]struct{}, len(namespaces))
+	for _, name := range namespaces {
+		if name == "" {
+			continue
+		}
+		if isSystemNamespace(name) {
+			continue
+		}
+		if _, exists := seen[name]; exists {
+			continue
+		}
+		seen[name] = struct{}{}
+		if cli == nil {
+			return errors.New("client is required to opt in namespaced RBAC targets")
+		}
+
+		namespace := &corev1.Namespace{}
+		if err := cli.Get(ctx, client.ObjectKey{Name: name}, namespace); err != nil {
+			if k8serr.IsNotFound(err) {
+				continue
+			}
+			return fmt.Errorf("getting namespaced RBAC target namespace %s: %w", name, err)
+		}
+		if namespace.Labels[namespacedRBACOptInLabel] == "true" {
+			continue
+		}
+
+		before := namespace.DeepCopy()
+		if namespace.Labels == nil {
+			namespace.Labels = map[string]string{}
+		}
+		namespace.Labels[namespacedRBACOptInLabel] = "true"
+		if err := cli.Patch(ctx, namespace, client.MergeFrom(before)); err != nil {
+			return fmt.Errorf("opting namespace %s in to dashboard namespaced RBAC: %w", name, err)
+		}
+	}
+	return nil
+}
+
+func isSystemNamespace(name string) bool {
+	return name == "default" || name == "openshift" ||
+		strings.HasPrefix(name, "kube-") || strings.HasPrefix(name, "openshift-")
 }
 
 func dashboardModuleSpec(dashboard componentApi.DSCDashboard) map[string]any {
