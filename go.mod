@@ -21,7 +21,7 @@ require (
 	github.com/openshift/controller-runtime-common v0.0.0-20261026124434-bdfc411d93cd
 	github.com/openshift/library-go v0.0.0-20261001144932-192662696fc7
 	github.com/operator-framework/api v0.46.0
-	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.74.0
+	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.94.2
 	github.com/prometheus/client_golang v1.24.0
 	github.com/rs/xid v1.6.0
 	github.com/spf13/cobra v1.10.2
@@ -81,7 +81,7 @@ require (
 	github.com/evanphx/json-patch v5.9.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
-	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
+	github.com/fxamacker/cbor/v2 v2.9.3 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
 	github.com/go-openapi/jsonpointer v1.0.0 // indirect
@@ -159,7 +159,7 @@ require (
 	helm.sh/helm/v4 v4.2.3 // indirect
 	k8s.io/apiserver v0.37.1 // indirect
 	k8s.io/component-base v0.37.1 // indirect
-	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
+	k8s.io/kube-openapi v0.0.0-20260821135717-be32def86098 // indirect
 	oras.land/oras-go/v2 v2.6.2 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
