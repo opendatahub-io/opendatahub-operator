@@ -25,6 +25,10 @@ const (
 	aiHubReadyCondition           = "AIHubReady"
 )
 
+type aihubSuiteState struct {
+	createdInstancesNamespace bool
+}
+
 func aihubTestSuite(t *testing.T) {
 	t.Helper()
 
@@ -39,17 +43,19 @@ func aihubTestSuite(t *testing.T) {
 	}
 	aihubInstancesNSNN := types.NamespacedName{Name: aihubTestNamespace}
 
-	var originalInstancesNamespace string
+	suiteState := registerAIHubSuiteCleanup(t, tc, aihubInstancesNSNN)
 
 	testCases := []TestCase{
 		{"Validate component enabled", func(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Smoke, Tier1)
 
-			// Capture the original instancesNamespace so cleanup can restore it.
-			if dsc := tc.FetchDataScienceCluster(); dsc != nil {
-				originalInstancesNamespace = dsc.Spec.Components.AIHub.InstancesNamespace
-			}
+			// Record whether the namespace predates the suite: this suite must
+			// never delete a namespace it did not create on a shared cluster.
+			// FetchResource yields nil for a namespace that does not exist.
+			suiteState.createdInstancesNamespace = tc.FetchResource(
+				WithMinimalObject(gvk.Namespace, aihubInstancesNSNN),
+			) == nil
 
 			// instancesNamespace is immutable while AI Hub is Managed; pass
 			// through Removed so the next patch can set a new namespace.
@@ -233,21 +239,12 @@ func aihubTestSuite(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Smoke, Tier1)
 
-			// Transition AI Hub to Removed and restore instancesNamespace in one patch.
-			// The CEL immutability rule allows changing instancesNamespace only when
-			// managementState is being set to Removed in the same mutation.
+			// The suite-level cleanup restores instancesNamespace after moving AI
+			// Hub through Removed; changing it here is not necessary.
 			tc.EventuallyResourcePatched(
 				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithMutateFunc(func(obj *unstructured.Unstructured) error {
-					if err := unstructured.SetNestedField(obj.Object, "Removed", "spec", "components", "aiHub", "managementState"); err != nil {
-						return err
-					}
-					return unstructured.SetNestedField(obj.Object, originalInstancesNamespace, "spec", "components", "aiHub", "instancesNamespace")
-				}),
-				WithCondition(And(
-					jq.Match(`.spec.components.aiHub.managementState == "Removed"`),
-					jq.Match(`.spec.components.aiHub.instancesNamespace == "%s"`, originalInstancesNamespace),
-				)),
+				WithMutateFunc(testf.Transform(`.spec.components.aiHub.managementState = "Removed"`)),
+				WithCondition(jq.Match(`.spec.components.aiHub.managementState == "Removed"`)),
 			)
 
 			tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
@@ -262,14 +259,56 @@ func aihubTestSuite(t *testing.T) {
 				WithCustomErrorMsg("DataScienceCluster should have %s condition set to False/Removed", aiHubReadyCondition),
 			)
 
-			// Clean up the test namespace.
-			tc.DeleteResource(
+			// AI Hub creates this namespace without an owner reference and
+			// intentionally leaves it after removal. Assert that contract before
+			// suite cleanup deletes a namespace created by this run.
+			tc.EnsureResourceExists(
 				WithMinimalObject(gvk.Namespace, aihubInstancesNSNN),
-				WithIgnoreNotFound(true),
-				WithWaitForDeletion(true),
+				WithCustomErrorMsg("AI Hub instances namespace should remain after the component is removed"),
 			)
 		}},
 	}
 
 	RunTestCases(t, testCases)
+}
+
+func registerAIHubSuiteCleanup(t *testing.T, tc *TestContext, instancesNSNN types.NamespacedName) *aihubSuiteState {
+	t.Helper()
+
+	state := &aihubSuiteState{}
+
+	// AI Hub creates instancesNamespace with CreateIfNotExists but deliberately
+	// does not own it: removing AI Hub must not cascade-delete a namespace that
+	// may contain user registries. Clean it up ourselves only when it did not
+	// exist before this suite.
+	t.Cleanup(func() {
+		if !state.createdInstancesNamespace {
+			return
+		}
+
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Namespace, instancesNSNN),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	})
+
+	// Restore only the fields this suite mutates; component suites run
+	// concurrently and share one DSC.
+	snapshotDSCFields(t, tc, gvk.DataScienceCluster,
+		[]string{"spec", "components", "aiHub", "managementState"},
+		[]string{"spec", "components", "aiHub", "instancesNamespace"},
+	)
+	// instancesNamespace is immutable while Managed. This cleanup is registered
+	// after snapshotDSCFields so it runs first (t.Cleanup is LIFO) and moves AI
+	// Hub to Removed before the snapshot restoration changes the namespace.
+	t.Cleanup(func() {
+		tc.EventuallyResourcePatched(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithMutateFunc(testf.Transform(`.spec.components.aiHub.managementState = "Removed"`)),
+			WithCondition(jq.Match(`.spec.components.aiHub.managementState == "Removed"`)),
+		)
+	})
+
+	return state
 }
