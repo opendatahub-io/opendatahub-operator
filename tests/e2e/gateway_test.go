@@ -162,7 +162,7 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate EnvoyFilter creation", gatewayCtx.ValidateEnvoyFilter},
 		{"Validate EDS endpoint discovery", gatewayCtx.ValidateEDSEndpointDiscovery},
 		{"Validate Gateway ready status", gatewayCtx.ValidateGatewayReadyStatus},
-		{"Validate dashboard redirect resources", gatewayCtx.DashboardRedirectTestSuite},
+		{"Validate DSCI default policy excludes dashboard redirect pods", gatewayCtx.ValidateDSCIDefaultPolicyExcludesRedirectPods},
 	}
 
 	RunTestCases(t, testCases)

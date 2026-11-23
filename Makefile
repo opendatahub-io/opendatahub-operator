@@ -449,11 +449,6 @@ run-nowebhook: manifests generate fmt vet ## Run a controller from your host wit
 image-build: # unit-test ## Build image with the manager.
 	$(IMAGE_BUILDER) buildx build --no-cache -f Dockerfiles/$(DOCKERFILE_FILENAME) ${IMAGE_BUILD_FLAGS} -t $(IMG) .
 
-SYNTHETIC_MODULE_IMG ?= synthetic-module-operator:latest
-
-.PHONY: synthetic-module-image-build
-synthetic-module-image-build: ## Build the standalone synthetic module image used by core E2E tests.
-	$(IMAGE_BUILDER) buildx build --no-cache -f tests/e2e/syntheticmodule/Dockerfile ${IMAGE_BUILD_FLAGS} -t $(SYNTHETIC_MODULE_IMG) .
 
 .PHONY: image-push
 image-push: ## Push image with the manager.

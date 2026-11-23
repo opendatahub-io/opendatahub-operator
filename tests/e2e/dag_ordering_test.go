@@ -336,7 +336,8 @@ func (tc *DAGOrderingTestCtx) runXKSTestCases(t *testing.T) {
 func (tc *DAGOrderingTestCtx) runOpenShiftTestCases(t *testing.T) {
 	t.Helper()
 
-	t.Log("Ensuring clean slate: setting all components to Removed")
+	t.Log("Ensuring clean slate: deleting stale quota and setting all components to Removed")
+	tc.deleteDAGQuota()
 	tc.setAllRemoved(t)
 	tc.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
 
@@ -369,7 +370,8 @@ func (tc *DAGOrderingTestCtx) runOpenShiftTestCases(t *testing.T) {
 	//     gating and batch-sequential ordering, converges at new version
 	//     → AllReady)
 	//
-	// Phase 3: Steady-state tests (original version restored)
+	// Phase 3: Steady-state and cross-controller integration tests
+	//   DashboardRedirectIntegration (→AllReady) →
 	//   ComponentStability (→AllReady, toggles KServe) →
 	//   DAGCleanup (→Removed)
 
@@ -409,11 +411,23 @@ func (tc *DAGOrderingTestCtx) runOpenShiftTestCases(t *testing.T) {
 		WithEventuallyPollingInterval(15*time.Second),
 	)
 
-	// Phase 3: steady-state tests
+	// Phase 3: steady-state and cross-controller integration tests
 	RunTestCases(t, []TestCase{
+		{"Validate Gateway and Dashboard redirect integration", tc.ValidateDashboardRedirectIntegration},
 		{"Validate component stability across enable/disable cycles (RHOAIENG-73142)", tc.ValidateComponentStability},
 		{"Validate DAG cleanup", tc.ValidateDAGCleanup},
 	})
+}
+
+// ValidateDashboardRedirectIntegration runs the cross-controller redirect
+// contract only after the DAG has converged all production components. Keeping
+// it out of the core Services group prevents core and synthetic contract runs
+// from deploying Dashboard as an implicit test dependency.
+func (tc *DAGOrderingTestCtx) ValidateDashboardRedirectIntegration(t *testing.T) {
+	t.Helper()
+
+	gatewayCtx := &GatewayTestCtx{TestContext: tc.TestContext}
+	gatewayCtx.DashboardRedirectIntegrationTestSuite(t)
 }
 
 // ValidateXKSRunlevelGating exercises DAG runlevel gating on xKS

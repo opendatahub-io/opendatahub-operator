@@ -204,6 +204,15 @@ componentCharts:
       repo: red-hat-data-services/odh-observability
       ref: rhoai-3.7-ea.1@24465d88f39390f180805274c39138bc42608b0e
       sourcePath: charts/odh-observability
+  synthetice2e:
+    odh:
+      repo: opendatahub-io/synthetic-e2e
+      ref: main@f3006c3b3bb296013672bca873674599b52406b0
+      sourcePath: charts/synthetice2e
+    rhoai:
+      repo: opendatahub-io/synthetic-e2e
+      ref: main@f3006c3b3bb296013672bca873674599b52406b0
+      sourcePath: charts/synthetice2e
 # Image overrides — pinned operator image digests, keyed by RELATED_IMAGE_* env var name.
 # Local directories symlinked into opt/manifests/ during development.
 # In container builds, these are COPYed directly in the Dockerfile.
