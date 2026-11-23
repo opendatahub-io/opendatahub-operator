@@ -121,6 +121,7 @@ linters:
         - EventHandler
         - discovery.DiscoveryInterface
         - dynamic.Interface
+        - metadata.Interface
         - predicate.Predicate
         - client.Object
         - client.Client

@@ -236,13 +236,21 @@ func TestWriteDSCComponentStatus_AIGateway_ClearsReleases(t *testing.T) {
 	g.Expect(dsc.Status.Components.AIGateway.Releases).Should(BeNil())
 }
 
-func TestWriteDSCComponentStatus_TypeWithoutReleases_NoOp(t *testing.T) {
+func TestWriteDSCComponentStatus_Dashboard_SetsReleases(t *testing.T) {
 	t.Parallel()
-
+	g := NewWithT(t)
 	dsc := &dscApi.DataScienceCluster{}
-	newReleaseHandler("Dashboard").WriteDSCComponentStatus(dsc, true, []common.ComponentRelease{
-		{Name: "platform", Version: "1.0.0"},
-	})
+	releases := []common.ComponentRelease{
+		{
+			Name:    "dashboard",
+			Version: "3.5.0",
+			RepoURL: "https://github.com/opendatahub-io/odh-dashboard",
+		},
+	}
+	newReleaseHandler("Dashboard").WriteDSCComponentStatus(dsc, true, releases)
+	g.Expect(dsc.Status.Components.Dashboard.ManagementState).Should(Equal(operatorv1.Managed))
+	g.Expect(dsc.Status.Components.Dashboard.DashboardCommonStatus).ShouldNot(BeNil())
+	g.Expect(dsc.Status.Components.Dashboard.Releases).Should(Equal(releases))
 }
 
 func TestWriteDSCComponentStatus_UnknownKind_NoOp(t *testing.T) {
