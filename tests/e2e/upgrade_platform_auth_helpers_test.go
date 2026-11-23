@@ -47,16 +47,15 @@ func secretDataDigests(secret *corev1.Secret) map[string]string {
 	return digests
 }
 
-// isTransportTLSArg reports whether flag is a transport-level TLS flag.
-// transportTLSArgs is ported verbatim from the Python reference; the --tls-
-// prefix additionally covers the remaining transport-level TLS flags of the
-// auth proxy (--tls-cert-file, --tls-key-file, --tls-min-version), whose
-// settings and mount paths may benignly evolve across an upgrade.
+// isTransportTLSArg reports whether flag is in the transport-TLS exemption
+// set, ported verbatim from the Python reference (TRANSPORT_TLS_ARGS): exact
+// set membership only. These two args carry unordered cipher/curve lists that
+// may evolve between versions (hardening); every other arg — including other
+// --tls-* args such as --tls-cert-file or --tls-min-version — must not change
+// across an upgrade, so it is compared, never dropped.
 func isTransportTLSArg(flag string) bool {
-	if _, ok := transportTLSArgs[flag]; ok {
-		return true
-	}
-	return strings.HasPrefix(flag, "--tls-")
+	_, ok := transportTLSArgs[flag]
+	return ok
 }
 
 // normalizedArg normalizes a container argument for stable comparison: the
@@ -142,11 +141,12 @@ func TestSha256Hex(t *testing.T) {
 	}
 }
 
-// TestNormalizedArgDropsTransport proves transport/TLS args are dropped from
-// the auth baseline (ok=false): their values are unordered lists and settings
-// allowed to evolve between versions (cipher suite and curve hardening, cert
-// and key file locations), while authentication-relevant args must not change
-// across an upgrade.
+// TestNormalizedArgDropsTransport proves exactly the ported transport-TLS
+// exemption set is dropped from the baseline (ok=false): cipher-suite and
+// curve-preference values are unordered lists allowed to evolve between
+// versions (hardening). Every other arg — including near-miss --tls-* args
+// like --tls-cert-file or --tls-min-version — is compared (ok=true), because
+// authentication-relevant args must not change across an upgrade.
 func TestNormalizedArgDropsTransport(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -155,29 +155,32 @@ func TestNormalizedArgDropsTransport(t *testing.T) {
 		wantOK bool
 	}{
 		{
-			name:   "tls cert file is transport",
-			arg:    "--tls-cert-file=/x",
-			wantOK: false,
-		},
-		{
-			name:   "tls cipher suite from the ported Python set",
+			name:   "tls cipher suite is exempt",
 			arg:    "--tls-cipher-suite=TLS_AES_128_GCM_SHA256",
 			wantOK: false,
 		},
 		{
-			name:   "tls curve preferences from the ported Python set",
+			name:   "tls curve preferences is exempt",
 			arg:    "--tls-curve-preferences=X25519:P256",
 			wantOK: false,
 		},
 		{
-			name:   "tls key file is transport",
-			arg:    "--tls-key-file=/etc/tls-certs/tls.key",
-			wantOK: false,
+			name:   "near-miss tls cert file is compared, not dropped",
+			arg:    "--tls-cert-file=/x",
+			want:   "--tls-cert-file=/x",
+			wantOK: true,
 		},
 		{
-			name:   "tls min version is transport",
+			name:   "near-miss tls key file is compared, not dropped",
+			arg:    "--tls-key-file=/etc/tls-certs/tls.key",
+			want:   "--tls-key-file=/etc/tls-certs/tls.key",
+			wantOK: true,
+		},
+		{
+			name:   "near-miss tls min version is compared, not dropped",
 			arg:    "--tls-min-version=TLS1.2",
-			wantOK: false,
+			want:   "--tls-min-version=TLS1.2",
+			wantOK: true,
 		},
 		{
 			name:   "auth-relevant arg is kept with value intact",
@@ -278,10 +281,18 @@ func TestArgDigestEntriesDigests(t *testing.T) {
 			},
 		},
 		{
-			name: "transport args are excluded from entries",
-			args: []string{"--tls-cert-file=/x", "--cookie-name=_oauth2_proxy"},
+			name: "exempt-set TLS args are excluded from entries",
+			args: []string{"--tls-cipher-suite=TLS_AES_128_GCM_SHA256", "--cookie-name=_oauth2_proxy"},
 			want: map[string]string{
 				"--cookie-name": "f741b64673dd2d1ea4fc98e2417ecd59556bfa00f0b3c2b88b1257768765e3b5",
+			},
+		},
+		{
+			name: "near-miss tls args are compared, not excluded",
+			args: []string{"--tls-cert-file=/x", "--cookie-name=_oauth2_proxy"},
+			want: map[string]string{
+				"--tls-cert-file": "b3d1db318671a024a7e4b433389f8820d6ca466e2cf700afc29f37ed64f2fa0d",
+				"--cookie-name":   "f741b64673dd2d1ea4fc98e2417ecd59556bfa00f0b3c2b88b1257768765e3b5",
 			},
 		},
 	}
