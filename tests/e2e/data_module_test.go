@@ -12,8 +12,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dataModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/data"
@@ -57,11 +60,148 @@ func dataModuleTestSuite(t *testing.T) {
 		{"Validate upgrade: existing operands preserved", ctx.ValidateUpgradeOperandsPreserved},
 		{"Validate v2 DSC Data selection", ctx.ValidateV2DSCDataSelection},
 		{"Validate Data Registry enables module independently", ctx.ValidateDataRegistryAloneEnablesModule},
+		{"Validate DCH uses shared module and ordered cleanup", ctx.ValidateDataConnectHubLifecycle},
 		{"Validate module disabled cleanup", ctx.ValidateModuleDisabledCleanup},
 		{"Validate module disabled", ctx.ValidateModuleDisabled},
 	}
 
 	RunTestCases(t, testCases)
+}
+
+// ValidateDataConnectHubLifecycle exercises the DSC -> shared module -> owned
+// application path without assuming PostgreSQL has been provisioned. A held
+// application finalizer proves that the controller stays up during removal.
+// Run this only as part of the disposable-cluster Tier3 lifecycle suite.
+func (ctx *DataModuleTestCtx) ValidateDataConnectHubLifecycle(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier3)
+	if ctx.IsXKS() {
+		t.Skip("DCH DSC lifecycle requires the OpenShift platform projection")
+	}
+	g := NewWithT(t)
+	requestCtx := context.Background()
+	const (
+		applicationName  = "default-dataconnectservice"
+		controllerName   = "dc-controller-manager"
+		controllerRole   = "dc-controller-manager-role"
+		cleanupFinalizer = "e2e.opendatahub.io/dch-cleanup-hold"
+		gatewayName      = "dch-e2e-gateway"
+		audience         = "https://dch-e2e.example"
+	)
+	applicationGVK := schema.GroupVersionKind{
+		Group: "dataconnecthub.opendatahub.io", Version: "v1alpha1", Kind: "DataConnectService",
+	}
+	applicationNN := types.NamespacedName{Name: applicationName, Namespace: ctx.AppsNamespace}
+	controllerNN := types.NamespacedName{Name: controllerName, Namespace: ctx.AppsNamespace}
+	moduleNN := types.NamespacedName{Name: dataModuleCRName}
+	snapshotDSCFields(t, ctx.TestContext, gvk.DataScienceCluster, []string{"spec", "components", "data"})
+
+	ctx.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.data.featureStore.managementState = "Removed"`),
+			testf.Transform(`.spec.components.data.dataRegistry.managementState = "Removed"`),
+			testf.Transform(`.spec.components.data.dataConnectHub = {
+				"managementState":"Managed",
+				"gateway":{"name":%q,"namespace":%q},
+				"tokenReviewAudiences":[%q]
+			}`, gatewayName, ctx.AppsNamespace, audience),
+		)),
+		WithCondition(jq.Match(`.spec.components.data.dataConnectHub.managementState == "Managed"`)),
+	)
+	ctx.EnsureResourceExists(
+		WithMinimalObject(gvk.Platform, ctx.PlatformNamespacedName),
+		WithCondition(jq.Match(`.spec.modules.data.managementState == "Managed"`)),
+	)
+	module := ctx.EnsureResourceExists(
+		WithMinimalObject(dataModuleCRGVK, moduleNN),
+		WithCondition(And(
+			jq.Match(`.spec.capabilities.featureStore.managementState == "Removed"`),
+			jq.Match(`.spec.capabilities.dataRegistry.managementState == "Removed"`),
+			jq.Match(`.spec.capabilities.dataConnectHub.managementState == "Managed"`),
+		)),
+	)
+	application := ctx.EnsureResourceExists(
+		WithMinimalObject(applicationGVK, applicationNN),
+		WithEventuallyTimeout(ctx.TestTimeouts.longEventuallyTimeout),
+		WithCondition(And(
+			jq.Match(`.metadata.ownerReferences[] | select(.controller == true) | .uid == %q`, string(module.GetUID())),
+			jq.Match(`.spec.gateway.name == %q`, gatewayName),
+			jq.Match(`.spec.gateway.namespace == %q`, ctx.AppsNamespace),
+			jq.Match(`.spec.tokenReviewAudiences == [%q]`, audience),
+		)),
+	)
+	ctx.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, controllerNN),
+		WithEventuallyTimeout(ctx.TestTimeouts.longEventuallyTimeout),
+		WithCondition(jq.Match(`.status.availableReplicas >= 1`)),
+	)
+	role := ctx.EnsureResourceExists(WithMinimalObject(gvk.ClusterRole, types.NamespacedName{Name: controllerRole}))
+
+	// Release our own finalizer even if an assertion fails, before restoring
+	// the DSC snapshot; otherwise test cleanup could strand the whole module.
+	heldUID := application.GetUID()
+	releaseFinalizer := func() error {
+		return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			fresh := &unstructured.Unstructured{}
+			fresh.SetGroupVersionKind(applicationGVK)
+			if err := ctx.Client().Get(requestCtx, applicationNN, fresh); err != nil {
+				if errors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}
+			if fresh.GetUID() != heldUID || !controllerutil.RemoveFinalizer(fresh, cleanupFinalizer) {
+				return nil
+			}
+			return ctx.Client().Update(requestCtx, fresh)
+		})
+	}
+	t.Cleanup(func() { require.NoError(t, releaseFinalizer()) })
+	g.Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if err := ctx.Client().Get(requestCtx, applicationNN, application); err != nil {
+			return err
+		}
+		controllerutil.AddFinalizer(application, cleanupFinalizer)
+		return ctx.Client().Update(requestCtx, application)
+	})).To(Succeed())
+
+	ctx.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.data.featureStore.managementState = "Managed"`),
+			testf.Transform(`.spec.components.data.dataConnectHub.managementState = "Removed"`),
+		)),
+		WithCondition(jq.Match(`.spec.components.data.dataConnectHub.managementState == "Removed"`)),
+	)
+	ctx.EnsureResourceExists(
+		WithMinimalObject(applicationGVK, applicationNN),
+		WithCondition(jq.Match(`.metadata.deletionTimestamp != null`)),
+	)
+	ctx.EnsureResourceExistsConsistently(
+		WithMinimalObject(gvk.Deployment, controllerNN),
+		WithConsistentlyDuration(15*time.Second),
+		WithCondition(jq.Match(`.status.availableReplicas >= 1`)),
+	)
+	ctx.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRole, types.NamespacedName{Name: controllerRole}),
+		WithCondition(jq.Match(`.metadata.uid == %q`, string(role.GetUID()))),
+	)
+	g.Expect(releaseFinalizer()).To(Succeed())
+	ctx.EnsureResourceGone(WithMinimalObject(applicationGVK, applicationNN))
+	ctx.EnsureResourceGone(WithMinimalObject(gvk.Deployment, controllerNN))
+	ctx.EnsureResourceGone(WithMinimalObject(gvk.ClusterRole, types.NamespacedName{Name: controllerRole}))
+	ctx.EnsureResourceExists(
+		WithMinimalObject(dataModuleCRGVK, moduleNN),
+		WithCondition(And(
+			jq.Match(`.spec.capabilities.featureStore.managementState == "Managed"`),
+			jq.Match(`.spec.capabilities.dataConnectHub.managementState == "Removed"`),
+		)),
+	)
+	ctx.ValidateModuleOperatorDeployed(t)
+	ctx.ValidateFeastOperatorDeployed(t)
+	ctx.EnsureResourceExists(WithMinimalObject(gvk.CustomResourceDefinition,
+		types.NamespacedName{Name: "dataconnectservices.dataconnecthub.opendatahub.io"}))
 }
 
 // ValidateV2DSCDataSelection proves that the v2 FeastOperator stanza still
@@ -405,10 +545,12 @@ func (ctx *DataModuleTestCtx) ValidateModuleDisabledCleanup(t *testing.T) {
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.components.data.featureStore.managementState = "Removed"`),
 			testf.Transform(`.spec.components.data.dataRegistry.managementState = "Removed"`),
+			testf.Transform(`.spec.components.data.dataConnectHub.managementState = "Removed"`),
 		)),
 		WithCondition(And(
 			jq.Match(`.spec.components.data.featureStore.managementState == "Removed"`),
 			jq.Match(`.spec.components.data.dataRegistry.managementState == "Removed"`),
+			jq.Match(`.spec.components.data.dataConnectHub.managementState == "Removed"`),
 		)),
 	)
 	// Phase 1: Module CR should be deleted
