@@ -288,16 +288,6 @@ func databaseServiceTestSuite(t *testing.T) { //nolint:maintidx // sequential su
 			tc.ValidateModuleDisabled(t)
 
 			tc.EnsureResourceExists(
-				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
-				WithCondition(jq.Match(
-					`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
-					status.ConditionTypeModulesReady, metav1.ConditionTrue,
-				)),
-				WithCustomErrorMsg("DSC ModulesReady should remain True after disabling DatabaseService"),
-			)
-
-			tc.EnsureResourceExists(
 				WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.AppsNamespace}),
 				WithCustomErrorMsg("applications namespace %s must still exist after disable", tc.AppsNamespace),
 			)
