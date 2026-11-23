@@ -1,3 +1,4 @@
+//nolint:testpackage // white-box test for unexported gpuOperatorClusterPolicyServed
 package status
 
 import (
