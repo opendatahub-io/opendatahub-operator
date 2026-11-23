@@ -104,6 +104,13 @@ The `E2E_TEST_TAG` variable (or `--tag` flag) selects which tests run:
 | `PreUpgrade` | Baseline assertions captured before a product upgrade |
 | `PostUpgrade` | Assertions verified against the pre-upgrade baseline after the upgrade |
 
+The upgrade phases exist for RHOAI product-upgrade qualification —
+version-to-version upgrades of the Red Hat product operator (for example
+stable-3.5 → stable-3.6), where the platform default-ingress auth stack is
+deployed and must survive the upgrade. They are not part of community CI, and
+on a cluster without the gateway service deployed the PreUpgrade tests fail
+on the missing resources rather than skip.
+
 `PreUpgrade` and `PostUpgrade` never run under `All`: post-upgrade assertions
 are meaningless without a pre-upgrade baseline, so each phase must be invoked
 with its exact tag around the upgrade:
