@@ -19,6 +19,9 @@ type Options struct {
 	RelatedImagesConfigFile string
 	ManifestsDir            string
 	CSVImportRegistries     []string
+	// CodeDefaultsRoot bounds the directory scanned for `sync-digests:`
+	// markers. Empty means the directory containing ConfigFile.
+	CodeDefaultsRoot string
 	// FetchCSVImages overrides the real HTTP fetch; used in tests only.
 	FetchCSVImages func(ctx context.Context, source config.BuildConfigRepo) (map[string]CSVImage, error)
 }
@@ -397,8 +400,36 @@ func Resolve(ctx context.Context, opts Options) ([]Result, error) {
 		slog.Warn("Some images could not be resolved, skipping", slog.Int("count", len(unresolved)))
 	}
 
+	// Keep digest-pinned Go code defaults (marked with `// sync-digests:`)
+	// in lockstep with the freshly resolved config so the next PR does not
+	// break the drift-guard unit tests. All markers are validated against
+	// the resolved config before the config is saved, so a failed sync
+	// cannot leave manifests-config.yaml rewritten while the Go defaults
+	// still hold the old digests; the rewrites are applied only after the
+	// save succeeded.
+	var resolvedCfg config.ManifestsConfig
+	if err := nodeDoc.Root.Decode(&resolvedCfg); err != nil {
+		return nil, fmt.Errorf("decoding resolved config for code default sync: %w", err)
+	}
+	codeDefaultsRoot := opts.CodeDefaultsRoot
+	if codeDefaultsRoot == "" {
+		codeDefaultsRoot = filepath.Dir(opts.ConfigFile)
+	}
+	codeDefaultUpdates, err := collectCodeDefaults(&resolvedCfg, codeDefaultsRoot)
+	if err != nil {
+		return nil, fmt.Errorf("validating code default images under %s: %w", codeDefaultsRoot, err)
+	}
+
 	if err := nodeDoc.Save(opts.ConfigFile); err != nil {
 		return nil, fmt.Errorf("saving config: %w", err)
+	}
+
+	changed, err := applyCodeDefaultUpdates(codeDefaultUpdates)
+	if err != nil {
+		return nil, fmt.Errorf("syncing code default images: %w", err)
+	}
+	if changed {
+		slog.Info("Code default images synced", slog.String("root", codeDefaultsRoot))
 	}
 
 	slog.Info("Digests updated", slog.String("file", opts.ConfigFile))
