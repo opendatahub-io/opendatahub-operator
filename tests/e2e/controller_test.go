@@ -168,6 +168,11 @@ var (
 				componentApi.KserveComponentName: kserveAIHubStatePropagationTestSuite,
 			},
 			{
+				// DCH exercises the same public Data stanza as Feast; keep it sequential
+				// with the Data suite because both mutate the singleton DSC.
+				componentApi.DataConnectHubModuleName: dataConnectHubTestSuite,
+			},
+			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
 				componentApi.KueueComponentName: kueueTestSuite,
 				// AIHub and Kserve are coupled, so must not run with Kserve tests in parallel
