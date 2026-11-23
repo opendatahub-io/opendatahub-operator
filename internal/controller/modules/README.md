@@ -97,6 +97,14 @@ controller).
 
 ## Adding a New Module
 
+Data Connect Hub is a capability of the existing [Data handler](./data/), not a
+new module. The handler enables `Platform.spec.modules.data` when any of
+`data.featureStore`, `data.dataRegistry`, or `data.dataConnectHub` is Managed,
+and projects their configuration into one `FeastOperator` CR. The Feast module
+operator installs dc-controller and manages its `DataConnectService` application
+CR; the platform continues to aggregate the single module's status. Do not add a
+separate DCH handler, Platform module entry, or DSC status writer for this flow.
+
 A module team contributes four things to this repository:
 
 ### 1. Manifest source entry (`manifests-config.yaml`)

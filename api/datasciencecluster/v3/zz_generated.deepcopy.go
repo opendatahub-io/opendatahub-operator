@@ -36,7 +36,7 @@ func (in *Components) DeepCopyInto(out *Components) {
 	out.Ray = in.Ray
 	out.TrustyAI = in.TrustyAI
 	out.AIHub = in.AIHub
-	out.Data = in.Data
+	in.Data.DeepCopyInto(&out.Data)
 	out.OGX = in.OGX
 	in.MLflowOperator.DeepCopyInto(&out.MLflowOperator)
 	out.Trainer = in.Trainer

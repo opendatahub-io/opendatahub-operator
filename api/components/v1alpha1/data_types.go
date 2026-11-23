@@ -33,11 +33,45 @@ type DSCDataRegistry struct {
 	common.ManagementSpec `json:",inline"`
 }
 
+// DataConnectHubGateway identifies the platform Gateway used by DCH.
+type DataConnectHubGateway struct {
+	// Name is the Gateway resource name.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	Name string `json:"name"`
+
+	// Namespace contains the Gateway resource.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=63
+	Namespace string `json:"namespace"`
+}
+
+// DSCDataConnectHub configures DCH within the shared Data module.
+type DSCDataConnectHub struct {
+	common.ManagementSpec `json:",inline"`
+
+	// Gateway overrides the platform-discovered Gateway.
+	// +optional
+	Gateway *DataConnectHubGateway `json:"gateway,omitempty"`
+
+	// TokenReviewAudiences overrides platform-discovered service-account audiences.
+	// Omitted or empty means use platform discovery.
+	// +kubebuilder:validation:MaxItems=32
+	// +kubebuilder:validation:items:MinLength=1
+	// +kubebuilder:validation:items:MaxLength=256
+	// +listType=set
+	// +optional
+	TokenReviewAudiences []string `json:"tokenReviewAudiences,omitempty"`
+}
+
 // DSCData defines the independent data-related component configurations
 // exposed in the v3 DSC.
 type DSCData struct {
 	FeatureStore DSCFeatureStore `json:"featureStore,omitempty"`
 	DataRegistry DSCDataRegistry `json:"dataRegistry,omitempty"`
+	// DataConnectHub is installed by the existing Data module operator. An
+	// omitted managementState is treated as Removed.
+	DataConnectHub DSCDataConnectHub `json:"dataConnectHub,omitempty"`
 }
 
 // DataCommonStatus defines the observed state shared by the Data module.
