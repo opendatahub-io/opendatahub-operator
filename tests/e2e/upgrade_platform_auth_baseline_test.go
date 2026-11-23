@@ -16,11 +16,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 )
 
-// The baseline store persists the digest entries produced by the Task 2
-// helpers into an in-cluster ConfigMap that survives the operator upgrade:
-// the PreUpgrade phase saves it, the PostUpgrade phase loads it and compares.
-// Namespace and ConfigMap names intentionally match the Python reference
-// suite for evidence continuity.
+// The baseline store persists digest entries into an in-cluster ConfigMap
+// that survives the operator upgrade: the PreUpgrade phase saves it, the
+// PostUpgrade phase loads it and compares.
 const (
 	// upgradeBaselineNamespace hosts the baseline ConfigMap.
 	upgradeBaselineNamespace = "upgrade-platform-auth"
@@ -143,10 +141,10 @@ func TestSaveAndLoadUpgradeBaseline(t *testing.T) {
 	require.Equal(t, entries, loaded)
 }
 
-// TestLoadUpgradeBaselineMissing pins Review Focus #4: loading before the
-// PreUpgrade phase ran (namespace and/or ConfigMap absent) must fail with the
-// distinct "no baseline found" error pointing at the missing phase, not with
-// a bare NotFound the caller could mistake for a transient glitch.
+// TestLoadUpgradeBaselineMissing verifies that loading before the PreUpgrade
+// phase ran (namespace and/or ConfigMap absent) fails with the distinct
+// "no baseline found" error pointing at the missing phase, not with a bare
+// NotFound the caller could mistake for a transient glitch.
 func TestLoadUpgradeBaselineMissing(t *testing.T) {
 	cli, err := fakeclient.New()
 	require.NoError(t, err)

@@ -12,11 +12,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// transportTLSArgs is the set of transport-level TLS argument flags, ported
-// verbatim from the Python reference suite (TRANSPORT_TLS_ARGS). Their values
-// are unordered lists allowed to evolve between versions (cipher suite and
-// curve hardening); authentication-relevant args must not change across an
-// upgrade.
+// transportTLSArgs is the set of transport-level TLS argument flags whose
+// values are unordered lists allowed to evolve between versions (cipher
+// suite and curve hardening); authentication-relevant args must not change
+// across an upgrade.
 var transportTLSArgs = map[string]struct{}{
 	"--tls-cipher-suite":      {},
 	"--tls-curve-preferences": {},
@@ -48,11 +47,10 @@ func secretDataDigests(secret *corev1.Secret) map[string]string {
 }
 
 // isTransportTLSArg reports whether flag is in the transport-TLS exemption
-// set, ported verbatim from the Python reference (TRANSPORT_TLS_ARGS): exact
-// set membership only. These two args carry unordered cipher/curve lists that
-// may evolve between versions (hardening); every other arg — including other
-// --tls-* args such as --tls-cert-file or --tls-min-version — must not change
-// across an upgrade, so it is compared, never dropped.
+// set: exact set membership only. The two members carry unordered cipher and
+// curve lists that may evolve between versions; every other arg — including
+// other --tls-* args such as --tls-cert-file or --tls-min-version — must not
+// change across an upgrade, so it is compared, never dropped.
 func isTransportTLSArg(flag string) bool {
 	_, ok := transportTLSArgs[flag]
 	return ok
@@ -141,8 +139,8 @@ func TestSha256Hex(t *testing.T) {
 	}
 }
 
-// TestNormalizedArgDropsTransport proves exactly the ported transport-TLS
-// exemption set is dropped from the baseline (ok=false): cipher-suite and
+// TestNormalizedArgDropsTransport proves exactly the transport-TLS exemption
+// set is dropped from the baseline (ok=false): cipher-suite and
 // curve-preference values are unordered lists allowed to evolve between
 // versions (hardening). Every other arg — including near-miss --tls-* args
 // like --tls-cert-file or --tls-min-version — is compared (ok=true), because
@@ -211,10 +209,10 @@ func TestNormalizedArgDropsTransport(t *testing.T) {
 	}
 }
 
-// TestArgDigestEntriesLeakRefusal pins the leak guard (Review Focus #2): an
-// arg starting with a secret-like flag must be refused outright instead of
-// fingerprinted, and the error must name only the flag — never the arg's
-// value, which could carry credential material.
+// TestArgDigestEntriesLeakRefusal pins the leak guard: an arg starting with
+// a secret-like flag must be refused outright instead of fingerprinted, and
+// the error must name only the flag — never the arg's value, which could
+// carry credential material.
 func TestArgDigestEntriesLeakRefusal(t *testing.T) {
 	tests := []struct {
 		name string

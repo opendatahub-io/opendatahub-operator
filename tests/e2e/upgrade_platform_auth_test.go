@@ -1,35 +1,30 @@
 package e2e_test
 
 // RHOAIENG-101897: pre-upgrade capture of the platform default-ingress auth
-// stack, ported from the Python reference suite (opendatahub-tests,
-// tests/workbenches/notebooks_server/controller/upgrade/). The five PreUpgrade
-// tests assert the auth stack is healthy before the cluster upgrade and
-// capture its auth-relevant state into the baseline ConfigMap consumed by the
-// PostUpgrade tests: gatewayconfig.<field> entries for the default-gateway
-// GatewayConfig, gateway.identity and gateway.uid for the data-science-gateway
-// Gateway, oauthclient.* for the data-science OAuthClient (including its
-// grantMethod), credssecret.<key>Digest entries for the kube-auth-proxy-creds
-// Secret and kubeauthproxy.* entries for the kube-auth-proxy Deployment
-// (including its UID, so a delete-and-recreate during the upgrade is
-// detectable). Raw secret values never enter the baseline
-// or the logs (CWE-532): the OAuthClient secret and every credentials-Secret
-// value are stored as SHA-256 digests, and container args carrying
-// secret-like flags are refused outright by argDigestEntries.
+// stack. The five PreUpgrade tests assert the auth stack is healthy before
+// the cluster upgrade and capture its auth-relevant state into the baseline
+// ConfigMap consumed by the PostUpgrade tests: gatewayconfig.<field> entries
+// for the default-gateway GatewayConfig, gateway.identity and gateway.uid for
+// the data-science-gateway Gateway, oauthclient.* for the data-science
+// OAuthClient (including its grantMethod), credssecret.<key>Digest entries
+// for the kube-auth-proxy-creds Secret and kubeauthproxy.* entries for the
+// kube-auth-proxy Deployment (including its UID, so a delete-and-recreate
+// during the upgrade is detectable). Raw secret values never enter the
+// baseline or the logs (CWE-532): the OAuthClient secret and every
+// credentials-Secret value are stored as SHA-256 digests, and container args
+// carrying secret-like flags are refused outright by argDigestEntries.
 //
-// Baseline assembly design: Go runs the tests of one binary sequentially in
-// source order, so each test asserts its subject and records its entries into
-// the package-level platformAuthBaseline map, and the final test
+// Baseline assembly: Go runs the tests of one binary sequentially in source
+// order, so each test asserts its subject and records its entries into the
+// package-level platformAuthBaseline map, and the final test
 // (TestPreUpgradeKubeAuthProxyAvailable) persists the complete map exactly
-// once via saveUpgradeBaseline. This mirrors the Python reference, whose
-// session-scoped capture_platform_auth_baseline fixture collected the
-// per-resource state into one ConfigMap; package-level state is acceptable
-// here for the same reason. No test calls t.Parallel, so the map needs no
-// synchronization. Before persisting, the final test enforces completeness
+// once via saveUpgradeBaseline. No test calls t.Parallel, so the map needs
+// no synchronization. Before persisting, the final test enforces completeness
 // (requireCompletePlatformAuthBaseline): every static schema key must be
 // present — except the oauthclient.* keys on the OIDC skip path — so a
 // failed earlier test or a -run filter cannot save a partial baseline that
 // the PostUpgrade phase would silently accept. The PreUpgrade phase is
-// meaningful only when run as a whole, one count:
+// meaningful only when run as a whole:
 //
 //	E2E_TEST_TAG=PreUpgrade go test ./tests/e2e/ -run 'TestPreUpgrade' -v -count=1
 
@@ -86,9 +81,8 @@ var upgradeCredentialsSecretKeys = []string{
 	gateway.EnvCookieSecret,
 }
 
-// Baseline entry keys (the schema ported from the Python reference suite's
-// platform_auth_baseline fixture; Task 5's PostUpgrade tests compare against
-// these exact keys, so they must not drift).
+// Baseline entry keys. The PostUpgrade tests compare against these exact
+// keys, so they must not drift.
 const (
 	// baselineKeyPrefixGatewayConfig prefixes per-field GatewayConfig entries.
 	baselineKeyPrefixGatewayConfig = "gatewayconfig."
@@ -187,10 +181,9 @@ func expectedPlatformAuthBaselineKeys() ([]string, error) {
 // kubeauthproxy.args.* entry must exist. Without this guard, a failed earlier
 // test — Go keeps running the remaining tests after a require failure — or a
 // -run filter selecting only the final test would save a partial map whose
-// missing entries Task 5's PostUpgrade iteration would silently skip,
-// producing a misleading PASS on a broken baseline. Mirrors the Python
-// authority's "refusing to capture a broken baseline". The failure names
-// missing keys only, never values.
+// missing entries the PostUpgrade iteration would silently skip, producing a
+// misleading PASS on a broken baseline. The failure names missing keys only,
+// never values.
 func requireCompletePlatformAuthBaseline(t *testing.T, entries map[string]string) {
 	t.Helper()
 
@@ -616,7 +609,7 @@ func TestPreUpgradeKubeAuthProxyAvailable(t *testing.T) {
 	recordPlatformAuthBaseline(t, entries)
 
 	// Completeness guard: refuse to persist a partial baseline. An earlier
-	// failed test or a -run filter would otherwise leave holes that Task 5's
+	// failed test or a -run filter would otherwise leave holes that the
 	// PostUpgrade key iteration would silently skip.
 	requireCompletePlatformAuthBaseline(t, platformAuthBaseline)
 
@@ -627,20 +620,16 @@ func TestPreUpgradeKubeAuthProxyAvailable(t *testing.T) {
 		len(platformAuthBaseline), upgradeBaselineNamespace, upgradeBaselineCMName)
 }
 
-// PostUpgrade phase: the seven preservation tests, ported from the Python
-// reference suite's TestPostUpgradePlatformAuth. Each loads the baseline
+// PostUpgrade phase: the seven preservation tests. Each loads the baseline
 // ConfigMap captured by the PreUpgrade phase and compares the live auth
-// stack against it. Comparison semantics deliberately differ from the
-// Python "image equal" wording in one place: a real upgrade legitimately
-// advances the image digest or tag, so the image is compared
-// repository-to-repository (imageRepository below), exactly as the Python
-// authority's _image_repository helper does. The Gateway, OAuthClient
-// grantMethod and kube-auth-proxy Deployment UIDs are compared too, so a
-// delete-and-recreate during the upgrade fails loudly, and the
-// kube-auth-proxy args are compared as an exact map (both directions): a
-// flag added post-upgrade fails just like a removed one. Failure messages
-// name resources, flags and baseline keys; digests may appear in diffs, raw
-// secret values never.
+// stack against it. A real upgrade legitimately advances the kube-auth-proxy
+// image digest or tag, so the image is compared repository-to-repository
+// (imageRepository below). The Gateway, OAuthClient and kube-auth-proxy
+// Deployment UIDs are compared too, so a delete-and-recreate during the
+// upgrade fails loudly, and the kube-auth-proxy args are compared as an
+// exact map (both directions): a flag added post-upgrade fails just like a
+// removed one. Failure messages name resources, flags and baseline keys;
+// digests may appear in diffs, raw secret values never.
 
 // requirePostUpgradeBaseline loads the baseline ConfigMap captured by the
 // PreUpgrade phase, surfacing loadUpgradeBaseline's distinct "no baseline
@@ -673,11 +662,10 @@ func requireBaselineEntry(t *testing.T, baseline map[string]string, key string) 
 // imageRepository returns the repository component of an image reference,
 // stripping any digest (everything after "@") and any tag (a colon after
 // the last slash, so registry ports such as registry:5000/repo keep their
-// port). Ported from the Python reference's _image_repository: a real
-// 3.5.3→3.6.0 upgrade legitimately advances the image digest, so the
-// PostUpgrade image comparison is repository-to-repository; the baseline's
-// full kubeauthproxy.image reference (digest or tag included) is parsed on
-// both sides.
+// port). A real upgrade legitimately advances the image digest or tag, so
+// the PostUpgrade image comparison is repository-to-repository; the
+// baseline's full kubeauthproxy.image reference (digest or tag included) is
+// parsed on both sides.
 func imageRepository(image string) string {
 	repository := strings.SplitN(image, "@", 2)[0]
 	if colonIndex := strings.LastIndex(repository, ":"); colonIndex > strings.LastIndex(repository, "/") {
@@ -687,11 +675,10 @@ func imageRepository(image string) string {
 }
 
 // assertSettingsSubset recursively asserts that baseline settings survive in
-// current, ported from the Python reference's _assert_settings_subset:
-// mappings are compared as subsets (fields newly introduced by an upgrade
-// are allowed inside existing settings), scalars and lists must match
-// exactly. Failure messages name the setting path and the missing keys,
-// never values.
+// current: mappings are compared as subsets (fields newly introduced by an
+// upgrade are allowed inside existing settings), scalars and lists must
+// match exactly. Failure messages name the setting path and the missing
+// keys, never values.
 func assertSettingsSubset(t *testing.T, resource, settingPath string, baseline, current any) {
 	t.Helper()
 	baselineMap, baselineIsMap := baseline.(map[string]any)
@@ -753,20 +740,15 @@ var gatewayConfigJSONBaselineKeys = map[string]struct{}{
 }
 
 // requireSettingsEntriesPreserved asserts that every baseline GatewayConfig
-// entry survives the upgrade under the Python authority's subset semantics
-// (test_upgrade_platform_auth.py, _assert_settings_subset: "Baseline
-// settings must be preserved; fields newly introduced by the upgrade are
-// allowed, including inside existing nested settings"):
+// entry survives the upgrade under subset semantics:
 //
 //   - iteration is over the BASELINE entries, so current-only entries —
 //     fields the current rendering knows that the baseline lacks — are
 //     allowed as newly introduced;
 //   - a baseline entry carrying the "unset" marker may take ANY current
 //     value: the field was nil at capture, and an upgrade materializing a
-//     computed default for it is an introduction, not a change. The live
-//     3.5.3→3.6.0 cycle hit exactly this: the upgraded operator wrote its
-//     authProxyMaxReplicas fallback (10) into the spec where 3.5.3 left
-//     the field nil;
+//     computed default for it (e.g. authProxyMaxReplicas: 10) is an
+//     introduction, not a change;
 //   - a baseline entry with a concrete value must still exist in the
 //     current rendering (a removed setting fails, named) and match
 //     exactly;
@@ -814,12 +796,10 @@ func settingsComparisonFails(baseline, current map[string]string) bool {
 }
 
 // TestRequireSettingsEntriesPreserved pins the subset semantics of the
-// GatewayConfig PostUpgrade comparison against the live 3.5.3→3.6.0
-// finding: the upgraded operator materializes computed defaults (e.g.
-// authProxyMaxReplicas: 10) into spec fields the 3.5.3 baseline captured as
-// nil, and the Python authority's subset comparison allows exactly that
-// while still failing changed, removed and lost settings. The cases follow
-// the fix ruling (a)-(g); no cluster access.
+// GatewayConfig PostUpgrade comparison: an upgraded operator may materialize
+// computed defaults (e.g. authProxyMaxReplicas: 10) into spec fields the
+// baseline captured as nil — an introduction, allowed — while changed,
+// removed and lost settings still fail. No cluster access.
 func TestRequireSettingsEntriesPreserved(t *testing.T) {
 	resource := "GatewayConfig default-gateway"
 
@@ -914,8 +894,7 @@ func TestRequireSettingsEntriesPreserved(t *testing.T) {
 // unchanged after it. Fields newly introduced by the upgraded version are
 // allowed, including inside existing nested settings (oidc, tokenReview)
 // and including a nil-at-capture field the upgrade materializes a computed
-// default into (3.6.0's authProxyMaxReplicas), mirroring the Python
-// reference's subset comparison.
+// default into.
 func TestPostUpgradeGatewayConfigSettingsPreserved(t *testing.T) {
 	skipUnlessUpgradePhase(t, PostUpgrade)
 
@@ -931,13 +910,12 @@ func TestPostUpgradeGatewayConfigSettingsPreserved(t *testing.T) {
 	currentEntries, err := gatewayConfigBaselineEntries(gatewayConfig)
 	require.NoError(t, err, "should render the current GatewayConfig baseline entries")
 
-	// Subset semantics, per the Python authority's _assert_settings_subset:
-	// the comparison iterates the baseline entries, so fields newly
-	// introduced by the upgrade (absent from the baseline, like 3.6.0's
-	// materialized authProxyMaxReplicas default) are allowed, while every
-	// captured setting must survive. The capture-time completeness guard
-	// guarantees a same-version baseline carries the full schema, so a
-	// baseline with no gatewayconfig.* entries at all is an incomplete
+	// Subset semantics: the comparison iterates the baseline entries, so
+	// fields newly introduced by the upgrade (absent from the baseline,
+	// like a materialized authProxyMaxReplicas default) are allowed, while
+	// every captured setting must survive. The capture-time completeness
+	// guard guarantees a same-version baseline carries the full schema, so
+	// a baseline with no gatewayconfig.* entries at all is an incomplete
 	// capture, not a legitimate empty subject.
 	baselineEntries := make(map[string]string)
 	for key, value := range baseline {
