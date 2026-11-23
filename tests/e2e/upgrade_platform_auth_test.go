@@ -626,3 +626,390 @@ func TestPreUpgradeKubeAuthProxyAvailable(t *testing.T) {
 	t.Logf("captured %d platform-auth baseline entries into ConfigMap %s/%s",
 		len(platformAuthBaseline), upgradeBaselineNamespace, upgradeBaselineCMName)
 }
+
+// PostUpgrade phase: the seven preservation tests, ported from the Python
+// reference suite's TestPostUpgradePlatformAuth. Each loads the baseline
+// ConfigMap captured by the PreUpgrade phase and compares the live auth
+// stack against it. Comparison semantics deliberately differ from the
+// Python "image equal" wording in one place: a real upgrade legitimately
+// advances the image digest or tag, so the image is compared
+// repository-to-repository (imageRepository below), exactly as the Python
+// authority's _image_repository helper does. The Gateway, OAuthClient
+// grantMethod and kube-auth-proxy Deployment UIDs are compared too, so a
+// delete-and-recreate during the upgrade fails loudly, and the
+// kube-auth-proxy args are compared as an exact map (both directions): a
+// flag added post-upgrade fails just like a removed one. Failure messages
+// name resources, flags and baseline keys; digests may appear in diffs, raw
+// secret values never.
+
+// requirePostUpgradeBaseline loads the baseline ConfigMap captured by the
+// PreUpgrade phase, surfacing loadUpgradeBaseline's distinct "no baseline
+// found — was the PreUpgrade phase run" error as a hard failure: a
+// PostUpgrade run without its PreUpgrade counterpart must fail loudly,
+// never pass or skip.
+func requirePostUpgradeBaseline(t *testing.T, ctx context.Context, c client.Client) map[string]string {
+	t.Helper()
+	baseline, err := loadUpgradeBaseline(ctx, c)
+	require.NoError(t, err,
+		"should load the platform-auth baseline ConfigMap %s/%s captured by the PreUpgrade phase",
+		upgradeBaselineNamespace, upgradeBaselineCMName)
+	return baseline
+}
+
+// requireBaselineEntry returns baseline[key], hard-failing when the entry is
+// absent: a PostUpgrade comparison must never silently skip a subject whose
+// baseline entry is missing — an incomplete PreUpgrade capture is a failure,
+// not a pass.
+func requireBaselineEntry(t *testing.T, baseline map[string]string, key string) string {
+	t.Helper()
+	value, exists := baseline[key]
+	require.True(t, exists,
+		"baseline entry %q is missing from ConfigMap %s/%s: the PreUpgrade capture is incomplete; "+
+			"re-run the full PreUpgrade phase before the PostUpgrade phase",
+		key, upgradeBaselineNamespace, upgradeBaselineCMName)
+	return value
+}
+
+// imageRepository returns the repository component of an image reference,
+// stripping any digest (everything after "@") and any tag (a colon after
+// the last slash, so registry ports such as registry:5000/repo keep their
+// port). Ported from the Python reference's _image_repository: a real
+// 3.5.3→3.6.0 upgrade legitimately advances the image digest, so the
+// PostUpgrade image comparison is repository-to-repository; the baseline's
+// full kubeauthproxy.image reference (digest or tag included) is parsed on
+// both sides.
+func imageRepository(image string) string {
+	repository := strings.SplitN(image, "@", 2)[0]
+	if colonIndex := strings.LastIndex(repository, ":"); colonIndex > strings.LastIndex(repository, "/") {
+		repository = repository[:colonIndex]
+	}
+	return repository
+}
+
+// assertSettingsSubset recursively asserts that baseline settings survive in
+// current, ported from the Python reference's _assert_settings_subset:
+// mappings are compared as subsets (fields newly introduced by an upgrade
+// are allowed inside existing settings), scalars and lists must match
+// exactly. Failure messages name the setting path and the missing keys,
+// never values.
+func assertSettingsSubset(t *testing.T, resource, settingPath string, baseline, current any) {
+	t.Helper()
+	baselineMap, baselineIsMap := baseline.(map[string]any)
+	if !baselineIsMap {
+		require.Equal(t, baseline, current, "%s setting %q changed after the upgrade", resource, settingPath)
+		return
+	}
+	currentMap, currentIsMap := current.(map[string]any)
+	require.True(t, currentIsMap,
+		"%s setting %q changed shape after the upgrade: expected a mapping", resource, settingPath)
+
+	missing := make([]string, 0)
+	for key := range baselineMap {
+		if _, exists := currentMap[key]; !exists {
+			missing = append(missing, key)
+		}
+	}
+	slices.Sort(missing)
+	require.Empty(t, missing, "%s lost settings after the upgrade at %q: %v", resource, settingPath, missing)
+
+	for key, baselineValue := range baselineMap {
+		assertSettingsSubset(t, resource, settingPath+"."+key, baselineValue, currentMap[key])
+	}
+}
+
+// requireJSONSettingPreserved compares a JSON-serialized baseline entry with
+// the current rendering under subset semantics: the "unset" markers compare
+// directly, and both JSON sides must unmarshal before
+// assertSettingsSubset applies the recursive subset comparison (new nested
+// fields introduced by the upgrade are allowed, dropped or changed ones are
+// not).
+func requireJSONSettingPreserved(t *testing.T, resource, key, baselineValue, currentValue string) {
+	t.Helper()
+	if baselineValue == baselineUnset || currentValue == baselineUnset {
+		require.Equal(t, baselineValue, currentValue,
+			"%s setting %q changed after the upgrade", resource, key)
+		return
+	}
+	var baselineJSON, currentJSON any
+	require.NoError(t, json.Unmarshal([]byte(baselineValue), &baselineJSON),
+		"baseline entry %q should be valid JSON or %q", key, baselineUnset)
+	require.NoError(t, json.Unmarshal([]byte(currentValue), &currentJSON),
+		"%s setting %q should render as valid JSON", resource, key)
+	assertSettingsSubset(t, resource, key, baselineJSON, currentJSON)
+}
+
+// TestPostUpgradeGatewayConfigSettingsPreserved verifies that every
+// auth-relevant GatewayConfig setting captured before the upgrade is
+// unchanged after it. Fields newly introduced by the upgraded version are
+// allowed, including inside existing nested settings (oidc, tokenReview),
+// mirroring the Python reference's subset comparison.
+func TestPostUpgradeGatewayConfigSettingsPreserved(t *testing.T) {
+	skipUnlessUpgradePhase(t, PostUpgrade)
+
+	tc, err := NewTestContext(t)
+	require.NoError(t, err)
+	ctx := tc.Context()
+	baseline := requirePostUpgradeBaseline(t, ctx, tc.Client())
+
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	require.NoError(t, tc.Client().Get(ctx, types.NamespacedName{Name: upgradeGatewayConfigName}, gatewayConfig),
+		"GatewayConfig %s should still exist after the upgrade", upgradeGatewayConfigName)
+
+	currentEntries, err := gatewayConfigBaselineEntries(gatewayConfig)
+	require.NoError(t, err, "should render the current GatewayConfig baseline entries")
+
+	resource := "GatewayConfig " + upgradeGatewayConfigName
+	for key, currentValue := range currentEntries {
+		baselineValue := requireBaselineEntry(t, baseline, key)
+		switch key {
+		case baselineKeyPrefixGatewayConfig + "oidc", baselineKeyPrefixGatewayConfig + "tokenReview":
+			requireJSONSettingPreserved(t, resource, key, baselineValue, currentValue)
+		default:
+			require.Equal(t, baselineValue, currentValue,
+				"%s setting %q changed after the upgrade", resource, key)
+		}
+	}
+}
+
+// TestPostUpgradeDefaultGatewayIdentityPreserved verifies that the default
+// Gateway kept its routing identity (gateway class, listener names and
+// ports) and its UID across the upgrade: a changed UID means the Gateway
+// was deleted and recreated, which would drop its status and addresses.
+func TestPostUpgradeDefaultGatewayIdentityPreserved(t *testing.T) {
+	skipUnlessUpgradePhase(t, PostUpgrade)
+
+	tc, err := NewTestContext(t)
+	require.NoError(t, err)
+	ctx := tc.Context()
+	baseline := requirePostUpgradeBaseline(t, ctx, tc.Client())
+
+	defaultGateway := &gwapiv1.Gateway{}
+	gatewayKey := types.NamespacedName{Name: upgradeDefaultGatewayName, Namespace: upgradeAuthNamespace}
+	require.NoError(t, tc.Client().Get(ctx, gatewayKey, defaultGateway),
+		"Gateway %s/%s should still exist after the upgrade", upgradeAuthNamespace, upgradeDefaultGatewayName)
+
+	require.Equal(t, requireBaselineEntry(t, baseline, baselineKeyGatewayIdentity), gatewayIdentity(defaultGateway),
+		"Gateway %s/%s routing identity (gateway class, listeners) changed after the upgrade",
+		upgradeAuthNamespace, upgradeDefaultGatewayName)
+	require.Equal(t, requireBaselineEntry(t, baseline, baselineKeyGatewayUID), string(defaultGateway.UID),
+		"Gateway %s/%s was recreated during the upgrade: its UID changed",
+		upgradeAuthNamespace, upgradeDefaultGatewayName)
+}
+
+// TestPostUpgradeOAuthClientRegistrationPreserved verifies that the platform
+// OAuthClient registration survived the upgrade: grant method, redirect
+// URIs, the secret digest, wwwChallenge and tokenMaxAge all equal their
+// baseline entries. On BYOIDC clusters (no OAuthClient and kube-auth-proxy
+// running --provider=oidc) the test skips the same way its PreUpgrade
+// counterpart does: there is no platform OAuthClient to compare, and a
+// silent pass would hide the skip from pipeline readers.
+func TestPostUpgradeOAuthClientRegistrationPreserved(t *testing.T) {
+	skipUnlessUpgradePhase(t, PostUpgrade)
+
+	tc, err := NewTestContext(t)
+	require.NoError(t, err)
+	ctx := tc.Context()
+	baseline := requirePostUpgradeBaseline(t, ctx, tc.Client())
+
+	oauthClient := &oauthv1.OAuthClient{}
+	err = tc.Client().Get(ctx, types.NamespacedName{Name: upgradeOAuthClientName}, oauthClient)
+	if k8serr.IsNotFound(err) && clusterAuthUsesOIDC(t, ctx, tc.Client()) {
+		t.Skipf(
+			"OAuthClient %s not found and kube-auth-proxy runs --provider=oidc: "+
+				"this cluster authenticates via an external OIDC provider instead of the "+
+				"integrated OpenShift OAuth server, so there is no platform OAuthClient to "+
+				"compare after the upgrade (expected skip on BYOIDC clusters, matching the "+
+				"PreUpgrade phase's skip)",
+			upgradeOAuthClientName,
+		)
+	}
+	require.NoError(t, err, "OAuthClient %s should still exist after the upgrade", upgradeOAuthClientName)
+
+	currentEntries := oauthClientBaselineEntries(oauthClient)
+	comparisons := []struct {
+		key string
+		msg string
+	}{
+		{baselineKeyOAuthGrantMethod, "grantMethod changed after the upgrade (registration changed)"},
+		{baselineKeyOAuthRedirectURIs, "redirectURIs changed after the upgrade"},
+		{baselineKeyOAuthSecretDigest, "secret was rotated during the upgrade (sha256 digest mismatch)"},
+		{baselineKeyOAuthWWWChallenge, "respondWithChallenges changed after the upgrade"},
+		{baselineKeyOAuthTokenMaxAge, "accessTokenMaxAgeSeconds changed after the upgrade"},
+	}
+	for _, comparison := range comparisons {
+		require.Equal(t, requireBaselineEntry(t, baseline, comparison.key), currentEntries[comparison.key],
+			"OAuthClient %s %s", upgradeOAuthClientName, comparison.msg)
+	}
+}
+
+// TestPostUpgradeCredentialsSecretKeysPreserved verifies that the
+// kube-auth-proxy credentials Secret still exists with the same key set it
+// carried before the upgrade (client ID, client secret, cookie secret).
+func TestPostUpgradeCredentialsSecretKeysPreserved(t *testing.T) {
+	skipUnlessUpgradePhase(t, PostUpgrade)
+
+	tc, err := NewTestContext(t)
+	require.NoError(t, err)
+	ctx := tc.Context()
+	baseline := requirePostUpgradeBaseline(t, ctx, tc.Client())
+
+	credentialsSecret := &corev1.Secret{}
+	secretKey := types.NamespacedName{Name: upgradeCredentialsSecretName, Namespace: upgradeAuthNamespace}
+	require.NoError(t, tc.Client().Get(ctx, secretKey, credentialsSecret),
+		"credentials Secret %s/%s should still exist after the upgrade", upgradeAuthNamespace, upgradeCredentialsSecretName)
+
+	// Key names only: values are compared as digests elsewhere and must
+	// never reach a failure message (CWE-532).
+	currentKeys := make([]string, 0, len(credentialsSecret.Data))
+	for key := range credentialsSecret.Data {
+		currentKeys = append(currentKeys, key)
+	}
+	slices.Sort(currentKeys)
+
+	baselineKeys := make([]string, 0, len(upgradeCredentialsSecretKeys))
+	for _, key := range upgradeCredentialsSecretKeys {
+		requireBaselineEntry(t, baseline, baselineKeyPrefixCredsSecret+key+"Digest")
+		baselineKeys = append(baselineKeys, key)
+	}
+
+	require.Equal(t, baselineKeys, currentKeys,
+		"credentials Secret %s/%s key set changed after the upgrade: current keys %v, baseline keys %v",
+		upgradeAuthNamespace, upgradeCredentialsSecretName, currentKeys, baselineKeys)
+}
+
+// TestPostUpgradeCookieSecretNotRotated verifies that the credentials
+// Secret's values — including OAUTH2_PROXY_COOKIE_SECRET, whose rotation
+// would force every user to re-login — were not rotated during the upgrade.
+// Every per-key digest is compared against its baseline entry; the failure
+// names the affected keys, never the values or their digests.
+func TestPostUpgradeCookieSecretNotRotated(t *testing.T) {
+	skipUnlessUpgradePhase(t, PostUpgrade)
+
+	tc, err := NewTestContext(t)
+	require.NoError(t, err)
+	ctx := tc.Context()
+	baseline := requirePostUpgradeBaseline(t, ctx, tc.Client())
+
+	credentialsSecret := &corev1.Secret{}
+	secretKey := types.NamespacedName{Name: upgradeCredentialsSecretName, Namespace: upgradeAuthNamespace}
+	require.NoError(t, tc.Client().Get(ctx, secretKey, credentialsSecret),
+		"credentials Secret %s/%s should still exist after the upgrade", upgradeAuthNamespace, upgradeCredentialsSecretName)
+
+	currentDigests := credentialsSecretBaselineEntries(credentialsSecret)
+	rotatedKeys := make([]string, 0)
+	for entryKey, currentDigest := range currentDigests {
+		if requireBaselineEntry(t, baseline, entryKey) != currentDigest {
+			rotatedKeys = append(rotatedKeys,
+				strings.TrimSuffix(strings.TrimPrefix(entryKey, baselineKeyPrefixCredsSecret), "Digest"))
+		}
+	}
+	slices.Sort(rotatedKeys)
+	require.Empty(t, rotatedKeys,
+		"credentials Secret %s/%s values were rotated during the upgrade "+
+			"(sha256 digest mismatch; keys affected: %v)",
+		upgradeAuthNamespace, upgradeCredentialsSecretName, rotatedKeys)
+}
+
+// TestPostUpgradeKubeAuthProxyIdentityPreserved verifies that the
+// kube-auth-proxy Deployment kept its identity across the upgrade: same UID
+// (a change means delete-and-recreate), same image repository (the digest
+// or tag may legitimately advance with the upgrade, the repository may not
+// change) and the exact same flag-digested arg map — a flag added
+// post-upgrade fails just like a removed one, in both directions.
+func TestPostUpgradeKubeAuthProxyIdentityPreserved(t *testing.T) {
+	skipUnlessUpgradePhase(t, PostUpgrade)
+
+	tc, err := NewTestContext(t)
+	require.NoError(t, err)
+	ctx := tc.Context()
+	baseline := requirePostUpgradeBaseline(t, ctx, tc.Client())
+
+	deployment := &appsv1.Deployment{}
+	deploymentKey := types.NamespacedName{Name: upgradeAuthProxyName, Namespace: upgradeAuthNamespace}
+	require.NoError(t, tc.Client().Get(ctx, deploymentKey, deployment),
+		"Deployment %s/%s should still exist after the upgrade", upgradeAuthNamespace, upgradeAuthProxyName)
+
+	require.Equal(t, requireBaselineEntry(t, baseline, baselineKeyAuthProxyUID), string(deployment.UID),
+		"Deployment %s/%s was recreated during the upgrade: its UID changed",
+		upgradeAuthNamespace, upgradeAuthProxyName)
+
+	container := authProxyContainer(deployment)
+	require.NotNil(t, container,
+		"Deployment %s/%s should still have a %s container after the upgrade",
+		upgradeAuthNamespace, upgradeAuthProxyName, upgradeAuthProxyName)
+
+	// Repository-to-repository: a real upgrade advances the image digest or
+	// tag; the repository must not change. The failure names both
+	// repositories so the operator's image swap is immediately visible.
+	baselineImage := requireBaselineEntry(t, baseline, baselineKeyAuthProxyImage)
+	baselineRepository := imageRepository(baselineImage)
+	currentRepository := imageRepository(container.Image)
+	require.Equal(t, baselineRepository, currentRepository,
+		"Deployment %s/%s container %s image repository changed after the upgrade: "+
+			"current %q != baseline %q (the digest or tag may advance with the upgrade, the repository may not)",
+		upgradeAuthNamespace, upgradeAuthProxyName, upgradeAuthProxyName, currentRepository, baselineRepository)
+
+	// argDigestEntries refuses secret-like args; a live cluster legitimately
+	// carrying one must fail here rather than be compared.
+	currentArgEntries, err := argDigestEntries(container.Args)
+	require.NoError(t, err,
+		"should digest the current kube-auth-proxy args; secret-like args are refused outright")
+
+	// Assemble the baseline arg map from the kubeauthproxy.args.* entries;
+	// a baseline carrying none is an incomplete capture, a failure.
+	baselineArgEntries := make(map[string]string)
+	for key, value := range baseline {
+		if strings.HasPrefix(key, baselineKeyPrefixAuthProxyArgs) {
+			baselineArgEntries[strings.TrimPrefix(key, baselineKeyPrefixAuthProxyArgs)] = value
+		}
+	}
+	require.NotEmpty(t, baselineArgEntries,
+		"baseline ConfigMap %s/%s carries no %s* entries: the PreUpgrade capture is incomplete; "+
+			"re-run the full PreUpgrade phase before the PostUpgrade phase",
+		upgradeBaselineNamespace, upgradeBaselineCMName, baselineKeyPrefixAuthProxyArgs)
+
+	// Exact map equality compares both directions at once: a flag removed
+	// by the upgrade and a flag added by it fail equally. The diff carries
+	// flag names and value digests only, never raw values.
+	require.Equal(t, baselineArgEntries, currentArgEntries,
+		"Deployment %s/%s container %s args changed after the upgrade "+
+			"(exact comparison of flag-to-digest entries, both directions)",
+		upgradeAuthNamespace, upgradeAuthProxyName, upgradeAuthProxyName)
+}
+
+// TestPostUpgradeKubeAuthProxyAvailableAfterUpgrade verifies that the
+// upgraded kube-auth-proxy rollout completed: the Deployment reports
+// Available, its status observes the current generation, and its updated
+// and available replicas sit at the desired count (Available=True alone can
+// be satisfied by old pods during a failed rollout).
+func TestPostUpgradeKubeAuthProxyAvailableAfterUpgrade(t *testing.T) {
+	skipUnlessUpgradePhase(t, PostUpgrade)
+
+	tc, err := NewTestContext(t)
+	require.NoError(t, err)
+	ctx := tc.Context()
+
+	deploymentKey := types.NamespacedName{Name: upgradeAuthProxyName, Namespace: upgradeAuthNamespace}
+	g := NewWithT(t)
+	g.Eventually(func(g Gomega) {
+		deployment := &appsv1.Deployment{}
+		g.Expect(tc.Client().Get(ctx, deploymentKey, deployment)).To(Succeed(),
+			"Deployment %s/%s should still exist after the upgrade", upgradeAuthNamespace, upgradeAuthProxyName)
+		g.Expect(deploymentAvailable(deployment)).To(BeTrue(),
+			"Deployment %s/%s should be Available after the upgrade; the upgraded auth proxy is not serving",
+			upgradeAuthNamespace, upgradeAuthProxyName)
+		desiredReplicas := int32(1)
+		if deployment.Spec.Replicas != nil {
+			desiredReplicas = *deployment.Spec.Replicas
+		}
+		g.Expect(deployment.Status.ObservedGeneration).To(Equal(deployment.Generation),
+			"Deployment %s/%s status should observe the current generation after the upgrade; the rollout has not been observed",
+			upgradeAuthNamespace, upgradeAuthProxyName)
+		g.Expect(deployment.Status.UpdatedReplicas).To(Equal(desiredReplicas),
+			"Deployment %s/%s should have all %d replicas updated after the upgrade; the upgraded auth proxy has not rolled out",
+			upgradeAuthNamespace, upgradeAuthProxyName, desiredReplicas)
+		g.Expect(deployment.Status.AvailableReplicas).To(Equal(desiredReplicas),
+			"Deployment %s/%s should have all %d replicas available after the upgrade; the upgraded auth proxy is not fully serving",
+			upgradeAuthNamespace, upgradeAuthProxyName, desiredReplicas)
+	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
+}
