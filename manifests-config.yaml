@@ -198,7 +198,7 @@ componentCharts:
   odh-observability:
     odh:
       repo: opendatahub-io/odh-observability
-      ref: main@bf191f6fd9ca0f7be32b7829bf1b7dfc9d7d5418
+      ref: main@1d9fc9d9123095561c5d3fedf97c0293fd841a09
       sourcePath: charts/odh-observability
     rhoai:
       repo: red-hat-data-services/odh-observability
