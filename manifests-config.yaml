@@ -743,6 +743,12 @@ imageOverrides:
     rhoai:
       base: "quay.io/rhoai/odh-ml-pipelines-scheduledworkflow-v2-rhel9"
       digest: "sha256:a66d4c0b2ab0fc6808ce2b88128ed2ac0923f6605892ddba39b58280f6080004"
+  RELATED_IMAGE_RHAI_AI_HUB_CATALOG_IMAGE:
+    component: "aihub"
+    source: "csv"
+    rhoai:
+      base: "registry.redhat.io/rhai/ai-hub-catalog-rhel9"
+      digest: "sha256:0e396f316c5da71164d97e36a2d950be1ba15fc3659b177797a7f0b8b74e5b96"
   RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE:
     source: "csv"
     odh:
