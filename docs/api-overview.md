@@ -525,6 +525,7 @@ _Appears in:_
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
 | `auditLoggingProfile` _[AuditProfile](#auditprofile)_ | AuditLoggingProfile selects the audit logging profile for InferenceService and<br />LLMInferenceService traffic. Removed disables audit events; Metadata records<br />request and response metadata without bodies. | Removed | Enum: [Removed Metadata] <br />MaxLength: 8 <br /> |
+| `enableLLMInferenceServiceStrictNetworkPolicy` _boolean_ | Enables the strict per-LLMInferenceService NetworkPolicies that restrict<br />traffic between the workload, scheduler and tokenizer Pods to what each<br />service needs. When unset or false, KServe creates a single allow-all<br />NetworkPolicy per service instead, which keeps the open behaviour of<br />releases that did not restrict Pod traffic across upgrades. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 
@@ -1091,7 +1092,9 @@ _Appears in:_
 
 
 
-DashboardCommonStatus defines the shared observed state of Dashboard
+DashboardCommonStatus defines the shared observed state of Dashboard.
+Releases is filled from the Dashboard module CR so the Info dialog can
+show the upstream component link and version.
 
 
 
@@ -1100,7 +1103,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `url` _string_ |  |  |  |
+| `url` _string_ | URL is the externally reachable dashboard URL. |  |  |
 
 
 #### DashboardMaaSPortalSpec
@@ -1253,6 +1256,7 @@ _Appears in:_
 | `enableLLMInferenceServiceTLS` _boolean_ | Enables TLS for LLMInferenceService deployments.<br />When unset, the KServe default (TLS enabled) is preserved. |  |  |
 | `enableLLMInferenceServiceConsoleDashboards` _boolean_ | Enables OpenShift Developer Console dashboards for LLMInferenceService.<br />Enabled by default. |  |  |
 | `auditLoggingProfile` _[AuditProfile](#auditprofile)_ | AuditLoggingProfile selects the audit logging profile for InferenceService and<br />LLMInferenceService traffic. Removed disables audit events; Metadata records<br />request and response metadata without bodies. | Removed | Enum: [Removed Metadata] <br />MaxLength: 8 <br /> |
+| `enableLLMInferenceServiceStrictNetworkPolicy` _boolean_ | Enables the strict per-LLMInferenceService NetworkPolicies that restrict<br />traffic between the workload, scheduler and tokenizer Pods to what each<br />service needs. When unset or false, KServe creates a single allow-all<br />NetworkPolicy per service instead, which keeps the open behaviour of<br />releases that did not restrict Pod traffic across upgrades. |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 

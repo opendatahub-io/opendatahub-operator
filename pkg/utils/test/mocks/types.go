@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/metadata"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -73,6 +74,14 @@ func (m *MockController) GetDynamicClient() dynamic.Interface {
 	return m.Called().Get(0).(dynamic.Interface)
 }
 
+func (m *MockController) GetMetadataClient() metadata.Interface {
+	args := m.Called()
+	if len(args) == 0 || args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(metadata.Interface)
+}
+
 func (m *MockController) IsDynamicOwnershipEnabled() bool {
 	args := m.Called()
 	if len(args) == 0 {
@@ -82,6 +91,14 @@ func (m *MockController) IsDynamicOwnershipEnabled() bool {
 }
 
 func (m *MockController) IsExcludedFromDynamicOwnership(gvk schema.GroupVersionKind) bool {
+	args := m.Called(gvk)
+	if len(args) == 0 {
+		return false
+	}
+	return args.Bool(0)
+}
+
+func (m *MockController) IsUnownableGVK(gvk schema.GroupVersionKind) bool {
 	args := m.Called(gvk)
 	if len(args) == 0 {
 		return false
@@ -101,6 +118,7 @@ func NewMockController(f func(m *MockController)) *MockController {
 	// This allows tests to override with specific expectations before these defaults.
 	m.On("Owns", mock.Anything).Return(false).Maybe()
 	m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false).Maybe()
+	m.On("IsUnownableGVK", mock.Anything).Return(false).Maybe()
 	m.On("IsDynamicOwnershipEnabled").Return(false).Maybe()
 	m.On("AddDynamicOwnedType", mock.Anything).Return().Maybe()
 
