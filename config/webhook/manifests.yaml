@@ -1,0 +1,241 @@
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: mutating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-datasciencecluster-v2
+  failurePolicy: Fail
+  matchPolicy: Exact
+  name: datasciencecluster-v2-defaulter.opendatahub.io
+  rules:
+  - apiGroups:
+    - datasciencecluster.opendatahub.io
+    apiVersions:
+    - v2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - datascienceclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-datasciencecluster-v3
+  failurePolicy: Fail
+  matchPolicy: Exact
+  name: datasciencecluster-v3-defaulter.opendatahub.io
+  rules:
+  - apiGroups:
+    - datasciencecluster.opendatahub.io
+    apiVersions:
+    - v3
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - datascienceclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-prometheus-monitors
+  failurePolicy: Fail
+  name: podmonitor-injector.opendatahub.io
+  rules:
+  - apiGroups:
+    - monitoring.coreos.com
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - podmonitors
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-prometheus-monitors
+  failurePolicy: Fail
+  name: servicemonitor-injector.opendatahub.io
+  rules:
+  - apiGroups:
+    - monitoring.coreos.com
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - servicemonitors
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-dashboard-acceleratorprofile
+  failurePolicy: Fail
+  name: dashboard-acceleratorprofile-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - dashboard.opendatahub.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - acceleratorprofiles
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-dashboard-hardwareprofile
+  failurePolicy: Fail
+  name: dashboard-hardwareprofile-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - dashboard.opendatahub.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - hardwareprofiles
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-datasciencecluster-v2
+  failurePolicy: Fail
+  matchPolicy: Exact
+  name: datasciencecluster-v2-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - datasciencecluster.opendatahub.io
+    apiVersions:
+    - v2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - datascienceclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-datasciencecluster-v3
+  failurePolicy: Fail
+  matchPolicy: Exact
+  name: datasciencecluster-v3-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - datasciencecluster.opendatahub.io
+    apiVersions:
+    - v3
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - datascienceclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-dscinitialization-v1
+  failurePolicy: Fail
+  matchPolicy: Exact
+  name: dscinitialization-v1-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - dscinitialization.opendatahub.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - dscinitializations
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-dscinitialization-v2
+  failurePolicy: Fail
+  matchPolicy: Exact
+  name: dscinitialization-v2-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - dscinitialization.opendatahub.io
+    apiVersions:
+    - v2
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - dscinitializations
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-gatewayconfig
+  failurePolicy: Fail
+  matchPolicy: Exact
+  name: gatewayconfig-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - services.platform.opendatahub.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - gatewayconfigs
+  sideEffects: None

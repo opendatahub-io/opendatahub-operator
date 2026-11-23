@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- components.platform.opendatahub.io_kueues.yaml
+- config.opendatahub.io_platforms.yaml
+- datasciencecluster.opendatahub.io_datascienceclusters.yaml
+- dscinitialization.opendatahub.io_dscinitializations.yaml
+- infrastructure.opendatahub.io_hardwareprofiles.yaml
+- services.platform.opendatahub.io_auths.yaml
+- services.platform.opendatahub.io_gatewayconfigs.yaml
