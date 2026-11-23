@@ -514,7 +514,7 @@ func TestCheckGPUOperatorPrerequisite(t *testing.T) {
 			if tc.getErr != nil {
 				opts = append(opts, fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 					Get: func(ctx context.Context, cli client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-						if _, ok := obj.(*apiextensionsv1.CustomResourceDefinition); ok {
+						if obj.GetObjectKind().GroupVersionKind() == gvk.CustomResourceDefinition {
 							return tc.getErr
 						}
 						return cli.Get(ctx, key, obj, opts...)
