@@ -87,6 +87,7 @@ Reference implementations under `internal/controller/modules/`:
 | Module | Handler | Manifest format | Runlevel |
 |--------|---------|-----------------|----------|
 | [AI Gateway](./aigateway/) | `aigateway.NewHandler()` | Kustomize (`SourcePathByPlatform`) | `dag.RL(32)` |
+| [Data Connect Hub](./dataconnecthub/) | `dataconnecthub.NewHandler()` | Kustomize (`config/default`) | `dag.RL(32)` |
 | [Spark Operator](./sparkoperator/) | `sparkoperator.NewHandler()` | Kustomize (`SourcePath: default`) | `dag.RL(32)` |
 
 Both are registered in `cmd/main.go` (`existingModules` / `moduleRunlevels`).
@@ -94,6 +95,10 @@ They check `DSC.Spec.Components.<Name>.ManagementState`, project
 `*CommonSpec` into the module CR via `BuildModuleCR`, and rely on the modules
 controller for deploy + dynamic ownership (no static `.Owns()` on the DSC
 controller).
+
+Data Connect Hub is registered independently from the Feast-backed `data`
+handler. Both read sibling capabilities under `DSC.Spec.Components.Data`, but
+use separate module CRs, lifecycle, and status conditions.
 
 ## Adding a New Module
 

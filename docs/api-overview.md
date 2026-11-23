@@ -350,6 +350,25 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `featureStore` _[DSCFeatureStore](#dscfeaturestore)_ |  |  |  |
 | `dataRegistry` _[DSCDataRegistry](#dscdataregistry)_ |  |  |  |
+| `dataConnectHub` _[DSCDataConnectHub](#dscdataconnecthub)_ | DataConnectHub controls Data Connect Hub independently of Feature Store and<br />Data Registry. An omitted managementState is treated as Removed. |  |  |
+
+
+#### DSCDataConnectHub
+
+
+
+DSCDataConnectHub defines the Data Connect Hub configuration exposed in a DSC.
+
+
+
+_Appears in:_
+- [DSCData](#dscdata)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `gateway` _[DataConnectHubGateway](#dataconnecthubgateway)_ | gateway overrides the platform-discovered Gateway. When omitted, the<br />platform default Gateway is used. |  |  |
+| `tokenReviewAudiences` _string array_ | tokenReviewAudiences overrides the platform-discovered Kubernetes<br />TokenReview audiences. When omitted or empty, platform discovery applies. |  | MaxItems: 32 <br />items:MaxLength: 256 <br />items:MinLength: 1 <br /> |
 
 
 #### DSCDataRegistry
@@ -1148,6 +1167,23 @@ DataCommonStatus defines the observed state shared by the Data module.
 _Appears in:_
 - [DSCDataStatus](#dscdatastatus)
 
+
+
+#### DataConnectHubGateway
+
+
+
+DataConnectHubGateway identifies a Gateway resource for Data Connect Hub.
+
+
+
+_Appears in:_
+- [DSCDataConnectHub](#dscdataconnecthub)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | name is the Gateway resource name. |  | MaxLength: 253 <br />MinLength: 1 <br /> |
+| `namespace` _string_ | namespace is the namespace containing the Gateway resource. |  | MaxLength: 63 <br />MinLength: 1 <br /> |
 
 
 #### DataSciencePipelinesCommonSpec
@@ -1984,6 +2020,7 @@ _Appears in:_
 | `workbenches` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Workbenches controls the workbenches module operator lifecycle. |  |  |
 | `ogx` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | OGX controls the OGX module operator lifecycle. |  |  |
 | `feastoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | FeastOperator controls the Feast module operator lifecycle. |  |  |
+| `dataconnecthub` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | DataConnectHub controls the independent Data Connect Hub module lifecycle. |  |  |
 | `dashboard` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Dashboard controls the Dashboard module operator lifecycle. |  |  |
 | `sparkoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | SparkOperator controls the Spark Operator module lifecycle. |  |  |
 | `ray` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Ray controls the Ray module lifecycle. |  |  |
@@ -2079,6 +2116,7 @@ _Appears in:_
 | `workbenches` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Workbenches controls the workbenches module operator lifecycle. |  |  |
 | `ogx` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | OGX controls the OGX module operator lifecycle. |  |  |
 | `data` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Data controls the Data module operator lifecycle. |  |  |
+| `dataconnecthub` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | DataConnectHub controls the independent Data Connect Hub module lifecycle. |  |  |
 | `dashboard` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Dashboard controls the Dashboard module operator lifecycle. |  |  |
 | `sparkoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | SparkOperator controls the Spark Operator module lifecycle. |  |  |
 | `ray` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Ray controls the Ray module lifecycle. |  |  |

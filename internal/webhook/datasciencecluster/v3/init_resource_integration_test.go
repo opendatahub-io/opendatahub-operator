@@ -8,6 +8,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	v2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
 	v3webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v3"
@@ -45,6 +47,7 @@ func componentStates(c dscApi.Components) map[string]operatorv1.ManagementState 
 		"trustyai":             c.TrustyAI.ManagementState,
 		"aiHub":                c.AIHub.ManagementState,
 		"data.featureStore":    c.Data.FeatureStore.ManagementState,
+		"data.dataConnectHub":  c.Data.DataConnectHub.ManagementState,
 		"ogx":                  c.OGX.ManagementState,
 		"mlflowoperator":       c.MLflowOperator.ManagementState,
 		"sparkoperator":        c.SparkOperator.ManagementState,
@@ -159,4 +162,23 @@ func TestDefaultDSCFromSampleAdmittedByAPIServer(t *testing.T) {
 		"defaulting must preserve the explicit AIHub.instancesNamespace from the sample")
 	g.Expect(fetched.Spec.Components.Kserve.NIM.ManagementState).To(Equal(operatorv1.Managed),
 		"Kserve.NIM should remain Managed (the sample sets it, and the webhook only defaults it when empty)")
+
+	// The optional DCH administrator overrides must pass the generated schema and
+	// DSC validation webhook in addition to surviving the v2 conversion path.
+	fetched.Spec.Components.Data.DataConnectHub = componentApi.DSCDataConnectHub{
+		ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+		Gateway:        &componentApi.DataConnectHubGateway{Name: "custom-gateway", Namespace: "gateway-ns"},
+		TokenReviewAudiences: []string{
+			"https://issuer.example/cluster",
+			"https://issuer.example/workload",
+		},
+	}
+	g.Expect(env.Client().Update(ctx, fetched)).To(Succeed())
+	updated := &dscApi.DataScienceCluster{}
+	g.Expect(env.Client().Get(ctx, client.ObjectKey{Name: dsc.Name}, updated)).To(Succeed())
+	g.Expect(updated.Spec.Components.Data.DataConnectHub.Gateway).To(Equal(fetched.Spec.Components.Data.DataConnectHub.Gateway))
+	g.Expect(updated.Spec.Components.Data.DataConnectHub.TokenReviewAudiences).To(Equal(fetched.Spec.Components.Data.DataConnectHub.TokenReviewAudiences))
+	invalid := updated.DeepCopy()
+	invalid.Spec.Components.Data.DataConnectHub.TokenReviewAudiences = []string{""}
+	g.Expect(env.Client().Update(ctx, invalid)).NotTo(Succeed(), "empty TokenReview audience entries must be rejected by the CRD schema")
 }

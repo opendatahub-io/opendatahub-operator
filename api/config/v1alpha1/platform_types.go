@@ -88,6 +88,10 @@ type PlatformModules struct {
 	// +optional
 	FeastOperator common.ManagementSpec `json:"feastoperator,omitempty"`
 
+	// DataConnectHub controls the independent Data Connect Hub module lifecycle.
+	// +optional
+	DataConnectHub common.ManagementSpec `json:"dataconnecthub,omitempty"`
+
 	// Dashboard controls the Dashboard module operator lifecycle.
 	// +optional
 	Dashboard common.ManagementSpec `json:"dashboard,omitempty"`

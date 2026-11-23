@@ -57,6 +57,26 @@ func TestNamesDerivedFromRegistrations(t *testing.T) {
 	}
 }
 
+func TestFeastAndDataConnectHubAreIndependentPeers(t *testing.T) {
+	t.Parallel()
+
+	var feast, dataConnectHub *modulebuiltin.ModuleRegistration
+	registrations := modulebuiltin.Registrations()
+	for i := range registrations {
+		switch registrations[i].Handler.GetName() {
+		case "data":
+			feast = &registrations[i]
+		case "dataconnecthub":
+			dataConnectHub = &registrations[i]
+		}
+	}
+
+	require.NotNil(t, feast, "Feast-backed Data handler must remain registered")
+	require.NotNil(t, dataConnectHub, "DCH must be registered as a sibling handler")
+	assert.Equal(t, feast.Runlevel, dataConnectHub.Runlevel,
+		"DCH must not be placed behind Feast in the module provisioning DAG")
+}
+
 func TestRegisterPreservesConfigSource(t *testing.T) {
 	t.Parallel()
 

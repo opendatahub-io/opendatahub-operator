@@ -44,6 +44,14 @@ spec:
     data:
       featureStore:
         managementState: "Managed"
+      dataConnectHub:
+        managementState: "Removed"
+        # To enable DCH, set managementState to "Managed". Optional overrides:
+        # gateway:
+        #   name: data-science-gateway
+        #   namespace: openshift-ingress
+        # tokenReviewAudiences:
+        #   - https://issuer.example.com
     ogx:
       managementState: "Managed"
     mlflowoperator:

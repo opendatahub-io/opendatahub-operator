@@ -188,6 +188,68 @@ const ModelExpressV3StateAnnotation = "conversion.opendatahub.io/modelexpress-v3
 
 const modelExpressManaged = "managed"
 
+// DataConnectHubV3StateAnnotation carries v3-only Data Connect Hub configuration
+// through the v2 view. It is conversion-owned metadata.
+const DataConnectHubV3StateAnnotation = "conversion.opendatahub.io/dataconnecthub-v3-state"
+
+type dataConnectHubV3State struct {
+	ManagementState      operatorv1.ManagementState          `json:"managementState,omitempty"`
+	Gateway              *componentApi.DataConnectHubGateway `json:"gateway,omitempty"`
+	TokenReviewAudiences []string                            `json:"tokenReviewAudiences,omitempty"`
+}
+
+func (s dataConnectHubV3State) validate() error {
+	if s.ManagementState != "" && s.ManagementState != operatorv1.Managed && s.ManagementState != operatorv1.Removed {
+		return fmt.Errorf("invalid Data Connect Hub management state %q", s.ManagementState)
+	}
+	if s.Gateway != nil {
+		if strings.TrimSpace(s.Gateway.Name) == "" || strings.TrimSpace(s.Gateway.Namespace) == "" {
+			return fmt.Errorf("Data Connect Hub gateway name and namespace must not be empty")
+		}
+		if utf8.RuneCountInString(s.Gateway.Name) > 253 || utf8.RuneCountInString(s.Gateway.Namespace) > 63 {
+			return fmt.Errorf("Data Connect Hub gateway name or namespace exceeds its maximum length")
+		}
+	}
+	if len(s.TokenReviewAudiences) > 32 {
+		return fmt.Errorf("Data Connect Hub supports at most 32 TokenReview audiences")
+	}
+	seenAudiences := make(map[string]struct{}, len(s.TokenReviewAudiences))
+	for _, audience := range s.TokenReviewAudiences {
+		if strings.TrimSpace(audience) == "" {
+			return fmt.Errorf("Data Connect Hub TokenReview audiences must not contain empty values")
+		}
+		if utf8.RuneCountInString(audience) > 256 {
+			return fmt.Errorf("Data Connect Hub TokenReview audience exceeds 256 characters")
+		}
+		if _, found := seenAudiences[audience]; found {
+			return fmt.Errorf("Data Connect Hub TokenReview audiences must not contain duplicates")
+		}
+		seenAudiences[audience] = struct{}{}
+	}
+	return nil
+}
+
+func decodeDataConnectHubV3State(value string) (dataConnectHubV3State, error) {
+	var state dataConnectHubV3State
+	if err := json.Unmarshal([]byte(value), &state); err == nil {
+		if state.ManagementState == "" && state.Gateway == nil && len(state.TokenReviewAudiences) == 0 {
+			return dataConnectHubV3State{}, fmt.Errorf("empty Data Connect Hub v3 state marker")
+		}
+		return state, state.validate()
+	}
+
+	// Accept the original scalar marker during upgrades from the first API
+	// foundation, which carried only managementState.
+	state.ManagementState = operatorv1.ManagementState(value)
+	if state.ManagementState != operatorv1.Managed && state.ManagementState != operatorv1.Removed {
+		return dataConnectHubV3State{}, fmt.Errorf("invalid scalar management state %q", value)
+	}
+	if err := state.validate(); err != nil {
+		return dataConnectHubV3State{}, err
+	}
+	return state, nil
+}
+
 // KserveV3StateAnnotation carries v3-only KServe settings (confidential
 // containers and audit logging profile) through the v2 view, which has no
 // corresponding fields. It is conversion-owned metadata.
@@ -373,6 +435,23 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 		}
 	}
 
+	if value, found := dst.Annotations[DataConnectHubV3StateAnnotation]; found {
+		// Annotations bypass the v3 field schema when written through v2, so
+		// validate the carried state before restoring it.
+		state, err := decodeDataConnectHubV3State(value)
+		if err != nil {
+			return fmt.Errorf("invalid Data Connect Hub v3 state marker: %w", err)
+		}
+		dch := &dst.Spec.Components.Data.DataConnectHub
+		dch.ManagementState = state.ManagementState
+		dch.Gateway = state.Gateway
+		dch.TokenReviewAudiences = append([]string(nil), state.TokenReviewAudiences...)
+		delete(dst.Annotations, DataConnectHubV3StateAnnotation)
+		if len(dst.Annotations) == 0 {
+			dst.Annotations = nil
+		}
+	}
+
 	return nil
 }
 
@@ -492,6 +571,28 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 			dst.Annotations = make(map[string]string)
 		}
 		dst.Annotations[KserveV3StateAnnotation] = string(encoded)
+	}
+	// Recompute the marker from the v3 spec so stale v2 metadata cannot restore
+	// old management state or override current DCH configuration.
+	delete(dst.Annotations, DataConnectHubV3StateAnnotation)
+	dch := src.Spec.Components.Data.DataConnectHub
+	dchState := dataConnectHubV3State{
+		ManagementState:      dch.ManagementState,
+		Gateway:              dch.Gateway,
+		TokenReviewAudiences: append([]string(nil), dch.TokenReviewAudiences...),
+	}
+	if err := dchState.validate(); err != nil {
+		return err
+	}
+	if dchState.ManagementState != "" || dchState.Gateway != nil || len(dchState.TokenReviewAudiences) > 0 {
+		encoded, err := json.Marshal(dchState)
+		if err != nil {
+			return fmt.Errorf("encode Data Connect Hub v3 state marker: %w", err)
+		}
+		if dst.Annotations == nil {
+			dst.Annotations = make(map[string]string)
+		}
+		dst.Annotations[DataConnectHubV3StateAnnotation] = string(encoded)
 	}
 	if len(dst.Annotations) == 0 {
 		dst.Annotations = nil

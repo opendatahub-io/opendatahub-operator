@@ -11,10 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
-	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -22,10 +20,10 @@ import (
 )
 
 const (
-	moduleName             = componentApi.DataModuleName
-	crName                 = componentApi.FeastOperatorInstanceName
-	chartDir               = componentApi.DataModuleName
-	dataReadyConditionType = "DataReady"
+	moduleName              = componentApi.DataModuleName
+	crName                  = componentApi.FeastOperatorInstanceName
+	chartDir                = componentApi.DataModuleName
+	feastReadyConditionType = "FeastReady"
 )
 
 type handler struct {
@@ -75,33 +73,7 @@ func (h *handler) IsEnabled(modules *configApi.PlatformModules) bool {
 }
 
 func (h *handler) GetReadyConditionType() string {
-	return dataReadyConditionType
-}
-
-// WriteDSCComponentStatus writes the Data module's aggregate status
-// to the renamed Data field in v3 DSC status.
-func (h *handler) WriteDSCComponentStatus(
-	dsc *dscApi.DataScienceCluster,
-	enabled bool,
-	releases []common.ComponentRelease,
-) {
-	if dsc == nil {
-		return
-	}
-
-	managementState := operatorv1.Removed
-	if enabled {
-		managementState = operatorv1.Managed
-	}
-
-	dataStatus := &dsc.Status.Components.Data
-	dataStatus.ManagementState = managementState
-	if dataStatus.DataCommonStatus == nil && len(releases) > 0 {
-		dataStatus.DataCommonStatus = &componentApi.DataCommonStatus{}
-	}
-	if dataStatus.DataCommonStatus != nil {
-		dataStatus.Releases = releases
-	}
+	return feastReadyConditionType
 }
 
 // BuildModuleCR constructs the FeastOperator CR with OIDC settings and

@@ -19,6 +19,7 @@ var expectedPlatformModuleNames = []string{
 	"aipipelines",
 	"dashboard",
 	"databaseservice",
+	"dataconnecthub",
 	"feastoperator",
 	"kserve",
 	"mcplifecycleoperator",
@@ -55,12 +56,13 @@ func TestPlatformModulesEnabledModules(t *testing.T) {
 	t.Parallel()
 
 	pm := &configv1alpha1.PlatformModules{
-		Dashboard: common.ManagementSpec{ManagementState: operatorv1.Managed},
-		Kserve:    common.ManagementSpec{ManagementState: operatorv1.Removed},
-		Trainer:   common.ManagementSpec{ManagementState: operatorv1.Managed},
+		Dashboard:      common.ManagementSpec{ManagementState: operatorv1.Managed},
+		DataConnectHub: common.ManagementSpec{ManagementState: operatorv1.Managed},
+		Kserve:         common.ManagementSpec{ManagementState: operatorv1.Removed},
+		Trainer:        common.ManagementSpec{ManagementState: operatorv1.Managed},
 	}
 
-	assert.Equal(t, []string{"dashboard", "trainer"}, pm.EnabledModules())
+	assert.Equal(t, []string{"dashboard", "dataconnecthub", "trainer"}, pm.EnabledModules())
 }
 
 func TestPlatformModulesEnabledModulesNilReceiver(t *testing.T) {
@@ -98,6 +100,7 @@ func TestPlatformModulesEnabledModulesAllManaged(t *testing.T) {
 		Monitoring:           common.ManagementSpec{ManagementState: operatorv1.Managed},
 		MCPLifecycleOperator: common.ManagementSpec{ManagementState: operatorv1.Managed},
 		DatabaseService:      common.ManagementSpec{ManagementState: operatorv1.Managed},
+		DataConnectHub:       common.ManagementSpec{ManagementState: operatorv1.Managed},
 		Kserve:               common.ManagementSpec{ManagementState: operatorv1.Managed},
 		Trainer:              common.ManagementSpec{ManagementState: operatorv1.Managed},
 		Workbenches:          common.ManagementSpec{ManagementState: operatorv1.Managed},

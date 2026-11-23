@@ -17,6 +17,7 @@ var expectedPlatformModuleNames = []string{
 	"aipipelines",
 	"dashboard",
 	"data",
+	"dataconnecthub",
 	"databaseservice",
 	"kserve",
 	"mcplifecycleoperator",
@@ -53,14 +54,15 @@ func TestPlatformModulesEnabledModules(t *testing.T) {
 	t.Parallel()
 
 	pm := &PlatformModules{
-		AIHub:     common.ManagementSpec{ManagementState: operatorv1.Managed},
-		Dashboard: common.ManagementSpec{ManagementState: operatorv1.Managed},
-		Data:      common.ManagementSpec{ManagementState: operatorv1.Managed},
-		Kserve:    common.ManagementSpec{ManagementState: operatorv1.Removed},
-		Trainer:   common.ManagementSpec{ManagementState: operatorv1.Managed},
+		AIHub:          common.ManagementSpec{ManagementState: operatorv1.Managed},
+		Dashboard:      common.ManagementSpec{ManagementState: operatorv1.Managed},
+		Data:           common.ManagementSpec{ManagementState: operatorv1.Managed},
+		DataConnectHub: common.ManagementSpec{ManagementState: operatorv1.Managed},
+		Kserve:         common.ManagementSpec{ManagementState: operatorv1.Removed},
+		Trainer:        common.ManagementSpec{ManagementState: operatorv1.Managed},
 	}
 
-	expected := []string{"dashboard", "data", "aihub", "trainer"}
+	expected := []string{"dashboard", "data", "dataconnecthub", "aihub", "trainer"}
 	sort.Strings(expected)
 
 	assert.Equal(t, expected, pm.EnabledModules())
@@ -106,6 +108,7 @@ func TestPlatformModulesEnabledModulesAllManaged(t *testing.T) {
 		Workbenches:          common.ManagementSpec{ManagementState: operatorv1.Managed},
 		OGX:                  common.ManagementSpec{ManagementState: operatorv1.Managed},
 		Data:                 common.ManagementSpec{ManagementState: operatorv1.Managed},
+		DataConnectHub:       common.ManagementSpec{ManagementState: operatorv1.Managed},
 		Dashboard:            common.ManagementSpec{ManagementState: operatorv1.Managed},
 		SparkOperator:        common.ManagementSpec{ManagementState: operatorv1.Managed},
 		Ray:                  common.ManagementSpec{ManagementState: operatorv1.Managed},

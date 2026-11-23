@@ -108,6 +108,9 @@ func TestPopulatePlatformModuleUsesEitherIndependentDataChild(t *testing.T) {
 								DataRegistry: componentApi.DSCDataRegistry{
 									ManagementSpec: common.ManagementSpec{ManagementState: tt.dataRegistryState},
 								},
+								DataConnectHub: componentApi.DSCDataConnectHub{
+									ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+								},
 							},
 						},
 					},
@@ -173,6 +176,7 @@ func TestBuildModuleCR_CapabilitiesFromDSC(t *testing.T) {
 			dsc := &dscApi.DataScienceCluster{}
 			dsc.Spec.Components.Data.FeatureStore.ManagementState = tt.featureStoreState
 			dsc.Spec.Components.Data.DataRegistry.ManagementState = tt.dataRegistryState
+			dsc.Spec.Components.Data.DataConnectHub.ManagementState = operatorv1.Managed
 			cli := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
 
 			u, err := data.NewHandler().BuildModuleCR(
@@ -282,27 +286,7 @@ func TestGetGVK(t *testing.T) {
 func TestGetReadyConditionType(t *testing.T) {
 	g := NewWithT(t)
 	h := data.NewHandler()
-	g.Expect(h.GetReadyConditionType()).Should(Equal("DataReady"))
-}
-
-func TestWriteDSCComponentStatus(t *testing.T) {
-	for _, tt := range []struct {
-		name    string
-		enabled bool
-		want    operatorv1.ManagementState
-	}{
-		{name: "managed", enabled: true, want: operatorv1.Managed},
-		{name: "removed", enabled: false, want: operatorv1.Removed},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			g := NewWithT(t)
-			dsc := &dscApi.DataScienceCluster{}
-
-			data.NewHandler().WriteDSCComponentStatus(dsc, tt.enabled, nil)
-
-			g.Expect(dsc.Status.Components.Data.ManagementState).Should(Equal(tt.want))
-		})
-	}
+	g.Expect(h.GetReadyConditionType()).Should(Equal("FeastReady"))
 }
 
 func unstructuredNestedMap(obj map[string]any, fields ...string) (map[string]any, bool) {

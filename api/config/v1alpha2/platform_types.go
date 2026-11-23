@@ -90,6 +90,10 @@ type PlatformModules struct {
 	// +optional
 	Data common.ManagementSpec `json:"data,omitempty"`
 
+	// DataConnectHub controls the independent Data Connect Hub module lifecycle.
+	// +optional
+	DataConnectHub common.ManagementSpec `json:"dataconnecthub,omitempty"`
+
 	// Dashboard controls the Dashboard module operator lifecycle.
 	// +optional
 	Dashboard common.ManagementSpec `json:"dashboard,omitempty"`

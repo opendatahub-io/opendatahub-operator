@@ -179,8 +179,9 @@ func TestConversionPreservesUnchangedFields(t *testing.T) {
 	delete(components, "modelregistry")
 	delete(components, "feastoperator")
 	components["data"] = map[string]any{
-		"featureStore": map[string]any{"managementState": "Managed"},
-		"dataRegistry": map[string]any{"managementState": "Managed"},
+		"featureStore":   map[string]any{"managementState": "Managed"},
+		"dataRegistry":   map[string]any{"managementState": "Managed"},
+		"dataConnectHub": map[string]any{},
 	}
 	statusComponents := expectedWire["status"].(map[string]any)["components"].(map[string]any)
 	delete(statusComponents, "trainingoperator")

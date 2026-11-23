@@ -96,6 +96,7 @@ func (in *PlatformModules) DeepCopyInto(out *PlatformModules) {
 	out.Workbenches = in.Workbenches
 	out.OGX = in.OGX
 	out.FeastOperator = in.FeastOperator
+	out.DataConnectHub = in.DataConnectHub
 	out.Dashboard = in.Dashboard
 	out.SparkOperator = in.SparkOperator
 	out.Ray = in.Ray

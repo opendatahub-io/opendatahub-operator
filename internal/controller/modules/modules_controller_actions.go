@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
@@ -863,6 +865,8 @@ func ComputeModulesStatusDetailed(ctx context.Context, rr *odhtype.Reconciliatio
 		}
 	}
 
+	writeDataAggregateStatus(dsc, eval.perModule, rr.Conditions)
+
 	eval.writeAggregateCondition(rr.Conditions)
 
 	if len(eval.crdAbsent) > 0 {
@@ -872,6 +876,119 @@ func ComputeModulesStatusDetailed(ctx context.Context, rr *odhtype.Reconciliatio
 	}
 
 	return nil
+}
+
+// writeDataAggregateStatus combines the independent Feast-backed Data module
+// and Data Connect Hub module into the single public DSC Data status. Each
+// module's readiness condition remains independent; only this function writes
+// DataReady and status.components.data.
+func writeDataAggregateStatus(
+	dsc *dscApi.DataScienceCluster,
+	results []perModuleResult,
+	conditions *conditions.Manager,
+) {
+	if dsc == nil {
+		return
+	}
+
+	enabled := 0
+	var notReady, degraded []string
+	type moduleRelease struct {
+		module  string
+		release common.ComponentRelease
+	}
+	var moduleReleases []moduleRelease
+	releaseNameCounts := make(map[string]int)
+	for _, result := range results {
+		if result.handler == nil {
+			continue
+		}
+		moduleName := result.handler.GetName()
+		if moduleName != componentApi.DataModuleName && moduleName != componentApi.DataConnectHubModuleName {
+			continue
+		}
+		if !result.enabled {
+			continue
+		}
+		enabled++
+		if !result.ready {
+			notReady = append(notReady, moduleName)
+		}
+		if result.degraded {
+			degraded = append(degraded, moduleName)
+		}
+		if result.moduleStatus != nil {
+			for _, release := range result.moduleStatus.Releases {
+				moduleReleases = append(moduleReleases, moduleRelease{module: moduleName, release: release})
+				releaseNameCounts[release.Name]++
+			}
+		}
+	}
+
+	releases := make([]common.ComponentRelease, 0, len(moduleReleases))
+	for _, item := range moduleReleases {
+		if releaseNameCounts[item.release.Name] > 1 {
+			item.release.Name = item.module + "/" + item.release.Name
+		}
+		releases = append(releases, item.release)
+	}
+
+	dataStatus := &dsc.Status.Components.Data
+	if enabled == 0 {
+		dataStatus.ManagementState = operatorv1.Removed
+		if dataStatus.DataCommonStatus != nil {
+			dataStatus.Releases = nil
+		}
+		conditions.SetCondition(common.Condition{
+			Type:     "DataReady",
+			Status:   metav1.ConditionFalse,
+			Reason:   status.RemovedReason,
+			Severity: common.ConditionSeverityInfo,
+			Message:  "All Data capabilities have ManagementState Removed",
+		})
+		return
+	}
+
+	dataStatus.ManagementState = operatorv1.Managed
+	if dataStatus.DataCommonStatus == nil {
+		dataStatus.DataCommonStatus = &componentApi.DataCommonStatus{}
+	}
+	sort.Slice(releases, func(i, j int) bool {
+		if releases[i].Name == releases[j].Name {
+			if releases[i].Version == releases[j].Version {
+				return releases[i].RepoURL < releases[j].RepoURL
+			}
+			return releases[i].Version < releases[j].Version
+		}
+		return releases[i].Name < releases[j].Name
+	})
+	dataStatus.Releases = releases
+
+	switch {
+	case len(degraded) > 0:
+		sort.Strings(degraded)
+		conditions.SetCondition(common.Condition{
+			Type:    "DataReady",
+			Status:  metav1.ConditionFalse,
+			Reason:  status.ConditionTypeDegraded,
+			Message: fmt.Sprintf("Data modules are degraded: %s", strings.Join(degraded, ", ")),
+		})
+	case len(notReady) > 0:
+		sort.Strings(notReady)
+		conditions.SetCondition(common.Condition{
+			Type:    "DataReady",
+			Status:  metav1.ConditionFalse,
+			Reason:  status.NotReadyReason,
+			Message: fmt.Sprintf("Data modules are not ready: %s", strings.Join(notReady, ", ")),
+		})
+	default:
+		conditions.SetCondition(common.Condition{
+			Type:    "DataReady",
+			Status:  metav1.ConditionTrue,
+			Reason:  status.ReadyReason,
+			Message: "All enabled Data modules are ready",
+		})
+	}
 }
 
 // computeModulesStatusAggregate writes only the aggregate ModulesReady

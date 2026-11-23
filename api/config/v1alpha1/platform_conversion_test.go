@@ -35,6 +35,7 @@ func TestPlatformConversionPreservesFieldsAndRenamesModules(t *testing.T) {
 			Workbenches:          common.ManagementSpec{},
 			OGX:                  common.ManagementSpec{ManagementState: operatorv1.Removed},
 			FeastOperator:        common.ManagementSpec{ManagementState: operatorv1.Managed},
+			DataConnectHub:       common.ManagementSpec{ManagementState: operatorv1.Managed},
 			Dashboard:            common.ManagementSpec{ManagementState: operatorv1.Removed},
 			SparkOperator:        common.ManagementSpec{ManagementState: operatorv1.Managed},
 			Ray:                  common.ManagementSpec{ManagementState: operatorv1.Removed},
@@ -60,6 +61,7 @@ func TestPlatformConversionPreservesFieldsAndRenamesModules(t *testing.T) {
 	g.Expect(hub.ObjectMeta).To(Equal(legacy.ObjectMeta))
 	g.Expect(hub.Spec.Modules.AIHub.ManagementState).To(Equal(operatorv1.ManagementState("")))
 	g.Expect(hub.Spec.Modules.Data.ManagementState).To(Equal(operatorv1.Managed))
+	g.Expect(hub.Spec.Modules.DataConnectHub.ManagementState).To(Equal(operatorv1.Managed))
 	g.Expect(hub.Spec.Modules.AIGateway).To(Equal(legacy.Spec.Modules.AIGateway))
 	g.Expect(hub.Spec.Modules.AIPipelines).To(Equal(legacy.Spec.Modules.AIPipelines))
 	g.Expect(hub.Spec.Modules.Ray).To(Equal(legacy.Spec.Modules.Ray))
@@ -75,6 +77,7 @@ func TestPlatformConversionPreservesFieldsAndRenamesModules(t *testing.T) {
 	g.Expect(wire).To(HaveKey("aihub"))
 	g.Expect(wire).NotTo(HaveKey("aiHub"))
 	g.Expect(wire).To(HaveKey("data"))
+	g.Expect(wire).To(HaveKey("dataconnecthub"))
 	g.Expect(wire).NotTo(HaveKey("modelregistry"))
 	g.Expect(wire).NotTo(HaveKey("feastoperator"))
 
@@ -91,6 +94,7 @@ func TestPlatformConversionPreservesHubManagementStates(t *testing.T) {
 		AIPipelines:          common.ManagementSpec{ManagementState: operatorv1.Managed},
 		AIHub:                common.ManagementSpec{ManagementState: operatorv1.Removed},
 		Data:                 common.ManagementSpec{},
+		DataConnectHub:       common.ManagementSpec{ManagementState: operatorv1.Managed},
 		AIGateway:            common.ManagementSpec{ManagementState: operatorv1.Managed},
 		MLflowOperator:       common.ManagementSpec{ManagementState: operatorv1.Removed},
 		Monitoring:           common.ManagementSpec{},
@@ -110,6 +114,7 @@ func TestPlatformConversionPreservesHubManagementStates(t *testing.T) {
 	g.Expect(legacy.ConvertFrom(hub)).To(Succeed())
 	g.Expect(legacy.Spec.Modules.ModelRegistry.ManagementState).To(Equal(operatorv1.Removed))
 	g.Expect(legacy.Spec.Modules.FeastOperator.ManagementState).To(Equal(operatorv1.ManagementState("")))
+	g.Expect(legacy.Spec.Modules.DataConnectHub.ManagementState).To(Equal(operatorv1.Managed))
 	g.Expect(legacy.Spec.Modules.AIGateway).To(Equal(hub.Spec.Modules.AIGateway))
 	g.Expect(legacy.Spec.Modules.AIPipelines).To(Equal(hub.Spec.Modules.AIPipelines))
 	g.Expect(legacy.Spec.Modules.Ray).To(Equal(hub.Spec.Modules.Ray))
