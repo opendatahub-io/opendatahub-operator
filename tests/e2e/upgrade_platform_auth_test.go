@@ -718,16 +718,22 @@ func assertSettingsSubset(t *testing.T, resource, settingPath string, baseline, 
 }
 
 // requireJSONSettingPreserved compares a JSON-serialized baseline entry with
-// the current rendering under subset semantics: the "unset" markers compare
-// directly, and both JSON sides must unmarshal before
-// assertSettingsSubset applies the recursive subset comparison (new nested
-// fields introduced by the upgrade are allowed, dropped or changed ones are
-// not).
+// the current rendering under subset semantics, aligned with the flat-entry
+// rules: a baseline carrying the "unset" marker may take ANY current value
+// (the nested setting was nil at capture, and the upgrade materializing it
+// is an introduction, not a change), while a concrete baseline value that
+// the current rendering reports absent is a removed setting — a failure.
+// Otherwise both sides must unmarshal and assertSettingsSubset applies the
+// recursive subset comparison (new nested fields introduced by the upgrade
+// are allowed, dropped or changed ones are not).
 func requireJSONSettingPreserved(t *testing.T, resource, key, baselineValue, currentValue string) {
 	t.Helper()
-	if baselineValue == baselineUnset || currentValue == baselineUnset {
-		require.Equal(t, baselineValue, currentValue,
-			"%s setting %q changed after the upgrade", resource, key)
+	if baselineValue == baselineUnset {
+		return
+	}
+	if currentValue == baselineUnset {
+		require.NotEqual(t, baselineUnset, currentValue,
+			"%s setting %q was removed after the upgrade", resource, key)
 		return
 	}
 	var baselineJSON, currentJSON any
@@ -738,11 +744,178 @@ func requireJSONSettingPreserved(t *testing.T, resource, key, baselineValue, cur
 	assertSettingsSubset(t, resource, key, baselineJSON, currentJSON)
 }
 
+// gatewayConfigJSONBaselineKeys are the GatewayConfig baseline entries whose
+// values are serialized JSON compared under recursive subset semantics
+// rather than as flat scalars.
+var gatewayConfigJSONBaselineKeys = map[string]struct{}{
+	baselineKeyPrefixGatewayConfig + "oidc":        {},
+	baselineKeyPrefixGatewayConfig + "tokenReview": {},
+}
+
+// requireSettingsEntriesPreserved asserts that every baseline GatewayConfig
+// entry survives the upgrade under the Python authority's subset semantics
+// (test_upgrade_platform_auth.py, _assert_settings_subset: "Baseline
+// settings must be preserved; fields newly introduced by the upgrade are
+// allowed, including inside existing nested settings"):
+//
+//   - iteration is over the BASELINE entries, so current-only entries —
+//     fields the current rendering knows that the baseline lacks — are
+//     allowed as newly introduced;
+//   - a baseline entry carrying the "unset" marker may take ANY current
+//     value: the field was nil at capture, and an upgrade materializing a
+//     computed default for it is an introduction, not a change. The live
+//     3.5.3→3.6.0 cycle hit exactly this: the upgraded operator wrote its
+//     authProxyMaxReplicas fallback (10) into the spec where 3.5.3 left
+//     the field nil;
+//   - a baseline entry with a concrete value must still exist in the
+//     current rendering (a removed setting fails, named) and match
+//     exactly;
+//   - the JSON-serialized entries (oidc, tokenReview) route through
+//     requireJSONSettingPreserved, which applies the same allowance inside
+//     nested settings.
+//
+// The capture-time completeness guard guarantees a same-version baseline
+// carries the full schema, so baseline-side iteration does not weaken the
+// missing-baseline-entry hard-fail rule.
+func requireSettingsEntriesPreserved(t *testing.T, resource string, baseline, current map[string]string) {
+	t.Helper()
+	for key, baselineValue := range baseline {
+		if _, isJSON := gatewayConfigJSONBaselineKeys[key]; isJSON {
+			requireJSONSettingPreserved(t, resource, key, baselineValue, current[key])
+			continue
+		}
+		if baselineValue == baselineUnset {
+			// The field was nil at capture: the upgrade introducing a
+			// value for it is allowed (the newly-introduced-field
+			// allowance above), so any current value passes.
+			continue
+		}
+		currentValue, exists := current[key]
+		require.True(t, exists, "%s setting %q was removed after the upgrade", resource, key)
+		require.Equal(t, baselineValue, currentValue,
+			"%s setting %q changed after the upgrade", resource, key)
+	}
+}
+
+// settingsComparisonFails reports whether requireSettingsEntriesPreserved
+// fails on the given maps, without failing the caller's test: the
+// comparison runs against a throwaway *testing.T in a separate goroutine —
+// require's FailNow (runtime.Goexit) then terminates only that goroutine —
+// and the deferred report is read after the goroutine ends. This pins the
+// comparison's failure branches in unit tests that never touch a cluster.
+func settingsComparisonFails(baseline, current map[string]string) bool {
+	throwaway := &testing.T{}
+	failed := make(chan bool, 1)
+	go func() {
+		defer func() { failed <- throwaway.Failed() }()
+		requireSettingsEntriesPreserved(throwaway, "GatewayConfig default-gateway", baseline, current)
+	}()
+	return <-failed
+}
+
+// TestRequireSettingsEntriesPreserved pins the subset semantics of the
+// GatewayConfig PostUpgrade comparison against the live 3.5.3→3.6.0
+// finding: the upgraded operator materializes computed defaults (e.g.
+// authProxyMaxReplicas: 10) into spec fields the 3.5.3 baseline captured as
+// nil, and the Python authority's subset comparison allows exactly that
+// while still failing changed, removed and lost settings. The cases follow
+// the fix ruling (a)-(g); no cluster access.
+func TestRequireSettingsEntriesPreserved(t *testing.T) {
+	resource := "GatewayConfig default-gateway"
+
+	passCases := []struct {
+		name     string
+		baseline map[string]string
+		current  map[string]string
+	}{
+		{
+			name:     "unset baseline may take a materialized current value (authProxyMaxReplicas default)",
+			baseline: map[string]string{"gatewayconfig.authProxyMaxReplicas": baselineUnset},
+			current:  map[string]string{"gatewayconfig.authProxyMaxReplicas": "10"},
+		},
+		{
+			name:     "unset baseline may stay unset",
+			baseline: map[string]string{"gatewayconfig.authProxyMaxReplicas": baselineUnset},
+			current:  map[string]string{"gatewayconfig.authProxyMaxReplicas": baselineUnset},
+		},
+		{
+			name:     "concrete baseline value is preserved unchanged",
+			baseline: map[string]string{"gatewayconfig.cookieExpire": "4h0m0s"},
+			current:  map[string]string{"gatewayconfig.cookieExpire": "4h0m0s"},
+		},
+		{
+			name:     "current-only entry (field newly introduced by the upgrade) is allowed",
+			baseline: map[string]string{"gatewayconfig.cookieExpire": "4h0m0s"},
+			current: map[string]string{
+				"gatewayconfig.cookieExpire":         "4h0m0s",
+				"gatewayconfig.someNewFutureSetting": "introduced-by-upgrade",
+			},
+		},
+		{
+			name:     "nested JSON setting unset at capture may become an object",
+			baseline: map[string]string{"gatewayconfig.tokenReview": baselineUnset},
+			current:  map[string]string{"gatewayconfig.tokenReview": `{"auditIntervalSeconds":300}`},
+		},
+		{
+			name:     "nested JSON setting may gain fields inside existing settings",
+			baseline: map[string]string{"gatewayconfig.oidc": `{"issuer":"https://sso.example.com"}`},
+			current:  map[string]string{"gatewayconfig.oidc": `{"issuer":"https://sso.example.com","newField":true}`},
+		},
+	}
+
+	for _, tt := range passCases {
+		t.Run(tt.name, func(t *testing.T) {
+			requireSettingsEntriesPreserved(t, resource, tt.baseline, tt.current)
+		})
+	}
+
+	failCases := []struct {
+		name     string
+		baseline map[string]string
+		current  map[string]string
+	}{
+		{
+			name:     "concrete baseline value changed",
+			baseline: map[string]string{"gatewayconfig.cookieExpire": "4h0m0s"},
+			current:  map[string]string{"gatewayconfig.cookieExpire": "2h0m0s"},
+		},
+		{
+			name:     "concrete baseline entry removed from the current rendering",
+			baseline: map[string]string{"gatewayconfig.providerCASecretName": "custom-ca"},
+			current:  map[string]string{},
+		},
+		{
+			name:     "nested JSON setting carried a concrete value that the current rendering dropped",
+			baseline: map[string]string{"gatewayconfig.oidc": `{"issuer":"https://sso.example.com"}`},
+			current:  map[string]string{"gatewayconfig.oidc": baselineUnset},
+		},
+		{
+			name:     "nested JSON setting lost a baseline key",
+			baseline: map[string]string{"gatewayconfig.oidc": `{"issuer":"https://sso.example.com"}`},
+			current:  map[string]string{"gatewayconfig.oidc": `{}`},
+		},
+		{
+			name:     "nested JSON scalar setting changed",
+			baseline: map[string]string{"gatewayconfig.oidc": `{"issuer":"https://old.example.com"}`},
+			current:  map[string]string{"gatewayconfig.oidc": `{"issuer":"https://new.example.com"}`},
+		},
+	}
+
+	for _, tt := range failCases {
+		t.Run(tt.name, func(t *testing.T) {
+			require.True(t, settingsComparisonFails(tt.baseline, tt.current),
+				"the comparison should fail: baseline %v, current %v", tt.baseline, tt.current)
+		})
+	}
+}
+
 // TestPostUpgradeGatewayConfigSettingsPreserved verifies that every
 // auth-relevant GatewayConfig setting captured before the upgrade is
 // unchanged after it. Fields newly introduced by the upgraded version are
-// allowed, including inside existing nested settings (oidc, tokenReview),
-// mirroring the Python reference's subset comparison.
+// allowed, including inside existing nested settings (oidc, tokenReview)
+// and including a nil-at-capture field the upgrade materializes a computed
+// default into (3.6.0's authProxyMaxReplicas), mirroring the Python
+// reference's subset comparison.
 func TestPostUpgradeGatewayConfigSettingsPreserved(t *testing.T) {
 	skipUnlessUpgradePhase(t, PostUpgrade)
 
@@ -758,17 +931,26 @@ func TestPostUpgradeGatewayConfigSettingsPreserved(t *testing.T) {
 	currentEntries, err := gatewayConfigBaselineEntries(gatewayConfig)
 	require.NoError(t, err, "should render the current GatewayConfig baseline entries")
 
-	resource := "GatewayConfig " + upgradeGatewayConfigName
-	for key, currentValue := range currentEntries {
-		baselineValue := requireBaselineEntry(t, baseline, key)
-		switch key {
-		case baselineKeyPrefixGatewayConfig + "oidc", baselineKeyPrefixGatewayConfig + "tokenReview":
-			requireJSONSettingPreserved(t, resource, key, baselineValue, currentValue)
-		default:
-			require.Equal(t, baselineValue, currentValue,
-				"%s setting %q changed after the upgrade", resource, key)
+	// Subset semantics, per the Python authority's _assert_settings_subset:
+	// the comparison iterates the baseline entries, so fields newly
+	// introduced by the upgrade (absent from the baseline, like 3.6.0's
+	// materialized authProxyMaxReplicas default) are allowed, while every
+	// captured setting must survive. The capture-time completeness guard
+	// guarantees a same-version baseline carries the full schema, so a
+	// baseline with no gatewayconfig.* entries at all is an incomplete
+	// capture, not a legitimate empty subject.
+	baselineEntries := make(map[string]string)
+	for key, value := range baseline {
+		if strings.HasPrefix(key, baselineKeyPrefixGatewayConfig) {
+			baselineEntries[key] = value
 		}
 	}
+	require.NotEmpty(t, baselineEntries,
+		"baseline ConfigMap %s/%s carries no %s* entries: the PreUpgrade capture is incomplete; "+
+			"re-run the full PreUpgrade phase before the PostUpgrade phase",
+		upgradeBaselineNamespace, upgradeBaselineCMName, baselineKeyPrefixGatewayConfig)
+
+	requireSettingsEntriesPreserved(t, "GatewayConfig "+upgradeGatewayConfigName, baselineEntries, currentEntries)
 }
 
 // TestPostUpgradeDefaultGatewayIdentityPreserved verifies that the default
