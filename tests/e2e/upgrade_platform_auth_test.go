@@ -24,8 +24,12 @@ package e2e_test
 // session-scoped capture_platform_auth_baseline fixture collected the
 // per-resource state into one ConfigMap; package-level state is acceptable
 // here for the same reason. No test calls t.Parallel, so the map needs no
-// synchronization. The PreUpgrade phase is meaningful only when run as a
-// whole, one count:
+// synchronization. Before persisting, the final test enforces completeness
+// (requireCompletePlatformAuthBaseline): every static schema key must be
+// present — except the oauthclient.* keys on the OIDC skip path — so a
+// failed earlier test or a -run filter cannot save a partial baseline that
+// the PostUpgrade phase would silently accept. The PreUpgrade phase is
+// meaningful only when run as a whole, one count:
 //
 //	E2E_TEST_TAG=PreUpgrade go test ./tests/e2e/ -run 'TestPreUpgrade' -v -count=1
 
@@ -124,6 +128,11 @@ const (
 // tests; see the file comment for the assembly design.
 var platformAuthBaseline = map[string]string{}
 
+// platformAuthOIDCSkipped records that the OAuthClient test took the OIDC
+// skip path: the oauthclient.* entries are then legitimately absent, so the
+// completeness guard must not demand them.
+var platformAuthOIDCSkipped bool
+
 // recordPlatformAuthBaseline merges entries into the accumulated baseline,
 // failing on a duplicate key: a collision would mean two subjects claim the
 // same baseline entry, which would silently drop one of them from the map.
@@ -134,6 +143,83 @@ func recordPlatformAuthBaseline(t *testing.T, entries map[string]string) {
 		require.False(t, exists, "duplicate platform-auth baseline entry key %q", key)
 		platformAuthBaseline[key] = value
 	}
+}
+
+// expectedPlatformAuthBaselineKeys returns the static schema keys a complete
+// baseline must carry. The per-subject key sets are derived from the entry
+// builders themselves — invoked on zero objects, purely for their key sets,
+// no cluster access — so a key added to a builder is enforced here
+// automatically; only the composite identity, UID and image keys are listed
+// explicitly. The dynamic kubeauthproxy.args.* entries are checked separately
+// by count in requireCompletePlatformAuthBaseline.
+func expectedPlatformAuthBaselineKeys() ([]string, error) {
+	gatewayConfigEntries, err := gatewayConfigBaselineEntries(&serviceApi.GatewayConfig{})
+	if err != nil {
+		return nil, fmt.Errorf("derive GatewayConfig baseline keys: %w", err)
+	}
+	credentialsEntries := credentialsSecretBaselineEntries(&corev1.Secret{})
+	oauthClientEntries := oauthClientBaselineEntries(&oauthv1.OAuthClient{})
+
+	expected := make([]string, 0,
+		len(gatewayConfigEntries)+len(credentialsEntries)+len(oauthClientEntries)+4)
+	for key := range gatewayConfigEntries {
+		expected = append(expected, key)
+	}
+	for key := range credentialsEntries {
+		expected = append(expected, key)
+	}
+	if !platformAuthOIDCSkipped {
+		for key := range oauthClientEntries {
+			expected = append(expected, key)
+		}
+	}
+	return append(expected,
+		baselineKeyGatewayIdentity,
+		baselineKeyGatewayUID,
+		baselineKeyAuthProxyImage,
+		baselineKeyAuthProxyUID,
+	), nil
+}
+
+// requireCompletePlatformAuthBaseline refuses to persist a partial baseline:
+// every static schema key must be present (except the oauthclient.* keys when
+// the OAuthClient test took the OIDC skip) and at least one
+// kubeauthproxy.args.* entry must exist. Without this guard, a failed earlier
+// test — Go keeps running the remaining tests after a require failure — or a
+// -run filter selecting only the final test would save a partial map whose
+// missing entries Task 5's PostUpgrade iteration would silently skip,
+// producing a misleading PASS on a broken baseline. Mirrors the Python
+// authority's "refusing to capture a broken baseline". The failure names
+// missing keys only, never values.
+func requireCompletePlatformAuthBaseline(t *testing.T, entries map[string]string) {
+	t.Helper()
+
+	expected, err := expectedPlatformAuthBaselineKeys()
+	require.NoError(t, err, "should derive the expected platform-auth baseline key set")
+
+	missing := make([]string, 0)
+	for _, key := range expected {
+		if _, exists := entries[key]; !exists {
+			missing = append(missing, key)
+		}
+	}
+	if len(missing) > 0 {
+		slices.Sort(missing)
+		require.Empty(t, missing,
+			"refusing to capture an incomplete platform-auth baseline: missing keys %v "+
+				"(an earlier PreUpgrade test failed or was filtered out; re-run the full "+
+				"PreUpgrade phase before the upgrade)", missing)
+	}
+
+	argEntries := 0
+	for key := range entries {
+		if strings.HasPrefix(key, baselineKeyPrefixAuthProxyArgs) {
+			argEntries++
+		}
+	}
+	require.NotZero(t, argEntries,
+		"refusing to capture an incomplete platform-auth baseline: no %s* entries were captured",
+		baselineKeyPrefixAuthProxyArgs)
 }
 
 // formatOptionalBool renders an optional bool ("unset" when nil).
@@ -326,14 +412,20 @@ func authProxyContainer(deployment *appsv1.Deployment) *corev1.Container {
 // external-OIDC mode: the kube-auth-proxy container carries the
 // --provider=oidc arg. It backs the OAuthClient test's OIDC skip; on
 // integrated-OAuth clusters the proxy runs --provider=openshift and the
-// OAuthClient must exist.
-func clusterAuthUsesOIDC(ctx context.Context, c client.Client) bool {
+// OAuthClient must exist. Probe failures are logged and treated as
+// not-OIDC — the safe direction: the caller's OAuthClient Get then fails
+// loudly instead of silently passing.
+func clusterAuthUsesOIDC(t *testing.T, ctx context.Context, c client.Client) bool {
+	t.Helper()
+
 	deployment := &appsv1.Deployment{}
 	if err := c.Get(ctx, types.NamespacedName{Name: upgradeAuthProxyName, Namespace: upgradeAuthNamespace}, deployment); err != nil {
+		t.Logf("OIDC probe: get Deployment %s/%s failed: %v", upgradeAuthNamespace, upgradeAuthProxyName, err)
 		return false
 	}
 	container := authProxyContainer(deployment)
 	if container == nil {
+		t.Logf("OIDC probe: Deployment %s/%s has no %s container", upgradeAuthNamespace, upgradeAuthProxyName, upgradeAuthProxyName)
 		return false
 	}
 	return slices.Contains(container.Args, "--provider=oidc")
@@ -411,7 +503,11 @@ func TestPreUpgradeOAuthClientExists(t *testing.T) {
 
 	oauthClient := &oauthv1.OAuthClient{}
 	err = tc.Client().Get(ctx, types.NamespacedName{Name: upgradeOAuthClientName}, oauthClient)
-	if k8serr.IsNotFound(err) && clusterAuthUsesOIDC(ctx, tc.Client()) {
+	if k8serr.IsNotFound(err) && clusterAuthUsesOIDC(t, ctx, tc.Client()) {
+		// Record the legitimate absence so the final test's completeness
+		// guard does not demand oauthclient.* entries from a cluster that
+		// has no OAuthClient to read.
+		platformAuthOIDCSkipped = true
 		t.Skipf(
 			"OAuthClient %s not found and kube-auth-proxy runs --provider=oidc: "+
 				"this cluster authenticates via an external OIDC provider instead of the "+
@@ -456,8 +552,11 @@ func TestPreUpgradeCredentialsSecretExists(t *testing.T) {
 	require.NoError(t, tc.Client().Get(ctx, secretKey, credentialsSecret),
 		"credentials Secret %s/%s should exist before the upgrade", upgradeAuthNamespace, upgradeCredentialsSecretName)
 
-	// secretDataDigests-style helpers dereference the fetched object; require
-	// it non-nil before digesting (defense in depth for the nil guard).
+	// secretDataDigests panics on a nil secret, so the digest step relies on
+	// this invariant. The check is defense in depth: the pointer cannot
+	// actually be nil here (a Go zero value is non-nil and a typed Get cannot
+	// nil it), but the explicit assertion documents the invariant and fails
+	// loudly should a refactor ever break it.
 	require.NotNil(t, credentialsSecret)
 
 	// Key names and emptiness only: values are compared as digests and must
@@ -515,6 +614,11 @@ func TestPreUpgradeKubeAuthProxyAvailable(t *testing.T) {
 	require.NoError(t, err,
 		"should capture kube-auth-proxy baseline entries; secret-like args are refused outright")
 	recordPlatformAuthBaseline(t, entries)
+
+	// Completeness guard: refuse to persist a partial baseline. An earlier
+	// failed test or a -run filter would otherwise leave holes that Task 5's
+	// PostUpgrade key iteration would silently skip.
+	requireCompletePlatformAuthBaseline(t, platformAuthBaseline)
 
 	// Final assembly: persist the complete baseline exactly once.
 	require.NoError(t, saveUpgradeBaseline(ctx, tc.Client(), platformAuthBaseline),
