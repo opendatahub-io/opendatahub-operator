@@ -465,31 +465,56 @@ var moduleSlugToName = map[string]string{
 	"maas":           "maas",
 }
 
-// isModuleDeployed checks the Dashboard CR's status.moduleStatuses to determine
-// whether a module identified by its manifest slug is currently deployed. This
+// modulePhase returns the phase reported for a module in the Dashboard CR's
+// status.moduleStatuses, or an empty string when it cannot be determined. This
 // reflects the fully resolved state including DSC component gates, explicit
 // spec.modules overrides, and inter-module dependencies.
-func (tc *DashboardTestCtx) isModuleDeployed(slug string) bool {
+func (tc *DashboardTestCtx) modulePhase(slug string) string {
 	moduleName, known := moduleSlugToName[slug]
 	if !known {
-		return true
+		return ""
 	}
 
 	dashboard := tc.FetchResource(
 		WithMinimalObject(gvk.Dashboard, tc.NamespacedName),
 	)
 	if dashboard == nil {
-		return true
+		return ""
 	}
 
 	statuses, found, err := unstructured.NestedMap(dashboard.Object, "status", "moduleStatuses", moduleName)
 	if err != nil || !found {
-		return true
+		return ""
 	}
 
 	phase, _ := statuses["phase"].(string)
 
-	return phase == "Deployed" || phase == "Degraded"
+	return phase
+}
+
+// isModuleRedeployed reports whether the dashboard-operator re-applies a module's
+// manifests, which is what makes a deleted ConfigMap recoverable.
+//
+// Only the Deployed phase is re-applied: deployModuleManifests() skips every
+// other phase, while deleteModuleResources() keeps the resources of Deployed and
+// Degraded modules. A Degraded module therefore keeps its ConfigMaps but never
+// gets them back once deleted, so asserting deletion recovery for it can only
+// time out (deletionRecoveryTimeout, 90s).
+//
+// Unknown modules, a missing Dashboard CR, or missing module status are treated
+// as re-deployed so the assertion is still exercised whenever the state cannot
+// be resolved.
+func (tc *DashboardTestCtx) isModuleRedeployed(slug string) bool {
+	if _, known := moduleSlugToName[slug]; !known {
+		return true
+	}
+
+	phase := tc.modulePhase(slug)
+	if phase == "" {
+		return true
+	}
+
+	return phase == "Deployed"
 }
 
 // ValidateAllDeletionRecovery runs the standard set of deletion recovery tests.
@@ -571,12 +596,18 @@ func (tc *DashboardTestCtx) validateDashboardDeletionRecovery(t *testing.T) {
 
 // validateConfigMapDeletionRecovery tests that dashboard ConfigMaps are
 // recreated after deletion. ConfigMaps whose app.kubernetes.io/component label
-// identifies a module that is not currently deployed are skipped — the
-// dashboard-operator does not recreate resources for disabled modules, but it
-// also does not clean up their ConfigMaps, so they may still exist on the
-// cluster as stale resources.
+// identifies a module whose manifests are not re-applied by the dashboard-operator
+// are skipped:
 //
-// Module deployment state is read from the Dashboard CR's status.moduleStatuses
+//   - Disabled/NotDeployed modules: the operator removes their resources, but
+//     older revisions left their ConfigMaps behind as stale objects.
+//   - Degraded modules: their resources are kept but never re-applied, so a
+//     deleted ConfigMap is not recovered.
+//
+// In both cases the ConfigMap can still exist on the cluster while deletion
+// recovery for it can only time out.
+//
+// Module state is read from the Dashboard CR's status.moduleStatuses
 // immediately before each subtest, which reflects the fully resolved state
 // including DSC component gates, explicit spec.modules overrides, and
 // inter-module dependencies.
@@ -606,8 +637,9 @@ func (tc *DashboardTestCtx) validateConfigMapDeletionRecovery(t *testing.T) {
 			t.Helper()
 
 			moduleSlug := resource.GetLabels()["app.kubernetes.io/component"]
-			if moduleSlug != "" && !tc.isModuleDeployed(moduleSlug) {
-				t.Skipf("ConfigMap %s belongs to module %q which is not currently deployed", resource.GetName(), moduleSlug)
+			if moduleSlug != "" && !tc.isModuleRedeployed(moduleSlug) {
+				t.Skipf("ConfigMap %s belongs to module %q in phase %q, whose manifests are not re-applied by the dashboard-operator",
+					resource.GetName(), moduleSlug, tc.modulePhase(moduleSlug))
 				return
 			}
 
