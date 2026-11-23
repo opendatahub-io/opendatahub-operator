@@ -6,10 +6,12 @@ package e2e_test
 // tests assert the auth stack is healthy before the cluster upgrade and
 // capture its auth-relevant state into the baseline ConfigMap consumed by the
 // PostUpgrade tests: gatewayconfig.<field> entries for the default-gateway
-// GatewayConfig, gateway.identity for the data-science-gateway Gateway,
-// oauthclient.* for the data-science OAuthClient, credssecret.<key>Digest
-// entries for the kube-auth-proxy-creds Secret and kubeauthproxy.* entries for
-// the kube-auth-proxy Deployment. Raw secret values never enter the baseline
+// GatewayConfig, gateway.identity and gateway.uid for the data-science-gateway
+// Gateway, oauthclient.* for the data-science OAuthClient (including its
+// grantMethod), credssecret.<key>Digest entries for the kube-auth-proxy-creds
+// Secret and kubeauthproxy.* entries for the kube-auth-proxy Deployment
+// (including its UID, so a delete-and-recreate during the upgrade is
+// detectable). Raw secret values never enter the baseline
 // or the logs (CWE-532): the OAuthClient secret and every credentials-Secret
 // value are stored as SHA-256 digests, and container args carrying
 // secret-like flags are refused outright by argDigestEntries.
@@ -88,6 +90,9 @@ const (
 	baselineKeyPrefixGatewayConfig = "gatewayconfig."
 	// baselineKeyGatewayIdentity holds the default Gateway's routing identity.
 	baselineKeyGatewayIdentity = "gateway.identity"
+	// baselineKeyGatewayUID holds the default Gateway's metadata UID, so the
+	// PostUpgrade phase can detect a delete-and-recreate during the upgrade.
+	baselineKeyGatewayUID = "gateway.uid"
 	// baselineKeyOAuthRedirectURIs holds the sorted, comma-joined redirect URIs.
 	baselineKeyOAuthRedirectURIs = "oauthclient.redirectURIs"
 	// baselineKeyOAuthSecretDigest holds the SHA-256 digest of the OAuthClient secret.
@@ -96,12 +101,19 @@ const (
 	baselineKeyOAuthWWWChallenge = "oauthclient.wwwChallenge"
 	// baselineKeyOAuthTokenMaxAge holds the accessTokenMaxAgeSeconds override.
 	baselineKeyOAuthTokenMaxAge = "oauthclient.tokenMaxAge"
+	// baselineKeyOAuthGrantMethod holds the OAuthClient's grantMethod, so the
+	// PostUpgrade phase can detect a registration change during the upgrade.
+	baselineKeyOAuthGrantMethod = "oauthclient.grantMethod"
 	// baselineKeyPrefixCredsSecret prefixes per-key credentials-Secret digests.
 	baselineKeyPrefixCredsSecret = "credssecret."
 	// baselineKeyPrefixAuthProxyArgs prefixes per-flag kube-auth-proxy arg digests.
 	baselineKeyPrefixAuthProxyArgs = "kubeauthproxy.args."
 	// baselineKeyAuthProxyImage holds the kube-auth-proxy container image.
 	baselineKeyAuthProxyImage = "kubeauthproxy.image"
+	// baselineKeyAuthProxyUID holds the kube-auth-proxy Deployment's metadata
+	// UID, so the PostUpgrade phase can detect a delete-and-recreate during
+	// the upgrade.
+	baselineKeyAuthProxyUID = "kubeauthproxy.uid"
 
 	// baselineUnset marks an absent optional field, so an explicitly-set zero
 	// value stays distinguishable from a field an upgrade dropped entirely.
@@ -206,7 +218,8 @@ func gatewayIdentity(defaultGateway *gwapiv1.Gateway) string {
 // kube-auth-proxy presents to the cluster OAuth server; only its SHA-256
 // digest enters the baseline, never the value (CWE-532). wwwChallenge maps to
 // the API's respondWithChallenges bool and tokenMaxAge to its optional
-// accessTokenMaxAgeSeconds override.
+// accessTokenMaxAgeSeconds override. grantMethod is captured verbatim so the
+// PostUpgrade phase can detect a registration change during the upgrade.
 func oauthClientBaselineEntries(oauthClient *oauthv1.OAuthClient) map[string]string {
 	redirectURIs := slices.Clone(oauthClient.RedirectURIs)
 	slices.Sort(redirectURIs)
@@ -216,6 +229,7 @@ func oauthClientBaselineEntries(oauthClient *oauthv1.OAuthClient) map[string]str
 		baselineKeyOAuthSecretDigest: sha256Hex(oauthClient.Secret),
 		baselineKeyOAuthWWWChallenge: strconv.FormatBool(oauthClient.RespondWithChallenges),
 		baselineKeyOAuthTokenMaxAge:  formatOptionalInt32(oauthClient.AccessTokenMaxAgeSeconds),
+		baselineKeyOAuthGrantMethod:  string(oauthClient.GrantMethod),
 	}
 }
 
@@ -230,22 +244,30 @@ func credentialsSecretBaselineEntries(credentialsSecret *corev1.Secret) map[stri
 	return entries
 }
 
-// kubeAuthProxyBaselineEntries renders the kube-auth-proxy container's args
-// and image as baseline entries. Args become flag-keyed value digests via
-// argDigestEntries, which refuses secret-like flags outright; the image
-// reference is stored as-is, so digest-pinned references keep their digest and
-// tag references keep their tag.
-func kubeAuthProxyBaselineEntries(container corev1.Container) (map[string]string, error) {
+// kubeAuthProxyBaselineEntries renders the kube-auth-proxy Deployment's
+// identity, container args and image as baseline entries: the Deployment's
+// metadata UID (so a delete-and-recreate during the upgrade is detectable),
+// the container's args as flag-keyed value digests via argDigestEntries —
+// which refuses secret-like flags outright — and the image reference as-is,
+// so digest-pinned references keep their digest and tag references keep
+// their tag.
+func kubeAuthProxyBaselineEntries(deployment *appsv1.Deployment) (map[string]string, error) {
+	container := authProxyContainer(deployment)
+	if container == nil {
+		return nil, fmt.Errorf("deployment %s/%s has no %s container", deployment.Namespace, deployment.Name, upgradeAuthProxyName)
+	}
+
 	argEntries, err := argDigestEntries(container.Args)
 	if err != nil {
 		return nil, fmt.Errorf("kube-auth-proxy container %s: %w", container.Name, err)
 	}
 
-	entries := make(map[string]string, len(argEntries)+1)
+	entries := make(map[string]string, len(argEntries)+2)
 	for flag, digest := range argEntries {
 		entries[baselineKeyPrefixAuthProxyArgs+flag] = digest
 	}
 	entries[baselineKeyAuthProxyImage] = container.Image
+	entries[baselineKeyAuthProxyUID] = string(deployment.UID)
 	return entries, nil
 }
 
@@ -349,7 +371,8 @@ func TestPreUpgradeGatewayConfigExists(t *testing.T) {
 // TestPreUpgradeDefaultGatewayExists verifies that the default Gateway exists
 // with a stable identity and is ready to route traffic before the upgrade,
 // and captures its routing identity (gateway class, listener names and ports)
-// into the baseline.
+// and its UID into the baseline, so the PostUpgrade phase can detect a
+// delete-and-recreate during the upgrade.
 func TestPreUpgradeDefaultGatewayExists(t *testing.T) {
 	skipUnlessUpgradePhase(t, PreUpgrade)
 
@@ -368,16 +391,17 @@ func TestPreUpgradeDefaultGatewayExists(t *testing.T) {
 
 	recordPlatformAuthBaseline(t, map[string]string{
 		baselineKeyGatewayIdentity: gatewayIdentity(defaultGateway),
+		baselineKeyGatewayUID:      string(defaultGateway.UID),
 	})
 }
 
 // TestPreUpgradeOAuthClientExists verifies that the platform OAuthClient
-// registration exists with a non-empty secret and the oauth2 callback
-// redirect before the upgrade, and captures its registration entries into the
-// baseline. On BYOIDC clusters (no OAuthClient and kube-auth-proxy running
-// --provider=oidc) the test skips with an explanatory message: there is no
-// platform OAuthClient to capture, and a silent pass would hide the skip from
-// pipeline readers.
+// registration exists with a non-empty secret, a non-empty grant method and
+// the oauth2 callback redirect before the upgrade, and captures its
+// registration entries (including grantMethod) into the baseline. On BYOIDC
+// clusters (no OAuthClient and kube-auth-proxy running --provider=oidc) the
+// test skips with an explanatory message: there is no platform OAuthClient to
+// capture, and a silent pass would hide the skip from pipeline readers.
 func TestPreUpgradeOAuthClientExists(t *testing.T) {
 	skipUnlessUpgradePhase(t, PreUpgrade)
 
@@ -410,6 +434,8 @@ func TestPreUpgradeOAuthClientExists(t *testing.T) {
 			"OAuthClient %s redirect URIs should end with the oauth2 callback path %s (got %s)",
 			upgradeOAuthClientName, gateway.OAuthCallbackPath, uri)
 	}
+	require.NotEmpty(t, oauthClient.GrantMethod,
+		"OAuthClient %s should have a non-empty grantMethod before the upgrade", upgradeOAuthClientName)
 
 	recordPlatformAuthBaseline(t, oauthClientBaselineEntries(oauthClient))
 }
@@ -448,9 +474,10 @@ func TestPreUpgradeCredentialsSecretExists(t *testing.T) {
 
 // TestPreUpgradeKubeAuthProxyAvailable verifies that the kube-auth-proxy
 // Deployment is Available with all desired replicas ready before the upgrade,
-// captures its container's arg digests and image into the baseline, and — as
-// the final PreUpgrade test — persists the complete accumulated baseline via
-// saveUpgradeBaseline (see the file comment for the assembly design).
+// captures its identity (UID), container arg digests and image into the
+// baseline, and — as the final PreUpgrade test — persists the complete
+// accumulated baseline via saveUpgradeBaseline (see the file comment for the
+// assembly design).
 func TestPreUpgradeKubeAuthProxyAvailable(t *testing.T) {
 	skipUnlessUpgradePhase(t, PreUpgrade)
 
@@ -479,16 +506,14 @@ func TestPreUpgradeKubeAuthProxyAvailable(t *testing.T) {
 	deployment := &appsv1.Deployment{}
 	require.NoError(t, tc.Client().Get(ctx, deploymentKey, deployment),
 		"Deployment %s/%s should still exist after the readiness check", upgradeAuthNamespace, upgradeAuthProxyName)
-	container := authProxyContainer(deployment)
-	require.NotNil(t, container,
-		"Deployment %s/%s should have a %s container before the upgrade",
-		upgradeAuthNamespace, upgradeAuthProxyName, upgradeAuthProxyName)
+	require.NotEmpty(t, deployment.UID,
+		"Deployment %s/%s should have a UID before the upgrade", upgradeAuthNamespace, upgradeAuthProxyName)
 
 	// argDigestEntries refuses secret-like args; a live cluster legitimately
 	// carrying one must fail here rather than leak into the baseline.
-	entries, err := kubeAuthProxyBaselineEntries(*container)
+	entries, err := kubeAuthProxyBaselineEntries(deployment)
 	require.NoError(t, err,
-		"kube-auth-proxy args must not carry secret-like flags; refusing to capture the baseline")
+		"should capture kube-auth-proxy baseline entries; secret-like args are refused outright")
 	recordPlatformAuthBaseline(t, entries)
 
 	// Final assembly: persist the complete baseline exactly once.
