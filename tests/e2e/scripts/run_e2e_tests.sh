@@ -32,10 +32,10 @@ validate_deletion_policy() {
 validate_tag() {
     local var_name=$1
     local value=${!var_name}
-    # Tags limited to All, Smoke, Tier1, Tier2 and Tier3
+    # Tags limited to All, Smoke, Tier1, Tier2, Tier3, PreUpgrade and PostUpgrade
     case "$value" in
-        All|Smoke|Tier1|Tier2|Tier3) return 0 ;;
-        *) echo "Error: $var_name must be 'All', 'Smoke', 'Tier1', 'Tier2' or 'Tier3', got '$value'" >&2; exit 1 ;;
+        All|Smoke|Tier1|Tier2|Tier3|PreUpgrade|PostUpgrade) return 0 ;;
+        *) echo "Error: $var_name must be 'All', 'Smoke', 'Tier1', 'Tier2', 'Tier3', 'PreUpgrade' or 'PostUpgrade', got '$value'" >&2; exit 1 ;;
     esac
 }
 

@@ -90,6 +90,30 @@ for the first run so the suite creates `default-dsci` and `default-dsc` before
 component tests. Subsequent runs can omit it if those resources remain; with
 `E2E_TEST_DELETION_POLICY=never`, the suite leaves them in place.
 
+### Test tags
+
+The `E2E_TEST_TAG` variable (or `--tag` flag) selects which tests run:
+
+| Tag | Description |
+|-----|-------------|
+| `All` | Run every test (default) |
+| `Smoke` | Smoke-tier tests |
+| `Tier1` | Tier 1 tests |
+| `Tier2` | Tier 2 tests |
+| `Tier3` | Tier 3 tests |
+| `PreUpgrade` | Baseline assertions captured before a product upgrade |
+| `PostUpgrade` | Assertions verified against the pre-upgrade baseline after the upgrade |
+
+`PreUpgrade` and `PostUpgrade` never run under `All`: post-upgrade assertions
+are meaningless without a pre-upgrade baseline, so each phase must be invoked
+with its exact tag around the upgrade:
+
+```bash
+E2E_TEST_TAG=PreUpgrade  make e2e-test   # before the product upgrade
+# ... perform the RHOAI upgrade (pipeline or OLM) ...
+E2E_TEST_TAG=PostUpgrade make e2e-test   # after the upgrade
+```
+
 ## KinD E2E (KServe and Gateway)
 
 ### Step-by-step guide
@@ -463,6 +487,7 @@ done
 | `KIND_CONFIG_PATH` | `config/kind/kind-config.yaml` | KinD cluster config |
 | `PULL_SECRET` | *(required)* | Path to container registry auth config |
 | `E2E_TEST_COMPONENT` | *(all)* | Single component to test (e.g., `kserve`) |
+| `E2E_TEST_TAG` | `All` | Test tag selection: `All`, `Smoke`, `Tier1`, `Tier2`, `Tier3`, `PreUpgrade`, `PostUpgrade`. Upgrade-phase tags run only under their exact tag (see [Test tags](#test-tags)). |
 | `E2E_TEST_SERVICES` | `true` | Enable/disable service tests |
 | `E2E_TEST_WEBHOOK` | `true` | Enable/disable the existing monitoring admission-webhook tests when the monitoring service suite runs. |
 | `E2E_TEST_CONVERSION_WEBHOOK` | auto | Conversion webhook scenarios run in full OpenShift `All`/`Tier3` suites. Set `true` to include them in a targeted run or `false` to disable them. DSC scenarios delete `default-dsc`; enable DSCI/DSC backup and restore for non-disposable clusters. |
