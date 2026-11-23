@@ -109,10 +109,20 @@ are meaningless without a pre-upgrade baseline, so each phase must be invoked
 with its exact tag around the upgrade:
 
 ```bash
-E2E_TEST_TAG=PreUpgrade  make e2e-test   # before the product upgrade
+# before the product upgrade
+E2E_TEST_TAG=PreUpgrade go test ./tests/e2e/ -run 'TestPreUpgrade' -v -count=1
 # ... perform the RHOAI upgrade (pipeline or OLM) ...
-E2E_TEST_TAG=PostUpgrade make e2e-test   # after the upgrade
+# after the upgrade
+E2E_TEST_TAG=PostUpgrade go test ./tests/e2e/ -run 'TestPostUpgrade' -v -count=1
 ```
+
+Do not use `make e2e-test` for the upgrade phases: it applies image overrides
+to the OLM subscription and runs the full suite, including cluster-mutating
+machinery that would corrupt the very state the baseline captures. The upgrade
+phases are read-only assertions against the installed product; the `-run`
+filter keeps the binary to the phase's tests only. Run both phases with the
+same version of the test suite (same e2e image or same checkout) so the
+baseline schema and the comparison code cannot skew.
 
 ## KinD E2E (KServe and Gateway)
 
