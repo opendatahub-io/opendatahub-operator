@@ -106,11 +106,11 @@ components:
   aigateway:
     odh:
       repo: opendatahub-io/ai-gateway-operator
-      ref: main@48a921e2c2c9c0e120c2da97a31fb694abc443c3
+      ref: main@46086b27906e73fa23309e585f2dc39540322fcd
       sourcePath: config
     rhoai:
       repo: red-hat-data-services/ai-gateway-operator
-      ref: rhoai-3.7-ea.1@158f468c2d9067346fc2ad61450baf0988cda781
+      ref: rhoai-3.7-ea.1@2e637b2811b348c4aceea91bc70f71a6669d25fc
       sourcePath: config
   mcplifecycleoperator:
     odh:
@@ -343,10 +343,10 @@ imageOverrides:
     tagTemplate: "{SHA}"
     odh:
       base: "quay.io/opendatahub/odh-ai-gateway-operator"
-      digest: "sha256:b33fd55048ab18cba404a94e227d6a15b3b1139b6a24cb57b998308174223315"
+      digest: "sha256:e657a4f6a320aba4398ebf1d909ee3dee077846e04a787a557ed7d0c0e29bf22"
     rhoai:
       base: "quay.io/rhoai/odh-ai-gateway-operator-rhel9"
-      digest: "sha256:b2523ffe98669f9a3db78a3bd0ab27ac487f4f350cc4156e3f9e165fbeff38dc"
+      digest: "sha256:b85bebcd019ac6491ad555d7a8a895a2fd514b2bcbea7b4150c7337f96479c70"
   RELATED_IMAGE_ODH_MCP_LIFECYCLE_MODULE_OPERATOR_IMAGE:
     component: mcplifecycleoperator
     tagTemplate: "{SHA}"
