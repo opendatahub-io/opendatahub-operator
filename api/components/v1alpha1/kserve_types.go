@@ -137,6 +137,16 @@ type KserveCommonSpec struct {
 	// releases that did not restrict Pod traffic across upgrades.
 	// +optional
 	EnableLLMInferenceServiceStrictNetworkPolicy *bool `json:"enableLLMInferenceServiceStrictNetworkPolicy,omitempty"`
+	// Enables the disaggregatedSet feature gate of the LLMInferenceService
+	// controller. When enabled, prefill/decode LLMInferenceServices whose merged
+	// spec.annotations set serving.kserve.io/enable-disaggregated-set to "true",
+	// as the prefill/decode presets do, run both roles as one DisaggregatedSet.
+	// Requires the DisaggregatedSet CRD from LWS v0.9.0 or later. Changing it
+	// replaces the workloads of running prefill/decode services, and each
+	// service is unavailable until its new pods are ready. A service keeps its
+	// workloads by setting the annotation to "false". Disabled when unset.
+	// +optional
+	EnableLLMInferenceServiceDisaggregatedSet *bool `json:"enableLLMInferenceServiceDisaggregatedSet,omitempty"`
 	// Configures and enables Model Cache integration
 	ModelCache *ModelCacheSpec `json:"modelCache,omitempty"`
 }
