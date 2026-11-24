@@ -41,7 +41,12 @@ func TestDataConnectHubInvalidConversionMarkers(t *testing.T) {
 	for _, value := range []string{
 		`{}`, `null`, `broken`, `{"managementState":"Unmanaged"}`,
 		`{"managementState":"Managed","gateway":{"name":"gateway"}}`,
+		`{"managementState":"Managed","gateway":{"name":" ","namespace":"ingress"}}`,
+		`{"managementState":"Managed","gateway":{"name":"gateway","namespace":"\t\n"}}`,
+		`{"managementState":"Managed","gateway":{"name":"\u00a0","namespace":"ingress"}}`,
 		`{"managementState":"Managed","tokenReviewAudiences":[""]}`,
+		`{"managementState":"Managed","tokenReviewAudiences":[" "]}`,
+		`{"managementState":"Managed","tokenReviewAudiences":["\u3000"]}`,
 		`{"managementState":"Managed","tokenReviewAudiences":["same","same"]}`,
 		`{"managementState":"Managed","tokenReviewAudiences":["` + strings.Repeat("a", 257) + `"]}`,
 	} {

@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -140,7 +141,7 @@ func (ctx *DataModuleTestCtx) ValidateDataConnectHubLifecycle(t *testing.T) {
 
 	// Release our own finalizer even if an assertion fails, before restoring
 	// the DSC snapshot; otherwise test cleanup could strand the whole module.
-	heldUID := application.GetUID()
+	var heldUID types.UID
 	releaseFinalizer := func() error {
 		return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			fresh := &unstructured.Unstructured{}
@@ -158,13 +159,9 @@ func (ctx *DataModuleTestCtx) ValidateDataConnectHubLifecycle(t *testing.T) {
 		})
 	}
 	t.Cleanup(func() { require.NoError(t, releaseFinalizer()) })
-	g.Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		if err := ctx.Client().Get(requestCtx, applicationNN, application); err != nil {
-			return err
-		}
-		controllerutil.AddFinalizer(application, cleanupFinalizer)
-		return ctx.Client().Update(requestCtx, application)
-	})).To(Succeed())
+	var err error
+	heldUID, err = addFinalizerToCurrentResource(requestCtx, ctx.Client(), application, cleanupFinalizer)
+	g.Expect(err).To(Succeed())
 
 	ctx.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
@@ -202,6 +199,23 @@ func (ctx *DataModuleTestCtx) ValidateDataConnectHubLifecycle(t *testing.T) {
 	ctx.ValidateFeastOperatorDeployed(t)
 	ctx.EnsureResourceExists(WithMinimalObject(gvk.CustomResourceDefinition,
 		types.NamespacedName{Name: "dataconnectservices.dataconnecthub.opendatahub.io"}))
+}
+
+// addFinalizerToCurrentResource returns the UID read by the update attempt, not
+// a previous observation of the same name. Return it even on an update error so
+// cleanup can handle a request whose response was lost after the server applied it.
+func addFinalizerToCurrentResource(ctx context.Context, cli client.Client, obj client.Object, finalizer string) (types.UID, error) {
+	var heldUID types.UID
+	key := client.ObjectKeyFromObject(obj)
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if err := cli.Get(ctx, key, obj); err != nil {
+			return err
+		}
+		heldUID = obj.GetUID()
+		controllerutil.AddFinalizer(obj, finalizer)
+		return cli.Update(ctx, obj)
+	})
+	return heldUID, err
 }
 
 // ValidateV2DSCDataSelection proves that the v2 FeastOperator stanza still

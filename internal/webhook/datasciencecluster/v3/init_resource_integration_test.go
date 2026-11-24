@@ -4,11 +4,13 @@ import (
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dscApi "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v3"
 	v2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
 	v3webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v3"
@@ -179,4 +181,22 @@ func TestDefaultDSCFromSampleAdmittedByAPIServer(t *testing.T) {
 	invalid := updated.DeepCopy()
 	invalid.Spec.Components.Data.DataConnectHub.Gateway.Namespace = ""
 	g.Expect(env.Client().Update(ctx, invalid)).NotTo(Succeed(), "DCH Gateway namespace must not be empty")
+	for _, whitespace := range []string{" ", "\t\n", "\u00a0", "\u3000"} {
+		for _, field := range []string{"gateway name", "gateway namespace", "audience"} {
+			invalid := updated.DeepCopy()
+			dch := &invalid.Spec.Components.Data.DataConnectHub
+			switch field {
+			case "gateway name":
+				dch.Gateway.Name = whitespace
+			case "gateway namespace":
+				dch.Gateway.Namespace = whitespace
+			case "audience":
+				dch.TokenReviewAudiences = []string{whitespace}
+			}
+			err := env.Client().Update(ctx, invalid)
+			g.Expect(k8serr.IsInvalid(err)).To(BeTrue(), "v3 must reject blank %s %q: %v", field, whitespace, err)
+			var legacy dscv2.DataScienceCluster
+			g.Expect(legacy.ConvertFrom(invalid)).NotTo(Succeed(), "v2 conversion must also reject blank %s %q", field, whitespace)
+		}
+	}
 }

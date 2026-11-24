@@ -38,11 +38,13 @@ type DataConnectHubGateway struct {
 	// Name is the Gateway resource name.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:XValidation:rule="self.trim() != ''",message="Gateway name must not be blank"
 	Name string `json:"name"`
 
 	// Namespace contains the Gateway resource.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:XValidation:rule="self.trim() != ''",message="Gateway namespace must not be blank"
 	Namespace string `json:"namespace"`
 }
 
@@ -59,6 +61,7 @@ type DSCDataConnectHub struct {
 	// +kubebuilder:validation:MaxItems=32
 	// +kubebuilder:validation:items:MinLength=1
 	// +kubebuilder:validation:items:MaxLength=256
+	// +kubebuilder:validation:XValidation:rule="self.all(audience, audience.trim() != '')",message="TokenReview audiences must not be blank"
 	// +listType=set
 	// +optional
 	TokenReviewAudiences []string `json:"tokenReviewAudiences,omitempty"`
