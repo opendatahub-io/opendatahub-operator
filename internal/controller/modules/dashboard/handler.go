@@ -190,11 +190,14 @@ func SyncNamespacedRBACOptIns(ctx context.Context, cli client.Client, dscCtx *mo
 	}
 	managed := map[string]*corev1.Namespace{}
 	var managedNamespaces corev1.NamespaceList
-	if err := cli.List(ctx, &managedNamespaces, client.MatchingLabels{namespacedRBACManagedAnnotation: namespacedRBACManagedValue}); err != nil {
+	if err := cli.List(ctx, &managedNamespaces); err != nil {
 		return fmt.Errorf("listing dashboard-managed namespaced RBAC targets: %w", err)
 	}
 	for i := range managedNamespaces.Items {
 		namespace := &managedNamespaces.Items[i]
+		if namespace.Annotations[namespacedRBACManagedAnnotation] != namespacedRBACManagedValue {
+			continue
+		}
 		managed[namespace.Name] = namespace
 	}
 	for i := range optedIn.Items {

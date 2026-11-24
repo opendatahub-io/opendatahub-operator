@@ -564,6 +564,8 @@ func TestSyncNamespacedRBACOptIns_ClaimsAndReleasesOnlyOperatorManagedLabels(t *
 	g.Expect(namespace.Annotations).Should(HaveKeyWithValue("dashboard.opendatahub.io/namespaced-rbac-managed-by", "opendatahub-operator"))
 
 	dscCtx.DSC.Spec.Components.Dashboard.Standard.ManagementState = operatorv1.Removed
+	delete(namespace.Labels, "dashboard.opendatahub.io/allow-namespaced-rbac")
+	g.Expect(cli.Update(t.Context(), namespace)).Should(Succeed())
 	g.Expect(dashboard.SyncNamespacedRBACOptIns(t.Context(), cli, dscCtx, newModuleCRConfigWithRelease(cluster.SelfManagedRhoai))).Should(Succeed())
 	g.Expect(cli.Get(t.Context(), types.NamespacedName{Name: "managed-target"}, namespace)).Should(Succeed())
 	g.Expect(namespace.Labels).ShouldNot(HaveKey("dashboard.opendatahub.io/allow-namespaced-rbac"))
