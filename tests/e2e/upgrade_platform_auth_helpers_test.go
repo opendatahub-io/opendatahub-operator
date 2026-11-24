@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -74,13 +75,19 @@ func normalizedArg(arg string) (string, bool) {
 	return flag, true
 }
 
-// argDigestEntries maps each non-transport container arg to the SHA-256
-// digest of its value, keyed by normalized flag name. Values are hashed,
-// never stored or logged in clear text, so an arg that evolves to carry
-// credentials cannot leak through the baseline ConfigMap or failure
-// messages. It returns an error if any arg starts with a secret-like flag
-// (--cookie-secret, --client-secret): secret-bearing args are refused, not
-// fingerprinted. The error names the flag only, never the value.
+// argDigestEntries maps each non-transport container arg to a SHA-256 digest
+// of its value, keyed by normalized flag name. A flag occurring more than
+// once digests the sorted multiset of its values joined with a NUL
+// separator, so dropping or adding one occurrence of a multi-value flag —
+// e.g. --skip-auth-route, whose values carve auth-bypass paths — changes
+// the entry, while occurrence order alone does not. A flag occurring once
+// digests its value alone, keeping baselines recorded by earlier suite
+// versions comparable. Values are hashed, never stored or logged in clear
+// text, so an arg that evolves to carry credentials cannot leak through the
+// baseline ConfigMap or failure messages. It returns an error if any arg
+// starts with a secret-like flag (--cookie-secret, --client-secret):
+// secret-bearing args are refused, not fingerprinted. The error names the
+// flag only, never the value.
 func argDigestEntries(args []string) (map[string]string, error) {
 	for _, arg := range args {
 		lowerArg := strings.ToLower(arg)
@@ -94,14 +101,25 @@ func argDigestEntries(args []string) (map[string]string, error) {
 		}
 	}
 
-	entries := make(map[string]string, len(args))
+	valuesByFlag := make(map[string][]string, len(args))
 	for _, arg := range args {
 		normalized, ok := normalizedArg(arg)
 		if !ok {
 			continue
 		}
 		flag, value, _ := strings.Cut(normalized, "=")
-		entries[flag] = sha256Hex(value)
+		valuesByFlag[flag] = append(valuesByFlag[flag], value)
+	}
+
+	entries := make(map[string]string, len(valuesByFlag))
+	for flag, values := range valuesByFlag {
+		if len(values) == 1 {
+			entries[flag] = sha256Hex(values[0])
+			continue
+		}
+		sorted := slices.Clone(values)
+		slices.Sort(sorted)
+		entries[flag] = sha256Hex(strings.Join(sorted, "\x00"))
 	}
 	return entries, nil
 }
@@ -302,6 +320,40 @@ func TestArgDigestEntriesDigests(t *testing.T) {
 			require.Equal(t, tt.want, entries)
 		})
 	}
+}
+
+// TestArgDigestEntriesRepeatedFlags pins that every occurrence of a repeated
+// flag enters the comparison: the entry digest covers the sorted multiset of
+// the flag's values, joined with a NUL separator. Last-write-wins digests
+// would let an upgrade silently drop one occurrence of a multi-value flag
+// such as --skip-auth-route, whose values carve auth-bypass paths.
+func TestArgDigestEntriesRepeatedFlags(t *testing.T) {
+	baseline, err := argDigestEntries([]string{"--skip-auth-route=/a", "--skip-auth-route=/b"})
+	require.NoError(t, err)
+
+	// Occurrence order alone must not register as a change.
+	reordered, err := argDigestEntries([]string{"--skip-auth-route=/b", "--skip-auth-route=/a"})
+	require.NoError(t, err)
+	require.Equal(t, baseline, reordered, "reordering occurrences of a repeated flag must not change the digest")
+
+	// Dropping one occurrence must register: with last-write-wins digests,
+	// an upgrade dropping the first of two values is invisible, because
+	// both sides digest only the surviving last value.
+	droppedFirst, err := argDigestEntries([]string{"--skip-auth-route=/b"})
+	require.NoError(t, err)
+	require.NotEqual(t, baseline["--skip-auth-route"], droppedFirst["--skip-auth-route"],
+		"dropping one occurrence of a repeated flag must change the digest")
+
+	// The digest is over the sorted values joined with a NUL separator.
+	require.Equal(t, sha256Hex("/a\x00/b"), baseline["--skip-auth-route"])
+
+	// Baseline compatibility: a flag occurring once digests its value
+	// alone — no separator, no list framing — so baselines recorded before
+	// repeated-flag support remain comparable for flags that never repeat.
+	single, err := argDigestEntries([]string{"--cookie-name=_oauth2_proxy"})
+	require.NoError(t, err)
+	require.Equal(t, "f741b64673dd2d1ea4fc98e2417ecd59556bfa00f0b3c2b88b1257768765e3b5",
+		single["--cookie-name"])
 }
 
 // TestSecretDataDigests verifies per-key digests of a Secret's data values

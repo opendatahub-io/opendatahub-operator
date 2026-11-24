@@ -698,7 +698,7 @@ func TestRequireSecretKeyPresentDoesNotLeakValues(t *testing.T) {
 // Deployment UIDs are compared too, so a delete-and-recreate during the
 // upgrade fails loudly, and the kube-auth-proxy args are compared as an
 // exact map (both directions): a flag added post-upgrade fails just like a
-// removed one. Failure messages name resources, flags and baseline keys;
+// removed one, and every occurrence of a repeated flag enters its entry. Failure messages name resources, flags and baseline keys;
 // digests may appear in diffs, raw secret values never.
 
 // requirePostUpgradeBaseline loads the baseline ConfigMap captured by the
@@ -1195,7 +1195,8 @@ func TestPostUpgradeKubeAuthProxyIdentityPreserved(t *testing.T) {
 		upgradeBaselineNamespace, upgradeBaselineCMName, baselineKeyPrefixAuthProxyArgs)
 
 	// Exact map equality compares both directions at once: a flag removed
-	// by the upgrade and a flag added by it fail equally. The diff carries
+	// by the upgrade and a flag added by it fail equally, and so does a
+	// change in a repeated flag's occurrence set. The diff carries
 	// flag names and value digests only, never raw values.
 	require.Equal(t, baselineArgEntries, currentArgEntries,
 		"Deployment %s/%s container %s args changed after the upgrade "+
