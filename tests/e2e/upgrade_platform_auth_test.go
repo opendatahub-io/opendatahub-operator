@@ -389,6 +389,27 @@ func deploymentAvailable(deployment *appsv1.Deployment) bool {
 	return false
 }
 
+// deploymentRolledOut reports whether the Deployment's current generation
+// has fully rolled out: the status observes the generation, every desired
+// replica runs the updated template, all desired replicas are available,
+// and no replicas beyond the desired count remain. The last condition is
+// what rejects a stalled surge rollout: updated and available counts can
+// both sit at the desired value while a surplus old pod — the pre-upgrade
+// proxy — is still the one serving and the updated pod never becomes ready.
+// AvailableReplicas never exceeds total Replicas, so together the available
+// and total checks pin the serving pods at exactly the desired, updated
+// count, the same convergence kubectl rollout status waits for.
+func deploymentRolledOut(deployment *appsv1.Deployment) bool {
+	desired := int32(1)
+	if deployment.Spec.Replicas != nil {
+		desired = *deployment.Spec.Replicas
+	}
+	return deployment.Status.ObservedGeneration == deployment.Generation &&
+		deployment.Status.UpdatedReplicas == desired &&
+		deployment.Status.AvailableReplicas == desired &&
+		deployment.Status.Replicas == desired
+}
+
 // authProxyContainer returns the kube-auth-proxy container of the Deployment,
 // or nil when absent. The container is named after the proxy itself; see the
 // upgradeAuthProxyName comment.
@@ -690,6 +711,61 @@ func TestRequireSecretKeyPresentDoesNotLeakValues(t *testing.T) {
 	})
 }
 
+// TestDeploymentRolledOut pins the rollout-completeness predicate, above all
+// the stalled-surge case: updated and available counts can both sit at the
+// desired value while a surplus old pod — the pre-upgrade proxy — is still
+// the one serving and the updated pod never becomes ready. Total replicas
+// beyond the desired count must reject the rollout as incomplete, the same
+// condition kubectl rollout status waits for. No cluster access.
+func TestDeploymentRolledOut(t *testing.T) {
+	deployment := func(generation, observed int64, updated, available, total int32) *appsv1.Deployment {
+		desired := int32(1)
+		return &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Generation: generation},
+			Spec:       appsv1.DeploymentSpec{Replicas: &desired},
+			Status: appsv1.DeploymentStatus{
+				ObservedGeneration: observed,
+				UpdatedReplicas:    updated,
+				AvailableReplicas:  available,
+				Replicas:           total,
+			},
+		}
+	}
+
+	tests := []struct {
+		name string
+		d    *appsv1.Deployment
+		want bool
+	}{
+		{name: "completed rollout", d: deployment(2, 2, 1, 1, 1), want: true},
+		{name: "stalled surge keeps a surplus old pod serving", d: deployment(2, 2, 1, 1, 2), want: false},
+		{name: "status does not observe the current generation", d: deployment(2, 1, 1, 1, 1), want: false},
+		{name: "updated pod not yet available", d: deployment(2, 2, 1, 0, 1), want: false},
+		{name: "old template still in place", d: deployment(2, 2, 0, 1, 1), want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, deploymentRolledOut(tt.d))
+		})
+	}
+
+	t.Run("nil replicas defaults to one", func(t *testing.T) {
+		d := deployment(1, 1, 1, 1, 1)
+		d.Spec.Replicas = nil
+		require.True(t, deploymentRolledOut(d))
+	})
+
+	t.Run("scaled deployment requires the full count with no surplus", func(t *testing.T) {
+		replicas := int32(3)
+		d := deployment(2, 2, 3, 3, 4)
+		d.Spec.Replicas = &replicas
+		require.False(t, deploymentRolledOut(d))
+		d.Status.Replicas = 3
+		require.True(t, deploymentRolledOut(d))
+	})
+}
+
 // PostUpgrade phase: the seven preservation tests. Each loads the baseline
 // ConfigMap captured by the PreUpgrade phase and compares the live auth
 // stack against it. A real upgrade legitimately advances the kube-auth-proxy
@@ -737,7 +813,7 @@ func requireBaselineEntry(t *testing.T, baseline map[string]string, key string) 
 // baseline's full kubeauthproxy.image reference (digest or tag included) is
 // parsed on both sides.
 func imageRepository(image string) string {
-	repository := strings.SplitN(image, "@", 2)[0]
+	repository, _, _ := strings.Cut(image, "@")
 	if colonIndex := strings.LastIndex(repository, ":"); colonIndex > strings.LastIndex(repository, "/") {
 		repository = repository[:colonIndex]
 	}
@@ -1185,8 +1261,8 @@ func TestPostUpgradeKubeAuthProxyIdentityPreserved(t *testing.T) {
 	// a baseline carrying none is an incomplete capture, a failure.
 	baselineArgEntries := make(map[string]string)
 	for key, value := range baseline {
-		if strings.HasPrefix(key, baselineKeyPrefixAuthProxyArgs) {
-			baselineArgEntries[strings.TrimPrefix(key, baselineKeyPrefixAuthProxyArgs)] = value
+		if flag, ok := strings.CutPrefix(key, baselineKeyPrefixAuthProxyArgs); ok {
+			baselineArgEntries[flag] = value
 		}
 	}
 	require.NotEmpty(t, baselineArgEntries,
@@ -1206,9 +1282,11 @@ func TestPostUpgradeKubeAuthProxyIdentityPreserved(t *testing.T) {
 
 // TestPostUpgradeKubeAuthProxyAvailableAfterUpgrade verifies that the
 // upgraded kube-auth-proxy rollout completed: the Deployment reports
-// Available, its status observes the current generation, and its updated
-// and available replicas sit at the desired count (Available=True alone can
-// be satisfied by old pods during a failed rollout).
+// Available and deploymentRolledOut holds — the status observes the current
+// generation, all desired replicas are updated and available, and no
+// replicas beyond the desired count remain. Available=True alone can be
+// satisfied by old pods during a failed rollout, and so can the updated and
+// available counts during a stalled surge; see deploymentRolledOut.
 func TestPostUpgradeKubeAuthProxyAvailableAfterUpgrade(t *testing.T) {
 	skipUnlessUpgradePhase(t, PostUpgrade)
 
@@ -1229,14 +1307,13 @@ func TestPostUpgradeKubeAuthProxyAvailableAfterUpgrade(t *testing.T) {
 		if deployment.Spec.Replicas != nil {
 			desiredReplicas = *deployment.Spec.Replicas
 		}
-		g.Expect(deployment.Status.ObservedGeneration).To(Equal(deployment.Generation),
-			"Deployment %s/%s status should observe the current generation after the upgrade; the rollout has not been observed",
-			upgradeAuthNamespace, upgradeAuthProxyName)
-		g.Expect(deployment.Status.UpdatedReplicas).To(Equal(desiredReplicas),
-			"Deployment %s/%s should have all %d replicas updated after the upgrade; the upgraded auth proxy has not rolled out",
-			upgradeAuthNamespace, upgradeAuthProxyName, desiredReplicas)
-		g.Expect(deployment.Status.AvailableReplicas).To(Equal(desiredReplicas),
-			"Deployment %s/%s should have all %d replicas available after the upgrade; the upgraded auth proxy is not fully serving",
-			upgradeAuthNamespace, upgradeAuthProxyName, desiredReplicas)
+		g.Expect(deploymentRolledOut(deployment)).To(BeTrue(),
+			"Deployment %s/%s should be fully rolled out after the upgrade: generation %d observed %d, "+
+				"%d updated, %d available, %d total, %d desired — total beyond desired means "+
+				"pre-upgrade pods are still the ones serving",
+			upgradeAuthNamespace, upgradeAuthProxyName,
+			deployment.Generation, deployment.Status.ObservedGeneration,
+			deployment.Status.UpdatedReplicas, deployment.Status.AvailableReplicas,
+			deployment.Status.Replicas, desiredReplicas)
 	}, tc.TestTimeouts.authGatewayTimeout, 2*time.Second).Should(Succeed())
 }
