@@ -14,7 +14,7 @@ same published, immutable upstream dependency while Feast
 [#61](https://github.com/opendatahub-io/feast-module-operator/pull/61) is reviewed:
 
 - Chart: `opendatahub-io/feast-module-operator`,
-  `refs/pull/61/head@bf37e050140dbe81e99c94baa6559c20bf162aeb`, `config/chart`.
+  `HEAD@bf37e050140dbe81e99c94baa6559c20bf162aeb`, `config/chart`.
 - Module image:
   `quay.io/opendatahub/odh-feast-module-operator@sha256:7299036ff265d230be170eab8f72f9f1dfcb23cc3b921475c7612086be3c25d0`.
 - Successful Konflux PipelineRun:
@@ -23,6 +23,13 @@ same published, immutable upstream dependency while Feast
   All 122 files under the image's `/manifests` match that source byte-for-byte.
 - The published image index contains Linux amd64 only. This is not validation
   of other architectures, product certification, or downstream release delivery.
+
+`HEAD` is only the downloader's tracking label: its `branch@SHA` handling
+fetches and checks out the full SHA after `@`, not the current repository HEAD.
+The original `refs/pull/61/head@SHA` spelling produced two false image-tag
+findings in disconnected-readiness-scorer. The equivalent `HEAD@SHA` spelling
+keeps the exact source pin without resembling a registry image path. No image
+digest, scanner rule, or exception is changed.
 
 The image digests are temporarily marked `pinned` so digest resolution cannot
 silently restore an incompatible older module. RHOAI-mode CI intentionally uses
@@ -48,6 +55,12 @@ not establish DCH-enabled operand readiness or lifecycle correctness.
   cluster-free helper regression, not live lifecycle execution.
 - `go -C cmd/manifest-tools test ./...`: passed.
 - `go mod tidy`: no dependency changes.
+- Disconnected scorer at CI revision
+  `17c05e1d46680a47ecfc5a822ddf6f465f7baa8b`, with its unchanged central
+  configuration: reproduced two `no-image-tags` blockers before the Git-ref
+  spelling fix; all five rules pass with zero blockers afterward. The real
+  downloader fetched byte-identical charts (15 files each) for both platforms
+  with the new spelling, and both charts pass Helm lint.
 
 Fresh Prow results are still required. These local checks do not exercise a
 live cluster or resolve the separate Konflux publisher failure.

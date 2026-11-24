@@ -181,13 +181,14 @@ componentCharts:
     # Pre-merge CI dependency: Feast #61. Replace both sources with accepted
     # upstream/downstream revisions and matching release images before merge.
     # See docs/dch-onboarding-validation.md; these are not RHOAI release pins.
+    # HEAD is a tracking label; the downloader fetches the exact SHA after @.
     odh:
       repo: opendatahub-io/feast-module-operator
-      ref: refs/pull/61/head@bf37e050140dbe81e99c94baa6559c20bf162aeb
+      ref: HEAD@bf37e050140dbe81e99c94baa6559c20bf162aeb
       sourcePath: config/chart
     rhoai:
       repo: opendatahub-io/feast-module-operator
-      ref: refs/pull/61/head@bf37e050140dbe81e99c94baa6559c20bf162aeb
+      ref: HEAD@bf37e050140dbe81e99c94baa6559c20bf162aeb
       sourcePath: config/chart
   databaseservice:
     odh:
